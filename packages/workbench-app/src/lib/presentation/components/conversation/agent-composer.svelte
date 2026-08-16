@@ -111,6 +111,7 @@ function submit(): void {
       thinkingShortcut={model.thinkingShortcut}
       approvalPolicy={model.approvalPolicy}
       contextUsage={model.contextUsage}
+      conversationUsage={model.conversationUsage}
       contextWindow={model.contextWindow ?? 0}
       compacting={model.compacting}
       compactDisabled={blocked || !actions.onCompact}

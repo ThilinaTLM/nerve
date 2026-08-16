@@ -42,6 +42,7 @@ let {
   models = [],
   selectedModelKey = "",
   contextUsage,
+  conversationUsage,
   contextWindow = 0,
   todos = [],
   focusToken = 0,
@@ -340,6 +341,7 @@ function handleMicContextMenu(event: MouseEvent) {
     permissionLevel,
     approvalPolicy,
     contextUsage,
+    conversationUsage,
     contextWindow,
     placeholder: pendingApproval
       ? "Approval required before the agent can continue"

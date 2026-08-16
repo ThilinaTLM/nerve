@@ -18,7 +18,9 @@ import type {
 } from "$lib/api";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { notify } from "$lib/features/notifications/notify.svelte";
+import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 import ContextAgentsTree from "./ContextAgentsTree.svelte";
+import ContextConversationUsage from "./ContextConversationUsage.svelte";
 import ContextExportMenu from "./ContextExportMenu.svelte";
 import ContextSessionSection from "./ContextSessionSection.svelte";
 import ContextUsageStrip from "./ContextUsageStrip.svelte";
@@ -27,6 +29,7 @@ import { sessionFields, sessionFieldsText } from "./context-session-fields";
 type Props = {
   status?: StatusResponse;
   contextUsage?: ContextUsage;
+  conversationUsage: ConversationUsageSummary;
   contextWindow?: number;
   activeProject?: ProjectRecord;
   activeConversation?: ConversationRecord;
@@ -42,6 +45,7 @@ type Props = {
 let {
   status,
   contextUsage,
+  conversationUsage,
   contextWindow = 0,
   activeProject,
   activeConversation,
@@ -111,6 +115,7 @@ async function copySession(): Promise<void> {
           {compacting ? "Compacting…" : "Compact"}
         </Button>
       </ContextUsageStrip>
+      <ContextConversationUsage {conversationUsage} />
       <div class="flex min-w-0 flex-col">
         <ContextSessionSection {fields} />
       </div>

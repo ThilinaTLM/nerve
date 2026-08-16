@@ -1,6 +1,4 @@
 import path from "node:path";
-import type { TaskRecord } from "@nervekit/contracts";
-import { isActiveTaskStatus } from "./task-status.js";
 
 export function isPathInDirectoryTree(
   root: string,
@@ -17,18 +15,4 @@ export function isPathInDirectoryTree(
       !relative.startsWith(`..${flavor.sep}`) &&
       !flavor.isAbsolute(relative))
   );
-}
-
-export function activeBackgroundTaskIdsInDirectoryTree(
-  tasks: readonly TaskRecord[],
-  root: string,
-): string[] {
-  return tasks
-    .filter(
-      (task) =>
-        task.visibility !== "foreground" &&
-        isActiveTaskStatus(task.status) &&
-        isPathInDirectoryTree(root, task.cwd),
-    )
-    .map((task) => task.id);
 }

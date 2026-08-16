@@ -147,7 +147,6 @@ export async function executeWorkbenchHarness(
         resources,
         {
           planDir: planDirForStorageHome(this.deps.storage.paths.home),
-          tasks: this.deps.tasks.listTasks(),
         },
       );
     };

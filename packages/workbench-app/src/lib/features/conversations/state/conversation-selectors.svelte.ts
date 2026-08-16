@@ -4,6 +4,7 @@ import {
   scopedUsableModelOptions,
 } from "$lib/presentation/utils/model";
 import { activeRunStreamingText } from "$lib/presentation/state";
+import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
 import type { PlanReviewRecord, UserQuestionRecord } from "$lib/api";
 import {
   conversationViewKey,
@@ -149,23 +150,7 @@ const conversationSelectorsValue = {
     return activeView()?.contextUsage?.contextWindow ?? 0;
   },
   get activeConversationUsage() {
-    const totals = {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-      cost: 0,
-    };
-
-    for (const entry of activeView()?.entries ?? []) {
-      if (!entry.usage) continue;
-      totals.input += entry.usage.input;
-      totals.output += entry.usage.output;
-      totals.cacheRead += entry.usage.cacheRead;
-      totals.cacheWrite += entry.usage.cacheWrite;
-      totals.cost += entry.usage.cost;
-    }
-    return totals;
+    return summarizeConversationUsage(activeView()?.entries ?? []);
   },
   get usableModels() {
     return scopedUsableModelOptions(

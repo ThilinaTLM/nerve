@@ -51,6 +51,7 @@ let {
   planReviewModelKey = "",
   planReviewThinkingLevel = "off",
   contextUsage,
+  conversationUsage,
   contextWindow = 0,
   composerFocusToken = 0,
   composerEscapeToken = 0,
@@ -247,6 +248,7 @@ function menuForTranscript(
       permissionLevel,
       approvalPolicy,
       contextUsage,
+      conversationUsage,
       contextWindow,
       capabilities: {
         voice: true,
@@ -292,6 +294,7 @@ function menuForTranscript(
       {models}
       {selectedModelKey}
       {contextUsage}
+      {conversationUsage}
       {contextWindow}
       todos={composerTodos}
       focusToken={composerFocusToken}

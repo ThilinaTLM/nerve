@@ -7,6 +7,7 @@ let {
   value,
   mono = false,
   dense = false,
+  labelClass,
   title,
   actions,
   children,
@@ -16,6 +17,7 @@ let {
   mono?: boolean;
   /** Tightens the row rhythm for dense property lists. */
   dense?: boolean;
+  labelClass?: string;
   title?: string;
   actions?: Snippet;
   /** Custom value rendering; replaces `value`. */
@@ -33,6 +35,7 @@ let {
     class={cn(
       "shrink-0 truncate text-muted-foreground",
       dense ? "w-20" : "w-24",
+      labelClass,
     )}>{label}</span
   >
   <div class={cn("min-w-0 flex-1 truncate", mono && "font-mono")} {title}>

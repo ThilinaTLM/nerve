@@ -17,9 +17,15 @@ import {
 } from "@nervekit/ui-kit/components/ui/progress-ring";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { formatTokens, usageTone } from "@nervekit/ui-kit/core/utils/usage";
+import {
+  conversationUsageMetrics,
+  emptyConversationUsage,
+  type ConversationUsageSummary,
+} from "../../usage/conversation-usage.js";
 
 type Props = {
   contextUsage?: ContextUsage;
+  conversationUsage?: ConversationUsageSummary;
   contextWindow?: number;
   compacting?: boolean;
   compactDisabled?: boolean;
@@ -28,6 +34,7 @@ type Props = {
 
 let {
   contextUsage,
+  conversationUsage,
   contextWindow = 0,
   compacting = false,
   compactDisabled = false,
@@ -41,6 +48,14 @@ const contextLimit = $derived(
   contextWindow || contextUsage?.contextWindow || 0,
 );
 const tokens = $derived(contextUsage?.tokens ?? null);
+const conversationMetrics = $derived(
+  conversationUsageMetrics(conversationUsage ?? emptyConversationUsage()),
+);
+const cacheRateLabel = $derived(
+  conversationMetrics.cacheRate == null
+    ? "Unavailable"
+    : `${Math.round(conversationMetrics.cacheRate)}%`,
+);
 const percent = $derived.by(() => {
   if (tokens != null && contextLimit > 0) {
     return (tokens / contextLimit) * 100;
@@ -121,7 +136,7 @@ function requestCompact(): void {
     {/snippet}
 
     <PopoverBody>
-      <PopoverHeader title="Context window">
+      <PopoverHeader title="Current context window">
         {#snippet action()}
           <span
             class={cn(
@@ -173,6 +188,52 @@ function requestCompact(): void {
           />
         </PopoverProperties>
       </PopoverSection>
+
+      <PopoverSection label="Conversation usage" separated>
+        {#if conversationMetrics.hasUsage}
+          <PopoverProperties>
+            <PopoverProperty
+              label="Total processed"
+              value={`${conversationMetrics.totalTokens.toLocaleString()} tokens`}
+            />
+            <PopoverProperty
+              label="Prompt input"
+              value={`${conversationMetrics.promptTokens.toLocaleString()} tokens`}
+            />
+            <PopoverProperty
+              label="Output"
+              value={`${conversationMetrics.output.toLocaleString()} tokens`}
+            />
+          </PopoverProperties>
+        {:else}
+          <p class="text-muted-foreground">
+            Available after the first response.
+          </p>
+        {/if}
+      </PopoverSection>
+
+      {#if conversationMetrics.hasUsage}
+        <PopoverSection label="Prompt cache" separated>
+          <PopoverProperties>
+            <PopoverProperty
+              label="Cached input"
+              value={`${conversationMetrics.cachedTokens.toLocaleString()} tokens · ${cacheRateLabel}`}
+              title="Provider-reported cache reads as a share of all prompt input"
+            />
+            <PopoverProperty
+              label="Uncached input"
+              value={`${conversationMetrics.uncachedTokens.toLocaleString()} tokens`}
+            />
+            <PopoverProperty
+              label="Cache writes"
+              value={`${conversationMetrics.cacheWrite.toLocaleString()} tokens`}
+            />
+          </PopoverProperties>
+          <p class="text-muted-foreground">
+            Provider-reported usage for the selected branch.
+          </p>
+        </PopoverSection>
+      {/if}
 
       <Button
         size="xs"

@@ -14,6 +14,7 @@ import {
   modelKey,
   scopedUsableModelOptions,
 } from "$lib/presentation/utils/model";
+import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import WorkbenchConversationAdapter from "$lib/features/conversations/components/WorkbenchConversationAdapter.svelte";
 import {
@@ -222,6 +223,9 @@ const contextWindow = $derived(
     view?.contextUsage?.contextWindow ??
     0,
 );
+const conversationUsage = $derived(
+  summarizeConversationUsage(view?.entries ?? []),
+);
 const builtinSuggestionIcons = {
   "commit-changes": GitCommitHorizontal,
   "commit-on-feature-branch": GitBranchPlus,
@@ -404,6 +408,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   approvalPolicy={selectedApprovalPolicy}
   {slashCompletions}
   contextUsage={view?.contextUsage}
+  {conversationUsage}
   {contextWindow}
   composerFocusToken={composerSignals.focusToken}
   composerEscapeToken={composerSignals.escapeToken}

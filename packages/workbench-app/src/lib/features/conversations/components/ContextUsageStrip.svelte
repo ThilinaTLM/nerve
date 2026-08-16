@@ -63,7 +63,7 @@ const percentClass = $derived(
       viewBox="0 0 120 66"
       class="w-full"
       role="img"
-      aria-label={`Context window usage: ${percentLabel} of ${tokensLabel}`}
+      aria-label={`Current context window usage: ${percentLabel} of ${tokensLabel}`}
     >
       <path
         d={ARC_PATH}

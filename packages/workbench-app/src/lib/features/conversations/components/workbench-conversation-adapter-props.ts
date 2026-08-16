@@ -21,6 +21,7 @@ import type {
   TranscriptItem,
 } from "$lib/core/types/state-types";
 import type { ComposerSuggestion } from "./composer-suggestion";
+import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 
 export type WorkbenchConversationAdapterProps = {
   activeProject?: ProjectRecord;
@@ -49,6 +50,7 @@ export type WorkbenchConversationAdapterProps = {
   planReviewModelKey?: string;
   planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
   contextUsage?: ContextUsage;
+  conversationUsage?: ConversationUsageSummary;
   contextWindow?: number;
   composerFocusToken?: number;
   composerEscapeToken?: number;
