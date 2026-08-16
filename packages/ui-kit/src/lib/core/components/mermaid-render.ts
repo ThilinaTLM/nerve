@@ -1,3 +1,5 @@
+import { LruCache } from "@nervekit/ui-kit/core/utils/lru-cache";
+
 export type MermaidTheme = {
   fingerprint: string;
   dark: boolean;
@@ -16,7 +18,11 @@ export type MermaidRenderResult =
   | { ok: true; svg: string; themeFingerprint: string }
   | { ok: false; themeFingerprint: string };
 
+const MERMAID_RENDER_CACHE_MAX = 100;
+const renderCache = new LruCache<string, string>(MERMAID_RENDER_CACHE_MAX);
+const renderInflight = new Map<string, Promise<string | undefined>>();
 let renderSequence = 0;
+let mountSequence = 0;
 let renderQueue = Promise.resolve();
 
 function cssColor(
@@ -181,27 +187,125 @@ async function renderWithTheme(
   return sanitizeSvg(svg);
 }
 
-export function renderMermaid(
+function renderCacheKey(source: string, theme: MermaidTheme): string {
+  return `${theme.fingerprint}\0${source}`;
+}
+
+function renderCachedMermaid(
   source: string,
-  element: Element,
-): Promise<MermaidRenderResult> {
-  const theme = readMermaidTheme(element);
-  const run = async (): Promise<MermaidRenderResult> => {
-    try {
-      const svg = await renderWithTheme(source, theme);
-      return svg
-        ? { ok: true, svg, themeFingerprint: theme.fingerprint }
-        : { ok: false, themeFingerprint: theme.fingerprint };
-    } catch {
-      return { ok: false, themeFingerprint: theme.fingerprint };
-    }
-  };
+  theme: MermaidTheme,
+): Promise<string | undefined> {
+  const key = renderCacheKey(source, theme);
+  const cached = renderCache.get(key);
+  if (cached !== undefined) return Promise.resolve(cached);
+  const pending = renderInflight.get(key);
+  if (pending) return pending;
+
+  const run = () => renderWithTheme(source, theme);
   const result = renderQueue.then(run, run);
   renderQueue = result.then(
     () => undefined,
     () => undefined,
   );
+  renderInflight.set(key, result);
+  void result.then(
+    (svg) => {
+      if (svg) renderCache.set(key, svg);
+      if (renderInflight.get(key) === result) renderInflight.delete(key);
+    },
+    () => {
+      if (renderInflight.get(key) === result) renderInflight.delete(key);
+    },
+  );
   return result;
+}
+
+export async function renderMermaid(
+  source: string,
+  element: Element,
+): Promise<MermaidRenderResult> {
+  const theme = readMermaidTheme(element);
+  try {
+    const svg = await renderCachedMermaid(source, theme);
+    return svg
+      ? { ok: true, svg, themeFingerprint: theme.fingerprint }
+      : { ok: false, themeFingerprint: theme.fingerprint };
+  } catch {
+    return { ok: false, themeFingerprint: theme.fingerprint };
+  }
+}
+
+export function rewriteMermaidSvgIdReferences(
+  value: string,
+  ids: ReadonlyMap<string, string>,
+): string {
+  let rewritten = value;
+  const entries = Array.from(ids).sort(
+    ([first], [second]) => second.length - first.length,
+  );
+  for (const [original, scoped] of entries) {
+    rewritten = rewritten.replaceAll(`#${original}`, `#${scoped}`);
+  }
+  return rewritten;
+}
+
+function rewriteIdList(
+  value: string,
+  ids: ReadonlyMap<string, string>,
+): string {
+  return value
+    .split(/(\s+)/u)
+    .map((part) => ids.get(part) ?? part)
+    .join("");
+}
+
+function rewriteTimingReferences(
+  value: string,
+  ids: ReadonlyMap<string, string>,
+): string {
+  return value
+    .split(";")
+    .map((part) => {
+      const match = part.match(/^(\s*)([^.]+)(\..*)$/u);
+      if (!match) return part;
+      const scoped = ids.get(match[2]!);
+      return scoped ? `${match[1]}${scoped}${match[3]}` : part;
+    })
+    .join(";");
+}
+
+function scopeMermaidSvgIds(svg: SVGSVGElement): void {
+  const prefix = `nerve-mermaid-mount-${++mountSequence}`;
+  const elements = [svg, ...Array.from(svg.querySelectorAll("*"))];
+  const ids = new Map<string, string>();
+  for (const element of elements) {
+    if (element.id) ids.set(element.id, `${prefix}-${element.id}`);
+  }
+  if (ids.size === 0) return;
+
+  for (const element of elements) {
+    const originalId = element.id;
+    if (originalId) element.id = ids.get(originalId) ?? originalId;
+    for (const attribute of Array.from(element.attributes)) {
+      if (attribute.name === "id") continue;
+      let value = rewriteMermaidSvgIdReferences(attribute.value, ids);
+      if (
+        attribute.name === "aria-labelledby" ||
+        attribute.name === "aria-describedby"
+      ) {
+        value = rewriteIdList(value, ids);
+      } else if (attribute.name === "begin" || attribute.name === "end") {
+        value = rewriteTimingReferences(value, ids);
+      }
+      if (value !== attribute.value)
+        element.setAttribute(attribute.name, value);
+    }
+  }
+  for (const style of svg.querySelectorAll("style")) {
+    if (style.textContent) {
+      style.textContent = rewriteMermaidSvgIdReferences(style.textContent, ids);
+    }
+  }
 }
 
 export function mountMermaidSvg(host: HTMLElement, svg: string): boolean {
@@ -211,7 +315,9 @@ export function mountMermaidSvg(host: HTMLElement, svg: string): boolean {
     parsed.documentElement.tagName !== "svg"
   )
     return false;
-  const mounted = host.ownerDocument.importNode(parsed.documentElement, true);
+  const parsedSvg = parsed.documentElement as unknown as SVGSVGElement;
+  scopeMermaidSvgIds(parsedSvg);
+  const mounted = host.ownerDocument.importNode(parsedSvg, true);
   mounted.setAttribute("role", "img");
   mounted.setAttribute(
     "aria-label",
@@ -219,59 +325,4 @@ export function mountMermaidSvg(host: HTMLElement, svg: string): boolean {
   );
   host.replaceChildren(mounted);
   return true;
-}
-
-export type MermaidEnhancement = { destroy: () => void };
-
-export function enhanceMermaidBlocks(root: HTMLElement): MermaidEnhancement {
-  let generation = 0;
-  const records = Array.from(
-    root.querySelectorAll<HTMLElement>("[data-mermaid-diagram]"),
-  ).map((host) => {
-    const code = host.querySelector("pre > code");
-    return {
-      host,
-      source: code?.textContent ?? "",
-      fallback: host.cloneNode(true) as HTMLElement,
-    };
-  });
-
-  const renderAll = () => {
-    const current = ++generation;
-    for (const record of records) {
-      if (!record.source || !record.host.isConnected) continue;
-      record.host.dataset.state = "loading";
-      void renderMermaid(record.source, record.host).then((result) => {
-        if (
-          current !== generation ||
-          !record.host.isConnected ||
-          !root.contains(record.host)
-        )
-          return;
-        if (result.ok && mountMermaidSvg(record.host, result.svg)) {
-          record.host.dataset.state = "rendered";
-          return;
-        }
-        const fallback = record.fallback.cloneNode(true) as HTMLElement;
-        const status = document.createElement("p");
-        status.className = "mermaid-error";
-        status.textContent = "Diagram could not be rendered";
-        record.host.replaceChildren(...Array.from(fallback.childNodes), status);
-        record.host.dataset.state = "error";
-      });
-    }
-  };
-
-  renderAll();
-  const observer = new MutationObserver(renderAll);
-  observer.observe(root.ownerDocument.documentElement, {
-    attributes: true,
-    attributeFilter: ["class", "data-theme"],
-  });
-  return {
-    destroy() {
-      generation += 1;
-      observer.disconnect();
-    },
-  };
 }

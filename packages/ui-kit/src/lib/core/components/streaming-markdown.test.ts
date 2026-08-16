@@ -30,6 +30,14 @@ describe("splitStreamingMarkdown", () => {
       tail: "Next",
     });
   });
+
+  it("moves a completed Mermaid fence into the renderable prefix", () => {
+    const diagram = "```mermaid\nflowchart TD\n  A --> B\n```\n\n";
+    assert.deepEqual(splitStreamingMarkdown(`${diagram}Still streaming`), {
+      prefix: diagram,
+      tail: "Still streaming",
+    });
+  });
 });
 
 describe("appendedNewline", () => {

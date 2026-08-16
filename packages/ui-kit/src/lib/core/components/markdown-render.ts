@@ -117,7 +117,7 @@ function wrapCodeBlock(pre: Element): Element {
 
 function wrapMermaidBlock(pre: Element): Element {
   const shell = document.createElement("div");
-  shell.className = "mermaid-block";
+  shell.className = "mermaid-block h-80 min-h-64 max-h-96";
   shell.dataset.mermaidDiagram = "";
   shell.setAttribute("aria-label", "Mermaid diagram");
   shell.append(pre.cloneNode(true));

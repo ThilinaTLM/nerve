@@ -1,5 +1,5 @@
 <script lang="ts">
-import { tick, untrack } from "svelte";
+import { mount, tick, unmount, untrack } from "svelte";
 import { writeClipboardText } from "@nervekit/ui-kit/core/clipboard";
 import {
   decorateMarkdownHtml,
@@ -19,10 +19,7 @@ import {
   resolveDisplayPath,
   splitPathLineSuffix,
 } from "@nervekit/ui-kit/core/utils/path-links";
-import {
-  enhanceMermaidBlocks,
-  type MermaidEnhancement,
-} from "./mermaid-render.js";
+import MermaidDiagram from "./MermaidDiagram.svelte";
 
 type Props = {
   text: string;
@@ -137,17 +134,44 @@ function copyButtonHandler(node: HTMLDivElement) {
   };
 }
 
-type MermaidActionValue = { html: string; enabled: boolean };
+type MermaidEnhancement = { destroy: () => void };
 
-function mermaidHandler(node: HTMLDivElement, value: MermaidActionValue) {
+function enhanceMermaidBlocks(root: HTMLElement): MermaidEnhancement {
+  const components: Record<string, unknown>[] = [];
+  for (const host of root.querySelectorAll<HTMLElement>(
+    "[data-mermaid-diagram]",
+  )) {
+    const source = host.querySelector("pre > code")?.textContent ?? "";
+    if (!source.trim()) continue;
+    const ariaLabel = host.getAttribute("aria-label") ?? "Mermaid diagram";
+    host.replaceChildren();
+    components.push(
+      mount(MermaidDiagram, {
+        target: host,
+        props: {
+          source,
+          ariaLabel,
+          class: "h-full w-full",
+        },
+      }),
+    );
+  }
+  return {
+    destroy() {
+      for (const component of components) void unmount(component);
+    },
+  };
+}
+
+function mermaidHandler(node: HTMLDivElement, value: string) {
   let generation = 0;
   let enhancement: MermaidEnhancement | undefined;
 
-  async function update(next: MermaidActionValue) {
+  async function update(nextHtml: string) {
     const current = ++generation;
     enhancement?.destroy();
     enhancement = undefined;
-    if (!next.enabled || !next.html.includes("data-mermaid-diagram")) return;
+    if (!nextHtml.includes("data-mermaid-diagram")) return;
     await tick();
     if (current !== generation) return;
     enhancement = enhanceMermaidBlocks(node);
@@ -260,7 +284,7 @@ $effect(() => () => streamingScheduler.destroy());
   <div
     class="markdown"
     use:copyButtonHandler
-    use:mermaidHandler={{ html: streamingPrefixHtml, enabled: false }}
+    use:mermaidHandler={streamingPrefixHtml}
   >
     <!-- eslint-disable-next-line svelte/no-at-html-tags -- the prefix uses the sanitized Markdown pipeline. -->
     {@html streamingPrefixHtml}
@@ -269,11 +293,7 @@ $effect(() => () => streamingScheduler.destroy());
     {/if}
   </div>
 {:else}
-  <div
-    class="markdown"
-    use:copyButtonHandler
-    use:mermaidHandler={{ html, enabled: true }}
-  >
+  <div class="markdown" use:copyButtonHandler use:mermaidHandler={html}>
     <!-- eslint-disable-next-line svelte/no-at-html-tags -- renderMarkdown applies rehype-sanitize before producing markup. -->
     {@html html}
   </div>
@@ -449,31 +469,11 @@ $effect(() => () => streamingScheduler.destroy());
 }
 
 .markdown :global(.mermaid-block) {
-  display: grid;
-  place-items: center;
   min-width: 0;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--card);
-  padding: 1rem;
-}
-
-.markdown :global(.mermaid-block[data-state="loading"] pre) {
-  opacity: 0.7;
-}
-
-.markdown :global(.mermaid-block svg) {
-  display: block;
-  max-width: 100%;
-  height: auto;
-}
-
-.markdown :global(.mermaid-block .mermaid-error) {
-  justify-self: stretch;
-  margin: 0.5rem 0 0;
-  color: var(--destructive);
-  font-size: var(--text-xs);
 }
 
 .markdown :global(pre) {
