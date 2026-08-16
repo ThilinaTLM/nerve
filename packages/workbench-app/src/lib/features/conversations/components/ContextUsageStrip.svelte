@@ -2,7 +2,7 @@
 import type { Snippet } from "svelte";
 import type { ContextUsage } from "@nervekit/contracts";
 import { cn } from "@nervekit/ui-kit/core/utils";
-import { usageTone } from "@nervekit/ui-kit/core/utils/usage";
+import { formatTokens, usageTone } from "@nervekit/ui-kit/core/utils/usage";
 
 let {
   contextUsage,
@@ -33,12 +33,19 @@ const clampedPercent = $derived(
 const percentLabel = $derived(
   percent == null ? "—" : `${Math.round(percent)}%`,
 );
+/** Compact gauge caption, e.g. "153k / 1M tokens". */
 const tokensLabel = $derived(
   tokens != null && limit > 0
-    ? `${tokens.toLocaleString()} / ${limit.toLocaleString()} tokens`
+    ? `${formatTokens(tokens)} / ${formatTokens(limit)} tokens`
     : limit > 0
-      ? `${limit.toLocaleString()} token window`
+      ? `${formatTokens(limit)} token window`
       : "Usage unknown",
+);
+/** Exact numbers for the aria-label and hover tooltip. */
+const tokensLabelFull = $derived(
+  tokens != null && limit > 0
+    ? `${tokens.toLocaleString()} / ${limit.toLocaleString()} tokens`
+    : tokensLabel,
 );
 const tone = $derived(usageTone(percent));
 const arcClass = $derived(
@@ -63,7 +70,7 @@ const percentClass = $derived(
       viewBox="0 0 120 66"
       class="w-full"
       role="img"
-      aria-label={`Context window usage: ${percentLabel} of ${tokensLabel}`}
+      aria-label={`Context window usage: ${percentLabel} of ${tokensLabelFull}`}
     >
       <path
         d={ARC_PATH}
@@ -90,7 +97,10 @@ const percentClass = $derived(
       <span class={cn("text-xl leading-none font-semibold", percentClass)}>
         {percentLabel}
       </span>
-      <span class="max-w-full truncate text-xs text-muted-foreground">
+      <span
+        class="max-w-full truncate text-xs text-muted-foreground"
+        title={tokensLabelFull}
+      >
         {tokensLabel}
       </span>
       {#if children}

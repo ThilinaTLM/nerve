@@ -59,6 +59,8 @@ export const agentRecordSchema = z.object({
   approvalPolicy: approvalPolicySchema.default(defaultApprovalPolicy),
   workspaceScope: workspaceScopeSchema,
   systemPrompt: z.string().min(1).optional(),
+  /** Subagent work description; present on child agents spawned by orchestration tools. */
+  task: z.string().optional(),
   budget: agentBudgetSchema.default({
     depth: 0,
     maxDepth: 3,
