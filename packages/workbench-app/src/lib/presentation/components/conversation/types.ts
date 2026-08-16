@@ -141,6 +141,9 @@ export type ConversationPaneActions = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
+  onForcePushQueuedPrompts?: (
+    prompt: QueuedPromptRecord,
+  ) => void | Promise<void>;
   onDiscardQueuedPrompt?: (prompt: QueuedPromptRecord) => void | Promise<void>;
   onMoveQueuedPromptToComposer?: (
     prompt: QueuedPromptRecord,
@@ -163,8 +166,10 @@ export type TranscriptMenuTarget =
       kind: "queued_prompt";
       prompt: QueuedPromptRecord;
       busy: boolean;
+      canForcePush: boolean;
       canEdit: boolean;
       canDiscard: boolean;
+      onForcePush: () => void;
       onEdit: () => void;
       onDiscard: () => void;
     };

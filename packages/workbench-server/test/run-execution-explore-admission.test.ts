@@ -22,6 +22,7 @@ function factoryFor(
         steer: async () => undefined,
         followUp: async () => undefined,
         removeQueuedPrompt: async () => false,
+        forcePush: async () => undefined,
         continue: async () => undefined,
         cancel: async () => undefined,
       },

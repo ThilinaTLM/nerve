@@ -182,6 +182,11 @@ export function transcriptMenuModel(
   if (target.kind === "queued_prompt") {
     actionGroup.push(
       {
+        label: "Force push all queued prompts",
+        disabled: target.busy || !target.canForcePush,
+        onSelect: target.onForcePush,
+      },
+      {
         label: "Edit prompt",
         disabled: target.busy || !target.canEdit,
         onSelect: target.onEdit,

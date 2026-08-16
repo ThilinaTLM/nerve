@@ -84,6 +84,9 @@ type Props = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
+  onForcePushQueuedPrompts?: (
+    prompt: QueuedPromptRecord,
+  ) => void | Promise<void>;
   onDiscardQueuedPrompt?: (prompt: QueuedPromptRecord) => void | Promise<void>;
   onMoveQueuedPromptToComposer?: (
     prompt: QueuedPromptRecord,
@@ -137,6 +140,7 @@ let {
   onAcceptPlanReviewInNewChat,
   onRejectPlanReview,
   onContinueFromFailure,
+  onForcePushQueuedPrompts,
   onDiscardQueuedPrompt,
   onMoveQueuedPromptToComposer,
   transcriptMenu,
@@ -467,6 +471,7 @@ $effect(() => {
         {:else}
           <QueuedPromptRow
             prompt={item.prompt}
+            onForcePush={onForcePushQueuedPrompts}
             onDiscard={onDiscardQueuedPrompt}
             onMoveToComposer={onMoveQueuedPromptToComposer}
             {transcriptMenu}

@@ -23,6 +23,7 @@ export class WorkbenchAgentExecutionAdapter implements WorkbenchRunExecutionAdap
   async create(run: RunRecord, sink: RunExecutionSink): Promise<RunExecution> {
     let installed: WorkbenchLiveExecutionControl | undefined;
     let cancelled = false;
+    let forcePushRequested = false;
     const pending: Array<{
       method: "steer" | "followUp";
       prompt: RunPromptRecord;
@@ -44,6 +45,12 @@ export class WorkbenchAgentExecutionAdapter implements WorkbenchRunExecutionAdap
       installed = control;
       if (cancelled) void control.cancel("run cancelled before harness start");
       for (const queued of pending.splice(0)) forward(control, queued);
+      if (forcePushRequested) {
+        forcePushRequested = false;
+        void Promise.all(forwarding.values())
+          .then(() => control.forcePush())
+          .catch(() => undefined);
+      }
     };
 
     const control: WorkbenchLiveExecutionControl = {
@@ -55,9 +62,18 @@ export class WorkbenchAgentExecutionAdapter implements WorkbenchRunExecutionAdap
         if (installed) return installed.followUp(prompt);
         pending.push({ method: "followUp", prompt });
       },
+      forcePush: async () => {
+        if (!installed) {
+          forcePushRequested = true;
+          return;
+        }
+        await Promise.all(forwarding.values());
+        await installed.forcePush();
+      },
       continue: async () => installed?.continue(),
       cancel: async (reason) => {
         cancelled = true;
+        forcePushRequested = false;
         pending.length = 0;
         await installed?.cancel(reason);
       },

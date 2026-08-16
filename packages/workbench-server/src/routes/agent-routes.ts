@@ -84,6 +84,14 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
       }),
     ),
   );
+  app.post(
+    "/agents/:agentId/prompt-queue/force-push",
+    routeHandler(async (c) =>
+      c.json(
+        await state.registry.forcePushQueuedPrompts(routeParam(c, "agentId")),
+      ),
+    ),
+  );
   app.delete(
     "/agents/:agentId/prompt-queue/:queuedPromptId",
     routeHandler(async (c) =>

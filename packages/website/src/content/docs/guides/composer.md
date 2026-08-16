@@ -11,7 +11,7 @@ The composer is the main control surface for a conversation. It combines a Markd
 
 `Enter` and `Ctrl/Cmd+Enter` submit unless a completion menu is open. A new idle conversation starts a run. During an active turn, a normal prompt becomes a steering message and appears as a queued row in the transcript.
 
-A queued prompt can be discarded or **Cancel & Edit**-ed back into the composer. Inline command prompts cannot queue. Stop targets the exact active run; Nerve suppresses duplicate stops and reconciles late completion events.
+A queued prompt can be discarded, **Cancel & Edit**-ed back into the composer, or **Force Push**-ed. Force Push interrupts the current provider request or foreground tool, then flushes every queued prompt immediately in FIFO order without cancelling the overall run. Inline command prompts cannot queue. Stop targets the exact active run; Nerve suppresses duplicate stops and reconciles late completion events.
 
 ## Completions
 

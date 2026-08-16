@@ -84,6 +84,7 @@ let {
   onAcceptPlanReviewInNewChat,
   onRejectPlanReview,
   onContinueFromFailure,
+  onForcePushQueuedPrompts,
   onDiscardQueuedPrompt,
   onMoveQueuedPromptToComposer,
   onNavigateToEntry,
@@ -272,6 +273,7 @@ function menuForTranscript(
     onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
     onContinueFromFailure,
+    onForcePushQueuedPrompts,
     onDiscardQueuedPrompt,
     onMoveQueuedPromptToComposer,
   }}

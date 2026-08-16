@@ -43,6 +43,8 @@ export interface RunExecutionControl {
   steer(prompt: RunPromptRecord): Promise<void>;
   followUp(prompt: RunPromptRecord): Promise<void>;
   removeQueuedPrompt(promptId: string): Promise<boolean>;
+  /** Interrupt the active turn, preserve queued prompts, and drain them immediately. */
+  forcePush(): Promise<void>;
   continue(): Promise<void>;
   cancel(reason?: string): Promise<void>;
 }

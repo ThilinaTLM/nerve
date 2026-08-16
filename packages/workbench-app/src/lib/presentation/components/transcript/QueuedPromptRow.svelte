@@ -1,4 +1,5 @@
 <script lang="ts">
+import ArrowUpToLine from "@lucide/svelte/icons/arrow-up-to-line";
 import ListPlus from "@lucide/svelte/icons/list-plus";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -11,19 +12,27 @@ import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 
 type Props = {
   prompt: QueuedPromptRecord;
+  onForcePush?: (prompt: QueuedPromptRecord) => void | Promise<void>;
   onDiscard?: (prompt: QueuedPromptRecord) => void | Promise<void>;
   onMoveToComposer?: (prompt: QueuedPromptRecord) => void | Promise<void>;
   transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
 };
 
-let { prompt, onDiscard, onMoveToComposer, transcriptMenu }: Props = $props();
-let pendingAction = $state<"edit" | "discard" | undefined>();
+let {
+  prompt,
+  onForcePush,
+  onDiscard,
+  onMoveToComposer,
+  transcriptMenu,
+}: Props = $props();
+let pendingAction = $state<"force-push" | "edit" | "discard" | undefined>();
 
-async function runAction(action: "edit" | "discard") {
+async function runAction(action: "force-push" | "edit" | "discard") {
   if (pendingAction) return;
   pendingAction = action;
   try {
-    if (action === "edit") await onMoveToComposer?.(prompt);
+    if (action === "force-push") await onForcePush?.(prompt);
+    else if (action === "edit") await onMoveToComposer?.(prompt);
     else await onDiscard?.(prompt);
   } catch {
     // Host actions own user-facing error reporting.
@@ -36,8 +45,10 @@ const menuTarget = $derived({
   kind: "queued_prompt" as const,
   prompt,
   busy: Boolean(pendingAction),
+  canForcePush: Boolean(onForcePush),
   canEdit: Boolean(onMoveToComposer),
   canDiscard: Boolean(onDiscard),
+  onForcePush: () => void runAction("force-push"),
   onEdit: () => void runAction("edit"),
   onDiscard: () => void runAction("discard"),
 });
@@ -58,6 +69,25 @@ const menuTarget = $derived({
     </div>
     <div class="queued-actions" role="group" aria-label="Queued prompt actions">
       <Tooltip.Provider delayDuration={300} disableHoverableContent>
+        <Tooltip.Root>
+          <Tooltip.Trigger>
+            {#snippet child({ props })}
+              <Button
+                {...props}
+                variant="ghost"
+                size="icon-xs"
+                disabled={!onForcePush || Boolean(pendingAction)}
+                ariaLabel="Force push all queued prompts"
+                onclick={() => void runAction("force-push")}
+              >
+                <ArrowUpToLine aria-hidden="true" />
+              </Button>
+            {/snippet}
+          </Tooltip.Trigger>
+          <Tooltip.Content sideOffset={4}>
+            Force push all queued prompts
+          </Tooltip.Content>
+        </Tooltip.Root>
         <Tooltip.Root>
           <Tooltip.Trigger>
             {#snippet child({ props })}

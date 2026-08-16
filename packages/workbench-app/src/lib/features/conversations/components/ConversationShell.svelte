@@ -1,5 +1,6 @@
 <script lang="ts">
 import { type QueuedPromptRecord } from "$lib/api";
+import { SvelteSet } from "svelte/reactivity";
 import { protocolRequest } from "@nervekit/protocol";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
@@ -336,6 +337,38 @@ function sendSuggestion(suggestion: { prompt: string }) {
   );
 }
 
+const forcePushesInFlight = new SvelteSet<string>();
+
+function forcePushQueuedPrompts(prompt: QueuedPromptRecord): Promise<void> {
+  return runActivePaneAction(async () => {
+    const key = prompt.runId ?? prompt.agentId;
+    if (forcePushesInFlight.has(key)) return;
+    forcePushesInFlight.add(key);
+    try {
+      const { result } = await protocolRequest(
+        "agent.promptQueue.forcePush",
+        { agentId: prompt.agentId },
+        { idempotencyKey: crypto.randomUUID() },
+      );
+      const pushedIds = new Set(result.queuedPromptIds);
+      const targetView = ensureConversationView(prompt.conversationId);
+      targetView.queuedPrompts = targetView.queuedPrompts.filter(
+        (candidate) => !pushedIds.has(candidate.id),
+      );
+      notify.success(
+        result.queuedPromptIds.length === 1
+          ? "Queued prompt force pushed"
+          : `${result.queuedPromptIds.length} queued prompts force pushed`,
+      );
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      notify.error("Queued prompt action failed", { description: message });
+    } finally {
+      forcePushesInFlight.delete(key);
+    }
+  });
+}
+
 async function cancelQueuedPrompt(
   prompt: QueuedPromptRecord,
 ): Promise<boolean> {
@@ -456,6 +489,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   onContinueFromFailure={(runId) => {
     void runActivePaneAction(() => continueFromFailure(runId));
   }}
+  onForcePushQueuedPrompts={forcePushQueuedPrompts}
   onDiscardQueuedPrompt={discardQueuedPrompt}
   onMoveQueuedPromptToComposer={moveQueuedPromptToComposer}
   onNavigateToEntry={(entryId, summarize) => {

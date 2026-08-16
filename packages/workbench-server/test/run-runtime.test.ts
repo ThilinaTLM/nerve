@@ -161,6 +161,7 @@ function fixture(
             steer: async () => {},
             followUp: async () => {},
             removeQueuedPrompt: async () => true,
+            forcePush: async () => {},
             continue: async () => {},
             cancel: async () => {},
           },

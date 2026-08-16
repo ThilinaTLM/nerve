@@ -141,6 +141,7 @@ function fixture(
   const controlPrompts: import("@nervekit/contracts").RunPromptRecord[] = [];
   const controlContinues: number[] = [];
   const controlCancels: Array<string | undefined> = [];
+  const forcePushAttempts: number[] = [];
   const removedPromptIds: string[] = [];
   const executions: RunExecution[] = [];
   const sinks: RunExecutionSink[] = [];
@@ -196,6 +197,9 @@ function fixture(
               return options.removeQueuedPrompt
                 ? options.removeQueuedPrompt(promptId)
                 : true;
+            },
+            forcePush: async () => {
+              forcePushAttempts.push(attempt);
             },
             continue: async () => {
               controlContinues.push(attempt);
@@ -273,6 +277,7 @@ function fixture(
     controlPrompts,
     controlContinues,
     controlCancels,
+    forcePushAttempts,
     removedPromptIds,
     executions,
     sinks,
@@ -453,6 +458,58 @@ test("preserves images on start, steer, and follow-up delivery", async () => {
     ),
     [[image], [image]],
   );
+});
+
+test("force pushes every queued prompt without cancelling the run", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  const first = await harness.coordinator.followUp(run.runId, "first");
+  const second = await harness.coordinator.followUp(run.runId, "second");
+
+  const pushed = await harness.coordinator.forcePush(run.runId);
+  assert.deepEqual(
+    pushed.map((prompt) => prompt.id),
+    [first.id, second.id],
+  );
+  assert.deepEqual(harness.forcePushAttempts, [1]);
+
+  let state = await harness.coordinator.get(run.runId);
+  assert.deepEqual(
+    state?.prompts.map((prompt) => prompt.status),
+    ["accepted", "accepted"],
+  );
+  assert.equal(state?.run.status, "running");
+
+  await harness.sinks[0]?.promptDelivered(first.id);
+  await harness.sinks[0]?.promptDelivered(second.id);
+  state = await harness.coordinator.get(run.runId);
+  assert.deepEqual(
+    state?.prompts.map((prompt) => prompt.status),
+    ["delivered", "delivered"],
+  );
+  const eventTypes = state?.transitions.flatMap((transition) =>
+    transition.events.map((event) => event.type),
+  );
+  assert.equal(
+    eventTypes?.filter((type) => type === "run.cancelled").length,
+    0,
+  );
+  assert.equal(
+    eventTypes?.filter((type) => type === "conversation.prompt.dequeued")
+      .length,
+    2,
+  );
+});
+
+test("rejects force push when the queue is empty", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+
+  await assert.rejects(
+    harness.coordinator.forcePush(run.runId),
+    /No queued prompts to force push/,
+  );
+  assert.deepEqual(harness.forcePushAttempts, []);
 });
 
 test("commits prompt dequeue and cancellation intents exactly once", async () => {

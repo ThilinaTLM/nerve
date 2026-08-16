@@ -65,6 +65,8 @@ export const conversationAgentMethodHandlers = defineWorkbenchMethodHandlers({
       params.queuedPromptId,
     ),
   }),
+  "agent.promptQueue.forcePush": (state, params) =>
+    state.registry.forcePushQueuedPrompts(params.agentId),
   "agent.requestTool": (state, params) =>
     state.registry.requestTool(
       params.agentId,

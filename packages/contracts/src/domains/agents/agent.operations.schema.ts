@@ -36,6 +36,11 @@ const agentPromptQueueParamsSchema = agentIdParamsSchema;
 const agentPromptQueueCancelParamsSchema = agentIdParamsSchema.extend({
   queuedPromptId: queuedPromptIdSchema,
 });
+const agentPromptQueueForcePushResultSchema = z.object({
+  accepted: z.literal(true),
+  runId: z.string().startsWith("run_"),
+  queuedPromptIds: z.array(queuedPromptIdSchema),
+});
 const agentRequestToolParamsSchema = agentIdParamsSchema.merge(
   executeToolRequestSchema,
 );
@@ -103,6 +108,15 @@ export const agentsOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.agent.promptQueue.cancel",
+  ),
+  defineOperation(
+    "agent.promptQueue.forcePush",
+    agentPromptQueueParamsSchema,
+    agentPromptQueueForcePushResultSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.agent.promptQueue.forcePush",
   ),
   defineOperation(
     "agent.requestTool",

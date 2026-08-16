@@ -139,6 +139,18 @@ export function hasQueuedHarnessInput(state: HarnessQueueState): boolean {
   );
 }
 
+/** Promote every queued user message to the next steering drain in FIFO order. */
+export function promoteAllQueuedHarnessMessages(
+  state: HarnessQueueState,
+): number {
+  const promoted = [...state.steerQueue, ...state.followUpQueue].sort((a, b) =>
+    a.enqueuedAt.localeCompare(b.enqueuedAt),
+  );
+  state.steerQueue = promoted;
+  state.followUpQueue = [];
+  return promoted.length;
+}
+
 export async function removeQueuedHarnessMessage(
   state: HarnessQueueState,
   id: string,
