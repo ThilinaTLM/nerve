@@ -5,12 +5,10 @@ import {
   ConversationEntry,
   ConversationSnapshot,
   ConversationTree,
-  ToolCallRecord,
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
-import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"
@@ -47,7 +45,7 @@ export interface ConversationQueryServiceDeps {
   getConversationEntries: (conversationId: string) => ConversationEntry[];
   getConversationTree: (conversationId: string) => ConversationTree;
   getContextUsage: (conversationId: string) => Promise<ContextUsage>;
-  listToolCalls: () => ToolCallRecord[];
+  listToolCallPreviews: (conversationId: string) => ToolCallTranscriptRecord[];
   getActiveRun: (
     conversationId: string,
   ) => Promise<ConversationActiveRunSnapshot | undefined>;
@@ -94,23 +92,20 @@ export class ConversationQueryService {
       entries.flatMap((entry) => (entry.runId ? [entry.runId] : [])),
     );
     const toolIds = toolRecordIdsFromEntries(entries);
-    return this.deps
-      .listToolCalls()
-      .filter((toolCall) => {
-        if (toolCall.conversationId !== conversationId) return false;
-        if (toolCall.hidden) return false;
-        if (activeRunId && toolCall.runId === activeRunId) return true;
-        if (toolCall.runId && runIds.has(toolCall.runId)) return true;
-        if (toolIds.has(toolCall.id)) return true;
-        if (toolCall.sourceToolCallId && toolIds.has(toolCall.sourceToolCallId))
-          return true;
-        if (
-          toolCall.providerToolCallId &&
-          toolIds.has(toolCall.providerToolCallId)
-        )
-          return true;
-        return false;
-      })
-      .map(toToolCallTranscriptRecord);
+    return this.deps.listToolCallPreviews(conversationId).filter((toolCall) => {
+      if (toolCall.conversationId !== conversationId) return false;
+      if (toolCall.hidden) return false;
+      if (activeRunId && toolCall.runId === activeRunId) return true;
+      if (toolCall.runId && runIds.has(toolCall.runId)) return true;
+      if (toolIds.has(toolCall.id)) return true;
+      if (toolCall.sourceToolCallId && toolIds.has(toolCall.sourceToolCallId))
+        return true;
+      if (
+        toolCall.providerToolCallId &&
+        toolIds.has(toolCall.providerToolCallId)
+      )
+        return true;
+      return false;
+    });
   }
 }

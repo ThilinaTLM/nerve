@@ -1,8 +1,9 @@
-import { appendFile } from "node:fs/promises";
+import { appendFile, readFile } from "node:fs/promises";
 import type {
   TaskLogEvent,
   TaskLogQuery,
   TaskLogQueryResponse,
+  TaskOutputRetention,
   TaskRecord,
 } from "@nervekit/contracts";
 import { taskLogEventSchema } from "@nervekit/contracts";
@@ -11,17 +12,35 @@ import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import {
   appendJsonLine,
+  atomicWriteJson,
   readJsonLines,
 } from "../../infrastructure/storage/index.js";
 
 export type TaskLogStream = "stdout" | "stderr";
 
 export const MAX_BUFFERED_LOG_LINE_CHARS = 256 * 1024;
+export const TASK_OUTPUT_HEAD_MAX_BYTES = 32 * 1024 * 1024;
+export const TASK_OUTPUT_TAIL_MAX_BYTES = 512 * 1024;
+const TAIL_PERSIST_INTERVAL_BYTES = 64 * 1024;
+
+export type TaskOutputTailChunk = {
+  stream: TaskLogStream;
+  text: string;
+};
 
 export interface TaskLogCursor {
   logSeq: number;
   lineBuffers: Record<TaskLogStream, string>;
   logQueue: Promise<void>;
+  totalBytes: number;
+  retainedBytes: number;
+  omittedBytes: number;
+  totalLines: number;
+  retainedLines: number;
+  omittedLines: number;
+  tailChunks: TaskOutputTailChunk[];
+  tailBytes: number;
+  tailDirtyBytes: number;
 }
 
 export function createTaskLogCursor(logSeq = 0): TaskLogCursor {
@@ -29,6 +48,15 @@ export function createTaskLogCursor(logSeq = 0): TaskLogCursor {
     logSeq,
     lineBuffers: { stdout: "", stderr: "" },
     logQueue: Promise.resolve(),
+    totalBytes: 0,
+    retainedBytes: 0,
+    omittedBytes: 0,
+    totalLines: 0,
+    retainedLines: 0,
+    omittedLines: 0,
+    tailChunks: [],
+    tailBytes: 0,
+    tailDirtyBytes: 0,
   };
 }
 
@@ -45,10 +73,25 @@ export class TaskLogService {
     task: TaskRecord,
     query: TaskLogQuery = {},
   ): Promise<TaskLogQueryResponse> {
-    const allEvents = await this.readLogEvents(task.logsPath);
+    const headEvents = await this.readLogEvents(task.logsPath);
+    const tailEvents = task.outputRetention?.tailPath
+      ? await this.tailLogEvents(
+          task,
+          (headEvents.at(-1)?.seq ?? 0) +
+            (task.outputRetention.truncated ? 2 : 1),
+        )
+      : [];
+    const allEvents = task.outputRetention?.truncated
+      ? [
+          ...headEvents,
+          omissionEvent(headEvents, task.outputRetention.omittedBytes),
+          ...tailEvents,
+        ]
+      : [...headEvents, ...tailEvents];
     return {
       task,
       ...queryTaskLogEvents(allEvents, query),
+      outputRetention: task.outputRetention,
     };
   }
 
@@ -67,7 +110,7 @@ export class TaskLogService {
       diagnostics.count("task.outputBytes", Buffer.byteLength(text));
     }
     return this.enqueue(cursor, () =>
-      this.captureOutputNow(record, cursor, stream, text, onLog),
+      this.captureBoundedOutputNow(record, cursor, stream, text, onLog),
     ).finally(() => {
       if (startedAt !== undefined)
         diagnostics?.duration(
@@ -96,7 +139,67 @@ export class TaskLogService {
     return this.enqueue(cursor, async () => {
       await this.flushOutputNow(record, cursor, "stdout", onLog);
       await this.flushOutputNow(record, cursor, "stderr", onLog);
+      await this.persistTail(record, cursor);
     });
+  }
+
+  async persistTailSnapshot(
+    record: TaskRecord,
+    cursor: TaskLogCursor,
+  ): Promise<void> {
+    await this.enqueue(cursor, () => this.persistTail(record, cursor));
+  }
+
+  retention(record: TaskRecord, cursor: TaskLogCursor): TaskOutputRetention {
+    ensureLogCursorState(cursor);
+    const retainedTailBytes = cursor.tailBytes;
+    const omittedBytes = Math.max(
+      0,
+      cursor.totalBytes - cursor.retainedBytes - retainedTailBytes,
+    );
+    return {
+      totalBytes: cursor.totalBytes,
+      retainedBytes: cursor.retainedBytes + retainedTailBytes,
+      omittedBytes,
+      totalLines: cursor.totalLines,
+      retainedLines: cursor.retainedLines,
+      omittedLines: omittedBytes > 0 ? cursor.omittedLines : 0,
+      headMaxBytes: TASK_OUTPUT_HEAD_MAX_BYTES,
+      tailMaxBytes: TASK_OUTPUT_TAIL_MAX_BYTES,
+      truncated: omittedBytes > 0,
+      tailPath: cursor.tailBytes > 0 ? this.tailPath(record) : undefined,
+    };
+  }
+
+  async readTail(record: TaskRecord): Promise<TaskOutputTailChunk[]> {
+    const parsed = await readFile(this.tailPath(record), "utf8")
+      .then((raw) => JSON.parse(raw) as unknown)
+      .catch(() => []);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isTailChunk);
+  }
+
+  private async tailLogEvents(
+    record: TaskRecord,
+    firstSeq: number,
+  ): Promise<TaskLogEvent[]> {
+    const events: TaskLogEvent[] = [];
+    let seq = firstSeq;
+    for (const chunk of await this.readTail(record)) {
+      for (const line of chunk.text.split(/\r?\n/)) {
+        const cleaned = line.trimEnd();
+        if (!cleaned) continue;
+        events.push({
+          seq,
+          ts: record.finishedAt ?? record.updatedAt,
+          stream: chunk.stream,
+          level: classifyLogLevel(chunk.stream, cleaned),
+          line: cleaned,
+        });
+        seq += 1;
+      }
+    }
+    return events;
   }
 
   async latestLogSeq(logsPath: string): Promise<number> {
@@ -121,6 +224,43 @@ export class TaskLogService {
     const queued = cursor.logQueue.catch(() => undefined).then(task);
     cursor.logQueue = queued.catch(() => undefined);
     return queued;
+  }
+
+  private async captureBoundedOutputNow(
+    record: TaskRecord,
+    cursor: TaskLogCursor,
+    stream: TaskLogStream,
+    text: string,
+    onLog: (event: TaskLogEvent) => Promise<void>,
+  ): Promise<void> {
+    ensureLogCursorState(cursor);
+    const bytes = Buffer.byteLength(text);
+    const lines = countOutputLines(text);
+    cursor.totalBytes += bytes;
+    cursor.totalLines += lines;
+    const available = Math.max(
+      0,
+      TASK_OUTPUT_HEAD_MAX_BYTES - cursor.retainedBytes,
+    );
+    const retained = truncateUtf8Head(text, available);
+    if (retained.length > 0) {
+      const retainedBytes = Buffer.byteLength(retained);
+      const retainedLines = countOutputLines(retained);
+      cursor.retainedBytes += retainedBytes;
+      cursor.retainedLines += retainedLines;
+      await this.captureOutputNow(record, cursor, stream, retained, onLog);
+    }
+
+    const omittedText = text.slice(retained.length);
+    const omittedBytes = bytes - Buffer.byteLength(retained);
+    if (omittedBytes > 0) {
+      appendRollingTail(cursor, stream, omittedText);
+      cursor.omittedBytes += omittedBytes;
+      cursor.omittedLines += countOutputLines(omittedText);
+      if (cursor.tailDirtyBytes >= TAIL_PERSIST_INTERVAL_BYTES) {
+        await this.persistTail(record, cursor);
+      }
+    }
   }
 
   private async captureOutputNow(
@@ -167,6 +307,19 @@ export class TaskLogService {
     await this.emitLogLine(record, cursor, stream, line, onLog);
   }
 
+  private tailPath(record: TaskRecord): string {
+    return `${record.logsPath}.tail.json`;
+  }
+
+  private async persistTail(
+    record: TaskRecord,
+    cursor: TaskLogCursor,
+  ): Promise<void> {
+    if (cursor.omittedBytes === 0 || cursor.tailDirtyBytes === 0) return;
+    await atomicWriteJson(this.tailPath(record), cursor.tailChunks, 0o600);
+    cursor.tailDirtyBytes = 0;
+  }
+
   private async emitLogLine(
     record: TaskRecord,
     cursor: TaskLogCursor,
@@ -204,6 +357,80 @@ function ensureLogCursorState(cursor: TaskLogCursor): void {
   cursor.lineBuffers.stdout ??= "";
   cursor.lineBuffers.stderr ??= "";
   cursor.logQueue ??= Promise.resolve();
+  cursor.totalBytes ??= 0;
+  cursor.retainedBytes ??= 0;
+  cursor.omittedBytes ??= 0;
+  cursor.totalLines ??= 0;
+  cursor.retainedLines ??= 0;
+  cursor.omittedLines ??= 0;
+  cursor.tailChunks ??= [];
+  cursor.tailBytes ??= 0;
+  cursor.tailDirtyBytes ??= 0;
+}
+
+function appendRollingTail(
+  cursor: TaskLogCursor,
+  stream: TaskLogStream,
+  text: string,
+): void {
+  if (text.length === 0) return;
+  const bounded = truncateUtf8Tail(text, TASK_OUTPUT_TAIL_MAX_BYTES);
+  const bytes = Buffer.byteLength(bounded);
+  cursor.tailChunks.push({ stream, text: bounded });
+  cursor.tailBytes += bytes;
+  cursor.tailDirtyBytes += bytes;
+
+  while (
+    cursor.tailBytes > TASK_OUTPUT_TAIL_MAX_BYTES &&
+    cursor.tailChunks.length > 0
+  ) {
+    const first = cursor.tailChunks[0];
+    if (!first) break;
+    const excess = cursor.tailBytes - TASK_OUTPUT_TAIL_MAX_BYTES;
+    const firstBytes = Buffer.byteLength(first.text);
+    if (firstBytes <= excess) {
+      cursor.tailChunks.shift();
+      cursor.tailBytes -= firstBytes;
+      continue;
+    }
+    const kept = truncateUtf8Tail(first.text, firstBytes - excess);
+    cursor.tailBytes -= firstBytes - Buffer.byteLength(kept);
+    first.text = kept;
+  }
+}
+
+function truncateUtf8Head(text: string, maxBytes: number): string {
+  if (maxBytes <= 0) return "";
+  if (Buffer.byteLength(text) <= maxBytes) return text;
+  const buffer = Buffer.from(text);
+  let end = Math.min(maxBytes, buffer.length);
+  while (end > 0 && (buffer[end] & 0xc0) === 0x80) end -= 1;
+  return buffer.subarray(0, end).toString("utf8");
+}
+
+function truncateUtf8Tail(text: string, maxBytes: number): string {
+  if (maxBytes <= 0) return "";
+  if (Buffer.byteLength(text) <= maxBytes) return text;
+  const buffer = Buffer.from(text);
+  let start = Math.max(0, buffer.length - maxBytes);
+  while (start < buffer.length && (buffer[start] & 0xc0) === 0x80) start += 1;
+  return buffer.subarray(start).toString("utf8");
+}
+
+function countOutputLines(text: string): number {
+  if (text.length === 0) return 0;
+  let lines = 0;
+  for (const character of text) if (character === "\n") lines += 1;
+  return lines;
+}
+
+function isTailChunk(value: unknown): value is TaskOutputTailChunk {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return (
+    (record.stream === "stdout" || record.stream === "stderr") &&
+    typeof record.text === "string"
+  );
 }
 
 function appendChunkAndTakeCompleteLines(
@@ -234,6 +461,20 @@ const stdoutErrorPattern = new RegExp(
   ].join("|"),
   "i",
 );
+
+function omissionEvent(
+  headEvents: TaskLogEvent[],
+  omittedBytes: number,
+): TaskLogEvent {
+  const last = headEvents.at(-1);
+  return {
+    seq: (last?.seq ?? 0) + 1,
+    ts: last?.ts ?? new Date(0).toISOString(),
+    stream: "stdout",
+    level: "info",
+    line: `[${omittedBytes} output bytes omitted by task retention]`,
+  };
+}
 
 function classifyLogLevel(
   stream: TaskLogStream,

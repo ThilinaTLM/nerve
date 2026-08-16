@@ -4,23 +4,32 @@ export type TodoItem = { todo: string; done: boolean };
 
 export class TodoStateService {
   private readonly todoLists = new Map<string, TodoItem[]>();
+  private readonly hydratedVersions = new Map<string, string>();
+
+  resetToolCallHydration(): void {
+    this.todoLists.clear();
+    this.hydratedVersions.clear();
+  }
+
+  hydrateFromToolCall(toolCall: ToolCallRecord): void {
+    if (toolCall.toolName !== "todos_set" || toolCall.status !== "completed") {
+      return;
+    }
+    const version = `${toolCall.updatedAt}:${toolCall.id}`;
+    if ((this.hydratedVersions.get(toolCall.agentId) ?? "") >= version) return;
+    const resultRecord = recordFromUnknown(toolCall.result);
+    const details = recordFromUnknown(resultRecord.details);
+    const items =
+      parseTodoItems(details.todos) ??
+      parseTodoItems(recordFromUnknown(toolCall.args).todos);
+    if (!items) return;
+    this.set(toolCall.agentId, items);
+    this.hydratedVersions.set(toolCall.agentId, version);
+  }
 
   hydrateFromToolCalls(toolCalls: ToolCallRecord[]): void {
-    const completedTodoSets = toolCalls
-      .filter(
-        (toolCall) =>
-          toolCall.toolName === "todos_set" && toolCall.status === "completed",
-      )
-      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
-
-    for (const toolCall of completedTodoSets) {
-      const resultRecord = recordFromUnknown(toolCall.result);
-      const details = recordFromUnknown(resultRecord.details);
-      const items =
-        parseTodoItems(details.todos) ??
-        parseTodoItems(recordFromUnknown(toolCall.args).todos);
-      if (items) this.set(toolCall.agentId, items);
-    }
+    this.resetToolCallHydration();
+    for (const toolCall of toolCalls) this.hydrateFromToolCall(toolCall);
   }
 
   set(agentId: string, items: TodoItem[]): void {
@@ -33,6 +42,7 @@ export class TodoStateService {
 
   delete(agentId: string): void {
     this.todoLists.delete(agentId);
+    this.hydratedVersions.delete(agentId);
   }
 }
 

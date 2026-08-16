@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Disposable index lifecycle and transactional table operations remain centralized. */
 import { existsSync, renameSync, rmSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type {
@@ -6,6 +7,8 @@ import type {
   ProjectRecord,
   TaskRecord,
   ToolCallRecord,
+  ToolCallStatus,
+  ToolCallTranscriptRecord,
   WorkerRecord,
 } from "@nervekit/contracts";
 import { INDEX_STORE_SCHEMA_SQL } from "./schema.js";
@@ -36,7 +39,22 @@ export interface RebuildIndexInput {
   agents: AgentRecord[];
   tasks?: TaskRecord[];
   workers?: WorkerRecord[];
-  toolCalls?: ToolCallRecord[];
+}
+
+export interface ToolCallPreviewQuery {
+  status?: ToolCallStatus;
+  pendingInteractionKind?: "approval" | "user_input" | "plan_review";
+  conversationId?: string;
+  projectId?: string;
+  agentId?: string;
+  runId?: string;
+  limit?: number;
+  cursor?: { updatedAt: string; id: string };
+}
+
+export interface ToolCallPreviewPage {
+  toolCalls: ToolCallTranscriptRecord[];
+  nextCursor?: { updatedAt: string; id: string };
 }
 
 export interface IndexReplacementToken {
@@ -47,6 +65,7 @@ export class IndexStore {
   private db: DatabaseSync;
   private healthy = true;
   private updatesDeferred = false;
+  private toolCallPreviewSchemaReady = false;
 
   constructor(readonly path: string) {
     this.recoverReplacementFiles();
@@ -72,9 +91,11 @@ export class IndexStore {
   initialize(): void {
     this.guard(() => {
       this.db.exec("PRAGMA journal_mode = WAL");
+      this.resetLegacyToolCallIndex();
       this.db.exec("PRAGMA synchronous = NORMAL");
       this.db.exec("PRAGMA wal_autocheckpoint = 1000");
       this.db.exec(INDEX_STORE_SCHEMA_SQL);
+      this.toolCallPreviewSchemaReady = true;
     });
     // Drain any oversized WAL left by a previous large rebuild. A passive
     // autocheckpoint reuses the WAL file in place and never shrinks it, so an
@@ -296,36 +317,113 @@ export class IndexStore {
     });
   }
 
-  upsertToolCall(toolCall: ToolCallRecord): void {
+  upsertToolCall(
+    toolCall: ToolCallRecord,
+    preview: ToolCallTranscriptRecord,
+  ): void {
     if (this.updatesDeferred) return;
+    this.writeToolCallPreview(toolCall, preview, true);
+  }
+
+  beginToolCallRebuild(): void {
     this.guard(() => {
-      this.db
-        .prepare(
-          `INSERT INTO tool_calls (
-             id, conversation_id, project_id, run_id, status,
-             pending_interaction_kind, revision, json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-             conversation_id = excluded.conversation_id,
-             project_id = excluded.project_id,
-             run_id = excluded.run_id,
-             status = excluded.status,
-             pending_interaction_kind = excluded.pending_interaction_kind,
-             revision = excluded.revision,
-             json = excluded.json`,
-        )
-        .run(
-          toolCall.id,
-          toolCall.conversationId,
-          toolCall.projectId,
-          toolCall.runId ?? null,
-          toolCall.status,
-          toolCall.interactions.find(
-            (interaction) => interaction.status === "pending",
-          )?.kind ?? null,
-          toolCall.revision,
-          JSON.stringify(toolCall),
+      this.ensureToolCallPreviewTable();
+      this.db.exec("BEGIN IMMEDIATE");
+      this.db.exec("DELETE FROM tool_calls");
+    });
+  }
+
+  appendToolCallRebuild(
+    toolCall: ToolCallRecord,
+    preview: ToolCallTranscriptRecord,
+  ): void {
+    this.writeToolCallPreview(toolCall, preview, false);
+  }
+
+  finishToolCallRebuild(): void {
+    this.guard(() => this.db.exec("COMMIT"));
+  }
+
+  rollbackToolCallRebuild(): void {
+    try {
+      this.db.exec("ROLLBACK");
+    } catch {
+      // No active transaction after an earlier SQLite failure.
+    }
+  }
+
+  countToolCalls(): number {
+    return this.guard(() => {
+      this.ensureToolCallPreviewTable();
+      const row = this.db
+        .prepare("SELECT COUNT(*) AS count FROM tool_calls")
+        .get() as { count: number } | undefined;
+      return row?.count ?? 0;
+    });
+  }
+
+  listToolCallPreviews(
+    query: ToolCallPreviewQuery = {},
+  ): ToolCallTranscriptRecord[] {
+    return this.queryToolCallPreviews(query).toolCalls;
+  }
+
+  queryToolCallPreviews(query: ToolCallPreviewQuery = {}): ToolCallPreviewPage {
+    return this.guard(() => {
+      this.ensureToolCallPreviewTable();
+      const clauses: string[] = [];
+      const values: Array<string | number> = [];
+      const filters = [
+        ["status", query.status],
+        ["pending_interaction_kind", query.pendingInteractionKind],
+        ["conversation_id", query.conversationId],
+        ["project_id", query.projectId],
+        ["agent_id", query.agentId],
+        ["run_id", query.runId],
+      ] as const;
+      for (const [column, value] of filters) {
+        if (value === undefined) continue;
+        clauses.push(`${column} = ?`);
+        values.push(value);
+      }
+      if (query.cursor) {
+        clauses.push("(updated_at < ? OR (updated_at = ? AND id < ?))");
+        values.push(
+          query.cursor.updatedAt,
+          query.cursor.updatedAt,
+          query.cursor.id,
         );
+      }
+      const limit = Math.min(Math.max(query.limit ?? 200, 1), 1_000);
+      values.push(limit + 1);
+      const rows = this.db
+        .prepare(
+          `SELECT preview_json FROM tool_calls${
+            clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : ""
+          } ORDER BY updated_at DESC, id DESC LIMIT ?`,
+        )
+        .all(...values) as Array<{ preview_json: string }>;
+      const toolCalls = rows
+        .slice(0, limit)
+        .map((row) => JSON.parse(row.preview_json) as ToolCallTranscriptRecord);
+      const last = toolCalls.at(-1);
+      return {
+        toolCalls,
+        nextCursor:
+          rows.length > limit && last
+            ? { updatedAt: last.updatedAt, id: last.id }
+            : undefined,
+      };
+    });
+  }
+
+  toolCallConversationId(id: string): string | undefined {
+    return this.guard(() => {
+      this.ensureToolCallPreviewTable();
+      const row = this.db
+        .prepare("SELECT conversation_id FROM tool_calls WHERE id = ?")
+        .get(id) as { conversation_id: string } | undefined;
+      return row?.conversation_id;
     });
   }
 
@@ -443,17 +541,10 @@ export class IndexStore {
           "conversations",
           "projects",
         ];
-        tables.push("tool_calls");
         for (const table of tables) {
           this.db.exec(`DELETE FROM ${table};`);
         }
 
-        const upsertToolCall = this.db.prepare(
-          `INSERT INTO tool_calls (
-             id, conversation_id, project_id, run_id, status,
-             pending_interaction_kind, revision, json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        );
         const upsertWorker = this.db.prepare(
           `INSERT INTO workers (
              id, kind, name, status, created_at, updated_at, json
@@ -521,20 +612,6 @@ export class IndexStore {
              updated_at = excluded.updated_at,
              json = excluded.json`,
         );
-        for (const toolCall of input.toolCalls ?? []) {
-          upsertToolCall.run(
-            toolCall.id,
-            toolCall.conversationId,
-            toolCall.projectId,
-            toolCall.runId ?? null,
-            toolCall.status,
-            toolCall.interactions.find(
-              (interaction) => interaction.status === "pending",
-            )?.kind ?? null,
-            toolCall.revision,
-            JSON.stringify(toolCall),
-          );
-        }
         for (const worker of input.workers ?? []) {
           upsertWorker.run(
             worker.id,
@@ -634,6 +711,7 @@ export class IndexStore {
       }
       this.db = new DatabaseSync(this.path);
       this.healthy = true;
+      this.toolCallPreviewSchemaReady = false;
       this.initialize();
       return { backupPath };
     } catch (error) {
@@ -661,10 +739,70 @@ export class IndexStore {
     this.restoreReplacementFiles(token.backupPath);
     this.db = new DatabaseSync(this.path);
     this.healthy = true;
+    this.toolCallPreviewSchemaReady = false;
   }
 
   close(): void {
     this.db.close();
+  }
+
+  private ensureToolCallPreviewTable(): void {
+    if (this.toolCallPreviewSchemaReady) return;
+    this.resetLegacyToolCallIndex();
+    this.db.exec(INDEX_STORE_SCHEMA_SQL);
+    this.toolCallPreviewSchemaReady = true;
+  }
+
+  private resetLegacyToolCallIndex(): void {
+    const columns = this.db
+      .prepare("PRAGMA table_info(tool_calls)")
+      .all() as Array<{ name: string }>;
+    if (columns.length === 0) return;
+    if (columns.some((column) => column.name === "preview_json")) return;
+    this.db.exec("DROP TABLE IF EXISTS tool_calls");
+  }
+
+  private writeToolCallPreview(
+    toolCall: ToolCallRecord,
+    preview: ToolCallTranscriptRecord,
+    guarded: boolean,
+  ): void {
+    const operation = () => {
+      if (guarded) this.ensureToolCallPreviewTable();
+      this.db
+        .prepare(
+          `INSERT INTO tool_calls (
+             id, conversation_id, project_id, agent_id, run_id, status,
+             pending_interaction_kind, revision, updated_at, preview_json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             conversation_id = excluded.conversation_id,
+             project_id = excluded.project_id,
+             agent_id = excluded.agent_id,
+             run_id = excluded.run_id,
+             status = excluded.status,
+             pending_interaction_kind = excluded.pending_interaction_kind,
+             revision = excluded.revision,
+             updated_at = excluded.updated_at,
+             preview_json = excluded.preview_json`,
+        )
+        .run(
+          toolCall.id,
+          toolCall.conversationId,
+          toolCall.projectId,
+          toolCall.agentId,
+          toolCall.runId ?? null,
+          toolCall.status,
+          toolCall.interactions.find(
+            (interaction) => interaction.status === "pending",
+          )?.kind ?? null,
+          toolCall.revision,
+          toolCall.updatedAt,
+          JSON.stringify(preview),
+        );
+    };
+    if (guarded) this.guard(operation);
+    else operation();
   }
 
   private recoverReplacementFiles(): void {

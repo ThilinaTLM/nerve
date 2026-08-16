@@ -272,7 +272,7 @@ export class RuntimeRegistry {
         conversations: this.listConversations().length,
         agents: this.listAgents().length,
         tasks: this.tasks.listTasks().length,
-        toolCalls: this.tools.listToolCalls().length,
+        toolCalls: this.tools.countToolCalls(),
         runMetadata: runRecords.length,
         activeRuns: activeStates.length,
       };
@@ -351,7 +351,6 @@ export class RuntimeRegistry {
       agents: this.listAgents(),
       tasks: this.tasks.listTasks(),
       workers: this.workers.listWorkers(),
-      toolCalls: this.tools.listToolCalls(),
     });
   }
 

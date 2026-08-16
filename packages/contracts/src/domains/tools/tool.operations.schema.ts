@@ -21,6 +21,12 @@ const toolCallListParamsSchema = z
     projectId: z.string().startsWith("proj_").optional(),
     runId: z.string().startsWith("run_").optional(),
     limit: z.number().int().positive().max(1_000).optional(),
+    cursor: z
+      .object({
+        updatedAt: z.string().datetime(),
+        id: toolCallIdSchema,
+      })
+      .optional(),
   })
   .optional();
 const toolCallGetParamsSchema = z.object({
@@ -92,7 +98,15 @@ export const toolsOperationDefinitions = [
   defineOperation(
     "toolCall.list",
     toolCallListParamsSchema,
-    z.object({ toolCalls: z.array(toolCallTranscriptRecordSchema) }),
+    z.object({
+      toolCalls: z.array(toolCallTranscriptRecordSchema),
+      nextCursor: z
+        .object({
+          updatedAt: z.string().datetime(),
+          id: toolCallIdSchema,
+        })
+        .optional(),
+    }),
     "read",
     "none",
     ["workbench_server"] as const,

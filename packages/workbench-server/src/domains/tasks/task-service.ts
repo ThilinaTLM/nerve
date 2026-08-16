@@ -4,6 +4,7 @@ import type {
   StartTaskRequest,
   TaskLogQuery,
   TaskLogQueryResponse,
+  TaskOutputRetention,
   TaskRecord,
 } from "@nervekit/contracts";
 import {
@@ -76,6 +77,7 @@ export interface TaskLogPort {
     text: string,
   ): Promise<void>;
   remove(task: TaskRecord): Promise<void>;
+  retention?(task: TaskRecord): TaskOutputRetention | undefined;
   paths?(taskId: string): {
     stdoutPath: string;
     stderrPath: string;
@@ -750,6 +752,7 @@ export class TaskService {
       task.finishedAt = exit.exitedAt;
       task.updatedAt = exit.exitedAt;
       task.status = status;
+      task.outputRetention = this.ports.logs.retention?.(task);
       if (reason) task.error = reason;
       else if (status === "timed_out")
         task.error = "Task exceeded maximum runtime.";

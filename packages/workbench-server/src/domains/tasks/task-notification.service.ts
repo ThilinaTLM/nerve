@@ -200,7 +200,14 @@ export class TaskNotificationService {
     if (this.delivering.has(key)) return;
     this.delivering.add(key);
     try {
-      const task = this.deps.tasks.getTask(taskSnapshot.id);
+      let task: TaskRecord;
+      try {
+        task = this.deps.tasks.getTask(taskSnapshot.id);
+      } catch {
+        // Foreground tasks can finish and be removed before a delayed ready
+        // notification fires. Their terminal tool result is already durable.
+        return;
+      }
       if (!this.shouldDeliver(task, event)) return;
       const existing = this.findExistingTaskEventEntry(task, event);
       if (existing) {

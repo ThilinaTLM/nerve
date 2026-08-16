@@ -1,16 +1,27 @@
-import { open, readdir } from "node:fs/promises";
+import { open, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { toolCallRecordSchema, type ToolCallRecord } from "@nervekit/contracts";
-import type { IndexStore } from "../../infrastructure/index-store/index-store.js";
+import {
+  toolCallRecordSchema,
+  type ToolCallRecord,
+  type ToolCallTranscriptRecord,
+} from "@nervekit/contracts";
+import type {
+  IndexStore,
+  ToolCallPreviewQuery,
+} from "../../infrastructure/index-store/index-store.js";
 import {
   atomicWriteJson,
   type InitializedStorage,
 } from "../../infrastructure/storage/index.js";
+import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
+
+const TERMINAL_CACHE_MAX_BYTES = 16 * 1024 * 1024;
 
 export interface ToolCallHydrationStats {
   rowCount: number;
   uniqueCount: number;
   fileBytes: number;
+  activeCount: number;
   source: "files";
 }
 
@@ -27,13 +38,24 @@ export class ToolCallRevisionConflictError extends Error {
   }
 }
 
+/**
+ * Canonical tool calls live in per-conversation JSON files. Only mutable calls
+ * remain resident; immutable terminal details are loaded lazily into a
+ * byte-bounded cache. SQLite contains disposable, bounded transcript previews.
+ */
 export class ToolCallRepository {
   readonly records: Map<string, ToolCallRecord> = new Map();
+  private readonly terminalCache = new Map<
+    string,
+    { record: ToolCallRecord; bytes: number }
+  >();
+  private terminalCacheBytes = 0;
   private readonly mutations = new Map<string, Promise<void>>();
   private hydrationStats: ToolCallHydrationStats = {
     rowCount: 0,
     uniqueCount: 0,
     fileBytes: 0,
+    activeCount: 0,
     source: "files",
   };
 
@@ -42,83 +64,154 @@ export class ToolCallRepository {
     private readonly index: IndexStore,
   ) {}
 
-  async hydrate(): Promise<ToolCallRecord[]> {
+  async hydrate(
+    onRecord?: (record: ToolCallRecord) => void,
+  ): Promise<ToolCallRecord[]> {
     this.records.clear();
+    this.terminalCache.clear();
+    this.terminalCacheBytes = 0;
     let fileBytes = 0;
-    const conversations = await readdir(
-      join(this.storage.paths.home, "conversations"),
-      { withFileTypes: true },
-    ).catch(() => []);
-    for (const conversation of conversations.sort((a, b) =>
-      a.name.localeCompare(b.name),
-    )) {
-      if (!conversation.isDirectory() || !validId(conversation.name, "conv_"))
-        continue;
-      const directory = join(
-        this.storage.paths.home,
-        "conversations",
-        conversation.name,
-        "tool-calls",
-      );
-      const files = await readdir(directory, { withFileTypes: true }).catch(
-        () => [],
-      );
-      for (const file of files.sort((a, b) => a.name.localeCompare(b.name))) {
-        if (!file.isFile() || !file.name.endsWith(".json")) continue;
-        const id = file.name.slice(0, -5);
-        if (!validId(id, "tool_"))
-          throw new Error(
-            `Invalid canonical tool-call filename '${file.name}'.`,
-          );
-        const raw = await import("node:fs/promises").then(({ readFile }) =>
-          readFile(join(directory, file.name), "utf8"),
+    let rowCount = 0;
+    const ids = new Set<string>();
+    this.index.beginToolCallRebuild();
+    try {
+      const conversations = await readdir(
+        join(this.storage.paths.home, "conversations"),
+        { withFileTypes: true },
+      ).catch(() => []);
+      for (const conversation of conversations.sort((a, b) =>
+        a.name.localeCompare(b.name),
+      )) {
+        if (!conversation.isDirectory() || !validId(conversation.name, "conv_"))
+          continue;
+        const directory = join(
+          this.storage.paths.home,
+          "conversations",
+          conversation.name,
+          "tool-calls",
         );
-        fileBytes += Buffer.byteLength(raw);
-        const record = toolCallRecordSchema.parse(JSON.parse(raw));
-        if (record.id !== id || record.conversationId !== conversation.name) {
-          throw new Error(
-            `Canonical tool-call path identity mismatch for '${id}'.`,
+        const files = await readdir(directory, { withFileTypes: true }).catch(
+          () => [],
+        );
+        for (const file of files.sort((a, b) => a.name.localeCompare(b.name))) {
+          if (!file.isFile() || !file.name.endsWith(".json")) continue;
+          const id = file.name.slice(0, -5);
+          if (!validId(id, "tool_"))
+            throw new Error(
+              `Invalid canonical tool-call filename '${file.name}'.`,
+            );
+          const raw = await readFile(join(directory, file.name), "utf8");
+          fileBytes += Buffer.byteLength(raw);
+          const record = toolCallRecordSchema.parse(JSON.parse(raw));
+          if (record.id !== id || record.conversationId !== conversation.name) {
+            throw new Error(
+              `Canonical tool-call path identity mismatch for '${id}'.`,
+            );
+          }
+          if (ids.has(id))
+            throw new Error(`Duplicate canonical tool call '${id}'.`);
+          ids.add(id);
+          rowCount += 1;
+          this.index.appendToolCallRebuild(
+            record,
+            toToolCallTranscriptRecord(record),
           );
+          if (!isTerminal(record.status)) this.records.set(id, record);
+          onRecord?.(record);
         }
-        if (this.records.has(id))
-          throw new Error(`Duplicate canonical tool call '${id}'.`);
-        this.records.set(id, record);
-        this.index.upsertToolCall(record);
       }
+      this.index.finishToolCallRebuild();
+    } catch (error) {
+      this.index.rollbackToolCallRebuild();
+      throw error;
     }
     this.hydrationStats = {
-      rowCount: this.records.size,
-      uniqueCount: this.records.size,
+      rowCount,
+      uniqueCount: rowCount,
       fileBytes,
+      activeCount: this.records.size,
       source: "files",
     };
-    return this.list();
+    return this.listActive();
   }
 
   get hydrationSource(): "files" {
     return "files";
   }
+
   get hydrationStatsValue(): ToolCallHydrationStats {
     return { ...this.hydrationStats };
   }
 
-  list(): ToolCallRecord[] {
-    return [...this.records.values()].sort((a, b) =>
-      b.updatedAt.localeCompare(a.updatedAt),
-    );
+  residentStats(): {
+    activeRecords: number;
+    cachedTerminalRecords: number;
+    cachedTerminalBytes: number;
+  } {
+    return {
+      activeRecords: this.records.size,
+      cachedTerminalRecords: this.terminalCache.size,
+      cachedTerminalBytes: this.terminalCacheBytes,
+    };
+  }
+
+  count(): number {
+    return this.index.countToolCalls();
+  }
+
+  listActive(): ToolCallRecord[] {
+    return [...this.records.values()].sort(compareUpdatedDescending);
+  }
+
+  listPreviews(query: ToolCallPreviewQuery = {}): ToolCallTranscriptRecord[] {
+    return this.index.listToolCallPreviews(query);
+  }
+
+  queryPreviews(query: ToolCallPreviewQuery = {}) {
+    return this.index.queryToolCallPreviews(query);
   }
 
   get(toolCallId: string): ToolCallRecord {
-    const toolCall = this.records.get(toolCallId);
-    if (!toolCall) throw new Error("Tool call not found.");
-    return toolCall;
+    const active = this.records.get(toolCallId);
+    if (active) return active;
+    const cached = this.terminalCache.get(toolCallId);
+    if (!cached)
+      throw new Error("Tool call is not active; load it asynchronously.");
+    this.terminalCache.delete(toolCallId);
+    this.terminalCache.set(toolCallId, cached);
+    return cached.record;
+  }
+
+  async getCanonical(toolCallId: string): Promise<ToolCallRecord> {
+    const active = this.records.get(toolCallId);
+    if (active) return active;
+    const cached = this.terminalCache.get(toolCallId);
+    if (cached) {
+      this.terminalCache.delete(toolCallId);
+      this.terminalCache.set(toolCallId, cached);
+      return cached.record;
+    }
+    const conversationId = this.index.toolCallConversationId(toolCallId);
+    if (!conversationId) throw new Error("Tool call not found.");
+    const raw = await readFile(
+      this.path({ id: toolCallId, conversationId }),
+      "utf8",
+    );
+    const record = toolCallRecordSchema.parse(JSON.parse(raw));
+    if (record.id !== toolCallId || record.conversationId !== conversationId)
+      throw new Error("Canonical tool-call identity mismatch.");
+    this.cacheTerminal(record, Buffer.byteLength(raw));
+    return record;
   }
 
   findByProviderToolCallId(
     providerToolCallId: string | undefined,
   ): ToolCallRecord | undefined {
     if (!providerToolCallId) return undefined;
-    return [...this.records.values()].find(
+    return [
+      ...this.records.values(),
+      ...[...this.terminalCache.values()].map((cached) => cached.record),
+    ].find(
       (toolCall) =>
         toolCall.providerToolCallId === providerToolCallId ||
         toolCall.sourceToolCallId === providerToolCallId,
@@ -141,8 +234,12 @@ export class ToolCallRepository {
       } finally {
         await handle.close();
       }
-      this.records.set(record.id, record);
-      this.index.upsertToolCall(record);
+      if (isTerminal(record.status)) {
+        this.cacheTerminal(record, Buffer.byteLength(JSON.stringify(record)));
+      } else {
+        this.records.set(record.id, record);
+      }
+      this.index.upsertToolCall(record, toToolCallTranscriptRecord(record));
       return record;
     });
   }
@@ -170,9 +267,14 @@ export class ToolCallRepository {
         revision: current.revision + 1,
       });
       await atomicWriteJson(this.path(next), next, 0o600);
-      this.records.set(next.id, next);
+      if (isTerminal(next.status)) {
+        this.records.delete(next.id);
+        this.cacheTerminal(next, Buffer.byteLength(JSON.stringify(next)));
+      } else {
+        this.records.set(next.id, next);
+      }
       try {
-        this.index.upsertToolCall(next);
+        this.index.upsertToolCall(next, toToolCallTranscriptRecord(next));
       } catch {
         /* Canonical file remains authoritative. */
       }
@@ -185,6 +287,32 @@ export class ToolCallRepository {
       if (!conversationIds.has(record.conversationId)) continue;
       this.records.delete(id);
       this.index.deleteToolCall(id);
+    }
+    for (const [id, cached] of [...this.terminalCache]) {
+      if (!conversationIds.has(cached.record.conversationId)) continue;
+      this.terminalCache.delete(id);
+      this.terminalCacheBytes -= cached.bytes;
+      this.index.deleteToolCall(id);
+    }
+  }
+
+  private cacheTerminal(record: ToolCallRecord, bytes: number): void {
+    if (!isTerminal(record.status) || bytes > TERMINAL_CACHE_MAX_BYTES) return;
+    const existing = this.terminalCache.get(record.id);
+    if (existing) {
+      this.terminalCache.delete(record.id);
+      this.terminalCacheBytes -= existing.bytes;
+    }
+    this.terminalCache.set(record.id, { record, bytes });
+    this.terminalCacheBytes += bytes;
+    while (this.terminalCacheBytes > TERMINAL_CACHE_MAX_BYTES) {
+      const oldestId = this.terminalCache.keys().next().value as
+        | string
+        | undefined;
+      if (!oldestId) break;
+      const oldest = this.terminalCache.get(oldestId);
+      this.terminalCache.delete(oldestId);
+      this.terminalCacheBytes -= oldest?.bytes ?? 0;
     }
   }
 
@@ -239,6 +367,7 @@ const immutableKeys = [
   "cwd",
   "createdAt",
 ] as const;
+
 function assertImmutableIdentity(
   current: ToolCallRecord,
   next: ToolCallRecord,
@@ -248,9 +377,21 @@ function assertImmutableIdentity(
       throw new Error(`Tool-call identity field '${key}' is immutable.`);
   }
 }
+
 function validId(value: string, prefix: string): boolean {
   return value.startsWith(prefix) && /^[A-Za-z0-9_-]+$/.test(value);
 }
+
 function isTerminal(status: ToolCallRecord["status"]): boolean {
   return ["completed", "denied", "failed", "cancelled"].includes(status);
+}
+
+function compareUpdatedDescending(
+  left: ToolCallRecord,
+  right: ToolCallRecord,
+): number {
+  return (
+    right.updatedAt.localeCompare(left.updatedAt) ||
+    right.id.localeCompare(left.id)
+  );
 }

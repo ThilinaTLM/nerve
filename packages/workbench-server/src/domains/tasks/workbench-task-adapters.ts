@@ -262,8 +262,19 @@ export function createWorkbenchTaskResources(
           async () => undefined,
         );
       },
-      query: (task, query) => logs.queryLogs(task, query),
+      query: async (task, query) => {
+        const state = managed.get(task.id);
+        if (state) await logs.persistTailSnapshot(task, state);
+        const outputRetention = state
+          ? logs.retention(task, state)
+          : task.outputRetention;
+        return await logs.queryLogs({ ...task, outputRetention }, query);
+      },
       remove: async () => undefined,
+      retention: (task) => {
+        const state = managed.get(task.id);
+        return state ? logs.retention(task, state) : task.outputRetention;
+      },
     },
     readiness: {
       wait: (task, request) => readiness.wait(task, request),

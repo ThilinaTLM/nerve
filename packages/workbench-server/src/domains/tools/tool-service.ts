@@ -18,6 +18,7 @@ import {
   type TaskRecord,
   type ThinkingLevel,
   type ToolCallRecord,
+  type ToolCallTranscriptRecord,
   type ToolInteraction,
   type ToolName,
   toolCallTransitions,
@@ -228,10 +229,13 @@ export class ToolService {
   }
 
   async hydrate(): Promise<void> {
-    await this.toolCallRepository.hydrate();
-    this.plans.hydrateFromToolCalls?.(this.toolCallRepository.list());
+    this.plans.resetToolCallHydration();
+    this.todoState.resetToolCallHydration();
+    await this.toolCallRepository.hydrate((toolCall) => {
+      this.plans.hydrateFromToolCall(toolCall);
+      this.todoState.hydrateFromToolCall(toolCall);
+    });
     await this.reconcileInterruptedToolCallsOnStartup();
-    this.todoState.hydrateFromToolCalls(this.toolCallRepository.list());
   }
 
   listTools() {
@@ -239,7 +243,23 @@ export class ToolService {
   }
 
   listToolCalls(): ToolCallRecord[] {
-    return this.toolCallRepository.list();
+    return this.toolCallRepository.listActive();
+  }
+
+  listToolCallPreviews(
+    query: Parameters<ToolCallRepository["listPreviews"]>[0] = {},
+  ): ToolCallTranscriptRecord[] {
+    return this.toolCallRepository.listPreviews(query);
+  }
+
+  queryToolCallPreviews(
+    query: Parameters<ToolCallRepository["queryPreviews"]>[0] = {},
+  ): ReturnType<ToolCallRepository["queryPreviews"]> {
+    return this.toolCallRepository.queryPreviews(query);
+  }
+
+  countToolCalls(): number {
+    return this.toolCallRepository.count();
   }
 
   /** Whether the tool-call records were loaded from the persisted snapshot. */
@@ -258,7 +278,11 @@ export class ToolService {
   private projectApprovals(
     status?: ApprovalRecord["status"],
   ): ApprovalRecord[] {
-    return this.listToolCalls()
+    const toolCalls =
+      status === "pending"
+        ? this.listToolCalls()
+        : this.listToolCallPreviews({ limit: 1_000 });
+    return toolCalls
       .flatMap((toolCall) =>
         toolCall.interactions.flatMap((interaction) =>
           interaction.kind === "approval"
@@ -270,7 +294,7 @@ export class ToolService {
   }
 
   private projectApproval(
-    toolCall: ToolCallRecord,
+    toolCall: ToolCallRecord | ToolCallTranscriptRecord,
     ordinal: number,
   ): ApprovalRecord {
     const interaction = toolCall.interactions[ordinal];
@@ -297,7 +321,11 @@ export class ToolService {
   }
 
   private projectQuestions(status?: UserQuestionStatus): UserQuestionRecord[] {
-    return this.listToolCalls()
+    const toolCalls =
+      status === "pending"
+        ? this.listToolCalls()
+        : this.listToolCallPreviews({ limit: 1_000 });
+    return toolCalls
       .flatMap((toolCall) =>
         toolCall.interactions.flatMap((interaction) => {
           if (interaction.kind !== "user_input") return [];
@@ -596,7 +624,7 @@ export class ToolService {
   ): Promise<ToolCallRecord[]> {
     if (!runId) return [];
     const stale = this.toolCallRepository
-      .list()
+      .listActive()
       .filter(
         (toolCall) => toolCall.runId === runId && !isTerminalToolCall(toolCall),
       );
@@ -622,7 +650,7 @@ export class ToolService {
 
   private async reconcileInterruptedToolCallsOnStartup(): Promise<void> {
     const interrupted = this.toolCallRepository
-      .list()
+      .listActive()
       .filter(
         (toolCall) =>
           toolCall.status === "committed" || toolCall.status === "running",
@@ -813,6 +841,10 @@ export class ToolService {
 
   getToolCall(toolCallId: string): ToolCallRecord {
     return this.toolCallRepository.get(toolCallId);
+  }
+
+  async getToolCallDetails(toolCallId: string): Promise<ToolCallRecord> {
+    return await this.toolCallRepository.getCanonical(toolCallId);
   }
 
   private async updateToolCall(
