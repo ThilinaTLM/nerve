@@ -1,6 +1,5 @@
 <script lang="ts">
-import { formatTokens } from "@nervekit/ui-kit/core/utils/usage";
-import { PanelPropertyRow, PanelSectionHeader } from "$lib/presentation/panel";
+import { PanelPropertyRow } from "$lib/presentation/panel";
 import {
   conversationUsageMetrics,
   type ConversationUsageSummary,
@@ -16,33 +15,31 @@ const cacheRateLabel = $derived(
     : `${Math.round(metrics.cacheRate)}%`,
 );
 
-function compactTokens(value: number): string {
-  return `${formatTokens(value)} tokens`;
-}
-
 function exactTokens(value: number): string {
   return `${value.toLocaleString()} tokens`;
 }
 </script>
 
 <div class="flex min-w-0 flex-col">
-  <PanelSectionHeader title="Conversation usage" />
   {#if metrics.hasUsage}
     <PanelPropertyRow
-      label="Processed"
-      value={compactTokens(metrics.totalTokens)}
-      title={exactTokens(metrics.totalTokens)}
-      dense
-    />
-    <PanelPropertyRow
-      label="Prompt input"
-      value={compactTokens(metrics.promptTokens)}
+      label="Input"
+      labelClass="w-24"
+      value={exactTokens(metrics.promptTokens)}
       title={exactTokens(metrics.promptTokens)}
       dense
     />
     <PanelPropertyRow
+      label="Cached input"
+      labelClass="w-24"
+      value={`${exactTokens(metrics.cachedTokens)} · ${cacheRateLabel}`}
+      title={`${exactTokens(metrics.cachedTokens)} · ${cacheRateLabel} of all input tokens`}
+      dense
+    />
+    <PanelPropertyRow
       label="Output"
-      value={compactTokens(metrics.output)}
+      labelClass="w-24"
+      value={exactTokens(metrics.output)}
       title={exactTokens(metrics.output)}
       dense
     />
@@ -52,35 +49,3 @@ function exactTokens(value: number): string {
     </p>
   {/if}
 </div>
-
-{#if metrics.hasUsage}
-  <div class="flex min-w-0 flex-col">
-    <PanelSectionHeader title="Prompt cache">
-      {#snippet meta()}{cacheRateLabel}{/snippet}
-    </PanelSectionHeader>
-    <PanelPropertyRow
-      label="Cached input"
-      labelClass="w-24"
-      value={compactTokens(metrics.cachedTokens)}
-      title={`${exactTokens(metrics.cachedTokens)} · ${cacheRateLabel} of prompt input`}
-      dense
-    />
-    <PanelPropertyRow
-      label="Uncached input"
-      labelClass="w-24"
-      value={compactTokens(metrics.uncachedTokens)}
-      title={exactTokens(metrics.uncachedTokens)}
-      dense
-    />
-    <PanelPropertyRow
-      label="Cache writes"
-      labelClass="w-24"
-      value={compactTokens(metrics.cacheWrite)}
-      title={exactTokens(metrics.cacheWrite)}
-      dense
-    />
-    <p class="pt-1 text-xs text-muted-foreground">
-      Provider-reported usage for the selected branch.
-    </p>
-  </div>
-{/if}

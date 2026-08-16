@@ -115,10 +115,10 @@ async function copySession(): Promise<void> {
           {compacting ? "Compacting…" : "Compact"}
         </Button>
       </ContextUsageStrip>
-      <ContextConversationUsage {conversationUsage} />
       <div class="flex min-w-0 flex-col">
         <ContextSessionSection {fields} />
       </div>
+      <ContextConversationUsage {conversationUsage} />
       <ContextAgentsTree {conversationAgents} {activeAgent} {onSelectAgent} />
     </div>
   {/if}

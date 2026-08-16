@@ -136,7 +136,7 @@ function requestCompact(): void {
     {/snippet}
 
     <PopoverBody>
-      <PopoverHeader title="Current context window">
+      <PopoverHeader title="Context window">
         {#snippet action()}
           <span
             class={cn(
@@ -172,37 +172,49 @@ function requestCompact(): void {
             label="Used"
             value={tokens == null
               ? "Unavailable"
+              : `${formatTokens(tokens)} tokens`}
+            title={tokens == null
+              ? undefined
               : `${tokens.toLocaleString()} tokens`}
           />
           <PopoverProperty
             label="Remaining"
             value={remainingTokens == null
               ? "Unavailable"
+              : `${formatTokens(remainingTokens)} tokens`}
+            title={remainingTokens == null
+              ? undefined
               : `${remainingTokens.toLocaleString()} tokens`}
           />
           <PopoverProperty
             label="Window"
             value={contextLimit > 0
-              ? `${contextLimit.toLocaleString()} tokens`
+              ? `${formatTokens(contextLimit)} tokens`
               : "Unknown"}
+            title={contextLimit > 0
+              ? `${contextLimit.toLocaleString()} tokens`
+              : undefined}
           />
         </PopoverProperties>
       </PopoverSection>
 
-      <PopoverSection label="Conversation usage" separated>
+      <PopoverSection label="Token usage" separated>
         {#if conversationMetrics.hasUsage}
           <PopoverProperties>
             <PopoverProperty
-              label="Total processed"
-              value={`${conversationMetrics.totalTokens.toLocaleString()} tokens`}
+              label="Input"
+              value={`${formatTokens(conversationMetrics.promptTokens)} tokens`}
+              title={`${conversationMetrics.promptTokens.toLocaleString()} tokens`}
             />
             <PopoverProperty
-              label="Prompt input"
-              value={`${conversationMetrics.promptTokens.toLocaleString()} tokens`}
+              label="Cached input"
+              value={`${formatTokens(conversationMetrics.cachedTokens)} tokens · ${cacheRateLabel}`}
+              title={`${conversationMetrics.cachedTokens.toLocaleString()} tokens · ${cacheRateLabel} of all input tokens`}
             />
             <PopoverProperty
               label="Output"
-              value={`${conversationMetrics.output.toLocaleString()} tokens`}
+              value={`${formatTokens(conversationMetrics.output)} tokens`}
+              title={`${conversationMetrics.output.toLocaleString()} tokens`}
             />
           </PopoverProperties>
         {:else}
@@ -211,29 +223,6 @@ function requestCompact(): void {
           </p>
         {/if}
       </PopoverSection>
-
-      {#if conversationMetrics.hasUsage}
-        <PopoverSection label="Prompt cache" separated>
-          <PopoverProperties>
-            <PopoverProperty
-              label="Cached input"
-              value={`${conversationMetrics.cachedTokens.toLocaleString()} tokens · ${cacheRateLabel}`}
-              title="Provider-reported cache reads as a share of all prompt input"
-            />
-            <PopoverProperty
-              label="Uncached input"
-              value={`${conversationMetrics.uncachedTokens.toLocaleString()} tokens`}
-            />
-            <PopoverProperty
-              label="Cache writes"
-              value={`${conversationMetrics.cacheWrite.toLocaleString()} tokens`}
-            />
-          </PopoverProperties>
-          <p class="text-muted-foreground">
-            Provider-reported usage for the selected branch.
-          </p>
-        </PopoverSection>
-      {/if}
 
       <Button
         size="xs"
