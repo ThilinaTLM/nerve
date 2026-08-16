@@ -65,7 +65,8 @@ function download(entry: ExportEntry): void {
   if (!entry.href) return;
   const anchor = document.createElement("a");
   anchor.href = entry.href;
-  if (entry.filename) anchor.download = entry.filename;
+  // An empty value still marks this as a download before desktop navigation guards run.
+  anchor.download = entry.filename ?? "";
   anchor.rel = "noopener";
   document.body.append(anchor);
   anchor.click();
