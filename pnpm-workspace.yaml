@@ -11,9 +11,9 @@ allowBuilds:
   sharp: true
 minimumReleaseAgeExclude:
   - brace-expansion@1.1.18 || 2.1.4 || 5.0.9
-  - "@earendil-works/pi-ai@0.84.1"
+  - "@earendil-works/pi-ai@0.84.2"
   - "@astrojs/internal-helpers@0.10.2"
   - "@astrojs/markdown-satteri@0.3.5"
   - astro@7.1.5
   - mermaid@11.16.1
-  - "@earendil-works/pi-telemetry@0.84.1"
+  - "@earendil-works/pi-telemetry@0.84.2"
