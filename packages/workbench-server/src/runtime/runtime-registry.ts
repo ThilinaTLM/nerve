@@ -951,6 +951,10 @@ export class RuntimeRegistry {
     return this.workbenchRun.cancelQueuedPrompt(agentId, queuedPromptId);
   }
 
+  async forcePushQueuedPrompts(agentId: string) {
+    return this.workbenchRun.forcePushQueuedPrompts(agentId);
+  }
+
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
     return this.workbenchRun.promptAgent(agentId, request);
   }

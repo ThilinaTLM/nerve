@@ -32,6 +32,7 @@ import type {
 import {
   abortHarnessRun,
   getHarnessActiveTools,
+  interruptHarnessRun,
   type HarnessConfigurationState,
   setHarnessActiveTools,
   setHarnessModel,
@@ -68,6 +69,7 @@ import {
   hasQueuedHarnessInput,
   type HarnessQueueState,
   type InboundQueuedMessage,
+  promoteAllQueuedHarnessMessages,
   removeQueuedHarnessMessage,
   steerHarness,
 } from "./queue/operations.js";
@@ -117,6 +119,7 @@ export class AgentHarness<
   private steeringQueueMode: QueueMode;
   private followUpQueue: InboundQueuedMessage[] = [];
   private followUpQueueMode: QueueMode;
+  private forceDrainAll = false;
   private nextTurnQueue: AgentMessage[] = [];
   private readonly queuedMessageWrites = new WeakMap<
     AgentMessage,
@@ -329,8 +332,14 @@ export class AgentHarness<
           thinkingLevel: nextTurnState.thinkingLevel,
         };
       },
-      getSteeringMessages: async () =>
-        this.drainQueuedMessages(this.steerQueue, this.steeringQueueMode),
+      getSteeringMessages: async () => {
+        const forceDrainAll = this.forceDrainAll;
+        this.forceDrainAll = false;
+        return this.drainQueuedMessages(
+          this.steerQueue,
+          forceDrainAll ? "all" : this.steeringQueueMode,
+        );
+      },
       getFollowUpMessages: async () =>
         this.drainQueuedMessages(this.followUpQueue, this.followUpQueueMode),
     };
@@ -665,7 +674,20 @@ export class AgentHarness<
     this.streamOptions = cloneStreamOptions(streamOptions);
   }
 
+  forcePush(): Promise<void> {
+    if (promoteAllQueuedHarnessMessages(this.queueState()) === 0) {
+      throw new AgentHarnessError(
+        "invalid_state",
+        "No queued messages to force push",
+      );
+    }
+    this.forceDrainAll = true;
+    interruptHarnessRun(this.configurationState());
+    return Promise.resolve();
+  }
+
   async abort(): Promise<AbortResult> {
+    this.forceDrainAll = false;
     return abortHarnessRun(this.configurationState());
   }
 

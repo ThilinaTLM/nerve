@@ -627,6 +627,7 @@ export async function executeWorkbenchHarness(
         provider: model.provider,
       },
     });
+    let forcePushGeneration = 0;
     const abort = async () => {
       abortRequested = true;
       toolDraftProgressScheduler.clear();
@@ -675,6 +676,11 @@ export async function executeWorkbenchHarness(
           images: prompt.images,
         });
       },
+      forcePush: async () => {
+        forcePushGeneration += 1;
+        toolDraftProgressScheduler.clear();
+        await harness.forcePush();
+      },
       continue: async () => undefined,
       cancel: abort,
       removeQueuedPrompt: harness.removeQueuedMessage.bind(harness),
@@ -690,65 +696,81 @@ export async function executeWorkbenchHarness(
     };
 
     const promptRequest = await expandBlocks(request.text, request.images);
-    const runAssistant = await this.runHarnessAttempt({
-      harness,
-      conversation: harnessConversation,
-      request: promptRequest,
-      continue: options.continue === true,
-      runId,
-      agent,
-      signal: runAbortController.signal,
-    });
-    const branch = await storage.getPathToRoot(await storage.getLeafId());
-    const messages = convertToLlm(buildConversationContext(branch).messages);
-    this.deps.conversationService.setForAgent(agent.id, messages);
-    const assistantEntry = lastAssistantEntry;
-    if (!assistantEntry) {
-      throw new Error("Agent run completed without an assistant entry.");
-    }
-    if (
-      runAssistant.stopReason === "error" ||
-      runAssistant.stopReason === "aborted"
-    ) {
-      const aborted = runAssistant.stopReason === "aborted" || abortRequested;
-      const retryable = !aborted && isRetryableAssistantError(runAssistant);
-      // Automatic retry policy and manual recovery are intentionally separate:
-      // billing/auth failures should not spin, but users can change models and
-      // resume from the provider boundary.
-      const continuable = !aborted;
-      if (continuable) {
-        const leafId = await harnessConversation.getLeafId();
-        const leaf = leafId
-          ? await harnessConversation.getEntry(leafId)
-          : undefined;
-        if (leaf?.parentId !== undefined) {
-          await harnessConversation.moveTo(leaf.parentId);
+    let continueAttempt = options.continue === true;
+    let handledForcePushGeneration = 0;
+    while (true) {
+      const runAssistant = await this.runHarnessAttempt({
+        harness,
+        conversation: harnessConversation,
+        request: promptRequest,
+        continue: continueAttempt,
+        runId,
+        agent,
+        signal: runAbortController.signal,
+      });
+      const branch = await storage.getPathToRoot(await storage.getLeafId());
+      const messages = convertToLlm(buildConversationContext(branch).messages);
+      this.deps.conversationService.setForAgent(agent.id, messages);
+      if (forcePushGeneration > handledForcePushGeneration) {
+        handledForcePushGeneration = forcePushGeneration;
+        continueAttempt = true;
+        continue;
+      }
+      const assistantEntry = lastAssistantEntry;
+      if (!assistantEntry) {
+        throw new Error("Agent run completed without an assistant entry.");
+      }
+      if (
+        runAssistant.stopReason === "error" ||
+        runAssistant.stopReason === "aborted"
+      ) {
+        const aborted = runAssistant.stopReason === "aborted" || abortRequested;
+        const retryable = !aborted && isRetryableAssistantError(runAssistant);
+        const continuable = !aborted;
+        if (continuable) {
+          const leafId = await harnessConversation.getLeafId();
+          const leaf = leafId
+            ? await harnessConversation.getEntry(leafId)
+            : undefined;
+          if (leaf?.parentId !== undefined) {
+            await harnessConversation.moveTo(leaf.parentId);
+          }
+          await coordinator.sink.checkpoint(
+            await coordinator.checkpointCommand("before_provider_request"),
+          );
         }
-        await coordinator.sink.checkpoint(
-          await coordinator.checkpointCommand("before_provider_request"),
-        );
+        if (forcePushGeneration > handledForcePushGeneration) {
+          handledForcePushGeneration = forcePushGeneration;
+          continueAttempt = true;
+          continue;
+        }
+        return {
+          status: aborted ? "interrupted" : "failed",
+          ...(aborted
+            ? { message: "Agent run aborted." }
+            : {
+                failure: {
+                  code: "MODEL_REQUEST_FAILED",
+                  message: runAssistant.errorMessage ?? "Agent run failed.",
+                  retryable,
+                  continuable,
+                },
+              }),
+        } as RunExecutionOutcome;
+      }
+      await coordinator.sink.checkpoint(
+        await coordinator.checkpointCommand("after_provider_response"),
+      );
+      if (forcePushGeneration > handledForcePushGeneration) {
+        handledForcePushGeneration = forcePushGeneration;
+        continueAttempt = true;
+        continue;
       }
       return {
-        status: aborted ? "interrupted" : "failed",
-        ...(aborted
-          ? { message: "Agent run aborted." }
-          : {
-              failure: {
-                code: "MODEL_REQUEST_FAILED",
-                message: runAssistant.errorMessage ?? "Agent run failed.",
-                retryable,
-                continuable,
-              },
-            }),
-      } as RunExecutionOutcome;
+        status: "completed",
+        result: { finalEntryId: assistantEntry.id },
+      };
     }
-    await coordinator.sink.checkpoint(
-      await coordinator.checkpointCommand("after_provider_response"),
-    );
-    return {
-      status: "completed",
-      result: { finalEntryId: assistantEntry.id },
-    };
   } catch (error) {
     if (isAgentToolSuspension(error)) {
       await waitForSequentialToolInteractionBatch({

@@ -120,15 +120,32 @@ export async function runAgentLoopContinue(
     throw new Error("Cannot continue: no messages in context");
   }
 
-  if (context.messages[context.messages.length - 1].role === "assistant") {
-    throw new Error("Cannot continue from message role: assistant");
-  }
-
   const newMessages: AgentMessage[] = [];
-  const currentContext: AgentContext = { ...context };
+  const currentContext: AgentContext = {
+    ...context,
+    messages: [...context.messages],
+  };
 
   await emit({ type: "agent_start" });
   await emit({ type: "turn_start" });
+
+  if (context.messages[context.messages.length - 1].role === "assistant") {
+    const steering = (await config.getSteeringMessages?.()) ?? [];
+    const followUps =
+      steering.length === 0
+        ? ((await config.getFollowUpMessages?.()) ?? [])
+        : [];
+    const queued = steering.length > 0 ? steering : followUps;
+    if (queued.length === 0) {
+      throw new Error("Cannot continue from message role: assistant");
+    }
+    currentContext.messages.push(...queued);
+    newMessages.push(...queued);
+    for (const message of queued) {
+      await emit({ type: "message_start", message });
+      await emit({ type: "message_end", message });
+    }
+  }
 
   await runLoop(currentContext, newMessages, config, signal, emit, streamFn);
   return newMessages;

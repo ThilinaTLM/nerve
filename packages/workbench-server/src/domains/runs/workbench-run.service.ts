@@ -81,6 +81,24 @@ export class WorkbenchRunService {
     return this.coordinator.cancelPrompt(state.run.runId, promptId);
   }
 
+  async forcePushQueuedPrompts(agentId: string) {
+    const agent = this.requireAgent(agentId);
+    const state = await this.unitOfWork.findActive(this.scopeId(agent));
+    if (!state) {
+      throw new ApplicationError(
+        409,
+        "AGENT_NOT_RUNNING",
+        "Agent has no active run.",
+      );
+    }
+    const prompts = await this.coordinator.forcePush(state.run.runId);
+    return {
+      accepted: true as const,
+      runId: state.run.runId,
+      queuedPromptIds: prompts.map((prompt) => prompt.id),
+    };
+  }
+
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
     const agent = this.requireAgent(agentId);
     if (agent.parentAgentId) {

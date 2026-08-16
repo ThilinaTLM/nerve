@@ -189,6 +189,14 @@ export async function setHarnessResources<
   });
 }
 
+export function interruptHarnessRun<
+  TSkill extends Skill,
+  TPromptTemplate extends PromptTemplate,
+  TTool extends AgentTool,
+>(state: HarnessConfigurationState<TSkill, TPromptTemplate, TTool>): void {
+  state.runAbortController?.abort();
+}
+
 export async function abortHarnessRun<
   TSkill extends Skill,
   TPromptTemplate extends PromptTemplate,

@@ -182,6 +182,27 @@ export class RunCoordinator {
     return this.prompts.cancel(runId, promptId);
   }
 
+  async forcePush(runId: string): Promise<readonly RunPromptRecord[]> {
+    return this.exclusive(`run:${runId}`, async () => {
+      const state = await this.require(runId);
+      if (!ACTIVE_STATUSES.has(state.run.status)) {
+        throw invalid(state.run, "force push");
+      }
+      const prompts = state.prompts
+        .filter((prompt) => ["queued", "accepted"].includes(prompt.status))
+        .sort((left, right) => left.ordinal - right.ordinal);
+      if (prompts.length === 0) {
+        throw new InvalidRunStateError("No queued prompts to force push");
+      }
+      const execution = this.live.get(runId)?.execution;
+      if (!execution) {
+        throw new InvalidRunStateError("Run has no live execution");
+      }
+      await execution.control.forcePush();
+      return prompts;
+    });
+  }
+
   async continue(runId: string): Promise<RunRecord> {
     return this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);

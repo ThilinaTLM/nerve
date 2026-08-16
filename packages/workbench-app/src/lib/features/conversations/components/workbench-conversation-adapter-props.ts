@@ -94,6 +94,9 @@ export type WorkbenchConversationAdapterProps = {
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void | Promise<void>;
+  onForcePushQueuedPrompts?: (
+    prompt: QueuedPromptRecord,
+  ) => void | Promise<void>;
   onDiscardQueuedPrompt?: (prompt: QueuedPromptRecord) => void | Promise<void>;
   onMoveQueuedPromptToComposer?: (
     prompt: QueuedPromptRecord,

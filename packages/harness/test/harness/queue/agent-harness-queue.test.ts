@@ -31,6 +31,12 @@ type QueueTestHarness = {
     queue: InboundQueuedMessage[],
     mode: QueueMode,
   ): Promise<AgentMessage[]>;
+  createLoopConfig(
+    getTurnState: () => unknown,
+    setTurnState: (state: unknown) => void,
+  ): {
+    getSteeringMessages?: () => Promise<AgentMessage[]>;
+  };
 };
 
 function createHarness(): AgentHarness {
@@ -84,6 +90,31 @@ describe("AgentHarness queued message lifecycle", () => {
       "one-at-a-time",
     );
     assert.equal(messages.length, 1);
+  });
+
+  it("force pushes all follow-ups through the next steering drain", async () => {
+    const harness = createHarness();
+    const internal = harness as unknown as QueueTestHarness;
+    internal.phase = "turn";
+    const drained: string[][] = [];
+    harness.subscribe((event) => {
+      if (event.type === "queue_drained") drained.push(event.messageIds);
+    });
+
+    await harness.followUp("first", { id: "promptq_first" });
+    await harness.followUp("second", { id: "promptq_second" });
+    await harness.forcePush();
+
+    assert.equal(internal.followUpQueue.length, 0);
+    assert.equal(internal.steerQueue.length, 2);
+    const config = internal.createLoopConfig(
+      () => ({ model, thinkingLevel: "off" }),
+      () => undefined,
+    );
+    const messages = await config.getSteeringMessages?.();
+    assert.equal(messages?.length, 1);
+    assert.deepEqual(drained, [["promptq_first", "promptq_second"]]);
+    assert.equal(internal.steerQueue.length, 0);
   });
 
   it("does not drain a queued prompt removed by id", async () => {
