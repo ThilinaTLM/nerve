@@ -1,6 +1,10 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { mermaidThemeVariables, type MermaidTheme } from "./mermaid-render";
+import {
+  mermaidThemeVariables,
+  rewriteMermaidSvgIdReferences,
+  type MermaidTheme,
+} from "./mermaid-render";
 
 const theme: MermaidTheme = {
   fingerprint: "dark-theme",
@@ -15,6 +19,23 @@ const theme: MermaidTheme = {
   strongBorder: "#777777",
   mutedForeground: "#aaaaaa",
 };
+
+describe("Mermaid SVG ID references", () => {
+  it("scopes fragment references without confusing ID prefixes", () => {
+    const ids = new Map([
+      ["arrow", "mount-1-arrow"],
+      ["arrowhead", "mount-1-arrowhead"],
+    ]);
+
+    assert.equal(
+      rewriteMermaidSvgIdReferences(
+        "marker-end: url(#arrowhead); fill: url(#arrow); href: #arrow",
+        ids,
+      ),
+      "marker-end: url(#mount-1-arrowhead); fill: url(#mount-1-arrow); href: #mount-1-arrow",
+    );
+  });
+});
 
 describe("Mermaid theme variables", () => {
   it("uses themed surfaces for alternating ER attribute rows", () => {
