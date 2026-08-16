@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-The desktop layout has a conversation/task dock, a tabbed center workspace, and a secondary dock. Drag resize handles to allocate space. Panel views can move among left, right, and bottom docks or be hidden; Nerve repairs obsolete saved layouts after upgrades.
+The desktop layout has a conversation/task dock, a tabbed center workspace, and a secondary dock. Drag resize handles to allocate space. Panel views can move among left, right, and bottom docks or be hidden; Nerve repairs obsolete saved layouts after upgrades. The title-bar Help button opens the built-in Guides catalog, including a full Workbench tour.
 
 ## Dock views
 
@@ -30,8 +30,14 @@ Below 1024px, Nerve switches to a single center column. Left dock views move int
 
 Layout and active-tab preferences are browser-local. A different browser profile or cleared site storage starts with defaults even though server-side projects and conversations remain.
 
+## Built-in tour
+
+Choose **Help → Guides → Work through the Workbench** for an interactive tour of the composer, review controls, panels, files, Git, tasks, providers, Settings, and status. The tour needs an active project and can be replayed after completion.
+
 ## Next steps
 
 - [Conversations](/guides/conversations/)
 - [Files, context, and notes](/guides/files-context-notes/)
 - [Themes, zoom, and shortcuts](/guides/personalize/)
+- [Configure Settings](/guides/settings/)
+- [Use the built-in Guides](/start/guides/)

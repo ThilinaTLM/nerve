@@ -9,7 +9,7 @@ Nerve gets its current built-in provider and model catalog through its pi-ai int
 
 ## Add authentication
 
-Open **Settings → Providers** and choose a provider. Depending on provider metadata, Nerve can offer:
+Open **Providers & authentication** from the title bar, then use its **Connections** page to choose a provider. Model defaults and scopes live separately under **Settings**. Depending on provider metadata, Nerve can offer:
 
 - an API key;
 - an OAuth or subscription flow;
@@ -47,6 +47,7 @@ Voice transcription requires OpenAI Codex/ChatGPT OAuth. An ordinary OpenAI API 
 
 ## Next steps
 
+- [Built-in Guides](/start/guides/)
 - [Open a project](/start/first-project/)
 - [Provider and authentication details](/models/providers-and-auth/)
 - [Troubleshoot providers](/troubleshooting/providers/)

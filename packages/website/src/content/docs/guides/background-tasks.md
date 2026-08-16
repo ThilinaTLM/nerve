@@ -10,7 +10,7 @@ Nerve separates a durable **task definition** from immutable **task runs**. A de
 - `single` (default): launching an active definition focuses its current run.
 - `concurrent`: launching can create another active run.
 
-Use finite Bash for commands that should finish. Use a task for a known server or watcher. Nerve can also promote a command that remains active.
+Use finite Bash for commands that should finish. Use a task for a known server or watcher. Nerve can also promote a command that remains active. A task is separate from an agent todo: tasks supervise processes, while todos describe work inside a conversation.
 
 ## Supervision
 
@@ -32,6 +32,10 @@ A normal **Stop** requests graceful process-tree termination and escalates after
 
 Quitting the desktop app immediately terminates active local task process trees before its owned daemon exits. Closing to the tray leaves tasks running.
 
+## Task controls
+
+The Tasks panel and task-output tab let you switch between sibling runs, restart a saved task, cancel a run, load earlier log output, clean up terminal history, and prune old runs. **Force kill** is available only when Nerve has verified the process identity (or a run is stuck stopping); it is intentionally unavailable for `recovery_unknown` records. Removing a run's history does not remove the durable task definition.
+
 ## Agent notifications
 
 Task terminal changes can become deduplicated `task_event` system entries in the conversation and can wake an agent waiting for completion. This is separate from desktop/browser toast notifications.
@@ -39,4 +43,5 @@ Task terminal changes can become deduplicated `task_event` system entries in the
 ## Next steps
 
 - [Task recovery troubleshooting](/troubleshooting/tasks-and-recovery/)
+- [Configure Settings](/guides/settings/)
 - [Task tool reference](/reference/tools/#background-tasks)

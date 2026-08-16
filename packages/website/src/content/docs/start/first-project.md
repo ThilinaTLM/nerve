@@ -43,8 +43,14 @@ You will see text and any thinking returned by the provider, plus cards for file
 Below 1024px, dock views become left and right sheets. The phone-density layout begins below 640px, but the same project and conversation data remains available.
 :::
 
+## Use the built-in guide
+
+After opening a project, choose **Help → Guides → Work through the Workbench** for an interactive tour. The catalog also includes provider, voice, model, agent-default, and web-search setup coaches.
+
 ## Next steps
 
 - [Complete a safe first task](/start/first-task/)
+- [Use the built-in Guides](/start/guides/)
 - [Learn the workbench](/guides/workbench/)
+- [Configure Settings](/guides/settings/)
 - [Learn the composer](/guides/composer/)
