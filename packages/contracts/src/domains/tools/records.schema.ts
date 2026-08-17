@@ -83,7 +83,7 @@ export const coreToolNameSchema = z.enum([
   "jira_manage_comment",
   "jira_manage_worklog",
   "jira_manage_issue_link",
-  "jira_upload_attachment",
+  "jira_manage_attachment",
   "jira_manage_sprint",
   "jira_manage_backlog",
   "confluence_search_spaces",

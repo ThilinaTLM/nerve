@@ -226,6 +226,24 @@ describe("tool policy", () => {
     );
     assert.equal(
       evaluateToolPolicy(
+        agent("autonomous"),
+        "jira_manage_attachment",
+        { action: "upload", issue_key: "PROJ-1", file_path: "report.txt" },
+        { dataDir: "/tmp/nerve" },
+      ).risk,
+      "command",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous"),
+        "jira_manage_attachment",
+        { action: "delete", attachment_id: "42" },
+        { dataDir: "/tmp/nerve" },
+      ).risk,
+      "destructive",
+    );
+    assert.equal(
+      evaluateToolPolicy(
         agent("autonomous", "planning"),
         "jira_get_issue",
         { issue_key: "PROJ-1" },

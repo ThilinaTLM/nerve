@@ -270,11 +270,45 @@ export async function executeJiraDownloadAttachment(
   });
 }
 
-export async function executeJiraUploadAttachment(
+export async function executeJiraManageAttachment(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
+  const action = requiredString(args.action, "action");
+  if (action !== "upload" && action !== "delete")
+    throw new ToolExecutionError(
+      "JIRA_ATTACHMENT_ACTION_INVALID",
+      "action must be upload or delete.",
+    );
   const connection = await requireJiraConnection(context);
+  if (action === "delete") {
+    const attachmentId = requiredString(args.attachment_id, "attachment_id");
+    if (args.dry_run === true)
+      return dryResult(
+        context,
+        `would delete Jira attachment ${attachmentId}.`,
+        {
+          action,
+          operation: action,
+          attachmentId,
+        },
+      );
+    await jiraRequest(connection, {
+      method: "DELETE",
+      path: `/attachment/${pathSegment(attachmentId)}`,
+      signal: context.signal,
+    });
+    return buildJiraTextResult({
+      text: `Deleted Jira attachment ${attachmentId}.`,
+      context,
+      details: {
+        action,
+        operation: action,
+        attachmentId,
+      },
+    });
+  }
+
   const issueKey = requiredString(args.issue_key, "issue_key");
   const filePath = resolveToolPath(context.cwd, args.file_path);
   const bytes = await readFile(filePath);
@@ -288,8 +322,8 @@ export async function executeJiraUploadAttachment(
   );
   if (args.dry_run === true)
     return dryResult(context, `would upload ${filename} to ${issueKey}.`, {
-      action: "upload_attachment",
-      operation: "upload",
+      action,
+      operation: action,
       issueKey,
       filename,
       bytes: bytes.byteLength,
@@ -306,8 +340,8 @@ export async function executeJiraUploadAttachment(
     text: `Uploaded Jira attachment ${filename} to ${issueKey}.`,
     context,
     details: {
-      action: "upload_attachment",
-      operation: "upload",
+      action,
+      operation: action,
       issueKey,
       filename,
       attachment: summarizeJiraAttachment(attachment),

@@ -60,7 +60,7 @@ export {
   executeJiraManageIssueLink,
   executeJiraManageSprint,
   executeJiraManageWorklog,
-  executeJiraUploadAttachment,
+  executeJiraManageAttachment,
 } from "./resources.js";
 
 const DEFAULT_SEARCH_FIELDS = [

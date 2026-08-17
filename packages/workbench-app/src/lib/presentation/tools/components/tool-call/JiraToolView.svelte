@@ -249,11 +249,17 @@ function outcomeTitle(text: string): string {
           : undefined}
         tone={outcomeTone(view.operation === "delete")}
       />
-    {:else if view.action === "upload_attachment"}
+    {:else if view.action === "manage_attachment"}
       <AtlassianOutcomeRow
-        title={outcomeTitle(`Uploaded ${view.filename ?? "attachment"}`)}
-        detail={joined(view.issueKey, formatBytes(view.bytes))}
-        tone={outcomeTone()}
+        title={outcomeTitle(
+          view.operation === "delete"
+            ? `Deleted attachment${view.attachmentId ? ` ${view.attachmentId}` : ""}`
+            : `Uploaded ${view.filename ?? "attachment"}`,
+        )}
+        detail={view.operation === "delete"
+          ? undefined
+          : joined(view.issueKey, formatBytes(view.bytes))}
+        tone={outcomeTone(view.operation === "delete")}
       />
     {:else if view.action === "manage_sprint"}
       <AtlassianOutcomeRow

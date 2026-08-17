@@ -16,8 +16,9 @@ import {
   executeJiraSearchUsers,
   executeJiraTransitionIssue,
   executeJiraUpdateIssue,
-  executeJiraUploadAttachment,
+  executeJiraManageAttachment,
 } from "../../execution/jira/jira.js";
+import { jiraManageAttachmentParameters } from "./jira-attachment.schema.js";
 import type { ToolDefinition } from "../types.js";
 
 const jiraGuideline =
@@ -392,16 +393,6 @@ const downloadAttachmentParameters = Type.Object(
   { attachment_id: Type.String(), filename: Type.Optional(Type.String()) },
   { additionalProperties: false },
 );
-const uploadAttachmentParameters = Type.Object(
-  {
-    issue_key: Type.String(),
-    file_path: Type.String(),
-    filename: Type.Optional(Type.String()),
-    dry_run: Type.Optional(Type.Boolean()),
-  },
-  { additionalProperties: false },
-);
-
 const estimateFields = {
   adjust_estimate: Type.Optional(
     Type.Union([
@@ -740,18 +731,20 @@ export const jiraToolDefinitions = [
     executionMode: "sequential",
   },
   {
-    name: "jira_upload_attachment",
+    name: "jira_manage_attachment",
     group: "jira",
     baseRisk: "command",
     traits: ["write_capable", "credentialed"],
     executionKind: "local",
-    executor: executeJiraUploadAttachment,
-    label: "Jira Upload Attachment",
-    description: "Upload one local file to one Jira issue.",
-    promptSnippet: "Upload one Jira attachment only when explicitly requested",
+    executor: executeJiraManageAttachment,
+    label: "Jira Manage Attachment",
+    description: "Upload or delete one Jira attachment.",
+    promptSnippet: "Manage one Jira attachment only when explicitly requested",
     promptGuidelines: [jiraGuideline],
-    parameters: uploadAttachmentParameters,
+    parameters: jiraManageAttachmentParameters,
     executionMode: "sequential",
+    classifyRisk: (args) =>
+      args.action === "delete" ? "destructive" : "command",
   },
   {
     name: "jira_manage_sprint",

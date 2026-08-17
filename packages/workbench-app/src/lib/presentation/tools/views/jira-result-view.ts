@@ -270,8 +270,8 @@ function jiraAction(toolName: string): JiraToolAction | undefined {
       return "manage_worklog";
     case "jira_manage_issue_link":
       return "manage_issue_link";
-    case "jira_upload_attachment":
-      return "upload_attachment";
+    case "jira_manage_attachment":
+      return "manage_attachment";
     case "jira_manage_sprint":
       return "manage_sprint";
     case "jira_manage_backlog":

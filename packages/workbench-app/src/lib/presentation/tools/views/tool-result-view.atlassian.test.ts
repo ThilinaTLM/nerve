@@ -148,6 +148,30 @@ describe("normalized Atlassian tool views", () => {
         },
       ],
       [
+        "jira_manage_attachment",
+        {
+          action: "upload",
+          issue_key: "NER-1",
+          file_path: "report.txt",
+        },
+        {
+          action: "upload",
+          operation: "upload",
+          issueKey: "NER-1",
+          filename: "report.txt",
+          attachment: { id: "30", filename: "report.txt" },
+        },
+      ],
+      [
+        "jira_manage_attachment",
+        { action: "delete", attachment_id: "30" },
+        {
+          action: "delete",
+          operation: "delete",
+          attachmentId: "30",
+        },
+      ],
+      [
         "jira_manage_sprint",
         { action: "start", sprint_id: "8" },
         {

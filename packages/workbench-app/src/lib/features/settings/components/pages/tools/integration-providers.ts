@@ -169,7 +169,10 @@ export const jiraIntegration: IntegrationProviderDef = {
       name: "jira_manage_issue_link",
       description: "Create or delete one issue link.",
     },
-    { name: "jira_upload_attachment", description: "Upload one attachment." },
+    {
+      name: "jira_manage_attachment",
+      description: "Upload or delete one attachment.",
+    },
     { name: "jira_manage_sprint", description: "Manage one sprint lifecycle." },
     { name: "jira_manage_backlog", description: "Move or rank one issue." },
     {

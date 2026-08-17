@@ -635,7 +635,7 @@ export function parseToolView(
     case "jira_manage_comment":
     case "jira_manage_worklog":
     case "jira_manage_issue_link":
-    case "jira_upload_attachment":
+    case "jira_manage_attachment":
     case "jira_manage_sprint":
     case "jira_manage_backlog":
     case "jira_transition_issue":

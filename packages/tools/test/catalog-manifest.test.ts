@@ -10,6 +10,7 @@ const validActionArguments: Record<string, Record<string, unknown>> = {
   jira_manage_comment: { action: "create", issue_key: "PROJ-1" },
   jira_manage_worklog: { action: "create", issue_key: "PROJ-1" },
   jira_manage_issue_link: { action: "create", issue_key: "PROJ-1" },
+  jira_manage_attachment: { action: "upload", issue_key: "PROJ-1" },
   jira_manage_sprint: { action: "create" },
   jira_manage_backlog: { action: "move_to_backlog", issue_key: "PROJ-1" },
   confluence_manage_comment: { action: "create", kind: "footer" },

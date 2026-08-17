@@ -5,6 +5,7 @@ import {
   executeConfluenceManageComment,
 } from "../src/execution/confluence/confluence.js";
 import {
+  executeJiraManageAttachment,
   executeJiraManageBacklog,
   executeJiraManageComment,
   executeJiraManageSprint,
@@ -63,6 +64,21 @@ describe("Atlassian action-specific mutation validation", () => {
           context,
         ),
       /exactly one rank_before_issue_key or rank_after_issue_key/,
+    );
+  });
+
+  it("retains Jira attachment action requirements", async () => {
+    await rejectsBeforeRequest(
+      () =>
+        executeJiraManageAttachment(
+          { action: "upload", file_path: "attachment.txt" },
+          context,
+        ),
+      /issue_key must be a non-empty string/,
+    );
+    await rejectsBeforeRequest(
+      () => executeJiraManageAttachment({ action: "delete" }, context),
+      /attachment_id must be a non-empty string/,
     );
   });
 

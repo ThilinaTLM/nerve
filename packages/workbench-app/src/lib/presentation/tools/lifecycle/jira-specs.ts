@@ -420,24 +420,36 @@ export const jiraToolLifecycleSpecs = {
         safetyNotes: mutationSafety(source, "manage the issue link"),
       }),
   }),
-  jira_upload_attachment: spec({
-    name: "jira_upload_attachment",
+  jira_manage_attachment: spec({
+    name: "jira_manage_attachment",
     argumentRegion: "until-result",
     completedView: "jira",
-    present: (source) =>
-      argumentPresentation({
+    present: (source) => {
+      const action = source.string("action");
+      return argumentPresentation({
         primaryArg: textArg(
           [
-            source.string("issue_key"),
-            source.string("filename") ?? source.string("file_path"),
+            action,
+            action === "delete"
+              ? source.string("attachment_id")
+              : source.string("issue_key"),
+            action === "upload"
+              ? (source.string("filename") ?? source.string("file_path"))
+              : undefined,
           ]
             .filter(Boolean)
             .join(" · "),
           "Jira attachment",
         ),
         secondary: dryRunMeta(source),
-        safetyNotes: mutationSafety(source, "upload the attachment"),
-      }),
+        safetyNotes: mutationSafety(
+          source,
+          action === "delete"
+            ? "delete the attachment"
+            : "upload the attachment",
+        ),
+      });
+    },
   }),
   jira_manage_sprint: spec({
     name: "jira_manage_sprint",

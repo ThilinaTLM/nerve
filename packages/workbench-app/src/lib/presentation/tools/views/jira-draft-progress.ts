@@ -27,6 +27,12 @@ export function jiraDraftPrimaryArg(
     );
   if (toolName === "jira_download_attachment")
     return firstKnownString(draft, "attachment_id");
+  if (toolName === "jira_manage_attachment")
+    return (
+      firstKnownString(draft, "file_path") ??
+      firstKnownString(draft, "attachment_id") ??
+      firstKnownString(draft, "issue_key")
+    );
   if (toolName === "jira_create_issue") {
     return firstKnownString(draft, "summary");
   }
@@ -36,7 +42,6 @@ export function jiraDraftPrimaryArg(
     toolName === "jira_manage_comment" ||
     toolName === "jira_manage_worklog" ||
     toolName === "jira_manage_issue_link" ||
-    toolName === "jira_upload_attachment" ||
     toolName === "jira_manage_backlog" ||
     toolName === "jira_transition_issue"
   ) {
@@ -115,6 +120,9 @@ export function jiraDraftMeta(
   }
   if (toolName === "jira_manage_comment") {
     meta.push({ text: String(args.action ?? "comment") });
+  }
+  if (toolName === "jira_manage_attachment" && args.action !== undefined) {
+    meta.push({ text: String(args.action) });
   }
   if (toolName?.startsWith("jira_manage_") && args.dry_run === true) {
     meta.push({ text: "dry run", tone: "info" });

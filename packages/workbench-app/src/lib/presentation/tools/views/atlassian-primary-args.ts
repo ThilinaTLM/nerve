@@ -126,16 +126,20 @@ export function jiraPrimaryArg(
                 : view.issueKey,
           }
         : undefined;
-    case "upload_attachment":
-      return view.filename
-        ? {
-            text: view.issueKey
-              ? `${view.filename} · ${view.issueKey}`
-              : view.filename,
-          }
-        : view.issueKey
-          ? { text: view.issueKey }
-          : undefined;
+    case "manage_attachment":
+      return view.operation === "delete"
+        ? view.attachmentId
+          ? { text: view.attachmentId }
+          : undefined
+        : view.filename
+          ? {
+              text: view.issueKey
+                ? `${view.filename} · ${view.issueKey}`
+                : view.filename,
+            }
+          : view.issueKey
+            ? { text: view.issueKey }
+            : undefined;
     case "get_project": {
       const label = view.project?.name
         ? `${view.project.key} · ${view.project.name}`

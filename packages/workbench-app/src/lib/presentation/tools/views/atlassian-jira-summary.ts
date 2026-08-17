@@ -61,7 +61,7 @@ const JIRA_ACTION_LABELS: Record<JiraAction, string> = {
   manage_comment: "manage comment",
   manage_worklog: "manage worklog",
   manage_issue_link: "manage issue link",
-  upload_attachment: "upload attachment",
+  manage_attachment: "manage attachment",
   manage_sprint: "manage sprint",
   manage_backlog: "manage backlog",
   transition_issue: "transition issue",
@@ -353,6 +353,36 @@ function appendJiraRequestLines(
         addLine(lines, "Mode", "will add comment");
       break;
     }
+    case "manage_attachment": {
+      const operation = view?.operation ?? sourceString(source, "action");
+      addLine(lines, "Action", operation);
+      if (operation === "delete") {
+        addLine(
+          lines,
+          "Attachment id",
+          view?.attachmentId ?? sourceString(source, "attachment_id"),
+        );
+      } else {
+        addLine(
+          lines,
+          "Issue",
+          view?.issueKey ?? sourceString(source, "issue_key"),
+        );
+        addLine(lines, "File", sourceString(source, "file_path"));
+        addLine(
+          lines,
+          "Filename",
+          view?.filename ?? sourceString(source, "filename"),
+        );
+      }
+      appendMutationOptions(
+        lines,
+        source,
+        operation === "delete" ? "delete attachment" : "upload attachment",
+        view?.dryRun,
+      );
+      break;
+    }
     case "transition_issue": {
       addLine(
         lines,
@@ -507,6 +537,14 @@ function appendJiraOutcomeLines(
       addLine(lines, "Result", view.messageLines[0]);
       break;
     }
+    case "manage_attachment": {
+      addLine(lines, "Action", view.operation);
+      addLine(lines, "Issue", view.issueKey);
+      addLine(lines, "Attachment id", view.attachmentId ?? view.attachment?.id);
+      addLine(lines, "Filename", view.filename ?? view.attachment?.filename);
+      addLine(lines, "Result", view.messageLines[0]);
+      break;
+    }
     case "transition_issue": {
       if (view.transition) {
         addLine(
@@ -573,8 +611,8 @@ function jiraActionFromToolName(
       return "manage_worklog";
     case "jira_manage_issue_link":
       return "manage_issue_link";
-    case "jira_upload_attachment":
-      return "upload_attachment";
+    case "jira_manage_attachment":
+      return "manage_attachment";
     case "jira_manage_sprint":
       return "manage_sprint";
     case "jira_manage_backlog":

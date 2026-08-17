@@ -87,8 +87,11 @@ export function summarizeExploreToolCall(
       return activity("Managing Jira worklog", issueDetail(args));
     case "jira_manage_issue_link":
       return activity("Managing Jira issue link", issueDetail(args));
-    case "jira_upload_attachment":
-      return activity("Uploading Jira attachment", issueDetail(args));
+    case "jira_manage_attachment":
+      return activity(
+        "Managing Jira attachment",
+        firstString(args, "file_path", "attachment_id", "issue_key"),
+      );
     case "jira_manage_sprint":
       return activity(
         "Managing Jira sprint",

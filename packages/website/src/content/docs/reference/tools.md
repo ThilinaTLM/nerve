@@ -19,7 +19,7 @@ Reads are bounded and parallel-capable. `edit`/`write` are serialized mutations.
 
 - Web: `web_search`, `web_fetch`
 - Jira reads: `jira_search_users`, `jira_search_issues`, `jira_get_issue`, `jira_get_project`, `jira_search_boards`, `jira_get_board`, `jira_get_sprint`, `jira_download_attachment`
-- Jira writes: `jira_create_issue`, `jira_update_issue`, `jira_transition_issue`, `jira_manage_comment`, `jira_manage_worklog`, `jira_manage_issue_link`, `jira_upload_attachment`, `jira_manage_sprint`, `jira_manage_backlog`
+- Jira writes: `jira_create_issue`, `jira_update_issue`, `jira_transition_issue`, `jira_manage_comment`, `jira_manage_worklog`, `jira_manage_issue_link`, `jira_manage_attachment`, `jira_manage_sprint`, `jira_manage_backlog`
 - Confluence reads: `confluence_search_spaces`, `confluence_search_pages`, `confluence_get_page`, `confluence_download_page`
 - Confluence writes: `confluence_create_page`, `confluence_update_page`, `confluence_manage_comment`, `confluence_manage_page`, `confluence_manage_label`, `confluence_manage_restriction`, `confluence_manage_attachment`
 

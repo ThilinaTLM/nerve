@@ -511,9 +511,12 @@ export function toolPresentation(
           if (view.linkType) meta.push({ text: view.linkType });
           if (view.linkId) meta.push({ text: view.linkId, mono: true });
           break;
-        case "upload_attachment":
+        case "manage_attachment":
+          if (view.operation) meta.push({ text: view.operation });
           if (view.issueKey) meta.push({ text: view.issueKey, mono: true });
-          if (view.attachment?.id)
+          if (view.attachmentId)
+            meta.push({ text: view.attachmentId, mono: true });
+          else if (view.attachment?.id)
             meta.push({ text: view.attachment.id, mono: true });
           break;
         case "manage_sprint":

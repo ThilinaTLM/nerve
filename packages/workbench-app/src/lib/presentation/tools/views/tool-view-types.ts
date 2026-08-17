@@ -53,7 +53,7 @@ export type JiraToolAction =
   | "manage_comment"
   | "manage_worklog"
   | "manage_issue_link"
-  | "upload_attachment"
+  | "manage_attachment"
   | "manage_sprint"
   | "manage_backlog"
   | "transition_issue";
