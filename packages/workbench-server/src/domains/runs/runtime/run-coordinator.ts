@@ -91,6 +91,33 @@ export interface RunCoordinatorPorts {
   transitionObserver?: RunTransitionObserverPort;
 }
 
+const CANCELLATION_TARGET_DEADLINE_MS = 2_000;
+
+async function withCancellationDeadline<T>(
+  operation: Promise<T>,
+  target: string,
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Cancellation target ${target} timed out after ${CANCELLATION_TARGET_DEADLINE_MS}ms`,
+              ),
+            ),
+          CANCELLATION_TARGET_DEADLINE_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export class RunCoordinator {
   private readonly locks = new KeyedSerialLock();
   private readonly live = new LiveExecutionRegistry();
@@ -627,12 +654,15 @@ export class RunCoordinator {
     const evidence = await Promise.all(
       targets.map(async (target) => {
         try {
-          const status = await cancelRunTarget(
+          const status = await withCancellationDeadline(
+            cancelRunTarget(
+              target,
+              requested,
+              this.ports.cancellation,
+              execution,
+              reason,
+            ),
             target,
-            requested,
-            this.ports.cancellation,
-            execution,
-            reason,
           );
           return { target, status, checkedAt: this.now() };
         } catch (error) {

@@ -14,6 +14,9 @@
       "path": "../protocol"
     },
     {
+      "path": "../native"
+    },
+    {
       "path": "../harness"
     },
     {

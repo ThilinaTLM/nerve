@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@nervekit/contracts": "workspace:*",
+    "@nervekit/native": "workspace:*",
     "cross-spawn": "7.0.6",
     "diff": "^8.0.4",
     "node-html-markdown": "^2.0.0",

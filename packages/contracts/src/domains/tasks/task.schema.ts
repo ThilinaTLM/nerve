@@ -66,6 +66,7 @@ export const taskRuntimeSchema = z.object({
   processGroupId: z.number().int().positive().optional(),
   detached: z.boolean(),
   shell: z.boolean(),
+  containment: z.enum(["job-object", "process-group", "fallback"]).optional(),
   spawnedAt: z.string().datetime(),
   identity: taskRuntimeIdentitySchema.optional(),
   listeningPorts: z.array(taskListeningPortSchema).optional(),

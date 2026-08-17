@@ -632,7 +632,7 @@ export async function executeWorkbenchHarness(
       abortRequested = true;
       toolDraftProgressScheduler.clear();
       runAbortController.abort();
-      await harness.abort();
+      harness.requestAbort();
     };
     const updateAgentRuntimeConfig = async (updatedAgent: AgentRecord) => {
       const nextActiveToolNames = await this.activeToolNamesFor(updatedAgent);

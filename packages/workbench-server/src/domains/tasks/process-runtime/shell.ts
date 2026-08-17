@@ -1,4 +1,10 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
+import {
+  managedProcessForChild,
+  spawnManagedChildProcess,
+  terminateManagedChildProcess,
+  type TerminationResult,
+} from "@nervekit/native";
 import { resolveBashShellConfig } from "@nervekit/tools";
 import type { ProcessLifecycleResult, SpawnProcessOptions } from "./types.js";
 
@@ -64,11 +70,19 @@ export function observeProcessLifecycle(child: ChildProcess): {
 
 export function spawnShell(command: string, options: SpawnProcessOptions) {
   const shell = resolveBashShellConfig({ shellPath: options.shellPath });
-  return spawn(shell.shell, [...shell.args, command], {
+  return spawnManagedChildProcess(shell.shell, [...shell.args, command], {
     cwd: options.cwd,
     env: processEnvironment(options.env),
-    stdio: ["ignore", "pipe", "pipe"],
-    detached: process.platform !== "win32",
-    windowsHide: true,
   });
+}
+
+export function managedProcessMetadata(child: ChildProcess) {
+  return managedProcessForChild(child);
+}
+
+export async function terminateManagedChild(
+  child: ChildProcess,
+  signal: NodeJS.Signals,
+): Promise<TerminationResult | undefined> {
+  return terminateManagedChildProcess(child, signal);
 }

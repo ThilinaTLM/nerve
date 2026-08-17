@@ -38,6 +38,7 @@
     "@hono/node-server": "2.0.12",
     "@nervekit/contracts": "workspace:*",
     "@nervekit/harness": "workspace:*",
+    "@nervekit/native": "workspace:*",
     "@nervekit/protocol": "workspace:*",
     "@nervekit/tools": "workspace:*",
     "@peculiar/x509": "^2.0.0",

@@ -30,7 +30,7 @@ export interface SpawnedProcess {
 
 export interface TerminationResult {
   attempted: boolean;
-  method: "process-group" | "direct-child" | "taskkill" | "none";
+  method: "job-object" | "process-group" | "direct-child" | "taskkill" | "none";
   error?: string;
 }
 

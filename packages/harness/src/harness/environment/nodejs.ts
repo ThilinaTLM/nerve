@@ -1,4 +1,8 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
+import {
+  spawnManagedChildProcess,
+  terminateManagedChildProcess,
+} from "@nervekit/native";
 import { randomUUID } from "node:crypto";
 import { constants, createReadStream } from "node:fs";
 import {
@@ -121,7 +125,7 @@ async function runCommand(
       return;
     }
     const timeout = setTimeout(() => {
-      if (child.pid) killProcessTree(child.pid);
+      if (child.pid) killProcessTree(child.pid, child);
     }, timeoutMs);
     child.stdout?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => {
@@ -207,7 +211,13 @@ function getShellEnv(
   };
 }
 
-function killProcessTree(pid: number): void {
+function killProcessTree(pid: number, child?: ChildProcess): void {
+  if (child) {
+    void terminateManagedChildProcess(child, "SIGKILL").then((result) => {
+      if (!result) killProcessTree(pid);
+    });
+    return;
+  }
   if (process.platform === "win32") {
     try {
       spawn("taskkill", ["/F", "/T", "/PID", String(pid)], {
@@ -287,7 +297,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
 
       const onAbort = () => {
         if (child?.pid) {
-          killProcessTree(child.pid);
+          killProcessTree(child.pid, child);
         }
       };
 
@@ -306,15 +316,12 @@ export class NodeExecutionEnv implements ExecutionEnv {
       };
 
       try {
-        child = spawn(
+        child = spawnManagedChildProcess(
           shellConfig.value.shell,
           [...shellConfig.value.args, command],
           {
             cwd,
-            detached: process.platform !== "win32",
             env: getShellEnv(this.shellEnv, options?.env),
-            stdio: ["ignore", "pipe", "pipe"],
-            windowsHide: true,
           },
         );
       } catch (error) {
@@ -328,7 +335,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
           ? setTimeout(() => {
               timedOut = true;
               if (child?.pid) {
-                killProcessTree(child.pid);
+                killProcessTree(child.pid, child);
               }
             }, options.timeout * 1000)
           : undefined;

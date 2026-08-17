@@ -1,7 +1,12 @@
 import type { ChildProcess } from "node:child_process";
 import type { TaskListeningPort, TaskRuntime } from "@nervekit/contracts";
 import { errorCode, errorMessage, runCommand } from "./command.js";
-import { observeProcessLifecycle, spawnShell } from "./shell.js";
+import {
+  managedProcessMetadata,
+  observeProcessLifecycle,
+  spawnShell,
+  terminateManagedChild,
+} from "./shell.js";
 import type {
   ProcessRuntimeDriver,
   RuntimeInspection,
@@ -137,6 +142,7 @@ export const darwinProcessRuntimeDriver: ProcessRuntimeDriver = {
     if (!child.pid) throw new Error("Spawned process has no PID");
     const pid = child.pid;
     const spawnedAt = new Date().toISOString();
+    const native = managedProcessMetadata(child);
     const runtime = fingerprint(pid).then((current) => ({
       version: 2 as const,
       platform: "darwin" as const,
@@ -144,6 +150,7 @@ export const darwinProcessRuntimeDriver: ProcessRuntimeDriver = {
       processGroupId: pid,
       detached: true,
       shell: true,
+      containment: native?.containment ?? "fallback",
       spawnedAt,
       identity:
         current.kind === "found"
@@ -153,6 +160,7 @@ export const darwinProcessRuntimeDriver: ProcessRuntimeDriver = {
         identity: current.kind === "found",
         processTree: true,
         listeningPorts: true,
+        detail: native ? `native:${native.containment}` : undefined,
       },
     }));
     return { child, exited, closed, runtime };
@@ -160,6 +168,8 @@ export const darwinProcessRuntimeDriver: ProcessRuntimeDriver = {
   inspect,
   terminate,
   async terminateChild(child: ChildProcess, signal: NodeJS.Signals) {
+    const native = await terminateManagedChild(child, signal);
+    if (native) return native;
     if (!child.pid)
       return { attempted: false, method: "none", error: "Missing child PID" };
     try {

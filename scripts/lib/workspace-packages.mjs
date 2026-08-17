@@ -23,6 +23,7 @@ export const repoRoot = resolve(
  */
 export const versionLockedPackages = [
   "contracts",
+  "native",
   "protocol",
   "harness",
   "tools",
@@ -34,6 +35,7 @@ export const versionLockedPackages = [
 /** The npm-published @nervekit packages bundled into the desktop tarball. */
 export const bundledPackages = [
   ["@nervekit/contracts", "contracts"],
+  ["@nervekit/native", "native"],
   ["@nervekit/protocol", "protocol"],
   ["@nervekit/harness", "harness"],
   ["@nervekit/tools", "tools"],

@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { managedProcessForChild } from "@nervekit/native";
 
-const DEFAULT_HELPER_TIMEOUT_MS = 5000;
+const DEFAULT_HELPER_TIMEOUT_MS = 1000;
 
 type ProcessTreeTerminationOptions = {
   platform?: NodeJS.Platform;
@@ -17,6 +18,12 @@ export async function forceKillProcessTree(
   child: ChildProcess,
   options: ProcessTreeTerminationOptions = {},
 ): Promise<void> {
+  const managed = managedProcessForChild(child);
+  if (managed) {
+    const native = await managed.terminate("SIGKILL");
+    if (native.error) throw new Error(native.error);
+    return;
+  }
   if (!child.pid) {
     child.kill("SIGKILL");
     return;

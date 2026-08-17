@@ -1,7 +1,13 @@
 import type { ChildProcess } from "node:child_process";
+import { inspectProcess } from "@nervekit/native";
 import type { TaskListeningPort, TaskRuntime } from "@nervekit/contracts";
 import { errorMessage, runCommand } from "./command.js";
-import { observeProcessLifecycle, spawnShell } from "./shell.js";
+import {
+  managedProcessMetadata,
+  observeProcessLifecycle,
+  spawnShell,
+  terminateManagedChild,
+} from "./shell.js";
 import type {
   ProcessRuntimeDriver,
   RuntimeInspection,
@@ -42,15 +48,20 @@ async function inspect(runtime: TaskRuntime): Promise<RuntimeInspection> {
     };
   if (!runtime.childPid)
     return { evidence: "unknown", detail: "Missing root PID" };
-  const current = await creationDate(runtime.childPid);
-  if (current.kind === "unavailable")
-    return { evidence: "unknown", detail: current.detail };
-  if (current.kind === "missing") return { evidence: "exited_verified" };
   if (runtime.identity?.kind !== "win32")
     return {
       evidence: "unknown",
       detail: "Legacy runtime has no verifiable creation time",
     };
+  const nativeIdentity = runtime.identity.creationDate.startsWith("win32:")
+    ? inspectProcess(runtime.childPid)
+    : undefined;
+  const current = nativeIdentity
+    ? ({ kind: "found", value: nativeIdentity } as const)
+    : await creationDate(runtime.childPid);
+  if (current.kind === "unavailable")
+    return { evidence: "unknown", detail: current.detail };
+  if (current.kind === "missing") return { evidence: "exited_verified" };
   if (current.value !== runtime.identity.creationDate)
     return {
       evidence: "identity_mismatch",
@@ -63,11 +74,9 @@ async function terminateVerified(
   runtime: TaskRuntime,
   signal: NodeJS.Signals,
 ): Promise<TerminationResult> {
-  const args =
-    signal === "SIGKILL"
-      ? ["/F", "/T", "/PID", String(runtime.childPid)]
-      : ["/T", "/PID", String(runtime.childPid)];
-  const result = await runCommand("taskkill", args, 5_000).catch((error) => ({
+  void signal;
+  const args = ["/F", "/T", "/PID", String(runtime.childPid)];
+  const result = await runCommand("taskkill", args, 1_000).catch((error) => ({
     code: -1,
     stdout: "",
     stderr: errorMessage(error),
@@ -138,40 +147,34 @@ export const windowsProcessRuntimeDriver: ProcessRuntimeDriver = {
     if (!child.pid) throw new Error("Spawned process has no PID");
     const pid = child.pid;
     const spawnedAt = new Date().toISOString();
-    const runtime = creationDate(pid).then((created) => ({
+    const native = managedProcessMetadata(child);
+    const runtime = Promise.resolve({
       version: 2 as const,
       platform: "win32" as const,
       childPid: pid,
       detached: false,
       shell: true,
+      containment: native?.containment ?? "fallback",
       spawnedAt,
-      identity:
-        created.kind === "found"
-          ? ({ kind: "win32", creationDate: created.value } as const)
-          : ({ kind: "legacy_unverified" } as const),
+      identity: native?.identity.startsWith("win32:")
+        ? ({ kind: "win32", creationDate: native.identity } as const)
+        : ({ kind: "legacy_unverified" } as const),
       capabilities: {
-        identity: created.kind === "found",
+        identity: native?.identity.startsWith("win32:") ?? false,
         processTree: true,
         listeningPorts: true,
+        detail: native ? `native:${native.containment}` : "javascript-fallback",
       },
-    }));
+    });
     return { child, exited, closed, runtime };
   },
   inspect,
   terminate,
   async terminateChild(child: ChildProcess, signal: NodeJS.Signals) {
+    const native = await terminateManagedChild(child, signal);
+    if (native) return native;
     if (!child.pid)
       return { attempted: false, method: "none", error: "Missing child PID" };
-    const created = await creationDate(child.pid);
-    if (created.kind === "missing") return { attempted: false, method: "none" };
-    if (created.kind === "unavailable") {
-      const stopped = child.kill(signal);
-      return {
-        attempted: stopped,
-        method: "direct-child",
-        error: stopped ? undefined : created.detail,
-      };
-    }
     return terminateVerified(
       {
         version: 2,
@@ -180,9 +183,8 @@ export const windowsProcessRuntimeDriver: ProcessRuntimeDriver = {
         detached: false,
         shell: true,
         spawnedAt: new Date().toISOString(),
-        identity: { kind: "win32", creationDate: created.value },
       },
-      signal,
+      "SIGKILL",
     );
   },
   listeningPorts,

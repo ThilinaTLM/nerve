@@ -11,7 +11,7 @@ import {
   inspectRuntimeListeningPorts,
 } from "./task-port-inspector.js";
 
-const DEFAULT_HELPER_TIMEOUT_MS = 2000;
+const DEFAULT_HELPER_TIMEOUT_MS = 1000;
 
 function nonInteractiveShellEnv(
   overrides: Record<string, string> | undefined,
@@ -48,7 +48,7 @@ export interface TerminateTaskOptions {
 
 export interface TerminateTaskResult {
   attempted: boolean;
-  method: "process-group" | "direct-child" | "taskkill" | "none";
+  method: "job-object" | "process-group" | "direct-child" | "taskkill" | "none";
   error?: string;
 }
 

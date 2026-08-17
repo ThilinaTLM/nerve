@@ -5,6 +5,9 @@
       "path": "./packages/contracts"
     },
     {
+      "path": "./packages/native"
+    },
+    {
       "path": "./packages/protocol"
     },
     {

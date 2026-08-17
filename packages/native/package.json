@@ -1,0 +1,49 @@
+{
+  "name": "@nervekit/native",
+  "version": "0.24.1",
+  "private": true,
+  "description": "Cross-platform native runtime primitives for Nerve.",
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": [
+    "dist/**",
+    "prebuilds/**",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "build:native": "napi build --cwd native --package-json-path ../package.json --platform --release --output-dir ../prebuilds/local",
+    "check": "tsc -b --pretty false",
+    "check:native": "cargo fmt --check --manifest-path native/Cargo.toml && cargo clippy --manifest-path native/Cargo.toml --all-targets -- -D warnings",
+    "test": "tsx --test \"test/**/*.test.ts\"",
+    "test:native": "cargo test --manifest-path native/Cargo.toml"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "3.8.6",
+    "@types/node": "24.10.1",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "napi": {
+    "binaryName": "nerve_native",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-pc-windows-msvc",
+      "aarch64-pc-windows-msvc",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin"
+    ]
+  }
+}

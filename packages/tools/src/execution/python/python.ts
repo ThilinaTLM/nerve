@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawnManagedChildProcess } from "@nervekit/native";
 import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -368,7 +368,7 @@ async function runPythonProcess({
       ...policy,
       artifactDir,
     };
-    const child = spawn(
+    const child = spawnManagedChildProcess(
       runtime.command,
       [
         ...runtime.args,
@@ -380,9 +380,6 @@ async function runPythonProcess({
       ],
       {
         cwd,
-        shell: false,
-        detached: process.platform !== "win32",
-        stdio: ["ignore", "pipe", "pipe"],
         env: {
           ...process.env,
           ...envOverrides,

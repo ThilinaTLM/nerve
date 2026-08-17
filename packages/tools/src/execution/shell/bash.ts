@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawnManagedChildProcess } from "@nervekit/native";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import { resolveCommandCwd } from "../common/command-cwd.js";
@@ -45,15 +45,12 @@ export async function executeBash(
     const shellConfig = resolveBashShellConfig({
       shellPath: context.shellPath,
     });
-    const child = spawn(
+    const child = spawnManagedChildProcess(
       shellConfig.shell,
       [...shellConfig.args, args.command as string],
       {
         cwd,
-        detached: process.platform !== "win32",
         env: nonInteractiveShellEnv(),
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
       },
     );
 

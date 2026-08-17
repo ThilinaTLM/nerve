@@ -171,6 +171,13 @@ async function stageDesktopDistribution() {
     await cp(join(sourceRoot, "dist"), join(destinationRoot, "dist"), {
       recursive: true,
     });
+    if (directory === "native") {
+      await cp(
+        join(sourceRoot, "prebuilds"),
+        join(destinationRoot, "prebuilds"),
+        { recursive: true },
+      );
+    }
     for (const filename of ["LICENSE", "NOTICE"]) {
       await cp(join(repoRoot, filename), join(destinationRoot, filename));
     }

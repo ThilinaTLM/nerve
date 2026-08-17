@@ -7,6 +7,8 @@ dist/
 *.tsbuildinfo
 packages/desktop-shell/build/
 packages/desktop-shell/release/
+packages/native/prebuilds/
+target/
 release/
 .env
 .env.*
