@@ -124,10 +124,6 @@ export async function executeToolCallsSequential(
     await emitToolResultMessage(toolResultMessage, emit);
     finalizedCalls.push(finalized);
     messages.push(toolResultMessage);
-
-    if (signal?.aborted) {
-      break;
-    }
   }
 
   return {
@@ -170,9 +166,6 @@ export async function executeToolCallsParallel(
       } satisfies FinalizedToolCallOutcome;
       await emitToolExecutionEnd(finalized, orderedEmit);
       finalizedCalls.push(finalized);
-      if (signal?.aborted) {
-        break;
-      }
       continue;
     }
 
@@ -193,9 +186,6 @@ export async function executeToolCallsParallel(
       await emitToolExecutionEnd(finalized, orderedEmit);
       return finalized;
     });
-    if (signal?.aborted) {
-      break;
-    }
   }
 
   const orderedFinalizedCalls = await Promise.all(
@@ -357,6 +347,13 @@ async function executePreparedToolCall(
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
 ): Promise<ExecutedToolCallOutcome> {
+  if (signal?.aborted) {
+    return {
+      result: createErrorToolResult("Operation aborted"),
+      isError: true,
+    };
+  }
+
   const updateEvents: Promise<void>[] = [];
 
   try {
