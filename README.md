@@ -1,7 +1,7 @@
 # Nerve
 
 [![CI](https://github.com/ThilinaTLM/nerve/actions/workflows/ci.yml/badge.svg)](https://github.com/ThilinaTLM/nerve/actions/workflows/ci.yml)
-[![Website](https://github.com/ThilinaTLM/nerve/actions/workflows/website.yml/badge.svg)](https://github.com/ThilinaTLM/nerve/actions/workflows/website.yml)
+[![Website (release)](https://github.com/ThilinaTLM/nerve/actions/workflows/release.yml/badge.svg)](https://github.com/ThilinaTLM/nerve/actions/workflows/release.yml)
 [![Release](https://github.com/ThilinaTLM/nerve/actions/workflows/release.yml/badge.svg)](https://github.com/ThilinaTLM/nerve/actions/workflows/release.yml)
 [![npm](https://img.shields.io/npm/v/%40nervekit%2Fdesktop?logo=npm)](https://www.npmjs.com/package/@nervekit/desktop)
 [![License](https://img.shields.io/github/license/ThilinaTLM/nerve)](LICENSE)

@@ -11,7 +11,7 @@ The contracts and tool manifest define 39 agent-callable names. Definitions decl
 
 Local executors cover files/search, finite Bash/Python, Web, Jira, and Confluence. Host-mediated tools cover questions, to-dos, background tasks, Explore, and plan review because they need durable Workbench state or suspend the run.
 
-Every dispatch produces requested, started, output, completed, or failed lifecycle records. File mutations serialize per path; shell/Python can stream but remain finite; supervised task processes are separate.
+Every dispatch produces persisted lifecycle records. File mutations serialize per path; shell/Python can stream but remain finite; supervised task processes are separate. See [tool output lifecycle](/developers/tool-output-lifecycle/) for the execution states, durable/live event split, and output budgets.
 
 ## Policy decisions
 

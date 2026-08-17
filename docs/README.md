@@ -1,10 +1,10 @@
 # Repository documentation
 
-This directory contains engineering sources and editorial planning for Nerve.
+Root `docs/` contains maintainer and development workflow material that is not part of the public product documentation:
 
-- `architecture/` contains editable architecture diagrams and implementation/reliability notes.
-- `release.md` is the maintainer release procedure.
 - `performance-profiling.md` documents automatic source-desktop performance diagnostics and the local summary tool.
-- `website/content-strategy.md` records the evidence, scope, and review plan for the public website.
+- `release.md` is the maintainer release procedure.
 
-Public user guides and public developer reference live in `packages/website/src/content/docs/` so the deployed site has one searchable source of truth. Product behavior is ultimately defined by the owning contracts, catalogs, implementation, and focused tests; prose should link concepts together without becoming a second schema catalog.
+Public user, developer, architecture, protocol, lifecycle, reliability, and operational documentation lives in [`packages/website/src/content/docs/`](../packages/website/src/content/docs/) and is deployed at [nerve.tlmtech.dev](https://nerve.tlmtech.dev). Website-specific editorial planning and architecture diagram sources also live under `packages/website/`.
+
+Product behavior is ultimately defined by the owning contracts, catalogs, implementation, and focused tests. Public prose explains that behavior without becoming a second schema or catalog.

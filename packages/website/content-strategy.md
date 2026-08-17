@@ -22,16 +22,17 @@ Use exact package versions consistent with repository conventions: `astro@7.1.5`
 
 ### Hosting and URL
 
-- Publish through GitHub Pages using a dedicated Actions workflow.
+- Publish through GitHub Pages as part of the tagged Release workflow.
 - Set Astro `site` to `https://nerve.tlmtech.dev` with no `base` path.
 - Add `packages/website/public/CNAME` containing `nerve.tlmtech.dev`.
 - External setup required after merge: configure Cloudflare DNS `nerve` as a CNAME to `thilinatlm.github.io` (DNS-only while GitHub validates), choose **GitHub Actions** as the Pages source, set the custom domain, then enable HTTPS. These are deployment operations, not repository code.
 
 ### Content ownership
 
-- `packages/website/src/content/docs/` becomes canonical for public user, operations, integration, troubleshooting, and public developer-reference prose.
-- `docs/` remains canonical for repository-internal engineering artifacts: editable architecture diagram sources, detailed implementation/reliability notes, and release-maintainer procedures.
-- `docs/website/content-strategy.md` records the evidence inventory, editorial priorities, migration map, known claim constraints, and page backlog. It is an editorial/engineering artifact, not website content.
+- `packages/website/src/content/docs/` is canonical for all public user, operations, integration, troubleshooting, architecture, protocol, and developer-reference prose.
+- `packages/website/diagrams/` owns editable architecture sources; generated SVGs in `packages/website/public/diagrams/` are website assets.
+- `packages/website/content-strategy.md` records the evidence inventory, editorial priorities, migration map, known claim constraints, and page backlog. It is package planning material, not a public page.
+- Root `docs/` is reserved for maintainer and development workflow documents such as release engineering and performance profiling.
 - `README.md` remains a concise repository landing page and quick start. It links to the website for detail instead of duplicating guides.
 - Source schemas, catalogs, implementation, and focused tests remain authoritative for changing API/tool/limit behavior. Public prose explains those behaviors but is not an independent schema catalog.
 
@@ -41,7 +42,7 @@ Publish comprehensive first-pass pages, not placeholder stubs. Where behavior re
 
 ## Evidence-backed feature inventory
 
-The durable version of this inventory will be written to `docs/website/content-strategy.md`. Priorities are **P0** (getting started, safety, or defining value), **P1** (important daily workflow), and **P2** (advanced/reference).
+This package-level inventory is the durable editorial source. Priorities are **P0** (getting started, safety, or defining value), **P1** (important daily workflow), and **P2** (advanced/reference).
 
 ### Workbench and conversation experience
 
@@ -252,35 +253,31 @@ The tables define the first publishable corpus. “Visual / warning” specifies
 | `/developers/contributing/`         | Focused changes, test philosophy, boundaries, docs editing, security reporting                                                                                                            | Development → GitHub CONTRIBUTING/SECURITY | No screenshot; vulnerabilities remain private                                               |
 | `/reference/cli-environment/`       | Desktop/server flags and environment variables with defaults/precedence                                                                                                                   | Operations config                          | Warning markers for secret/token/debug values                                               |
 | `/reference/shortcuts/`             | Current fixed shortcut table grouped by navigation/run/composer/appearance                                                                                                                | Workbench/personalize                      | OS modifier notation; generated/verified from shortcut registry during writing              |
-| `/reference/tools/`                 | All 38 agent tool names grouped by file, execution, web, Atlassian, interaction, task, Explore, planning; risk/prereq/availability                                                        | Tools policy/integrations                  | State that Git/PR UI and Agent Browser are not tool entries                                 |
+| `/reference/tools/`                 | All 39 agent tool names grouped by file, execution, web, Atlassian, interaction, task, Explore, planning; risk/prereq/availability                                                        | Tools policy/integrations                  | State that Git/PR UI and Agent Browser are not tool entries                                 |
 | `/reference/resources/`             | Exact AGENTS/SYSTEM/skills path and precedence tables; toggle semantics                                                                                                                   | Skills guide                               | Root-to-project precedence diagram; no legacy `.pi` loading                                 |
 | `/reference/prompt-suggestions/`    | Full frontmatter/conditions/JS contract, paths, precedence/trust                                                                                                                          | Suggestions guide                          | Code examples; JS trust warning                                                             |
 | `/reference/data-formats/`          | Conversation export formats, state/log/crash locations, task artifacts and temp image behavior                                                                                            | Storage/import-export                      | Paths are defaults and move with `NERVE_HOME`; temp image paths are not durable attachments |
 
-## Existing `docs/` cleanup and canonical-source map
+## Canonical-source map
 
-| Current item                                      | Action                                                                                                                                           | Canonical destination / rationale                                                                                       |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `docs/prompt-suggestions.md`                      | Move and expand; remove old file after links are updated                                                                                         | Public guide + reference in `packages/website`; code/tests remain behavior authority                                    |
-| `docs/tasks.md`                                   | Move and expand; remove old file after links are updated                                                                                         | `/guides/background-tasks/` plus task reference content                                                                 |
-| `docs/nerve-protocol/v1/**`                       | Move into public versioned developer reference and correct drift; remove old tree                                                                | Public protocol reference should be searchable and canonical in website; contracts/protocol tests remain wire authority |
-| `docs/assets/*.webp`                              | Move to `packages/website/src/assets/` and update README paths                                                                                   | Website package owns public screenshots; no duplicate binary copies                                                     |
-| `docs/architecture/*.puml`, `*.mmd`               | Keep as editable engineering sources; correct ACK terminology                                                                                    | Maintainer-owned diagram sources; website gets rendered/explained output, not a second editable source                  |
-| `docs/architecture/cross-platform-reliability.md` | Keep; correct release-validation overclaim if still present                                                                                      | Engineering reliability policy; distill user platform/migration behavior into public operations docs                    |
-| `docs/architecture/tool-output-lifecycle.md`      | Keep                                                                                                                                             | Detailed engineering lifecycle design; distill stable user/tool behavior publicly                                       |
-| `docs/release.md`                                 | Keep and correct any CI-coverage drift                                                                                                           | Maintainer release procedure; public site only links/summarizes supported install/release model                         |
-| `CONTRIBUTING.md`, `SECURITY.md`                  | Keep at repository root                                                                                                                          | GitHub-standard governance source; website summarizes and links rather than copying reporting instructions              |
-| `README.md`                                       | Shorten only where detailed prose becomes website-owned; preserve quick start and architecture summary; fix migration and ACK errors immediately | Repository landing page, not comprehensive manual                                                                       |
-| New `docs/README.md`                              | Add a brief ownership/index page                                                                                                                 | Explains which documents are repository engineering sources versus website content                                      |
-| New `docs/website/content-strategy.md`            | Add                                                                                                                                              | Durable evidence inventory, backlog, editorial decisions, and review status                                             |
+| Current item                           | Canonical owner | Boundary                                                                                                                 |
+| -------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `packages/website/src/content/docs/**` | Website package | Public user, operations, architecture, protocol, lifecycle, reliability, troubleshooting, and developer-reference prose. |
+| `packages/website/diagrams/**`         | Website package | Editable architecture sources; update the generated SVGs in the same change.                                             |
+| `packages/website/public/diagrams/**`  | Website package | Static visuals embedded by public pages; generated from the editable sources.                                            |
+| `packages/website/content-strategy.md` | Website package | Editorial evidence, page backlog, and claim-review plan; not a public route.                                             |
+| `docs/release.md`                      | Root docs       | Maintainer release procedure, signing, packaging, and publication operations.                                            |
+| `docs/performance-profiling.md`        | Root docs       | Development-only diagnostics and incident analysis procedure.                                                            |
+| `docs/README.md`                       | Root docs       | Short index explaining the root/website ownership boundary.                                                              |
+| `CONTRIBUTING.md`, `SECURITY.md`       | Repository root | Governance and vulnerability reporting; website pages summarize and link to these files.                                 |
 
 Duplicate-source rules:
 
-1. Public user procedures live only in website Markdown; README links to them.
-2. Repository governance/release mechanics live only at root/`docs`; website summarizes and links.
-3. Protocol prose lives in one versioned website tree; TypeScript schemas/catalogs and tests define changing wire truth.
-4. Raw diagram sources remain in root `docs/architecture`; generated website images are outputs and must name their source file in comments/metadata.
-5. Tables likely to drift (tools, shortcuts, env vars) must cite the owning symbols in `docs/website/content-strategy.md` and be rechecked during relevant code reviews.
+1. Public procedures and architecture explanations live only in website Markdown; README links to them.
+2. Maintainer release and development profiling workflows live only in root `docs/`; the website links or summarizes them without copying operational secrets.
+3. Protocol, tool, and storage prose lives in the website tree; TypeScript schemas, catalogs, implementation, and tests define changing behavior.
+4. Editable architecture sources and generated visuals live together in the website package; generated assets must be regenerated when a source diagram changes.
+5. Tables likely to drift (tools, shortcuts, env vars) must cite the owning symbols and be rechecked during relevant code reviews.
 
 ## Known gaps and conservative initial-copy resolutions
 
@@ -312,7 +309,7 @@ Before polishing final marketing copy, product ownership can later decide whethe
 
 ### 1. Create the editorial source of truth first
 
-Create `docs/website/content-strategy.md` from this plan, including the evidence inventory, audience taxonomy, IA, backlog, cleanup map, known constraints, screenshot checklist, and a page-status column (`not started`, `drafted`, `evidence reviewed`, `copy reviewed`, `published`). Add `docs/README.md` to state repository/website ownership boundaries.
+Maintain `packages/website/content-strategy.md` as the evidence inventory, audience taxonomy, IA, backlog, cleanup map, known constraints, screenshot checklist, and page-status record (`not started`, `drafted`, `evidence reviewed`, `copy reviewed`, `published`). Keep `docs/README.md` as the short root ownership index.
 
 This commit stage makes claim review possible before visual work and ensures another writer can trace every important statement to implementation.
 
@@ -377,20 +374,20 @@ Convert existing README troubleshooting into symptom-oriented pages, correcting 
 - Move prompt suggestions, tasks, protocol v1, and public screenshots to their canonical website locations.
 - Update all repository links before deleting obsolete public-doc files.
 - Correct `README.md` migration wording, notes/fork terminology where retained, protocol ACK wording, and links to the new site.
-- Correct ACK wording in `docs/architecture/01-system-context.puml`, `02-package-dependencies.puml`, and `03-desktop-runtime.puml`.
-- Correct any release/native-validation overclaims in `docs/release.md` and `docs/architecture/cross-platform-reliability.md` to match current workflows.
-- Preserve raw architecture/release/internal lifecycle documents in root `docs/`.
+- Keep ACK wording in `packages/website/diagrams/01-system-context.puml`, `02-package-dependencies.puml`, and `03-desktop-runtime.puml` aligned with Protocol v1 and current contracts.
+- Correct any release/native-validation overclaims in `docs/release.md` and `/developers/platform-reliability/` to match current workflows.
+- Preserve only release and performance-profiling workflow documents in root `docs/`; public architecture and lifecycle material belongs to the website package.
 
 ### 8. Add GitHub Pages deployment
 
-Create `.github/workflows/website.yml`:
+Add the website build and deployment jobs to `.github/workflows/release.yml`:
 
-- trigger on `main` pushes affecting website content/config/assets/workflow/lockfile and on manual dispatch;
-- permissions: `contents: read`, `pages: write`, `id-token: write`;
-- concurrency group for Pages with in-progress cancellation;
-- checkout, pnpm 11.20.0, Node 24, frozen root install;
-- run `pnpm --filter @nervekit/website check` and `build`;
-- upload `packages/website/dist` with `actions/upload-pages-artifact` and deploy with `actions/deploy-pages`;
+- deploy only from the stable and prerelease version tags handled by the release workflow, not from ordinary `main` pushes;
+- grant `contents: read`, `pages: write`, and `id-token: write` only to the Pages jobs;
+- keep a `github-pages` concurrency group with in-progress cancellation;
+- checkout, use pnpm 11.20.0 and Node 24, and install the frozen root workspace;
+- run `pnpm --filter @nervekit/website check` and `build` after release validation;
+- upload `packages/website/dist` with `actions/upload-pages-artifact` and deploy with `actions/deploy-pages` after npm publication;
 - use the `github-pages` environment and expose the deployment URL.
 
 Do not modify the existing CI workflow’s permissions for deployment. Root CI will naturally include website package checks/tests through recursive scripts.
@@ -438,7 +435,7 @@ During implementation, validate incrementally with focused package commands, the
 
 ## Phased content-writing and review plan
 
-1. **Phase A — inventory and terminology (first artifact):** land `docs/website/content-strategy.md`, correct high-risk factual drift, establish canonical ownership and glossary.
+1. **Phase A — inventory and terminology (first artifact):** maintain `packages/website/content-strategy.md`, correct high-risk factual drift, establish canonical ownership and glossary.
 2. **Phase B — successful first hour:** homepage + Start Here + agent controls/reviews. Review with a clean-home user journey.
 3. **Phase C — daily coding workflow:** workbench, composer, conversation history, context/files/notes, Git/PRs, tasks, skills/suggestions, import/export. Review against UI and focused tests.
 4. **Phase D — models and integrations:** auth, model scopes/thinking/usage, custom providers, media/voice, Web/Python/Atlassian/Agent Browser/editors. Review credentials, data flow, and provider limitations.

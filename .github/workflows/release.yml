@@ -139,6 +139,43 @@ jobs:
       - name: Verify built desktop runtime
         run: pnpm release:smoke:desktop
 
+  build-website:
+    name: Build website
+    runs-on: ubuntu-latest
+    needs:
+      - verify-tag
+      - quality-and-package
+      - native-package-smoke
+    permissions:
+      contents: read
+      pages: write
+
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check website
+        run: pnpm --filter @nervekit/website check
+
+      - name: Build website
+        run: pnpm --filter @nervekit/website build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: packages/website/dist
+
   publish-npm:
     name: Publish to npmjs.com
     runs-on: ubuntu-latest
@@ -204,6 +241,28 @@ jobs:
           fi
           echo "Publishing ${tgz} as ${name}@${version} with dist-tag ${dist_tag}"
           npm publish "${tgz}" --provenance --access public --tag "${dist_tag}"
+
+  deploy-website:
+    name: Deploy website
+    runs-on: ubuntu-latest
+    needs:
+      - build-website
+      - publish-npm
+    concurrency:
+      group: github-pages
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
 
   github-release:
     name: Create GitHub release
