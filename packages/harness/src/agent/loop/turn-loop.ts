@@ -102,6 +102,11 @@ export async function runLoop(
       };
     }
 
+    if (signal?.aborted) {
+      await emit({ type: "agent_end", messages: newMessages });
+      return;
+    }
+
     pendingMessages = (await config.getSteeringMessages?.()) || [];
     if (pendingMessages.length > 0) continue;
 

@@ -12,7 +12,10 @@ import {
   convertToLlm,
   createHarnessMessage,
 } from "../../../src/harness/messages.js";
-import { runAgentLoop } from "../../../src/agent/loop/agent-loop.js";
+import {
+  runAgentLoop,
+  runAgentLoopContinue,
+} from "../../../src/agent/loop/agent-loop.js";
 import type {
   AgentContext,
   AgentTool,
@@ -131,6 +134,130 @@ describe("agent loop follow-up queue", () => {
     assert.match(
       textOf(providerContexts[1]?.messages.at(-1) as Message),
       /continue from checkpoint/,
+    );
+  });
+});
+
+describe("agent loop interruption", () => {
+  it("preserves forced steering until a complete tool batch can continue", async () => {
+    const providerContexts: Context[] = [];
+    let providerCalls = 0;
+    const streamFn: StreamFn = (_model, context) => {
+      providerContexts.push(context);
+      providerCalls += 1;
+      if (providerCalls === 1) {
+        return streamMessage(
+          assistant(
+            [
+              {
+                type: "toolCall",
+                id: "call_active",
+                name: "interrupting-tool",
+                arguments: {},
+              },
+              {
+                type: "toolCall",
+                id: "call_cancelled",
+                name: "interrupting-tool",
+                arguments: {},
+              },
+            ],
+            "toolUse",
+          ),
+        );
+      }
+      return streamMessage(
+        assistant([{ type: "text", text: "continued after force push" }]),
+      );
+    };
+
+    const interruptedTurn = new AbortController();
+    let toolExecutions = 0;
+    const interruptingTool: AgentTool = {
+      name: "interrupting-tool",
+      label: "interrupting-tool",
+      description: "Interrupt the active sequential tool batch",
+      parameters: Type.Object({}, { additionalProperties: false }),
+      executionMode: "sequential",
+      execute: async () => {
+        toolExecutions += 1;
+        interruptedTurn.abort();
+        throw new Error("Command aborted.");
+      },
+    };
+    const forcedPrompt = {
+      role: "user" as const,
+      content: "forced follow-up",
+      timestamp: Date.now(),
+    };
+    const steeringQueue = [forcedPrompt];
+    let steeringPolls = 0;
+    const getSteeringMessages = async () => {
+      steeringPolls += 1;
+      return steeringPolls === 1 ? [] : steeringQueue.splice(0);
+    };
+
+    const interruptedMessages = await runAgentLoop(
+      [{ role: "user", content: "start", timestamp: Date.now() }],
+      { systemPrompt: "", messages: [], tools: [interruptingTool] },
+      {
+        model,
+        convertToLlm,
+        getSteeringMessages,
+      },
+      async () => undefined,
+      interruptedTurn.signal,
+      streamFn,
+    );
+
+    assert.equal(providerCalls, 1);
+    assert.equal(toolExecutions, 1);
+    assert.equal(steeringPolls, 1);
+    assert.equal(steeringQueue.length, 1);
+    assert.deepEqual(
+      interruptedMessages.map((message) => message.role),
+      ["user", "assistant", "toolResult", "toolResult"],
+    );
+    const toolResults = interruptedMessages.filter(
+      (message) => message.role === "toolResult",
+    );
+    assert.deepEqual(
+      toolResults.map((message) => message.toolCallId),
+      ["call_active", "call_cancelled"],
+    );
+    assert.match(textOf(toolResults[1] as Message), /Operation aborted/);
+
+    const continuation = new AbortController();
+    const continuedMessages = await runAgentLoopContinue(
+      {
+        systemPrompt: "",
+        messages: interruptedMessages,
+        tools: [interruptingTool],
+      },
+      {
+        model,
+        convertToLlm,
+        getSteeringMessages,
+      },
+      async () => undefined,
+      continuation.signal,
+      streamFn,
+    );
+
+    assert.equal(providerCalls, 2);
+    assert.equal(steeringPolls, 3);
+    assert.equal(steeringQueue.length, 0);
+    assert.deepEqual(
+      providerContexts[1]?.messages.map((message) => message.role),
+      ["user", "assistant", "toolResult", "toolResult", "user"],
+    );
+    assert.equal(
+      textOf(providerContexts[1]?.messages.at(-1) as Message),
+      "forced follow-up",
+    );
+    assert.equal(
+      textOf(continuedMessages.at(-1) as Message),
+      "continued after force push",
     );
   });
 });
