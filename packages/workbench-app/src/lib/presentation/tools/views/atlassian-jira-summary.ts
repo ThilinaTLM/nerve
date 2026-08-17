@@ -21,9 +21,11 @@ import {
   countLabel,
   draftArgSource,
   enabledFlags,
+  formatJiraBoard,
   formatJiraField,
   formatJiraIssue,
   formatJiraProject,
+  formatJiraSprint,
   formatJiraTransition,
   formatJiraUser,
   jiraBodyText,
@@ -442,6 +444,33 @@ function appendJiraOutcomeLines(
       appendList(lines, "Fields", view.fields.map(formatJiraField), budget);
       break;
     }
+    case "search_boards": {
+      addLine(
+        lines,
+        "Returned",
+        countLabel(view.boardCount ?? view.boards.length, "board"),
+      );
+      appendList(lines, "Boards", view.boards.map(formatJiraBoard), budget);
+      break;
+    }
+    case "get_board": {
+      if (view.board) addLine(lines, "Board", formatJiraBoard(view.board));
+      addLine(lines, "Sprints", countLabel(view.sprintCount, "sprint"));
+      addLine(lines, "Backlog", countLabel(view.backlogCount, "issue"));
+      appendList(
+        lines,
+        "Sprint details",
+        view.sprints.map(formatJiraSprint),
+        budget,
+      );
+      appendList(
+        lines,
+        "Backlog issues",
+        view.backlogIssues.map(formatJiraIssue),
+        budget,
+      );
+      break;
+    }
     case "create_issue": {
       addLine(
         lines,
@@ -564,6 +593,13 @@ function hasJiraOutcome(view: JiraView): boolean {
     view.users.length > 0 ||
     view.issue ||
     view.project ||
+    view.board ||
+    view.boards.length > 0 ||
+    view.boardCount !== undefined ||
+    view.sprints.length > 0 ||
+    view.sprintCount !== undefined ||
+    view.backlogIssues.length > 0 ||
+    view.backlogCount !== undefined ||
     view.transitions.length > 0 ||
     view.fields.length > 0 ||
     view.commentId ||

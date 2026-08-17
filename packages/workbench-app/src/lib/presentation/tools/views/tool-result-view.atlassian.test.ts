@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { jiraToolSummaryBody } from "./atlassian-tool-summary";
 import { toolPresentation } from "./tool-presentation";
 import { parseToolView } from "./tool-result-view";
 import { toolCall } from "./tool-result-view.fixtures";
@@ -36,29 +37,39 @@ describe("normalized Atlassian tool views", () => {
     assert.equal(presentation.primaryArg?.text, "project NER · scrum");
     assert.equal(presentation.detailsAction?.label, "Show 2 more boards");
     assert.equal(presentation.detailsAction?.label.includes("lines"), false);
+
+    const summary = jiraToolSummaryBody(call, view);
+    assert.match(summary, /Returned: 5 boards/);
+    assert.match(summary, /- 34 · NER board · scrum · project NER/);
   });
 
   it("parses a Jira board with promoted sprint and backlog summaries", () => {
-    const view = parseToolView(
-      toolCall(
-        "jira_get_board",
-        { board_id: "34", include_sprints: true, include_backlog: true },
-        result({
-          action: "get_board",
-          boardId: "34",
-          board: { id: "34", name: "NER board", type: "scrum" },
-          sprints: [{ id: "8", name: "August", state: "active" }],
-          sprintCount: 1,
-          backlogIssues: [{ key: "NER-18", summary: "Smoke test" }],
-          backlogCount: 1,
-        }),
-      ),
+    const call = toolCall(
+      "jira_get_board",
+      { board_id: "34", include_sprints: true, include_backlog: true },
+      result({
+        action: "get_board",
+        boardId: "34",
+        board: { id: "34", name: "NER board", type: "scrum" },
+        sprints: [{ id: "8", name: "August", state: "active" }],
+        sprintCount: 1,
+        backlogIssues: [{ key: "NER-18", summary: "Smoke test" }],
+        backlogCount: 1,
+      }),
     );
+    const view = parseToolView(call);
     assert.equal(view.kind, "jira");
     if (view.kind !== "jira") return;
     assert.equal(view.board?.name, "NER board");
     assert.equal(view.sprints[0]?.state, "active");
     assert.equal(view.backlogIssues[0]?.key, "NER-18");
+
+    const summary = jiraToolSummaryBody(call, view);
+    assert.match(summary, /Board: 34 · NER board · scrum/);
+    assert.match(summary, /Sprints: 1 sprint/);
+    assert.match(summary, /Backlog: 1 issue/);
+    assert.match(summary, /- 8 · August · active/);
+    assert.match(summary, /- NER-18 — Smoke test/);
   });
 
   it("keeps rich agent previews out of compact Atlassian presentation metadata", () => {

@@ -117,6 +117,14 @@ describe("Jira read request contracts", () => {
         createMeta.content ?? "",
         /- summary · Summary · string · required/,
       );
+      assert.deepEqual(createMeta.details?.fields, [
+        {
+          id: "summary",
+          name: "Summary",
+          required: true,
+          type: "string",
+        },
+      ]);
     } finally {
       globalThis.fetch = originalFetch;
     }
