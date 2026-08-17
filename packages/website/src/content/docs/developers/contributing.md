@@ -20,7 +20,7 @@ Follow package `AGENTS.md` instructions, especially Workbench presentation and s
 
 ## Documentation changes
 
-Public pages live in `packages/website/src/content/docs`. Repository engineering sources remain in root `docs/`. Update the evidence inventory when changing catalogs, limits, shortcuts, CLI flags, storage, or security-sensitive behavior.
+Public pages, architecture sources, and the documentation evidence inventory live in `packages/website/`. Root `docs/` is reserved for maintainer and development workflows such as release engineering and performance profiling. Update the evidence inventory when changing catalogs, limits, shortcuts, CLI flags, storage, or security-sensitive behavior.
 
 ## Security
 

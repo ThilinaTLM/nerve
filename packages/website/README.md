@@ -4,7 +4,7 @@ Static marketing and documentation site for [nerve.tlmtech.dev](https://nerve.tl
 
 ## Authoring
 
-Public prose lives in `src/content/docs/`. Keep guides task-oriented and put exact catalogs or limits in reference pages. The evidence inventory and page backlog live in [`../../docs/website/content-strategy.md`](../../docs/website/content-strategy.md).
+Public prose lives in `src/content/docs/`. Keep guides task-oriented and put exact catalogs or limits in reference pages. The evidence inventory and page backlog live in [`content-strategy.md`](content-strategy.md). Architecture sources live in `diagrams/` and their generated SVGs live in `public/diagrams/`.
 
 ```sh
 pnpm --filter @nervekit/website dev
@@ -35,12 +35,13 @@ Rules to keep:
 - Elements that compose a transform from custom properties (`--tilt-*`, `--deck-*`, `--layer-*`, `--stage-parallax`) must be animated through those properties, never through `transform` directly.
 - Client behavior lives in `src/scripts/`: `motion.ts` is the critical path (theme, header state, copy buttons, carousel, tilt) and dynamically imports `stage/index.ts`, which owns GSAP and every scroll-linked stage (`hero`, `anatomy`, `tour`, `diagrams`, `sections`). GSAP is never on the path to a readable page, and is not fetched at all under reduced motion. Theme state shares Starlight's `starlight-theme` storage key so marketing and docs stay in sync.
 
-The site is static and must not call a local Nerve daemon. GitHub Pages deployment is configured at the repository level. `public/CNAME` sets the custom domain; DNS is managed separately in Cloudflare.
+The site is static and must not call a local Nerve daemon. GitHub Pages deployment is part of the tagged release workflow. `public/CNAME` sets the custom domain; DNS is managed separately in Cloudflare.
 
 ## Content ownership
 
 - Public user and developer documentation: this package.
-- Editable architecture diagram sources and release engineering procedures: root `docs/`.
+- Public prose, architecture sources, lifecycle/reliability guidance, and generated diagram assets: this package.
+- Release engineering and performance-profiling workflows: root `docs/`.
 - Repository governance: root `CONTRIBUTING.md` and `SECURITY.md`.
 - Behavioral authority: owning contracts, catalogs, implementation, and tests.
 

@@ -1,6 +1,6 @@
 # Release checklist
 
-Nerve publishes one npm package, `@nervekit/desktop`. The source implementation remains the private `@nervekit/desktop-shell` workspace; signed native installers are not part of this release path. Native-host filesystem and process requirements are documented in [Cross-platform reliability](architecture/cross-platform-reliability.md).
+Nerve publishes one npm package, `@nervekit/desktop`. The source implementation remains the private `@nervekit/desktop-shell` workspace; signed native installers are not part of this release path. Native-host filesystem and process requirements are documented in the public [Platform reliability](https://nerve.tlmtech.dev/developers/platform-reliability/) guide.
 
 ## Requirements
 
@@ -43,7 +43,7 @@ pnpm release:smoke:desktop-package
 
 Run the **Prepare Release** workflow manually with the exact version to publish. It updates all workspace versions on protected `main`, creates the signed release commit and annotated `v<version>` tag, atomically pushes both refs, and dispatches the **Release** workflow at that immutable tag.
 
-The **Release** workflow validates the tag, runs the Linux, Windows, and macOS quality and packaging gates, publishes to npm through OIDC, and creates the GitHub release. It rejects manual dispatches from branch refs. Direct pushes of matching SemVer tags also start Release automatically.
+The **Release** workflow validates the tag, runs the Linux, Windows, and macOS quality and packaging gates, builds and deploys the website to GitHub Pages, publishes to npm through OIDC, and creates the GitHub release. Website deployment occurs only after release validation and npm publication. It rejects manual dispatches from branch refs. Direct pushes of matching SemVer tags also start Release automatically.
 
 If preparation pushes the commit and tag but the dispatch step fails, rerun **Release** manually and select the existing tag. Do not recreate or move the tag.
 
