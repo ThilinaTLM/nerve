@@ -12,9 +12,18 @@ import {
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import type { StorageMigration } from "../src/infrastructure/migrations/index.js";
+import type {
+  MigrationContext,
+  StorageMigration,
+} from "../src/infrastructure/migrations/migration.js";
+import {
+  assertCanonicalRelativePath,
+  joinCanonicalPath,
+} from "../src/infrastructure/migrations/canonical-path.js";
 import { migrationChecksum } from "../src/infrastructure/migrations/checksum.js";
 import { migration0004 } from "../src/infrastructure/migrations/migrations/0004-dense-event-stream-layout.js";
+import { migration0005 } from "../src/infrastructure/migrations/migrations/0005-current-project-sidecars.js";
+import { migration0006 } from "../src/infrastructure/migrations/migrations/0006-unify-tool-call-lifecycle.js";
 import { migration0007 } from "../src/infrastructure/migrations/migrations/0007-transient-conversation-live-events.js";
 import { migration0008 } from "../src/infrastructure/migrations/migrations/0008-remove-legacy-storage.js";
 import { StreamLog } from "../src/infrastructure/events/stream-log.js";
@@ -34,6 +43,10 @@ async function home() {
   roots.push(value);
   return value;
 }
+function migrationContext(root: string): MigrationContext {
+  return { paths: { home: root } } as unknown as MigrationContext;
+}
+
 function migration(
   id: string,
   behavior: Partial<StorageMigration> = {},
@@ -51,6 +64,96 @@ function migration(
 }
 
 describe("storage migration runner", () => {
+  it("constructs and validates normalized canonical backup paths", () => {
+    assert.equal(
+      joinCanonicalPath("conversations", "conv_test", "tool-calls"),
+      "conversations/conv_test/tool-calls",
+    );
+    for (const path of [
+      "",
+      ".",
+      "../state.txt",
+      "nested/../state.txt",
+      "nested/./state.txt",
+      "nested//state.txt",
+      "/state.txt",
+      "nested\\state.txt",
+    ]) {
+      assert.throws(() => assertCanonicalRelativePath(path), /unsafe/i);
+    }
+  });
+
+  it("rejects unsafe rollback scopes at the canonical/native boundary", async () => {
+    const root = await home();
+    for (const path of [
+      "../state.txt",
+      "nested/../state.txt",
+      "/state.txt",
+      "nested\\state.txt",
+    ]) {
+      await assert.rejects(
+        createRollbackBundle({
+          home: root,
+          migrationsDir: join(root, "migrations"),
+          id: "unsafe-path-test",
+          ledgerDigest: "digest",
+          paths: [path],
+        }),
+        /unsafe/i,
+      );
+    }
+  });
+
+  it("keeps every dynamically discovered backup path canonical", async () => {
+    const root = await home();
+    await mkdir(join(root, "logs"), { recursive: true });
+    await writeFile(join(root, "logs", "events.jsonl.1"), "");
+
+    const conversation = join(root, "conversations", "conv_test");
+    await mkdir(join(conversation, "tool-calls"), { recursive: true });
+    await writeFile(join(conversation, "events.jsonl"), "");
+    await writeFile(
+      join(conversation, "events.meta.json"),
+      JSON.stringify({ lastSeq: 0 }),
+    );
+
+    const project = join(root, "projects", "proj_test");
+    await mkdir(project, { recursive: true });
+    await writeFile(join(project, "pinned-commands.json"), "[]");
+
+    const context = migrationContext(root);
+    const specs = await Promise.all(
+      [migration0004, migration0005, migration0006, migration0007].map(
+        (entry) => entry.backup(context),
+      ),
+    );
+    const paths = specs.flatMap((spec) => spec.paths);
+
+    assert.ok(paths.includes("logs/events.jsonl.1"));
+    assert.ok(paths.includes("projects/proj_test/pinned-commands.json"));
+    assert.ok(paths.includes("conversations/conv_test/tool-calls"));
+    assert.ok(paths.includes("conversations/conv_test/events.jsonl"));
+    assert.ok(paths.every((path) => !path.includes("\\")));
+    assert.doesNotThrow(() => paths.forEach(assertCanonicalRelativePath));
+
+    const bundle = await createRollbackBundle({
+      home: root,
+      migrationsDir: join(root, "migrations"),
+      id: "canonical-paths-test",
+      ledgerDigest: "digest",
+      paths,
+    });
+    const manifest = JSON.parse(
+      await readFile(join(bundle.directory, "manifest.json"), "utf8"),
+    ) as { entries: Array<{ path: string }> };
+    assert.ok(manifest.entries.every((entry) => !entry.path.includes("\\")));
+    assert.doesNotThrow(() =>
+      manifest.entries.forEach((entry) =>
+        assertCanonicalRelativePath(entry.path),
+      ),
+    );
+  });
+
   it("accepts active dense journals after their layout marker exists", async () => {
     const root = await home();
     await mkdir(join(root, "logs"), { recursive: true });
@@ -192,10 +295,12 @@ describe("storage migration runner", () => {
     assert.equal(first.executions[0]?.execution, "detected");
     const second = await runStorageMigrations(root, { registry });
     assert.equal(second.executions.length, 0);
-    assert.equal(
-      (await stat(join(root, "migrations", "ledger.json"))).mode & 0o777,
-      0o600,
-    );
+    if (process.platform !== "win32") {
+      assert.equal(
+        (await stat(join(root, "migrations", "ledger.json"))).mode & 0o777,
+        0o600,
+      );
+    }
   });
 
   it("creates one batch bundle, restores on failure, and leaves the ledger unchanged", async () => {

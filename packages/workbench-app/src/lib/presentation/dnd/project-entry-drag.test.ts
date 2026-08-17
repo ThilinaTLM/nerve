@@ -23,6 +23,20 @@ describe("project entry drag payload", () => {
     );
   });
 
+  it("canonicalizes Windows and mixed relative separators", () => {
+    const windowsEntries: ProjectEntryDragItem[] = [
+      { path: "src\\main.ts", kind: "file" },
+      { path: "src\\components/button.svelte", kind: "file" },
+    ];
+    assert.deepEqual(
+      parseProjectEntryDrag(serializeProjectEntryDrag(windowsEntries)),
+      [
+        { path: "src/main.ts", kind: "file" },
+        { path: "src/components/button.svelte", kind: "file" },
+      ],
+    );
+  });
+
   it("formats file and directory references", () => {
     assert.deepEqual(formatProjectEntryReferences(entries), [
       "@src/main.ts",
@@ -58,7 +72,9 @@ describe("project entry drag payload", () => {
       "/etc/passwd",
       "../secret",
       "src/../secret",
+      "src//secret",
       "C:\\secret",
+      "\\\\server\\share\\secret",
     ])
       assert.equal(
         parseProjectEntryDrag(

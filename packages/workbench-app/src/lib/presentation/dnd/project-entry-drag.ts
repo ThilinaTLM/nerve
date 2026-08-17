@@ -10,34 +10,53 @@ type ProjectEntryDragPayload = {
   entries: readonly ProjectEntryDragItem[];
 };
 
-function isRelativeProjectPath(path: string): boolean {
-  if (!path || path.startsWith("/") || path.startsWith("\\")) return false;
-  if (/^[a-zA-Z]:[\\/]/.test(path)) return false;
-  const segments = path.replaceAll("\\", "/").split("/");
+function normalizeRelativeProjectPath(path: string): string | undefined {
+  const normalized = path.replaceAll("\\", "/");
+  if (
+    !normalized ||
+    normalized.startsWith("/") ||
+    /^[a-zA-Z]:\//.test(normalized)
+  ) {
+    return undefined;
+  }
+  const segments = normalized.split("/");
   return segments.every(
     (segment) => segment !== "" && segment !== "." && segment !== "..",
-  );
+  )
+    ? normalized
+    : undefined;
 }
 
-function isProjectEntryDragItem(value: unknown): value is ProjectEntryDragItem {
-  if (!value || typeof value !== "object") return false;
+function normalizeProjectEntryDragItem(
+  value: unknown,
+): ProjectEntryDragItem | undefined {
+  if (!value || typeof value !== "object") return undefined;
   const item = value as Partial<ProjectEntryDragItem>;
-  return (
-    (item.kind === "file" || item.kind === "directory") &&
-    typeof item.path === "string" &&
-    isRelativeProjectPath(item.path)
-  );
+  if (
+    (item.kind !== "file" && item.kind !== "directory") ||
+    typeof item.path !== "string"
+  ) {
+    return undefined;
+  }
+  const path = normalizeRelativeProjectPath(item.path);
+  return path ? { path, kind: item.kind } : undefined;
 }
 
 export function serializeProjectEntryDrag(
   entries: readonly ProjectEntryDragItem[],
 ): string {
-  if (entries.length === 0 || !entries.every(isProjectEntryDragItem)) {
+  const normalized = entries.map(normalizeProjectEntryDragItem);
+  if (
+    normalized.length === 0 ||
+    !normalized.every(
+      (entry): entry is ProjectEntryDragItem => entry !== undefined,
+    )
+  ) {
     throw new Error("Project entry drag payload contains invalid entries.");
   }
   return JSON.stringify({
     version: 1,
-    entries,
+    entries: normalized,
   } satisfies ProjectEntryDragPayload);
 }
 
@@ -50,12 +69,16 @@ export function parseProjectEntryDrag(
     if (
       payload.version !== 1 ||
       !Array.isArray(payload.entries) ||
-      payload.entries.length === 0 ||
-      !payload.entries.every(isProjectEntryDragItem)
+      payload.entries.length === 0
     ) {
       return undefined;
     }
-    return payload.entries;
+    const entries = payload.entries.map(normalizeProjectEntryDragItem);
+    return entries.every(
+      (entry): entry is ProjectEntryDragItem => entry !== undefined,
+    )
+      ? entries
+      : undefined;
   } catch {
     return undefined;
   }
@@ -68,8 +91,11 @@ export function hasProjectEntryDragType(types: readonly string[]): boolean {
 export function formatProjectEntryReference(
   entry: ProjectEntryDragItem,
 ): string {
-  const normalizedPath = entry.path.replaceAll("\\", "/");
-  const reference = `@${normalizedPath}${entry.kind === "directory" ? "/" : ""}`;
+  const normalized = normalizeProjectEntryDragItem(entry);
+  if (!normalized) {
+    throw new Error("Project entry reference contains an invalid path.");
+  }
+  const reference = `@${normalized.path}${normalized.kind === "directory" ? "/" : ""}`;
   if (!/[\s"]/.test(reference)) return reference;
   return `"${reference.replaceAll('"', '\\"')}"`;
 }

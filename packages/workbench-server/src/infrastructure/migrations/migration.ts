@@ -4,7 +4,7 @@ import type { StoragePaths } from "../storage/paths.js";
 export type MigrationDetection = "current" | "pending";
 
 export interface MigrationBackupSpec {
-  /** Canonical paths relative to NERVE_HOME. */
+  /** Normalized POSIX-style identifiers relative to NERVE_HOME, not native filesystem paths. */
   paths: string[];
 }
 

@@ -39,8 +39,12 @@ function toPosixPath(path: string): string {
   return end === 0 ? normalized : normalized.slice(0, end);
 }
 
-function isWindowsDrivePath(path: string): boolean {
-  return WINDOWS_DRIVE_PATH_RE.test(path) || /^[A-Za-z]:\//u.test(path);
+function isWindowsLikePath(path: string): boolean {
+  return (
+    WINDOWS_DRIVE_PATH_RE.test(path) ||
+    /^[A-Za-z]:\//u.test(path) ||
+    path.startsWith("//")
+  );
 }
 
 function makeRelativeIgnorePath(path: string): string {
@@ -92,7 +96,7 @@ export function relativeEnvPath(root: string, path: string): string {
   const normalizedRoot = toPosixPath(root);
   const normalizedPath = toPosixPath(path);
   const windowsComparison =
-    isWindowsDrivePath(normalizedRoot) || isWindowsDrivePath(normalizedPath);
+    isWindowsLikePath(normalizedRoot) || isWindowsLikePath(normalizedPath);
   const compareRoot = windowsComparison
     ? normalizedRoot.toLowerCase()
     : normalizedRoot;

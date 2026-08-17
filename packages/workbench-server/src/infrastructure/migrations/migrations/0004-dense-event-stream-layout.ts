@@ -2,6 +2,7 @@ import { mkdir, readdir, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { pathExists } from "../../storage/json.js";
 import type { StorageMigration } from "../migration.js";
+import { joinCanonicalPath } from "../canonical-path.js";
 import { migrationChecksum } from "../checksum.js";
 
 const markerPath = "logs/.dense-streams-v1";
@@ -16,7 +17,7 @@ async function legacyPaths(home: string): Promise<string[]> {
       name === "workspace-events.jsonl" ||
       name === "workspace-events.meta.json"
     )
-      paths.push(join("logs", name));
+      paths.push(joinCanonicalPath("logs", name));
   }
   const conversations = await readdir(join(home, "conversations"), {
     withFileTypes: true,
@@ -24,7 +25,11 @@ async function legacyPaths(home: string): Promise<string[]> {
   for (const conversation of conversations) {
     if (!conversation.isDirectory()) continue;
     for (const name of ["events.jsonl", "events.meta.json"]) {
-      const relative = join("conversations", conversation.name, name);
+      const relative = joinCanonicalPath(
+        "conversations",
+        conversation.name,
+        name,
+      );
       if (await pathExists(join(home, relative))) paths.push(relative);
     }
   }
