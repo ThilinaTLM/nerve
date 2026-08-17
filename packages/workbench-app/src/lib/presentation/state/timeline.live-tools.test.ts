@@ -92,7 +92,7 @@ describe("buildConversationTimeline live tools", () => {
         "2026-01-01T00:01:01.000Z",
         "bash",
         undefined,
-        { status: "completed", runId: "run_old" },
+        { status: "completed", runId: "run_active" },
       ),
     ];
 
@@ -280,9 +280,9 @@ describe("buildConversationTimeline live tools", () => {
       [
         ...transcript,
         {
-          id: "entry_assistant",
-          role: "assistant",
-          text: "[Tool call: bash]",
+          id: "entry_result",
+          role: "system",
+          text: "[Tool result: bash]",
           toolRecordId: "tool_real",
         },
       ],
@@ -340,13 +340,33 @@ describe("buildConversationTimeline live tools", () => {
     assert.deepEqual(timeline.filter((item) => item.kind === "tool").length, 1);
   });
 
+  it("does not render orphaned live-status tools without an active owner", () => {
+    const timeline = buildConversationTimeline(
+      [{ id: "entry_final", role: "assistant", text: "All done." }],
+      [
+        toolCall(
+          "tool_orphaned",
+          "2026-01-01T00:00:01.000Z",
+          "bash",
+          undefined,
+          { status: "running", runId: "run_failed" },
+        ),
+      ],
+    );
+
+    assert.deepEqual(keys(timeline), ["entry_final"]);
+  });
+
   it("attaches live output to the matching tool card", () => {
     const running = toolCall(
       "tool_bash",
       "2026-01-01T00:00:01.000Z",
       "bash",
       undefined,
-      { status: "running" },
+      {
+        status: "running",
+        runId: "run_01H00000000000000000000000",
+      },
     );
     const timeline = buildConversationTimeline(
       [{ id: "entry_user", role: "user", text: "Run command" }],

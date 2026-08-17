@@ -6,7 +6,6 @@ const emptyInput = {
   entries: [],
   optimisticMessages: [],
   toolCalls: [],
-  includeUnanchoredTerminalToolCalls: false,
 };
 
 describe("CommittedTimelineProjection", () => {

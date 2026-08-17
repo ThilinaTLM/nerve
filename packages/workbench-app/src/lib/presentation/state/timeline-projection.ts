@@ -10,7 +10,6 @@ export type CommittedTimelineProjectionInput = {
   entries: ConversationEntry[];
   optimisticMessages: TranscriptItem[];
   toolCalls: ToolCallTranscriptRecord[];
-  includeUnanchoredTerminalToolCalls: boolean;
 };
 
 /**
@@ -24,7 +23,6 @@ export class CommittedTimelineProjection {
   private entries?: ConversationEntry[];
   private optimisticMessages?: TranscriptItem[];
   private toolCalls?: ToolCallTranscriptRecord[];
-  private includeUnanchoredTerminalToolCalls?: boolean;
   private committed?: CommittedTimeline;
 
   project(input: CommittedTimelineProjectionInput): CommittedTimeline {
@@ -32,9 +30,7 @@ export class CommittedTimelineProjection {
       this.committed &&
       this.entries === input.entries &&
       this.optimisticMessages === input.optimisticMessages &&
-      this.toolCalls === input.toolCalls &&
-      this.includeUnanchoredTerminalToolCalls ===
-        input.includeUnanchoredTerminalToolCalls
+      this.toolCalls === input.toolCalls
     ) {
       return this.committed;
     }
@@ -42,15 +38,10 @@ export class CommittedTimelineProjection {
     this.entries = input.entries;
     this.optimisticMessages = input.optimisticMessages;
     this.toolCalls = input.toolCalls;
-    this.includeUnanchoredTerminalToolCalls =
-      input.includeUnanchoredTerminalToolCalls;
     this.committed = buildCommittedTimeline(
       [...entriesToTranscript(input.entries), ...input.optimisticMessages],
       input.toolCalls,
-      {
-        includeUnanchoredTerminalToolCalls:
-          input.includeUnanchoredTerminalToolCalls,
-      },
+      { includeUnanchoredTerminalToolCalls: false },
     );
     return this.committed;
   }

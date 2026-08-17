@@ -6,6 +6,7 @@ import {
   type PeerRole,
   type RunEventDeliveryRecord,
   type RunPublicEventIntent,
+  type RunRecord,
   type RunTransitionRecord,
 } from "@nervekit/contracts";
 import {
@@ -132,6 +133,7 @@ function fixture(
     beforeFlushEvents?: (transition: RunTransitionRecord) => Promise<void>;
     retryDelay?: (delayMs: number, signal: AbortSignal) => Promise<void>;
     removeQueuedPrompt?: (promptId: string) => boolean | Promise<boolean>;
+    terminalizationFails?: boolean;
   } = {},
 ) {
   const unitOfWork = new MemoryUnitOfWork();
@@ -148,6 +150,7 @@ function fixture(
   const notifyEvents: RunProgressEvent[] = [];
   const executionInputs: Parameters<RunExecution["execute"]>[0][] = [];
   const observed: RunTransitionRecord[] = [];
+  const terminalized: RunRecord[] = [];
   let id = 0;
   let finishExecution!: (value: { status: "completed" }) => void;
   const executeResult = new Promise<{ status: "completed" }>((resolve) => {
@@ -245,6 +248,14 @@ function fixture(
       cancelInteraction: async () =>
         options.cancelTarget?.("interaction") ?? "not_running",
     },
+    terminalization: {
+      terminalize: async (run) => {
+        terminalized.push(run);
+        if (options.terminalizationFails) {
+          throw new Error("terminalization unavailable");
+        }
+      },
+    },
     clock: {
       now: () =>
         new Date(`2026-07-12T00:00:${String(id).padStart(2, "0")}.000Z`),
@@ -284,6 +295,7 @@ function fixture(
     notifyEvents,
     executionInputs,
     observed,
+    terminalized,
     finishExecution,
     flushEvents: () => delivery.flush(),
     setTranscript(value: typeof transcript) {
@@ -376,6 +388,49 @@ test("keeps accepted prompts queued until the execution reports delivery", async
       .filter((event) => event.type === "conversation.prompt.dequeued").length,
     2,
   );
+});
+
+test("terminalizes run-owned resources before committing completion", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+
+  harness.finishExecution({ status: "completed" });
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "completed",
+  );
+
+  assert.equal(harness.terminalized.length, 1);
+  assert.equal(harness.terminalized[0]?.runId, run.runId);
+  assert.equal(harness.terminalized[0]?.status, "completed");
+  const completedIndex = harness.observed.findIndex(
+    (transition) => transition.kind === "completed",
+  );
+  assert.notEqual(completedIndex, -1);
+});
+
+test("terminalizes run-owned resources before committing hard failure", async () => {
+  const harness = fixture({
+    retryPolicy: { enabled: false, maxRetries: 0, baseDelayMs: 0 },
+    execute: async () => ({
+      status: "failed",
+      failure: {
+        code: "EXECUTION_FAILED",
+        message: "broken",
+        retryable: false,
+      },
+    }),
+  });
+  const run = await start(harness.coordinator);
+
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "failed",
+  );
+
+  assert.equal(harness.terminalized.length, 1);
+  assert.equal(harness.terminalized[0]?.runId, run.runId);
+  assert.equal(harness.terminalized[0]?.status, "failed");
 });
 
 test("re-enqueues accepted prompts when a new execution is launched", async () => {

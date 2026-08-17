@@ -45,6 +45,7 @@ import {
   type RunExecutionFactoryPort,
   type RunExecutionSink,
   type RunIntegrityPort,
+  type RunTerminalizationPort,
 } from "./run-execution.js";
 import {
   ACTIVE_STATUSES,
@@ -78,6 +79,7 @@ export interface RunCoordinatorPorts {
   execution: RunExecutionFactoryPort;
   references: RunCheckpointReferencePort;
   cancellation: RunCancellationPort;
+  terminalization: RunTerminalizationPort;
   clock: ClockPort;
   ids: IdPort;
   integrity: RunIntegrityPort;
@@ -1120,6 +1122,12 @@ export class RunCoordinator {
     changes: TransitionChanges = {},
   ): Promise<void> {
     const expectedRevision = previous?.run.revision ?? 0;
+    const becomingTerminal =
+      TERMINAL_STATUSES.has(run.status) &&
+      (!previous || !TERMINAL_STATUSES.has(previous.run.status));
+    if (becomingTerminal) {
+      await this.ports.terminalization.terminalize(run);
+    }
     const transition = buildTransition(
       run,
       kind,

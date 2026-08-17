@@ -150,7 +150,6 @@ const committed = $derived.by(() =>
     entries: rendered.entries,
     optimisticMessages: rendered.optimisticMessages,
     toolCalls: rendered.toolCalls,
-    includeUnanchoredTerminalToolCalls: !rendered.activeRun,
   }),
 );
 const liveItems = $derived.by(() =>

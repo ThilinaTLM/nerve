@@ -83,6 +83,11 @@ export interface RunCancellationPort {
   cancelInteraction(run: RunRecord): Promise<"confirmed" | "not_running">;
 }
 
+/** Reconciles run-owned resources before a terminal run transition commits. */
+export interface RunTerminalizationPort {
+  terminalize(run: RunRecord): Promise<void>;
+}
+
 export interface RunIntegrityPort {
   checksum(value: unknown): string;
 }
