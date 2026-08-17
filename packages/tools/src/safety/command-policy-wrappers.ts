@@ -1,3 +1,5 @@
+import { win32 } from "node:path";
+
 export function stripEnvVarAssignments(tokens: string[]): string[] {
   let index = 0;
   while (
@@ -10,7 +12,7 @@ export function stripEnvVarAssignments(tokens: string[]): string[] {
 }
 
 export function normalizeCommandName(command: string): string {
-  return (command.split("/").pop() ?? command).trim();
+  return win32.basename(command.trim());
 }
 
 function stripLeadingOptions(tokens: string[]): string[] {

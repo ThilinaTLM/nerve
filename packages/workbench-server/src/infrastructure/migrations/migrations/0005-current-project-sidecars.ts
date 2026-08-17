@@ -14,6 +14,7 @@ import {
   readJsonFile,
 } from "../../storage/json.js";
 import type { StorageMigration } from "../migration.js";
+import { joinCanonicalPath } from "../canonical-path.js";
 import { migrationChecksum } from "../checksum.js";
 
 const legacyScratchNoteSchema = z.object({
@@ -33,12 +34,12 @@ async function projectIds(home: string): Promise<string[]> {
 }
 
 function paths(projectId: string) {
-  const root = join("projects", projectId);
+  const root = joinCanonicalPath("projects", projectId);
   return {
-    tasks: join(root, "task-definitions.json"),
-    legacyTasks: join(root, "pinned-commands.json"),
-    notes: join(root, "scratch-notes.json"),
-    legacyNote: join(root, "scratch-note.json"),
+    tasks: joinCanonicalPath(root, "task-definitions.json"),
+    legacyTasks: joinCanonicalPath(root, "pinned-commands.json"),
+    notes: joinCanonicalPath(root, "scratch-notes.json"),
+    legacyNote: joinCanonicalPath(root, "scratch-note.json"),
   };
 }
 

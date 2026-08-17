@@ -16,6 +16,7 @@ import {
   rewriteJsonLines,
 } from "../../storage/json.js";
 import type { StorageMigration } from "../migration.js";
+import { joinCanonicalPath } from "../canonical-path.js";
 import { migrationChecksum } from "../checksum.js";
 
 type LegacyRecord = Record<string, unknown>;
@@ -523,7 +524,9 @@ export const migration0006: StorageMigration = {
       "run-runtime",
     ];
     for (const conversationId of await conversationIds(context.paths.home)) {
-      paths.push(join("conversations", conversationId, "tool-calls"));
+      paths.push(
+        joinCanonicalPath("conversations", conversationId, "tool-calls"),
+      );
     }
     paths.push(archiveRoot);
     return { paths };

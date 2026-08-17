@@ -8,8 +8,9 @@ import {
   readFile,
   rm,
 } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, join } from "node:path";
 import { atomicWriteJson, pathExists } from "../storage/json.js";
+import { resolveCanonicalPath } from "./canonical-path.js";
 import { MigrationError } from "./migration.js";
 import { invalidateDerivedDatabase } from "./sqlite.js";
 
@@ -45,7 +46,7 @@ export async function createRollbackBundle(input: {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const entries: BackupEntry[] = [];
   for (const path of [...new Set(input.paths)].sort()) {
-    const source = safeCanonicalPath(input.home, path);
+    const source = resolveCanonicalPath(input.home, path);
     const existed = await pathExists(source);
     const bytes = existed
       ? await copyCanonical(source, join(directory, "files", path))
@@ -107,7 +108,7 @@ export async function recoverInterruptedBatch(
     return false;
   }
   for (const entry of manifest.entries) {
-    const target = safeCanonicalPath(home, entry.path);
+    const target = resolveCanonicalPath(home, entry.path);
     await rm(target, { recursive: true, force: true });
     if (entry.existed) {
       await copyCanonical(join(directory, "files", entry.path), target);
@@ -124,19 +125,6 @@ export async function discardRollbackBundle(
 ): Promise<void> {
   await rm(bundle.activePath, { force: true });
   await rm(bundle.directory, { recursive: true, force: true });
-}
-
-function safeCanonicalPath(home: string, path: string): string {
-  if (!path || path.startsWith("/") || path.includes("\\")) {
-    throw new MigrationError(`Unsafe migration backup path '${path}'.`);
-  }
-  const root = resolve(home);
-  const target = resolve(root, path);
-  const rel = relative(root, target);
-  if (rel === ".." || rel.startsWith(`..${sep}`) || rel === "") {
-    throw new MigrationError(`Unsafe migration backup path '${path}'.`);
-  }
-  return target;
 }
 
 async function copyCanonical(source: string, target: string): Promise<number> {

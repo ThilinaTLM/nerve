@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   localPathDirectory,
   parseLocalFileHref,
+  relativePathForDisplay,
   resolveDisplayPath,
   splitPathLineSuffix,
 } from "./path-links";
@@ -19,6 +20,23 @@ describe("path link helpers", () => {
         "C:\\Users\\me\\repo",
       ),
       "C:\\Users\\me\\repo\\src\\App.svelte",
+    );
+  });
+
+  it("compares UNC paths case-insensitively without matching siblings", () => {
+    assert.equal(
+      relativePathForDisplay(
+        String.raw`\\server\share\repo\src\App.svelte`,
+        String.raw`\\SERVER\Share\Repo`,
+      ),
+      "src/App.svelte",
+    );
+    assert.equal(
+      relativePathForDisplay(
+        String.raw`\\server\share\repo-old\App.svelte`,
+        String.raw`\\server\share\repo`,
+      ),
+      "//server/share/repo-old/App.svelte",
     );
   });
 

@@ -1,6 +1,14 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { dirname, extname, join, resolve } from "node:path";
+import {
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import { fileURLToPath } from "node:url";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { cookieHeader } from "./auth-middleware.js";
@@ -57,7 +65,7 @@ export async function serveStatic(
   const webDist = resolveWebDistPath();
   const requestedPath = pathname === "/" ? "/index.html" : pathname;
   const normalizedPath = resolve(webDist, `.${requestedPath}`);
-  const finalPath = normalizedPath.startsWith(webDist)
+  const finalPath = isPathInside(webDist, normalizedPath)
     ? normalizedPath
     : join(webDist, "index.html");
 
@@ -150,6 +158,16 @@ function isLoopbackHost(host: string): boolean {
     normalized === "::1" ||
     normalized.startsWith("127.") ||
     normalized.startsWith("::ffff:127.")
+  );
+}
+
+function isPathInside(root: string, candidate: string): boolean {
+  const pathFromRoot = relative(root, candidate);
+  return (
+    pathFromRoot === "" ||
+    (pathFromRoot !== ".." &&
+      !pathFromRoot.startsWith(`..${sep}`) &&
+      !isAbsolute(pathFromRoot))
   );
 }
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { isAllowedPlanModeBashCommand } from "../src/index.js";
+import { normalizeCommandName } from "../src/safety/command-policy-wrappers.js";
 
 function expectAllowed(commands: string[]): void {
   for (const command of commands) {
@@ -19,6 +20,12 @@ function expectBlocked(commands: string[]): void {
 }
 
 describe("plan-mode bash command guard", () => {
+  it("normalizes POSIX, Windows, and mixed command paths", () => {
+    assert.equal(normalizeCommandName("/usr/bin/rg"), "rg");
+    assert.equal(normalizeCommandName(String.raw`C:\Tools\rg.exe`), "rg.exe");
+    assert.equal(normalizeCommandName(String.raw`C:\Tools/rg.exe`), "rg.exe");
+  });
+
   describe("allows inspection commands, including unknown roots", () => {
     expectAllowed([
       'rg "foo" src',
@@ -79,6 +86,8 @@ describe("plan-mode bash command guard", () => {
       "nohup rm file >/dev/null 2>&1",
       "rg foo src | xargs rm",
       "rg foo src | xargs -I{} git checkout {}",
+      String.raw`'C:\Windows\System32\rm' -rf dist`,
+      String.raw`'C:\Windows\System32\env' rm -rf dist`,
     ]);
   });
 

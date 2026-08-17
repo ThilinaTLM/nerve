@@ -69,11 +69,17 @@ export function relativePathForDisplay(
   if (!path) return undefined;
   const normalizedPath = normalizePathForCompare(path);
   const normalizedCwd = normalizePathForCompare(cwd);
-  if (normalizedPath === normalizedCwd) return ".";
-  const prefix = normalizedCwd.endsWith("/")
-    ? normalizedCwd
-    : `${normalizedCwd}/`;
-  if (normalizedPath.startsWith(prefix)) {
+  const windowsComparison =
+    isWindowsLikePath(normalizedPath) || isWindowsLikePath(normalizedCwd);
+  const comparePath = windowsComparison
+    ? normalizedPath.toLowerCase()
+    : normalizedPath;
+  const compareCwd = windowsComparison
+    ? normalizedCwd.toLowerCase()
+    : normalizedCwd;
+  if (comparePath === compareCwd) return ".";
+  const prefix = compareCwd.endsWith("/") ? compareCwd : `${compareCwd}/`;
+  if (comparePath.startsWith(prefix)) {
     return normalizedPath.slice(prefix.length);
   }
   return path.replace(/\\/g, "/");

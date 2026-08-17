@@ -4,6 +4,7 @@ import { eventEnvelopeSchema } from "@nervekit/contracts";
 import { atomicWriteFile } from "../../storage/file-mutations.js";
 import { pathExists } from "../../storage/json.js";
 import type { StorageMigration } from "../migration.js";
+import { joinCanonicalPath } from "../canonical-path.js";
 import { migrationChecksum } from "../checksum.js";
 
 const markerPath = "logs/.transient-conversation-live-events-v1";
@@ -25,9 +26,9 @@ async function discover(home: string): Promise<StreamFiles[]> {
   );
   for (const entry of conversations) {
     if (!entry.isDirectory() || !entry.name.startsWith("conv_")) continue;
-    const relativeRoot = join("conversations", entry.name);
-    const journal = join(relativeRoot, "events.jsonl");
-    const metadata = join(relativeRoot, "events.meta.json");
+    const relativeRoot = joinCanonicalPath("conversations", entry.name);
+    const journal = joinCanonicalPath(relativeRoot, "events.jsonl");
+    const metadata = joinCanonicalPath(relativeRoot, "events.meta.json");
     const hasJournal = await pathExists(join(home, journal));
     const hasMetadata = await pathExists(join(home, metadata));
     if (!hasJournal && !hasMetadata) continue;

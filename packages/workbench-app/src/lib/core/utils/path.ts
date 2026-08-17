@@ -43,7 +43,7 @@ function normalizeDisplayPath(path: string): string {
 
 function comparablePath(path: string): string {
   const normalized = normalizeDisplayPath(path);
-  return /^[A-Za-z]:\//.test(normalized)
+  return /^[A-Za-z]:\//.test(normalized) || normalized.startsWith("//")
     ? normalized.toLowerCase()
     : normalized;
 }
@@ -90,8 +90,8 @@ export function tildePath(dir?: string, home?: string): string {
 }
 
 /**
- * Stable, case-correct key for a filesystem path. Drive-letter (Windows) paths
- * are lower-cased for case-insensitive matching; POSIX paths stay case-sensitive.
+ * Stable, case-correct key for a filesystem path. Drive-letter and UNC Windows
+ * paths are lower-cased for case-insensitive matching; POSIX paths stay case-sensitive.
  */
 export function pathKey(path: string): string {
   return comparablePath(path);
