@@ -198,6 +198,48 @@ export const jiraToolLifecycleSpecs = {
       });
     },
   }),
+  jira_search_boards: spec({
+    name: "jira_search_boards",
+    argumentRegion: "none",
+    completedView: "jira",
+    resultPlaceholder: { variant: "list", rows: 3 },
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          source.string("project_key") ?? source.string("name"),
+          "Jira boards",
+        ),
+      }),
+  }),
+  jira_get_board: spec({
+    name: "jira_get_board",
+    argumentRegion: "none",
+    completedView: "jira",
+    resultPlaceholder: { variant: "list", rows: 3 },
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(source.string("board_id"), "Board"),
+      }),
+  }),
+  jira_get_sprint: spec({
+    name: "jira_get_sprint",
+    argumentRegion: "none",
+    completedView: "jira",
+    resultPlaceholder: { variant: "list", rows: 3 },
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(source.string("sprint_id"), "Sprint"),
+      }),
+  }),
+  jira_download_attachment: spec({
+    name: "jira_download_attachment",
+    argumentRegion: "none",
+    completedView: "jira",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(source.string("attachment_id"), "Attachment"),
+      }),
+  }),
   jira_create_issue: spec({
     name: "jira_create_issue",
     argumentRegion: "until-result",
@@ -295,8 +337,8 @@ export const jiraToolLifecycleSpecs = {
       });
     },
   }),
-  jira_add_comment: spec({
-    name: "jira_add_comment",
+  jira_manage_comment: spec({
+    name: "jira_manage_comment",
     argumentRegion: "until-result",
     completedView: "jira",
     present: (source) => {
@@ -319,12 +361,118 @@ export const jiraToolLifecycleSpecs = {
         },
       });
       return argumentPresentation({
-        primaryArg: textArg(source.string("issue_key"), "Issue"),
-        secondary: [{ text: source.record("body_adf") ? "ADF" : "plain text" }],
+        primaryArg: textArg(
+          [
+            source.string("action"),
+            source.string("issue_key"),
+            source.string("comment_id"),
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          "Jira comment",
+        ),
+        secondary: dryRunMeta(source),
         body,
-        safetyNotes: ["Adds this comment to the selected Jira issue."],
+        safetyNotes: mutationSafety(
+          source,
+          `${source.string("action") ?? "manage"} the comment`,
+        ),
       });
     },
+  }),
+  jira_manage_worklog: spec({
+    name: "jira_manage_worklog",
+    argumentRegion: "until-result",
+    completedView: "jira",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          [
+            source.string("action"),
+            source.string("issue_key"),
+            source.string("worklog_id"),
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          "Jira worklog",
+        ),
+        secondary: dryRunMeta(source),
+        safetyNotes: mutationSafety(source, "manage the worklog"),
+      }),
+  }),
+  jira_manage_issue_link: spec({
+    name: "jira_manage_issue_link",
+    argumentRegion: "until-result",
+    completedView: "jira",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          [
+            source.string("action"),
+            source.string("issue_key"),
+            source.string("other_issue_key") ?? source.string("link_id"),
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          "Jira issue link",
+        ),
+        secondary: dryRunMeta(source),
+        safetyNotes: mutationSafety(source, "manage the issue link"),
+      }),
+  }),
+  jira_upload_attachment: spec({
+    name: "jira_upload_attachment",
+    argumentRegion: "until-result",
+    completedView: "jira",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          [
+            source.string("issue_key"),
+            source.string("filename") ?? source.string("file_path"),
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          "Jira attachment",
+        ),
+        secondary: dryRunMeta(source),
+        safetyNotes: mutationSafety(source, "upload the attachment"),
+      }),
+  }),
+  jira_manage_sprint: spec({
+    name: "jira_manage_sprint",
+    argumentRegion: "until-result",
+    completedView: "jira",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          [
+            source.string("action"),
+            source.string("sprint_id") ?? source.string("name"),
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          "Jira sprint",
+        ),
+        secondary: dryRunMeta(source),
+        safetyNotes: mutationSafety(source, "manage the sprint"),
+      }),
+  }),
+  jira_manage_backlog: spec({
+    name: "jira_manage_backlog",
+    argumentRegion: "until-result",
+    completedView: "jira",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          [source.string("action"), source.string("issue_key")]
+            .filter(Boolean)
+            .join(" · "),
+          "Jira backlog",
+        ),
+        secondary: dryRunMeta(source),
+        safetyNotes: mutationSafety(source, "change backlog placement"),
+      }),
   }),
   jira_transition_issue: spec({
     name: "jira_transition_issue",

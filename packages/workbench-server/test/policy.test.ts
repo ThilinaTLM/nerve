@@ -117,10 +117,14 @@ describe("tool policy", () => {
       { toolName: "jira_search_issues", args: { jql: "project = PROJ" } },
       { toolName: "jira_get_issue", args: { issue_key: "PROJ-1" } },
       { toolName: "jira_get_project", args: { project_key: "PROJ" } },
+      { toolName: "jira_search_boards", args: { project_key: "PROJ" } },
+      { toolName: "jira_get_board", args: { board_id: "1" } },
+      { toolName: "jira_get_sprint", args: { sprint_id: "1" } },
+      { toolName: "jira_download_attachment", args: { attachment_id: "1" } },
       { toolName: "confluence_search_spaces", args: { query: "docs" } },
       { toolName: "confluence_search_pages", args: { cql: "type = page" } },
       { toolName: "confluence_get_page", args: { page_id: "123" } },
-      { toolName: "confluence_download_pages", args: { page_id: "123" } },
+      { toolName: "confluence_download_page", args: { page_id: "123" } },
     ];
 
     for (const { toolName, args } of readOnlyNetworkTools) {
@@ -268,11 +272,29 @@ describe("tool policy", () => {
     assert.equal(
       evaluateToolPolicy(
         agent("autonomous", "planning"),
-        "confluence_publish_pages",
-        { input_path: "/tmp/pages.jsonl" },
+        "confluence_manage_page",
+        { action: "trash", page_id: "123" },
         { dataDir: "/tmp/nerve" },
       ).decision,
       "deny",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous"),
+        "confluence_manage_page",
+        { action: "purge", page_id: "123" },
+        { dataDir: "/tmp/nerve" },
+      ).risk,
+      "destructive",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous"),
+        "confluence_manage_restriction",
+        { action: "clear_operation", page_id: "123", operation: "read" },
+        { dataDir: "/tmp/nerve" },
+      ).risk,
+      "destructive",
     );
   });
 

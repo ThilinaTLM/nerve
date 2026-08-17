@@ -154,16 +154,22 @@ function confluenceAction(toolName: string): ConfluenceToolAction | undefined {
       return "search_pages";
     case "confluence_get_page":
       return "get_page";
-    case "confluence_download_pages":
-      return "download_pages";
+    case "confluence_download_page":
+      return "download_page";
     case "confluence_create_page":
       return "create_page";
     case "confluence_update_page":
       return "update_page";
-    case "confluence_publish_pages":
-      return "publish_pages";
-    case "confluence_upload_attachment":
-      return "upload_attachment";
+    case "confluence_manage_comment":
+      return "manage_comment";
+    case "confluence_manage_page":
+      return "manage_page";
+    case "confluence_manage_label":
+      return "manage_label";
+    case "confluence_manage_restriction":
+      return "manage_restriction";
+    case "confluence_manage_attachment":
+      return "manage_attachment";
     default:
       return undefined;
   }

@@ -1,13 +1,23 @@
+/* eslint-disable max-lines -- Jira's complete agent-facing schema catalog stays centralized and auditable. */
 import { Type } from "typebox";
 import {
-  executeJiraAddComment,
   executeJiraCreateIssue,
+  executeJiraDownloadAttachment,
+  executeJiraGetBoard,
   executeJiraGetIssue,
   executeJiraGetProject,
+  executeJiraGetSprint,
+  executeJiraManageBacklog,
+  executeJiraManageComment,
+  executeJiraManageIssueLink,
+  executeJiraManageSprint,
+  executeJiraManageWorklog,
+  executeJiraSearchBoards,
   executeJiraSearchIssues,
   executeJiraSearchUsers,
   executeJiraTransitionIssue,
   executeJiraUpdateIssue,
+  executeJiraUploadAttachment,
 } from "../../execution/jira/jira.js";
 import type { ToolDefinition } from "../types.js";
 
@@ -114,6 +124,9 @@ const getIssueParameters = Type.Object(
     include_remote_links: Type.Optional(
       Type.Boolean({ description: "Fetch remote links for the issue" }),
     ),
+    include_issue_links: Type.Optional(
+      Type.Boolean({ description: "Fetch issue links for the issue" }),
+    ),
     include_attachments: Type.Optional(
       Type.Boolean({
         description: "Include attachment metadata from issue fields",
@@ -190,6 +203,9 @@ const getProjectParameters = Type.Object(
     ),
     include_resolutions: Type.Optional(
       Type.Boolean({ description: "Include Jira resolutions" }),
+    ),
+    include_issue_link_types: Type.Optional(
+      Type.Boolean({ description: "Include Jira issue link types" }),
     ),
     save_to_file: Type.Optional(
       Type.Boolean({
@@ -287,24 +303,268 @@ const updateIssueParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const addCommentParameters = Type.Object(
+const commentBodyFields = {
+  body: Type.Optional(
+    Type.String({ description: "Plain text/markdown-ish comment body" }),
+  ),
+  body_adf: Type.Optional(
+    unknownRecord("Raw Atlassian Document Format comment body"),
+  ),
+  visibility: Type.Optional(visibilityObject),
+  dry_run: Type.Optional(
+    Type.Boolean({ description: "Validate without mutating" }),
+  ),
+};
+const manageCommentParameters = Type.Union([
+  Type.Object(
+    {
+      action: Type.Literal("create"),
+      issue_key: Type.String(),
+      ...commentBodyFields,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      action: Type.Literal("update"),
+      issue_key: Type.String(),
+      comment_id: Type.String(),
+      ...commentBodyFields,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      action: Type.Literal("delete"),
+      issue_key: Type.String(),
+      comment_id: Type.String(),
+      dry_run: Type.Optional(Type.Boolean()),
+    },
+    { additionalProperties: false },
+  ),
+]);
+
+const agilePageFields = {
+  start_at: Type.Optional(Type.Number({ minimum: 0, maximum: 100000 })),
+  limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
+  save_to_file: Type.Optional(Type.Boolean()),
+};
+const searchBoardsParameters = Type.Object(
   {
-    issue_key: Type.String({ description: "Jira issue key or ID" }),
-    body: Type.Optional(
-      Type.String({ description: "Plain text/markdown-ish comment body" }),
+    project_key: Type.Optional(Type.String()),
+    name: Type.Optional(Type.String()),
+    board_type: Type.Optional(
+      Type.Union([
+        Type.Literal("scrum"),
+        Type.Literal("kanban"),
+        Type.Literal("simple"),
+      ]),
     ),
-    body_adf: Type.Optional(
-      unknownRecord("Raw Atlassian Document Format comment body"),
-    ),
-    visibility: Type.Optional(visibilityObject),
-    return_comment: Type.Optional(
-      Type.Boolean({
-        description: "Include created comment metadata in the result",
-      }),
-    ),
+    ...agilePageFields,
   },
   { additionalProperties: false },
 );
+const getBoardParameters = Type.Object(
+  {
+    board_id: Type.String(),
+    include_sprints: Type.Optional(Type.Boolean()),
+    sprint_states: Type.Optional(stringArray("Sprint states")),
+    sprint_start_at: Type.Optional(
+      Type.Number({ minimum: 0, maximum: 100000 }),
+    ),
+    sprint_limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
+    include_backlog: Type.Optional(Type.Boolean()),
+    backlog_start_at: Type.Optional(
+      Type.Number({ minimum: 0, maximum: 100000 }),
+    ),
+    backlog_limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
+    fields: Type.Optional(stringArray("Issue fields")),
+    save_to_file: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+const getSprintParameters = Type.Object(
+  {
+    sprint_id: Type.String(),
+    include_issues: Type.Optional(Type.Boolean()),
+    fields: Type.Optional(stringArray("Issue fields")),
+    ...agilePageFields,
+  },
+  { additionalProperties: false },
+);
+const downloadAttachmentParameters = Type.Object(
+  { attachment_id: Type.String(), filename: Type.Optional(Type.String()) },
+  { additionalProperties: false },
+);
+const uploadAttachmentParameters = Type.Object(
+  {
+    issue_key: Type.String(),
+    file_path: Type.String(),
+    filename: Type.Optional(Type.String()),
+    dry_run: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
+const estimateFields = {
+  adjust_estimate: Type.Optional(
+    Type.Union([
+      Type.Literal("new"),
+      Type.Literal("leave"),
+      Type.Literal("manual"),
+      Type.Literal("auto"),
+    ]),
+  ),
+  new_estimate: Type.Optional(Type.String()),
+  increase_by: Type.Optional(Type.String()),
+};
+const worklogFields = {
+  time_spent: Type.Optional(Type.String()),
+  time_spent_seconds: Type.Optional(Type.Number({ minimum: 1 })),
+  started: Type.Optional(Type.String()),
+  comment: Type.Optional(Type.String()),
+  comment_adf: Type.Optional(unknownRecord("Raw ADF worklog comment")),
+  visibility: Type.Optional(visibilityObject),
+  ...estimateFields,
+  dry_run: Type.Optional(Type.Boolean()),
+};
+const manageWorklogParameters = Type.Union([
+  Type.Object(
+    {
+      action: Type.Literal("create"),
+      issue_key: Type.String(),
+      ...worklogFields,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      action: Type.Literal("update"),
+      issue_key: Type.String(),
+      worklog_id: Type.String(),
+      ...worklogFields,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      action: Type.Literal("delete"),
+      issue_key: Type.String(),
+      worklog_id: Type.String(),
+      ...estimateFields,
+      dry_run: Type.Optional(Type.Boolean()),
+    },
+    { additionalProperties: false },
+  ),
+]);
+const manageIssueLinkParameters = Type.Union([
+  Type.Object(
+    {
+      action: Type.Literal("create"),
+      issue_key: Type.String(),
+      other_issue_key: Type.String(),
+      link_type: Type.String(),
+      direction: Type.Union([Type.Literal("outward"), Type.Literal("inward")]),
+      comment: Type.Optional(Type.String()),
+      comment_adf: Type.Optional(unknownRecord("Raw ADF comment")),
+      dry_run: Type.Optional(Type.Boolean()),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      action: Type.Literal("delete"),
+      issue_key: Type.String(),
+      link_id: Type.String(),
+      dry_run: Type.Optional(Type.Boolean()),
+    },
+    { additionalProperties: false },
+  ),
+]);
+const sprintMutable = {
+  name: Type.Optional(Type.String()),
+  goal: Type.Optional(Type.String()),
+  start_date: Type.Optional(Type.String()),
+  end_date: Type.Optional(Type.String()),
+  dry_run: Type.Optional(Type.Boolean()),
+};
+const manageSprintParameters = Type.Union([
+  Type.Object(
+    {
+      action: Type.Literal("create"),
+      board_id: Type.String(),
+      name: Type.String(),
+      goal: Type.Optional(Type.String()),
+      start_date: Type.Optional(Type.String()),
+      end_date: Type.Optional(Type.String()),
+      dry_run: Type.Optional(Type.Boolean()),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      action: Type.Literal("update"),
+      sprint_id: Type.String(),
+      ...sprintMutable,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      action: Type.Literal("start"),
+      sprint_id: Type.String(),
+      start_date: Type.Optional(Type.String()),
+      end_date: Type.Optional(Type.String()),
+      dry_run: Type.Optional(Type.Boolean()),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      action: Type.Literal("close"),
+      sprint_id: Type.String(),
+      dry_run: Type.Optional(Type.Boolean()),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      action: Type.Literal("delete"),
+      sprint_id: Type.String(),
+      dry_run: Type.Optional(Type.Boolean()),
+    },
+    { additionalProperties: false },
+  ),
+]);
+const manageBacklogParameters = Type.Union([
+  Type.Object(
+    {
+      action: Type.Literal("move_to_backlog"),
+      issue_key: Type.String(),
+      dry_run: Type.Optional(Type.Boolean()),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      action: Type.Literal("move_to_sprint"),
+      issue_key: Type.String(),
+      sprint_id: Type.String(),
+      dry_run: Type.Optional(Type.Boolean()),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      action: Type.Literal("rank"),
+      issue_key: Type.String(),
+      rank_before_issue_key: Type.Optional(Type.String()),
+      rank_after_issue_key: Type.Optional(Type.String()),
+      dry_run: Type.Optional(Type.Boolean()),
+    },
+    { additionalProperties: false },
+  ),
+]);
 
 const transitionIssueParameters = Type.Object(
   {
@@ -403,6 +663,63 @@ export const jiraToolDefinitions = [
     executionMode: "parallel",
   },
   {
+    name: "jira_search_boards",
+    group: "jira",
+    baseRisk: "network",
+    traits: ["read_only_network", "credentialed"],
+    executionKind: "local",
+    executor: executeJiraSearchBoards,
+    label: "Jira Search Boards",
+    description: "Search visible Jira Software boards.",
+    promptSnippet: "Search Jira Software boards with narrow filters",
+    promptGuidelines: [jiraGuideline],
+    parameters: searchBoardsParameters,
+    executionMode: "parallel",
+  },
+  {
+    name: "jira_get_board",
+    group: "jira",
+    baseRisk: "network",
+    traits: ["read_only_network", "credentialed"],
+    executionKind: "local",
+    executor: executeJiraGetBoard,
+    label: "Jira Get Board",
+    description:
+      "Fetch one Jira Software board with optional sprints and backlog issues.",
+    promptSnippet: "Fetch one Jira board and bounded agile data",
+    promptGuidelines: [jiraGuideline],
+    parameters: getBoardParameters,
+    executionMode: "parallel",
+  },
+  {
+    name: "jira_get_sprint",
+    group: "jira",
+    baseRisk: "network",
+    traits: ["read_only_network", "credentialed"],
+    executionKind: "local",
+    executor: executeJiraGetSprint,
+    label: "Jira Get Sprint",
+    description: "Fetch one Jira sprint with optional issues.",
+    promptSnippet: "Fetch one Jira sprint",
+    promptGuidelines: [jiraGuideline],
+    parameters: getSprintParameters,
+    executionMode: "parallel",
+  },
+  {
+    name: "jira_download_attachment",
+    group: "jira",
+    baseRisk: "network",
+    traits: ["read_only_network", "credentialed"],
+    executionKind: "local",
+    executor: executeJiraDownloadAttachment,
+    label: "Jira Download Attachment",
+    description: "Download one Jira attachment to a local artifact.",
+    promptSnippet: "Download one Jira attachment by id",
+    promptGuidelines: [jiraGuideline],
+    parameters: downloadAttachmentParameters,
+    executionMode: "parallel",
+  },
+  {
     name: "jira_create_issue",
     group: "jira",
     baseRisk: "command",
@@ -432,17 +749,87 @@ export const jiraToolDefinitions = [
     executionMode: "sequential",
   },
   {
-    name: "jira_add_comment",
+    name: "jira_manage_comment",
     group: "jira",
     baseRisk: "command",
     traits: ["write_capable", "credentialed"],
     executionKind: "local",
-    executor: executeJiraAddComment,
-    label: "Jira Add Comment",
-    description: "Add a Jira issue comment from plain text or raw ADF.",
-    promptSnippet: "Add Jira comments only when explicitly requested",
+    executor: executeJiraManageComment,
+    label: "Jira Manage Comment",
+    description: "Create, update, or delete one Jira issue comment.",
+    promptSnippet: "Manage one Jira comment only when explicitly requested",
     promptGuidelines: [jiraGuideline],
-    parameters: addCommentParameters,
+    parameters: manageCommentParameters,
+    executionMode: "sequential",
+  },
+  {
+    name: "jira_manage_worklog",
+    group: "jira",
+    baseRisk: "command",
+    traits: ["write_capable", "credentialed"],
+    executionKind: "local",
+    executor: executeJiraManageWorklog,
+    label: "Jira Manage Worklog",
+    description: "Create, update, or delete one Jira worklog.",
+    promptSnippet: "Manage one Jira worklog only when explicitly requested",
+    promptGuidelines: [jiraGuideline],
+    parameters: manageWorklogParameters,
+    executionMode: "sequential",
+  },
+  {
+    name: "jira_manage_issue_link",
+    group: "jira",
+    baseRisk: "command",
+    traits: ["write_capable", "credentialed"],
+    executionKind: "local",
+    executor: executeJiraManageIssueLink,
+    label: "Jira Manage Issue Link",
+    description: "Create or delete one Jira issue link.",
+    promptSnippet: "Manage one Jira issue link only when explicitly requested",
+    promptGuidelines: [jiraGuideline],
+    parameters: manageIssueLinkParameters,
+    executionMode: "sequential",
+  },
+  {
+    name: "jira_upload_attachment",
+    group: "jira",
+    baseRisk: "command",
+    traits: ["write_capable", "credentialed"],
+    executionKind: "local",
+    executor: executeJiraUploadAttachment,
+    label: "Jira Upload Attachment",
+    description: "Upload one local file to one Jira issue.",
+    promptSnippet: "Upload one Jira attachment only when explicitly requested",
+    promptGuidelines: [jiraGuideline],
+    parameters: uploadAttachmentParameters,
+    executionMode: "sequential",
+  },
+  {
+    name: "jira_manage_sprint",
+    group: "jira",
+    baseRisk: "command",
+    traits: ["write_capable", "credentialed"],
+    executionKind: "local",
+    executor: executeJiraManageSprint,
+    label: "Jira Manage Sprint",
+    description: "Create, update, start, close, or delete one Jira sprint.",
+    promptSnippet: "Manage one Jira sprint only when explicitly requested",
+    promptGuidelines: [jiraGuideline],
+    parameters: manageSprintParameters,
+    executionMode: "sequential",
+  },
+  {
+    name: "jira_manage_backlog",
+    group: "jira",
+    baseRisk: "command",
+    traits: ["write_capable", "credentialed"],
+    executionKind: "local",
+    executor: executeJiraManageBacklog,
+    label: "Jira Manage Backlog",
+    description: "Move or rank one Jira issue in a backlog or sprint.",
+    promptSnippet: "Move or rank one Jira issue only when explicitly requested",
+    promptGuidelines: [jiraGuideline],
+    parameters: manageBacklogParameters,
     executionMode: "sequential",
   },
   {

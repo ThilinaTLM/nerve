@@ -101,17 +101,13 @@ function confluencePrimaryArg(
         : view.query
           ? { text: view.query }
           : undefined;
-    case "download_pages":
+    case "download_page":
       return view.downloadDir
         ? { text: basename(view.downloadDir), openPath: view.downloadDir }
         : view.pageId
           ? { text: view.pageId }
           : undefined;
-    case "publish_pages":
-      return view.inputPath
-        ? { text: basename(view.inputPath), openPath: view.inputPath }
-        : undefined;
-    case "upload_attachment":
+    case "manage_attachment":
       return view.attachment?.filename
         ? { text: view.attachment.filename }
         : view.pageId
@@ -162,7 +158,7 @@ function jiraPrimaryArg(
           : undefined;
     case "get_issue":
     case "update_issue":
-    case "add_comment":
+    case "manage_comment":
     case "transition_issue":
       return view.issueKey ? { text: view.issueKey } : undefined;
     default:
@@ -555,7 +551,7 @@ export function toolPresentation(
             meta.push({ text: `${plural(updated, "field")} updated` });
           break;
         }
-        case "add_comment":
+        case "manage_comment":
           if (view.commentId)
             meta.push({ text: `comment ${view.commentId}`, mono: true });
           break;
@@ -600,9 +596,9 @@ export function toolPresentation(
           countChip(view.spaceCount ?? view.spaces.length, "space");
           break;
         case "search_pages":
-        case "download_pages":
+        case "download_page":
           countChip(view.pageCount ?? view.pages.length, "page");
-          if (view.action === "download_pages") {
+          if (view.action === "download_page") {
             const downloaded =
               view.includedCounts?.downloadedAttachments ??
               view.includedCounts?.attachments;
@@ -647,10 +643,7 @@ export function toolPresentation(
         case "update_page":
           // Space key and version render in the page row's chip line.
           break;
-        case "publish_pages":
-          countChip(view.outcomeCount ?? view.outcomes.length, "outcome");
-          break;
-        case "upload_attachment":
+        case "manage_attachment":
           countChip(
             view.attachmentCount ?? view.attachments.length,
             "attachment",

@@ -17,7 +17,6 @@ import { ATLASSIAN_COLLAPSED_ITEMS } from "../../views/tool-result-view";
 import AtlassianBanner from "./AtlassianBanner.svelte";
 import ConfluenceAttachmentRow from "./ConfluenceAttachmentRow.svelte";
 import ConfluenceMetricStrip from "./ConfluenceMetricStrip.svelte";
-import ConfluenceOutcomeRow from "./ConfluenceOutcomeRow.svelte";
 import ConfluencePageRow from "./ConfluencePageRow.svelte";
 import ConfluenceSpaceRow from "./ConfluenceSpaceRow.svelte";
 import ToolArgumentBody from "./ToolArgumentBody.svelte";
@@ -53,7 +52,7 @@ const metricCounts = $derived.by(() => {
   return Object.keys(counts).length > 0 ? counts : undefined;
 });
 const downloadPaths = $derived(
-  view.action === "download_pages"
+  view.action === "download_page"
     ? [
         view.downloadDir,
         ...(expanded ? [view.manifestPath, view.pagesJsonlPath] : []),
@@ -121,7 +120,7 @@ const downloadPaths = $derived(
         <ConfluenceMetricStrip counts={metricCounts} />
       {/if}
       <!-- Attachment details/counts are intentionally footer-only. -->
-    {:else if view.action === "download_pages"}
+    {:else if view.action === "download_page"}
       {#each downloadPaths as path (path)}
         {@render pathRow(path)}
       {/each}
@@ -132,11 +131,7 @@ const downloadPaths = $derived(
       {#if view.page}
         <ConfluencePageRow page={view.page} {siteUrl} {expanded} {onOpenFile} />
       {/if}
-    {:else if view.action === "publish_pages"}
-      {#each view.outcomes.slice(0, limit) as outcome, index (outcome.id ?? outcome.index ?? index)}
-        <ConfluenceOutcomeRow {outcome} {expanded} />
-      {/each}
-    {:else if view.action === "upload_attachment"}
+    {:else if view.action === "manage_attachment"}
       {#if view.attachment}
         <ConfluenceAttachmentRow
           attachment={view.attachment}

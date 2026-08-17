@@ -35,20 +35,32 @@ export type JiraToolAction =
   | "search_issues"
   | "get_issue"
   | "get_project"
+  | "search_boards"
+  | "get_board"
+  | "get_sprint"
+  | "download_attachment"
   | "create_issue"
   | "update_issue"
-  | "add_comment"
+  | "manage_comment"
+  | "manage_worklog"
+  | "manage_issue_link"
+  | "upload_attachment"
+  | "manage_sprint"
+  | "manage_backlog"
   | "transition_issue";
 
 export type ConfluenceToolAction =
   | "search_spaces"
   | "search_pages"
   | "get_page"
-  | "download_pages"
+  | "download_page"
   | "create_page"
   | "update_page"
-  | "publish_pages"
-  | "upload_attachment";
+  | "manage_comment"
+  | "manage_page"
+  | "manage_label"
+  | "manage_restriction"
+  | "manage_attachment";
 
 export type GrepMatchView = GrepMatch & { openPath?: string };
 export type GroupedMatches = {

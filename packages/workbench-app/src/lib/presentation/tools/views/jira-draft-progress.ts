@@ -16,13 +16,28 @@ export function jiraDraftPrimaryArg(
   if (toolName === "jira_get_project") {
     return firstKnownString(draft, "project_key") ?? "default project";
   }
+  if (toolName === "jira_search_boards")
+    return (
+      firstKnownString(draft, "project_key") ?? firstKnownString(draft, "name")
+    );
+  if (toolName === "jira_get_board") return firstKnownString(draft, "board_id");
+  if (toolName === "jira_get_sprint" || toolName === "jira_manage_sprint")
+    return (
+      firstKnownString(draft, "sprint_id") ?? firstKnownString(draft, "name")
+    );
+  if (toolName === "jira_download_attachment")
+    return firstKnownString(draft, "attachment_id");
   if (toolName === "jira_create_issue") {
     return firstKnownString(draft, "summary");
   }
   if (
     toolName === "jira_get_issue" ||
     toolName === "jira_update_issue" ||
-    toolName === "jira_add_comment" ||
+    toolName === "jira_manage_comment" ||
+    toolName === "jira_manage_worklog" ||
+    toolName === "jira_manage_issue_link" ||
+    toolName === "jira_upload_attachment" ||
+    toolName === "jira_manage_backlog" ||
     toolName === "jira_transition_issue"
   ) {
     return firstKnownString(draft, "issue_key");
@@ -98,8 +113,11 @@ export function jiraDraftMeta(
       meta.push({ text: "resolve assignee" });
     if (args.dry_run === true) meta.push({ text: "dry run", tone: "info" });
   }
-  if (toolName === "jira_add_comment") {
-    meta.push({ text: args.body_adf ? "ADF" : "comment" });
+  if (toolName === "jira_manage_comment") {
+    meta.push({ text: String(args.action ?? "comment") });
+  }
+  if (toolName?.startsWith("jira_manage_") && args.dry_run === true) {
+    meta.push({ text: "dry run", tone: "info" });
   }
   if (toolName === "jira_transition_issue") {
     const transition = firstKnownString(draft, "transition");

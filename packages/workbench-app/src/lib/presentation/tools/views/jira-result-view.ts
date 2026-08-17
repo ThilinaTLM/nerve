@@ -164,12 +164,30 @@ function jiraAction(toolName: string): JiraToolAction | undefined {
       return "get_issue";
     case "jira_get_project":
       return "get_project";
+    case "jira_search_boards":
+      return "search_boards";
+    case "jira_get_board":
+      return "get_board";
+    case "jira_get_sprint":
+      return "get_sprint";
+    case "jira_download_attachment":
+      return "download_attachment";
     case "jira_create_issue":
       return "create_issue";
     case "jira_update_issue":
       return "update_issue";
-    case "jira_add_comment":
-      return "add_comment";
+    case "jira_manage_comment":
+      return "manage_comment";
+    case "jira_manage_worklog":
+      return "manage_worklog";
+    case "jira_manage_issue_link":
+      return "manage_issue_link";
+    case "jira_upload_attachment":
+      return "upload_attachment";
+    case "jira_manage_sprint":
+      return "manage_sprint";
+    case "jira_manage_backlog":
+      return "manage_backlog";
     case "jira_transition_issue":
       return "transition_issue";
     default:

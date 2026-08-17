@@ -151,7 +151,24 @@ export async function confluenceDownload(
     signal: withTimeoutSignal(signal, 60_000),
   });
   if (!response.ok) await throwConfluenceError(response);
-  return new Uint8Array(await response.arrayBuffer());
+  const maximum = 25 * 1024 * 1024;
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  if (declared > maximum) {
+    throw new ToolExecutionError(
+      "CONFLUENCE_ATTACHMENT_TOO_LARGE",
+      "Confluence attachment exceeds the 25 MiB download limit.",
+      { bytes: declared, maximum },
+    );
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > maximum) {
+    throw new ToolExecutionError(
+      "CONFLUENCE_ATTACHMENT_TOO_LARGE",
+      "Confluence attachment exceeds the 25 MiB download limit.",
+      { bytes: bytes.byteLength, maximum },
+    );
+  }
+  return bytes;
 }
 
 function resolveConfluenceDownloadUrl(

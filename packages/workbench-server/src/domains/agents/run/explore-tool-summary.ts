@@ -63,12 +63,39 @@ export function summarizeExploreToolCall(
       return activity("Reading Jira issue", issueDetail(args));
     case "jira_get_project":
       return activity("Reading Jira project", projectDetail(args));
+    case "jira_search_boards":
+      return activity(
+        "Searching Jira boards",
+        firstString(args, "project_key", "name"),
+      );
+    case "jira_get_board":
+      return activity("Reading Jira board", stringValue(args.board_id));
+    case "jira_get_sprint":
+      return activity("Reading Jira sprint", stringValue(args.sprint_id));
+    case "jira_download_attachment":
+      return activity(
+        "Downloading Jira attachment",
+        stringValue(args.attachment_id),
+      );
     case "jira_create_issue":
       return activity("Creating Jira issue", projectDetail(args));
     case "jira_update_issue":
       return activity("Updating Jira issue", issueDetail(args));
-    case "jira_add_comment":
-      return activity("Commenting on Jira issue", issueDetail(args));
+    case "jira_manage_comment":
+      return activity("Managing Jira comment", issueDetail(args));
+    case "jira_manage_worklog":
+      return activity("Managing Jira worklog", issueDetail(args));
+    case "jira_manage_issue_link":
+      return activity("Managing Jira issue link", issueDetail(args));
+    case "jira_upload_attachment":
+      return activity("Uploading Jira attachment", issueDetail(args));
+    case "jira_manage_sprint":
+      return activity(
+        "Managing Jira sprint",
+        firstString(args, "sprint_id", "name"),
+      );
+    case "jira_manage_backlog":
+      return activity("Managing Jira backlog", issueDetail(args));
     case "jira_transition_issue":
       return activity("Transitioning Jira issue", issueDetail(args));
     case "confluence_search_spaces":
@@ -83,11 +110,8 @@ export function summarizeExploreToolCall(
       );
     case "confluence_get_page":
       return activity("Reading Confluence page", pageDetail(args));
-    case "confluence_download_pages":
-      return activity(
-        "Downloading Confluence pages",
-        firstString(args, "page_id", "space_key", "cql"),
-      );
+    case "confluence_download_page":
+      return activity("Downloading Confluence page", stringValue(args.page_id));
     case "confluence_create_page":
       return activity(
         "Creating Confluence page",
@@ -95,15 +119,18 @@ export function summarizeExploreToolCall(
       );
     case "confluence_update_page":
       return activity("Updating Confluence page", pageDetail(args));
-    case "confluence_publish_pages":
+    case "confluence_manage_comment":
+      return activity("Managing Confluence comment", pageDetail(args));
+    case "confluence_manage_page":
+      return activity("Managing Confluence page", pageDetail(args));
+    case "confluence_manage_label":
+      return activity("Managing Confluence label", pageDetail(args));
+    case "confluence_manage_restriction":
+      return activity("Managing Confluence restriction", pageDetail(args));
+    case "confluence_manage_attachment":
       return activity(
-        "Publishing Confluence pages",
-        firstString(args, "input_path"),
-      );
-    case "confluence_upload_attachment":
-      return activity(
-        "Uploading Confluence attachment",
-        firstString(args, "file_path", "filename", "page_id"),
+        "Managing Confluence attachment",
+        firstString(args, "file_path", "attachment_id", "page_id"),
       );
     case "explore":
       return "Exploring the codebase";

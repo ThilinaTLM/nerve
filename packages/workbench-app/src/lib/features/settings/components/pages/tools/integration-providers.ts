@@ -144,10 +144,34 @@ export const jiraIntegration: IntegrationProviderDef = {
       name: "jira_update_issue",
       description: "Update common issue fields and raw Jira fields.",
     },
+    { name: "jira_search_boards", description: "Search Jira Software boards." },
     {
-      name: "jira_add_comment",
-      description: "Add comments from plain text or ADF.",
+      name: "jira_get_board",
+      description: "Fetch one board, sprints, and backlog.",
     },
+    {
+      name: "jira_get_sprint",
+      description: "Fetch one sprint and its issues.",
+    },
+    {
+      name: "jira_download_attachment",
+      description: "Download one attachment.",
+    },
+    {
+      name: "jira_manage_comment",
+      description: "Create, update, or delete one comment.",
+    },
+    {
+      name: "jira_manage_worklog",
+      description: "Create, update, or delete one worklog.",
+    },
+    {
+      name: "jira_manage_issue_link",
+      description: "Create or delete one issue link.",
+    },
+    { name: "jira_upload_attachment", description: "Upload one attachment." },
+    { name: "jira_manage_sprint", description: "Manage one sprint lifecycle." },
+    { name: "jira_manage_backlog", description: "Move or rank one issue." },
     {
       name: "jira_transition_issue",
       description: "Discover or execute workflow transitions.",
@@ -212,9 +236,9 @@ export const confluenceIntegration: IntegrationProviderDef = {
         "Fetch a page with storage body, metadata, children, and attachments.",
     },
     {
-      name: "confluence_download_pages",
+      name: "confluence_download_page",
       description:
-        "Download pages into editable JSONL and storage XML artifacts.",
+        "Download one page into editable JSON and storage XML artifacts.",
     },
     {
       name: "confluence_create_page",
@@ -225,12 +249,24 @@ export const confluenceIntegration: IntegrationProviderDef = {
       description: "Update pages with version-conflict protection.",
     },
     {
-      name: "confluence_publish_pages",
-      description: "Publish edited JSONL page rows.",
+      name: "confluence_manage_comment",
+      description: "Manage one footer or inline comment.",
     },
     {
-      name: "confluence_upload_attachment",
-      description: "Upload or update media and file attachments.",
+      name: "confluence_manage_page",
+      description: "Trash, restore, or purge one page.",
+    },
+    {
+      name: "confluence_manage_label",
+      description: "Add or remove one page label.",
+    },
+    {
+      name: "confluence_manage_restriction",
+      description: "Manage one page restriction subject.",
+    },
+    {
+      name: "confluence_manage_attachment",
+      description: "Upload, rename, or delete one attachment.",
     },
   ],
 };

@@ -21,30 +21,26 @@ export function confluenceDraftPrimaryArg(
       firstKnownString(draft, "title")
     );
   }
-  if (toolName === "confluence_download_pages") {
-    return (
-      firstKnownString(draft, "page_id") ??
-      firstKnownString(draft, "space_key") ??
-      firstKnownString(draft, "space_id") ??
-      firstKnownString(draft, "cql")
-    );
+  if (toolName === "confluence_download_page") {
+    return firstKnownString(draft, "page_id");
   }
   if (toolName === "confluence_create_page") {
     return (
       firstKnownString(draft, "title") ?? firstKnownString(draft, "page_file")
     );
   }
-  if (toolName === "confluence_publish_pages") {
-    return firstKnownString(draft, "input_path");
-  }
-  if (toolName === "confluence_upload_attachment") {
+  if (toolName === "confluence_manage_attachment") {
     return (
       firstKnownString(draft, "file_path") ?? firstKnownString(draft, "page_id")
     );
   }
   if (
     toolName === "confluence_get_page" ||
-    toolName === "confluence_update_page"
+    toolName === "confluence_update_page" ||
+    toolName === "confluence_manage_comment" ||
+    toolName === "confluence_manage_page" ||
+    toolName === "confluence_manage_label" ||
+    toolName === "confluence_manage_restriction"
   ) {
     return (
       firstKnownString(draft, "page_id") ?? firstKnownString(draft, "page_file")
@@ -72,12 +68,7 @@ export function confluenceDraftMeta(
   if (toolName === "confluence_update_page" && args.allow_stale === true) {
     meta.push({ text: "allow stale", tone: "warning" });
   }
-  if (toolName === "confluence_publish_pages") {
-    if (args.create_missing === true) meta.push({ text: "create missing" });
-    if (args.allow_stale === true)
-      meta.push({ text: "allow stale", tone: "warning" });
-  }
-  if (toolName === "confluence_upload_attachment") {
+  if (toolName === "confluence_manage_attachment") {
     const pageId = firstKnownString(draft, "page_id");
     if (pageId) meta.push({ text: `page ${pageId}`, mono: true });
     if (args.update_existing === false) meta.push({ text: "new only" });

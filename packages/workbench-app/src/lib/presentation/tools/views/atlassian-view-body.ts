@@ -53,10 +53,10 @@ export function jiraBanner(
           : "";
       return banner(`Updated ${view.issueKey}${fields}`, false);
     }
-    case "add_comment": {
+    case "manage_comment": {
       if (!view.issueKey) return undefined;
       const id = view.commentId ? ` · id ${view.commentId}` : "";
-      return banner(`Comment added to ${view.issueKey}${id}`, false);
+      return banner(`Managed comment on ${view.issueKey}${id}`, view.dryRun);
     }
     case "transition_issue": {
       if (!view.transition || !view.issueKey) return undefined;
@@ -103,22 +103,14 @@ export function confluenceBanner(
       const suffix = version !== undefined ? ` · v${version}` : "";
       return banner(`Updated page "${title}"${suffix}`, false);
     }
-    case "upload_attachment": {
+    case "manage_attachment": {
       const name = view.attachment?.filename ?? view.attachment?.title;
       return name ? banner(`Uploaded ${name}`, view.dryRun) : undefined;
     }
-    case "download_pages": {
+    case "download_page": {
       const count = view.pageCount ?? view.pages.length;
       if (count <= 0) return undefined;
       return banner(`Downloaded ${count} page${count === 1 ? "" : "s"}`, false);
-    }
-    case "publish_pages": {
-      const count = view.outcomeCount ?? view.outcomes.length;
-      if (count <= 0) return undefined;
-      const pages = `${count} page${count === 1 ? "" : "s"}`;
-      return view.dryRun
-        ? banner(`Dry run — ${pages}`, true)
-        : banner(`Published ${pages}`, false);
     }
     default:
       return undefined;

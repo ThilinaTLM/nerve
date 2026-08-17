@@ -17,11 +17,22 @@ type JiraConfig = {
   defaultProjectKey?: unknown;
 };
 
+export type JiraApiVersion = "platform" | "agile";
+
+type QueryValue = string | number | boolean | string[] | undefined;
+
 type JiraRequestOptions = {
+  api?: JiraApiVersion;
   method?: string;
   path: string;
-  query?: Record<string, string | number | boolean | string[] | undefined>;
+  query?: Record<string, QueryValue>;
   body?: unknown;
+  signal?: AbortSignal;
+};
+
+type JiraMultipartOptions = {
+  path: string;
+  form: FormData;
   signal?: AbortSignal;
 };
 
@@ -63,7 +74,8 @@ export async function jiraRequest<T = unknown>(
   connection: JiraConnection,
   options: JiraRequestOptions,
 ): Promise<T> {
-  const url = new URL(`${connection.siteUrl}/rest/api/3${options.path}`);
+  const apiRoot = options.api === "agile" ? "/rest/agile/1.0" : "/rest/api/3";
+  const url = new URL(`${connection.siteUrl}${apiRoot}${options.path}`);
   for (const [key, value] of Object.entries(options.query ?? {})) {
     if (value === undefined) continue;
     if (Array.isArray(value)) {
@@ -75,7 +87,7 @@ export async function jiraRequest<T = unknown>(
 
   const headers: Record<string, string> = {
     Accept: "application/json",
-    Authorization: `Basic ${Buffer.from(`${connection.email}:${connection.token}`, "utf8").toString("base64")}`,
+    Authorization: basicAuth(connection),
   };
   const init: RequestInit = {
     method: options.method ?? "GET",
@@ -97,6 +109,86 @@ export async function jiraRequest<T = unknown>(
   } catch {
     return text as T;
   }
+}
+
+export async function jiraMultipartRequest<T = unknown>(
+  connection: JiraConnection,
+  options: JiraMultipartOptions,
+): Promise<T> {
+  const url = new URL(`${connection.siteUrl}/rest/api/3${options.path}`);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      Authorization: basicAuth(connection),
+      "X-Atlassian-Token": "nocheck",
+    },
+    body: options.form,
+    signal: withTimeoutSignal(options.signal, 60_000),
+  });
+  if (!response.ok) await throwJiraError(response);
+  const text = await response.text();
+  return (text.trim() ? JSON.parse(text) : undefined) as T;
+}
+
+export async function jiraDownload(
+  connection: JiraConnection,
+  attachmentId: string,
+  signal?: AbortSignal,
+): Promise<{ bytes: Uint8Array; contentType?: string; filename?: string }> {
+  const url = new URL(
+    `${connection.siteUrl}/rest/api/3/attachment/content/${pathSegment(attachmentId)}`,
+  );
+  url.searchParams.set("redirect", "false");
+  const response = await fetch(url, {
+    headers: { Authorization: basicAuth(connection) },
+    redirect: "manual",
+    signal: withTimeoutSignal(signal, 60_000),
+  });
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    throw new ToolExecutionError(
+      "JIRA_UNTRUSTED_DOWNLOAD_REDIRECT",
+      "Jira attachment download attempted an authenticated redirect.",
+      { location },
+    );
+  }
+  if (!response.ok) await throwJiraError(response);
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  const maximum = 25 * 1024 * 1024;
+  if (declared > maximum) {
+    throw new ToolExecutionError(
+      "JIRA_ATTACHMENT_TOO_LARGE",
+      "Jira attachment exceeds the 25 MiB download limit.",
+      { bytes: declared, maximum },
+    );
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > maximum) {
+    throw new ToolExecutionError(
+      "JIRA_ATTACHMENT_TOO_LARGE",
+      "Jira attachment exceeds the 25 MiB download limit.",
+      { bytes: bytes.byteLength, maximum },
+    );
+  }
+  return {
+    bytes,
+    contentType: response.headers.get("content-type") ?? undefined,
+    filename: filenameFromDisposition(
+      response.headers.get("content-disposition"),
+    ),
+  };
+}
+
+function basicAuth(connection: JiraConnection): string {
+  return `Basic ${Buffer.from(`${connection.email}:${connection.token}`, "utf8").toString("base64")}`;
+}
+
+function filenameFromDisposition(value: string | null): string | undefined {
+  if (!value) return undefined;
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(value)?.[1];
+  if (encoded) return decodeURIComponent(encoded);
+  return /filename="?([^";]+)"?/i.exec(value)?.[1];
 }
 
 async function throwJiraError(response: Response): Promise<never> {

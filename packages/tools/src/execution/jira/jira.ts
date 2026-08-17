@@ -45,6 +45,18 @@ import {
 } from "./helpers.js";
 
 export { executeJiraSearchUsers } from "./users.js";
+export {
+  executeJiraDownloadAttachment,
+  executeJiraGetBoard,
+  executeJiraGetSprint,
+  executeJiraManageBacklog,
+  executeJiraManageComment,
+  executeJiraManageIssueLink,
+  executeJiraManageSprint,
+  executeJiraManageWorklog,
+  executeJiraSearchBoards,
+  executeJiraUploadAttachment,
+} from "./resources.js";
 
 const DEFAULT_SEARCH_FIELDS = [
   "summary",
@@ -207,6 +219,19 @@ export async function executeJiraGetIssue(
       signal: context.signal,
     });
   }
+  if (
+    args.include_issue_links === true &&
+    !issueFields.includes("issuelinks")
+  ) {
+    const linkedIssue = await jiraRequest<JiraIssueResponse>(connection, {
+      path: `/issue/${pathSegment(issueKey)}`,
+      query: { fields: ["issuelinks"] },
+      signal: context.signal,
+    });
+    result.issueLinks =
+      (linkedIssue.fields as { issuelinks?: unknown[] } | undefined)
+        ?.issuelinks ?? [];
+  }
   const artifact = await maybeArtifact(
     context,
     "get-issue",
@@ -263,6 +288,10 @@ export async function executeJiraGetIssue(
   if (Array.isArray(result.remoteLinks)) {
     includedCounts.remoteLinks = result.remoteLinks.length;
     lines.push(`Remote links: ${result.remoteLinks.length}`);
+  }
+  if (Array.isArray(result.issueLinks)) {
+    includedCounts.issueLinks = result.issueLinks.length;
+    lines.push(`Issue links: ${result.issueLinks.length}`);
   }
   let transitionSummaries: NonNullable<
     ReturnType<typeof summarizeJiraTransition>
@@ -389,6 +418,12 @@ export async function executeJiraGetProject(
       signal: context.signal,
     });
   }
+  if (args.include_issue_link_types === true) {
+    result.issueLinkTypes = await jiraRequest(connection, {
+      path: "/issueLinkType",
+      signal: context.signal,
+    });
+  }
   const artifact = await maybeArtifact(
     context,
     "get-project",
@@ -427,6 +462,7 @@ export async function executeJiraGetProject(
   for (const [key, label] of [
     ["priorities", "priorities"],
     ["resolutions", "resolutions"],
+    ["issueLinkTypes", "issue link types"],
   ] as const) {
     const value = result[key];
     if (Array.isArray(value)) {
@@ -603,43 +639,6 @@ export async function executeJiraUpdateIssue(
       updatedFieldCount: updatedFields.length,
       issue: summarizeJiraIssue(returnedIssue),
       resolvedAssignee,
-    },
-  });
-}
-
-export async function executeJiraAddComment(
-  args: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolExecutionResult> {
-  const connection = await requireJiraConnection(context);
-  const issueKey = requiredString(args.issue_key, "issue_key");
-  const body = adfFromEither({
-    text: args.body,
-    adf: args.body_adf,
-    textName: "body",
-    adfName: "body_adf",
-  });
-  if (!body)
-    throw new ToolExecutionError(
-      "JIRA_COMMENT_REQUIRED",
-      "Provide body or body_adf.",
-    );
-  const payload: Record<string, unknown> = { body };
-  const visibility = rawOptionalRecord(args.visibility, "visibility");
-  if (Object.keys(visibility).length > 0) payload.visibility = visibility;
-  const data = await jiraRequest<Record<string, unknown>>(connection, {
-    method: "POST",
-    path: `/issue/${pathSegment(issueKey)}/comment`,
-    body: payload,
-    signal: context.signal,
-  });
-  return buildJiraTextResult({
-    text: `Added comment to Jira issue ${issueKey}.`,
-    context,
-    details: {
-      issueKey,
-      commentId: data.id,
-      comment: args.return_comment === true ? data : undefined,
     },
   });
 }

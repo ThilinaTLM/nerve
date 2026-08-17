@@ -1,11 +1,11 @@
 ---
 title: Agent tool catalog
-description: The 39 agent-callable tools, availability gates, risks, and important limits.
+description: The 51 agent-callable tools, availability gates, risks, and important limits.
 sidebar:
   order: 3
 ---
 
-Nerve exposes 39 tool names. Availability also depends on mode, permission, runtime discovery, module settings, and user toggles.
+Nerve exposes 51 tool names. Availability also depends on mode, permission, runtime discovery, module settings, and user toggles.
 
 ## Files and execution
 
@@ -18,8 +18,10 @@ Reads are bounded and parallel-capable. `edit`/`write` are serialized mutations.
 ## Web and Atlassian
 
 - Web: `web_search`, `web_fetch`
-- Jira: `jira_search_users`, `jira_search_issues`, `jira_get_issue`, `jira_get_project`, `jira_create_issue`, `jira_update_issue`, `jira_add_comment`, `jira_transition_issue`
-- Confluence: `confluence_search_spaces`, `confluence_search_pages`, `confluence_get_page`, `confluence_download_pages`, `confluence_create_page`, `confluence_update_page`, `confluence_publish_pages`, `confluence_upload_attachment`
+- Jira reads: `jira_search_users`, `jira_search_issues`, `jira_get_issue`, `jira_get_project`, `jira_search_boards`, `jira_get_board`, `jira_get_sprint`, `jira_download_attachment`
+- Jira writes: `jira_create_issue`, `jira_update_issue`, `jira_transition_issue`, `jira_manage_comment`, `jira_manage_worklog`, `jira_manage_issue_link`, `jira_upload_attachment`, `jira_manage_sprint`, `jira_manage_backlog`
+- Confluence reads: `confluence_search_spaces`, `confluence_search_pages`, `confluence_get_page`, `confluence_download_page`
+- Confluence writes: `confluence_create_page`, `confluence_update_page`, `confluence_manage_comment`, `confluence_manage_page`, `confluence_manage_label`, `confluence_manage_restriction`, `confluence_manage_attachment`
 
 Web search/fetch, image explanation, and Python are individual global tool toggles. Search requires Tavily. Jira/Confluence require enabled modules and credentials.
 
