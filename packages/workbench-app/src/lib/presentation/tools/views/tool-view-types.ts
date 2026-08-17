@@ -1,18 +1,27 @@
 import type {
   ConfluenceAttachmentSummaryPayload,
+  ConfluenceCommentSummaryPayload,
   ConfluenceIncludedCountsPayload,
+  ConfluenceLabelSummaryPayload,
   ConfluencePageSummaryPayload,
+  ConfluenceRestrictionSummaryPayload,
   ConfluencePublishOutcomePayload,
   ConfluenceSpaceSummaryPayload,
   ExploreReportSummaryPayload,
   FileEntry,
   GrepMatch,
+  JiraAttachmentSummaryPayload,
+  JiraBoardSummaryPayload,
+  JiraCommentSummaryPayload,
   JiraFieldSummaryPayload,
   JiraIncludedCountsPayload,
+  JiraIssueLinkSummaryPayload,
   JiraIssueSummaryPayload,
   JiraProjectSummaryPayload,
+  JiraSprintSummaryPayload,
   JiraTransitionSummaryPayload,
   JiraUserSummaryPayload,
+  JiraWorklogSummaryPayload,
   ProcessStreamResultDetails,
   PythonArtifactResultDetails,
   TaskCancelOutcomePreviewPayload,
@@ -325,6 +334,39 @@ export type ToolView =
       includedCounts?: JiraIncludedCountsPayload;
       dryRun?: boolean;
       resolvedAssignee?: JiraUserSummaryPayload;
+      operation?: string;
+      boardId?: string;
+      board?: JiraBoardSummaryPayload;
+      boards: JiraBoardSummaryPayload[];
+      boardCount?: number;
+      displayedBoardCount?: number;
+      startAt?: number;
+      maxResults?: number;
+      sprintId?: string;
+      sprint?: JiraSprintSummaryPayload;
+      sprints: JiraSprintSummaryPayload[];
+      sprintCount?: number;
+      backlogIssues: JiraIssueSummaryPayload[];
+      backlogCount?: number;
+      attachmentId?: string;
+      attachment?: JiraAttachmentSummaryPayload;
+      attachments: JiraAttachmentSummaryPayload[];
+      filename?: string;
+      mediaType?: string;
+      bytes?: number;
+      path?: string;
+      comment?: JiraCommentSummaryPayload;
+      worklogId?: string;
+      worklog?: JiraWorklogSummaryPayload;
+      issueLink?: JiraIssueLinkSummaryPayload;
+      linkId?: string;
+      otherIssueKey?: string;
+      linkType?: string;
+      direction?: "outward" | "inward";
+      rankBeforeIssueKey?: string;
+      rankAfterIssueKey?: string;
+      previousState?: string;
+      resultingState?: string;
       updatedFields?: string[];
       updatedFieldCount?: number;
       commentId?: string;
@@ -375,6 +417,25 @@ export type ToolView =
       outcomes: ConfluencePublishOutcomePayload[];
       outcomeCount?: number;
       displayedOutcomeCount?: number;
+      operation?: string;
+      commentId?: string;
+      comment?: ConfluenceCommentSummaryPayload;
+      commentKind?: "footer" | "inline";
+      label?: string;
+      labels: ConfluenceLabelSummaryPayload[];
+      labelCount?: number;
+      prefix?: string;
+      restrictionOperation?: "read" | "update";
+      subjectType?: "user" | "group";
+      subjectId?: string;
+      restrictions: ConfluenceRestrictionSummaryPayload[];
+      restrictionCount?: number;
+      previousStatus?: string;
+      resultingStatus?: string;
+      attachmentId?: string;
+      filename?: string;
+      newFilename?: string;
+      bytes?: number;
       dryRun?: boolean;
       payload?: unknown;
       outputLimits?: ToolOutputLimitsPayload;

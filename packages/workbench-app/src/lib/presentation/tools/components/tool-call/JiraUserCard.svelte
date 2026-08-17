@@ -10,9 +10,7 @@ const initials = $derived(jiraInitials(user));
 const name = $derived(user.displayName ?? user.emailAddress ?? user.accountId);
 </script>
 
-<div
-  class="flex min-w-0 items-center gap-2.5 rounded-sm border bg-sidebar px-2.5 py-2"
->
+<div class="flex min-w-0 items-center gap-2.5 px-2.5 py-2">
   <span
     class="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
     aria-hidden="true">{initials}</span

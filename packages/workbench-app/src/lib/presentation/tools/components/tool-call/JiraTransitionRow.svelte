@@ -17,9 +17,7 @@ const showTarget = $derived(
 );
 </script>
 
-<div
-  class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-sm border bg-sidebar px-2.5 py-2"
->
+<div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-2">
   <span
     class="rounded-sm border bg-muted/40 px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
     >{transition.id}</span

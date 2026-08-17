@@ -3,11 +3,17 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
+  JiraAttachmentSummaryPayload,
+  JiraBoardSummaryPayload,
+  JiraCommentSummaryPayload,
   JiraFieldSummaryPayload,
+  JiraIssueLinkSummaryPayload,
   JiraIssueSummaryPayload,
   JiraProjectSummaryPayload,
+  JiraSprintSummaryPayload,
   JiraTransitionSummaryPayload,
   JiraUserSummaryPayload,
+  JiraWorklogSummaryPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
@@ -210,19 +216,132 @@ export function summarizeJiraField(
 
 export function summarizeJiraAttachment(
   value: unknown,
-): Record<string, unknown> | undefined {
+): JiraAttachmentSummaryPayload | undefined {
   if (!value || typeof value !== "object") return undefined;
   const record = value as Record<string, unknown>;
   const id = stringField(record.id);
-  if (!id) return undefined;
+  const filename = truncateField(stringField(record.filename));
+  if (!id && !filename) return undefined;
   return compactRecord({
     id,
-    filename: truncateField(stringField(record.filename)),
-    mimeType: truncateField(stringField(record.mimeType)),
-    size: typeof record.size === "number" ? record.size : undefined,
+    filename,
+    mediaType: truncateField(
+      stringField(record.mimeType) ?? stringField(record.mediaType),
+    ),
+    bytes:
+      typeof record.size === "number"
+        ? record.size
+        : typeof record.bytes === "number"
+          ? record.bytes
+          : undefined,
     author: truncateField(displayNameOf(record.author)),
     created: truncateField(stringField(record.created)),
-  });
+    path: stringField(record.path),
+  }) as JiraAttachmentSummaryPayload;
+}
+
+export function summarizeJiraBoard(
+  value: unknown,
+): JiraBoardSummaryPayload | undefined {
+  const record = asRecord(value);
+  const idValue = record.id;
+  const id =
+    typeof idValue === "number" ? String(idValue) : stringField(idValue);
+  if (!id) return undefined;
+  const location = asRecord(record.location);
+  return compactRecord({
+    id,
+    name: truncateField(stringField(record.name)),
+    type: truncateField(stringField(record.type)),
+    projectKey: truncateField(
+      stringField(location.projectKey) ?? stringField(record.projectKey),
+    ),
+    projectName: truncateField(
+      stringField(location.projectName) ?? stringField(record.projectName),
+    ),
+  }) as JiraBoardSummaryPayload;
+}
+
+export function summarizeJiraSprint(
+  value: unknown,
+): JiraSprintSummaryPayload | undefined {
+  const record = asRecord(value);
+  const idValue = record.id;
+  const id =
+    typeof idValue === "number" ? String(idValue) : stringField(idValue);
+  if (!id) return undefined;
+  const boardId = record.originBoardId;
+  return compactRecord({
+    id,
+    name: truncateField(stringField(record.name)),
+    state: truncateField(stringField(record.state)),
+    goal: truncateField(stringField(record.goal)),
+    startDate: truncateField(stringField(record.startDate)),
+    endDate: truncateField(stringField(record.endDate)),
+    completeDate: truncateField(stringField(record.completeDate)),
+    originBoardId:
+      typeof boardId === "number" ? String(boardId) : stringField(boardId),
+  }) as JiraSprintSummaryPayload;
+}
+
+export function summarizeJiraComment(
+  value: unknown,
+): JiraCommentSummaryPayload | undefined {
+  const record = asRecord(value);
+  const id = stringField(record.id);
+  if (!id && Object.keys(record).length === 0) return undefined;
+  return compactRecord({
+    id,
+    author: truncateField(displayNameOf(record.author)),
+    bodyPreview: truncateField(plainTextPreview(record.body)),
+    visibility: truncateField(nameOf(record.visibility)),
+    created: truncateField(stringField(record.created)),
+    updated: truncateField(stringField(record.updated)),
+  }) as JiraCommentSummaryPayload;
+}
+
+export function summarizeJiraWorklog(
+  value: unknown,
+): JiraWorklogSummaryPayload | undefined {
+  const record = asRecord(value);
+  const id = stringField(record.id);
+  if (!id && Object.keys(record).length === 0) return undefined;
+  return compactRecord({
+    id,
+    author: truncateField(displayNameOf(record.author)),
+    timeSpent: truncateField(stringField(record.timeSpent)),
+    timeSpentSeconds:
+      typeof record.timeSpentSeconds === "number"
+        ? record.timeSpentSeconds
+        : undefined,
+    started: truncateField(stringField(record.started)),
+    commentPreview: truncateField(plainTextPreview(record.comment)),
+  }) as JiraWorklogSummaryPayload;
+}
+
+export function summarizeJiraIssueLink(
+  value: unknown,
+): JiraIssueLinkSummaryPayload | undefined {
+  const record = asRecord(value);
+  const type = asRecord(record.type);
+  const outward = asRecord(record.outwardIssue);
+  const inward = asRecord(record.inwardIssue);
+  const other = Object.keys(outward).length > 0 ? outward : inward;
+  return compactRecord({
+    id: stringField(record.id),
+    issueKey: stringField(record.issueKey),
+    otherIssueKey: stringField(record.otherIssueKey) ?? stringField(other.key),
+    linkType: truncateField(
+      stringField(record.linkType) ??
+        stringField(type.name) ??
+        stringField(type.outward) ??
+        stringField(type.inward),
+    ),
+    direction:
+      record.direction === "outward" || record.direction === "inward"
+        ? record.direction
+        : undefined,
+  }) as JiraIssueLinkSummaryPayload;
 }
 
 export function formatUserSummaryLine(summary: JiraUserSummaryPayload): string {
@@ -332,6 +451,16 @@ function summarizeAllowedValues(value: unknown): string[] | undefined {
     .filter((item): item is string => Boolean(item))
     .slice(0, 10);
   return names.length > 0 ? names : undefined;
+}
+
+function plainTextPreview(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return undefined;
+  const text = JSON.stringify(value)
+    .replace(/[{}[\]"]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > 0 ? text : undefined;
 }
 
 function compactRecord(

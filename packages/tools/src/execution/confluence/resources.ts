@@ -12,6 +12,10 @@ import {
 import {
   buildConfluenceTextResult,
   summarizeConfluenceAttachment,
+  summarizeConfluenceComment,
+  summarizeConfluenceLabel,
+  summarizeConfluencePage,
+  summarizeConfluenceRestrictions,
   valuesFromConfluenceList,
 } from "./format.js";
 import { optionalString, requiredString } from "./helpers.js";
@@ -30,7 +34,11 @@ function dry(
   return buildConfluenceTextResult({
     text: `Dry run: ${text}`,
     context,
-    details: { ...details, dryRun: true },
+    details: {
+      ...details,
+      operation: details.action,
+      dryRun: true,
+    },
   });
 }
 
@@ -122,10 +130,14 @@ export async function executeConfluenceManageComment(
     context,
     details: {
       action,
+      operation: action,
       kind,
       commentId: data?.id ?? commentId,
       pageId: data?.pageId ?? args.page_id,
-      comment: action === "delete" ? undefined : data,
+      comment:
+        action === "delete"
+          ? undefined
+          : summarizeConfluenceComment(data, kind),
     },
   });
 }
@@ -200,7 +212,19 @@ export async function executeConfluenceManagePage(
   return buildConfluenceTextResult({
     text: `${past(action)} Confluence page ${pageId}.`,
     context,
-    details: { action, pageId, previousStatus: page.status },
+    details: {
+      action,
+      operation: action,
+      pageId,
+      page: summarizeConfluencePage(page),
+      previousStatus: optionalString(page.status),
+      resultingStatus:
+        action === "trash"
+          ? "trashed"
+          : action === "restore"
+            ? "current"
+            : "purged",
+    },
   });
 }
 
@@ -247,9 +271,17 @@ export async function executeConfluenceManageLabel(
     context,
     details: {
       action,
+      operation: action,
       pageId,
       label,
-      labels: valuesFromConfluenceList(labels).slice(0, 20),
+      prefix,
+      labels: valuesFromConfluenceList(labels)
+        .flatMap((value) => {
+          const summary = summarizeConfluenceLabel(value);
+          return summary ? [summary] : [];
+        })
+        .slice(0, 20),
+      labelCount: valuesFromConfluenceList(labels).length,
     },
   });
 }
@@ -311,11 +343,13 @@ export async function executeConfluenceManageRestriction(
     context,
     details: {
       action,
+      operation: action,
       pageId,
-      operation,
+      restrictionOperation: operation,
       subjectType,
       subjectId,
-      restrictions,
+      restrictions: summarizeConfluenceRestrictions(restrictions),
+      restrictionCount: summarizeConfluenceRestrictions(restrictions).length,
     },
   });
 }
@@ -369,8 +403,10 @@ export async function executeConfluenceManageAttachment(
       context,
       details: {
         action,
+        operation: action,
         pageId,
         attachment,
+        filename,
         attachments: [attachment],
         attachmentCount: 1,
         displayedAttachmentCount: 1,
@@ -435,9 +471,18 @@ export async function executeConfluenceManageAttachment(
     context,
     details: {
       action,
+      operation: action,
       pageId,
       attachmentId,
+      attachment:
+        action === "delete"
+          ? undefined
+          : summarizeConfluenceAttachment({
+              ...attachment,
+              title: args.new_filename,
+            }),
       filename: action === "rename" ? args.new_filename : attachment.title,
+      newFilename: action === "rename" ? args.new_filename : undefined,
     },
   });
 }

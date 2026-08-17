@@ -1,30 +1,23 @@
 <script lang="ts">
-import CircleCheck from "@lucide/svelte/icons/circle-check";
-import FlaskConical from "@lucide/svelte/icons/flask-conical";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { getConversationUiCapabilities } from "../../../context.svelte";
 import { jiraToolSummaryBody } from "../../views/atlassian-tool-summary";
-import {
-  hasStructuredJira,
-  jiraBanner,
-  jiraEmptyMessage,
-} from "../../views/atlassian-view-body";
+import { formatBytes } from "../../views/tool-presentation-helpers";
 import type {
   ToolCallDisplayRecord,
   ToolView,
 } from "../../views/tool-result-view";
 import { ATLASSIAN_COLLAPSED_ITEMS } from "../../views/tool-result-view";
-import AtlassianBanner from "./AtlassianBanner.svelte";
+import AtlassianOutcomeRow from "./AtlassianOutcomeRow.svelte";
+import AtlassianResourceRow from "./AtlassianResourceRow.svelte";
+import AtlassianResultSurface from "./AtlassianResultSurface.svelte";
 import JiraFieldRow from "./JiraFieldRow.svelte";
 import JiraIssueCard from "./JiraIssueCard.svelte";
-import JiraMetricStrip from "./JiraMetricStrip.svelte";
 import JiraProjectHeader from "./JiraProjectHeader.svelte";
 import JiraTransitionRow from "./JiraTransitionRow.svelte";
 import JiraUserCard from "./JiraUserCard.svelte";
 import ToolArgumentBody from "./ToolArgumentBody.svelte";
 
 type JiraView = Extract<ToolView, { kind: "jira" }>;
-
 type Props = {
   toolCall: ToolCallDisplayRecord;
   view: JiraView;
@@ -37,121 +30,286 @@ const siteUrl = $derived(capabilities.atlassian?.jiraSiteUrl());
 const limit = $derived(
   expanded ? Number.POSITIVE_INFINITY : ATLASSIAN_COLLAPSED_ITEMS,
 );
-const banner = $derived(jiraBanner(view, toolCall.status));
-const emptyMessage = $derived(jiraEmptyMessage(view, toolCall.status));
-const structured = $derived(hasStructuredJira(view, toolCall.status));
 const fallbackSummary = $derived(
-  structured ? undefined : jiraToolSummaryBody(toolCall, view, { expanded }),
+  jiraToolSummaryBody(toolCall, view, { expanded }),
 );
-const updatedFieldKeys = $derived(view.updatedFields ?? []);
-const hiddenFieldKeyCount = $derived(
-  Math.max(0, updatedFieldKeys.length - limit),
-);
+
+function joined(...values: Array<string | undefined>): string | undefined {
+  const text = values.filter(Boolean).join(" · ");
+  return text || undefined;
+}
+function operationLabel(operation: string | undefined): string {
+  return (operation ?? "update").replaceAll("_", " ");
+}
+function past(operation: string | undefined): string {
+  switch (operation) {
+    case "create":
+      return "Created";
+    case "delete":
+      return "Deleted";
+    case "upload":
+      return "Uploaded";
+    case "start":
+      return "Started";
+    case "close":
+      return "Closed";
+    case "move_to_backlog":
+    case "move_to_sprint":
+      return "Moved";
+    case "rank":
+      return "Ranked";
+    default:
+      return "Updated";
+  }
+}
+function outcomeTone(destructive = false) {
+  if (view.dryRun) return "info" as const;
+  return destructive ? ("destructive" as const) : ("success" as const);
+}
+function outcomeTitle(text: string): string {
+  return view.dryRun ? `Would ${text[0]?.toLowerCase()}${text.slice(1)}` : text;
+}
 </script>
 
-{#snippet caption(text: string)}
-  <span class="text-xs font-medium text-muted-foreground">{text}</span>
-{/snippet}
-
-{#if structured}
-  <div class="grid gap-1.5">
-    {#if banner}
-      <AtlassianBanner
-        text={banner.text}
-        tone={banner.tone}
-        icon={banner.tone === "info" ? FlaskConical : CircleCheck}
-      />
-    {/if}
-
+{#if toolCall.status === "completed"}
+  <AtlassianResultSurface>
     {#if view.action === "search_issues"}
       {#each view.issues.slice(0, limit) as issue (issue.key)}
         <JiraIssueCard {issue} {siteUrl} />
+      {:else}
+        <AtlassianOutcomeRow title="No issues found." />
       {/each}
     {:else if view.action === "search_users"}
       {#each view.users.slice(0, limit) as user (user.accountId)}
         <JiraUserCard {user} />
+      {:else}
+        <AtlassianOutcomeRow title="No users found." />
       {/each}
     {:else if view.action === "get_issue"}
       {#if view.issue}
         <JiraIssueCard issue={view.issue} {siteUrl} />
+      {:else}
+        <AtlassianOutcomeRow
+          title={view.issueKey ? `Fetched ${view.issueKey}` : "Issue fetched"}
+          detail="Open Details for the complete response."
+        />
       {/if}
-      {#if view.includedCounts}
-        <JiraMetricStrip counts={view.includedCounts} />
-      {/if}
-      {#if view.transitions.length > 0}
-        {@render caption("Transitions")}
-        {#each view.transitions.slice(0, limit) as transition (transition.id)}
+      {#if expanded}
+        {#each view.transitions as transition (transition.id)}
           <JiraTransitionRow {transition} />
         {/each}
       {/if}
     {:else if view.action === "get_project"}
       {#if view.project}
         <JiraProjectHeader project={view.project} />
+      {:else}
+        <AtlassianOutcomeRow
+          title={view.projectKey
+            ? `Fetched project ${view.projectKey}`
+            : "Project fetched"}
+        />
       {/if}
-      {#if view.includedCounts}
-        <JiraMetricStrip counts={view.includedCounts} />
-      {/if}
-      {#if view.fields.length > 0}
-        {@render caption("Fields")}
-        {#each view.fields.slice(0, limit) as field (field.id)}
+      {#if expanded}
+        {#each view.fields as field (field.id)}
           <JiraFieldRow {field} />
         {/each}
       {/if}
+    {:else if view.action === "search_boards"}
+      {#each view.boards.slice(0, limit) as board (board.id)}
+        <AtlassianResourceRow
+          icon="board"
+          id={board.id}
+          title={board.name}
+          detail={joined(board.type, board.projectKey, board.projectName)}
+        />
+      {:else}
+        <AtlassianOutcomeRow title="No boards found." />
+      {/each}
+    {:else if view.action === "get_board"}
+      {#if view.board}
+        <AtlassianResourceRow
+          icon="board"
+          id={view.board.id}
+          title={view.board.name}
+          detail={joined(
+            view.board.type,
+            view.board.projectKey,
+            view.board.projectName,
+          )}
+        />
+      {:else}
+        <AtlassianOutcomeRow
+          title={view.boardId
+            ? `Fetched board ${view.boardId}`
+            : "Board fetched"}
+          detail="Open Details for the complete response."
+        />
+      {/if}
+      {#if expanded}
+        {#each view.sprints as sprint (sprint.id)}
+          <AtlassianResourceRow
+            icon="sprint"
+            id={sprint.id}
+            title={sprint.name}
+            status={sprint.state}
+            detail={joined(sprint.goal, sprint.startDate, sprint.endDate)}
+          />
+        {/each}
+        {#each view.backlogIssues as issue (issue.key)}
+          <JiraIssueCard {issue} {siteUrl} />
+        {/each}
+      {/if}
+    {:else if view.action === "get_sprint"}
+      {#if view.sprint}
+        <AtlassianResourceRow
+          icon="sprint"
+          id={view.sprint.id}
+          title={view.sprint.name}
+          status={view.sprint.state}
+          detail={joined(
+            view.sprint.goal,
+            view.sprint.startDate,
+            view.sprint.endDate,
+          )}
+        />
+      {:else}
+        <AtlassianOutcomeRow
+          title={view.sprintId
+            ? `Fetched sprint ${view.sprintId}`
+            : "Sprint fetched"}
+        />
+      {/if}
+      {#if expanded}
+        {#each view.issues as issue (issue.key)}
+          <JiraIssueCard {issue} {siteUrl} />
+        {/each}
+      {/if}
+    {:else if view.action === "download_attachment"}
+      <AtlassianResourceRow
+        icon="file"
+        id={view.attachmentId}
+        title={view.filename ??
+          view.attachment?.filename ??
+          "Downloaded attachment"}
+        detail={joined(
+          view.mediaType ?? view.attachment?.mediaType,
+          formatBytes(view.bytes ?? view.attachment?.bytes),
+        )}
+      />
     {:else if view.action === "create_issue"}
-      {#if view.issue}
-        <JiraIssueCard issue={view.issue} {siteUrl} />
-      {/if}
-      {#if view.resolvedAssignee}
-        {@render caption("Assignee")}
-        <JiraUserCard user={view.resolvedAssignee} />
-      {/if}
+      <AtlassianOutcomeRow
+        title={outcomeTitle(
+          view.issueKey ? `Created ${view.issueKey}` : "Created issue",
+        )}
+        detail={view.summary}
+        tone={outcomeTone()}
+      />
     {:else if view.action === "update_issue"}
-      {#if updatedFieldKeys.length > 0}
-        <div class="flex flex-wrap items-center gap-1">
-          {#each updatedFieldKeys.slice(0, limit) as key (key)}
-            <Badge tone="neutral" size="xs" class="font-mono">{key}</Badge>
-          {/each}
-          {#if hiddenFieldKeyCount > 0}
-            <span class="text-xs text-muted-foreground"
-              >+{hiddenFieldKeyCount} more</span
-            >
-          {/if}
-        </div>
-      {/if}
-      {#if view.issue}
-        <JiraIssueCard issue={view.issue} {siteUrl} />
-      {/if}
-      {#if view.resolvedAssignee}
-        {@render caption("Assignee")}
-        <JiraUserCard user={view.resolvedAssignee} />
-      {/if}
+      <AtlassianOutcomeRow
+        title={outcomeTitle(
+          view.issueKey ? `Updated ${view.issueKey}` : "Updated issue",
+        )}
+        detail={view.updatedFields?.length
+          ? view.updatedFields.slice(0, 3).join(", ") +
+            (view.updatedFields.length > 3
+              ? ` · +${view.updatedFields.length - 3} more`
+              : "")
+          : undefined}
+        tone={outcomeTone()}
+      />
+    {:else if view.action === "manage_comment"}
+      <AtlassianOutcomeRow
+        title={outcomeTitle(
+          `${past(view.operation)} comment${view.commentId ? ` ${view.commentId}` : ""}`,
+        )}
+        detail={view.comment?.bodyPreview}
+        tone={outcomeTone(view.operation === "delete")}
+      />
+    {:else if view.action === "manage_worklog"}
+      <AtlassianOutcomeRow
+        title={outcomeTitle(
+          `${past(view.operation)} worklog${view.worklogId ? ` ${view.worklogId}` : ""}`,
+        )}
+        detail={joined(
+          view.worklog?.timeSpent,
+          view.worklog?.started,
+          view.worklog?.commentPreview,
+        )}
+        tone={outcomeTone(view.operation === "delete")}
+      />
+    {:else if view.action === "manage_issue_link"}
+      <AtlassianOutcomeRow
+        title={outcomeTitle(
+          view.operation === "delete"
+            ? `Deleted issue link${view.linkId ? ` ${view.linkId}` : ""}`
+            : `Created ${view.linkType ?? "issue"} link`,
+        )}
+        detail={view.otherIssueKey
+          ? `${view.issueKey ?? "Issue"} ↔ ${view.otherIssueKey}`
+          : undefined}
+        tone={outcomeTone(view.operation === "delete")}
+      />
+    {:else if view.action === "upload_attachment"}
+      <AtlassianOutcomeRow
+        title={outcomeTitle(`Uploaded ${view.filename ?? "attachment"}`)}
+        detail={joined(view.issueKey, formatBytes(view.bytes))}
+        tone={outcomeTone()}
+      />
+    {:else if view.action === "manage_sprint"}
+      <AtlassianOutcomeRow
+        title={outcomeTitle(
+          `${past(view.operation)} sprint${view.sprintId ? ` ${view.sprintId}` : ""}`,
+        )}
+        detail={joined(
+          view.sprint?.name,
+          view.resultingState ?? view.sprint?.state,
+          view.sprint?.goal,
+        )}
+        tone={outcomeTone(view.operation === "delete")}
+      />
+    {:else if view.action === "manage_backlog"}
+      {@const target = view.issueKey ?? "issue"}
+      <AtlassianOutcomeRow
+        title={outcomeTitle(
+          view.operation === "move_to_backlog"
+            ? `Moved ${target} to backlog`
+            : view.operation === "move_to_sprint"
+              ? `Moved ${target} to sprint ${view.sprintId ?? ""}`.trim()
+              : view.rankBeforeIssueKey
+                ? `Ranked ${target} before ${view.rankBeforeIssueKey}`
+                : view.rankAfterIssueKey
+                  ? `Ranked ${target} after ${view.rankAfterIssueKey}`
+                  : `Updated backlog placement for ${target}`,
+        )}
+        tone={outcomeTone()}
+      />
     {:else if view.action === "transition_issue"}
       {#if view.transition}
-        <JiraTransitionRow transition={view.transition} />
+        <AtlassianOutcomeRow
+          title={outcomeTitle(
+            `Transitioned ${view.issueKey ?? "issue"}${view.transition.to ? ` to ${view.transition.to}` : ""}`,
+          )}
+          detail={view.transition.name}
+          tone={outcomeTone()}
+        />
       {:else if view.transitions.length > 0}
-        {@render caption("Available transitions")}
         {#each view.transitions.slice(0, limit) as transition (transition.id)}
           <JiraTransitionRow {transition} />
         {/each}
+      {:else}
+        <AtlassianOutcomeRow
+          title={`No transitions available for ${view.issueKey ?? "issue"}.`}
+        />
       {/if}
-      {#if view.fields.length > 0}
-        {@render caption("Transition fields")}
-        {#each view.fields.slice(0, limit) as field (field.id)}
-          <JiraFieldRow {field} />
-        {/each}
-      {/if}
+    {:else}
+      <AtlassianOutcomeRow
+        title={`Completed ${operationLabel(view.action)}`}
+        detail="Open Details for the complete response."
+      />
     {/if}
-
-    {#if emptyMessage}
-      <p class="m-0 text-xs text-muted-foreground">{emptyMessage}</p>
-    {/if}
-  </div>
+  </AtlassianResultSurface>
 {:else if fallbackSummary}
   <ToolArgumentBody
     body={{ kind: "atlassian-summary", text: fallbackSummary }}
   />
-{:else if toolCall.status === "completed"}
-  <p class="m-0 text-xs text-muted-foreground">
-    No Jira summary available. Open Details for raw arguments and result.
-  </p>
 {/if}

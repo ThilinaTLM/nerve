@@ -1,9 +1,15 @@
 import {
+  jiraAttachmentSummarySchema,
+  jiraBoardSummarySchema,
+  jiraCommentSummarySchema,
   jiraFieldSummarySchema,
+  jiraIssueLinkSummarySchema,
   jiraIssueSummarySchema,
   jiraProjectSummarySchema,
   jiraResultDetailsSchema,
+  jiraSprintSummarySchema,
   jiraTransitionSummarySchema,
+  jiraWorklogSummarySchema,
   jiraUserSummarySchema,
 } from "@nervekit/contracts";
 import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
@@ -95,7 +101,19 @@ export function parseJiraView(
       outputLimits,
     ),
     messageLines: jiraMessageLines(content),
-    query: stringField(details.query) ?? stringField(args.query),
+    query:
+      stringField(details.query) ??
+      stringField(args.query) ??
+      ([
+        stringField(args.name),
+        stringField(args.project_key)
+          ? `project ${stringField(args.project_key)}`
+          : undefined,
+        stringField(args.board_type),
+      ]
+        .filter(Boolean)
+        .join(" · ") ||
+        undefined),
     jql: stringField(details.jql) ?? stringField(args.jql),
     issueKey:
       stringField(details.issueKey) ??
@@ -128,6 +146,76 @@ export function parseJiraView(
     includedCounts,
     dryRun: typeof details.dryRun === "boolean" ? details.dryRun : undefined,
     resolvedAssignee: parseJiraUserSummary(details.resolvedAssignee),
+    operation:
+      stringField(details.operation) ??
+      (action.startsWith("manage_") ? stringField(details.action) : undefined),
+    boardId: stringField(details.boardId) ?? stringField(args.board_id),
+    board: parseWithSchema(jiraBoardSummarySchema, details.board),
+    boards: jiraArray(details.boards, (value) =>
+      parseWithSchema(jiraBoardSummarySchema, value),
+    ).slice(0, JIRA_DISPLAY_ITEM_LIMIT),
+    boardCount: numberField(details.boardCount),
+    displayedBoardCount: numberField(details.displayedBoardCount),
+    startAt: numberField(details.startAt),
+    maxResults: numberField(details.maxResults),
+    sprintId: stringField(details.sprintId) ?? stringField(args.sprint_id),
+    sprint: parseWithSchema(jiraSprintSummarySchema, details.sprint),
+    sprints: jiraArray(details.sprints, (value) =>
+      parseWithSchema(jiraSprintSummarySchema, value),
+    ).slice(0, JIRA_DISPLAY_ITEM_LIMIT),
+    sprintCount: numberField(details.sprintCount),
+    backlogIssues: jiraArray(
+      details.backlogIssues,
+      parseJiraIssueSummary,
+    ).slice(0, JIRA_DISPLAY_ITEM_LIMIT),
+    backlogCount: numberField(details.backlogCount),
+    attachmentId:
+      stringField(details.attachmentId) ?? stringField(args.attachment_id),
+    attachment: parseWithSchema(
+      jiraAttachmentSummarySchema,
+      details.attachment ?? {
+        id: details.attachmentId,
+        filename: details.filename,
+        mediaType: details.mediaType,
+        bytes: details.bytes,
+        path: details.path,
+      },
+    ),
+    attachments: jiraArray(details.attachments, (value) =>
+      parseWithSchema(jiraAttachmentSummarySchema, value),
+    ).slice(0, JIRA_DISPLAY_ITEM_LIMIT),
+    filename:
+      stringField(details.filename) ??
+      stringField(args.filename) ??
+      fileBasename(stringField(args.file_path)),
+    mediaType: stringField(details.mediaType),
+    bytes: numberField(details.bytes),
+    path: stringField(details.path),
+    comment: parseWithSchema(
+      jiraCommentSummarySchema,
+      details.commentSummary ?? details.comment,
+    ),
+    worklogId: stringField(details.worklogId) ?? stringField(args.worklog_id),
+    worklog: parseWithSchema(jiraWorklogSummarySchema, details.worklog),
+    issueLink: parseWithSchema(jiraIssueLinkSummarySchema, details.issueLink),
+    linkId: stringField(details.linkId) ?? stringField(args.link_id),
+    otherIssueKey:
+      stringField(details.otherIssueKey) ?? stringField(args.other_issue_key),
+    linkType: stringField(details.linkType) ?? stringField(args.link_type),
+    direction:
+      details.direction === "outward" || details.direction === "inward"
+        ? details.direction
+        : args.direction === "outward" || args.direction === "inward"
+          ? args.direction
+          : undefined,
+    rankBeforeIssueKey:
+      stringField(details.rankBeforeIssueKey) ??
+      stringField(args.rank_before_issue_key),
+    rankAfterIssueKey:
+      stringField(details.rankAfterIssueKey) ??
+      stringField(args.rank_after_issue_key),
+    previousState: stringField(details.previousState),
+    resultingState: stringField(details.resultingState),
     updatedFields,
     updatedFieldCount:
       numberField(details.updatedFieldCount) ??
@@ -335,6 +423,23 @@ function parseJiraFieldSummary(value: unknown) {
     type: compactText(stringField(record.type)),
     custom: typeof record.custom === "boolean" ? record.custom : undefined,
   };
+}
+
+function parseWithSchema<T>(
+  schema: {
+    safeParse: (
+      value: unknown,
+    ) => { success: true; data: T } | { success: false };
+  },
+  value: unknown,
+): T | undefined {
+  const parsed = schema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function fileBasename(path: string | undefined): string | undefined {
+  if (!path) return undefined;
+  return path.replaceAll("\\", "/").split("/").at(-1) || undefined;
 }
 
 function jiraDetailsRecord(details: unknown): Record<string, unknown> {

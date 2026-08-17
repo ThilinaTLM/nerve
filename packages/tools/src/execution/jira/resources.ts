@@ -13,7 +13,17 @@ import {
   pathSegment,
   requireJiraConnection,
 } from "./client.js";
-import { buildJiraTextResult, writeJiraArtifact } from "./format.js";
+import {
+  buildJiraTextResult,
+  summarizeJiraAttachment,
+  summarizeJiraBoard,
+  summarizeJiraComment,
+  summarizeJiraIssue,
+  summarizeJiraIssueLink,
+  summarizeJiraSprint,
+  summarizeJiraWorklog,
+  writeJiraArtifact,
+} from "./format.js";
 import {
   boundedNumber,
   optionalString,
@@ -31,10 +41,6 @@ const DEFAULT_ISSUE_FIELDS = [
   "updated",
 ];
 
-function actionOf(args: Record<string, unknown>): string {
-  return requiredString(args.action, "action");
-}
-
 function dryResult(
   context: ToolExecutionContext,
   text: string,
@@ -43,7 +49,11 @@ function dryResult(
   return buildJiraTextResult({
     text: `Dry run: ${text}`,
     context,
-    details: { action: details.action, dryRun: true, ...details },
+    details: {
+      ...details,
+      operation: details.operation ?? details.action,
+      dryRun: true,
+    },
   });
 }
 
@@ -74,6 +84,10 @@ export async function executeJiraSearchBoards(
     signal: context.signal,
   });
   const boards = Array.isArray(data.values) ? data.values : [];
+  const boardSummaries = boards.flatMap((value) => {
+    const summary = summarizeJiraBoard(value);
+    return summary ? [summary] : [];
+  });
   const artifact = await maybeArtifact(
     context,
     "search-boards",
@@ -86,8 +100,9 @@ export async function executeJiraSearchBoards(
     artifact,
     details: {
       action: "search_boards",
-      boards: boards.slice(0, 20),
+      boards: boardSummaries.slice(0, 20),
       boardCount: boards.length,
+      displayedBoardCount: Math.min(boardSummaries.length, 20),
       startAt: data.startAt,
       maxResults: data.maxResults,
       total: data.total,
@@ -148,11 +163,39 @@ export async function executeJiraGetBoard(
   )
     ? (result.backlog as { issues: unknown[] }).issues.length
     : 0;
+  const sprintValues = Array.isArray(
+    (result.sprints as { values?: unknown[] } | undefined)?.values,
+  )
+    ? (result.sprints as { values: unknown[] }).values
+    : [];
+  const backlogValues = Array.isArray(
+    (result.backlog as { issues?: unknown[] } | undefined)?.issues,
+  )
+    ? (result.backlog as { issues: unknown[] }).issues
+    : [];
   return buildJiraTextResult({
     text: `Fetched Jira board ${boardId}.${sprintCount ? ` Sprints: ${sprintCount}.` : ""}${backlogCount ? ` Backlog issues: ${backlogCount}.` : ""}${artifact ? `\nRaw JSON saved to: ${artifact.path}` : ""}`,
     context,
     artifact,
-    details: { action: "get_board", boardId, board, sprintCount, backlogCount },
+    details: {
+      action: "get_board",
+      boardId,
+      board: summarizeJiraBoard(board),
+      sprints: sprintValues
+        .flatMap((value) => {
+          const summary = summarizeJiraSprint(value);
+          return summary ? [summary] : [];
+        })
+        .slice(0, 20),
+      sprintCount,
+      backlogIssues: backlogValues
+        .flatMap((value) => {
+          const summary = summarizeJiraIssue(value);
+          return summary ? [summary] : [];
+        })
+        .slice(0, 20),
+      backlogCount,
+    },
   });
 }
 
@@ -191,11 +234,27 @@ export async function executeJiraGetSprint(
   )
     ? (result.issues as { issues: unknown[] }).issues.length
     : 0;
+  const issueValues = Array.isArray(
+    (result.issues as { issues?: unknown[] } | undefined)?.issues,
+  )
+    ? (result.issues as { issues: unknown[] }).issues
+    : [];
   return buildJiraTextResult({
     text: `Fetched Jira sprint ${sprintId}.${args.include_issues === true ? ` Issues: ${issueCount}.` : ""}${artifact ? `\nRaw JSON saved to: ${artifact.path}` : ""}`,
     context,
     artifact,
-    details: { action: "get_sprint", sprintId, sprint, issueCount },
+    details: {
+      action: "get_sprint",
+      sprintId,
+      sprint: summarizeJiraSprint(sprint),
+      issues: issueValues
+        .flatMap((value) => {
+          const summary = summarizeJiraIssue(value);
+          return summary ? [summary] : [];
+        })
+        .slice(0, 20),
+      issueCount,
+    },
   });
 }
 
@@ -275,6 +334,7 @@ export async function executeJiraUploadAttachment(
   if (args.dry_run === true)
     return dryResult(context, `would upload ${filename} to ${issueKey}.`, {
       action: "upload_attachment",
+      operation: "upload",
       issueKey,
       filename,
       bytes: bytes.byteLength,
@@ -290,7 +350,13 @@ export async function executeJiraUploadAttachment(
   return buildJiraTextResult({
     text: `Uploaded Jira attachment ${filename} to ${issueKey}.`,
     context,
-    details: { action: "upload_attachment", issueKey, attachment },
+    details: {
+      action: "upload_attachment",
+      operation: "upload",
+      issueKey,
+      filename,
+      attachment: summarizeJiraAttachment(attachment),
+    },
   });
 }
 
@@ -299,7 +365,7 @@ export async function executeJiraManageComment(
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
-  const action = actionOf(args);
+  const action = requiredString(args.action, "action");
   const issueKey = requiredString(args.issue_key, "issue_key");
   const commentId = optionalString(args.comment_id);
   let payload: Record<string, unknown> | undefined;
@@ -344,9 +410,11 @@ export async function executeJiraManageComment(
     context,
     details: {
       action,
+      operation: action,
       issueKey,
       commentId: data?.id ?? commentId,
-      comment: action === "delete" ? undefined : data,
+      commentSummary:
+        action === "delete" ? undefined : summarizeJiraComment(data),
     },
   });
 }
@@ -356,7 +424,7 @@ export async function executeJiraManageWorklog(
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
-  const action = actionOf(args);
+  const action = requiredString(args.action, "action");
   const issueKey = requiredString(args.issue_key, "issue_key");
   const worklogId = optionalString(args.worklog_id);
   if (action !== "create" && !worklogId)
@@ -419,9 +487,10 @@ export async function executeJiraManageWorklog(
     context,
     details: {
       action,
+      operation: action,
       issueKey,
       worklogId: data?.id ?? worklogId,
-      worklog: action === "delete" ? undefined : data,
+      worklog: action === "delete" ? undefined : summarizeJiraWorklog(data),
     },
   });
 }
@@ -431,7 +500,7 @@ export async function executeJiraManageIssueLink(
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
-  const action = actionOf(args);
+  const action = requiredString(args.action, "action");
   const issueKey = requiredString(args.issue_key, "issue_key");
   const linkId = optionalString(args.link_id);
   if (action === "delete") {
@@ -454,7 +523,13 @@ export async function executeJiraManageIssueLink(
     return buildJiraTextResult({
       text: `Deleted Jira issue link ${linkId} for ${issueKey}.`,
       context,
-      details: { action, issueKey, linkId },
+      details: {
+        action,
+        operation: action,
+        issueKey,
+        linkId,
+        issueLink: summarizeJiraIssueLink({ id: linkId, issueKey }),
+      },
     });
   }
   const otherIssueKey = requiredString(args.other_issue_key, "other_issue_key");
@@ -503,7 +578,20 @@ export async function executeJiraManageIssueLink(
   return buildJiraTextResult({
     text: `Created Jira ${linkType} link between ${issueKey} and ${otherIssueKey}.`,
     context,
-    details: { action, issueKey, otherIssueKey, linkType, direction },
+    details: {
+      action,
+      operation: action,
+      issueKey,
+      otherIssueKey,
+      linkType,
+      direction,
+      issueLink: summarizeJiraIssueLink({
+        issueKey,
+        otherIssueKey,
+        linkType,
+        direction,
+      }),
+    },
   });
 }
 
@@ -512,7 +600,7 @@ export async function executeJiraManageSprint(
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
-  const action = actionOf(args);
+  const action = requiredString(args.action, "action");
   const sprintId = optionalString(args.sprint_id);
   if (action !== "create" && !sprintId)
     throw new ToolExecutionError(
@@ -591,8 +679,16 @@ export async function executeJiraManageSprint(
     context,
     details: {
       action,
+      operation: action,
       sprintId: data?.id ?? sprintId,
-      sprint: action === "delete" ? undefined : data,
+      sprint: action === "delete" ? undefined : summarizeJiraSprint(data),
+      previousState: currentState,
+      resultingState:
+        action === "start"
+          ? "active"
+          : action === "close"
+            ? "closed"
+            : undefined,
     },
   });
 }
@@ -602,7 +698,7 @@ export async function executeJiraManageBacklog(
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
-  const action = actionOf(args);
+  const action = requiredString(args.action, "action");
   const issueKey = requiredString(args.issue_key, "issue_key");
   let path: string;
   let method = "POST";
@@ -647,6 +743,7 @@ export async function executeJiraManageBacklog(
     context,
     details: {
       action,
+      operation: action,
       issueKey,
       sprintId: optionalString(args.sprint_id),
       rankBeforeIssueKey: optionalString(args.rank_before_issue_key),

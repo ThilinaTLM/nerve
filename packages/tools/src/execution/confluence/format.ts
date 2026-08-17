@@ -4,8 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
   ConfluenceAttachmentSummaryPayload,
+  ConfluenceCommentSummaryPayload,
+  ConfluenceLabelSummaryPayload,
   ConfluencePageSummaryPayload,
   ConfluencePublishOutcomePayload,
+  ConfluenceRestrictionSummaryPayload,
   ConfluenceSpaceSummaryPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts";
@@ -207,6 +210,78 @@ export function summarizeConfluenceAttachment(
     path: stringField(record.path),
     snippet: stringField(record.snippet),
   }) as ConfluenceAttachmentSummaryPayload;
+}
+
+export function summarizeConfluenceComment(
+  value: unknown,
+  kind?: string,
+): ConfluenceCommentSummaryPayload | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const version = asRecord(record.version);
+  const body = asRecord(record.body);
+  const storage = asRecord(body?.storage);
+  const author = asRecord(record.author);
+  const id = stringField(record.id);
+  if (!id && Object.keys(record).length === 0) return undefined;
+  return compactRecord({
+    id,
+    pageId: stringField(record.pageId),
+    kind: kind === "footer" || kind === "inline" ? kind : undefined,
+    author: truncateField(
+      stringField(author?.displayName) ?? stringField(author?.publicName),
+    ),
+    bodyPreview: truncateField(
+      stringField(storage?.value) ?? stringField(body?.value),
+    ),
+    resolutionStatus: truncateField(stringField(record.resolutionStatus)),
+    versionNumber: numberField(version?.number),
+  }) as ConfluenceCommentSummaryPayload;
+}
+
+export function summarizeConfluenceLabel(
+  value: unknown,
+): ConfluenceLabelSummaryPayload | undefined {
+  if (typeof value === "string") return { name: truncateField(value) ?? value };
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const name = stringField(record.name) ?? stringField(record.label);
+  if (!name) return undefined;
+  return compactRecord({
+    name: truncateField(name),
+    prefix: truncateField(stringField(record.prefix)),
+  }) as ConfluenceLabelSummaryPayload;
+}
+
+export function summarizeConfluenceRestrictions(
+  value: unknown,
+): ConfluenceRestrictionSummaryPayload[] {
+  const records = valuesFromConfluenceList(value);
+  return records.flatMap((item) => {
+    const record = asRecord(item);
+    const operation =
+      stringField(record?.operation) ?? stringField(record?.key);
+    if (operation !== "read" && operation !== "update") return [];
+    const restrictions = asRecord(record?.restrictions);
+    const users = valuesFromConfluenceList(restrictions?.user);
+    const groups = valuesFromConfluenceList(restrictions?.group);
+    const subjects = [
+      ...users.map((subject) => ({ subject, subjectType: "user" as const })),
+      ...groups.map((subject) => ({ subject, subjectType: "group" as const })),
+    ];
+    if (subjects.length === 0) return [{ operation }];
+    return subjects.map(({ subject, subjectType }) => {
+      const subjectRecord = asRecord(subject);
+      return compactRecord({
+        operation,
+        subjectType,
+        subjectId:
+          stringField(subjectRecord?.accountId) ??
+          stringField(subjectRecord?.id) ??
+          stringField(subjectRecord?.name),
+      }) as ConfluenceRestrictionSummaryPayload;
+    });
+  });
 }
 
 export function formatSpaceSummaryLine(
