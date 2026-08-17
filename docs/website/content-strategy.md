@@ -383,14 +383,14 @@ Convert existing README troubleshooting into symptom-oriented pages, correcting 
 
 ### 8. Add GitHub Pages deployment
 
-Create `.github/workflows/website.yml`:
+Add the website build and deployment jobs to `.github/workflows/release.yml`:
 
-- trigger on `main` pushes affecting website content/config/assets/workflow/lockfile and on manual dispatch;
-- permissions: `contents: read`, `pages: write`, `id-token: write`;
-- concurrency group for Pages with in-progress cancellation;
-- checkout, pnpm 11.20.0, Node 24, frozen root install;
-- run `pnpm --filter @nervekit/website check` and `build`;
-- upload `packages/website/dist` with `actions/upload-pages-artifact` and deploy with `actions/deploy-pages`;
+- deploy only from the stable and prerelease version tags handled by the release workflow, not from ordinary `main` pushes;
+- grant `contents: read`, `pages: write`, and `id-token: write` only to the Pages jobs;
+- keep a `github-pages` concurrency group with in-progress cancellation;
+- checkout, use pnpm 11.20.0 and Node 24, and install the frozen root workspace;
+- run `pnpm --filter @nervekit/website check` and `build` after release validation;
+- upload `packages/website/dist` with `actions/upload-pages-artifact` and deploy with `actions/deploy-pages` after npm publication;
 - use the `github-pages` environment and expose the deployment URL.
 
 Do not modify the existing CI workflow’s permissions for deployment. Root CI will naturally include website package checks/tests through recursive scripts.
