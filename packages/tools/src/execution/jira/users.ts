@@ -27,6 +27,7 @@ export async function executeJiraSearchUsers(
     optionalString(args.project_key) ?? connection.defaultProjectKey;
   const issueKey = optionalString(args.issue_key);
   const includeInactive = args.include_inactive === true;
+  const searchScope = issueKey ? "issue" : projectKey ? "project" : "directory";
   const data = await searchJiraUsers(connection, {
     query,
     projectKey,
@@ -46,7 +47,7 @@ export async function executeJiraSearchUsers(
   });
   const displayed = takeDisplayItems(users);
   const lines = [
-    `Jira user search returned ${rawUsers.length} user${rawUsers.length === 1 ? "" : "s"}.`,
+    `Jira ${searchScope} user search returned ${rawUsers.length} user${rawUsers.length === 1 ? "" : "s"}.`,
   ];
   const limitNotice = displayLimitNotice({
     noun: "user",
@@ -67,6 +68,7 @@ export async function executeJiraSearchUsers(
       query,
       projectKey,
       issueKey,
+      searchScope,
       userCount: users.length,
       displayedUserCount: displayed.displayed,
       users: displayed.items,

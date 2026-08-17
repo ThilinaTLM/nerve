@@ -4,12 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
   ConfluenceAttachmentSummaryPayload,
+  ConfluenceCommentSummaryPayload,
+  ConfluenceLabelSummaryPayload,
   ConfluencePageSummaryPayload,
+  ConfluencePropertySummaryPayload,
   ConfluencePublishOutcomePayload,
+  ConfluenceRestrictionSummaryPayload,
   ConfluenceSpaceSummaryPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import { atlassianPlainTextPreview } from "../common/atlassian-rich-text.js";
 import { buildProcessTextResult } from "../common/process-result.js";
 
 export const CONFLUENCE_DISPLAY_ITEM_LIMIT = 20;
@@ -172,6 +177,11 @@ export function summarizeConfluencePage(
       stringField(asRecord(lastAncestor)?.id),
     status: truncateField(stringField(source.status)),
     versionNumber: numberField(version?.number ?? source.versionNumber),
+    created: truncateField(stringField(source.createdAt)),
+    updated: truncateField(
+      stringField(version?.createdAt) ?? stringField(source.updatedAt),
+    ),
+    bodyPreview: atlassianPlainTextPreview(source.body),
     webui: stringField(links?.webui),
     storagePath: stringField(source.storagePath),
     markdownPath: stringField(source.markdownPath),
@@ -209,6 +219,142 @@ export function summarizeConfluenceAttachment(
   }) as ConfluenceAttachmentSummaryPayload;
 }
 
+export function summarizeConfluenceComment(
+  value: unknown,
+  kind?: string,
+): ConfluenceCommentSummaryPayload | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const version = asRecord(record.version);
+  const body = asRecord(record.body);
+  const storage = asRecord(body?.storage);
+  const author = asRecord(record.author);
+  const id = stringField(record.id);
+  if (!id && Object.keys(record).length === 0) return undefined;
+  return compactRecord({
+    id,
+    pageId: stringField(record.pageId),
+    kind: kind === "footer" || kind === "inline" ? kind : undefined,
+    author: truncateField(
+      stringField(author?.displayName) ?? stringField(author?.publicName),
+    ),
+    bodyPreview: atlassianPlainTextPreview(
+      storage?.value ?? body?.value ?? body,
+    ),
+    resolutionStatus: truncateField(stringField(record.resolutionStatus)),
+    versionNumber: numberField(version?.number),
+  }) as ConfluenceCommentSummaryPayload;
+}
+
+export function summarizeConfluenceProperty(
+  value: unknown,
+): ConfluencePropertySummaryPayload | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const version = asRecord(record.version);
+  const key = stringField(record.key) ?? stringField(record.name);
+  if (!key) return undefined;
+  return compactRecord({
+    id: stringField(record.id),
+    key: truncateField(key),
+    versionNumber: numberField(version?.number ?? record.versionNumber),
+    valuePreview:
+      atlassianPlainTextPreview(record.value) ??
+      propertyValuePreview(record.value),
+  }) as ConfluencePropertySummaryPayload;
+}
+
+function propertyValuePreview(value: unknown): string | undefined {
+  const scalars: string[] = [];
+  collectPropertyScalars(value, "", scalars, 0);
+  return truncateField(scalars.slice(0, 6).join(", ") || undefined);
+}
+
+function collectPropertyScalars(
+  value: unknown,
+  path: string,
+  output: string[],
+  depth: number,
+): void {
+  if (output.length >= 6 || depth > 2) return;
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    output.push(path ? `${path}=${String(value)}` : String(value));
+    return;
+  }
+  if (Array.isArray(value)) {
+    value
+      .slice(0, 3)
+      .forEach((item, index) =>
+        collectPropertyScalars(
+          item,
+          path ? `${path}[${index}]` : String(index),
+          output,
+          depth + 1,
+        ),
+      );
+    return;
+  }
+  const record = asRecord(value);
+  if (!record) return;
+  for (const [key, item] of Object.entries(record).slice(0, 6)) {
+    collectPropertyScalars(
+      item,
+      path ? `${path}.${key}` : key,
+      output,
+      depth + 1,
+    );
+  }
+}
+
+export function summarizeConfluenceLabel(
+  value: unknown,
+): ConfluenceLabelSummaryPayload | undefined {
+  if (typeof value === "string") return { name: truncateField(value) ?? value };
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const name = stringField(record.name) ?? stringField(record.label);
+  if (!name) return undefined;
+  return compactRecord({
+    name: truncateField(name),
+    prefix: truncateField(stringField(record.prefix)),
+  }) as ConfluenceLabelSummaryPayload;
+}
+
+export function summarizeConfluenceRestrictions(
+  value: unknown,
+): ConfluenceRestrictionSummaryPayload[] {
+  const records = valuesFromConfluenceList(value);
+  return records.flatMap((item) => {
+    const record = asRecord(item);
+    const operation =
+      stringField(record?.operation) ?? stringField(record?.key);
+    if (operation !== "read" && operation !== "update") return [];
+    const restrictions = asRecord(record?.restrictions);
+    const users = valuesFromConfluenceList(restrictions?.user);
+    const groups = valuesFromConfluenceList(restrictions?.group);
+    const subjects = [
+      ...users.map((subject) => ({ subject, subjectType: "user" as const })),
+      ...groups.map((subject) => ({ subject, subjectType: "group" as const })),
+    ];
+    if (subjects.length === 0) return [{ operation }];
+    return subjects.map(({ subject, subjectType }) => {
+      const subjectRecord = asRecord(subject);
+      return compactRecord({
+        operation,
+        subjectType,
+        subjectId:
+          stringField(subjectRecord?.accountId) ??
+          stringField(subjectRecord?.id) ??
+          stringField(subjectRecord?.name),
+      }) as ConfluenceRestrictionSummaryPayload;
+    });
+  });
+}
+
 export function formatSpaceSummaryLine(
   summary: ConfluenceSpaceSummaryPayload,
 ): string {
@@ -244,7 +390,8 @@ export function formatAttachmentSummaryLine(
   summary: ConfluenceAttachmentSummaryPayload,
 ): string {
   const parts = [
-    summary.filename ?? summary.title ?? summary.id ?? summary.fileId,
+    summary.id ?? summary.fileId,
+    summary.filename ?? summary.title,
     summary.mediaType,
     summary.fileSize !== undefined ? `${summary.fileSize} bytes` : undefined,
     summary.versionNumber !== undefined

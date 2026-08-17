@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import type { ToolExecutionContext } from "../../types.js";
 import { withTimeoutSignal } from "../common/abort.js";
+import { safeAtlassianError } from "../common/atlassian-error.js";
 import { ToolExecutionError } from "../common/tool-error.js";
 
 export type JiraConnection = {
@@ -17,11 +18,22 @@ type JiraConfig = {
   defaultProjectKey?: unknown;
 };
 
+export type JiraApiVersion = "platform" | "agile";
+
+type QueryValue = string | number | boolean | string[] | undefined;
+
 type JiraRequestOptions = {
+  api?: JiraApiVersion;
   method?: string;
   path: string;
-  query?: Record<string, string | number | boolean | string[] | undefined>;
+  query?: Record<string, QueryValue>;
   body?: unknown;
+  signal?: AbortSignal;
+};
+
+type JiraMultipartOptions = {
+  path: string;
+  form: FormData;
   signal?: AbortSignal;
 };
 
@@ -63,7 +75,8 @@ export async function jiraRequest<T = unknown>(
   connection: JiraConnection,
   options: JiraRequestOptions,
 ): Promise<T> {
-  const url = new URL(`${connection.siteUrl}/rest/api/3${options.path}`);
+  const apiRoot = options.api === "agile" ? "/rest/agile/1.0" : "/rest/api/3";
+  const url = new URL(`${connection.siteUrl}${apiRoot}${options.path}`);
   for (const [key, value] of Object.entries(options.query ?? {})) {
     if (value === undefined) continue;
     if (Array.isArray(value)) {
@@ -75,7 +88,7 @@ export async function jiraRequest<T = unknown>(
 
   const headers: Record<string, string> = {
     Accept: "application/json",
-    Authorization: `Basic ${Buffer.from(`${connection.email}:${connection.token}`, "utf8").toString("base64")}`,
+    Authorization: basicAuth(connection),
   };
   const init: RequestInit = {
     method: options.method ?? "GET",
@@ -88,7 +101,9 @@ export async function jiraRequest<T = unknown>(
   }
 
   const response = await fetch(url, init);
-  if (!response.ok) await throwJiraError(response);
+  if (!response.ok) {
+    await throwJiraError(response, init.method ?? "GET", options.path);
+  }
   if (response.status === 204) return undefined as T;
   const text = await response.text();
   if (!text.trim()) return undefined as T;
@@ -99,20 +114,110 @@ export async function jiraRequest<T = unknown>(
   }
 }
 
-async function throwJiraError(response: Response): Promise<never> {
+export async function jiraMultipartRequest<T = unknown>(
+  connection: JiraConnection,
+  options: JiraMultipartOptions,
+): Promise<T> {
+  const url = new URL(`${connection.siteUrl}/rest/api/3${options.path}`);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      Authorization: basicAuth(connection),
+      "X-Atlassian-Token": "nocheck",
+    },
+    body: options.form,
+    signal: withTimeoutSignal(options.signal, 60_000),
+  });
+  if (!response.ok) await throwJiraError(response, "POST", options.path);
+  const text = await response.text();
+  return (text.trim() ? JSON.parse(text) : undefined) as T;
+}
+
+export async function jiraDownload(
+  connection: JiraConnection,
+  attachmentId: string,
+  signal?: AbortSignal,
+): Promise<{ bytes: Uint8Array; contentType?: string; filename?: string }> {
+  const url = new URL(
+    `${connection.siteUrl}/rest/api/3/attachment/content/${pathSegment(attachmentId)}`,
+  );
+  url.searchParams.set("redirect", "false");
+  const response = await fetch(url, {
+    headers: { Authorization: basicAuth(connection) },
+    redirect: "manual",
+    signal: withTimeoutSignal(signal, 60_000),
+  });
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    throw new ToolExecutionError(
+      "JIRA_UNTRUSTED_DOWNLOAD_REDIRECT",
+      "Jira attachment download attempted an authenticated redirect.",
+      { location },
+    );
+  }
+  if (!response.ok) {
+    await throwJiraError(
+      response,
+      "GET",
+      `/attachment/content/${pathSegment(attachmentId)}`,
+    );
+  }
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  const maximum = 25 * 1024 * 1024;
+  if (declared > maximum) {
+    throw new ToolExecutionError(
+      "JIRA_ATTACHMENT_TOO_LARGE",
+      "Jira attachment exceeds the 25 MiB download limit.",
+      { bytes: declared, maximum },
+    );
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > maximum) {
+    throw new ToolExecutionError(
+      "JIRA_ATTACHMENT_TOO_LARGE",
+      "Jira attachment exceeds the 25 MiB download limit.",
+      { bytes: bytes.byteLength, maximum },
+    );
+  }
+  return {
+    bytes,
+    contentType: response.headers.get("content-type") ?? undefined,
+    filename: filenameFromDisposition(
+      response.headers.get("content-disposition"),
+    ),
+  };
+}
+
+function basicAuth(connection: JiraConnection): string {
+  return `Basic ${Buffer.from(`${connection.email}:${connection.token}`, "utf8").toString("base64")}`;
+}
+
+function filenameFromDisposition(value: string | null): string | undefined {
+  if (!value) return undefined;
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(value)?.[1];
+  if (encoded) return decodeURIComponent(encoded);
+  return /filename="?([^";]+)"?/i.exec(value)?.[1];
+}
+
+async function throwJiraError(
+  response: Response,
+  method: string,
+  path: string,
+): Promise<never> {
   const body = await response.text().catch(() => "");
   const code = jiraErrorCode(response.status);
   const retryable = response.status === 429 || response.status >= 500;
-  throw new ToolExecutionError(
+  const error = safeAtlassianError({
+    service: "jira",
     code,
-    `Jira API error: ${response.status} ${response.statusText}`,
-    {
-      status: response.status,
-      statusText: response.statusText,
-      body: safeErrorBody(body),
-    },
-    retryable,
-  );
+    method,
+    path,
+    status: response.status,
+    statusText: response.statusText,
+    body,
+  });
+  throw new ToolExecutionError(code, error.message, error.details, retryable);
 }
 
 function jiraErrorCode(status: number): string {
@@ -123,13 +228,6 @@ function jiraErrorCode(status: number): string {
   if (status === 429) return "JIRA_RATE_LIMITED";
   if (status >= 500) return "JIRA_SERVER_ERROR";
   return "JIRA_API_ERROR";
-}
-
-function safeErrorBody(body: string): string | undefined {
-  if (!body) return undefined;
-  return body
-    .replaceAll(/Basic\s+[A-Za-z0-9+/=_-]+/g, "Basic [redacted]")
-    .slice(0, 4000);
 }
 
 export function pathSegment(value: string): string {

@@ -1,4 +1,4 @@
-import type { Static, TSchema } from "typebox";
+import type { Static, TObject } from "typebox";
 import type {
   AgentTool,
   AgentToolResult,
@@ -6,7 +6,7 @@ import type {
   ToolExecutionMode,
 } from "./types/index.js";
 
-export type AgentToolDefinitionLike<TParams extends TSchema = TSchema> = {
+export type AgentToolDefinitionLike<TParams extends TObject = TObject> = {
   name: string;
   label: string;
   description: string;

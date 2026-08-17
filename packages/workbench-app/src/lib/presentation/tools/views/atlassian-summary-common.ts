@@ -352,6 +352,34 @@ export function formatJiraIssue(issue: JiraView["issues"][number]): string {
   return issue.summary ? `${left} — ${issue.summary}` : left;
 }
 
+export function formatJiraBoard(board: JiraView["boards"][number]): string {
+  return [
+    board.id,
+    board.name,
+    board.type,
+    board.projectKey
+      ? `project ${board.projectKey}`
+      : board.projectName
+        ? `project ${board.projectName}`
+        : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+export function formatJiraSprint(sprint: JiraView["sprints"][number]): string {
+  return [
+    sprint.id,
+    sprint.name,
+    sprint.state,
+    sprint.originBoardId ? `board ${sprint.originBoardId}` : undefined,
+    sprint.startDate,
+    sprint.endDate,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function formatJiraProject(
   project: NonNullable<JiraView["project"]>,
 ): string {

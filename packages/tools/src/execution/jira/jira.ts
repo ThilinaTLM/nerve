@@ -15,21 +15,21 @@ import {
   formatTransitionSummaryLine,
   issueLine,
   JIRA_FIELD_DISPLAY_LIMIT,
+  maybeWriteJiraArtifact,
   summarizeJiraAttachment,
-  summarizeJiraField,
+  summarizeJiraChangelog,
+  summarizeJiraComment,
   summarizeJiraIssue,
-  summarizeJiraProject,
+  summarizeJiraIssueLink,
+  summarizeJiraRemoteLink,
   summarizeJiraTransition,
+  summarizeJiraWorklog,
   takeDisplayItems,
   transitionLine,
-  writeJiraArtifact,
 } from "./format.js";
 import {
   applyCommonFields,
   boundedNumber,
-  fetchJiraFields,
-  fieldsFromProjectResult,
-  issueTypeIdFromName,
   matchTransition,
   maybeResolveAssignee,
   optionalBoolean,
@@ -40,11 +40,28 @@ import {
   requiredString,
   summarizeTransitionFields,
   transitionSummary,
-  validateJql,
-  valuesFromJiraList,
 } from "./helpers.js";
+import {
+  appendRelatedPreview,
+  formatJiraCommentPreview,
+  summarizeRelated,
+} from "./related-previews.js";
 
+export { executeJiraGetProject } from "./project.js";
+export { executeJiraSearchBoards } from "./search-boards.js";
+export { executeJiraSearchIssues } from "./search-issues.js";
 export { executeJiraSearchUsers } from "./users.js";
+export {
+  executeJiraDownloadAttachment,
+  executeJiraGetBoard,
+  executeJiraGetSprint,
+  executeJiraManageBacklog,
+  executeJiraManageComment,
+  executeJiraManageIssueLink,
+  executeJiraManageSprint,
+  executeJiraManageWorklog,
+  executeJiraManageAttachment,
+} from "./resources.js";
 
 const DEFAULT_SEARCH_FIELDS = [
   "summary",
@@ -52,97 +69,21 @@ const DEFAULT_SEARCH_FIELDS = [
   "assignee",
   "issuetype",
   "priority",
+  "created",
   "updated",
+  "resolution",
+  "resolutiondate",
+  "duedate",
 ];
-
+const DEFAULT_GET_ISSUE_FIELDS = [...DEFAULT_SEARCH_FIELDS, "description"];
 type JiraIssueResponse = Record<string, unknown> & {
   key?: string;
   id?: string;
 };
-type JiraSearchResponse = Record<string, unknown> & {
-  issues?: unknown[];
-  nextPageToken?: string;
-  total?: number;
-};
-
 type JiraTransitionsResponse = { transitions?: unknown[] } & Record<
   string,
   unknown
 >;
-
-export async function executeJiraSearchIssues(
-  args: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolExecutionResult> {
-  const connection = await requireJiraConnection(context);
-  const jql = requiredString(args.jql, "jql");
-  const maxResults = boundedNumber(args.max_results, 25, 1, 100);
-  const fields = optionalStringArray(args.fields) ?? DEFAULT_SEARCH_FIELDS;
-  const expand = optionalStringArray(args.expand);
-  const body: Record<string, unknown> = {
-    jql,
-    maxResults,
-    fields,
-  };
-  const nextPageToken = optionalString(args.next_page_token);
-  if (nextPageToken) body.nextPageToken = nextPageToken;
-  if (expand && expand.length > 0) body.expand = expand;
-
-  let validation: unknown;
-  if (args.validate_query === true) {
-    validation = await validateJql(connection, jql, context).catch((error) => ({
-      warning: error instanceof Error ? error.message : String(error),
-    }));
-  }
-  const data = await jiraRequest<JiraSearchResponse>(connection, {
-    method: "POST",
-    path: "/search/jql",
-    body,
-    signal: context.signal,
-  });
-  const artifact = await maybeArtifact(
-    context,
-    "search-issues",
-    data,
-    args.save_to_file,
-  );
-  const issues = Array.isArray(data.issues) ? data.issues : [];
-  const summarizedIssues = issues.flatMap((issue) => {
-    const summary = summarizeJiraIssue(issue);
-    return summary ? [summary] : [];
-  });
-  const displayed = takeDisplayItems(summarizedIssues);
-  const total = typeof data.total === "number" ? data.total : undefined;
-  const lines = [
-    `Jira search returned ${issues.length} issue${issues.length === 1 ? "" : "s"}${total !== undefined ? ` (total ${total})` : ""}.`,
-  ];
-  if (data.nextPageToken) lines.push(`Next page token: ${data.nextPageToken}`);
-  const limitNotice = displayLimitNotice({
-    noun: "issue",
-    total: summarizedIssues.length,
-    displayed: displayed.displayed,
-    artifactPath: artifact?.path,
-  });
-  if (limitNotice) lines.push(limitNotice);
-  if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
-  if (displayed.items.length > 0) {
-    lines.push("", ...displayed.items.map(formatIssueSummaryLine));
-  }
-  return buildJiraTextResult({
-    text: lines.join("\n").trimEnd(),
-    context,
-    artifact,
-    details: {
-      jql,
-      issueCount: issues.length,
-      displayedIssueCount: displayed.displayed,
-      total,
-      nextPageToken: data.nextPageToken,
-      issues: displayed.items,
-      validation,
-    },
-  });
-}
 
 export async function executeJiraGetIssue(
   args: Record<string, unknown>,
@@ -150,7 +91,7 @@ export async function executeJiraGetIssue(
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const issueKey = requiredString(args.issue_key, "issue_key");
-  const fields = optionalStringArray(args.fields) ?? DEFAULT_SEARCH_FIELDS;
+  const fields = optionalStringArray(args.fields) ?? DEFAULT_GET_ISSUE_FIELDS;
   const issueFields =
     args.include_attachments === true && !fields.includes("attachment")
       ? [...fields, "attachment"]
@@ -207,7 +148,23 @@ export async function executeJiraGetIssue(
       signal: context.signal,
     });
   }
-  const artifact = await maybeArtifact(
+  if (args.include_issue_links === true) {
+    if (issueFields.includes("issuelinks")) {
+      result.issueLinks =
+        (issue.fields as { issuelinks?: unknown[] } | undefined)?.issuelinks ??
+        [];
+    } else {
+      const linkedIssue = await jiraRequest<JiraIssueResponse>(connection, {
+        path: `/issue/${pathSegment(issueKey)}`,
+        query: { fields: ["issuelinks"] },
+        signal: context.signal,
+      });
+      result.issueLinks =
+        (linkedIssue.fields as { issuelinks?: unknown[] } | undefined)
+          ?.issuelinks ?? [];
+    }
+  }
+  const artifact = await maybeWriteJiraArtifact(
     context,
     "get-issue",
     result,
@@ -217,23 +174,40 @@ export async function executeJiraGetIssue(
   const lines = [
     issueSummary ? formatIssueSummaryLine(issueSummary) : issueLine(issue),
   ];
-  const includedCounts: Record<string, number> = {};
-  if (result.comments && typeof result.comments === "object") {
-    const comments = (result.comments as { comments?: unknown[] }).comments;
-    if (Array.isArray(comments)) {
-      includedCounts.comments = comments.length;
-      lines.push(`Comments: ${comments.length}`);
-    }
+  if (issueSummary?.descriptionPreview) {
+    lines.push(`Description: ${issueSummary.descriptionPreview}`);
   }
-  const attachments = (issue.fields as { attachment?: unknown[] } | undefined)
-    ?.attachment;
-  if (Array.isArray(attachments)) {
-    const attachmentSummaries = attachments.flatMap((attachment) => {
-      const summary = summarizeJiraAttachment(attachment);
-      return summary ? [summary] : [];
-    });
-    includedCounts.attachments = attachmentSummaries.length;
-    lines.push(`Attachments: ${attachmentSummaries.length}`);
+  const includedCounts: Record<string, number> = {};
+  const comments = summarizeRelated(
+    (result.comments as { comments?: unknown[] } | undefined)?.comments,
+    summarizeJiraComment,
+  );
+  if (result.comments) {
+    includedCounts.comments = comments.total;
+    appendRelatedPreview(
+      lines,
+      "Comments",
+      comments.items,
+      comments.total,
+      artifact?.path,
+      formatJiraCommentPreview,
+    );
+  }
+  const attachmentSummaries = summarizeRelated(
+    (issue.fields as { attachment?: unknown[] } | undefined)?.attachment,
+    summarizeJiraAttachment,
+  );
+  if (args.include_attachments === true) {
+    includedCounts.attachments = attachmentSummaries.total;
+    appendRelatedPreview(
+      lines,
+      "Attachments",
+      attachmentSummaries.items,
+      attachmentSummaries.total,
+      artifact?.path,
+      (item) =>
+        `- ${item.id ?? "unknown id"} · ${item.filename ?? "attachment"}${item.mediaType ? ` · ${item.mediaType}` : ""}${item.bytes !== undefined ? ` · ${item.bytes} bytes` : ""}`,
+    );
   }
   if (result.editmeta && typeof result.editmeta === "object") {
     const fieldsRecord = (
@@ -244,25 +218,73 @@ export async function executeJiraGetIssue(
       lines.push(`Edit fields: ${Object.keys(fieldsRecord).length}`);
     }
   }
-  if (result.worklogs && typeof result.worklogs === "object") {
-    const worklogs = (result.worklogs as { worklogs?: unknown[] }).worklogs;
-    if (Array.isArray(worklogs)) {
-      includedCounts.worklogs = worklogs.length;
-      lines.push(`Worklogs: ${worklogs.length}`);
-    }
+  const worklogs = summarizeRelated(
+    (result.worklogs as { worklogs?: unknown[] } | undefined)?.worklogs,
+    summarizeJiraWorklog,
+  );
+  if (result.worklogs) {
+    includedCounts.worklogs = worklogs.total;
+    appendRelatedPreview(
+      lines,
+      "Worklogs",
+      worklogs.items,
+      worklogs.total,
+      artifact?.path,
+      (item) =>
+        `- ${item.id ?? "unknown id"}${item.author ? ` · ${item.author}` : ""}${item.timeSpent ? ` · ${item.timeSpent}` : ""}${item.commentPreview ? ` — ${item.commentPreview}` : ""}`,
+    );
   }
-  if (result.changelog && typeof result.changelog === "object") {
-    const histories =
-      (result.changelog as { values?: unknown[]; histories?: unknown[] })
-        .values ?? (result.changelog as { histories?: unknown[] }).histories;
-    if (Array.isArray(histories)) {
-      includedCounts.changelog = histories.length;
-      lines.push(`Changelog entries: ${histories.length}`);
-    }
+  const histories =
+    (
+      result.changelog as
+        | { values?: unknown[]; histories?: unknown[] }
+        | undefined
+    )?.values ??
+    (result.changelog as { histories?: unknown[] } | undefined)?.histories;
+  const changelogEntries = summarizeRelated(histories, summarizeJiraChangelog);
+  if (result.changelog) {
+    includedCounts.changelog = changelogEntries.total;
+    appendRelatedPreview(
+      lines,
+      "Changelog entries",
+      changelogEntries.items,
+      changelogEntries.total,
+      artifact?.path,
+      (item) =>
+        `- ${item.id ?? item.created ?? "change"}${item.author ? ` · ${item.author}` : ""}${item.changes?.length ? ` — ${item.changes.join("; ")}` : ""}`,
+    );
   }
-  if (Array.isArray(result.remoteLinks)) {
-    includedCounts.remoteLinks = result.remoteLinks.length;
-    lines.push(`Remote links: ${result.remoteLinks.length}`);
+  const remoteLinks = summarizeRelated(
+    result.remoteLinks,
+    summarizeJiraRemoteLink,
+  );
+  if (args.include_remote_links === true) {
+    includedCounts.remoteLinks = remoteLinks.total;
+    appendRelatedPreview(
+      lines,
+      "Remote links",
+      remoteLinks.items,
+      remoteLinks.total,
+      artifact?.path,
+      (item) =>
+        `- ${item.id ?? "link"}${item.title ? ` · ${item.title}` : ""}${item.url ? ` · ${item.url}` : ""}`,
+    );
+  }
+  const issueLinks = summarizeRelated(
+    result.issueLinks,
+    summarizeJiraIssueLink,
+  );
+  if (args.include_issue_links === true) {
+    includedCounts.issueLinks = issueLinks.total;
+    appendRelatedPreview(
+      lines,
+      "Issue links",
+      issueLinks.items,
+      issueLinks.total,
+      artifact?.path,
+      (item) =>
+        `- ${item.id ?? "link"}${item.linkType ? ` · ${item.linkType}` : ""}${item.otherIssueKey ? ` · ${item.otherIssueKey}` : ""}`,
+    );
   }
   let transitionSummaries: NonNullable<
     ReturnType<typeof summarizeJiraTransition>
@@ -304,148 +326,25 @@ export async function executeJiraGetIssue(
       issueKey,
       issue: issueSummary,
       includedCounts,
+      comments: comments.items.length > 0 ? comments.items : undefined,
+      displayedCommentCount: comments.items.length || undefined,
+      attachments:
+        attachmentSummaries.items.length > 0
+          ? attachmentSummaries.items
+          : undefined,
+      worklogs: worklogs.items.length > 0 ? worklogs.items : undefined,
+      displayedWorklogCount: worklogs.items.length || undefined,
+      changelogEntries:
+        changelogEntries.items.length > 0 ? changelogEntries.items : undefined,
+      displayedChangelogCount: changelogEntries.items.length || undefined,
+      remoteLinks: remoteLinks.items.length > 0 ? remoteLinks.items : undefined,
+      displayedRemoteLinkCount: remoteLinks.items.length || undefined,
+      issueLinks: issueLinks.items.length > 0 ? issueLinks.items : undefined,
+      displayedIssueLinkCount: issueLinks.items.length || undefined,
       transitions:
         transitionSummaries.length > 0 ? transitionSummaries : undefined,
       transitionCount,
       displayedTransitionCount,
-    },
-  });
-}
-
-export async function executeJiraGetProject(
-  args: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolExecutionResult> {
-  const connection = await requireJiraConnection(context);
-  const projectKey =
-    optionalString(args.project_key) ?? connection.defaultProjectKey;
-  if (!projectKey) {
-    throw new ToolExecutionError(
-      "JIRA_PROJECT_REQUIRED",
-      "project_key is required because no default Jira project key is configured.",
-    );
-  }
-  const project = await jiraRequest<Record<string, unknown>>(connection, {
-    path: `/project/${pathSegment(projectKey)}`,
-    signal: context.signal,
-  });
-  const result: Record<string, unknown> = { project };
-  if (args.include_statuses === true) {
-    result.statuses = await jiraRequest(connection, {
-      path: `/project/${pathSegment(projectKey)}/statuses`,
-      signal: context.signal,
-    });
-  }
-  if (args.include_components === true) {
-    result.components = await jiraRequest(connection, {
-      path: `/project/${pathSegment(projectKey)}/components`,
-      signal: context.signal,
-    });
-  }
-  if (args.include_versions === true) {
-    result.versions = await jiraRequest(connection, {
-      path: `/project/${pathSegment(projectKey)}/versions`,
-      signal: context.signal,
-    });
-  }
-  if (args.include_issue_types === true || args.include_create_meta === true) {
-    result.issueTypes = Array.isArray(project.issueTypes)
-      ? project.issueTypes
-      : await jiraRequest(connection, {
-          path: `/issue/createmeta/${pathSegment(projectKey)}/issuetypes`,
-          signal: context.signal,
-        }).catch(() => undefined);
-  }
-  if (args.include_create_meta === true) {
-    const issueTypeId =
-      optionalString(args.issue_type_id) ??
-      issueTypeIdFromName(
-        result.issueTypes,
-        optionalString(args.issue_type_name),
-      );
-    result.createMeta = issueTypeId
-      ? await jiraRequest(connection, {
-          path: `/issue/createmeta/${pathSegment(projectKey)}/issuetypes/${pathSegment(issueTypeId)}`,
-          signal: context.signal,
-        })
-      : result.issueTypes;
-  }
-  if (args.include_fields === true) {
-    result.fields = await fetchJiraFields(connection, {
-      query: optionalString(args.field_query),
-      maxResults: boundedNumber(args.field_limit, 50, 1, 100),
-      signal: context.signal,
-    });
-  }
-  if (args.include_priorities === true) {
-    result.priorities = await jiraRequest(connection, {
-      path: "/priority",
-      signal: context.signal,
-    });
-  }
-  if (args.include_resolutions === true) {
-    result.resolutions = await jiraRequest(connection, {
-      path: "/resolution",
-      signal: context.signal,
-    });
-  }
-  const artifact = await maybeArtifact(
-    context,
-    "get-project",
-    result,
-    args.save_to_file,
-  );
-  const projectSummary = summarizeJiraProject(project, projectKey);
-  const name = projectSummary?.name ?? projectKey;
-  const lines = [`Jira project ${projectKey}: ${name}`];
-  const includedCounts: Record<string, number> = {};
-  for (const key of ["statuses", "components", "versions"] as const) {
-    const value = result[key];
-    if (Array.isArray(value)) {
-      includedCounts[key] = value.length;
-      lines.push(`${key}: ${value.length}`);
-    }
-  }
-  const issueTypes = valuesFromJiraList(result.issueTypes);
-  if (issueTypes.length > 0) {
-    includedCounts.issueTypes = issueTypes.length;
-    lines.push(`issueTypes: ${issueTypes.length}`);
-  }
-  const rawFields = fieldsFromProjectResult(result);
-  const fieldSummaries = rawFields.flatMap((field) => {
-    const summary = summarizeJiraField(field);
-    return summary ? [summary] : [];
-  });
-  const displayedFields = takeDisplayItems(fieldSummaries);
-  if (fieldSummaries.length > 0) {
-    includedCounts.fields = fieldSummaries.length;
-    lines.push(
-      `fields: ${fieldSummaries.length}`,
-      ...displayedFields.items.map(formatFieldSummaryLine),
-    );
-  }
-  for (const [key, label] of [
-    ["priorities", "priorities"],
-    ["resolutions", "resolutions"],
-  ] as const) {
-    const value = result[key];
-    if (Array.isArray(value)) {
-      includedCounts[key] = value.length;
-      lines.push(`${label}: ${value.length}`);
-    }
-  }
-  if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
-  return buildJiraTextResult({
-    text: lines.join("\n"),
-    context,
-    artifact,
-    details: {
-      projectKey,
-      project: projectSummary,
-      includedCounts,
-      fields: displayedFields.items,
-      fieldCount: fieldSummaries.length || undefined,
-      displayedFieldCount: displayedFields.displayed || undefined,
     },
   });
 }
@@ -607,43 +506,6 @@ export async function executeJiraUpdateIssue(
   });
 }
 
-export async function executeJiraAddComment(
-  args: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolExecutionResult> {
-  const connection = await requireJiraConnection(context);
-  const issueKey = requiredString(args.issue_key, "issue_key");
-  const body = adfFromEither({
-    text: args.body,
-    adf: args.body_adf,
-    textName: "body",
-    adfName: "body_adf",
-  });
-  if (!body)
-    throw new ToolExecutionError(
-      "JIRA_COMMENT_REQUIRED",
-      "Provide body or body_adf.",
-    );
-  const payload: Record<string, unknown> = { body };
-  const visibility = rawOptionalRecord(args.visibility, "visibility");
-  if (Object.keys(visibility).length > 0) payload.visibility = visibility;
-  const data = await jiraRequest<Record<string, unknown>>(connection, {
-    method: "POST",
-    path: `/issue/${pathSegment(issueKey)}/comment`,
-    body: payload,
-    signal: context.signal,
-  });
-  return buildJiraTextResult({
-    text: `Added comment to Jira issue ${issueKey}.`,
-    context,
-    details: {
-      issueKey,
-      commentId: data.id,
-      comment: args.return_comment === true ? data : undefined,
-    },
-  });
-}
-
 export async function executeJiraTransitionIssue(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
@@ -778,16 +640,4 @@ async function getTransitions(
     query: { expand: "transitions.fields" },
     signal: context.signal,
   });
-}
-
-async function maybeArtifact(
-  context: ToolExecutionContext,
-  kind: string,
-  payload: unknown,
-  saveToFile: unknown,
-): Promise<
-  { path: string; bytes: number; chars: number; lines: number } | undefined
-> {
-  if (saveToFile === false) return undefined;
-  return writeJiraArtifact(context, kind, payload);
 }

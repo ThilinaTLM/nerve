@@ -1,7 +1,10 @@
 import {
   confluenceAttachmentSummarySchema,
+  confluenceCommentSummarySchema,
+  confluenceLabelSummarySchema,
   confluencePageSummarySchema,
   confluencePublishOutcomeSchema,
+  confluenceRestrictionSummarySchema,
   confluenceResultDetailsSchema,
   confluenceSpaceSummarySchema,
 } from "@nervekit/contracts";
@@ -139,6 +142,56 @@ export function parseConfluenceView(
       (outcomes.length > 0
         ? Math.min(outcomes.length, CONFLUENCE_DISPLAY_ITEM_LIMIT)
         : undefined),
+    operation:
+      stringField(details.operation) ??
+      (action.startsWith("manage_") ? stringField(details.action) : undefined),
+    commentId: stringField(details.commentId) ?? stringField(args.comment_id),
+    comment: parseOptional(confluenceCommentSummarySchema, details.comment),
+    commentKind:
+      details.kind === "footer" || details.kind === "inline"
+        ? details.kind
+        : args.kind === "footer" || args.kind === "inline"
+          ? args.kind
+          : undefined,
+    label: stringField(details.label) ?? stringField(args.label),
+    labels: confluenceArray(details.labels, (item) =>
+      confluenceLabelSummarySchema.parse(
+        typeof item === "string" ? { name: item } : item,
+      ),
+    ),
+    labelCount: numberField(details.labelCount),
+    prefix: stringField(details.prefix) ?? stringField(args.prefix),
+    restrictionOperation:
+      details.restrictionOperation === "read" ||
+      details.restrictionOperation === "update"
+        ? details.restrictionOperation
+        : args.operation === "read" || args.operation === "update"
+          ? args.operation
+          : undefined,
+    subjectType:
+      details.subjectType === "user" || details.subjectType === "group"
+        ? details.subjectType
+        : args.subject_type === "user" || args.subject_type === "group"
+          ? args.subject_type
+          : undefined,
+    subjectId: stringField(details.subjectId) ?? stringField(args.subject_id),
+    restrictions: confluenceArray(details.restrictions, (item) =>
+      confluenceRestrictionSummarySchema.parse(item),
+    ),
+    restrictionCount: numberField(details.restrictionCount),
+    previousStatus: stringField(details.previousStatus),
+    resultingStatus: stringField(details.resultingStatus),
+    attachmentId:
+      stringField(details.attachmentId) ?? stringField(args.attachment_id),
+    filename:
+      stringField(details.filename) ??
+      stringField(details.newFilename) ??
+      stringField(args.filename) ??
+      stringField(args.new_filename) ??
+      fileBasename(stringField(args.file_path)),
+    newFilename:
+      stringField(details.newFilename) ?? stringField(args.new_filename),
+    bytes: numberField(details.bytes),
     dryRun: typeof details.dryRun === "boolean" ? details.dryRun : undefined,
     payload: details.payload,
     outputLimits,
@@ -154,19 +207,42 @@ function confluenceAction(toolName: string): ConfluenceToolAction | undefined {
       return "search_pages";
     case "confluence_get_page":
       return "get_page";
-    case "confluence_download_pages":
-      return "download_pages";
+    case "confluence_download_page":
+      return "download_page";
     case "confluence_create_page":
       return "create_page";
     case "confluence_update_page":
       return "update_page";
-    case "confluence_publish_pages":
-      return "publish_pages";
-    case "confluence_upload_attachment":
-      return "upload_attachment";
+    case "confluence_manage_comment":
+      return "manage_comment";
+    case "confluence_manage_page":
+      return "manage_page";
+    case "confluence_manage_label":
+      return "manage_label";
+    case "confluence_manage_restriction":
+      return "manage_restriction";
+    case "confluence_manage_attachment":
+      return "manage_attachment";
     default:
       return undefined;
   }
+}
+
+function parseOptional<T>(
+  schema: {
+    safeParse: (
+      value: unknown,
+    ) => { success: true; data: T } | { success: false };
+  },
+  value: unknown,
+): T | undefined {
+  const parsed = schema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function fileBasename(path: string | undefined): string | undefined {
+  if (!path) return undefined;
+  return path.replaceAll("\\", "/").split("/").at(-1) || undefined;
 }
 
 function confluenceArray<T>(value: unknown, parse: (item: unknown) => T): T[] {

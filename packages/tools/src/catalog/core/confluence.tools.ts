@@ -1,13 +1,16 @@
 import { Type } from "typebox";
 import {
   executeConfluenceCreatePage,
-  executeConfluenceDownloadPages,
+  executeConfluenceDownloadPage,
   executeConfluenceGetPage,
-  executeConfluencePublishPages,
+  executeConfluenceManageAttachment,
+  executeConfluenceManageComment,
+  executeConfluenceManageLabel,
+  executeConfluenceManagePage,
+  executeConfluenceManageRestriction,
   executeConfluenceSearchPages,
   executeConfluenceSearchSpaces,
   executeConfluenceUpdatePage,
-  executeConfluenceUploadAttachment,
 } from "../../execution/confluence/confluence.js";
 import type { ToolDefinition } from "../types.js";
 
@@ -38,9 +41,8 @@ const pageStatus = Type.Union([Type.Literal("current"), Type.Literal("draft")]);
 
 const searchSpacesParameters = Type.Object(
   {
-    query: Type.Optional(Type.String({ description: "Space search query" })),
-    keys: Type.Optional(stringArray("Space keys to resolve")),
-    ids: Type.Optional(stringArray("Space ids to resolve")),
+    keys: Type.Optional(stringArray("Exact space keys to resolve")),
+    ids: Type.Optional(stringArray("Exact space ids to resolve")),
     limit: Type.Optional(
       Type.Number({
         description: "Maximum spaces to return",
@@ -48,7 +50,12 @@ const searchSpacesParameters = Type.Object(
         maximum: 100,
       }),
     ),
-    cursor: Type.Optional(Type.String({ description: "Continuation cursor" })),
+    cursor: Type.Optional(
+      Type.String({
+        description:
+          "Opaque Confluence continuation cursor returned by the previous page",
+      }),
+    ),
     save_to_file: Type.Optional(
       Type.Boolean({
         description: "Save the raw JSON response (default: true)",
@@ -76,7 +83,12 @@ const searchPagesParameters = Type.Object(
         maximum: 100,
       }),
     ),
-    cursor: Type.Optional(Type.String({ description: "Continuation cursor" })),
+    cursor: Type.Optional(
+      Type.String({
+        description:
+          "Opaque Confluence continuation cursor returned by the previous page",
+      }),
+    ),
     save_to_file: Type.Optional(
       Type.Boolean({
         description: "Save the raw JSON response (default: true)",
@@ -111,6 +123,17 @@ const getPageParameters = Type.Object(
     include_attachments: Type.Optional(
       Type.Boolean({ description: "Fetch attachment metadata" }),
     ),
+    include_footer_comments: Type.Optional(
+      Type.Boolean({ description: "Fetch footer comments" }),
+    ),
+    include_inline_comments: Type.Optional(
+      Type.Boolean({ description: "Fetch inline comments" }),
+    ),
+    include_restrictions: Type.Optional(
+      Type.Boolean({ description: "Fetch page restrictions" }),
+    ),
+    comment_limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
+    comment_cursor: Type.Optional(Type.String()),
     markdown: Type.Optional(
       Type.Boolean({
         description: "Write a best-effort read-only markdown sidecar",
@@ -125,47 +148,20 @@ const getPageParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const downloadPagesParameters = Type.Object(
+const downloadPageParameters = Type.Object(
   {
-    page_id: Type.Optional(Type.String({ description: "Root page id" })),
-    space_key: Type.Optional(Type.String({ description: "Space key" })),
-    space_id: Type.Optional(Type.String({ description: "Space id" })),
-    cql: Type.Optional(
-      Type.String({ description: "CQL query to download results from" }),
-    ),
-    recurse: Type.Optional(
-      Type.Boolean({
-        description: "Include descendants when page_id is supplied",
-      }),
-    ),
-    depth: Type.Optional(
-      Type.Number({
-        description: "Descendant depth (default: 1, max: 10)",
-        minimum: 1,
-        maximum: 10,
-      }),
-    ),
-    limit: Type.Optional(
-      Type.Number({
-        description: "Maximum pages to download (default: 50, max: 250)",
-        minimum: 1,
-        maximum: 250,
-      }),
-    ),
+    page_id: Type.String({ description: "Page id" }),
     body_format: Type.Optional(bodyFormatRead),
     markdown: Type.Optional(
       Type.Boolean({
-        description: "Write best-effort read-only markdown sidecars",
+        description: "Write a best-effort read-only markdown sidecar",
       }),
     ),
     include_attachments: Type.Optional(
       Type.Boolean({ description: "Include attachment metadata" }),
     ),
     download_attachments: Type.Optional(
-      Type.Boolean({ description: "Download attachment bytes" }),
-    ),
-    save_to_file: Type.Optional(
-      Type.Boolean({ description: "Save bundle artifacts (default: true)" }),
+      Type.Boolean({ description: "Download attachment bytes for this page" }),
     ),
   },
   { additionalProperties: false },
@@ -250,68 +246,119 @@ const updatePageParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const publishPagesParameters = Type.Object(
+const dryRun = Type.Optional(
+  Type.Boolean({ description: "Validate without mutating" }),
+);
+const commentKind = Type.Union([
+  Type.Literal("footer"),
+  Type.Literal("inline"),
+]);
+const commentRepresentation = Type.Union([
+  Type.Literal("storage"),
+  Type.Literal("atlas_doc_format"),
+]);
+const manageCommentParameters = Type.Object(
   {
-    input_path: Type.String({
-      description:
-        "Bundle directory, manifest.json, pages.jsonl, or page JSON row",
-    }),
-    create_missing: Type.Optional(
-      Type.Boolean({ description: "Create rows without ids" }),
+    action: Type.Union([
+      Type.Literal("create"),
+      Type.Literal("update"),
+      Type.Literal("delete"),
+      Type.Literal("resolve"),
+      Type.Literal("reopen"),
+    ]),
+    kind: commentKind,
+    page_id: Type.Optional(Type.String({ description: "Required for create" })),
+    comment_id: Type.Optional(
+      Type.String({ description: "Required for every action except create" }),
     ),
-    allow_stale: Type.Optional(
-      Type.Boolean({
-        description: "Allow publishing over newer remote versions",
-      }),
+    body: Type.Optional(
+      Type.String({ description: "Required for create and update" }),
     ),
-    version_message: Type.Optional(
-      Type.String({ description: "Version message for updated pages" }),
-    ),
-    dry_run: Type.Optional(
-      Type.Boolean({ description: "Build a publish report without mutating" }),
-    ),
-    limit: Type.Optional(
-      Type.Number({
-        description: "Maximum rows to publish",
-        minimum: 1,
-        maximum: 250,
-      }),
-    ),
-    save_to_file: Type.Optional(
-      Type.Boolean({ description: "Save the publish report (default: true)" }),
-    ),
+    body_representation: Type.Optional(commentRepresentation),
+    parent_comment_id: Type.Optional(Type.String()),
+    inline_properties: Type.Optional(Type.Record(Type.String(), Type.Any())),
+    version_message: Type.Optional(Type.String()),
+    allow_stale: Type.Optional(Type.Boolean()),
+    dry_run: dryRun,
   },
   { additionalProperties: false },
 );
-
-const uploadAttachmentParameters = Type.Object(
+const managePageParameters = Type.Object(
   {
-    page_id: Type.String({ description: "Page id to attach the file to" }),
-    file_path: Type.String({ description: "Local file path to upload" }),
-    filename: Type.Optional(
-      Type.String({ description: "Attachment filename override" }),
+    action: Type.Union([
+      Type.Literal("trash"),
+      Type.Literal("restore"),
+      Type.Literal("purge"),
+    ]),
+    page_id: Type.String(),
+    dry_run: dryRun,
+  },
+  { additionalProperties: false },
+);
+const manageLabelParameters = Type.Object(
+  {
+    action: Type.Union([Type.Literal("add"), Type.Literal("remove")]),
+    page_id: Type.String(),
+    label: Type.String(),
+    prefix: Type.Optional(
+      Type.String({ description: "Used only when adding a label" }),
     ),
-    comment: Type.Optional(
-      Type.String({ description: "Attachment version comment" }),
-    ),
-    minor_edit: Type.Optional(
-      Type.Boolean({ description: "Mark as a minor edit (default: true)" }),
-    ),
-    update_existing: Type.Optional(
-      Type.Boolean({
-        description: "Create/update idempotently with PUT (default: true)",
+    dry_run: dryRun,
+  },
+  { additionalProperties: false },
+);
+const restrictionOperation = Type.Union([
+  Type.Literal("read"),
+  Type.Literal("update"),
+]);
+const manageRestrictionParameters = Type.Object(
+  {
+    action: Type.Union([
+      Type.Literal("add"),
+      Type.Literal("remove"),
+      Type.Literal("clear_operation"),
+    ]),
+    page_id: Type.String(),
+    operation: restrictionOperation,
+    subject_type: Type.Optional(
+      Type.Union([Type.Literal("user"), Type.Literal("group")], {
+        description: "Required for add and remove",
       }),
     ),
+    subject_id: Type.Optional(
+      Type.String({ description: "Required for add and remove" }),
+    ),
+    dry_run: dryRun,
+  },
+  { additionalProperties: false },
+);
+const manageAttachmentParameters = Type.Object(
+  {
+    action: Type.Union([
+      Type.Literal("upload"),
+      Type.Literal("rename"),
+      Type.Literal("delete"),
+    ]),
+    page_id: Type.String(),
+    file_path: Type.Optional(
+      Type.String({ description: "Required for upload" }),
+    ),
+    filename: Type.Optional(Type.String()),
+    attachment_id: Type.Optional(
+      Type.String({ description: "Required for rename and delete" }),
+    ),
+    new_filename: Type.Optional(
+      Type.String({ description: "Required for rename" }),
+    ),
+    comment: Type.Optional(Type.String()),
+    minor_edit: Type.Optional(Type.Boolean()),
+    update_existing: Type.Optional(Type.Boolean()),
     status: Type.Optional(pageStatus),
-    save_to_file: Type.Optional(
-      Type.Boolean({
-        description: "Save the raw JSON response (default: true)",
-      }),
-    ),
+    dry_run: dryRun,
+    save_to_file: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
-
 export const confluenceToolDefinitions = [
   {
     name: "confluence_search_spaces",
@@ -323,7 +370,7 @@ export const confluenceToolDefinitions = [
     label: "Confluence Search Spaces",
     description: "List or resolve visible Confluence Cloud spaces.",
     promptSnippet:
-      "Search Confluence spaces with narrow keys, ids, queries, and limits",
+      "List Confluence spaces or resolve exact keys/ids; use page search for free text",
     promptGuidelines: [confluenceGuideline],
     parameters: searchSpacesParameters,
     executionMode: "parallel",
@@ -360,19 +407,18 @@ export const confluenceToolDefinitions = [
     executionMode: "parallel",
   },
   {
-    name: "confluence_download_pages",
+    name: "confluence_download_page",
     group: "confluence",
     baseRisk: "network",
     traits: ["read_only_network", "credentialed"],
     executionKind: "local",
-    executor: executeConfluenceDownloadPages,
-    label: "Confluence Download Pages",
+    executor: executeConfluenceDownloadPage,
+    label: "Confluence Download Page",
     description:
-      "Download a page, subtree, space, or CQL result set into editable JSONL/storage XML artifacts.",
-    promptSnippet:
-      "Download Confluence pages into JSONL and storage XML artifacts before editing",
+      "Download one page into editable JSON/storage XML artifacts with optional page attachments.",
+    promptSnippet: "Download one Confluence page before file-backed editing",
     promptGuidelines: [confluenceGuideline],
-    parameters: downloadPagesParameters,
+    parameters: downloadPageParameters,
     executionMode: "parallel",
   },
   {
@@ -407,34 +453,84 @@ export const confluenceToolDefinitions = [
     executionMode: "sequential",
   },
   {
-    name: "confluence_publish_pages",
+    name: "confluence_manage_comment",
     group: "confluence",
     baseRisk: "command",
     traits: ["write_capable", "credentialed"],
     executionKind: "local",
-    executor: executeConfluencePublishPages,
-    label: "Confluence Publish Pages",
+    executor: executeConfluenceManageComment,
+    label: "Confluence Manage Comment",
     description:
-      "Publish one or more edited Confluence JSONL records directly to Confluence.",
+      "Create, update, delete, resolve, or reopen one Confluence comment.",
     promptSnippet:
-      "Publish edited Confluence JSONL records only when explicitly requested",
+      "Manage one Confluence comment only when explicitly requested",
     promptGuidelines: [confluenceGuideline],
-    parameters: publishPagesParameters,
+    parameters: manageCommentParameters,
     executionMode: "sequential",
   },
   {
-    name: "confluence_upload_attachment",
+    name: "confluence_manage_page",
     group: "confluence",
     baseRisk: "command",
     traits: ["write_capable", "credentialed"],
     executionKind: "local",
-    executor: executeConfluenceUploadAttachment,
-    label: "Confluence Upload Attachment",
-    description: "Upload or update a file attached to a Confluence page.",
+    executor: executeConfluenceManagePage,
+    label: "Confluence Manage Page",
+    description:
+      "Trash, restore, or permanently purge one Confluence page; archive is not supported by the API.",
     promptSnippet:
-      "Upload Confluence attachments only when explicitly requested",
+      "Manage one Confluence page lifecycle only when explicitly requested",
     promptGuidelines: [confluenceGuideline],
-    parameters: uploadAttachmentParameters,
+    parameters: managePageParameters,
+    executionMode: "sequential",
+    classifyRisk: (args) =>
+      args.action === "purge" ? "destructive" : "command",
+  },
+  {
+    name: "confluence_manage_label",
+    group: "confluence",
+    baseRisk: "command",
+    traits: ["write_capable", "credentialed"],
+    executionKind: "local",
+    executor: executeConfluenceManageLabel,
+    label: "Confluence Manage Label",
+    description: "Add or remove one label on one Confluence page.",
+    promptSnippet: "Manage one Confluence label only when explicitly requested",
+    promptGuidelines: [confluenceGuideline],
+    parameters: manageLabelParameters,
+    executionMode: "sequential",
+  },
+  {
+    name: "confluence_manage_restriction",
+    group: "confluence",
+    baseRisk: "command",
+    traits: ["write_capable", "credentialed"],
+    executionKind: "local",
+    executor: executeConfluenceManageRestriction,
+    label: "Confluence Manage Restriction",
+    description:
+      "Add or remove one page restriction subject, or explicitly clear one operation.",
+    promptSnippet:
+      "Manage one Confluence restriction target only when explicitly requested",
+    promptGuidelines: [confluenceGuideline],
+    parameters: manageRestrictionParameters,
+    executionMode: "sequential",
+    classifyRisk: (args) =>
+      args.action === "clear_operation" ? "destructive" : "command",
+  },
+  {
+    name: "confluence_manage_attachment",
+    group: "confluence",
+    baseRisk: "command",
+    traits: ["write_capable", "credentialed"],
+    executionKind: "local",
+    executor: executeConfluenceManageAttachment,
+    label: "Confluence Manage Attachment",
+    description: "Upload, rename, or delete one Confluence attachment.",
+    promptSnippet:
+      "Manage one Confluence attachment only when explicitly requested",
+    promptGuidelines: [confluenceGuideline],
+    parameters: manageAttachmentParameters,
     executionMode: "sequential",
   },
 ] satisfies ToolDefinition[];

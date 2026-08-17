@@ -1,11 +1,6 @@
-import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
-import type { ConfluencePublishOutcomePayload } from "@nervekit/contracts";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { ToolExecutionError } from "../common/tool-error.js";
-import { resolveToolPath } from "../filesystem/path.js";
 import {
-  confluenceAttachmentRequest,
   confluenceRequest,
   pathSegment,
   requireConfluenceConnection,
@@ -20,11 +15,15 @@ import {
   type ConfluenceArtifact,
   displayLimitNotice,
   formatPageSummaryLine,
-  formatPublishOutcomeLine,
   formatSpaceSummaryLine,
   nextCursorFromResponse,
+  pageWebUrl,
   summarizeConfluenceAttachment,
+  summarizeConfluenceComment,
+  summarizeConfluenceLabel,
   summarizeConfluencePage,
+  summarizeConfluenceProperty,
+  summarizeConfluenceRestrictions,
   summarizeConfluenceSpace,
   takeDisplayItems,
   valuesFromConfluenceList,
@@ -37,7 +36,6 @@ import {
   optionalBoolean,
   optionalString,
   optionalStringArray,
-  readPageRowsFromPath,
   readSinglePageRow,
   requiredString,
   resolveSpaceId,
@@ -47,10 +45,18 @@ import {
   buildUpdatePayload,
   downloadAttachments,
   fetchAttachments,
-  selectPagesForDownload,
 } from "./operations.js";
 
+export {
+  executeConfluenceManageAttachment,
+  executeConfluenceManageComment,
+  executeConfluenceManageLabel,
+  executeConfluenceManagePage,
+  executeConfluenceManageRestriction,
+} from "./resources.js";
+
 const READ_BODY_FORMATS = ["storage", "atlas_doc_format"] as const;
+const RELATED_PREVIEW_LIMIT = 3;
 const PAGE_BODY_FORMATS = [
   "storage",
   "atlas_doc_format",
@@ -69,7 +75,6 @@ export async function executeConfluenceSearchSpaces(
   const data = await confluenceRequest(connection, {
     path: "/spaces",
     query: {
-      query: optionalString(args.query),
       keys: optionalStringArray(args.keys),
       ids: optionalStringArray(args.ids),
       limit,
@@ -110,7 +115,6 @@ export async function executeConfluenceSearchSpaces(
     artifact,
     details: {
       action: "search_spaces",
-      query: optionalString(args.query),
       spaces: displayed.items,
       spaceCount: spaces.length,
       displayedSpaceCount: displayed.displayed,
@@ -170,7 +174,12 @@ export async function executeConfluenceSearchPages(
   );
   const pages = valuesFromConfluenceList(data).flatMap((page) => {
     const summary = summarizeConfluencePage(page);
-    return summary ? [summary] : [];
+    if (!summary) return [];
+    const compactSummary = { ...summary };
+    delete compactSummary.bodyPreview;
+    return [
+      { ...compactSummary, webUrl: pageWebUrl(connection.siteUrl, page) },
+    ];
   });
   const displayed = takeDisplayItems(pages);
   const nextCursor = nextCursorFromResponse(data);
@@ -249,6 +258,35 @@ export async function executeConfluenceGetPage(
       context.signal,
     );
   }
+  if (args.include_footer_comments === true) {
+    result.footerComments = await confluenceRequest(connection, {
+      path: `/pages/${pathSegment(pageId)}/footer-comments`,
+      query: {
+        limit: boundedNumber(args.comment_limit, 25, 1, 100),
+        cursor: optionalString(args.comment_cursor),
+        "body-format": bodyFormat,
+      },
+      signal: context.signal,
+    });
+  }
+  if (args.include_inline_comments === true) {
+    result.inlineComments = await confluenceRequest(connection, {
+      path: `/pages/${pathSegment(pageId)}/inline-comments`,
+      query: {
+        limit: boundedNumber(args.comment_limit, 25, 1, 100),
+        cursor: optionalString(args.comment_cursor),
+        "body-format": bodyFormat,
+      },
+      signal: context.signal,
+    });
+  }
+  if (args.include_restrictions === true) {
+    result.restrictions = await confluenceRequest(connection, {
+      api: "v1",
+      path: `/content/${pathSegment(pageId)}/restriction/byOperation`,
+      signal: context.signal,
+    });
+  }
   if (args.include_versions === true) {
     result.versions = await confluenceRequest(connection, {
       path: `/pages/${pathSegment(pageId)}/versions`,
@@ -267,35 +305,142 @@ export async function executeConfluenceGetPage(
     args.markdown === true
       ? await writePageSidecars(context, page, { bodyFormat, markdown: true })
       : undefined;
-  const pageSummary = summarizeConfluencePage({
+  const rawPageSummary = summarizeConfluencePage({
     ...page,
     storagePath: sidecars?.storagePath,
     markdownPath: sidecars?.markdownPath,
   });
+  const pageSummary = rawPageSummary
+    ? { ...rawPageSummary, webUrl: pageWebUrl(connection.siteUrl, page) }
+    : undefined;
   const includedCounts: Record<string, number> = {};
   const lines = [
     pageSummary
       ? formatPageSummaryLine(pageSummary)
       : `Confluence page ${pageId}`,
   ];
-  const directChildren = valuesFromConfluenceList(result.directChildren);
-  if (directChildren.length > 0) {
-    includedCounts.directChildren = directChildren.length;
-    lines.push(`Direct children: ${directChildren.length}`);
+  if (pageSummary?.bodyPreview) lines.push(`Body: ${pageSummary.bodyPreview}`);
+  if (pageSummary?.webUrl) lines.push(`Web: ${pageSummary.webUrl}`);
+
+  const childPages = summarizeConfluenceRelated(
+    valuesFromConfluenceList(result.directChildren).map((child) => ({
+      raw: child,
+      summary: summarizeConfluencePage(child),
+    })),
+    ({ raw, summary }) =>
+      summary
+        ? {
+            ...summary,
+            bodyPreview: undefined,
+            webUrl: pageWebUrl(connection.siteUrl, raw),
+          }
+        : undefined,
+  );
+  if (args.include_direct_children === true) {
+    includedCounts.directChildren = childPages.total;
+    appendConfluencePreview(
+      lines,
+      "Direct children",
+      childPages.items,
+      childPages.total,
+      artifact?.path,
+      (item) =>
+        `- ${item.id}${item.title ? ` · ${item.title}` : ""}${item.webUrl ? ` · ${item.webUrl}` : ""}`,
+    );
   }
-  const attachments = valuesFromConfluenceList(result.attachments);
-  const attachmentSummaries = attachments.flatMap((attachment) => {
-    const summary = summarizeConfluenceAttachment(attachment);
-    return summary ? [summary] : [];
-  });
-  if (attachmentSummaries.length > 0) {
-    includedCounts.attachments = attachmentSummaries.length;
-    lines.push(`Attachments: ${attachmentSummaries.length}`);
+
+  const attachmentSummaries = summarizeConfluenceRelated(
+    valuesFromConfluenceList(result.attachments),
+    summarizeConfluenceAttachment,
+  );
+  if (args.include_attachments === true) {
+    includedCounts.attachments = attachmentSummaries.total;
+    appendConfluencePreview(
+      lines,
+      "Attachments",
+      attachmentSummaries.items,
+      attachmentSummaries.total,
+      artifact?.path,
+      (item) =>
+        `- ${item.id ?? item.fileId ?? "unknown id"}${item.filename ? ` · ${item.filename}` : ""}${item.mediaType ? ` · ${item.mediaType}` : ""}`,
+    );
   }
+
   const versions = valuesFromConfluenceList(result.versions);
-  if (versions.length > 0) {
+  if (args.include_versions === true) {
     includedCounts.versions = versions.length;
     lines.push(`Versions: ${versions.length}`);
+  }
+
+  const footerComments = summarizeConfluenceRelated(
+    valuesFromConfluenceList(result.footerComments),
+    (item) => summarizeConfluenceComment(item, "footer"),
+  );
+  if (args.include_footer_comments === true) {
+    includedCounts.footerComments = footerComments.total;
+    appendConfluencePreview(
+      lines,
+      "Footer comments",
+      footerComments.items,
+      footerComments.total,
+      artifact?.path,
+      formatConfluenceCommentPreview,
+    );
+  }
+  const inlineComments = summarizeConfluenceRelated(
+    valuesFromConfluenceList(result.inlineComments),
+    (item) => summarizeConfluenceComment(item, "inline"),
+  );
+  if (args.include_inline_comments === true) {
+    includedCounts.inlineComments = inlineComments.total;
+    appendConfluencePreview(
+      lines,
+      "Inline comments",
+      inlineComments.items,
+      inlineComments.total,
+      artifact?.path,
+      formatConfluenceCommentPreview,
+    );
+  }
+
+  const properties = summarizeConfluenceRelated(
+    valuesFromConfluenceList(page.properties),
+    summarizeConfluenceProperty,
+  );
+  if (args.include_properties === true) {
+    includedCounts.properties = properties.total;
+    appendConfluencePreview(
+      lines,
+      "Properties",
+      properties.items,
+      properties.total,
+      artifact?.path,
+      (item) =>
+        `- ${item.id ?? item.key} · ${item.key}${item.valuePreview ? ` — ${item.valuePreview}` : ""}`,
+    );
+  }
+  const labels = summarizeConfluenceRelated(
+    valuesFromConfluenceList(page.labels),
+    summarizeConfluenceLabel,
+  );
+  if (args.include_labels === true) {
+    includedCounts.labels = labels.total;
+    appendConfluencePreview(
+      lines,
+      "Labels",
+      labels.items,
+      labels.total,
+      artifact?.path,
+      (item) => `- ${item.prefix ? `${item.prefix}:` : ""}${item.name}`,
+    );
+  }
+  const restrictions = summarizeConfluenceRelated(
+    summarizeConfluenceRestrictions(result.restrictions),
+    (item) => item,
+  );
+  if (args.include_restrictions === true) {
+    includedCounts.restrictions = restrictions.total;
+    lines.push(`Restrictions: ${restrictions.total}`);
   }
   if (sidecars?.storagePath)
     lines.push(`Body saved to: ${sidecars.storagePath}`);
@@ -313,45 +458,102 @@ export async function executeConfluenceGetPage(
       pageId,
       bodyFormat,
       page: pageSummary,
-      attachments: attachmentSummaries,
-      attachmentCount: attachmentSummaries.length || undefined,
-      displayedAttachmentCount: attachmentSummaries.length || undefined,
+      attachments:
+        attachmentSummaries.items.length > 0
+          ? attachmentSummaries.items
+          : undefined,
+      attachmentCount: attachmentSummaries.total || undefined,
+      displayedAttachmentCount: attachmentSummaries.items.length || undefined,
+      childPages: childPages.items.length > 0 ? childPages.items : undefined,
+      displayedChildPageCount: childPages.items.length || undefined,
+      footerComments:
+        footerComments.items.length > 0 ? footerComments.items : undefined,
+      displayedFooterCommentCount: footerComments.items.length || undefined,
+      inlineComments:
+        inlineComments.items.length > 0 ? inlineComments.items : undefined,
+      displayedInlineCommentCount: inlineComments.items.length || undefined,
+      properties: properties.items.length > 0 ? properties.items : undefined,
+      displayedPropertyCount: properties.items.length || undefined,
+      labels: labels.items.length > 0 ? labels.items : undefined,
+      restrictions:
+        restrictions.items.length > 0 ? restrictions.items : undefined,
       includedCounts,
     },
   });
 }
 
-export async function executeConfluenceDownloadPages(
+function summarizeConfluenceRelated<TInput, TSummary>(
+  value: TInput[],
+  summarize: (item: TInput) => TSummary | undefined,
+): { items: TSummary[]; total: number } {
+  const summaries = value.flatMap((item) => {
+    const summary = summarize(item);
+    return summary ? [summary] : [];
+  });
+  return {
+    items: summaries.slice(0, RELATED_PREVIEW_LIMIT),
+    total: summaries.length,
+  };
+}
+
+function appendConfluencePreview<T>(
+  lines: string[],
+  label: string,
+  items: T[],
+  total: number,
+  artifactPath: string | undefined,
+  format: (item: T) => string,
+): void {
+  lines.push(`${label}: ${total}`);
+  if (items.length > 0) lines.push(...items.map(format));
+  if (total <= items.length) return;
+  lines.push(
+    artifactPath
+      ? `Showing first ${items.length} of ${total}; full data is saved to ${artifactPath}.`
+      : `Showing first ${items.length} of ${total}; rerun with save_to_file: true for full data.`,
+  );
+}
+
+function formatConfluenceCommentPreview(item: {
+  id?: string;
+  author?: string;
+  bodyPreview?: string;
+}): string {
+  return `- ${item.id ?? "unknown id"}${item.author ? ` · ${item.author}` : ""}${item.bodyPreview ? ` — ${item.bodyPreview}` : ""}`;
+}
+
+export async function executeConfluenceDownloadPage(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireConfluenceConnection(context);
-  const limit = boundedNumber(args.limit, 50, 1, 250);
-  const depth = boundedNumber(args.depth, 1, 1, 10);
+  const pageId = requiredString(args.page_id, "page_id");
   const bodyFormat = enumString(args.body_format, READ_BODY_FORMATS, "storage");
-  const pages = await selectPagesForDownload(connection, args, {
-    limit,
-    depth,
-    bodyFormat,
+  const page = await confluenceRequest<Record<string, unknown>>(connection, {
+    path: `/pages/${pathSegment(pageId)}`,
+    query: { "body-format": bodyFormat },
     signal: context.signal,
   });
-  const bundlePages: DownloadBundlePage[] = [];
-  for (const page of pages.slice(0, limit)) {
-    const summary = summarizeConfluencePage(page);
-    if (!summary) continue;
-    const attachments =
-      args.include_attachments === true || args.download_attachments === true
-        ? valuesFromConfluenceList(
-            await fetchAttachments(connection, summary.id, context.signal),
-          )
-        : [];
-    const downloadedAttachments =
-      args.download_attachments === true
-        ? await downloadAttachments(connection, attachments, context.signal)
-        : undefined;
-    bundlePages.push({ page, attachments, downloadedAttachments });
-  }
-  const root = downloadRoot(args, bundlePages);
+  const summary = summarizeConfluencePage(page);
+  if (!summary)
+    throw new ToolExecutionError(
+      "CONFLUENCE_PAGE_NOT_FOUND",
+      `Confluence page ${pageId} could not be summarized.`,
+    );
+  const attachments =
+    args.include_attachments === true || args.download_attachments === true
+      ? valuesFromConfluenceList(
+          await fetchAttachments(connection, pageId, context.signal),
+        )
+      : [];
+  const downloadedAttachments =
+    args.download_attachments === true
+      ? await downloadAttachments(connection, attachments, context.signal)
+      : undefined;
+  const bundlePages: DownloadBundlePage[] = [
+    { page, attachments, downloadedAttachments },
+  ];
+  const root = { kind: "page", id: pageId };
   const bundle = await writeDownloadBundle(context, {
     siteUrl: connection.siteUrl,
     root,
@@ -387,7 +589,7 @@ export async function executeConfluenceDownloadPages(
     context,
     artifacts: bundle.artifacts,
     details: {
-      action: "download_pages",
+      action: "download_page",
       bodyFormat,
       downloadDir: bundle.dir,
       manifestPath: bundle.manifestPath,
@@ -513,217 +715,6 @@ export async function executeConfluenceUpdatePage(
   });
 }
 
-export async function executeConfluencePublishPages(
-  args: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolExecutionResult> {
-  const connection = await requireConfluenceConnection(context);
-  const inputPath = requiredString(args.input_path, "input_path");
-  const { rows, path } = await readPageRowsFromPath(context.cwd, inputPath);
-  const limit = boundedNumber(args.limit, rows.length, 1, 250);
-  const selectedRows = rows.slice(0, limit);
-  const outcomes: ConfluencePublishOutcomePayload[] = [];
-  for (const [index, row] of selectedRows.entries()) {
-    const id = optionalString(row.id);
-    try {
-      if (id) {
-        const payload = await buildUpdatePayload(
-          connection,
-          args,
-          row,
-          context,
-        );
-        if (args.dry_run === true) {
-          outcomes.push({
-            index,
-            operation: "update",
-            id,
-            title: payload.title,
-            status: "dry_run",
-            message: `Would update to version ${payload.version.number}.`,
-          });
-        } else {
-          await confluenceRequest(connection, {
-            method: "PUT",
-            path: `/pages/${pathSegment(id)}`,
-            body: payload,
-            signal: context.signal,
-          });
-          outcomes.push({
-            index,
-            operation: "update",
-            id,
-            title: payload.title,
-            status: "updated",
-            message: `Updated to version ${payload.version.number}.`,
-          });
-        }
-      } else if (args.create_missing === true) {
-        const payload = await buildCreatePayload(
-          connection,
-          args,
-          row,
-          context,
-        );
-        if (args.dry_run === true) {
-          outcomes.push({
-            index,
-            operation: "create",
-            title: payload.title,
-            status: "dry_run",
-            message: `Would create in space ${payload.spaceId}.`,
-          });
-        } else {
-          const data = await confluenceRequest<Record<string, unknown>>(
-            connection,
-            {
-              method: "POST",
-              path: "/pages",
-              body: payload,
-              signal: context.signal,
-            },
-          );
-          outcomes.push({
-            index,
-            operation: "create",
-            id: optionalString(data.id),
-            title: payload.title,
-            status: "created",
-          });
-        }
-      } else {
-        outcomes.push({
-          index,
-          operation: "create",
-          title: optionalString(row.title),
-          status: "skipped",
-          message: "Row has no id; set create_missing=true to create it.",
-        });
-      }
-    } catch (error) {
-      outcomes.push({
-        index,
-        operation: id ? "update" : "create",
-        id,
-        title: optionalString(row.title),
-        status: "error",
-        errorCode: error instanceof ToolExecutionError ? error.code : undefined,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-  const report = {
-    inputPath: path,
-    dryRun: args.dry_run === true,
-    totalRows: rows.length,
-    processedRows: selectedRows.length,
-    outcomes,
-  };
-  const artifact = await maybeArtifact(
-    context,
-    "publish-pages",
-    report,
-    args.save_to_file,
-  );
-  const displayed = takeDisplayItems(outcomes);
-  const lines = [
-    `${args.dry_run === true ? "Dry run: " : ""}Processed ${selectedRows.length} Confluence page row${selectedRows.length === 1 ? "" : "s"} from ${path}.`,
-  ];
-  if (artifact) lines.push(`Publish report saved to: ${artifact.path}`);
-  if (displayed.items.length > 0) {
-    lines.push("", ...displayed.items.map(formatPublishOutcomeLine));
-  }
-  const notice = displayLimitNotice({
-    noun: "outcome",
-    total: outcomes.length,
-    displayed: displayed.displayed,
-    artifactPath: artifact?.path,
-  });
-  if (notice) lines.push(notice);
-  return buildConfluenceTextResult({
-    text: lines.join("\n"),
-    context,
-    artifact,
-    details: {
-      action: "publish_pages",
-      inputPath: path,
-      dryRun: args.dry_run === true,
-      outcomes: displayed.items,
-      outcomeCount: outcomes.length,
-      displayedOutcomeCount: displayed.displayed,
-    },
-  });
-}
-
-export async function executeConfluenceUploadAttachment(
-  args: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolExecutionResult> {
-  const connection = await requireConfluenceConnection(context);
-  const pageId = requiredString(args.page_id, "page_id");
-  const filePath = resolveToolPath(context.cwd, args.file_path);
-  const bytes = await readFile(filePath);
-  const filename = optionalString(args.filename) ?? basename(filePath);
-  const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(bytes)]), filename);
-  form.append("minorEdit", String(args.minor_edit !== false));
-  const comment = optionalString(args.comment);
-  if (comment) form.append("comment", comment);
-  const data = await confluenceAttachmentRequest(connection, {
-    method: args.update_existing === false ? "POST" : "PUT",
-    pageId,
-    form,
-    query: { status: optionalString(args.status) },
-    signal: context.signal,
-  });
-  const rawAttachment = valuesFromConfluenceList(data)[0] ?? data;
-  const attachmentSummary = summarizeConfluenceAttachment(rawAttachment) ?? {
-    filename,
-  };
-  const snippet = attachmentStorageSnippet(filename);
-  const attachment = { ...attachmentSummary, snippet };
-  const artifact = await maybeArtifact(
-    context,
-    "upload-attachment",
-    data,
-    args.save_to_file,
-  );
-  const lines = [
-    `Uploaded Confluence attachment ${filename} to page ${pageId}.`,
-    `Storage XML image snippet: ${snippet}`,
-  ];
-  if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
-  return buildConfluenceTextResult({
-    text: lines.join("\n"),
-    context,
-    artifact,
-    details: {
-      action: "upload_attachment",
-      pageId,
-      attachment,
-      attachments: [attachment],
-      attachmentCount: 1,
-      displayedAttachmentCount: 1,
-    },
-  });
-}
-
-function downloadRoot(
-  args: Record<string, unknown>,
-  pages: DownloadBundlePage[],
-): Record<string, unknown> {
-  const pageId = optionalString(args.page_id);
-  if (pageId) return { kind: "page", id: pageId };
-  const spaceId = optionalString(args.space_id);
-  if (spaceId) return { kind: "space", id: spaceId };
-  const spaceKey = optionalString(args.space_key);
-  if (spaceKey) return { kind: "space", key: spaceKey };
-  const cql = optionalString(args.cql);
-  if (cql) return { kind: "cql", cql };
-  const first = summarizeConfluencePage(pages[0]?.page);
-  return first ? { kind: "page", id: first.id } : { kind: "unknown" };
-}
-
 function buildTextSearchCql(
   query: string,
   spaceKey: string | undefined,
@@ -735,18 +726,6 @@ function buildTextSearchCql(
 
 function escapeCql(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
-}
-
-function attachmentStorageSnippet(filename: string): string {
-  return `<ac:image><ri:attachment ri:filename="${escapeXmlAttribute(filename)}" /></ac:image>`;
-}
-
-function escapeXmlAttribute(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
 }
 
 async function maybeArtifact(

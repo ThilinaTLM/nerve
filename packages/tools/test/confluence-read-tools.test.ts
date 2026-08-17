@@ -1,0 +1,131 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import {
+  executeConfluenceGetPage,
+  executeConfluenceSearchSpaces,
+} from "../src/execution/confluence/confluence.js";
+
+const context = {
+  cwd: process.cwd(),
+  getApiKey: async () => "secret-token",
+  getProviderConfig: async () => ({
+    enabled: true,
+    siteUrl: "https://example.atlassian.net",
+    email: "developer@example.com",
+  }),
+};
+
+describe("Confluence read request contracts", () => {
+  it("sends only supported exact space filters and preserves the next cursor", async () => {
+    const originalFetch = globalThis.fetch;
+    let requestUrl: URL | undefined;
+    globalThis.fetch = async (input) => {
+      requestUrl = new URL(String(input));
+      return Response.json({
+        results: [{ id: "1", key: "SD", name: "Software" }],
+        _links: { next: "/wiki/api/v2/spaces?cursor=next-2" },
+      });
+    };
+    try {
+      const result = await executeConfluenceSearchSpaces(
+        {
+          keys: ["SD", "ENG"],
+          ids: ["1"],
+          limit: 1,
+          cursor: "next-1",
+          query: "must-not-be-sent",
+          save_to_file: false,
+        },
+        context,
+      );
+      assert.equal(requestUrl?.pathname, "/wiki/api/v2/spaces");
+      assert.deepEqual(requestUrl?.searchParams.getAll("keys"), ["SD", "ENG"]);
+      assert.deepEqual(requestUrl?.searchParams.getAll("ids"), ["1"]);
+      assert.equal(requestUrl?.searchParams.get("cursor"), "next-1");
+      assert.equal(requestUrl?.searchParams.has("query"), false);
+      assert.equal(result.details?.nextCursor, "next-2");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("returns bounded page substance while preserving compact identities", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("/pages/20/direct-children")) {
+        return Response.json({
+          results: Array.from({ length: 4 }, (_, index) => ({
+            id: String(21 + index),
+            title: `Child ${index + 1}`,
+            _links: { webui: `/spaces/SD/pages/${21 + index}` },
+          })),
+        });
+      }
+      if (url.pathname.endsWith("/pages/20/attachments")) {
+        return Response.json({
+          results: [
+            { id: "30", title: "guide.pdf", mediaType: "application/pdf" },
+          ],
+        });
+      }
+      if (url.pathname.endsWith("/pages/20/footer-comments")) {
+        return Response.json({
+          results: [
+            {
+              id: "40",
+              body: { storage: { value: "<p>Looks good</p>" } },
+            },
+          ],
+        });
+      }
+      if (url.pathname.endsWith("/pages/20/inline-comments")) {
+        return Response.json({ results: [] });
+      }
+      if (url.pathname.endsWith("/content/20/restriction/byOperation")) {
+        return Response.json({ results: [] });
+      }
+      return Response.json({
+        id: "20",
+        title: "Runbook",
+        body: { storage: { value: "<h1>Deploy</h1><p>Run checks</p>" } },
+        _links: { webui: "/spaces/SD/pages/20" },
+        properties: {
+          results: [{ id: "50", key: "owner", value: { value: "Platform" } }],
+        },
+        labels: { results: [{ name: "runbook", prefix: "global" }] },
+      });
+    };
+    try {
+      const result = await executeConfluenceGetPage(
+        {
+          page_id: "20",
+          include_direct_children: true,
+          include_attachments: true,
+          include_footer_comments: true,
+          include_inline_comments: true,
+          include_properties: true,
+          include_labels: true,
+          include_restrictions: true,
+          save_to_file: false,
+        },
+        context,
+      );
+      assert.match(result.content ?? "", /Body: Deploy Run checks/);
+      assert.match(
+        result.content ?? "",
+        /https:\/\/example\.atlassian\.net\/wiki\/spaces\/SD\/pages\/20/,
+      );
+      assert.match(result.content ?? "", /Showing first 3 of 4/);
+      assert.match(result.content ?? "", /30 · guide\.pdf/);
+      assert.match(result.content ?? "", /40 — Looks good/);
+      assert.equal(
+        (result.details?.childPages as unknown[] | undefined)?.length,
+        3,
+      );
+      assert.equal(result.details?.includedCounts?.directChildren, 4);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});

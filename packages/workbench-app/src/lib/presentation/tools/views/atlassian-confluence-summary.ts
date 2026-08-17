@@ -19,10 +19,8 @@ import {
   draftArgSource,
   enabledFlags,
   formatConfluenceAttachment,
-  formatConfluenceOutcome,
   formatConfluencePage,
   formatConfluenceSpace,
-  outcomeStatusSummary,
   type SummaryBudget,
   sourceBoolean,
   sourceNumber,
@@ -45,11 +43,14 @@ const CONFLUENCE_ACTION_LABELS: Record<ConfluenceAction, string> = {
   search_spaces: "search spaces",
   search_pages: "search pages",
   get_page: "get page",
-  download_pages: "download pages",
+  download_page: "download page",
   create_page: "create page",
   update_page: "update page",
-  publish_pages: "publish pages",
-  upload_attachment: "upload attachment",
+  manage_comment: "manage comment",
+  manage_page: "manage page",
+  manage_label: "manage label",
+  manage_restriction: "manage restriction",
+  manage_attachment: "manage attachment",
 };
 
 const CONFLUENCE_INCLUDED_LABELS: Record<string, string> = {
@@ -179,7 +180,7 @@ function appendConfluenceRequestLines(
       appendSavePreference(lines, source);
       break;
     }
-    case "download_pages": {
+    case "download_page": {
       addLine(
         lines,
         "Root page",
@@ -285,34 +286,7 @@ function appendConfluenceRequestLines(
       appendSavePreference(lines, source);
       break;
     }
-    case "publish_pages": {
-      addLine(
-        lines,
-        "Input",
-        view?.inputPath ?? sourceString(source, "input_path"),
-      );
-      addLine(
-        lines,
-        "Create missing",
-        yesNo(sourceBoolean(source, "create_missing")),
-      );
-      addLine(
-        lines,
-        "Allow stale",
-        yesNo(sourceBoolean(source, "allow_stale")),
-      );
-      addTextBlock(
-        lines,
-        "Version message",
-        sourceString(source, "version_message"),
-        budget,
-      );
-      addLine(lines, "Limit", sourceNumber(source, "limit"));
-      appendMutationOptions(lines, source, "publish pages", view?.dryRun);
-      appendSavePreference(lines, source);
-      break;
-    }
-    case "upload_attachment": {
+    case "manage_attachment": {
       addLine(lines, "Page", view?.pageId ?? sourceString(source, "page_id"));
       addLine(lines, "File", sourceString(source, "file_path"));
       addLine(
@@ -393,7 +367,7 @@ function appendConfluenceOutcomeLines(
       );
       break;
     }
-    case "download_pages": {
+    case "download_page": {
       addLine(lines, "Bundle", view.downloadDir);
       addLine(lines, "Manifest", view.manifestPath);
       addLine(lines, "Pages JSONL", view.pagesJsonlPath);
@@ -423,22 +397,7 @@ function appendConfluenceOutcomeLines(
       appendPayloadSummary(lines, view.payload ?? details.payload, budget);
       break;
     }
-    case "publish_pages": {
-      addLine(
-        lines,
-        "Processed",
-        countLabel(view.outcomeCount ?? view.outcomes.length, "outcome"),
-      );
-      addLine(lines, "Outcome statuses", outcomeStatusSummary(view.outcomes));
-      appendList(
-        lines,
-        "Outcomes",
-        view.outcomes.map(formatConfluenceOutcome),
-        budget,
-      );
-      break;
-    }
-    case "upload_attachment": {
+    case "manage_attachment": {
       addLine(lines, "Page", view.pageId);
       const attachment = view.attachment ?? view.attachments[0];
       if (attachment)
@@ -460,16 +419,22 @@ function confluenceActionFromToolName(
       return "search_pages";
     case "confluence_get_page":
       return "get_page";
-    case "confluence_download_pages":
-      return "download_pages";
+    case "confluence_download_page":
+      return "download_page";
     case "confluence_create_page":
       return "create_page";
     case "confluence_update_page":
       return "update_page";
-    case "confluence_publish_pages":
-      return "publish_pages";
-    case "confluence_upload_attachment":
-      return "upload_attachment";
+    case "confluence_manage_comment":
+      return "manage_comment";
+    case "confluence_manage_page":
+      return "manage_page";
+    case "confluence_manage_label":
+      return "manage_label";
+    case "confluence_manage_restriction":
+      return "manage_restriction";
+    case "confluence_manage_attachment":
+      return "manage_attachment";
     default:
       return undefined;
   }

@@ -3,14 +3,24 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
+  JiraAttachmentSummaryPayload,
+  JiraBoardSummaryPayload,
+  JiraChangelogSummaryPayload,
+  JiraCommentSummaryPayload,
   JiraFieldSummaryPayload,
+  JiraIssueLinkSummaryPayload,
   JiraIssueSummaryPayload,
+  JiraIssueTypeSummaryPayload,
   JiraProjectSummaryPayload,
+  JiraRemoteLinkSummaryPayload,
+  JiraSprintSummaryPayload,
   JiraTransitionSummaryPayload,
   JiraUserSummaryPayload,
+  JiraWorklogSummaryPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import { atlassianPlainTextPreview } from "../common/atlassian-rich-text.js";
 import { buildProcessTextResult } from "../common/process-result.js";
 
 export const JIRA_DISPLAY_ITEM_LIMIT = 20;
@@ -37,6 +47,18 @@ export async function writeJiraArtifact(
     chars: text.length,
     lines: text.length === 0 ? 0 : text.split("\n").length,
   };
+}
+
+export async function maybeWriteJiraArtifact(
+  context: ToolExecutionContext,
+  kind: string,
+  payload: unknown,
+  saveToFile: unknown,
+): Promise<
+  { path: string; bytes: number; chars: number; lines: number } | undefined
+> {
+  if (saveToFile === false) return undefined;
+  return writeJiraArtifact(context, kind, payload);
 }
 
 export async function buildJiraTextResult({
@@ -127,7 +149,12 @@ export function summarizeJiraIssue(
     statusCategory: statusCategoryKeyOf(fields.status),
     assignee: truncateField(displayNameOf(fields.assignee)),
     priority: truncateField(nameOf(fields.priority)),
+    created: truncateField(stringField(fields.created)),
     updated: truncateField(stringField(fields.updated)),
+    resolution: truncateField(nameOf(fields.resolution)),
+    resolutionDate: truncateField(stringField(fields.resolutiondate)),
+    dueDate: truncateField(stringField(fields.duedate)),
+    descriptionPreview: atlassianPlainTextPreview(fields.description),
   }) as JiraIssueSummaryPayload;
 }
 
@@ -208,21 +235,233 @@ export function summarizeJiraField(
   }) as JiraFieldSummaryPayload;
 }
 
-export function summarizeJiraAttachment(
+export function summarizeJiraIssueType(
   value: unknown,
-): Record<string, unknown> | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const record = value as Record<string, unknown>;
-  const id = stringField(record.id);
+): JiraIssueTypeSummaryPayload | undefined {
+  const record = asRecord(value);
+  const idValue = record.id;
+  const id =
+    typeof idValue === "number" ? String(idValue) : stringField(idValue);
   if (!id) return undefined;
   return compactRecord({
     id,
-    filename: truncateField(stringField(record.filename)),
-    mimeType: truncateField(stringField(record.mimeType)),
-    size: typeof record.size === "number" ? record.size : undefined,
+    name: truncateField(stringField(record.name)),
+    description: truncateField(stringField(record.description)),
+    subtask: typeof record.subtask === "boolean" ? record.subtask : undefined,
+    hierarchyLevel:
+      typeof record.hierarchyLevel === "number"
+        ? Math.floor(record.hierarchyLevel)
+        : undefined,
+  }) as JiraIssueTypeSummaryPayload;
+}
+
+export function summarizeJiraAttachment(
+  value: unknown,
+): JiraAttachmentSummaryPayload | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const id = stringField(record.id);
+  const filename = truncateField(stringField(record.filename));
+  if (!id && !filename) return undefined;
+  return compactRecord({
+    id,
+    filename,
+    mediaType: truncateField(
+      stringField(record.mimeType) ?? stringField(record.mediaType),
+    ),
+    bytes:
+      typeof record.size === "number"
+        ? record.size
+        : typeof record.bytes === "number"
+          ? record.bytes
+          : undefined,
     author: truncateField(displayNameOf(record.author)),
     created: truncateField(stringField(record.created)),
-  });
+    path: stringField(record.path),
+  }) as JiraAttachmentSummaryPayload;
+}
+
+export function summarizeJiraBoard(
+  value: unknown,
+): JiraBoardSummaryPayload | undefined {
+  const record = asRecord(value);
+  const idValue = record.id;
+  const id =
+    typeof idValue === "number" ? String(idValue) : stringField(idValue);
+  if (!id) return undefined;
+  const location = asRecord(record.location);
+  return compactRecord({
+    id,
+    name: truncateField(stringField(record.name)),
+    type: truncateField(stringField(record.type)),
+    projectKey: truncateField(
+      stringField(location.projectKey) ?? stringField(record.projectKey),
+    ),
+    projectName: truncateField(
+      stringField(location.projectName) ?? stringField(record.projectName),
+    ),
+  }) as JiraBoardSummaryPayload;
+}
+
+export function summarizeJiraSprint(
+  value: unknown,
+): JiraSprintSummaryPayload | undefined {
+  const record = asRecord(value);
+  const idValue = record.id;
+  const id =
+    typeof idValue === "number" ? String(idValue) : stringField(idValue);
+  if (!id) return undefined;
+  const boardId = record.originBoardId;
+  return compactRecord({
+    id,
+    name: truncateField(stringField(record.name)),
+    state: truncateField(stringField(record.state)),
+    goal: truncateField(stringField(record.goal)),
+    startDate: truncateField(stringField(record.startDate)),
+    endDate: truncateField(stringField(record.endDate)),
+    completeDate: truncateField(stringField(record.completeDate)),
+    originBoardId:
+      typeof boardId === "number" ? String(boardId) : stringField(boardId),
+  }) as JiraSprintSummaryPayload;
+}
+
+export function summarizeJiraComment(
+  value: unknown,
+): JiraCommentSummaryPayload | undefined {
+  const record = asRecord(value);
+  const id = stringField(record.id);
+  if (!id && Object.keys(record).length === 0) return undefined;
+  return compactRecord({
+    id,
+    author: truncateField(displayNameOf(record.author)),
+    bodyPreview: atlassianPlainTextPreview(record.body),
+    visibility: truncateField(nameOf(record.visibility)),
+    created: truncateField(stringField(record.created)),
+    updated: truncateField(stringField(record.updated)),
+  }) as JiraCommentSummaryPayload;
+}
+
+export function summarizeJiraWorklog(
+  value: unknown,
+): JiraWorklogSummaryPayload | undefined {
+  const record = asRecord(value);
+  const id = stringField(record.id);
+  if (!id && Object.keys(record).length === 0) return undefined;
+  return compactRecord({
+    id,
+    author: truncateField(displayNameOf(record.author)),
+    timeSpent: truncateField(stringField(record.timeSpent)),
+    timeSpentSeconds:
+      typeof record.timeSpentSeconds === "number"
+        ? record.timeSpentSeconds
+        : undefined,
+    started: truncateField(stringField(record.started)),
+    commentPreview: atlassianPlainTextPreview(record.comment),
+  }) as JiraWorklogSummaryPayload;
+}
+
+export function summarizeJiraChangelog(
+  value: unknown,
+): JiraChangelogSummaryPayload | undefined {
+  const record = asRecord(value);
+  const items = Array.isArray(record.items) ? record.items : [];
+  const changes = items
+    .flatMap((item) => {
+      const change = asRecord(item);
+      const field = stringField(change.field) ?? stringField(change.fieldId);
+      if (!field) return [];
+      const from =
+        stringField(change.fromString) ?? stringField(change.from) ?? "(empty)";
+      const to =
+        stringField(change.toString) ?? stringField(change.to) ?? "(empty)";
+      return [truncateField(`${field}: ${from} -> ${to}`) ?? field];
+    })
+    .slice(0, 3);
+  const id = stringField(record.id);
+  if (!id && changes.length === 0) return undefined;
+  return compactRecord({
+    id,
+    author: truncateField(displayNameOf(record.author)),
+    created: truncateField(stringField(record.created)),
+    changes: changes.length > 0 ? changes : undefined,
+  }) as JiraChangelogSummaryPayload;
+}
+
+export function summarizeJiraRemoteLink(
+  value: unknown,
+): JiraRemoteLinkSummaryPayload | undefined {
+  const record = asRecord(value);
+  const object = asRecord(record.object);
+  const id = stringField(record.id);
+  const url = stringField(object.url) ?? stringField(record.url);
+  if (!id && !url) return undefined;
+  return compactRecord({
+    id,
+    title: truncateField(
+      stringField(object.title) ?? stringField(record.title),
+    ),
+    url,
+    relationship: truncateField(stringField(record.relationship)),
+  }) as JiraRemoteLinkSummaryPayload;
+}
+
+export function summarizeJiraIssueLink(
+  value: unknown,
+): JiraIssueLinkSummaryPayload | undefined {
+  const record = asRecord(value);
+  const type = asRecord(record.type);
+  const outward = asRecord(record.outwardIssue);
+  const inward = asRecord(record.inwardIssue);
+  const other = Object.keys(outward).length > 0 ? outward : inward;
+  return compactRecord({
+    id: stringField(record.id),
+    issueKey: stringField(record.issueKey),
+    otherIssueKey: stringField(record.otherIssueKey) ?? stringField(other.key),
+    linkType: truncateField(
+      stringField(record.linkType) ??
+        stringField(type.name) ??
+        stringField(type.outward) ??
+        stringField(type.inward),
+    ),
+    direction:
+      record.direction === "outward" || record.direction === "inward"
+        ? record.direction
+        : undefined,
+  }) as JiraIssueLinkSummaryPayload;
+}
+
+export function formatBoardSummaryLine(
+  summary: JiraBoardSummaryPayload,
+): string {
+  const parts = [
+    summary.id,
+    summary.name,
+    summary.type,
+    summary.projectKey
+      ? `project ${summary.projectKey}`
+      : summary.projectName
+        ? `project ${summary.projectName}`
+        : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `- ${parts}`;
+}
+
+export function formatIssueTypeSummaryLine(
+  summary: JiraIssueTypeSummaryPayload,
+): string {
+  const parts = [
+    summary.id,
+    summary.name,
+    summary.subtask === true ? "subtask" : undefined,
+    summary.hierarchyLevel !== undefined
+      ? `hierarchy ${summary.hierarchyLevel}`
+      : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `- ${parts}${summary.description ? ` — ${summary.description}` : ""}`;
 }
 
 export function formatUserSummaryLine(summary: JiraUserSummaryPayload): string {
@@ -262,6 +501,9 @@ export function formatIssueSummaryLine(
     summary.status,
     summary.priority ? `priority: ${summary.priority}` : undefined,
     summary.assignee ? `assignee: ${summary.assignee}` : undefined,
+    summary.created ? `created: ${summary.created}` : undefined,
+    summary.dueDate ? `due: ${summary.dueDate}` : undefined,
+    summary.resolution ? `resolution: ${summary.resolution}` : undefined,
   ]
     .filter(Boolean)
     .join(" · ");

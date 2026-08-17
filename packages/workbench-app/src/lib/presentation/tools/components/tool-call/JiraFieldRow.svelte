@@ -9,7 +9,7 @@ let { field }: Props = $props();
 const allowed = $derived(field.allowedValues ?? []);
 </script>
 
-<div class="grid gap-1 rounded-sm border bg-sidebar px-2.5 py-2">
+<div class="grid gap-1 px-2.5 py-2">
   <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
     {#if field.name}
       <span

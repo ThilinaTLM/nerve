@@ -1,4 +1,30 @@
 import { z } from "zod";
+import {
+  confluenceAttachmentSummarySchema,
+  confluenceCommentSummarySchema,
+  confluenceLabelSummarySchema,
+  confluencePageSummarySchema,
+  confluencePropertySummarySchema,
+  confluenceRestrictionSummarySchema,
+  confluenceSpaceSummarySchema,
+  confluenceTextDisplaySchema,
+  jiraAttachmentSummarySchema,
+  jiraBoardSummarySchema,
+  jiraChangelogSummarySchema,
+  jiraCommentSummarySchema,
+  jiraFieldSummarySchema,
+  jiraIssueLinkSummarySchema,
+  jiraIssueSummarySchema,
+  jiraIssueTypeSummarySchema,
+  jiraProjectSummarySchema,
+  jiraRemoteLinkSummarySchema,
+  jiraSprintSummarySchema,
+  jiraTextDisplaySchema,
+  jiraTransitionSummarySchema,
+  jiraUserSummarySchema,
+  jiraWorklogSummarySchema,
+} from "./atlassian-result-summaries.schema.js";
+export * from "./atlassian-result-summaries.schema.js";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/index.js";
 import {
   taskListeningPortSchema,
@@ -346,72 +372,6 @@ export const webFetchResultDetailsSchema = z.object({
 });
 export type WebFetchResultDetails = z.infer<typeof webFetchResultDetailsSchema>;
 
-export const jiraTextDisplaySchema = z.string().max(500);
-
-export const jiraIssueSummarySchema = z
-  .object({
-    key: z.string().min(1),
-    id: z.string().optional(),
-    summary: jiraTextDisplaySchema.optional(),
-    issueType: jiraTextDisplaySchema.optional(),
-    status: jiraTextDisplaySchema.optional(),
-    statusCategory: jiraTextDisplaySchema.optional(),
-    assignee: jiraTextDisplaySchema.optional(),
-    priority: jiraTextDisplaySchema.optional(),
-    updated: jiraTextDisplaySchema.optional(),
-  })
-  .passthrough();
-export type JiraIssueSummaryPayload = z.infer<typeof jiraIssueSummarySchema>;
-
-export const jiraProjectSummarySchema = z
-  .object({
-    key: z.string().min(1),
-    id: z.string().optional(),
-    name: jiraTextDisplaySchema.optional(),
-    projectTypeKey: jiraTextDisplaySchema.optional(),
-    lead: jiraTextDisplaySchema.optional(),
-  })
-  .passthrough();
-export type JiraProjectSummaryPayload = z.infer<
-  typeof jiraProjectSummarySchema
->;
-
-export const jiraTransitionSummarySchema = z
-  .object({
-    id: z.string().min(1),
-    name: jiraTextDisplaySchema.optional(),
-    to: jiraTextDisplaySchema.optional(),
-    toStatusCategory: jiraTextDisplaySchema.optional(),
-  })
-  .passthrough();
-export type JiraTransitionSummaryPayload = z.infer<
-  typeof jiraTransitionSummarySchema
->;
-
-export const jiraUserSummarySchema = z
-  .object({
-    accountId: z.string().min(1),
-    displayName: jiraTextDisplaySchema.optional(),
-    emailAddress: jiraTextDisplaySchema.optional(),
-    active: z.boolean().optional(),
-    accountType: jiraTextDisplaySchema.optional(),
-  })
-  .passthrough();
-export type JiraUserSummaryPayload = z.infer<typeof jiraUserSummarySchema>;
-
-export const jiraFieldSummarySchema = z
-  .object({
-    id: z.string().min(1),
-    name: jiraTextDisplaySchema.optional(),
-    key: jiraTextDisplaySchema.optional(),
-    required: z.boolean().optional(),
-    type: jiraTextDisplaySchema.optional(),
-    custom: z.boolean().optional(),
-    allowedValues: z.array(jiraTextDisplaySchema).optional(),
-  })
-  .passthrough();
-export type JiraFieldSummaryPayload = z.infer<typeof jiraFieldSummarySchema>;
-
 export const jiraIncludedCountsSchema = z
   .object({
     comments: z.number().int().nonnegative().optional(),
@@ -426,6 +386,7 @@ export const jiraIncludedCountsSchema = z
     worklogs: z.number().int().nonnegative().optional(),
     changelog: z.number().int().nonnegative().optional(),
     remoteLinks: z.number().int().nonnegative().optional(),
+    issueLinks: z.number().int().nonnegative().optional(),
     attachments: z.number().int().nonnegative().optional(),
     editmetaFields: z.number().int().nonnegative().optional(),
   })
@@ -443,6 +404,7 @@ export const jiraResultDetailsSchema = z
     nextPageToken: z.string().optional(),
     issues: z.array(jiraIssueSummarySchema).optional(),
     users: z.array(jiraUserSummarySchema).optional(),
+    searchScope: z.enum(["issue", "project", "directory"]).optional(),
     userCount: z.number().int().nonnegative().optional(),
     displayedUserCount: z.number().int().nonnegative().optional(),
     issue: jiraIssueSummarySchema.optional(),
@@ -460,70 +422,64 @@ export const jiraResultDetailsSchema = z
     transition: jiraTransitionSummarySchema.optional(),
     transitions: z.array(jiraTransitionSummarySchema).optional(),
     fields: z.array(jiraFieldSummarySchema).optional(),
+    issueTypes: z.array(jiraIssueTypeSummarySchema).optional(),
+    issueTypeCount: z.number().int().nonnegative().optional(),
+    displayedIssueTypeCount: z.number().int().nonnegative().optional(),
     fieldCount: z.number().int().nonnegative().optional(),
     displayedFieldCount: z.number().int().nonnegative().optional(),
     payload: z.unknown().optional(),
     dryRun: z.boolean().optional(),
     resolvedAssignee: jiraUserSummarySchema.optional(),
+    operation: jiraTextDisplaySchema.optional(),
+    boardId: z.string().optional(),
+    board: jiraBoardSummarySchema.optional(),
+    boards: z.array(jiraBoardSummarySchema).optional(),
+    boardCount: z.number().int().nonnegative().optional(),
+    displayedBoardCount: z.number().int().nonnegative().optional(),
+    startAt: z.number().int().nonnegative().optional(),
+    maxResults: z.number().int().nonnegative().optional(),
+    sprintId: z.string().optional(),
+    sprint: jiraSprintSummarySchema.optional(),
+    sprints: z.array(jiraSprintSummarySchema).optional(),
+    sprintCount: z.number().int().nonnegative().optional(),
+    displayedSprintCount: z.number().int().nonnegative().optional(),
+    backlogIssues: z.array(jiraIssueSummarySchema).optional(),
+    backlogCount: z.number().int().nonnegative().optional(),
+    attachmentId: z.string().optional(),
+    attachment: jiraAttachmentSummarySchema.optional(),
+    attachments: z.array(jiraAttachmentSummarySchema).optional(),
+    filename: jiraTextDisplaySchema.optional(),
+    mediaType: jiraTextDisplaySchema.optional(),
+    bytes: z.number().int().nonnegative().optional(),
+    path: z.string().optional(),
+    commentSummary: jiraCommentSummarySchema.optional(),
+    comments: z.array(jiraCommentSummarySchema).optional(),
+    displayedCommentCount: z.number().int().nonnegative().optional(),
+    worklogId: z.string().optional(),
+    worklog: jiraWorklogSummarySchema.optional(),
+    worklogs: z.array(jiraWorklogSummarySchema).optional(),
+    displayedWorklogCount: z.number().int().nonnegative().optional(),
+    changelogEntries: z.array(jiraChangelogSummarySchema).optional(),
+    displayedChangelogCount: z.number().int().nonnegative().optional(),
+    issueLink: jiraIssueLinkSummarySchema.optional(),
+    issueLinks: z.array(jiraIssueLinkSummarySchema).optional(),
+    displayedIssueLinkCount: z.number().int().nonnegative().optional(),
+    remoteLinks: z.array(jiraRemoteLinkSummarySchema).optional(),
+    displayedRemoteLinkCount: z.number().int().nonnegative().optional(),
+    linkId: z.string().optional(),
+    otherIssueKey: z.string().optional(),
+    linkType: jiraTextDisplaySchema.optional(),
+    direction: z.enum(["outward", "inward"]).optional(),
+    rankBeforeIssueKey: z.string().optional(),
+    rankAfterIssueKey: z.string().optional(),
+    previousState: jiraTextDisplaySchema.optional(),
+    resultingState: jiraTextDisplaySchema.optional(),
     comment: z.unknown().optional(),
     transitionCount: z.number().int().nonnegative().optional(),
     displayedTransitionCount: z.number().int().nonnegative().optional(),
   })
   .passthrough();
 export type JiraResultDetailsPayload = z.infer<typeof jiraResultDetailsSchema>;
-
-export const confluenceTextDisplaySchema = z.string().max(500);
-
-export const confluenceSpaceSummarySchema = z
-  .object({
-    id: z.string().min(1),
-    key: confluenceTextDisplaySchema.optional(),
-    name: confluenceTextDisplaySchema.optional(),
-    type: confluenceTextDisplaySchema.optional(),
-    status: confluenceTextDisplaySchema.optional(),
-    homepageId: z.string().optional(),
-  })
-  .passthrough();
-export type ConfluenceSpaceSummaryPayload = z.infer<
-  typeof confluenceSpaceSummarySchema
->;
-
-export const confluencePageSummarySchema = z
-  .object({
-    id: z.string().min(1),
-    title: confluenceTextDisplaySchema.optional(),
-    spaceId: z.string().optional(),
-    spaceKey: confluenceTextDisplaySchema.optional(),
-    parentId: z.string().optional(),
-    status: confluenceTextDisplaySchema.optional(),
-    versionNumber: z.number().int().nonnegative().optional(),
-    webui: z.string().optional(),
-    storagePath: z.string().optional(),
-    markdownPath: z.string().optional(),
-    attachmentDir: z.string().optional(),
-  })
-  .passthrough();
-export type ConfluencePageSummaryPayload = z.infer<
-  typeof confluencePageSummarySchema
->;
-
-export const confluenceAttachmentSummarySchema = z
-  .object({
-    id: z.string().optional(),
-    fileId: z.string().optional(),
-    filename: confluenceTextDisplaySchema.optional(),
-    title: confluenceTextDisplaySchema.optional(),
-    mediaType: confluenceTextDisplaySchema.optional(),
-    fileSize: z.number().int().nonnegative().optional(),
-    versionNumber: z.number().int().nonnegative().optional(),
-    downloadLink: z.string().optional(),
-    path: z.string().optional(),
-    snippet: z.string().optional(),
-  })
-  .passthrough();
-export type ConfluenceAttachmentSummaryPayload = z.infer<
-  typeof confluenceAttachmentSummarySchema
->;
 
 export const confluenceIncludedCountsSchema = z
   .object({
@@ -534,6 +490,9 @@ export const confluenceIncludedCountsSchema = z
     operations: z.number().int().nonnegative().optional(),
     versions: z.number().int().nonnegative().optional(),
     directChildren: z.number().int().nonnegative().optional(),
+    footerComments: z.number().int().nonnegative().optional(),
+    inlineComments: z.number().int().nonnegative().optional(),
+    restrictions: z.number().int().nonnegative().optional(),
     attachments: z.number().int().nonnegative().optional(),
     downloadedAttachments: z.number().int().nonnegative().optional(),
   })
@@ -580,6 +539,14 @@ export const confluenceResultDetailsSchema = z
     displayedPageCount: z.number().int().nonnegative().optional(),
     attachments: z.array(confluenceAttachmentSummarySchema).optional(),
     attachment: confluenceAttachmentSummarySchema.optional(),
+    childPages: z.array(confluencePageSummarySchema).optional(),
+    displayedChildPageCount: z.number().int().nonnegative().optional(),
+    footerComments: z.array(confluenceCommentSummarySchema).optional(),
+    displayedFooterCommentCount: z.number().int().nonnegative().optional(),
+    inlineComments: z.array(confluenceCommentSummarySchema).optional(),
+    displayedInlineCommentCount: z.number().int().nonnegative().optional(),
+    properties: z.array(confluencePropertySummarySchema).optional(),
+    displayedPropertyCount: z.number().int().nonnegative().optional(),
     attachmentCount: z.number().int().nonnegative().optional(),
     displayedAttachmentCount: z.number().int().nonnegative().optional(),
     includedCounts: confluenceIncludedCountsSchema.optional(),
@@ -592,6 +559,25 @@ export const confluenceResultDetailsSchema = z
     displayedOutcomeCount: z.number().int().nonnegative().optional(),
     payload: z.unknown().optional(),
     dryRun: z.boolean().optional(),
+    operation: confluenceTextDisplaySchema.optional(),
+    commentId: z.string().optional(),
+    comment: confluenceCommentSummarySchema.optional(),
+    kind: z.enum(["footer", "inline"]).optional(),
+    label: confluenceTextDisplaySchema.optional(),
+    labels: z.array(confluenceLabelSummarySchema).optional(),
+    labelCount: z.number().int().nonnegative().optional(),
+    prefix: confluenceTextDisplaySchema.optional(),
+    restrictionOperation: z.enum(["read", "update"]).optional(),
+    subjectType: z.enum(["user", "group"]).optional(),
+    subjectId: z.string().optional(),
+    restrictions: z.array(confluenceRestrictionSummarySchema).optional(),
+    restrictionCount: z.number().int().nonnegative().optional(),
+    previousStatus: confluenceTextDisplaySchema.optional(),
+    resultingStatus: confluenceTextDisplaySchema.optional(),
+    attachmentId: z.string().optional(),
+    filename: confluenceTextDisplaySchema.optional(),
+    newFilename: confluenceTextDisplaySchema.optional(),
+    bytes: z.number().int().nonnegative().optional(),
     outputLimits: toolOutputLimitsSchema.optional(),
   })
   .passthrough();

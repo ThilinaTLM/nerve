@@ -8,11 +8,8 @@ import {
   plural,
   statusDot,
 } from "./tool-presentation-helpers";
-import type {
-  MetaItem,
-  PrimaryArg,
-  ToolPresentation,
-} from "./tool-presentation-types";
+import { confluencePrimaryArg, jiraPrimaryArg } from "./atlassian-primary-args";
+import type { MetaItem, ToolPresentation } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {
   aggregateExploreTasks,
@@ -62,14 +59,13 @@ function formatCount(
  */
 function atlassianDetailsAction(
   itemGroups: ReadonlyArray<readonly [count: number, noun: string]>,
-  contentLineCount: number,
 ) {
   for (const [count, noun] of itemGroups) {
     if (count > ATLASSIAN_COLLAPSED_ITEMS) {
       return detailsActionFor(count, noun, "head", ATLASSIAN_COLLAPSED_ITEMS);
     }
   }
-  return detailsActionFor(contentLineCount, "lines");
+  return undefined;
 }
 
 function isOneLine(text: string | undefined): boolean {
@@ -87,87 +83,6 @@ function hasOutputArtifactPath(
     "outputArtifacts" in view &&
     view.outputArtifacts?.some((artifact) => artifact.path === path),
   );
-}
-
-function confluencePrimaryArg(
-  view: Extract<ToolView, { kind: "confluence" }>,
-): PrimaryArg | undefined {
-  switch (view.action) {
-    case "search_spaces":
-      return view.query ? { text: view.query } : undefined;
-    case "search_pages":
-      return view.cql
-        ? { text: view.cql }
-        : view.query
-          ? { text: view.query }
-          : undefined;
-    case "download_pages":
-      return view.downloadDir
-        ? { text: basename(view.downloadDir), openPath: view.downloadDir }
-        : view.pageId
-          ? { text: view.pageId }
-          : undefined;
-    case "publish_pages":
-      return view.inputPath
-        ? { text: basename(view.inputPath), openPath: view.inputPath }
-        : undefined;
-    case "upload_attachment":
-      return view.attachment?.filename
-        ? { text: view.attachment.filename }
-        : view.pageId
-          ? { text: view.pageId }
-          : undefined;
-    case "get_page":
-    case "create_page":
-    case "update_page":
-      return view.page?.title
-        ? {
-            text: view.page.id
-              ? `${view.page.id} · ${view.page.title}`
-              : view.page.title,
-          }
-        : view.pageId
-          ? { text: view.pageId }
-          : view.title
-            ? { text: view.title }
-            : undefined;
-    default:
-      return undefined;
-  }
-}
-
-function jiraPrimaryArg(
-  view: Extract<ToolView, { kind: "jira" }>,
-): PrimaryArg | undefined {
-  switch (view.action) {
-    case "search_users":
-      return view.query ? { text: view.query } : undefined;
-    case "search_issues":
-      return view.jql ? { text: view.jql } : undefined;
-    case "get_project": {
-      const label = view.project?.name
-        ? `${view.project.key} · ${view.project.name}`
-        : (view.projectKey ?? view.project?.key);
-      return label ? { text: label } : undefined;
-    }
-    case "create_issue":
-      return view.issueKey
-        ? { text: view.issueKey }
-        : view.summary
-          ? {
-              text: view.issueType
-                ? `${view.issueType} · ${view.summary}`
-                : view.summary,
-            }
-          : undefined;
-    case "get_issue":
-    case "update_issue":
-    case "add_comment":
-    case "transition_issue":
-      return view.issueKey ? { text: view.issueKey } : undefined;
-    default:
-      return undefined;
-  }
 }
 
 function outputMeta(
@@ -544,6 +459,33 @@ export function toolPresentation(
             countChip(view.includedCounts.versions, "version");
           }
           break;
+        case "search_boards":
+          countChip(view.boardCount ?? view.boards.length, "board");
+          if (view.total !== undefined && view.total !== view.boardCount)
+            meta.push({ text: `${view.total} total` });
+          break;
+        case "get_board":
+          countChip(view.sprintCount, "sprint");
+          countChip(view.backlogCount, "backlog issue");
+          if (view.board?.type) meta.push({ text: view.board.type });
+          if (view.board?.projectKey)
+            meta.push({ text: view.board.projectKey, mono: true });
+          break;
+        case "get_sprint":
+          countChip(view.issueCount, "issue");
+          if (view.sprint?.state) meta.push({ text: view.sprint.state });
+          if (view.sprint?.originBoardId)
+            meta.push({
+              text: `board ${view.sprint.originBoardId}`,
+              mono: true,
+            });
+          break;
+        case "download_attachment":
+          if (view.mediaType ?? view.attachment?.mediaType)
+            meta.push({
+              text: view.mediaType ?? view.attachment?.mediaType ?? "file",
+            });
+          break;
         case "create_issue":
           if (view.projectKey)
             meta.push({ text: `project ${view.projectKey}`, mono: true });
@@ -555,9 +497,40 @@ export function toolPresentation(
             meta.push({ text: `${plural(updated, "field")} updated` });
           break;
         }
-        case "add_comment":
+        case "manage_comment":
           if (view.commentId)
             meta.push({ text: `comment ${view.commentId}`, mono: true });
+          break;
+        case "manage_worklog":
+          if (view.operation) meta.push({ text: view.operation });
+          if (view.worklogId)
+            meta.push({ text: `worklog ${view.worklogId}`, mono: true });
+          break;
+        case "manage_issue_link":
+          if (view.operation) meta.push({ text: view.operation });
+          if (view.linkType) meta.push({ text: view.linkType });
+          if (view.linkId) meta.push({ text: view.linkId, mono: true });
+          break;
+        case "manage_attachment":
+          if (view.operation) meta.push({ text: view.operation });
+          if (view.issueKey) meta.push({ text: view.issueKey, mono: true });
+          if (view.attachmentId)
+            meta.push({ text: view.attachmentId, mono: true });
+          else if (view.attachment?.id)
+            meta.push({ text: view.attachment.id, mono: true });
+          break;
+        case "manage_sprint":
+          if (view.operation) meta.push({ text: view.operation });
+          if (view.resultingState ?? view.sprint?.state)
+            meta.push({
+              text: view.resultingState ?? view.sprint?.state ?? "",
+            });
+          break;
+        case "manage_backlog":
+          if (view.operation)
+            meta.push({ text: view.operation.replaceAll("_", " ") });
+          if (view.sprintId)
+            meta.push({ text: `sprint ${view.sprintId}`, mono: true });
           break;
         case "transition_issue":
           if (view.transition?.name) meta.push({ text: view.transition.name });
@@ -573,14 +546,14 @@ export function toolPresentation(
       meta.push(...outputMeta(view));
       const detailsAction =
         previewDetailsAction ??
-        atlassianDetailsAction(
-          [
-            [view.issues.length, "issues"],
-            [view.users.length, "users"],
-            [view.transitions.length, "transitions"],
-          ],
-          view.contentLineCount,
-        );
+        atlassianDetailsAction([
+          [view.issueCount ?? view.issues.length, "issues"],
+          [view.userCount ?? view.users.length, "users"],
+          [view.transitionCount ?? view.transitions.length, "transitions"],
+          [view.boardCount ?? view.boards.length, "boards"],
+          [view.sprintCount ?? view.sprints.length, "sprints"],
+          [view.backlogCount ?? view.backlogIssues.length, "issues"],
+        ]);
       return {
         ...base,
         primaryArg: jiraPrimaryArg(view),
@@ -600,9 +573,9 @@ export function toolPresentation(
           countChip(view.spaceCount ?? view.spaces.length, "space");
           break;
         case "search_pages":
-        case "download_pages":
+        case "download_page":
           countChip(view.pageCount ?? view.pages.length, "page");
-          if (view.action === "download_pages") {
+          if (view.action === "download_page") {
             const downloaded =
               view.includedCounts?.downloadedAttachments ??
               view.includedCounts?.attachments;
@@ -647,10 +620,32 @@ export function toolPresentation(
         case "update_page":
           // Space key and version render in the page row's chip line.
           break;
-        case "publish_pages":
-          countChip(view.outcomeCount ?? view.outcomes.length, "outcome");
+        case "manage_comment":
+          if (view.operation) meta.push({ text: view.operation });
+          if (view.commentKind) meta.push({ text: view.commentKind });
+          if (view.commentId)
+            meta.push({ text: `comment ${view.commentId}`, mono: true });
           break;
-        case "upload_attachment":
+        case "manage_page":
+          if (view.operation) meta.push({ text: view.operation });
+          if (view.resultingStatus) meta.push({ text: view.resultingStatus });
+          break;
+        case "manage_label":
+          if (view.operation) meta.push({ text: view.operation });
+          countChip(view.labelCount ?? view.labels.length, "label");
+          if (view.prefix && view.prefix !== "global")
+            meta.push({ text: view.prefix });
+          break;
+        case "manage_restriction":
+          if (view.operation)
+            meta.push({ text: view.operation.replaceAll("_", " ") });
+          if (view.subjectType) meta.push({ text: view.subjectType });
+          countChip(
+            view.restrictionCount ?? view.restrictions.length,
+            "restriction",
+          );
+          break;
+        case "manage_attachment":
           countChip(
             view.attachmentCount ?? view.attachments.length,
             "attachment",
@@ -662,14 +657,13 @@ export function toolPresentation(
       meta.push(...outputMeta(view));
       const detailsAction =
         previewDetailsAction ??
-        atlassianDetailsAction(
-          [
-            [view.pages.length, "pages"],
-            [view.spaces.length, "spaces"],
-            [view.outcomes.length, "outcomes"],
-          ],
-          view.contentLineCount,
-        );
+        atlassianDetailsAction([
+          [view.pageCount ?? view.pages.length, "pages"],
+          [view.spaceCount ?? view.spaces.length, "spaces"],
+          [view.outcomeCount ?? view.outcomes.length, "outcomes"],
+          [view.labelCount ?? view.labels.length, "labels"],
+          [view.restrictionCount ?? view.restrictions.length, "restrictions"],
+        ]);
       return {
         ...base,
         primaryArg: confluencePrimaryArg(view),

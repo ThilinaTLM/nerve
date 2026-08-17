@@ -119,7 +119,7 @@ export async function readSinglePageRow(
   if (rows.length > 1) {
     throw new ToolExecutionError(
       "CONFLUENCE_PAGE_FILE_AMBIGUOUS",
-      `Expected one page row in ${path}, found ${rows.length}. Use confluence_publish_pages for multi-row files.`,
+      `Expected exactly one page row in ${path}, found ${rows.length}. Bulk page publishing is not supported.`,
     );
   }
   return { row: rows[0], path };

@@ -21,9 +21,11 @@ import {
   countLabel,
   draftArgSource,
   enabledFlags,
+  formatJiraBoard,
   formatJiraField,
   formatJiraIssue,
   formatJiraProject,
+  formatJiraSprint,
   formatJiraTransition,
   formatJiraUser,
   jiraBodyText,
@@ -50,9 +52,18 @@ const JIRA_ACTION_LABELS: Record<JiraAction, string> = {
   search_issues: "search issues",
   get_issue: "get issue",
   get_project: "get project",
+  search_boards: "search boards",
+  get_board: "get board",
+  get_sprint: "get sprint",
+  download_attachment: "download attachment",
   create_issue: "create issue",
   update_issue: "update issue",
-  add_comment: "add comment",
+  manage_comment: "manage comment",
+  manage_worklog: "manage worklog",
+  manage_issue_link: "manage issue link",
+  manage_attachment: "manage attachment",
+  manage_sprint: "manage sprint",
+  manage_backlog: "manage backlog",
   transition_issue: "transition issue",
 };
 
@@ -311,7 +322,7 @@ function appendJiraRequestLines(
       );
       break;
     }
-    case "add_comment": {
+    case "manage_comment": {
       addLine(
         lines,
         "Issue",
@@ -340,6 +351,36 @@ function appendJiraRequestLines(
       );
       if (source.status !== "completed")
         addLine(lines, "Mode", "will add comment");
+      break;
+    }
+    case "manage_attachment": {
+      const operation = view?.operation ?? sourceString(source, "action");
+      addLine(lines, "Action", operation);
+      if (operation === "delete") {
+        addLine(
+          lines,
+          "Attachment id",
+          view?.attachmentId ?? sourceString(source, "attachment_id"),
+        );
+      } else {
+        addLine(
+          lines,
+          "Issue",
+          view?.issueKey ?? sourceString(source, "issue_key"),
+        );
+        addLine(lines, "File", sourceString(source, "file_path"));
+        addLine(
+          lines,
+          "Filename",
+          view?.filename ?? sourceString(source, "filename"),
+        );
+      }
+      appendMutationOptions(
+        lines,
+        source,
+        operation === "delete" ? "delete attachment" : "upload attachment",
+        view?.dryRun,
+      );
       break;
     }
     case "transition_issue": {
@@ -433,6 +474,33 @@ function appendJiraOutcomeLines(
       appendList(lines, "Fields", view.fields.map(formatJiraField), budget);
       break;
     }
+    case "search_boards": {
+      addLine(
+        lines,
+        "Returned",
+        countLabel(view.boardCount ?? view.boards.length, "board"),
+      );
+      appendList(lines, "Boards", view.boards.map(formatJiraBoard), budget);
+      break;
+    }
+    case "get_board": {
+      if (view.board) addLine(lines, "Board", formatJiraBoard(view.board));
+      addLine(lines, "Sprints", countLabel(view.sprintCount, "sprint"));
+      addLine(lines, "Backlog", countLabel(view.backlogCount, "issue"));
+      appendList(
+        lines,
+        "Sprint details",
+        view.sprints.map(formatJiraSprint),
+        budget,
+      );
+      appendList(
+        lines,
+        "Backlog issues",
+        view.backlogIssues.map(formatJiraIssue),
+        budget,
+      );
+      break;
+    }
     case "create_issue": {
       addLine(
         lines,
@@ -463,9 +531,17 @@ function appendJiraOutcomeLines(
       appendPayloadSummary(lines, view.payload ?? details.payload, budget);
       break;
     }
-    case "add_comment": {
+    case "manage_comment": {
       addLine(lines, "Issue", view.issueKey);
       addLine(lines, "Comment id", view.commentId);
+      addLine(lines, "Result", view.messageLines[0]);
+      break;
+    }
+    case "manage_attachment": {
+      addLine(lines, "Action", view.operation);
+      addLine(lines, "Issue", view.issueKey);
+      addLine(lines, "Attachment id", view.attachmentId ?? view.attachment?.id);
+      addLine(lines, "Filename", view.filename ?? view.attachment?.filename);
       addLine(lines, "Result", view.messageLines[0]);
       break;
     }
@@ -517,12 +593,30 @@ function jiraActionFromToolName(
       return "get_issue";
     case "jira_get_project":
       return "get_project";
+    case "jira_search_boards":
+      return "search_boards";
+    case "jira_get_board":
+      return "get_board";
+    case "jira_get_sprint":
+      return "get_sprint";
+    case "jira_download_attachment":
+      return "download_attachment";
     case "jira_create_issue":
       return "create_issue";
     case "jira_update_issue":
       return "update_issue";
-    case "jira_add_comment":
-      return "add_comment";
+    case "jira_manage_comment":
+      return "manage_comment";
+    case "jira_manage_worklog":
+      return "manage_worklog";
+    case "jira_manage_issue_link":
+      return "manage_issue_link";
+    case "jira_manage_attachment":
+      return "manage_attachment";
+    case "jira_manage_sprint":
+      return "manage_sprint";
+    case "jira_manage_backlog":
+      return "manage_backlog";
     case "jira_transition_issue":
       return "transition_issue";
     default:
@@ -537,6 +631,13 @@ function hasJiraOutcome(view: JiraView): boolean {
     view.users.length > 0 ||
     view.issue ||
     view.project ||
+    view.board ||
+    view.boards.length > 0 ||
+    view.boardCount !== undefined ||
+    view.sprints.length > 0 ||
+    view.sprintCount !== undefined ||
+    view.backlogIssues.length > 0 ||
+    view.backlogCount !== undefined ||
     view.transitions.length > 0 ||
     view.fields.length > 0 ||
     view.commentId ||

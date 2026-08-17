@@ -4,11 +4,10 @@ import type { ToolArgumentSource } from "./argument-source";
 import {
   atlassianDraftBody,
   draftField,
-  dryRunField,
   optionalDraftField,
   streamedLineCount,
 } from "./atlassian-draft";
-import { boundedText, plural, textArg } from "./core-specs";
+import { boundedText, textArg } from "./core-specs";
 import {
   argumentPresentation,
   type ToolArgumentBody,
@@ -181,8 +180,8 @@ export const confluenceToolLifecycleSpecs = {
       });
     },
   }),
-  confluence_download_pages: spec({
-    name: "confluence_download_pages",
+  confluence_download_page: spec({
+    name: "confluence_download_page",
     argumentRegion: "none",
     resultPlaceholder: { variant: "list", rows: 3 },
     completedView: "confluence",
@@ -266,66 +265,86 @@ export const confluenceToolLifecycleSpecs = {
       });
     },
   }),
-  confluence_publish_pages: spec({
-    name: "confluence_publish_pages",
+  confluence_manage_comment: spec({
+    name: "confluence_manage_comment",
     argumentRegion: "until-result",
     completedView: "confluence",
-    present: (source) => {
-      const inputPath = source.string("input_path");
-      const pageTitles = source.nestedStrings("title");
-      const allowStale = source.boolean("allow_stale") === true;
-      const body = atlassianDraftBody({
-        fields: [
-          draftField("Source", inputPath, { mono: true }),
-          ...optionalDraftField(
-            "Pages",
-            pageTitles.length
-              ? `${plural(pageTitles.length, "page")}: ${pageTitles
-                  .slice(0, 5)
-                  .join(", ")}${pageTitles.length > 5 ? ", …" : ""}`
-              : undefined,
-          ),
-          ...optionalDraftField(
-            "Version message",
-            source.string("version_message"),
-          ),
-          draftField(
-            "Conflict handling",
-            allowStale ? "allow stale" : "enforce versions",
-            allowStale ? { tone: "warning" } : {},
-          ),
-          ...(source.boolean("create_missing") === true
-            ? [draftField("Create missing", "yes")]
-            : []),
-          ...dryRunField(source),
-        ],
-      });
-      return argumentPresentation({
-        primaryArg: inputPath
-          ? {
-              text: inputPath.split(/[\\/]/).pop() || inputPath,
-              openPath: inputPath,
-            }
-          : textArg("Page bundle"),
-        secondary: [
-          ...dryRunMeta(source),
-          ...(pageTitles.length
-            ? [{ text: plural(pageTitles.length, "page") }]
-            : []),
-          ...(source.boolean("create_missing")
-            ? [{ text: "create missing" }]
-            : []),
-          ...(source.boolean("allow_stale")
-            ? [{ text: "allow stale", tone: "warning" as const }]
-            : []),
-        ],
-        body,
-        safetyNotes: mutationSafety(source, "publish the pages"),
-      });
-    },
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          [
+            source.string("action"),
+            source.string("comment_id") ?? source.string("page_id"),
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          "Confluence comment",
+        ),
+        secondary: dryRunMeta(source),
+        safetyNotes: mutationSafety(source, "manage the comment"),
+      }),
   }),
-  confluence_upload_attachment: spec({
-    name: "confluence_upload_attachment",
+  confluence_manage_page: spec({
+    name: "confluence_manage_page",
+    argumentRegion: "until-result",
+    completedView: "confluence",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          [source.string("action"), source.string("page_id")]
+            .filter(Boolean)
+            .join(" · "),
+          "Confluence page",
+        ),
+        secondary: dryRunMeta(source),
+        safetyNotes: mutationSafety(
+          source,
+          `${source.string("action") ?? "manage"} the page`,
+        ),
+      }),
+  }),
+  confluence_manage_label: spec({
+    name: "confluence_manage_label",
+    argumentRegion: "until-result",
+    completedView: "confluence",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          [
+            source.string("action"),
+            source.string("label"),
+            source.string("page_id"),
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          "Confluence label",
+        ),
+        secondary: dryRunMeta(source),
+        safetyNotes: mutationSafety(source, "manage the label"),
+      }),
+  }),
+  confluence_manage_restriction: spec({
+    name: "confluence_manage_restriction",
+    argumentRegion: "until-result",
+    completedView: "confluence",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          [
+            source.string("action"),
+            source.string("operation"),
+            source.string("page_id"),
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          "Confluence restriction",
+        ),
+        secondary: dryRunMeta(source),
+        safetyNotes: mutationSafety(source, "manage the restriction"),
+      }),
+  }),
+  confluence_manage_attachment: spec({
+    name: "confluence_manage_attachment",
     argumentRegion: "none",
     completedView: "confluence",
     present: (source, stage) => {
@@ -360,9 +379,10 @@ export const confluenceToolLifecycleSpecs = {
                 ],
               })
             : undefined,
-        safetyNotes: [
-          "Uploads this local file to the selected Confluence page.",
-        ],
+        safetyNotes: mutationSafety(
+          source,
+          `${source.string("action") ?? "manage"} the attachment`,
+        ),
       });
     },
   }),

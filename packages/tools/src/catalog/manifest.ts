@@ -62,6 +62,11 @@ for (const definition of toolManifest) {
   if (!definition.group || !definition.baseRisk || !definition.executionKind) {
     throw new Error(`Incomplete tool metadata: ${definition.name}`);
   }
+  if (definition.parameters.type !== "object") {
+    throw new Error(
+      `Tool parameters must use an object root: ${definition.name}`,
+    );
+  }
   if (
     definition.executionKind === "local" &&
     typeof (definition as { executor?: unknown }).executor !== "function"

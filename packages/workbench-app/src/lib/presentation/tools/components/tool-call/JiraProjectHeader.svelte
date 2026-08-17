@@ -7,7 +7,7 @@ type Props = { project: JiraProjectSummaryPayload };
 let { project }: Props = $props();
 </script>
 
-<div class="grid gap-1.5 rounded-sm border bg-sidebar px-2.5 py-2">
+<div class="grid gap-1.5 px-2.5 py-2">
   <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
     <span class="font-mono text-xs font-semibold text-primary"
       >{project.key}</span
