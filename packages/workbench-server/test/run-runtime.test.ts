@@ -189,6 +189,9 @@ function fixture(
       cancelSubagents: async () => "not_running",
       cancelInteraction: async () => "not_running",
     },
+    terminalization: {
+      terminalize: async () => undefined,
+    },
     clock: { now: () => new Date("2026-07-12T00:00:59.000Z") },
     ids: { next: () => String(++id) },
     integrity: { checksum },

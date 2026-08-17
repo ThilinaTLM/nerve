@@ -23,6 +23,23 @@ describe("buildConversationTimeline committed transcript", () => {
     assert.equal(child.items[0]?.kind, "tool");
   });
 
+  it("does not append unmatched terminal tools to a primary conversation", () => {
+    const terminal = toolCall(
+      "tool_orphaned",
+      "2026-01-01T00:00:01.000Z",
+      "bash",
+      undefined,
+      { status: "failed", runId: "run_failed" },
+    );
+
+    const timeline = buildConversationTimeline(
+      [{ id: "entry_final", role: "assistant", text: "All done." }],
+      [terminal],
+    );
+
+    assert.deepEqual(keys(timeline), ["entry_final"]);
+  });
+
   it("anchors historical tool cards at matching tool-result entries", () => {
     const transcript: TranscriptItem[] = [
       {

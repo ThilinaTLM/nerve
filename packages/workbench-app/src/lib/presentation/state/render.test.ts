@@ -296,7 +296,7 @@ describe("conversation render projection", () => {
     );
   });
 
-  it("keeps terminal recovered tool calls visible after activeRun clears", () => {
+  it("keeps terminal tool calls visible at their durable transcript anchor", () => {
     const state: ConversationRenderState = {
       conversationId: "conv_workbench",
       entries: [
@@ -310,8 +310,23 @@ describe("conversation render projection", () => {
           text: "Run the tool",
           createdAt: ts,
         },
+        {
+          id: "entry_result",
+          conversationId: "conv_workbench",
+          agentId: "agent_workbench",
+          runId: "run_workbench",
+          role: "system",
+          kind: "message",
+          text: "[Tool result: bash]",
+          details: {
+            toolCallId: "call_bash",
+            toolRecordId: "tool_bash",
+            toolName: "bash",
+          },
+          createdAt: ts,
+        },
       ],
-      activeEntryIds: ["entry_user"],
+      activeEntryIds: ["entry_user", "entry_result"],
       toolCalls: [toolCall()],
       cursorSeq: 0,
     };

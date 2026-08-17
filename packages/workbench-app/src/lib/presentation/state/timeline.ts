@@ -131,15 +131,11 @@ function shouldAppendUnanchoredToolCall(
   liveOutput: ConversationLiveToolOutputSnapshot | undefined,
   activeRun: ConversationActiveRunSnapshot | undefined,
 ): boolean {
-  // Tools actively streaming output always belong in the live tail.
-  if (liveOutput) return true;
-  // During an active run, only that run's tool calls belong in the live tail;
-  // a stale live-status call from a finished run must not be pinned below the
-  // current run's streaming content.
-  if (activeRun) return toolCall.runId === activeRun.runId;
-  // No active run: surface genuinely live tool calls. Stale ones are
-  // terminalized by the orchestrator so they are no longer live-status here.
-  return isLiveToolCall(toolCall);
+  // A live timeline is an overlay owned by one active run. Persisted live
+  // statuses without that owner are stale/recovery data, not tail content.
+  if (!activeRun || toolCall.runId !== activeRun.runId) return false;
+  // Output and lifecycle status both remain scoped to the active owner.
+  return Boolean(liveOutput) || isLiveToolCall(toolCall);
 }
 
 function runStatusTimelineKey(
@@ -327,7 +323,7 @@ export function buildCommittedTimeline(
   );
 
   const unanchoredTerminalToolCalls =
-    (options.includeUnanchoredTerminalToolCalls ?? true) &&
+    options.includeUnanchoredTerminalToolCalls === true &&
     liveCandidateToolCalls.length === 0
       ? orderedToolCalls.filter(
           (toolCall) =>
@@ -750,7 +746,7 @@ export function buildConversationTimeline(
   transient?: ConversationTransientState,
 ): TimelineItem[] {
   const committed = buildCommittedTimeline(transcript, toolCalls, {
-    includeUnanchoredTerminalToolCalls: !activeRun,
+    includeUnanchoredTerminalToolCalls: false,
   });
   const liveItems = buildActiveRunTimeline(
     activeRun,

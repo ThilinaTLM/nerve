@@ -28,6 +28,7 @@ import { WorkbenchLiveExecutions } from "./run-live-executions.js";
 import { WorkbenchRunReferences } from "./run-references.js";
 import { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
 import { WorkbenchRunProjector } from "./workbench-run-projector.js";
+import { WorkbenchRunTerminalization } from "./run-terminalization.js";
 
 export interface WorkbenchRunRuntime {
   coordinator: RunCoordinator;
@@ -78,6 +79,7 @@ export function createWorkbenchRunRuntime(input: {
     input.subagentExecutions,
     unitOfWork,
   );
+  const terminalization = new WorkbenchRunTerminalization(input.tools);
   const adapter =
     typeof input.execution === "function"
       ? input.execution(references)
@@ -97,6 +99,7 @@ export function createWorkbenchRunRuntime(input: {
     execution,
     references,
     cancellation,
+    terminalization,
     clock: { now: () => new Date() },
     ids: { next: () => randomUUID() },
     integrity,
