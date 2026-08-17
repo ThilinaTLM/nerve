@@ -12,7 +12,12 @@ export const jiraIssueSummarySchema = z
     statusCategory: jiraTextDisplaySchema.optional(),
     assignee: jiraTextDisplaySchema.optional(),
     priority: jiraTextDisplaySchema.optional(),
+    created: jiraTextDisplaySchema.optional(),
     updated: jiraTextDisplaySchema.optional(),
+    resolution: jiraTextDisplaySchema.optional(),
+    resolutionDate: jiraTextDisplaySchema.optional(),
+    dueDate: jiraTextDisplaySchema.optional(),
+    descriptionPreview: jiraTextDisplaySchema.optional(),
   })
   .passthrough();
 export type JiraIssueSummaryPayload = z.infer<typeof jiraIssueSummarySchema>;
@@ -134,6 +139,30 @@ export type JiraWorklogSummaryPayload = z.infer<
   typeof jiraWorklogSummarySchema
 >;
 
+export const jiraChangelogSummarySchema = z
+  .object({
+    id: z.string().optional(),
+    author: jiraTextDisplaySchema.optional(),
+    created: jiraTextDisplaySchema.optional(),
+    changes: z.array(jiraTextDisplaySchema).max(3).optional(),
+  })
+  .passthrough();
+export type JiraChangelogSummaryPayload = z.infer<
+  typeof jiraChangelogSummarySchema
+>;
+
+export const jiraRemoteLinkSummarySchema = z
+  .object({
+    id: z.string().optional(),
+    title: jiraTextDisplaySchema.optional(),
+    url: z.string().optional(),
+    relationship: jiraTextDisplaySchema.optional(),
+  })
+  .passthrough();
+export type JiraRemoteLinkSummaryPayload = z.infer<
+  typeof jiraRemoteLinkSummarySchema
+>;
+
 export const jiraIssueLinkSummarySchema = z
   .object({
     id: z.string().optional(),
@@ -172,7 +201,11 @@ export const confluencePageSummarySchema = z
     parentId: z.string().optional(),
     status: confluenceTextDisplaySchema.optional(),
     versionNumber: z.number().int().nonnegative().optional(),
+    created: confluenceTextDisplaySchema.optional(),
+    updated: confluenceTextDisplaySchema.optional(),
+    bodyPreview: confluenceTextDisplaySchema.optional(),
     webui: z.string().optional(),
+    webUrl: z.string().optional(),
     storagePath: z.string().optional(),
     markdownPath: z.string().optional(),
     attachmentDir: z.string().optional(),
@@ -213,6 +246,18 @@ export const confluenceCommentSummarySchema = z
   .passthrough();
 export type ConfluenceCommentSummaryPayload = z.infer<
   typeof confluenceCommentSummarySchema
+>;
+
+export const confluencePropertySummarySchema = z
+  .object({
+    id: z.string().optional(),
+    key: confluenceTextDisplaySchema,
+    versionNumber: z.number().int().nonnegative().optional(),
+    valuePreview: confluenceTextDisplaySchema.optional(),
+  })
+  .passthrough();
+export type ConfluencePropertySummaryPayload = z.infer<
+  typeof confluencePropertySummarySchema
 >;
 
 export const confluenceLabelSummarySchema = z

@@ -37,6 +37,48 @@ describe("Jira client API roots and downloads", () => {
     }
   });
 
+  it("surfaces bounded structured Jira API diagnostics without query data", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          errorMessages: ["JQL is invalid"],
+          authorization: "Bearer super-secret-token",
+        }),
+        { status: 400, statusText: "Bad Request" },
+      );
+    try {
+      await assert.rejects(
+        jiraRequest(connection, {
+          method: "POST",
+          path: "/search/jql",
+          query: { token: "must-not-appear" },
+          body: { jql: "broken" },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof Error);
+          const structured = error as Error & {
+            code?: string;
+            details?: Record<string, unknown>;
+          };
+          assert.equal(structured.code, "JIRA_BAD_REQUEST");
+          assert.match(
+            structured.message,
+            /^JIRA_BAD_REQUEST: Jira POST \/search\/jql failed \(400 Bad Request\): JQL is invalid/,
+          );
+          assert.equal(structured.details?.method, "POST");
+          assert.equal(structured.details?.path, "/search/jql");
+          assert.equal(structured.details?.reason, "JQL is invalid");
+          assert.doesNotMatch(JSON.stringify(structured), /must-not-appear/);
+          assert.doesNotMatch(JSON.stringify(structured), /super-secret-token/);
+          return true;
+        },
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("uploads multipart data with Atlassian CSRF bypass and no manual content type", async () => {
     const originalFetch = globalThis.fetch;
     let headers = new Headers();

@@ -45,7 +45,7 @@ const searchUsersParameters = Type.Object(
     project_key: Type.Optional(
       Type.String({
         description:
-          "Project key for assignable user search; defaults from settings",
+          "Project key for assignable-user search; omitted scope uses the configured default project when present",
       }),
     ),
     issue_key: Type.Optional(
@@ -60,7 +60,8 @@ const searchUsersParameters = Type.Object(
     ),
     include_inactive: Type.Optional(
       Type.Boolean({
-        description: "Include inactive users where Jira supports it",
+        description:
+          "Include inactive users for directory search; assignable searches ignore this option",
       }),
     ),
     save_to_file: Type.Optional(
@@ -86,9 +87,16 @@ const searchIssuesParameters = Type.Object(
       }),
     ),
     next_page_token: Type.Optional(
-      Type.String({ description: "Continuation token from a previous search" }),
+      Type.String({
+        description:
+          "Opaque Jira next-page token returned by the preceding issue search",
+      }),
     ),
-    expand: Type.Optional(stringArray("Jira expand values")),
+    expand: Type.Optional(
+      stringArray(
+        "Jira enhanced-search expansions such as renderedFields, names, or schema; serialized as one comma-delimited API value",
+      ),
+    ),
     validate_query: Type.Optional(
       Type.Boolean({ description: "Best-effort JQL validation before search" }),
     ),
@@ -611,7 +619,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraSearchUsers,
     label: "Jira Search Users",
     description:
-      "Search Jira Cloud users and assignable users to discover accountIds.",
+      "Find directory users or issue/project-assignable users. Directory search requires Jira Browse users and groups permission; omitted scope uses the configured default project when present.",
     promptSnippet: "Find Jira users/accountIds before assigning tickets",
     promptGuidelines: [jiraGuideline],
     parameters: searchUsersParameters,
@@ -626,7 +634,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraSearchIssues,
     label: "Jira Search Issues",
     description:
-      "Search Jira Cloud issues with JQL. Saves raw JSON for analysis.",
+      "Search Jira Cloud issues with JQL. Continue with next_page_token; comments, worklogs, and changelog use numeric offsets on jira_get_issue. Saves raw JSON for analysis.",
     promptSnippet: "Search Jira issues with narrow JQL, fields, and limits",
     promptGuidelines: [jiraGuideline],
     parameters: searchIssuesParameters,

@@ -17,8 +17,13 @@ import {
   formatPageSummaryLine,
   formatSpaceSummaryLine,
   nextCursorFromResponse,
+  pageWebUrl,
   summarizeConfluenceAttachment,
+  summarizeConfluenceComment,
+  summarizeConfluenceLabel,
   summarizeConfluencePage,
+  summarizeConfluenceProperty,
+  summarizeConfluenceRestrictions,
   summarizeConfluenceSpace,
   takeDisplayItems,
   valuesFromConfluenceList,
@@ -51,6 +56,7 @@ export {
 } from "./resources.js";
 
 const READ_BODY_FORMATS = ["storage", "atlas_doc_format"] as const;
+const RELATED_PREVIEW_LIMIT = 3;
 const PAGE_BODY_FORMATS = [
   "storage",
   "atlas_doc_format",
@@ -69,7 +75,6 @@ export async function executeConfluenceSearchSpaces(
   const data = await confluenceRequest(connection, {
     path: "/spaces",
     query: {
-      query: optionalString(args.query),
       keys: optionalStringArray(args.keys),
       ids: optionalStringArray(args.ids),
       limit,
@@ -110,7 +115,6 @@ export async function executeConfluenceSearchSpaces(
     artifact,
     details: {
       action: "search_spaces",
-      query: optionalString(args.query),
       spaces: displayed.items,
       spaceCount: spaces.length,
       displayedSpaceCount: displayed.displayed,
@@ -170,7 +174,12 @@ export async function executeConfluenceSearchPages(
   );
   const pages = valuesFromConfluenceList(data).flatMap((page) => {
     const summary = summarizeConfluencePage(page);
-    return summary ? [summary] : [];
+    if (!summary) return [];
+    const compactSummary = { ...summary };
+    delete compactSummary.bodyPreview;
+    return [
+      { ...compactSummary, webUrl: pageWebUrl(connection.siteUrl, page) },
+    ];
   });
   const displayed = takeDisplayItems(pages);
   const nextCursor = nextCursorFromResponse(data);
@@ -296,47 +305,143 @@ export async function executeConfluenceGetPage(
     args.markdown === true
       ? await writePageSidecars(context, page, { bodyFormat, markdown: true })
       : undefined;
-  const pageSummary = summarizeConfluencePage({
+  const rawPageSummary = summarizeConfluencePage({
     ...page,
     storagePath: sidecars?.storagePath,
     markdownPath: sidecars?.markdownPath,
   });
+  const pageSummary = rawPageSummary
+    ? { ...rawPageSummary, webUrl: pageWebUrl(connection.siteUrl, page) }
+    : undefined;
   const includedCounts: Record<string, number> = {};
   const lines = [
     pageSummary
       ? formatPageSummaryLine(pageSummary)
       : `Confluence page ${pageId}`,
   ];
-  const directChildren = valuesFromConfluenceList(result.directChildren);
-  if (directChildren.length > 0) {
-    includedCounts.directChildren = directChildren.length;
-    lines.push(`Direct children: ${directChildren.length}`);
+  if (pageSummary?.bodyPreview) lines.push(`Body: ${pageSummary.bodyPreview}`);
+  if (pageSummary?.webUrl) lines.push(`Web: ${pageSummary.webUrl}`);
+
+  const childPages = summarizeConfluenceRelated(
+    valuesFromConfluenceList(result.directChildren).map((child) => ({
+      raw: child,
+      summary: summarizeConfluencePage(child),
+    })),
+    ({ raw, summary }) =>
+      summary
+        ? {
+            ...summary,
+            bodyPreview: undefined,
+            webUrl: pageWebUrl(connection.siteUrl, raw),
+          }
+        : undefined,
+  );
+  if (args.include_direct_children === true) {
+    includedCounts.directChildren = childPages.total;
+    appendConfluencePreview(
+      lines,
+      "Direct children",
+      childPages.items,
+      childPages.total,
+      artifact?.path,
+      (item) =>
+        `- ${item.id}${item.title ? ` · ${item.title}` : ""}${item.webUrl ? ` · ${item.webUrl}` : ""}`,
+    );
   }
-  const attachments = valuesFromConfluenceList(result.attachments);
-  const attachmentSummaries = attachments.flatMap((attachment) => {
-    const summary = summarizeConfluenceAttachment(attachment);
-    return summary ? [summary] : [];
-  });
-  if (attachmentSummaries.length > 0) {
-    includedCounts.attachments = attachmentSummaries.length;
-    lines.push(`Attachments: ${attachmentSummaries.length}`);
+
+  const attachmentSummaries = summarizeConfluenceRelated(
+    valuesFromConfluenceList(result.attachments),
+    summarizeConfluenceAttachment,
+  );
+  if (args.include_attachments === true) {
+    includedCounts.attachments = attachmentSummaries.total;
+    appendConfluencePreview(
+      lines,
+      "Attachments",
+      attachmentSummaries.items,
+      attachmentSummaries.total,
+      artifact?.path,
+      (item) =>
+        `- ${item.id ?? item.fileId ?? "unknown id"}${item.filename ? ` · ${item.filename}` : ""}${item.mediaType ? ` · ${item.mediaType}` : ""}`,
+    );
   }
+
   const versions = valuesFromConfluenceList(result.versions);
-  if (versions.length > 0) {
+  if (args.include_versions === true) {
     includedCounts.versions = versions.length;
     lines.push(`Versions: ${versions.length}`);
   }
-  for (const [key, label] of [
-    ["footerComments", "Footer comments"],
-    ["inlineComments", "Inline comments"],
-  ] as const) {
-    const count = valuesFromConfluenceList(result[key]).length;
-    if (count > 0) {
-      includedCounts[key] = count;
-      lines.push(`${label}: ${count}`);
-    }
+
+  const footerComments = summarizeConfluenceRelated(
+    valuesFromConfluenceList(result.footerComments),
+    (item) => summarizeConfluenceComment(item, "footer"),
+  );
+  if (args.include_footer_comments === true) {
+    includedCounts.footerComments = footerComments.total;
+    appendConfluencePreview(
+      lines,
+      "Footer comments",
+      footerComments.items,
+      footerComments.total,
+      artifact?.path,
+      formatConfluenceCommentPreview,
+    );
   }
-  if (result.restrictions) lines.push("Restrictions included.");
+  const inlineComments = summarizeConfluenceRelated(
+    valuesFromConfluenceList(result.inlineComments),
+    (item) => summarizeConfluenceComment(item, "inline"),
+  );
+  if (args.include_inline_comments === true) {
+    includedCounts.inlineComments = inlineComments.total;
+    appendConfluencePreview(
+      lines,
+      "Inline comments",
+      inlineComments.items,
+      inlineComments.total,
+      artifact?.path,
+      formatConfluenceCommentPreview,
+    );
+  }
+
+  const properties = summarizeConfluenceRelated(
+    valuesFromConfluenceList(page.properties),
+    summarizeConfluenceProperty,
+  );
+  if (args.include_properties === true) {
+    includedCounts.properties = properties.total;
+    appendConfluencePreview(
+      lines,
+      "Properties",
+      properties.items,
+      properties.total,
+      artifact?.path,
+      (item) =>
+        `- ${item.id ?? item.key} · ${item.key}${item.valuePreview ? ` — ${item.valuePreview}` : ""}`,
+    );
+  }
+  const labels = summarizeConfluenceRelated(
+    valuesFromConfluenceList(page.labels),
+    summarizeConfluenceLabel,
+  );
+  if (args.include_labels === true) {
+    includedCounts.labels = labels.total;
+    appendConfluencePreview(
+      lines,
+      "Labels",
+      labels.items,
+      labels.total,
+      artifact?.path,
+      (item) => `- ${item.prefix ? `${item.prefix}:` : ""}${item.name}`,
+    );
+  }
+  const restrictions = summarizeConfluenceRelated(
+    summarizeConfluenceRestrictions(result.restrictions),
+    (item) => item,
+  );
+  if (args.include_restrictions === true) {
+    includedCounts.restrictions = restrictions.total;
+    lines.push(`Restrictions: ${restrictions.total}`);
+  }
   if (sidecars?.storagePath)
     lines.push(`Body saved to: ${sidecars.storagePath}`);
   if (sidecars?.markdownPath) {
@@ -353,12 +458,68 @@ export async function executeConfluenceGetPage(
       pageId,
       bodyFormat,
       page: pageSummary,
-      attachments: attachmentSummaries,
-      attachmentCount: attachmentSummaries.length || undefined,
-      displayedAttachmentCount: attachmentSummaries.length || undefined,
+      attachments:
+        attachmentSummaries.items.length > 0
+          ? attachmentSummaries.items
+          : undefined,
+      attachmentCount: attachmentSummaries.total || undefined,
+      displayedAttachmentCount: attachmentSummaries.items.length || undefined,
+      childPages: childPages.items.length > 0 ? childPages.items : undefined,
+      displayedChildPageCount: childPages.items.length || undefined,
+      footerComments:
+        footerComments.items.length > 0 ? footerComments.items : undefined,
+      displayedFooterCommentCount: footerComments.items.length || undefined,
+      inlineComments:
+        inlineComments.items.length > 0 ? inlineComments.items : undefined,
+      displayedInlineCommentCount: inlineComments.items.length || undefined,
+      properties: properties.items.length > 0 ? properties.items : undefined,
+      displayedPropertyCount: properties.items.length || undefined,
+      labels: labels.items.length > 0 ? labels.items : undefined,
+      restrictions:
+        restrictions.items.length > 0 ? restrictions.items : undefined,
       includedCounts,
     },
   });
+}
+
+function summarizeConfluenceRelated<TInput, TSummary>(
+  value: TInput[],
+  summarize: (item: TInput) => TSummary | undefined,
+): { items: TSummary[]; total: number } {
+  const summaries = value.flatMap((item) => {
+    const summary = summarize(item);
+    return summary ? [summary] : [];
+  });
+  return {
+    items: summaries.slice(0, RELATED_PREVIEW_LIMIT),
+    total: summaries.length,
+  };
+}
+
+function appendConfluencePreview<T>(
+  lines: string[],
+  label: string,
+  items: T[],
+  total: number,
+  artifactPath: string | undefined,
+  format: (item: T) => string,
+): void {
+  lines.push(`${label}: ${total}`);
+  if (items.length > 0) lines.push(...items.map(format));
+  if (total <= items.length) return;
+  lines.push(
+    artifactPath
+      ? `Showing first ${items.length} of ${total}; full data is saved to ${artifactPath}.`
+      : `Showing first ${items.length} of ${total}; rerun with save_to_file: true for full data.`,
+  );
+}
+
+function formatConfluenceCommentPreview(item: {
+  id?: string;
+  author?: string;
+  bodyPreview?: string;
+}): string {
+  return `- ${item.id ?? "unknown id"}${item.author ? ` · ${item.author}` : ""}${item.bodyPreview ? ` — ${item.bodyPreview}` : ""}`;
 }
 
 export async function executeConfluenceDownloadPage(

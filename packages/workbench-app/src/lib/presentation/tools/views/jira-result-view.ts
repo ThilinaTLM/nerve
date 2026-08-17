@@ -577,6 +577,7 @@ function jiraIncludedCounts(
     "worklogs",
     "changelog",
     "remoteLinks",
+    "issueLinks",
     "attachments",
     "editmetaFields",
   ] as const) {

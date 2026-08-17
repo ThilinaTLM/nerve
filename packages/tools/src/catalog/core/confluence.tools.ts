@@ -41,9 +41,8 @@ const pageStatus = Type.Union([Type.Literal("current"), Type.Literal("draft")]);
 
 const searchSpacesParameters = Type.Object(
   {
-    query: Type.Optional(Type.String({ description: "Space search query" })),
-    keys: Type.Optional(stringArray("Space keys to resolve")),
-    ids: Type.Optional(stringArray("Space ids to resolve")),
+    keys: Type.Optional(stringArray("Exact space keys to resolve")),
+    ids: Type.Optional(stringArray("Exact space ids to resolve")),
     limit: Type.Optional(
       Type.Number({
         description: "Maximum spaces to return",
@@ -51,7 +50,12 @@ const searchSpacesParameters = Type.Object(
         maximum: 100,
       }),
     ),
-    cursor: Type.Optional(Type.String({ description: "Continuation cursor" })),
+    cursor: Type.Optional(
+      Type.String({
+        description:
+          "Opaque Confluence continuation cursor returned by the previous page",
+      }),
+    ),
     save_to_file: Type.Optional(
       Type.Boolean({
         description: "Save the raw JSON response (default: true)",
@@ -79,7 +83,12 @@ const searchPagesParameters = Type.Object(
         maximum: 100,
       }),
     ),
-    cursor: Type.Optional(Type.String({ description: "Continuation cursor" })),
+    cursor: Type.Optional(
+      Type.String({
+        description:
+          "Opaque Confluence continuation cursor returned by the previous page",
+      }),
+    ),
     save_to_file: Type.Optional(
       Type.Boolean({
         description: "Save the raw JSON response (default: true)",
@@ -423,7 +432,7 @@ export const confluenceToolDefinitions = [
     label: "Confluence Search Spaces",
     description: "List or resolve visible Confluence Cloud spaces.",
     promptSnippet:
-      "Search Confluence spaces with narrow keys, ids, queries, and limits",
+      "List Confluence spaces or resolve exact keys/ids; use page search for free text",
     promptGuidelines: [confluenceGuideline],
     parameters: searchSpacesParameters,
     executionMode: "parallel",

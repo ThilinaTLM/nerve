@@ -145,7 +145,6 @@ export async function searchJiraUsers(
       query: {
         ...commonQuery,
         issueKey: options.issueKey,
-        actionDescriptorId: 1,
       },
       signal: options.signal,
     });
@@ -156,7 +155,6 @@ export async function searchJiraUsers(
       query: {
         ...commonQuery,
         project: options.projectKey,
-        actionDescriptorId: 1,
       },
       signal: options.signal,
     });

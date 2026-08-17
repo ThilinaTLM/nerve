@@ -61,6 +61,50 @@ describe("normalized Atlassian tool views", () => {
     assert.equal(view.backlogIssues[0]?.key, "NER-18");
   });
 
+  it("keeps rich agent previews out of compact Atlassian presentation metadata", () => {
+    const jiraCall = toolCall(
+      "jira_get_issue",
+      { issue_key: "NER-14", include_comments: true },
+      result({
+        issue: {
+          key: "NER-14",
+          summary: "Broken build",
+          descriptionPreview: "Long agent-facing issue description",
+        },
+        comments: [{ id: "10", bodyPreview: "Long agent-facing comment body" }],
+        includedCounts: { comments: 1 },
+      }),
+    );
+    const jiraView = parseToolView(jiraCall);
+    assert.equal(jiraView.kind, "jira");
+    assert.doesNotMatch(
+      JSON.stringify(toolPresentation(jiraView, jiraCall)),
+      /Long agent-facing/,
+    );
+
+    const confluenceCall = toolCall(
+      "confluence_get_page",
+      { page_id: "20", include_properties: true },
+      result({
+        page: {
+          id: "20",
+          title: "Runbook",
+          bodyPreview: "Long agent-facing page body",
+        },
+        properties: [
+          { id: "30", key: "owner", valuePreview: "Long property value" },
+        ],
+        includedCounts: { properties: 1 },
+      }),
+    );
+    const confluenceView = parseToolView(confluenceCall);
+    assert.equal(confluenceView.kind, "confluence");
+    assert.doesNotMatch(
+      JSON.stringify(toolPresentation(confluenceView, confluenceCall)),
+      /Long agent-facing|Long property/,
+    );
+  });
+
   it("parses Jira resource mutation outcomes from request and result identity", () => {
     const cases = [
       [

@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import type { ToolExecutionContext } from "../../types.js";
 import { withTimeoutSignal } from "../common/abort.js";
+import { safeAtlassianError } from "../common/atlassian-error.js";
 import { ToolExecutionError } from "../common/tool-error.js";
 
 export type JiraConnection = {
@@ -100,7 +101,9 @@ export async function jiraRequest<T = unknown>(
   }
 
   const response = await fetch(url, init);
-  if (!response.ok) await throwJiraError(response);
+  if (!response.ok) {
+    await throwJiraError(response, init.method ?? "GET", options.path);
+  }
   if (response.status === 204) return undefined as T;
   const text = await response.text();
   if (!text.trim()) return undefined as T;
@@ -126,7 +129,7 @@ export async function jiraMultipartRequest<T = unknown>(
     body: options.form,
     signal: withTimeoutSignal(options.signal, 60_000),
   });
-  if (!response.ok) await throwJiraError(response);
+  if (!response.ok) await throwJiraError(response, "POST", options.path);
   const text = await response.text();
   return (text.trim() ? JSON.parse(text) : undefined) as T;
 }
@@ -153,7 +156,13 @@ export async function jiraDownload(
       { location },
     );
   }
-  if (!response.ok) await throwJiraError(response);
+  if (!response.ok) {
+    await throwJiraError(
+      response,
+      "GET",
+      `/attachment/content/${pathSegment(attachmentId)}`,
+    );
+  }
   const declared = Number(response.headers.get("content-length") ?? 0);
   const maximum = 25 * 1024 * 1024;
   if (declared > maximum) {
@@ -191,20 +200,24 @@ function filenameFromDisposition(value: string | null): string | undefined {
   return /filename="?([^";]+)"?/i.exec(value)?.[1];
 }
 
-async function throwJiraError(response: Response): Promise<never> {
+async function throwJiraError(
+  response: Response,
+  method: string,
+  path: string,
+): Promise<never> {
   const body = await response.text().catch(() => "");
   const code = jiraErrorCode(response.status);
   const retryable = response.status === 429 || response.status >= 500;
-  throw new ToolExecutionError(
+  const error = safeAtlassianError({
+    service: "jira",
     code,
-    `Jira API error: ${response.status} ${response.statusText}`,
-    {
-      status: response.status,
-      statusText: response.statusText,
-      body: safeErrorBody(body),
-    },
-    retryable,
-  );
+    method,
+    path,
+    status: response.status,
+    statusText: response.statusText,
+    body,
+  });
+  throw new ToolExecutionError(code, error.message, error.details, retryable);
 }
 
 function jiraErrorCode(status: number): string {
@@ -215,13 +228,6 @@ function jiraErrorCode(status: number): string {
   if (status === 429) return "JIRA_RATE_LIMITED";
   if (status >= 500) return "JIRA_SERVER_ERROR";
   return "JIRA_API_ERROR";
-}
-
-function safeErrorBody(body: string): string | undefined {
-  if (!body) return undefined;
-  return body
-    .replaceAll(/Basic\s+[A-Za-z0-9+/=_-]+/g, "Basic [redacted]")
-    .slice(0, 4000);
 }
 
 export function pathSegment(value: string): string {
