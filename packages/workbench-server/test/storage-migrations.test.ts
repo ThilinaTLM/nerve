@@ -295,10 +295,12 @@ describe("storage migration runner", () => {
     assert.equal(first.executions[0]?.execution, "detected");
     const second = await runStorageMigrations(root, { registry });
     assert.equal(second.executions.length, 0);
-    assert.equal(
-      (await stat(join(root, "migrations", "ledger.json"))).mode & 0o777,
-      0o600,
-    );
+    if (process.platform !== "win32") {
+      assert.equal(
+        (await stat(join(root, "migrations", "ledger.json"))).mode & 0o777,
+        0o600,
+      );
+    }
   });
 
   it("creates one batch bundle, restores on failure, and leaves the ledger unchanged", async () => {
