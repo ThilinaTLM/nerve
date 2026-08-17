@@ -66,51 +66,6 @@ async function maybeArtifact(
   return save === false ? undefined : writeJiraArtifact(context, kind, data);
 }
 
-export async function executeJiraSearchBoards(
-  args: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolExecutionResult> {
-  const connection = await requireJiraConnection(context);
-  const data = await jiraRequest<Record<string, unknown>>(connection, {
-    api: "agile",
-    path: "/board",
-    query: {
-      projectKeyOrId: optionalString(args.project_key),
-      name: optionalString(args.name),
-      type: optionalString(args.board_type),
-      startAt: boundedNumber(args.start_at, 0, 0, 100000),
-      maxResults: boundedNumber(args.limit, 25, 1, 100),
-    },
-    signal: context.signal,
-  });
-  const boards = Array.isArray(data.values) ? data.values : [];
-  const boardSummaries = boards.flatMap((value) => {
-    const summary = summarizeJiraBoard(value);
-    return summary ? [summary] : [];
-  });
-  const artifact = await maybeArtifact(
-    context,
-    "search-boards",
-    data,
-    args.save_to_file,
-  );
-  return buildJiraTextResult({
-    text: `Jira board search returned ${boards.length} board${boards.length === 1 ? "" : "s"}.${artifact ? `\nRaw JSON saved to: ${artifact.path}` : ""}`,
-    context,
-    artifact,
-    details: {
-      action: "search_boards",
-      boards: boardSummaries.slice(0, 20),
-      boardCount: boards.length,
-      displayedBoardCount: Math.min(boardSummaries.length, 20),
-      startAt: data.startAt,
-      maxResults: data.maxResults,
-      total: data.total,
-      isLast: data.isLast,
-    },
-  });
-}
-
 export async function executeJiraGetBoard(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
@@ -646,6 +601,7 @@ export async function executeJiraManageSprint(
     );
   }
   if (action === "create") {
+    payload.name = requiredString(args.name, "name");
     const boardId = Number(requiredString(args.board_id, "board_id"));
     if (!Number.isSafeInteger(boardId) || boardId <= 0) {
       throw new ToolExecutionError(

@@ -49,6 +49,10 @@ export async function executeConfluenceManageComment(
   const connection = await requireConfluenceConnection(context);
   const action = actionOf(args);
   const kind = requiredString(args.kind, "kind");
+  const pageId =
+    action === "create"
+      ? requiredString(args.page_id, "page_id")
+      : optionalString(args.page_id);
   const commentId = optionalString(args.comment_id);
   if (action !== "create" && !commentId)
     throw new ToolExecutionError(
@@ -68,7 +72,6 @@ export async function executeConfluenceManageComment(
     const representation =
       optionalString(args.body_representation) ?? "storage";
     payload = { body: { representation, value: body } };
-    const pageId = optionalString(args.page_id);
     if (pageId) payload.pageId = pageId;
     const parentId = optionalString(args.parent_comment_id);
     if (parentId) payload.parentCommentId = parentId;
@@ -110,7 +113,7 @@ export async function executeConfluenceManageComment(
         action,
         kind,
         commentId,
-        pageId: optionalString(args.page_id),
+        pageId,
         payload,
       },
     );
@@ -133,7 +136,7 @@ export async function executeConfluenceManageComment(
       operation: action,
       kind,
       commentId: data?.id ?? commentId,
-      pageId: data?.pageId ?? args.page_id,
+      pageId: data?.pageId ?? pageId,
       comment:
         action === "delete"
           ? undefined

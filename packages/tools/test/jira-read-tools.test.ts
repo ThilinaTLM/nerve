@@ -4,6 +4,8 @@ import type { JiraConnection } from "../src/execution/jira/client.js";
 import { searchJiraUsers } from "../src/execution/jira/helpers.js";
 import {
   executeJiraGetIssue,
+  executeJiraGetProject,
+  executeJiraSearchBoards,
   executeJiraSearchIssues,
 } from "../src/execution/jira/jira.js";
 
@@ -24,6 +26,102 @@ const context = {
 };
 
 describe("Jira read request contracts", () => {
+  it("returns board ids in agent-visible search rows", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      Response.json({
+        values: Array.from({ length: 21 }, (_, index) => ({
+          id: 34 + index,
+          name: index === 0 ? "NER board" : `Board ${index + 1}`,
+          type: "scrum",
+          location: { projectKey: "NER" },
+        })),
+        total: 21,
+        isLast: true,
+      });
+    try {
+      const result = await executeJiraSearchBoards(
+        { project_key: "NER", save_to_file: false },
+        context,
+      );
+      assert.match(
+        result.content ?? "",
+        /- 34 · NER board · scrum · project NER/,
+      );
+      assert.match(result.content ?? "", /Showing first 20 of 21 boards/);
+      assert.doesNotMatch(result.content ?? "", /- 54 ·/);
+      assert.equal(
+        (result.details?.boards as Array<{ id?: string }> | undefined)?.[0]?.id,
+        "34",
+      );
+      assert.equal(result.details?.displayedBoardCount, 20);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("returns issue-type identities and focused create fields inline", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("/issuetypes/10039")) {
+        return Response.json({
+          fields: {
+            summary: {
+              fieldId: "summary",
+              name: "Summary",
+              required: true,
+              schema: { type: "string" },
+            },
+          },
+        });
+      }
+      return Response.json({
+        key: "NER",
+        name: "Nerve",
+        issueTypes: [
+          { id: "10039", name: "Bug", subtask: false, hierarchyLevel: 0 },
+          { id: "10038", name: "Sub-task", subtask: true, hierarchyLevel: -1 },
+        ],
+      });
+    };
+    try {
+      const discovery = await executeJiraGetProject(
+        {
+          project_key: "NER",
+          include_issue_types: true,
+          save_to_file: false,
+        },
+        context,
+      );
+      assert.match(discovery.content ?? "", /- 10039 · Bug · hierarchy 0/);
+      assert.match(
+        discovery.content ?? "",
+        /- 10038 · Sub-task · subtask · hierarchy -1/,
+      );
+      assert.equal(
+        (discovery.details?.issueTypes as unknown[] | undefined)?.length,
+        2,
+      );
+
+      const createMeta = await executeJiraGetProject(
+        {
+          project_key: "NER",
+          include_create_meta: true,
+          issue_type_name: "Bug",
+          save_to_file: false,
+        },
+        context,
+      );
+      assert.match(
+        createMeta.content ?? "",
+        /- summary · Summary · string · required/,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("selects documented user-search scopes without a fabricated transition id", async () => {
     const originalFetch = globalThis.fetch;
     const requests: URL[] = [];

@@ -72,14 +72,15 @@ describe("normalized Atlassian tool views", () => {
           descriptionPreview: "Long agent-facing issue description",
         },
         comments: [{ id: "10", bodyPreview: "Long agent-facing comment body" }],
-        includedCounts: { comments: 1 },
+        issueTypes: [{ id: "10039", name: "Agent-only Bug type" }],
+        includedCounts: { comments: 1, issueTypes: 1 },
       }),
     );
     const jiraView = parseToolView(jiraCall);
     assert.equal(jiraView.kind, "jira");
     assert.doesNotMatch(
       JSON.stringify(toolPresentation(jiraView, jiraCall)),
-      /Long agent-facing/,
+      /Long agent-facing|Agent-only Bug type/,
     );
 
     const confluenceCall = toolCall(

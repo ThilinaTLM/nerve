@@ -257,170 +257,108 @@ const commentRepresentation = Type.Union([
   Type.Literal("storage"),
   Type.Literal("atlas_doc_format"),
 ]);
-const manageCommentParameters = Type.Union([
-  Type.Object(
-    {
-      action: Type.Literal("create"),
-      kind: commentKind,
-      page_id: Type.String(),
-      body: Type.String(),
-      body_representation: Type.Optional(commentRepresentation),
-      parent_comment_id: Type.Optional(Type.String()),
-      inline_properties: Type.Optional(Type.Record(Type.String(), Type.Any())),
-      dry_run: dryRun,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("update"),
-      kind: commentKind,
-      comment_id: Type.String(),
-      body: Type.String(),
-      body_representation: Type.Optional(commentRepresentation),
-      version_message: Type.Optional(Type.String()),
-      allow_stale: Type.Optional(Type.Boolean()),
-      dry_run: dryRun,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("delete"),
-      kind: commentKind,
-      comment_id: Type.String(),
-      dry_run: dryRun,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Union([Type.Literal("resolve"), Type.Literal("reopen")]),
-      kind: Type.Literal("inline"),
-      comment_id: Type.String(),
-      dry_run: dryRun,
-    },
-    { additionalProperties: false },
-  ),
-]);
-const managePageParameters = Type.Union([
-  Type.Object(
-    { action: Type.Literal("trash"), page_id: Type.String(), dry_run: dryRun },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("restore"),
-      page_id: Type.String(),
-      dry_run: dryRun,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    { action: Type.Literal("purge"), page_id: Type.String(), dry_run: dryRun },
-    { additionalProperties: false },
-  ),
-]);
-const manageLabelParameters = Type.Union([
-  Type.Object(
-    {
-      action: Type.Literal("add"),
-      page_id: Type.String(),
-      label: Type.String(),
-      prefix: Type.Optional(Type.String()),
-      dry_run: dryRun,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("remove"),
-      page_id: Type.String(),
-      label: Type.String(),
-      dry_run: dryRun,
-    },
-    { additionalProperties: false },
-  ),
-]);
+const manageCommentParameters = Type.Object(
+  {
+    action: Type.Union([
+      Type.Literal("create"),
+      Type.Literal("update"),
+      Type.Literal("delete"),
+      Type.Literal("resolve"),
+      Type.Literal("reopen"),
+    ]),
+    kind: commentKind,
+    page_id: Type.Optional(Type.String({ description: "Required for create" })),
+    comment_id: Type.Optional(
+      Type.String({ description: "Required for every action except create" }),
+    ),
+    body: Type.Optional(
+      Type.String({ description: "Required for create and update" }),
+    ),
+    body_representation: Type.Optional(commentRepresentation),
+    parent_comment_id: Type.Optional(Type.String()),
+    inline_properties: Type.Optional(Type.Record(Type.String(), Type.Any())),
+    version_message: Type.Optional(Type.String()),
+    allow_stale: Type.Optional(Type.Boolean()),
+    dry_run: dryRun,
+  },
+  { additionalProperties: false },
+);
+const managePageParameters = Type.Object(
+  {
+    action: Type.Union([
+      Type.Literal("trash"),
+      Type.Literal("restore"),
+      Type.Literal("purge"),
+    ]),
+    page_id: Type.String(),
+    dry_run: dryRun,
+  },
+  { additionalProperties: false },
+);
+const manageLabelParameters = Type.Object(
+  {
+    action: Type.Union([Type.Literal("add"), Type.Literal("remove")]),
+    page_id: Type.String(),
+    label: Type.String(),
+    prefix: Type.Optional(
+      Type.String({ description: "Used only when adding a label" }),
+    ),
+    dry_run: dryRun,
+  },
+  { additionalProperties: false },
+);
 const restrictionOperation = Type.Union([
   Type.Literal("read"),
   Type.Literal("update"),
 ]);
-const restrictionSubject = Type.Union([
-  Type.Literal("user"),
-  Type.Literal("group"),
-]);
-const manageRestrictionParameters = Type.Union([
-  Type.Object(
-    {
-      action: Type.Literal("add"),
-      page_id: Type.String(),
-      operation: restrictionOperation,
-      subject_type: restrictionSubject,
-      subject_id: Type.String(),
-      dry_run: dryRun,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("remove"),
-      page_id: Type.String(),
-      operation: restrictionOperation,
-      subject_type: restrictionSubject,
-      subject_id: Type.String(),
-      dry_run: dryRun,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("clear_operation"),
-      page_id: Type.String(),
-      operation: restrictionOperation,
-      dry_run: dryRun,
-    },
-    { additionalProperties: false },
-  ),
-]);
-const manageAttachmentParameters = Type.Union([
-  Type.Object(
-    {
-      action: Type.Literal("upload"),
-      page_id: Type.String(),
-      file_path: Type.String(),
-      filename: Type.Optional(Type.String()),
-      comment: Type.Optional(Type.String()),
-      minor_edit: Type.Optional(Type.Boolean()),
-      update_existing: Type.Optional(Type.Boolean()),
-      status: Type.Optional(pageStatus),
-      dry_run: dryRun,
-      save_to_file: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("rename"),
-      page_id: Type.String(),
-      attachment_id: Type.String(),
-      new_filename: Type.String(),
-      comment: Type.Optional(Type.String()),
-      minor_edit: Type.Optional(Type.Boolean()),
-      dry_run: dryRun,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("delete"),
-      page_id: Type.String(),
-      attachment_id: Type.String(),
-      dry_run: dryRun,
-    },
-    { additionalProperties: false },
-  ),
-]);
+const manageRestrictionParameters = Type.Object(
+  {
+    action: Type.Union([
+      Type.Literal("add"),
+      Type.Literal("remove"),
+      Type.Literal("clear_operation"),
+    ]),
+    page_id: Type.String(),
+    operation: restrictionOperation,
+    subject_type: Type.Optional(
+      Type.Union([Type.Literal("user"), Type.Literal("group")], {
+        description: "Required for add and remove",
+      }),
+    ),
+    subject_id: Type.Optional(
+      Type.String({ description: "Required for add and remove" }),
+    ),
+    dry_run: dryRun,
+  },
+  { additionalProperties: false },
+);
+const manageAttachmentParameters = Type.Object(
+  {
+    action: Type.Union([
+      Type.Literal("upload"),
+      Type.Literal("rename"),
+      Type.Literal("delete"),
+    ]),
+    page_id: Type.String(),
+    file_path: Type.Optional(
+      Type.String({ description: "Required for upload" }),
+    ),
+    filename: Type.Optional(Type.String()),
+    attachment_id: Type.Optional(
+      Type.String({ description: "Required for rename and delete" }),
+    ),
+    new_filename: Type.Optional(
+      Type.String({ description: "Required for rename" }),
+    ),
+    comment: Type.Optional(Type.String()),
+    minor_edit: Type.Optional(Type.Boolean()),
+    update_existing: Type.Optional(Type.Boolean()),
+    status: Type.Optional(pageStatus),
+    dry_run: dryRun,
+    save_to_file: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
 export const confluenceToolDefinitions = [
   {
     name: "confluence_search_spaces",

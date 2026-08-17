@@ -8,7 +8,7 @@ function accepts(toolName: string, args: Record<string, unknown>): boolean {
 }
 
 describe("Atlassian single-target tool schemas", () => {
-  it("uses exact action variants for Jira resources", () => {
+  it("uses provider-compatible closed Jira action objects", () => {
     assert.equal(
       accepts("jira_manage_comment", {
         action: "delete",
@@ -19,10 +19,16 @@ describe("Atlassian single-target tool schemas", () => {
     );
     assert.equal(
       accepts("jira_manage_comment", {
+        action: "archive",
+        issue_key: "PROJ-1",
+      }),
+      false,
+    );
+    assert.equal(
+      accepts("jira_manage_comment", {
         action: "delete",
         issue_key: "PROJ-1",
-        comment_id: "10",
-        body: "not valid for delete",
+        unsupported: true,
       }),
       false,
     );
@@ -36,7 +42,7 @@ describe("Atlassian single-target tool schemas", () => {
     );
   });
 
-  it("requires one Confluence page or resource target", () => {
+  it("uses provider-compatible closed Confluence action objects", () => {
     assert.equal(accepts("confluence_download_page", { page_id: "123" }), true);
     assert.equal(
       accepts("confluence_download_page", {
@@ -50,6 +56,14 @@ describe("Atlassian single-target tool schemas", () => {
         action: "add",
         page_id: "123",
         label: ["one", "two"],
+      }),
+      false,
+    );
+    assert.equal(
+      accepts("confluence_manage_label", {
+        action: "replace",
+        page_id: "123",
+        label: "one",
       }),
       false,
     );

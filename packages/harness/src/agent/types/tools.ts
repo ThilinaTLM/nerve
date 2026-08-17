@@ -4,7 +4,7 @@ import type {
   TextContent,
   Tool,
 } from "@earendil-works/pi-ai";
-import type { Static, TSchema } from "typebox";
+import type { Static, TObject } from "typebox";
 import type { ToolExecutionMode } from "./common.js";
 
 /** A single tool call content block emitted by an assistant message. */
@@ -67,7 +67,7 @@ export type AgentToolUpdateCallback<T = unknown> = (
 
 /** Tool definition used by the agent runtime. */
 export interface AgentTool<
-  TParameters extends TSchema = TSchema,
+  TParameters extends TObject = TObject,
   TDetails = unknown,
 > extends Tool<TParameters> {
   /** Human-readable label for UI display. */

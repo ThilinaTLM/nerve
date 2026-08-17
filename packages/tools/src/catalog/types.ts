@@ -5,7 +5,7 @@ import type {
   ToolRisk,
   ToolTrait,
 } from "@nervekit/contracts";
-import type { Static, TSchema } from "typebox";
+import type { Static, TObject } from "typebox";
 import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
 
 export type CoreToolExecutionMode = "sequential" | "parallel";
@@ -17,7 +17,7 @@ export type ToolExecutor = (
   context: ToolExecutionContext,
 ) => Promise<ToolExecutionResult>;
 
-interface ToolDefinitionBase<TParams extends TSchema = TSchema> {
+interface ToolDefinitionBase<TParams extends TObject = TObject> {
   name: ToolName;
   label: string;
   description: string;
@@ -33,20 +33,20 @@ interface ToolDefinitionBase<TParams extends TSchema = TSchema> {
 }
 
 export interface LocalToolDefinition<
-  TParams extends TSchema = TSchema,
+  TParams extends TObject = TObject,
 > extends ToolDefinitionBase<TParams> {
   executionKind: "local";
   executor: ToolExecutor;
 }
 
 export interface HostToolDefinition<
-  TParams extends TSchema = TSchema,
+  TParams extends TObject = TObject,
 > extends ToolDefinitionBase<TParams> {
   executionKind: "host";
   executor?: never;
 }
 
-export type ToolDefinition<TParams extends TSchema = TSchema> =
+export type ToolDefinition<TParams extends TObject = TObject> =
   | LocalToolDefinition<TParams>
   | HostToolDefinition<TParams>;
 

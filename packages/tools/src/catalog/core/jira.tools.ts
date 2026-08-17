@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- Jira's complete agent-facing schema catalog stays centralized and auditable. */
 import { Type } from "typebox";
 import {
   executeJiraCreateIssue,
@@ -313,44 +312,33 @@ const updateIssueParameters = Type.Object(
 
 const commentBodyFields = {
   body: Type.Optional(
-    Type.String({ description: "Plain text/markdown-ish comment body" }),
+    Type.String({
+      description: "Required for create/update unless body_adf is set",
+    }),
   ),
   body_adf: Type.Optional(
-    unknownRecord("Raw Atlassian Document Format comment body"),
+    unknownRecord("ADF alternative to body for create/update"),
   ),
   visibility: Type.Optional(visibilityObject),
   dry_run: Type.Optional(
     Type.Boolean({ description: "Validate without mutating" }),
   ),
 };
-const manageCommentParameters = Type.Union([
-  Type.Object(
-    {
-      action: Type.Literal("create"),
-      issue_key: Type.String(),
-      ...commentBodyFields,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("update"),
-      issue_key: Type.String(),
-      comment_id: Type.String(),
-      ...commentBodyFields,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("delete"),
-      issue_key: Type.String(),
-      comment_id: Type.String(),
-      dry_run: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
-]);
+const manageCommentParameters = Type.Object(
+  {
+    action: Type.Union([
+      Type.Literal("create"),
+      Type.Literal("update"),
+      Type.Literal("delete"),
+    ]),
+    issue_key: Type.String(),
+    comment_id: Type.Optional(
+      Type.String({ description: "Required for update and delete" }),
+    ),
+    ...commentBodyFields,
+  },
+  { additionalProperties: false },
+);
 
 const agilePageFields = {
   start_at: Type.Optional(Type.Number({ minimum: 0, maximum: 100000 })),
@@ -427,8 +415,15 @@ const estimateFields = {
   increase_by: Type.Optional(Type.String()),
 };
 const worklogFields = {
-  time_spent: Type.Optional(Type.String()),
-  time_spent_seconds: Type.Optional(Type.Number({ minimum: 1 })),
+  time_spent: Type.Optional(
+    Type.String({ description: "One time value is required for create" }),
+  ),
+  time_spent_seconds: Type.Optional(
+    Type.Number({
+      minimum: 1,
+      description: "One time value is required for create",
+    }),
+  ),
   started: Type.Optional(Type.String()),
   comment: Type.Optional(Type.String()),
   comment_adf: Type.Optional(unknownRecord("Raw ADF worklog comment")),
@@ -436,143 +431,89 @@ const worklogFields = {
   ...estimateFields,
   dry_run: Type.Optional(Type.Boolean()),
 };
-const manageWorklogParameters = Type.Union([
-  Type.Object(
-    {
-      action: Type.Literal("create"),
-      issue_key: Type.String(),
-      ...worklogFields,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("update"),
-      issue_key: Type.String(),
-      worklog_id: Type.String(),
-      ...worklogFields,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("delete"),
-      issue_key: Type.String(),
-      worklog_id: Type.String(),
-      ...estimateFields,
-      dry_run: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
-]);
-const manageIssueLinkParameters = Type.Union([
-  Type.Object(
-    {
-      action: Type.Literal("create"),
-      issue_key: Type.String(),
-      other_issue_key: Type.String(),
-      link_type: Type.String(),
-      direction: Type.Union([Type.Literal("outward"), Type.Literal("inward")]),
-      comment: Type.Optional(Type.String()),
-      comment_adf: Type.Optional(unknownRecord("Raw ADF comment")),
-      dry_run: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("delete"),
-      issue_key: Type.String(),
-      link_id: Type.String(),
-      dry_run: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
-]);
-const sprintMutable = {
-  name: Type.Optional(Type.String()),
-  goal: Type.Optional(Type.String()),
-  start_date: Type.Optional(Type.String()),
-  end_date: Type.Optional(Type.String()),
-  dry_run: Type.Optional(Type.Boolean()),
-};
-const manageSprintParameters = Type.Union([
-  Type.Object(
-    {
-      action: Type.Literal("create"),
-      board_id: Type.String(),
-      name: Type.String(),
-      goal: Type.Optional(Type.String()),
-      start_date: Type.Optional(Type.String()),
-      end_date: Type.Optional(Type.String()),
-      dry_run: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("update"),
-      sprint_id: Type.String(),
-      ...sprintMutable,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("start"),
-      sprint_id: Type.String(),
-      start_date: Type.Optional(Type.String()),
-      end_date: Type.Optional(Type.String()),
-      dry_run: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("close"),
-      sprint_id: Type.String(),
-      dry_run: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("delete"),
-      sprint_id: Type.String(),
-      dry_run: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
-]);
-const manageBacklogParameters = Type.Union([
-  Type.Object(
-    {
-      action: Type.Literal("move_to_backlog"),
-      issue_key: Type.String(),
-      dry_run: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("move_to_sprint"),
-      issue_key: Type.String(),
-      sprint_id: Type.String(),
-      dry_run: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      action: Type.Literal("rank"),
-      issue_key: Type.String(),
-      rank_before_issue_key: Type.Optional(Type.String()),
-      rank_after_issue_key: Type.Optional(Type.String()),
-      dry_run: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
-]);
+const manageWorklogParameters = Type.Object(
+  {
+    action: Type.Union([
+      Type.Literal("create"),
+      Type.Literal("update"),
+      Type.Literal("delete"),
+    ]),
+    issue_key: Type.String(),
+    worklog_id: Type.Optional(
+      Type.String({ description: "Required for update and delete" }),
+    ),
+    ...worklogFields,
+  },
+  { additionalProperties: false },
+);
+const manageIssueLinkParameters = Type.Object(
+  {
+    action: Type.Union([Type.Literal("create"), Type.Literal("delete")]),
+    issue_key: Type.String(),
+    other_issue_key: Type.Optional(
+      Type.String({ description: "Required for create" }),
+    ),
+    link_type: Type.Optional(
+      Type.String({ description: "Required for create" }),
+    ),
+    direction: Type.Optional(
+      Type.Union([Type.Literal("outward"), Type.Literal("inward")], {
+        description: "Required for create",
+      }),
+    ),
+    link_id: Type.Optional(Type.String({ description: "Required for delete" })),
+    comment: Type.Optional(Type.String()),
+    comment_adf: Type.Optional(unknownRecord("Raw ADF comment")),
+    dry_run: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+const manageSprintParameters = Type.Object(
+  {
+    action: Type.Union([
+      Type.Literal("create"),
+      Type.Literal("update"),
+      Type.Literal("start"),
+      Type.Literal("close"),
+      Type.Literal("delete"),
+    ]),
+    board_id: Type.Optional(
+      Type.String({ description: "Required for create" }),
+    ),
+    sprint_id: Type.Optional(
+      Type.String({ description: "Required for every action except create" }),
+    ),
+    name: Type.Optional(
+      Type.String({ description: "Required for create; optional for update" }),
+    ),
+    goal: Type.Optional(Type.String()),
+    start_date: Type.Optional(Type.String()),
+    end_date: Type.Optional(Type.String()),
+    dry_run: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+const manageBacklogParameters = Type.Object(
+  {
+    action: Type.Union([
+      Type.Literal("move_to_backlog"),
+      Type.Literal("move_to_sprint"),
+      Type.Literal("rank"),
+    ]),
+    issue_key: Type.String(),
+    sprint_id: Type.Optional(
+      Type.String({ description: "Required for move_to_sprint" }),
+    ),
+    rank_before_issue_key: Type.Optional(
+      Type.String({ description: "One rank anchor is required for rank" }),
+    ),
+    rank_after_issue_key: Type.Optional(
+      Type.String({ description: "One rank anchor is required for rank" }),
+    ),
+    dry_run: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
 
 const transitionIssueParameters = Type.Object(
   {

@@ -23,6 +23,11 @@ describe("Atlassian normalized result summaries", () => {
         mediaType: "application/pdf",
         bytes: 42,
       },
+      issueTypes: [
+        { id: "10039", name: "Bug", subtask: false, hierarchyLevel: 0 },
+      ],
+      issueTypeCount: 1,
+      displayedIssueTypeCount: 1,
     });
     assert.equal(parsed.success, true);
   });

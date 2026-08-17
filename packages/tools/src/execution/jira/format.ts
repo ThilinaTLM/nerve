@@ -10,6 +10,7 @@ import type {
   JiraFieldSummaryPayload,
   JiraIssueLinkSummaryPayload,
   JiraIssueSummaryPayload,
+  JiraIssueTypeSummaryPayload,
   JiraProjectSummaryPayload,
   JiraRemoteLinkSummaryPayload,
   JiraSprintSummaryPayload,
@@ -234,6 +235,26 @@ export function summarizeJiraField(
   }) as JiraFieldSummaryPayload;
 }
 
+export function summarizeJiraIssueType(
+  value: unknown,
+): JiraIssueTypeSummaryPayload | undefined {
+  const record = asRecord(value);
+  const idValue = record.id;
+  const id =
+    typeof idValue === "number" ? String(idValue) : stringField(idValue);
+  if (!id) return undefined;
+  return compactRecord({
+    id,
+    name: truncateField(stringField(record.name)),
+    description: truncateField(stringField(record.description)),
+    subtask: typeof record.subtask === "boolean" ? record.subtask : undefined,
+    hierarchyLevel:
+      typeof record.hierarchyLevel === "number"
+        ? Math.floor(record.hierarchyLevel)
+        : undefined,
+  }) as JiraIssueTypeSummaryPayload;
+}
+
 export function summarizeJiraAttachment(
   value: unknown,
 ): JiraAttachmentSummaryPayload | undefined {
@@ -407,6 +428,40 @@ export function summarizeJiraIssueLink(
         ? record.direction
         : undefined,
   }) as JiraIssueLinkSummaryPayload;
+}
+
+export function formatBoardSummaryLine(
+  summary: JiraBoardSummaryPayload,
+): string {
+  const parts = [
+    summary.id,
+    summary.name,
+    summary.type,
+    summary.projectKey
+      ? `project ${summary.projectKey}`
+      : summary.projectName
+        ? `project ${summary.projectName}`
+        : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `- ${parts}`;
+}
+
+export function formatIssueTypeSummaryLine(
+  summary: JiraIssueTypeSummaryPayload,
+): string {
+  const parts = [
+    summary.id,
+    summary.name,
+    summary.subtask === true ? "subtask" : undefined,
+    summary.hierarchyLevel !== undefined
+      ? `hierarchy ${summary.hierarchyLevel}`
+      : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `- ${parts}${summary.description ? ` — ${summary.description}` : ""}`;
 }
 
 export function formatUserSummaryLine(summary: JiraUserSummaryPayload): string {

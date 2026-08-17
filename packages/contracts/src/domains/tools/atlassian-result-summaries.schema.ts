@@ -71,6 +71,19 @@ export const jiraFieldSummarySchema = z
   .passthrough();
 export type JiraFieldSummaryPayload = z.infer<typeof jiraFieldSummarySchema>;
 
+export const jiraIssueTypeSummarySchema = z
+  .object({
+    id: z.string().min(1),
+    name: jiraTextDisplaySchema.optional(),
+    description: jiraTextDisplaySchema.optional(),
+    subtask: z.boolean().optional(),
+    hierarchyLevel: z.number().int().optional(),
+  })
+  .passthrough();
+export type JiraIssueTypeSummaryPayload = z.infer<
+  typeof jiraIssueTypeSummarySchema
+>;
+
 export const jiraBoardSummarySchema = z
   .object({
     id: z.string().min(1),
