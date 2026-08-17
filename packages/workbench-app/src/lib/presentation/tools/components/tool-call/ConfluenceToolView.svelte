@@ -84,13 +84,13 @@ function outcomeTone(destructive = false, warning = false) {
       {#each view.spaces.slice(0, limit) as space (space.id)}
         <ConfluenceSpaceRow {space} />
       {:else}
-        <AtlassianOutcomeRow title="No spaces found." />
+        <AtlassianOutcomeRow title="No spaces found." icon="list" />
       {/each}
     {:else if view.action === "search_pages"}
       {#each view.pages.slice(0, limit) as page (page.id)}
         <ConfluencePageRow {page} {siteUrl} {expanded} {onOpenFile} />
       {:else}
-        <AtlassianOutcomeRow title="No pages found." />
+        <AtlassianOutcomeRow title="No pages found." icon="list" />
       {/each}
     {:else if view.action === "get_page"}
       {#if view.page}
@@ -111,6 +111,7 @@ function outcomeTone(destructive = false, warning = false) {
             : undefined,
         )}
         tone="success"
+        icon="download"
       />
       {#if expanded}
         {#each view.pages as page (page.id)}
@@ -130,6 +131,7 @@ function outcomeTone(destructive = false, warning = false) {
           view.status ?? view.page?.status,
         )}
         tone={outcomeTone()}
+        icon="add"
       />
     {:else if view.action === "update_page"}
       <AtlassianOutcomeRow
@@ -138,6 +140,7 @@ function outcomeTone(destructive = false, warning = false) {
         )}
         detail={joined(view.status ?? view.page?.status, view.page?.spaceKey)}
         tone={outcomeTone()}
+        icon="edit"
       />
     {:else if view.action === "manage_comment"}
       <AtlassianOutcomeRow
@@ -149,6 +152,7 @@ function outcomeTone(destructive = false, warning = false) {
         )}
         detail={view.comment?.bodyPreview ?? view.comment?.resolutionStatus}
         tone={outcomeTone(view.operation === "delete")}
+        icon="comment"
       />
     {:else if view.action === "manage_page"}
       <AtlassianOutcomeRow
@@ -162,6 +166,7 @@ function outcomeTone(destructive = false, warning = false) {
         detail={view.previousStatus && view.resultingStatus
           ? `${view.previousStatus} → ${view.resultingStatus}`
           : undefined}
+        icon="trash"
         tone={outcomeTone(
           view.operation === "purge",
           view.operation === "trash",

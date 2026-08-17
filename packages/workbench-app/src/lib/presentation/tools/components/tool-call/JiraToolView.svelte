@@ -77,13 +77,13 @@ function outcomeTitle(text: string): string {
       {#each view.issues.slice(0, limit) as issue (issue.key)}
         <JiraIssueCard {issue} {siteUrl} />
       {:else}
-        <AtlassianOutcomeRow title="No issues found." />
+        <AtlassianOutcomeRow title="No issues found." icon="list" />
       {/each}
     {:else if view.action === "search_users"}
       {#each view.users.slice(0, limit) as user (user.accountId)}
         <JiraUserCard {user} />
       {:else}
-        <AtlassianOutcomeRow title="No users found." />
+        <AtlassianOutcomeRow title="No users found." icon="comment" />
       {/each}
     {:else if view.action === "get_issue"}
       {#if view.issue}
@@ -186,7 +186,7 @@ function outcomeTitle(text: string): string {
       {/if}
     {:else if view.action === "download_attachment"}
       <AtlassianResourceRow
-        icon="file"
+        icon="attachment"
         id={view.attachmentId}
         title={view.filename ??
           view.attachment?.filename ??
@@ -203,6 +203,7 @@ function outcomeTitle(text: string): string {
         )}
         detail={view.summary}
         tone={outcomeTone()}
+        icon="add"
       />
     {:else if view.action === "update_issue"}
       <AtlassianOutcomeRow
@@ -216,6 +217,7 @@ function outcomeTitle(text: string): string {
               : "")
           : undefined}
         tone={outcomeTone()}
+        icon="edit"
       />
     {:else if view.action === "manage_comment"}
       <AtlassianOutcomeRow
@@ -224,6 +226,7 @@ function outcomeTitle(text: string): string {
         )}
         detail={view.comment?.bodyPreview}
         tone={outcomeTone(view.operation === "delete")}
+        icon="comment"
       />
     {:else if view.action === "manage_worklog"}
       <AtlassianOutcomeRow
@@ -236,6 +239,7 @@ function outcomeTitle(text: string): string {
           view.worklog?.commentPreview,
         )}
         tone={outcomeTone(view.operation === "delete")}
+        icon="timer"
       />
     {:else if view.action === "manage_issue_link"}
       <AtlassianOutcomeRow
@@ -260,6 +264,7 @@ function outcomeTitle(text: string): string {
           ? undefined
           : joined(view.issueKey, formatBytes(view.bytes))}
         tone={outcomeTone(view.operation === "delete")}
+        icon="link"
       />
     {:else if view.action === "manage_sprint"}
       <AtlassianOutcomeRow
@@ -272,6 +277,7 @@ function outcomeTitle(text: string): string {
           view.sprint?.goal,
         )}
         tone={outcomeTone(view.operation === "delete")}
+        icon="file-upload"
       />
     {:else if view.action === "manage_backlog"}
       {@const target = view.issueKey ?? "issue"}
@@ -288,6 +294,7 @@ function outcomeTitle(text: string): string {
                   : `Updated backlog placement for ${target}`,
         )}
         tone={outcomeTone()}
+        icon="arrow"
       />
     {:else if view.action === "transition_issue"}
       {#if view.transition}

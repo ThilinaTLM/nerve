@@ -7,6 +7,7 @@ import FileText from "@lucide/svelte/icons/file-text";
 import FolderKanban from "@lucide/svelte/icons/folder-kanban";
 import Link2 from "@lucide/svelte/icons/link-2";
 import MessageSquare from "@lucide/svelte/icons/message-square";
+import Paperclip from "@lucide/svelte/icons/paperclip";
 import Tags from "@lucide/svelte/icons/tags";
 import Timer from "@lucide/svelte/icons/timer";
 import User from "@lucide/svelte/icons/user";
@@ -17,6 +18,7 @@ type ResourceIcon =
   | "board"
   | "sprint"
   | "file"
+  | "attachment"
   | "page"
   | "project"
   | "user"
@@ -51,19 +53,21 @@ const Icon = $derived(
       ? CalendarRange
       : icon === "file"
         ? File
-        : icon === "page"
-          ? FileText
-          : icon === "project"
-            ? FolderKanban
-            : icon === "user"
-              ? User
-              : icon === "comment"
-                ? MessageSquare
-                : icon === "worklog"
-                  ? Timer
-                  : icon === "link"
-                    ? Link2
-                    : Tags,
+        : icon === "attachment"
+          ? Paperclip
+          : icon === "page"
+            ? FileText
+            : icon === "project"
+              ? FolderKanban
+              : icon === "user"
+                ? User
+                : icon === "comment"
+                  ? MessageSquare
+                  : icon === "worklog"
+                    ? Timer
+                    : icon === "link"
+                      ? Link2
+                      : Tags,
 );
 </script>
 
