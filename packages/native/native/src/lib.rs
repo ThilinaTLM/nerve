@@ -1,92 +1,130 @@
+mod managed_process;
+mod platform;
+
 use std::collections::HashMap;
-use std::io::Read;
-use std::process::{Command, Stdio};
-use std::sync::Arc;
-#[cfg(windows)]
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use napi::bindgen_prelude::{Buffer, Result};
-use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
+use napi::threadsafe_function::ThreadsafeFunction;
 use napi_derive::napi;
 
-#[cfg(unix)]
-use std::os::unix::process::CommandExt;
-
-#[cfg(windows)]
-mod windows;
+pub use managed_process::NativeManagedProcess;
 
 #[napi(object)]
+#[derive(Clone, Debug)]
 pub struct NativeSpawnOptions {
     pub cwd: Option<String>,
     pub env: Option<HashMap<String, String>>,
 }
 
 #[napi(object)]
-pub struct NativeProcessMetadata {
+#[derive(Clone, Debug)]
+pub struct NativeManagedTarget {
     pub pid: u32,
-    pub identity: String,
+    pub process_group_id: Option<u32>,
     pub containment: String,
+    pub identity: String,
 }
 
-struct ManagedState {
-    #[cfg(unix)]
-    pid: u32,
-    exited: AtomicBool,
-    #[cfg(windows)]
-    job: Mutex<Option<windows::OwnedJob>>,
+#[napi(object)]
+#[derive(Clone, Debug)]
+pub struct NativeInspectionResult {
+    pub evidence: String,
+    pub detail: Option<String>,
 }
 
-#[napi]
-pub struct NativeManagedProcess {
-    state: Arc<ManagedState>,
-    metadata: NativeProcessMetadata,
-}
-
-#[napi]
-impl NativeManagedProcess {
-    #[napi(getter)]
-    pub fn pid(&self) -> u32 {
-        self.metadata.pid
-    }
-
-    #[napi(getter)]
-    pub fn identity(&self) -> String {
-        self.metadata.identity.clone()
-    }
-
-    #[napi(getter)]
-    pub fn containment(&self) -> String {
-        self.metadata.containment.clone()
-    }
-
-    #[napi]
-    pub fn terminate(&self, signal: Option<String>) -> Result<bool> {
-        if self.state.exited.load(Ordering::Acquire) {
-            return Ok(false);
+impl NativeInspectionResult {
+    pub(crate) fn alive() -> Self {
+        Self {
+            evidence: "alive_verified".to_string(),
+            detail: None,
         }
-        terminate_state(&self.state, signal.as_deref().unwrap_or("SIGKILL"))
+    }
+
+    pub(crate) fn exited() -> Self {
+        Self {
+            evidence: "exited_verified".to_string(),
+            detail: None,
+        }
+    }
+
+    pub(crate) fn mismatch() -> Self {
+        Self {
+            evidence: "identity_mismatch".to_string(),
+            detail: Some("PID was reused by another process".to_string()),
+        }
+    }
+
+    pub(crate) fn unknown(detail: impl Into<String>) -> Self {
+        Self {
+            evidence: "unknown".to_string(),
+            detail: Some(detail.into()),
+        }
+    }
+}
+
+#[napi(object)]
+#[derive(Clone, Debug)]
+pub struct NativeTerminationResult {
+    pub attempted: bool,
+    pub terminated: bool,
+    pub method: String,
+    pub error: Option<String>,
+}
+
+impl NativeTerminationResult {
+    pub(crate) fn not_attempted(method: &str, error: Option<String>) -> Self {
+        Self {
+            attempted: false,
+            terminated: false,
+            method: method.to_string(),
+            error,
+        }
+    }
+
+    pub(crate) fn terminated(method: &str) -> Self {
+        Self {
+            attempted: true,
+            terminated: true,
+            method: method.to_string(),
+            error: None,
+        }
+    }
+
+    pub(crate) fn failed(method: &str, error: impl Into<String>) -> Self {
+        Self {
+            attempted: true,
+            terminated: false,
+            method: method.to_string(),
+            error: Some(error.into()),
+        }
+    }
+}
+
+#[napi(object)]
+pub struct NativeRuntimeCapabilities {
+    pub platform: String,
+    pub capabilities: Vec<String>,
+}
+
+#[napi]
+pub fn runtime_capabilities() -> NativeRuntimeCapabilities {
+    NativeRuntimeCapabilities {
+        platform: std::env::consts::OS.to_string(),
+        capabilities: platform::capabilities(),
     }
 }
 
 #[napi]
-pub fn inspect_process(pid: u32) -> Option<String> {
-    inspected_process_identity(pid)
+pub fn inspect_managed_target(target: NativeManagedTarget) -> NativeInspectionResult {
+    platform::inspect(&target)
 }
 
 #[napi]
-pub fn runtime_capabilities() -> Vec<String> {
-    let mut capabilities = vec![
-        "managed-process".to_string(),
-        "process-identity".to_string(),
-    ];
-    #[cfg(windows)]
-    capabilities.push("job-object".to_string());
-    #[cfg(unix)]
-    capabilities.push("process-group".to_string());
-    capabilities
+pub fn terminate_managed_target(
+    target: NativeManagedTarget,
+    signal: Option<String>,
+) -> NativeTerminationResult {
+    platform::terminate(&target, signal.as_deref().unwrap_or("SIGKILL"))
 }
 
 #[napi]
@@ -97,185 +135,15 @@ pub fn spawn_managed_process(
     stdout_callback: ThreadsafeFunction<Buffer>,
     stderr_callback: ThreadsafeFunction<Buffer>,
     exit_callback: ThreadsafeFunction<(i32, String)>,
+    close_callback: ThreadsafeFunction<(i32, String)>,
 ) -> Result<NativeManagedProcess> {
-    let mut process = Command::new(command);
-    process
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    if let Some(cwd) = options.cwd {
-        process.current_dir(cwd);
-    }
-    if let Some(env) = options.env {
-        process.env_clear().envs(env);
-    }
-
-    #[cfg(unix)]
-    process.process_group(0);
-
-    #[cfg(windows)]
-    let (mut child, job) = windows::spawn_suspended_in_job(&mut process)?;
-    #[cfg(not(windows))]
-    let mut child = process
-        .spawn()
-        .map_err(|error| napi::Error::from_reason(error.to_string()))?;
-
-    let pid = child.id();
-    let identity = process_identity(pid);
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let state = Arc::new(ManagedState {
-        #[cfg(unix)]
-        pid,
-        exited: AtomicBool::new(false),
-        #[cfg(windows)]
-        job: Mutex::new(Some(job)),
-    });
-
-    let mut output_threads = Vec::new();
-    if let Some(stdout) = stdout {
-        output_threads.push(relay_output(stdout, stdout_callback));
-    }
-    if let Some(stderr) = stderr {
-        output_threads.push(relay_output(stderr, stderr_callback));
-    }
-
-    let wait_state = Arc::clone(&state);
-    thread::spawn(move || {
-        let (code, signal) = match child.wait() {
-            Ok(status) => exit_parts(status),
-            Err(error) => (-1, error.to_string()),
-        };
-        for output_thread in output_threads {
-            let _ = output_thread.join();
-        }
-        wait_state.exited.store(true, Ordering::Release);
-        #[cfg(windows)]
-        {
-            let _ = wait_state.job.lock().map(|mut job| job.take());
-        }
-        exit_callback.call(Ok((code, signal)), ThreadsafeFunctionCallMode::NonBlocking);
-    });
-
-    Ok(NativeManagedProcess {
-        state,
-        metadata: NativeProcessMetadata {
-            pid,
-            identity,
-            containment: if cfg!(windows) {
-                "job-object".to_string()
-            } else {
-                "process-group".to_string()
-            },
-        },
-    })
-}
-
-fn relay_output<R: Read + Send + 'static>(
-    mut reader: R,
-    callback: ThreadsafeFunction<Buffer>,
-) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        let mut buffer = vec![0_u8; 16 * 1024];
-        loop {
-            match reader.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(length) => {
-                    callback.call(
-                        Ok(Buffer::from(buffer[..length].to_vec())),
-                        ThreadsafeFunctionCallMode::Blocking,
-                    );
-                }
-                Err(_) => break,
-            }
-        }
-    })
-}
-
-fn terminate_state(state: &ManagedState, signal: &str) -> Result<bool> {
-    #[cfg(windows)]
-    {
-        let _ = signal;
-        let job = state
-            .job
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Windows Job lock was poisoned"))?;
-        let Some(job) = job.as_ref() else {
-            return Ok(false);
-        };
-        job.terminate()
-    }
-
-    #[cfg(unix)]
-    {
-        let signal = match signal {
-            "SIGTERM" => libc::SIGTERM,
-            "SIGINT" => libc::SIGINT,
-            "SIGHUP" => libc::SIGHUP,
-            _ => libc::SIGKILL,
-        };
-        let result = unsafe { libc::kill(-(state.pid as i32), signal) };
-        if result == 0 {
-            Ok(true)
-        } else {
-            let error = std::io::Error::last_os_error();
-            if error.raw_os_error() == Some(libc::ESRCH) {
-                Ok(false)
-            } else {
-                Err(napi::Error::from_reason(error.to_string()))
-            }
-        }
-    }
-}
-
-fn inspected_process_identity(pid: u32) -> Option<String> {
-    #[cfg(target_os = "linux")]
-    {
-        let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
-        let close = stat.rfind(')')?;
-        let start = stat[close + 1..].split_whitespace().nth(19)?;
-        return Some(format!("linux:{start}"));
-    }
-    #[cfg(windows)]
-    {
-        return windows::process_creation_time(pid)
-            .ok()
-            .map(|identity| format!("win32:{identity}"));
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let alive = unsafe { libc::kill(pid as i32, 0) } == 0;
-        return alive.then(|| format!("darwin:{pid}"));
-    }
-    #[allow(unreachable_code)]
-    None
-}
-
-fn process_identity(pid: u32) -> String {
-    if let Some(identity) = inspected_process_identity(pid) {
-        return identity;
-    }
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|value| value.as_nanos())
-        .unwrap_or_default();
-    format!("pid:{pid}:{now}")
-}
-
-#[cfg(unix)]
-fn exit_parts(status: std::process::ExitStatus) -> (i32, String) {
-    use std::os::unix::process::ExitStatusExt;
-    (
-        status.code().unwrap_or(-1),
-        status
-            .signal()
-            .map(|signal| signal.to_string())
-            .unwrap_or_default(),
+    managed_process::spawn(
+        command,
+        args,
+        options,
+        stdout_callback,
+        stderr_callback,
+        exit_callback,
+        close_callback,
     )
-}
-
-#[cfg(windows)]
-fn exit_parts(status: std::process::ExitStatus) -> (i32, String) {
-    (status.code().unwrap_or(-1), String::new())
 }

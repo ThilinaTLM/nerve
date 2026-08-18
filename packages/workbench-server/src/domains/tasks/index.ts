@@ -12,8 +12,10 @@ export {
   TaskLogService,
 } from "./task-log.service.js";
 export { TaskNotificationService } from "./task-notification.service.js";
+export type { TaskPortInspector } from "./task-port-inspector.js";
 export {
   dedupeListeningPorts,
+  defaultTaskPortInspector,
   formatListeningPort,
   inspectPortListeners,
   inspectRuntimeListeningPorts,
@@ -26,17 +28,14 @@ export {
   isStoppableTaskStatus,
 } from "./task-status.js";
 export type {
+  ProcessLifecycleResult,
   SpawnedManagedTask,
   SpawnManagedTaskOptions,
   TaskSupervisor,
-  TerminateTaskOptions,
   TerminateTaskResult,
 } from "./task-supervisor.js";
 export {
+  createTaskSupervisor,
   defaultTaskSupervisor,
-  isTaskRuntimeTargetAlive,
-  runtimeForChild,
-  spawnManagedTask,
-  terminateTask,
-  terminateTaskRuntime,
+  managedTaskShellCommand,
 } from "./task-supervisor.js";

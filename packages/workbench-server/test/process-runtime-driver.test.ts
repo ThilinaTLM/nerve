@@ -1,43 +1,9 @@
 import assert from "node:assert/strict";
-import type { ChildProcess } from "node:child_process";
-import { EventEmitter } from "node:events";
 import { test } from "node:test";
-import {
-  defaultProcessRuntimeDriver,
-  observeProcessLifecycle,
-  processEnvironment,
-} from "../src/domains/tasks/process-runtime/index.js";
+import { defaultTaskSupervisor } from "../src/domains/tasks/task-supervisor.js";
 
-test("does not manufacture a CI environment for runtime tasks", () => {
-  const inheritedCi = process.env.CI;
-  delete process.env.CI;
-  try {
-    assert.equal(processEnvironment().CI, undefined);
-  } finally {
-    if (inheritedCi === undefined) delete process.env.CI;
-    else process.env.CI = inheritedCi;
-  }
-});
-
-test("replays process exit, close, and error outcomes to late consumers", async () => {
-  const closedChild = new EventEmitter() as ChildProcess;
-  const lifecycle = observeProcessLifecycle(closedChild);
-  closedChild.emit("exit", 0, null);
-  closedChild.emit("close", 0, null);
-  const expected = { kind: "closed", exitCode: 0, signal: null };
-  assert.deepEqual(await lifecycle.exited, expected);
-  assert.deepEqual(await lifecycle.closed, expected);
-
-  const errorChild = new EventEmitter() as ChildProcess;
-  const errored = observeProcessLifecycle(errorChild);
-  const error = new Error("spawn failed");
-  errorChild.emit("error", error);
-  assert.deepEqual(await errored.exited, { kind: "error", error });
-  assert.deepEqual(await errored.closed, { kind: "error", error });
-});
-
-test("captures an immediate command close while resolving runtime identity", async () => {
-  const spawned = defaultProcessRuntimeDriver.spawn("printf done", {
+test("captures immediate native exit and close outcomes", async () => {
+  const spawned = defaultTaskSupervisor.spawn("printf done", {
     cwd: process.cwd(),
   });
   assert.equal((await spawned.exited).kind, "closed");
@@ -46,37 +12,38 @@ test("captures an immediate command close while resolving runtime identity", asy
 });
 
 if (process.platform === "linux") {
-  test("captures a verifiable Linux identity and refuses stale identity", async () => {
-    const spawned = defaultProcessRuntimeDriver.spawn("sleep 30", {
+  test("refuses stale serialized Linux identity", async () => {
+    const spawned = defaultTaskSupervisor.spawn("sleep 30", {
       cwd: process.cwd(),
     });
     const runtime = await spawned.runtime;
     try {
       assert.equal(
-        (await defaultProcessRuntimeDriver.inspect(runtime)).evidence,
-        "alive_verified",
+        await defaultTaskSupervisor.isRuntimeTargetAlive(runtime),
+        true,
       );
+      assert.equal(runtime.identity?.kind, "linux");
+      if (runtime.identity?.kind !== "linux") assert.fail("Missing identity");
       const stale = {
         ...runtime,
         identity: {
           kind: "linux" as const,
-          startTimeTicks:
-            runtime.identity?.kind === "linux"
-              ? runtime.identity.startTimeTicks + 1
-              : 1,
+          startTimeTicks: runtime.identity.startTimeTicks + 1,
         },
       };
       assert.equal(
-        (await defaultProcessRuntimeDriver.inspect(stale)).evidence,
-        "identity_mismatch",
+        await defaultTaskSupervisor.isRuntimeTargetAlive(stale),
+        false,
       );
-      const refused = await defaultProcessRuntimeDriver.terminate(
+      const refused = await defaultTaskSupervisor.terminateRuntime(
         stale,
         "SIGKILL",
       );
       assert.equal(refused.attempted, false);
+      assert.match(refused.error ?? "", /PID was reused/);
     } finally {
-      await defaultProcessRuntimeDriver.terminate(runtime, "SIGKILL");
+      await defaultTaskSupervisor.terminate(spawned.child, "SIGKILL");
+      await spawned.closed;
     }
   });
 }

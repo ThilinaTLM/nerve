@@ -497,8 +497,12 @@ function stringValue(value: unknown): string | undefined {
 
 function commandUnavailableError(error: unknown): Error {
   if (
-    isErrnoException(error) &&
-    (error.code === "ENOENT" || error.code === "EACCES")
+    error instanceof Error &&
+    ((isErrnoException(error) &&
+      (error.code === "ENOENT" || error.code === "EACCES")) ||
+      /no such file|not found|access is denied|permission denied/i.test(
+        error.message,
+      ))
   ) {
     return new RipgrepUnavailableError(error.message);
   }

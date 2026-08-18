@@ -1,12 +1,38 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import { EventEmitter } from "node:events";
 import { PassThrough, type Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
-export type NativeContainment = "job-object" | "process-group" | "fallback";
+export type NativeContainment = "job-object" | "process-group";
+export type TerminationMethod =
+  | "job-object"
+  | "process-group"
+  | "process-tree"
+  | "direct-child"
+  | "none";
+
+export interface ManagedTarget {
+  pid: number;
+  processGroupId?: number;
+  containment: NativeContainment;
+  identity: string;
+}
+
+export type InspectionResult =
+  | { evidence: "alive_verified"; detail?: string }
+  | { evidence: "exited_verified"; detail?: string }
+  | { evidence: "identity_mismatch"; detail?: string }
+  | { evidence: "unknown"; detail: string };
+
+export interface TerminationResult {
+  attempted: boolean;
+  terminated: boolean;
+  method: TerminationMethod;
+  error?: string;
+}
 
 export interface ManagedProcessExit {
   exitCode: number | null;
@@ -17,6 +43,7 @@ export interface ManagedProcess {
   readonly pid: number;
   readonly identity: string;
   readonly containment: NativeContainment;
+  readonly target: ManagedTarget;
   readonly stdout: Readable;
   readonly stderr: Readable;
   readonly exited: Promise<ManagedProcessExit>;
@@ -29,26 +56,22 @@ export interface ManagedProcessOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-export interface TerminationResult {
-  attempted: boolean;
-  method: "job-object" | "process-group" | "direct-child" | "taskkill" | "none";
-  error?: string;
-}
-
-interface InternalManagedProcess extends ManagedProcess {
-  readonly childProcess?: ChildProcess;
-}
-
 interface NativeProcessHandle {
   readonly pid: number;
   readonly identity: string;
-  readonly containment: "job-object" | "process-group";
-  terminate(signal?: string): boolean;
+  readonly containment: NativeContainment;
+  readonly processGroupId?: number;
+  readonly target: ManagedTarget;
+  terminate(signal?: string): TerminationResult;
 }
 
 interface NativeBinding {
-  inspectProcess(pid: number): string | null;
-  runtimeCapabilities(): string[];
+  inspectManagedTarget(target: ManagedTarget): InspectionResult;
+  terminateManagedTarget(
+    target: ManagedTarget,
+    signal?: string,
+  ): TerminationResult;
+  runtimeCapabilities(): { platform: string; capabilities: string[] };
   spawnManagedProcess(
     command: string,
     args: string[],
@@ -56,6 +79,7 @@ interface NativeBinding {
     stdout: (error: Error | null, chunk: Buffer) => void,
     stderr: (error: Error | null, chunk: Buffer) => void,
     exit: (error: Error | null, result: [number, string]) => void,
+    close: (error: Error | null, result: [number, string]) => void,
   ): NativeProcessHandle;
 }
 
@@ -64,14 +88,131 @@ const childProcesses = new WeakMap<ChildProcess, ManagedProcess>();
 
 export function nativeRuntimeCapabilities(): {
   available: boolean;
+  platform?: string;
   capabilities: string[];
   error?: string;
 } {
   const loaded = loadBinding();
+  const native = loaded.binding?.runtimeCapabilities();
   return {
     available: Boolean(loaded.binding),
-    capabilities: loaded.binding?.runtimeCapabilities() ?? [],
+    platform: native?.platform,
+    capabilities: native?.capabilities ?? [],
     error: loaded.error,
+  };
+}
+
+export function inspectManagedTarget(target: ManagedTarget): InspectionResult {
+  const loaded = loadBinding();
+  if (!loaded.binding) {
+    return {
+      evidence: "unknown",
+      detail: loaded.error ?? "Native runtime is unavailable",
+    };
+  }
+  try {
+    return loaded.binding.inspectManagedTarget(target);
+  } catch (error) {
+    return { evidence: "unknown", detail: errorMessage(error) };
+  }
+}
+
+export async function terminateManagedTarget(
+  target: ManagedTarget,
+  signal: NodeJS.Signals = "SIGKILL",
+): Promise<TerminationResult> {
+  const loaded = loadBinding();
+  if (!loaded.binding) return unavailableTermination(loaded.error);
+  try {
+    return loaded.binding.terminateManagedTarget(target, signal);
+  } catch (error) {
+    return {
+      attempted: false,
+      terminated: false,
+      method: "none",
+      error: errorMessage(error),
+    };
+  }
+}
+
+export function spawnManagedProcess(
+  command: string,
+  args: string[],
+  options: ManagedProcessOptions = {},
+): ManagedProcess {
+  const binding = requireBinding();
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const exited = deferred<ManagedProcessExit>();
+  const closed = deferred<ManagedProcessExit>();
+  let exitSettled = false;
+  let closeSettled = false;
+
+  const settleExit = (result: ManagedProcessExit) => {
+    if (exitSettled) return;
+    exitSettled = true;
+    exited.resolve(result);
+  };
+  const settleClose = (result: ManagedProcessExit) => {
+    if (closeSettled) return;
+    closeSettled = true;
+    stdout.end();
+    stderr.end();
+    settleExit(result);
+    closed.resolve(result);
+  };
+
+  let handle: NativeProcessHandle;
+  try {
+    handle = binding.spawnManagedProcess(
+      command,
+      args,
+      { cwd: options.cwd, env: stringEnvironment(options.env) },
+      (error, chunk) => {
+        if (error) stderr.write(Buffer.from(`${error.message}\n`));
+        else stdout.write(chunk);
+      },
+      (error, chunk) => {
+        if (error) stderr.write(Buffer.from(`${error.message}\n`));
+        else stderr.write(chunk);
+      },
+      (error, result) => {
+        if (error) stderr.write(Buffer.from(`${error.message}\n`));
+        settleExit(exitResult(result));
+      },
+      (error, result) => {
+        if (error) stderr.write(Buffer.from(`${error.message}\n`));
+        settleClose(exitResult(result));
+      },
+    );
+  } catch (error) {
+    stdout.destroy();
+    stderr.destroy();
+    throw error;
+  }
+
+  const target = normalizeTarget(handle.target, handle);
+  return {
+    pid: handle.pid,
+    identity: handle.identity,
+    containment: handle.containment,
+    target,
+    stdout,
+    stderr,
+    exited: exited.promise,
+    closed: closed.promise,
+    async terminate(signal = "SIGKILL") {
+      try {
+        return handle.terminate(signal);
+      } catch (error) {
+        return {
+          attempted: false,
+          terminated: false,
+          method: "none",
+          error: errorMessage(error),
+        };
+      }
+    },
   };
 }
 
@@ -80,15 +221,7 @@ export function spawnManagedChildProcess(
   args: string[],
   options: ManagedProcessOptions = {},
 ): ChildProcess {
-  const managed = spawnManagedProcess(
-    command,
-    args,
-    options,
-  ) as InternalManagedProcess;
-  if (managed.childProcess) {
-    childProcesses.set(managed.childProcess, managed);
-    return managed.childProcess;
-  }
+  const managed = spawnManagedProcess(command, args, options);
   const child = new EventEmitter() as ChildProcess;
   Object.defineProperties(child, {
     pid: { value: managed.pid, enumerable: true },
@@ -129,225 +262,12 @@ export async function terminateManagedChildProcess(
   return childProcesses.get(child)?.terminate(signal);
 }
 
-export function inspectProcess(pid: number): string | undefined {
-  const binding = loadBinding().binding;
-  return binding?.inspectProcess(pid) ?? undefined;
-}
-
-export function spawnManagedProcess(
-  command: string,
-  args: string[],
-  options: ManagedProcessOptions = {},
-): ManagedProcess {
+function requireBinding(): NativeBinding {
   const loaded = loadBinding();
-  if (!loaded.binding) return spawnFallback(command, args, options);
-
-  const stdout = new PassThrough();
-  const stderr = new PassThrough();
-  let resolveExit!: (result: ManagedProcessExit) => void;
-  const exited = new Promise<ManagedProcessExit>((resolve) => {
-    resolveExit = resolve;
-  });
-  let settled = false;
-  const finish = (result: ManagedProcessExit) => {
-    if (settled) return;
-    settled = true;
-    stdout.end();
-    stderr.end();
-    resolveExit(result);
-  };
-  let handle: NativeProcessHandle;
-  try {
-    handle = loaded.binding.spawnManagedProcess(
-      command,
-      args,
-      {
-        cwd: options.cwd,
-        env: stringEnvironment(options.env),
-      },
-      (error, chunk) => {
-        if (error) stderr.write(Buffer.from(`${error.message}\n`));
-        else stdout.write(chunk);
-      },
-      (error, chunk) => {
-        if (error) stderr.write(Buffer.from(`${error.message}\n`));
-        else stderr.write(chunk);
-      },
-      (error, [code, signal]) => {
-        if (error) stderr.write(Buffer.from(`${error.message}\n`));
-        finish({
-          exitCode: code < 0 ? null : code,
-          signal: signalName(signal),
-        });
-      },
-    );
-  } catch {
-    stdout.destroy();
-    stderr.destroy();
-    return spawnFallback(command, args, options);
-  }
-
-  return {
-    pid: handle.pid,
-    identity: handle.identity,
-    containment: handle.containment,
-    stdout,
-    stderr,
-    exited,
-    closed: exited,
-    async terminate(signal = "SIGKILL") {
-      try {
-        const attempted = handle.terminate(signal);
-        return {
-          attempted,
-          method:
-            handle.containment === "job-object"
-              ? ("job-object" as const)
-              : ("process-group" as const),
-        };
-      } catch (error) {
-        return {
-          attempted: true,
-          method:
-            handle.containment === "job-object"
-              ? ("job-object" as const)
-              : ("process-group" as const),
-          error: errorMessage(error),
-        };
-      }
-    },
-  };
-}
-
-function spawnFallback(
-  command: string,
-  args: string[],
-  options: ManagedProcessOptions,
-): InternalManagedProcess {
-  const child = spawn(command, args, {
-    cwd: options.cwd,
-    env: options.env,
-    detached: process.platform !== "win32",
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
-  });
-  const { exited, closed } = observeChild(child);
-  return {
-    pid: child.pid ?? 0,
-    identity: `fallback:${child.pid ?? 0}:${Date.now()}`,
-    containment: "fallback",
-    childProcess: child,
-    stdout: child.stdout ?? new PassThrough(),
-    stderr: child.stderr ?? new PassThrough(),
-    exited,
-    closed,
-    terminate: (signal = "SIGKILL") => terminateFallback(child, signal),
-  };
-}
-
-function observeChild(child: ChildProcess): {
-  exited: Promise<ManagedProcessExit>;
-  closed: Promise<ManagedProcessExit>;
-} {
-  let resolveExited!: (result: ManagedProcessExit) => void;
-  let resolveClosed!: (result: ManagedProcessExit) => void;
-  let exitedDone = false;
-  let closedDone = false;
-  const exited = new Promise<ManagedProcessExit>((resolve) => {
-    resolveExited = resolve;
-  });
-  const closed = new Promise<ManagedProcessExit>((resolve) => {
-    resolveClosed = resolve;
-  });
-  const finishExited = (result: ManagedProcessExit) => {
-    if (!exitedDone) {
-      exitedDone = true;
-      resolveExited(result);
-    }
-  };
-  const finishClosed = (result: ManagedProcessExit) => {
-    if (!closedDone) {
-      closedDone = true;
-      resolveClosed(result);
-    }
-  };
-  child.once("error", () => {
-    const result = { exitCode: 127, signal: null };
-    finishExited(result);
-    finishClosed(result);
-  });
-  child.once("exit", (exitCode, signal) => finishExited({ exitCode, signal }));
-  child.once("close", (exitCode, signal) => {
-    const result = { exitCode, signal };
-    finishExited(result);
-    finishClosed(result);
-  });
-  return { exited, closed };
-}
-
-async function terminateFallback(
-  child: ChildProcess,
-  signal: NodeJS.Signals,
-): Promise<TerminationResult> {
-  if (!child.pid)
-    return { attempted: false, method: "none", error: "Missing child PID" };
-  if (process.platform !== "win32") {
-    try {
-      process.kill(-child.pid, signal);
-      return { attempted: true, method: "process-group" };
-    } catch {
-      const attempted = child.kill(signal);
-      return { attempted, method: "direct-child" };
-    }
-  }
-  return terminateWindowsTree(child.pid, child);
-}
-
-async function terminateWindowsTree(
-  pid: number,
-  child: ChildProcess,
-): Promise<TerminationResult> {
-  let helper: ChildProcess;
-  try {
-    helper = spawn("taskkill", ["/F", "/T", "/PID", String(pid)], {
-      stdio: "ignore",
-      windowsHide: true,
-    });
-  } catch (error) {
-    const attempted = child.kill("SIGKILL");
-    return { attempted, method: "direct-child", error: errorMessage(error) };
-  }
-  return await new Promise((resolve) => {
-    let done = false;
-    const finish = (result: TerminationResult) => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      resolve(result);
-    };
-    helper.once("error", (error) =>
-      finish({ attempted: true, method: "taskkill", error: error.message }),
-    );
-    helper.once("close", (code) =>
-      finish({
-        attempted: true,
-        method: "taskkill",
-        error:
-          code === 0 || code === 128
-            ? undefined
-            : `taskkill exited with code ${code}`,
-      }),
-    );
-    const timer = setTimeout(() => {
-      helper.kill("SIGKILL");
-      child.kill("SIGKILL");
-      finish({
-        attempted: true,
-        method: "taskkill",
-        error: "taskkill timed out after 1000ms",
-      });
-    }, 1_000);
-  });
+  if (loaded.binding) return loaded.binding;
+  throw new Error(
+    `Native managed process runtime unavailable: ${loaded.error}`,
+  );
 }
 
 function loadBinding(): { binding?: NativeBinding; error?: string } {
@@ -385,6 +305,47 @@ function loadBinding(): { binding?: NativeBinding; error?: string } {
   return bindingResult;
 }
 
+function normalizeTarget(
+  target: ManagedTarget | undefined,
+  handle: NativeProcessHandle,
+): ManagedTarget {
+  return (
+    target ?? {
+      pid: handle.pid,
+      processGroupId: handle.processGroupId,
+      containment: handle.containment,
+      identity: handle.identity,
+    }
+  );
+}
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve(value: T): void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
+function exitResult([code, signal]: [number, string]): ManagedProcessExit {
+  return {
+    exitCode: code < 0 ? null : code,
+    signal: signalName(signal),
+  };
+}
+
+function unavailableTermination(error?: string): TerminationResult {
+  return {
+    attempted: false,
+    terminated: false,
+    method: "none",
+    error: error ?? "Native runtime is unavailable",
+  };
+}
+
 function platformTriple(): string {
   if (process.platform === "win32") return `win32-${process.arch}-msvc`;
   if (process.platform === "darwin") return `darwin-${process.arch}`;
@@ -403,10 +364,12 @@ function stringEnvironment(env: NodeJS.ProcessEnv | undefined) {
 
 function signalName(value: string): NodeJS.Signals | null {
   if (!value) return null;
+  if (value.startsWith("SIG")) return value as NodeJS.Signals;
   const number = Number(value);
   if (number === 9) return "SIGKILL";
   if (number === 15) return "SIGTERM";
   if (number === 2) return "SIGINT";
+  if (number === 1) return "SIGHUP";
   return null;
 }
 

@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 import {
+  inspectManagedTarget,
   nativeRuntimeCapabilities,
   spawnManagedProcess,
+  terminateManagedTarget,
 } from "../src/index.js";
 
 const node = process.execPath;
@@ -77,6 +79,39 @@ describe("native managed process facade", () => {
     assert.equal(Buffer.concat(chunks).toString(), "ok");
   });
 
+  it("inspects and terminates a serialized managed target", async () => {
+    const managed = spawnManagedProcess(node, [
+      "-e",
+      "setInterval(() => {}, 1000)",
+    ]);
+    assert.equal(
+      inspectManagedTarget(managed.target).evidence,
+      "alive_verified",
+    );
+    const stale = { ...managed.target, identity: `${managed.identity}:stale` };
+    assert.equal(inspectManagedTarget(stale).evidence, "identity_mismatch");
+    const refused = await terminateManagedTarget(stale, "SIGKILL");
+    assert.equal(refused.attempted, false);
+    const terminated = await terminateManagedTarget(managed.target, "SIGKILL");
+    assert.equal(terminated.terminated, true);
+    await managed.closed;
+  });
+
+  it("observes exit before inherited pipes close", async () => {
+    const managed = spawnManagedProcess(node, [
+      "-e",
+      `require("node:child_process").spawn(process.execPath, ["-e", "setTimeout(() => {}, 150)"], { stdio: ["ignore", 1, 2] });`,
+    ]);
+    let closed = false;
+    void managed.closed.then(() => {
+      closed = true;
+    });
+    await managed.exited;
+    assert.equal(closed, false);
+    await managed.closed;
+    assert.equal(closed, true);
+  });
+
   it(
     "terminates a managed process tree promptly",
     { timeout: 5_000 },
@@ -91,9 +126,7 @@ describe("native managed process facade", () => {
       const childPid = await firstOutputNumber(process.stdout);
       const result = await process.terminate("SIGKILL");
       assert.equal(result.attempted, true);
-      assert.ok(
-        ["job-object", "process-group", "taskkill"].includes(result.method),
-      );
+      assert.ok(["job-object", "process-group"].includes(result.method));
       await process.exited;
       await waitForProcessExit(childPid);
     },

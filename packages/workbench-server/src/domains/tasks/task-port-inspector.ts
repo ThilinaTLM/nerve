@@ -1,6 +1,17 @@
+import { spawn } from "node:child_process";
 import { readdir, readFile, readlink } from "node:fs/promises";
 import { join } from "node:path";
 import type { TaskListeningPort, TaskRuntime } from "@nervekit/contracts";
+
+export interface TaskPortInspector {
+  inspectRuntime(runtime: TaskRuntime): Promise<TaskListeningPort[]>;
+  inspectListeners(ports: TaskListeningPort[]): Promise<TaskListeningPort[]>;
+}
+
+export const defaultTaskPortInspector: TaskPortInspector = {
+  inspectRuntime: inspectRuntimeListeningPorts,
+  inspectListeners: inspectPortListeners,
+};
 
 const LISTEN_STATE = "0A";
 const PROC_ROOT = "/proc";
@@ -22,8 +33,10 @@ export async function inspectRuntimeListeningPorts(
   runtime: TaskRuntime,
   now = new Date(),
 ): Promise<TaskListeningPort[]> {
-  if (runtime.platform !== "linux" || process.platform !== "linux") return [];
-  if (!runtime.processGroupId && !runtime.childPid) return [];
+  if (runtime.platform !== process.platform || !runtime.childPid) return [];
+  if (process.platform === "darwin") return inspectDarwinPorts(runtime, now);
+  if (process.platform === "win32") return inspectWindowsPorts(runtime, now);
+  if (process.platform !== "linux") return [];
 
   const ports = await inspectAllListeningPorts(now);
   return dedupeListeningPorts(
@@ -326,6 +339,114 @@ function nonNegativeNumber(value: string | undefined): number | undefined {
   if (!value) return undefined;
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+async function inspectDarwinPorts(
+  runtime: TaskRuntime,
+  now: Date,
+): Promise<TaskListeningPort[]> {
+  const result = await runCommand(
+    "lsof",
+    [
+      "-nP",
+      "-a",
+      "-p",
+      String(runtime.childPid),
+      "-iTCP",
+      "-sTCP:LISTEN",
+      "-F",
+      "n",
+    ],
+    2_000,
+  ).catch(() => undefined);
+  if (!result || result.code !== 0) return [];
+  return dedupeListeningPorts(
+    result.stdout
+      .split("\n")
+      .filter((line) => line.startsWith("n"))
+      .flatMap((line): TaskListeningPort[] => {
+        const match = /(?:\[([^\]]+)\]|([^:]+)):(\d+)$/.exec(line.slice(1));
+        if (!match) return [];
+        return [
+          {
+            protocol: "tcp",
+            address: match[1] ?? match[2] ?? "*",
+            port: Number(match[3]),
+            pid: runtime.childPid,
+            processGroupId: runtime.processGroupId,
+            detectedAt: now.toISOString(),
+          },
+        ];
+      }),
+  );
+}
+
+async function inspectWindowsPorts(
+  runtime: TaskRuntime,
+  now: Date,
+): Promise<TaskListeningPort[]> {
+  const script = `Get-NetTCPConnection -State Listen -OwningProcess ${runtime.childPid} -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess | ConvertTo-Json -Compress`;
+  const result = await runCommand(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", script],
+    3_000,
+  ).catch(() => undefined);
+  if (!result || result.code !== 0 || !result.stdout.trim()) return [];
+  try {
+    const parsed = JSON.parse(result.stdout) as
+      | WindowsListener
+      | WindowsListener[];
+    const rows = Array.isArray(parsed) ? parsed : [parsed];
+    return dedupeListeningPorts(
+      rows.map((row) => ({
+        protocol: row.LocalAddress.includes(":") ? "tcp6" : "tcp",
+        address: row.LocalAddress,
+        port: row.LocalPort,
+        pid: row.OwningProcess,
+        detectedAt: now.toISOString(),
+      })),
+    );
+  } catch {
+    return [];
+  }
+}
+
+interface WindowsListener {
+  LocalAddress: string;
+  LocalPort: number;
+  OwningProcess: number;
+}
+
+async function runCommand(
+  command: string,
+  args: string[],
+  timeoutMs: number,
+): Promise<{ code: number | null; stdout: string }> {
+  return await new Promise((resolve, reject) => {
+    let child;
+    try {
+      child = spawn(command, args, {
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
+      });
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    let stdout = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout = `${stdout}${String(chunk)}`.slice(-256 * 1024);
+    });
+    const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once("close", (code) => {
+      clearTimeout(timer);
+      resolve({ code, stdout });
+    });
+  });
 }
 
 function endpointKey(
