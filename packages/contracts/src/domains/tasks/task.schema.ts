@@ -53,31 +53,34 @@ export const taskRuntimeIdentitySchema = z.discriminatedUnion("kind", [
     kind: z.literal("linux"),
     startTimeTicks: z.number().int().nonnegative(),
   }),
-  z.object({ kind: z.literal("darwin"), startFingerprint: z.string().min(1) }),
-  z.object({ kind: z.literal("win32"), creationDate: z.string().min(1) }),
-  z.object({ kind: z.literal("legacy_unverified") }),
+  z.object({
+    kind: z.literal("darwin"),
+    startFingerprint: z.string().startsWith("darwin:"),
+  }),
+  z.object({
+    kind: z.literal("win32"),
+    creationDate: z.string().startsWith("win32:"),
+  }),
 ]);
 export type TaskRuntimeIdentity = z.infer<typeof taskRuntimeIdentitySchema>;
 
 export const taskRuntimeSchema = z.object({
-  version: z.literal(2).optional(),
+  version: z.literal(2),
   platform: z.string().min(1),
-  childPid: z.number().int().positive().optional(),
+  childPid: z.number().int().positive(),
   processGroupId: z.number().int().positive().optional(),
   detached: z.boolean(),
   shell: z.boolean(),
-  containment: z.enum(["job-object", "process-group", "fallback"]).optional(),
+  containment: z.enum(["job-object", "process-group"]),
   spawnedAt: z.string().datetime(),
-  identity: taskRuntimeIdentitySchema.optional(),
+  identity: taskRuntimeIdentitySchema,
   listeningPorts: z.array(taskListeningPortSchema).optional(),
-  capabilities: z
-    .object({
-      identity: z.boolean(),
-      processTree: z.boolean(),
-      listeningPorts: z.boolean(),
-      detail: z.string().optional(),
-    })
-    .optional(),
+  capabilities: z.object({
+    identity: z.boolean(),
+    processTree: z.boolean(),
+    listeningPorts: z.boolean(),
+    detail: z.string().optional(),
+  }),
 });
 export type TaskRuntime = z.infer<typeof taskRuntimeSchema>;
 

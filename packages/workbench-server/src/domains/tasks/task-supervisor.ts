@@ -188,46 +188,18 @@ function managedTargetForRuntime(
       error: `Cannot clean up task spawned on ${runtime.platform} from ${process.platform}.`,
     };
   }
-  if (!runtime.childPid) return { error: "Missing managed process root PID" };
-  const identity = nativeIdentityForRuntime(runtime.identity);
-  if (!identity) {
-    return {
-      error:
-        "Persisted task runtime has no native-verifiable process identity; refusing unsafe PID-only cleanup.",
-    };
-  }
-  const containment =
-    runtime.containment === "job-object" ||
-    runtime.containment === "process-group"
-      ? runtime.containment
-      : runtime.platform === "win32"
-        ? "job-object"
-        : "process-group";
   return {
     pid: runtime.childPid,
     processGroupId: runtime.processGroupId,
-    containment,
-    identity,
+    containment: runtime.containment,
+    identity: nativeIdentityForRuntime(runtime.identity),
   };
 }
 
-function nativeIdentityForRuntime(
-  identity: TaskRuntimeIdentity | undefined,
-): string | undefined {
-  if (identity?.kind === "linux") return `linux:${identity.startTimeTicks}`;
-  if (
-    identity?.kind === "darwin" &&
-    identity.startFingerprint.startsWith("darwin:")
-  ) {
-    return identity.startFingerprint;
-  }
-  if (
-    identity?.kind === "win32" &&
-    identity.creationDate.startsWith("win32:")
-  ) {
-    return identity.creationDate;
-  }
-  return undefined;
+function nativeIdentityForRuntime(identity: TaskRuntimeIdentity): string {
+  if (identity.kind === "linux") return `linux:${identity.startTimeTicks}`;
+  if (identity.kind === "darwin") return identity.startFingerprint;
+  return identity.creationDate;
 }
 
 function processEnvironment(

@@ -12,6 +12,7 @@ import {
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
+import { taskRecordSchema } from "@nervekit/contracts";
 import type {
   MigrationContext,
   StorageMigration,
@@ -26,6 +27,7 @@ import { migration0005 } from "../src/infrastructure/migrations/migrations/0005-
 import { migration0006 } from "../src/infrastructure/migrations/migrations/0006-unify-tool-call-lifecycle.js";
 import { migration0007 } from "../src/infrastructure/migrations/migrations/0007-transient-conversation-live-events.js";
 import { migration0008 } from "../src/infrastructure/migrations/migrations/0008-remove-legacy-storage.js";
+import { migration0009 } from "../src/infrastructure/migrations/migrations/0009-native-task-runtimes.js";
 import { StreamLog } from "../src/infrastructure/events/stream-log.js";
 import {
   ledgerDigest,
@@ -272,6 +274,124 @@ describe("storage migration runner", () => {
 
     const second = await runStorageMigrations(root, {
       registry: [migration0008],
+    });
+    assert.deepEqual(second.executions, []);
+  });
+
+  it("retires pre-native task runtimes before task hydration", async () => {
+    const root = await home();
+    const tasks = join(root, "tasks");
+    const startedAt = "2026-08-17T01:02:03.000Z";
+    const migratedAt = "2026-08-18T04:05:06.000Z";
+    const baseRecord = {
+      cwd: "C:\\Users\\test\\project",
+      command: "pnpm dev",
+      readiness: { outcome: "pending" },
+      stdoutPath: "stdout.log",
+      stderrPath: "stderr.log",
+      logsPath: "events.jsonl",
+      startedAt,
+      updatedAt: startedAt,
+    };
+    const legacyRuntime = {
+      platform: "win32",
+      childPid: 4321,
+      detached: false,
+      shell: true,
+      spawnedAt: startedAt,
+    };
+    const active = {
+      ...baseRecord,
+      id: "task_legacy_active",
+      status: "running",
+      runtime: legacyRuntime,
+    };
+    const terminal = {
+      ...baseRecord,
+      id: "task_legacy_terminal",
+      status: "completed",
+      finishedAt: "2026-08-17T02:02:03.000Z",
+      runtime: { ...legacyRuntime, identity: { kind: "legacy_unverified" } },
+    };
+    const native = {
+      ...baseRecord,
+      id: "task_native",
+      status: "running",
+      runtime: {
+        version: 2,
+        platform: "linux",
+        childPid: 9876,
+        processGroupId: 9876,
+        detached: true,
+        shell: true,
+        containment: "process-group",
+        spawnedAt: startedAt,
+        identity: { kind: "linux", startTimeTicks: 12345 },
+        capabilities: {
+          identity: true,
+          processTree: true,
+          listeningPorts: true,
+          detail: "native:process-group",
+        },
+      },
+    };
+    for (const record of [active, terminal, native]) {
+      const directory = join(tasks, record.id);
+      await mkdir(directory, { recursive: true });
+      await writeFile(
+        join(directory, "task.json"),
+        `${JSON.stringify(record)}\n`,
+      );
+    }
+
+    const backup = await migration0009.backup(migrationContext(root));
+    assert.deepEqual(backup.paths, [
+      "tasks/task_legacy_active/task.json",
+      "tasks/task_legacy_terminal/task.json",
+      "migrations/.native-task-runtimes-v1",
+    ]);
+    assert.ok(backup.paths.every((path) => !path.includes("\\")));
+
+    const report = await runStorageMigrations(root, {
+      registry: [migration0009],
+      now: () => new Date(migratedAt),
+    });
+    assert.equal(report.executions[0]?.execution, "ran");
+    assert.ok(report.backupBytes > 0);
+
+    const readTask = async (id: string) =>
+      JSON.parse(await readFile(join(tasks, id, "task.json"), "utf8")) as {
+        [key: string]: unknown;
+      };
+    const migratedActive = await readTask(active.id);
+    assert.equal(migratedActive.status, "interrupted");
+    assert.equal(migratedActive.finishedAt, migratedAt);
+    assert.equal(migratedActive.updatedAt, migratedAt);
+    assert.match(String(migratedActive.error), /native process management/);
+    assert.equal("runtime" in migratedActive, false);
+    assert.equal(taskRecordSchema.safeParse(migratedActive).success, true);
+
+    const migratedTerminal = await readTask(terminal.id);
+    assert.equal(migratedTerminal.status, "completed");
+    assert.equal(migratedTerminal.finishedAt, terminal.finishedAt);
+    assert.equal(migratedTerminal.updatedAt, startedAt);
+    assert.equal("runtime" in migratedTerminal, false);
+    assert.equal(taskRecordSchema.safeParse(migratedTerminal).success, true);
+
+    assert.deepEqual(await readTask(native.id), native);
+    assert.equal(taskRecordSchema.safeParse(native).success, true);
+    assert.deepEqual(
+      JSON.parse(
+        await readFile(
+          join(root, "migrations", ".native-task-runtimes-v1"),
+          "utf8",
+        ),
+      ),
+      { migratedAt, transformedRecords: 2 },
+    );
+
+    const second = await runStorageMigrations(root, {
+      registry: [migration0009],
     });
     assert.deepEqual(second.executions, []);
   });
