@@ -100,7 +100,7 @@ const showMermaidPreview = $derived(
           />
         </div>
       {:else if file?.type === "text" && resolved?.renderKind === "markdown"}
-        <div class="max-w-6xl px-1 pb-16 pt-0.5">
+        <div class="mx-auto max-w-6xl px-1 pb-16 pt-0.5">
           <Markdown
             text={file.text ?? ""}
             trimCodeBlocks={false}
