@@ -138,13 +138,28 @@ export function fakeChild(pid = 1234): FakeChild {
 export function runtimeMetadata(
   overrides: Partial<TaskRuntime> = {},
 ): TaskRuntime {
+  const identity: TaskRuntime["identity"] =
+    process.platform === "win32"
+      ? { kind: "win32", creationDate: "win32:133801632000000000" }
+      : process.platform === "darwin"
+        ? { kind: "darwin", startFingerprint: "darwin:1234:5678" }
+        : { kind: "linux", startTimeTicks: 5678 };
   return {
+    version: 2,
     platform: process.platform,
     childPid: 1234,
     processGroupId: process.platform === "win32" ? undefined : 1234,
     detached: process.platform !== "win32",
     shell: true,
+    containment: process.platform === "win32" ? "job-object" : "process-group",
     spawnedAt: "2026-01-02T03:04:05.000Z",
+    identity,
+    capabilities: {
+      identity: true,
+      processTree: true,
+      listeningPorts: true,
+      detail: `native:${process.platform === "win32" ? "job-object" : "process-group"}`,
+    },
     ...overrides,
   };
 }

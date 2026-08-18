@@ -9,6 +9,7 @@ import { migration0005 } from "./migrations/0005-current-project-sidecars.js";
 import { migration0006 } from "./migrations/0006-unify-tool-call-lifecycle.js";
 import { migration0007 } from "./migrations/0007-transient-conversation-live-events.js";
 import { migration0008 } from "./migrations/0008-remove-legacy-storage.js";
+import { migration0009 } from "./migrations/0009-native-task-runtimes.js";
 
 export const storageMigrationRegistry: readonly StorageMigration[] =
   Object.freeze([
@@ -20,6 +21,7 @@ export const storageMigrationRegistry: readonly StorageMigration[] =
     migration0006,
     migration0007,
     migration0008,
+    migration0009,
   ]);
 
 export function validateMigrationRegistry(

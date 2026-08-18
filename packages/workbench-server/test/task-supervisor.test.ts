@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { describe, it } from "node:test";
 import type { ChildProcess } from "node:child_process";
-import type { TaskRuntime } from "@nervekit/contracts";
 import {
   defaultTaskSupervisor,
   managedTaskShellCommand,
@@ -64,30 +63,6 @@ describe("task supervisor", () => {
       await defaultTaskSupervisor.terminate(spawned.child, "SIGKILL");
       await spawned.closed;
     }
-  });
-
-  it("refuses an unverified persisted runtime without signaling", async () => {
-    const runtime: TaskRuntime = {
-      version: 2,
-      platform: process.platform,
-      childPid: process.pid,
-      detached: process.platform !== "win32",
-      shell: true,
-      containment:
-        process.platform === "win32" ? "job-object" : "process-group",
-      spawnedAt: new Date().toISOString(),
-      identity: { kind: "legacy_unverified" },
-    };
-    const result = await defaultTaskSupervisor.terminateRuntime(
-      runtime,
-      "SIGKILL",
-    );
-    assert.equal(result.attempted, false);
-    assert.match(result.error ?? "", /refusing unsafe PID-only cleanup/);
-    await assert.rejects(
-      defaultTaskSupervisor.isRuntimeTargetAlive(runtime),
-      /no native-verifiable process identity/,
-    );
   });
 
   it("refuses unmanaged ChildProcess-shaped objects", async () => {

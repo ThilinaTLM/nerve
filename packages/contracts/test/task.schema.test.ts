@@ -170,19 +170,45 @@ describe("task log paging metadata", () => {
 });
 
 describe("taskRecordSchema runtime metadata", () => {
-  it("rejects invalid runtime PID values", () => {
-    const parsed = taskRecordSchema.safeParse(
-      record({
-        runtime: {
-          platform: "linux",
-          childPid: -1,
-          detached: true,
-          shell: true,
-          spawnedAt: "2026-01-02T03:04:06.000Z",
-        },
-      }),
-    );
+  const runtime = {
+    version: 2 as const,
+    platform: "linux",
+    childPid: 1234,
+    processGroupId: 1234,
+    detached: true,
+    shell: true,
+    containment: "process-group" as const,
+    spawnedAt: "2026-01-02T03:04:06.000Z",
+    identity: { kind: "linux" as const, startTimeTicks: 5678 },
+    capabilities: {
+      identity: true,
+      processTree: true,
+      listeningPorts: true,
+      detail: "native:process-group",
+    },
+  };
 
-    assert.equal(parsed.success, false);
+  it("accepts complete native runtime metadata", () => {
+    assert.equal(taskRecordSchema.safeParse(record({ runtime })).success, true);
+  });
+
+  it("rejects incomplete and legacy runtime metadata", () => {
+    assert.equal(
+      taskRecordSchema.safeParse(
+        record({ runtime: { ...runtime, childPid: -1 } }),
+      ).success,
+      false,
+    );
+    for (const legacy of [
+      { ...runtime, version: undefined },
+      { ...runtime, containment: undefined },
+      { ...runtime, identity: undefined },
+      { ...runtime, identity: { kind: "legacy_unverified" } },
+    ]) {
+      assert.equal(
+        taskRecordSchema.safeParse({ ...record(), runtime: legacy }).success,
+        false,
+      );
+    }
   });
 });
