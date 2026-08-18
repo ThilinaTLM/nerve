@@ -5,7 +5,6 @@ use std::os::windows::io::AsRawHandle;
 use std::os::windows::process::CommandExt;
 use std::process::{Child, Command};
 
-use napi::bindgen_prelude::Result;
 use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
@@ -22,7 +21,7 @@ use windows_sys::Win32::System::Threading::{
     THREAD_SUSPEND_RESUME, TerminateProcess,
 };
 
-use crate::{NativeInspectionResult, NativeManagedTarget, NativeTerminationResult};
+use crate::process::{InspectionResult, ManagedTarget, TerminationMethod, TerminationResult};
 
 const ERROR_ACCESS_DENIED: i32 = 5;
 const ERROR_INVALID_PARAMETER: i32 = 87;
@@ -52,12 +51,12 @@ impl Drop for OwnedJob {
 }
 
 impl OwnedJob {
-    pub(crate) fn terminate(&self) -> NativeTerminationResult {
+    pub(crate) fn terminate(&self) -> TerminationResult {
         if unsafe { TerminateJobObject(self.0, 1) } != 0 {
-            NativeTerminationResult::terminated("job-object")
+            TerminationResult::terminated(TerminationMethod::JobObject)
         } else {
             let error = std::io::Error::last_os_error();
-            NativeTerminationResult::failed("job-object", error.to_string())
+            TerminationResult::failed(TerminationMethod::JobObject, error.to_string())
         }
     }
 }
@@ -76,34 +75,36 @@ pub(crate) fn identity(pid: u32) -> std::result::Result<String, String> {
     }
 }
 
-pub(crate) fn inspect(target: &NativeManagedTarget) -> NativeInspectionResult {
+pub(crate) fn inspect(target: &ManagedTarget) -> InspectionResult {
     match open_process_with_identity(target.pid, PROCESS_QUERY_LIMITED_INFORMATION) {
-        OpenedProcess::Missing => NativeInspectionResult::exited(),
-        OpenedProcess::Unavailable(error) => NativeInspectionResult::unknown(error),
-        OpenedProcess::Found(_, _, false) => NativeInspectionResult::exited(),
+        OpenedProcess::Missing => InspectionResult::exited(),
+        OpenedProcess::Unavailable(error) => InspectionResult::unknown(error),
+        OpenedProcess::Found(_, _, false) => InspectionResult::exited(),
         OpenedProcess::Found(_, identity, true) if identity != target.identity => {
-            NativeInspectionResult::mismatch()
+            InspectionResult::mismatch()
         }
-        OpenedProcess::Found(_, _, true) => NativeInspectionResult::alive(),
+        OpenedProcess::Found(_, _, true) => InspectionResult::alive(),
     }
 }
 
-pub(crate) fn terminate(target: &NativeManagedTarget, _signal: &str) -> NativeTerminationResult {
+pub(crate) fn terminate(target: &ManagedTarget, _signal: &str) -> TerminationResult {
     let root = match open_process_with_identity(
         target.pid,
         PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
     ) {
-        OpenedProcess::Missing => return NativeTerminationResult::not_attempted("none", None),
+        OpenedProcess::Missing => {
+            return TerminationResult::not_attempted(TerminationMethod::None, None);
+        }
         OpenedProcess::Unavailable(error) => {
-            return NativeTerminationResult::not_attempted("none", Some(error));
+            return TerminationResult::not_attempted(TerminationMethod::None, Some(error));
         }
         OpenedProcess::Found(_, _, false) => {
-            return NativeTerminationResult::not_attempted("none", None);
+            return TerminationResult::not_attempted(TerminationMethod::None, None);
         }
         OpenedProcess::Found(handle, identity, true) if identity == target.identity => handle,
         OpenedProcess::Found(_, _, true) => {
-            return NativeTerminationResult::not_attempted(
-                "none",
+            return TerminationResult::not_attempted(
+                TerminationMethod::None,
                 Some("PID was reused by another process".to_string()),
             );
         }
@@ -111,7 +112,9 @@ pub(crate) fn terminate(target: &NativeManagedTarget, _signal: &str) -> NativeTe
 
     let descendants = match open_descendants(target.pid) {
         Ok(handles) => handles,
-        Err(error) => return NativeTerminationResult::failed("process-tree", error),
+        Err(error) => {
+            return TerminationResult::failed(TerminationMethod::ProcessTree, error);
+        }
     };
 
     let mut failures = Vec::new();
@@ -127,26 +130,24 @@ pub(crate) fn terminate(target: &NativeManagedTarget, _signal: &str) -> NativeTe
         }
     }
     if failures.is_empty() {
-        NativeTerminationResult::terminated("process-tree")
+        TerminationResult::terminated(TerminationMethod::ProcessTree)
     } else {
-        NativeTerminationResult::failed("process-tree", failures.join("; "))
+        TerminationResult::failed(TerminationMethod::ProcessTree, failures.join("; "))
     }
 }
 
-pub(crate) fn spawn_suspended_in_job(command: &mut Command) -> Result<(Child, OwnedJob)> {
+pub(crate) fn spawn_suspended_in_job(
+    command: &mut Command,
+) -> std::result::Result<(Child, OwnedJob), String> {
     let job = create_job()?;
     command.creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW);
-    let mut child = command
-        .spawn()
-        .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+    let mut child = command.spawn().map_err(|error| error.to_string())?;
     let process_handle = child.as_raw_handle() as HANDLE;
 
     if unsafe { AssignProcessToJobObject(job.0, process_handle) } == 0 {
         let error = std::io::Error::last_os_error();
         let _ = child.kill();
-        return Err(napi::Error::from_reason(format!(
-            "Failed to assign process to Windows Job: {error}"
-        )));
+        return Err(format!("Failed to assign process to Windows Job: {error}"));
     }
     if let Err(error) = resume_process_thread(child.id()) {
         let _ = job.terminate();
@@ -233,12 +234,10 @@ fn open_descendants(root_pid: u32) -> std::result::Result<Vec<OwnedHandle>, Stri
     Ok(handles)
 }
 
-fn create_job() -> Result<OwnedJob> {
+fn create_job() -> Result<OwnedJob, String> {
     let handle = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
     if handle.is_null() {
-        return Err(napi::Error::from_reason(
-            std::io::Error::last_os_error().to_string(),
-        ));
+        return Err(std::io::Error::last_os_error().to_string());
     }
     let job = OwnedJob(handle);
     let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
@@ -252,19 +251,15 @@ fn create_job() -> Result<OwnedJob> {
         )
     };
     if configured == 0 {
-        return Err(napi::Error::from_reason(
-            std::io::Error::last_os_error().to_string(),
-        ));
+        return Err(std::io::Error::last_os_error().to_string());
     }
     Ok(job)
 }
 
-fn resume_process_thread(pid: u32) -> Result<()> {
+fn resume_process_thread(pid: u32) -> Result<(), String> {
     let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
     if snapshot == INVALID_HANDLE_VALUE {
-        return Err(napi::Error::from_reason(
-            std::io::Error::last_os_error().to_string(),
-        ));
+        return Err(std::io::Error::last_os_error().to_string());
     }
     let snapshot = OwnedHandle(snapshot);
     let mut entry = THREADENTRY32 {
@@ -284,7 +279,5 @@ fn resume_process_thread(pid: u32) -> Result<()> {
         }
         has_entry = unsafe { Thread32Next(snapshot.0, &mut entry) } != 0;
     }
-    Err(napi::Error::from_reason(format!(
-        "Unable to resume suspended process {pid}"
-    )))
+    Err(format!("Unable to resume suspended process {pid}"))
 }

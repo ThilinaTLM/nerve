@@ -22,6 +22,7 @@ Ordinary asynchronous filesystem I/O is usually limited by the filesystem rather
 - [x] Benchmark before and after each migration.
 - [x] Keep security policy, permission decisions, transports, output formatting, and UI state outside Rust.
 - [x] Keep writes, edits, Git mutations, remote operations, and Bashkit adoption out of the initial roadmap.
+- [x] Do not add grep/find-specific profiling or a dedicated benchmark harness.
 - [ ] Reconsider package splitting only if native binary size, ownership, or release cadence makes it necessary.
 
 A native implementation must beat Nerve's current primary path on representative projects. Temporary side-by-side implementations are allowed for parity testing and benchmarking, but an accepted Rust migration replaces and deletes the old production implementation.
@@ -207,12 +208,14 @@ It should not replace Nerve's real-host filesystem, Git, or shell tools as part 
 
 ### Package and module shape
 
-Keep one `@nervekit/native` package initially. Future implementation can add focused Rust modules such as:
+Keep one `@nervekit/native` package and Rust crate initially. The Rust source uses a hybrid feature-first structure:
 
-- `packages/native/native/src/search.rs`;
-- `packages/native/native/src/walk.rs`;
-- `packages/native/native/src/watch.rs`;
-- `packages/native/native/src/git.rs` only after the Git spike.
+- `packages/native/native/src/api/` owns N-API DTOs, exports, callbacks, and internal-model conversions;
+- feature modules such as `process/`, future `filesystem/` and `watch/`, and `git/` only after an accepted spike own N-API-independent mechanics;
+- `packages/native/native/src/sys/` owns compile-time-selected platform integration and unsafe/FFI code;
+- future `packages/native/native/src/runtime/` modules own shared cancellation, bounded batching, and exactly-once completion when the first consumer needs them.
+
+The shared walker belongs in `filesystem/walk.rs` as an internal primitive used by focused search and find operations. Do not add empty future modules, generic utility dumping grounds, or a broad exported walker. Reconsider multiple crates only when binary composition, compile cost, ownership, or release cadence provides evidence for the additional boundary.
 
 The TypeScript facade can be split into focused files under `packages/native/src/` while preserving the package entry point.
 
@@ -265,8 +268,8 @@ During each migration, the current and native implementations may coexist tempor
 
 #### Instrumentation
 
-- [ ] Add timings and counters for grep execution by backend.
-- [ ] Add timings and counters for find execution by backend.
+- [x] Keep grep execution free of backend-specific performance instrumentation.
+- [x] Keep find execution free of backend-specific performance instrumentation.
 - [ ] Measure project directory listing latency and entry counts.
 - [ ] Measure bounded-read latency and allocated/RSS impact for large files.
 - [ ] Expand refresh diagnostics to distinguish raw watcher events, coalesced invalidations, rescans, and watcher recreation.
@@ -275,12 +278,12 @@ During each migration, the current and native implementations may coexist tempor
 
 #### Fixtures
 
-- [ ] Small repository fixture for overhead and cold-start regression.
-- [ ] Large monorepo fixture with nested ignore files.
+- [x] Small repository fixture for overhead and cold-start regression.
+- [x] Large monorepo fixture with nested ignore files.
 - [ ] Huge flat directory fixture for file-pane sorting/pagination.
-- [ ] Hidden, ignored, and explicitly included path fixture.
-- [ ] Binary, very long line, invalid UTF-8, and mixed line-ending fixture.
-- [ ] Symlink, broken symlink, cycle, and path-race fixture.
+- [x] Hidden, ignored, and explicitly included path fixture.
+- [x] Binary, very long line, invalid UTF-8, and mixed line-ending fixture.
+- [x] Symlink, broken symlink, cycle, and path-race fixture.
 - [ ] Git worktree, submodule, sparse checkout, split index, and no-remote fixture.
 - [ ] Concurrent Git index mutation/lock fixture.
 - [ ] High-churn watcher fixture with rename, atomic save, directory move, and deleted/recreated root.
@@ -290,7 +293,7 @@ During each migration, the current and native implementations may coexist tempor
 - [ ] Capture cold and warm median/p95 latency, CPU, RSS, and event-loop delay.
 - [ ] Record result counts and hash normalized results to verify equality.
 - [ ] Record current native prebuild and desktop tarball sizes per platform.
-- [ ] Freeze current grep semantics in `packages/tools/test/search-find.test.ts` and focused fixtures.
+- [x] Freeze current grep semantics in `packages/tools/test/search-find.test.ts` and focused fixtures.
 - [ ] Freeze file-pane sorting, symlink, containment, and stale-cursor behavior in server tests.
 - [ ] Freeze watcher debounce/filter/publication behavior in existing watcher tests.
 - [ ] Freeze Git status/diff/overview behavior in existing Git service tests.
@@ -453,7 +456,10 @@ During each migration, the current and native implementations may coexist tempor
 - `packages/native/src/index.ts`
 - future focused facade modules under `packages/native/src/`
 - `packages/native/native/src/lib.rs`
-- future Rust operation modules under `packages/native/native/src/`
+- N-API adapters under `packages/native/native/src/api/`
+- N-API-independent features under `packages/native/native/src/{process,filesystem,watch,git}/` as their roadmap phases are accepted
+- platform integration under `packages/native/native/src/sys/`
+- shared lifecycle primitives under future `packages/native/native/src/runtime/` modules when first needed
 - `packages/native/native/Cargo.toml`
 - `Cargo.lock`
 - `packages/native/package.json`

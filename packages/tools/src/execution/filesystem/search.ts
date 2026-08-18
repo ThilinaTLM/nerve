@@ -35,9 +35,20 @@ type GrepRunResult = {
 
 class RipgrepUnavailableError extends Error {}
 
+type GrepBackendMode = "auto" | "rg" | "node";
+
 export async function executeGrep(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
+): Promise<ToolExecutionResult> {
+  return executeGrepWithBackend(args, context, "auto");
+}
+
+/** Internal deterministic seam for semantic tests and development benchmarks. */
+export async function executeGrepWithBackend(
+  args: Record<string, unknown>,
+  context: ToolExecutionContext,
+  backendMode: GrepBackendMode,
 ): Promise<ToolExecutionResult> {
   if (typeof args.pattern !== "string" || args.pattern.length === 0) {
     throw new Error("Tool argument 'pattern' must be a non-empty string.");
@@ -46,11 +57,26 @@ export async function executeGrep(
   const limit = Math.min(numberArg(args.limit, 100), 2000);
   const contextLines = numberArg(args.context, 0);
   let raw: GrepRunResult;
-  try {
-    raw = await runRg(args, scope, limit, contextLines, context.signal);
-  } catch (error) {
-    if (!(error instanceof RipgrepUnavailableError)) throw error;
+  if (backendMode === "node") {
     raw = await fallbackGrep(args, scope, limit, contextLines, context.signal);
+  } else {
+    try {
+      raw = await runRg(args, scope, limit, contextLines, context.signal);
+    } catch (error) {
+      if (
+        backendMode !== "auto" ||
+        !(error instanceof RipgrepUnavailableError)
+      ) {
+        throw error;
+      }
+      raw = await fallbackGrep(
+        args,
+        scope,
+        limit,
+        contextLines,
+        context.signal,
+      );
+    }
   }
   const bounded = boundGrepResult(raw);
   const formatted = formatMatches(
