@@ -7,6 +7,7 @@ import {
   conversationViewKey,
   diffViewKey,
   fileViewKey,
+  mermaidViewKey,
   pendingConversationKey,
   prViewKey,
 } from "$lib/core/state/state-keys";
@@ -43,6 +44,7 @@ export type {
   DiffTabModel,
   FileTabModel,
   LogsTabModel,
+  MermaidTabModel,
   PendingConversationTabModel,
   PrTabModel,
   SettingsTabModel,
@@ -56,6 +58,7 @@ import type {
   DiffTabModel,
   FileTabModel,
   LogsTabModel,
+  MermaidTabModel,
   PendingConversationTabModel,
   PrTabModel,
   SettingsTabModel,
@@ -320,6 +323,26 @@ export const workspaceSelectors = {
       };
     });
   },
+  get openMermaidTabs(): MermaidTabModel[] {
+    return workspaceState.openCenterTabs.flatMap((tab) => {
+      if (tab.kind !== "mermaid") return [];
+      const view = fileState.mermaidViews[mermaidViewKey(tab.id)];
+      if (!view) return [];
+      return [
+        {
+          kind: "mermaid" as const,
+          id: tab.id,
+          path: view.path,
+          relativePath: view.relativePath,
+          name: view.name,
+          locator: view.locator,
+          active: activeTabMatches("mermaid", tab.id),
+          sending: view.loading,
+          error: view.error,
+        },
+      ];
+    });
+  },
   get openDiffTabs(): DiffTabModel[] {
     return gitState.openDiffTabIds.map((id) => {
       const view = gitState.diffViews[diffViewKey(id)];
@@ -405,6 +428,7 @@ export const workspaceSelectors = {
       this.openPendingConversationTabs,
       this.openTaskTabs,
       this.openFileTabs,
+      this.openMermaidTabs,
       this.openPrTabs,
       this.openDiffTabs,
       this.openSettingsTabs,

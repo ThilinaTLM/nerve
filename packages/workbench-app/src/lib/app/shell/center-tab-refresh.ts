@@ -4,6 +4,7 @@ export type CenterTabRefreshDependencies = {
   refreshConversation(id: string): void;
   selectTab(tab: CenterTabIdentity): void;
   refreshFile(id: string): void;
+  refreshMermaid(id: string): void;
   refreshPullRequest(id: string): void;
   refreshDiff(id: string): void;
   loadSettings(): void;
@@ -25,6 +26,9 @@ export function createCenterTabRefresh(
         return;
       case "file":
         dependencies.refreshFile(tab.id);
+        return;
+      case "mermaid":
+        dependencies.refreshMermaid(tab.id);
         return;
       case "pr":
         dependencies.refreshPullRequest(tab.id);

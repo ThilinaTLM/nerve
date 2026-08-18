@@ -6,6 +6,7 @@ import {
   conversationViewKey,
   diffViewKey,
   fileViewKey,
+  mermaidViewKey,
   pendingConversationKey,
 } from "$lib/core/state/state-keys";
 import type { CenterTabIdentity } from "$lib/core/types/state-types";
@@ -137,6 +138,8 @@ export async function closeCenterTabs(
   for (const tab of originalTabs) {
     if (!targets.has(centerTabKey(tab))) continue;
     if (tab.kind === "file") delete fileState.fileViews[fileViewKey(tab.id)];
+    if (tab.kind === "mermaid")
+      delete fileState.mermaidViews[mermaidViewKey(tab.id)];
     if (tab.kind === "diff") delete gitState.diffViews[diffViewKey(tab.id)];
     if (tab.kind === "conversation")
       delete conversationState.conversationViews[conversationViewKey(tab.id)];

@@ -10,6 +10,10 @@ import {
   selectCenterFileTab,
 } from "$lib/features/filesystem/state/file-tabs.svelte";
 import {
+  closeMermaidTab,
+  selectCenterMermaidTab,
+} from "$lib/features/filesystem/state/mermaid-tabs.svelte";
+import {
   closeDiffTab,
   selectCenterDiffTab,
 } from "$lib/features/git/state/diff-tabs.svelte";
@@ -37,6 +41,7 @@ registerCenterTabDispatch({
     "pending-conversation": (tab) => selectPendingConversation(tab.id),
     task: (tab) => selectCenterTaskTab(tab.id),
     file: (tab) => selectCenterFileTab(tab.id),
+    mermaid: (tab) => selectCenterMermaidTab(tab.id),
     pr: (tab) => selectCenterPrTab(tab.id),
     diff: (tab) => selectCenterDiffTab(tab.id),
     settings: () => selectCenterSettingsTab(),
@@ -48,6 +53,7 @@ registerCenterTabDispatch({
     "pending-conversation": (tab) => closePendingConversationTab(tab.id),
     task: (tab) => closeTaskTab(tab.id),
     file: (tab) => closeFileTab(tab.id),
+    mermaid: (tab) => closeMermaidTab(tab.id),
     pr: (tab) => closePrTab(tab.id),
     diff: (tab) => closeDiffTab(tab.id),
     settings: () => closeSettingsTab(),

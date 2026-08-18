@@ -10,6 +10,10 @@ import {
   renderMarkdown,
 } from "@nervekit/ui-kit/core/components/markdown-render";
 import {
+  extractMermaidMarkdownBlocks,
+  type MermaidMarkdownBlock,
+} from "@nervekit/ui-kit/core/components/mermaid-blocks";
+import {
   appendedNewline,
   splitStreamingMarkdown,
 } from "@nervekit/ui-kit/core/components/streaming-markdown";
@@ -30,6 +34,8 @@ type Props = {
   streaming?: boolean;
   linkBasePath?: string;
   onOpenFile?: (path: string, line?: number) => void;
+  onOpenMermaid?: (block: MermaidMarkdownBlock) => void;
+  sourceLineStart?: number;
   onCopy?: (ok: boolean) => void;
 };
 
@@ -46,6 +52,8 @@ let {
   streaming = false,
   linkBasePath,
   onOpenFile,
+  onOpenMermaid,
+  sourceLineStart = 1,
   onCopy,
 }: Props = $props();
 
@@ -83,7 +91,7 @@ const initialRender = untrack(() => {
 });
 let html = $state(initialRender.html);
 let streamingPrefixHtml = $state(initialRender.prefixHtml);
-let streamingPrefixSource = initialRender.prefixSource;
+let streamingPrefixSource = $state(initialRender.prefixSource);
 let streamingPrefixTrim = initialRender.trim;
 let streamingPrefixPreserveLineBreaks = initialRender.preserveLineBreaks;
 let streamingTail = $state(initialRender.tail);
@@ -135,13 +143,26 @@ function copyButtonHandler(node: HTMLDivElement) {
 }
 
 type MermaidEnhancement = { destroy: () => void };
+type MermaidHandlerValue = {
+  html: string;
+  source: string;
+  sourceLineStart: number;
+  onOpenMermaid?: (block: MermaidMarkdownBlock) => void;
+};
 
-function enhanceMermaidBlocks(root: HTMLElement): MermaidEnhancement {
+function enhanceMermaidBlocks(
+  root: HTMLElement,
+  value: MermaidHandlerValue,
+): MermaidEnhancement {
   const components: Record<string, unknown>[] = [];
-  for (const host of root.querySelectorAll<HTMLElement>(
-    "[data-mermaid-diagram]",
-  )) {
-    const source = host.querySelector("pre > code")?.textContent ?? "";
+  const blocks = value.onOpenMermaid
+    ? extractMermaidMarkdownBlocks(value.source, value.sourceLineStart)
+    : [];
+  const hosts = root.querySelectorAll<HTMLElement>("[data-mermaid-diagram]");
+  for (const [index, host] of [...hosts].entries()) {
+    const extracted = blocks[index];
+    const source =
+      extracted?.source ?? host.querySelector("pre > code")?.textContent ?? "";
     if (!source.trim()) continue;
     const ariaLabel = host.getAttribute("aria-label") ?? "Mermaid diagram";
     host.replaceChildren();
@@ -152,6 +173,10 @@ function enhanceMermaidBlocks(root: HTMLElement): MermaidEnhancement {
           source,
           ariaLabel,
           class: "h-full w-full",
+          onOpenStandalone:
+            extracted && value.onOpenMermaid
+              ? () => value.onOpenMermaid?.(extracted)
+              : undefined,
         },
       }),
     );
@@ -163,18 +188,18 @@ function enhanceMermaidBlocks(root: HTMLElement): MermaidEnhancement {
   };
 }
 
-function mermaidHandler(node: HTMLDivElement, value: string) {
+function mermaidHandler(node: HTMLDivElement, value: MermaidHandlerValue) {
   let generation = 0;
   let enhancement: MermaidEnhancement | undefined;
 
-  async function update(nextHtml: string) {
+  async function update(nextValue: MermaidHandlerValue) {
     const current = ++generation;
     enhancement?.destroy();
     enhancement = undefined;
-    if (!nextHtml.includes("data-mermaid-diagram")) return;
+    if (!nextValue.html.includes("data-mermaid-diagram")) return;
     await tick();
     if (current !== generation) return;
-    enhancement = enhanceMermaidBlocks(node);
+    enhancement = enhanceMermaidBlocks(node, nextValue);
   }
 
   void update(value);
@@ -284,7 +309,12 @@ $effect(() => () => streamingScheduler.destroy());
   <div
     class="markdown"
     use:copyButtonHandler
-    use:mermaidHandler={streamingPrefixHtml}
+    use:mermaidHandler={{
+      html: streamingPrefixHtml,
+      source: streamingPrefixSource,
+      sourceLineStart,
+      onOpenMermaid,
+    }}
   >
     <!-- eslint-disable-next-line svelte/no-at-html-tags -- the prefix uses the sanitized Markdown pipeline. -->
     {@html streamingPrefixHtml}
@@ -293,7 +323,11 @@ $effect(() => () => streamingScheduler.destroy());
     {/if}
   </div>
 {:else}
-  <div class="markdown" use:copyButtonHandler use:mermaidHandler={html}>
+  <div
+    class="markdown"
+    use:copyButtonHandler
+    use:mermaidHandler={{ html, source: text, sourceLineStart, onOpenMermaid }}
+  >
     <!-- eslint-disable-next-line svelte/no-at-html-tags -- renderMarkdown applies rehype-sanitize before producing markup. -->
     {@html html}
   </div>

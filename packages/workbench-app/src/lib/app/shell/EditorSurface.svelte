@@ -75,6 +75,8 @@ type CenterShellModule = Promise<{ default: import("svelte").Component }>;
 const centerShells = {
   task: () => import("$lib/features/tasks/components/TaskShell.svelte"),
   file: () => import("$lib/features/filesystem/components/FileShell.svelte"),
+  mermaid: () =>
+    import("$lib/features/filesystem/components/MermaidShell.svelte"),
   pr: () => import("$lib/features/git/components/PrShell.svelte"),
   diff: () => import("$lib/features/git/components/DiffShell.svelte"),
   settings: () =>
@@ -127,6 +129,13 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
         {/await}
       {:else if activeCenterTab?.kind === "file"}
         {#await loadedShells.file}
+          <LazyShellPending />
+        {:then module}
+          {@const Component = module?.default}
+          {#if Component}<Component />{/if}
+        {/await}
+      {:else if activeCenterTab?.kind === "mermaid"}
+        {#await loadedShells.mermaid}
           <LazyShellPending />
         {:then module}
           {@const Component = module?.default}

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { TaskRecord } from "@nervekit/contracts";
 import type { CenterTabModel } from "$lib/features/workspace";
-import { tabLabel, tabTitle } from "./editor-tab-helpers.js";
+import { statusLabel, tabLabel, tabTitle } from "./editor-tab-helpers.js";
 
 function task(patch: Partial<TaskRecord> = {}): TaskRecord {
   return {
@@ -39,6 +39,26 @@ test("uses a task definition display label for task tabs and titles", () => {
 
   assert.equal(tabLabel(model), "Workbench UI");
   assert.match(tabTitle(model), /^Workbench UI · running ·/);
+});
+
+test("labels embedded Mermaid tabs with their source and block location", () => {
+  const model: Extract<CenterTabModel, { kind: "mermaid" }> = {
+    kind: "mermaid",
+    id: "diagram_a",
+    path: "/repo/docs/architecture.md",
+    relativePath: "docs/architecture.md",
+    name: "architecture.md",
+    locator: { ordinal: 1, startLine: 42, fingerprint: "abc" },
+    active: true,
+    sending: true,
+  };
+
+  assert.equal(tabLabel(model), "architecture.md · diagram 2");
+  assert.equal(
+    tabTitle(model),
+    "/repo/docs/architecture.md · Mermaid diagram at line 42",
+  );
+  assert.equal(statusLabel(model), "Loading diagram");
 });
 
 test("falls back from blank display names to name and command", () => {

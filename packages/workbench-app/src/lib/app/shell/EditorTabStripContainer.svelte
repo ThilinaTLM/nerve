@@ -13,6 +13,7 @@ import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Settings from "@lucide/svelte/icons/settings";
 import TextAlignStart from "@lucide/svelte/icons/text-align-start";
 import Terminal from "@lucide/svelte/icons/terminal";
+import Workflow from "@lucide/svelte/icons/workflow";
 import X from "@lucide/svelte/icons/x";
 import { EditorTabStrip } from "$lib/presentation/shell";
 import type {
@@ -99,7 +100,11 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
     running: tab.sending,
     error: tab.error,
     closeable: true,
-    wide: tab.kind === "task" || tab.kind === "file" || tab.kind === "diff",
+    wide:
+      tab.kind === "task" ||
+      tab.kind === "file" ||
+      tab.kind === "mermaid" ||
+      tab.kind === "diff",
     draft:
       (tab.kind === "conversation" || tab.kind === "pending-conversation") &&
       tab.hasDraft,
@@ -125,7 +130,8 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
     } else {
       model.icon = FileText;
     }
-  } else if (tab.kind === "pr") model.icon = GitPullRequest;
+  } else if (tab.kind === "mermaid") model.icon = Workflow;
+  else if (tab.kind === "pr") model.icon = GitPullRequest;
   else if (tab.kind === "diff") model.icon = FileDiff;
   else if (tab.kind === "settings") model.icon = Settings;
   else if (tab.kind === "auth") model.icon = CloudCog;
@@ -153,9 +159,13 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
   const hasRight = index !== -1 && index < tabs.length - 1;
   const items: ContextMenuItem[] = [];
 
-  if (source.kind === "file") {
-    const absolutePath = source.file?.path ?? source.path;
-    const relativePath = source.relativePath ?? source.file?.relativePath;
+  if (source.kind === "file" || source.kind === "mermaid") {
+    const absolutePath =
+      source.kind === "file" ? (source.file?.path ?? source.path) : source.path;
+    const relativePath =
+      source.kind === "file"
+        ? (source.relativePath ?? source.file?.relativePath)
+        : source.relativePath;
     items.push(
       {
         label: "Copy path",
@@ -170,13 +180,15 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
         onSelect: () => void copyToClipboard(relativePath, "relative path"),
       },
       { type: "separator" },
-      {
+    );
+    if (source.kind === "file") {
+      items.push({
         label: fileWrapLabel(source),
         icon: TextAlignStart,
         disabled: !onToggleFileLineWrap,
         onSelect: () => onToggleFileLineWrap?.(source.id),
-      },
-    );
+      });
+    }
   }
 
   items.push({

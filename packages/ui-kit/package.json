@@ -17,6 +17,7 @@
     "./core/clipboard": "./src/lib/core/clipboard.ts",
     "./core/components/Markdown.svelte": "./src/lib/core/components/Markdown.svelte",
     "./core/components/MermaidDiagram.svelte": "./src/lib/core/components/MermaidDiagram.svelte",
+    "./core/components/mermaid-blocks": "./src/lib/core/components/mermaid-blocks.ts",
     "./core/components/PlainText.svelte": "./src/lib/core/components/PlainText.svelte",
     "./core/components/markdown-render": "./src/lib/core/components/markdown-render.ts",
     "./core/components/streaming-markdown": "./src/lib/core/components/streaming-markdown.ts",

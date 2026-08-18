@@ -1,4 +1,5 @@
 <script lang="ts">
+import ExternalLink from "@lucide/svelte/icons/external-link";
 import Maximize from "@lucide/svelte/icons/maximize";
 import ZoomIn from "@lucide/svelte/icons/zoom-in";
 import ZoomOut from "@lucide/svelte/icons/zoom-out";
@@ -10,6 +11,7 @@ type Props = {
   source: string;
   ariaLabel?: string;
   class?: string;
+  onOpenStandalone?: () => void;
 };
 
 const MIN_SCALE = 0.1;
@@ -21,6 +23,7 @@ let {
   source,
   ariaLabel = "Mermaid diagram",
   class: className = "",
+  onOpenStandalone,
 }: Props = $props();
 
 let viewport = $state<HTMLElement | null>(null);
@@ -259,6 +262,17 @@ $effect(() => {
       >
         <Maximize class="size-4" />
       </Button>
+      {#if onOpenStandalone}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          ariaLabel="Open diagram in tab"
+          title="Open diagram in tab"
+          onclick={onOpenStandalone}
+        >
+          <ExternalLink class="size-4" />
+        </Button>
+      {/if}
     </div>
   {/if}
 </div>
