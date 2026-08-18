@@ -35,6 +35,15 @@ export const TERMINAL_STATUSES = new Set<RunRecord["status"]>([
   "cancelled",
 ]);
 
+export function isTerminalRunStatus(
+  status: RunRecord["status"],
+): status is Extract<
+  RunRecord["status"],
+  "completed" | "failed" | "cancelled"
+> {
+  return TERMINAL_STATUSES.has(status);
+}
+
 export interface StartRunCommand {
   conversationId: string;
   agentId: string;
