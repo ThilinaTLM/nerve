@@ -99,6 +99,7 @@ export type {
   StorageUsageResponse,
   SubscriptionUsage,
   SubscriptionWindow,
+  TranscriptionModel,
   TaskDefinition,
   TaskLogEvent,
   TaskLogQueryResponse,

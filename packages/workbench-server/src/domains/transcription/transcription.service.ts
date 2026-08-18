@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { AudioTranscriptionResponse } from "@nervekit/contracts";
+import type {
+  AudioTranscriptionResponse,
+  TranscriptionSettings,
+} from "@nervekit/contracts";
 import {
   AUDIO_TRANSCRIPTION_MAX_DURATION_MS,
   audioTranscriptionResponseSchema,
@@ -9,7 +12,6 @@ import type { AuthManager } from "../auth/index.js";
 
 const CHATGPT_TRANSCRIBE_URL = "https://chatgpt.com/backend-api/transcribe";
 const OPENAI_CODEX_PROVIDER = "openai-codex";
-const DEFAULT_TRANSCRIBE_MODEL = "gpt-4o-transcribe";
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 const USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -24,6 +26,35 @@ export type AudioTranscriptionInput = {
   mimeType: string;
   durationMs?: number;
 };
+
+export type TranscriptionRequestField = readonly [name: string, value: string];
+
+export function transcriptionRequestFields(
+  settings: TranscriptionSettings,
+): TranscriptionRequestField[] {
+  const fields: TranscriptionRequestField[] = [["model", settings.model]];
+  if (settings.model === "gpt-transcribe") {
+    for (const language of settings.languages) {
+      fields.push(["languages[]", language]);
+    }
+    for (const term of settings.vocabulary) {
+      fields.push(["keywords[]", term]);
+    }
+    return fields;
+  }
+
+  const context: string[] = [];
+  if (settings.languages.length > 0) {
+    context.push(`Expected languages: ${settings.languages.join(", ")}.`);
+  }
+  if (settings.vocabulary.length > 0) {
+    context.push(
+      `Use these exact spellings when spoken: ${settings.vocabulary.join(", ")}.`,
+    );
+  }
+  if (context.length > 0) fields.push(["prompt", context.join(" ")]);
+  return fields;
+}
 
 export function normalizeAudioMimeType(
   mimeType: string | undefined,
@@ -82,6 +113,7 @@ function estimateDurationMs(sizeBytes: number): number {
 export async function transcribeAudioWithChatGptSubscription(
   auth: AuthManager,
   input: AudioTranscriptionInput,
+  settings: TranscriptionSettings,
 ): Promise<AudioTranscriptionResponse> {
   if (input.data.byteLength === 0) {
     throw new ApplicationError(400, "EMPTY_AUDIO", "Audio upload is empty.");
@@ -146,7 +178,9 @@ export async function transcribeAudioWithChatGptSubscription(
   const form = new FormData();
   form.append("file", file, `whisper.${normalized.extension}`);
   form.append("duration_ms", String(Math.max(1, Math.round(durationMs))));
-  form.append("model", DEFAULT_TRANSCRIBE_MODEL);
+  for (const [name, value] of transcriptionRequestFields(settings)) {
+    form.append(name, value);
+  }
 
   const response = await fetch(CHATGPT_TRANSCRIBE_URL, {
     method: "POST",

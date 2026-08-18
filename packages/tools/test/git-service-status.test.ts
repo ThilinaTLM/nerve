@@ -5,24 +5,57 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { GitService } from "../src/git/git-service.js";
 
-const status = [
-  "? new.ts",
-  "1 .M N... 100644 100644 100644 abc def modified.ts",
-  "! generated/",
-].join("\n");
+type FileStatus = Awaited<
+  ReturnType<GitService["projectFileStatus"]>
+>["files"][number];
+
+function file(
+  path: string,
+  index: FileStatus["index"],
+  worktree: FileStatus["worktree"],
+  untracked = false,
+) {
+  return { path, index, worktree, staged: false, untracked };
+}
+
+function statusBackend(
+  files: (repoDir: string) => Promise<ReturnType<typeof file>[]>,
+) {
+  return {
+    snapshot: async (repoDir: string) => ({
+      headOid: "abcdef",
+      branch: {
+        head: "main",
+        detached: false,
+        upstream: null,
+        ahead: null,
+        behind: null,
+      },
+      refs: [],
+      remotes: [],
+      files: await files(repoDir),
+      recentCommits: [],
+      stashes: [],
+    }),
+    isAncestor: async () => false,
+    resolveRevision: async (_repoDir: string, revision: string) => revision,
+    validateBranchName: async () => true,
+  };
+}
 
 describe("GitService project file status", () => {
   it("returns project-relative paths for a root repository", async () => {
-    const service = new GitService(() => ({ dir: "/repo", name: "repo" }));
+    const service = new GitService(() => ({ dir: "/repo", name: "repo" }), {
+      readBackend: statusBackend(async (repoDir) => {
+        assert.equal(repoDir, "/repo");
+        return [
+          file("new.ts", "?", "?", true),
+          file("modified.ts", " ", "M"),
+          file("generated/", "!", "!"),
+        ];
+      }),
+    });
     service.isRepo = async () => true;
-    service.runGit = async (_cwd, args) => {
-      assert.deepEqual(args, [
-        "status",
-        "--porcelain=v2",
-        "--ignored=matching",
-      ]);
-      return { stdout: status, stderr: "" };
-    };
 
     const result = await service.projectFileStatus("proj_test");
     assert.deepEqual(
@@ -39,17 +72,13 @@ describe("GitService project file status", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-git-status-"));
     try {
       await mkdir(join(root, "packages", "app", ".git"), { recursive: true });
-      const service = new GitService(() => ({ dir: root, name: "project" }));
+      const service = new GitService(() => ({ dir: root, name: "project" }), {
+        readBackend: statusBackend(async (repoDir) => {
+          assert.equal(repoDir, join(root, "packages", "app"));
+          return [file("src/index.ts", "?", "?", true)];
+        }),
+      });
       service.isRepo = async () => false;
-      service.runGit = async (cwd, args) => {
-        assert.equal(cwd, join(root, "packages", "app"));
-        assert.deepEqual(args, [
-          "status",
-          "--porcelain=v2",
-          "--ignored=matching",
-        ]);
-        return { stdout: "? src/index.ts", stderr: "" };
-      };
 
       const result = await service.projectFileStatus("proj_test");
       assert.equal(result.files[0]?.repo, "packages/app");

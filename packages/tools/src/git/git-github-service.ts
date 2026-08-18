@@ -23,17 +23,13 @@ import { GitWorkflowError } from "./git-errors.js";
 import type { GithubApiClient } from "./git-github-api-client.js";
 import {
   noChecksSummary,
+  parseGithubRepositoryUrl,
   summarizeStatusCheckRollup,
 } from "./git-github-parsers.js";
 import type { GithubRepositoryRef } from "./git-github-parsers.js";
-import { parsePorcelainV2 } from "./git-status.js";
+import type { GitReadSnapshot } from "./git-read-backend.js";
 
 type ExecResult = { stdout: string; stderr: string };
-type GitCommandLikeError = Error & {
-  code: number | null;
-  stdout: string;
-  stderr: string;
-};
 type RemoteState = {
   hasRemote: boolean;
   hasGithubRemote: boolean;
@@ -44,18 +40,23 @@ export type GithubServiceContext = {
   resolveRepoDir(projectId: string, relativePath: string): string;
   repoRemoteState(repoDir: string): Promise<RemoteState>;
   githubApi: GithubApiClient;
-  runGh(repoDir: string, args: string[]): Promise<ExecResult>;
   runGit(repoDir: string, args: string[]): Promise<ExecResult>;
+  mapGit<T>(fn: () => Promise<T>): Promise<T>;
+  readSnapshot(repoDir: string): Promise<GitReadSnapshot>;
+  isAncestor(
+    repoDir: string,
+    ancestor: string,
+    descendant: string,
+  ): Promise<boolean>;
+  resolveRevision(repoDir: string, revision: string): Promise<string>;
   ensureGithubRemote(repoDir: string): Promise<void>;
   invalidateStableMetadata(repoDir: string): void;
-  mapGh<T>(fn: () => Promise<T>): Promise<T>;
   summarizeRepo(
     repoDir: string,
     relativePath: string,
     name: string,
   ): Promise<GitRepoSummary>;
   repoName(projectId: string, relativePath: string): string;
-  isGitCommandError(error: unknown): error is GitCommandLikeError;
 };
 
 type GithubAuthorRaw = { login?: string; avatarUrl?: string } | null;
@@ -938,25 +939,125 @@ export async function mergePr(
   };
 }
 
+function selectRepositoryRemote(
+  snapshot: GitReadSnapshot,
+  repository: Pick<GithubRepositoryRef, "owner" | "repo">,
+): string | null {
+  const matches = snapshot.remotes.filter((remote) => {
+    const parsed = parseGithubRepositoryUrl(
+      remote.fetchUrl ?? remote.pushUrl ?? "",
+    );
+    return (
+      parsed?.owner.toLowerCase() === repository.owner.toLowerCase() &&
+      parsed.repo.toLowerCase() === repository.repo.toLowerCase()
+    );
+  });
+  return (
+    matches.find((remote) => remote.name === "origin")?.name ??
+    matches[0]?.name ??
+    null
+  );
+}
+
 export async function checkoutPr(
   context: GithubServiceContext,
   projectId: string,
   relativePath: string,
   number: number,
 ): Promise<GithubPrCheckoutResponse> {
-  const { repoDir } = await preparePr(context, projectId, relativePath);
-  const { files } = parsePorcelainV2(
-    (await context.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
+  const { repoDir, repository } = await preparePr(
+    context,
+    projectId,
+    relativePath,
   );
-  if (files.length > 0)
+  const initial = await context.readSnapshot(repoDir);
+  if (initial.files.length > 0)
     throw new GitWorkflowError(
       409,
       "GIT_DIRTY_WORKTREE",
       "Working tree has uncommitted changes. Commit or stash them before checking out a PR.",
     );
-  await context.mapGh(() =>
-    context.runGh(repoDir, ["pr", "checkout", String(number)]),
+  const { raw } = await loadPr(
+    context,
+    repository,
+    number,
+    "headRefName headRefOid headRepository { nameWithOwner }",
+    "checkout-pull-request",
   );
+  if (!raw.headRefName || !raw.headRefOid)
+    throw new GitWorkflowError(
+      409,
+      "GH_PR_SOURCE_UNAVAILABLE",
+      "The pull request source revision is unavailable.",
+    );
+  const remote = selectRepositoryRemote(initial, repository);
+  if (!remote)
+    throw new GitWorkflowError(
+      409,
+      "GH_NO_GITHUB_REMOTE",
+      "No local remote matches this GitHub repository.",
+    );
+  const pullRef = `refs/remotes/${remote}/pull/${number}`;
+  await context.mapGit(() =>
+    context.runGit(repoDir, [
+      "fetch",
+      "--no-tags",
+      remote,
+      `+refs/pull/${number}/head:${pullRef}`,
+    ]),
+  );
+  const fetchedOid = await context.resolveRevision(repoDir, pullRef);
+  if (fetchedOid !== raw.headRefOid)
+    throw new GitWorkflowError(
+      409,
+      "GH_PR_HEAD_CHANGED",
+      "The pull request head changed while it was being fetched. Try again.",
+    );
+
+  const refreshed = await context.readSnapshot(repoDir);
+  const localRef = `refs/heads/${raw.headRefName}`;
+  const localOid = refreshed.refs.find((ref) => ref.name === localRef)?.target;
+  const [headOwner, headRepo] =
+    raw.headRepository?.nameWithOwner?.split("/") ?? [];
+  const canonicalRemote =
+    headOwner && headRepo
+      ? selectRepositoryRemote(refreshed, {
+          owner: headOwner,
+          repo: headRepo,
+        })
+      : remote;
+  const canonicalRef = `refs/remotes/${canonicalRemote ?? remote}/${raw.headRefName}`;
+  const canonicalMatches = refreshed.refs.some(
+    (ref) => ref.name === canonicalRef && ref.target === fetchedOid,
+  );
+  const checkoutTarget = canonicalMatches ? canonicalRef : pullRef;
+  if (!localOid) {
+    await context.mapGit(() =>
+      context.runGit(repoDir, [
+        "switch",
+        "-c",
+        raw.headRefName,
+        checkoutTarget,
+      ]),
+    );
+  } else if (localOid === fetchedOid) {
+    await context.mapGit(() =>
+      context.runGit(repoDir, ["switch", raw.headRefName]),
+    );
+  } else if (await context.isAncestor(repoDir, localOid, fetchedOid)) {
+    await context.mapGit(() =>
+      context.runGit(repoDir, ["switch", raw.headRefName]),
+    );
+    await context.mapGit(() =>
+      context.runGit(repoDir, ["merge", "--ff-only", checkoutTarget]),
+    );
+  } else {
+    throw new GitWorkflowError(
+      409,
+      "GIT_BRANCH_DIVERGED",
+      `Local branch '${raw.headRefName}' has diverged from the pull request head.`,
+    );
+  }
   context.invalidateStableMetadata(repoDir);
   return {
     repo: await context.summarizeRepo(

@@ -1,7 +1,7 @@
 use std::ffi::{c_int, c_void};
 use std::mem::size_of;
 
-use crate::{NativeInspectionResult, NativeManagedTarget, NativeTerminationResult};
+use crate::process::{InspectionResult, ManagedTarget, TerminationMethod, TerminationResult};
 
 const PROC_PIDTBSDINFO: c_int = 3;
 const PROCESS_STATUS_ZOMBIE: u32 = 5;
@@ -57,41 +57,43 @@ pub(crate) fn identity(pid: u32) -> Result<String, String> {
     }
 }
 
-pub(crate) fn inspect(target: &NativeManagedTarget) -> NativeInspectionResult {
+pub(crate) fn inspect(target: &ManagedTarget) -> InspectionResult {
     match read_identity(target.pid) {
-        ReadIdentity::Missing => NativeInspectionResult::exited(),
-        ReadIdentity::Unavailable(error) => NativeInspectionResult::unknown(error),
+        ReadIdentity::Missing => InspectionResult::exited(),
+        ReadIdentity::Unavailable(error) => InspectionResult::unknown(error),
         ReadIdentity::Found(value) if value.pbi_status == PROCESS_STATUS_ZOMBIE => {
-            NativeInspectionResult::exited()
+            InspectionResult::exited()
         }
         ReadIdentity::Found(value) if identity_value(&value) != target.identity => {
-            NativeInspectionResult::mismatch()
+            InspectionResult::mismatch()
         }
-        ReadIdentity::Found(_) => NativeInspectionResult::alive(),
+        ReadIdentity::Found(_) => InspectionResult::alive(),
     }
 }
 
-pub(crate) fn terminate(target: &NativeManagedTarget, signal: &str) -> NativeTerminationResult {
+pub(crate) fn terminate(target: &ManagedTarget, signal: &str) -> TerminationResult {
     match read_identity(target.pid) {
-        ReadIdentity::Missing => return NativeTerminationResult::not_attempted("none", None),
+        ReadIdentity::Missing => {
+            return TerminationResult::not_attempted(TerminationMethod::None, None);
+        }
         ReadIdentity::Unavailable(error) => {
-            return NativeTerminationResult::not_attempted("none", Some(error));
+            return TerminationResult::not_attempted(TerminationMethod::None, Some(error));
         }
         ReadIdentity::Found(value) => {
             if value.pbi_status == PROCESS_STATUS_ZOMBIE {
-                return NativeTerminationResult::not_attempted("none", None);
+                return TerminationResult::not_attempted(TerminationMethod::None, None);
             }
             if identity_value(&value) != target.identity {
-                return NativeTerminationResult::not_attempted(
-                    "none",
+                return TerminationResult::not_attempted(
+                    TerminationMethod::None,
                     Some("PID was reused by another process".to_string()),
                 );
             }
             if let Some(expected_group) = target.process_group_id
                 && value.pbi_pgid != expected_group
             {
-                return NativeTerminationResult::not_attempted(
-                    "none",
+                return TerminationResult::not_attempted(
+                    TerminationMethod::None,
                     Some("Process group no longer matches the managed target".to_string()),
                 );
             }

@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- GitService centralizes the repository command boundary and delegates domain workflows to focused modules. */
 import { type Dirent, existsSync } from "node:fs";
-import { readFile, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
 import type {
   GitBranchListResponse,
@@ -42,6 +42,13 @@ import {
   runGitCommand,
 } from "./git-command.js";
 import { GitWorkflowError } from "./git-errors.js";
+import {
+  GitCliCompatibilityReadBackend,
+  type GitReadBackend,
+  GitReadBackendRouter,
+  type GitReadSnapshot,
+  NativeGitReadBackend,
+} from "./git-read-backend.js";
 import { GithubApiClient } from "./git-github-api-client.js";
 import {
   parseGithubRepositoryRemote,
@@ -96,6 +103,7 @@ function observedCommand(args: readonly string[]): string {
 export class GitService {
   readonly #stableMetadataCache: GitRepositoryMetadataCache;
   readonly #githubApi: GithubApiClient;
+  readonly #readBackend: GitReadBackend;
 
   constructor(
     readonly getProject: (projectId: string) => GitWorkspaceRef,
@@ -106,10 +114,19 @@ export class GitService {
       options.stableMetadataTtlMs ?? 30_000,
       options.now ?? Date.now,
     );
+    this.#readBackend =
+      options.readBackend ??
+      new GitReadBackendRouter(
+        new NativeGitReadBackend(options.now),
+        new GitCliCompatibilityReadBackend((cwd, args) =>
+          this.runGit(cwd, args),
+        ),
+        (observation) => options.onReadCompleted?.(observation),
+      );
     this.#githubApi = new GithubApiClient({
       tokenProvider: async (hostname) =>
         (
-          await this.runGh(process.cwd(), [
+          await this.run("gh", process.cwd(), [
             "auth",
             "token",
             "--hostname",
@@ -125,7 +142,7 @@ export class GitService {
     return new GitService(() => ({ dir: rootDir, name }));
   }
 
-  async run(
+  private async run(
     bin: "git" | "gh",
     cwd: string,
     args: string[],
@@ -171,10 +188,6 @@ export class GitService {
     return this.run("git", cwd, args);
   }
 
-  runGh(cwd: string, args: string[]): Promise<ExecResult> {
-    return this.run("gh", cwd, args);
-  }
-
   /** Resolve and contain a repo dir relative to the project dir. */
   resolveRepoDir(projectId: string, relativePath: string): string {
     const project = this.getProject(projectId);
@@ -195,11 +208,7 @@ export class GitService {
 
   async isRepo(dir: string): Promise<boolean> {
     try {
-      const { stdout } = await this.runGit(dir, [
-        "rev-parse",
-        "--is-inside-work-tree",
-      ]);
-      return stdout.trim() === "true";
+      return await this.#readBackend.isRepository(dir);
     } catch {
       return false;
     }
@@ -209,7 +218,17 @@ export class GitService {
     repoDir: string,
   ): Promise<StableRepoMetadata["remoteState"]> {
     try {
-      const { stdout } = await this.runGit(repoDir, ["remote", "-v"]);
+      const snapshot = await this.readSnapshot(repoDir);
+      const stdout = snapshot.remotes
+        .flatMap((remote) => [
+          ...(remote.fetchUrl
+            ? [`${remote.name}\t${remote.fetchUrl} (fetch)`]
+            : []),
+          ...(remote.pushUrl
+            ? [`${remote.name}\t${remote.pushUrl} (push)`]
+            : []),
+        ])
+        .join("\n");
       const githubRepository = parseGithubRepositoryRemote(stdout);
       return {
         hasRemote: parseGitRemoteUrls(stdout).length > 0,
@@ -307,12 +326,8 @@ export class GitService {
             ? "."
             : repoDir.slice(root.length + 1).replaceAll(sep, "/");
         try {
-          const { stdout } = await this.runGit(repoDir, [
-            "status",
-            "--porcelain=v2",
-            "--ignored=matching",
-          ]);
-          for (const file of parsePorcelainV2(stdout).files) {
+          const snapshot = await this.readSnapshot(repoDir, true);
+          for (const file of snapshot.files) {
             const prefix = repo === "." ? "" : `${repo}/`;
             files.push({
               ...file,
@@ -394,6 +409,25 @@ export class GitService {
     }
   }
 
+  readSnapshot(
+    repoDir: string,
+    includeIgnored = false,
+  ): Promise<GitReadSnapshot> {
+    return this.#readBackend.snapshot(repoDir, includeIgnored);
+  }
+
+  readIsAncestor(
+    repoDir: string,
+    ancestor: string,
+    descendant: string,
+  ): Promise<boolean> {
+    return this.#readBackend.isAncestor(repoDir, ancestor, descendant);
+  }
+
+  resolveReadRevision(repoDir: string, revision: string): Promise<string> {
+    return this.#readBackend.resolveRevision(repoDir, revision);
+  }
+
   recentCommits(repoDir: string): Promise<GitRecentCommit[]> {
     return getRecentCommits(this, repoDir);
   }
@@ -441,13 +475,7 @@ export class GitService {
       return false;
     }
     try {
-      await this.runGit(repoDir, [
-        "merge-base",
-        "--is-ancestor",
-        "HEAD",
-        baseRef,
-      ]);
-      return true;
+      return await this.#readBackend.isAncestor(repoDir, "HEAD", baseRef);
     } catch {
       return false;
     }
@@ -459,9 +487,7 @@ export class GitService {
     name: string,
   ): Promise<GitMutationResponse> {
     const repoDir = this.resolveRepoDir(projectId, relativePath);
-    try {
-      await this.runGit(repoDir, ["check-ref-format", "--branch", name]);
-    } catch {
+    if (!(await this.#readBackend.validateBranchName(name))) {
       throw new GitWorkflowError(
         400,
         "GIT_INVALID_BRANCH_NAME",
@@ -513,102 +539,43 @@ export class GitService {
     area: GitDiffArea,
   ): Promise<GitFileDiffResponse> {
     const repoDir = this.resolveRepoDir(projectId, relativePath);
-    const status = parsePorcelainV2(
-      (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
-    );
-    const file = status.files.find(
+    const snapshot = await this.readSnapshot(repoDir);
+    const file = snapshot.files.find(
       (candidate) => candidate.path === path || candidate.renamedFrom === path,
     );
     const resolvedPath = file?.path ?? path;
     const originalPath = file?.renamedFrom ?? resolvedPath;
-    const paths = file?.renamedFrom
-      ? [file.renamedFrom, resolvedPath]
-      : [resolvedPath];
-    let numstat: string;
-
-    if (area === "unstaged" && file?.untracked) {
-      try {
-        numstat = (
-          await this.runGit(repoDir, [
-            "diff",
-            "--no-index",
-            "--numstat",
-            "--",
-            "/dev/null",
-            resolvedPath,
-          ])
-        ).stdout;
-      } catch (error) {
-        if (error instanceof GitCommandError && error.code === 1) {
-          numstat = error.stdout;
-        } else {
-          throw error;
-        }
-      }
-    } else {
-      const args = [
-        "diff",
-        ...(area === "staged" ? ["--staged"] : []),
-        "--numstat",
-        "-M",
-        "--",
-        ...paths,
-      ];
-      numstat = (await this.mapGit(() => this.runGit(repoDir, args))).stdout;
-    }
-
+    const originalMissing =
+      area === "staged" ? file?.index === "A" : Boolean(file?.untracked);
+    const modifiedMissing =
+      area === "staged" ? file?.index === "D" : file?.worktree === "D";
+    const documents = await this.#readBackend.fileDiff(
+      repoDir,
+      originalMissing
+        ? { kind: "empty", path: originalPath }
+        : area === "staged"
+          ? { kind: "revision", revision: "HEAD", path: originalPath }
+          : { kind: "index", path: originalPath },
+      modifiedMissing
+        ? { kind: "empty", path: resolvedPath }
+        : area === "staged"
+          ? { kind: "index", path: resolvedPath }
+          : { kind: "worktree", path: resolvedPath },
+    );
     const metadata = {
       path: resolvedPath,
       ...(file?.renamedFrom ? { renamedFrom: file.renamedFrom } : {}),
       area,
     };
-    if (/(?:^|\n)-\t-\t/.test(numstat)) {
+    if (documents.original.binary || documents.modified.binary) {
       return { ...metadata, binary: true };
     }
-
-    const originalMissing =
-      area === "staged" ? file?.index === "A" : Boolean(file?.untracked);
-    const modifiedMissing =
-      area === "staged" ? file?.index === "D" : file?.worktree === "D";
-    const [original, modified] = await Promise.all([
-      originalMissing
-        ? ""
-        : this.readGitDocument(
-            repoDir,
-            area === "staged" ? `HEAD:${originalPath}` : `:${originalPath}`,
-          ),
-      modifiedMissing
-        ? ""
-        : area === "staged"
-          ? this.readGitDocument(repoDir, `:${resolvedPath}`)
-          : this.readWorktreeDocument(repoDir, resolvedPath),
-    ]);
-
-    return { ...metadata, binary: false, original, modified };
-  }
-
-  private async readGitDocument(
-    repoDir: string,
-    spec: string,
-  ): Promise<string> {
-    return (await this.mapGit(() => this.runGit(repoDir, ["show", spec])))
-      .stdout;
-  }
-
-  private async readWorktreeDocument(
-    repoDir: string,
-    path: string,
-  ): Promise<string> {
-    const root = resolve(repoDir);
-    const target = resolve(root, path);
-    if (target === root || !target.startsWith(`${root}${sep}`)) {
-      throw new GitWorkflowError(
-        400,
-        "GIT_FILE_OUT_OF_SCOPE",
-        "Git file path is outside the repository directory.",
-      );
-    }
-    return readFile(target, "utf8");
+    return {
+      ...metadata,
+      binary: false,
+      original: documents.original.content ?? "",
+      modified: documents.modified.content ?? "",
+    };
   }
 
   async stageFile(
@@ -1117,18 +1084,20 @@ export class GitService {
       repoRemoteState: async (repoDir) =>
         (await this.stableRepoMetadata(repoDir)).remoteState,
       githubApi: this.#githubApi,
-      runGh: (repoDir, args) => this.runGh(repoDir, args),
       runGit: (repoDir, args) => this.runGit(repoDir, args),
+      mapGit: (fn) => this.mapGit(fn),
+      readSnapshot: (repoDir) => this.readSnapshot(repoDir),
+      isAncestor: (repoDir, ancestor, descendant) =>
+        this.readIsAncestor(repoDir, ancestor, descendant),
+      resolveRevision: (repoDir, revision) =>
+        this.resolveReadRevision(repoDir, revision),
       ensureGithubRemote: (repoDir) => this.ensureGithubRemote(repoDir),
       invalidateStableMetadata: (repoDir) =>
         this.invalidateStableRepoMetadata(repoDir),
-      mapGh: (fn) => this.mapGh(fn),
       summarizeRepo: (repoDir, relativePath, name) =>
         this.summarizeRepo(repoDir, relativePath, name),
       repoName: (projectId, relativePath) =>
         this.repoName(projectId, relativePath),
-      isGitCommandError: (error): error is GitCommandError =>
-        error instanceof GitCommandError,
     };
   }
 
@@ -1138,18 +1107,6 @@ export class GitService {
     } catch (error) {
       if (error instanceof GitCommandError) {
         throw new GitWorkflowError(409, "GIT_COMMAND_FAILED", error.message);
-      }
-      throw error;
-    }
-  }
-
-  async mapGh<T>(fn: () => Promise<T>): Promise<T> {
-    try {
-      return await fn();
-    } catch (error) {
-      if (error instanceof GitCommandError) {
-        const status = error.code === null ? 503 : 409;
-        throw new GitWorkflowError(status, "GH_COMMAND_FAILED", error.message);
       }
       throw error;
     }

@@ -5,6 +5,7 @@ import Keyboard from "@lucide/svelte/icons/keyboard";
 import Library from "@lucide/svelte/icons/library";
 import Lightbulb from "@lucide/svelte/icons/lightbulb";
 import Monitor from "@lucide/svelte/icons/monitor";
+import Mic from "@lucide/svelte/icons/mic";
 import Server from "@lucide/svelte/icons/server";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import Wrench from "@lucide/svelte/icons/wrench";
@@ -27,6 +28,17 @@ export const settingsPages: SettingsPageDef[] = [
     sections: [
       { id: "general", label: "General" },
       { id: "sounds", label: "Sounds" },
+    ],
+  },
+  {
+    id: "transcription",
+    label: "Transcription",
+    icon: Mic,
+    description:
+      "Configure the OpenAI model and context hints used for voice input.",
+    sections: [
+      { id: "model", label: "Model" },
+      { id: "context", label: "Context" },
     ],
   },
   {

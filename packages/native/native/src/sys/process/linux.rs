@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::ErrorKind;
 
-use crate::{NativeInspectionResult, NativeManagedTarget, NativeTerminationResult};
+use crate::process::{InspectionResult, ManagedTarget, TerminationMethod, TerminationResult};
 
 struct ProcessIdentity {
     state: char,
@@ -23,42 +23,44 @@ pub(crate) fn identity(pid: u32) -> Result<String, String> {
     }
 }
 
-pub(crate) fn inspect(target: &NativeManagedTarget) -> NativeInspectionResult {
+pub(crate) fn inspect(target: &ManagedTarget) -> InspectionResult {
     match read_identity(target.pid) {
-        ReadIdentity::Missing => NativeInspectionResult::exited(),
-        ReadIdentity::Unavailable(error) => NativeInspectionResult::unknown(error),
-        ReadIdentity::Found(value) if value.state == 'Z' => NativeInspectionResult::exited(),
+        ReadIdentity::Missing => InspectionResult::exited(),
+        ReadIdentity::Unavailable(error) => InspectionResult::unknown(error),
+        ReadIdentity::Found(value) if value.state == 'Z' => InspectionResult::exited(),
         ReadIdentity::Found(value) => {
             if format!("linux:{}", value.start_time_ticks) == target.identity {
-                NativeInspectionResult::alive()
+                InspectionResult::alive()
             } else {
-                NativeInspectionResult::mismatch()
+                InspectionResult::mismatch()
             }
         }
     }
 }
 
-pub(crate) fn terminate(target: &NativeManagedTarget, signal: &str) -> NativeTerminationResult {
+pub(crate) fn terminate(target: &ManagedTarget, signal: &str) -> TerminationResult {
     match read_identity(target.pid) {
-        ReadIdentity::Missing => return NativeTerminationResult::not_attempted("none", None),
+        ReadIdentity::Missing => {
+            return TerminationResult::not_attempted(TerminationMethod::None, None);
+        }
         ReadIdentity::Unavailable(error) => {
-            return NativeTerminationResult::not_attempted("none", Some(error));
+            return TerminationResult::not_attempted(TerminationMethod::None, Some(error));
         }
         ReadIdentity::Found(value) if value.state == 'Z' => {
-            return NativeTerminationResult::not_attempted("none", None);
+            return TerminationResult::not_attempted(TerminationMethod::None, None);
         }
         ReadIdentity::Found(value) => {
             if format!("linux:{}", value.start_time_ticks) != target.identity {
-                return NativeTerminationResult::not_attempted(
-                    "none",
+                return TerminationResult::not_attempted(
+                    TerminationMethod::None,
                     Some("PID was reused by another process".to_string()),
                 );
             }
             if let Some(expected_group) = target.process_group_id
                 && value.process_group_id != expected_group
             {
-                return NativeTerminationResult::not_attempted(
-                    "none",
+                return TerminationResult::not_attempted(
+                    TerminationMethod::None,
                     Some("Process group no longer matches the managed target".to_string()),
                 );
             }

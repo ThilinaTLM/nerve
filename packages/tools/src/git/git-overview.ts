@@ -4,7 +4,7 @@ import type {
   GitRepoSummary,
 } from "@nervekit/contracts";
 import type { GitService } from "./git-service.js";
-import { listStashes } from "./git-stash.js";
+import type { GitReadSnapshot } from "./git-read-backend.js";
 import { parsePorcelainV2, parseShortstat } from "./git-status.js";
 
 export async function summarizeRepo(
@@ -13,21 +13,17 @@ export async function summarizeRepo(
   relativePath: string,
   name: string,
   statusOutput?: string,
+  readSnapshot?: GitReadSnapshot,
 ): Promise<GitRepoSummary> {
-  const [stdout, stable] = await Promise.all([
-    statusOutput === undefined
-      ? service
-          .runGit(repoDir, [
-            "--no-optional-locks",
-            "status",
-            "--porcelain=v2",
-            "--branch",
-          ])
-          .then((result) => result.stdout)
-      : Promise.resolve(statusOutput),
+  const [read, stable] = await Promise.all([
+    readSnapshot
+      ? Promise.resolve(readSnapshot)
+      : statusOutput === undefined
+        ? service.readSnapshot(repoDir)
+        : Promise.resolve(null),
     service.stableRepoMetadata(repoDir),
   ]);
-  const { branch, files } = parsePorcelainV2(stdout);
+  const { branch, files } = read ?? parsePorcelainV2(statusOutput ?? "");
   const onBaseBranch = branch.head === stable.baseBranch;
   return {
     relativePath,
@@ -63,36 +59,24 @@ export async function overview(
   relativePath: string,
 ): Promise<GitOverviewResponse> {
   const repoDir = service.resolveRepoDir(projectId, relativePath);
-  const statusPromise = service.runGit(repoDir, [
-    "--no-optional-locks",
-    "status",
-    "--porcelain=v2",
-    "--branch",
-  ]);
-  const repoPromise = statusPromise.then(({ stdout }) =>
-    service.summarizeRepo(
+  const snapshotPromise = service.readSnapshot(repoDir);
+  const repoPromise = snapshotPromise.then((snapshot) =>
+    summarizeRepo(
+      service,
       repoDir,
       relativePath,
       service.repoName(projectId, relativePath),
-      stdout,
+      undefined,
+      snapshot,
     ),
   );
-  const [
-    repo,
-    { stdout: statusOut },
-    unstagedResult,
-    stagedResult,
-    recent,
-    stashes,
-  ] = await Promise.all([
+  const [repo, snapshot, unstagedResult, stagedResult] = await Promise.all([
     repoPromise,
-    statusPromise,
+    snapshotPromise,
     service.runGit(repoDir, ["diff", "--shortstat"]),
     service.runGit(repoDir, ["diff", "--staged", "--shortstat"]),
-    service.recentCommits(repoDir),
-    listStashes(service, repoDir),
   ]);
-  const { files } = parsePorcelainV2(statusOut);
+  const { files } = snapshot;
   const stagedCount = files.filter((file) => file.staged).length;
   const untrackedCount = files.filter((file) => file.untracked).length;
   const unstagedCount = files.filter(
@@ -111,8 +95,8 @@ export async function overview(
     untrackedCount,
     insertions: unstaged.insertions + staged.insertions,
     deletions: unstaged.deletions + staged.deletions,
-    recentCommits: recent,
-    stashes,
+    recentCommits: snapshot.recentCommits,
+    stashes: snapshot.stashes,
   };
 }
 
@@ -121,23 +105,7 @@ export async function recentCommits(
   repoDir: string,
 ): Promise<GitRecentCommit[]> {
   try {
-    const { stdout } = await service.runGit(repoDir, [
-      "log",
-      "-n",
-      "10",
-      "--pretty=%h%x00%s%x00%cr",
-    ]);
-    return stdout
-      .split("\n")
-      .filter((line) => line.length > 0)
-      .map((line) => {
-        const [hash, subject, relativeDate] = line.split("\u0000");
-        return {
-          hash: hash ?? "",
-          subject: subject ?? "",
-          relativeDate: relativeDate ?? "",
-        };
-      });
+    return (await service.readSnapshot(repoDir)).recentCommits;
   } catch {
     return [];
   }

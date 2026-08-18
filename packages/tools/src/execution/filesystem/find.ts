@@ -19,9 +19,20 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+type FindBackendMode = "auto" | "fd" | "node";
+
 export async function executeFind(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
+): Promise<ToolExecutionResult> {
+  return executeFindWithBackend(args, context, "auto");
+}
+
+/** Internal deterministic seam for semantic tests and development benchmarks. */
+export async function executeFindWithBackend(
+  args: Record<string, unknown>,
+  context: ToolExecutionContext,
+  backendMode: FindBackendMode,
 ): Promise<ToolExecutionResult> {
   if (typeof args.pattern !== "string" || args.pattern.length === 0) {
     throw new Error("Tool argument 'pattern' must be a non-empty string.");
@@ -39,11 +50,22 @@ export async function executeFind(
   });
   if (!info.isDirectory()) throw new Error("find path is not a directory.");
   const limit = Math.min(numberArg(args.limit, 1000), 5000);
-  const fd = await runFd(args.pattern, root, limit).catch((error: unknown) => {
-    if (isErrnoException(error) && error.code === "ENOENT") return undefined;
-    throw error;
-  });
-  const paths = fd ?? (await fallbackFind(root, args.pattern, limit));
+  let paths: string[];
+  if (backendMode === "node") {
+    paths = await fallbackFind(root, args.pattern, limit);
+  } else if (backendMode === "fd") {
+    paths = await runFd(args.pattern, root, limit);
+  } else {
+    const fd = await runFd(args.pattern, root, limit).catch(
+      (error: unknown) => {
+        if (isErrnoException(error) && error.code === "ENOENT") {
+          return undefined;
+        }
+        throw error;
+      },
+    );
+    paths = fd ?? (await fallbackFind(root, args.pattern, limit));
+  }
   const entries = paths
     .slice(0, limit)
     .map((path) => ({ path, kind: "file" as const }));

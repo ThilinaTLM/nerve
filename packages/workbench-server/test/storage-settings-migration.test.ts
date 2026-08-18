@@ -195,6 +195,39 @@ describe("settings migrations", () => {
     });
   });
 
+  it("backfills and merges transcription preferences", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-settings-update-"));
+    roots.push(root);
+    const configPath = join(root, "config.json");
+    const legacySettings = { ...defaultSettings } as Record<string, unknown>;
+    delete legacySettings.transcription;
+    await writeFile(
+      configPath,
+      `${JSON.stringify(legacySettings, null, 2)}\n`,
+      "utf8",
+    );
+
+    const storage = await initializeStorage(root);
+    assert.deepEqual(storage.settings.transcription, {
+      model: "gpt-4o-transcribe",
+      languages: [],
+      vocabulary: [],
+    });
+
+    await writeSettings(storage, {
+      transcription: { model: "gpt-transcribe", languages: ["en", "fr"] },
+    });
+    await writeSettings(storage, {
+      transcription: { vocabulary: ["Nerve", "Codex CLI"] },
+    });
+
+    assert.deepEqual(storage.settings.transcription, {
+      model: "gpt-transcribe",
+      languages: ["en", "fr"],
+      vocabulary: ["Nerve", "Codex CLI"],
+    });
+  });
+
   it("adds the image explanation tool as disabled to older settings", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
     roots.push(root);

@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it, type TestContext } from "node:test";
 import { executeFind, executeGrep } from "../src/execution/index.js";
+import { executeFindWithBackend } from "../src/execution/filesystem/find.js";
+import { executeGrepWithBackend } from "../src/execution/filesystem/search.js";
 import { createTempProject, withPath, writeExecutable } from "./helpers.js";
+import { createSearchFindFixture } from "./search-find-fixtures.js";
 
 function requireExecutableFixtures(t: TestContext): boolean {
   if (process.platform !== "win32") return true;
@@ -200,5 +203,73 @@ fs.writeFileSync(${JSON.stringify(marker)}, "started");
     controller.abort();
     await assert.rejects(pending, /aborted/);
     assert.equal(await readFile(marker, "utf8"), "started\nstopped");
+  });
+
+  it("freezes Node fixture semantics", async () => {
+    const project = await createTempProject();
+    const fixture = await createSearchFindFixture(project.root, 3);
+    const grep = await executeGrepWithBackend(
+      fixture.grepCases[0]!.args,
+      { cwd: fixture.root },
+      "node",
+    );
+    const find = await executeFindWithBackend(
+      fixture.findCases[0]!.args,
+      { cwd: fixture.root },
+      "node",
+    );
+
+    assert.deepEqual(grep.matches?.map((match) => match.path).sort(), [
+      ".hidden.ts",
+      "README.md",
+      "src/beta.ts",
+    ]);
+    assert.deepEqual(find.entries?.map((entry) => entry.path).sort(), [
+      "src/alpha.ts",
+      "src/beta.ts",
+    ]);
+  });
+
+  it("handles fixture encoding, symlinks, multiple roots, and disappearing files", async () => {
+    const project = await createTempProject();
+    const fixture = await createSearchFindFixture(project.root, 1);
+    const edge = await executeGrepWithBackend(
+      { path: "edge", pattern: "needle", literal: true },
+      { cwd: fixture.root },
+      "node",
+    );
+    assert.equal(
+      edge.matches?.some((match) => match.path === "binary.bin"),
+      false,
+    );
+    assert.equal(
+      edge.matches?.some((match) => match.path === "context-link.txt"),
+      false,
+    );
+
+    const multiple = await executeGrepWithBackend(
+      {
+        paths: ["small/src/alpha.ts", "small/src/beta.ts"],
+        pattern: "needle",
+        ignoreCase: true,
+      },
+      { cwd: fixture.root },
+      "node",
+    );
+    assert.deepEqual(multiple.matches?.map((match) => match.path).sort(), [
+      "alpha.ts",
+      "beta.ts",
+    ]);
+
+    await unlink(join(fixture.root, "edge", "disappearing.txt"));
+    const afterRace = await executeGrepWithBackend(
+      { path: "edge", pattern: "needle", literal: true },
+      { cwd: fixture.root },
+      "node",
+    );
+    assert.equal(
+      afterRace.matches?.some((match) => match.path === "disappearing.txt"),
+      false,
+    );
   });
 });
