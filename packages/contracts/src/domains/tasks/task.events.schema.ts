@@ -8,7 +8,9 @@ import {
 
 const workbenchRoles = ["workbench_server"] as const;
 const cleanupMethodSchema = z.enum([
+  "job-object",
   "process-group",
+  "process-tree",
   "direct-child",
   "taskkill",
   "none",

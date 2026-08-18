@@ -14,6 +14,7 @@ files:
 
 asarUnpack:
   - build/**
+  - node_modules/@nervekit/native/prebuilds/**
 
 extraResources:
   - from: ../workbench-app/dist

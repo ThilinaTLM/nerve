@@ -449,9 +449,6 @@ export function createWorkbenchTaskResources(
       signal: async (task, cancelOptions) => {
         const state = managed.get(task.id);
         if (state) state.stopping = true;
-        await state?.outputPending?.catch(() => undefined);
-        if (state)
-          await logs.flushOutputBuffers(task, state, async () => undefined);
         const child = state?.child;
         if (child) {
           const result = await supervisor.terminate(
@@ -466,6 +463,8 @@ export function createWorkbenchTaskResources(
           );
           if (result.error) throw new Error(result.error);
         }
+        // Process termination must not wait behind output persistence. The
+        // close/finalization path drains and flushes pending output.
       },
       inspect: async (task) => {
         if (managed.get(task.id)?.child) return "running";

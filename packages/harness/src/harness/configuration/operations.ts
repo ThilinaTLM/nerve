@@ -197,6 +197,25 @@ export function interruptHarnessRun<
   state.runAbortController?.abort();
 }
 
+export function requestHarnessAbort<
+  TSkill extends Skill,
+  TPromptTemplate extends PromptTemplate,
+  TTool extends AgentTool,
+>(
+  state: HarnessConfigurationState<TSkill, TPromptTemplate, TTool>,
+): AbortResult {
+  const clearedSteer = state.steerQueue.map((entry) => entry.message);
+  const clearedFollowUp = state.followUpQueue.map((entry) => entry.message);
+  state.steerQueue = [];
+  state.followUpQueue = [];
+  state.runAbortController?.abort();
+  void state.emitQueueUpdate().catch(() => undefined);
+  void state
+    .emitOwn({ type: "abort", clearedSteer, clearedFollowUp })
+    .catch(() => undefined);
+  return { clearedSteer, clearedFollowUp } as AbortResult;
+}
+
 export async function abortHarnessRun<
   TSkill extends Skill,
   TPromptTemplate extends PromptTemplate,

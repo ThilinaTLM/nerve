@@ -1,4 +1,7 @@
-import { spawn } from "node:child_process";
+import {
+  spawnManagedChildProcess,
+  terminateManagedChildProcess,
+} from "@nervekit/native";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import { resolveCommandCwd } from "../common/command-cwd.js";
@@ -45,15 +48,12 @@ export async function executeBash(
     const shellConfig = resolveBashShellConfig({
       shellPath: context.shellPath,
     });
-    const child = spawn(
+    const child = spawnManagedChildProcess(
       shellConfig.shell,
       [...shellConfig.args, args.command as string],
       {
         cwd,
-        detached: process.platform !== "win32",
         env: nonInteractiveShellEnv(),
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
       },
     );
 
@@ -68,13 +68,14 @@ export async function executeBash(
       if (forceKillTimeout) clearTimeout(forceKillTimeout);
       context.signal?.removeEventListener("abort", onAbort);
     };
-    const killPosix = (signal: NodeJS.Signals) => {
-      try {
-        if (child.pid) process.kill(-child.pid, signal);
-        else child.kill(signal);
-      } catch {
-        child.kill(signal);
-      }
+    const terminateGracefully = () => {
+      void terminateManagedChildProcess(child, "SIGTERM").then((result) => {
+        if (!result || result.error) {
+          rejectTerminationFailure(
+            result?.error ?? "Native managed process metadata is unavailable",
+          );
+        }
+      }, rejectTerminationFailure);
     };
     const rejectTerminationFailure = (error: unknown) => {
       if (settled) return;
@@ -109,7 +110,7 @@ export async function executeBash(
           void forceKillProcessTree(child).catch(rejectTerminationFailure);
           return;
         }
-        killPosix("SIGTERM");
+        terminateGracefully();
         forceKillTimeout = setTimeout(() => {
           if (!settled) {
             void forceKillProcessTree(child).catch(rejectTerminationFailure);

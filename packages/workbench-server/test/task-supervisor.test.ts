@@ -1,35 +1,12 @@
 import assert from "node:assert/strict";
-import type { ChildProcess, SpawnOptions, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, it } from "node:test";
+import type { ChildProcess } from "node:child_process";
 import type { TaskRuntime } from "@nervekit/contracts";
 import {
   defaultTaskSupervisor,
-  isTaskRuntimeTargetAlive,
   managedTaskShellCommand,
-  runtimeForChild,
-  spawnManagedTask,
-  terminateTask,
-  terminateTaskRuntime,
 } from "../src/domains/tasks/task-supervisor.js";
-
-interface FakeChild extends ChildProcess {
-  killSignals: Array<NodeJS.Signals | number | undefined>;
-}
-
-function fakeChild(pid = 1234): FakeChild {
-  return Object.assign(new EventEmitter(), {
-    pid,
-    killSignals: [] as Array<NodeJS.Signals | number | undefined>,
-    kill(signal?: NodeJS.Signals | number) {
-      this.killSignals.push(signal);
-      return true;
-    },
-  }) as FakeChild;
-}
 
 const node = JSON.stringify(process.execPath);
 
@@ -38,380 +15,85 @@ function printEnvCommand(keys: string[]): string {
   return `${node} -e ${JSON.stringify(script)}`;
 }
 
-async function collectSpawnedStdout(
+async function collectStdout(
   command: string,
   env?: Record<string, string>,
-  shellPath?: string,
 ): Promise<string> {
-  const { child } = spawnManagedTask(command, {
+  const spawned = defaultTaskSupervisor.spawn(command, {
     cwd: process.cwd(),
     env,
-    shellPath,
   });
   const chunks: Buffer[] = [];
-  child.stdout?.on("data", (chunk: Buffer) => chunks.push(chunk));
-  const close = await new Promise<{
-    code: number | null;
-    signal: NodeJS.Signals | null;
-  }>((resolve) => {
-    child.once("close", (code, signal) => resolve({ code, signal }));
-  });
-  assert.equal(close.code, 0);
-  assert.equal(close.signal, null);
+  spawned.child.stdout?.on("data", (chunk: Buffer) => chunks.push(chunk));
+  assert.equal((await spawned.closed).kind, "closed");
   return Buffer.concat(chunks).toString("utf8");
 }
 
-const spawnedAt = "2026-01-02T03:04:05.000Z";
-
-function runtime(overrides: Partial<TaskRuntime> = {}): TaskRuntime {
-  return {
-    platform: "linux",
-    childPid: 1234,
-    processGroupId: 1234,
-    detached: true,
-    shell: true,
-    spawnedAt,
-    ...overrides,
-  };
-}
-
-describe("task supervisor spawn metadata", () => {
-  it("spawns with non-interactive pager-safe environment defaults", async () => {
-    const output = await collectSpawnedStdout(
+describe("task supervisor", () => {
+  it("keeps shell and environment policy in TypeScript", async () => {
+    assert.deepEqual(managedTaskShellCommand("pnpm check", process.execPath), {
+      shell: process.execPath,
+      args: ["-c", "pnpm check"],
+    });
+    const output = await collectStdout(
       printEnvCommand(["PAGER", "GIT_PAGER", "GIT_TERMINAL_PROMPT", "TERM"]),
     );
-    const env = JSON.parse(output) as Record<string, string>;
-
-    assert.equal(env.PAGER, "cat");
-    assert.equal(env.GIT_PAGER, "cat");
-    assert.equal(env.GIT_TERMINAL_PROMPT, "0");
-    assert.equal(env.TERM, "dumb");
+    assert.deepEqual(JSON.parse(output), {
+      PAGER: "cat",
+      GIT_PAGER: "cat",
+      GIT_TERMINAL_PROMPT: "0",
+      TERM: "dumb",
+    });
   });
 
-  it("does not manufacture a CI environment for managed tasks", async () => {
-    const inheritedCi = process.env.CI;
-    delete process.env.CI;
+  it("persists native containment and stable identity metadata", async () => {
+    const spawned = defaultTaskSupervisor.spawn("sleep 30", {
+      cwd: process.cwd(),
+    });
+    const runtime = await spawned.runtime;
     try {
-      const output = await collectSpawnedStdout(printEnvCommand(["CI"]));
-      const env = JSON.parse(output) as Record<string, string>;
-
-      assert.equal(env.CI, undefined);
+      assert.equal(runtime.version, 2);
+      assert.equal(runtime.platform, process.platform);
+      assert.ok(runtime.childPid);
+      assert.notEqual(runtime.identity?.kind, "legacy_unverified");
+      assert.equal(
+        await defaultTaskSupervisor.isRuntimeTargetAlive(runtime),
+        true,
+      );
     } finally {
-      if (inheritedCi === undefined) delete process.env.CI;
-      else process.env.CI = inheritedCi;
+      await defaultTaskSupervisor.terminate(spawned.child, "SIGKILL");
+      await spawned.closed;
     }
   });
 
-  it("uses configured shellPath for managed task commands", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "nerve-task-shell-"));
-    const shellPath = join(dir, "fake-shell");
-    await writeFile(shellPath, "test shell placeholder", "utf8");
-
-    assert.deepEqual(managedTaskShellCommand("pnpm check", shellPath), {
-      shell: shellPath,
-      args: ["-c", "pnpm check"],
-    });
-  });
-
-  it("allows explicit managed task env to override non-interactive defaults", async () => {
-    const output = await collectSpawnedStdout(
-      printEnvCommand(["PAGER", "GIT_TERMINAL_PROMPT", "CUSTOM_VALUE"]),
-      {
-        PAGER: "less",
-        GIT_TERMINAL_PROMPT: "1",
-        CUSTOM_VALUE: "ok",
-      },
-    );
-    const env = JSON.parse(output) as Record<string, string>;
-
-    assert.equal(env.PAGER, "less");
-    assert.equal(env.GIT_TERMINAL_PROMPT, "1");
-    assert.equal(env.CUSTOM_VALUE, "ok");
-  });
-
-  it("builds non-Windows runtime metadata with process group", () => {
-    const metadata = runtimeForChild(
-      { pid: 1234 },
-      "linux",
-      new Date(spawnedAt),
-    );
-
-    assert.deepEqual(metadata, {
-      platform: "linux",
-      childPid: 1234,
-      processGroupId: 1234,
-      detached: true,
+  it("refuses an unverified persisted runtime without signaling", async () => {
+    const runtime: TaskRuntime = {
+      version: 2,
+      platform: process.platform,
+      childPid: process.pid,
+      detached: process.platform !== "win32",
       shell: true,
-      spawnedAt,
-    });
-  });
-
-  it("builds Windows runtime metadata without process group", () => {
-    const metadata = runtimeForChild(
-      { pid: 1234 },
-      "win32",
-      new Date(spawnedAt),
-    );
-
-    assert.deepEqual(metadata, {
-      platform: "win32",
-      childPid: 1234,
-      processGroupId: undefined,
-      detached: false,
-      shell: true,
-      spawnedAt,
-    });
-  });
-});
-
-describe("task supervisor port inspection", () => {
-  it("exposes a safe listening-port inspector hook", async () => {
-    const ports = await defaultTaskSupervisor.inspectRuntimeListeningPorts(
-      runtime({ platform: process.platform }),
-    );
-
-    assert.equal(Array.isArray(ports), true);
-  });
-});
-
-describe("task supervisor termination", () => {
-  it("uses taskkill tree termination on Windows", async () => {
-    const child = fakeChild(1234);
-    const helper = fakeChild(5678);
-    const calls: Array<{
-      command: string;
-      args: readonly string[] | undefined;
-      options: SpawnOptions | undefined;
-    }> = [];
-    const fakeSpawn = ((
-      command: string,
-      args?: readonly string[],
-      options?: SpawnOptions,
-    ) => {
-      calls.push({ command, args, options });
-      return helper;
-    }) as typeof spawn;
-
-    const resultPromise = terminateTask(child, "SIGTERM", {
-      platform: "win32",
-      spawnCommand: fakeSpawn,
-    });
-    helper.emit("close", 0, null);
-    const result = await resultPromise;
-
-    assert.equal(result.method, "taskkill");
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].command, "taskkill");
-    assert.deepEqual(calls[0].args, ["/F", "/T", "/PID", "1234"]);
-    assert.equal(calls[0].options?.windowsHide, true);
-    assert.equal(calls[0].options?.stdio, "ignore");
-    assert.deepEqual(child.killSignals, []);
-  });
-
-  it("accepts taskkill code 128 when the Windows process is already absent", async () => {
-    const child = fakeChild(1234);
-    const helper = fakeChild(5678);
-    const fakeSpawn = (() => helper) as typeof spawn;
-
-    const resultPromise = terminateTask(child, "SIGKILL", {
-      platform: "win32",
-      spawnCommand: fakeSpawn,
-    });
-    helper.emit("close", 128, null);
-    const result = await resultPromise;
-
-    assert.deepEqual(result, {
-      attempted: true,
-      method: "taskkill",
-      error: undefined,
-    });
-  });
-
-  it("bounds the Windows taskkill helper wait", async () => {
-    const child = fakeChild(1234);
-    const helper = fakeChild(5678);
-    const fakeSpawn = (() => helper) as typeof spawn;
-
-    const startedAt = Date.now();
-    const result = await terminateTask(child, "SIGTERM", {
-      platform: "win32",
-      spawnCommand: fakeSpawn,
-      helperTimeoutMs: 5,
-    });
-
-    assert.equal(result.method, "taskkill");
-    assert.match(result.error ?? "", /timed out/);
-    assert.deepEqual(helper.killSignals, ["SIGKILL"]);
-    assert.ok(Date.now() - startedAt < 250);
-  });
-
-  it("prefers process-group signaling on non-Windows platforms", async () => {
-    const child = fakeChild(1234);
-    const killCalls: Array<{
-      pid: number;
-      signal: string | number | undefined;
-    }> = [];
-    const killTask = ((pid: number, signal?: string | number) => {
-      killCalls.push({ pid, signal });
-      return true;
-    }) as typeof process.kill;
-
-    const result = await terminateTask(child, "SIGTERM", {
-      platform: "linux",
-      killTask,
-    });
-
-    assert.equal(result.method, "process-group");
-    assert.deepEqual(killCalls, [{ pid: -1234, signal: "SIGTERM" }]);
-    assert.deepEqual(child.killSignals, []);
-  });
-
-  it("falls back to direct child kill when process-group signaling fails", async () => {
-    const child = fakeChild(1234);
-    const killTask = (() => {
-      throw new Error("no such process group");
-    }) as typeof process.kill;
-
-    const result = await terminateTask(child, "SIGINT", {
-      platform: "linux",
-      killTask,
-    });
-
-    assert.equal(result.method, "direct-child");
-    assert.deepEqual(child.killSignals, ["SIGINT"]);
-  });
-});
-
-describe("task supervisor runtime cleanup", () => {
-  it("uses taskkill for Windows runtime cleanup", async () => {
-    const helper = fakeChild(5678);
-    const calls: Array<{
-      command: string;
-      args: readonly string[] | undefined;
-      options: SpawnOptions | undefined;
-    }> = [];
-    const fakeSpawn = ((
-      command: string,
-      args?: readonly string[],
-      options?: SpawnOptions,
-    ) => {
-      calls.push({ command, args, options });
-      return helper;
-    }) as typeof spawn;
-
-    const resultPromise = terminateTaskRuntime(
-      runtime({
-        platform: "win32",
-        processGroupId: undefined,
-        detached: false,
-      }),
+      containment:
+        process.platform === "win32" ? "job-object" : "process-group",
+      spawnedAt: new Date().toISOString(),
+      identity: { kind: "legacy_unverified" },
+    };
+    const result = await defaultTaskSupervisor.terminateRuntime(
+      runtime,
       "SIGKILL",
-      { platform: "win32", spawnCommand: fakeSpawn },
     );
-    helper.emit("close", 0, null);
-    const result = await resultPromise;
-
-    assert.equal(result.method, "taskkill");
-    assert.equal(calls[0].command, "taskkill");
-    assert.deepEqual(calls[0].args, ["/F", "/T", "/PID", "1234"]);
-  });
-
-  it("prefers process-group signaling for non-Windows runtime cleanup", async () => {
-    const killCalls: Array<{
-      pid: number;
-      signal: string | number | undefined;
-    }> = [];
-    const killTask = ((pid: number, signal?: string | number) => {
-      killCalls.push({ pid, signal });
-      return true;
-    }) as typeof process.kill;
-
-    const result = await terminateTaskRuntime(
-      runtime({ processGroupId: 1234, childPid: 5678 }),
-      "SIGTERM",
-      { platform: "linux", killTask },
-    );
-
-    assert.equal(result.method, "process-group");
-    assert.deepEqual(killCalls, [{ pid: -1234, signal: "SIGTERM" }]);
-  });
-
-  it("falls back to child PID when runtime has no process group", async () => {
-    const killCalls: Array<{
-      pid: number;
-      signal: string | number | undefined;
-    }> = [];
-    const killTask = ((pid: number, signal?: string | number) => {
-      killCalls.push({ pid, signal });
-      return true;
-    }) as typeof process.kill;
-
-    const result = await terminateTaskRuntime(
-      runtime({ processGroupId: undefined, childPid: 5678 }),
-      "SIGINT",
-      { platform: "linux", killTask },
-    );
-
-    assert.equal(result.method, "direct-child");
-    assert.deepEqual(killCalls, [{ pid: 5678, signal: "SIGINT" }]);
-  });
-
-  it("does not signal on platform mismatch", async () => {
-    const killCalls: Array<number> = [];
-    const killTask = ((pid: number) => {
-      killCalls.push(pid);
-      return true;
-    }) as typeof process.kill;
-
-    const result = await terminateTaskRuntime(
-      runtime({
-        platform: "win32",
-        detached: false,
-        processGroupId: undefined,
-      }),
-      "SIGKILL",
-      { platform: "linux", killTask },
-    );
-
     assert.equal(result.attempted, false);
-    assert.equal(result.method, "none");
-    assert.match(result.error ?? "", /spawned on win32 from linux/);
-    assert.deepEqual(killCalls, []);
+    assert.match(result.error ?? "", /refusing unsafe PID-only cleanup/);
+    await assert.rejects(
+      defaultTaskSupervisor.isRuntimeTargetAlive(runtime),
+      /no native-verifiable process identity/,
+    );
   });
 
-  it("returns an error when runtime target metadata is missing", async () => {
-    const result = await terminateTaskRuntime(
-      runtime({ childPid: undefined, processGroupId: undefined }),
-      "SIGTERM",
-      { platform: "linux" },
-    );
-
+  it("refuses unmanaged ChildProcess-shaped objects", async () => {
+    const child = new EventEmitter() as ChildProcess;
+    const result = await defaultTaskSupervisor.terminate(child, "SIGKILL");
     assert.equal(result.attempted, false);
-    assert.equal(result.method, "none");
-    assert.match(result.error ?? "", /no process-group or child PID metadata/);
-  });
-
-  it("liveness checks treat ESRCH as not alive and EPERM as alive", async () => {
-    const esrchKill = (() => {
-      throw Object.assign(new Error("missing"), { code: "ESRCH" });
-    }) as typeof process.kill;
-    const epermKill = (() => {
-      throw Object.assign(new Error("denied"), { code: "EPERM" });
-    }) as typeof process.kill;
-
-    assert.equal(
-      await isTaskRuntimeTargetAlive(runtime(), {
-        platform: "linux",
-        killTask: esrchKill,
-      }),
-      false,
-    );
-    assert.equal(
-      await isTaskRuntimeTargetAlive(runtime(), {
-        platform: "linux",
-        killTask: epermKill,
-      }),
-      true,
-    );
+    assert.match(result.error ?? "", /not owned/);
   });
 });

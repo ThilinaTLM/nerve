@@ -1,4 +1,5 @@
-import { spawn, type ChildProcessByStdio } from "node:child_process";
+import type { ChildProcessByStdio } from "node:child_process";
+import { spawnManagedChildProcess } from "@nervekit/native";
 import { createReadStream } from "node:fs";
 import { open } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
@@ -95,7 +96,11 @@ async function runRg(
   return new Promise<GrepRunResult>((resolve, reject) => {
     let child: ChildProcessByStdio<null, Readable, Readable>;
     try {
-      child = spawn("rg", rgArgs, { stdio: ["ignore", "pipe", "pipe"] });
+      child = spawnManagedChildProcess("rg", rgArgs) as ChildProcessByStdio<
+        null,
+        Readable,
+        Readable
+      >;
     } catch (error) {
       reject(commandUnavailableError(error));
       return;
@@ -492,8 +497,12 @@ function stringValue(value: unknown): string | undefined {
 
 function commandUnavailableError(error: unknown): Error {
   if (
-    isErrnoException(error) &&
-    (error.code === "ENOENT" || error.code === "EACCES")
+    error instanceof Error &&
+    ((isErrnoException(error) &&
+      (error.code === "ENOENT" || error.code === "EACCES")) ||
+      /no such file|not found|access is denied|permission denied/i.test(
+        error.message,
+      ))
   ) {
     return new RipgrepUnavailableError(error.message);
   }

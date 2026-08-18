@@ -383,14 +383,10 @@ export class SubagentRunner {
     let errorMessage: string | undefined;
     let abortRequested = false;
     let harness: AgentHarness | undefined;
-    let abortPromise: Promise<unknown> | undefined;
-    const abortRun = async () => {
+    const abortRun = () => {
       abortRequested = true;
       abortController.abort();
-      if (harness) {
-        abortPromise ??= harness.abort();
-        await abortPromise;
-      }
+      harness?.requestAbort();
     };
     const unregister = spec.parentRunId
       ? this.deps.executions.register(spec.parentRunId, runId, abortRun)

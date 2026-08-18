@@ -68,6 +68,7 @@ async function validatePackagedBundle() {
 async function validateLinuxBundle() {
   const bundleRoot = await findDirectory(releaseRoot, /^linux.*-unpacked$/);
   await assertFile(join(bundleRoot, "nerve-desktop"));
+  await validatePackagedNativeRuntime(join(bundleRoot, "resources"));
   await validateUnpackedRuntimeAssets(
     join(bundleRoot, "resources", "app.asar.unpacked", "build"),
     [
@@ -82,6 +83,7 @@ async function validateWindowsBundle() {
   const bundleRoot = await findDirectory(releaseRoot, /^win.*-unpacked$/);
   const executable = join(bundleRoot, "nerve-desktop.exe");
   await assertFile(executable);
+  await validatePackagedNativeRuntime(join(bundleRoot, "resources"));
   await validateUnpackedRuntimeAssets(
     join(bundleRoot, "resources", "app.asar.unpacked", "build"),
     [
@@ -134,6 +136,7 @@ async function validateMacosBundle() {
 
   const resources = join(contents, "Resources");
   await findNestedFile(resources, (name) => name.endsWith(".icns"));
+  await validatePackagedNativeRuntime(resources);
   await validateUnpackedRuntimeAssets(
     join(resources, "app.asar.unpacked", "build"),
     [
@@ -141,6 +144,26 @@ async function validateMacosBundle() {
       ["tray", "macos", "nerveTemplate@2x.png"],
     ],
   );
+}
+
+async function validatePackagedNativeRuntime(resources) {
+  const expected = `nerve_native.${nativePlatformTriple()}.node`;
+  const prebuildRoot = join(
+    resources,
+    "app.asar.unpacked",
+    "node_modules",
+    "@nervekit",
+    "native",
+    "prebuilds",
+  );
+  await findNestedFile(prebuildRoot, (name) => name === expected);
+}
+
+function nativePlatformTriple() {
+  if (process.platform === "win32") return `win32-${process.arch}-msvc`;
+  if (process.platform === "darwin") return `darwin-${process.arch}`;
+  if (process.platform === "linux") return `linux-${process.arch}-gnu`;
+  throw new Error(`Unsupported native platform ${process.platform}`);
 }
 
 async function validateUnpackedRuntimeAssets(root, paths) {

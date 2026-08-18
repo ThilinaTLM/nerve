@@ -1,4 +1,7 @@
-import { spawn } from "node:child_process";
+import {
+  spawnManagedChildProcess,
+  terminateManagedChildProcess,
+} from "@nervekit/native";
 import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -368,7 +371,7 @@ async function runPythonProcess({
       ...policy,
       artifactDir,
     };
-    const child = spawn(
+    const child = spawnManagedChildProcess(
       runtime.command,
       [
         ...runtime.args,
@@ -380,9 +383,6 @@ async function runPythonProcess({
       ],
       {
         cwd,
-        shell: false,
-        detached: process.platform !== "win32",
-        stdio: ["ignore", "pipe", "pipe"],
         env: {
           ...process.env,
           ...envOverrides,
@@ -407,13 +407,14 @@ async function runPythonProcess({
       if (forceKillTimeout) clearTimeout(forceKillTimeout);
       signal?.removeEventListener("abort", onAbort);
     };
-    const killPosix = (killSignal: NodeJS.Signals) => {
-      try {
-        if (child.pid) process.kill(-child.pid, killSignal);
-        else child.kill(killSignal);
-      } catch {
-        child.kill(killSignal);
-      }
+    const terminateGracefully = () => {
+      void terminateManagedChildProcess(child, "SIGTERM").then((result) => {
+        if (!result || result.error) {
+          rejectTerminationFailure(
+            result?.error ?? "Native managed process metadata is unavailable",
+          );
+        }
+      }, rejectTerminationFailure);
     };
     const rejectTerminationFailure = (error: unknown) => {
       if (settled) return;
@@ -449,7 +450,7 @@ async function runPythonProcess({
         void forceKillProcessTree(child).catch(rejectTerminationFailure);
         return;
       }
-      killPosix("SIGTERM");
+      terminateGracefully();
       forceKillTimeout = setTimeout(() => {
         if (!settled) {
           void forceKillProcessTree(child).catch(rejectTerminationFailure);

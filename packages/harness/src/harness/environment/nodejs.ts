@@ -1,4 +1,8 @@
-import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
+import {
+  spawnManagedChildProcess,
+  terminateManagedChildProcess,
+} from "@nervekit/native";
 import { randomUUID } from "node:crypto";
 import { constants, createReadStream } from "node:fs";
 import {
@@ -110,18 +114,15 @@ async function runCommand(
 ): Promise<{ stdout: string; status: number | null }> {
   return await new Promise((resolve) => {
     let stdout = "";
-    let child: ReturnType<typeof spawn>;
+    let child: ChildProcess;
     try {
-      child = spawn(command, args, {
-        stdio: ["ignore", "pipe", "ignore"],
-        windowsHide: true,
-      });
+      child = spawnManagedChildProcess(command, args);
     } catch {
       resolve({ stdout: "", status: null });
       return;
     }
     const timeout = setTimeout(() => {
-      if (child.pid) killProcessTree(child.pid);
+      killProcessTree(child);
     }, timeoutMs);
     child.stdout?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => {
@@ -207,29 +208,8 @@ function getShellEnv(
   };
 }
 
-function killProcessTree(pid: number): void {
-  if (process.platform === "win32") {
-    try {
-      spawn("taskkill", ["/F", "/T", "/PID", String(pid)], {
-        stdio: "ignore",
-        detached: true,
-        windowsHide: true,
-      });
-    } catch {
-      // Ignore errors.
-    }
-    return;
-  }
-
-  try {
-    process.kill(-pid, "SIGKILL");
-  } catch {
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      // Process already dead.
-    }
-  }
+function killProcessTree(child: ChildProcess): void {
+  void terminateManagedChildProcess(child, "SIGKILL");
 }
 
 export class NodeExecutionEnv implements ExecutionEnv {
@@ -281,13 +261,13 @@ export class NodeExecutionEnv implements ExecutionEnv {
       let settled = false;
       let timedOut = false;
       let callbackError: ExecutionError | undefined;
-      let child: ReturnType<typeof spawn> | undefined;
+      let child: ChildProcess | undefined;
       // eslint-disable-next-line prefer-const -- Set after spawn so early spawn failures can settle before a timer exists.
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
       const onAbort = () => {
         if (child?.pid) {
-          killProcessTree(child.pid);
+          killProcessTree(child);
         }
       };
 
@@ -306,15 +286,12 @@ export class NodeExecutionEnv implements ExecutionEnv {
       };
 
       try {
-        child = spawn(
+        child = spawnManagedChildProcess(
           shellConfig.value.shell,
           [...shellConfig.value.args, command],
           {
             cwd,
-            detached: process.platform !== "win32",
             env: getShellEnv(this.shellEnv, options?.env),
-            stdio: ["ignore", "pipe", "pipe"],
-            windowsHide: true,
           },
         );
       } catch (error) {
@@ -328,7 +305,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
           ? setTimeout(() => {
               timedOut = true;
               if (child?.pid) {
-                killProcessTree(child.pid);
+                killProcessTree(child);
               }
             }, options.timeout * 1000)
           : undefined;

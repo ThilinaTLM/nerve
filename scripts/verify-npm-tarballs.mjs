@@ -131,8 +131,25 @@ function verifyContents(tarball, entries, version, filename) {
   const forbidden =
     /(?:^|\/)(?:src|test|tests|\.nerve|\.git|release|coverage|cache)(?:\/|$)|\.(?:log|sqlite|db|node)$/i;
   for (const entry of entries) {
-    if (forbidden.test(entry))
+    const nativePrebuild =
+      entry.startsWith("package/node_modules/@nervekit/native/prebuilds/") &&
+      entry.endsWith(".node");
+    if (forbidden.test(entry) && !nativePrebuild)
       throw new Error(`${filename}: forbidden packed path ${entry}.`);
+  }
+  for (const triple of [
+    "win32-x64-msvc",
+    "win32-arm64-msvc",
+    "darwin-x64",
+    "darwin-arm64",
+    "linux-x64-gnu",
+    "linux-arm64-gnu",
+  ]) {
+    requireEntry(
+      entries,
+      `package/node_modules/@nervekit/native/prebuilds/nerve_native.${triple}.node`,
+      filename,
+    );
   }
 
   for (const [packageName, directory] of bundledPackages) {

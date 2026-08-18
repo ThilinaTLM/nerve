@@ -7,6 +7,10 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
+      - "packages/native/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
       - "packages/tools/**"
       - "packages/workbench-server/**"
       - "packages/desktop-shell/**"
@@ -40,8 +44,21 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: clippy,rustfmt
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build native runtime
+        run: pnpm build:native
+
+      - name: Test Rust native runtime
+        if: matrix.suite == 'host'
+        run: pnpm check:native && pnpm test:native
 
       - name: Build native host packages
         if: matrix.suite == 'host'

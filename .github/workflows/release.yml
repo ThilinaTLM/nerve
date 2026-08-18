@@ -45,10 +45,59 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: node scripts/verify-release-tag.mjs "${RELEASE_TAG}"
 
+  native-prebuilds:
+    name: Native prebuild (${{ matrix.target }})
+    needs: verify-tag
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            cross: ""
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            cross: --use-napi-cross
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            cross: ""
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            cross: ""
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            cross: ""
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            cross: ""
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          targets: ${{ matrix.target }}
+      - run: pnpm install --frozen-lockfile
+      - name: Build native prebuild
+        working-directory: packages/native
+        run: pnpm exec napi build --cwd native --package-json-path ../package.json --platform --release --target ${{ matrix.target }} ${{ matrix.cross }} --output-dir ../prebuilds
+      - uses: actions/upload-artifact@v6
+        with:
+          name: native-prebuild-${{ matrix.target }}
+          path: packages/native/prebuilds/*.node
+          if-no-files-found: error
+
   quality-and-package:
     name: Check, test, build, and package (Ubuntu)
     runs-on: ubuntu-latest
-    needs: verify-tag
+    needs:
+      - verify-tag
+      - native-prebuilds
     timeout-minutes: 30
 
     steps:
@@ -70,6 +119,13 @@ jobs:
 
       - name: Run complete test suite
         run: pnpm test
+
+      - name: Download native prebuilds
+        uses: actions/download-artifact@v7
+        with:
+          pattern: native-prebuild-*
+          path: packages/native/prebuilds
+          merge-multiple: true
 
       - name: Build all packages
         run: pnpm build
@@ -100,7 +156,9 @@ jobs:
   native-package-smoke:
     name: npm package smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: verify-tag
+    needs:
+      - verify-tag
+      - native-prebuilds
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -120,6 +178,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Download native prebuilds
+        uses: actions/download-artifact@v7
+        with:
+          pattern: native-prebuild-*
+          path: packages/native/prebuilds
+          merge-multiple: true
 
       - name: Build all packages
         run: pnpm build

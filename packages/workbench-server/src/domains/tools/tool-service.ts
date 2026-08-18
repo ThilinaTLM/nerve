@@ -628,24 +628,24 @@ export class ToolService {
       .filter(
         (toolCall) => toolCall.runId === runId && !isTerminalToolCall(toolCall),
       );
-    const terminated: ToolCallRecord[] = [];
-    for (const toolCall of stale) {
-      const failed = await this.updateToolCall(
-        toolCall.id,
-        interruptedToolCallPatch(errorMessage),
-      );
-      await this.publishToolCallUpdated(failed);
-      await this.logger?.warn("Tool call terminated after run ended", {
-        toolCallId: failed.id,
-        agentId: failed.agentId,
-        conversationId: failed.conversationId,
-        projectId: failed.projectId,
-        runId: failed.runId,
-        context: { toolName: failed.toolName },
-      });
-      terminated.push(failed);
-    }
-    return terminated;
+    return await Promise.all(
+      stale.map(async (toolCall) => {
+        const failed = await this.updateToolCall(
+          toolCall.id,
+          interruptedToolCallPatch(errorMessage),
+        );
+        await this.publishToolCallUpdated(failed);
+        await this.logger?.warn("Tool call terminated after run ended", {
+          toolCallId: failed.id,
+          agentId: failed.agentId,
+          conversationId: failed.conversationId,
+          projectId: failed.projectId,
+          runId: failed.runId,
+          context: { toolName: failed.toolName },
+        });
+        return failed;
+      }),
+    );
   }
 
   private async reconcileInterruptedToolCallsOnStartup(): Promise<void> {

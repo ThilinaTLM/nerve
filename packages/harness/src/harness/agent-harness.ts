@@ -33,6 +33,7 @@ import {
   abortHarnessRun,
   getHarnessActiveTools,
   interruptHarnessRun,
+  requestHarnessAbort,
   type HarnessConfigurationState,
   setHarnessActiveTools,
   setHarnessModel,
@@ -684,6 +685,11 @@ export class AgentHarness<
     this.forceDrainAll = true;
     interruptHarnessRun(this.configurationState());
     return Promise.resolve();
+  }
+
+  requestAbort(): AbortResult {
+    this.forceDrainAll = false;
+    return requestHarnessAbort(this.configurationState());
   }
 
   async abort(): Promise<AbortResult> {

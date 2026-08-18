@@ -66,7 +66,7 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
       active.map((task) =>
         this.tasks.cancelTask(task.id, {
           signal: "SIGKILL",
-          timeoutMs: 5000,
+          timeoutMs: process.platform === "win32" ? 1_000 : 5_000,
           reason: "Run cancelled.",
         }),
       ),
