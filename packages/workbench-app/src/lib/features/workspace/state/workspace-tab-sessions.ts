@@ -1,9 +1,11 @@
 import type { GitDiffArea } from "@nervekit/contracts";
+import type { MermaidBlockLocator } from "@nervekit/ui-kit/core/components/mermaid-blocks";
 import type { ConversationRecord, ProjectRecord, TaskRecord } from "$lib/api";
 import { projectKey } from "$lib/core/utils/project-tree";
 import {
   diffViewKey,
   fileViewKey,
+  mermaidViewKey,
   prViewKey,
 } from "$lib/core/state/state-keys";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
@@ -206,6 +208,7 @@ type StoredTab = CenterTabIdentity & {
   number?: number;
   renamedFrom?: string;
   area?: GitDiffArea;
+  locator?: MermaidBlockLocator;
 };
 
 type StoredSession = {
@@ -232,12 +235,26 @@ function isIdentity(value: unknown): value is CenterTabIdentity {
       "pending-conversation",
       "task",
       "file",
+      "mermaid",
       "pr",
       "diff",
       "settings",
       "auth",
       "logs",
     ].includes(tab.kind)
+  );
+}
+
+function isMermaidBlockLocator(value: unknown): value is MermaidBlockLocator {
+  if (!value || typeof value !== "object") return false;
+  const locator = value as Partial<MermaidBlockLocator>;
+  return (
+    Number.isInteger(locator.ordinal) &&
+    (locator.ordinal ?? -1) >= 0 &&
+    Number.isInteger(locator.startLine) &&
+    (locator.startLine ?? 0) > 0 &&
+    typeof locator.fingerprint === "string" &&
+    locator.fingerprint.length > 0
   );
 }
 
@@ -258,6 +275,20 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
         line: stored.line,
         displayMode: stored.displayMode,
         wrapLines: stored.wrapLines,
+        loading: false,
+      };
+    } else if (stored.kind === "mermaid") {
+      if (
+        !stored.projectId ||
+        !stored.path ||
+        !isMermaidBlockLocator(stored.locator)
+      )
+        continue;
+      fileState.mermaidViews[mermaidViewKey(stored.id)] = {
+        id: stored.id,
+        projectId: stored.projectId,
+        path: stored.path,
+        locator: stored.locator,
         loading: false,
       };
     } else if (stored.kind === "pr") {
@@ -385,6 +416,8 @@ export function hydrateWorkspaceTabSessions(
       if (tab.kind === "pending-conversation") return false;
       if (tab.kind === "file")
         return Boolean(fileState.fileViews[fileViewKey(tab.id)]);
+      if (tab.kind === "mermaid")
+        return Boolean(fileState.mermaidViews[mermaidViewKey(tab.id)]);
       if (tab.kind === "pr")
         return Boolean(gitState.prViews[prViewKey(tab.id)]);
       if (tab.kind === "diff")
@@ -438,6 +471,19 @@ export function persistWorkspaceTabSessions(): void {
                     line: view.line,
                     displayMode: view.displayMode,
                     wrapLines: view.wrapLines,
+                  },
+                ]
+              : [];
+          }
+          if (tab.kind === "mermaid") {
+            const view = fileState.mermaidViews[mermaidViewKey(tab.id)];
+            return view
+              ? [
+                  {
+                    ...tab,
+                    projectId: view.projectId,
+                    path: view.path,
+                    locator: view.locator,
                   },
                 ]
               : [];

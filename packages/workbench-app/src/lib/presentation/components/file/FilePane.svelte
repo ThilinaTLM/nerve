@@ -2,20 +2,23 @@
 import FileText from "@lucide/svelte/icons/file-text";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
-import MermaidDiagram from "@nervekit/ui-kit/core/components/MermaidDiagram.svelte";
+import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/core/components/mermaid-blocks";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { CodeMirrorViewer } from "$lib/presentation/components/code";
+import { MermaidPane } from "$lib/presentation/components/mermaid";
 import { resolveFilePaneModel } from "./file-pane-model.js";
 import type { FilePaneViewModel } from "./types.js";
 
 let {
   view,
   onOpenFile,
+  onOpenMermaid,
 }: {
   view?: FilePaneViewModel;
   onOpenFile?: (path: string, line?: number) => void;
+  onOpenMermaid?: (block: MermaidMarkdownBlock) => void;
 } = $props();
 
 const resolved = $derived(view ? resolveFilePaneModel(view) : undefined);
@@ -55,22 +58,11 @@ const showMermaidPreview = $derived(
       {/if}
     </div>
   {:else if showMermaidPreview && file?.type === "text" && resolved}
-    <div class="relative min-h-0 min-w-0 overflow-hidden">
-      <MermaidDiagram
-        class="h-full"
-        source={file.text ?? ""}
-        ariaLabel={`Mermaid diagram: ${resolved.filePath}`}
-      />
-      {#if file.truncated}
-        <p
-          class="absolute bottom-3 left-3 m-0 rounded-md border border-border bg-background/90 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm"
-        >
-          Preview truncated{resolved.targetLine
-            ? " around the selected line"
-            : ""}.
-        </p>
-      {/if}
-    </div>
+    <MermaidPane
+      source={file.text ?? ""}
+      truncated={file.truncated}
+      ariaLabel={`Mermaid diagram: ${resolved.filePath}`}
+    />
   {:else}
     <ScrollArea class="min-h-0 min-w-0" viewportClass="p-4" orientation="both">
       {#if !view}
@@ -108,12 +100,14 @@ const showMermaidPreview = $derived(
           />
         </div>
       {:else if file?.type === "text" && resolved?.renderKind === "markdown"}
-        <div class="max-w-6xl px-1 pb-16 pt-0.5">
+        <div class="mx-auto max-w-6xl px-1 pb-16 pt-0.5">
           <Markdown
             text={file.text ?? ""}
             trimCodeBlocks={false}
             linkBasePath={resolved.linkBasePath}
+            sourceLineStart={file.lineStart ?? 1}
             {onOpenFile}
+            {onOpenMermaid}
             onCopy={(ok) => notifyCopyResult(ok, "code block")}
           />
         </div>

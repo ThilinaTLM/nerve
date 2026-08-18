@@ -1,6 +1,6 @@
 import { loadAuthPanel } from "$lib/features/auth";
 import { refreshConversationView } from "$lib/features/conversations";
-import { refreshFilePane } from "$lib/features/filesystem";
+import { refreshFilePane, refreshMermaidPane } from "$lib/features/filesystem";
 import { refreshDiffPane, refreshPrPane } from "$lib/features/git";
 import { requestLogsRefresh } from "$lib/features/logs";
 import { loadSettingsPanel } from "$lib/features/settings";
@@ -11,6 +11,7 @@ export const refreshCenterTab = createCenterTabRefresh({
   refreshConversation: (id) => void refreshConversationView(id),
   selectTab: (tab) => void selectCenterTab(tab),
   refreshFile: (id) => void refreshFilePane(id),
+  refreshMermaid: (id) => void refreshMermaidPane(id),
   refreshPullRequest: (id) => void refreshPrPane(id),
   refreshDiff: (id) => void refreshDiffPane(id),
   loadSettings: () => void loadSettingsPanel(),

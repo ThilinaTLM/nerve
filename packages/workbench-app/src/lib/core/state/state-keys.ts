@@ -10,6 +10,10 @@ export function fileViewKey(fileTabId: string): string {
   return `file-view:${fileTabId}`;
 }
 
+export function mermaidViewKey(mermaidTabId: string): string {
+  return `mermaid-view:${mermaidTabId}`;
+}
+
 export function prViewKey(prTabId: string): string {
   return `pr-view:${prTabId}`;
 }

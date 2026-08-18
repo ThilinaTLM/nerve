@@ -13,6 +13,7 @@ export type CenterTabIdentity =
   | { kind: "pending-conversation"; id: string }
   | { kind: "task"; id: string }
   | { kind: "file"; id: string }
+  | { kind: "mermaid"; id: string }
   | { kind: "pr"; id: string }
   | { kind: "diff"; id: string }
   | { kind: "settings"; id: "settings" }

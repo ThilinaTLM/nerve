@@ -1,6 +1,9 @@
 export * from "./api/filesystem.api";
 export { fileSelectors } from "./state/file-selectors.svelte";
-export type { FileViewState } from "./state/file-state.svelte";
+export type {
+  FileViewState,
+  MarkdownMermaidViewState,
+} from "./state/file-state.svelte";
 export { fileState } from "./state/file-state.svelte";
 export {
   openFilePane,
@@ -8,3 +11,7 @@ export {
   toggleFileDisplayMode,
   toggleFileLineWrap,
 } from "./state/file-tabs.svelte";
+export {
+  openMarkdownMermaidPane,
+  refreshMermaidPane,
+} from "./state/mermaid-tabs.svelte";

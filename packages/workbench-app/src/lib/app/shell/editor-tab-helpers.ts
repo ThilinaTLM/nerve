@@ -28,6 +28,14 @@ export function tabLabel(tab: CenterTabModel): string {
       tab.path?.split("/").pop() ??
       "File"
     );
+  if (tab.kind === "mermaid") {
+    const name =
+      tab.name ??
+      tab.relativePath?.split("/").pop() ??
+      tab.path?.split("/").pop() ??
+      "Markdown";
+    return `${name} · diagram ${tab.locator ? tab.locator.ordinal + 1 : ""}`.trim();
+  }
   if (tab.kind === "pr") return `#${tab.number}`;
   if (tab.kind === "diff") {
     const name = tab.path?.split("/").pop() ?? "Diff";
@@ -46,6 +54,8 @@ export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
     return `${taskLabel(tab)} · ${tab.task.status} · ${shortenPath(tab.task.cwd, homeDir)} · ${tab.task.id}`;
   }
   if (tab.kind === "file") return tab.file?.path ?? tab.path ?? tab.id;
+  if (tab.kind === "mermaid")
+    return `${tab.path ?? tab.id} · Mermaid diagram${tab.locator ? ` at line ${tab.locator.startLine}` : ""}`;
   if (tab.kind === "diff")
     return `${tab.path ?? tab.id} · ${tab.area === "staged" ? "staged" : "unstaged"} changes${tab.repo && tab.repo !== "." ? ` · ${tab.repo}` : ""}`;
   if (tab.kind === "pr")
@@ -73,6 +83,7 @@ export function statusLabel(tab: CenterTabModel): string | undefined {
   if (tab.sending) {
     if (tab.kind === "task") return "Task active";
     if (tab.kind === "file") return "Loading file";
+    if (tab.kind === "mermaid") return "Loading diagram";
     if (tab.kind === "diff") return "Loading diff";
   }
   if (tab.kind === "task") return tab.task?.status ?? "missing";

@@ -50,6 +50,7 @@ test("only restored conversations activate in the critical lane", () => {
     [{ kind: "diff", id: "diff" }, "progressive"],
     [{ kind: "task", id: "task" }, "progressive"],
     [{ kind: "file", id: "file" }, "progressive"],
+    [{ kind: "mermaid", id: "mermaid" }, "progressive"],
     [{ kind: "settings", id: "settings" }, "progressive"],
   ];
   for (const [tab, expected] of cases)

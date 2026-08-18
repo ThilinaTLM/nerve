@@ -1,5 +1,5 @@
 import { getFileContent } from "$lib/api";
-import { fileViewKey } from "$lib/core/state/state-keys";
+import { fileViewKey, mermaidViewKey } from "$lib/core/state/state-keys";
 import { defaultFileDisplayMode } from "@nervekit/ui-kit/core/utils/file-display";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
@@ -96,26 +96,40 @@ export function closeFileTabsAtPath(input: {
   path: string;
   descendants?: boolean;
 }): void {
-  const matchingIds = new SvelteSet(
+  const pathMatches = (projectId: string, path: string) =>
+    projectId === input.projectId &&
+    (path === input.path ||
+      Boolean(input.descendants && path.startsWith(`${input.path}/`)));
+  const matchingFileIds = new SvelteSet(
     Object.values(fileState.fileViews)
-      .filter((view) => {
-        const relativePath = view.content?.relativePath ?? view.path;
-        return (
-          view.projectId === input.projectId &&
-          (relativePath === input.path ||
-            (input.descendants && relativePath.startsWith(`${input.path}/`)))
-        );
-      })
+      .filter((view) =>
+        pathMatches(view.projectId, view.content?.relativePath ?? view.path),
+      )
       .map((view) => view.id),
   );
-  if (matchingIds.size === 0) return;
+  const matchingMermaidIds = new SvelteSet(
+    Object.values(fileState.mermaidViews)
+      .filter((view) =>
+        pathMatches(view.projectId, view.relativePath ?? view.path),
+      )
+      .map((view) => view.id),
+  );
+  if (matchingFileIds.size === 0 && matchingMermaidIds.size === 0) return;
 
   const active = workspaceState.activeCenterTab;
-  const closesActive = active?.kind === "file" && matchingIds.has(active.id);
-  const remaining = workspaceState.openCenterTabs.filter(
-    (tab) => tab.kind !== "file" || !matchingIds.has(tab.id),
+  const closesActive = Boolean(
+    active &&
+    ((active.kind === "file" && matchingFileIds.has(active.id)) ||
+      (active.kind === "mermaid" && matchingMermaidIds.has(active.id))),
   );
-  for (const id of matchingIds) delete fileState.fileViews[fileViewKey(id)];
+  const remaining = workspaceState.openCenterTabs.filter(
+    (tab) =>
+      (tab.kind !== "file" || !matchingFileIds.has(tab.id)) &&
+      (tab.kind !== "mermaid" || !matchingMermaidIds.has(tab.id)),
+  );
+  for (const id of matchingFileIds) delete fileState.fileViews[fileViewKey(id)];
+  for (const id of matchingMermaidIds)
+    delete fileState.mermaidViews[mermaidViewKey(id)];
   replaceOpenCenterTabs(remaining);
   if (closesActive) void selectCenterTab(remaining.at(-1));
 }

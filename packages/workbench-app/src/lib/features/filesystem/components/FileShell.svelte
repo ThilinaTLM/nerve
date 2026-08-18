@@ -1,6 +1,8 @@
 <script lang="ts">
 import { FilePane } from "$lib/presentation/components/file";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
+import { openMarkdownMermaidPane } from "$lib/features/filesystem/state/mermaid-tabs.svelte";
+import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/core/components/mermaid-blocks";
 import { fileSelectors } from "$lib/features/filesystem/state/file-selectors.svelte";
 
 const activeCenterFileView = $derived(fileSelectors.activeCenterFileView);
@@ -13,6 +15,22 @@ function openLinkedFile(path: string, line?: number): void {
     line,
   });
 }
+
+function openMermaid(block: MermaidMarkdownBlock): void {
+  if (!activeCenterFileView) return;
+  const content = activeCenterFileView.content;
+  void openMarkdownMermaidPane({
+    projectId: activeCenterFileView.projectId,
+    path: content?.path ?? activeCenterFileView.path,
+    relativePath: content?.relativePath,
+    name: content?.name,
+    block,
+  });
+}
 </script>
 
-<FilePane view={activeCenterFileView} onOpenFile={openLinkedFile} />
+<FilePane
+  view={activeCenterFileView}
+  onOpenFile={openLinkedFile}
+  onOpenMermaid={openMermaid}
+/>
