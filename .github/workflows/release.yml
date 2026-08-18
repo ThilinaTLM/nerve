@@ -54,22 +54,22 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            cross: ""
-          - os: ubuntu-latest
+            node_arch: x64
+          - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-            cross: --use-napi-cross
+            node_arch: arm64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            cross: ""
-          - os: windows-latest
+            node_arch: x64
+          - os: windows-11-arm
             target: aarch64-pc-windows-msvc
-            cross: ""
+            node_arch: arm64
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            node_arch: x64
           - os: macos-latest
             target: aarch64-apple-darwin
-            cross: ""
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            cross: ""
+            node_arch: arm64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -83,9 +83,15 @@ jobs:
           toolchain: 1.97.1
           targets: ${{ matrix.target }}
       - run: pnpm install --frozen-lockfile
+      - name: Verify runner architecture
+        env:
+          EXPECTED_NODE_ARCH: ${{ matrix.node_arch }}
+        run: node -e "if (process.arch !== process.env.EXPECTED_NODE_ARCH) throw new Error('Expected ' + process.env.EXPECTED_NODE_ARCH + ', got ' + process.arch)"
       - name: Build native prebuild
         working-directory: packages/native
-        run: pnpm exec napi build --cwd native --package-json-path ../package.json --platform --release --target ${{ matrix.target }} ${{ matrix.cross }} --output-dir ../prebuilds
+        run: pnpm exec napi build --cwd native --package-json-path ../package.json --platform --release --target ${{ matrix.target }} --output-dir ../prebuilds
+      - name: Test native prebuild
+        run: pnpm --filter @nervekit/native test
       - uses: actions/upload-artifact@v6
         with:
           name: native-prebuild-${{ matrix.target }}
@@ -111,14 +117,14 @@ jobs:
         with:
           node-version: 24
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: clippy,rustfmt
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Check formatting, lint, and packages
-        run: pnpm check
-
-      - name: Run complete test suite
-        run: pnpm test
 
       - name: Download native prebuilds
         uses: actions/download-artifact@v7
@@ -126,6 +132,18 @@ jobs:
           pattern: native-prebuild-*
           path: packages/native/prebuilds
           merge-multiple: true
+
+      - name: Verify native prebuild inventory
+        run: pnpm release:verify-native
+
+      - name: Check formatting, lint, and packages
+        run: pnpm check
+
+      - name: Run complete test suite
+        run: pnpm test
+
+      - name: Remove developer native prebuild
+        run: rm -rf packages/native/prebuilds/local
 
       - name: Build all packages
         run: pnpm build
@@ -185,6 +203,9 @@ jobs:
           pattern: native-prebuild-*
           path: packages/native/prebuilds
           merge-multiple: true
+
+      - name: Verify native prebuild inventory
+        run: pnpm release:verify-native
 
       - name: Build all packages
         run: pnpm build

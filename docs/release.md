@@ -6,10 +6,11 @@ Nerve publishes one npm package, `@nervekit/desktop`. The source implementation 
 
 - Node.js 24+
 - pnpm 11.20.0
+- rustup with the pinned toolchain from `rust-toolchain.toml` (currently Rust 1.97.1)
 
 ## Public npm package
 
-Publish only `@nervekit/desktop`. Its generated tarball embeds the five private runtime workspaces `contracts`, `protocol`, `harness`, `tools`, and `workbench-server` as npm bundled dependencies. Third-party dependencies such as Electron and sharp remain normal dependencies so npm installs the correct platform artifacts.
+Publish only `@nervekit/desktop`. Its generated tarball embeds the six private runtime workspaces `contracts`, `native`, `protocol`, `harness`, `tools`, and `workbench-server` as npm bundled dependencies. Third-party dependencies such as Electron and sharp remain normal dependencies so npm installs the correct platform artifacts.
 
 All source workspaces are private. Workbench-server embeds the built workbench web assets.
 
@@ -27,7 +28,9 @@ pnpm build
 node scripts/pack-npm.mjs
 ```
 
-`release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. `node scripts/pack-npm.mjs` must produce only `release/npm/nervekit-desktop-<version>.tgz`; it verifies exact names, versions, contents, bundled package resolution, the workbench/worker entries, and the desktop launcher through an isolated install.
+`release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. Final packing requires the exact six-file native prebuild inventory in `packages/native/prebuilds`; `pnpm release:verify-native` rejects missing, extra, or developer-local artifacts. The release workflow produces this inventory. Ordinary local development needs only the host binding under `packages/native/prebuilds/local` and does not produce a publishable package.
+
+`node scripts/pack-npm.mjs` must produce only `release/npm/nervekit-desktop-<version>.tgz`; it verifies exact names, versions, contents, bundled package resolution, the workbench/worker entries, native prebuilds, and the desktop launcher through an isolated install.
 
 Run the finite built-artifact smokes after `pnpm build`:
 
@@ -43,7 +46,7 @@ pnpm release:smoke:desktop-package
 
 Run the **Prepare Release** workflow manually with the exact version to publish. It updates all workspace versions on protected `main`, creates the signed release commit and annotated `v<version>` tag, atomically pushes both refs, and dispatches the **Release** workflow at that immutable tag.
 
-The **Release** workflow validates the tag, runs the Linux, Windows, and macOS quality and packaging gates, builds and deploys the website to GitHub Pages, publishes to npm through OIDC, and creates the GitHub release. Website deployment occurs only after release validation and npm publication. It rejects manual dispatches from branch refs. Direct pushes of matching SemVer tags also start Release automatically.
+The **Release** workflow validates the tag and builds the native runtime on architecture-matched runners for Linux x64/ARM64, Windows 11 x64/ARM64, macOS Intel, and macOS Apple Silicon. Every runner executes the generated addon before the artifacts are merged. Representative Linux, Windows, and macOS jobs then run the complete quality and Electron package smokes against the merged inventory. The workflow builds and deploys the website to GitHub Pages, publishes to npm through OIDC, and creates the GitHub release. Website deployment occurs only after release validation and npm publication. It rejects manual dispatches from branch refs. Direct pushes of matching SemVer tags also start Release automatically.
 
 If preparation pushes the commit and tag but the dispatch step fails, rerun **Release** manually and select the existing tag. Do not recreate or move the tag.
 

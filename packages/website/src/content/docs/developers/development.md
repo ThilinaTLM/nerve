@@ -5,7 +5,7 @@ sidebar:
   order: 8
 ---
 
-Requirements: Node.js 24+ and pnpm 11.20.0.
+Requirements: Node.js 24+, pnpm 11.20.0, and rustup. The repository's `rust-toolchain.toml` installs the pinned Rust toolchain (currently 1.97.1).
 
 ```sh
 git clone https://github.com/ThilinaTLM/nerve.git
@@ -20,11 +20,16 @@ pnpm desktop
 pnpm desktop                # Electron app from source
 pnpm dev                    # daemon + Vite workbench
 pnpm dev:ui                 # UI against an existing daemon
-pnpm build                  # all packages and staged Workbench assets
-pnpm fix                    # format and ESLint fixes
-pnpm check                  # formatting, lint, boundaries, package checks
-pnpm test                   # package tests
+pnpm build                  # TypeScript packages and staged Workbench assets
+pnpm build:native           # host Rust addon in packages/native/prebuilds/local
+pnpm check:native           # Rust formatting and clippy checks
+pnpm test:native            # Rust unit tests
+pnpm fix                    # Rust, TypeScript, Svelte, and ESLint fixes
+pnpm check                  # formatting, lint, boundaries, package and Rust checks
+pnpm test                   # build the host addon, then run package and Rust tests
 ```
+
+`pnpm dev` and `pnpm desktop` build the host native addon automatically. Release prebuilds are separate architecture-specific files and are produced by GitHub Actions.
 
 Enable trusted-LAN and mobile HTTPS access from **Settings → System → Network**, then restart the owned daemon when prompted.
 

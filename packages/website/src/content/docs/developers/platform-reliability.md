@@ -37,7 +37,7 @@ Executable discovery and shutdown are platform-aware:
 
 ## Validation matrix
 
-Pull requests and pushes to `main` run the complete checks, tests, and built workbench smoke on Ubuntu. The native-host workflow runs host and desktop suites on Windows and macOS after building the relevant runtime. Tagged releases add package and desktop smoke coverage across Linux, Windows, and macOS; workbench-server native-host coverage remains owned by the native-host workflow.
+Pull requests and pushes to `main` run the complete checks, Rust and package tests, and built workbench smoke on Ubuntu. The native-host workflow runs host and desktop suites on Windows and macOS after building the relevant runtime. Tagged releases build and execute architecture-specific addons on Linux x64/ARM64, Windows 11 x64/ARM64, macOS Intel, and macOS Apple Silicon. Representative Linux, Windows, and macOS jobs then validate the merged npm and Electron package; workbench-server native-host coverage remains owned by the native-host workflow.
 
 Native runners catch platform behavior. Deterministic failure injection remains necessary for retry limits, cleanup, and non-retriable errors that hosted machines cannot reproduce reliably.
 

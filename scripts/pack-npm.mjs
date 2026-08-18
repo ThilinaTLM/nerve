@@ -9,6 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
+import { verifyNativePrebuilds } from "./lib/native-prebuilds.mjs";
 import {
   assertWorkspaceVersionsMatch,
   bundledPackages as internalPackages,
@@ -96,6 +97,9 @@ async function verifyBuildOutputs() {
 
 async function stageDesktopDistribution() {
   await assertWorkspaceVersionsMatch();
+  const nativePrebuilds = await verifyNativePrebuilds(
+    join(repoRoot, "packages", "native", "prebuilds"),
+  );
   const rootManifest = await readJson("package.json");
   const desktopManifest = await readJson(
     join("packages", "desktop-shell", "package.json"),
@@ -172,11 +176,14 @@ async function stageDesktopDistribution() {
       recursive: true,
     });
     if (directory === "native") {
-      await cp(
-        join(sourceRoot, "prebuilds"),
-        join(destinationRoot, "prebuilds"),
-        { recursive: true },
-      );
+      const destinationPrebuilds = join(destinationRoot, "prebuilds");
+      await mkdir(destinationPrebuilds, { recursive: true });
+      for (const filename of nativePrebuilds) {
+        await cp(
+          join(sourceRoot, "prebuilds", filename),
+          join(destinationPrebuilds, filename),
+        );
+      }
     }
     for (const filename of ["LICENSE", "NOTICE"]) {
       await cp(join(repoRoot, filename), join(destinationRoot, filename));

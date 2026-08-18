@@ -55,7 +55,7 @@ jobs:
           release_tag="v${RELEASE_VERSION}"
           node scripts/verify-release-tag.mjs "${release_tag}"
 
-          git add package.json packages/*/package.json
+          git add package.json packages/*/package.json packages/native/native/Cargo.toml Cargo.lock
           if git diff --cached --quiet; then
             echo "Workspace is already at ${release_tag}; reusing the current commit"
           else

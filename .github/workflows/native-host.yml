@@ -56,9 +56,9 @@ jobs:
       - name: Build native runtime
         run: pnpm build:native
 
-      - name: Test Rust native runtime
+      - name: Check and test native runtime
         if: matrix.suite == 'host'
-        run: pnpm check:native && pnpm test:native
+        run: pnpm --filter @nervekit/native check && pnpm --filter @nervekit/native test
 
       - name: Build native host packages
         if: matrix.suite == 'host'

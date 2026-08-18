@@ -4,6 +4,8 @@ Thanks for your interest in Nerve. The project is currently beta, so small, focu
 
 ## Development
 
+Install Node.js 24+, pnpm 11.20.0, and rustup. The repository pins its Rust toolchain in `rust-toolchain.toml`.
+
 ```sh
 pnpm install
 pnpm fix
