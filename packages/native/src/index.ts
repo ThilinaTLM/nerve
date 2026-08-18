@@ -83,35 +83,19 @@ interface NativeBinding {
   ): NativeProcessHandle;
 }
 
-let bindingResult: { binding?: NativeBinding; error?: string } | undefined;
+const binding = loadBinding();
 const childProcesses = new WeakMap<ChildProcess, ManagedProcess>();
 
 export function nativeRuntimeCapabilities(): {
-  available: boolean;
-  platform?: string;
+  platform: string;
   capabilities: string[];
-  error?: string;
 } {
-  const loaded = loadBinding();
-  const native = loaded.binding?.runtimeCapabilities();
-  return {
-    available: Boolean(loaded.binding),
-    platform: native?.platform,
-    capabilities: native?.capabilities ?? [],
-    error: loaded.error,
-  };
+  return binding.runtimeCapabilities();
 }
 
 export function inspectManagedTarget(target: ManagedTarget): InspectionResult {
-  const loaded = loadBinding();
-  if (!loaded.binding) {
-    return {
-      evidence: "unknown",
-      detail: loaded.error ?? "Native runtime is unavailable",
-    };
-  }
   try {
-    return loaded.binding.inspectManagedTarget(target);
+    return binding.inspectManagedTarget(target);
   } catch (error) {
     return { evidence: "unknown", detail: errorMessage(error) };
   }
@@ -121,10 +105,8 @@ export async function terminateManagedTarget(
   target: ManagedTarget,
   signal: NodeJS.Signals = "SIGKILL",
 ): Promise<TerminationResult> {
-  const loaded = loadBinding();
-  if (!loaded.binding) return unavailableTermination(loaded.error);
   try {
-    return loaded.binding.terminateManagedTarget(target, signal);
+    return binding.terminateManagedTarget(target, signal);
   } catch (error) {
     return {
       attempted: false,
@@ -140,7 +122,6 @@ export function spawnManagedProcess(
   args: string[],
   options: ManagedProcessOptions = {},
 ): ManagedProcess {
-  const binding = requireBinding();
   const stdout = new PassThrough();
   const stderr = new PassThrough();
   const exited = deferred<ManagedProcessExit>();
@@ -262,22 +243,7 @@ export async function terminateManagedChildProcess(
   return childProcesses.get(child)?.terminate(signal);
 }
 
-function requireBinding(): NativeBinding {
-  const loaded = loadBinding();
-  if (loaded.binding) return loaded.binding;
-  throw new Error(
-    `Native managed process runtime unavailable: ${loaded.error}`,
-  );
-}
-
-function loadBinding(): { binding?: NativeBinding; error?: string } {
-  if (bindingResult) return bindingResult;
-  if (process.env.NERVE_DISABLE_NATIVE === "1") {
-    bindingResult = {
-      error: "Native runtime disabled by NERVE_DISABLE_NATIVE",
-    };
-    return bindingResult;
-  }
+function loadBinding(): NativeBinding {
   const require = createRequire(import.meta.url);
   const moduleDir = dirname(fileURLToPath(import.meta.url));
   const binaryName = `nerve_native.${platformTriple()}.node`;
@@ -291,18 +257,15 @@ function loadBinding(): { binding?: NativeBinding; error?: string } {
   for (const candidate of candidates) {
     if (!existsSync(candidate)) continue;
     try {
-      bindingResult = { binding: require(candidate) as NativeBinding };
-      return bindingResult;
+      return require(candidate) as NativeBinding;
     } catch (error) {
       errors.push(`${candidate}: ${errorMessage(error)}`);
     }
   }
-  bindingResult = {
-    error:
-      errors.join("; ") ||
-      `No native prebuild for ${process.platform}/${process.arch}`,
-  };
-  return bindingResult;
+  const detail =
+    errors.join("; ") ||
+    `No native prebuild for ${process.platform}/${process.arch}`;
+  throw new Error(`Native runtime failed to load: ${detail}`);
 }
 
 function normalizeTarget(
@@ -334,15 +297,6 @@ function exitResult([code, signal]: [number, string]): ManagedProcessExit {
   return {
     exitCode: code < 0 ? null : code,
     signal: signalName(signal),
-  };
-}
-
-function unavailableTermination(error?: string): TerminationResult {
-  return {
-    attempted: false,
-    terminated: false,
-    method: "none",
-    error: error ?? "Native runtime is unavailable",
   };
 }
 

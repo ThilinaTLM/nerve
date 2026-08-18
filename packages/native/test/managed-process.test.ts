@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
+import { pathToFileURL } from "node:url";
 import {
   inspectManagedTarget,
   nativeRuntimeCapabilities,
@@ -56,10 +60,40 @@ async function processIsAlive(pid: number): Promise<boolean> {
 }
 
 describe("native managed process facade", () => {
-  it("reports capabilities without throwing when a prebuild is unavailable", () => {
+  it("reports mandatory native runtime capabilities", () => {
     const capabilities = nativeRuntimeCapabilities();
-    assert.equal(typeof capabilities.available, "boolean");
+    assert.equal(typeof capabilities.platform, "string");
+    assert.ok(capabilities.platform.length > 0);
     assert.equal(Array.isArray(capabilities.capabilities), true);
+  });
+
+  it("fails module initialization when the native binding is missing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-native-missing-"));
+    const isolatedModule = join(root, "index.ts");
+    try {
+      await copyFile(
+        new URL("../src/index.ts", import.meta.url),
+        isolatedModule,
+      );
+      const result = spawnSync(
+        node,
+        [
+          "--import",
+          "tsx",
+          "--input-type=module",
+          "--eval",
+          `await import(${JSON.stringify(pathToFileURL(isolatedModule).href)})`,
+        ],
+        { cwd: process.cwd(), encoding: "utf8" },
+      );
+      assert.notEqual(result.status, 0);
+      assert.match(
+        `${result.stderr}${result.stdout}`,
+        /Native runtime failed to load: No native prebuild/,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("preserves arguments, environment, and output", async () => {
