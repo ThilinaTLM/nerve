@@ -159,6 +159,31 @@ export type AutoCompactionSettings = z.infer<
   typeof autoCompactionSettingsSchema
 >;
 
+export const transcriptionModelSchema = z.enum([
+  "gpt-transcribe",
+  "gpt-4o-transcribe",
+  "gpt-4o-mini-transcribe",
+]);
+export type TranscriptionModel = z.infer<typeof transcriptionModelSchema>;
+
+const transcriptionLanguageSchema = z
+  .string()
+  .trim()
+  .regex(/^[a-z]{2,3}(?:-[a-z]{2})?$/);
+const transcriptionVocabularyTermSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .regex(/^[^<>\r\n]+$/);
+
+export const transcriptionSettingsSchema = z.object({
+  model: transcriptionModelSchema.default("gpt-4o-transcribe"),
+  languages: z.array(transcriptionLanguageSchema).max(10).default([]),
+  vocabulary: z.array(transcriptionVocabularyTermSchema).max(50).default([]),
+});
+export type TranscriptionSettings = z.infer<typeof transcriptionSettingsSchema>;
+
 export const settingsSchema = z.object({
   defaultMode: modeSchema,
   defaultPermissionLevel: permissionLevelSchema,
@@ -199,6 +224,11 @@ export const settingsSchema = z.object({
       soundsEnabled: true,
       events: defaultNotificationEventSounds,
     }),
+  transcription: transcriptionSettingsSchema.default({
+    model: "gpt-4o-transcribe",
+    languages: [],
+    vocabulary: [],
+  }),
   compaction: autoCompactionSettingsSchema,
   logging: z.object({
     level: applicationLogLevelSchema.default("info"),
@@ -262,6 +292,11 @@ export const defaultSettings: Settings = {
     systemEnabled: true,
     soundsEnabled: true,
     events: defaultNotificationEventSounds,
+  },
+  transcription: {
+    model: "gpt-4o-transcribe",
+    languages: [],
+    vocabulary: [],
   },
   compaction: {
     auto: true,
@@ -340,6 +375,13 @@ export const updateSettingsRequestSchema = z.object({
           failed: notificationToneSchema.optional(),
         })
         .optional(),
+    })
+    .optional(),
+  transcription: z
+    .object({
+      model: transcriptionModelSchema.optional(),
+      languages: z.array(transcriptionLanguageSchema).max(10).optional(),
+      vocabulary: z.array(transcriptionVocabularyTermSchema).max(50).optional(),
     })
     .optional(),
   compaction: z

@@ -43,11 +43,15 @@ export function createTranscriptionRoutes(state: OrchestratorState): Hono {
       }
 
       const data = new Uint8Array(await uploaded.arrayBuffer());
-      const result = await transcribeAudioWithChatGptSubscription(state.auth, {
-        data,
-        mimeType: uploaded.type,
-        durationMs: parseDurationMs(form.get("durationMs")),
-      });
+      const result = await transcribeAudioWithChatGptSubscription(
+        state.auth,
+        {
+          data,
+          mimeType: uploaded.type,
+          durationMs: parseDurationMs(form.get("durationMs")),
+        },
+        state.storage.settings.transcription,
+      );
       return c.json(result);
     }),
   );

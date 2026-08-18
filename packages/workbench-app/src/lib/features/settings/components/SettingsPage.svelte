@@ -36,6 +36,7 @@ import SuggestionsSettingsPage from "./pages/suggestions/SuggestionsSettingsPage
 import { SuggestionsPageState } from "./pages/suggestions/suggestions-page-state.svelte";
 import SystemSettingsPage from "./pages/system/SystemSettingsPage.svelte";
 import ToolsSettingsPage from "./pages/tools/ToolsSettingsPage.svelte";
+import TranscriptionSettingsPage from "./pages/transcription/TranscriptionSettingsPage.svelte";
 import WorkbenchSettingsPage from "./pages/workbench/WorkbenchSettingsPage.svelte";
 
 type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
@@ -182,6 +183,8 @@ function statusText(): string {
         />
       {:else if page.id === "notifications"}
         <NotificationsSettingsPage {settingsDraft} {onSettingsChange} />
+      {:else if page.id === "transcription"}
+        <TranscriptionSettingsPage {settingsDraft} {onSettingsChange} />
       {:else if page.id === "shortcuts"}
         <ShortcutsSettingsPage />
       {:else if page.id === "agents"}

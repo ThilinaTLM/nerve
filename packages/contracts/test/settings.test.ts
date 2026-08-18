@@ -15,6 +15,7 @@ describe("settings schema", () => {
       rememberLastAgentSelection: undefined,
       lastAgentSelection: undefined,
       notifications: undefined,
+      transcription: undefined,
       ui: {
         theme: undefined,
         colorMode: undefined,
@@ -59,6 +60,11 @@ describe("settings schema", () => {
         completed: "success",
         failed: "alert",
       },
+    });
+    assert.deepEqual(settings.transcription, {
+      model: "gpt-4o-transcribe",
+      languages: [],
+      vocabulary: [],
     });
     assert.deepEqual(settings.tools.disabled, ["explain_image"]);
     assert.deepEqual(settings.skills.disabled, []);
@@ -132,6 +138,11 @@ describe("settings schema", () => {
           completed: "none",
         },
       },
+      transcription: {
+        model: "gpt-transcribe",
+        languages: ["en", "zh-tw"],
+        vocabulary: ["Nerve", "Codex CLI"],
+      },
       runtime: {
         pythonExecutablePath: "/usr/bin/python3",
         shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
@@ -186,6 +197,21 @@ describe("settings schema", () => {
         updateSettingsRequestSchema.safeParse({
           notifications: { events: { approval: invalidTone } },
         }).success,
+        false,
+      );
+    }
+    assert.deepEqual(parsed.transcription, {
+      model: "gpt-transcribe",
+      languages: ["en", "zh-tw"],
+      vocabulary: ["Nerve", "Codex CLI"],
+    });
+    for (const transcription of [
+      { model: "whisper-1" },
+      { languages: ["english"] },
+      { vocabulary: ["invalid<term"] },
+    ]) {
+      assert.equal(
+        updateSettingsRequestSchema.safeParse({ transcription }).success,
         false,
       );
     }

@@ -282,6 +282,10 @@ export async function writeSettings(
           }
         : {}),
     },
+    transcription: {
+      ...storage.settings.transcription,
+      ...(patch.transcription ?? {}),
+    },
     lastAgentSelection: {
       ...storage.settings.lastAgentSelection,
       ...(lastAgentSelectionPatch ?? {}),
