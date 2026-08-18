@@ -4,9 +4,10 @@ import type {
   RunRecord,
   RunTransitionRecord,
 } from "@nervekit/contracts";
-import type {
-  RunHydratedState,
-  RunTransitionObserverPort,
+import {
+  isTerminalRunStatus,
+  type RunHydratedState,
+  type RunTransitionObserverPort,
 } from "./runtime/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 
@@ -139,7 +140,7 @@ export function agentStatusForRun(
 }
 
 function isActiveRun(run: RunRecord): boolean {
-  return !["completed", "failed", "cancelled"].includes(run.status);
+  return !isTerminalRunStatus(run.status);
 }
 
 function retrySnapshotFromState(

@@ -1,4 +1,5 @@
 import type { RunRecord } from "@nervekit/contracts";
+import { isTerminalRunStatus } from "./runtime/run-transitions.js";
 import type { RunTerminalizationPort } from "./runtime/run-execution.js";
 import type { ToolService } from "../tools/tool-service.js";
 
@@ -14,11 +15,7 @@ export class WorkbenchRunTerminalization implements RunTerminalizationPort {
   constructor(private readonly tools: ToolService) {}
 
   async terminalize(run: RunRecord): Promise<void> {
-    if (
-      run.status !== "completed" &&
-      run.status !== "failed" &&
-      run.status !== "cancelled"
-    ) {
+    if (!isTerminalRunStatus(run.status)) {
       return;
     }
     await this.tools.terminateNonTerminalToolCallsForRun(

@@ -38,24 +38,45 @@ export async function prepareToolResult(
   let rawResultPath: string | undefined;
 
   if (bounded.summary.truncated) {
-    rawResultPath = await writeRawResult({
-      storageHome: input.storageHome,
-      toolCallId: input.toolCallId,
+    const persisted = await persistRawResult(
+      prepared,
       result,
-    });
-    prepared = attachRawResultDetails(prepared, rawResultPath, bounded.summary);
+      input,
+      rawResultPath,
+      bounded.summary,
+    );
+    prepared = persisted.value;
+    rawResultPath = persisted.path;
   }
 
   if (resultTruncatesForModel(prepared) && !hasRecoveryRoute(prepared)) {
-    rawResultPath ??= await writeRawResult({
-      storageHome: input.storageHome,
-      toolCallId: input.toolCallId,
+    const persisted = await persistRawResult(
+      prepared,
       result,
-    });
-    prepared = attachRawResultDetails(prepared, rawResultPath);
+      input,
+      rawResultPath,
+    );
+    prepared = persisted.value;
   }
 
   return annotateToolResultModelLimits(prepared);
+}
+
+async function persistRawResult(
+  value: unknown,
+  result: unknown,
+  input: { toolCallId: string; storageHome: string },
+  existingPath: string | undefined,
+  summary?: BoundSummary,
+): Promise<{ value: unknown; path: string }> {
+  const path =
+    existingPath ??
+    (await writeRawResult({
+      storageHome: input.storageHome,
+      toolCallId: input.toolCallId,
+      result,
+    }));
+  return { value: attachRawResultDetails(value, path, summary), path };
 }
 
 function boundValue(value: unknown, path: string[]): BoundValueResult {
