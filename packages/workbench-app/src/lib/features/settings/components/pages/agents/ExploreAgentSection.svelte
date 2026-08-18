@@ -6,7 +6,10 @@ import type {
   ModelSelection,
   Settings,
 } from "$lib/api";
-import { SettingsGroup } from "$lib/presentation/components/settings";
+import {
+  SettingsGroup,
+  SettingsKeyValueRow,
+} from "$lib/presentation/components/settings";
 import {
   modelDisplayName,
   modelKey,
@@ -15,7 +18,6 @@ import {
 } from "$lib/presentation/utils/model";
 import type { SettingsChange } from "../settings-change";
 import ModelPickerRow from "./ModelPickerRow.svelte";
-import PolicyRow from "./PolicyRow.svelte";
 
 type Props = {
   settingsDraft: Settings;
@@ -83,7 +85,6 @@ function saveExploreModel(selection: {
     fallbackThinkingLevels={[...thinkingLevels]}
     dialogTitle="Choose explore model"
     dialogDescription="Search available models, choose one model, then select its thinking level."
-    confirmLabel="Save explore model"
     policyLabel="Explore agent policy"
     onSave={saveExploreModel}
   >
@@ -95,10 +96,10 @@ function saveExploreModel(selection: {
       {/if}
     {/snippet}
     {#snippet policy()}
-      <PolicyRow label="Permission" value="Read only" />
-      <PolicyRow label="Mode" value="Coding" />
-      <PolicyRow label="Working directory" value="Same as parent" />
-      <PolicyRow label="Conversation history" value="Fresh" />
+      <SettingsKeyValueRow label="Permission" value="Read only" />
+      <SettingsKeyValueRow label="Mode" value="Coding" />
+      <SettingsKeyValueRow label="Working directory" value="Same as parent" />
+      <SettingsKeyValueRow label="Conversation history" value="Fresh" />
     {/snippet}
   </ModelPickerRow>
 </SettingsGroup>

@@ -1,17 +1,12 @@
 <script lang="ts">
-import Plus from "@lucide/svelte/icons/plus";
 import type { AuthProviderMetadata } from "$lib/api";
 import { deleteProviderCredential } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
-import {
-  SettingsEmptyState,
-  SettingsList,
-  SettingsListItem,
-  SettingsSection,
-} from "$lib/presentation/components/settings";
+import { SettingsListItem } from "$lib/presentation/components/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
 import { loadSettingsPanel } from "$lib/features/settings/state/settings-actions.svelte";
+import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
 import AddProviderDialog from "./AddProviderDialog.svelte";
 
 type Props = {
@@ -57,48 +52,35 @@ async function confirmRemove(): Promise<void> {
 }
 </script>
 
-<SettingsSection id="api-keys" title="API keys">
-  {#snippet actions()}
-    <Button
-      size="xs"
-      data-tour-id="setup-auth-add-api-key"
-      onclick={() => (addOpen = true)}
-    >
-      <Plus class="size-3.5" aria-hidden="true" />
-      Add API key
-    </Button>
-  {/snippet}
-
-  {#if apiKeys.length === 0}
-    <SettingsEmptyState
-      class="rounded-md border border-dashed border-border/60 bg-muted/20 px-3"
-      title="No API keys configured"
-      description="Add a provider API key to authenticate models."
-    />
-  {:else}
-    <SettingsList ariaLabel="Configured API keys" class="grid gap-2 divide-y-0">
-      {#each apiKeys as provider (provider.provider)}
-        <SettingsListItem
-          title={provider.displayName}
-          class="rounded-md border border-border/60 bg-card/40 px-3 py-2"
+<SettingsEntityListSection
+  sectionId="api-keys"
+  title="API keys"
+  addLabel="Add API key"
+  addTourId="setup-auth-add-api-key"
+  emptyTitle="No API keys configured"
+  emptyDescription="Add a provider API key to authenticate models."
+  items={apiKeys}
+  listAriaLabel="Configured API keys"
+  itemKey={(provider) => provider.provider}
+  onAdd={() => (addOpen = true)}
+>
+  {#snippet row(provider)}
+    <SettingsListItem variant="card" title={provider.displayName}>
+      {#snippet meta()}
+        {#if provider.envVar}
+          <span class="truncate font-mono">{provider.envVar}</span>
+        {/if}
+      {/snippet}
+      {#snippet actions()}
+        <Button
+          variant="ghost"
+          size="xs"
+          onclick={() => (pendingRemove = provider)}>Remove</Button
         >
-          {#snippet meta()}
-            {#if provider.envVar}
-              <span class="truncate font-mono">{provider.envVar}</span>
-            {/if}
-          {/snippet}
-          {#snippet actions()}
-            <Button
-              variant="ghost"
-              size="xs"
-              onclick={() => (pendingRemove = provider)}>Remove</Button
-            >
-          {/snippet}
-        </SettingsListItem>
-      {/each}
-    </SettingsList>
-  {/if}
-</SettingsSection>
+      {/snippet}
+    </SettingsListItem>
+  {/snippet}
+</SettingsEntityListSection>
 
 <AddProviderDialog
   bind:open={addOpen}

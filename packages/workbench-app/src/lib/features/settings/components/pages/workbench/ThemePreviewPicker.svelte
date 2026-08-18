@@ -1,80 +1,40 @@
 <script lang="ts">
-import type { Component } from "svelte";
 import Palette from "@lucide/svelte/icons/palette";
 import TreePine from "@lucide/svelte/icons/tree-pine";
 import Waves from "@lucide/svelte/icons/waves";
-import { Label } from "@nervekit/ui-kit/components/ui/label";
-import * as RadioGroup from "@nervekit/ui-kit/components/ui/radio-group";
-import { cn } from "@nervekit/ui-kit/core/utils";
+import {
+  SettingsPreviewCards,
+  type SettingsPreviewOption,
+} from "$lib/presentation/components/settings";
 
-type ThemeOption = {
-  value: string;
-  label: string;
-  icon: Component<{ class?: string; "aria-hidden"?: "true" }>;
-};
-
-const options: ThemeOption[] = [
+const options: SettingsPreviewOption[] = [
   { value: "nerve", label: "Nerve", icon: Palette },
   { value: "ocean", label: "Ocean", icon: Waves },
   { value: "forest", label: "Forest", icon: TreePine },
 ];
-
-type Props = {
-  value?: string;
-  ariaLabel?: string;
-  class?: string;
-  onValueChange?: (value: string) => void;
-};
 
 let {
   value = $bindable(""),
   ariaLabel = "Theme",
   class: className,
   onValueChange,
-}: Props = $props();
+}: {
+  value?: string;
+  ariaLabel?: string;
+  class?: string;
+  onValueChange?: (value: string) => void;
+} = $props();
 </script>
 
-<RadioGroup.Root
+<SettingsPreviewCards
+  {options}
   bind:value
-  aria-label={ariaLabel}
+  {ariaLabel}
+  class={className}
   {onValueChange}
-  class={cn("flex flex-wrap gap-2", className)}
->
-  {#each options as option (option.value)}
-    {@const Icon = option.icon}
-    <Label
-      class="group/theme grid w-30 cursor-pointer gap-1.5 rounded-md border border-border/60 p-1.5 transition-colors hover:bg-accent/40 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/10"
-    >
-      <span
-        class="flex h-12 overflow-hidden rounded-sm border border-border/60"
-        aria-hidden="true"
-      >
-        {#each ["light", "dark"] as mode, index (mode)}
-          <span
-            data-theme-preview={option.value}
-            data-color-mode={mode}
-            class={cn(
-              "flex min-w-0 flex-1 gap-1 bg-background p-1",
-              index === 1 && "border-l border-border/40",
-            )}
-          >
-            <span class="w-1.5 flex-none rounded-xs bg-sidebar"></span>
-            <span class="grid min-w-0 flex-1 content-start gap-1">
-              <span class="h-1 w-full rounded-full bg-primary"></span>
-              <span class="h-1 w-2/3 rounded-full bg-foreground/30"></span>
-            </span>
-          </span>
-        {/each}
-      </span>
-
-      <span class="flex min-w-0 items-center gap-1.5">
-        <RadioGroup.Item value={option.value} class="size-3.5" />
-        <Icon
-          class="size-3.5 flex-none text-muted-foreground group-has-data-[state=checked]/theme:text-primary"
-          aria-hidden="true"
-        />
-        <span class="truncate text-xs font-medium">{option.label}</span>
-      </span>
-    </Label>
-  {/each}
-</RadioGroup.Root>
+  previewForegroundClass="bg-primary"
+  previewAttrs={(option, mode) => ({
+    "data-theme-preview": option.value,
+    "data-color-mode": mode,
+  })}
+/>

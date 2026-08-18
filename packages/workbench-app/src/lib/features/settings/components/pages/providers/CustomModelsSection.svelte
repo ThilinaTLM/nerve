@@ -1,7 +1,4 @@
 <script lang="ts">
-import Pencil from "@lucide/svelte/icons/pencil";
-import Plus from "@lucide/svelte/icons/plus";
-import Trash2 from "@lucide/svelte/icons/trash-2";
 import type {
   AuthProviderMetadata,
   ModelDefinition,
@@ -11,15 +8,10 @@ import { deleteModelDefinition } from "$lib/api";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
-import {
-  SettingsEmptyState,
-  SettingsGroup,
-  SettingsList,
-  SettingsListItem,
-  SettingsSection,
-} from "$lib/presentation/components/settings";
+import { SettingsListItem } from "$lib/presentation/components/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
+import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
 import ModelDefinitionDialog from "./ModelDefinitionDialog.svelte";
 
 type Props = {
@@ -115,68 +107,49 @@ async function confirmDelete(): Promise<void> {
 }
 </script>
 
-<SettingsSection id="custom-models" title="Custom models">
-  {#snippet actions()}
-    <Button size="xs" onclick={openAdd} disabled={providerItems.length === 0}>
-      <Plus class="size-3.5" aria-hidden="true" />
-      Add model
-    </Button>
+<SettingsEntityListSection
+  sectionId="custom-models"
+  title="Custom models"
+  addLabel="Add model"
+  addDisabled={providerItems.length === 0}
+  emptyTitle="No custom models"
+  emptyDescription={providerItems.length === 0
+    ? "Authenticate a provider before adding custom models."
+    : "Add a model to expose it in the composer picker."}
+  items={definitions}
+  listAriaLabel="Custom models"
+  itemKey={(model) => `${model.provider}:${model.modelId}`}
+  onAdd={openAdd}
+>
+  {#snippet row(model)}
+    <SettingsListItem variant="card" title={model.name}>
+      {#snippet badges()}
+        {#if isUnavailable(model)}
+          <Badge tone="warn" size="xs">Unavailable</Badge>
+        {/if}
+        {#if model.reasoning}
+          <Badge tone="accent" size="xs">Reasoning</Badge>
+        {/if}
+      {/snippet}
+      {#snippet meta()}
+        <span class="truncate">
+          {providerLabel(model.provider)} ·
+          <span class="font-mono">{model.modelId}</span>
+        </span>
+      {/snippet}
+      {#snippet actions()}
+        <Button variant="ghost" size="xs" onclick={() => openEdit(model)}
+          >Edit</Button
+        >
+        <Button
+          variant="ghost"
+          size="xs"
+          onclick={() => (pendingDelete = model)}>Delete</Button
+        >
+      {/snippet}
+    </SettingsListItem>
   {/snippet}
-
-  <SettingsGroup>
-    {#if definitions.length === 0}
-      <SettingsEmptyState
-        class="rounded-md border border-dashed border-border/60 bg-muted/20 px-3"
-        title="No custom models"
-        description={providerItems.length === 0
-          ? "Authenticate a provider before adding custom models."
-          : "Add a model to expose it in the composer picker."}
-      />
-    {:else}
-      <SettingsList ariaLabel="Custom models" class="grid gap-2 divide-y-0">
-        {#each definitions as model (`${model.provider}:${model.modelId}`)}
-          <SettingsListItem
-            title={model.name}
-            class="rounded-md border border-border/60 bg-card/40 px-3 py-2"
-          >
-            {#snippet badges()}
-              {#if isUnavailable(model)}
-                <Badge tone="warn" size="xs">Unavailable</Badge>
-              {/if}
-              {#if model.reasoning}
-                <Badge tone="accent" size="xs">Reasoning</Badge>
-              {/if}
-            {/snippet}
-            {#snippet meta()}
-              <span class="truncate">
-                {providerLabel(model.provider)} ·
-                <span class="font-mono">{model.modelId}</span>
-              </span>
-            {/snippet}
-            {#snippet actions()}
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                ariaLabel="Edit model"
-                onclick={() => openEdit(model)}
-              >
-                <Pencil class="size-3.5" aria-hidden="true" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                ariaLabel="Delete model"
-                onclick={() => (pendingDelete = model)}
-              >
-                <Trash2 class="size-3.5" aria-hidden="true" />
-              </Button>
-            {/snippet}
-          </SettingsListItem>
-        {/each}
-      </SettingsList>
-    {/if}
-  </SettingsGroup>
-</SettingsSection>
+</SettingsEntityListSection>
 
 <ModelDefinitionDialog bind:open={dialogOpen} model={editing} {providerItems} />
 

@@ -7,11 +7,9 @@ import {
 } from "$lib/api";
 import { encryptApiKey } from "$lib/core/utils/credential-crypto";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
-import { Label } from "@nervekit/ui-kit/components/ui/label";
-import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import SettingsFormDialog from "../../shared/settings-form-dialog.svelte";
+import SettingsFormField from "../../shared/settings-form-field.svelte";
 import {
   atlassianCredentialId,
   createProfileId,
@@ -93,72 +91,79 @@ async function save(): Promise<void> {
 }
 </script>
 
-<Dialog
+<SettingsFormDialog
   bind:open
-  size="sm"
   title={profile ? "Edit Atlassian profile" : "Add Atlassian profile"}
   description="Use one Atlassian connection for Jira, Confluence, or both."
+  saveLabel="Save profile"
+  bodyClass="sm:grid-cols-2"
+  errorClass="sm:col-span-2"
+  {busy}
+  {error}
+  onSave={() => void save()}
 >
-  <div class="grid gap-3 sm:grid-cols-2">
-    <div class="grid gap-1.5 sm:col-span-2">
-      <Label for="atlassian-profile-name">Profile name</Label><Input
-        id="atlassian-profile-name"
-        bind:value={name}
-        placeholder="Work"
-      />
-    </div>
-    <div class="grid gap-1.5 sm:col-span-2">
-      <Label for="atlassian-site-url">Site URL</Label><Input
-        id="atlassian-site-url"
-        bind:value={siteUrl}
-        placeholder="https://example.atlassian.net"
-      />
-    </div>
-    <div class="grid gap-1.5 sm:col-span-2">
-      <Label for="atlassian-email">Email</Label><Input
-        id="atlassian-email"
-        type="email"
-        bind:value={email}
-        placeholder="name@example.com"
-      />
-    </div>
-    <div class="grid gap-1.5 sm:col-span-2">
-      <Label for="atlassian-token">API token</Label><Input
-        id="atlassian-token"
-        type="password"
-        bind:value={token}
-        placeholder={configured
-          ? "Leave blank to keep current token"
-          : "Paste API token"}
-      />
-    </div>
-    <div class="grid gap-1.5">
-      <Label for="atlassian-project-key">Default project key</Label><Input
-        id="atlassian-project-key"
-        bind:value={defaultProjectKey}
-        placeholder="PROJ"
-      />
-    </div>
-    <div class="grid gap-1.5">
-      <Label for="atlassian-space-key">Default space key</Label><Input
-        id="atlassian-space-key"
-        bind:value={defaultSpaceKey}
-        placeholder="DOCS"
-      />
-    </div>
-    {#if error}<p class="text-xs text-destructive sm:col-span-2">
-        {error}
-      </p>{/if}
-  </div>
-  {#snippet footer()}
-    <Button
-      variant="ghost"
-      size="sm"
-      disabled={busy}
-      onclick={() => (open = false)}>Cancel</Button
-    >
-    <Button size="sm" disabled={busy} onclick={() => void save()}
-      >{#if busy}<Spinner class="size-3.5" />{/if}Save profile</Button
-    >
-  {/snippet}
-</Dialog>
+  <SettingsFormField
+    id="atlassian-profile-name"
+    label="Profile name"
+    class="sm:col-span-2"
+  >
+    <Input
+      size="xs"
+      id="atlassian-profile-name"
+      bind:value={name}
+      placeholder="Work"
+    />
+  </SettingsFormField>
+  <SettingsFormField
+    id="atlassian-site-url"
+    label="Site URL"
+    class="sm:col-span-2"
+  >
+    <Input
+      size="xs"
+      id="atlassian-site-url"
+      bind:value={siteUrl}
+      placeholder="https://example.atlassian.net"
+    />
+  </SettingsFormField>
+  <SettingsFormField id="atlassian-email" label="Email" class="sm:col-span-2">
+    <Input
+      size="xs"
+      id="atlassian-email"
+      type="email"
+      bind:value={email}
+      placeholder="name@example.com"
+    />
+  </SettingsFormField>
+  <SettingsFormField
+    id="atlassian-token"
+    label="API token"
+    class="sm:col-span-2"
+  >
+    <Input
+      size="xs"
+      id="atlassian-token"
+      type="password"
+      bind:value={token}
+      placeholder={configured
+        ? "Leave blank to keep current token"
+        : "Paste API token"}
+    />
+  </SettingsFormField>
+  <SettingsFormField id="atlassian-project-key" label="Default project key">
+    <Input
+      size="xs"
+      id="atlassian-project-key"
+      bind:value={defaultProjectKey}
+      placeholder="PROJ"
+    />
+  </SettingsFormField>
+  <SettingsFormField id="atlassian-space-key" label="Default space key">
+    <Input
+      size="xs"
+      id="atlassian-space-key"
+      bind:value={defaultSpaceKey}
+      placeholder="DOCS"
+    />
+  </SettingsFormField>
+</SettingsFormDialog>

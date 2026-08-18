@@ -155,6 +155,7 @@ async function submit() {
       <div class="grid gap-1.5">
         <Label for="model-id">Model id</Label>
         <Input
+          size="xs"
           id="model-id"
           bind:value={modelId}
           placeholder="llama-3.1-8b"
@@ -164,6 +165,7 @@ async function submit() {
       <div class="grid gap-1.5">
         <Label for="model-name">Display name</Label>
         <Input
+          size="xs"
           id="model-name"
           bind:value={name}
           placeholder="Llama 3.1 8B"
@@ -183,6 +185,7 @@ async function submit() {
       <div class="grid gap-1.5">
         <Label for="model-context">Context window (tokens)</Label>
         <Input
+          size="xs"
           id="model-context"
           type="number"
           min="0"
@@ -193,6 +196,7 @@ async function submit() {
       <div class="grid gap-1.5">
         <Label for="model-max-tokens">Max output tokens</Label>
         <Input
+          size="xs"
           id="model-max-tokens"
           type="number"
           min="0"

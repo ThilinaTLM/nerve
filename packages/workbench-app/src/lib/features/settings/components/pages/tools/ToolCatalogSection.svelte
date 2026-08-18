@@ -339,7 +339,6 @@ function updateBashAutoPromotionSeconds(value: string): void {
   selectedModel={configuredVisionSelection}
   selectedThinkingLevel={settingsDraft.tools.imageExplanation.thinkingLevel}
   emptyMessage="No configured image-capable models are available."
-  confirmLabel="Save model"
   onSave={saveVisionModel}
 />
 

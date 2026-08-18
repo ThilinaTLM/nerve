@@ -3,9 +3,7 @@ import { SvelteSet } from "svelte/reactivity";
 import type { AuthProviderMetadata, ModelInfo, ModelSelection } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
-import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
-import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
@@ -94,17 +92,12 @@ function save(): void {
     data-tour-id="setup-scoped-models-catalog"
   >
     <div class="grid gap-1.5 border-b border-border/50 px-3 pt-2.5 pb-2">
-      <SearchInput
-        bind:value={query}
-        placeholder="Search models"
-        ariaLabel="Search models"
-      />
       {#if availableModels.length > 0}
         <ToggleGroup.Root
           type="single"
           size="xs"
           spacing={1}
-          variant="outline"
+          variant="chip"
           value={providerFilter}
           aria-label="Filter by provider"
           class="flex-wrap"
@@ -120,10 +113,15 @@ function save(): void {
           {/each}
         </ToggleGroup.Root>
       {/if}
+      <SearchInput
+        bind:value={query}
+        placeholder="Search models"
+        ariaLabel="Search models"
+      />
     </div>
 
     <Tooltip.Provider delayDuration={200} disableHoverableContent>
-      <div class="min-h-0 p-1.5">
+      <div class="h-[min(52vh,24rem)] p-1.5">
         {#if availableModels.length === 0}
           <p class="px-1 py-2 text-sm text-muted-foreground">
             Authenticate a provider before choosing scoped models.
@@ -136,27 +134,18 @@ function save(): void {
           <VirtualScroller
             items={filteredModels}
             getKey={(entry) => entry.key}
-            estimateSize={() => 48}
-            viewportClass="max-h-[min(52vh,24rem)]"
+            estimateSize={() => 44}
+            gap={4}
+            viewportClass="h-full"
             viewportAriaLabel="Authenticated models"
           >
             {#snippet row({ item: entry })}
               {@const checked = selectedKeys.has(entry.key)}
-              <Label
-                class="flex cursor-pointer items-center gap-2.5 rounded-md border border-transparent px-2 py-1.5 font-normal transition-colors hover:bg-accent/50 has-data-checked:border-primary/60 has-data-checked:bg-primary/8"
-              >
-                <ModelCatalogRow {entry}>
-                  {#snippet leading()}
-                    <Checkbox
-                      size="sm"
-                      {checked}
-                      onCheckedChange={(value) =>
-                        toggleModel(entry, value === true)}
-                      aria-label={entry.displayName}
-                    />
-                  {/snippet}
-                </ModelCatalogRow>
-              </Label>
+              <ModelCatalogRow
+                {entry}
+                selected={checked}
+                onclick={() => toggleModel(entry, !checked)}
+              />
             {/snippet}
           </VirtualScroller>
         {/if}
@@ -177,7 +166,7 @@ function save(): void {
       size="sm"
       data-tour-id="setup-scoped-models-save"
       onclick={save}
-      disabled={availableModels.length === 0}>Save selection</Button
+      disabled={availableModels.length === 0}>Save</Button
     >
   {/snippet}
 </Dialog>

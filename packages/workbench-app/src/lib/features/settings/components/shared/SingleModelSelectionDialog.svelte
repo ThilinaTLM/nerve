@@ -1,10 +1,9 @@
 <script lang="ts">
 import type { ModelInfo, ModelSelection, ThinkingLevel } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { Label } from "@nervekit/ui-kit/components/ui/label";
-import * as RadioGroup from "@nervekit/ui-kit/components/ui/radio-group";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
+import { SelectRow } from "@nervekit/ui-kit/components/ui/select-row";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
@@ -14,6 +13,7 @@ import {
   buildModelCatalog,
   filterModelCatalog,
   modelProviderFacets,
+  type ModelCatalogEntry,
 } from "$lib/presentation/utils/model-catalog";
 type FallbackOption = {
   label: string;
@@ -35,7 +35,6 @@ type Props = {
   selectedThinkingLevel: ThinkingLevel;
   fallbackOption?: FallbackOption;
   fallbackThinkingLevels?: ThinkingLevel[];
-  confirmLabel?: string;
   onSave?: (selection: SaveSelection) => void;
   showThinkingLevel?: boolean;
   emptyMessage?: string;
@@ -50,7 +49,6 @@ let {
   selectedThinkingLevel,
   fallbackOption,
   fallbackThinkingLevels = ["off"],
-  confirmLabel = "Save selection",
   onSave,
   showThinkingLevel = true,
   emptyMessage = "Authenticate a provider before choosing a model.",
@@ -96,7 +94,26 @@ const filteredModels = $derived(
   filterModelCatalog(catalog, query, providerFilter),
 );
 
+type ListItem = { key: string; entry: ModelCatalogEntry | null };
+/** The default/fallback option is a scrolled item of the list, not pinned. */
+const listItems = $derived<ListItem[]>(
+  fallbackOption
+    ? [
+        { key: "$default", entry: null },
+        ...filteredModels.map((entry) => ({ key: entry.key, entry })),
+      ]
+    : filteredModels.map((entry) => ({ key: entry.key, entry })),
+);
+const canSave = $derived(
+  Boolean(selectedModelInfo) ||
+    (fallbackOption !== undefined && selectedKey === ""),
+);
+
 function save(): void {
+  if (selectedKey === "") {
+    if (fallbackOption) useFallback();
+    return;
+  }
   if (!selectedModelInfo) return;
   onSave?.({
     model: {
@@ -128,17 +145,12 @@ function useFallback(): void {
 >
   <div class="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto]">
     <div class="grid gap-1.5 border-b border-border/50 px-3 pt-2.5 pb-2">
-      <SearchInput
-        bind:value={query}
-        placeholder="Search models"
-        ariaLabel="Search models"
-      />
       {#if models.length > 0}
         <ToggleGroup.Root
           type="single"
           size="xs"
           spacing={1}
-          variant="outline"
+          variant="chip"
           value={providerFilter}
           aria-label="Filter by provider"
           class="flex-wrap"
@@ -154,60 +166,68 @@ function useFallback(): void {
           {/each}
         </ToggleGroup.Root>
       {/if}
+      <SearchInput
+        bind:value={query}
+        placeholder="Search models"
+        ariaLabel="Search models"
+      />
     </div>
 
     <Tooltip.Provider delayDuration={200} disableHoverableContent>
-      <div class="grid min-h-0 grid-rows-[minmax(0,1fr)] px-3 py-2">
+      <div class="flex flex-col gap-1.5 overflow-hidden px-3 py-2">
         {#if models.length === 0}
           <p class="py-1 text-sm text-muted-foreground">
             {emptyMessage}
           </p>
-        {:else if filteredModels.length === 0}
+        {:else if listItems.length === 0}
           <p class="py-1 text-sm text-muted-foreground">
             No models match the current filters.
           </p>
         {:else}
-          <RadioGroup.Root bind:value={selectedKey} class="grid min-h-0 gap-0">
+          <div class="h-[min(52vh,24rem)]">
             <VirtualScroller
-              items={filteredModels}
-              getKey={(entry) => entry.key}
-              estimateSize={() => 46}
-              gap={6}
-              viewportClass="h-full max-h-[min(52vh,22rem)]"
+              items={listItems}
+              getKey={(item) => item.key}
+              estimateSize={() => 44}
+              gap={4}
+              viewportClass="h-full"
               viewportAriaLabel="Available models"
             >
-              {#snippet row({ item: entry })}
-                <Label
-                  class="flex cursor-pointer items-center gap-2.5 rounded-md border border-border bg-transparent px-2 py-1.5 font-normal transition-colors hover:bg-accent has-data-checked:border-primary/60 has-data-checked:bg-accent"
-                >
-                  <ModelCatalogRow {entry}>
-                    {#snippet leading()}
-                      <RadioGroup.Item
-                        value={entry.key}
-                        size="sm"
-                        aria-label={entry.displayName}
-                      />
-                    {/snippet}
-                  </ModelCatalogRow>
-                </Label>
+              {#snippet row({ item })}
+                {#if item.entry}
+                  {@const entry = item.entry}
+                  <ModelCatalogRow
+                    {entry}
+                    selected={entry.key === selectedKey}
+                    onclick={() => (selectedKey = entry.key)}
+                  />
+                {:else}
+                  <SelectRow
+                    selected={selectedKey === ""}
+                    label={fallbackOption!.label}
+                    detail={fallbackOption!.detail}
+                    onclick={() => (selectedKey = "")}
+                  />
+                {/if}
               {/snippet}
             </VirtualScroller>
-          </RadioGroup.Root>
+          </div>
         {/if}
       </div>
     </Tooltip.Provider>
+  </div>
 
-    {#if showThinkingLevel}
-      <div class="grid gap-1 border-t border-border/50 px-3 py-2">
-        <span class="text-xs text-muted-foreground">Thinking level</span>
+  {#snippet footer()}
+    <div class="flex w-full flex-wrap items-center gap-2">
+      {#if showThinkingLevel}
         <ToggleGroup.Root
           type="single"
           size="xs"
           spacing={1}
-          variant="outline"
+          variant="chip"
           value={thinkingLevel}
           aria-label="Thinking level"
-          class="min-w-0 flex-wrap justify-start"
+          class="mr-auto min-w-0 flex-wrap justify-start"
           onValueChange={(value) => {
             if (value) thinkingLevel = value as ThinkingLevel;
           }}
@@ -215,29 +235,20 @@ function useFallback(): void {
           {#each thinkingLevels as level (level)}
             <ToggleGroup.Item
               value={level}
-              class="flex-none rounded-full text-xs capitalize data-[state=on]:text-primary"
+              class="flex-none text-xs capitalize data-[state=on]:text-primary"
               >{level}</ToggleGroup.Item
             >
           {/each}
         </ToggleGroup.Root>
-      </div>
-    {/if}
-  </div>
-
-  {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={() => (open = false)}
-      >Cancel</Button
-    >
-    {#if fallbackOption}
-      <Button
-        size="sm"
-        variant="outline"
-        title={fallbackOption.detail}
-        onclick={useFallback}>{fallbackOption.actionLabel}</Button
+      {/if}
+      <div
+        class="ml-auto flex flex-none flex-wrap items-center justify-end gap-2"
       >
-    {/if}
-    <Button size="sm" onclick={save} disabled={!selectedModelInfo}
-      >{confirmLabel}</Button
-    >
+        <Button size="sm" variant="ghost" onclick={() => (open = false)}
+          >Cancel</Button
+        >
+        <Button size="sm" onclick={save} disabled={!canSave}>Save</Button>
+      </div>
+    </div>
   {/snippet}
 </Dialog>

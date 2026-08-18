@@ -2,7 +2,7 @@
 import { openSettingsPane } from "$lib/features/settings";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
-import * as RadioGroup from "@nervekit/ui-kit/components/ui/radio-group";
+import { SelectRow } from "@nervekit/ui-kit/components/ui/select-row";
 
 type Profile = { id: string; name: string; detail?: string };
 type Props = {
@@ -46,33 +46,19 @@ function manageProfiles(): void {
 
 <Dialog bind:open size="sm" {title} {description}>
   <div class="grid gap-2">
-    <RadioGroup.Root bind:value={draftProfileId} class="gap-1">
-      <label
-        class="flex cursor-pointer items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm hover:bg-muted/40"
-      >
-        <RadioGroup.Item value="" size="sm" aria-label="No profile" />
-        <span>No profile</span>
-      </label>
-      {#each profiles as profile (profile.id)}
-        <label
-          class="flex cursor-pointer items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm hover:bg-muted/40"
-        >
-          <RadioGroup.Item
-            value={profile.id}
-            size="sm"
-            aria-label={profile.name}
-          />
-          <span class="grid min-w-0 gap-0.5">
-            <span class="truncate">{profile.name}</span>
-            {#if profile.detail}
-              <span class="truncate text-xs text-muted-foreground"
-                >{profile.detail}</span
-              >
-            {/if}
-          </span>
-        </label>
-      {/each}
-    </RadioGroup.Root>
+    <SelectRow
+      label="No profile"
+      selected={draftProfileId === ""}
+      onclick={() => (draftProfileId = "")}
+    />
+    {#each profiles as profile (profile.id)}
+      <SelectRow
+        label={profile.name}
+        detail={profile.detail}
+        selected={draftProfileId === profile.id}
+        onclick={() => (draftProfileId = profile.id)}
+      />
+    {/each}
     {#if profiles.length === 0}
       <p class="text-xs text-muted-foreground">
         No profiles are available yet. Add one in Providers to enable this tool.

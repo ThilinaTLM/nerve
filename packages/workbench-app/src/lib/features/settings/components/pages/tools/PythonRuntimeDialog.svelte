@@ -67,6 +67,7 @@ function resetPath(): void {
         >Python executable</Label
       >
       <Input
+        size="xs"
         id="tools-python-executable"
         bind:value={pathDraft}
         placeholder="Auto-detect"

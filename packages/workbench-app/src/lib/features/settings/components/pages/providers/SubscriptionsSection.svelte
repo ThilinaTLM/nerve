@@ -1,17 +1,14 @@
 <script lang="ts">
-import Plus from "@lucide/svelte/icons/plus";
 import type { AuthProviderMetadata } from "$lib/api";
 import { deleteProviderCredential } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import {
-  SettingsEmptyState,
   SettingsInlineMessage,
-  SettingsList,
   SettingsListItem,
-  SettingsSection,
 } from "$lib/presentation/components/settings";
 import { loadSettingsPanel } from "$lib/features/settings/state/settings-actions.svelte";
+import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
 import AddProviderDialog from "./AddProviderDialog.svelte";
 
 type Props = {
@@ -45,61 +42,47 @@ async function confirmLogout(): Promise<void> {
 }
 </script>
 
-<SettingsSection id="subscriptions" title="Subscriptions">
-  {#snippet actions()}
-    <Button
-      size="xs"
-      data-tour-id="setup-auth-connect-subscription"
-      onclick={() => (addOpen = true)}
+<SettingsEntityListSection
+  sectionId="subscriptions"
+  title="Subscriptions"
+  addLabel="Connect subscription"
+  addTourId="setup-auth-connect-subscription"
+  emptyTitle="No subscriptions connected"
+  emptyDescription="Connect a subscription to authenticate models."
+  items={subscriptions}
+  listAriaLabel="Connected subscriptions"
+  itemKey={(provider) => provider.provider}
+  onAdd={() => (addOpen = true)}
+>
+  {#snippet row(provider)}
+    <SettingsListItem
+      variant="card"
+      title={provider.displayName}
+      tourId={provider.provider === "openai-codex"
+        ? "setup-auth-openai-codex-connected"
+        : undefined}
     >
-      <Plus class="size-3.5" aria-hidden="true" />
-      Connect subscription
-    </Button>
-  {/snippet}
-
-  {#if subscriptions.length === 0}
-    <SettingsEmptyState
-      class="rounded-md border border-dashed border-border/60 bg-muted/20 px-3"
-      title="No subscriptions connected"
-      description="Connect a subscription to authenticate models."
-    />
-  {:else}
-    <SettingsList
-      ariaLabel="Connected subscriptions"
-      class="grid gap-2 divide-y-0"
-    >
-      {#each subscriptions as provider (provider.provider)}
-        <SettingsListItem
-          class="rounded-md border border-border/60 bg-card/40 px-3 py-2"
-          title={provider.displayName}
-          tourId={provider.provider === "openai-codex"
-            ? "setup-auth-openai-codex-connected"
-            : undefined}
+      {#snippet meta()}
+        <span class="truncate">{provider.oauthName ?? provider.provider}</span>
+      {/snippet}
+      {#snippet actions()}
+        <Button
+          variant="ghost"
+          size="xs"
+          onclick={() => (pendingLogout = provider)}>Log out</Button
         >
-          {#snippet meta()}
-            <span class="truncate"
-              >{provider.oauthName ?? provider.provider}</span
-            >
-          {/snippet}
-          {#snippet actions()}
-            <Button
-              variant="ghost"
-              size="xs"
-              onclick={() => (pendingLogout = provider)}>Log out</Button
-            >
-          {/snippet}
-        </SettingsListItem>
-      {/each}
-    </SettingsList>
-
+      {/snippet}
+    </SettingsListItem>
+  {/snippet}
+  {#snippet below()}
     {#each subscriptions.filter((provider) => provider.warning) as provider (provider.provider)}
       <SettingsInlineMessage
         tone="warning"
         text={`${provider.displayName}: ${provider.warning}`}
       />
     {/each}
-  {/if}
-</SettingsSection>
+  {/snippet}
+</SettingsEntityListSection>
 
 <AddProviderDialog bind:open={addOpen} {authProviders} kind="oauth" />
 

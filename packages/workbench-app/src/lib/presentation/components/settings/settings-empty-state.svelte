@@ -6,6 +6,8 @@ type Props = {
   title: string;
   description?: string;
   icon?: Component<{ class?: string; "aria-hidden"?: "true" }>;
+  /** `card` renders the bordered dashed empty-state box (e.g. inside provider lists). */
+  variant?: "plain" | "card";
   class?: string;
   actions?: Snippet;
 };
@@ -14,6 +16,7 @@ let {
   title,
   description,
   icon: Icon,
+  variant = "plain",
   class: className,
   actions,
 }: Props = $props();
@@ -22,6 +25,8 @@ let {
 <div
   class={cn(
     "flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 text-xs",
+    variant === "card" &&
+      "rounded-md border border-dashed border-border/60 bg-muted/20 px-3",
     className,
   )}
 >

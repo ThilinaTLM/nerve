@@ -7,11 +7,9 @@ import {
 } from "$lib/api";
 import { encryptApiKey } from "$lib/core/utils/credential-crypto";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
-import { Label } from "@nervekit/ui-kit/components/ui/label";
-import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import SettingsFormDialog from "../../shared/settings-form-dialog.svelte";
+import SettingsFormField from "../../shared/settings-form-field.svelte";
 import { createProfileId, tavilyCredentialId } from "./provider-profiles";
 
 type Props = {
@@ -76,44 +74,32 @@ async function save(): Promise<void> {
 }
 </script>
 
-<Dialog
+<SettingsFormDialog
   bind:open
-  size="sm"
   title={profile ? "Edit Tavily profile" : "Add Tavily profile"}
   description="Store a named API key for web search."
+  saveLabel="Save profile"
+  saveTourId="setup-tavily-save"
+  {busy}
+  {error}
+  onSave={() => void save()}
 >
-  <div class="grid gap-3">
-    <div class="grid gap-1.5">
-      <Label for="tavily-profile-name">Profile name</Label>
-      <Input id="tavily-profile-name" bind:value={name} placeholder="Work" />
-    </div>
-    <div class="grid gap-1.5">
-      <Label for="tavily-profile-key">API key</Label>
-      <Input
-        id="tavily-profile-key"
-        type="password"
-        bind:value={apiKey}
-        placeholder={configured ? "Leave blank to keep current key" : "tvly-…"}
-        data-tour-id="setup-tavily-api-key"
-      />
-    </div>
-    {#if error}<p class="text-xs text-destructive">{error}</p>{/if}
-  </div>
-  {#snippet footer()}
-    <Button
-      variant="ghost"
-      size="sm"
-      disabled={busy}
-      onclick={() => (open = false)}>Cancel</Button
-    >
-    <Button
-      size="sm"
-      disabled={busy}
-      data-tour-id="setup-tavily-save"
-      onclick={() => void save()}
-    >
-      {#if busy}<Spinner class="size-3.5" />{/if}
-      Save profile
-    </Button>
-  {/snippet}
-</Dialog>
+  <SettingsFormField id="tavily-profile-name" label="Profile name">
+    <Input
+      size="xs"
+      id="tavily-profile-name"
+      bind:value={name}
+      placeholder="Work"
+    />
+  </SettingsFormField>
+  <SettingsFormField id="tavily-profile-key" label="API key">
+    <Input
+      size="xs"
+      id="tavily-profile-key"
+      type="password"
+      bind:value={apiKey}
+      placeholder={configured ? "Leave blank to keep current key" : "tvly-…"}
+      data-tour-id="setup-tavily-api-key"
+    />
+  </SettingsFormField>
+</SettingsFormDialog>

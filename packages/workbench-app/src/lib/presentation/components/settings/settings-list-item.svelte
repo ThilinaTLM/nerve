@@ -5,6 +5,8 @@ import { cn } from "@nervekit/ui-kit/core/utils";
 type Props = {
   title?: string;
   description?: string;
+  /** `card` applies the standard dashed-free bordered card surface used by entity lists. */
+  variant?: "plain" | "card";
   class?: string;
   tourId?: string;
   leading?: Snippet;
@@ -18,6 +20,7 @@ type Props = {
 let {
   title,
   description,
+  variant = "plain",
   class: className,
   tourId,
   leading,
@@ -32,6 +35,8 @@ let {
   data-tour-id={tourId}
   class={cn(
     "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1.5",
+    variant === "card" &&
+      "rounded-md border border-border/60 bg-card/40 px-3 py-2",
     className,
   )}
 >

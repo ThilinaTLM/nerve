@@ -7,7 +7,7 @@ import {
 type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 
 type Props = {
-  status?: string;
+  status?: SaveStatus;
   text: string;
 };
 
@@ -21,7 +21,7 @@ const tones: Record<SaveStatus, StatusTone> = {
   error: "danger",
 };
 
-const tone = $derived(tones[(status as SaveStatus) ?? "idle"] ?? "neutral");
+const tone = $derived(tones[status ?? "idle"] ?? "neutral");
 </script>
 
 <!-- `settings-sidebar-status` is the placement hook the settings shell uses to

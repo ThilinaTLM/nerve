@@ -1,21 +1,13 @@
 <script lang="ts">
-import Pencil from "@lucide/svelte/icons/pencil";
-import Plus from "@lucide/svelte/icons/plus";
-import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { AuthProviderMetadata, CustomProvider } from "$lib/api";
 import { deleteCustomProvider } from "$lib/api";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
-import {
-  SettingsEmptyState,
-  SettingsGroup,
-  SettingsList,
-  SettingsListItem,
-  SettingsSection,
-} from "$lib/presentation/components/settings";
+import { SettingsListItem } from "$lib/presentation/components/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
+import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
 import CustomProviderDialog from "./CustomProviderDialog.svelte";
 
 type Props = {
@@ -72,71 +64,48 @@ async function confirmDelete(): Promise<void> {
 }
 </script>
 
-<SettingsSection id="custom-providers" title="Custom providers">
-  {#snippet actions()}
-    <Button
-      size="xs"
-      data-tour-id="setup-auth-add-custom-provider"
-      onclick={openAdd}
-    >
-      <Plus class="size-3.5" aria-hidden="true" />
-      Add provider
-    </Button>
+<SettingsEntityListSection
+  sectionId="custom-providers"
+  title="Custom providers"
+  addLabel="Add provider"
+  addTourId="setup-auth-add-custom-provider"
+  emptyTitle="No custom providers"
+  emptyDescription="Add a custom provider to connect a local or self-hosted endpoint."
+  items={providers}
+  listAriaLabel="Custom providers"
+  itemKey={(provider) => provider.id}
+  onAdd={openAdd}
+>
+  {#snippet row(provider)}
+    <SettingsListItem variant="card" title={provider.displayName}>
+      {#snippet badges()}
+        {#if !keyConfigured(provider.id)}
+          <Badge tone="neutral" size="xs">No key</Badge>
+        {/if}
+        <Badge tone="neutral" size="xs">
+          {modelCountByProvider.get(provider.id) ?? 0} models
+        </Badge>
+      {/snippet}
+      {#snippet meta()}
+        <span class="truncate">
+          <span class="font-mono">{provider.id}</span>
+          · {provider.api} ·
+          <span class="font-mono">{provider.baseUrl}</span>
+        </span>
+      {/snippet}
+      {#snippet actions()}
+        <Button variant="ghost" size="xs" onclick={() => openEdit(provider)}
+          >Edit</Button
+        >
+        <Button
+          variant="ghost"
+          size="xs"
+          onclick={() => (pendingDelete = provider)}>Delete</Button
+        >
+      {/snippet}
+    </SettingsListItem>
   {/snippet}
-
-  <SettingsGroup>
-    {#if providers.length === 0}
-      <SettingsEmptyState
-        class="rounded-md border border-dashed border-border/60 bg-muted/20 px-3"
-        title="No custom providers"
-        description="Add a custom provider to connect a local or self-hosted endpoint."
-      />
-    {:else}
-      <SettingsList ariaLabel="Custom providers" class="grid gap-2 divide-y-0">
-        {#each providers as provider (provider.id)}
-          <SettingsListItem
-            title={provider.displayName}
-            class="rounded-md border border-border/60 bg-card/40 px-3 py-2"
-          >
-            {#snippet badges()}
-              {#if !keyConfigured(provider.id)}
-                <Badge tone="neutral" size="xs">No key</Badge>
-              {/if}
-              <Badge tone="neutral" size="xs">
-                {modelCountByProvider.get(provider.id) ?? 0} models
-              </Badge>
-            {/snippet}
-            {#snippet meta()}
-              <span class="truncate">
-                <span class="font-mono">{provider.id}</span>
-                · {provider.api} ·
-                <span class="font-mono">{provider.baseUrl}</span>
-              </span>
-            {/snippet}
-            {#snippet actions()}
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                ariaLabel="Edit provider"
-                onclick={() => openEdit(provider)}
-              >
-                <Pencil class="size-3.5" aria-hidden="true" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                ariaLabel="Delete provider"
-                onclick={() => (pendingDelete = provider)}
-              >
-                <Trash2 class="size-3.5" aria-hidden="true" />
-              </Button>
-            {/snippet}
-          </SettingsListItem>
-        {/each}
-      </SettingsList>
-    {/if}
-  </SettingsGroup>
-</SettingsSection>
+</SettingsEntityListSection>
 
 <CustomProviderDialog
   bind:open={dialogOpen}

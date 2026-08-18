@@ -14,7 +14,6 @@ type Props = {
   authProviders?: AuthProviderMetadata[];
   kind?: "oauth" | "api_key" | "all";
   excludeProviders?: string[];
-  onClose?: () => void;
 };
 
 let {
@@ -22,12 +21,10 @@ let {
   authProviders = [],
   kind = "all",
   excludeProviders = [],
-  onClose,
 }: Props = $props();
 
 const flowController = new AddProviderFlow(() => {
   open = false;
-  onClose?.();
 });
 
 const excluded = $derived(new Set(excludeProviders));
@@ -89,12 +86,15 @@ onDestroy(() => {
           All known providers are already connected.
         </p>
       {:else}
-        <ul class="grid gap-1" data-tour-id="setup-auth-provider-choices">
+        <ul
+          class="grid h-[min(52vh,24rem)] content-start gap-1 overflow-y-auto pr-1"
+          data-tour-id="setup-auth-provider-choices"
+        >
           {#each available as provider (provider.provider)}
             <li>
               <button
                 type="button"
-                class="flex w-full cursor-pointer items-center rounded-md border border-border/60 bg-background px-3 py-1.5 text-left transition-colors hover:bg-accent"
+                class="flex w-full cursor-pointer items-center rounded-md border border-transparent bg-accent/90 px-2 py-2 text-left transition-colors hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70"
                 data-tour-id={provider.provider === "openai-codex"
                   ? "setup-auth-openai-codex-choice"
                   : undefined}
@@ -131,6 +131,7 @@ onDestroy(() => {
           {/if}
         </label>
         <Input
+          size="xs"
           id="add-provider-api-key"
           type="password"
           autocomplete="off"
@@ -231,6 +232,7 @@ onDestroy(() => {
                 </p>
               {/if}
               <Input
+                size="xs"
                 type="text"
                 autocomplete="off"
                 placeholder={flowController.flow.placeholder ??

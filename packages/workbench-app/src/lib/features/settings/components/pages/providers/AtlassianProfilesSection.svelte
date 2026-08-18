@@ -1,5 +1,4 @@
 <script lang="ts">
-import Plus from "@lucide/svelte/icons/plus";
 import type {
   AtlassianProfile,
   AuthProviderMetadata,
@@ -10,12 +9,8 @@ import { settingsState } from "$lib/features/settings/state/settings-state.svelt
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
-import {
-  SettingsEmptyState,
-  SettingsList,
-  SettingsListItem,
-  SettingsSection,
-} from "$lib/presentation/components/settings";
+import { SettingsListItem } from "$lib/presentation/components/settings";
+import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
 import type { SettingsChange } from "../settings-change";
 import AtlassianProfileDialog from "./AtlassianProfileDialog.svelte";
 import {
@@ -78,54 +73,48 @@ async function remove(): Promise<void> {
 }
 </script>
 
-<SettingsSection id="atlassian-profiles" title="Atlassian profiles">
-  {#snippet actions()}
-    <Button size="xs" onclick={openAdd}>
-      <Plus class="size-3.5" aria-hidden="true" />
-      Add profile
-    </Button>
-  {/snippet}
-  {#if settingsDraft.providers.atlassianProfiles.length === 0}
-    <SettingsEmptyState
-      class="rounded-md border border-dashed border-border/60 bg-muted/20 px-3"
-      title="No Atlassian profiles"
-      description="Add a connection for Jira and Confluence."
-    />
-  {:else}
-    <SettingsList ariaLabel="Atlassian profiles" class="grid gap-2 divide-y-0">
-      {#each settingsDraft.providers.atlassianProfiles as profile (profile.id)}
-        <SettingsListItem
-          class="rounded-md border border-border/60 bg-card/40 px-3 py-2"
-          title={profile.name}
-          description={[profile.siteUrl, profile.email]
-            .filter(Boolean)
-            .join(" · ") || "Connection details incomplete"}
+<SettingsEntityListSection
+  sectionId="atlassian-profiles"
+  title="Atlassian profiles"
+  addLabel="Add profile"
+  emptyTitle="No Atlassian profiles"
+  emptyDescription="Add a connection for Jira and Confluence."
+  items={settingsDraft.providers.atlassianProfiles}
+  listAriaLabel="Atlassian profiles"
+  itemKey={(profile) => profile.id}
+  onAdd={openAdd}
+>
+  {#snippet row(profile)}
+    <SettingsListItem
+      variant="card"
+      title={profile.name}
+      description={[profile.siteUrl, profile.email]
+        .filter(Boolean)
+        .join(" · ") || "Connection details incomplete"}
+    >
+      {#snippet badges()}
+        {#if !atlassianProfileReady(profile, authProviders)}
+          <Badge tone="neutral" size="xs">Incomplete</Badge>
+        {/if}
+      {/snippet}
+      {#snippet actions()}
+        <Button
+          variant="ghost"
+          size="xs"
+          onclick={() => {
+            editing = profile;
+            dialogOpen = true;
+          }}>Edit</Button
         >
-          {#snippet badges()}
-            {#if !atlassianProfileReady(profile, authProviders)}
-              <Badge tone="neutral" size="xs">Incomplete</Badge>
-            {/if}
-          {/snippet}
-          {#snippet actions()}
-            <Button
-              variant="ghost"
-              size="xs"
-              onclick={() => {
-                editing = profile;
-                dialogOpen = true;
-              }}>Edit</Button
-            >
-            <Button
-              variant="ghost"
-              size="xs"
-              onclick={() => (pendingDelete = profile)}>Delete</Button
-            >
-          {/snippet}
-        </SettingsListItem>
-      {/each}
-    </SettingsList>
-  {/if}
-</SettingsSection>
+        <Button
+          variant="ghost"
+          size="xs"
+          onclick={() => (pendingDelete = profile)}>Delete</Button
+        >
+      {/snippet}
+    </SettingsListItem>
+  {/snippet}
+</SettingsEntityListSection>
 
 <AtlassianProfileDialog
   bind:open={dialogOpen}
