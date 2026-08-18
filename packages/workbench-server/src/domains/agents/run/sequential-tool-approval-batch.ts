@@ -37,7 +37,7 @@ export async function waitForSequentialToolInteractionBatch(
       throw new Error(`Unknown sequential tool: ${remaining.name}`);
     }
     if (
-      primaryToolCall.status === "waiting" &&
+      isNativeInteractionTool(primaryToolCall.toolName) &&
       !isNativeInteractionTool(parsedToolName.data)
     ) {
       break;
@@ -58,7 +58,7 @@ export async function waitForSequentialToolInteractionBatch(
             remaining.id,
           ),
           forceApproval:
-            primaryToolCall.status === "waiting" ||
+            !isNativeInteractionTool(primaryToolCall.toolName) ||
             !isNativeInteractionTool(parsedToolName.data),
           durableSuspend: true,
           onLifecycle: (toolCall) =>

@@ -30,7 +30,7 @@
     "check": "tsc -b --pretty false",
     "test": "tsx --test \"test/**/*.test.ts\"",
     "start": "node scripts/start-electron.mjs",
-    "dev": "pnpm -w build:workbench-runtime && pnpm --filter @nervekit/desktop-shell build && node scripts/start-electron.mjs",
+    "dev": "pnpm -w build:native && pnpm -w build:workbench-runtime && pnpm --filter @nervekit/desktop-shell build && node scripts/start-electron.mjs",
     "build:package": "pnpm -w build:workbench-runtime && pnpm --filter @nervekit/desktop-shell build && electron-builder --publish never",
     "package:dir": "electron-builder --dir --publish never",
     "package:linux": "pnpm -w build:workbench-runtime && pnpm --filter @nervekit/desktop-shell build && electron-builder --linux AppImage deb rpm --publish never"

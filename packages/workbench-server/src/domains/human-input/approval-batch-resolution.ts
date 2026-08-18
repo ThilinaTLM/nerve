@@ -71,7 +71,7 @@ export class ApprovalBatchResolutionService {
           note,
           resolutionRequestId,
         );
-        if (!this.batchReady(batch)) {
+        if (!(await this.batchReady(batch))) {
           return this.deps.tools.getToolCall(currentToolCall.id);
         }
         return this.drain(batch, currentToolCall.id);
@@ -83,7 +83,9 @@ export class ApprovalBatchResolutionService {
     const recovered = new Set<string>();
     for (const approval of this.deps.tools.listApprovals()) {
       if (approval.status === "pending") continue;
-      const toolCall = this.deps.tools.getToolCall(approval.toolCallId);
+      const toolCall = await this.deps.tools.getToolCallDetails(
+        approval.toolCallId,
+      );
       if (!toolCall.runId) continue;
       let batch: ApprovalInteractionBatch;
       try {
@@ -101,7 +103,7 @@ export class ApprovalBatchResolutionService {
         !batch.interactions.some(
           (interaction) => interaction.status === "pending",
         ) ||
-        !this.batchReady(batch)
+        !(await this.batchReady(batch))
       ) {
         continue;
       }
@@ -114,7 +116,7 @@ export class ApprovalBatchResolutionService {
           current.interactions.some(
             (interaction) => interaction.status === "pending",
           ) &&
-          this.batchReady(current)
+          (await this.batchReady(current))
         ) {
           await this.drain(current, toolCall.id);
         }
@@ -136,12 +138,17 @@ export class ApprovalBatchResolutionService {
     return approval;
   }
 
-  private batchReady(batch: ApprovalInteractionBatch): boolean {
-    return batch.batchToolCallIds.every((toolCallId) => {
+  private async batchReady(batch: ApprovalInteractionBatch): Promise<boolean> {
+    for (const toolCallId of batch.batchToolCallIds) {
       const approval = this.approvalForToolCall(toolCallId);
-      if (approval) return approval.status !== "pending";
-      return isTerminalToolCall(this.deps.tools.getToolCall(toolCallId));
-    });
+      if (approval) {
+        if (approval.status === "pending") return false;
+        continue;
+      }
+      const toolCall = await this.deps.tools.getToolCallDetails(toolCallId);
+      if (!isTerminalToolCall(toolCall)) return false;
+    }
+    return true;
   }
 
   private async drain(
@@ -153,7 +160,7 @@ export class ApprovalBatchResolutionService {
       const approval = this.approvalForToolCall(toolCallId);
       const toolCall = approval
         ? await this.deps.tools.finalizeDecidedApproval(approval.id)
-        : this.deps.tools.getToolCall(toolCallId);
+        : await this.deps.tools.getToolCallDetails(toolCallId);
       if (!isTerminalToolCall(toolCall)) {
         throw new Error(
           `Approval batch member ${toolCall.id} did not reach a terminal state.`,
@@ -196,7 +203,7 @@ export class ApprovalBatchResolutionService {
         this.approvalForToolCall(toolCallId),
       ),
     });
-    return this.deps.tools.getToolCall(targetToolCallId);
+    return this.deps.tools.getToolCallDetails(targetToolCallId);
   }
 
   private approvalForToolCall(toolCallId: string): ApprovalRecord | undefined {
