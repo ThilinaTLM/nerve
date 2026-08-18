@@ -35,12 +35,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build native runtime
-        run: pnpm build:native
-
-      - name: Check native runtime
-        run: pnpm check:native
-
       - name: Check formatting, lint, and packages
         run: pnpm check
 

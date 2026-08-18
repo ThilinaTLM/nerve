@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { expectedNativePrebuilds } from "./lib/native-prebuilds.mjs";
 import {
   bundledPackages,
   readJson,
@@ -34,7 +35,13 @@ export async function verifyNpmTarballs(
 
   const entries = tarEntries(tarball);
   verifyPublicManifest(manifest, rootVersion, expectedFilename);
-  verifyContents(tarball, entries, rootVersion, expectedFilename);
+  verifyContents(
+    tarball,
+    entries,
+    rootVersion,
+    expectedFilename,
+    await expectedNativePrebuilds(),
+  );
   verifyDesktopBin(tarball, expectedFilename);
   await isolatedInstallSmoke(tarball, rootVersion);
   console.log(
@@ -74,7 +81,7 @@ function verifyPublicManifest(manifest, version, filename) {
   }
 }
 
-function verifyContents(tarball, entries, version, filename) {
+function verifyContents(tarball, entries, version, filename, nativePrebuilds) {
   const requiredRoot = [
     "package/package.json",
     "package/README.md",
@@ -87,6 +94,11 @@ function verifyContents(tarball, entries, version, filename) {
   ];
   for (const entry of requiredRoot) requireEntry(entries, entry, filename);
 
+  const nativePrebuildPaths = new Set(
+    nativePrebuilds.map(
+      (name) => `package/node_modules/@nervekit/native/prebuilds/${name}`,
+    ),
+  );
   const allowedInternalRoots = new Set(
     bundledPackages.map(
       ([name]) =>
@@ -121,6 +133,8 @@ function verifyContents(tarball, entries, version, filename) {
       relative === "NOTICE" ||
       relative === "dist" ||
       relative.startsWith("dist/") ||
+      (internalRoot.endsWith("/native") && relative === "prebuilds") ||
+      nativePrebuildPaths.has(entry) ||
       (internalRoot.endsWith("/contracts") &&
         (relative === "schemas" || relative.startsWith("schemas/")))
     )
@@ -137,20 +151,7 @@ function verifyContents(tarball, entries, version, filename) {
     if (forbidden.test(entry) && !nativePrebuild)
       throw new Error(`${filename}: forbidden packed path ${entry}.`);
   }
-  for (const triple of [
-    "win32-x64-msvc",
-    "win32-arm64-msvc",
-    "darwin-x64",
-    "darwin-arm64",
-    "linux-x64-gnu",
-    "linux-arm64-gnu",
-  ]) {
-    requireEntry(
-      entries,
-      `package/node_modules/@nervekit/native/prebuilds/nerve_native.${triple}.node`,
-      filename,
-    );
-  }
+  for (const path of nativePrebuildPaths) requireEntry(entries, path, filename);
 
   for (const [packageName, directory] of bundledPackages) {
     const packageRoot = `package/node_modules/@nervekit/${directory}`;

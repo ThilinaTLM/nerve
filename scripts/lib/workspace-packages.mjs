@@ -8,6 +8,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readRustReleaseVersions } from "./release-version.mjs";
 
 /** Absolute repository root for scripts executed from scripts/. */
 export const repoRoot = resolve(
@@ -42,25 +43,31 @@ export const bundledPackages = [
   ["@nervekit/workbench-server", "workbench-server"],
 ];
 
-export async function readJson(relativePath) {
-  return JSON.parse(await readFile(join(repoRoot, relativePath), "utf8"));
+export async function readJson(relativePath, rootDirectory = repoRoot) {
+  return JSON.parse(await readFile(join(rootDirectory, relativePath), "utf8"));
 }
 
 /**
  * Reads the root and every version-locked package manifest version.
  * Throws if any version-locked package does not declare a version.
  */
-export async function workspaceVersions() {
+export async function workspaceVersions(rootDirectory = repoRoot) {
   const versions = new Map();
-  versions.set("package.json", (await readJson("package.json")).version);
+  versions.set(
+    "package.json",
+    (await readJson("package.json", rootDirectory)).version,
+  );
   for (const directory of versionLockedPackages) {
     const relativePath = join("packages", directory, "package.json");
-    const manifest = await readJson(relativePath);
+    const manifest = await readJson(relativePath, rootDirectory);
     if (typeof manifest.version !== "string" || !manifest.version) {
       throw new Error(`${relativePath} does not declare a version.`);
     }
     versions.set(relativePath, manifest.version);
   }
+  const rustVersions = await readRustReleaseVersions(rootDirectory);
+  versions.set("packages/native/native/Cargo.toml", rustVersions.manifest);
+  versions.set("Cargo.lock (nerve-native)", rustVersions.lockfile);
   return versions;
 }
 
@@ -68,8 +75,8 @@ export async function workspaceVersions() {
  * Throws if any version-locked package diverges from the root version.
  * Returns the root version when everything matches.
  */
-export async function assertWorkspaceVersionsMatch() {
-  const versions = await workspaceVersions();
+export async function assertWorkspaceVersionsMatch(rootDirectory = repoRoot) {
+  const versions = await workspaceVersions(rootDirectory);
   const rootVersion = versions.get("package.json");
   const mismatches = [...versions.entries()].filter(
     ([, version]) => version !== rootVersion,
