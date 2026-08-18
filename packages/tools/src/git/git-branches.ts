@@ -2,6 +2,7 @@ import type {
   GitBranchListResponse,
   GitBranchSummary,
 } from "@nervekit/contracts";
+import type { GitReadSnapshot } from "./git-read-backend.js";
 import type { GitService } from "./git-service.js";
 
 const BASE_BRANCH_CANDIDATES = ["main", "master", "develop"] as const;
@@ -9,6 +10,7 @@ const BASE_BRANCH_CANDIDATES = ["main", "master", "develop"] as const;
 export interface GitRefSnapshot {
   readonly refs: ReadonlySet<string>;
   readonly originHead?: string;
+  readonly headBranch?: string;
 }
 
 export async function listBranches(
@@ -17,26 +19,22 @@ export async function listBranches(
   relativePath: string,
 ): Promise<GitBranchListResponse> {
   const repoDir = this.resolveRepoDir(projectId, relativePath);
-  const { stdout } = await this.runGit(repoDir, [
-    "for-each-ref",
-    "--format=%(refname)%00%(refname:short)%00%(upstream:short)%00%(HEAD)",
-    "refs/heads",
-    "refs/remotes",
-  ]);
-  const branches = stdout
-    .split("\n")
-    .filter((line) => line.length > 0)
-    .map((line): GitBranchSummary | null => {
-      const [refname, shortName, upstream, head] = line.split("\u0000");
-      if (!refname || !shortName) return null;
-      if (refname.startsWith("refs/remotes/") && shortName.endsWith("/HEAD")) {
-        return null;
-      }
+  const snapshot = await this.readSnapshot(repoDir);
+  const branches = snapshot.refs
+    .map((ref): GitBranchSummary | null => {
+      const localPrefix = "refs/heads/";
+      const remotePrefix = "refs/remotes/";
+      const remote = ref.name.startsWith(remotePrefix);
+      if (!remote && !ref.name.startsWith(localPrefix)) return null;
+      const name = ref.name.slice(
+        remote ? remotePrefix.length : localPrefix.length,
+      );
+      if (remote && name.endsWith("/HEAD")) return null;
       return {
-        name: shortName,
-        current: head === "*",
-        remote: refname.startsWith("refs/remotes/"),
-        upstream: upstream && upstream.length > 0 ? upstream : null,
+        name,
+        current: !remote && name === snapshot.branch.head,
+        remote,
+        upstream: ref.upstream ?? null,
       };
     })
     .filter((branch): branch is GitBranchSummary => branch !== null)
@@ -48,29 +46,30 @@ export async function listBranches(
   return { branches };
 }
 
+export function refSnapshotFromRead(snapshot: GitReadSnapshot): GitRefSnapshot {
+  const refs = new Set<string>();
+  let originHead: string | undefined;
+  for (const ref of snapshot.refs) {
+    if (
+      !ref.name.startsWith("refs/heads/") &&
+      !ref.name.startsWith("refs/remotes/origin/")
+    ) {
+      continue;
+    }
+    refs.add(ref.name);
+    if (ref.name === "refs/remotes/origin/HEAD" && ref.symbolicTarget) {
+      originHead = ref.symbolicTarget;
+    }
+  }
+  return { refs, originHead, headBranch: snapshot.branch.head ?? undefined };
+}
+
 export async function readRefSnapshot(
   this: GitService,
   repoDir: string,
 ): Promise<GitRefSnapshot> {
   try {
-    const { stdout } = await this.runGit(repoDir, [
-      "for-each-ref",
-      "--format=%(refname)%00%(symref)",
-      "refs/heads",
-      "refs/remotes/origin",
-    ]);
-    const refs = new Set<string>();
-    let originHead: string | undefined;
-    for (const line of stdout.split("\n")) {
-      if (!line) continue;
-      const [refname, symref] = line.split("\u0000");
-      if (!refname) continue;
-      refs.add(refname);
-      if (refname === "refs/remotes/origin/HEAD" && symref) {
-        originHead = symref;
-      }
-    }
-    return { refs, originHead };
+    return refSnapshotFromRead(await this.readSnapshot(repoDir));
   } catch {
     return { refs: new Set() };
   }
@@ -113,16 +112,7 @@ export async function detectBaseBranch(
   const snapshot = await readRefSnapshot.call(this, repoDir);
   const detected = baseBranchFromRefSnapshot(snapshot);
   if (detected) return detected;
-  try {
-    const { stdout } = await this.runGit(repoDir, [
-      "rev-parse",
-      "--abbrev-ref",
-      "HEAD",
-    ]);
-    return stdout.trim() || "main";
-  } catch {
-    return "main";
-  }
+  return snapshot.headBranch ?? "main";
 }
 
 export async function branchExists(
@@ -160,15 +150,5 @@ export async function mergedToBase(
     return false;
   }
   const baseRef = await this.comparisonBaseRef(repoDir, baseBranch);
-  try {
-    await this.runGit(repoDir, [
-      "merge-base",
-      "--is-ancestor",
-      "HEAD",
-      baseRef,
-    ]);
-    return true;
-  } catch {
-    return false;
-  }
+  return this.mergedToBaseRef(repoDir, baseRef, state);
 }

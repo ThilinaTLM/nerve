@@ -12,6 +12,13 @@ pub struct NativeRuntimeCapabilities {
 pub fn runtime_capabilities() -> NativeRuntimeCapabilities {
     NativeRuntimeCapabilities {
         platform: std::env::consts::OS.to_string(),
-        capabilities: process::capabilities(),
+        capabilities: {
+            let mut capabilities = process::capabilities();
+            capabilities.push("git-read-snapshot".to_string());
+            capabilities.push("git-read-ancestry".to_string());
+            capabilities.push("git-read-file-diff".to_string());
+            capabilities.push("git-read-repository-info".to_string());
+            capabilities
+        },
     }
 }

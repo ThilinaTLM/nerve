@@ -11,6 +11,16 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "3.12.1", default-features = false, features = ["napi8"] }
 napi-derive = "3.6.3"
+gix = { version = "=0.86.0", default-features = false, features = [
+  "status",
+  "revision",
+  "blob-diff",
+  "attributes",
+  "interrupt",
+  "parallel",
+  "sha1",
+  "sha256",
+] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.180"

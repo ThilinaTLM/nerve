@@ -67,6 +67,26 @@ interface NativeProcessHandle {
 
 interface NativeBinding {
   inspectManagedTarget(target: ManagedTarget): InspectionResult;
+  readGitRepositoryInfo(path: string): Promise<NativeGitRepositoryInfoResult>;
+  readGitSnapshot(
+    path: string,
+    options?: NativeGitSnapshotOptions,
+  ): Promise<NativeGitSnapshotResult>;
+  checkGitAncestry(
+    path: string,
+    ancestor: string,
+    descendant: string,
+  ): Promise<NativeGitAncestryResult>;
+  resolveGitRevision(
+    path: string,
+    revision: string,
+  ): Promise<NativeGitRevisionResult>;
+  readGitFileDiff(
+    path: string,
+    original: NativeGitDocumentSource,
+    modified: NativeGitDocumentSource,
+  ): Promise<NativeGitFileDiffResult>;
+  validateGitBranchName(name: string): boolean;
   terminateManagedTarget(
     target: ManagedTarget,
     signal?: string,
@@ -85,6 +105,212 @@ interface NativeBinding {
 
 const binding = loadBinding();
 const childProcesses = new WeakMap<ChildProcess, ManagedProcess>();
+
+export type NativeGitErrorCategory =
+  | "not_repository"
+  | "not_found"
+  | "unsupported"
+  | "invalid_input"
+  | "io"
+  | "corrupt"
+  | "limit_exceeded"
+  | "cancelled"
+  | "internal";
+
+export interface NativeGitErrorDetail {
+  category: NativeGitErrorCategory;
+  message: string;
+}
+
+export interface NativeGitRepositoryInfo {
+  gitDir: string;
+  workDir?: string;
+  bare: boolean;
+}
+
+interface NativeGitRepositoryInfoResult {
+  repository?: NativeGitRepositoryInfo;
+  error?: NativeGitErrorDetail;
+}
+
+export interface NativeGitSnapshotOptions {
+  includeIgnored?: boolean;
+  recentCommitLimit?: number;
+  statusLimit?: number;
+  refLimit?: number;
+  stashLimit?: number;
+}
+
+export interface NativeGitReference {
+  name: string;
+  target?: string;
+  symbolicTarget?: string;
+  upstream?: string;
+}
+
+export interface NativeGitRemote {
+  name: string;
+  fetchUrl?: string;
+  pushUrl?: string;
+}
+
+export interface NativeGitFileStatus {
+  path: string;
+  renamedFrom?: string;
+  index: string;
+  worktree: string;
+  untracked: boolean;
+  ignored: boolean;
+}
+
+export interface NativeGitRecentCommit {
+  oid: string;
+  subject: string;
+  timestampSeconds: number;
+}
+
+export interface NativeGitStash {
+  index: number;
+  oid: string;
+  message: string;
+  timestampSeconds: number;
+}
+
+export interface NativeGitSnapshot {
+  gitDir: string;
+  workDir?: string;
+  headOid?: string;
+  headBranch?: string;
+  detached: boolean;
+  upstream?: string;
+  ahead?: number;
+  behind?: number;
+  refs: NativeGitReference[];
+  remotes: NativeGitRemote[];
+  files: NativeGitFileStatus[];
+  recentCommits: NativeGitRecentCommit[];
+  stashes: NativeGitStash[];
+}
+
+interface NativeGitSnapshotResult {
+  snapshot?: NativeGitSnapshot;
+  error?: NativeGitErrorDetail;
+}
+
+export interface NativeGitAncestry {
+  ancestorOid: string;
+  descendantOid: string;
+  isAncestor: boolean;
+}
+
+interface NativeGitAncestryResult {
+  ancestry?: NativeGitAncestry;
+  error?: NativeGitErrorDetail;
+}
+
+export type NativeGitDocumentSource = {
+  kind: "revision" | "index" | "worktree" | "empty";
+  path: string;
+  revision?: string;
+};
+
+export type NativeGitFileDocument = {
+  content?: string;
+  binary: boolean;
+  size: number;
+};
+
+export type NativeGitFileDiff = {
+  original: NativeGitFileDocument;
+  modified: NativeGitFileDocument;
+};
+
+interface NativeGitFileDiffResult {
+  diff?: NativeGitFileDiff;
+  error?: NativeGitErrorDetail;
+}
+
+interface NativeGitRevisionResult {
+  oid?: string;
+  error?: NativeGitErrorDetail;
+}
+
+export class NativeGitReadError extends Error {
+  constructor(
+    readonly category: NativeGitErrorCategory,
+    message: string,
+  ) {
+    super(message);
+    this.name = "NativeGitReadError";
+  }
+}
+
+export async function readGitRepositoryInfo(
+  path: string,
+): Promise<NativeGitRepositoryInfo> {
+  const result = await binding.readGitRepositoryInfo(path);
+  if (result.error) throw nativeGitError(result.error);
+  if (!result.repository)
+    throw new NativeGitReadError(
+      "internal",
+      "Native Git repository info was empty.",
+    );
+  return result.repository;
+}
+
+export async function readGitSnapshot(
+  path: string,
+  options?: NativeGitSnapshotOptions,
+): Promise<NativeGitSnapshot> {
+  const result = await binding.readGitSnapshot(path, options);
+  if (result.error) throw nativeGitError(result.error);
+  if (!result.snapshot)
+    throw new NativeGitReadError("internal", "Native Git snapshot was empty.");
+  return result.snapshot;
+}
+
+export async function checkGitAncestry(
+  path: string,
+  ancestor: string,
+  descendant: string,
+): Promise<NativeGitAncestry> {
+  const result = await binding.checkGitAncestry(path, ancestor, descendant);
+  if (result.error) throw nativeGitError(result.error);
+  if (!result.ancestry)
+    throw new NativeGitReadError("internal", "Native Git ancestry was empty.");
+  return result.ancestry;
+}
+
+export async function resolveGitRevision(
+  path: string,
+  revision: string,
+): Promise<string> {
+  const result = await binding.resolveGitRevision(path, revision);
+  if (result.error) throw nativeGitError(result.error);
+  if (!result.oid)
+    throw new NativeGitReadError("internal", "Native Git revision was empty.");
+  return result.oid;
+}
+
+export async function readGitFileDiff(
+  path: string,
+  original: NativeGitDocumentSource,
+  modified: NativeGitDocumentSource,
+): Promise<NativeGitFileDiff> {
+  const result = await binding.readGitFileDiff(path, original, modified);
+  if (result.error) throw nativeGitError(result.error);
+  if (!result.diff)
+    throw new NativeGitReadError("internal", "Native Git file diff was empty.");
+  return result.diff;
+}
+
+export function validateGitBranchName(name: string): boolean {
+  return binding.validateGitBranchName(name);
+}
+
+function nativeGitError(detail: NativeGitErrorDetail): NativeGitReadError {
+  return new NativeGitReadError(detail.category, detail.message);
+}
 
 export function nativeRuntimeCapabilities(): {
   platform: string;

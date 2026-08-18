@@ -1,19 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { GitCommandError, GitService } from "../src/git/git-service.js";
-
-const status = [
-  "# branch.oid abcdef",
-  "# branch.head feature",
-  "# branch.upstream origin/feature",
-  "# branch.ab +1 -2",
-  "? new-file.ts",
-].join("\n");
+import { GitService } from "../src/git/git-service.js";
 
 describe("GitService overview snapshots", () => {
   it("reuses one porcelain status command and caches stable metadata", async () => {
     const calls: string[][] = [];
     let now = 1_000;
+    let snapshotCalls = 0;
     const overviewObservations: Array<{
       durationMs: number;
       succeeded: boolean;
@@ -23,33 +16,60 @@ describe("GitService overview snapshots", () => {
       stableMetadataTtlMs: 30_000,
       onOverviewCompleted: (observation) =>
         overviewObservations.push(observation),
+      readBackend: {
+        snapshot: async () => {
+          snapshotCalls += 1;
+          return {
+            headOid: "abcdef",
+            branch: {
+              head: "feature",
+              detached: false,
+              upstream: "origin/feature",
+              ahead: 1,
+              behind: 2,
+            },
+            refs: [
+              { name: "refs/heads/feature", target: "abcdef" },
+              { name: "refs/heads/main", target: "123456" },
+              {
+                name: "refs/remotes/origin/HEAD",
+                symbolicTarget: "refs/remotes/origin/main",
+              },
+              { name: "refs/remotes/origin/main", target: "123456" },
+            ],
+            remotes: [
+              {
+                name: "origin",
+                fetchUrl: "https://github.com/example/repo.git",
+              },
+            ],
+            files: [
+              {
+                path: "new-file.ts",
+                index: "?",
+                worktree: "?",
+                staged: false,
+                untracked: true,
+              },
+            ],
+            recentCommits: [
+              {
+                hash: "abc123",
+                subject: "message",
+                relativeDate: "2 minutes ago",
+              },
+            ],
+            stashes: [],
+          };
+        },
+        isAncestor: async () => false,
+        resolveRevision: async (_repoDir, revision) => revision,
+        validateBranchName: async () => true,
+      },
     });
     service.runGit = async (_cwd, args) => {
       calls.push(args);
       const command = args.join(" ");
-      if (command === "--no-optional-locks status --porcelain=v2 --branch") {
-        return { stdout: status, stderr: "" };
-      }
-      if (
-        command ===
-        "for-each-ref --format=%(refname)%00%(symref) refs/heads refs/remotes/origin"
-      ) {
-        return {
-          stdout: [
-            "refs/heads/feature\u0000",
-            "refs/heads/main\u0000",
-            "refs/remotes/origin/HEAD\u0000refs/remotes/origin/main",
-            "refs/remotes/origin/main\u0000",
-          ].join("\n"),
-          stderr: "",
-        };
-      }
-      if (command === "remote -v") {
-        return {
-          stdout: "origin\thttps://github.com/example/repo.git (fetch)\n",
-          stderr: "",
-        };
-      }
       if (command === "diff --shortstat") {
         return {
           stdout: " 1 file changed, 2 insertions(+), 1 deletion(-)",
@@ -59,32 +79,13 @@ describe("GitService overview snapshots", () => {
       if (command === "diff --staged --shortstat") {
         return { stdout: "", stderr: "" };
       }
-      if (command.startsWith("log ")) {
-        return {
-          stdout: "abc123\u0000message\u00002 minutes ago\n",
-          stderr: "",
-        };
-      }
-      if (command.startsWith("stash list ")) {
-        return { stdout: "", stderr: "" };
-      }
-      if (command.startsWith("rev-parse --verify --quiet")) {
-        return { stdout: "abcdef\n", stderr: "" };
-      }
-      if (
-        command === "merge-base --is-ancestor HEAD refs/remotes/origin/main"
-      ) {
-        throw new GitCommandError(command, 1, "not merged");
-      }
       throw new Error(`Unexpected git command: ${command}`);
     };
 
     const overview = await service.overview("proj_test", ".");
     await service.overview("proj_test", ".");
-    assert.equal(calls.filter((args) => args[1] === "status").length, 2);
-    assert.equal(calls.filter((args) => args[0] === "for-each-ref").length, 1);
-    assert.equal(calls.filter((args) => args[0] === "remote").length, 1);
-    assert.equal(calls.filter((args) => args[0] === "rev-parse").length, 0);
+    assert.equal(snapshotCalls, 3);
+    assert.equal(calls.filter((args) => args[0] === "diff").length, 4);
     assert.equal(overview.repo.currentBranch, "feature");
     assert.equal(overview.repo.baseBranch, "main");
     assert.equal(overview.untrackedCount, 1);
@@ -94,12 +95,12 @@ describe("GitService overview snapshots", () => {
 
     now += 30_001;
     await service.overview("proj_test", ".");
-    assert.equal(calls.filter((args) => args[0] === "for-each-ref").length, 2);
+    assert.equal(snapshotCalls, 5);
     service.invalidateStableRepoMetadata(
       service.resolveRepoDir("proj_test", "."),
     );
     await service.overview("proj_test", ".");
-    assert.equal(calls.filter((args) => args[0] === "for-each-ref").length, 3);
+    assert.equal(snapshotCalls, 7);
     assert.equal(overviewObservations.length, 4);
     assert.equal(
       overviewObservations.every(
@@ -121,7 +122,7 @@ describe("GitService overview snapshots", () => {
       },
     );
 
-    const result = await service.run("git", process.cwd(), ["--version"]);
+    const result = await service.runGit(process.cwd(), ["--version"]);
     assert.match(result.stdout, /^git version /);
     assert.deepEqual(
       observations.map((observation) => Object.keys(observation as object)),

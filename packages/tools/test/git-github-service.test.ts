@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import type { GithubPrListFilters } from "@nervekit/contracts";
 import {
   allowedMergeMethods,
+  checkoutPr,
   githubPrSearch,
   listOpenPrs,
   mergePr,
@@ -55,6 +56,7 @@ function context(api: {
       ) => api.rest?.(path, options) as T,
     },
     invalidateStableMetadata: () => undefined,
+    mapGit: async <T>(fn: () => Promise<T>) => fn(),
   } as unknown as Parameters<typeof listOpenPrs>[0];
 }
 
@@ -373,6 +375,174 @@ describe("GitHub PR details and mutations", () => {
       sha: "head1234567",
     });
     assert.equal(result.url, "https://github.com/example/repo/pull/7");
+  });
+});
+
+describe("GitHub PR checkout", () => {
+  const snapshot = {
+    headOid: "base",
+    branch: {
+      head: "main",
+      detached: false,
+      upstream: "origin/main",
+      ahead: 0,
+      behind: 0,
+    },
+    refs: [],
+    remotes: [
+      {
+        name: "origin",
+        fetchUrl: "git@github.com:example/repo.git",
+      },
+    ],
+    files: [],
+    recentCommits: [],
+    stashes: [],
+  };
+
+  it("fetches the pull ref and preserves the GitHub source branch name", async () => {
+    const commands: string[][] = [];
+    const result = await checkoutPr(
+      {
+        ...context({
+          graphql: () => ({
+            repository: {
+              pullRequest: {
+                headRefName: "feature/source-name",
+                headRefOid: "abc123",
+              },
+            },
+          }),
+        }),
+        readSnapshot: async () => snapshot,
+        runGit: async (_repoDir: string, args: string[]) => {
+          commands.push(args);
+          return { stdout: "", stderr: "" };
+        },
+        resolveRevision: async () => "abc123",
+        isAncestor: async () => false,
+        summarizeRepo: async () => ({ currentBranch: "feature/source-name" }),
+        repoName: () => "repo",
+      } as unknown as Parameters<typeof checkoutPr>[0],
+      "project",
+      ".",
+      42,
+    );
+
+    assert.equal(result.number, 42);
+    assert.deepEqual(commands, [
+      [
+        "fetch",
+        "--no-tags",
+        "origin",
+        "+refs/pull/42/head:refs/remotes/origin/pull/42",
+      ],
+      ["switch", "-c", "feature/source-name", "refs/remotes/origin/pull/42"],
+    ]);
+  });
+
+  it("prefers a matching fork remote ref while fetching through the base pull ref", async () => {
+    const commands: string[][] = [];
+    const forkSnapshot = {
+      ...snapshot,
+      remotes: [
+        ...snapshot.remotes,
+        {
+          name: "contributor",
+          fetchUrl: "git@github.com:contributor/repo.git",
+        },
+      ],
+      refs: [
+        {
+          name: "refs/remotes/contributor/feature",
+          target: "fork-head",
+        },
+      ],
+    };
+    await checkoutPr(
+      {
+        ...context({
+          graphql: () => ({
+            repository: {
+              pullRequest: {
+                headRefName: "feature",
+                headRefOid: "fork-head",
+                headRepository: { nameWithOwner: "contributor/repo" },
+              },
+            },
+          }),
+        }),
+        readSnapshot: async () => forkSnapshot,
+        runGit: async (_repoDir: string, args: string[]) => {
+          commands.push(args);
+          return { stdout: "", stderr: "" };
+        },
+        resolveRevision: async () => "fork-head",
+        isAncestor: async () => false,
+        summarizeRepo: async () => ({ currentBranch: "feature" }),
+        repoName: () => "repo",
+      } as unknown as Parameters<typeof checkoutPr>[0],
+      "project",
+      ".",
+      12,
+    );
+
+    assert.deepEqual(commands[0], [
+      "fetch",
+      "--no-tags",
+      "origin",
+      "+refs/pull/12/head:refs/remotes/origin/pull/12",
+    ]);
+    assert.deepEqual(commands[1], [
+      "switch",
+      "-c",
+      "feature",
+      "refs/remotes/contributor/feature",
+    ]);
+  });
+
+  it("rejects an existing divergent source branch without resetting it", async () => {
+    const commands: string[][] = [];
+    await assert.rejects(
+      checkoutPr(
+        {
+          ...context({
+            graphql: () => ({
+              repository: {
+                pullRequest: {
+                  headRefName: "feature",
+                  headRefOid: "new-head",
+                },
+              },
+            }),
+          }),
+          readSnapshot: async () => ({
+            ...snapshot,
+            refs: [{ name: "refs/heads/feature", target: "local-head" }],
+          }),
+          runGit: async (_repoDir: string, args: string[]) => {
+            commands.push(args);
+            return { stdout: "", stderr: "" };
+          },
+          resolveRevision: async () => "new-head",
+          isAncestor: async () => false,
+          summarizeRepo: async () => ({ currentBranch: "feature" }),
+          repoName: () => "repo",
+        } as unknown as Parameters<typeof checkoutPr>[0],
+        "project",
+        ".",
+        7,
+      ),
+      /diverged/,
+    );
+    assert.deepEqual(commands, [
+      [
+        "fetch",
+        "--no-tags",
+        "origin",
+        "+refs/pull/7/head:refs/remotes/origin/pull/7",
+      ],
+    ]);
   });
 });
 

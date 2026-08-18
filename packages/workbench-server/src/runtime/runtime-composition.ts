@@ -403,6 +403,23 @@ export function composeRuntime(
         },
       });
     },
+    onReadCompleted: (observation) => {
+      if (observation.durationMs < 250 && !observation.fallbackCategory) return;
+      void gitLogger.warn(
+        observation.fallbackCategory
+          ? "Git read compatibility fallback"
+          : "Slow Git read",
+        {
+          durationMs: Math.round(observation.durationMs),
+          context: {
+            backend: observation.backend,
+            operation: observation.operation,
+            succeeded: observation.succeeded,
+            fallbackCategory: observation.fallbackCategory,
+          },
+        },
+      );
+    },
     onGithubRequestCompleted: (observation) => {
       if (observation.durationMs < 250) return;
       void gitLogger.warn("Slow GitHub API request", {

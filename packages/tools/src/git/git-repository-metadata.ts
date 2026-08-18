@@ -1,10 +1,14 @@
 import {
   baseBranchFromRefSnapshot,
   comparisonBaseRefFromSnapshot,
-  readRefSnapshot,
+  refSnapshotFromRead,
   type GitRefSnapshot,
 } from "./git-branches.js";
-import type { GithubRepositoryRef } from "./git-github-parsers.js";
+import {
+  parseGithubRepositoryRemote,
+  parseGitRemoteUrls,
+  type GithubRepositoryRef,
+} from "./git-github-parsers.js";
 import type { GitService } from "./git-service.js";
 
 export type StableRepoMetadata = {
@@ -52,22 +56,25 @@ export class GitRepositoryMetadataCache {
   }
 
   async #load(repoDir: string): Promise<StableRepoMetadata> {
-    const [refSnapshot, remoteState] = await Promise.all([
-      readRefSnapshot.call(this.service, repoDir),
-      this.service.repoRemoteState(repoDir),
-    ]);
+    const snapshot = await this.service.readSnapshot(repoDir);
+    const refSnapshot = refSnapshotFromRead(snapshot);
+    const remoteOutput = snapshot.remotes
+      .flatMap((remote) => [
+        ...(remote.fetchUrl
+          ? [`${remote.name}\t${remote.fetchUrl} (fetch)`]
+          : []),
+        ...(remote.pushUrl ? [`${remote.name}\t${remote.pushUrl} (push)`] : []),
+      ])
+      .join("\n");
+    const githubRepository = parseGithubRepositoryRemote(remoteOutput);
+    const remoteState = {
+      hasRemote: parseGitRemoteUrls(remoteOutput).length > 0,
+      hasGithubRemote: githubRepository !== null,
+      githubRepository,
+    };
     let baseBranch = baseBranchFromRefSnapshot(refSnapshot);
     if (!baseBranch) {
-      try {
-        const { stdout } = await this.service.runGit(repoDir, [
-          "rev-parse",
-          "--abbrev-ref",
-          "HEAD",
-        ]);
-        baseBranch = stdout.trim() || "main";
-      } catch {
-        baseBranch = "main";
-      }
+      baseBranch = snapshot.branch.head ?? "main";
     }
     return {
       refSnapshot,
