@@ -81,7 +81,6 @@ const centerShells = {
   diff: () => import("$lib/features/git/components/DiffShell.svelte"),
   settings: () =>
     import("$lib/features/settings/components/SettingsShell.svelte"),
-  auth: () => import("$lib/features/auth/components/AuthShell.svelte"),
   logs: () => import("$lib/features/logs/components/LogsShell.svelte"),
 } satisfies Record<string, () => CenterShellModule>;
 
@@ -157,13 +156,6 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
         {/await}
       {:else if activeCenterTab?.kind === "settings"}
         {#await loadedShells.settings}
-          <LazyShellPending />
-        {:then module}
-          {@const Component = module?.default}
-          {#if Component}<Component />{/if}
-        {/await}
-      {:else if activeCenterTab?.kind === "auth"}
-        {#await loadedShells.auth}
           <LazyShellPending />
         {:then module}
           {@const Component = module?.default}

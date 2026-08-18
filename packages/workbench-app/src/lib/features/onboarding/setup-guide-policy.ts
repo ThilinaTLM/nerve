@@ -18,10 +18,10 @@ export function setupStepsForArea(
         "Your ChatGPT subscription is ready, so the composer microphone is available for voice input.",
       targetId: "setup-auth-openai-codex-connected",
       fallback:
-        "Open Connections → Subscriptions to review the connected OpenAI Codex provider.",
+        "Open Settings → Providers → Subscriptions to review the connected OpenAI Codex provider.",
       preparation: {
-        kind: "auth",
-        pageId: "connections",
+        kind: "settings",
+        pageId: "providers",
         sectionId: "subscriptions",
       },
     },

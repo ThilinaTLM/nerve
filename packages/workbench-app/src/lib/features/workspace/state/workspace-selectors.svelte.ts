@@ -15,7 +15,6 @@ import {
   defaultFileDisplayMode,
   fileRenderKind,
 } from "@nervekit/ui-kit/core/utils/file-display";
-import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import {
   buildConversationActivityById,
   idleConversationActivity,
@@ -38,7 +37,6 @@ import {
 } from "./workspace-state.svelte";
 
 export type {
-  AuthTabModel,
   CenterTabModel,
   ConversationTabModel,
   DiffTabModel,
@@ -52,7 +50,6 @@ export type {
 } from "./center-tab-models";
 
 import type {
-  AuthTabModel,
   CenterTabModel,
   ConversationTabModel,
   DiffTabModel,
@@ -390,18 +387,6 @@ export const workspaceSelectors = {
         ]
       : [];
   },
-  get openAuthTabs(): AuthTabModel[] {
-    return authState.authTabOpen
-      ? [
-          {
-            kind: "auth" as const,
-            id: "auth" as const,
-            active: activeTabMatches("auth", "auth"),
-            sending: false,
-          },
-        ]
-      : [];
-  },
   get openLogsTabs(): LogsTabModel[] {
     return logsState.logsTabOpen
       ? [
@@ -432,7 +417,6 @@ export const workspaceSelectors = {
       this.openPrTabs,
       this.openDiffTabs,
       this.openSettingsTabs,
-      this.openAuthTabs,
       this.openLogsTabs,
     ];
     for (const collection of collections) {

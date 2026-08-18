@@ -2,11 +2,8 @@
 import { onDestroy } from "svelte";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import ExternalLink from "@lucide/svelte/icons/external-link";
-import KeyRound from "@lucide/svelte/icons/key-round";
-import Sparkles from "@lucide/svelte/icons/sparkles";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { AuthProviderMetadata } from "$lib/api";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
@@ -37,7 +34,13 @@ const excluded = $derived(new Set(excludeProviders));
 const available = $derived(
   [...authProviders]
     .filter((provider) => {
-      if (provider.configured || excluded.has(provider.provider)) return false;
+      if (
+        provider.configured ||
+        excluded.has(provider.provider) ||
+        provider.provider.startsWith("atlassian:") ||
+        provider.provider.startsWith("tavily:")
+      )
+        return false;
       if (kind === "oauth") return provider.supportsOAuth;
       if (kind === "api_key")
         return provider.supportsApiKey && !provider.supportsOAuth;
@@ -61,48 +64,47 @@ onDestroy(() => {
 
 <Dialog
   bind:open
-  title={flowController.dialogTitle}
-  description={flowController.dialogDescription}
-  size="md"
+  title={flowController.step === "choose"
+    ? kind === "oauth"
+      ? "Connect subscription"
+      : kind === "api_key"
+        ? "Add API key"
+        : flowController.dialogTitle
+    : flowController.dialogTitle}
+  description={flowController.step === "choose"
+    ? kind === "oauth"
+      ? "Choose a provider to connect with your subscription."
+      : kind === "api_key"
+        ? "Choose a provider for your API key."
+        : flowController.dialogDescription
+    : flowController.dialogDescription}
+  size="sm"
   closeOnInteractOutside={false}
   onOpenChange={handleOpenChange}
 >
-  <div class="add-provider-body">
+  <div class="grid gap-4">
     {#if flowController.step === "choose"}
       {#if available.length === 0}
-        <p class="add-provider-empty">
+        <p class="text-sm text-muted-foreground">
           All known providers are already connected.
         </p>
       {:else}
-        <ul class="provider-choices" data-tour-id="setup-auth-provider-choices">
+        <ul class="grid gap-1" data-tour-id="setup-auth-provider-choices">
           {#each available as provider (provider.provider)}
             <li>
               <button
                 type="button"
-                class="provider-choice"
+                class="flex w-full cursor-pointer items-center rounded-md border border-border/60 bg-background px-3 py-1.5 text-left transition-colors hover:bg-accent"
                 data-tour-id={provider.provider === "openai-codex"
                   ? "setup-auth-openai-codex-choice"
                   : undefined}
                 onclick={() => flowController.chooseProvider(provider)}
               >
-                <span class="provider-choice-icon" aria-hidden="true">
-                  {#if provider.supportsOAuth}
-                    <Sparkles size={16} strokeWidth={2} />
-                  {:else}
-                    <KeyRound size={16} strokeWidth={2} />
-                  {/if}
-                </span>
-                <span class="provider-choice-text">
-                  <strong>{provider.displayName}</strong>
-                  <span>{provider.provider}</span>
-                </span>
-                <span class="provider-choice-tags">
-                  {#if provider.supportsOAuth}
-                    <Badge tone="accent" size="sm">Subscription</Badge>
-                  {/if}
-                  {#if provider.supportsApiKey}
-                    <Badge tone="neutral" size="sm">API key</Badge>
-                  {/if}
+                <span class="flex min-w-0 flex-1 items-baseline gap-2 text-sm">
+                  <span class="truncate">{provider.displayName}</span>
+                  <span class="truncate font-mono text-xs text-muted-foreground"
+                    >{provider.provider}</span
+                  >
                 </span>
               </button>
             </li>
@@ -111,16 +113,21 @@ onDestroy(() => {
       {/if}
     {:else if flowController.step === "api-key"}
       <form
-        class="api-key-form"
+        class="grid gap-2"
         onsubmit={(event) => {
           event.preventDefault();
           void flowController.submitApiKey();
         }}
       >
-        <label class="api-key-label" for="add-provider-api-key">
+        <label
+          class="flex items-center justify-between gap-2 text-sm font-medium"
+          for="add-provider-api-key"
+        >
           API key
           {#if flowController.selected?.envVar}
-            <span class="api-key-env">{flowController.selected.envVar}</span>
+            <span class="font-mono text-xs font-normal text-muted-foreground"
+              >{flowController.selected.envVar}</span
+            >
           {/if}
         </label>
         <Input
@@ -133,14 +140,14 @@ onDestroy(() => {
         />
       </form>
     {:else if flowController.step === "oauth"}
-      <div class="oauth-flow" aria-live="polite">
+      <div class="grid gap-3" aria-live="polite">
         {#if flowController.flow}
           {#if flowController.flow.message}
-            <p class="oauth-message">{flowController.flow.message}</p>
+            <p class="text-sm text-foreground">{flowController.flow.message}</p>
           {/if}
 
           {#if flowController.flow.links?.length}
-            <div class="oauth-options">
+            <div class="grid gap-2">
               {#each flowController.flow.links as link (link.url)}
                 <Button
                   variant="outline"
@@ -164,10 +171,12 @@ onDestroy(() => {
               Open login page
             </Button>
             {#if flowController.flow.instructions}
-              <p class="oauth-hint">{flowController.flow.instructions}</p>
+              <p class="text-xs text-muted-foreground">
+                {flowController.flow.instructions}
+              </p>
             {/if}
           {:else if flowController.flow.status === "device_code" && flowController.flow.deviceCode}
-            <div class="device-code">
+            <div class="grid justify-items-start gap-2">
               <Button
                 variant="outline"
                 onclick={() =>
@@ -179,13 +188,14 @@ onDestroy(() => {
                 <ExternalLink size={15} strokeWidth={2} />
                 Open verification page
               </Button>
-              <p class="oauth-hint">Enter this code:</p>
-              <code class="device-user-code"
+              <p class="text-xs text-muted-foreground">Enter this code:</p>
+              <code
+                class="rounded-md border border-border/60 bg-muted px-2 py-1 font-mono text-base tracking-widest text-foreground"
                 >{flowController.flow.deviceCode.userCode}</code
               >
             </div>
           {:else if flowController.flow.status === "select" && flowController.flow.options}
-            <div class="oauth-options">
+            <div class="grid gap-2">
               {#each flowController.flow.options as option (option.id)}
                 <Button
                   variant="outline"
@@ -198,7 +208,7 @@ onDestroy(() => {
             </div>
           {:else if flowController.flow.status === "prompt"}
             <form
-              class="oauth-prompt"
+              class="grid gap-2"
               onsubmit={(event) => {
                 event.preventDefault();
                 void flowController.submitPrompt();
@@ -216,7 +226,9 @@ onDestroy(() => {
                 </Button>
               {/if}
               {#if flowController.flow.instructions}
-                <p class="oauth-hint">{flowController.flow.instructions}</p>
+                <p class="text-xs text-muted-foreground">
+                  {flowController.flow.instructions}
+                </p>
               {/if}
               <Input
                 type="text"
@@ -228,11 +240,11 @@ onDestroy(() => {
               />
             </form>
           {:else if flowController.flow.status === "failed"}
-            <div class="oauth-failed">
-              <p class="oauth-error-text">
+            <div class="grid gap-2">
+              <p class="text-sm text-destructive">
                 The login attempt ended before credentials were saved.
               </p>
-              <p class="oauth-hint">
+              <p class="text-xs text-muted-foreground">
                 Fix any proxy or certificate settings, then start a fresh login.
                 Authorization codes are one-time and may be tied to the ended
                 login attempt.
@@ -250,17 +262,17 @@ onDestroy(() => {
               </Button>
             </div>
           {:else if flowController.flow.status === "succeeded"}
-            <p class="oauth-success">
+            <p class="text-sm font-medium text-success">
               Connected to {flowController.flow.providerName}.
             </p>
           {:else}
-            <p class="oauth-progress">
+            <p class="flex items-center gap-2 text-sm text-muted-foreground">
               <Spinner />
               Working…
             </p>
           {/if}
         {:else}
-          <p class="oauth-progress">
+          <p class="flex items-center gap-2 text-sm text-muted-foreground">
             <Spinner />
             Starting login…
           </p>
@@ -269,7 +281,7 @@ onDestroy(() => {
     {/if}
 
     {#if flowController.error}
-      <p class="add-provider-error">
+      <p class="flex items-center gap-2 text-xs text-destructive">
         <TriangleAlert size={14} strokeWidth={2} />
         {flowController.error}
       </p>
@@ -304,167 +316,3 @@ onDestroy(() => {
     {/if}
   {/snippet}
 </Dialog>
-
-<style>
-.add-provider-body {
-  display: grid;
-  gap: 1rem;
-}
-
-.add-provider-empty {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-}
-
-.provider-choices {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.provider-choice {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--foreground);
-  padding: 0.65rem 0.75rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.provider-choice:hover {
-  background: color-mix(in oklab, var(--accent) 45%, transparent);
-}
-
-.provider-choice-icon {
-  display: grid;
-  place-items: center;
-  color: var(--muted-foreground);
-}
-
-.provider-choice-text {
-  display: grid;
-  min-width: 0;
-  flex: 1;
-  gap: 0.1rem;
-}
-
-.provider-choice-text strong {
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-
-.provider-choice-text span {
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-
-.provider-choice-tags {
-  display: flex;
-  flex: none;
-  gap: 0.3rem;
-}
-
-.api-key-form,
-.oauth-prompt {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.api-key-label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  color: var(--foreground);
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-
-.api-key-env {
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-
-.oauth-flow {
-  display: grid;
-  gap: 0.7rem;
-  justify-items: start;
-}
-
-.oauth-message {
-  margin: 0;
-  color: var(--foreground);
-  font-size: var(--text-sm);
-}
-
-.oauth-hint {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-}
-
-.device-code,
-.oauth-options {
-  display: grid;
-  gap: 0.5rem;
-  justify-items: start;
-}
-
-.device-user-code {
-  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  border-radius: var(--radius-sm);
-  background: var(--sidebar);
-  color: var(--foreground);
-  padding: 0.3rem 0.55rem;
-  font-family: var(--font-mono);
-  font-size: var(--text-base);
-  letter-spacing: 0.12em;
-}
-
-.oauth-failed {
-  display: grid;
-  gap: 0.55rem;
-  justify-items: start;
-}
-
-.oauth-error-text {
-  margin: 0;
-  color: var(--destructive);
-  font-size: var(--text-sm);
-}
-
-.oauth-success {
-  margin: 0;
-  color: var(--success);
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-
-.oauth-progress {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-}
-
-.add-provider-error {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin: 0;
-  color: var(--destructive);
-  font-size: var(--text-xs);
-}
-</style>

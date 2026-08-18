@@ -57,18 +57,64 @@ const runtimeSettingsSchema = z.object({
   shellPath: z.string().trim().min(1).optional(),
 });
 
-export const jiraToolSettingsSchema = z.object({
-  enabled: z.boolean().default(false),
+export const atlassianProfileSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1),
   siteUrl: z.string().trim().url().optional(),
   email: z.string().trim().email().optional(),
   defaultProjectKey: z.string().trim().min(1).optional(),
+  defaultSpaceKey: z.string().trim().min(1).optional(),
+});
+export type AtlassianProfile = z.infer<typeof atlassianProfileSchema>;
+
+export const tavilyProfileSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1),
+});
+export type TavilyProfile = z.infer<typeof tavilyProfileSchema>;
+
+function uniqueProfileIds<T extends { id: string }>(
+  profiles: T[],
+  context: z.RefinementCtx,
+): void {
+  const seen = new Set<string>();
+  for (const [index, profile] of profiles.entries()) {
+    if (seen.has(profile.id)) {
+      context.addIssue({
+        code: "custom",
+        message: `Duplicate profile id '${profile.id}'`,
+        path: [index, "id"],
+      });
+    }
+    seen.add(profile.id);
+  }
+}
+
+const atlassianProfilesSchema = z
+  .array(atlassianProfileSchema)
+  .superRefine(uniqueProfileIds);
+const tavilyProfilesSchema = z
+  .array(tavilyProfileSchema)
+  .superRefine(uniqueProfileIds);
+
+export const providersSettingsSchema = z.object({
+  atlassianProfiles: atlassianProfilesSchema.default([]),
+  tavilyProfiles: tavilyProfilesSchema.default([]),
+});
+export type ProvidersSettings = z.infer<typeof providersSettingsSchema>;
+
+export const jiraToolSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  profileId: z.string().trim().min(1).optional(),
 });
 
 export const confluenceToolSettingsSchema = z.object({
   enabled: z.boolean().default(false),
-  siteUrl: z.string().trim().url().optional(),
-  email: z.string().trim().email().optional(),
-  defaultSpaceKey: z.string().trim().min(1).optional(),
+  profileId: z.string().trim().min(1).optional(),
+});
+
+export const webToolSettingsSchema = z.object({
+  tavilyProfileId: z.string().trim().min(1).optional(),
 });
 
 const bashAutoPromotionSettingsSchema = z.object({
@@ -95,6 +141,7 @@ const toolSettingsSchema = z.object({
   }),
   jira: jiraToolSettingsSchema.default({ enabled: false }),
   confluence: confluenceToolSettingsSchema.default({ enabled: false }),
+  web: webToolSettingsSchema.default({}),
   imageExplanation: imageExplanationToolSettingsSchema.default({
     thinkingLevel: "off",
   }),
@@ -241,11 +288,16 @@ export const settingsSchema = z.object({
     baseDelayMs: z.number().int().positive().default(2000),
   }),
   runtime: runtimeSettingsSchema.default({}),
+  providers: providersSettingsSchema.default({
+    atlassianProfiles: [],
+    tavilyProfiles: [],
+  }),
   tools: toolSettingsSchema.default({
     disabled: ["explain_image"],
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
+    web: {},
     imageExplanation: { thinkingLevel: "off" },
   }),
   skills: z
@@ -315,11 +367,13 @@ export const defaultSettings: Settings = {
     baseDelayMs: 2000,
   },
   runtime: {},
+  providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
     disabled: ["explain_image"],
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
+    web: {},
     imageExplanation: { thinkingLevel: "off" },
   },
   skills: { disabled: [], agentBrowser: { enabled: [] } },
@@ -412,6 +466,12 @@ export const updateSettingsRequestSchema = z.object({
       shellPath: z.string().trim().min(1).nullable().optional(),
     })
     .optional(),
+  providers: z
+    .object({
+      atlassianProfiles: atlassianProfilesSchema.optional(),
+      tavilyProfiles: tavilyProfilesSchema.optional(),
+    })
+    .optional(),
   skills: z
     .object({
       disabled: z.array(z.string().min(1)).optional(),
@@ -438,17 +498,18 @@ export const updateSettingsRequestSchema = z.object({
       jira: z
         .object({
           enabled: z.boolean().optional(),
-          siteUrl: z.string().trim().url().nullable().optional(),
-          email: z.string().trim().email().nullable().optional(),
-          defaultProjectKey: z.string().trim().min(1).nullable().optional(),
+          profileId: z.string().trim().min(1).nullable().optional(),
         })
         .optional(),
       confluence: z
         .object({
           enabled: z.boolean().optional(),
-          siteUrl: z.string().trim().url().nullable().optional(),
-          email: z.string().trim().email().nullable().optional(),
-          defaultSpaceKey: z.string().trim().min(1).nullable().optional(),
+          profileId: z.string().trim().min(1).nullable().optional(),
+        })
+        .optional(),
+      web: z
+        .object({
+          tavilyProfileId: z.string().trim().min(1).nullable().optional(),
         })
         .optional(),
       imageExplanation: z

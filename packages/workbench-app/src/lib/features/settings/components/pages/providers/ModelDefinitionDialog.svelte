@@ -13,8 +13,8 @@ import SelectField, {
 import { SettingsToggleRow } from "$lib/presentation/components/settings";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
-import { authState } from "$lib/features/auth/state/auth-state.svelte";
-import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
+import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
+import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 
 type Props = {
   open?: boolean;
@@ -50,7 +50,7 @@ const selectProviderItems = $derived<SelectItem[]>(
     : providerItems,
 );
 const isCustomProvider = $derived(
-  authState.customProviders.some((custom) => custom.id === provider),
+  providerCatalogState.customProviders.some((custom) => custom.id === provider),
 );
 const providerAvailable = $derived(
   providerItems.some((item) => item.value === provider),

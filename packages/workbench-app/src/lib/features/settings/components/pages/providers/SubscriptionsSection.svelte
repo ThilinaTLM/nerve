@@ -2,7 +2,6 @@
 import Plus from "@lucide/svelte/icons/plus";
 import type { AuthProviderMetadata } from "$lib/api";
 import { deleteProviderCredential } from "$lib/api";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import {
@@ -12,7 +11,7 @@ import {
   SettingsListItem,
   SettingsSection,
 } from "$lib/presentation/components/settings";
-import { loadAuthPanel } from "$lib/features/auth/state/auth.svelte";
+import { loadSettingsPanel } from "$lib/features/settings/state/settings-actions.svelte";
 import AddProviderDialog from "./AddProviderDialog.svelte";
 
 type Props = {
@@ -37,7 +36,7 @@ async function confirmLogout(): Promise<void> {
   if (!provider) return;
   try {
     await deleteProviderCredential(provider.provider);
-    await loadAuthPanel();
+    await loadSettingsPanel();
   } catch {
     // Errors surface through the global event refresh; keep the UI responsive.
   } finally {
@@ -60,21 +59,18 @@ async function confirmLogout(): Promise<void> {
 
   {#if subscriptions.length === 0}
     <SettingsEmptyState
+      class="rounded-md border border-dashed border-border/60 bg-muted/20 px-3"
       title="No subscriptions connected"
       description="Connect a subscription to authenticate models."
-    >
-      {#snippet actions()}
-        <Button
-          size="sm"
-          data-tour-id="setup-auth-connect-subscription"
-          onclick={() => (addOpen = true)}>Connect subscription</Button
-        >
-      {/snippet}
-    </SettingsEmptyState>
+    />
   {:else}
-    <SettingsList ariaLabel="Connected subscriptions">
+    <SettingsList
+      ariaLabel="Connected subscriptions"
+      class="grid gap-2 divide-y-0"
+    >
       {#each subscriptions as provider (provider.provider)}
         <SettingsListItem
+          class="rounded-md border border-border/60 bg-card/40 px-3 py-2"
           title={provider.displayName}
           tourId={provider.provider === "openai-codex"
             ? "setup-auth-openai-codex-connected"
@@ -84,7 +80,6 @@ async function confirmLogout(): Promise<void> {
             <span class="truncate"
               >{provider.oauthName ?? provider.provider}</span
             >
-            <Badge tone="good" size="xs">Connected</Badge>
           {/snippet}
           {#snippet actions()}
             <Button

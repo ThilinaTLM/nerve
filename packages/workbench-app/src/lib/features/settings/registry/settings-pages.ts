@@ -1,4 +1,5 @@
 import Bell from "@lucide/svelte/icons/bell";
+import CloudCog from "@lucide/svelte/icons/cloud-cog";
 import Bot from "@lucide/svelte/icons/bot";
 import HardDrive from "@lucide/svelte/icons/hard-drive";
 import Keyboard from "@lucide/svelte/icons/keyboard";
@@ -22,32 +23,17 @@ export const settingsPages: SettingsPageDef[] = [
     ],
   },
   {
-    id: "notifications",
-    label: "Notifications",
-    icon: Bell,
+    id: "providers",
+    label: "Providers",
+    icon: CloudCog,
     sections: [
-      { id: "general", label: "General" },
-      { id: "sounds", label: "Sounds" },
+      { id: "subscriptions", label: "Subscriptions" },
+      { id: "api-keys", label: "API Keys" },
+      { id: "custom-providers", label: "Custom Providers" },
+      { id: "custom-models", label: "Custom Models" },
+      { id: "tavily-profiles", label: "Tavily Profiles" },
+      { id: "atlassian-profiles", label: "Atlassian Profiles" },
     ],
-  },
-  {
-    id: "transcription",
-    label: "Transcription",
-    icon: Mic,
-    description:
-      "Configure the OpenAI model and context hints used for voice input.",
-    sections: [
-      { id: "model", label: "Model" },
-      { id: "context", label: "Context" },
-    ],
-  },
-  {
-    id: "shortcuts",
-    label: "Shortcuts",
-    icon: Keyboard,
-    description:
-      "Shortcuts are fixed and use the primary modifier for your platform.",
-    sections: [{ id: "shortcuts", label: "Shortcuts" }],
   },
   {
     id: "models",
@@ -67,20 +53,12 @@ export const settingsPages: SettingsPageDef[] = [
     ],
   },
   {
-    id: "suggestions",
-    label: "Suggestions",
-    icon: Lightbulb,
-    description:
-      "Project suggestions override user and built-in suggestions with the same name.",
-    sections: [{ id: "suggestions", label: "Suggestions" }],
-  },
-  {
     id: "tools",
     label: "Tools",
     icon: Wrench,
     sections: [
-      { id: "built-in", label: "Built-in" },
-      { id: "integrations", label: "Integrations" },
+      { id: "core", label: "Core" },
+      { id: "third-party", label: "Third Party" },
     ],
   },
   {
@@ -90,6 +68,42 @@ export const settingsPages: SettingsPageDef[] = [
     description:
       "Skills apply to subsequent agent runs. Project definitions take precedence over global skills with the same name.",
     sections: [{ id: "skills", label: "Skills" }],
+  },
+  {
+    id: "transcription",
+    label: "Transcription",
+    icon: Mic,
+    description:
+      "Configure the OpenAI model and context hints used for voice input.",
+    sections: [
+      { id: "model", label: "Model" },
+      { id: "context", label: "Context" },
+    ],
+  },
+  {
+    id: "suggestions",
+    label: "Suggestions",
+    icon: Lightbulb,
+    description:
+      "Project suggestions override user and built-in suggestions with the same name.",
+    sections: [{ id: "suggestions", label: "Suggestions" }],
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    icon: Bell,
+    sections: [
+      { id: "general", label: "General" },
+      { id: "sounds", label: "Sounds" },
+    ],
+  },
+  {
+    id: "shortcuts",
+    label: "Shortcuts",
+    icon: Keyboard,
+    description:
+      "Shortcuts are fixed and use the primary modifier for your platform.",
+    sections: [{ id: "shortcuts", label: "Shortcuts" }],
   },
   {
     id: "storage",

@@ -14,7 +14,6 @@ describe("center tab refresh", () => {
       refreshPullRequest: (id) => calls.push(`pr:${id}`),
       refreshDiff: (id) => calls.push(`diff:${id}`),
       loadSettings: () => calls.push("settings"),
-      loadAuth: () => calls.push("auth"),
       refreshLogs: () => calls.push("logs"),
     });
     const tabs: CenterTabIdentity[] = [
@@ -26,7 +25,6 @@ describe("center tab refresh", () => {
       { kind: "pr", id: "pr_1" },
       { kind: "diff", id: "diff_1" },
       { kind: "settings", id: "settings" },
-      { kind: "auth", id: "auth" },
       { kind: "logs", id: "logs" },
     ];
     tabs.forEach(refresh);
@@ -39,7 +37,6 @@ describe("center tab refresh", () => {
       "pr:pr_1",
       "diff:diff_1",
       "settings",
-      "auth",
       "logs",
     ]);
   });

@@ -23,7 +23,6 @@ import {
   minimizeDesktopWindow,
   toggleMaximizeDesktopWindow,
 } from "$lib/features/desktop";
-import { openAuthPane } from "$lib/features/auth";
 import { releaseState } from "$lib/features/releases";
 import { openLogsPane } from "$lib/features/logs";
 import {
@@ -147,7 +146,6 @@ async function handleDesktopClose() {
     guideState.mode === "preparing-coach" ||
     guideState.mode === "coach"}
   incompleteGuideCount={incompleteGuides}
-  authActive={activeCenterTab?.kind === "auth"}
   logsActive={activeCenterTab?.kind === "logs"}
   applicationLogsEnabled={status?.capabilities.applicationLogs ?? false}
   currentVersion={status?.version}
@@ -157,7 +155,6 @@ async function handleDesktopClose() {
   onSelectProject={(projectId) => void selectProject(projectId)}
   onOpenLogs={() => openLogsPane()}
   onOpenGuide={openGuide}
-  onOpenAuth={() => openAuthPane()}
   onOpenSettings={() => void openSettingsPane()}
   onMinimize={() => void minimizeDesktopWindow()}
   onToggleMaximize={() => void toggleMaximizeDesktopWindow()}

@@ -1,4 +1,4 @@
-import { registerAuthEventHandlers } from "$lib/features/auth/state/auth-events";
+import { registerProviderCatalogEventHandlers } from "$lib/features/settings/state/provider-catalog-events";
 import { registerConversationEventHandlers } from "$lib/features/conversations/state/conversation-events";
 import { registerNotificationEventHandlers } from "$lib/features/notifications/state/notification-events";
 import { registerGitEventHandlers } from "$lib/features/git/state/git-events";
@@ -14,7 +14,7 @@ export function registerFeatureEventHandlers(): () => void {
     registerConversationEventHandlers(),
     registerTaskEventHandlers(),
     registerSettingsEventHandlers(),
-    registerAuthEventHandlers(),
+    registerProviderCatalogEventHandlers(),
     registerUsageEventHandlers(),
     registerNotificationEventHandlers(),
     registerPromptSuggestionEventHandlers(),

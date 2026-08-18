@@ -8,11 +8,9 @@ import type {
   ThinkingLevel,
   StatusResponse,
 } from "$lib/api";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import {
-  SettingsDisclosureItem,
   SettingsFieldRow,
   SettingsGroup,
   SettingsInlineMessage,
@@ -30,11 +28,15 @@ import {
 import SingleModelSelectionDialog from "../../shared/SingleModelSelectionDialog.svelte";
 import type { SettingsChange } from "../settings-change";
 import PythonRuntimeDialog from "./PythonRuntimeDialog.svelte";
-import TavilyKeyDialog from "./TavilyKeyDialog.svelte";
+import ToolConfigureButton from "./ToolConfigureButton.svelte";
+import ToolGroupItem from "./ToolGroupItem.svelte";
+import ToolProfileDialog from "./ToolProfileDialog.svelte";
+import { tavilyProfileReady } from "../providers/provider-profiles";
 import {
   configurableToolOrder,
   toolGroups,
   type ConfigurableToolName,
+  type ToolCategory,
   type ToolGroupDef,
 } from "./tool-catalog";
 import { ensureToolsDraft } from "./tools-draft";
@@ -45,9 +47,8 @@ type Props = {
   authProviders?: AuthProviderMetadata[];
   models?: ModelInfo[];
   onSettingsChange?: SettingsChange;
+  category?: ToolCategory;
 };
-
-const tavilyProviderId = "tavily";
 
 let {
   settingsDraft,
@@ -55,26 +56,26 @@ let {
   authProviders = [],
   models = [],
   onSettingsChange,
+  category = "core",
 }: Props = $props();
 
-let tavilyDialogOpen = $state(false);
 let pythonDialogOpen = $state(false);
 let visionModelDialogOpen = $state(false);
+let webDialogOpen = $state(false);
 
 const disabledTools = $derived(new Set(settingsDraft.tools?.disabled ?? []));
 const python = $derived(status?.runtime.python);
 const sourceLabel = $derived(
   (python?.source ?? "unavailable").replace(/_/g, " "),
 );
-const tavilyProvider = $derived(
-  authProviders.find((provider) => provider.provider === tavilyProviderId),
-);
-const tavilyConfigured = $derived(
-  Boolean(
-    tavilyProvider?.configured && tavilyProvider.credentialType === "api_key",
+const selectedTavilyProfile = $derived(
+  settingsDraft.providers.tavilyProfiles.find(
+    (profile) => profile.id === settingsDraft.tools.web.tavilyProfileId,
   ),
 );
-const tavilyDisplayName = $derived(tavilyProvider?.displayName ?? "Tavily");
+const tavilyConfigured = $derived(
+  tavilyProfileReady(selectedTavilyProfile, authProviders),
+);
 const bashAutoPromotion = $derived(settingsDraft.tools.bash.autoPromotion);
 const usableVisionModels = $derived(
   usableModelOptions(models, authProviders).filter(supportsImageInput),
@@ -102,6 +103,7 @@ function setToolsEnabled(
   enabled: boolean,
 ): void {
   if (enabled && names.includes("explain_image") && !visionReady) return;
+  if (enabled && names.includes("web_search") && !tavilyConfigured) return;
   const tools = ensureToolsDraft(settingsDraft);
   const next = new SvelteSet(tools.disabled);
   for (const name of names) {
@@ -134,6 +136,21 @@ function saveVisionModel(selection: {
   if (!model) setToolsEnabled(["explain_image"], false);
 }
 
+function setTavilyProfile(profileId?: string): void {
+  const next = profileId || undefined;
+  settingsDraft.tools.web.tavilyProfileId = next;
+  onSettingsChange?.(
+    { tools: { web: { tavilyProfileId: next ?? null } } },
+    { immediate: true },
+  );
+  const profile = settingsDraft.providers.tavilyProfiles.find(
+    (item) => item.id === next,
+  );
+  if (!tavilyProfileReady(profile, authProviders)) {
+    setToolsEnabled(["web_search", "web_fetch"], false);
+  }
+}
+
 function setBashAutoPromotionEnabled(enabled: boolean): void {
   settingsDraft.tools.bash.autoPromotion.enabled = enabled;
   onSettingsChange?.(
@@ -155,15 +172,34 @@ function updateBashAutoPromotionSeconds(value: string): void {
 </script>
 
 <SettingsGroup>
-  <SettingsList ariaLabel="Built-in tool groups">
-    {#each toolGroups as group (group.id)}
+  <SettingsList
+    ariaLabel={`${category === "core" ? "Core" : "Third-party"} tool groups`}
+  >
+    {#each toolGroups.filter((group) => group.category === category) as group (group.id)}
       {@const enabled = groupEnabled(group)}
       {@const alwaysOn = group.configurableTools.length === 0}
-      <SettingsDisclosureItem
+      <ToolGroupItem
         title={group.label}
         description={group.description}
+        tools={group.tools}
       >
         {#snippet actions()}
+          {#if group.id === "web"}
+            <ToolConfigureButton
+              label="Configure Web access"
+              onclick={() => (webDialogOpen = true)}
+            />
+          {:else if group.id === "vision"}
+            <ToolConfigureButton
+              label="Configure Image explanation"
+              onclick={() => (visionModelDialogOpen = true)}
+            />
+          {:else if group.id === "python"}
+            <ToolConfigureButton
+              label="Configure Python"
+              onclick={() => (pythonDialogOpen = true)}
+            />
+          {/if}
           {#if alwaysOn}
             <Tooltip.Provider delayDuration={200}>
               <Tooltip.Root>
@@ -186,23 +222,15 @@ function updateBashAutoPromotionSeconds(value: string): void {
             <Switch
               size="settings"
               checked={enabled}
-              disabled={group.id === "vision" && !visionReady}
+              disabled={(group.id === "vision" && !visionReady) ||
+                (group.id === "web" && !tavilyConfigured)}
               aria-label={`Enable ${group.label} tools`}
               onCheckedChange={(checked) =>
                 setToolsEnabled(group.configurableTools, checked)}
             />
           {/if}
         {/snippet}
-        {#snippet detail()}
-          <ul class="grid gap-1" aria-label={`${group.label} tools`}>
-            {#each group.tools as tool (tool.name)}
-              <li class="min-w-0">
-                <span class="font-mono text-foreground">{tool.name}</span>
-                <span> — {tool.description}</span>
-              </li>
-            {/each}
-          </ul>
-
+        {#snippet extra()}
           {#if group.id === "shell"}
             <div class="grid gap-2 pt-1">
               <SettingsToggleRow
@@ -228,21 +256,13 @@ function updateBashAutoPromotionSeconds(value: string): void {
           {:else if group.id === "web"}
             <SettingsSummaryRow
               class="mt-1"
-              title={`${tavilyDisplayName} API key`}
-              status={tavilyConfigured ? "ok" : "muted"}
+              title="Tavily profile"
+              status={tavilyConfigured ? "ok" : "warning"}
             >
               {#snippet meta()}
                 {tavilyConfigured
-                  ? "•••••••• configured"
-                  : "Required for web_search."}
-              {/snippet}
-              {#snippet actions()}
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onclick={() => (tavilyDialogOpen = true)}
-                  >{tavilyConfigured ? "Configure key" : "Add key"}</Button
-                >
+                  ? "Configured for web search."
+                  : "Select a configured profile to enable web access."}
               {/snippet}
             </SettingsSummaryRow>
           {:else if group.id === "vision"}
@@ -270,16 +290,6 @@ function updateBashAutoPromotionSeconds(value: string): void {
                   Choose an image-capable model before enabling this tool.
                 {/if}
               {/snippet}
-              {#snippet actions()}
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onclick={() => (visionModelDialogOpen = true)}
-                  >{configuredVisionSelection
-                    ? "Reconfigure"
-                    : "Choose model"}</Button
-                >
-              {/snippet}
             </SettingsSummaryRow>
           {:else if group.id === "python"}
             <SettingsSummaryRow
@@ -299,14 +309,6 @@ function updateBashAutoPromotionSeconds(value: string): void {
                   {python?.error ?? "No Python runtime was detected."}
                 {/if}
               {/snippet}
-              {#snippet actions()}
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onclick={() => (pythonDialogOpen = true)}
-                  >Configure runtime</Button
-                >
-              {/snippet}
             </SettingsSummaryRow>
             <SettingsInlineMessage
               tone="info"
@@ -314,15 +316,19 @@ function updateBashAutoPromotionSeconds(value: string): void {
             />
           {/if}
         {/snippet}
-      </SettingsDisclosureItem>
+      </ToolGroupItem>
     {/each}
   </SettingsList>
 </SettingsGroup>
 
-<TavilyKeyDialog
-  bind:open={tavilyDialogOpen}
-  configured={tavilyConfigured}
-  displayName={tavilyDisplayName}
+<ToolProfileDialog
+  bind:open={webDialogOpen}
+  title="Configure Web access"
+  description="Select the Tavily profile used for web search and URL fetching."
+  profiles={settingsDraft.providers.tavilyProfiles}
+  selectedProfileId={settingsDraft.tools.web.tavilyProfileId}
+  providerSection="tavily-profiles"
+  onSave={setTavilyProfile}
 />
 
 <SingleModelSelectionDialog

@@ -2,7 +2,6 @@
 import Plus from "@lucide/svelte/icons/plus";
 import type { AuthProviderMetadata } from "$lib/api";
 import { deleteProviderCredential } from "$lib/api";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import {
@@ -11,8 +10,8 @@ import {
   SettingsListItem,
   SettingsSection,
 } from "$lib/presentation/components/settings";
-import { authState } from "$lib/features/auth/state/auth-state.svelte";
-import { loadAuthPanel } from "$lib/features/auth/state/auth.svelte";
+import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
+import { loadSettingsPanel } from "$lib/features/settings/state/settings-actions.svelte";
 import AddProviderDialog from "./AddProviderDialog.svelte";
 
 type Props = {
@@ -26,9 +25,9 @@ let pendingRemove = $state<AuthProviderMetadata | undefined>(undefined);
 
 // Custom providers manage their own key in the Custom providers section.
 const customIds = $derived(
-  new Set(authState.customProviders.map((provider) => provider.id)),
+  new Set(providerCatalogState.customProviders.map((provider) => provider.id)),
 );
-const reserved = $derived(new Set(["tavily", "jira", ...customIds]));
+const reserved = $derived(new Set(customIds));
 
 const apiKeys = $derived(
   authProviders
@@ -36,7 +35,9 @@ const apiKeys = $derived(
       (provider) =>
         provider.configured &&
         provider.credentialType === "api_key" &&
-        !reserved.has(provider.provider),
+        !reserved.has(provider.provider) &&
+        !provider.provider.startsWith("atlassian:") &&
+        !provider.provider.startsWith("tavily:"),
     )
     .sort((a, b) => a.displayName.localeCompare(b.displayName)),
 );
@@ -47,7 +48,7 @@ async function confirmRemove(): Promise<void> {
   if (!provider) return;
   try {
     await deleteProviderCredential(provider.provider);
-    await loadAuthPanel();
+    await loadSettingsPanel();
   } catch {
     // Errors surface through the global event refresh.
   } finally {
@@ -70,26 +71,21 @@ async function confirmRemove(): Promise<void> {
 
   {#if apiKeys.length === 0}
     <SettingsEmptyState
+      class="rounded-md border border-dashed border-border/60 bg-muted/20 px-3"
       title="No API keys configured"
       description="Add a provider API key to authenticate models."
-    >
-      {#snippet actions()}
-        <Button
-          size="sm"
-          data-tour-id="setup-auth-add-api-key"
-          onclick={() => (addOpen = true)}>Add API key</Button
-        >
-      {/snippet}
-    </SettingsEmptyState>
+    />
   {:else}
-    <SettingsList ariaLabel="Configured API keys">
+    <SettingsList ariaLabel="Configured API keys" class="grid gap-2 divide-y-0">
       {#each apiKeys as provider (provider.provider)}
-        <SettingsListItem title={provider.displayName}>
+        <SettingsListItem
+          title={provider.displayName}
+          class="rounded-md border border-border/60 bg-card/40 px-3 py-2"
+        >
           {#snippet meta()}
             {#if provider.envVar}
               <span class="truncate font-mono">{provider.envVar}</span>
             {/if}
-            <Badge tone="good" size="xs">Configured</Badge>
           {/snippet}
           {#snippet actions()}
             <Button

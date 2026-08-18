@@ -42,6 +42,10 @@ import {
   formatTaskStatusSummary,
 } from "../tasks/task-summary-format.js";
 import type { InteractionSessionService } from "./interaction-session.service.js";
+import {
+  integrationCredentialProvider,
+  integrationProviderConfig,
+} from "./integration-profile-resolution.js";
 import { LiveToolOutputPublisher } from "./live-tool-output-publisher.js";
 import {
   enterPlanMode as enterPlanModeImpl,
@@ -245,15 +249,18 @@ export class OrchestrationToolDispatcher {
       signal: options.signal,
       dataDir: this.deps.storage.paths.home,
       shellPath: this.deps.storage.settings.runtime.shellPath,
-      getApiKey: this.deps.getApiKey,
-      explainImage: this.deps.explainImage,
-      getProviderConfig: async (provider) => {
-        if (provider === "jira") return this.deps.storage.settings.tools.jira;
-        if (provider === "confluence") {
-          return this.deps.storage.settings.tools.confluence;
-        }
-        return undefined;
+      getApiKey: async (provider) => {
+        const credentialProvider = integrationCredentialProvider(
+          this.deps.storage.settings,
+          provider,
+        );
+        return credentialProvider
+          ? this.deps.getApiKey(credentialProvider)
+          : undefined;
       },
+      explainImage: this.deps.explainImage,
+      getProviderConfig: async (provider) =>
+        integrationProviderConfig(this.deps.storage.settings, provider),
       onUpdate: (update) =>
         this.publishToolExecutionUpdate(toolCall, update, options.runId),
     };

@@ -7,8 +7,8 @@ import type {
 } from "$lib/api";
 import { SettingsSection } from "$lib/presentation/components/settings";
 import type { SettingsChange } from "../settings-change";
-import BuiltInToolsSection from "./BuiltInToolsSection.svelte";
-import IntegrationsSection from "./IntegrationsSection.svelte";
+import ToolCatalogSection from "./ToolCatalogSection.svelte";
+import ThirdPartyProviderToolsSection from "./ThirdPartyProviderToolsSection.svelte";
 
 type Props = {
   settingsDraft: Settings;
@@ -27,20 +27,29 @@ let {
 }: Props = $props();
 </script>
 
-<SettingsSection id="built-in" title="Built-in">
-  <BuiltInToolsSection
+<SettingsSection id="core" title="Core">
+  <ToolCatalogSection
     {settingsDraft}
     {status}
     {authProviders}
     {models}
     {onSettingsChange}
+    category="core"
   />
 </SettingsSection>
 
-<SettingsSection id="integrations" title="Integrations">
-  <IntegrationsSection
+<SettingsSection id="third-party" title="Third Party">
+  <ToolCatalogSection
     {settingsDraft}
     {status}
+    {authProviders}
+    {models}
+    {onSettingsChange}
+    category="third-party"
+  />
+
+  <ThirdPartyProviderToolsSection
+    {settingsDraft}
     {authProviders}
     {onSettingsChange}
   />

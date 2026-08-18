@@ -17,7 +17,6 @@ export type CenterTabIdentity =
   | { kind: "pr"; id: string }
   | { kind: "diff"; id: string }
   | { kind: "settings"; id: "settings" }
-  | { kind: "auth"; id: "auth" }
   | { kind: "logs"; id: "logs" };
 
 export type ProjectTabSession = {

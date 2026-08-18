@@ -4,6 +4,8 @@ export type ConfigurableToolName = Settings["tools"]["disabled"][number];
 
 export type ToolSummary = { name: string; description: string };
 
+export type ToolCategory = "core" | "third-party";
+
 export type ToolGroupId =
   | "file-inspection"
   | "file-editing"
@@ -17,6 +19,7 @@ export type ToolGroupId =
 
 export type ToolGroupDef = {
   id: ToolGroupId;
+  category: ToolCategory;
   label: string;
   description: string;
   tools: ToolSummary[];
@@ -34,6 +37,7 @@ export const configurableToolOrder: ConfigurableToolName[] = [
 export const toolGroups: ToolGroupDef[] = [
   {
     id: "file-inspection",
+    category: "core",
     label: "File inspection",
     description:
       "Read, list, find, and search workspace files without modifying them.",
@@ -60,6 +64,7 @@ export const toolGroups: ToolGroupDef[] = [
   },
   {
     id: "file-editing",
+    category: "core",
     label: "File editing",
     description:
       "Create and modify workspace files when the agent policy permits writes.",
@@ -79,6 +84,7 @@ export const toolGroups: ToolGroupDef[] = [
   },
   {
     id: "plan-mode",
+    category: "core",
     label: "Plan mode",
     description:
       "Research, draft, and present implementation plans before workspace changes.",
@@ -100,6 +106,7 @@ export const toolGroups: ToolGroupDef[] = [
   },
   {
     id: "todos",
+    category: "core",
     label: "Todos",
     description:
       "Track multi-step work with a lightweight checklist for the current task.",
@@ -111,6 +118,7 @@ export const toolGroups: ToolGroupDef[] = [
   },
   {
     id: "tasks",
+    category: "core",
     label: "Task management",
     description:
       "Start, supervise, inspect, restart, and cancel background commands.",
@@ -141,6 +149,7 @@ export const toolGroups: ToolGroupDef[] = [
   },
   {
     id: "web",
+    category: "third-party",
     label: "Web access",
     description: "Search the web and fetch URLs for external context.",
     configurableTools: ["web_search", "web_fetch"],
@@ -157,6 +166,7 @@ export const toolGroups: ToolGroupDef[] = [
   },
   {
     id: "vision",
+    category: "third-party",
     label: "Image explanation",
     description:
       "Use a separate vision model to explain images to text-only agents.",
@@ -171,6 +181,7 @@ export const toolGroups: ToolGroupDef[] = [
   },
   {
     id: "shell",
+    category: "core",
     label: "Shell",
     description:
       "Run finite shell commands for checks, tests, builds, and project scripts.",
@@ -184,6 +195,7 @@ export const toolGroups: ToolGroupDef[] = [
   },
   {
     id: "python",
+    category: "core",
     label: "Python",
     description:
       "Run short Python scripts or files for data processing and analysis.",

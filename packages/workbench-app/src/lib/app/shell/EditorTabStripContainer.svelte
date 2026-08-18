@@ -5,7 +5,6 @@ import Copy from "@lucide/svelte/icons/copy";
 import FileDiff from "@lucide/svelte/icons/file-diff";
 import FileText from "@lucide/svelte/icons/file-text";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
-import CloudCog from "@lucide/svelte/icons/cloud-cog";
 import Logs from "@lucide/svelte/icons/logs";
 import MoveLeft from "@lucide/svelte/icons/move-left";
 import MoveRight from "@lucide/svelte/icons/move-right";
@@ -134,7 +133,6 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
   else if (tab.kind === "pr") model.icon = GitPullRequest;
   else if (tab.kind === "diff") model.icon = FileDiff;
   else if (tab.kind === "settings") model.icon = Settings;
-  else if (tab.kind === "auth") model.icon = CloudCog;
   else if (tab.kind === "logs") model.icon = Logs;
 
   return model;

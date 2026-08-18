@@ -110,26 +110,27 @@ describe("AuthManager", () => {
     assert.equal(custom.supportsApiKey, true);
   });
 
-  it("includes Atlassian provider metadata", async () => {
+  it("includes composite integration profile metadata without env hints", async () => {
     const auth = new AuthManager(
       new EncryptedFileSecretProvider(await tempHome()),
     );
-    await auth.setApiKey("jira", "jira-token");
-    await auth.setApiKey("confluence", "confluence-token");
+    await auth.setApiKey("atlassian:work", "atlassian-token");
+    await auth.setApiKey("tavily:search", "tavily-token");
 
     const providers = await auth.listProviderMetadata();
-    const jira = providers.find((provider) => provider.provider === "jira");
-    assert.ok(jira);
-    assert.equal(jira.displayName, "Jira");
-    assert.equal(jira.supportsApiKey, true);
-    assert.equal(jira.configured, true);
-    const confluence = providers.find(
-      (provider) => provider.provider === "confluence",
+    const atlassian = providers.find(
+      (provider) => provider.provider === "atlassian:work",
     );
-    assert.ok(confluence);
-    assert.equal(confluence.displayName, "Confluence");
-    assert.equal(confluence.supportsApiKey, true);
-    assert.equal(confluence.configured, true);
-    assert.equal(confluence.envVar, "CONFLUENCE_API_TOKEN");
+    assert.ok(atlassian);
+    assert.equal(atlassian.displayName, "Atlassian profile");
+    assert.equal(atlassian.configured, true);
+    assert.equal(atlassian.envVar, undefined);
+    const tavily = providers.find(
+      (provider) => provider.provider === "tavily:search",
+    );
+    assert.ok(tavily);
+    assert.equal(tavily.displayName, "Tavily profile");
+    assert.equal(tavily.configured, true);
+    assert.equal(tavily.envVar, undefined);
   });
 });
