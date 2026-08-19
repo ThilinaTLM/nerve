@@ -119,37 +119,35 @@ export async function runExecutable(
   args: readonly string[],
   options: ExecutableRunOptions = {},
 ): Promise<ExecutableRunResult> {
-  let workerChild: ChildProcess | undefined;
-  let workerCleanup: (() => void) | undefined;
-  if (
-    process.env.NERVE_HOME &&
-    (typeof executable === "string" || executable.kind === "native")
-  ) {
-    const client = await ExecutionWorkerClient.connect(process.env.NERVE_HOME);
-    const executionId = `executable_${randomUUID()}`;
-    const path = typeof executable === "string" ? executable : executable.path;
-    workerChild = (
-      await client.spawnChild({
-        executionId,
-        command: path,
-        args: [...args],
-        cwd: options.cwd,
-        env: Object.fromEntries(
-          Object.entries(
-            executableEnvironment(path, options.env ?? process.env),
-          ).filter(
-            (entry): entry is [string, string] => entry[1] !== undefined,
-          ),
-        ),
-        timeoutMs: options.timeoutMs,
-        terminationGraceMs: 500,
-        belowNormalPriority: true,
-      })
-    ).child;
-    workerCleanup = () => {
-      void client.remove(executionId).catch(() => undefined);
-    };
+  // Route execution through the Rust worker so process lifetime, durable
+  // output, and termination semantics are owned by the worker.
+  if (!process.env.NERVE_HOME) {
+    throw new Error(
+      "Execution worker home (NERVE_HOME) is required to run an executable through the execution worker.",
+    );
   }
+  const client = await ExecutionWorkerClient.connect(process.env.NERVE_HOME);
+  const executionId = `executable_${randomUUID()}`;
+  const path = typeof executable === "string" ? executable : executable.path;
+  const workerChild = (
+    await client.spawnChild({
+      executionId,
+      command: path,
+      args: [...args],
+      cwd: options.cwd,
+      env: Object.fromEntries(
+        Object.entries(
+          executableEnvironment(path, options.env ?? process.env),
+        ).filter((entry): entry is [string, string] => entry[1] !== undefined),
+      ),
+      timeoutMs: options.timeoutMs,
+      terminationGraceMs: 500,
+      belowNormalPriority: true,
+    })
+  ).child;
+  const workerCleanup = () => {
+    void client.remove(executionId).catch(() => undefined);
+  };
   return await new Promise((resolveResult) => {
     let stdout = "";
     let stderr = "";
@@ -157,14 +155,7 @@ export async function runExecutable(
     let timedOut = false;
     let settled = false;
     const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
-    const child =
-      workerChild ??
-      spawnExecutable(executable, args, {
-        cwd: options.cwd,
-        env: options.env,
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: options.windowsHide ?? true,
-      });
+    const child = workerChild;
     const timer = options.timeoutMs
       ? setTimeout(() => {
           timedOut = true;

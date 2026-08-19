@@ -1,7 +1,13 @@
 import { z } from "zod";
 
-export const EXECUTION_WORKER_PROTOCOL_VERSION = 1 as const;
+export const EXECUTION_WORKER_PROTOCOL_VERSION = 2 as const;
 export const EXECUTION_WORKER_MAX_FRAME_BYTES = 4 * 1024 * 1024;
+
+/** Accept both v2 (streaming) and v1 (backward-compatible) worker metadata. */
+export const workerProtocolVersionSchema = z.union([
+  z.literal(2),
+  z.literal(1),
+]);
 
 export const workerExecutionIdSchema = z
   .string()
@@ -89,6 +95,34 @@ export const workerReadResultSchema = z
   .strict();
 export type WorkerReadResult = z.infer<typeof workerReadResultSchema>;
 
+export const workerSubscribeParamsSchema = z
+  .object({
+    executionId: workerExecutionIdSchema,
+    afterCursor: z.number().int().nonnegative().safe().default(0),
+  })
+  .strict();
+export type WorkerSubscribeParams = z.infer<typeof workerSubscribeParamsSchema>;
+
+export const workerSubscriptionAckSchema = z
+  .object({
+    executionId: workerExecutionIdSchema,
+    cursor: z.number().int().nonnegative().safe(),
+    snapshot: workerExecutionSnapshotSchema,
+  })
+  .strict();
+export type WorkerSubscriptionAck = z.infer<typeof workerSubscriptionAckSchema>;
+
+export const workerPushFrameSchema = z
+  .object({
+    executionId: workerExecutionIdSchema,
+    kind: z.enum(["ack", "snapshot", "output", "terminal"]),
+    events: z.array(workerOutputEventSchema).max(256).optional(),
+    snapshot: workerExecutionSnapshotSchema.optional(),
+    cursor: z.number().int().nonnegative().safe().optional(),
+  })
+  .strict();
+export type WorkerPushFrame = z.infer<typeof workerPushFrameSchema>;
+
 export const workerHealthSchema = z
   .object({
     protocolVersion: z.literal(EXECUTION_WORKER_PROTOCOL_VERSION),
@@ -101,7 +135,7 @@ export type WorkerHealth = z.infer<typeof workerHealthSchema>;
 
 export const workerMetadataSchema = z
   .object({
-    protocolVersion: z.literal(EXECUTION_WORKER_PROTOCOL_VERSION),
+    protocolVersion: workerProtocolVersionSchema,
     pid: z.number().int().positive().safe(),
     host: z.literal("127.0.0.1"),
     port: z.number().int().min(1).max(65_535),
@@ -133,6 +167,7 @@ export const workerRequestSchema = z
       "execution.get",
       "execution.list",
       "execution.read",
+      "execution.subscribe",
       "execution.cancel",
       "execution.remove",
     ]),

@@ -1,7 +1,9 @@
 export {
   ExecutionWorkerClient,
   executionWorkerFilename,
+  isRetryableConnectionError,
   resolveExecutionWorkerPath,
+  type WorkerEndpoint,
   type ExecutionOutputSubscription,
 } from "./execution-worker-client.js";
 

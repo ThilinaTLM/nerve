@@ -1,9 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  ExecutionWorkerClient,
-  spawnManagedChildProcess,
-  terminateManagedChildProcess,
-} from "@nervekit/native";
+import { ExecutionWorkerClient } from "@nervekit/native";
 import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,7 +8,6 @@ import { numberArg } from "../common/args.js";
 import { resolveCommandCwd } from "../common/command-cwd.js";
 import { BoundedProcessOutput } from "../common/bounded-process-output.js";
 import { LiveOutputDelivery } from "../common/live-output.js";
-import { forceKillProcessTree } from "../common/process-tree.js";
 import { buildProcessResult } from "../common/process-result.js";
 import { pathNotFoundMessage, resolveToolPath } from "../filesystem/path.js";
 import { RUNNER_SOURCE } from "./python-runner-source.js";
@@ -143,185 +138,28 @@ async function runPythonProcess({
   signal,
   onUpdate,
 }: RunPythonProcessOptions): Promise<ToolExecutionResult> {
-  if (dataDir) {
-    return runPythonProcessInWorker({
-      runtime,
-      policy,
-      timeoutSeconds,
-      cwd,
-      runnerPath,
-      userPath,
-      artifactDir,
-      envOverrides,
-      inputMode,
-      scriptPath,
-      dataDir,
-      executionId,
-      signal,
-      onUpdate,
-    });
-  }
-  const stdoutChunks: Buffer[] = [];
-  const stderrChunks: Buffer[] = [];
-  const combinedChunks: Buffer[] = [];
-  const startedAt = performance.now();
-
-  return await new Promise<ToolExecutionResult>((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new Error("Python execution aborted."));
-      return;
-    }
-
-    const runnerPolicy = {
-      ...policy,
-      artifactDir,
-    };
-    const child = spawnManagedChildProcess(
-      runtime.command,
-      [
-        ...runtime.args,
-        "-u",
-        "-B",
-        runnerPath,
-        userPath,
-        JSON.stringify(runnerPolicy),
-      ],
-      {
-        cwd,
-        env: {
-          ...process.env,
-          ...envOverrides,
-          PYTHONIOENCODING: "utf-8",
-          PYTHONDONTWRITEBYTECODE: "1",
-          NERVE_PYTHON_ALLOW_NETWORK: policy.allowNetwork ? "1" : "0",
-          NERVE_PYTHON_ALLOW_FILEWRITE: policy.allowFileWrite ? "1" : "0",
-          NERVE_PYTHON_ARTIFACT_DIR: artifactDir,
-        },
-      },
+  if (!dataDir) {
+    throw new Error(
+      "Execution worker data directory is required. Pass a dataDir (NERVE_HOME) to run Python through the execution worker.",
     );
-
-    const liveOutput = new LiveOutputDelivery(onUpdate);
-    let settled = false;
-    let timedOut = false;
-    let timeoutKilled = false;
-    // eslint-disable-next-line prefer-const -- Cleanup closes over the timer before it is scheduled.
-    let timeout: NodeJS.Timeout | undefined;
-    let forceKillTimeout: NodeJS.Timeout | undefined;
-    const cleanup = () => {
-      if (timeout) clearTimeout(timeout);
-      if (forceKillTimeout) clearTimeout(forceKillTimeout);
-      signal?.removeEventListener("abort", onAbort);
-    };
-    const terminateGracefully = () => {
-      void terminateManagedChildProcess(child, "SIGTERM").then((result) => {
-        if (!result || result.error) {
-          rejectTerminationFailure(
-            result?.error ?? "Native managed process metadata is unavailable",
-          );
-        }
-      }, rejectTerminationFailure);
-    };
-    const rejectTerminationFailure = (error: unknown) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(
-        new Error(
-          `Failed to terminate Python process tree: ${error instanceof Error ? error.message : String(error)}`,
-        ),
-      );
-    };
-    const onAbort = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      void forceKillProcessTree(child).then(
-        () => reject(new Error("Python execution aborted.")),
-        () =>
-          reject(
-            new Error(
-              "Python execution aborted after process termination failed.",
-            ),
-          ),
-      );
-    };
-
-    signal?.addEventListener("abort", onAbort, { once: true });
-    timeout = setTimeout(() => {
-      if (settled) return;
-      timedOut = true;
-      timeoutKilled = true;
-      if (process.platform === "win32") {
-        void forceKillProcessTree(child).catch(rejectTerminationFailure);
-        return;
-      }
-      terminateGracefully();
-      forceKillTimeout = setTimeout(() => {
-        if (!settled) {
-          void forceKillProcessTree(child).catch(rejectTerminationFailure);
-        }
-      }, FORCE_KILL_AFTER_MS);
-    }, timeoutSeconds * 1000);
-
-    child.stdout?.on("data", (chunk: Buffer) => {
-      stdoutChunks.push(chunk);
-      combinedChunks.push(chunk);
-      liveOutput.write("stdout", chunk, child.stdout ?? undefined);
-    });
-    child.stderr?.on("data", (chunk: Buffer) => {
-      stderrChunks.push(chunk);
-      combinedChunks.push(chunk);
-      liveOutput.write("stderr", chunk, child.stderr ?? undefined);
-    });
-    child.on("error", (error) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(error);
-    });
-    child.on("close", (code, closeSignal) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      const durationMs = Math.round(performance.now() - startedAt);
-      void liveOutput
-        .end()
-        .then(() => listArtifacts(artifactDir))
-        .then((artifacts) =>
-          buildProcessResult({
-            stdoutChunks,
-            stderrChunks,
-            combinedChunks,
-            code,
-            signal: closeSignal,
-            outputFilePrefix: "nerve-python",
-            exitMessagePrefix: "Python",
-            dataDir,
-            durationMs,
-            timedOut,
-            timeoutKilled,
-            timeoutMessage: `Python timed out after ${timeoutSeconds}s and ${timeoutKilled ? "was killed" : "was not killed"}.`,
-            contentFooterLines: artifactFooterLines(artifacts),
-            details: {
-              executable: runtime.displayPath,
-              version: runtime.version,
-              timeoutSeconds,
-              allowNetwork: policy.allowNetwork,
-              allowFileWrite: policy.allowFileWrite,
-              envKeys: Object.keys(envOverrides).sort(),
-              inputMode,
-              scriptPath,
-              artifactDir: artifacts.length > 0 ? artifactDir : undefined,
-              artifacts,
-            },
-          }),
-        )
-        .then(resolve)
-        .catch(reject);
-    });
+  }
+  return runPythonProcessInWorker({
+    runtime,
+    policy,
+    timeoutSeconds,
+    cwd,
+    runnerPath,
+    userPath,
+    artifactDir,
+    envOverrides,
+    inputMode,
+    scriptPath,
+    dataDir,
+    executionId,
+    signal,
+    onUpdate,
   });
 }
-
 async function runPythonProcessInWorker(
   options: RunPythonProcessOptions & { dataDir: string },
 ): Promise<ToolExecutionResult> {

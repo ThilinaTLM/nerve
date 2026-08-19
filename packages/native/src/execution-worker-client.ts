@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, unlink } from "node:fs/promises";
 import { connect, type Socket } from "node:net";
 import { PassThrough } from "node:stream";
 import { dirname, join } from "node:path";
@@ -13,6 +13,7 @@ import {
   workerExecutionSnapshotSchema,
   workerHealthSchema,
   workerMetadataSchema,
+  workerPushFrameSchema,
   workerReadResultSchema,
   workerResponseSchema,
   workerTerminationResultSchema,
@@ -26,6 +27,9 @@ import {
 
 const STARTUP_TIMEOUT_MS = 15_000;
 const REQUEST_TIMEOUT_MS = 10_000;
+// Long read timeout for streaming subscriptions; the worker heartbeats every
+// 2s while a run is active, so an idle-but-running stream stays alive.
+const STREAM_FRAME_TIMEOUT_MS = 30_000;
 
 export interface ExecutionOutputSubscription {
   close(): void;
@@ -36,10 +40,15 @@ export class ExecutionWorkerClient {
   constructor(
     readonly home: string,
     private metadata: WorkerMetadata,
-    private readonly token: string,
-  ) {}
+    private token: string,
+  ) {
+    this.recovering = null;
+  }
+
+  private recovering: Promise<boolean> | null;
 
   static async connect(home: string): Promise<ExecutionWorkerClient> {
+    await ensureCompatibleWorker(home);
     const existing = await connectExisting(home);
     if (existing) return existing;
     launchWorker(home);
@@ -170,15 +179,99 @@ export class ExecutionWorkerClient {
     const controller = new AbortController();
     const onAbort = () => controller.abort();
     options.signal?.addEventListener("abort", onAbort, { once: true });
-    const settled = this.pollExecution(
-      executionId,
-      options.afterCursor ?? 0,
-      controller.signal,
-      options.onOutput,
-      options.onSnapshot,
-      options.onCursor,
-    ).finally(() => options.signal?.removeEventListener("abort", onAbort));
+    const afterCursor = options.afterCursor ?? 0;
+    const run =
+      this.metadata.protocolVersion >= 2
+        ? this.subscribeStream(
+            executionId,
+            afterCursor,
+            controller.signal,
+            options.onOutput,
+            options.onSnapshot,
+            options.onCursor,
+          )
+        : this.pollExecution(
+            executionId,
+            afterCursor,
+            controller.signal,
+            options.onOutput,
+            options.onSnapshot,
+            options.onCursor,
+          );
+    const settled = run.finally(() =>
+      options.signal?.removeEventListener("abort", onAbort),
+    );
     return { close: () => controller.abort(), settled };
+  }
+
+  /** v2: worker pushes output/snapshot/terminal frames until done. */
+  private async subscribeStream(
+    executionId: string,
+    initialCursor: number,
+    signal: AbortSignal,
+    onOutput?: (
+      stream: "stdout" | "stderr",
+      chunk: Buffer,
+      cursor: number,
+    ) => void | Promise<void>,
+    onSnapshot?: (snapshot: WorkerExecutionSnapshot) => void | Promise<void>,
+    onCursor?: (cursor: number) => void | Promise<void>,
+  ): Promise<WorkerExecutionSnapshot> {
+    const id = randomUUID();
+    const socket = await openSocket(this.metadata, REQUEST_TIMEOUT_MS);
+    const onAbort = () => socket.destroy();
+    signal.addEventListener("abort", onAbort, { once: true });
+    try {
+      socket.write(
+        encodeFrame({
+          version: EXECUTION_WORKER_PROTOCOL_VERSION,
+          token: this.token,
+          id,
+          method: "execution.subscribe",
+          params: { executionId, afterCursor: initialCursor },
+        }),
+      );
+      let cursor = initialCursor;
+      for (;;) {
+        const frame = await readFrame(socket, STREAM_FRAME_TIMEOUT_MS);
+        if (signal.aborted) throw new Error("Execution subscription aborted.");
+        const response = workerResponseSchema.parse(
+          JSON.parse(frame.toString("utf8")),
+        );
+        if (!response.ok) {
+          throw new Error(
+            `${response.error?.code ?? "WORKER_ERROR"}: ${response.error?.message ?? "Execution worker request failed"}`,
+          );
+        }
+        const push = workerPushFrameSchema.parse(response.result);
+        if (push.kind === "ack") {
+          if (push.snapshot) await onSnapshot?.(push.snapshot);
+        } else if (push.kind === "snapshot") {
+          if (push.snapshot) await onSnapshot?.(push.snapshot);
+        } else if (push.kind === "output") {
+          for (const event of push.events ?? []) {
+            if (event.kind === "output" && event.stream && event.dataBase64) {
+              await onOutput?.(
+                event.stream,
+                Buffer.from(event.dataBase64, "base64"),
+                event.cursor,
+              );
+            }
+            cursor = Math.max(cursor, event.cursor);
+          }
+          if (push.cursor !== undefined) cursor = Math.max(cursor, push.cursor);
+          await onCursor?.(cursor);
+        } else if (push.kind === "terminal") {
+          if (push.snapshot) {
+            await onSnapshot?.(push.snapshot);
+            return push.snapshot;
+          }
+        }
+      }
+    } finally {
+      signal.removeEventListener("abort", onAbort);
+      socket.destroy();
+    }
   }
 
   private async pollExecution(
@@ -221,6 +314,27 @@ export class ExecutionWorkerClient {
   }
 
   private async request(method: string, params: unknown): Promise<unknown> {
+    try {
+      return await this.exchangeFrame(method, params);
+    } catch (error) {
+      if (!isRetryableConnectionError(error)) throw error;
+      // A connection-level failure usually means the worker was replaced or
+      // restarted. Re-resolve worker.json / respawn once, then retry so a
+      // long-lived client is never permanently pinned to a dead port.
+      const recovered = await (this.recovering ??= this.recover().finally(
+        () => {
+          this.recovering = null;
+        },
+      ));
+      if (!recovered) throw error;
+      return await this.exchangeFrame(method, params);
+    }
+  }
+
+  private async exchangeFrame(
+    method: string,
+    params: unknown,
+  ): Promise<unknown> {
     const id = randomUUID();
     const response = await exchange(
       this.metadata,
@@ -243,6 +357,25 @@ export class ExecutionWorkerClient {
     }
     return response.result;
   }
+
+  private async recover(): Promise<boolean> {
+    const fresh = await readWorkerEndpoint(this.home);
+    if (fresh && !sameEndpoint(this.metadata, fresh.metadata)) {
+      if (await isEndpointHealthy(fresh)) {
+        this.rebind(fresh.metadata, fresh.token);
+        return true;
+      }
+    }
+    const spawned = await spawnWorkerEndpoint(this.home);
+    if (!spawned) return false;
+    this.rebind(spawned.metadata, spawned.token);
+    return true;
+  }
+
+  private rebind(metadata: WorkerMetadata, token: string): void {
+    this.metadata = metadata;
+    this.token = token;
+  }
 }
 
 async function connectExisting(
@@ -261,6 +394,140 @@ async function connectExisting(
   const client = new ExecutionWorkerClient(home, metadata, tokenRaw.trim());
   await client.health();
   return client;
+}
+
+export interface WorkerEndpoint {
+  home: string;
+  metadata: WorkerMetadata;
+  token: string;
+}
+
+interface WorkerErrorLike {
+  code?: string;
+  message?: string;
+  errno?: number | string;
+  syscall?: string;
+}
+
+/** Connection-level failures that mean the worker has gone away or moved. */
+export function isRetryableConnectionError(error: unknown): boolean {
+  const code =
+    (error as WorkerErrorLike | null)?.errno ??
+    (error as NodeJS.ErrnoException).code;
+  const name = (error as Error | null)?.name;
+  const message = (error as Error | null)?.message ?? "";
+  if (
+    code === "ECONNREFUSED" ||
+    code === "ECONNRESET" ||
+    code === "EPIPE" ||
+    code === "EHOSTUNREACH" ||
+    code === "ENETUNREACH" ||
+    code === "ETIMEDOUT" ||
+    name === "ConnectionError" ||
+    /(socket hang up|closed abruptly|connection timed out)/i.test(message)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+async function readWorkerEndpoint(
+  home: string,
+): Promise<WorkerEndpoint | undefined> {
+  const [metadataRaw, tokenRaw] = await Promise.all([
+    readFile(join(home, "execution-runtime", "worker.json"), "utf8").catch(
+      () => undefined,
+    ),
+    readFile(join(home, "auth", "execution-worker-token"), "utf8").catch(
+      () => undefined,
+    ),
+  ]);
+  if (!metadataRaw || !tokenRaw?.trim()) return undefined;
+  try {
+    return {
+      home,
+      metadata: workerMetadataSchema.parse(JSON.parse(metadataRaw)),
+      token: tokenRaw.trim(),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function sameEndpoint(a: WorkerMetadata, b: WorkerMetadata): boolean {
+  return a.host === b.host && a.port === b.port && a.pid === b.pid;
+}
+
+async function isEndpointHealthy(endpoint: WorkerEndpoint): Promise<boolean> {
+  const probe = new ExecutionWorkerClient(
+    endpoint.home,
+    endpoint.metadata,
+    endpoint.token,
+  );
+  try {
+    await probe.health();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Spawn a replacement worker (if needed) and return its fresh endpoint. */
+async function spawnWorkerEndpoint(
+  home: string,
+): Promise<WorkerEndpoint | undefined> {
+  await ensureCompatibleWorker(home);
+  launchWorker(home);
+  const deadline = Date.now() + STARTUP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await delay(50);
+    try {
+      if (await connectExisting(home)) {
+        return await readWorkerEndpoint(home);
+      }
+    } catch {
+      // keep waiting for the replacement
+    }
+  }
+  return undefined;
+}
+
+/**
+ * If the worker registered in `worker.json` was built with an older protocol
+ * than this client (e.g. a leftover process from before an upgrade), it cannot
+ * be served by us and still holds the profile lock. Terminate it and remove its
+ * stale registration so the current binary can take over the profile.
+ */
+async function ensureCompatibleWorker(home: string): Promise<void> {
+  const endpoint = await readWorkerEndpoint(home);
+  if (!endpoint) return;
+  if (endpoint.metadata.protocolVersion >= EXECUTION_WORKER_PROTOCOL_VERSION) {
+    return;
+  }
+  await terminateProcess(endpoint.metadata.pid);
+  await delay(100);
+  await unlink(join(home, "execution-runtime", "worker.json")).catch(
+    () => undefined,
+  );
+}
+
+async function terminateProcess(pid: number): Promise<void> {
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    return; // not ours / already gone
+  }
+  await delay(150);
+  try {
+    process.kill(pid, 0);
+  } catch {
+    return; // terminated by SIGTERM
+  }
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    // ignore
+  }
 }
 
 function launchWorker(home: string): void {
@@ -313,13 +580,7 @@ async function exchange(
   request: unknown,
   timeoutMs: number,
 ): Promise<ReturnType<typeof workerResponseSchema.parse>> {
-  const payload = Buffer.from(JSON.stringify(request));
-  if (payload.length > EXECUTION_WORKER_MAX_FRAME_BYTES) {
-    throw new Error("Execution worker request exceeds the frame limit.");
-  }
-  const frame = Buffer.allocUnsafe(payload.length + 4);
-  frame.writeUInt32BE(payload.length, 0);
-  payload.copy(frame, 4);
+  const frame = encodeFrame(request);
   const socket = await openSocket(metadata, timeoutMs);
   try {
     socket.write(frame);
@@ -328,6 +589,17 @@ async function exchange(
   } finally {
     socket.destroy();
   }
+}
+
+function encodeFrame(request: unknown): Buffer {
+  const payload = Buffer.from(JSON.stringify(request));
+  if (payload.length > EXECUTION_WORKER_MAX_FRAME_BYTES) {
+    throw new Error("Execution worker request exceeds the frame limit.");
+  }
+  const frame = Buffer.allocUnsafe(payload.length + 4);
+  frame.writeUInt32BE(payload.length, 0);
+  payload.copy(frame, 4);
+  return frame;
 }
 
 function openSocket(

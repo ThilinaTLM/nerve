@@ -1,9 +1,6 @@
 import type { ChildProcessByStdio } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import {
-  ExecutionWorkerClient,
-  spawnManagedChildProcess,
-} from "@nervekit/native";
+import { ExecutionWorkerClient } from "@nervekit/native";
 import { createReadStream } from "node:fs";
 import { open } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
@@ -63,24 +60,25 @@ export async function executeGrepWithBackend(
   let raw: GrepRunResult;
   if (backendMode === "node") {
     raw = await fallbackGrep(args, scope, limit, contextLines, context.signal);
-  } else {
-    try {
-      raw = await runRg(
-        args,
-        scope,
-        limit,
-        contextLines,
-        context.signal,
-        context.dataDir,
-        context.executionId,
+  } else if (backendMode === "rg") {
+    if (!context.dataDir) {
+      throw new Error(
+        "Execution worker home is required to run rg. Pass a dataDir (NERVE_HOME).",
       );
-    } catch (error) {
-      if (
-        backendMode !== "auto" ||
-        !(error instanceof RipgrepUnavailableError)
-      ) {
-        throw error;
-      }
+    }
+    raw = await runRg(
+      args,
+      scope,
+      limit,
+      contextLines,
+      context.signal,
+      context.dataDir,
+      context.executionId,
+    );
+  } else {
+    // auto: prefer the worker-backed rg backend, degrade to the pure-Node
+    // walker when there is no worker home or rg is unavailable.
+    if (!context.dataDir) {
       raw = await fallbackGrep(
         args,
         scope,
@@ -88,6 +86,27 @@ export async function executeGrepWithBackend(
         contextLines,
         context.signal,
       );
+    } else {
+      try {
+        raw = await runRg(
+          args,
+          scope,
+          limit,
+          contextLines,
+          context.signal,
+          context.dataDir,
+          context.executionId,
+        );
+      } catch (error) {
+        if (!(error instanceof RipgrepUnavailableError)) throw error;
+        raw = await fallbackGrep(
+          args,
+          scope,
+          limit,
+          contextLines,
+          context.signal,
+        );
+      }
     }
   }
   const bounded = boundGrepResult(raw);
@@ -138,26 +157,24 @@ async function runRg(
     | { client: ExecutionWorkerClient; executionId: string }
     | undefined;
   try {
-    if (executionHome) {
-      const client = await ExecutionWorkerClient.connect(executionHome);
-      const executionId = durableExecutionId ?? `grep_${randomUUID()}`;
-      workerExecution = { client, executionId };
-      spawnedChild = (
-        await client.spawnChild({
-          executionId,
-          command: "rg",
-          args: rgArgs,
-          timeoutMs: GREP_TIMEOUT_MS,
-          terminationGraceMs: 100,
-          belowNormalPriority: true,
-        })
-      ).child as ChildProcessByStdio<null, Readable, Readable>;
-    } else {
-      spawnedChild = spawnManagedChildProcess(
-        "rg",
-        rgArgs,
-      ) as ChildProcessByStdio<null, Readable, Readable>;
+    if (!executionHome) {
+      throw new Error(
+        "Execution worker home is required to run search. Pass an executionHome (NERVE_HOME).",
+      );
     }
+    const client = await ExecutionWorkerClient.connect(executionHome);
+    const executionId = durableExecutionId ?? `grep_${randomUUID()}`;
+    workerExecution = { client, executionId };
+    spawnedChild = (
+      await client.spawnChild({
+        executionId,
+        command: "rg",
+        args: rgArgs,
+        timeoutMs: GREP_TIMEOUT_MS,
+        terminationGraceMs: 100,
+        belowNormalPriority: true,
+      })
+    ).child as ChildProcessByStdio<null, Readable, Readable>;
   } catch (error) {
     throw commandUnavailableError(error);
   }

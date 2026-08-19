@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "token": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "id": "request_fixture",
   "method": "execution.start",

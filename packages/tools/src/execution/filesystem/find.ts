@@ -1,9 +1,7 @@
-import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { ExecutionWorkerClient } from "@nervekit/native";
 import { stat } from "node:fs/promises";
 import { relative } from "node:path";
-import { promisify } from "node:util";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import {
@@ -18,8 +16,6 @@ import {
   pathNotFoundMessage,
   resolveToolPath,
 } from "./path.js";
-
-const execFileAsync = promisify(execFile);
 
 type FindBackendMode = "auto" | "fd" | "node";
 
@@ -56,6 +52,11 @@ export async function executeFindWithBackend(
   if (backendMode === "node") {
     paths = await fallbackFind(root, args.pattern, limit);
   } else if (backendMode === "fd") {
+    if (!context.dataDir) {
+      throw new Error(
+        "Execution worker home is required to run fd. Pass a dataDir (NERVE_HOME).",
+      );
+    }
     paths = await runFd(
       args.pattern,
       root,
@@ -64,23 +65,29 @@ export async function executeFindWithBackend(
       context.executionId,
     );
   } else {
-    const fd = await runFd(
-      args.pattern,
-      root,
-      limit,
-      context.dataDir,
-      context.executionId,
-    ).catch((error: unknown) => {
-      if (
-        (isErrnoException(error) && error.code === "ENOENT") ||
-        (error instanceof Error &&
-          /not found|no such file/i.test(error.message))
-      ) {
-        return undefined;
-      }
-      throw error;
-    });
-    paths = fd ?? (await fallbackFind(root, args.pattern, limit));
+    // auto: prefer the worker-backed fd backend, degrade to the pure-Node
+    // walker when there is no worker home or fd is unavailable.
+    if (!context.dataDir) {
+      paths = await fallbackFind(root, args.pattern, limit);
+    } else {
+      const fd = await runFd(
+        args.pattern,
+        root,
+        limit,
+        context.dataDir,
+        context.executionId,
+      ).catch((error: unknown) => {
+        if (
+          (isErrnoException(error) && error.code === "ENOENT") ||
+          (error instanceof Error &&
+            /not found|no such file/i.test(error.message))
+        ) {
+          return undefined;
+        }
+        throw error;
+      });
+      paths = fd ?? (await fallbackFind(root, args.pattern, limit));
+    }
   }
   const entries = paths
     .slice(0, limit)
@@ -120,43 +127,40 @@ async function runFd(
     }
   }
   fdArgs.push("--", effectivePattern, root);
-  let stdout: string;
-  if (executionHome) {
-    const client = await ExecutionWorkerClient.connect(executionHome);
-    const executionId = durableExecutionId ?? `find_${randomUUID()}`;
-    const chunks: Buffer[] = [];
-    try {
-      await client.start({
-        executionId,
-        command: "fd",
-        args: fdArgs,
-        timeoutMs: 30_000,
-        terminationGraceMs: 100,
-        belowNormalPriority: true,
-      });
-      const terminal = await client.subscribe(executionId, {
-        onOutput: (stream, chunk) => {
-          if (stream === "stdout") chunks.push(chunk);
-        },
-      }).settled;
-      stdout = Buffer.concat(chunks).toString("utf8");
-      if (terminal.exitCode !== 0) throw new Error("fd failed");
-    } finally {
-      if (!durableExecutionId) {
-        void client.remove(executionId).catch(() => undefined);
-      }
-    }
-  } else {
-    ({ stdout } = await execFileAsync("fd", fdArgs, {
-      timeout: 30_000,
-      maxBuffer: 1024 * 1024,
-    }));
+  if (!executionHome) {
+    throw new Error(
+      "Execution worker home is required to run find. Pass an executionHome (NERVE_HOME).",
+    );
   }
-  return stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((path) => (relative(root, path) || path).replaceAll("\\", "/"));
+  const client = await ExecutionWorkerClient.connect(executionHome);
+  const executionId = durableExecutionId ?? `find_${randomUUID()}`;
+  const chunks: Buffer[] = [];
+  try {
+    await client.start({
+      executionId,
+      command: "fd",
+      args: fdArgs,
+      timeoutMs: 30_000,
+      terminationGraceMs: 100,
+      belowNormalPriority: true,
+    });
+    const terminal = await client.subscribe(executionId, {
+      onOutput: (stream, chunk) => {
+        if (stream === "stdout") chunks.push(chunk);
+      },
+    }).settled;
+    const stdout = Buffer.concat(chunks).toString("utf8");
+    if (terminal.exitCode !== 0) throw new Error("fd failed");
+    return stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((path) => (relative(root, path) || path).replaceAll("\\", "/"));
+  } finally {
+    if (!durableExecutionId) {
+      void client.remove(executionId).catch(() => undefined);
+    }
+  }
 }
 
 async function fallbackFind(

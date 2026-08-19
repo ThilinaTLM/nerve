@@ -8,7 +8,10 @@ import type {
   WorkerExecutionSnapshot,
   WorkerTerminationResult,
 } from "@nervekit/contracts";
-import { ExecutionWorkerClient } from "@nervekit/native";
+import {
+  ExecutionWorkerClient,
+  isRetryableConnectionError,
+} from "@nervekit/native";
 import { resolveBashShellConfig } from "@nervekit/tools";
 import {
   defaultTaskPortInspector,
@@ -89,44 +92,63 @@ export function createTaskSupervisor(
   let workerPromise = initialWorker;
   const getWorker = () =>
     (workerPromise ??= ExecutionWorkerClient.connect(storageHome));
+  const invalidateWorker = () => {
+    workerPromise = undefined;
+  };
+  /** Run against the memoized worker, reconnecting once on a dead/moved worker. */
+  const withWorker = async <T>(
+    run: (worker: ExecutionWorkerClient) => Promise<T>,
+  ): Promise<T> => {
+    let worker = await getWorker();
+    try {
+      return await run(worker);
+    } catch (error) {
+      if (!isRetryableConnectionError(error)) throw error;
+      invalidateWorker();
+      worker = await getWorker();
+      return await run(worker);
+    }
+  };
   return {
     async spawn(command, options) {
       const shell = managedTaskShellCommand(command, options.shellPath);
-      const worker = await getWorker();
-      const snapshot =
-        (await worker.get(options.executionId)) ??
-        (await worker.start({
-          executionId: options.executionId,
-          command: shell.shell,
-          args: shell.args,
-          cwd: options.cwd,
-          env: processEnvironment(options.env),
-          timeoutMs: options.timeoutMs,
-          terminationGraceMs: 2_000,
-          belowNormalPriority: true,
-        }));
-      const health = await worker.health();
-      return spawnedForSnapshot(
-        worker,
-        snapshot,
-        `worker_${health.pid}`,
-        executions,
-      );
+      return withWorker(async (worker) => {
+        const snapshot =
+          (await worker.get(options.executionId)) ??
+          (await worker.start({
+            executionId: options.executionId,
+            command: shell.shell,
+            args: shell.args,
+            cwd: options.cwd,
+            env: processEnvironment(options.env),
+            timeoutMs: options.timeoutMs,
+            terminationGraceMs: 2_000,
+            belowNormalPriority: true,
+          }));
+        const health = await worker.health();
+        return spawnedForSnapshot(
+          worker,
+          snapshot,
+          `worker_${health.pid}`,
+          executions,
+        );
+      });
     },
     async attach(runtime) {
       if (!runtime.workerExecutionId) {
         throw new Error("Task runtime is not worker-backed.");
       }
-      const worker = await getWorker();
-      const snapshot = await worker.get(runtime.workerExecutionId);
-      if (!snapshot) throw new Error("Worker execution was not found.");
-      return spawnedForSnapshot(
-        worker,
-        snapshot,
-        runtime.workerInstanceId ?? "worker_unknown",
-        executions,
-        runtime.outputCursor ?? 0,
-      );
+      return withWorker(async (worker) => {
+        const snapshot = await worker.get(runtime.workerExecutionId);
+        if (!snapshot) throw new Error("Worker execution was not found.");
+        return spawnedForSnapshot(
+          worker,
+          snapshot,
+          runtime.workerInstanceId ?? "worker_unknown",
+          executions,
+          runtime.outputCursor ?? 0,
+        );
+      });
     },
     async terminate(child, signal) {
       const executionId = executions.get(child);
@@ -139,7 +161,7 @@ export function createTaskSupervisor(
         };
       }
       return normalizeTermination(
-        await (await getWorker()).cancel(executionId, signal),
+        await withWorker((worker) => worker.cancel(executionId, signal)),
       );
     },
     async terminateRuntime(runtime, signal) {
@@ -152,16 +174,22 @@ export function createTaskSupervisor(
         };
       }
       return normalizeTermination(
-        await (await getWorker()).cancel(runtime.workerExecutionId, signal),
+        await withWorker((worker) =>
+          worker.cancel(runtime.workerExecutionId as string, signal),
+        ),
       );
     },
     async removeRuntime(runtime) {
       if (!runtime.workerExecutionId) return;
-      await (await getWorker()).remove(runtime.workerExecutionId);
+      await withWorker((worker) =>
+        worker.remove(runtime.workerExecutionId as string),
+      );
     },
     async isRuntimeTargetAlive(runtime) {
       if (!runtime.workerExecutionId) return false;
-      const snapshot = await (await getWorker()).get(runtime.workerExecutionId);
+      const snapshot = await withWorker((worker) =>
+        worker.get(runtime.workerExecutionId as string),
+      );
       return snapshot?.status === "starting" || snapshot?.status === "running";
     },
     async inspectRuntimeListeningPorts(runtime) {

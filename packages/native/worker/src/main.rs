@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-const PROTOCOL_VERSION: u32 = 1;
+const PROTOCOL_VERSION: u32 = 2;
 const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
 const MAX_READ_BYTES: usize = 64 * 1024;
 const MAX_READ_EVENTS: usize = 256;
@@ -88,6 +88,14 @@ struct ExecutionIdParams {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ReadParams {
+    execution_id: String,
+    #[serde(default)]
+    after_cursor: u64,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SubscribeParams {
     execution_id: String,
     #[serde(default)]
     after_cursor: u64,
@@ -545,34 +553,104 @@ impl Registry {
         let execution = executions
             .get(&params.execution_id)
             .ok_or_else(|| "EXECUTION_NOT_FOUND".to_string())?;
-        let journal_path = execution.dir.join("events.jsonl");
-        let mut file = File::open(journal_path).map_err(|error| error.to_string())?;
-        let offsets = execution.journal_offsets.lock().map_err(lock_error)?;
-        let offset = offsets
-            .get(params.after_cursor as usize)
-            .copied()
-            .or_else(|| offsets.last().copied())
-            .unwrap_or(0);
-        drop(offsets);
-        file.seek(SeekFrom::Start(offset))
-            .map_err(|error| error.to_string())?;
-        let mut events = Vec::new();
-        let mut bytes = 0;
-        for line in BufReader::new(file).lines() {
-            let line = line.map_err(|error| error.to_string())?;
-            let event: OutputEvent =
-                serde_json::from_str(&line).map_err(|error| error.to_string())?;
-            if event.cursor <= params.after_cursor {
-                continue;
-            }
-            bytes += line.len();
-            events.push(event);
-            if events.len() >= MAX_READ_EVENTS || bytes >= MAX_READ_BYTES {
-                break;
-            }
-        }
-        let snapshot = execution.snapshot.lock().map_err(lock_error)?.clone();
+        let (events, _cursor, snapshot) = read_events(execution, params.after_cursor)?;
         Ok(json!({ "events": events, "snapshot": snapshot }))
+    }
+
+    /// Stream an execution's output to a client as it is produced. The client
+    /// stays a passive reader; the worker pushes frames (already length-prefixed
+    /// JSON responses) until the execution becomes terminal.
+    fn subscribe(
+        &self,
+        stream: &mut TcpStream,
+        id: &str,
+        params: &SubscribeParams,
+    ) -> Result<(), String> {
+        let execution = {
+            let executions = self.executions.lock().map_err(lock_error)?;
+            executions
+                .get(&params.execution_id)
+                .cloned()
+                .ok_or_else(|| "EXECUTION_NOT_FOUND".to_string())?
+        };
+        let initial_snapshot = execution.snapshot.lock().map_err(lock_error)?.clone();
+        self.write_push(
+            stream,
+            id,
+            json!({
+                "executionId": params.execution_id,
+                "kind": "ack",
+                "cursor": params.after_cursor,
+                "snapshot": initial_snapshot,
+            }),
+        )?;
+        let mut cursor = params.after_cursor;
+        let mut last_push = Instant::now();
+        loop {
+            let (events, new_cursor, _snapshot) = read_events(&execution, cursor)?;
+            if !events.is_empty() {
+                self.write_push(
+                    stream,
+                    id,
+                    json!({
+                        "executionId": params.execution_id,
+                        "kind": "output",
+                        "events": events,
+                        "cursor": new_cursor,
+                    }),
+                )?;
+                cursor = new_cursor;
+                last_push = Instant::now();
+            }
+            let terminal = {
+                let snapshot = execution.snapshot.lock().map_err(lock_error)?.clone();
+                if matches!(snapshot.status.as_str(), "completed" | "failed") {
+                    self.write_push(
+                        stream,
+                        id,
+                        json!({
+                            "executionId": params.execution_id,
+                            "kind": "terminal",
+                            "snapshot": snapshot,
+                        }),
+                    )?;
+                    true
+                } else if last_push.elapsed() >= Duration::from_millis(2_000) {
+                    // Heartbeat so an idle-but-running stream stays alive and
+                    // reflects live status without client-side polling.
+                    self.write_push(
+                        stream,
+                        id,
+                        json!({
+                            "executionId": params.execution_id,
+                            "kind": "snapshot",
+                            "snapshot": snapshot,
+                        }),
+                    )?;
+                    last_push = Instant::now();
+                    false
+                } else {
+                    false
+                }
+            };
+            if terminal {
+                return Ok(());
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    fn write_push(&self, stream: &mut TcpStream, id: &str, result: Value) -> Result<(), String> {
+        write_response(
+            stream,
+            Response {
+                version: PROTOCOL_VERSION,
+                id: id.to_string(),
+                ok: true,
+                result: Some(result),
+                error: None,
+            },
+        )
     }
 
     fn cancel(&self, params: &CancelParams) -> Result<TerminationResult, String> {
@@ -630,6 +708,21 @@ fn handle_client(mut stream: TcpStream, registry: Arc<Registry>, token: Arc<Stri
             )
         } else if !constant_time_eq(request.token.as_bytes(), token.as_bytes()) {
             error_response(&request.id, "UNAUTHORIZED", "Worker authentication failed")
+        } else if request.method == "execution.subscribe" {
+            match parse_params::<SubscribeParams>(request.params) {
+                Ok(params) => {
+                    // The subscription owns this connection: it writes an ACK
+                    // frame, then pushes output/terminal frames until done.
+                    if let Err(error) = registry.subscribe(&mut stream, &request.id, &params) {
+                        let _ = write_response(
+                            &mut stream,
+                            error_response(&request.id, "WORKER_ERROR", error),
+                        );
+                    }
+                    return;
+                }
+                Err(error) => error_response(&request.id, "INVALID_PARAMS", error),
+            }
         } else {
             dispatch(&registry, request)
         };
@@ -741,6 +834,41 @@ fn write_response(stream: &mut TcpStream, response: Response) -> Result<(), Stri
         .write_all(&(payload.len() as u32).to_be_bytes())
         .and_then(|()| stream.write_all(&payload))
         .map_err(|error| error.to_string())
+}
+
+fn read_events(
+    execution: &Execution,
+    after_cursor: u64,
+) -> Result<(Vec<OutputEvent>, u64, ExecutionSnapshot), String> {
+    let journal_path = execution.dir.join("events.jsonl");
+    let mut file = File::open(journal_path).map_err(|error| error.to_string())?;
+    let offsets = execution.journal_offsets.lock().map_err(lock_error)?;
+    let offset = offsets
+        .get(after_cursor as usize)
+        .copied()
+        .or_else(|| offsets.last().copied())
+        .unwrap_or(0);
+    drop(offsets);
+    file.seek(SeekFrom::Start(offset))
+        .map_err(|error| error.to_string())?;
+    let mut events = Vec::new();
+    let mut bytes = 0;
+    let mut cursor = after_cursor;
+    for line in BufReader::new(file).lines() {
+        let line = line.map_err(|error| error.to_string())?;
+        let event: OutputEvent = serde_json::from_str(&line).map_err(|error| error.to_string())?;
+        if event.cursor <= after_cursor {
+            continue;
+        }
+        bytes += line.len();
+        cursor = cursor.max(event.cursor);
+        events.push(event);
+        if events.len() >= MAX_READ_EVENTS || bytes >= MAX_READ_BYTES {
+            break;
+        }
+    }
+    let snapshot = execution.snapshot.lock().map_err(lock_error)?.clone();
+    Ok((events, cursor, snapshot))
 }
 
 fn journal_offsets(path: &Path) -> Result<Vec<u64>, String> {
