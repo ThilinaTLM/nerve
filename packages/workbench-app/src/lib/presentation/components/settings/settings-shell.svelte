@@ -7,6 +7,13 @@ import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import SettingsPageHeader from "./settings-page-header.svelte";
 import { settingsSectionDomId } from "./section-id";
+import {
+  firstEnabledSectionId,
+  flashSettingsSection,
+  observeNavigationOverflow,
+  observeSettingsSections,
+  scrollNavigation,
+} from "./settings-navigation.svelte";
 import type { SettingsPageDef } from "./types";
 
 type Props = {
@@ -24,13 +31,6 @@ type Props = {
   onPageChange?: (id: string) => void;
   onSectionChange?: (id: string) => void;
 };
-
-function firstEnabledSectionId(page?: SettingsPageDef): string {
-  const sections = page?.sections ?? [];
-  return (
-    (sections.find((section) => !section.disabled) ?? sections[0])?.id ?? ""
-  );
-}
 
 let {
   pages,
@@ -79,47 +79,9 @@ $effect(() => {
   const viewport = viewportElement;
   const sections = activeSections;
   if (!viewport || sections.length < 2) return;
-
-  let frame = 0;
-  let observer: IntersectionObserver | undefined;
-
-  let visible: string[] = [];
-  const updateActive = () => {
-    const next = sections.find((section) => visible.includes(section.id));
-    if (next && next.id !== activeSectionId) activeSectionId = next.id;
-  };
-
-  frame = requestAnimationFrame(() => {
-    observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const id = entry.target.getAttribute("data-settings-section");
-          if (!id) continue;
-          if (entry.isIntersecting) {
-            if (!visible.includes(id)) visible = [...visible, id];
-          } else {
-            visible = visible.filter((value) => value !== id);
-          }
-        }
-        updateActive();
-      },
-      { root: viewport, rootMargin: "0px 0px -60% 0px", threshold: 0 },
-    );
-
-    for (const section of sections) {
-      const element = viewport.querySelector(
-        `#${CSS.escape(settingsSectionDomId(section.id))}`,
-      );
-      if (!element) continue;
-      element.setAttribute("data-settings-section", section.id);
-      observer.observe(element);
-    }
+  return observeSettingsSections(viewport, sections, (id) => {
+    if (id !== activeSectionId) activeSectionId = id;
   });
-
-  return () => {
-    cancelAnimationFrame(frame);
-    observer?.disconnect();
-  };
 });
 
 // Carousel affordance for the compact horizontal nav: arrows appear only on
@@ -128,27 +90,14 @@ $effect(() => {
 $effect(() => {
   const nav = navElement;
   if (!nav) return;
-
-  const update = () => {
-    const maxScroll = nav.scrollWidth - nav.clientWidth;
-    canScrollNavBack = nav.scrollLeft > 1;
-    canScrollNavForward = nav.scrollLeft < maxScroll - 1;
-  };
-
-  update();
-  nav.addEventListener("scroll", update, { passive: true });
-  const observer = new ResizeObserver(update);
-  observer.observe(nav);
-  return () => {
-    nav.removeEventListener("scroll", update);
-    observer.disconnect();
-  };
+  return observeNavigationOverflow(nav, ({ back, forward }) => {
+    canScrollNavBack = back;
+    canScrollNavForward = forward;
+  });
 });
 
 function scrollNav(direction: -1 | 1): void {
-  const nav = navElement;
-  if (!nav) return;
-  nav.scrollBy({ left: direction * nav.clientWidth * 0.7, behavior: "smooth" });
+  scrollNavigation(navElement, direction);
 }
 
 async function scrollPanelToTop(): Promise<void> {
@@ -176,18 +125,6 @@ function selectPage(page: SettingsPageDef): void {
   void scrollPanelToTop();
 }
 
-/** One-shot wash so the target section is visible even without scrolling. */
-function flashSection(element: Element): void {
-  element.classList.remove("animate-section-flash");
-  void (element as HTMLElement).offsetWidth; // restart animation on repeat clicks
-  element.classList.add("animate-section-flash");
-  element.addEventListener(
-    "animationend",
-    () => element.classList.remove("animate-section-flash"),
-    { once: true },
-  );
-}
-
 async function selectSection(sectionId: string): Promise<void> {
   activeSectionId = sectionId;
   onSectionChange?.(sectionId);
@@ -195,7 +132,7 @@ async function selectSection(sectionId: string): Promise<void> {
   const domId = settingsSectionDomId(sectionId);
   const element = viewportElement?.querySelector(`#${CSS.escape(domId)}`);
   element?.scrollIntoView({ block: "start" });
-  if (element) flashSection(element);
+  if (element) flashSettingsSection(element);
   const heading = viewportElement?.querySelector<HTMLElement>(
     `#${CSS.escape(`${domId}-title`)}`,
   );

@@ -16,7 +16,7 @@ export {
   type LegacyHomeMigrationResult,
   migrateLegacyWorkbenchHome,
   initializeStorage,
-  readPersistedSettingsForBootstrap,
+  readCurrentSettingsForBootstrap,
   resolveDataDir,
   storagePaths,
   type WorkbenchHomeInspection,

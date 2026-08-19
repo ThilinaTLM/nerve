@@ -49,51 +49,19 @@ import type { SecretProvider } from "../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../infrastructure/storage/index.js";
 import { composeRuntime, type RuntimeServices } from "./runtime-composition.js";
 import { RuntimeState } from "./runtime-state.js";
+import {
+  RuntimeRegistryHydrator,
+  type RegistryHydrationTimings,
+  type StoreHydrationOperation,
+} from "./runtime-registry-hydration.js";
 import type { AppendEntryInput, AppendEntryOptions } from "./types.js";
 
-export type StoreHydrationDurations = {
-  auth: number;
-  providers: number;
-  workers: number;
-  tasks: number;
-  tools: number;
-  plans: number;
-  projects: number;
-  conversations: number;
-};
-
-export type RegistryHydrationCounts = {
-  projects: number;
-  conversations: number;
-  agents: number;
-  tasks: number;
-  toolCalls: number;
-  runMetadata: number;
-  activeRuns: number;
-};
-
-export interface RegistryHydrationTimings {
-  stateDurationMs: number;
-  indexDurationMs: number;
-  /** Canonical tool-call records are hydrated from conversation files. */
-  toolCallHydrationSource: "files";
-  /** ms: parallel store hydration (tasks/tools/plans/projects/conversations). */
-  storesHydrationDurationMs: number;
-  /** Individual concurrent store operation durations. */
-  storeDurationsMs: StoreHydrationDurations;
-  /** Hydrated workload cardinalities recorded without loading terminal runs. */
-  counts: RegistryHydrationCounts;
-  /** ms: agent records load. */
-  agentsHydrationDurationMs: number;
-  /** ms: run coordinator recovery (metadata scan + active run hydrates). */
-  runRecoveryDurationMs: number;
-  /** ms: approval batches + accepted plan reviews recovery. */
-  humanInputRecoveryDurationMs: number;
-  /** ms: run projector rebuild from metadata + active states. */
-  projectorDurationMs: number;
-  /** ms: task notification recovery. */
-  taskNotificationsDurationMs: number;
-}
+export type {
+  RegistryHydrationCounts,
+  RegistryHydrationTimings,
+  StoreHydrationDurations,
+} from "./runtime-registry-hydration.js";
+export { settleMeasuredHydrationOperations } from "./runtime-registry-hydration.js";
 
 export class RuntimeRegistry {
   private readonly state = new RuntimeState();
@@ -177,7 +145,67 @@ export class RuntimeRegistry {
       agentBrowserSkills,
       performanceDiagnostics,
     });
+    this.hydrator = new RuntimeRegistryHydrator({
+      withUpdatesDeferred: (operation) =>
+        this.index.withUpdatesDeferred(operation),
+      hydrateStores: [
+        {
+          name: "auth",
+          run: () => this.auth.refreshModels({ allowNetwork: false }),
+        },
+        { name: "providers", run: () => this.providerCatalog.load() },
+        { name: "workers", run: () => this.workers.hydrate() },
+        { name: "tasks", run: () => this.tasks.hydrate() },
+        { name: "tools", run: () => this.tools.hydrate() },
+        { name: "plans", run: () => this.plans.hydrate() },
+        {
+          name: "projects",
+          run: () => this.services.projectLifecycle.loadProjects(),
+        },
+        {
+          name: "conversations",
+          run: () => this.services.conversationLifecycle.loadConversations(),
+        },
+      ] as const satisfies readonly StoreHydrationOperation[],
+      loadAgents: () => this.services.agentLifecycle.loadAgents(),
+      flushRunDelivery: () => this.services.runRuntime.delivery.flush(),
+      recoverRuns: async () => {
+        await this.services.runRuntime.coordinator.recover();
+      },
+      recoverHumanInput: async () => {
+        await this.services.humanInput.recoverReadyApprovalBatches();
+        await this.services.humanInput.recoverAcceptedPlanReviews();
+      },
+      rebuildProjector: async () => {
+        const activeStates =
+          await this.services.runRuntime.unitOfWork.listActive();
+        const runRecords =
+          await this.services.runRuntime.unitOfWork.listMetadata();
+        await this.services.runRuntime.projector.rebuild({
+          activeStates,
+          runRecords,
+        });
+        return {
+          runMetadata: runRecords.length,
+          activeRuns: activeStates.length,
+        };
+      },
+      counts: () => ({
+        projects: this.listProjects().length,
+        conversations: this.listConversations().length,
+        agents: this.listAgents().length,
+        tasks: this.tasks.listTasks().length,
+        toolCalls: this.tools.countToolCalls(),
+      }),
+      recoverTaskNotifications: () =>
+        this.services.taskNotifications.recoverPendingNotifications(),
+      rebuildIndex: () => this.rebuildIndex(),
+      hydratePromptSuggestions: () => this.promptSuggestions.hydrate(),
+      toolCallHydrationSource: this.tools.toolCallHydrationSource,
+    });
   }
+
+  private readonly hydrator: RuntimeRegistryHydrator;
 
   /**
    * Stops registry timers and waits for run executions, transition
@@ -202,106 +230,8 @@ export class RuntimeRegistry {
   }
 
   async hydrate(): Promise<RegistryHydrationTimings> {
-    const stateStartedAt = performance.now();
-    let storesHydrationDurationMs = 0;
-    let storeDurationsMs = emptyStoreHydrationDurations();
-    let counts: RegistryHydrationCounts = {
-      projects: 0,
-      conversations: 0,
-      agents: 0,
-      tasks: 0,
-      toolCalls: 0,
-      runMetadata: 0,
-      activeRuns: 0,
-    };
-    let agentsHydrationDurationMs = 0;
-    let runRecoveryDurationMs = 0;
-    let humanInputRecoveryDurationMs = 0;
-    let projectorDurationMs = 0;
-    let taskNotificationsDurationMs = 0;
-    await this.index.withUpdatesDeferred(async () => {
-      const storesStartedAt = performance.now();
-      storeDurationsMs = await settleMeasuredHydrationOperations([
-        {
-          name: "auth",
-          run: () => this.auth.refreshModels({ allowNetwork: false }),
-        },
-        { name: "providers", run: () => this.providerCatalog.load() },
-        { name: "workers", run: () => this.workers.hydrate() },
-        { name: "tasks", run: () => this.tasks.hydrate() },
-        { name: "tools", run: () => this.tools.hydrate() },
-        { name: "plans", run: () => this.plans.hydrate() },
-        { name: "projects", run: () => this.loadProjects() },
-        { name: "conversations", run: () => this.loadConversations() },
-      ]);
-      storesHydrationDurationMs = Math.round(
-        performance.now() - storesStartedAt,
-      );
-      const agentsStartedAt = performance.now();
-      await this.loadAgents();
-      agentsHydrationDurationMs = Math.round(
-        performance.now() - agentsStartedAt,
-      );
-      const runRecoveryStartedAt = performance.now();
-      await this.services.runRuntime.delivery.flush();
-      await this.services.runRuntime.coordinator.recover();
-      runRecoveryDurationMs = Math.round(
-        performance.now() - runRecoveryStartedAt,
-      );
-      const humanInputStartedAt = performance.now();
-      await this.services.humanInput.recoverReadyApprovalBatches();
-      await this.services.humanInput.recoverAcceptedPlanReviews();
-      humanInputRecoveryDurationMs = Math.round(
-        performance.now() - humanInputStartedAt,
-      );
-      // Rebuild the projection from lightweight run records (metadata) plus
-      // the full states of the already-recovered active runs; terminal run
-      // history is never hydrated during startup.
-      const projectorStartedAt = performance.now();
-      const activeStates =
-        await this.services.runRuntime.unitOfWork.listActive();
-      const runRecords =
-        await this.services.runRuntime.unitOfWork.listMetadata();
-      await this.services.runRuntime.projector.rebuild({
-        activeStates,
-        runRecords,
-      });
-      projectorDurationMs = Math.round(performance.now() - projectorStartedAt);
-      counts = {
-        projects: this.listProjects().length,
-        conversations: this.listConversations().length,
-        agents: this.listAgents().length,
-        tasks: this.tasks.listTasks().length,
-        toolCalls: this.tools.countToolCalls(),
-        runMetadata: runRecords.length,
-        activeRuns: activeStates.length,
-      };
-      await this.services.runRuntime.delivery.flush();
-      const taskNotificationsStartedAt = performance.now();
-      await this.services.taskNotifications.recoverPendingNotifications();
-      taskNotificationsDurationMs = Math.round(
-        performance.now() - taskNotificationsStartedAt,
-      );
-    });
-    const stateDurationMs = Math.round(performance.now() - stateStartedAt);
-    const indexStartedAt = performance.now();
-    await this.rebuildIndex();
-    await this.promptSuggestions.hydrate();
-    return {
-      stateDurationMs,
-      indexDurationMs: Math.round(performance.now() - indexStartedAt),
-      toolCallHydrationSource: this.tools.toolCallHydrationSource,
-      storesHydrationDurationMs,
-      storeDurationsMs,
-      counts,
-      agentsHydrationDurationMs,
-      runRecoveryDurationMs,
-      humanInputRecoveryDurationMs,
-      projectorDurationMs,
-      taskNotificationsDurationMs,
-    };
+    return this.hydrator.hydrate();
   }
-
   async refreshRuntimeCapabilities(): Promise<void> {
     if (this.shuttingDown) return;
     const operations = [
@@ -998,55 +928,4 @@ export class RuntimeRegistry {
   ): Promise<ConversationEntry> {
     return this.services.conversationLifecycle.appendEntry(input, options);
   }
-
-  private async loadProjects(): Promise<void> {
-    await this.services.projectLifecycle.loadProjects();
-  }
-
-  private async loadConversations(): Promise<void> {
-    await this.services.conversationLifecycle.loadConversations();
-  }
-
-  private async loadAgents(): Promise<void> {
-    await this.services.agentLifecycle.loadAgents();
-  }
-}
-
-type StoreHydrationOperation = {
-  name: keyof StoreHydrationDurations;
-  run: () => Promise<unknown>;
-};
-
-function emptyStoreHydrationDurations(): StoreHydrationDurations {
-  return {
-    auth: 0,
-    providers: 0,
-    workers: 0,
-    tasks: 0,
-    tools: 0,
-    plans: 0,
-    projects: 0,
-    conversations: 0,
-  };
-}
-
-export async function settleMeasuredHydrationOperations(
-  operations: readonly StoreHydrationOperation[],
-  now: () => number = () => performance.now(),
-): Promise<StoreHydrationDurations> {
-  const durations = emptyStoreHydrationDurations();
-  const pending = operations.map(async ({ name, run }) => {
-    const startedAt = now();
-    try {
-      await run();
-    } finally {
-      durations[name] = Math.round(now() - startedAt);
-    }
-  });
-  const results = await Promise.allSettled(pending);
-  const failure = results.find(
-    (result): result is PromiseRejectedResult => result.status === "rejected",
-  );
-  if (failure) throw failure.reason;
-  return durations;
 }

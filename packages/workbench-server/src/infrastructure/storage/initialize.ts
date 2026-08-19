@@ -15,11 +15,11 @@ import {
   writeTextFileIfMissing,
 } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
-import { normalizeSettings } from "./settings-normalization.js";
 import {
   runStorageMigrations,
   type MigrationReport,
 } from "../migrations/index.js";
+import { inspectWorkbenchHome } from "./state-layout.js";
 
 const dataSubdirs = [
   "auth",
@@ -39,12 +39,27 @@ export interface InitializedStorage {
   migrationReport: MigrationReport;
 }
 
-export async function readPersistedSettingsForBootstrap(
+export async function readCurrentSettingsForBootstrap(
   home = resolveDataDir(),
 ): Promise<Settings> {
+  const inspection = await inspectWorkbenchHome(home);
+  if (inspection.kind !== "current") return defaultSettings;
+
   const path = storagePaths(home).configPath;
   if (!(await pathExists(path))) return defaultSettings;
-  return normalizeSettings(await readJsonFile<unknown>(path)).settings;
+  let raw: unknown;
+  try {
+    raw = await readJsonFile<unknown>(path);
+  } catch {
+    return defaultSettings;
+  }
+  const parsed = settingsSchema.safeParse(raw);
+  if (!parsed.success || JSON.stringify(raw) !== JSON.stringify(parsed.data)) {
+    // A current VERSION marker may still have pending migrations. Do not
+    // consume a legacy-shaped config before the storage runner owns it.
+    return defaultSettings;
+  }
+  return parsed.data;
 }
 
 export async function initializeStorage(

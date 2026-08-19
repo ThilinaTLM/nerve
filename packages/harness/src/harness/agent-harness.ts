@@ -1,5 +1,4 @@
 import type { AssistantMessage, ImageContent } from "@earendil-works/pi-ai";
-import { isAgentToolSuspension } from "../agent/suspension.js";
 import type {
   AgentContext,
   AgentEvent,
@@ -45,10 +44,7 @@ import {
   continueHarnessRun,
   type HarnessContinuationState,
 } from "./run/continuation.js";
-import {
-  AgentHarnessEventHub,
-  normalizeHarnessError,
-} from "./lifecycle/event-hub.js";
+import { AgentHarnessEventHub } from "./lifecycle/event-hub.js";
 import {
   type HarnessInvocationState,
   invokePromptTemplate,
@@ -93,6 +89,7 @@ import {
   type AgentHarnessTurnState,
   createTurnState as createAgentHarnessTurnState,
 } from "./configuration/turn-state.js";
+import { HarnessTurnController } from "./run/turn-controller.js";
 export class AgentHarness<
   TSkill extends Skill = Skill,
   TPromptTemplate extends PromptTemplate = PromptTemplate,
@@ -127,6 +124,11 @@ export class AgentHarness<
     { id?: string; timestamp?: string }
   >();
   private events = new AgentHarnessEventHub<TSkill, TPromptTemplate>();
+  private readonly turnController: HarnessTurnController<
+    TSkill,
+    TPromptTemplate,
+    TTool
+  >;
   constructor(options: AgentHarnessOptions<TSkill, TPromptTemplate, TTool>) {
     this.env = options.env;
     this.conversation = options.conversation;
@@ -143,6 +145,16 @@ export class AgentHarness<
     this.validateToolNames(this.activeToolNames);
     this.steeringQueueMode = options.steeringMode ?? "one-at-a-time";
     this.followUpQueueMode = options.followUpMode ?? "one-at-a-time";
+    this.turnController = new HarnessTurnController({
+      getPhase: () => this.phase,
+      setPhase: (phase) => {
+        this.phase = phase;
+      },
+      startRunPromise: () => this.startRunPromise(),
+      createTurnState: () => this.createTurnState(),
+      executeTurn: (turnState, text, turnOptions) =>
+        this.executeTurn(turnState, text, turnOptions),
+    });
   }
   private async emitOwn(
     event: AgentHarnessOwnEvent<TSkill, TPromptTemplate>,
@@ -433,29 +445,14 @@ export class AgentHarness<
     });
   }
 
-  private async runForegroundTurn(
+  private runForegroundTurn(
     resolvePrompt: (
       turnState: AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
     ) =>
       | { text: string; options?: { images?: ImageContent[] } }
       | Promise<{ text: string; options?: { images?: ImageContent[] } }>,
   ): Promise<AssistantMessage> {
-    if (this.phase !== "idle") {
-      throw new AgentHarnessError("busy", "AgentHarness is busy");
-    }
-    this.phase = "turn";
-    const finishRunPromise = this.startRunPromise();
-    try {
-      const turnState = await this.createTurnState();
-      const prompt = await resolvePrompt(turnState);
-      return await this.executeTurn(turnState, prompt.text, prompt.options);
-    } catch (error) {
-      this.phase = "idle";
-      if (isAgentToolSuspension(error)) throw error;
-      throw normalizeHarnessError(error, "unknown");
-    } finally {
-      finishRunPromise();
-    }
+    return this.turnController.runForegroundTurn(resolvePrompt);
   }
 
   async prompt(

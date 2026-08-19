@@ -21,16 +21,13 @@ import {
   publicEventDefinition,
   subscriptionStreamForNotification,
 } from "@nervekit/contracts";
-import {
-  buildEventBatch,
-  chunkEvents,
-  estimateProtocolMessageBytes,
-} from "./event-batch.js";
+import { buildEventBatch, chunkEvents } from "./event-batch.js";
 import { PrioritizedMessageSender } from "./priority-sender.js";
 import { RpcClient, type RpcDispatcher } from "./rpc.js";
 import { systemProtocolClock, systemProtocolTimers } from "./runtime.js";
 import { ServerHeartbeat } from "./server-heartbeat.js";
 import { SessionStateError } from "./client-session.js";
+import { SessionEventBuffer } from "./session-event-buffer.js";
 import type {
   ServerSessionOptions,
   ServerSessionState,
@@ -48,12 +45,10 @@ export class ProtocolServerSession {
   readonly #timers: ReturnType<typeof resolveTimers>;
   readonly #sender: PrioritizedMessageSender;
   readonly #rpc: RpcClient;
+  readonly #eventBuffer: SessionEventBuffer;
   readonly #activeStreams = new Set<string>();
   readonly #streamStates = new Map<string, StreamState>();
   readonly #replaying = new Set<string>();
-  readonly #pendingLive = new Map<string, EventEnvelope[]>();
-  readonly #replayBufferedLive = new Map<string, EventEnvelope[]>();
-  readonly #notifyQueue: NotifyEvent[] = [];
   readonly #detachedReads = new Set<Promise<void>>();
 
   #negotiatedTarget?: PeerDescriptor;
@@ -68,6 +63,12 @@ export class ProtocolServerSession {
     const clock = options.clock ?? systemProtocolClock;
     this.#timers = resolveTimers(options.timers);
     this.#sender = new PrioritizedMessageSender(options.send);
+    this.#eventBuffer = new SessionEventBuffer({
+      maxBufferedEvents: options.maxBufferedEvents ?? 10_000,
+      maxBufferedBytes: options.maxBufferedBytes ?? 16 * 1_024 * 1_024,
+      notifyQueueLimit: options.notifyQueueLimit ?? 256,
+      onOverflow: (message) => void this.#overflow(message),
+    });
     this.#rpc = new RpcClient({
       createMessage: options.createMessage,
       send: options.send,
@@ -234,13 +235,10 @@ export class ProtocolServerSession {
 
   async publish(stream: string, event: EventEnvelope): Promise<void> {
     if (this.state !== "ready" || !this.#activeStreams.has(stream)) return;
-    const queues = this.#replaying.has(stream)
-      ? this.#replayBufferedLive
-      : this.#pendingLive;
-    const queue = queues.get(stream) ?? [];
-    queue.push(event);
-    queues.set(stream, queue);
-    if (!this.#checkBufferLimit()) return;
+    if (
+      !this.#eventBuffer.enqueueLive(stream, event, this.#replaying.has(stream))
+    )
+      return;
     this.#scheduleFlush();
   }
 
@@ -248,8 +246,7 @@ export class ProtocolServerSession {
     this.#activeStreams.delete(stream);
     this.#streamStates.delete(stream);
     this.#replaying.delete(stream);
-    this.#pendingLive.delete(stream);
-    this.#replayBufferedLive.delete(stream);
+    this.#eventBuffer.removeStream(stream);
   }
 
   dispose(): void {
@@ -270,50 +267,29 @@ export class ProtocolServerSession {
     if (subscriptionStream && !this.#activeStreams.has(subscriptionStream)) {
       return;
     }
-    const coalescing = definition.coalescing;
-    if (coalescing?.strategy === "latest_by_scope") {
-      const key = notifyScopeKey(event, definition.scope);
-      const index = this.#notifyQueue.findIndex(
-        (queued) => notifyScopeKey(queued, definition.scope) === key,
-      );
-      if (index >= 0) this.#notifyQueue.splice(index, 1);
-    } else if (coalescing?.strategy === "concat_delta") {
-      const previous = this.#notifyQueue.at(-1);
-      const merged = previous
-        ? mergeNotifyDelta(previous, event, definition.scope, coalescing)
-        : undefined;
-      if (merged) {
-        this.#notifyQueue[this.#notifyQueue.length - 1] = {
-          ...merged,
-          data: definition.payloadSchema.parse(merged.data),
-        };
-        if (!this.#checkBufferLimit()) return;
-        this.#scheduleFlush();
-        return;
-      }
-    }
-    this.#notifyQueue.push(event);
-    const limit = this.#options.notifyQueueLimit ?? 256;
-    while (this.#notifyQueue.length > limit) this.#notifyQueue.shift();
-    if (!this.#checkBufferLimit()) return;
+    if (
+      !this.#eventBuffer.enqueueNotification(event, definition, (data) =>
+        definition.payloadSchema.parse(data),
+      )
+    )
+      return;
     this.#scheduleFlush();
   }
 
   async flush(): Promise<void> {
     if (this.state !== "ready" || this.#overflowed) return;
     this.#flushScheduled = false;
-    for (const [stream, events] of [...this.#pendingLive]) {
-      this.#pendingLive.delete(stream);
+    for (const [stream, events] of this.#eventBuffer.takePendingLive()) {
       if (!this.#activeStreams.has(stream) || this.#replaying.has(stream))
         continue;
       await this.#sendEvents(stream, events, "live", "live");
     }
-    if (this.#notifyQueue.length > 0) {
-      const events = this.#notifyQueue.splice(0);
+    const notifyEvents = this.#eventBuffer.takeNotifications();
+    if (notifyEvents.length > 0) {
       await this.#sender.send(
         this.#options.createMessage(
           "event.notify",
-          { events },
+          { events: notifyEvents },
           {
             target: this.peer,
           },
@@ -496,9 +472,7 @@ export class ProtocolServerSession {
       this.#activeStreams.add(state.stream);
       this.#streamStates.set(state.stream, state);
     }
-    for (const stream of [...this.#pendingLive.keys()]) {
-      if (!nextActive.has(stream)) this.#pendingLive.delete(stream);
-    }
+    this.#eventBuffer.dropInactive(nextActive);
     for (const cursor of acceptedCursors) {
       const mode = subscribed.find(
         (state) => state.stream === cursor.stream,
@@ -518,8 +492,7 @@ export class ProtocolServerSession {
         await this.#replayStream(cursor, state.latestSeq);
       }
       this.#replaying.delete(cursor.stream);
-      const buffered = this.#replayBufferedLive.get(cursor.stream) ?? [];
-      this.#replayBufferedLive.delete(cursor.stream);
+      const buffered = this.#eventBuffer.takeReplayBuffered(cursor.stream);
       const fresh = buffered.filter((event) => event.seq > state.latestSeq);
       if (fresh.length > 0)
         await this.#sendEvents(cursor.stream, fresh, "live", "live");
@@ -599,34 +572,6 @@ export class ProtocolServerSession {
     );
   }
 
-  #checkBufferLimit(): boolean {
-    const events = [
-      ...this.#pendingLive.values(),
-      ...this.#replayBufferedLive.values(),
-    ].reduce((count, queue) => count + queue.length, this.#notifyQueue.length);
-    const bytes = [
-      ...this.#pendingLive.values(),
-      ...this.#replayBufferedLive.values(),
-    ]
-      .flat()
-      .reduce(
-        (total, event) => total + estimateProtocolMessageBytes("event", event),
-        this.#notifyQueue.reduce(
-          (total, event) =>
-            total + estimateProtocolMessageBytes("notify", event),
-          0,
-        ),
-      );
-    if (
-      events > (this.#options.maxBufferedEvents ?? 10_000) ||
-      bytes > (this.#options.maxBufferedBytes ?? 16 * 1_024 * 1_024)
-    ) {
-      void this.#overflow("Outgoing event buffer exceeded");
-      return false;
-    }
-    return true;
-  }
-
   async #overflow(message: string): Promise<void> {
     if (this.#overflowed) return;
     this.#overflowed = true;
@@ -667,9 +612,7 @@ export class ProtocolServerSession {
     this.#sender.close(error);
     this.#activeStreams.clear();
     this.#streamStates.clear();
-    this.#pendingLive.clear();
-    this.#replayBufferedLive.clear();
-    this.#notifyQueue.splice(0);
+    this.#eventBuffer.clear();
   }
 }
 
@@ -681,64 +624,6 @@ function subscriptionMode(
   if (cursor.processedSeq + 1 < state.earliestAvailableSeq)
     return "snapshot_required";
   return cursor.processedSeq < state.latestSeq ? "replay" : "live";
-}
-
-function notifyScopeKey(event: NotifyEvent, scope: readonly string[]): string {
-  return `${event.type}:${scope.map((path) => JSON.stringify(readPath(event.data, path))).join(":")}`;
-}
-
-function mergeNotifyDelta(
-  previous: NotifyEvent,
-  current: NotifyEvent,
-  scope: readonly string[],
-  coalescing: {
-    field: "delta" | "text";
-    offsetField?: "offset";
-    maxChars: number;
-  },
-): NotifyEvent | undefined {
-  if (notifyScopeKey(previous, scope) !== notifyScopeKey(current, scope)) {
-    return undefined;
-  }
-  const previousData = previous.data as Record<string, unknown>;
-  const currentData = current.data as Record<string, unknown>;
-  const left = previousData[coalescing.field];
-  const right = currentData[coalescing.field];
-  if (typeof left !== "string" || typeof right !== "string") return undefined;
-  const combined = `${left}${right}`;
-  if (combined.length > coalescing.maxChars) return undefined;
-  let firstOffset: number | undefined;
-  if (coalescing.offsetField) {
-    const previousOffset = previousData[coalescing.offsetField];
-    const currentOffset = currentData[coalescing.offsetField];
-    if (
-      typeof previousOffset !== "number" ||
-      typeof currentOffset !== "number" ||
-      currentOffset !== previousOffset + left.length
-    ) {
-      return undefined;
-    }
-    firstOffset = previousOffset;
-  }
-  return {
-    ...current,
-    data: {
-      ...currentData,
-      [coalescing.field]: combined,
-      ...(coalescing.offsetField
-        ? { [coalescing.offsetField]: firstOffset }
-        : {}),
-    },
-  };
-}
-
-function readPath(value: unknown, path: string): unknown {
-  let current = value;
-  for (const segment of path.split(".")) {
-    if (typeof current !== "object" || current === null) return undefined;
-    current = (current as Record<string, unknown>)[segment];
-  }
-  return current;
 }
 
 function samePeer(left: PeerDescriptor, right: PeerDescriptor): boolean {

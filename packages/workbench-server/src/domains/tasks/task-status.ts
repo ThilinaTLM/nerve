@@ -1,5 +1,18 @@
 import type { TaskRecord } from "@nervekit/contracts";
 
+const terminalStatuses = new Set<TaskRecord["status"]>([
+  "completed",
+  "failed",
+  "timed_out",
+  "cancelled",
+  "orphaned",
+  "interrupted",
+]);
+
+export function isTerminalTaskStatus(status: TaskRecord["status"]): boolean {
+  return terminalStatuses.has(status);
+}
+
 export function isActiveTaskStatus(status: TaskRecord["status"]): boolean {
   return (
     status === "starting" ||

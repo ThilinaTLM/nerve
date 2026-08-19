@@ -10,7 +10,8 @@ import {
   promptSuggestionWhenSchema,
   type CreatePromptSuggestionRequest,
 } from "@nervekit/contracts";
-import { parse, stringify } from "yaml";
+import { parseFrontmatter } from "@nervekit/harness";
+import { stringify } from "yaml";
 import { pathExists } from "../../infrastructure/storage/json.js";
 import type {
   PromptSuggestionDefinition,
@@ -32,6 +33,7 @@ type Frontmatter = {
   when?: unknown;
   enable?: unknown;
   "enable-js"?: unknown;
+  [key: string]: unknown;
 };
 
 export async function loadPromptSuggestionDefinitions(
@@ -99,18 +101,17 @@ async function loadSuggestionFile(
     return { diagnostics };
   }
 
-  let parsed: { frontmatter: Frontmatter; body: string };
-  try {
-    parsed = parseFrontmatter(raw);
-  } catch (error) {
+  const parsed = parseFrontmatter<Frontmatter>(raw);
+  if (!parsed.ok) {
     diagnostics.push({
       type: "warning",
       code: "parse_failed",
-      message: error instanceof Error ? error.message : String(error),
+      message: parsed.error.message,
       path: filePath,
     });
     return { diagnostics };
   }
+  const { frontmatter, body } = parsed.value;
 
   if (raw.length > PROMPT_SUGGESTION_PROMPT_MAX_LENGTH + 10_000) {
     diagnostics.push({
@@ -124,9 +125,8 @@ async function loadSuggestionFile(
 
   const fallbackName = basename(filePath).replace(/\.md$/i, "");
   const name =
-    typeof parsed.frontmatter.name === "string" &&
-    parsed.frontmatter.name.trim()
-      ? parsed.frontmatter.name.trim()
+    typeof frontmatter.name === "string" && frontmatter.name.trim()
+      ? frontmatter.name.trim()
       : fallbackName;
   for (const message of validateName(name)) {
     diagnostics.push({
@@ -138,9 +138,8 @@ async function loadSuggestionFile(
   }
 
   const label =
-    typeof parsed.frontmatter.label === "string" &&
-    parsed.frontmatter.label.trim()
-      ? parsed.frontmatter.label.trim()
+    typeof frontmatter.label === "string" && frontmatter.label.trim()
+      ? frontmatter.label.trim()
       : titleFromName(name);
   if (label.length > PROMPT_SUGGESTION_LABEL_MAX_LENGTH) {
     diagnostics.push({
@@ -152,9 +151,9 @@ async function loadSuggestionFile(
   }
 
   const description =
-    typeof parsed.frontmatter.description === "string" &&
-    parsed.frontmatter.description.trim()
-      ? parsed.frontmatter.description.trim()
+    typeof frontmatter.description === "string" &&
+    frontmatter.description.trim()
+      ? frontmatter.description.trim()
       : undefined;
   if (
     description &&
@@ -168,31 +167,30 @@ async function loadSuggestionFile(
     });
   }
 
-  const body = parsed.body.trim();
-  if (!body) {
+  const promptBody = body.trim();
+  if (!promptBody) {
     diagnostics.push({
       type: "warning",
       code: "invalid_metadata",
       message: "prompt body is required",
       path: filePath,
     });
-  } else if (body.length > PROMPT_SUGGESTION_PROMPT_MAX_LENGTH) {
+  } else if (promptBody.length > PROMPT_SUGGESTION_PROMPT_MAX_LENGTH) {
     diagnostics.push({
       type: "warning",
       code: "invalid_metadata",
-      message: `prompt exceeds ${PROMPT_SUGGESTION_PROMPT_MAX_LENGTH} characters (${body.length})`,
+      message: `prompt exceeds ${PROMPT_SUGGESTION_PROMPT_MAX_LENGTH} characters (${promptBody.length})`,
       path: filePath,
     });
   }
 
   const order =
-    typeof parsed.frontmatter.order === "number" &&
-    Number.isFinite(parsed.frontmatter.order)
-      ? parsed.frontmatter.order
+    typeof frontmatter.order === "number" && Number.isFinite(frontmatter.order)
+      ? frontmatter.order
       : 100;
-  const enabled = parsed.frontmatter.enabled !== false;
+  const enabled = frontmatter.enabled !== false;
   const whenResult = promptSuggestionWhenSchema.safeParse(
-    parsed.frontmatter.when ?? {},
+    frontmatter.when ?? {},
   );
   if (!whenResult.success) {
     diagnostics.push({
@@ -203,7 +201,7 @@ async function loadSuggestionFile(
     });
   }
 
-  const enableJs = normalizeEnableJs(parsed.frontmatter);
+  const enableJs = normalizeEnableJs(frontmatter);
   const predicateHash = enableJs ? sha256(enableJs) : undefined;
   const absPath = resolve(filePath);
   const trustId = predicateHash
@@ -226,7 +224,7 @@ async function loadSuggestionFile(
       name,
       label,
       description,
-      prompt: body,
+      prompt: promptBody,
       order,
       defaultEnabled: enabled,
       enabled,
@@ -241,23 +239,6 @@ async function loadSuggestionFile(
       },
     },
     diagnostics,
-  };
-}
-
-function parseFrontmatter(content: string): {
-  frontmatter: Frontmatter;
-  body: string;
-} {
-  const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  if (!normalized.startsWith("---")) {
-    return { frontmatter: {}, body: normalized };
-  }
-  const endIndex = normalized.indexOf("\n---", 3);
-  if (endIndex === -1) return { frontmatter: {}, body: normalized };
-  const yamlString = normalized.slice(4, endIndex);
-  return {
-    frontmatter: (parse(yamlString) ?? {}) as Frontmatter,
-    body: normalized.slice(endIndex + 4).trim(),
   };
 }
 
