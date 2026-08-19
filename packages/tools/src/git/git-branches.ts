@@ -3,7 +3,21 @@ import type {
   GitBranchSummary,
 } from "@nervekit/contracts";
 import type { GitReadSnapshot } from "./git-read-backend.js";
-import type { GitService } from "./git-service.js";
+
+export interface GitBranchServicePort {
+  resolveRepoDir(projectId: string, relativePath: string): string;
+  readSnapshot(repoDir: string): Promise<GitReadSnapshot>;
+  comparisonBaseRef(repoDir: string, baseBranch: string): Promise<string>;
+  mergedToBaseRef(
+    repoDir: string,
+    baseRef: string,
+    state: {
+      currentBranch: string | null;
+      detached: boolean;
+      onBaseBranch: boolean;
+    },
+  ): Promise<boolean>;
+}
 
 const BASE_BRANCH_CANDIDATES = ["main", "master", "develop"] as const;
 
@@ -14,12 +28,12 @@ export interface GitRefSnapshot {
 }
 
 export async function listBranches(
-  this: GitService,
+  service: GitBranchServicePort,
   projectId: string,
   relativePath: string,
 ): Promise<GitBranchListResponse> {
-  const repoDir = this.resolveRepoDir(projectId, relativePath);
-  const snapshot = await this.readSnapshot(repoDir);
+  const repoDir = service.resolveRepoDir(projectId, relativePath);
+  const snapshot = await service.readSnapshot(repoDir);
   const branches = snapshot.refs
     .map((ref): GitBranchSummary | null => {
       const localPrefix = "refs/heads/";
@@ -65,11 +79,11 @@ export function refSnapshotFromRead(snapshot: GitReadSnapshot): GitRefSnapshot {
 }
 
 export async function readRefSnapshot(
-  this: GitService,
+  service: GitBranchServicePort,
   repoDir: string,
 ): Promise<GitRefSnapshot> {
   try {
-    return refSnapshotFromRead(await this.readSnapshot(repoDir));
+    return refSnapshotFromRead(await service.readSnapshot(repoDir));
   } catch {
     return { refs: new Set() };
   }
@@ -106,21 +120,21 @@ export function comparisonBaseRefFromSnapshot(
 }
 
 export async function detectBaseBranch(
-  this: GitService,
+  service: GitBranchServicePort,
   repoDir: string,
 ): Promise<string> {
-  const snapshot = await readRefSnapshot.call(this, repoDir);
+  const snapshot = await readRefSnapshot(service, repoDir);
   const detected = baseBranchFromRefSnapshot(snapshot);
   if (detected) return detected;
   return snapshot.headBranch ?? "main";
 }
 
 export async function branchExists(
-  this: GitService,
+  service: GitBranchServicePort,
   repoDir: string,
   name: string,
 ): Promise<boolean> {
-  const snapshot = await readRefSnapshot.call(this, repoDir);
+  const snapshot = await readRefSnapshot(service, repoDir);
   return (
     snapshot.refs.has(`refs/heads/${name}`) ||
     snapshot.refs.has(`refs/remotes/origin/${name}`)
@@ -128,16 +142,16 @@ export async function branchExists(
 }
 
 export async function comparisonBaseRef(
-  this: GitService,
+  service: GitBranchServicePort,
   repoDir: string,
   baseBranch: string,
 ): Promise<string> {
-  const snapshot = await readRefSnapshot.call(this, repoDir);
+  const snapshot = await readRefSnapshot(service, repoDir);
   return comparisonBaseRefFromSnapshot(snapshot, baseBranch);
 }
 
 export async function mergedToBase(
-  this: GitService,
+  service: GitBranchServicePort,
   repoDir: string,
   baseBranch: string,
   state: {
@@ -149,6 +163,6 @@ export async function mergedToBase(
   if (state.detached || state.onBaseBranch || !state.currentBranch) {
     return false;
   }
-  const baseRef = await this.comparisonBaseRef(repoDir, baseBranch);
-  return this.mergedToBaseRef(repoDir, baseRef, state);
+  const baseRef = await service.comparisonBaseRef(repoDir, baseBranch);
+  return service.mergedToBaseRef(repoDir, baseRef, state);
 }

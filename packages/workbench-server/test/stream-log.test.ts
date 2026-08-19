@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import {
   appendFile,
-  mkdir,
   mkdtemp,
   readFile,
   readdir,
@@ -13,7 +12,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
-  migrateLegacyEventLogs,
   StreamLog,
   StreamLogRegistry,
 } from "../src/infrastructure/events/index.js";
@@ -602,23 +600,5 @@ describe("StreamLogRegistry", () => {
       await registry.shutdown();
       await rm(home, { recursive: true, force: true });
     }
-  });
-});
-
-describe("event log migration", () => {
-  it("archives sparse logs once and starts a dense epoch", async () => {
-    const home = await tempHome();
-    await writeFile(join(home, "placeholder"), "ok");
-    const oldLog = join(home, "logs", "events.jsonl");
-    await mkdir(join(home, "logs"), { recursive: true });
-    await writeFile(oldLog, '{"seq":9}\n');
-    const archive = await migrateLegacyEventLogs(home);
-    assert.ok(archive);
-    assert.equal(
-      await readFile(join(archive as string, "logs", "events.jsonl"), "utf8"),
-      '{"seq":9}\n',
-    );
-    assert.equal(await migrateLegacyEventLogs(home), undefined);
-    await rm(home, { recursive: true, force: true });
   });
 });

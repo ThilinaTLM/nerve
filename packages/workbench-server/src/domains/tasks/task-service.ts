@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- task lifecycle state machine remains centralized pending the planned port extraction. */
 import path from "node:path";
 import type {
   StartTaskRequest,
@@ -7,16 +6,17 @@ import type {
   TaskOutputRetention,
   TaskRecord,
 } from "@nervekit/contracts";
-import {
-  splitLiveOutputChunks,
-  type ToolExecutionOutputUpdate,
-} from "@nervekit/tools";
+import type { ToolExecutionOutputUpdate } from "@nervekit/tools";
 import type {
   ClockPort,
   DiagnosticPort,
   DomainEventPublisherPort,
   IdPort,
 } from "../../core/ports.js";
+import { TaskProcessSupervisor } from "./task-process-supervisor.js";
+import { isTerminalTaskStatus } from "./task-status.js";
+
+export { isTerminalTaskStatus } from "./task-status.js";
 
 export type TaskProcessEvidence =
   | "running"
@@ -164,19 +164,6 @@ export type TaskStartInput = StartTaskRequest & {
   ) => void | Promise<void>;
 };
 
-const terminalStatuses = new Set<TaskRecord["status"]>([
-  "completed",
-  "failed",
-  "timed_out",
-  "cancelled",
-  "orphaned",
-  "interrupted",
-]);
-
-export function isTerminalTaskStatus(status: TaskRecord["status"]): boolean {
-  return terminalStatuses.has(status);
-}
-
 export class TaskService {
   private readonly definitionLaunches = new Map<string, Promise<TaskRecord>>();
   private readonly stopReasons = new Map<string, "cancelled" | "timed_out">();
@@ -189,8 +176,35 @@ export class TaskService {
     string,
     { readonly exit: TaskProcessExit; readonly error: unknown }
   >();
+  private readonly processSupervisor: TaskProcessSupervisor;
 
-  constructor(private readonly ports: TaskServicePorts) {}
+  constructor(private readonly ports: TaskServicePorts) {
+    this.processSupervisor = new TaskProcessSupervisor({
+      process: ports.process,
+      logs: ports.logs,
+      readiness: ports.readiness,
+      timers: ports.timers,
+      stopTimeoutMs: ports.stopTimeoutMs ?? 5_000,
+      get: (id) => this.get(id),
+      transitionIfPresent: (id, change) => this.transitionIfPresent(id, change),
+      save: (task) => this.save(task),
+      publish: (type, data, delivery) => this.publish(type, data, delivery),
+      safeNotify: (task, event) => this.safeNotify(task, event),
+      now: () => this.now(),
+      finishFromExit: (id, exit, forcedStatus, reason) =>
+        this.finishFromExit(id, exit, forcedStatus, reason),
+      outputObserver: async (id, update) => {
+        await this.startCallbacks.get(id)?.(update);
+      },
+      setStopReason: (id, reason) => this.stopReasons.set(id, reason),
+      getStopReason: (id) => this.stopReasons.get(id),
+      clearStopReason: (id) => this.stopReasons.delete(id),
+      clearTerminalFailure: (id) => this.terminalFailures.delete(id),
+      saveTerminalFailure: (id, exit, error) =>
+        this.terminalFailures.set(id, { exit, error }),
+      reportFailure: (kind, id, error) => this.reportFailure(kind, id, error),
+    });
+  }
 
   async start(request: TaskStartInput): Promise<TaskRecord> {
     const cwd = resolveTaskWorkingDirectory(request.cwd);
@@ -262,8 +276,9 @@ export class TaskService {
       const runtime = await this.ports.process.spawn(
         { ...request, taskId: id },
         {
-          onOutput: (stream, text) => this.recordOutput(id, stream, text),
-          onExit: (exit) => this.recordExit(id, exit),
+          onOutput: (stream, text) =>
+            this.processSupervisor.output(id, stream, text),
+          onExit: (exit) => this.processSupervisor.exit(id, exit),
         },
       );
       return await this.transition(id, async (current) => {
@@ -274,20 +289,20 @@ export class TaskService {
         await this.save(current);
         await this.publish("task.started", { task: current });
         if (current.readiness.outcome === "pending")
-          this.launchBackground(
+          this.processSupervisor.launchBackground(
             "readiness",
             id,
-            this.watchReadiness(id, request),
+            this.processSupervisor.watchReadiness(id, request),
           );
         if (request.timeoutMs) {
           const elapsedMs = Math.max(
             0,
             Date.parse(this.now()) - Date.parse(current.startedAt),
           );
-          this.launchBackground(
+          this.processSupervisor.launchBackground(
             "runtime_timeout",
             id,
-            this.watchRuntimeTimeout(
+            this.processSupervisor.watchRuntimeTimeout(
               id,
               Math.max(0, request.timeoutMs - elapsedMs),
             ),
@@ -410,14 +425,14 @@ export class TaskService {
     if (isTerminalTaskStatus(initial.status) || !requested) return initial;
     await this.ports.process.signal(initial, options);
     const timeoutMs = options.timeoutMs ?? this.ports.stopTimeoutMs ?? 5_000;
-    let evidence = await this.waitForExit(initial, timeoutMs);
+    let evidence = await this.processSupervisor.waitForExit(initial, timeoutMs);
     if (evidence === "timeout" && options.signal !== "SIGKILL") {
       await this.ports.process.signal(initial, {
         ...options,
         signal: "SIGKILL",
         reason: options.reason ?? "graceful stop timed out",
       });
-      evidence = await this.waitForExit(initial, timeoutMs);
+      evidence = await this.processSupervisor.waitForExit(initial, timeoutMs);
     }
     if (typeof evidence === "object")
       return this.finishFromExit(id, evidence, "cancelled", options.reason);
@@ -623,118 +638,6 @@ export class TaskService {
     return task;
   }
 
-  private launchBackground(
-    kind: "readiness" | "runtime_timeout",
-    id: string,
-    operation: Promise<void>,
-  ): void {
-    void operation
-      .catch((error) => this.handleBackgroundFailure(kind, id, error))
-      .catch((error) =>
-        this.reportFailure(`${kind}_failure_handler`, id, error),
-      );
-  }
-
-  private async handleBackgroundFailure(
-    kind: "readiness" | "runtime_timeout",
-    id: string,
-    error: unknown,
-  ): Promise<void> {
-    if (!(await this.get(id))) return;
-    this.reportFailure(kind, id, error);
-    await this.transitionIfPresent(id, async (task) => {
-      if (isTerminalTaskStatus(task.status)) return task;
-      if (kind === "readiness" && task.readiness.outcome === "pending") {
-        task.readiness.outcome = "unavailable";
-        task.updatedAt = this.now();
-        await this.save(task);
-        await this.publish("task.readiness_failed", {
-          task,
-          reason: boundedErrorMessage(error),
-        });
-      } else if (kind === "runtime_timeout") {
-        task.error = `Runtime timeout watcher failed: ${boundedErrorMessage(error)}`;
-        task.updatedAt = this.now();
-        await this.save(task);
-      }
-      return task;
-    });
-  }
-
-  private async watchReadiness(
-    id: string,
-    request: StartTaskRequest,
-  ): Promise<void> {
-    const task = await this.require(id);
-    const readiness = this.ports.readiness
-      ? await this.ports.readiness.wait(task, request)
-      : "unavailable";
-    const outcome =
-      typeof readiness === "object" ? readiness.outcome : readiness;
-    await this.transitionIfPresent(id, async (current) => {
-      if (isTerminalTaskStatus(current.status) || current.status === "stopping")
-        return current;
-      current.readiness.outcome = outcome;
-      if (typeof readiness === "object" && readiness.matched)
-        current.readiness.matched = readiness.matched;
-      current.updatedAt = this.now();
-      if (outcome === "ready") {
-        current.status = "ready";
-        current.readiness.readyAt = current.updatedAt;
-        await this.save(current);
-        await this.publish("task.ready", { task: current });
-        await this.safeNotify(current, "ready");
-      } else {
-        await this.save(current);
-        if (outcome === "timeout")
-          await this.publish("task.readiness_failed", { task: current });
-      }
-      return current;
-    });
-  }
-
-  private async recordOutput(
-    id: string,
-    stream: "stdout" | "stderr",
-    text: string,
-  ): Promise<void> {
-    const task = await this.get(id);
-    if (!task) return;
-    await this.ports.logs.append?.(task, stream, text);
-    for (const chunk of splitLiveOutputChunks(text)) {
-      try {
-        await this.publish(
-          "task.output",
-          { taskId: id, stream, text: chunk },
-          "ephemeral",
-        );
-      } catch (error) {
-        this.reportFailure("output_event", id, error);
-      }
-      // Live observers are projections. Durable truth remains in the task log,
-      // so observer failures must not alter process supervision or terminal state.
-      try {
-        await this.startCallbacks.get(id)?.({
-          kind: "output",
-          stream,
-          chunk,
-        });
-      } catch (error) {
-        this.reportFailure("output_observer", id, error);
-      }
-    }
-  }
-
-  private async recordExit(id: string, exit: TaskProcessExit): Promise<void> {
-    try {
-      await this.finishFromExit(id, exit);
-      this.terminalFailures.delete(id);
-    } catch (error) {
-      this.terminalFailures.set(id, { exit, error });
-      this.reportFailure("terminal_persistence", id, error);
-    }
-  }
-
   private async finishFromExit(
     id: string,
     exit: TaskProcessExit,
@@ -770,65 +673,6 @@ export class TaskService {
       }
       return task;
     });
-  }
-
-  private async watchRuntimeTimeout(
-    id: string,
-    timeoutMs: number,
-  ): Promise<void> {
-    await (this.ports.timers?.sleep(timeoutMs) ??
-      new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)));
-    const task = await this.transitionIfPresent(id, async (current) => {
-      if (isTerminalTaskStatus(current.status) || current.status === "stopping")
-        return current;
-      this.stopReasons.set(id, "timed_out");
-      current.status = "stopping";
-      current.error = "Task exceeded maximum runtime.";
-      current.updatedAt = this.now();
-      await this.save(current);
-      await this.publish("task.stop_requested", {
-        task: current,
-        signal: "SIGTERM",
-        reason: "runtime_timeout",
-      });
-      return current;
-    });
-    if (
-      !task ||
-      isTerminalTaskStatus(task.status) ||
-      this.stopReasons.get(id) !== "timed_out"
-    )
-      return;
-    await this.ports.process.signal(task, {
-      signal: "SIGTERM",
-      timeoutMs: this.ports.stopTimeoutMs ?? 5_000,
-      reason: "runtime_timeout",
-    });
-    const stopTimeoutMs = this.ports.stopTimeoutMs ?? 5_000;
-    let exit = await this.waitForExit(task, stopTimeoutMs);
-    if (exit === "timeout") {
-      await this.ports.process.signal(task, {
-        signal: "SIGKILL",
-        timeoutMs: stopTimeoutMs,
-        reason: "runtime_timeout_escalation",
-      });
-      exit = await this.waitForExit(task, stopTimeoutMs);
-    }
-    if (typeof exit === "object")
-      await this.finishFromExit(id, exit, "timed_out");
-    else if (exit === "exited")
-      await this.finishFromExit(id, { exitedAt: this.now() }, "timed_out");
-  }
-
-  private async waitForExit(
-    task: TaskRecord,
-    timeoutMs: number,
-  ): Promise<
-    TaskProcessExit | TaskProcessEvidence | "timeout" | "unavailable"
-  > {
-    if (this.ports.process.waitForExit)
-      return this.ports.process.waitForExit(task, timeoutMs);
-    return this.ports.process.inspect(task);
   }
 
   private transition(

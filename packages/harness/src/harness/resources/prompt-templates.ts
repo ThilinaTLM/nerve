@@ -1,8 +1,7 @@
-import { parse } from "yaml";
 import type { ExecutionEnv, FileInfo } from "../environment/types.js";
 import type { PromptTemplate } from "../configuration/options.js";
-import { type Result, toError } from "../result.js";
 import { basenameEnvPath } from "../path-utils.js";
+import { parseFrontmatter } from "./skills/parser.js";
 
 export type PromptTemplateDiagnosticCode =
   | "file_info_failed"
@@ -224,27 +223,6 @@ async function resolveKind(
   return target.value.kind === "file" || target.value.kind === "directory"
     ? target.value.kind
     : undefined;
-}
-
-function parseFrontmatter<T extends Record<string, unknown>>(
-  content: string,
-): Result<{ frontmatter: T; body: string }, Error> {
-  try {
-    const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    if (!normalized.startsWith("---"))
-      return { ok: true, value: { frontmatter: {} as T, body: normalized } };
-    const endIndex = normalized.indexOf("\n---", 3);
-    if (endIndex === -1)
-      return { ok: true, value: { frontmatter: {} as T, body: normalized } };
-    const yamlString = normalized.slice(4, endIndex);
-    const body = normalized.slice(endIndex + 4).trim();
-    return {
-      ok: true,
-      value: { frontmatter: (parse(yamlString) ?? {}) as T, body },
-    };
-  } catch (error) {
-    return { ok: false, error: toError(error) };
-  }
 }
 
 /** Parse an argument string using simple shell-style single and double quotes. */

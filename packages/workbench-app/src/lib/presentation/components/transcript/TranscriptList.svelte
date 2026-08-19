@@ -20,30 +20,21 @@ import ConversationSignal from "../conversation/conversation-signal.svelte";
 import QueuedPromptRow from "./QueuedPromptRow.svelte";
 import TranscriptRow from "./TranscriptRow.svelte";
 import WorkingIndicator from "./WorkingIndicator.svelte";
+import { groupConsecutiveThinking } from "./transcript-presentation";
 import {
-  groupConsecutiveThinking,
-  type TranscriptDisplayNode,
-} from "./transcript-presentation";
+  entranceEligible,
+  measurementVersionForRow,
+  type TimelineRowItem,
+  type TranscriptRowItem,
+  uniqueRowKey,
+} from "./transcript-row-model";
 import {
   TranscriptEntryMotionLedger,
   type TranscriptEntranceMotion,
 } from "./transcript-entry-motion";
 import { ConversationMotionBudget } from "./conversation-motion-budget";
 import { provideConversationMotionBudget } from "./conversation-motion-context.svelte";
-import { toolLifecycleSpec } from "../../tools/lifecycle/registry";
 import { hasTranscriptContent } from "./transcript-content";
-
-type TimelineRowItem = {
-  kind: "timeline";
-  key: string;
-  node: TranscriptDisplayNode;
-  entranceMotion?: TranscriptEntranceMotion;
-};
-
-type TranscriptRowItem =
-  | TimelineRowItem
-  | { kind: "waiting"; key: string }
-  | { kind: "queued"; key: string; prompt: QueuedPromptRecord };
 
 type Props = {
   controller?: VirtualScrollerController;
@@ -94,15 +85,6 @@ type Props = {
   transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
 };
 
-// Event replay/recovery can briefly surface duplicate timeline keys. The
-// virtualizer requires unique row keys; disambiguate at the row layer so a
-// bad duplicate cannot corrupt measurement and overlap transcript rows.
-function uniqueRowKey(key: string, seen: Map<string, number>): string {
-  const count = seen.get(key) ?? 0;
-  seen.set(key, count + 1);
-  return count === 0 ? key : `${key}:duplicate:${count}`;
-}
-
 let {
   controller = $bindable(),
   atEnd = $bindable(true),
@@ -152,14 +134,6 @@ const entranceLedger = new TranscriptEntryMotionLedger((count) =>
   motionBudget.allocateBatch(count),
 );
 let motionScope: string | undefined;
-
-function entranceEligible(node: TranscriptDisplayNode): boolean {
-  if (node.kind === "message") return Boolean(node.item.live);
-  if (node.kind === "thinking_group") {
-    return node.items.some((member) => Boolean(member.item.live));
-  }
-  return node.kind === "tool" && Boolean(node.draft);
-}
 
 type PrefixRows = {
   revision: number;
@@ -286,90 +260,13 @@ function claimEntrance(key: string, token: string): boolean {
   return entranceLedger.claim(key, token);
 }
 
-// Content revisions request measurement without changing component identity.
-// Keep each revision scoped to the row whose rendered body can actually change
-// so one streaming tool/message does not remeasure every visible transcript row.
-function measurementVersionForRow(row: TranscriptRowItem): string {
-  if (row.kind === "waiting") return "waiting";
-  if (row.kind === "queued") {
-    return `${row.prompt.status}:${row.prompt.updatedAt}`;
-  }
-
-  const node = row.node;
-  if (node.kind === "thinking_group") {
-    return node.items
-      .map(
-        (member) =>
-          `${member.item.text.length}:${member.item.live ? "live" : "stored"}:${member.item.done ? "done" : "open"}`,
-      )
-      .join("|");
-  }
-  if (node.kind === "message") {
-    const item = node.item;
-    return [
-      item.text.length,
-      item.live ? "live" : "stored",
-      item.done ? "done" : "open",
-      item.optimistic ? "optimistic" : "settled",
-      item.stopReason ?? "ok",
-      item.errorMessage?.length ?? 0,
-    ].join(":");
-  }
-  if (node.kind === "tool") {
-    // The canonical draft block carries no timestamps, so structural progress
-    // is encoded directly. Durable revisions include activity/hydration state;
-    // the shared ResizeObserver remains the sole authority for intermediate
-    // animated heights.
-    if (!node.toolCall) {
-      const block = node.draft?.block;
-      const progress = block?.progress;
-      const lifecycle = toolLifecycleSpec(block?.toolName ?? "tool");
-      return [
-        "draft",
-        `arg:${lifecycle.argumentRegion}`,
-        `placeholder:${lifecycle.resultPlaceholder?.variant ?? "none"}`,
-        block?.argsText.length ?? 0,
-        block?.done ? "done" : "open",
-        progress?.lineCount ?? 0,
-        progress?.generatedLineCount ?? 0,
-        progress?.generatedPreview?.length ?? 0,
-        block?.argsText || progress?.generatedPreview
-          ? "activity-visible"
-          : "header-only",
-      ].join(":");
-    }
-    const toolCallId = node.toolCall.id;
-    const lifecycle = toolLifecycleSpec(node.toolCall.toolName);
-    const approval = approvalsByToolCallId.get(toolCallId);
-    const question = questionsByToolCallId.get(toolCallId);
-    const plan = reviewsByToolCallId.get(toolCallId);
-    return [
-      "tool",
-      `arg:${lifecycle.argumentRegion}`,
-      `placeholder:${lifecycle.resultPlaceholder?.variant ?? "none"}`,
-      node.toolCall.status,
-      node.toolCall.updatedAt,
-      node.liveOutput?.updatedAt ?? "no-output",
-      active ? "body-hydrated" : "body-deferred",
-      node.toolCall.status === "failed" || node.toolCall.status === "denied"
-        ? "activity-error"
-        : "activity-visible",
-      approval ? `${approval.id}:${approval.status}` : "no-approval",
-      question ? `${question.id}:${question.status}` : "no-question",
-      plan ? `${plan.id}:${plan.status}` : "no-plan",
-    ].join(":");
-  }
-  if (node.kind === "compaction") {
-    const notice = node.notice;
-    return [
-      "compaction",
-      notice.state,
-      notice.summaryPreview?.length ?? 0,
-      notice.summary?.length ?? 0,
-      notice.errorMessage?.length ?? 0,
-    ].join(":");
-  }
-  return node.key;
+function getMeasurementVersionForRow(row: TranscriptRowItem): string {
+  return measurementVersionForRow(row, {
+    approvalsByToolCallId,
+    questionsByToolCallId,
+    reviewsByToolCallId,
+    active,
+  });
 }
 
 const showEmptyRun = $derived(
@@ -423,7 +320,7 @@ $effect(() => {
       getKey={(row) => row.key}
       {structureVersion}
       {heightCacheKey}
-      getMeasurementVersion={measurementVersionForRow}
+      getMeasurementVersion={getMeasurementVersionForRow}
       {contentVisibility}
       estimateSize={() => 120}
       overscan={10}

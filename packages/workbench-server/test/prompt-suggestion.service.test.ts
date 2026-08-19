@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -116,6 +116,28 @@ describe("PromptSuggestionService", () => {
     );
     assert.equal(status?.enabled, false);
     assert.equal(events.at(-1)?.type, "prompt_suggestions.enabled_updated");
+  });
+
+  it("reports malformed user suggestion YAML without hiding built-ins", async () => {
+    const { service, home, project } = await fixture();
+    await mkdir(join(home, "suggestions"), { recursive: true });
+    await writeFile(
+      join(home, "suggestions", "broken.md"),
+      "---\nname: [\n---\nPrompt body\n",
+    );
+
+    const result = await service.listForProject(project.id);
+
+    assert.ok(
+      result.diagnostics.some(
+        (diagnostic) => diagnostic.code === "parse_failed",
+      ),
+    );
+    assert.ok(
+      result.suggestions.some(
+        (suggestion) => suggestion.name === "commit-changes",
+      ),
+    );
   });
 
   it("creates loadable user suggestions without overwriting and reports precedence", async () => {

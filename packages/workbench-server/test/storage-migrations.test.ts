@@ -159,6 +159,46 @@ describe("storage migration runner", () => {
     );
   });
 
+  it("archives sparse logs and establishes the dense epoch", async () => {
+    const root = await home();
+    await mkdir(join(root, "logs"), { recursive: true });
+    await writeFile(join(root, "logs", "events.jsonl"), '{"seq":9}\n');
+    await writeFile(
+      join(root, "logs", "workspace-events.meta.json"),
+      '{"lastSeq":9}\n',
+    );
+
+    const first = await runStorageMigrations(root, {
+      registry: [migration0004],
+    });
+
+    assert.equal(first.executions[0]?.execution, "ran");
+    await assert.rejects(
+      readFile(join(root, "logs", "events.jsonl"), "utf8"),
+      /ENOENT/,
+    );
+    assert.equal(
+      await readFile(
+        join(
+          root,
+          "migrations",
+          "archives",
+          migration0004.id,
+          "logs",
+          "events.jsonl",
+        ),
+        "utf8",
+      ),
+      '{"seq":9}\n',
+    );
+    assert.ok(await readFile(join(root, "logs", ".dense-streams-v1"), "utf8"));
+
+    const second = await runStorageMigrations(root, {
+      registry: [migration0004],
+    });
+    assert.deepEqual(second.executions, []);
+  });
+
   it("accepts active dense journals after their layout marker exists", async () => {
     const root = await home();
     await mkdir(join(root, "logs"), { recursive: true });

@@ -13,7 +13,7 @@ Cross-platform native runtime primitives for Nerve. The npm package and Rust cra
 
 Keep `native/src/lib.rs` limited to module wiring and boundary re-exports. Feature modules must not import `napi` or expose Node concepts. Convert transport-neutral internal records at the `api` boundary, and avoid generic `utils.rs`, `common.rs`, or `types.rs` modules.
 
-The shared filesystem walker planned in [`../../TODO.md`](../../TODO.md) is an internal primitive for search and find, not a generic exported operation. Watchers remain a separate long-lived feature.
+The shared filesystem walker in `native/src/` is an internal primitive for search and find, not a generic exported operation. Watchers remain a separate long-lived feature.
 
 ## Git boundary
 

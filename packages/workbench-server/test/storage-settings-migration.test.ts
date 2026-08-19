@@ -9,6 +9,7 @@ import {
 } from "@nervekit/contracts";
 import {
   initializeStorage,
+  readCurrentSettingsForBootstrap,
   writeSettings,
 } from "../src/infrastructure/storage/index.js";
 
@@ -28,6 +29,67 @@ describe("settings migrations", () => {
     await initializeStorage(root);
 
     await assert.rejects(lstat(join(root, "prompt-suggestions")), /ENOENT/);
+    assert.deepEqual(
+      await readCurrentSettingsForBootstrap(root),
+      defaultSettings,
+    );
+  });
+
+  it("does not consume unversioned settings during bootstrap", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-settings-bootstrap-"));
+    roots.push(root);
+    await writeFile(
+      join(root, "config.json"),
+      `${JSON.stringify({
+        ...defaultSettings,
+        application: undefined,
+        server: { host: "0.0.0.0", port: 4999, allowRemote: true },
+      })}\n`,
+    );
+
+    assert.deepEqual(
+      await readCurrentSettingsForBootstrap(root),
+      defaultSettings,
+    );
+
+    const storage = await initializeStorage(root);
+    assert.deepEqual(
+      await readCurrentSettingsForBootstrap(root),
+      storage.settings,
+    );
+  });
+
+  it("uses only canonical settings for a current home", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-settings-bootstrap-"));
+    roots.push(root);
+    const storage = await initializeStorage(root);
+
+    assert.deepEqual(
+      await readCurrentSettingsForBootstrap(root),
+      storage.settings,
+    );
+
+    await writeFile(join(root, "config.json"), "not-json\n");
+    assert.deepEqual(
+      await readCurrentSettingsForBootstrap(root),
+      defaultSettings,
+    );
+  });
+
+  it("defaults safely for malformed and unsupported VERSION markers", async () => {
+    for (const marker of ["not-json\n", '{"format":"other","version":1}\n']) {
+      const root = await mkdtemp(join(tmpdir(), "nerve-settings-bootstrap-"));
+      roots.push(root);
+      await writeFile(join(root, "VERSION"), marker);
+      await writeFile(
+        join(root, "config.json"),
+        `${JSON.stringify(defaultSettings)}\n`,
+      );
+      assert.deepEqual(
+        await readCurrentSettingsForBootstrap(root),
+        defaultSettings,
+      );
+    }
   });
 
   it("moves legacy server settings into application configuration", async () => {

@@ -1,7 +1,7 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
-  readPersistedSettingsForBootstrap,
+  readCurrentSettingsForBootstrap,
   resolveApplicationConfiguration,
   resolveDataDir,
 } from "@nervekit/workbench-server";
@@ -67,52 +67,79 @@ import {
 
 const desktopOptions = parseDesktopOptions(process.argv.slice(1));
 const desktopDataDir = resolveDataDir();
-const bootstrapSettings =
-  await readPersistedSettingsForBootstrap(desktopDataDir);
-const desktopConfiguration = resolveApplicationConfiguration({
-  settings: bootstrapSettings,
-  env: process.env,
-  argv: process.argv.slice(1),
-  dataDir: desktopDataDir,
-  platform: process.platform,
-  development: !app.isPackaged,
-  packaged: app.isPackaged,
-});
+const bootstrapSettings = await readCurrentSettingsForBootstrap(desktopDataDir);
 const performanceEnvironmentWasExplicit =
   process.env.NERVE_PERFORMANCE_DIAGNOSTICS !== undefined;
-if (process.env.NERVE_LOGGING_ENABLED !== undefined) {
-  process.env.NERVE_LOGGING_ENABLED = desktopConfiguration.values.loggingEnabled
-    ? "1"
-    : "0";
+
+function resolveDesktopConfiguration(
+  settings: Awaited<ReturnType<typeof readCurrentSettingsForBootstrap>>,
+): ReturnType<typeof resolveApplicationConfiguration> {
+  return resolveApplicationConfiguration({
+    settings,
+    env: process.env,
+    argv: process.argv.slice(1),
+    dataDir: desktopDataDir,
+    platform: process.platform,
+    development: !app.isPackaged,
+    packaged: app.isPackaged,
+  });
 }
-if (performanceEnvironmentWasExplicit) {
-  process.env.NERVE_PERFORMANCE_DIAGNOSTICS = desktopConfiguration.values
-    .performanceEnabled
-    ? "1"
-    : "0";
-}
-applyDevelopmentPerformanceDiagnostics(app.isPackaged, process.env, {
-  enabled: desktopConfiguration.values.performanceEnabled,
-});
-configureApplicationLogging(desktopConfiguration.values.loggingEnabled);
-if (!performanceEnvironmentWasExplicit) {
-  process.env.NERVE_DESKTOP_SYNTHETIC_PERFORMANCE = "1";
-  if (
-    bootstrapSettings.application.diagnostics.performanceEnabled ===
-      undefined &&
-    desktopConfiguration.values.performanceEnabled
-  ) {
-    process.env.NERVE_DEVELOPMENT_PERFORMANCE_DEFAULT = "1";
+
+let desktopConfiguration = resolveDesktopConfiguration(bootstrapSettings);
+
+function applyDesktopRuntimeSettings(
+  settings: Awaited<ReturnType<typeof readCurrentSettingsForBootstrap>>,
+  configuration: ReturnType<typeof resolveApplicationConfiguration>,
+  preReady: boolean,
+): void {
+  if (process.env.NERVE_LOGGING_ENABLED !== undefined) {
+    process.env.NERVE_LOGGING_ENABLED = configuration.values.loggingEnabled
+      ? "1"
+      : "0";
+  }
+  if (performanceEnvironmentWasExplicit) {
+    process.env.NERVE_PERFORMANCE_DIAGNOSTICS = configuration.values
+      .performanceEnabled
+      ? "1"
+      : "0";
+  } else {
+    process.env.NERVE_DESKTOP_SYNTHETIC_PERFORMANCE = "1";
+    if (!app.isPackaged || configuration.values.performanceEnabled) {
+      process.env.NERVE_PERFORMANCE_DIAGNOSTICS = configuration.values
+        .performanceEnabled
+        ? "1"
+        : "0";
+    } else {
+      delete process.env.NERVE_PERFORMANCE_DIAGNOSTICS;
+    }
+    if (
+      settings.application.diagnostics.performanceEnabled === undefined &&
+      configuration.values.performanceEnabled
+    ) {
+      process.env.NERVE_DEVELOPMENT_PERFORMANCE_DEFAULT = "1";
+    } else {
+      delete process.env.NERVE_DEVELOPMENT_PERFORMANCE_DEFAULT;
+    }
+  }
+  applyDevelopmentPerformanceDiagnostics(app.isPackaged, process.env, {
+    enabled: configuration.values.performanceEnabled,
+  });
+  configureApplicationLogging(configuration.values.loggingEnabled);
+
+  // Electron command-line switches must be selected before app readiness. A
+  // setting restored by a legacy-home migration takes effect on the next
+  // launch instead of being read from the legacy file before migration.
+  if (preReady) {
+    applyElectronOzonePlatform(
+      parseElectronOzonePlatform(configuration.values.ozonePlatform),
+    );
+    applyElectronFontRenderHinting(
+      resolveElectronFontRenderHinting(configuration.values.fontRenderHinting),
+    );
   }
 }
-const electronOzonePlatform = parseElectronOzonePlatform(
-  desktopConfiguration.values.ozonePlatform,
-);
-const electronFontRenderHinting = resolveElectronFontRenderHinting(
-  desktopConfiguration.values.fontRenderHinting,
-);
-applyElectronOzonePlatform(electronOzonePlatform);
-applyElectronFontRenderHinting(electronFontRenderHinting);
+
+applyDesktopRuntimeSettings(bootstrapSettings, desktopConfiguration, true);
 
 const shellPageUrls = new ShellPageUrlRegistry();
 
@@ -212,6 +239,11 @@ if (!gotSingleInstanceLock) {
         app.quit();
         return;
       }
+
+      const currentSettings =
+        await readCurrentSettingsForBootstrap(desktopDataDir);
+      desktopConfiguration = resolveDesktopConfiguration(currentSettings);
+      applyDesktopRuntimeSettings(currentSettings, desktopConfiguration, false);
 
       void desktopLog("info", "app", "Electron app ready", {
         context: {

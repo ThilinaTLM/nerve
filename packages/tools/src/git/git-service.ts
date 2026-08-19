@@ -436,19 +436,19 @@ export class GitService {
     projectId: string,
     relativePath: string,
   ): Promise<GitBranchListResponse> {
-    return await listBranchesImpl.call(this, projectId, relativePath);
+    return await listBranchesImpl(this, projectId, relativePath);
   }
   async detectBaseBranch(repoDir: string): Promise<string> {
-    return await detectBaseBranchImpl.call(this, repoDir);
+    return await detectBaseBranchImpl(this, repoDir);
   }
   async branchExists(repoDir: string, name: string): Promise<boolean> {
-    return await branchExistsImpl.call(this, repoDir, name);
+    return await branchExistsImpl(this, repoDir, name);
   }
   async comparisonBaseRef(
     repoDir: string,
     baseBranch: string,
   ): Promise<string> {
-    return await comparisonBaseRefImpl.call(this, repoDir, baseBranch);
+    return await comparisonBaseRefImpl(this, repoDir, baseBranch);
   }
   async mergedToBase(
     repoDir: string,
@@ -459,7 +459,7 @@ export class GitService {
       onBaseBranch: boolean;
     },
   ): Promise<boolean> {
-    return await mergedToBaseImpl.call(this, repoDir, baseBranch, state);
+    return await mergedToBaseImpl(this, repoDir, baseBranch, state);
   }
 
   async mergedToBaseRef(

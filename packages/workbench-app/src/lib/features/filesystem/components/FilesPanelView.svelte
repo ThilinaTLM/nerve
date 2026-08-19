@@ -44,8 +44,7 @@ import {
   refreshFileExplorerProject,
   setFileExplorerItemExpanded,
 } from "$lib/features/filesystem/state/file-explorer-actions.svelte";
-import { registerFileExplorerEventHandler } from "$lib/features/filesystem/state/file-explorer-events";
-import { startFileExplorerRefreshScheduler } from "$lib/features/filesystem/state/file-explorer-refresh-scheduler";
+import { startFilePanelController } from "$lib/features/filesystem/state/file-panel-controller.svelte";
 import { fileExplorerState } from "$lib/features/filesystem/state/file-explorer-state.svelte";
 import {
   buildFileExplorerTree,
@@ -354,21 +353,16 @@ $effect(() => {
   const projectId = activeProject?.id;
   if (!projectId || !workbenchStartupState.progressiveActive) return;
   gitFiles = [];
-  void Promise.all([
-    ensureFileExplorerRoot(projectId),
-    refreshGitStatus(projectId),
-  ]);
-  const scheduler = startFileExplorerRefreshScheduler({
+  return startFilePanelController({
+    projectId,
+    initialize: async () => {
+      await Promise.all([
+        ensureFileExplorerRoot(projectId),
+        refreshGitStatus(projectId),
+      ]);
+    },
     refresh: () => refreshAll(projectId),
   });
-  const unregisterEvents = registerFileExplorerEventHandler(
-    projectId,
-    scheduler.requestRefresh,
-  );
-  return () => {
-    unregisterEvents();
-    scheduler.stop();
-  };
 });
 </script>
 
