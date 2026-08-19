@@ -45,27 +45,32 @@ function statusBackend(
 
 describe("GitService project file status", () => {
   it("returns project-relative paths for a root repository", async () => {
-    const service = new GitService(() => ({ dir: "/repo", name: "repo" }), {
-      readBackend: statusBackend(async (repoDir) => {
-        assert.equal(repoDir, "/repo");
-        return [
-          file("new.ts", "?", "?", true),
-          file("modified.ts", " ", "M"),
-          file("generated/", "!", "!"),
-        ];
-      }),
-    });
-    service.isRepo = async () => true;
+    const root = await mkdtemp(join(tmpdir(), "nerve-git-status-"));
+    try {
+      const service = new GitService(() => ({ dir: root, name: "repo" }), {
+        readBackend: statusBackend(async (repoDir) => {
+          assert.equal(repoDir, root);
+          return [
+            file("new.ts", "?", "?", true),
+            file("modified.ts", " ", "M"),
+            file("generated/", "!", "!"),
+          ];
+        }),
+      });
+      service.isRepo = async () => true;
 
-    const result = await service.projectFileStatus("proj_test");
-    assert.deepEqual(
-      result.files.map((file) => [file.repo, file.path]),
-      [
-        [".", "generated"],
-        [".", "modified.ts"],
-        [".", "new.ts"],
-      ],
-    );
+      const result = await service.projectFileStatus("proj_test");
+      assert.deepEqual(
+        result.files.map((file) => [file.repo, file.path]),
+        [
+          [".", "generated"],
+          [".", "modified.ts"],
+          [".", "new.ts"],
+        ],
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("prefixes paths from nested repositories", async () => {
