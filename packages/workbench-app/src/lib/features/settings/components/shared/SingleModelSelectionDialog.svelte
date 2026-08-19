@@ -1,12 +1,14 @@
 <script lang="ts">
 import type { ModelInfo, ModelSelection, ThinkingLevel } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { Label } from "@nervekit/ui-kit/components/ui/label";
+import * as RadioGroup from "@nervekit/ui-kit/components/ui/radio-group";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
-import { SelectRow } from "@nervekit/ui-kit/components/ui/select-row";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
+import { cn } from "@nervekit/ui-kit/core/utils";
 import { modelKey } from "$lib/presentation/utils/model";
 import ModelCatalogRow from "./ModelCatalogRow.svelte";
 import {
@@ -104,6 +106,9 @@ const listItems = $derived<ListItem[]>(
       ]
     : filteredModels.map((entry) => ({ key: entry.key, entry })),
 );
+const radioValue = $derived(
+  fallbackOption ? selectedKey || "$default" : selectedKey,
+);
 const canSave = $derived(
   Boolean(selectedModelInfo) ||
     (fallbackOption !== undefined && selectedKey === ""),
@@ -184,33 +189,58 @@ function useFallback(): void {
             No models match the current filters.
           </p>
         {:else}
-          <div class="h-[min(52vh,24rem)]">
-            <VirtualScroller
-              items={listItems}
-              getKey={(item) => item.key}
-              estimateSize={() => 44}
-              gap={4}
-              viewportClass="h-full"
-              viewportAriaLabel="Available models"
+          <div class="h-[min(60vh,32rem)]">
+            <RadioGroup.Root
+              value={radioValue}
+              aria-label="Available models"
+              class="contents"
+              onValueChange={(value) =>
+                (selectedKey = value === "$default" ? "" : value)}
             >
-              {#snippet row({ item })}
-                {#if item.entry}
-                  {@const entry = item.entry}
-                  <ModelCatalogRow
-                    {entry}
-                    selected={entry.key === selectedKey}
-                    onclick={() => (selectedKey = entry.key)}
-                  />
-                {:else}
-                  <SelectRow
-                    selected={selectedKey === ""}
-                    label={fallbackOption!.label}
-                    detail={fallbackOption!.detail}
-                    onclick={() => (selectedKey = "")}
-                  />
-                {/if}
-              {/snippet}
-            </VirtualScroller>
+              <VirtualScroller
+                items={listItems}
+                getKey={(item) => item.key}
+                estimateSize={() => 44}
+                gap={4}
+                viewportClass="h-full"
+                viewportAriaLabel="Available models"
+              >
+                {#snippet row({ item })}
+                  {#if item.entry}
+                    {@const entry = item.entry}
+                    <ModelCatalogRow
+                      {entry}
+                      selectionMode="single"
+                      selected={entry.key === selectedKey}
+                    />
+                  {:else}
+                    <Label
+                      class={cn(
+                        "flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-md border bg-accent/90 px-2 py-2 text-left transition-colors hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70",
+                        selectedKey === ""
+                          ? "border-primary"
+                          : "border-transparent",
+                      )}
+                    >
+                      <RadioGroup.Item
+                        value="$default"
+                        size="sm"
+                        aria-label={fallbackOption!.label}
+                      />
+                      <span class="grid min-w-0 flex-1 gap-0.5">
+                        <span
+                          class="truncate text-xs font-medium text-foreground"
+                          >{fallbackOption!.label}</span
+                        >
+                        <span class="truncate text-xs text-muted-foreground"
+                          >{fallbackOption!.detail}</span
+                        >
+                      </span>
+                    </Label>
+                  {/if}
+                {/snippet}
+              </VirtualScroller>
+            </RadioGroup.Root>
           </div>
         {/if}
       </div>

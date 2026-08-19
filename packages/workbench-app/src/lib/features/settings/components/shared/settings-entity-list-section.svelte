@@ -1,6 +1,5 @@
 <script lang="ts" generics="T">
 import type { Snippet } from "svelte";
-import Plus from "@lucide/svelte/icons/plus";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   SettingsEmptyState,
@@ -49,11 +48,8 @@ let {
       size="xs"
       data-tour-id={addTourId}
       onclick={onAdd}
-      disabled={addDisabled}
+      disabled={addDisabled}>{addLabel}</Button
     >
-      <Plus class="size-3.5" aria-hidden="true" />
-      {addLabel}
-    </Button>
   {/snippet}
 
   {#if items.length === 0}
@@ -63,7 +59,7 @@ let {
       description={emptyDescription}
     />
   {:else}
-    <SettingsList ariaLabel={listAriaLabel} divided={false}>
+    <SettingsList ariaLabel={listAriaLabel} divided={false} gap="sm">
       {#each items as item (itemKey(item))}
         {@render row(item)}
       {/each}

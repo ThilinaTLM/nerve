@@ -57,6 +57,7 @@ function updateCustomCompactionPercent(
     >
       <SettingsChoiceCards
         items={compactionProfileItems}
+        variant="radio"
         value={settingsDraft.compaction.profile}
         ariaLabel="Compaction profile"
         onValueChange={onCompactionProfileChange}

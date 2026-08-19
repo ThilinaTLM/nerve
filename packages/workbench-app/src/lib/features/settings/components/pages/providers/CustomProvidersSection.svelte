@@ -1,7 +1,6 @@
 <script lang="ts">
 import type { AuthProviderMetadata, CustomProvider } from "$lib/api";
 import { deleteCustomProvider } from "$lib/api";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import { SettingsListItem } from "$lib/presentation/components/settings";
@@ -78,19 +77,15 @@ async function confirmDelete(): Promise<void> {
 >
   {#snippet row(provider)}
     <SettingsListItem variant="card" title={provider.displayName}>
-      {#snippet badges()}
-        {#if !keyConfigured(provider.id)}
-          <Badge tone="neutral" size="xs">No key</Badge>
-        {/if}
-        <Badge tone="neutral" size="xs">
-          {modelCountByProvider.get(provider.id) ?? 0} models
-        </Badge>
-      {/snippet}
       {#snippet meta()}
         <span class="truncate">
           <span class="font-mono">{provider.id}</span>
           · {provider.api} ·
           <span class="font-mono">{provider.baseUrl}</span>
+          {#if !keyConfigured(provider.id)}
+            · <span class="text-warning">No key</span>
+          {/if}
+          · {modelCountByProvider.get(provider.id) ?? 0} models
         </span>
       {/snippet}
       {#snippet actions()}

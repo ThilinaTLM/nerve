@@ -88,7 +88,7 @@ function save(): void {
   closeOnInteractOutside={false}
 >
   <div
-    class="grid max-h-[min(70vh,32rem)] grid-rows-[auto_minmax(0,1fr)]"
+    class="grid max-h-[min(80vh,40rem)] grid-rows-[auto_minmax(0,1fr)]"
     data-tour-id="setup-scoped-models-catalog"
   >
     <div class="grid gap-1.5 border-b border-border/50 px-3 pt-2.5 pb-2">
@@ -121,7 +121,7 @@ function save(): void {
     </div>
 
     <Tooltip.Provider delayDuration={200} disableHoverableContent>
-      <div class="h-[min(52vh,24rem)] p-1.5">
+      <div class="h-[min(60vh,32rem)] p-1.5">
         {#if availableModels.length === 0}
           <p class="px-1 py-2 text-sm text-muted-foreground">
             Authenticate a provider before choosing scoped models.
@@ -143,6 +143,7 @@ function save(): void {
               {@const checked = selectedKeys.has(entry.key)}
               <ModelCatalogRow
                 {entry}
+                selectionMode="multiple"
                 selected={checked}
                 onclick={() => toggleModel(entry, !checked)}
               />

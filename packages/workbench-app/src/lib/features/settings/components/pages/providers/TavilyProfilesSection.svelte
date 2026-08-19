@@ -2,7 +2,6 @@
 import type { AuthProviderMetadata, Settings, TavilyProfile } from "$lib/api";
 import { deleteProviderCredential, getAuthProviders } from "$lib/api";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import { SettingsListItem } from "$lib/presentation/components/settings";
@@ -77,9 +76,9 @@ async function remove(): Promise<void> {
 >
   {#snippet row(profile)}
     <SettingsListItem variant="card" title={profile.name}>
-      {#snippet badges()}
+      {#snippet meta()}
         {#if !configured(profile)}
-          <Badge tone="neutral" size="xs">Incomplete</Badge>
+          <span class="text-warning">Incomplete</span>
         {/if}
       {/snippet}
       {#snippet actions()}

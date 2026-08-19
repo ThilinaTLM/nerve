@@ -26,7 +26,7 @@ let {
   class={cn(
     "flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 text-xs",
     variant === "card" &&
-      "rounded-md border border-dashed border-border/60 bg-muted/20 px-3",
+      "rounded-md border border-dashed border-border/60 bg-accent/60 px-3 py-1.5",
     className,
   )}
 >

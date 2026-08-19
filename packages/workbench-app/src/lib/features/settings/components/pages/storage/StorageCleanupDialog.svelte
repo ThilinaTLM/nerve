@@ -2,7 +2,6 @@
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { StorageCleanupTarget, StorageUsageResponse } from "$lib/api";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
@@ -94,7 +93,7 @@ function start(): void {
       <span class="text-xs text-muted-foreground">{description}</span>
     </span>
     {#if groupCount(group) > 0}
-      <Badge size="xs" tone="accent">{groupCount(group)}</Badge>
+      <span class="text-xs text-muted-foreground">{groupCount(group)}</span>
     {/if}
   </Collapsible.Trigger>
 {/snippet}

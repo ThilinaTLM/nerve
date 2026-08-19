@@ -5,7 +5,6 @@ import type {
   ModelInfo,
 } from "$lib/api";
 import { deleteModelDefinition } from "$lib/api";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import { SettingsListItem } from "$lib/presentation/components/settings";
@@ -123,18 +122,16 @@ async function confirmDelete(): Promise<void> {
 >
   {#snippet row(model)}
     <SettingsListItem variant="card" title={model.name}>
-      {#snippet badges()}
-        {#if isUnavailable(model)}
-          <Badge tone="warn" size="xs">Unavailable</Badge>
-        {/if}
-        {#if model.reasoning}
-          <Badge tone="accent" size="xs">Reasoning</Badge>
-        {/if}
-      {/snippet}
       {#snippet meta()}
         <span class="truncate">
           {providerLabel(model.provider)} ·
           <span class="font-mono">{model.modelId}</span>
+          {#if isUnavailable(model)}
+            · <span class="text-warning">Unavailable</span>
+          {/if}
+          {#if model.reasoning}
+            · <span class="text-info">Reasoning</span>
+          {/if}
         </span>
       {/snippet}
       {#snippet actions()}

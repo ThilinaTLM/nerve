@@ -71,7 +71,7 @@ function previewTone(tone: NotificationTone): void {
         <SelectRow
           label={option.label}
           detail={option.detail}
-          class="flex-1"
+          class="flex-1 rounded-sm border-transparent bg-transparent px-2 py-1.5 hover:bg-accent/60 dark:bg-transparent dark:hover:bg-accent/60"
           selected={option.value === value}
           onclick={() => selectTone(option.value)}
         />

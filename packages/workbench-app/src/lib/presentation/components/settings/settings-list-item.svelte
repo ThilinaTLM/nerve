@@ -36,7 +36,7 @@ let {
   class={cn(
     "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1.5",
     variant === "card" &&
-      "rounded-md border border-border/60 bg-card/40 px-3 py-2",
+      "rounded-md border border-transparent bg-accent/90 px-3 py-1.5 dark:bg-accent/60",
     className,
   )}
 >

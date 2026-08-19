@@ -165,6 +165,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
   <SettingsRow label="Default mode" layout="stacked">
     <SettingsChoiceCards
       items={modeItems}
+      variant="radio"
       value={settingsDraft.defaultMode}
       ariaLabel="Default mode"
       tourId="setup-agent-default-mode"
@@ -175,6 +176,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
   <SettingsRow label="Default permission" layout="stacked">
     <SettingsChoiceCards
       items={permissionItems}
+      variant="radio"
       value={settingsDraft.defaultPermissionLevel}
       ariaLabel="Default permission"
       tourId="setup-agent-default-permission"
