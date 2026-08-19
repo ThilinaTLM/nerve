@@ -82,14 +82,14 @@ function start(): void {
 
 {#snippet groupHeader(group: string, title: string, description: string)}
   <Collapsible.Trigger
-    class="group/cleanup flex w-full items-center gap-2 rounded-md px-1 py-1.5"
+    class="group/cleanup flex w-full items-center gap-1.5 rounded-sm px-0.5 py-1"
   >
     <ChevronRight
       class="size-3.5 flex-none text-muted-foreground transition-transform group-data-[state=open]/cleanup:rotate-90"
       aria-hidden="true"
     />
     <span class="grid min-w-0 flex-1 gap-0.5 text-left">
-      <span class="text-sm font-medium text-foreground">{title}</span>
+      <span class="text-xs font-medium text-foreground">{title}</span>
       <span class="text-xs text-muted-foreground">{description}</span>
     </span>
     {#if groupCount(group) > 0}
@@ -104,12 +104,12 @@ function start(): void {
   description="Choose what to remove. Current footprints are estimates; final results use measured space."
   size="md"
 >
-  <div class="grid gap-3">
+  <div class="grid gap-2">
     <div
-      class="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/30 px-3 py-2.5"
+      class="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-1 pb-2"
     >
       <div class="grid gap-0.5">
-        <span class="text-sm font-medium">
+        <span class="text-xs font-medium">
           {targets.length} target{targets.length === 1 ? "" : "s"} selected
         </span>
         <span class="text-xs text-muted-foreground">
@@ -118,7 +118,7 @@ function start(): void {
           )}
         </span>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap gap-1.5">
         <Button
           size="xs"
           variant="outline"
@@ -144,7 +144,7 @@ function start(): void {
         "Permanent conversation and message removal.",
       )}
       <Collapsible.Content
-        class="mt-1 divide-y divide-border/60 rounded-md border border-border/60"
+        class="mt-0.5 divide-y divide-border/60 rounded-md border border-border/60"
       >
         <StorageCleanupChoice
           id="cleanup-conversations"
@@ -165,7 +165,7 @@ function start(): void {
         "Diagnostic history that is not required for conversations.",
       )}
       <Collapsible.Content
-        class="mt-1 divide-y divide-border/60 rounded-md border border-border/60"
+        class="mt-0.5 divide-y divide-border/60 rounded-md border border-border/60"
       >
         <StorageCleanupChoice
           id="cleanup-dated-logs"
@@ -192,7 +192,7 @@ function start(): void {
         "Generated output that Nerve can operate without.",
       )}
       <Collapsible.Content
-        class="mt-1 divide-y divide-border/60 rounded-md border border-border/60"
+        class="mt-0.5 divide-y divide-border/60 rounded-md border border-border/60"
       >
         <StorageCleanupChoice
           id="cleanup-explore"
@@ -227,7 +227,7 @@ function start(): void {
         "Search index",
         "Rebuild the query cache instead of vacuuming the large database in place.",
       )}
-      <Collapsible.Content class="mt-1 rounded-md border border-border/60">
+      <Collapsible.Content class="mt-0.5 rounded-md border border-border/60">
         <StorageCleanupChoice
           id="cleanup-index"
           bind:checked={selection.searchIndex}

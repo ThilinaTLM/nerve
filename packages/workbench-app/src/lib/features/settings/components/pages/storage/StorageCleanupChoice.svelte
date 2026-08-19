@@ -34,8 +34,8 @@ const hasAmount = $derived(amount !== undefined);
 
 <div
   class={cn(
-    "flex items-center gap-3 rounded-md border bg-accent/90 px-3 py-2 transition-colors hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70",
-    checked ? "border-primary" : "border-transparent",
+    "flex items-center gap-2 px-2 py-1.5 transition-colors hover:bg-accent/40",
+    checked && "bg-primary/10",
   )}
 >
   <Checkbox {id} bind:checked aria-label={title} />
@@ -43,11 +43,11 @@ const hasAmount = $derived(amount !== undefined);
     for={id}
     class="grid min-w-0 flex-1 cursor-pointer gap-0.5 font-normal"
   >
-    <span class="text-sm text-foreground">{title}</span>
+    <span class="text-xs font-medium text-foreground">{title}</span>
     <span class="text-xs text-muted-foreground">{description}</span>
   </Label>
   {#if hasAmount}
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-1.5">
       <Input
         type="number"
         size="xs"
@@ -56,7 +56,7 @@ const hasAmount = $derived(amount !== undefined);
         value={String(amount)}
         disabled={!checked}
         ariaLabel={amountLabel ?? `${title} amount`}
-        class="w-20"
+        class="w-16"
         oninput={(event) =>
           (amount = Number((event.currentTarget as HTMLInputElement).value))}
       />
