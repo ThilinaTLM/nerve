@@ -83,7 +83,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Fast baseline (format, lint, boundaries, scripts tests)
-        run: oxfmt --check && eslint . && pnpm check:boundaries && pnpm test:scripts
+        run: pnpm exec oxfmt --check && pnpm exec eslint . && pnpm check:boundaries && pnpm test:scripts
 
       - name: Typecheck and check all packages
         if: github.event_name != 'pull_request' || needs.paths.outputs.code == 'true'
