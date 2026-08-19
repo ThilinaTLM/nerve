@@ -387,6 +387,7 @@ export function composeRuntime(
   );
   const gitLogger = logger.child({ component: "git" });
   const gitService = new GitService(getProject, {
+    executionHome: storage.paths.home,
     onCommandCompleted: (observation) => {
       if (observation.durationMs < 250) return;
       void gitLogger.warn("Slow Git command", {

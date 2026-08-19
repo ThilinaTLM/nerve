@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import {
+  ExecutionWorkerClient,
   spawnManagedChildProcess,
   terminateManagedChildProcess,
 } from "@nervekit/native";
@@ -8,10 +10,12 @@ import { join } from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import { resolveCommandCwd } from "../common/command-cwd.js";
+import { BoundedProcessOutput } from "../common/bounded-process-output.js";
 import { LiveOutputDelivery } from "../common/live-output.js";
 import { forceKillProcessTree } from "../common/process-tree.js";
 import { buildProcessResult } from "../common/process-result.js";
 import { pathNotFoundMessage, resolveToolPath } from "../filesystem/path.js";
+import { RUNNER_SOURCE } from "./python-runner-source.js";
 
 const DEFAULT_TIMEOUT_SECONDS = 60;
 const MAX_TIMEOUT_SECONDS = 600;
@@ -19,247 +23,6 @@ const FORCE_KILL_AFTER_MS = 2000;
 const MAX_ARTIFACTS = 100;
 const SENSITIVE_ENV_KEY_PATTERN =
   /authorization|cookie|token|apikey|api_key|password|passwd|secret|credential|private.?key|nerve_daemon_token/i;
-
-// Guardrails below block ordinary stdin/file-write/network APIs used by agent
-// snippets. They are not a hard security sandbox against malicious Python code,
-// native extensions, interpreter internals, or symlink tricks.
-const RUNNER_SOURCE = `
-import builtins
-import io
-import json
-import os
-import pathlib
-import runpy
-import shutil
-import socket
-import subprocess
-import sys
-
-user_path = sys.argv[1]
-policy = json.loads(sys.argv[2])
-allow_network = bool(policy.get("allowNetwork", True))
-allow_filewrite = bool(policy.get("allowFileWrite", True))
-artifact_dir_value = policy.get("artifactDir")
-artifact_dir = os.path.abspath(artifact_dir_value) if isinstance(artifact_dir_value, str) and artifact_dir_value else None
-
-STDIN_ERROR = "stdin is not available to the python_exec tool."
-FILEWRITE_ERROR = "file writes are disabled for the python_exec tool in planning mode. Write generated artifacts under NERVE_PYTHON_ARTIFACT_DIR instead."
-NETWORK_ERROR = "network access is disabled for the python_exec tool."
-
-class _NoStdin:
-    encoding = "utf-8"
-    errors = "strict"
-    closed = False
-
-    def read(self, *args, **kwargs):
-        raise RuntimeError(STDIN_ERROR)
-
-    def readline(self, *args, **kwargs):
-        raise RuntimeError(STDIN_ERROR)
-
-    def readlines(self, *args, **kwargs):
-        raise RuntimeError(STDIN_ERROR)
-
-    def __iter__(self):
-        raise RuntimeError(STDIN_ERROR)
-
-    def fileno(self):
-        raise RuntimeError(STDIN_ERROR)
-
-    def isatty(self):
-        return False
-
-    def readable(self):
-        return False
-
-    def writable(self):
-        return False
-
-    def seekable(self):
-        return False
-
-builtins.input = lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError(STDIN_ERROR))
-sys.stdin = _NoStdin()
-
-_WRITE_MODE_CHARS = set("wax+")
-_WRITE_FLAG_BITS = 0
-for _name in ("O_WRONLY", "O_RDWR", "O_CREAT", "O_TRUNC", "O_APPEND"):
-    _WRITE_FLAG_BITS |= int(getattr(os, _name, 0) or 0)
-
-def _mode_writes(mode):
-    if mode is None:
-        return False
-    return any(ch in str(mode) for ch in _WRITE_MODE_CHARS)
-
-def _flags_write(flags):
-    try:
-        return (int(flags) & _WRITE_FLAG_BITS) != 0
-    except Exception:
-        return False
-
-def _path_in_artifact(path):
-    if artifact_dir is None:
-        return False
-    try:
-        target = os.path.abspath(os.fspath(path))
-    except Exception:
-        return False
-    try:
-        return os.path.commonpath([artifact_dir, target]) == artifact_dir
-    except Exception:
-        return False
-
-def _check_filewrite_target(path):
-    if allow_filewrite:
-        return
-    if _path_in_artifact(path):
-        return
-    raise PermissionError(FILEWRITE_ERROR)
-
-def _deny_filewrite(*args, **kwargs):
-    raise PermissionError(FILEWRITE_ERROR)
-
-def _guarded_open_factory(original):
-    def _guarded_open(file, mode="r", *args, **kwargs):
-        if not allow_filewrite and _mode_writes(mode):
-            _check_filewrite_target(file)
-        return original(file, mode, *args, **kwargs)
-    return _guarded_open
-
-def _guarded_path_method(original):
-    def _guarded(self, *args, **kwargs):
-        _check_filewrite_target(self)
-        return original(self, *args, **kwargs)
-    return _guarded
-
-def _guarded_path_move(original):
-    def _guarded(self, target, *args, **kwargs):
-        _check_filewrite_target(self)
-        _check_filewrite_target(target)
-        return original(self, target, *args, **kwargs)
-    return _guarded
-
-def _guarded_os_one(original):
-    def _guarded(path, *args, **kwargs):
-        _check_filewrite_target(path)
-        return original(path, *args, **kwargs)
-    return _guarded
-
-def _guarded_os_two(original):
-    def _guarded(src, dst, *args, **kwargs):
-        _check_filewrite_target(src)
-        _check_filewrite_target(dst)
-        return original(src, dst, *args, **kwargs)
-    return _guarded
-
-def _guarded_shutil_copy(original):
-    def _guarded(src, dst, *args, **kwargs):
-        _check_filewrite_target(dst)
-        return original(src, dst, *args, **kwargs)
-    return _guarded
-
-def _install_filewrite_guards():
-    if allow_filewrite:
-        return
-
-    builtins.open = _guarded_open_factory(builtins.open)
-    io.open = _guarded_open_factory(io.open)
-
-    _path_open = pathlib.Path.open
-    def _guarded_path_open(self, mode="r", *args, **kwargs):
-        if _mode_writes(mode):
-            _check_filewrite_target(self)
-        return _path_open(self, mode, *args, **kwargs)
-    pathlib.Path.open = _guarded_path_open
-
-    for name in ("write_text", "write_bytes", "mkdir", "unlink", "rmdir", "touch"):
-        if hasattr(pathlib.Path, name):
-            setattr(pathlib.Path, name, _guarded_path_method(getattr(pathlib.Path, name)))
-    for name in ("rename", "replace"):
-        if hasattr(pathlib.Path, name):
-            setattr(pathlib.Path, name, _guarded_path_move(getattr(pathlib.Path, name)))
-
-    for module, names in (
-        (os, ("remove", "unlink", "rmdir", "mkdir", "makedirs", "removedirs", "truncate")),
-    ):
-        for name in names:
-            if hasattr(module, name):
-                setattr(module, name, _guarded_os_one(getattr(module, name)))
-    for name in ("rename", "replace"):
-        if hasattr(os, name):
-            setattr(os, name, _guarded_os_two(getattr(os, name)))
-
-    for name in ("copy", "copy2", "copyfile", "copytree"):
-        if hasattr(shutil, name):
-            setattr(shutil, name, _guarded_shutil_copy(getattr(shutil, name)))
-    for name in ("move",):
-        if hasattr(shutil, name):
-            setattr(shutil, name, _guarded_os_two(getattr(shutil, name)))
-    for name in ("rmtree",):
-        if hasattr(shutil, name):
-            setattr(shutil, name, _guarded_os_one(getattr(shutil, name)))
-
-    def _blocked_popen(*args, **kwargs):
-        raise PermissionError(FILEWRITE_ERROR)
-    subprocess.Popen = _blocked_popen
-    subprocess.run = _blocked_popen
-    subprocess.call = _blocked_popen
-    subprocess.check_call = _blocked_popen
-    subprocess.check_output = _blocked_popen
-
-def _install_network_guards():
-    if allow_network:
-        return
-
-    class _BlockedSocket(socket.socket):
-        def __init__(self, *args, **kwargs):
-            raise PermissionError(NETWORK_ERROR)
-
-    def _blocked_create_connection(*args, **kwargs):
-        raise PermissionError(NETWORK_ERROR)
-
-    socket.socket = _BlockedSocket
-    socket.create_connection = _blocked_create_connection
-
-def _audit(event, args):
-    if not allow_filewrite:
-        if event == "open":
-            path = args[0] if len(args) > 0 else None
-            mode = args[1] if len(args) > 1 else None
-            flags = args[2] if len(args) > 2 else 0
-            if _mode_writes(mode) or _flags_write(flags):
-                _check_filewrite_target(path)
-        elif event in {
-            "os.remove",
-            "os.rmdir",
-            "os.mkdir",
-            "os.truncate",
-            "shutil.rmtree",
-        }:
-            path = args[0] if len(args) > 0 else None
-            _check_filewrite_target(path)
-        elif event in {"os.rename", "os.replace"}:
-            src = args[0] if len(args) > 0 else None
-            dst = args[1] if len(args) > 1 else None
-            _check_filewrite_target(src)
-            _check_filewrite_target(dst)
-        elif event == "subprocess.Popen":
-            raise PermissionError(FILEWRITE_ERROR)
-    if not allow_network and event.startswith("socket."):
-        raise PermissionError(NETWORK_ERROR)
-
-try:
-    sys.addaudithook(_audit)
-except Exception:
-    pass
-
-_install_filewrite_guards()
-_install_network_guards()
-user_dir = os.path.dirname(os.path.abspath(user_path))
-if user_dir:
-    sys.path.insert(0, user_dir)
-runpy.run_path(user_path, run_name="__main__")
-`;
 
 export async function executePython(
   args: Record<string, unknown>,
@@ -277,8 +40,25 @@ export async function executePython(
     allowFileWrite: true,
   };
 
-  const tempDir = await mkdtemp(join(tmpdir(), "nerve-python-"));
-  const artifactDir = await createArtifactDir(context.dataDir);
+  const durableExecutionDir =
+    context.executionId && context.dataDir
+      ? join(
+          context.dataDir,
+          "execution-runtime",
+          "executions",
+          context.executionId,
+        )
+      : undefined;
+  const tempDir = durableExecutionDir
+    ? join(durableExecutionDir, "python-input")
+    : await mkdtemp(join(tmpdir(), "nerve-python-"));
+  if (durableExecutionDir) {
+    await mkdir(tempDir, { recursive: true, mode: 0o700 });
+  }
+  const artifactDir = await createArtifactDir(
+    context.dataDir,
+    durableExecutionDir,
+  );
   let keepArtifactDir = false;
   const runnerPath = join(tempDir, "runner.py");
   const userPath =
@@ -305,14 +85,19 @@ export async function executePython(
       inputMode: source.kind,
       scriptPath: source.kind === "file" ? source.path : undefined,
       dataDir: context.dataDir,
+      executionId: context.executionId,
       signal: context.signal,
       onUpdate: context.onUpdate,
     });
     keepArtifactDir = artifactCount(result) > 0;
     return result;
   } finally {
-    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
-    if (!keepArtifactDir) {
+    if (!durableExecutionDir) {
+      await rm(tempDir, { recursive: true, force: true }).catch(
+        () => undefined,
+      );
+    }
+    if (!keepArtifactDir && !durableExecutionDir) {
       await rm(artifactDir, { recursive: true, force: true }).catch(
         () => undefined,
       );
@@ -332,6 +117,7 @@ type RunPythonProcessOptions = {
   inputMode: PythonSource["kind"];
   scriptPath?: string;
   dataDir?: string;
+  executionId?: string;
   signal?: AbortSignal;
   onUpdate?: ToolExecutionContext["onUpdate"];
 };
@@ -353,9 +139,28 @@ async function runPythonProcess({
   inputMode,
   scriptPath,
   dataDir,
+  executionId,
   signal,
   onUpdate,
 }: RunPythonProcessOptions): Promise<ToolExecutionResult> {
+  if (dataDir) {
+    return runPythonProcessInWorker({
+      runtime,
+      policy,
+      timeoutSeconds,
+      cwd,
+      runnerPath,
+      userPath,
+      artifactDir,
+      envOverrides,
+      inputMode,
+      scriptPath,
+      dataDir,
+      executionId,
+      signal,
+      onUpdate,
+    });
+  }
   const stdoutChunks: Buffer[] = [];
   const stderrChunks: Buffer[] = [];
   const combinedChunks: Buffer[] = [];
@@ -517,6 +322,117 @@ async function runPythonProcess({
   });
 }
 
+async function runPythonProcessInWorker(
+  options: RunPythonProcessOptions & { dataDir: string },
+): Promise<ToolExecutionResult> {
+  if (options.signal?.aborted) throw new Error("Python execution aborted.");
+  const worker = await ExecutionWorkerClient.connect(options.dataDir);
+  const executionId = options.executionId ?? `python_${randomUUID()}`;
+  const output = new BoundedProcessOutput();
+  const liveOutput = new LiveOutputDelivery(options.onUpdate);
+  const startedAt = performance.now();
+  const runnerPolicy = { ...options.policy, artifactDir: options.artifactDir };
+  const onAbort = () => {
+    void worker.cancel(executionId, "SIGKILL").catch(() => undefined);
+  };
+  options.signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    const existing = options.executionId
+      ? await worker.get(executionId)
+      : undefined;
+    if (!existing)
+      await worker.start({
+        executionId,
+        command: options.runtime.command,
+        args: [
+          ...options.runtime.args,
+          "-u",
+          "-B",
+          options.runnerPath,
+          options.userPath,
+          JSON.stringify(runnerPolicy),
+        ],
+        cwd: options.cwd,
+        env: Object.fromEntries(
+          Object.entries({
+            ...process.env,
+            ...options.envOverrides,
+            PYTHONIOENCODING: "utf-8",
+            PYTHONDONTWRITEBYTECODE: "1",
+            NERVE_PYTHON_ALLOW_NETWORK: options.policy.allowNetwork ? "1" : "0",
+            NERVE_PYTHON_ALLOW_FILEWRITE: options.policy.allowFileWrite
+              ? "1"
+              : "0",
+            NERVE_PYTHON_ARTIFACT_DIR: options.artifactDir,
+          }).filter(
+            (entry): entry is [string, string] => entry[1] !== undefined,
+          ),
+        ),
+        timeoutMs: options.timeoutSeconds * 1_000,
+        terminationGraceMs: FORCE_KILL_AFTER_MS,
+        belowNormalPriority: true,
+      });
+    const terminal = await worker.subscribe(executionId, {
+      signal: options.signal,
+      onOutput: (stream, chunk) => {
+        output.push(stream, chunk);
+        liveOutput.write(stream, chunk);
+      },
+    }).settled;
+    await liveOutput.end();
+    const artifacts = await listArtifacts(options.artifactDir);
+    const snapshot = output.snapshot();
+    const timedOut =
+      performance.now() - startedAt >= options.timeoutSeconds * 1_000 &&
+      terminal.status === "failed";
+    return await buildProcessResult({
+      stdoutChunks: snapshot.stdoutChunks,
+      stderrChunks: snapshot.stderrChunks,
+      combinedChunks: snapshot.combinedChunks,
+      code: terminal.exitCode ?? null,
+      signal: (terminal.signal as NodeJS.Signals | undefined) ?? null,
+      outputFilePrefix: "nerve-python",
+      exitMessagePrefix: "Python",
+      dataDir: options.dataDir,
+      durationMs: Math.round(performance.now() - startedAt),
+      timedOut,
+      timeoutKilled: timedOut,
+      timeoutMessage: timedOut
+        ? `Python timed out after ${options.timeoutSeconds}s and was killed.`
+        : undefined,
+      contentFooterLines: artifactFooterLines(artifacts),
+      details: {
+        executable: options.runtime.displayPath,
+        version: options.runtime.version,
+        timeoutSeconds: options.timeoutSeconds,
+        allowNetwork: options.policy.allowNetwork,
+        allowFileWrite: options.policy.allowFileWrite,
+        envKeys: Object.keys(options.envOverrides).sort(),
+        inputMode: options.inputMode,
+        scriptPath: options.scriptPath,
+        artifactDir: artifacts.length > 0 ? options.artifactDir : undefined,
+        artifacts,
+        outputRetention: {
+          totalBytes: snapshot.totalBytes,
+          retainedBytes: snapshot.retainedBytes,
+          omittedBytes: snapshot.omittedBytes,
+          truncated: snapshot.truncated,
+        },
+      },
+    });
+  } catch (error) {
+    if (options.signal?.aborted) {
+      throw new Error("Python execution aborted.", { cause: error });
+    }
+    throw error;
+  } finally {
+    options.signal?.removeEventListener("abort", onAbort);
+    if (!options.executionId) {
+      void worker.remove(executionId).catch(() => undefined);
+    }
+  }
+}
+
 type PythonSource =
   | { kind: "inline"; code: string }
   | { kind: "file"; path: string };
@@ -596,7 +512,15 @@ function envOverridesArg(value: unknown): Record<string, string> {
   return output;
 }
 
-async function createArtifactDir(dataDir: string | undefined): Promise<string> {
+async function createArtifactDir(
+  dataDir: string | undefined,
+  durableExecutionDir?: string,
+): Promise<string> {
+  if (durableExecutionDir) {
+    const artifactDir = join(durableExecutionDir, "python-artifacts");
+    await mkdir(artifactDir, { recursive: true, mode: 0o700 });
+    return artifactDir;
+  }
   const baseDir = dataDir
     ? join(dataDir, "tmp", "python-artifacts")
     : join(tmpdir(), "nerve-python-artifacts");

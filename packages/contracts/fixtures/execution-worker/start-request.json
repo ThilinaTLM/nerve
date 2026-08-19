@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "token": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "id": "request_fixture",
+  "method": "execution.start",
+  "params": {
+    "executionId": "tool_fixture",
+    "command": "/usr/bin/example",
+    "args": ["--version"],
+    "cwd": "/workspace",
+    "env": { "TERM": "dumb" },
+    "timeoutMs": 30000,
+    "terminationGraceMs": 2000,
+    "belowNormalPriority": true
+  }
+}

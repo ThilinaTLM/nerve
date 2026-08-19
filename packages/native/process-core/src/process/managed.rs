@@ -5,16 +5,17 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::process::{ManagedTarget, TerminationMethod, TerminationResult};
+use crate::process::{ManagedTarget, ProcessPriority, TerminationMethod, TerminationResult};
 use crate::sys::process::{self as sys_process, ContainmentGuard};
 
 #[derive(Clone, Debug)]
-pub(crate) struct SpawnOptions {
-    pub(crate) cwd: Option<String>,
-    pub(crate) env: Option<HashMap<String, String>>,
+pub struct SpawnOptions {
+    pub cwd: Option<String>,
+    pub env: Option<HashMap<String, String>>,
+    pub priority: ProcessPriority,
 }
 
-pub(crate) struct ManagedProcessEvents {
+pub struct ManagedProcessEvents {
     stdout: Arc<dyn Fn(Vec<u8>) + Send + Sync>,
     stderr: Arc<dyn Fn(Vec<u8>) + Send + Sync>,
     exit: Arc<dyn Fn((i32, String)) + Send + Sync>,
@@ -22,7 +23,7 @@ pub(crate) struct ManagedProcessEvents {
 }
 
 impl ManagedProcessEvents {
-    pub(crate) fn new(
+    pub fn new(
         stdout: impl Fn(Vec<u8>) + Send + Sync + 'static,
         stderr: impl Fn(Vec<u8>) + Send + Sync + 'static,
         exit: impl Fn((i32, String)) + Send + Sync + 'static,
@@ -43,16 +44,16 @@ struct ManagedState {
     containment_guard: Mutex<Option<ContainmentGuard>>,
 }
 
-pub(crate) struct ManagedProcess {
+pub struct ManagedProcess {
     state: Arc<ManagedState>,
 }
 
 impl ManagedProcess {
-    pub(crate) fn target(&self) -> ManagedTarget {
+    pub fn target(&self) -> ManagedTarget {
         self.state.target.clone()
     }
 
-    pub(crate) fn terminate(&self, signal: &str) -> TerminationResult {
+    pub fn terminate(&self, signal: &str) -> TerminationResult {
         if self.state.exited.load(Ordering::Acquire) {
             return TerminationResult::not_attempted(TerminationMethod::None, None);
         }
@@ -68,7 +69,7 @@ impl ManagedProcess {
     }
 }
 
-pub(crate) fn spawn(
+pub fn spawn(
     command: String,
     args: Vec<String>,
     options: SpawnOptions,
@@ -87,7 +88,7 @@ pub(crate) fn spawn(
         process.env_clear().envs(env);
     }
 
-    let spawned = sys_process::spawn_contained(&mut process)?;
+    let spawned = sys_process::spawn_contained(&mut process, options.priority)?;
     let mut child = spawned.child;
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();

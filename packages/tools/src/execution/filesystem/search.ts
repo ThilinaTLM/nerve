@@ -1,5 +1,9 @@
 import type { ChildProcessByStdio } from "node:child_process";
-import { spawnManagedChildProcess } from "@nervekit/native";
+import { randomUUID } from "node:crypto";
+import {
+  ExecutionWorkerClient,
+  spawnManagedChildProcess,
+} from "@nervekit/native";
 import { createReadStream } from "node:fs";
 import { open } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
@@ -61,7 +65,15 @@ export async function executeGrepWithBackend(
     raw = await fallbackGrep(args, scope, limit, contextLines, context.signal);
   } else {
     try {
-      raw = await runRg(args, scope, limit, contextLines, context.signal);
+      raw = await runRg(
+        args,
+        scope,
+        limit,
+        contextLines,
+        context.signal,
+        context.dataDir,
+        context.executionId,
+      );
     } catch (error) {
       if (
         backendMode !== "auto" ||
@@ -99,6 +111,8 @@ async function runRg(
   limit: number,
   contextLines: number,
   signal: AbortSignal | undefined,
+  executionHome: string | undefined,
+  durableExecutionId: string | undefined,
 ): Promise<GrepRunResult> {
   throwIfSearchAborted(signal);
   const rgArgs = [
@@ -119,18 +133,37 @@ async function runRg(
   if (contextLines > 0) rgArgs.push("--context", String(contextLines));
   rgArgs.push("--", String(args.pattern), ...scope.roots);
 
-  return new Promise<GrepRunResult>((resolve, reject) => {
-    let child: ChildProcessByStdio<null, Readable, Readable>;
-    try {
-      child = spawnManagedChildProcess("rg", rgArgs) as ChildProcessByStdio<
-        null,
-        Readable,
-        Readable
-      >;
-    } catch (error) {
-      reject(commandUnavailableError(error));
-      return;
+  let spawnedChild: ChildProcessByStdio<null, Readable, Readable>;
+  let workerExecution:
+    | { client: ExecutionWorkerClient; executionId: string }
+    | undefined;
+  try {
+    if (executionHome) {
+      const client = await ExecutionWorkerClient.connect(executionHome);
+      const executionId = durableExecutionId ?? `grep_${randomUUID()}`;
+      workerExecution = { client, executionId };
+      spawnedChild = (
+        await client.spawnChild({
+          executionId,
+          command: "rg",
+          args: rgArgs,
+          timeoutMs: GREP_TIMEOUT_MS,
+          terminationGraceMs: 100,
+          belowNormalPriority: true,
+        })
+      ).child as ChildProcessByStdio<null, Readable, Readable>;
+    } else {
+      spawnedChild = spawnManagedChildProcess(
+        "rg",
+        rgArgs,
+      ) as ChildProcessByStdio<null, Readable, Readable>;
     }
+  } catch (error) {
+    throw commandUnavailableError(error);
+  }
+
+  return new Promise<GrepRunResult>((resolve, reject) => {
+    const child = spawnedChild;
 
     const matches: GrepMatch[] = [];
     const lines: GrepDisplayLine[] = [];
@@ -175,6 +208,11 @@ async function runRg(
       if (settled) return;
       settled = true;
       cleanup();
+      if (workerExecution && !durableExecutionId) {
+        void workerExecution.client
+          .remove(workerExecution.executionId)
+          .catch(() => undefined);
+      }
       if (error) reject(error);
       else resolve({ matches, lines });
     };

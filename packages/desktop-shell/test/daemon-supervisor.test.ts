@@ -7,6 +7,7 @@ import {
 import {
   DAEMON_DIAGNOSTIC_GRACE_MS,
   DAEMON_RESTART_BACKOFF_MS,
+  DAEMON_UNHEALTHY_CONFIRMATION_MS,
 } from "../src/daemon/policy.ts";
 import { DaemonSupervisor } from "../src/daemon/supervisor.ts";
 import type {
@@ -134,7 +135,10 @@ describe("daemon supervisor", () => {
     await world.scheduler.advance(5_000);
     // Third failure crossed the threshold; owned-child discovery succeeds during restart.
     await world.scheduler.advance(
-      DAEMON_DIAGNOSTIC_GRACE_MS + DAEMON_RESTART_BACKOFF_MS[0] + 1_000,
+      DAEMON_UNHEALTHY_CONFIRMATION_MS +
+        DAEMON_DIAGNOSTIC_GRACE_MS +
+        DAEMON_RESTART_BACKOFF_MS[0] +
+        1_000,
     );
     assert.equal(world.launches.length, 2, "old child replaced");
     assert.deepEqual(
@@ -168,7 +172,7 @@ describe("daemon supervisor", () => {
     });
     world.healthResults.value = false;
     world.healthResults.outcome = "network_error";
-    await world.scheduler.advance(15_000);
+    await world.scheduler.advance(15_000 + DAEMON_UNHEALTHY_CONFIRMATION_MS);
     assert.equal(daemon.getStatus(), "restarting");
     assert.equal(world.launches.length, 0);
     assert.equal(world.crashReports.length, 0);

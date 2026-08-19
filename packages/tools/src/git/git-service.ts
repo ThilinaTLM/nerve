@@ -149,7 +149,12 @@ export class GitService {
   ): Promise<ExecResult> {
     const startedAt = performance.now();
     try {
-      const result = await runGitCommand(bin, cwd, args);
+      const result = await runGitCommand(
+        bin,
+        cwd,
+        args,
+        this.options.executionHome,
+      );
       this.observeCommand({
         bin,
         command: observedCommand(args),

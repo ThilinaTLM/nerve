@@ -25,8 +25,14 @@ export class ToolExecutorService {
     toolCallId: string,
     options: ToolRequestOptions = {},
   ): Promise<ToolCallRecord> {
+    const pending = this.deps.getToolCall(toolCallId);
     const toolCall = await this.deps.updateToolCall(toolCallId, {
       status: "running",
+      workerExecutionId: ["bash", "python_exec", "grep", "find"].includes(
+        pending.toolName,
+      )
+        ? pending.id
+        : pending.workerExecutionId,
     });
     await this.emitLifecycle(toolCall, options);
     const started = performance.now();

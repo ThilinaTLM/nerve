@@ -49,7 +49,7 @@ enum ReadIdentity {
     Unavailable(String),
 }
 
-pub(crate) fn identity(pid: u32) -> Result<String, String> {
+pub fn identity(pid: u32) -> Result<String, String> {
     match read_identity(pid) {
         ReadIdentity::Found(value) => Ok(identity_value(&value)),
         ReadIdentity::Missing => Err(format!("Process {pid} exited before identity collection")),
@@ -57,7 +57,7 @@ pub(crate) fn identity(pid: u32) -> Result<String, String> {
     }
 }
 
-pub(crate) fn inspect(target: &ManagedTarget) -> InspectionResult {
+pub fn inspect(target: &ManagedTarget) -> InspectionResult {
     match read_identity(target.pid) {
         ReadIdentity::Missing => InspectionResult::exited(),
         ReadIdentity::Unavailable(error) => InspectionResult::unknown(error),
@@ -71,7 +71,7 @@ pub(crate) fn inspect(target: &ManagedTarget) -> InspectionResult {
     }
 }
 
-pub(crate) fn terminate(target: &ManagedTarget, signal: &str) -> TerminationResult {
+pub fn terminate(target: &ManagedTarget, signal: &str) -> TerminationResult {
     match read_identity(target.pid) {
         ReadIdentity::Missing => {
             return TerminationResult::not_attempted(TerminationMethod::None, None);

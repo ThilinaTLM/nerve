@@ -115,6 +115,10 @@ importers:
         version: 5.9.3
 
   packages/native:
+    dependencies:
+      '@nervekit/contracts':
+        specifier: workspace:*
+        version: link:../contracts
     devDependencies:
       '@napi-rs/cli':
         specifier: 3.8.6

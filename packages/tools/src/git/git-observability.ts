@@ -36,6 +36,7 @@ export interface GitServiceOptions {
   readonly readBackend?: GitReadBackend;
   readonly stableMetadataTtlMs?: number;
   readonly now?: () => number;
+  readonly executionHome?: string;
   readonly onCommandCompleted?: (observation: GitCommandObservation) => void;
   readonly onReadCompleted?: (observation: GitReadObservation) => void;
   readonly onGithubRequestCompleted?: (

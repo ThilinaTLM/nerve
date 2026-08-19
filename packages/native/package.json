@@ -20,12 +20,15 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "build:native": "napi build --cwd native --package-json-path ../package.json --platform --release --output-dir ../prebuilds/local",
-    "fix:native": "cargo fmt --manifest-path native/Cargo.toml",
+    "build:native": "napi build --cwd native --package-json-path ../package.json --platform --release --output-dir ../prebuilds/local && cargo build -p nerve-execution-worker --release && node scripts/copy-worker.mjs",
+    "fix:native": "cargo fmt --all",
     "check": "tsc -b --pretty false && pnpm check:native",
-    "check:native": "cargo fmt --check --manifest-path native/Cargo.toml && cargo clippy --manifest-path native/Cargo.toml --all-targets -- -D warnings",
+    "check:native": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings",
     "test": "tsx --test \"test/**/*.test.ts\" && pnpm test:native",
-    "test:native": "cargo test --manifest-path native/Cargo.toml"
+    "test:native": "cargo test --workspace"
+  },
+  "dependencies": {
+    "@nervekit/contracts": "workspace:*"
   },
   "devDependencies": {
     "@napi-rs/cli": "3.8.6",

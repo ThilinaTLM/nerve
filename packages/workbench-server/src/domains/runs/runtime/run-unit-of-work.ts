@@ -90,6 +90,7 @@ export interface RunCheckpointReferencePort {
       toolCallId: string;
       revision: number;
       status: string;
+      workerExecutionId?: string;
     }[]
   >;
   interaction(interactionId: string): Promise<RunInteractionRecord | undefined>;

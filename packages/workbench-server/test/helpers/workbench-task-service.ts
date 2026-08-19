@@ -243,7 +243,9 @@ export function fakeSupervisor(options: FakeSupervisorOptions): {
           );
         });
         const closed = lifecycle();
-        options.onSpawn?.(command, spawnOptions);
+        if (options.onSpawn) {
+          setImmediate(() => options.onSpawn?.(command, spawnOptions));
+        }
         return {
           child,
           runtime: options.runtimeReady ?? Promise.resolve(runtime),
@@ -265,6 +267,7 @@ export function fakeSupervisor(options: FakeSupervisorOptions): {
         );
         return result ?? { attempted: true, method: "process-group" };
       },
+      async removeRuntime() {},
       async isRuntimeTargetAlive(targetRuntime) {
         return options.isRuntimeTargetAlive?.(targetRuntime) ?? false;
       },

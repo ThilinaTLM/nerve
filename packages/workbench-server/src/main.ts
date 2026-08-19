@@ -8,6 +8,7 @@ import {
   DAEMON_STARTUP_PROGRESS_PREFIX,
   type DaemonStartupProgress,
 } from "@nervekit/contracts";
+import { ExecutionWorkerClient } from "@nervekit/native";
 import WebSocket, { WebSocketServer } from "ws";
 import {
   createOrchestratorState,
@@ -107,6 +108,7 @@ async function appendStartupRecord(
 async function main() {
   prepareEnterpriseNetworkEnvironment();
   const dataDir = resolveDataDir();
+  process.env.NERVE_HOME ??= dataDir;
   const storageStartedAt = performance.now();
   const storage = await initializeStorage(dataDir, {
     reportStartupProgress: (progress: DaemonStartupProgress) => {
@@ -116,6 +118,10 @@ async function main() {
     },
   });
   const storageDurationMs = Math.round(performance.now() - storageStartedAt);
+  const executionWorker = await ExecutionWorkerClient.connect(
+    storage.paths.home,
+  );
+  await executionWorker.health();
   installNodeDiagnosticReports(dataDir);
   runtimeMonitor = installDaemonRuntimeMonitor(dataDir);
   const resolvedConfiguration = resolveApplicationConfiguration({

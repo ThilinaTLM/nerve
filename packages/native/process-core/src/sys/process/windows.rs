@@ -16,12 +16,14 @@ use windows_sys::Win32::System::JobObjects::{
     SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
-    CREATE_NO_WINDOW, CREATE_SUSPENDED, GetExitCodeProcess, GetProcessTimes, OpenProcess,
-    OpenThread, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE, ResumeThread,
-    THREAD_SUSPEND_RESUME, TerminateProcess,
+    BELOW_NORMAL_PRIORITY_CLASS, CREATE_NO_WINDOW, CREATE_SUSPENDED, GetExitCodeProcess,
+    GetProcessTimes, OpenProcess, OpenThread, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE,
+    ResumeThread, SetPriorityClass, THREAD_SUSPEND_RESUME, TerminateProcess,
 };
 
-use crate::process::{InspectionResult, ManagedTarget, TerminationMethod, TerminationResult};
+use crate::process::{
+    InspectionResult, ManagedTarget, ProcessPriority, TerminationMethod, TerminationResult,
+};
 
 const ERROR_ACCESS_DENIED: i32 = 5;
 const ERROR_INVALID_PARAMETER: i32 = 87;
@@ -37,7 +39,7 @@ impl Drop for OwnedHandle {
     }
 }
 
-pub(crate) struct OwnedJob(HANDLE);
+pub struct OwnedJob(HANDLE);
 
 unsafe impl Send for OwnedJob {}
 unsafe impl Sync for OwnedJob {}
@@ -51,7 +53,7 @@ impl Drop for OwnedJob {
 }
 
 impl OwnedJob {
-    pub(crate) fn terminate(&self) -> TerminationResult {
+    pub fn terminate(&self) -> TerminationResult {
         if unsafe { TerminateJobObject(self.0, 1) } != 0 {
             TerminationResult::terminated(TerminationMethod::JobObject)
         } else {
@@ -67,7 +69,7 @@ enum OpenedProcess {
     Unavailable(String),
 }
 
-pub(crate) fn identity(pid: u32) -> std::result::Result<String, String> {
+pub fn identity(pid: u32) -> std::result::Result<String, String> {
     match open_process_with_identity(pid, PROCESS_QUERY_LIMITED_INFORMATION) {
         OpenedProcess::Found(_, identity, _) => Ok(identity),
         OpenedProcess::Missing => Err(format!("Process {pid} exited before identity collection")),
@@ -75,7 +77,7 @@ pub(crate) fn identity(pid: u32) -> std::result::Result<String, String> {
     }
 }
 
-pub(crate) fn inspect(target: &ManagedTarget) -> InspectionResult {
+pub fn inspect(target: &ManagedTarget) -> InspectionResult {
     match open_process_with_identity(target.pid, PROCESS_QUERY_LIMITED_INFORMATION) {
         OpenedProcess::Missing => InspectionResult::exited(),
         OpenedProcess::Unavailable(error) => InspectionResult::unknown(error),
@@ -87,7 +89,7 @@ pub(crate) fn inspect(target: &ManagedTarget) -> InspectionResult {
     }
 }
 
-pub(crate) fn terminate(target: &ManagedTarget, _signal: &str) -> TerminationResult {
+pub fn terminate(target: &ManagedTarget, _signal: &str) -> TerminationResult {
     let root = match open_process_with_identity(
         target.pid,
         PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
@@ -136,8 +138,9 @@ pub(crate) fn terminate(target: &ManagedTarget, _signal: &str) -> TerminationRes
     }
 }
 
-pub(crate) fn spawn_suspended_in_job(
+pub fn spawn_suspended_in_job(
     command: &mut Command,
+    priority: ProcessPriority,
 ) -> std::result::Result<(Child, OwnedJob), String> {
     let job = create_job()?;
     command.creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW);
@@ -148,6 +151,14 @@ pub(crate) fn spawn_suspended_in_job(
         let error = std::io::Error::last_os_error();
         let _ = child.kill();
         return Err(format!("Failed to assign process to Windows Job: {error}"));
+    }
+    if priority == ProcessPriority::BelowNormal
+        && unsafe { SetPriorityClass(process_handle, BELOW_NORMAL_PRIORITY_CLASS) } == 0
+    {
+        let error = std::io::Error::last_os_error();
+        let _ = job.terminate();
+        let _ = child.wait();
+        return Err(format!("Failed to lower process priority: {error}"));
     }
     if let Err(error) = resume_process_thread(child.id()) {
         let _ = job.terminate();

@@ -4,6 +4,7 @@ export * from "./domains/auth/index.js";
 export * from "./domains/completions/index.js";
 export * from "./domains/conversations/index.js";
 export * from "./domains/events/index.js";
+export * from "./domains/execution-worker/index.js";
 export * from "./domains/filesystem/index.js";
 export * from "./domains/git/index.js";
 export * from "./domains/logs/index.js";

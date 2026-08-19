@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import {
+  ExecutionWorkerClient,
   spawnManagedChildProcess,
   terminateManagedChildProcess,
 } from "@nervekit/native";
@@ -36,6 +38,9 @@ export async function executeBash(
     typeof args.timeout === "number"
       ? Math.max(0, numberArg(args.timeout, 0))
       : undefined;
+  if (context.dataDir) {
+    return executeBashInWorker(args.command, cwd, timeoutSeconds, context);
+  }
   const output = new BoundedProcessOutput();
   const startedAt = performance.now();
 
@@ -154,6 +159,86 @@ export async function executeBash(
         .catch(reject);
     });
   });
+}
+
+async function executeBashInWorker(
+  command: string,
+  cwd: string,
+  timeoutSeconds: number | undefined,
+  context: ToolExecutionContext,
+): Promise<ToolExecutionResult> {
+  if (!context.dataDir)
+    throw new Error("Execution worker data directory is required.");
+  if (context.signal?.aborted) throw new Error("Command aborted.");
+  const worker = await ExecutionWorkerClient.connect(context.dataDir);
+  const executionId = context.executionId ?? `bash_${randomUUID()}`;
+  const shell = resolveBashShellConfig({ shellPath: context.shellPath });
+  const output = new BoundedProcessOutput();
+  const liveOutput = new LiveOutputDelivery(context.onUpdate);
+  const startedAt = performance.now();
+  const onAbort = () => {
+    void worker.cancel(executionId, "SIGKILL").catch(() => undefined);
+  };
+  context.signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    const existing = context.executionId
+      ? await worker.get(executionId)
+      : undefined;
+    if (!existing)
+      await worker.start({
+        executionId,
+        command: shell.shell,
+        args: [...shell.args, command],
+        cwd,
+        env: Object.fromEntries(
+          Object.entries(nonInteractiveShellEnv()).filter(
+            (entry): entry is [string, string] => entry[1] !== undefined,
+          ),
+        ),
+        timeoutMs:
+          timeoutSeconds !== undefined && timeoutSeconds > 0
+            ? timeoutSeconds * 1_000
+            : undefined,
+        terminationGraceMs: FORCE_KILL_AFTER_MS,
+        belowNormalPriority: true,
+      });
+    const terminal = await worker.subscribe(executionId, {
+      signal: context.signal,
+      onOutput: (stream, chunk) => {
+        output.push(stream, chunk);
+        liveOutput.write(stream, chunk);
+      },
+    }).settled;
+    await liveOutput.end();
+    const timedOut =
+      timeoutSeconds !== undefined &&
+      performance.now() - startedAt >= timeoutSeconds * 1_000 &&
+      terminal.status === "failed";
+    return await buildResult(
+      output.snapshot(),
+      terminal.exitCode ?? null,
+      (terminal.signal as NodeJS.Signals | undefined) ?? null,
+      context.dataDir,
+      {
+        durationMs: Math.round(performance.now() - startedAt),
+        timedOut,
+        timeoutKilled: timedOut,
+        timeoutMessage: timedOut
+          ? `Command timed out after ${timeoutSeconds}s and was killed.`
+          : undefined,
+      },
+    );
+  } catch (error) {
+    if (context.signal?.aborted) {
+      throw new Error("Command aborted.", { cause: error });
+    }
+    throw error;
+  } finally {
+    context.signal?.removeEventListener("abort", onAbort);
+    if (!context.executionId) {
+      void worker.remove(executionId).catch(() => undefined);
+    }
+  }
 }
 
 async function buildResult(

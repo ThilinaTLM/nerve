@@ -759,7 +759,7 @@ export async function executeWorkbenchHarness(
         } as RunExecutionOutcome;
       }
       await coordinator.sink.checkpoint(
-        await coordinator.checkpointCommand("after_provider_response"),
+        await coordinator.checkpointCommand("after_tool_result"),
       );
       if (forcePushGeneration > handledForcePushGeneration) {
         handledForcePushGeneration = forcePushGeneration;

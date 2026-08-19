@@ -64,8 +64,7 @@ export const taskRuntimeIdentitySchema = z.discriminatedUnion("kind", [
 ]);
 export type TaskRuntimeIdentity = z.infer<typeof taskRuntimeIdentitySchema>;
 
-export const taskRuntimeSchema = z.object({
-  version: z.literal(2),
+const taskRuntimeBaseSchema = z.object({
   platform: z.string().min(1),
   childPid: z.number().int().positive(),
   processGroupId: z.number().int().positive().optional(),
@@ -79,9 +78,27 @@ export const taskRuntimeSchema = z.object({
     identity: z.boolean(),
     processTree: z.boolean(),
     listeningPorts: z.boolean(),
+    priority: z.boolean().optional(),
+    durableOutput: z.boolean().optional(),
+    daemonRestartRecovery: z.boolean().optional(),
     detail: z.string().optional(),
   }),
 });
+
+export const taskRuntimeSchema = z.discriminatedUnion("version", [
+  taskRuntimeBaseSchema.extend({
+    version: z.literal(2),
+    workerExecutionId: z.undefined().optional(),
+    workerInstanceId: z.undefined().optional(),
+    outputCursor: z.undefined().optional(),
+  }),
+  taskRuntimeBaseSchema.extend({
+    version: z.literal(3),
+    workerExecutionId: z.string().min(1).max(256),
+    workerInstanceId: z.string().min(1).max(256),
+    outputCursor: z.number().int().nonnegative().safe(),
+  }),
+]);
 export type TaskRuntime = z.infer<typeof taskRuntimeSchema>;
 
 export const taskEnvInfoSchema = z.object({

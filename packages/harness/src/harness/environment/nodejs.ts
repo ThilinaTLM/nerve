@@ -1,7 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 import {
+  ExecutionWorkerClient,
   spawnManagedChildProcess,
-  terminateManagedChildProcess,
 } from "@nervekit/native";
 import { randomUUID } from "node:crypto";
 import { constants, createReadStream } from "node:fs";
@@ -112,15 +112,35 @@ async function runCommand(
   args: string[],
   timeoutMs: number,
 ): Promise<{ stdout: string; status: number | null }> {
+  let child: ChildProcess;
+  let cleanup: (() => void) | undefined;
+  try {
+    if (process.env.NERVE_HOME) {
+      const client = await ExecutionWorkerClient.connect(
+        process.env.NERVE_HOME,
+      );
+      const executionId = `harness_probe_${randomUUID()}`;
+      child = (
+        await client.spawnChild({
+          executionId,
+          command,
+          args,
+          timeoutMs,
+          terminationGraceMs: 100,
+          belowNormalPriority: true,
+        })
+      ).child;
+      cleanup = () => {
+        void client.remove(executionId).catch(() => undefined);
+      };
+    } else {
+      child = spawnManagedChildProcess(command, args);
+    }
+  } catch {
+    return { stdout: "", status: null };
+  }
   return await new Promise((resolve) => {
     let stdout = "";
-    let child: ChildProcess;
-    try {
-      child = spawnManagedChildProcess(command, args);
-    } catch {
-      resolve({ stdout: "", status: null });
-      return;
-    }
     const timeout = setTimeout(() => {
       killProcessTree(child);
     }, timeoutMs);
@@ -130,10 +150,12 @@ async function runCommand(
     });
     child.on("error", () => {
       clearTimeout(timeout);
+      cleanup?.();
       resolve({ stdout: "", status: null });
     });
     child.on("close", (status) => {
       clearTimeout(timeout);
+      cleanup?.();
       resolve({ stdout, status });
     });
   });
@@ -209,7 +231,7 @@ function getShellEnv(
 }
 
 function killProcessTree(child: ChildProcess): void {
-  void terminateManagedChildProcess(child, "SIGKILL");
+  child.kill("SIGKILL");
 }
 
 export class NodeExecutionEnv implements ExecutionEnv {
@@ -255,6 +277,41 @@ export class NodeExecutionEnv implements ExecutionEnv {
     const shellConfig = await getShellConfig(this.shellPath);
     if (!shellConfig.ok) return shellConfig;
 
+    let workerChild: ChildProcess | undefined;
+    let workerCleanup: (() => void) | undefined;
+    const executionHome = process.env.NERVE_HOME;
+    if (executionHome) {
+      try {
+        const client = await ExecutionWorkerClient.connect(executionHome);
+        const executionId = `harness_${randomUUID()}`;
+        workerChild = (
+          await client.spawnChild({
+            executionId,
+            command: shellConfig.value.shell,
+            args: [...shellConfig.value.args, command],
+            cwd,
+            env: Object.fromEntries(
+              Object.entries(getShellEnv(this.shellEnv, options?.env)).filter(
+                (entry): entry is [string, string] => entry[1] !== undefined,
+              ),
+            ),
+            timeoutMs:
+              typeof options?.timeout === "number"
+                ? options.timeout * 1_000
+                : undefined,
+            terminationGraceMs: 2_000,
+            belowNormalPriority: true,
+          })
+        ).child;
+        workerCleanup = () => {
+          void client.remove(executionId).catch(() => undefined);
+        };
+      } catch (error) {
+        const cause = toError(error);
+        return err(new ExecutionError("spawn_error", cause.message, cause));
+      }
+    }
+
     return await new Promise((resolvePromise) => {
       let stdout = "";
       let stderr = "";
@@ -282,18 +339,21 @@ export class NodeExecutionEnv implements ExecutionEnv {
           options.abortSignal.removeEventListener("abort", onAbort);
         if (settled) return;
         settled = true;
+        workerCleanup?.();
         resolvePromise(result);
       };
 
       try {
-        child = spawnManagedChildProcess(
-          shellConfig.value.shell,
-          [...shellConfig.value.args, command],
-          {
-            cwd,
-            env: getShellEnv(this.shellEnv, options?.env),
-          },
-        );
+        child =
+          workerChild ??
+          spawnManagedChildProcess(
+            shellConfig.value.shell,
+            [...shellConfig.value.args, command],
+            {
+              cwd,
+              env: getShellEnv(this.shellEnv, options?.env),
+            },
+          );
       } catch (error) {
         const cause = toError(error);
         settle(err(new ExecutionError("spawn_error", cause.message, cause)));

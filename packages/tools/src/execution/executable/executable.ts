@@ -1,4 +1,6 @@
 import type { ChildProcess, SpawnOptions } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { ExecutionWorkerClient } from "@nervekit/native";
 import { constants } from "node:fs";
 import { access, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -117,6 +119,37 @@ export async function runExecutable(
   args: readonly string[],
   options: ExecutableRunOptions = {},
 ): Promise<ExecutableRunResult> {
+  let workerChild: ChildProcess | undefined;
+  let workerCleanup: (() => void) | undefined;
+  if (
+    process.env.NERVE_HOME &&
+    (typeof executable === "string" || executable.kind === "native")
+  ) {
+    const client = await ExecutionWorkerClient.connect(process.env.NERVE_HOME);
+    const executionId = `executable_${randomUUID()}`;
+    const path = typeof executable === "string" ? executable : executable.path;
+    workerChild = (
+      await client.spawnChild({
+        executionId,
+        command: path,
+        args: [...args],
+        cwd: options.cwd,
+        env: Object.fromEntries(
+          Object.entries(
+            executableEnvironment(path, options.env ?? process.env),
+          ).filter(
+            (entry): entry is [string, string] => entry[1] !== undefined,
+          ),
+        ),
+        timeoutMs: options.timeoutMs,
+        terminationGraceMs: 500,
+        belowNormalPriority: true,
+      })
+    ).child;
+    workerCleanup = () => {
+      void client.remove(executionId).catch(() => undefined);
+    };
+  }
   return await new Promise((resolveResult) => {
     let stdout = "";
     let stderr = "";
@@ -124,12 +157,14 @@ export async function runExecutable(
     let timedOut = false;
     let settled = false;
     const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
-    const child = spawnExecutable(executable, args, {
-      cwd: options.cwd,
-      env: options.env,
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: options.windowsHide ?? true,
-    });
+    const child =
+      workerChild ??
+      spawnExecutable(executable, args, {
+        cwd: options.cwd,
+        env: options.env,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: options.windowsHide ?? true,
+      });
     const timer = options.timeoutMs
       ? setTimeout(() => {
           timedOut = true;
@@ -141,6 +176,7 @@ export async function runExecutable(
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
+      workerCleanup?.();
       resolveResult({ stdout, stderr, status, error, timedOut });
     };
     const append = (current: string, chunk: string): string => {

@@ -1,24 +1,35 @@
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import { describe, it } from "node:test";
 import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, it } from "node:test";
 import {
-  defaultTaskSupervisor,
+  createTaskSupervisor,
   managedTaskShellCommand,
 } from "../src/domains/tasks/task-supervisor.js";
 
 const node = JSON.stringify(process.execPath);
+let sequence = 0;
 
 function printEnvCommand(keys: string[]): string {
   const script = `process.stdout.write(JSON.stringify(Object.fromEntries(${JSON.stringify(keys)}.map((key) => [key, process.env[key]]))))`;
   return `${node} -e ${JSON.stringify(script)}`;
 }
 
+async function fixture() {
+  const home = await mkdtemp(join(tmpdir(), "nerve-worker-supervisor-"));
+  return createTaskSupervisor(home);
+}
+
 async function collectStdout(
   command: string,
   env?: Record<string, string>,
 ): Promise<string> {
-  const spawned = defaultTaskSupervisor.spawn(command, {
+  const supervisor = await fixture();
+  const spawned = await supervisor.spawn(command, {
+    executionId: `test_${++sequence}`,
     cwd: process.cwd(),
     env,
   });
@@ -45,29 +56,29 @@ describe("task supervisor", () => {
     });
   });
 
-  it("persists native containment and stable identity metadata", async () => {
-    const spawned = defaultTaskSupervisor.spawn("sleep 30", {
+  it("persists worker containment and stable identity metadata", async () => {
+    const supervisor = await fixture();
+    const spawned = await supervisor.spawn("sleep 30", {
+      executionId: `test_${++sequence}`,
       cwd: process.cwd(),
     });
     const runtime = await spawned.runtime;
     try {
-      assert.equal(runtime.version, 2);
+      assert.equal(runtime.version, 3);
       assert.equal(runtime.platform, process.platform);
       assert.ok(runtime.childPid);
-      assert.notEqual(runtime.identity?.kind, "legacy_unverified");
-      assert.equal(
-        await defaultTaskSupervisor.isRuntimeTargetAlive(runtime),
-        true,
-      );
+      assert.ok(runtime.workerExecutionId);
+      assert.equal(await supervisor.isRuntimeTargetAlive(runtime), true);
     } finally {
-      await defaultTaskSupervisor.terminate(spawned.child, "SIGKILL");
+      await supervisor.terminate(spawned.child, "SIGKILL");
       await spawned.closed;
     }
   });
 
   it("refuses unmanaged ChildProcess-shaped objects", async () => {
+    const supervisor = await fixture();
     const child = new EventEmitter() as ChildProcess;
-    const result = await defaultTaskSupervisor.terminate(child, "SIGKILL");
+    const result = await supervisor.terminate(child, "SIGKILL");
     assert.equal(result.attempted, false);
     assert.match(result.error ?? "", /not owned/);
   });

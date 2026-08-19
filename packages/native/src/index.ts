@@ -1,3 +1,10 @@
+export {
+  ExecutionWorkerClient,
+  executionWorkerFilename,
+  resolveExecutionWorkerPath,
+  type ExecutionOutputSubscription,
+} from "./execution-worker-client.js";
+
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";

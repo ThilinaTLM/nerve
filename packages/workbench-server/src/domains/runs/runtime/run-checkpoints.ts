@@ -62,15 +62,20 @@ export async function checkpointValid(
   const tools = await references.toolCalls(state.run.runId);
   for (const reference of checkpoint.toolCalls) {
     const tool = tools.find((item) => item.toolCallId === reference.toolCallId);
+    if (!tool) return false;
+    const workerRecoverable =
+      tool.workerExecutionId !== undefined &&
+      tool.workerExecutionId === tool.toolCallId;
     if (
-      !tool ||
-      (resolvingInteraction
+      resolvingInteraction || workerRecoverable
         ? tool.revision < reference.revision
-        : tool.revision !== reference.revision)
+        : tool.revision !== reference.revision
     ) {
       return false;
     }
-    if (["committed", "running"].includes(tool.status)) return false;
+    if (["committed", "running"].includes(tool.status) && !workerRecoverable) {
+      return false;
+    }
   }
   return true;
 }

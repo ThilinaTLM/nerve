@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { ExecutionWorkerClient } from "@nervekit/native";
 import { stat } from "node:fs/promises";
 import { relative } from "node:path";
 import { promisify } from "node:util";
@@ -54,16 +56,30 @@ export async function executeFindWithBackend(
   if (backendMode === "node") {
     paths = await fallbackFind(root, args.pattern, limit);
   } else if (backendMode === "fd") {
-    paths = await runFd(args.pattern, root, limit);
-  } else {
-    const fd = await runFd(args.pattern, root, limit).catch(
-      (error: unknown) => {
-        if (isErrnoException(error) && error.code === "ENOENT") {
-          return undefined;
-        }
-        throw error;
-      },
+    paths = await runFd(
+      args.pattern,
+      root,
+      limit,
+      context.dataDir,
+      context.executionId,
     );
+  } else {
+    const fd = await runFd(
+      args.pattern,
+      root,
+      limit,
+      context.dataDir,
+      context.executionId,
+    ).catch((error: unknown) => {
+      if (
+        (isErrnoException(error) && error.code === "ENOENT") ||
+        (error instanceof Error &&
+          /not found|no such file/i.test(error.message))
+      ) {
+        return undefined;
+      }
+      throw error;
+    });
     paths = fd ?? (await fallbackFind(root, args.pattern, limit));
   }
   const entries = paths
@@ -83,6 +99,8 @@ async function runFd(
   pattern: string,
   root: string,
   limit: number,
+  executionHome?: string,
+  durableExecutionId?: string,
 ): Promise<string[]> {
   const fdArgs = [
     "--hidden",
@@ -102,10 +120,38 @@ async function runFd(
     }
   }
   fdArgs.push("--", effectivePattern, root);
-  const { stdout } = await execFileAsync("fd", fdArgs, {
-    timeout: 30_000,
-    maxBuffer: 1024 * 1024,
-  });
+  let stdout: string;
+  if (executionHome) {
+    const client = await ExecutionWorkerClient.connect(executionHome);
+    const executionId = durableExecutionId ?? `find_${randomUUID()}`;
+    const chunks: Buffer[] = [];
+    try {
+      await client.start({
+        executionId,
+        command: "fd",
+        args: fdArgs,
+        timeoutMs: 30_000,
+        terminationGraceMs: 100,
+        belowNormalPriority: true,
+      });
+      const terminal = await client.subscribe(executionId, {
+        onOutput: (stream, chunk) => {
+          if (stream === "stdout") chunks.push(chunk);
+        },
+      }).settled;
+      stdout = Buffer.concat(chunks).toString("utf8");
+      if (terminal.exitCode !== 0) throw new Error("fd failed");
+    } finally {
+      if (!durableExecutionId) {
+        void client.remove(executionId).catch(() => undefined);
+      }
+    }
+  } else {
+    ({ stdout } = await execFileAsync("fd", fdArgs, {
+      timeout: 30_000,
+      maxBuffer: 1024 * 1024,
+    }));
+  }
   return stdout
     .split(/\r?\n/)
     .map((line) => line.trim())

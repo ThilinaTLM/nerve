@@ -153,7 +153,7 @@ const toneClass = $derived(
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
     class={cn(
-      "panel-row group/panel-row flex min-w-0 items-center rounded-sm",
+      "panel-row group/panel-row flex min-w-0 items-center rounded-sm cursor-pointer",
       hoverable && "panel-row-hoverable",
       actions && overlayActions && "relative",
       stacked

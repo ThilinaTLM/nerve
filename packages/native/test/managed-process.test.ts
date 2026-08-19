@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -69,17 +69,24 @@ describe("native managed process facade", () => {
 
   it("fails module initialization when the native binding is missing", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-native-missing-"));
-    const isolatedModule = join(root, "index.ts");
+    const isolatedModule = join(root, "index.js");
+    await symlink(
+      join(process.cwd(), "node_modules"),
+      join(root, "node_modules"),
+      "dir",
+    );
     try {
       await copyFile(
-        new URL("../src/index.ts", import.meta.url),
+        new URL("../dist/index.js", import.meta.url),
         isolatedModule,
+      );
+      await copyFile(
+        new URL("../dist/execution-worker-client.js", import.meta.url),
+        join(root, "execution-worker-client.js"),
       );
       const result = spawnSync(
         node,
         [
-          "--import",
-          "tsx",
           "--input-type=module",
           "--eval",
           `await import(${JSON.stringify(pathToFileURL(isolatedModule).href)})`,

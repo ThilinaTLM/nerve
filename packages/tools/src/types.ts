@@ -31,6 +31,7 @@ export type ToolExecutionContext = {
   cwd: string;
   signal?: AbortSignal;
   dataDir?: string;
+  executionId?: string;
   shellPath?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
   getProviderConfig?: (provider: string) => Promise<unknown>;

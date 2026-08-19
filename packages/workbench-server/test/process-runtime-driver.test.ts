@@ -1,9 +1,19 @@
 import assert from "node:assert/strict";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
-import { defaultTaskSupervisor } from "../src/domains/tasks/task-supervisor.js";
+import { createTaskSupervisor } from "../src/domains/tasks/task-supervisor.js";
 
-test("captures immediate native exit and close outcomes", async () => {
-  const spawned = defaultTaskSupervisor.spawn("printf done", {
+async function fixture() {
+  const home = await mkdtemp(join(tmpdir(), "nerve-worker-runtime-"));
+  return createTaskSupervisor(home);
+}
+
+test("captures immediate worker exit and close outcomes", async () => {
+  const supervisor = await fixture();
+  const spawned = await supervisor.spawn("printf done", {
+    executionId: "runtime_immediate",
     cwd: process.cwd(),
   });
   assert.equal((await spawned.exited).kind, "closed");
@@ -11,39 +21,22 @@ test("captures immediate native exit and close outcomes", async () => {
   assert.equal((await spawned.runtime).platform, process.platform);
 });
 
-if (process.platform === "linux") {
-  test("refuses stale serialized Linux identity", async () => {
-    const spawned = defaultTaskSupervisor.spawn("sleep 30", {
-      cwd: process.cwd(),
-    });
-    const runtime = await spawned.runtime;
-    try {
-      assert.equal(
-        await defaultTaskSupervisor.isRuntimeTargetAlive(runtime),
-        true,
-      );
-      assert.equal(runtime.identity?.kind, "linux");
-      if (runtime.identity?.kind !== "linux") assert.fail("Missing identity");
-      const stale = {
-        ...runtime,
-        identity: {
-          kind: "linux" as const,
-          startTimeTicks: runtime.identity.startTimeTicks + 1,
-        },
-      };
-      assert.equal(
-        await defaultTaskSupervisor.isRuntimeTargetAlive(stale),
-        false,
-      );
-      const refused = await defaultTaskSupervisor.terminateRuntime(
-        stale,
-        "SIGKILL",
-      );
-      assert.equal(refused.attempted, false);
-      assert.match(refused.error ?? "", /PID was reused/);
-    } finally {
-      await defaultTaskSupervisor.terminate(spawned.child, "SIGKILL");
-      await spawned.closed;
-    }
+test("reattaches to a serialized worker execution", async () => {
+  const supervisor = await fixture();
+  const spawned = await supervisor.spawn("sleep 30", {
+    executionId: "runtime_reattach",
+    cwd: process.cwd(),
   });
-}
+  const runtime = await spawned.runtime;
+  try {
+    assert.equal(await supervisor.isRuntimeTargetAlive(runtime), true);
+    const attached = await supervisor.attach(runtime);
+    assert.equal(
+      (await attached.runtime).workerExecutionId,
+      "runtime_reattach",
+    );
+  } finally {
+    await supervisor.terminate(spawned.child, "SIGKILL");
+    await spawned.closed;
+  }
+});

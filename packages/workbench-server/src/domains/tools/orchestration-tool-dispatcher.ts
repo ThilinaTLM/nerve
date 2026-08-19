@@ -248,6 +248,7 @@ export class OrchestrationToolDispatcher {
       cwd: toolCall.cwd,
       signal: options.signal,
       dataDir: this.deps.storage.paths.home,
+      executionId: toolCall.id,
       shellPath: this.deps.storage.settings.runtime.shellPath,
       getApiKey: async (provider) => {
         const credentialProvider = integrationCredentialProvider(

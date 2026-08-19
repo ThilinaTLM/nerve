@@ -19,7 +19,10 @@ export async function expectedNativePrebuilds(rootDirectory = defaultRepoRoot) {
   if (!Array.isArray(targets) || targets.length === 0) {
     throw new Error("packages/native/package.json must declare napi.targets.");
   }
-  const filenames = targets.map(nativePrebuildFilename);
+  const filenames = targets.flatMap((target) => [
+    nativePrebuildFilename(target),
+    workerPrebuildFilename(target),
+  ]);
   if (new Set(filenames).size !== filenames.length) {
     throw new Error("Native targets map to duplicate prebuild filenames.");
   }
@@ -39,6 +42,12 @@ export function nativePrebuildFilename(target) {
     "apple-darwin": `darwin-${architecture}`,
   }[match[2]];
   return `nerve_native.${platform}.node`;
+}
+
+export function workerPrebuildFilename(target) {
+  const addon = nativePrebuildFilename(target);
+  const platform = addon.replace(/^nerve_native\./, "").replace(/\.node$/, "");
+  return `nerve_execution_worker.${platform}${platform.startsWith("win32-") ? ".exe" : ""}`;
 }
 
 export async function verifyNativePrebuilds(

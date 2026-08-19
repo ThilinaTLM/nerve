@@ -12,22 +12,24 @@ use std::os::unix::process::CommandExt;
 
 #[cfg(unix)]
 use crate::process::TerminationMethod;
-use crate::process::{Containment, InspectionResult, ManagedTarget, TerminationResult};
+use crate::process::{
+    Containment, InspectionResult, ManagedTarget, ProcessPriority, TerminationResult,
+};
 
-pub(crate) struct SpawnedChild {
-    pub(crate) child: Child,
-    pub(crate) target: ManagedTarget,
-    pub(crate) containment_guard: ContainmentGuard,
+pub struct SpawnedChild {
+    pub child: Child,
+    pub target: ManagedTarget,
+    pub containment_guard: ContainmentGuard,
 }
 
 #[cfg(unix)]
-pub(crate) struct ContainmentGuard;
+pub struct ContainmentGuard;
 
 #[cfg(windows)]
-pub(crate) struct ContainmentGuard(windows::OwnedJob);
+pub struct ContainmentGuard(windows::OwnedJob);
 
 impl ContainmentGuard {
-    pub(crate) fn terminate(&self) -> Option<TerminationResult> {
+    pub fn terminate(&self) -> Option<TerminationResult> {
         #[cfg(unix)]
         {
             None
@@ -39,8 +41,9 @@ impl ContainmentGuard {
     }
 }
 
-pub(crate) fn capabilities() -> Vec<String> {
+pub fn capabilities() -> Vec<String> {
     let mut values = vec![
+        "process-priority".to_string(),
         "managed-process".to_string(),
         "stable-process-identity".to_string(),
         "serialized-inspection".to_string(),
@@ -58,10 +61,27 @@ pub(crate) fn capabilities() -> Vec<String> {
     values
 }
 
-pub(crate) fn spawn_contained(process: &mut Command) -> Result<SpawnedChild, String> {
+pub fn spawn_contained(
+    process: &mut Command,
+    priority: ProcessPriority,
+) -> Result<SpawnedChild, String> {
     #[cfg(unix)]
     {
         process.process_group(0);
+        if priority == ProcessPriority::BelowNormal {
+            // SAFETY: setpriority is async-signal-safe and the closure captures no
+            // heap-backed state. Applying it before exec prevents user code from
+            // racing the priority change.
+            unsafe {
+                process.pre_exec(|| {
+                    if libc::setpriority(libc::PRIO_PROCESS, 0, 10) == 0 {
+                        Ok(())
+                    } else {
+                        Err(std::io::Error::last_os_error())
+                    }
+                });
+            }
+        }
         let mut child = process.spawn().map_err(|error| error.to_string())?;
         let pid = child.id();
         let identity = match identity(pid) {
@@ -87,7 +107,7 @@ pub(crate) fn spawn_contained(process: &mut Command) -> Result<SpawnedChild, Str
     }
     #[cfg(windows)]
     {
-        let (mut child, job) = windows::spawn_suspended_in_job(process)?;
+        let (mut child, job) = windows::spawn_suspended_in_job(process, priority)?;
         let pid = child.id();
         let identity = match identity(pid) {
             Ok(identity) => identity,
@@ -110,11 +130,11 @@ pub(crate) fn spawn_contained(process: &mut Command) -> Result<SpawnedChild, Str
     }
 }
 
-pub(crate) fn inspect(target: &ManagedTarget) -> InspectionResult {
+pub fn inspect(target: &ManagedTarget) -> InspectionResult {
     platform_inspect(target)
 }
 
-pub(crate) fn terminate(target: &ManagedTarget, signal: &str) -> TerminationResult {
+pub fn terminate(target: &ManagedTarget, signal: &str) -> TerminationResult {
     platform_terminate(target, signal)
 }
 
@@ -173,7 +193,7 @@ pub(super) fn signal_target(target: &ManagedTarget, signal: &str) -> Termination
     }
 }
 
-pub(crate) fn exit_parts(status: ExitStatus) -> (i32, String) {
+pub fn exit_parts(status: ExitStatus) -> (i32, String) {
     #[cfg(unix)]
     {
         use std::os::unix::process::ExitStatusExt;

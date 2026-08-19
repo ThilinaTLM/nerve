@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { ExecutionWorkerClient } from "@nervekit/native";
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import {
@@ -188,23 +190,50 @@ export async function directDirectoryCompletionItems(
 
 async function gitFilePaths(root: string): Promise<string[] | undefined> {
   try {
-    const { stdout } = await execFileAsync(
-      "git",
-      [
-        "ls-files",
-        "--cached",
-        "--others",
-        "--exclude-standard",
-        "-z",
-        "--",
-        ".",
-      ],
-      {
+    const args = [
+      "ls-files",
+      "--cached",
+      "--others",
+      "--exclude-standard",
+      "-z",
+      "--",
+      ".",
+    ];
+    let stdout: string | Buffer;
+    if (process.env.NERVE_HOME) {
+      const client = await ExecutionWorkerClient.connect(
+        process.env.NERVE_HOME,
+      );
+      const executionId = `completion_${randomUUID()}`;
+      const chunks: Buffer[] = [];
+      try {
+        await client.start({
+          executionId,
+          command: "git",
+          args,
+          cwd: root,
+          timeoutMs: gitTimeoutMs,
+          terminationGraceMs: 100,
+          belowNormalPriority: true,
+        });
+        const terminal = await client.subscribe(executionId, {
+          onOutput: (stream, chunk) => {
+            if (stream === "stdout") chunks.push(chunk);
+          },
+        }).settled;
+        if (terminal.exitCode !== 0) return undefined;
+        stdout = Buffer.concat(chunks);
+        if (stdout.length > gitMaxBuffer) return undefined;
+      } finally {
+        void client.remove(executionId).catch(() => undefined);
+      }
+    } else {
+      ({ stdout } = await execFileAsync("git", args, {
         cwd: root,
         timeout: gitTimeoutMs,
         maxBuffer: gitMaxBuffer,
-      },
-    );
+      }));
+    }
     return stdout
       .toString()
       .split("\0")

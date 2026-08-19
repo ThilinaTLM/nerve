@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
 export interface ShellConfig {
@@ -17,24 +16,8 @@ export interface ResolveBashShellConfigOptions {
   ) => { stdout: string; status: number | null };
 }
 
-function defaultRunCommand(
-  command: string,
-  args: string[],
-): { stdout: string; status: number | null } {
-  try {
-    const result = spawnSync(command, args, {
-      encoding: "utf8",
-      timeout: 5000,
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    return {
-      stdout: typeof result.stdout === "string" ? result.stdout : "",
-      status: result.status,
-    };
-  } catch {
-    return { stdout: "", status: null };
-  }
+function defaultRunCommand(): { stdout: string; status: number | null } {
+  return { stdout: "", status: null };
 }
 
 function findBashOnPath(
@@ -82,6 +65,12 @@ export function resolveBashShellConfig(
       candidates.push(`${programFilesX86}\\Git\\bin\\bash.exe`);
     }
 
+    const pathValue = env.Path ?? env.PATH;
+    if (pathValue) {
+      for (const directory of pathValue.split(";")) {
+        if (directory) candidates.push(`${directory}\\bash.exe`);
+      }
+    }
     for (const candidate of candidates) {
       if (pathExists(candidate)) return { shell: candidate, args: ["-c"] };
     }

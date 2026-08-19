@@ -1,3 +1,7 @@
 [workspace]
-members = ["packages/native/native"]
+members = [
+  "packages/native/process-core",
+  "packages/native/native",
+  "packages/native/worker",
+]
 resolver = "2"

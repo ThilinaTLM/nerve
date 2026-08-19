@@ -90,12 +90,16 @@ jobs:
       - name: Build native prebuild
         working-directory: packages/native
         run: pnpm exec napi build --cwd native --package-json-path ../package.json --platform --release --target ${{ matrix.target }} --output-dir ../prebuilds
+      - name: Build execution worker
+        run: cargo build -p nerve-execution-worker --release --target ${{ matrix.target }} && node packages/native/scripts/copy-worker.mjs ${{ matrix.target }} --release-dir
       - name: Test native prebuild
         run: pnpm --filter @nervekit/native test
       - uses: actions/upload-artifact@v6
         with:
           name: native-prebuild-${{ matrix.target }}
-          path: packages/native/prebuilds/*.node
+          path: |
+            packages/native/prebuilds/*.node
+            packages/native/prebuilds/nerve_execution_worker.*
           if-no-files-found: error
 
   quality-and-package:

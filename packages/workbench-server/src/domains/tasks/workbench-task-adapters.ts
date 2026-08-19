@@ -26,7 +26,7 @@ import {
   TaskLogService,
 } from "./task-log.service.js";
 import {
-  defaultTaskSupervisor,
+  createTaskSupervisor,
   type TaskSupervisor,
 } from "./task-supervisor.js";
 import { TaskRepository } from "./task.repository.js";
@@ -151,6 +151,7 @@ export type WorkbenchManagedTask = TaskLogCursor & {
   timedOut?: boolean;
   onOutput?: TaskStartInput["onOutput"];
   outputPending?: Promise<void>;
+  latestWorkerCursor?: number;
 };
 
 export type WorkbenchTaskResources = {
@@ -183,7 +184,8 @@ export function createWorkbenchTaskResources(
     publishOutputEvents: false,
     diagnostics: options.diagnostics,
   });
-  const supervisor = options.supervisor ?? defaultTaskSupervisor;
+  const supervisor =
+    options.supervisor ?? createTaskSupervisor(storage.paths.home);
   const launchConfigs =
     options.launchConfigs ?? new UnconfiguredTaskLaunchConfigStore();
   const readiness = new WorkbenchReadinessCoordinator();
@@ -309,10 +311,15 @@ export function createWorkbenchTaskResources(
             join(repository.taskDir(input.taskId), "logs.jsonl"),
           ),
         );
-        const spawned = supervisor.spawn(input.command, {
+        const spawned = await supervisor.spawn(input.command, {
+          executionId:
+            input.origin?.kind === "agent_tool"
+              ? input.origin.toolCallId
+              : input.taskId,
           cwd: input.cwd,
           env: input.env,
           shellPath: storage.settings.runtime.shellPath,
+          timeoutMs: input.timeoutMs,
         });
         const { child, runtime, exited, closed } = spawned;
         let resolveTerminal!: (task: TaskRecord | undefined) => void;
@@ -391,6 +398,21 @@ export function createWorkbenchTaskResources(
             child.stderr ?? undefined,
           ),
         );
+        child.on("workerCursor", (cursor: number) => {
+          state.latestWorkerCursor = Math.max(
+            state.latestWorkerCursor ?? 0,
+            cursor,
+          );
+          state.outputPending = (state.outputPending ?? Promise.resolve())
+            .catch(() => undefined)
+            .then(async () => {
+              const current = tasks.get(input.taskId);
+              if (current?.runtime?.version !== 3) return;
+              current.runtime.outputCursor = state.latestWorkerCursor ?? cursor;
+              index.upsertTask(current);
+              await repository.write(current);
+            });
+        });
         const outputCompleted = Promise.all([
           streamCompletion(child.stdout),
           streamCompletion(child.stderr),
@@ -434,7 +456,14 @@ export function createWorkbenchTaskResources(
             return undefined;
           });
         try {
-          return await runtime;
+          const resolvedRuntime = await runtime;
+          if (
+            resolvedRuntime.version === 3 &&
+            state.latestWorkerCursor !== undefined
+          ) {
+            resolvedRuntime.outputCursor = state.latestWorkerCursor;
+          }
+          return resolvedRuntime;
         } catch (error) {
           const termination = await supervisor.terminate(child, "SIGKILL");
           if (termination.error) {

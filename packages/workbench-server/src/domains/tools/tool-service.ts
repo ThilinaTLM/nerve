@@ -508,8 +508,14 @@ export class ToolService {
   ): Promise<ToolCallRecord> {
     const response = await this.requestTool(agent, toolName, args, options);
     if (isTerminalToolCall(response.toolCall)) return response.toolCall;
-    if (response.toolCall.status !== "waiting") return response.toolCall;
-    if (options.durableSuspend) return response.toolCall;
+    if (
+      !["waiting", "committed", "running"].includes(response.toolCall.status)
+    ) {
+      return response.toolCall;
+    }
+    if (options.durableSuspend && response.toolCall.status === "waiting") {
+      return response.toolCall;
+    }
     if (options.signal?.aborted) throw new Error("Tool execution aborted.");
 
     return new Promise<ToolCallRecord>((resolve, reject) => {
@@ -656,6 +662,29 @@ export class ToolService {
           toolCall.status === "committed" || toolCall.status === "running",
       );
     for (const toolCall of interrupted) {
+      if (
+        toolCall.workerExecutionId === toolCall.id &&
+        ["bash", "python_exec", "grep", "find"].includes(toolCall.toolName)
+      ) {
+        void this.executor
+          .executeAllowedTool(toolCall.id)
+          .catch(async (error: unknown) => {
+            const failed = await this.updateToolCall(
+              toolCall.id,
+              interruptedToolCallPatch(HOST_RESTART_TOOL_ERROR),
+            );
+            await this.publishToolCallUpdated(failed);
+            await this.logger?.error("Worker tool recovery failed", {
+              toolCallId: toolCall.id,
+              agentId: toolCall.agentId,
+              conversationId: toolCall.conversationId,
+              projectId: toolCall.projectId,
+              runId: toolCall.runId,
+              error,
+            });
+          });
+        continue;
+      }
       const failed = await this.updateToolCall(
         toolCall.id,
         interruptedToolCallPatch(HOST_RESTART_TOOL_ERROR),

@@ -1,19 +1,14 @@
 import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import type {
   TaskListeningPort,
   TaskRuntime,
   TaskRuntimeIdentity,
+  WorkerExecutionSnapshot,
+  WorkerTerminationResult,
 } from "@nervekit/contracts";
-import {
-  inspectManagedTarget,
-  managedProcessForChild,
-  nativeRuntimeCapabilities,
-  spawnManagedChildProcess,
-  terminateManagedTarget,
-  type ManagedProcessExit,
-  type ManagedTarget,
-  type TerminationMethod,
-} from "@nervekit/native";
+import { ExecutionWorkerClient } from "@nervekit/native";
 import { resolveBashShellConfig } from "@nervekit/tools";
 import {
   defaultTaskPortInspector,
@@ -21,9 +16,11 @@ import {
 } from "./task-port-inspector.js";
 
 export interface SpawnManagedTaskOptions {
+  executionId: string;
   cwd: string;
   env?: Record<string, string>;
   shellPath?: string;
+  timeoutMs?: number;
 }
 
 export type ProcessLifecycleResult =
@@ -44,12 +41,16 @@ export interface SpawnedManagedTask {
 export interface TerminateTaskResult {
   attempted: boolean;
   terminated: boolean;
-  method: TerminationMethod;
+  method: string;
   error?: string;
 }
 
 export interface TaskSupervisor {
-  spawn(command: string, options: SpawnManagedTaskOptions): SpawnedManagedTask;
+  spawn(
+    command: string,
+    options: SpawnManagedTaskOptions,
+  ): Promise<SpawnedManagedTask>;
+  attach(runtime: TaskRuntime): Promise<SpawnedManagedTask>;
   terminate(
     child: ChildProcess,
     signal: NodeJS.Signals,
@@ -58,6 +59,7 @@ export interface TaskSupervisor {
     runtime: TaskRuntime,
     signal: NodeJS.Signals,
   ): Promise<TerminateTaskResult>;
+  removeRuntime(runtime: TaskRuntime): Promise<void>;
   isRuntimeTargetAlive(runtime: TaskRuntime): Promise<boolean>;
   inspectRuntimeListeningPorts(
     runtime: TaskRuntime,
@@ -79,55 +81,88 @@ export function managedTaskShellCommand(
 }
 
 export function createTaskSupervisor(
+  storageHome: string,
   portInspector: TaskPortInspector = defaultTaskPortInspector,
+  initialWorker?: Promise<ExecutionWorkerClient>,
 ): TaskSupervisor {
+  const executions = new WeakMap<ChildProcess, string>();
+  let workerPromise = initialWorker;
+  const getWorker = () =>
+    (workerPromise ??= ExecutionWorkerClient.connect(storageHome));
   return {
-    spawn(command, options) {
+    async spawn(command, options) {
       const shell = managedTaskShellCommand(command, options.shellPath);
-      const child = spawnManagedChildProcess(shell.shell, shell.args, {
-        cwd: options.cwd,
-        env: processEnvironment(options.env),
-      });
-      const managed = managedProcessForChild(child);
-      if (!managed) {
-        throw new Error("Native managed process metadata was not registered");
+      const worker = await getWorker();
+      const snapshot =
+        (await worker.get(options.executionId)) ??
+        (await worker.start({
+          executionId: options.executionId,
+          command: shell.shell,
+          args: shell.args,
+          cwd: options.cwd,
+          env: processEnvironment(options.env),
+          timeoutMs: options.timeoutMs,
+          terminationGraceMs: 2_000,
+          belowNormalPriority: true,
+        }));
+      const health = await worker.health();
+      return spawnedForSnapshot(
+        worker,
+        snapshot,
+        `worker_${health.pid}`,
+        executions,
+      );
+    },
+    async attach(runtime) {
+      if (!runtime.workerExecutionId) {
+        throw new Error("Task runtime is not worker-backed.");
       }
-      return {
-        child,
-        runtime: Promise.resolve(runtimeForManagedTarget(managed.target)),
-        exited: managed.exited.then(lifecycleResult),
-        closed: managed.closed.then(lifecycleResult),
-      };
+      const worker = await getWorker();
+      const snapshot = await worker.get(runtime.workerExecutionId);
+      if (!snapshot) throw new Error("Worker execution was not found.");
+      return spawnedForSnapshot(
+        worker,
+        snapshot,
+        runtime.workerInstanceId ?? "worker_unknown",
+        executions,
+        runtime.outputCursor ?? 0,
+      );
     },
     async terminate(child, signal) {
-      const managed = managedProcessForChild(child);
-      if (!managed) {
+      const executionId = executions.get(child);
+      if (!executionId) {
         return {
           attempted: false,
           terminated: false,
           method: "none",
-          error: "Child is not owned by the native managed process runtime",
+          error: "Child is not owned by the execution worker",
         };
       }
-      return managed.terminate(signal);
+      return normalizeTermination(
+        await (await getWorker()).cancel(executionId, signal),
+      );
     },
     async terminateRuntime(runtime, signal) {
-      const target = managedTargetForRuntime(runtime);
-      if ("error" in target) return refusedTermination(target.error);
-      return terminateManagedTarget(target, signal);
+      if (!runtime.workerExecutionId) {
+        return {
+          attempted: false,
+          terminated: false,
+          method: "none",
+          error: "Task runtime is not worker-backed",
+        };
+      }
+      return normalizeTermination(
+        await (await getWorker()).cancel(runtime.workerExecutionId, signal),
+      );
+    },
+    async removeRuntime(runtime) {
+      if (!runtime.workerExecutionId) return;
+      await (await getWorker()).remove(runtime.workerExecutionId);
     },
     async isRuntimeTargetAlive(runtime) {
-      const target = managedTargetForRuntime(runtime);
-      if ("error" in target) throw new Error(target.error);
-      const inspection = inspectManagedTarget(target);
-      if (inspection.evidence === "alive_verified") return true;
-      if (
-        inspection.evidence === "exited_verified" ||
-        inspection.evidence === "identity_mismatch"
-      ) {
-        return false;
-      }
-      throw new Error(inspection.detail);
+      if (!runtime.workerExecutionId) return false;
+      const snapshot = await (await getWorker()).get(runtime.workerExecutionId);
+      return snapshot?.status === "starting" || snapshot?.status === "running";
     },
     async inspectRuntimeListeningPorts(runtime) {
       if (!(await this.isRuntimeTargetAlive(runtime))) return [];
@@ -137,27 +172,108 @@ export function createTaskSupervisor(
   };
 }
 
-export const defaultTaskSupervisor = createTaskSupervisor();
-
-function runtimeForManagedTarget(target: ManagedTarget): TaskRuntime {
-  const capabilities = nativeRuntimeCapabilities();
+function spawnedForSnapshot(
+  worker: ExecutionWorkerClient,
+  snapshot: WorkerExecutionSnapshot,
+  workerInstanceId: string,
+  executions: WeakMap<ChildProcess, string>,
+  afterCursor = 0,
+): SpawnedManagedTask {
+  if (!snapshot.target) {
+    throw new Error("Execution worker did not return a process target.");
+  }
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const child = new EventEmitter() as ChildProcess;
+  Object.defineProperties(child, {
+    pid: { value: snapshot.target.pid, enumerable: true },
+    stdout: { value: stdout, enumerable: true },
+    stderr: { value: stderr, enumerable: true },
+    stdin: { value: null, enumerable: true },
+    exitCode: { value: null, writable: true, enumerable: true },
+    signalCode: { value: null, writable: true, enumerable: true },
+    killed: { value: false, writable: true, enumerable: true },
+  });
+  child.kill = (signal = "SIGTERM") => {
+    Reflect.set(child, "killed", true);
+    void worker.cancel(
+      snapshot.executionId,
+      typeof signal === "string" ? signal : "SIGTERM",
+    );
+    return true;
+  };
+  executions.set(child, snapshot.executionId);
+  const terminal = worker
+    .subscribe(snapshot.executionId, {
+      afterCursor,
+      onOutput: (stream, chunk) => {
+        (stream === "stdout" ? stdout : stderr).write(chunk);
+      },
+      onCursor: (cursor) => {
+        child.emit("workerCursor", cursor);
+      },
+    })
+    .settled.then((terminalSnapshot) => {
+      stdout.end();
+      stderr.end();
+      const result = lifecycleResult(terminalSnapshot);
+      if (result.kind === "closed") {
+        Reflect.set(child, "exitCode", result.exitCode);
+        Reflect.set(child, "signalCode", result.signal);
+        child.emit("exit", result.exitCode, result.signal);
+        child.emit("close", result.exitCode, result.signal);
+      }
+      return result;
+    })
+    .catch((error: unknown) => {
+      stdout.destroy();
+      stderr.destroy();
+      const result = {
+        kind: "error" as const,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+      child.emit("error", result.error);
+      return result;
+    });
   return {
-    version: 2,
+    child,
+    runtime: Promise.resolve(
+      runtimeForWorkerSnapshot(snapshot, workerInstanceId, afterCursor),
+    ),
+    exited: terminal,
+    closed: terminal,
+  };
+}
+
+function runtimeForWorkerSnapshot(
+  snapshot: WorkerExecutionSnapshot,
+  workerInstanceId: string,
+  outputCursor: number,
+): TaskRuntime {
+  const target = snapshot.target;
+  if (!target) throw new Error("Worker execution has no process target.");
+  return {
+    version: 3,
     platform: process.platform,
     childPid: target.pid,
     processGroupId: target.processGroupId,
     detached: target.containment === "process-group",
     shell: true,
-    containment: target.containment,
-    spawnedAt: new Date().toISOString(),
+    containment:
+      target.containment === "job-object" ? "job-object" : "process-group",
+    spawnedAt: new Date(snapshot.startedAtMs).toISOString(),
     identity: runtimeIdentity(target.identity),
+    workerExecutionId: snapshot.executionId,
+    workerInstanceId,
+    outputCursor,
     capabilities: {
-      identity: capabilities.capabilities.includes("stable-process-identity"),
-      processTree: capabilities.capabilities.includes(
-        "process-tree-termination",
-      ),
+      identity: true,
+      processTree: true,
       listeningPorts: ["linux", "darwin", "win32"].includes(process.platform),
-      detail: `native:${target.containment}`,
+      priority: true,
+      durableOutput: true,
+      daemonRestartRecovery: true,
+      detail: `worker:${target.containment}`,
     },
   };
 }
@@ -176,54 +292,45 @@ function runtimeIdentity(identity: string): TaskRuntimeIdentity {
     return { kind: "win32", creationDate: identity };
   }
   throw new Error(
-    `Native runtime returned an unsupported identity: ${identity}`,
+    `Execution worker returned an unsupported identity: ${identity}`,
   );
 }
 
-function managedTargetForRuntime(
-  runtime: TaskRuntime,
-): ManagedTarget | { error: string } {
-  if (runtime.platform !== process.platform) {
-    return {
-      error: `Cannot clean up task spawned on ${runtime.platform} from ${process.platform}.`,
-    };
-  }
+function lifecycleResult(
+  snapshot: WorkerExecutionSnapshot,
+): ProcessLifecycleResult {
   return {
-    pid: runtime.childPid,
-    processGroupId: runtime.processGroupId,
-    containment: runtime.containment,
-    identity: nativeIdentityForRuntime(runtime.identity),
+    kind: "closed",
+    exitCode: snapshot.exitCode ?? null,
+    signal: (snapshot.signal as NodeJS.Signals | undefined) ?? null,
   };
 }
 
-function nativeIdentityForRuntime(identity: TaskRuntimeIdentity): string {
-  if (identity.kind === "linux") return `linux:${identity.startTimeTicks}`;
-  if (identity.kind === "darwin") return identity.startFingerprint;
-  return identity.creationDate;
+function normalizeTermination(
+  result: WorkerTerminationResult,
+): TerminateTaskResult {
+  return {
+    attempted: result.attempted,
+    terminated: result.terminated,
+    method: result.method,
+    error: result.error ?? undefined,
+  };
 }
 
 function processEnvironment(
-  overrides?: Record<string, string>,
-): NodeJS.ProcessEnv {
+  overrides: Record<string, string> | undefined,
+): Record<string, string> {
+  const inherited = Object.fromEntries(
+    Object.entries(process.env).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  );
   return {
-    ...process.env,
+    ...inherited,
     PAGER: "cat",
     GIT_PAGER: "cat",
     GIT_TERMINAL_PROMPT: "0",
     TERM: "dumb",
-    ...(overrides ?? {}),
-  };
-}
-
-function lifecycleResult(exit: ManagedProcessExit): ProcessLifecycleResult {
-  return { kind: "closed", ...exit };
-}
-
-function refusedTermination(error: string): TerminateTaskResult {
-  return {
-    attempted: false,
-    terminated: false,
-    method: "none",
-    error,
+    ...overrides,
   };
 }

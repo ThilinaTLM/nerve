@@ -1,4 +1,6 @@
 import type { ChildProcess } from "node:child_process";
+import { join } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { TaskService } from "./task-service.js";
 import type {
   ToolExecutionOutputUpdate,
@@ -20,6 +22,7 @@ import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import {
   isActiveTaskStatus,
+  createTaskLogCursor,
   type TaskLogCursor,
   TaskLogService,
   TaskRepository,
@@ -98,6 +101,7 @@ export interface ManagedTask extends TaskLogCursor {
   readinessPattern?: RegExp;
   timedOut?: boolean;
   onOutput?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
+  outputPending?: Promise<void>;
 }
 
 export class WorkbenchTaskService extends TaskService {
@@ -132,9 +136,106 @@ export class WorkbenchTaskService extends TaskService {
   }
 
   async hydrate(): Promise<void> {
-    for (const persisted of await this.taskRepository.hydrate())
+    for (const persisted of await this.taskRepository.hydrate()) {
       await this.upsertTask(persisted);
+      if (
+        isActiveTaskStatus(persisted.status) &&
+        persisted.runtime?.workerExecutionId
+      ) {
+        await this.reattachWorkerTask(persisted).catch((error: unknown) =>
+          this.logger?.warn("Worker task reattachment failed", {
+            taskId: persisted.id,
+            error,
+          }),
+        );
+      }
+    }
     await this.reconcileOrphans();
+  }
+
+  private async reattachWorkerTask(task: TaskRecord): Promise<void> {
+    if (!task.runtime) return;
+    const spawned = await this.supervisor.attach(task.runtime);
+    const cursor = createTaskLogCursor(
+      await this.taskLogs.latestLogSeq(
+        join(this.taskRepository.taskDir(task.id), "logs.jsonl"),
+      ),
+    );
+    let resolveTerminal!: (task: TaskRecord | undefined) => void;
+    const terminalPromise = new Promise<TaskRecord | undefined>((resolve) => {
+      resolveTerminal = resolve;
+    });
+    const state: ManagedTask = {
+      ...cursor,
+      child: spawned.child,
+      stopping: false,
+      finalized: false,
+      terminalPromise,
+      resolveTerminal,
+    };
+    this.managed.set(task.id, state);
+    const decoders = {
+      stdout: new StringDecoder("utf8"),
+      stderr: new StringDecoder("utf8"),
+    };
+    const queue = (stream: "stdout" | "stderr", text: string) => {
+      if (!text) return;
+      state.outputPending = (state.outputPending ?? Promise.resolve())
+        .catch(() => undefined)
+        .then(() => this.processSupervisor.output(task.id, stream, text));
+    };
+    spawned.child.stdout?.on("data", (chunk: Buffer) =>
+      queue("stdout", decoders.stdout.write(chunk)),
+    );
+    spawned.child.stderr?.on("data", (chunk: Buffer) =>
+      queue("stderr", decoders.stderr.write(chunk)),
+    );
+    spawned.child.on("workerCursor", (cursor: number) => {
+      state.outputPending = (state.outputPending ?? Promise.resolve())
+        .catch(() => undefined)
+        .then(async () => {
+          const current = this.tasks.get(task.id);
+          if (current?.runtime?.version !== 3) return;
+          current.runtime.outputCursor = Math.max(
+            current.runtime.outputCursor,
+            cursor,
+          );
+          await this.taskRepository.write(current);
+        });
+    });
+    state.exitPromise = spawned.exited.then((result) =>
+      result.kind === "error"
+        ? { exitCode: 127, signal: null }
+        : { exitCode: result.exitCode, signal: result.signal },
+    );
+    state.closePromise = spawned.closed.then((result) =>
+      result.kind === "error"
+        ? { exitCode: 127, signal: null }
+        : { exitCode: result.exitCode, signal: result.signal },
+    );
+    state.finalizationPromise = state.closePromise
+      .then(async ({ exitCode, signal }) => {
+        queue("stdout", decoders.stdout.end());
+        queue("stderr", decoders.stderr.end());
+        await state.outputPending;
+        state.finalized = true;
+        await this.processSupervisor.exit(task.id, {
+          exitCode: exitCode ?? undefined,
+          signal: signal ?? undefined,
+          exitedAt: new Date().toISOString(),
+        });
+        const terminal = this.tasks.get(task.id);
+        resolveTerminal(terminal);
+        return terminal;
+      })
+      .catch(async (error: unknown) => {
+        await this.logger?.error("Reattached task finalization failed", {
+          taskId: task.id,
+          error,
+        });
+        resolveTerminal(undefined);
+        return undefined;
+      });
   }
 
   listTasks(options: { includeForeground?: boolean } = {}): TaskRecord[] {
@@ -278,7 +379,17 @@ export class WorkbenchTaskService extends TaskService {
   }
 
   async removeTask(taskId: string): Promise<void> {
+    const task = this.getTask(taskId);
+    const runtime = task.runtime;
     await this.delete(taskId);
+    if (runtime?.workerExecutionId && task.origin?.kind !== "agent_tool") {
+      await this.supervisor.removeRuntime(runtime).catch((error: unknown) =>
+        this.logger?.warn("Worker execution cleanup failed", {
+          taskId,
+          error,
+        }),
+      );
+    }
   }
 
   async pruneTasks(): Promise<string[]> {

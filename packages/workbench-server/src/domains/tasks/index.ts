@@ -36,6 +36,5 @@ export type {
 } from "./task-supervisor.js";
 export {
   createTaskSupervisor,
-  defaultTaskSupervisor,
   managedTaskShellCommand,
 } from "./task-supervisor.js";

@@ -10,6 +10,7 @@ import {
   DAEMON_MAX_RESTART_ATTEMPTS,
   DAEMON_READY_POLL_INTERVAL_MS,
   DAEMON_SHUTDOWN_TIMEOUT_MS,
+  DAEMON_UNHEALTHY_CONFIRMATION_MS,
   DAEMON_UNHEALTHY_THRESHOLD,
   restartBackoffMs,
   shouldResetRestartBudget,
@@ -386,8 +387,23 @@ export class DaemonSupervisor {
     }
     if (this.consecutiveFailures < DAEMON_UNHEALTHY_THRESHOLD) return;
     if (this.config.owned && this.child?.exited) return; // child-exit path handles it
-    const status = health.status === undefined ? "" : ` ${health.status}`;
-    const reason = `Daemon stopped responding after ${this.consecutiveFailures} failed health checks (${health.outcome}${status}).`;
+    await this.ports.scheduler.delay(DAEMON_UNHEALTHY_CONFIRMATION_MS);
+    if (this.stopped || this.restarting || !this.url || !this.token) return;
+    const confirmation = await this.ports.health.check(this.url, this.token);
+    if (confirmation.healthy) {
+      this.consecutiveFailures = 0;
+      this.failedHealthChecks.length = 0;
+      this.lastHealthyAt = this.ports.scheduler.now();
+      if (this.status !== "ready") this.setStatus("ready");
+      return;
+    }
+    this.failedHealthChecks.push(confirmation);
+    if (this.failedHealthChecks.length > DAEMON_UNHEALTHY_THRESHOLD) {
+      this.failedHealthChecks.shift();
+    }
+    const status =
+      confirmation.status === undefined ? "" : ` ${confirmation.status}`;
+    const reason = `Daemon stopped responding after ${this.consecutiveFailures} failed health checks and a delayed confirmation (${confirmation.outcome}${status}).`;
     await this.captureUnhealthyDiagnostics(reason);
     void this.scheduleRestart(reason);
   }

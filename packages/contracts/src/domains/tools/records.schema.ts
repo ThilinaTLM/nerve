@@ -272,6 +272,7 @@ const toolCallRecordBaseSchema = z.object({
   turnId: z.string().startsWith("turn_").optional(),
   liveMessageId: z.string().startsWith("msg_").optional(),
   contentIndex: z.number().int().nonnegative().optional(),
+  workerExecutionId: z.string().min(1).max(256).optional(),
   risk: toolRiskSchema,
   args: z.unknown(),
   cwd: z.string().min(1),

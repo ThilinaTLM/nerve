@@ -4,11 +4,10 @@ use napi::bindgen_prelude::{Buffer, Result};
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 
-use crate::process::{
-    self, Containment, InspectionResult, ManagedProcess, ManagedProcessEvents, ManagedTarget,
-    SpawnOptions, TerminationResult,
+use nerve_process_core::{
+    self as process, Containment, InspectionResult, ManagedProcess, ManagedProcessEvents,
+    ManagedTarget, ProcessPriority, SpawnOptions, TerminationResult,
 };
-use crate::sys::process as sys_process;
 
 #[napi(object)]
 #[derive(Clone, Debug)]
@@ -126,7 +125,7 @@ impl NativeManagedProcess {
 
 #[napi]
 pub fn inspect_managed_target(target: NativeManagedTarget) -> NativeInspectionResult {
-    sys_process::inspect(&target.into()).into()
+    process::inspect(&target.into()).into()
 }
 
 #[napi]
@@ -134,7 +133,7 @@ pub fn terminate_managed_target(
     target: NativeManagedTarget,
     signal: Option<String>,
 ) -> NativeTerminationResult {
-    sys_process::terminate(&target.into(), signal.as_deref().unwrap_or("SIGKILL")).into()
+    process::terminate(&target.into(), signal.as_deref().unwrap_or("SIGKILL")).into()
 }
 
 #[napi]
@@ -173,6 +172,7 @@ pub fn spawn_managed_process(
         SpawnOptions {
             cwd: options.cwd,
             env: options.env,
+            priority: ProcessPriority::Normal,
         },
         events,
     )

@@ -1,6 +1,5 @@
 use napi_derive::napi;
-
-use crate::sys::process;
+use nerve_process_core as process;
 
 #[napi(object)]
 pub struct NativeRuntimeCapabilities {

@@ -1,4 +1,6 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { ExecutionWorkerClient } from "@nervekit/native";
 import { readdir, readFile, readlink } from "node:fs/promises";
 import { join } from "node:path";
 import type { TaskListeningPort, TaskRuntime } from "@nervekit/contracts";
@@ -422,17 +424,31 @@ async function runCommand(
   args: string[],
   timeoutMs: number,
 ): Promise<{ code: number | null; stdout: string }> {
+  let child: ChildProcess;
+  let cleanup: (() => void) | undefined;
+  if (process.env.NERVE_HOME) {
+    const client = await ExecutionWorkerClient.connect(process.env.NERVE_HOME);
+    const executionId = `ports_${randomUUID()}`;
+    child = (
+      await client.spawnChild({
+        executionId,
+        command,
+        args,
+        timeoutMs,
+        terminationGraceMs: 100,
+        belowNormalPriority: true,
+      })
+    ).child;
+    cleanup = () => {
+      void client.remove(executionId).catch(() => undefined);
+    };
+  } else {
+    child = spawn(command, args, {
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+    });
+  }
   return await new Promise((resolve, reject) => {
-    let child;
-    try {
-      child = spawn(command, args, {
-        stdio: ["ignore", "pipe", "ignore"],
-        windowsHide: true,
-      });
-    } catch (error) {
-      reject(error);
-      return;
-    }
     let stdout = "";
     child.stdout?.on("data", (chunk: Buffer) => {
       stdout = `${stdout}${String(chunk)}`.slice(-256 * 1024);
@@ -440,10 +456,12 @@ async function runCommand(
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
     child.once("error", (error) => {
       clearTimeout(timer);
+      cleanup?.();
       reject(error);
     });
     child.once("close", (code) => {
       clearTimeout(timer);
+      cleanup?.();
       resolve({ code, stdout });
     });
   });

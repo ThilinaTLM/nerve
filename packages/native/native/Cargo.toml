@@ -9,6 +9,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
+nerve-process-core = { path = "../process-core" }
 napi = { version = "3.12.1", default-features = false, features = ["napi8"] }
 napi-derive = "3.6.3"
 gix = { version = "=0.86.0", default-features = false, features = [

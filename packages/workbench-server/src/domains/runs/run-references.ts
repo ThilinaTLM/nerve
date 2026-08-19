@@ -54,12 +54,19 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
   async toolCalls(runId: string) {
     const state = await this.unitOfWork.load(runId);
     if (!state) return [];
-    const latest = new Map<string, { revision: number; status: string }>();
+    const latest = new Map<
+      string,
+      { revision: number; status: string; workerExecutionId?: string }
+    >();
     for (const transition of state.transitions) {
       for (const call of transition.toolCalls) {
         const current = latest.get(call.id);
         if (!current || call.revision > current.revision) {
-          latest.set(call.id, { revision: call.revision, status: call.status });
+          latest.set(call.id, {
+            revision: call.revision,
+            status: call.status,
+            workerExecutionId: call.workerExecutionId,
+          });
         }
       }
     }
@@ -67,6 +74,7 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
       toolCallId,
       revision: value.revision,
       status: value.status,
+      workerExecutionId: value.workerExecutionId,
     }));
   }
 

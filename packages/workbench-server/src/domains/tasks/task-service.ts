@@ -176,7 +176,7 @@ export class TaskService {
     string,
     { readonly exit: TaskProcessExit; readonly error: unknown }
   >();
-  private readonly processSupervisor: TaskProcessSupervisor;
+  protected readonly processSupervisor: TaskProcessSupervisor;
 
   constructor(private readonly ports: TaskServicePorts) {
     this.processSupervisor = new TaskProcessSupervisor({

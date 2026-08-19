@@ -19,7 +19,7 @@ const releaseSurfaceExtensions =
 
 const allowedNerveDependencies = new Map([
   ["@nervekit/contracts", []],
-  ["@nervekit/native", []],
+  ["@nervekit/native", ["@nervekit/contracts"]],
   ["@nervekit/protocol", ["@nervekit/contracts"]],
   ["@nervekit/harness", ["@nervekit/contracts", "@nervekit/native"]],
   ["@nervekit/tools", ["@nervekit/contracts", "@nervekit/native"]],

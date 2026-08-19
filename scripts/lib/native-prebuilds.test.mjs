@@ -7,6 +7,7 @@ import {
   expectedNativePrebuilds,
   nativePrebuildFilename,
   verifyNativePrebuilds,
+  workerPrebuildFilename,
 } from "./native-prebuilds.mjs";
 
 const targets = [
@@ -43,6 +44,17 @@ test("maps supported Rust targets to napi filenames", () => {
     () => nativePrebuildFilename("x86_64-unknown-linux-musl"),
     /Unsupported native release target/,
   );
+});
+
+test("maps supported Rust targets to worker filenames", () => {
+  assert.deepEqual(targets.map(workerPrebuildFilename), [
+    "nerve_execution_worker.linux-x64-gnu",
+    "nerve_execution_worker.linux-arm64-gnu",
+    "nerve_execution_worker.win32-x64-msvc.exe",
+    "nerve_execution_worker.win32-arm64-msvc.exe",
+    "nerve_execution_worker.darwin-x64",
+    "nerve_execution_worker.darwin-arm64",
+  ]);
 });
 
 test("accepts exactly the declared release prebuilds", async (context) => {
