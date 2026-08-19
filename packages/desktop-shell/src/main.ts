@@ -1,5 +1,6 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { defaultSettings, type Settings } from "@nervekit/contracts";
 import {
   readCurrentSettingsForBootstrap,
   resolveApplicationConfiguration,
@@ -67,12 +68,12 @@ import {
 
 const desktopOptions = parseDesktopOptions(process.argv.slice(1));
 const desktopDataDir = resolveDataDir();
-const bootstrapSettings = await readCurrentSettingsForBootstrap(desktopDataDir);
+const bootstrapSettings = defaultSettings;
 const performanceEnvironmentWasExplicit =
   process.env.NERVE_PERFORMANCE_DIAGNOSTICS !== undefined;
 
 function resolveDesktopConfiguration(
-  settings: Awaited<ReturnType<typeof readCurrentSettingsForBootstrap>>,
+  settings: Settings,
 ): ReturnType<typeof resolveApplicationConfiguration> {
   return resolveApplicationConfiguration({
     settings,
@@ -88,7 +89,7 @@ function resolveDesktopConfiguration(
 let desktopConfiguration = resolveDesktopConfiguration(bootstrapSettings);
 
 function applyDesktopRuntimeSettings(
-  settings: Awaited<ReturnType<typeof readCurrentSettingsForBootstrap>>,
+  settings: Settings,
   configuration: ReturnType<typeof resolveApplicationConfiguration>,
   preReady: boolean,
 ): void {
@@ -152,6 +153,7 @@ const shellPageUrls = new ShellPageUrlRegistry();
 async function appendStartupRecord(
   record: Record<string, unknown>,
 ): Promise<void> {
+  if (desktopOptions.mode === "remote") return;
   try {
     const path = join(desktopDataDir, "logs", "startup.jsonl");
     await mkdir(dirname(path), { recursive: true });

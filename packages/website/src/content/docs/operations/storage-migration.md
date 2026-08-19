@@ -15,15 +15,18 @@ Settings can estimate usage and run asynchronous cleanup for old conversations/l
 
 Conversation pruning supports age and keep-latest boundaries. It skips running/awaiting agents and conversations with active tasks, then removes associated inactive task/tool/plan/log/index records.
 
-## Legacy desktop migration
+## Legacy-home migration
 
-When local desktop mode finds an unversioned legacy home, it asks before changing it. Acceptance:
+The workbench server owns one storage startup coordinator for desktop and headless startup. Local desktop mode supplies the confirmation dialog; headless startup applies the same automatic retained-backup policy. Remote desktop mode does not inspect or modify local `NERVE_HOME` state.
 
-1. renames the whole directory to a timestamped backup such as `~/.nerve-bk-20260716-013229`;
-2. initializes current versioned state;
-3. imports validated settings, the custom provider/model catalog, and recoverable provider/tool credentials.
+For an unversioned legacy home, the coordinator:
 
-Projects, conversations, agents, tasks, plans, logs, run history, indexes, and daemon/session state remain only in the backup. Malformed settings/catalog abort and restore the original home. Credentials that cannot be decrypted cause reauthentication but do not destroy the backup.
+1. acquires a sibling startup lock and records a recoverable transaction journal;
+2. renames the whole directory to a timestamped backup such as `~/.nerve-bk-20260716-013229`;
+3. stages validated portable data and runs the normal migration ledger;
+4. imports settings, custom provider/model definitions, and recoverable provider/tool credentials inside migration `0011` before the ledger commits.
+
+Projects, conversations, agents, tasks, plans, logs, run history, indexes, and daemon/session state remain only in the backup. Malformed settings/catalog or ambiguous daemon metadata abort and restore the original home. Credentials that cannot be decrypted cause reauthentication but do not destroy the backup. An interrupted startup journal is recovered deterministically on the next launch rather than guessed.
 
 Current storage migration 0008 removes retired in-home Electron profile data, obsolete empty handover/SQLite paths, pre-dense event archives, and committed internal migration archives. This one-time cleanup is intentionally irreversible and leaves the migration ledger and current authoritative state intact.
 

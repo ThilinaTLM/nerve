@@ -1,6 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { pathExists, writeTextFileIfMissing } from "./json.js";
+import { pathExists } from "./json.js";
 
 export const WORKBENCH_STATE_FORMAT = "nerve-workbench-state";
 export const WORKBENCH_STATE_VERSION = 2;
@@ -84,37 +84,6 @@ export async function inspectWorkbenchHome(
     kind: "legacy",
     reason: "The workbench home contains unversioned legacy state.",
   };
-}
-
-export async function ensureStateLayout(home: string): Promise<void> {
-  const inspection = await inspectWorkbenchHome(home);
-  if (inspection.kind === "current") return;
-  if (
-    inspection.kind === "missing" ||
-    inspection.kind === "empty" ||
-    inspection.kind === "desktop-bootstrap"
-  ) {
-    await writeTextFileIfMissing(
-      join(home, "VERSION"),
-      `${JSON.stringify(
-        {
-          format: WORKBENCH_STATE_FORMAT,
-          version: WORKBENCH_STATE_VERSION,
-        },
-        null,
-        2,
-      )}\n`,
-      0o600,
-    );
-    return;
-  }
-  throw incompatibleStateError(home);
-}
-
-export function incompatibleStateError(home: string): Error {
-  return new Error(
-    `Incompatible Nerve state at ${home}. Reset this directory before starting Nerve Protocol v1.`,
-  );
 }
 
 function errorCode(error: unknown): string | undefined {

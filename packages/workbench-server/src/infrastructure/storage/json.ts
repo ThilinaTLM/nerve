@@ -21,8 +21,16 @@ export async function pathExists(path: string): Promise<boolean> {
   try {
     await access(path, constants.F_OK);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      String(error.code) === "ENOENT"
+    ) {
+      return false;
+    }
+    throw error;
   }
 }
 

@@ -15,10 +15,8 @@ import {
   writeTextFileIfMissing,
 } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
-import {
-  runStorageMigrations,
-  type MigrationReport,
-} from "../migrations/index.js";
+import type { MigrationReport } from "../migrations/index.js";
+import { coordinateStorageStartup } from "./startup-coordinator.js";
 import { inspectWorkbenchHome } from "./state-layout.js";
 
 const dataSubdirs = [
@@ -43,21 +41,34 @@ export async function readCurrentSettingsForBootstrap(
   home = resolveDataDir(),
 ): Promise<Settings> {
   const inspection = await inspectWorkbenchHome(home);
-  if (inspection.kind !== "current") return defaultSettings;
+  if (
+    inspection.kind === "missing" ||
+    inspection.kind === "empty" ||
+    inspection.kind === "desktop-bootstrap"
+  ) {
+    return defaultSettings;
+  }
+  if (inspection.kind !== "current") {
+    throw new Error(
+      `Nerve settings are unavailable until storage is prepared: ${"reason" in inspection ? inspection.reason : inspection.kind}`,
+    );
+  }
 
   const path = storagePaths(home).configPath;
-  if (!(await pathExists(path))) return defaultSettings;
   let raw: unknown;
   try {
     raw = await readJsonFile<unknown>(path);
-  } catch {
-    return defaultSettings;
+  } catch (cause) {
+    throw new Error(`Current Nerve settings at ${path} are unreadable.`, {
+      cause,
+    });
   }
   const parsed = settingsSchema.safeParse(raw);
   if (!parsed.success || JSON.stringify(raw) !== JSON.stringify(parsed.data)) {
-    // A current VERSION marker may still have pending migrations. Do not
-    // consume a legacy-shaped config before the storage runner owns it.
-    return defaultSettings;
+    throw new Error(
+      `Current Nerve settings at ${path} are malformed or require a pending migration.`,
+      { cause: parsed.success ? undefined : parsed.error },
+    );
   }
   return parsed.data;
 }
@@ -69,8 +80,6 @@ export async function initializeStorage(
   } = {},
 ): Promise<InitializedStorage> {
   const paths = storagePaths(home);
-  await mkdir(paths.home, { recursive: true, mode: 0o700 });
-  await chmod(paths.home, 0o700).catch(() => undefined);
   let currentProgress: DaemonStartupProgress = {
     type: "nerve.startup.progress",
     phase: "storage-check",
@@ -87,18 +96,15 @@ export async function initializeStorage(
   heartbeat?.unref();
   let migrationReport: MigrationReport;
   try {
-    migrationReport = await runStorageMigrations(paths.home, {
-      reportProgress: () => {
-        reportProgress({
-          type: "nerve.startup.progress",
-          phase: "storage-migration",
-          message: "Upgrading workspace storage",
-        });
-      },
-    });
+    migrationReport = (
+      await coordinateStorageStartup(paths.home, {
+        reportStartupProgress: reportProgress,
+      })
+    ).migrationReport;
   } finally {
     if (heartbeat) clearInterval(heartbeat);
   }
+  await chmod(paths.home, 0o700);
   for (const subdir of dataSubdirs) {
     const mode = subdir === "auth" || subdir === "keys" ? 0o700 : 0o755;
     const dir = join(paths.home, subdir);
@@ -106,15 +112,15 @@ export async function initializeStorage(
     await chmod(dir, mode).catch(() => undefined);
   }
 
-  if (!(await pathExists(paths.configPath))) {
-    await atomicWriteJson(paths.configPath, defaultSettings, 0o600);
-  }
-
   const settings = settingsSchema.parse(
     await readJsonFile<unknown>(paths.configPath),
   );
 
-  await writeTextFileIfMissing(paths.sqlitePath, "", 0o600);
+  if (!(await pathExists(paths.sqlitePath))) {
+    throw new Error(
+      `Storage migrations completed without the required SQLite index at ${paths.sqlitePath}.`,
+    );
+  }
 
   if (!(await pathExists(paths.localTokenPath))) {
     const token = `nt_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;
@@ -122,6 +128,11 @@ export async function initializeStorage(
   }
   await chmod(paths.localTokenPath, 0o600).catch(() => undefined);
   const localToken = (await readFile(paths.localTokenPath, "utf8")).trim();
+  if (!localToken) {
+    throw new Error(
+      `The local authentication token at ${paths.localTokenPath} is empty.`,
+    );
+  }
 
   return { paths, settings, localToken, migrationReport };
 }
@@ -338,19 +349,4 @@ export async function writeDaemonFile(
   daemon: DaemonFile,
 ): Promise<void> {
   await atomicWriteJson(path, daemon, 0o600);
-}
-
-export async function removeStaleDaemonFile(path: string): Promise<void> {
-  if (!(await pathExists(path))) return;
-  const daemon = await readJsonFile<DaemonFile>(path).catch(() => undefined);
-  if (!daemon) return;
-  try {
-    process.kill(daemon.pid, 0);
-  } catch {
-    await atomicWriteJson(
-      path,
-      { ...daemon, stale: true, stoppedAt: new Date().toISOString() },
-      0o600,
-    );
-  }
 }

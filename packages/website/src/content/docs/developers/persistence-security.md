@@ -23,7 +23,7 @@ Schemas reject secret-like protocol metadata keys, but a broad error/details sch
 
 ## Migration
 
-State marker versioning prevents automatic downgrade or malformed/future resets. Desktop legacy migration backs up the complete home and imports only validated portable state. Remote shell mode never migrates local data.
+State marker versioning prevents automatic downgrade or malformed/future resets. A server-owned startup coordinator uses a sibling lock/journal, retains the complete legacy home, and imports only validated portable state through the migration ledger. Desktop supplies consent and presentation only; headless startup uses the same backup policy, and remote shell mode never touches local `NERVE_HOME` data.
 
 ## Electron boundary
 

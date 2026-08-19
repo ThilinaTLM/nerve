@@ -1,41 +1,26 @@
+import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  defaultSettings,
   type ProviderCatalog,
   providerCatalogSchema,
-  type Settings,
-  settingsSchema,
 } from "@nervekit/contracts";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
-import { pathExists, readJsonFile } from "./json.js";
-import { migrateLegacyAppearanceSettings } from "./settings-migrations.js";
 
 /** Secret names carrying provider/tool credentials (model, web, Jira, Confluence). */
 const providerCredentialName = /^provider:.+:(?:apiKey|oauth)$/;
 
 export type LegacyCredentialReadStatus = "read" | "failed";
+export type LegacySettingsObject = Record<string, unknown>;
 
-/**
- * Portable user state recovered from a legacy Nerve home: validated settings,
- * the custom provider/model catalog, and provider/tool credentials. Secret
- * values never appear in logs or result metadata; only names and counts do.
- */
+/** Portable user state staged for the migration ledger. */
 export interface LegacyPortableState {
-  /** Merged and validated settings, present when the legacy home had a config file. */
-  settings?: Settings;
-  /** Validated custom provider/model catalog, present when providers.json existed. */
+  /** Deliberately raw so appended migrations can preserve legacy-only fields. */
+  settings?: LegacySettingsObject;
   providerCatalog?: ProviderCatalog;
-  /** Decrypted provider/tool credential pairs to re-encrypt in the new home. */
   credentials: Array<[name: string, value: string]>;
-  /** `failed` when an encrypted store existed but could not be decrypted. */
   credentialStatus: LegacyCredentialReadStatus;
 }
 
-/**
- * Raised when required portable state (settings or provider catalog) exists but
- * is malformed. The migration coordinator treats this as fatal and rolls back
- * instead of silently dropping requested user state.
- */
 export class LegacyPortableStateError extends Error {
   constructor(
     message: string,
@@ -47,13 +32,6 @@ export class LegacyPortableStateError extends Error {
   }
 }
 
-/**
- * Reads portable user state from a (backed up) legacy home. Missing files mean
- * the corresponding state is absent; malformed settings or catalog data throws
- * `LegacyPortableStateError`. An unreadable encrypted credential store is
- * reported as a nonfatal `failed` status because the retained backup preserves
- * it and the secrets cannot safely be reconstructed.
- */
 export async function readLegacyPortableState(
   home: string,
 ): Promise<LegacyPortableState> {
@@ -64,55 +42,63 @@ export async function readLegacyPortableState(
   };
 }
 
-async function readLegacySettings(home: string): Promise<Settings | undefined> {
-  const configPath = join(home, "config.json");
-  if (!(await pathExists(configPath))) return undefined;
-  let raw: unknown;
+async function readOptionalRegularJson(
+  path: string,
+  source: "settings" | "providerCatalog",
+): Promise<unknown | undefined> {
+  let stats;
   try {
-    raw = await readJsonFile<unknown>(configPath);
+    stats = await lstat(path);
   } catch (cause) {
+    if (errorCode(cause) === "ENOENT") return undefined;
     throw new LegacyPortableStateError(
-      "The legacy config.json could not be parsed.",
-      "settings",
+      `The legacy ${source === "settings" ? "config.json" : "providers.json"} could not be read.`,
+      source,
       { cause },
     );
   }
+  if (!stats.isFile() || stats.isSymbolicLink()) {
+    throw new LegacyPortableStateError(
+      `The legacy ${source === "settings" ? "config.json" : "providers.json"} is not a regular file.`,
+      source,
+    );
+  }
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as unknown;
+  } catch (cause) {
+    throw new LegacyPortableStateError(
+      `The legacy ${source === "settings" ? "config.json" : "providers.json"} could not be parsed.`,
+      source,
+      { cause },
+    );
+  }
+}
+
+async function readLegacySettings(
+  home: string,
+): Promise<LegacySettingsObject | undefined> {
+  const raw = await readOptionalRegularJson(
+    join(home, "config.json"),
+    "settings",
+  );
+  if (raw === undefined) return undefined;
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     throw new LegacyPortableStateError(
       "The legacy config.json does not contain a settings object.",
       "settings",
     );
   }
-  const normalized = migrateLegacyAppearanceSettings(raw);
-  const parsed = settingsSchema.safeParse({
-    ...defaultSettings,
-    ...(normalized.value as object),
-  });
-  if (!parsed.success) {
-    throw new LegacyPortableStateError(
-      "The legacy config.json does not match the settings schema.",
-      "settings",
-      { cause: parsed.error },
-    );
-  }
-  return parsed.data;
+  return raw as LegacySettingsObject;
 }
 
 async function readLegacyProviderCatalog(
   home: string,
 ): Promise<ProviderCatalog | undefined> {
-  const providersPath = join(home, "providers.json");
-  if (!(await pathExists(providersPath))) return undefined;
-  let raw: unknown;
-  try {
-    raw = await readJsonFile<unknown>(providersPath);
-  } catch (cause) {
-    throw new LegacyPortableStateError(
-      "The legacy providers.json could not be parsed.",
-      "providerCatalog",
-      { cause },
-    );
-  }
+  const raw = await readOptionalRegularJson(
+    join(home, "providers.json"),
+    "providerCatalog",
+  );
+  if (raw === undefined) return undefined;
   const parsed = providerCatalogSchema.safeParse(raw);
   if (!parsed.success) {
     throw new LegacyPortableStateError(
@@ -130,18 +116,17 @@ async function readLegacyProviderCredentials(home: string): Promise<{
 }> {
   const keyPath = join(home, "keys", "master.key");
   const storePath = join(home, "keys", "secrets.json.enc");
-  if (!(await pathExists(storePath))) {
-    return { credentials: [], credentialStatus: "read" };
-  }
-  if (!(await pathExists(keyPath))) {
+  const store = await regularFileStatus(storePath);
+  if (store === "missing") return { credentials: [], credentialStatus: "read" };
+  if (store !== "regular" || (await regularFileStatus(keyPath)) !== "regular") {
     return { credentials: [], credentialStatus: "failed" };
   }
 
   try {
     const secrets = new EncryptedFileSecretProvider(home);
-    const names = (await secrets.list()).filter((name) =>
-      providerCredentialName.test(name),
-    );
+    const names = (await secrets.list())
+      .filter((name) => providerCredentialName.test(name))
+      .sort();
     const credentials: Array<[name: string, value: string]> = [];
     for (const name of names) {
       const value = await secrets.get(name);
@@ -151,4 +136,22 @@ async function readLegacyProviderCredentials(home: string): Promise<{
   } catch {
     return { credentials: [], credentialStatus: "failed" };
   }
+}
+
+async function regularFileStatus(
+  path: string,
+): Promise<"missing" | "regular" | "invalid"> {
+  try {
+    const stats = await lstat(path);
+    return stats.isFile() && !stats.isSymbolicLink() ? "regular" : "invalid";
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return "missing";
+    throw error;
+  }
+}
+
+function errorCode(error: unknown): string | undefined {
+  return error && typeof error === "object" && "code" in error
+    ? String(error.code)
+    : undefined;
 }
