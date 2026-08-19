@@ -90,12 +90,6 @@ const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
     cleanable: false,
     protected: false,
   },
-  workers: {
-    label: "Workers",
-    description: "Worker registrations.",
-    cleanable: false,
-    protected: false,
-  },
   cache: {
     label: "Cache",
     description: "Disposable cached data.",
@@ -135,7 +129,6 @@ const CATEGORY_ORDER: StorageCategoryKey[] = [
   "tasks",
   "workflowState",
   "projects",
-  "workers",
   "other",
   "protected",
 ];
@@ -348,8 +341,6 @@ function categoryForEntry(name: string): StorageCategoryKey {
       return "workflowState";
     case "projects":
       return "projects";
-    case "workers":
-      return "workers";
     case "cache":
       return "cache";
     case "tmp":

@@ -10,11 +10,7 @@ import {
   type Provider,
 } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
-import type {
-  AgentRequestAuth,
-  AuthProviderMetadata,
-  ModelSelection,
-} from "@nervekit/contracts";
+import type { AuthProviderMetadata, ModelSelection } from "@nervekit/contracts";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import {
   PiAiCredentialStore,
@@ -34,6 +30,13 @@ export type OAuthCredential = {
 } & OAuthCredentials;
 
 export type ProviderCredential = ApiKeyCredential | OAuthCredential;
+
+export interface ModelRequestAuth {
+  apiKey?: string;
+  baseUrl?: string;
+  headers?: Record<string, string>;
+  env?: Record<string, string>;
+}
 
 const ANTHROPIC_OAUTH_WARNING =
   "Anthropic subscription auth may use paid extra usage outside normal Claude plan limits.";
@@ -82,7 +85,7 @@ function asProviderCredential(
 
 function requestAuth(
   resolution: AuthResult | undefined,
-): AgentRequestAuth | undefined {
+): ModelRequestAuth | undefined {
   if (!resolution) return undefined;
   const headers = resolution.auth.headers
     ? Object.fromEntries(
@@ -91,7 +94,7 @@ function requestAuth(
         ),
       )
     : undefined;
-  const result: AgentRequestAuth = {
+  const result: ModelRequestAuth = {
     apiKey: resolution.auth.apiKey,
     baseUrl: resolution.auth.baseUrl,
     headers,
@@ -183,7 +186,7 @@ export class AuthManager {
 
   async requestAuthForModel(
     model: ModelSelection | undefined,
-  ): Promise<AgentRequestAuth | undefined> {
+  ): Promise<ModelRequestAuth | undefined> {
     if (!model || model.provider === "nerve-faux") return undefined;
     const registered = this.models.getModel(model.provider, model.modelId);
     if (registered) return this.requestAuthForPiModel(registered);
@@ -193,7 +196,7 @@ export class AuthManager {
 
   async requestAuthForPiModel(
     model: Model<Api>,
-  ): Promise<AgentRequestAuth | undefined> {
+  ): Promise<ModelRequestAuth | undefined> {
     if (model.provider === "nerve-faux") return undefined;
     if (this.models.getProvider(model.provider)) {
       return requestAuth(await this.models.getAuth(model));

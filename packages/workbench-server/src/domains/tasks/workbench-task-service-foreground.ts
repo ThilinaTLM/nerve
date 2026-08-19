@@ -139,7 +139,6 @@ export async function runForegroundBashWithPromotion(
 
   const startedAt = Date.now();
   const task = await this.startTask({
-    workerId: input.workerId,
     projectId: input.projectId,
     conversationId: input.conversationId,
     agentId: input.agentId,

@@ -105,10 +105,6 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
     const { taskId, ...query } = params;
     return state.registry.queryTaskLogs(taskId, query);
   },
-  "worker.list": (state) => ({ workers: state.registry.listWorkers() }),
-  "worker.get": (state, params) => ({
-    worker: state.registry.getWorker(params.workerId),
-  }),
 });
 
 function projectId(params: { projectId: string }): string {

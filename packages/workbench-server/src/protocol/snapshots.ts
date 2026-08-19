@@ -21,7 +21,6 @@ export async function getWorkspaceSnapshotResponse(
       status: "waiting",
       limit: 1_000,
     }),
-    workers: state.registry.listWorkers(),
   }));
   return {
     snapshot: captured.value,

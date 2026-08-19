@@ -1,4 +1,3 @@
-import type { Message } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "../agent/types/index.js";
 
 export interface AgentModelSelection {
@@ -42,17 +41,6 @@ export interface AgentCustomModel {
   maxTokens?: number;
   headers?: Record<string, string>;
   compat?: Record<string, unknown>;
-}
-
-export interface AgentPromptInput {
-  systemPrompt?: string;
-  messages: Message[];
-  model?: AgentModelSelection;
-  apiKey?: string;
-  baseUrl?: string;
-  headers?: Record<string, string>;
-  env?: Record<string, string>;
-  signal?: AbortSignal;
 }
 
 export type AgentScriptedProviderStep =

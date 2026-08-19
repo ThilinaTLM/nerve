@@ -16,7 +16,6 @@ export interface HostToolExecutionIdentity {
   readonly conversationId?: string;
   readonly agentId?: string;
   readonly runId?: string;
-  readonly workerId?: string;
   readonly toolCallId?: string;
   readonly host?: unknown;
 }

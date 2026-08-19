@@ -265,26 +265,11 @@ for (const name of packages) {
 }
 for (const subpath of [
   "@nervekit/harness/node",
-  "@nervekit/harness/worker",
   "@nervekit/workbench-server/main"
 ]) console.log(subpath, import.meta.resolve(subpath));
 `,
     );
     run(process.execPath, [desktopSmoke], directory);
-
-    const serverSmoke = join(
-      desktopRoot,
-      "node_modules",
-      "@nervekit",
-      "workbench-server",
-      "dist",
-      "npm-worker-smoke.mjs",
-    );
-    await writeFile(
-      serverSmoke,
-      `console.log(import.meta.resolve("@nervekit/harness/worker"));\n`,
-    );
-    run(process.execPath, [serverSmoke], directory);
 
     const bin = join(desktopRoot, "dist", "bin.js");
     const versionOutput = capture(

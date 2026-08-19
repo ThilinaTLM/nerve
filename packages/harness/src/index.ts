@@ -59,7 +59,6 @@ export * from "./harness/lifecycle/events.js";
 export * from "./harness/result.js";
 export { registerManagedProvider } from "./models/provider-registry.js";
 export * from "./transport/proxy.js";
-export * from "./models/prompt-stream.js";
 export * from "./models/image-explanation.js";
 export * from "./models/provider-error-classification.js";
 export * from "./models/resolution.js";

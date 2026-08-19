@@ -12,14 +12,12 @@ import { createProjectRoutes } from "./project-routes.js";
 import { createPromptSuggestionRoutes } from "./prompt-suggestion-routes.js";
 import { createProtocolRoutes } from "./protocol-routes.js";
 import { createProviderCatalogRoutes } from "./provider-catalog-routes.js";
-
 import { createSettingsRoutes } from "./settings-routes.js";
 import { createStatusRoutes } from "./status-routes.js";
 import { createStorageRoutes } from "./storage-routes.js";
 import { createTaskRoutes } from "./task-routes.js";
 import { createToolRoutes } from "./tool-routes.js";
 import { createTranscriptionRoutes } from "./transcription-routes.js";
-import { createWorkerRoutes } from "./worker-routes.js";
 import { createWorkspaceRoutes } from "./workspace-routes.js";
 
 export function mountApiRoutes(app: Hono, state: OrchestratorState): void {
@@ -34,7 +32,6 @@ export function mountApiRoutes(app: Hono, state: OrchestratorState): void {
   app.route("/api", createModelRoutes(state));
   app.route("/api", createToolRoutes(state));
   app.route("/api", createTranscriptionRoutes(state));
-  app.route("/api", createWorkerRoutes(state));
   app.route("/api", createWorkspaceRoutes(state));
 
   if (state.applicationLogsEnabled) {

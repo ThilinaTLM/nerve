@@ -276,13 +276,11 @@ export class OrchestrationToolDispatcher {
       const cwd = await resolveCommandCwd(toolCall.cwd, args.cwd);
       delete args.cwd;
       if (options.useForegroundBash !== false) {
-        const agent = this.deps.getAgent(toolCall.agentId);
         const autoPromotion =
           this.deps.storage.settings.tools.bash.autoPromotion;
         const promoted = await this.deps.tasks.runForegroundBashWithPromotion({
           command: stringArg(args, "command"),
           cwd,
-          workerId: agent.workerId,
           projectId: toolCall.projectId,
           conversationId: toolCall.conversationId,
           agentId: toolCall.agentId,
@@ -353,7 +351,6 @@ export class OrchestrationToolDispatcher {
       : toolCall.cwd;
     const task = await this.deps.startTask({
       name: optionalStringArg(args.name),
-      workerId: agent.workerId,
       projectId: toolCall.projectId,
       conversationId: toolCall.conversationId,
       agentId: toolCall.agentId,

@@ -28,7 +28,6 @@ export function createLogRoutes(state: OrchestratorState): Hono {
         runId: c.req.query("runId"),
         toolCallId: c.req.query("toolCallId"),
         taskId: c.req.query("taskId"),
-        workerId: c.req.query("workerId"),
       });
       return c.json(await state.logger.query(query));
     }),
@@ -59,7 +58,6 @@ export function createLogRoutes(state: OrchestratorState): Hono {
           runId: log.runId,
           toolCallId: log.toolCallId,
           taskId: log.taskId,
-          workerId: log.workerId,
           durationMs: log.durationMs,
           context: { ...(log.context ?? {}), clientTs: log.ts },
           error: log.error,

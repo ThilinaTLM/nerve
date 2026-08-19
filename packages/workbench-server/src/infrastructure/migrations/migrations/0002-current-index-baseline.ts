@@ -1,4 +1,4 @@
-import { INDEX_STORE_SCHEMA_SQL } from "../../index-store/schema.js";
+import { MIGRATION_0002_INDEX_SCHEMA_SQL } from "./0002-index-schema.js";
 import { pathExists } from "../../storage/json.js";
 import { tableNames } from "../sqlite.js";
 import type { StorageMigration } from "../migration.js";
@@ -35,7 +35,9 @@ export const migration0002: StorageMigration = {
     return { paths: [] };
   },
   async up(context) {
-    context.transaction((database) => database.exec(INDEX_STORE_SCHEMA_SQL));
+    context.transaction((database) =>
+      database.exec(MIGRATION_0002_INDEX_SCHEMA_SQL),
+    );
   },
   async verify(context) {
     const current = context.withDatabase((database) =>

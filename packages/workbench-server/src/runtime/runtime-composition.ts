@@ -76,7 +76,6 @@ import { WorkbenchAgentExecutionAdapter } from "../domains/runs/workbench-agent-
 import { WorkbenchRunService } from "../domains/runs/workbench-run.service.js";
 import { WorkbenchRunQuery } from "../domains/runs/workbench-run-query.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
-import { WorkerManager } from "../domains/workers/worker-manager.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../core/ports.js";
 import type { StreamLogRegistry } from "../infrastructure/events/index.js";
@@ -102,7 +101,6 @@ export interface RuntimeServices {
   tasks: WorkbenchTaskService;
   taskNotifications: TaskNotificationService;
   pythonRuntime: PythonRuntimeService;
-  workers: WorkerManager;
   plans: PlanService;
   tools: ToolService;
   git: GitService;
@@ -199,7 +197,6 @@ export function composeRuntime(
       conversations: listConversations(),
       agents: listAgents(),
       tasks: services.tasks.listTasks(),
-      workers: services.workers.listWorkers(),
     });
   };
 
@@ -327,7 +324,6 @@ export function composeRuntime(
     },
   );
   services.pythonRuntime = new PythonRuntimeService(storage);
-  services.workers = new WorkerManager(storage, events, index);
   services.editors = new ProjectEditorService(getProject);
   services.projectLifecycle = new ProjectLifecycleService(
     projectRepository,
@@ -374,7 +370,6 @@ export function composeRuntime(
     index,
     state,
     agentRepository,
-    services.workers,
     services.conversationService,
     updateConversation,
     (agentId) => services.workbenchRun.abortAgent(agentId),
@@ -474,8 +469,7 @@ export function composeRuntime(
     index,
     services.tasks,
     services.pythonRuntime,
-    (request) =>
-      services.workers.startTask(request.workerId, services.tasks, request),
+    (request) => services.tasks.startTask(request),
     getAgent,
     // Tool execution can spawn explore agents; the closure is only invoked after
     // composition completes, so reading services.workbenchRun here is safe.

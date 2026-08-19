@@ -22,10 +22,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./worker": {
-      "types": "./dist/worker.d.ts",
-      "import": "./dist/worker.js"
-    },
     "./node": {
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"

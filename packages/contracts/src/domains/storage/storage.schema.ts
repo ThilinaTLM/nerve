@@ -19,7 +19,6 @@ export const storageCategoryKeySchema = z.enum([
   "tasks",
   "workflowState",
   "projects",
-  "workers",
   "cache",
   "tmp",
   "protected",

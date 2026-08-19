@@ -77,7 +77,6 @@ export interface SubagentRunSpec {
   parent: AgentRecord;
   projectId: string;
   projectDir: string;
-  workerId?: string;
   mode: Mode;
   permissionLevel: PermissionLevel;
   prompt: string;
@@ -230,7 +229,6 @@ export class SubagentRunner {
               parent,
               projectId: parent.projectId,
               projectDir: parent.projectDir,
-              workerId: parent.workerId,
               mode: "coding",
               permissionLevel: "read_only",
               prompt: exploreUserPrompt(task, plan),
@@ -335,7 +333,6 @@ export class SubagentRunner {
         conversationId: spec.parent.conversationId,
         projectId: spec.projectId,
         projectDir: spec.projectDir,
-        workerId: spec.workerId,
         parentAgentId: spec.parent.id,
         task: spec.task ?? spec.prompt,
         mode: spec.mode,

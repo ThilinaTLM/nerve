@@ -11,9 +11,9 @@ The package has two orchestration levels:
 
 ```text
 src/
-  index.ts, node.ts, worker.ts   supported package entrypoints
+  index.ts, node.ts              supported package entrypoints
   agent/                         low-level Agent, loop, tools, and contracts
-  models/                        provider registry, model resolution, prompt streaming
+  models/                        provider registry and model resolution
   transport/                     proxy transport adapter
   harness/
     agent-harness.ts             high-level public facade
@@ -54,7 +54,6 @@ Supported imports are limited to:
 ```ts
 import { Agent, AgentHarness } from "@nervekit/harness";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
-import "@nervekit/harness/worker";
 ```
 
 Paths beneath `dist/` are internal and may change.
