@@ -175,17 +175,12 @@ $effect(() => {
       {:else}
         <div class="grid gap-2">
           {#if models.length > SEARCH_THRESHOLD}
-            <SearchInput
-              bind:value={query}
-              placeholder="Search models"
-              ariaLabel="Search models"
-            />
             {#if providerChips.length > 2}
               <ToggleGroup.Root
                 type="single"
                 size="xs"
                 spacing={1}
-                variant="outline"
+                variant="chip"
                 value={providerFilter}
                 aria-label="Filter by provider"
                 class="flex-nowrap overflow-x-auto"
@@ -204,6 +199,11 @@ $effect(() => {
                 {/each}
               </ToggleGroup.Root>
             {/if}
+            <SearchInput
+              bind:value={query}
+              placeholder="Search models"
+              ariaLabel="Search models"
+            />
           {/if}
           {#if filteredModels.length === 0}
             <p class="text-muted-foreground">No models match.</p>
@@ -212,7 +212,7 @@ $effect(() => {
               items={filteredModels}
               getKey={(entry) => entry.key}
               estimateSize={() => 36}
-              gap={6}
+              gap={8}
               paddingEnd={4}
               viewportClass="max-h-[min(44vh,18rem)]"
               viewportAriaLabel="Available models"
@@ -232,12 +232,12 @@ $effect(() => {
     </PopoverSection>
 
     {#if hasThinking}
-      <PopoverSection label="Thinking level" separated>
+      <PopoverSection separated>
         <ToggleGroup.Root
           type="single"
           size="xs"
           spacing={1}
-          variant="outline"
+          variant="chip"
           value={thinkingLevel}
           aria-label="Thinking level"
           class="flex-wrap justify-start"

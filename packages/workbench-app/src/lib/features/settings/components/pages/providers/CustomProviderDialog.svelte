@@ -37,7 +37,7 @@ import { Label } from "@nervekit/ui-kit/components/ui/label";
 import SelectField from "@nervekit/ui-kit/components/ui/select-field";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import { encryptApiKey } from "$lib/core/utils/credential-crypto";
-import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
+import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 
 type Props = {
   open?: boolean;
@@ -158,13 +158,14 @@ async function submit() {
   bind:open
   title={editing ? `Edit ${provider?.displayName}` : "Add custom provider"}
   description="Connect an OpenAI-compatible or other pi-ai supported endpoint."
-  size="md"
+  size="sm"
 >
-  <div class="provider-form">
-    <div class="field-grid">
-      <div class="field">
+  <div class="grid gap-3">
+    <div class="grid gap-3 sm:grid-cols-2">
+      <div class="grid gap-1.5">
         <Label for="custom-provider-name">Display name</Label>
         <Input
+          size="xs"
           id="custom-provider-name"
           value={displayName}
           oninput={(event) => onDisplayNameInput(event.currentTarget.value)}
@@ -172,9 +173,10 @@ async function submit() {
           disabled={busy}
         />
       </div>
-      <div class="field">
+      <div class="grid gap-1.5">
         <Label for="custom-provider-id">Provider id</Label>
         <Input
+          size="xs"
           id="custom-provider-id"
           bind:value={id}
           oninput={() => (idTouched = true)}
@@ -183,14 +185,14 @@ async function submit() {
           aria-invalid={!idValid && id.length > 0}
         />
         {#if id.length > 0 && !idValid}
-          <p class="field-hint" data-tone="error">
+          <p class="flex items-center gap-1.5 text-xs text-destructive">
             Use lowercase letters, numbers, and dashes.
           </p>
         {/if}
       </div>
     </div>
 
-    <div class="field">
+    <div class="grid gap-1.5">
       <Label>API type</Label>
       <SelectField
         items={PI_API_ITEMS}
@@ -200,9 +202,10 @@ async function submit() {
       />
     </div>
 
-    <div class="field">
+    <div class="grid gap-1.5">
       <Label for="custom-provider-base-url">Base URL</Label>
       <Input
+        size="xs"
         id="custom-provider-base-url"
         bind:value={baseUrl}
         placeholder="http://localhost:11434/v1"
@@ -210,11 +213,12 @@ async function submit() {
       />
     </div>
 
-    <div class="field">
+    <div class="grid gap-1.5">
       <Label for="custom-provider-key">
         API key {hasKey ? "(stored — leave blank to keep)" : "(optional)"}
       </Label>
       <Input
+        size="xs"
         id="custom-provider-key"
         type="password"
         autocomplete="off"
@@ -224,7 +228,7 @@ async function submit() {
       />
     </div>
 
-    <div class="field">
+    <div class="grid gap-1.5">
       <Label for="custom-provider-headers">Custom headers (optional)</Label>
       <Textarea
         id="custom-provider-headers"
@@ -234,10 +238,12 @@ async function submit() {
 Another-Header: value"
         disabled={busy}
       />
-      <p class="field-hint">One <code>Name: value</code> per line.</p>
+      <p class="text-xs text-muted-foreground">
+        One <code class="font-mono">Name: value</code> per line.
+      </p>
     </div>
 
-    <div class="field">
+    <div class="grid gap-1.5">
       <Label for="custom-provider-compat"
         >Compatibility overrides (optional JSON)</Label
       >
@@ -251,7 +257,7 @@ Another-Header: value"
     </div>
 
     {#if error}
-      <p class="field-hint" data-tone="error">
+      <p class="flex items-center gap-1.5 text-xs text-destructive">
         <TriangleAlert size={14} strokeWidth={2} />
         {error}
       </p>
@@ -267,44 +273,3 @@ Another-Header: value"
     </Button>
   {/snippet}
 </Dialog>
-
-<style>
-.provider-form {
-  display: grid;
-  gap: 0.85rem;
-}
-
-.field-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.85rem;
-}
-
-.field {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.field-hint {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-}
-
-.field-hint[data-tone="error"] {
-  color: var(--destructive);
-}
-
-.field-hint code {
-  font-family: var(--font-mono);
-}
-
-@media (max-width: 540px) {
-  .field-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

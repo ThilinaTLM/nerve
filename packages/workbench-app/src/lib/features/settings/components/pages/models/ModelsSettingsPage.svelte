@@ -1,12 +1,10 @@
 <script lang="ts">
-import X from "@lucide/svelte/icons/x";
 import type {
   AuthProviderMetadata,
   ModelInfo,
   ModelSelection,
   Settings,
 } from "$lib/api";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   SettingsEmptyState,
@@ -114,32 +112,27 @@ function removeEntry(key: string): void {
       {/snippet}
     </SettingsEmptyState>
   {:else}
-    <SettingsList ariaLabel="Scoped models">
+    <SettingsList ariaLabel="Scoped models" divided={false} gap="sm">
       {#each scopedEntries as entry (entry.key)}
         {@const label = entry.model
           ? modelDisplayName(entry.model)
           : entry.selection.modelId}
-        <SettingsListItem title={label}>
-          {#snippet badges()}
-            {#if entry.stale}
-              <Badge tone="warn" size="xs">Unavailable</Badge>
-            {/if}
-          {/snippet}
+        <SettingsListItem variant="card" title={label}>
           {#snippet meta()}
             <span class="truncate">
               {providerDisplayName(entry.selection.provider)} ·
               <span class="font-mono">{entry.selection.modelId}</span>
+              {#if entry.stale}
+                · <span class="text-warning">Unavailable</span>
+              {/if}
             </span>
           {/snippet}
           {#snippet actions()}
             <Button
               variant="ghost"
-              size="icon-xs"
-              ariaLabel={`Remove ${label}`}
-              onclick={() => removeEntry(entry.key)}
+              size="xs"
+              onclick={() => removeEntry(entry.key)}>Remove</Button
             >
-              <X class="size-3.5" aria-hidden="true" />
-            </Button>
           {/snippet}
         </SettingsListItem>
       {/each}

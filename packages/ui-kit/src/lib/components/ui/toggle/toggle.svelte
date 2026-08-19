@@ -7,6 +7,7 @@ export const toggleVariants = tv({
     variant: {
       default: "bg-transparent",
       outline: "border-input hover:bg-muted border bg-transparent shadow-xs",
+      chip: "cursor-pointer rounded-full border border-transparent bg-accent/90 text-foreground hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70 data-[state=on]:border-primary data-[state=on]:bg-accent/95 dark:data-[state=on]:bg-accent/70",
     },
     size: {
       default:

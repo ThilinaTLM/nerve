@@ -1,4 +1,3 @@
-import { loadAuthPanel } from "$lib/features/auth";
 import { refreshConversationView } from "$lib/features/conversations";
 import { refreshFilePane, refreshMermaidPane } from "$lib/features/filesystem";
 import { refreshDiffPane, refreshPrPane } from "$lib/features/git";
@@ -15,6 +14,5 @@ export const refreshCenterTab = createCenterTabRefresh({
   refreshPullRequest: (id) => void refreshPrPane(id),
   refreshDiff: (id) => void refreshDiffPane(id),
   loadSettings: () => void loadSettingsPanel(),
-  loadAuth: () => void loadAuthPanel(),
   refreshLogs: requestLogsRefresh,
 });

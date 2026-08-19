@@ -14,11 +14,12 @@ let {
   class: className,
   onclick,
 }: {
-  label: string;
+  label: string | Snippet;
   /** Secondary line: plain text, or a snippet for richer markup (e.g. mono ids). */
   detail?: string | Snippet;
   selected?: boolean;
   disabled?: boolean;
+  /** Native tooltip (e.g. the raw model id shown on hover). */
   title?: string;
   icon?: Snippet;
   /** Rendered between the text and the selected check (e.g. a shortcut hint). */
@@ -34,15 +35,20 @@ let {
   {title}
   aria-pressed={selected}
   class={cn(
-    "flex w-full items-center gap-2.5 rounded-md border border-border bg-transparent px-2 py-2 text-left transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-55",
-    selected && "bg-accent",
+    "flex w-full cursor-pointer items-center gap-2.5 rounded-md border bg-accent/90 px-2 py-2 text-left transition-colors hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70",
+    selected ? "border-primary" : "border-transparent",
+    disabled && "pointer-events-none opacity-55",
     className,
   )}
   {onclick}
 >
   {@render icon?.()}
   <span class="grid min-w-0 flex-1 gap-0.5">
-    <span class="truncate text-xs font-medium text-foreground">{label}</span>
+    {#if typeof label === "string"}
+      <span class="truncate text-xs font-medium text-foreground">{label}</span>
+    {:else}
+      {@render label()}
+    {/if}
     {#if typeof detail === "string"}
       <span class="truncate text-xs text-muted-foreground">{detail}</span>
     {:else if detail}

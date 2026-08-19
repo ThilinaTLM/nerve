@@ -2,8 +2,6 @@
 import { onMount } from "svelte";
 import CheckCircle2 from "@lucide/svelte/icons/check-circle-2";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
-import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Progress } from "@nervekit/ui-kit/components/ui/progress";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
@@ -30,14 +28,14 @@ type Props = {
 let { controller }: Props = $props();
 
 const categoryTones = [
-  "bg-chart-1",
-  "bg-chart-2",
-  "bg-chart-3",
-  "bg-chart-4",
-  "bg-chart-5",
-  "bg-primary",
-  "bg-info",
-  "bg-warning",
+  { bg: "bg-chart-1", stroke: "stroke-chart-1" },
+  { bg: "bg-chart-2", stroke: "stroke-chart-2" },
+  { bg: "bg-chart-3", stroke: "stroke-chart-3" },
+  { bg: "bg-chart-4", stroke: "stroke-chart-4" },
+  { bg: "bg-chart-5", stroke: "stroke-chart-5" },
+  { bg: "bg-primary", stroke: "stroke-primary" },
+  { bg: "bg-info", stroke: "stroke-info" },
+  { bg: "bg-warning", stroke: "stroke-warning" },
 ];
 
 const usage = $derived(controller.usage);
@@ -47,6 +45,27 @@ const categories = $derived(
   [...(usage?.categories ?? [])]
     .filter((category) => category.bytes > 0)
     .sort((left, right) => right.bytes - left.bytes),
+);
+const categorySegments = $derived.by(() => {
+  let offset = 0;
+  return categories.map((category, index) => {
+    const percent = totalBytes > 0 ? (category.bytes / totalBytes) * 100 : 0;
+    const segment = {
+      category,
+      percent,
+      offset,
+      tone: categoryTones[index % categoryTones.length],
+    };
+    offset += percent;
+    return segment;
+  });
+});
+const chartLabel = $derived(
+  `Storage usage breakdown: ${formatBytes(totalBytes)} total. ${categorySegments
+    .map(
+      (segment) => `${segment.category.label} ${Math.round(segment.percent)}%`,
+    )
+    .join(", ")}.`,
 );
 const active = $derived(controller.active);
 const progressValue = $derived(operation ? cleanupProgress(operation) : 0);
@@ -58,6 +77,12 @@ const indexBytes = $derived(
     ? usage.sqlite.dbBytes + usage.sqlite.walBytes + usage.sqlite.shmBytes
     : 0,
 );
+
+function resultStatusClass(outcome: string): string {
+  if (outcome === "succeeded") return "text-success";
+  if (outcome === "failed") return "text-destructive";
+  return "text-muted-foreground";
+}
 
 onMount(() => {
   controller.start();
@@ -77,35 +102,65 @@ onMount(() => {
   </SettingsGroup>
 {:else if usage}
   <SettingsGroup>
-    <div class="grid gap-1">
-      <span class="text-xs text-muted-foreground">Total local data</span>
-      <span class="text-2xl font-semibold">{formatBytes(totalBytes)}</span>
-      <span
-        class="truncate font-mono text-xs text-muted-foreground"
-        title={usage.dataDir}>{usage.dataDir}</span
-      >
-      <span class="text-xs text-muted-foreground">
-        Calculated {new Date(usage.generatedAt).toLocaleString()}
-      </span>
-    </div>
-    <div
-      class="flex h-2.5 overflow-hidden rounded-full bg-muted"
-      aria-label={`Storage usage total ${formatBytes(totalBytes)}`}
-    >
-      {#each categories as category, index (category.key)}
+    <div class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <div class="grid gap-1">
+        <span class="text-xs text-muted-foreground">Total local data</span>
+        <span class="text-2xl font-semibold">{formatBytes(totalBytes)}</span>
         <span
-          class={categoryTones[index % categoryTones.length]}
-          style={`width: ${Math.max(percentOfTotal(category.bytes, totalBytes), 1)}%`}
-          title={`${category.label}: ${formatBytes(category.bytes)}`}
-        ></span>
-      {/each}
+          class="truncate font-mono text-xs text-muted-foreground"
+          title={usage.dataDir}>{usage.dataDir}</span
+        >
+        <span class="text-xs text-muted-foreground">
+          Calculated {new Date(usage.generatedAt).toLocaleString()}
+        </span>
+      </div>
+      <div
+        class="relative mx-auto size-28 sm:mx-0"
+        role="img"
+        aria-label={chartLabel}
+      >
+        <svg viewBox="0 0 100 100" class="size-full">
+          <circle
+            cx="50"
+            cy="50"
+            r="42"
+            fill="none"
+            stroke-width="14"
+            class="stroke-muted"
+          />
+          <g transform="rotate(-90 50 50)">
+            {#each categorySegments as segment (segment.category.key)}
+              <circle
+                cx="50"
+                cy="50"
+                r="42"
+                fill="none"
+                stroke-width="14"
+                stroke-linecap="butt"
+                pathLength="100"
+                class={segment.tone.stroke}
+                stroke-dasharray={`${segment.percent} ${100 - segment.percent}`}
+                stroke-dashoffset={-segment.offset}
+              />
+            {/each}
+          </g>
+        </svg>
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <span class="text-lg font-semibold leading-none"
+            >{formatBytes(totalBytes)}</span
+          >
+          <span class="text-xs text-muted-foreground">Total</span>
+        </div>
+      </div>
     </div>
   </SettingsGroup>
 
   {#if operation && (active || operation.completedAt)}
     <SettingsGroup>
       <div class="grid gap-2" aria-live="polite">
-        <div class="flex flex-wrap items-start justify-between gap-3">
+        <div
+          class="flex flex-wrap items-start justify-between gap-3 rounded-md border border-info/40 bg-info/10 px-3 py-2"
+        >
           <div class="flex min-w-0 items-start gap-2">
             {#if active}
               <Spinner class="mt-0.5 size-4 shrink-0 text-primary" />
@@ -136,14 +191,6 @@ onMount(() => {
               onclick={() => void controller.cancelCleanup()}
               >Cancel cleanup</Button
             >
-          {:else if !active}
-            <Button
-              size="xs"
-              variant="outline"
-              onclick={() => (controller.cleanupDialogOpen = true)}
-            >
-              <RotateCcw class="size-3.5" aria-hidden="true" /> Clean more
-            </Button>
           {/if}
         </div>
 
@@ -166,23 +213,18 @@ onMount(() => {
         {/if}
 
         {#if !active && operation.results.length > 0}
-          <SettingsList ariaLabel="Cleanup results">
+          <SettingsList ariaLabel="Cleanup results" divided={false} gap="sm">
             {#each operation.results as result (result.target)}
               <SettingsListItem
+                variant="card"
                 title={targetLabel(result.target)}
                 description={result.error ?? result.note}
               >
-                {#snippet badges()}
-                  <Badge
-                    size="xs"
-                    tone={result.outcome === "succeeded"
-                      ? "good"
-                      : result.outcome === "failed"
-                        ? "danger"
-                        : "neutral"}>{result.outcome}</Badge
-                  >
-                {/snippet}
                 {#snippet meta()}
+                  <span class={resultStatusClass(result.outcome)}
+                    >{result.outcome}</span
+                  >
+                  <span>·</span>
                   <span class="font-mono">{formatBytes(result.freedBytes)}</span
                   >
                   {#if result.removedItems > 0}
@@ -204,29 +246,28 @@ onMount(() => {
     title="What uses space"
     description="Categories are ordered by current footprint."
   >
-    <SettingsList ariaLabel="Storage categories">
+    <SettingsList ariaLabel="Storage categories" divided={false} gap="sm">
       {#each categories as category, index (category.key)}
         <SettingsDisclosureItem
+          variant="card"
           title={category.label}
           description={category.description}
         >
-          {#snippet leading()}
+          {#snippet titleSuffix()}
             <span
-              class={`size-2 flex-none rounded-full ${categoryTones[index % categoryTones.length]}`}
+              class={`size-2 flex-none rounded-full ${categoryTones[index % categoryTones.length].bg}`}
               aria-hidden="true"
             ></span>
-          {/snippet}
-          {#snippet badges()}
-            {#if category.protected}
-              <Badge size="xs" variant="secondary">Protected</Badge>
-            {/if}
-            {#if category.cleanable}
-              <Badge size="xs" variant="outline">Cleanable</Badge>
-            {/if}
           {/snippet}
           {#snippet meta()}
             <span class="font-mono">{formatBytes(category.bytes)}</span>
             <span>· {percentOfTotal(category.bytes, totalBytes)}%</span>
+            {#if category.protected}
+              <span class="text-muted-foreground">· Protected</span>
+            {/if}
+            {#if category.cleanable}
+              <span class="text-muted-foreground">· Cleanable</span>
+            {/if}
           {/snippet}
           {#snippet detail()}
             <p>

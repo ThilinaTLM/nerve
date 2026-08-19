@@ -8,7 +8,6 @@ export type CenterTabRefreshDependencies = {
   refreshPullRequest(id: string): void;
   refreshDiff(id: string): void;
   loadSettings(): void;
-  loadAuth(): void;
   refreshLogs(): void;
 };
 
@@ -38,9 +37,6 @@ export function createCenterTabRefresh(
         return;
       case "settings":
         dependencies.loadSettings();
-        return;
-      case "auth":
-        dependencies.loadAuth();
         return;
       case "logs":
         dependencies.refreshLogs();

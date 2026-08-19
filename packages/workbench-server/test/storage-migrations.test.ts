@@ -12,7 +12,7 @@ import {
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import { taskRecordSchema } from "@nervekit/contracts";
+import { defaultSettings, taskRecordSchema } from "@nervekit/contracts";
 import type {
   MigrationContext,
   StorageMigration,
@@ -28,6 +28,9 @@ import { migration0006 } from "../src/infrastructure/migrations/migrations/0006-
 import { migration0007 } from "../src/infrastructure/migrations/migrations/0007-transient-conversation-live-events.js";
 import { migration0008 } from "../src/infrastructure/migrations/migrations/0008-remove-legacy-storage.js";
 import { migration0009 } from "../src/infrastructure/migrations/migrations/0009-native-task-runtimes.js";
+import { migration0010 } from "../src/infrastructure/migrations/migrations/0010-integration-provider-profiles.js";
+import { EncryptedFileSecretProvider } from "../src/infrastructure/secrets/index.js";
+import { providerApiKeySecretName } from "../src/domains/auth/pi-ai-credential-store.js";
 import { StreamLog } from "../src/infrastructure/events/stream-log.js";
 import {
   ledgerDigest,
@@ -394,6 +397,125 @@ describe("storage migration runner", () => {
       registry: [migration0009],
     });
     assert.deepEqual(second.executions, []);
+  });
+
+  it("migrates compatible integration credentials into shared profiles and splits conflicts", async () => {
+    const sharedRoot = await home();
+    const sharedSecrets = new EncryptedFileSecretProvider(sharedRoot);
+    await sharedSecrets.set(providerApiKeySecretName("jira"), "shared-token");
+    await sharedSecrets.set(
+      providerApiKeySecretName("confluence"),
+      "shared-token",
+    );
+    await sharedSecrets.set(providerApiKeySecretName("tavily"), "tavily-key");
+    await writeFile(
+      join(sharedRoot, "config.json"),
+      `${JSON.stringify({
+        ...defaultSettings,
+        providers: undefined,
+        tools: {
+          ...defaultSettings.tools,
+          web: undefined,
+          jira: {
+            enabled: true,
+            siteUrl: "https://example.atlassian.net",
+            email: "User@example.com",
+            defaultProjectKey: "PROJ",
+          },
+          confluence: {
+            enabled: true,
+            siteUrl: "https://example.atlassian.net/wiki",
+            email: "user@example.com",
+            defaultSpaceKey: "DOCS",
+          },
+        },
+      })}\n`,
+    );
+
+    const report = await runStorageMigrations(sharedRoot, {
+      registry: [migration0010],
+    });
+    assert.equal(report.executions[0]?.execution, "ran");
+    const shared = JSON.parse(
+      await readFile(join(sharedRoot, "config.json"), "utf8"),
+    ) as typeof defaultSettings;
+    assert.equal(shared.providers.atlassianProfiles.length, 1);
+    assert.equal(shared.tools.jira.profileId, "legacy-atlassian-default");
+    assert.equal(shared.tools.confluence.profileId, "legacy-atlassian-default");
+    assert.equal(shared.tools.web.tavilyProfileId, "legacy-tavily-default");
+    assert.equal(
+      await sharedSecrets.get(
+        providerApiKeySecretName("atlassian:legacy-atlassian-default"),
+      ),
+      "shared-token",
+    );
+    assert.equal(
+      await sharedSecrets.get(providerApiKeySecretName("jira")),
+      undefined,
+    );
+    assert.equal(
+      await sharedSecrets.get(providerApiKeySecretName("confluence")),
+      undefined,
+    );
+    assert.equal(
+      await sharedSecrets.get(providerApiKeySecretName("tavily")),
+      undefined,
+    );
+    assert.deepEqual(
+      (await runStorageMigrations(sharedRoot, { registry: [migration0010] }))
+        .executions,
+      [],
+    );
+
+    const splitRoot = await home();
+    const splitSecrets = new EncryptedFileSecretProvider(splitRoot);
+    await splitSecrets.set(providerApiKeySecretName("jira"), "jira-token");
+    await splitSecrets.set(
+      providerApiKeySecretName("confluence"),
+      "confluence-token",
+    );
+    await writeFile(
+      join(splitRoot, "config.json"),
+      `${JSON.stringify({
+        ...defaultSettings,
+        providers: undefined,
+        tools: {
+          ...defaultSettings.tools,
+          jira: {
+            enabled: true,
+            siteUrl: "https://jira.atlassian.net",
+            email: "jira@example.com",
+          },
+          confluence: {
+            enabled: true,
+            siteUrl: "https://docs.atlassian.net",
+            email: "docs@example.com",
+          },
+        },
+      })}\n`,
+    );
+    await runStorageMigrations(splitRoot, { registry: [migration0010] });
+    const split = JSON.parse(
+      await readFile(join(splitRoot, "config.json"), "utf8"),
+    ) as typeof defaultSettings;
+    assert.equal(split.providers.atlassianProfiles.length, 2);
+    assert.equal(split.tools.jira.profileId, "legacy-atlassian-jira");
+    assert.equal(
+      split.tools.confluence.profileId,
+      "legacy-atlassian-confluence",
+    );
+    assert.equal(
+      await splitSecrets.get(
+        providerApiKeySecretName("atlassian:legacy-atlassian-jira"),
+      ),
+      "jira-token",
+    );
+    assert.equal(
+      await splitSecrets.get(
+        providerApiKeySecretName("atlassian:legacy-atlassian-confluence"),
+      ),
+      "confluence-token",
+    );
   });
 
   it("preserves populated prompt-suggestion state during legacy cleanup", async () => {

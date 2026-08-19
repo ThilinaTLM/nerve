@@ -1,5 +1,4 @@
 <script lang="ts">
-import CloudCog from "@lucide/svelte/icons/cloud-cog";
 import Logs from "@lucide/svelte/icons/logs";
 import CircleHelp from "@lucide/svelte/icons/circle-help";
 import Settings from "@lucide/svelte/icons/settings";
@@ -28,7 +27,6 @@ type Props = {
   settingsActive?: boolean;
   guideActive?: boolean;
   incompleteGuideCount?: number;
-  authActive?: boolean;
   logsActive?: boolean;
   applicationLogsEnabled?: boolean;
   currentVersion?: string;
@@ -38,7 +36,6 @@ type Props = {
   onSelectProject?: (projectId: string) => void;
   onOpenLogs?: () => void;
   onOpenGuide?: () => void;
-  onOpenAuth?: () => void;
   onOpenSettings?: () => void;
   onMinimize?: () => void;
   onToggleMaximize?: () => void;
@@ -56,7 +53,6 @@ let {
   settingsActive = false,
   guideActive = false,
   incompleteGuideCount = 0,
-  authActive = false,
   logsActive = false,
   applicationLogsEnabled = false,
   currentVersion,
@@ -66,7 +62,6 @@ let {
   onSelectProject,
   onOpenLogs,
   onOpenGuide,
-  onOpenAuth,
   onOpenSettings,
   onMinimize,
   onToggleMaximize,
@@ -145,18 +140,6 @@ let {
           <Logs size={16} strokeWidth={2.1} />
         </Button>
       {/if}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        ariaLabel="Open authentication"
-        title="Providers & authentication"
-        data-tour-id="providers"
-        active={authActive}
-        pressed={authActive}
-        onclick={() => onOpenAuth?.()}
-      >
-        <CloudCog size={16} strokeWidth={2.1} />
-      </Button>
       <Button
         variant="ghost"
         size="icon-sm"

@@ -26,11 +26,7 @@ const storageKey = "nerve.workspaceTabs.v2";
 const legacyStorageKey = "nerve.conversationTabs.v1";
 const maxSessions = 24;
 const maxTabs = 30;
-const globalKinds = new Set<CenterTabIdentity["kind"]>([
-  "settings",
-  "auth",
-  "logs",
-]);
+const globalKinds = new Set<CenterTabIdentity["kind"]>(["settings", "logs"]);
 let hydrated = false;
 
 export const tabKey = tabIdentityKey;
@@ -239,7 +235,6 @@ function isIdentity(value: unknown): value is CenterTabIdentity {
       "pr",
       "diff",
       "settings",
-      "auth",
       "logs",
     ].includes(tab.kind)
   );

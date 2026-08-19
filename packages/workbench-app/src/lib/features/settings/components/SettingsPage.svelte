@@ -26,6 +26,7 @@ import ModelsPageActions from "./pages/models/ModelsPageActions.svelte";
 import ModelsSettingsPage from "./pages/models/ModelsSettingsPage.svelte";
 import { ModelsPageState } from "./pages/models/models-page-state.svelte";
 import NotificationsSettingsPage from "./pages/notifications/NotificationsSettingsPage.svelte";
+import ProvidersSettingsPage from "./pages/providers/ProvidersSettingsPage.svelte";
 import ShortcutsSettingsPage from "./pages/shortcuts/ShortcutsSettingsPage.svelte";
 import SkillsSettingsPage from "./pages/skills/SkillsSettingsPage.svelte";
 import StoragePageActions from "./pages/storage/StoragePageActions.svelte";
@@ -202,6 +203,13 @@ function statusText(): string {
       {:else if page.id === "models"}
         <ModelsSettingsPage
           pageState={modelsPageState}
+          {settingsDraft}
+          {models}
+          {authProviders}
+          {onSettingsChange}
+        />
+      {:else if page.id === "providers"}
+        <ProvidersSettingsPage
           {settingsDraft}
           {models}
           {authProviders}

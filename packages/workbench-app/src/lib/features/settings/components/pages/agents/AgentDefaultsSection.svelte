@@ -5,6 +5,7 @@ import { clampThinkingLevelForModel } from "$lib/features/conversations/state/ag
 import {
   SettingsChoiceCards,
   SettingsGroup,
+  SettingsKeyValueRow,
   SettingsRow,
   SettingsToggleRow,
 } from "$lib/presentation/components/settings";
@@ -18,7 +19,6 @@ import {
 import type { SettingsChange } from "../settings-change";
 import { modeItems, permissionItems } from "./agent-options";
 import ModelPickerRow from "./ModelPickerRow.svelte";
-import PolicyRow from "./PolicyRow.svelte";
 
 type Props = {
   settingsDraft: Settings;
@@ -80,16 +80,7 @@ function readPolicy(
   return "Allowed";
 }
 
-function writePolicy(
-  permission: Settings["defaultPermissionLevel"] | undefined,
-): string {
-  if (permission === "read_only") return "Denied";
-  if (permission === "supervised") return "Approval required";
-  if (permission === "autonomous") return "Allowed";
-  return "Policy-managed";
-}
-
-function commandPolicy(
+function permissionPolicy(
   permission: Settings["defaultPermissionLevel"] | undefined,
 ): string {
   if (permission === "read_only") return "Denied";
@@ -174,6 +165,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
   <SettingsRow label="Default mode" layout="stacked">
     <SettingsChoiceCards
       items={modeItems}
+      variant="radio"
       value={settingsDraft.defaultMode}
       ariaLabel="Default mode"
       tourId="setup-agent-default-mode"
@@ -184,6 +176,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
   <SettingsRow label="Default permission" layout="stacked">
     <SettingsChoiceCards
       items={permissionItems}
+      variant="radio"
       value={settingsDraft.defaultPermissionLevel}
       ariaLabel="Default permission"
       tourId="setup-agent-default-permission"
@@ -207,7 +200,6 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
     {fallbackThinkingLevels}
     dialogTitle="Choose default model"
     dialogDescription="Search available scoped models, choose one model, then select its thinking level."
-    confirmLabel="Save default model"
     policyLabel="Default agent policy"
     onSave={saveDefaultModel}
   >
@@ -222,19 +214,19 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
       {/if}
     {/snippet}
     {#snippet policy()}
-      <PolicyRow
+      <SettingsKeyValueRow
         label="File system read"
         value={readPolicy(effectivePermissionLevel)}
       />
-      <PolicyRow
+      <SettingsKeyValueRow
         label="File system write"
-        value={writePolicy(effectivePermissionLevel)}
+        value={permissionPolicy(effectivePermissionLevel)}
       />
-      <PolicyRow
+      <SettingsKeyValueRow
         label="Terminal commands"
-        value={commandPolicy(effectivePermissionLevel)}
+        value={permissionPolicy(effectivePermissionLevel)}
       />
-      <PolicyRow label="Network access" value="Tool-dependent" />
+      <SettingsKeyValueRow label="Network access" value="Tool-dependent" />
     {/snippet}
   </ModelPickerRow>
 

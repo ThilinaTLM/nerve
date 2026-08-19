@@ -75,6 +75,11 @@ describe("settings schema", () => {
     });
     assert.equal(settings.tools.jira.enabled, false);
     assert.equal(settings.tools.confluence.enabled, false);
+    assert.deepEqual(settings.tools.web, {});
+    assert.deepEqual(settings.providers, {
+      atlassianProfiles: [],
+      tavilyProfiles: [],
+    });
     assert.deepEqual(settings.tools.imageExplanation, {
       thinkingLevel: "off",
     });
@@ -127,6 +132,22 @@ describe("settings schema", () => {
     });
   });
 
+  it("rejects duplicate profile ids", () => {
+    assert.equal(
+      settingsSchema.safeParse({
+        ...defaultSettings,
+        providers: {
+          atlassianProfiles: [
+            { id: "duplicate", name: "One" },
+            { id: "duplicate", name: "Two" },
+          ],
+          tavilyProfiles: [],
+        },
+      }).success,
+      false,
+    );
+  });
+
   it("accepts runtime and tool update settings", () => {
     const parsed = updateSettingsRequestSchema.parse({
       notifications: {
@@ -165,22 +186,26 @@ describe("settings schema", () => {
         bash: {
           autoPromotion: { enabled: false, afterMs: 240_000 },
         },
-        jira: {
-          enabled: true,
-          siteUrl: "https://example.atlassian.net",
-          email: "user@example.com",
-          defaultProjectKey: "PROJ",
-        },
-        confluence: {
-          enabled: true,
-          siteUrl: "https://example.atlassian.net",
-          email: "user@example.com",
-          defaultSpaceKey: "DEV",
-        },
+        jira: { enabled: true, profileId: "work" },
+        confluence: { enabled: true, profileId: "work" },
+        web: { tavilyProfileId: "search" },
         imageExplanation: {
           model: { provider: "google", modelId: "gemini-2.5-flash" },
           thinkingLevel: "high",
         },
+      },
+      providers: {
+        atlassianProfiles: [
+          {
+            id: "work",
+            name: "Work",
+            siteUrl: "https://example.atlassian.net",
+            email: "user@example.com",
+            defaultProjectKey: "PROJ",
+            defaultSpaceKey: "DEV",
+          },
+        ],
+        tavilyProfiles: [{ id: "search", name: "Search" }],
       },
     });
     assert.deepEqual(parsed.notifications, {
@@ -260,17 +285,17 @@ describe("settings schema", () => {
       }).success,
       false,
     );
-    assert.equal(parsed.tools?.jira?.enabled, true);
-    assert.equal(parsed.tools?.jira?.siteUrl, "https://example.atlassian.net");
-    assert.equal(parsed.tools?.jira?.email, "user@example.com");
-    assert.equal(parsed.tools?.jira?.defaultProjectKey, "PROJ");
-    assert.equal(parsed.tools?.confluence?.enabled, true);
-    assert.equal(
-      parsed.tools?.confluence?.siteUrl,
-      "https://example.atlassian.net",
-    );
-    assert.equal(parsed.tools?.confluence?.email, "user@example.com");
-    assert.equal(parsed.tools?.confluence?.defaultSpaceKey, "DEV");
+    assert.deepEqual(parsed.tools?.jira, {
+      enabled: true,
+      profileId: "work",
+    });
+    assert.deepEqual(parsed.tools?.confluence, {
+      enabled: true,
+      profileId: "work",
+    });
+    assert.deepEqual(parsed.tools?.web, { tavilyProfileId: "search" });
+    assert.equal(parsed.providers?.atlassianProfiles?.[0]?.name, "Work");
+    assert.equal(parsed.providers?.tavilyProfiles?.[0]?.name, "Search");
     assert.deepEqual(parsed.tools?.imageExplanation, {
       model: { provider: "google", modelId: "gemini-2.5-flash" },
       thinkingLevel: "high",
@@ -278,18 +303,16 @@ describe("settings schema", () => {
     const cleared = updateSettingsRequestSchema.parse({
       runtime: { pythonExecutablePath: null, shellPath: null },
       tools: {
-        jira: { siteUrl: null, email: null, defaultProjectKey: null },
-        confluence: { siteUrl: null, email: null, defaultSpaceKey: null },
+        jira: { profileId: null },
+        confluence: { profileId: null },
+        web: { tavilyProfileId: null },
       },
     });
     assert.equal(cleared.runtime?.pythonExecutablePath, null);
     assert.equal(cleared.runtime?.shellPath, null);
-    assert.equal(cleared.tools?.jira?.siteUrl, null);
-    assert.equal(cleared.tools?.jira?.email, null);
-    assert.equal(cleared.tools?.jira?.defaultProjectKey, null);
-    assert.equal(cleared.tools?.confluence?.siteUrl, null);
-    assert.equal(cleared.tools?.confluence?.email, null);
-    assert.equal(cleared.tools?.confluence?.defaultSpaceKey, null);
+    assert.equal(cleared.tools?.jira?.profileId, null);
+    assert.equal(cleared.tools?.confluence?.profileId, null);
+    assert.equal(cleared.tools?.web?.tavilyProfileId, null);
 
     assert.throws(() =>
       updateSettingsRequestSchema.parse({

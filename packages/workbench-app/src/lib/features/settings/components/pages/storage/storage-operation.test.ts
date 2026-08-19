@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   completionNotice,
+  shouldAnnounceCompletion,
   shouldIgnoreOperationUpdate,
 } from "./storage-operation.js";
 
@@ -56,6 +57,35 @@ describe("shouldIgnoreOperationUpdate", () => {
   it("accepts clearing the operation and the first update", () => {
     assert.equal(shouldIgnoreOperationUpdate(operation(), null), false);
     assert.equal(shouldIgnoreOperationUpdate(null, operation()), false);
+  });
+});
+
+describe("shouldAnnounceCompletion", () => {
+  it("stays silent for a completed operation loaded from storage", () => {
+    const done = operation({
+      status: "succeeded",
+      completedAt: "2026-07-30T10:01:00.000Z",
+    });
+    assert.equal(shouldAnnounceCompletion(null, done), false);
+  });
+
+  it("announces a transition from an active operation", () => {
+    const done = operation({
+      status: "succeeded",
+      completedAt: "2026-07-30T10:01:00.000Z",
+    });
+    assert.equal(shouldAnnounceCompletion(operation(), done), true);
+  });
+
+  it("allows the operation start response to announce immediately", () => {
+    const done = operation({
+      status: "succeeded",
+      completedAt: "2026-07-30T10:01:00.000Z",
+    });
+    assert.equal(
+      shouldAnnounceCompletion(null, done, { explicit: true }),
+      true,
+    );
   });
 });
 

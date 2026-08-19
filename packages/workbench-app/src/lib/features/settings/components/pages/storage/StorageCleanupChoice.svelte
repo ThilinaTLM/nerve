@@ -2,6 +2,7 @@
 import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
+import { cn } from "@nervekit/ui-kit/core/utils";
 
 type Props = {
   id: string;
@@ -32,24 +33,30 @@ const hasAmount = $derived(amount !== undefined);
 </script>
 
 <div
-  class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-3 py-2.5 sm:grid-cols-[auto_minmax(0,1fr)_auto]"
+  class={cn(
+    "flex items-center gap-2 px-2 py-1.5 transition-colors hover:bg-accent/40",
+    checked && "bg-primary/10",
+  )}
 >
   <Checkbox {id} bind:checked aria-label={title} />
-  <Label for={id} class="grid min-w-0 cursor-pointer gap-0.5 font-normal">
-    <span class="text-sm text-foreground">{title}</span>
+  <Label
+    for={id}
+    class="grid min-w-0 flex-1 cursor-pointer gap-0.5 font-normal"
+  >
+    <span class="text-xs font-medium text-foreground">{title}</span>
     <span class="text-xs text-muted-foreground">{description}</span>
   </Label>
   {#if hasAmount}
-    <div class="col-start-2 flex items-center gap-2 sm:col-start-3">
+    <div class="flex items-center gap-1.5">
       <Input
         type="number"
-        size="sm"
+        size="xs"
         min={amountMin}
         max={amountMax}
         value={String(amount)}
         disabled={!checked}
         ariaLabel={amountLabel ?? `${title} amount`}
-        class="w-20"
+        class="w-16"
         oninput={(event) =>
           (amount = Number((event.currentTarget as HTMLInputElement).value))}
       />

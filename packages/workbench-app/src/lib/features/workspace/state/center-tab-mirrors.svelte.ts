@@ -1,4 +1,3 @@
-import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
@@ -26,9 +25,6 @@ export function syncCenterTabMirrors(): void {
     .map((tab) => tab.id);
   settingsState.settingsTabOpen = workspaceState.openCenterTabs.some(
     (tab) => tab.kind === "settings",
-  );
-  authState.authTabOpen = workspaceState.openCenterTabs.some(
-    (tab) => tab.kind === "auth",
   );
   logsState.logsTabOpen = workspaceState.openCenterTabs.some(
     (tab) => tab.kind === "logs",

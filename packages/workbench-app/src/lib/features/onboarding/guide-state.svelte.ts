@@ -7,7 +7,6 @@ import {
   type ShellPresentationSnapshot,
 } from "$lib/app/shell/shell-layout.svelte";
 import { workbenchStartupState } from "$lib/core/startup/workbench-startup-state.svelte";
-import { openAuthPane } from "$lib/features/auth";
 import { hasChatGptAudioAuth } from "$lib/features/audio";
 import { conversationSelectors } from "$lib/features/conversations";
 import { openConversationHistory } from "$lib/features/conversations/state/composer-signals.svelte";
@@ -78,11 +77,15 @@ export function voiceConfigured(): boolean {
 }
 
 export function webSearchConfigured(): boolean {
-  return settingsState.authProviders.some(
-    (provider) =>
-      provider.provider === "tavily" &&
-      provider.configured &&
-      provider.credentialType === "api_key",
+  const profileId = settingsState.settingsDraft?.tools.web.tavilyProfileId;
+  return Boolean(
+    profileId &&
+    settingsState.authProviders.some(
+      (provider) =>
+        provider.provider === `tavily:${profileId}` &&
+        provider.configured &&
+        provider.credentialType === "api_key",
+    ),
   );
 }
 
@@ -289,9 +292,7 @@ async function prepareSetupStep(
   guideState.targetAvailable = false;
   let target = visibleTarget(step.targetId);
   const preparation = step.preparation;
-  if (enterCoach && !target && preparation?.kind === "auth") {
-    await openAuthPane(preparation.pageId, preparation.sectionId);
-  } else if (enterCoach && !target && preparation?.kind === "settings") {
+  if (enterCoach && !target && preparation?.kind === "settings") {
     await openSettingsPane(preparation.pageId, preparation.sectionId);
   }
 

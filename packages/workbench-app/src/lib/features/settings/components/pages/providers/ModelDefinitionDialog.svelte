@@ -13,8 +13,8 @@ import SelectField, {
 import { SettingsToggleRow } from "$lib/presentation/components/settings";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
-import { authState } from "$lib/features/auth/state/auth-state.svelte";
-import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
+import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
+import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 
 type Props = {
   open?: boolean;
@@ -50,7 +50,7 @@ const selectProviderItems = $derived<SelectItem[]>(
     : providerItems,
 );
 const isCustomProvider = $derived(
-  authState.customProviders.some((custom) => custom.id === provider),
+  providerCatalogState.customProviders.some((custom) => custom.id === provider),
 );
 const providerAvailable = $derived(
   providerItems.some((item) => item.value === provider),
@@ -155,6 +155,7 @@ async function submit() {
       <div class="grid gap-1.5">
         <Label for="model-id">Model id</Label>
         <Input
+          size="xs"
           id="model-id"
           bind:value={modelId}
           placeholder="llama-3.1-8b"
@@ -164,6 +165,7 @@ async function submit() {
       <div class="grid gap-1.5">
         <Label for="model-name">Display name</Label>
         <Input
+          size="xs"
           id="model-name"
           bind:value={name}
           placeholder="Llama 3.1 8B"
@@ -183,6 +185,7 @@ async function submit() {
       <div class="grid gap-1.5">
         <Label for="model-context">Context window (tokens)</Label>
         <Input
+          size="xs"
           id="model-context"
           type="number"
           min="0"
@@ -193,6 +196,7 @@ async function submit() {
       <div class="grid gap-1.5">
         <Label for="model-max-tokens">Max output tokens</Label>
         <Input
+          size="xs"
           id="model-max-tokens"
           type="number"
           min="0"

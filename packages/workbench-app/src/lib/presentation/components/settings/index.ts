@@ -10,6 +10,8 @@ export { default as SettingsToggleRow } from "./settings-toggle-row.svelte";
 export { default as SettingsSelectRow } from "./settings-select-row.svelte";
 export { default as SettingsFieldRow } from "./settings-field-row.svelte";
 export { default as SettingsChoiceCards } from "./settings-choice-cards.svelte";
+export { default as SettingsPreviewCards } from "./settings-preview-cards.svelte";
+export type { SettingsPreviewOption } from "./settings-preview-cards.svelte";
 export { default as SettingsList } from "./settings-list.svelte";
 export { default as SettingsListItem } from "./settings-list-item.svelte";
 export { default as SettingsDisclosureItem } from "./settings-disclosure-item.svelte";
@@ -19,6 +21,7 @@ export type { SettingsStat } from "./settings-stat-grid.svelte";
 export { default as SettingsEmptyState } from "./settings-empty-state.svelte";
 export { default as SettingsInlineMessage } from "./settings-inline-message.svelte";
 export { default as SettingsToolbar } from "./settings-toolbar.svelte";
+export { default as SettingsKeyValueRow } from "./settings-key-value-row.svelte";
 export type {
   SettingsChoice,
   SettingsPageDef,

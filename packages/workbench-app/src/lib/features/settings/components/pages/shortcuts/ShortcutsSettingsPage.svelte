@@ -1,5 +1,4 @@
 <script lang="ts">
-import { Kbd } from "@nervekit/ui-kit/components/ui/kbd";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import {
   SettingsEmptyState,
@@ -64,11 +63,17 @@ const filteredGroups = $derived.by<ShortcutGroup[]>(() => {
 
 {#each filteredGroups as group (group.category)}
   <SettingsGroup title={group.category}>
-    <SettingsList ariaLabel={`${group.category} shortcuts`}>
+    <SettingsList
+      ariaLabel={`${group.category} shortcuts`}
+      divided={false}
+      gap="sm"
+    >
       {#each group.commands as command (command.id)}
-        <SettingsListItem title={command.label}>
+        <SettingsListItem variant="card" title={command.label}>
           {#snippet meta()}
-            <Kbd>{formatShortcut(command.defaultBinding)}</Kbd>
+            <span class="whitespace-nowrap text-xs text-muted-foreground"
+              >{formatShortcut(command.defaultBinding)}</span
+            >
           {/snippet}
         </SettingsListItem>
       {/each}

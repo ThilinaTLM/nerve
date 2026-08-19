@@ -174,10 +174,8 @@ export async function writeSettings(
   const jiraPatch = patch.tools?.jira
     ? {
         ...patch.tools.jira,
-        ...(patch.tools.jira.siteUrl === null ? { siteUrl: undefined } : {}),
-        ...(patch.tools.jira.email === null ? { email: undefined } : {}),
-        ...(patch.tools.jira.defaultProjectKey === null
-          ? { defaultProjectKey: undefined }
+        ...(patch.tools.jira.profileId === null
+          ? { profileId: undefined }
           : {}),
       }
     : undefined;
@@ -192,12 +190,16 @@ export async function writeSettings(
   const confluencePatch = patch.tools?.confluence
     ? {
         ...patch.tools.confluence,
-        ...(patch.tools.confluence.siteUrl === null
-          ? { siteUrl: undefined }
+        ...(patch.tools.confluence.profileId === null
+          ? { profileId: undefined }
           : {}),
-        ...(patch.tools.confluence.email === null ? { email: undefined } : {}),
-        ...(patch.tools.confluence.defaultSpaceKey === null
-          ? { defaultSpaceKey: undefined }
+      }
+    : undefined;
+  const webPatch = patch.tools?.web
+    ? {
+        ...patch.tools.web,
+        ...(patch.tools.web.tavilyProfileId === null
+          ? { tavilyProfileId: undefined }
           : {}),
       }
     : undefined;
@@ -217,6 +219,9 @@ export async function writeSettings(
                 ...confluencePatch,
               },
             }
+          : {}),
+        ...(webPatch
+          ? { web: { ...storage.settings.tools.web, ...webPatch } }
           : {}),
         ...(imageExplanationPatch
           ? {
@@ -301,6 +306,10 @@ export async function writeSettings(
     logging: { ...storage.settings.logging, ...(patch.logging ?? {}) },
     retry: { ...storage.settings.retry, ...(patch.retry ?? {}) },
     runtime: { ...storage.settings.runtime, ...(runtimePatch ?? {}) },
+    providers: {
+      ...storage.settings.providers,
+      ...(patch.providers ?? {}),
+    },
     tools: { ...storage.settings.tools, ...(toolsPatch ?? {}) },
     skills: { ...storage.settings.skills, ...(skillsPatch ?? {}) },
   });

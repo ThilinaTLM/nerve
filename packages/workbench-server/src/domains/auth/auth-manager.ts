@@ -39,12 +39,18 @@ const ANTHROPIC_OAUTH_WARNING =
   "Anthropic subscription auth may use paid extra usage outside normal Claude plan limits.";
 
 function displayNameForProvider(provider: string): string {
+  if (provider.startsWith("atlassian:")) return "Atlassian profile";
+  if (provider.startsWith("tavily:")) return "Tavily profile";
   const known: Record<string, string> = {
     confluence: "Confluence",
     jira: "Jira",
     tavily: "Tavily",
   };
   return known[provider] ?? provider;
+}
+
+function isIntegrationProfileProvider(provider: string): boolean {
+  return provider.startsWith("atlassian:") || provider.startsWith("tavily:");
 }
 
 export function providerEnvVarName(provider: string): string {
@@ -210,9 +216,6 @@ export class AuthManager {
     for (const providerId of customProviderNames?.keys() ?? []) {
       providers.add(providerId);
     }
-    providers.add("tavily");
-    providers.add("jira");
-    providers.add("confluence");
     for (const credential of await this.credentials.list()) {
       providers.add(credential.providerId);
     }
@@ -239,7 +242,7 @@ export class AuthManager {
           configured: Boolean(credential ?? checked),
           credentialType: credential?.type ?? checked?.type,
           envVar:
-            supportsApiKey && providerId !== "tavily"
+            supportsApiKey && !isIntegrationProfileProvider(providerId)
               ? providerEnvVarName(providerId)
               : undefined,
           warning:

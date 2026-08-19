@@ -21,8 +21,8 @@ describe("setup guide policy", () => {
       ["provider-subscription", "provider-api-key"],
     );
     assert.deepEqual(steps.at(-1)?.preparation, {
-      kind: "auth",
-      pageId: "connections",
+      kind: "settings",
+      pageId: "providers",
       sectionId: "api-keys",
     });
   });
@@ -51,12 +51,12 @@ describe("setup guide policy", () => {
     });
     assert.deepEqual(
       steps.map((step) => step.targetId),
-      ["setup-tavily-configure", "setup-tavily-api-key", "setup-tavily-save"],
+      ["setup-tavily-add-profile", "setup-tavily-api-key", "setup-tavily-save"],
     );
     assert.deepEqual(steps[0]?.preparation, {
       kind: "settings",
-      pageId: "tools",
-      sectionId: "integrations",
+      pageId: "providers",
+      sectionId: "tavily-profiles",
     });
     assert.equal(steps[0]?.advanceByClickingTarget, true);
   });

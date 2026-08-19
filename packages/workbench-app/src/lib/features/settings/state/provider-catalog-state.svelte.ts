@@ -1,9 +1,6 @@
 import type { CustomProvider, ModelDefinition } from "$lib/api";
 
-export const authState = $state({
-  authTabOpen: false,
-  activePageId: "connections",
-  activeSectionId: "subscriptions",
+export const providerCatalogState = $state({
   catalogLoaded: false,
   customProviders: [] as CustomProvider[],
   modelDefinitions: [] as ModelDefinition[],

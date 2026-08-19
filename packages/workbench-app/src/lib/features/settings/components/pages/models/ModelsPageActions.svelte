@@ -1,5 +1,4 @@
 <script lang="ts">
-import Plus from "@lucide/svelte/icons/plus";
 import type { AuthProviderMetadata, ModelInfo, Settings } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
@@ -42,6 +41,5 @@ function clearScope(): void {
   data-tour-id="setup-scoped-models-add"
   onclick={() => (pageState.addDialogOpen = true)}
 >
-  <Plus class="size-3.5" aria-hidden="true" />
   Add models
 </Button>

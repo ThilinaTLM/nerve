@@ -17,6 +17,26 @@ export type CleanupNotice =
   | { kind: "error"; message: string; description?: string };
 
 /**
+ * A completed operation is worth announcing only when this page observed it
+ * running, or when the user just started it. A completed operation returned by
+ * the initial status request is historical and should stay silent.
+ */
+export function shouldAnnounceCompletion(
+  current: StorageCleanupOperation | null | undefined,
+  next: StorageCleanupOperation | null,
+  options: { explicit?: boolean } = {},
+): boolean {
+  if (!next?.completedAt) return false;
+  if (options.explicit) return true;
+  return (
+    current?.id === next.id &&
+    (current.status === "queued" ||
+      current.status === "running" ||
+      current.status === "cancelling")
+  );
+}
+
+/**
  * The one-shot notification for a finished operation, or undefined when the
  * operation is unfinished or already announced.
  */

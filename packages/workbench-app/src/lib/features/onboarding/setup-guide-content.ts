@@ -6,9 +6,11 @@ export type SetupGuideArea =
   | "agent-defaults"
   | "web-search";
 
-export type SetupGuidePreparation =
-  | { kind: "auth"; pageId: string; sectionId: string }
-  | { kind: "settings"; pageId: string; sectionId: string };
+export type SetupGuidePreparation = {
+  kind: "settings";
+  pageId: string;
+  sectionId: string;
+};
 
 export type SetupGuideStep = {
   id: string;
@@ -54,8 +56,8 @@ export const setupGuideSteps: Record<
       fallback:
         "Open Connections → Subscriptions and choose Connect subscription.",
       preparation: {
-        kind: "auth",
-        pageId: "connections",
+        kind: "settings",
+        pageId: "providers",
         sectionId: "subscriptions",
       },
     },
@@ -68,8 +70,8 @@ export const setupGuideSteps: Record<
       fallback:
         "Open Connections → API keys and choose Add API key. Custom providers remain available separately for compatible local or self-hosted endpoints.",
       preparation: {
-        kind: "auth",
-        pageId: "connections",
+        kind: "settings",
+        pageId: "providers",
         sectionId: "api-keys",
       },
     },
@@ -84,8 +86,8 @@ export const setupGuideSteps: Record<
       fallback:
         "Open Connections → Subscriptions and choose Connect subscription.",
       preparation: {
-        kind: "auth",
-        pageId: "connections",
+        kind: "settings",
+        pageId: "providers",
         sectionId: "subscriptions",
       },
       advanceByClickingTarget: true,
@@ -99,8 +101,8 @@ export const setupGuideSteps: Record<
       fallback:
         "In the provider dialog, select OpenAI Codex. If it is already connected, close the dialog to see the connected row.",
       preparation: {
-        kind: "auth",
-        pageId: "connections",
+        kind: "settings",
+        pageId: "providers",
         sectionId: "subscriptions",
       },
     },
@@ -142,13 +144,13 @@ export const setupGuideSteps: Record<
       title: "Configure Tavily",
       description:
         "Tavily powers the web_search tool. Open its configuration to add your API key.",
-      targetId: "setup-tavily-configure",
+      targetId: "setup-tavily-add-profile",
       fallback:
-        "Open Settings → Tools → Integrations and choose Configure beside Tavily.",
+        "Open Settings → Providers → Tavily Profiles and choose Add profile.",
       preparation: {
         kind: "settings",
-        pageId: "tools",
-        sectionId: "integrations",
+        pageId: "providers",
+        sectionId: "tavily-profiles",
       },
       advanceByClickingTarget: true,
     },
@@ -159,11 +161,11 @@ export const setupGuideSteps: Record<
         "Paste an API key from your Tavily account. Nerve encrypts the key before sending it to the daemon.",
       targetId: "setup-tavily-api-key",
       fallback:
-        "Choose Configure beside Tavily, then paste your API key into the dialog.",
+        "Choose Add profile under Tavily Profiles, then paste your API key into the dialog.",
       preparation: {
         kind: "settings",
-        pageId: "tools",
-        sectionId: "integrations",
+        pageId: "providers",
+        sectionId: "tavily-profiles",
       },
     },
     {
@@ -172,11 +174,11 @@ export const setupGuideSteps: Record<
       description:
         "Save the key to enable web search for subsequent agent runs.",
       targetId: "setup-tavily-save",
-      fallback: "In the Tavily configuration dialog, choose Save key.",
+      fallback: "In the Tavily profile dialog, choose Save profile.",
       preparation: {
         kind: "settings",
-        pageId: "tools",
-        sectionId: "integrations",
+        pageId: "providers",
+        sectionId: "tavily-profiles",
       },
     },
   ],

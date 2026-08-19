@@ -337,6 +337,12 @@ function mergeSettingsPatch(
       ...(patch.runtime ?? {}),
     };
   }
+  if (base?.providers || patch.providers) {
+    next.providers = {
+      ...(base?.providers ?? {}),
+      ...(patch.providers ?? {}),
+    };
+  }
   if (base?.skills || patch.skills) {
     next.skills = {
       ...(base?.skills ?? {}),
@@ -372,6 +378,19 @@ function mergeSettingsPatch(
             },
           }
         : {}),
+      ...(["jira", "confluence", "web", "imageExplanation"] as const).reduce(
+        (branches, key) =>
+          base?.tools?.[key] || patch.tools?.[key]
+            ? {
+                ...branches,
+                [key]: {
+                  ...(base?.tools?.[key] ?? {}),
+                  ...(patch.tools?.[key] ?? {}),
+                },
+              }
+            : branches,
+        {},
+      ),
     };
   }
   return next;
