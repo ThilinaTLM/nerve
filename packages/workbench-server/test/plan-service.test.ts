@@ -196,7 +196,6 @@ function agent(): AgentRecord {
     conversationId: "conv_01HN0000000000000000000000",
     projectId: "proj_01HN0000000000000000000000",
     projectDir: "/tmp/project",
-    workerId: "worker_01HN0000000000000000000000",
     rootAgentId: "agent_01HN0000000000000000000000",
     mode: "planning",
     permissionLevel: "autonomous",

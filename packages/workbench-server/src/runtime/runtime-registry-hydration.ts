@@ -1,7 +1,6 @@
 export type StoreHydrationDurations = {
   auth: number;
   providers: number;
-  workers: number;
   tasks: number;
   tools: number;
   plans: number;
@@ -150,7 +149,6 @@ function emptyStoreHydrationDurations(): StoreHydrationDurations {
   return {
     auth: 0,
     providers: 0,
-    workers: 0,
     tasks: 0,
     tools: 0,
     plans: 0,

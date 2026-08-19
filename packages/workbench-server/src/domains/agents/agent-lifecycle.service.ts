@@ -14,7 +14,6 @@ import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { AgentStatus } from "../../runtime/types.js";
 import type { ConversationService } from "../conversations/conversation-service.js";
-import type { WorkerManager } from "../workers/worker-manager.js";
 import type { AgentRepository } from "./agent.repository.js";
 import { assertChildAuthority } from "./agent-authority.js";
 import { agentBudget } from "./agent-budget.js";
@@ -49,7 +48,6 @@ export class AgentLifecycleService {
     private readonly index: IndexStore,
     private readonly state: RuntimeState,
     private readonly agentRepository: AgentRepository,
-    private readonly workers: WorkerManager,
     private readonly conversationService: ConversationService,
     private readonly updateConversation: (
       conversation: ReturnType<RuntimeState["getConversation"]>,
@@ -108,10 +106,6 @@ export class AgentLifecycleService {
     const thinkingLevel = parent
       ? request.thinkingLevel
       : (request.thinkingLevel ?? defaultSelection.thinkingLevel);
-    const workerId = this.workers.requireWorker(
-      request.workerId ?? parent?.workerId,
-      "agent",
-    ).id;
     if (parent) {
       assertChildAuthority(
         parent,
@@ -125,7 +119,6 @@ export class AgentLifecycleService {
       conversationId: conversation.id,
       projectId: project.id,
       projectDir,
-      workerId,
       parentAgentId: request.parentAgentId,
       rootAgentId: parent?.rootAgentId ?? id,
       mode,
@@ -292,24 +285,17 @@ export class AgentLifecycleService {
 
   async loadAgents(): Promise<void> {
     for (const parsedAgent of await this.agentRepository.loadAll()) {
-      const localWorkerId = this.workers.requireDefaultLocalWorker().id;
       const needsStatusRecovery = parsedAgent.status === "running";
-      const needsWorkerBackfill = !parsedAgent.workerId;
-      const agent: AgentRecord =
-        needsStatusRecovery || needsWorkerBackfill
-          ? {
-              ...parsedAgent,
-              workerId: parsedAgent.workerId ?? localWorkerId,
-              status: needsStatusRecovery ? "error" : parsedAgent.status,
-              updatedAt: needsStatusRecovery
-                ? new Date().toISOString()
-                : parsedAgent.updatedAt,
-            }
-          : parsedAgent;
+      const agent: AgentRecord = needsStatusRecovery
+        ? {
+            ...parsedAgent,
+            status: "error",
+            updatedAt: new Date().toISOString(),
+          }
+        : parsedAgent;
       this.state.agents.set(agent.id, agent);
       this.index.upsertAgent(agent);
-      if (needsStatusRecovery || needsWorkerBackfill)
-        await this.writeAgent(agent);
+      if (needsStatusRecovery) await this.writeAgent(agent);
     }
     await this.repairActiveAgentReferences();
   }

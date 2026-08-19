@@ -86,10 +86,6 @@ export class RuntimeRegistry {
     return this.services.pythonRuntime;
   }
 
-  get workers() {
-    return this.services.workers;
-  }
-
   get plans() {
     return this.services.plans;
   }
@@ -154,7 +150,6 @@ export class RuntimeRegistry {
           run: () => this.auth.refreshModels({ allowNetwork: false }),
         },
         { name: "providers", run: () => this.providerCatalog.load() },
-        { name: "workers", run: () => this.workers.hydrate() },
         { name: "tasks", run: () => this.tasks.hydrate() },
         { name: "tools", run: () => this.tools.hydrate() },
         { name: "plans", run: () => this.plans.hydrate() },
@@ -280,7 +275,6 @@ export class RuntimeRegistry {
       conversations: this.listConversations(),
       agents: this.listAgents(),
       tasks: this.tasks.listTasks(),
-      workers: this.workers.listWorkers(),
     });
   }
 
@@ -724,22 +718,6 @@ export class RuntimeRegistry {
     return this.tasks.getTask(taskId);
   }
 
-  listWorkers() {
-    return this.workers.listWorkers();
-  }
-
-  getWorker(workerId: string) {
-    try {
-      return this.workers.getWorker(workerId);
-    } catch (error) {
-      throw new ApplicationError(
-        404,
-        "WORKER_NOT_FOUND",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-  }
-
   listTaskDefinitions(projectId: string) {
     return this.services.taskDefinitions.list(projectId);
   }
@@ -810,7 +788,7 @@ export class RuntimeRegistry {
   }
 
   startTask(request: StartTaskRequest) {
-    return this.workers.startTask(request.workerId, this.tasks, request);
+    return this.tasks.startTask(request);
   }
 
   async launchTaskDefinition(definitionId: string) {

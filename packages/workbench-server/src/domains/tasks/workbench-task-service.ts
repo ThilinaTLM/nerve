@@ -57,7 +57,6 @@ export interface WorkbenchTaskServiceOptions {
 export type ForegroundBashPromotionInput = {
   command: string;
   cwd: string;
-  workerId?: string;
   projectId: string;
   conversationId: string;
   agentId: string;
@@ -161,7 +160,6 @@ export class WorkbenchTaskService extends TaskService {
   async startTask(
     request: StartTaskRequest & {
       restartedFromTaskId?: string;
-      workerId?: string;
       origin?: TaskRecord["origin"];
       completion?: TaskRecord["completion"];
       visibility?: TaskRecord["visibility"];

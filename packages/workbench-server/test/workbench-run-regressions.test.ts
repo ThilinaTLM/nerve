@@ -789,7 +789,6 @@ function agentRecord(): AgentRecord {
     conversationId: "conv_regression",
     projectId: "proj_regression",
     projectDir: "/tmp/project",
-    workerId: "worker_regression",
     status: "idle",
     mode: "coding",
     permissionLevel: "supervised",

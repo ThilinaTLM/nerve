@@ -1,4 +1,6 @@
-export const INDEX_STORE_SCHEMA_SQL = `
+// Historical schema snapshot for migration 0002. Keep this immutable: newer
+// migrations evolve the rebuildable index after this baseline is established.
+export const MIGRATION_0002_INDEX_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS index_meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -46,6 +48,15 @@ export const INDEX_STORE_SCHEMA_SQL = `
     command TEXT NOT NULL,
     status TEXT NOT NULL,
     started_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    json TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS workers (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     json TEXT NOT NULL
   );

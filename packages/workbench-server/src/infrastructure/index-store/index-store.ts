@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- Disposable index lifecycle and transactional table operations remain centralized. */
 import { existsSync, renameSync, rmSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type {
@@ -9,7 +8,6 @@ import type {
   ToolCallRecord,
   ToolCallStatus,
   ToolCallTranscriptRecord,
-  WorkerRecord,
 } from "@nervekit/contracts";
 import { INDEX_STORE_SCHEMA_SQL } from "./schema.js";
 
@@ -18,7 +16,6 @@ export interface IndexCounts {
   conversations: number;
   agents: number;
   tasks: number;
-  workers: number;
 }
 
 export interface PromptSuggestionTrustIndexRecord {
@@ -38,7 +35,6 @@ export interface RebuildIndexInput {
   conversations: ConversationRecord[];
   agents: AgentRecord[];
   tasks?: TaskRecord[];
-  workers?: WorkerRecord[];
 }
 
 export interface ToolCallPreviewQuery {
@@ -290,33 +286,6 @@ export class IndexStore {
     });
   }
 
-  upsertWorker(worker: WorkerRecord): void {
-    if (this.updatesDeferred) return;
-    this.guard(() => {
-      this.db
-        .prepare(
-          `INSERT INTO workers (
-             id, kind, name, status, created_at, updated_at, json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-             kind = excluded.kind,
-             name = excluded.name,
-             status = excluded.status,
-             updated_at = excluded.updated_at,
-             json = excluded.json`,
-        )
-        .run(
-          worker.id,
-          worker.kind,
-          worker.name,
-          worker.status,
-          worker.createdAt,
-          worker.updatedAt,
-          JSON.stringify(worker),
-        );
-    });
-  }
-
   upsertToolCall(
     toolCall: ToolCallRecord,
     preview: ToolCallTranscriptRecord,
@@ -534,28 +503,11 @@ export class IndexStore {
     this.guard(() => {
       this.db.exec("BEGIN IMMEDIATE");
       try {
-        const tables = [
-          "tasks",
-          "workers",
-          "agents",
-          "conversations",
-          "projects",
-        ];
+        const tables = ["tasks", "agents", "conversations", "projects"];
         for (const table of tables) {
           this.db.exec(`DELETE FROM ${table};`);
         }
 
-        const upsertWorker = this.db.prepare(
-          `INSERT INTO workers (
-             id, kind, name, status, created_at, updated_at, json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-             kind = excluded.kind,
-             name = excluded.name,
-             status = excluded.status,
-             updated_at = excluded.updated_at,
-             json = excluded.json`,
-        );
         const upsertProject = this.db.prepare(
           `INSERT INTO projects (id, name, dir, created_at, updated_at, json)
            VALUES (?, ?, ?, ?, ?, ?)
@@ -612,17 +564,6 @@ export class IndexStore {
              updated_at = excluded.updated_at,
              json = excluded.json`,
         );
-        for (const worker of input.workers ?? []) {
-          upsertWorker.run(
-            worker.id,
-            worker.kind,
-            worker.name,
-            worker.status,
-            worker.createdAt,
-            worker.updatedAt,
-            JSON.stringify(worker),
-          );
-        }
         for (const project of input.projects) {
           upsertProject.run(
             project.id,
@@ -694,7 +635,6 @@ export class IndexStore {
       conversations: this.countTable("conversations"),
       agents: this.countTable("agents"),
       tasks: this.countTable("tasks"),
-      workers: this.countTable("workers"),
     }));
   }
 

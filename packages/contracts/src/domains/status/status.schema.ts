@@ -85,7 +85,6 @@ export const storageInfoSchema = z.object({
       agents: z.number().int().nonnegative(),
       events: z.number().int().nonnegative(),
       tasks: z.number().int().nonnegative(),
-      workers: z.number().int().nonnegative(),
     })
     .optional(),
 });

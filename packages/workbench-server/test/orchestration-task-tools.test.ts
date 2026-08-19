@@ -148,7 +148,6 @@ describe("orchestration task tools", () => {
     assert.equal(captured?.projectId, "proj_test");
     assert.equal(captured?.conversationId, "conv_test");
     assert.equal(captured?.agentId, "agent_test");
-    assert.equal(captured?.workerId, "worker_test");
   });
 
   it("resolves and validates a per-call Bash cwd before foreground execution", async () => {
@@ -276,7 +275,6 @@ async function createDispatcher(
     startTask: async () => task({ id: "task_started" }),
     getAgent: () => ({
       id: "agent_test",
-      workerId: "worker_test",
       projectDir: root,
       mode: "coding",
     }),

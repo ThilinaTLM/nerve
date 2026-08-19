@@ -26,7 +26,6 @@ export type IdPrefix =
   | "question"
   | "plan_review"
   | "susp"
-  | "worker"
   | "authflow"
   | "credkey"
   | "log"

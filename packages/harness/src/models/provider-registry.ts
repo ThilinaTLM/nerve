@@ -182,9 +182,9 @@ export function streamSimpleWithModel(
   const streamOptions = withNerveSimpleStreamDefaults(model, options);
   const provider = models.getProvider(model.provider);
   if (options?.apiKey !== undefined && provider && !provider.auth.apiKey) {
-    // Isolated workers receive already-resolved request auth but do not own the
-    // persistent OAuth credential store. Dispatch the provider directly after
-    // the application has applied credential-derived model fields.
+    // Callers can supply already-resolved request auth without registering a
+    // persistent credential store. Dispatch the provider directly after the
+    // application has applied credential-derived model fields.
     return provider.streamSimple(model, context, streamOptions);
   }
   return models.streamSimple(model, context, streamOptions);

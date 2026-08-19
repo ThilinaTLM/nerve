@@ -26,7 +26,6 @@ import { taskDefinitionOperationDefinitions } from "../task-definitions/task-def
 import { tasksOperationDefinitions } from "../tasks/task.operations.schema.js";
 import { toolsOperationDefinitions } from "../tools/tool.operations.schema.js";
 import { usageOperationDefinitions } from "../usage/usage.operations.schema.js";
-import { workersOperationDefinitions } from "../workers/worker.operations.schema.js";
 
 const methodDefinitions = [
   ...agentsOperationDefinitions,
@@ -51,7 +50,6 @@ const methodDefinitions = [
   ...tasksOperationDefinitions,
   ...toolsOperationDefinitions,
   ...usageOperationDefinitions,
-  ...workersOperationDefinitions,
 ] as const;
 
 const methods = methodDefinitions.map((definition) => definition.method);

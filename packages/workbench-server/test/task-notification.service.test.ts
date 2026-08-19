@@ -237,7 +237,6 @@ function taskRecord(overrides: Partial<TaskRecord> = {}): TaskRecord {
   const now = "2026-01-02T03:04:05.000Z";
   return {
     id: "task_test",
-    workerId: "worker_test",
     projectId: "proj_test",
     conversationId: "conv_test",
     agentId: "agent_test",
@@ -275,7 +274,6 @@ function agentRecord(overrides: Partial<AgentRecord> = {}): AgentRecord {
     conversationId: "conv_test",
     projectId: "proj_test",
     projectDir: "/tmp/project",
-    workerId: "worker_test",
     rootAgentId: "agent_test",
     mode: "coding",
     permissionLevel: "autonomous",

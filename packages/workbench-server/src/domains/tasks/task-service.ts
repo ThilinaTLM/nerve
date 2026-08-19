@@ -224,7 +224,6 @@ export class TaskService {
       displayName: request.displayName,
       groupId: request.groupId,
       groupName: request.groupName,
-      workerId: request.workerId,
       projectId: request.projectId,
       conversationId: request.conversationId,
       agentId: request.agentId,
@@ -372,10 +371,7 @@ export class TaskService {
 
   async list(
     filter: Partial<
-      Pick<
-        TaskRecord,
-        "projectId" | "conversationId" | "agentId" | "workerId" | "groupId"
-      >
+      Pick<TaskRecord, "projectId" | "conversationId" | "agentId" | "groupId">
     > = {},
   ): Promise<TaskRecord[]> {
     await this.reconcileOrphans(true);
@@ -479,7 +475,6 @@ export class TaskService {
       displayName: previous.displayName,
       groupId: previous.groupId,
       groupName: previous.groupName,
-      workerId: previous.workerId,
       projectId: previous.projectId,
       conversationId: previous.conversationId,
       agentId: previous.agentId,

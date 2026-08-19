@@ -18,7 +18,6 @@ import { taskDefinitionEventDefinitions } from "../task-definitions/task-definit
 import { taskEventDefinitions } from "../tasks/task.events.schema.js";
 import { toolEventDefinitions } from "../tools/tool.events.schema.js";
 import { usageEventDefinitions } from "../usage/usage.events.schema.js";
-import { workerEventDefinitions } from "../workers/worker.events.schema.js";
 import type { PublicEventDefinition } from "./event-definition.schema.js";
 import { eventEnvelopeSchema } from "./envelope.schema.js";
 
@@ -42,7 +41,6 @@ const definitions: PublicEventDefinition[] = [
   ...projectEventDefinitions,
   ...settingsEventDefinitions,
   ...authEventDefinitions,
-  ...workerEventDefinitions,
   ...daemonEventDefinitions,
   ...promptSuggestionEventDefinitions,
   ...storageEventDefinitions,

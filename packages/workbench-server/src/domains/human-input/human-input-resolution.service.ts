@@ -175,7 +175,6 @@ export class HumanInputResolutionService {
       projectId: pendingReview.projectId,
       conversationId: conversation.id,
       projectDir: sourceAgent.projectDir,
-      workerId: sourceAgent.workerId,
       mode: "coding",
       permissionLevel: sourceAgent.permissionLevel,
       workspaceScope: sourceAgent.workspaceScope,

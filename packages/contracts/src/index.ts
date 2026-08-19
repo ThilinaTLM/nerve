@@ -26,4 +26,3 @@ export * from "./domains/tasks/index.js";
 export * from "./domains/tools/index.js";
 export * from "./domains/transcription/index.js";
 export * from "./domains/usage/index.js";
-export * from "./domains/workers/index.js";

@@ -21,7 +21,6 @@ describe("task manager foreground bash auto-promotion", () => {
     const run = manager.runForegroundBashWithPromotion({
       command: "pnpm check",
       cwd: storage.paths.home,
-      workerId: "worker_test",
       projectId: "proj_test",
       conversationId: "conv_test",
       agentId: "agent_test",
@@ -39,7 +38,6 @@ describe("task manager foreground bash auto-promotion", () => {
     assert.equal(result.task.projectId, "proj_test");
     assert.equal(result.task.conversationId, "conv_test");
     assert.equal(result.task.agentId, "agent_test");
-    assert.equal(result.task.workerId, "worker_test");
     assert.equal(result.task.visibility, "background");
     assert.equal(result.task.notifications?.enabled, true);
     assert.equal(result.task.notifications?.terminal, true);
