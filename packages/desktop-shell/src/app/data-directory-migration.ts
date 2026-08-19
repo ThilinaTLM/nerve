@@ -1,10 +1,11 @@
 import type {
   LegacyHomeMigrationResult,
-  WorkbenchHomeInspection,
+  StorageStartupOptions,
+  StorageStartupResult,
 } from "@nervekit/workbench-server";
 import {
-  inspectWorkbenchHome,
-  migrateLegacyWorkbenchHome,
+  coordinateStorageStartup,
+  StorageStartupError,
 } from "@nervekit/workbench-server";
 import type { MessageBoxOptions, MessageBoxReturnValue } from "electron";
 import type { DaemonMode } from "../daemon.js";
@@ -14,8 +15,10 @@ export type DesktopDataDirectoryPreparation =
   | { status: "quit" };
 
 export interface DesktopDataDirectoryMigrationDependencies {
-  inspect?: (home: string) => Promise<WorkbenchHomeInspection>;
-  migrate?: (home: string) => Promise<LegacyHomeMigrationResult>;
+  coordinate?: (
+    home: string,
+    options: StorageStartupOptions,
+  ) => Promise<StorageStartupResult>;
   showMessageBox: (
     options: MessageBoxOptions,
   ) => Promise<Pick<MessageBoxReturnValue, "response">>;
@@ -27,36 +30,52 @@ export async function prepareDesktopDataDirectory(
 ): Promise<DesktopDataDirectoryPreparation> {
   if (input.mode === "remote") return { status: "ready" };
 
-  let inspection: WorkbenchHomeInspection;
+  let consentDenied = false;
+  let result: StorageStartupResult;
   try {
-    inspection = await (dependencies.inspect ?? inspectWorkbenchHome)(
+    result = await (dependencies.coordinate ?? coordinateStorageStartup)(
       input.home,
+      {
+        requestLegacyConsent: async () => {
+          const confirmation = await dependencies.showMessageBox(
+            confirmationDialog(input.home),
+          );
+          consentDenied = confirmation.response !== 0;
+          return !consentDenied;
+        },
+      },
     );
   } catch (error) {
+    if (
+      consentDenied ||
+      (error instanceof StorageStartupError && error.code === "CONSENT_DENIED")
+    ) {
+      return { status: "quit" };
+    }
     await showPreparationError(
       dependencies,
-      "Nerve could not inspect its data directory",
+      "Nerve could not prepare its data directory",
       errorMessage(error),
     );
     return { status: "quit" };
   }
 
-  if (inspection.kind === "unsupported") {
-    await showPreparationError(
-      dependencies,
-      "Nerve cannot automatically prepare this data directory",
-      `${inspection.reason}\n\nNo files were changed. The data directory is ${input.home}.`,
-    );
-    return { status: "quit" };
+  if (result.legacyMigration) {
+    await dependencies.showMessageBox(completionDialog(result.legacyMigration));
   }
-  if (inspection.kind !== "legacy") return { status: "ready" };
+  return {
+    status: "ready",
+    ...(result.legacyMigration ? { migration: result.legacyMigration } : {}),
+  };
+}
 
-  const confirmation = await dependencies.showMessageBox({
+function confirmationDialog(home: string): MessageBoxOptions {
+  return {
     type: "warning",
     title: "Prepare a fresh Nerve data directory",
     message: "This Nerve upgrade needs to start with fresh local data.",
     detail: [
-      `The complete existing data directory at ${input.home} will be moved to a retained timestamped backup.`,
+      `The complete existing data directory at ${home} will be moved to a retained timestamped backup.`,
       "Nerve will restore your settings, custom providers and models, and recoverable provider/tool authentication.",
       "Conversations, agents, projects, logs, and history will not be imported; they remain only in the backup.",
     ].join("\n\n"),
@@ -64,25 +83,7 @@ export async function prepareDesktopDataDirectory(
     defaultId: 1,
     cancelId: 1,
     noLink: true,
-  });
-  if (confirmation.response !== 0) return { status: "quit" };
-
-  let migration: LegacyHomeMigrationResult;
-  try {
-    migration = await (dependencies.migrate ?? migrateLegacyWorkbenchHome)(
-      input.home,
-    );
-  } catch (error) {
-    await showPreparationError(
-      dependencies,
-      "Nerve could not prepare the new data directory",
-      errorMessage(error),
-    );
-    return { status: "quit" };
-  }
-
-  await dependencies.showMessageBox(completionDialog(migration));
-  return { status: "ready", migration };
+  };
 }
 
 function completionDialog(

@@ -47,9 +47,9 @@ describe("settings migrations", () => {
       })}\n`,
     );
 
-    assert.deepEqual(
-      await readCurrentSettingsForBootstrap(root),
-      defaultSettings,
+    await assert.rejects(
+      readCurrentSettingsForBootstrap(root),
+      /storage is prepared/,
     );
 
     const storage = await initializeStorage(root);
@@ -70,13 +70,13 @@ describe("settings migrations", () => {
     );
 
     await writeFile(join(root, "config.json"), "not-json\n");
-    assert.deepEqual(
-      await readCurrentSettingsForBootstrap(root),
-      defaultSettings,
+    await assert.rejects(
+      readCurrentSettingsForBootstrap(root),
+      /settings.*unreadable/i,
     );
   });
 
-  it("defaults safely for malformed and unsupported VERSION markers", async () => {
+  it("fails closed for malformed and unsupported VERSION markers", async () => {
     for (const marker of ["not-json\n", '{"format":"other","version":1}\n']) {
       const root = await mkdtemp(join(tmpdir(), "nerve-settings-bootstrap-"));
       roots.push(root);
@@ -85,9 +85,9 @@ describe("settings migrations", () => {
         join(root, "config.json"),
         `${JSON.stringify(defaultSettings)}\n`,
       );
-      assert.deepEqual(
-        await readCurrentSettingsForBootstrap(root),
-        defaultSettings,
+      await assert.rejects(
+        readCurrentSettingsForBootstrap(root),
+        /storage is prepared/,
       );
     }
   });

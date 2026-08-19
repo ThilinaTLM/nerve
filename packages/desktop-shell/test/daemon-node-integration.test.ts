@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
-import { checkHealth } from "../src/daemon/node-integration.ts";
+import {
+  checkHealth,
+  findHealthyDaemon,
+} from "../src/daemon/node-integration.ts";
 
 describe("daemon Node health integration", () => {
   it("uses the authenticated minimal health endpoint", async () => {
@@ -28,6 +34,24 @@ describe("daemon Node health integration", () => {
       durationMs: 1,
       status: 200,
     });
+  });
+
+  it("fails closed for invalid daemon metadata", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-daemon-metadata-"));
+    try {
+      const daemonPath = join(root, "daemon.json");
+      await writeFile(daemonPath, "not-json\n");
+      await assert.rejects(
+        findHealthyDaemon({
+          home: root,
+          daemonPath,
+          localTokenPath: join(root, "auth", "local-token"),
+        }),
+        /refusing to start a second daemon/,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("classifies HTTP, network, and timeout failures", async () => {

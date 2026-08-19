@@ -14,28 +14,43 @@ function dialogRecorder(responses: number[] = []) {
   };
 }
 
+const migrationReport = {
+  durationMs: 0,
+  executions: [],
+  backupBytes: 0,
+  archivePaths: [],
+};
+
+function legacyMigration(overrides: Record<string, unknown> = {}) {
+  return {
+    importedAt: "2026-07-16T01:32:29.000Z",
+    backupPath: "/home/test/.nerve-bk-20260716-013229",
+    settingsStatus: "imported" as const,
+    providerCatalogStatus: "imported" as const,
+    importedCustomProviderCount: 2,
+    importedCustomModelCount: 3,
+    credentialStatus: "imported" as const,
+    importedCredentialCount: 4,
+    ...overrides,
+  };
+}
+
 describe("desktop data-directory preparation", () => {
-  it("does nothing for current local state or remote connections", async () => {
+  it("delegates local preparation to the coordinator and skips remote state", async () => {
     const currentDialogs = dialogRecorder();
-    let inspections = 0;
-    let migrations = 0;
+    let coordinated = 0;
     const current = await prepareDesktopDataDirectory(
       { home: "/home/test/.nerve", mode: "local" },
       {
         ...currentDialogs,
-        inspect: async () => {
-          inspections += 1;
-          return { kind: "current" };
-        },
-        migrate: async () => {
-          migrations += 1;
-          throw new Error("must not migrate");
+        coordinate: async () => {
+          coordinated += 1;
+          return { migrationReport };
         },
       },
     );
     assert.deepEqual(current, { status: "ready" });
-    assert.equal(inspections, 1);
-    assert.equal(migrations, 0);
+    assert.equal(coordinated, 1);
     assert.equal(currentDialogs.dialogs.length, 0);
 
     const remoteDialogs = dialogRecorder();
@@ -43,8 +58,8 @@ describe("desktop data-directory preparation", () => {
       { home: "/home/test/.nerve", mode: "remote" },
       {
         ...remoteDialogs,
-        inspect: async () => {
-          throw new Error("remote mode must not inspect local state");
+        coordinate: async () => {
+          throw new Error("remote mode must not touch local state");
         },
       },
     );
@@ -54,22 +69,22 @@ describe("desktop data-directory preparation", () => {
 
   it("quits without migration when the user cancels the legacy warning", async () => {
     const recorded = dialogRecorder([1]);
-    let migrations = 0;
-
     const result = await prepareDesktopDataDirectory(
       { home: "/home/test/.nerve" },
       {
         ...recorded,
-        inspect: async () => ({ kind: "legacy", reason: "legacy state" }),
-        migrate: async () => {
-          migrations += 1;
-          throw new Error("must not migrate");
+        coordinate: async (home, options) => {
+          const approved = await options.requestLegacyConsent?.({
+            home,
+            reason: "legacy state",
+          });
+          if (!approved) throw new Error("consent denied");
+          return { migrationReport };
         },
       },
     );
 
     assert.deepEqual(result, { status: "quit" });
-    assert.equal(migrations, 0);
     assert.equal(recorded.dialogs.length, 1);
     assert.deepEqual(recorded.dialogs[0]?.buttons, [
       "Back up and continue",
@@ -89,30 +104,21 @@ describe("desktop data-directory preparation", () => {
 
   it("backs up accepted legacy state and reports imported credentials", async () => {
     const recorded = dialogRecorder([0, 0]);
-    let migrations = 0;
-
     const result = await prepareDesktopDataDirectory(
       { home: "/home/test/.nerve", mode: "local" },
       {
         ...recorded,
-        inspect: async () => ({ kind: "legacy", reason: "legacy state" }),
-        migrate: async () => {
-          migrations += 1;
-          return {
-            backupPath: "/home/test/.nerve-bk-20260716-013229",
-            settingsStatus: "imported",
-            providerCatalogStatus: "imported",
-            importedCustomProviderCount: 2,
-            importedCustomModelCount: 3,
-            credentialStatus: "imported",
-            importedCredentialCount: 4,
-          };
+        coordinate: async (home, options) => {
+          assert.equal(
+            await options.requestLegacyConsent?.({ home, reason: "legacy" }),
+            true,
+          );
+          return { migrationReport, legacyMigration: legacyMigration() };
         },
       },
     );
 
     assert.equal(result.status, "ready");
-    assert.equal(migrations, 1);
     assert.equal(recorded.dialogs.length, 2);
     const completion = recorded.dialogs[1];
     assert.equal(completion?.type, "info");
@@ -126,82 +132,55 @@ describe("desktop data-directory preparation", () => {
       completion?.detail ?? "",
       /Restored 4 provider\/tool credentials/,
     );
-    assert.match(
-      completion?.detail ?? "",
-      /Conversations, agents, projects, logs, and history were not imported/,
-    );
     assert.match(completion?.detail ?? "", /never delete this backup/i);
   });
 
   it("warns but continues when legacy credentials could not be restored", async () => {
     const recorded = dialogRecorder([0, 0]);
-
     const result = await prepareDesktopDataDirectory(
       { home: "/home/test/.nerve" },
       {
         ...recorded,
-        inspect: async () => ({ kind: "legacy", reason: "legacy state" }),
-        migrate: async () => ({
-          backupPath: "/home/test/.nerve-bk-20260716-013229",
-          settingsStatus: "imported",
-          providerCatalogStatus: "none",
-          importedCustomProviderCount: 0,
-          importedCustomModelCount: 0,
-          credentialStatus: "failed",
-          importedCredentialCount: 0,
-        }),
+        coordinate: async (home, options) => {
+          await options.requestLegacyConsent?.({ home, reason: "legacy" });
+          return {
+            migrationReport,
+            legacyMigration: legacyMigration({
+              providerCatalogStatus: "none",
+              importedCustomProviderCount: 0,
+              importedCustomModelCount: 0,
+              credentialStatus: "failed",
+              importedCredentialCount: 0,
+            }),
+          };
+        },
       },
     );
 
     assert.equal(result.status, "ready");
     assert.equal(recorded.dialogs[1]?.type, "warning");
     assert.match(recorded.dialogs[1]?.detail ?? "", /Sign in.*again/i);
-    assert.match(
-      recorded.dialogs[1]?.detail ?? "",
-      /Your settings were restored/,
-    );
   });
 
-  it("stops with a no-changes message for unsupported versioned state", async () => {
+  it("stops and presents coordinator errors without a stack trace", async () => {
     const recorded = dialogRecorder();
-
     const result = await prepareDesktopDataDirectory(
       { home: "/home/test/.nerve" },
       {
         ...recorded,
-        inspect: async () => ({
-          kind: "unsupported",
-          reason: "Future state version 3.",
-        }),
-      },
-    );
-
-    assert.deepEqual(result, { status: "quit" });
-    assert.equal(recorded.dialogs.length, 1);
-    assert.equal(recorded.dialogs[0]?.type, "error");
-    assert.match(recorded.dialogs[0]?.detail ?? "", /No files were changed/);
-  });
-
-  it("stops and presents migration errors without a stack trace", async () => {
-    const recorded = dialogRecorder([0, 0]);
-
-    const result = await prepareDesktopDataDirectory(
-      { home: "/home/test/.nerve" },
-      {
-        ...recorded,
-        inspect: async () => ({ kind: "legacy", reason: "legacy state" }),
-        migrate: async () => {
+        coordinate: async () => {
           throw new Error(
-            "A legacy Nerve daemon (PID 42) is still running. Quit it and retry.",
+            "A legacy Nerve daemon (PID 42) is still running. No files were changed.",
           );
         },
       },
     );
 
     assert.deepEqual(result, { status: "quit" });
-    assert.equal(recorded.dialogs.length, 2);
-    assert.equal(recorded.dialogs[1]?.type, "error");
-    assert.match(recorded.dialogs[1]?.detail ?? "", /PID 42/);
-    assert.doesNotMatch(recorded.dialogs[1]?.detail ?? "", /at .*\.ts:/);
+    assert.equal(recorded.dialogs.length, 1);
+    assert.equal(recorded.dialogs[0]?.type, "error");
+    assert.match(recorded.dialogs[0]?.detail ?? "", /PID 42/);
+    assert.match(recorded.dialogs[0]?.detail ?? "", /No files were changed/);
+    assert.doesNotMatch(recorded.dialogs[0]?.detail ?? "", /at .*\.ts:/);
   });
 });

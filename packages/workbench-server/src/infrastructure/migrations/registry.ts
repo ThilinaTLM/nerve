@@ -11,6 +11,7 @@ import { migration0007 } from "./migrations/0007-transient-conversation-live-eve
 import { migration0008 } from "./migrations/0008-remove-legacy-storage.js";
 import { migration0009 } from "./migrations/0009-native-task-runtimes.js";
 import { migration0010 } from "./migrations/0010-integration-provider-profiles.js";
+import { migration0011 } from "./migrations/0011-import-legacy-portable-state.js";
 
 export const storageMigrationRegistry: readonly StorageMigration[] =
   Object.freeze([
@@ -24,6 +25,7 @@ export const storageMigrationRegistry: readonly StorageMigration[] =
     migration0008,
     migration0009,
     migration0010,
+    migration0011,
   ]);
 
 export function validateMigrationRegistry(

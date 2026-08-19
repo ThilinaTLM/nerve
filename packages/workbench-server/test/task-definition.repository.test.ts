@@ -9,6 +9,10 @@ import { initializeStorage } from "../src/infrastructure/storage/index.js";
 test("migrates pinned commands to durable task definitions once", async () => {
   const home = await mkdtemp(join(tmpdir(), "nerve-task-definitions-"));
   try {
+    await writeFile(
+      join(home, "VERSION"),
+      `${JSON.stringify({ format: "nerve-workbench-state", version: 2 })}\n`,
+    );
     const projectId = "proj_migration";
     const projectDir = join(home, "projects", projectId);
     await mkdir(projectDir, { recursive: true });

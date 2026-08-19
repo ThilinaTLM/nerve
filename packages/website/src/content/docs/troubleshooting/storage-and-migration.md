@@ -11,7 +11,7 @@ Current state uses marker `nerve-workbench-state` version 2. Nerve does not auto
 
 ## Legacy history appears missing
 
-The desktop's unversioned-home migration is selective. It restores validated settings, custom provider/model catalog, and recoverable credentials. Projects, conversations, agents, tasks, plans, logs, run history, SQLite, and daemon/session state remain in the timestamped backup by design.
+The server-owned unversioned-home migration is selective; desktop only supplies confirmation and progress UI. Migration `0011` restores validated settings, the custom provider/model catalog, and recoverable credentials before the ledger commits. Projects, conversations, agents, tasks, plans, logs, run history, SQLite, and daemon/session state remain in the timestamped backup by design.
 
 Do not delete the backup. Reopen it only with a compatible old version in a fully isolated profile, or manually extract data after understanding the format.
 
@@ -21,7 +21,7 @@ Startup can continue with the complete backup intact and ask for authentication.
 
 ## Migration aborts
 
-Malformed settings or catalog data cause rollback to the original legacy home. Read logs and fix/copy data rather than partially deleting migration markers.
+Malformed settings, catalog data, daemon metadata, or startup journals fail closed. Before commit, failures restore the original legacy home; interrupted journals are recovered on the next startup. Read the reported paths and fix/copy data rather than deleting VERSION, ledger, lock, or journal files.
 
 ## Retired internal archives disappeared
 

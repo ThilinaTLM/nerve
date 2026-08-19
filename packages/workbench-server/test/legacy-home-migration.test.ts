@@ -12,14 +12,35 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import { defaultSettings } from "@nervekit/contracts";
 import { EncryptedFileSecretProvider } from "../src/infrastructure/secrets/index.js";
+import type { InitializedStorage } from "../src/infrastructure/storage/initialize.js";
 import {
-  LegacyHomeMigrationError,
-  migrateLegacyWorkbenchHome,
-} from "../src/infrastructure/storage/legacy-home-migration.js";
+  coordinateStorageStartup,
+  StorageStartupError as LegacyHomeMigrationError,
+} from "../src/infrastructure/storage/startup-coordinator.js";
 import { inspectWorkbenchHome } from "../src/infrastructure/storage/state-layout.js";
 
 const roots: string[] = [];
 const fixedNow = () => new Date("2026-07-16T01:32:29.000Z");
+
+async function migrateLegacyWorkbenchHome(
+  home: string,
+  options: {
+    now?: () => Date;
+    initializeFreshHome?: (home: string) => Promise<InitializedStorage>;
+  } = {},
+) {
+  const result = await coordinateStorageStartup(home, {
+    now: options.now,
+    ...(options.initializeFreshHome
+      ? {
+          runMigrations: async (target: string) =>
+            (await options.initializeFreshHome!(target)).migrationReport,
+        }
+      : {}),
+  });
+  assert.ok(result.legacyMigration);
+  return result.legacyMigration;
+}
 
 const legacyCatalog = {
   version: 1,
@@ -165,7 +186,20 @@ describe("legacy workbench home migration", () => {
     assert.equal(catalog.models[0]?.modelId, "proxy-large");
 
     const targetSecrets = new EncryptedFileSecretProvider(home);
-    for (const [name, value] of credentials) {
+    const importedCredentials = new Map([
+      ["provider:openai:apiKey", "sk-test-openai"],
+      [
+        "provider:openai-codex:oauth",
+        credentials.get("provider:openai-codex:oauth"),
+      ],
+      ["provider:tavily:legacy-tavily-default:apiKey", "tvly-test"],
+      ["provider:atlassian:legacy-atlassian-jira:apiKey", "jira-test"],
+      [
+        "provider:atlassian:legacy-atlassian-confluence:apiKey",
+        "confluence-test",
+      ],
+    ]);
+    for (const [name, value] of importedCredentials) {
       assert.equal(await targetSecrets.get(name), value);
     }
     assert.equal(
@@ -344,32 +378,6 @@ describe("legacy workbench home migration", () => {
       '{"defaultThinkingLevel":"high"}\n',
     );
     assert.equal(await exists(join(home, "partial.txt")), false);
-    assert.equal(await exists(`${home}-bk-20260716-013229`), false);
-  });
-
-  it("rolls back after a target credential write failure", async () => {
-    const { home } = await tempLegacyHome();
-    await new EncryptedFileSecretProvider(home).set(
-      "provider:openai:apiKey",
-      "sk-test",
-    );
-
-    await assert.rejects(
-      migrateLegacyWorkbenchHome(home, {
-        now: fixedNow,
-        writeCredential: async () => {
-          throw new Error("injected credential write failure");
-        },
-      }),
-      (error: unknown) =>
-        error instanceof LegacyHomeMigrationError &&
-        error.code === "MIGRATION_FAILED" &&
-        error.details.originalRestored,
-    );
-    assert.equal(
-      await new EncryptedFileSecretProvider(home).get("provider:openai:apiKey"),
-      "sk-test",
-    );
     assert.equal(await exists(`${home}-bk-20260716-013229`), false);
   });
 });
