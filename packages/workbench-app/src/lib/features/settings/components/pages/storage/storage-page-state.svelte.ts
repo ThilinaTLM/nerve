@@ -20,6 +20,7 @@ import {
 import { formatBytes } from "./storage-format";
 import {
   completionNotice,
+  shouldAnnounceCompletion,
   shouldIgnoreOperationUpdate,
 } from "./storage-operation";
 import { StorageRunGuard } from "./storage-run-guard";
@@ -137,9 +138,13 @@ export class StoragePageController {
     }
   }
 
-  applyOperation(next: StorageCleanupOperation | null): void {
+  applyOperation(
+    next: StorageCleanupOperation | null,
+    options: { announceCompletion?: boolean } = {},
+  ): void {
     if (!this.#run.active) return;
-    if (shouldIgnoreOperationUpdate(this.operation, next)) return;
+    const current = this.operation;
+    if (shouldIgnoreOperationUpdate(current, next)) return;
 
     this.operation = next;
     if (next?.usage) this.usage = next.usage;
@@ -151,7 +156,13 @@ export class StoragePageController {
     });
     if (!next?.completedAt) return;
     this.#lastNotifiedOperationId = next.id;
-    if (!notice) return;
+    if (
+      !shouldAnnounceCompletion(current, next, {
+        explicit: options.announceCompletion,
+      }) ||
+      !notice
+    )
+      return;
     if (notice.kind === "success") this.#deps.notifySuccess(notice.message);
     else this.#deps.notifyError(notice.message, notice.description);
   }
@@ -159,7 +170,7 @@ export class StoragePageController {
   async startCleanup(request: StorageCleanupRequest): Promise<boolean> {
     try {
       const response = await this.#deps.startCleanup(request);
-      this.applyOperation(response.operation);
+      this.applyOperation(response.operation, { announceCompletion: true });
       return true;
     } catch (error) {
       this.#deps.notifyError(
