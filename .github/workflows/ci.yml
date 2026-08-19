@@ -19,6 +19,9 @@ jobs:
       workbench: ${{ steps.filter.outputs.workbench }}
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
       - name: Classify changed files
         id: filter
         uses: dorny/paths-filter@v4
