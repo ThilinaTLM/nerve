@@ -86,7 +86,10 @@ let {
   </SettingsListItem>
 
   <Collapsible.Content
-    class="grid gap-1.5 pt-0 pb-2 pl-5.5 text-xs text-muted-foreground"
+    class={cn(
+      "grid gap-1.5 pt-0 pr-3 pb-2 text-xs text-muted-foreground",
+      variant === "card" ? "pl-8.5" : "pl-5.5",
+    )}
   >
     {@render detail()}
   </Collapsible.Content>

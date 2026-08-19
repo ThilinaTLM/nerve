@@ -102,7 +102,7 @@ function start(): void {
   bind:open
   title="Clean up storage"
   description="Choose what to remove. Current footprints are estimates; final results use measured space."
-  size="wide"
+  size="md"
 >
   <div class="grid gap-3">
     <div

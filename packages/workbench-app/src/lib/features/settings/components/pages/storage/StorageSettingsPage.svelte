@@ -2,7 +2,6 @@
 import { onMount } from "svelte";
 import CheckCircle2 from "@lucide/svelte/icons/check-circle-2";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
-import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Progress } from "@nervekit/ui-kit/components/ui/progress";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
@@ -159,7 +158,9 @@ onMount(() => {
   {#if operation && (active || operation.completedAt)}
     <SettingsGroup>
       <div class="grid gap-2" aria-live="polite">
-        <div class="flex flex-wrap items-start justify-between gap-3">
+        <div
+          class="flex flex-wrap items-start justify-between gap-3 rounded-md border border-info/40 bg-info/10 px-3 py-2"
+        >
           <div class="flex min-w-0 items-start gap-2">
             {#if active}
               <Spinner class="mt-0.5 size-4 shrink-0 text-primary" />
@@ -190,14 +191,6 @@ onMount(() => {
               onclick={() => void controller.cancelCleanup()}
               >Cancel cleanup</Button
             >
-          {:else if !active}
-            <Button
-              size="xs"
-              variant="outline"
-              onclick={() => (controller.cleanupDialogOpen = true)}
-            >
-              <RotateCcw class="size-3.5" aria-hidden="true" /> Clean more
-            </Button>
           {/if}
         </div>
 
