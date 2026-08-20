@@ -4,7 +4,6 @@ import {
 } from "@nervekit/tools";
 import {
   type TaskCancelResultPayload,
-  taskCancelToolResultSchema,
   taskLogsToolResultSchema,
   type TaskRecord,
   type ToolCallRecord,
@@ -12,111 +11,15 @@ import {
 import { ensurePlanDir } from "../plans/plan-paths.js";
 import { isActiveTaskStatus, isPathInDirectoryTree } from "../tasks/index.js";
 import { formatListeningPort } from "../tasks/task-port-inspector.js";
-import {
-  formatTaskCancelSummary,
-  formatTaskLogsSummary,
-} from "../tasks/task-summary-format.js";
+import { formatTaskLogsSummary } from "../tasks/task-summary-format.js";
 import type { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
-import {
-  optionalBoundedIntegerArg,
-  optionalStringArg,
-  signalArg,
-} from "./tool-args.js";
+import { optionalBoundedIntegerArg, optionalStringArg } from "./tool-args.js";
 import { CodedToolError } from "./tool-errors.js";
 import { ToolExecutionSuspended } from "./tool-execution-suspension.js";
 import type {
   ExploreProgressUpdate,
   ToolRequestOptions,
 } from "./tool-service.js";
-
-export async function taskCancelFromTool(
-  this: OrchestrationToolDispatcher,
-  toolCall: ToolCallRecord,
-  args: Record<string, unknown>,
-): Promise<unknown> {
-  const taskRef = optionalStringArg(args.taskId);
-  const taskRefs = Array.isArray(args.taskIds)
-    ? args.taskIds.map((value) => {
-        const ref = optionalStringArg(value);
-        if (!ref) {
-          throw new CodedToolError(
-            "TASK_ARGUMENT_INVALID",
-            "Every taskIds entry must be a non-empty string.",
-          );
-        }
-        return ref;
-      })
-    : undefined;
-  const groupId = optionalStringArg(args.groupId);
-  const selectorCount = [taskRef, taskRefs, groupId].filter(Boolean).length;
-  if (selectorCount !== 1 || (taskRefs && taskRefs.length === 0)) {
-    throw new CodedToolError(
-      "TASK_ARGUMENT_INVALID",
-      "Provide exactly one non-empty selector: taskId, taskIds, or groupId.",
-    );
-  }
-  if (taskRefs && taskRefs.length > 20) {
-    throw new CodedToolError(
-      "TASK_ARGUMENT_INVALID",
-      "task_cancel supports at most 20 task IDs.",
-    );
-  }
-  const request = {
-    signal: signalArg(args.signal),
-    timeoutMs: optionalBoundedIntegerArg(args.timeoutMs, "timeoutMs", {
-      min: 1,
-      max: 30_000,
-    }),
-    reason: optionalStringArg(args.reason),
-  };
-  const resolved = taskRef
-    ? [this.resolveTaskReference(taskRef, toolCall)]
-    : taskRefs
-      ? taskRefs.map((ref) => this.resolveTaskReference(ref, toolCall))
-      : this.tasksInScope(toolCall).filter((task) => task.groupId === groupId);
-  const targets = [
-    ...new Map(resolved.map((task) => [task.id, task])).values(),
-  ];
-  if (targets.length === 0) {
-    const cancelResults: TaskCancelResultPayload[] = [
-      {
-        outcome: "no_matching_active_task",
-        requestedSignal: request.signal,
-        message: "No matching tasks to cancel.",
-      },
-    ];
-    return taskCancelToolResultSchema.parse({
-      tasks: [],
-      cancelResults,
-      contentBlocks: [
-        { type: "text", text: formatTaskCancelSummary(cancelResults) },
-      ],
-    });
-  }
-  const requestedSignal = request.signal ?? "SIGTERM";
-  const outcomes = await Promise.all(
-    targets.map(async (before) => {
-      const after = await this.deps.tasks.cancelTask(before.id, request);
-      return {
-        task: after,
-        result: classifyCancelResult(before, after, requestedSignal),
-      };
-    }),
-  );
-  const tasks = outcomes.map((outcome) => outcome.task);
-  const cancelResults = outcomes.map((outcome) => outcome.result);
-  const bounded = await buildProcessTextResult({
-    text: formatTaskCancelSummary(cancelResults),
-    outputFilePrefix: "nerve-task-cancel",
-    exitMessagePrefix: "Task cancel",
-    dataDir: this.deps.storage.paths.home,
-  });
-  return taskCancelToolResultSchema.parse({
-    tasks,
-    cancelResults,
-    contentBlocks: bounded.contentBlocks,
-  });
-}
 
 export async function taskLogsFromTool(
   this: OrchestrationToolDispatcher,
@@ -455,7 +358,7 @@ function taskReferenceDetails(task: TaskRecord): Record<string, unknown> {
   };
 }
 
-function classifyCancelResult(
+export function classifyCancelResult(
   before: TaskRecord,
   after: TaskRecord,
   requestedSignal: "SIGTERM" | "SIGINT" | "SIGKILL",

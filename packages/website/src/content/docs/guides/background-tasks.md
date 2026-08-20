@@ -12,6 +12,8 @@ Nerve separates a durable **task definition** from immutable **task runs**. A de
 
 Use finite Bash for commands that should finish. Use a task for a known server or watcher. Nerve can also promote a command that remains active. A task is separate from an agent todo: tasks supervise processes, while todos describe work inside a conversation.
 
+Before starting a server or watcher, the agent checks active tasks once unless it already knows the current task state. A successful start reports the new task and any other active tasks in the workspace scope, allowing the agent to notice possible overlap without heuristic duplicate detection.
+
 ## Supervision
 
 A task can define readiness by URL, first detected URL, or output pattern. The agent receives asynchronous status rather than polling. Dedicated views provide status and bounded streaming logs with cursor, error, warning, and first-failure modes. Runtime can be capped at up to 24 hours.
@@ -34,7 +36,7 @@ Quitting the desktop app immediately terminates active local task process trees 
 
 ## Task controls
 
-The Tasks panel and task-output tab let you switch between sibling runs, restart a saved task, cancel a run, load earlier log output, clean up terminal history, and prune old runs. **Force kill** is available only when Nerve has verified the process identity (or a run is stuck stopping); it is intentionally unavailable for `recovery_unknown` records. Removing a run's history does not remove the durable task definition.
+The Tasks panel and task-output tab let you switch between sibling runs, restart a saved task, cancel a run, load earlier log output, clean up terminal history, and prune old runs. The agent uses `task_control` with `action: "stop"` or `action: "restart"` for one task at a time. **Force kill** is available only when Nerve has verified the process identity (or a run is stuck stopping); it is intentionally unavailable for `recovery_unknown` records. Removing a run's history does not remove the durable task definition.
 
 ## Agent notifications
 

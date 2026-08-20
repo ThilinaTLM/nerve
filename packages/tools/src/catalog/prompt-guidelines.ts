@@ -5,7 +5,7 @@ const TOOL_GUIDELINES: Partial<Record<ToolName, string>> = {
   python_exec:
     'Write large Python outputs under os.environ["NERVE_PYTHON_ARTIFACT_DIR"]; do not pass secrets through env or use Python for long-lived or interactive processes.',
   task_start:
-    "Rely on asynchronous task updates; do not poll task_status or task_logs.",
+    "Before starting a server or watcher, inspect active tasks with task_status unless current task state is already known; after launch, rely on asynchronous updates instead of polling task_status or task_logs.",
 };
 
 const GROUP_GUIDELINES: Partial<Record<ToolGroupName, string>> = {

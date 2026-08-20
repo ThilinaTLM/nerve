@@ -541,8 +541,7 @@ export function toToolCallTranscriptRecord(
     | "task_start"
     | "task_status"
     | "task_logs"
-    | "task_cancel"
-    | "task_restart"
+    | "task_control"
     | undefined;
   let semanticOverflow = false;
 
@@ -711,8 +710,7 @@ export function toToolCallTranscriptRecord(
     case "task_start":
     case "task_status":
     case "task_logs":
-    case "task_cancel":
-    case "task_restart": {
+    case "task_control": {
       taskToolName = toolCall.toolName;
       const preview = buildTaskToolTranscriptPreview(taskToolName, result);
       if (!preview.valid) return metadataOnlyToolCallPreview(toolCall);

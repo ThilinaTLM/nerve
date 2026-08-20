@@ -168,35 +168,44 @@ export const orchestrationToolLifecycleSpecs = {
       });
     },
   }),
-  task_cancel: spec({
-    name: "task_cancel",
+  task_control: spec({
+    name: "task_control",
     argumentRegion: "none",
     completedView: "task_action",
     present: (source, stage) => {
-      const selector = taskSelector(source);
+      const action = source.string("action") ?? "stop";
+      if (action === "restart") {
+        return argumentPresentation({
+          primaryArg: textArg(source.string("taskId"), "Task"),
+          secondary: [{ text: "restart", tone: "warning" }],
+          body:
+            stage === "approval"
+              ? {
+                  kind: "text-summary",
+                  text: "The task will restart with its stored launch settings and environment.",
+                }
+              : undefined,
+          safetyNotes: [
+            "Reuses the task's stored command, settings, and encrypted environment.",
+          ],
+        });
+      }
+
       const signal = source.string("signal") ?? "SIGTERM";
-      const secondary: MetaItem[] = [];
-      if (selector.count > 1)
-        secondary.push({ text: plural(selector.count, "target") });
-      secondary.push({
-        text: signal,
-        tone: signal === "SIGKILL" ? "error" : "warning",
-      });
+      const secondary: MetaItem[] = [
+        { text: signal, tone: signal === "SIGKILL" ? "error" : "warning" },
+      ];
       if (source.number("timeoutMs") !== undefined)
         secondary.push({
           text: `escalate after ${durationMs(source.number("timeoutMs"))}`,
         });
       return argumentPresentation({
-        primaryArg: textArg(selector.primary),
+        primaryArg: textArg(source.string("taskId"), "Task"),
         secondary,
         body:
           stage === "approval"
             ? keyValues([
-                [
-                  "Targets",
-                  (source.strings("taskIds") ?? []).join(", ") ||
-                    selector.primary,
-                ],
+                ["Task", source.string("taskId")],
                 ["Signal", signal],
                 ["Escalation timeout", durationMs(source.number("timeoutMs"))],
                 ["Reason", source.string("reason")],
@@ -207,25 +216,6 @@ export const orchestrationToolLifecycleSpecs = {
         ],
       });
     },
-  }),
-  task_restart: spec({
-    name: "task_restart",
-    argumentRegion: "none",
-    completedView: "task_action",
-    present: (source, stage) =>
-      argumentPresentation({
-        primaryArg: textArg(source.string("taskId"), "Task"),
-        body:
-          stage === "approval"
-            ? {
-                kind: "text-summary",
-                text: "The task will restart with its stored launch settings and environment.",
-              }
-            : undefined,
-        safetyNotes: [
-          "Reuses the task's stored command, settings, and encrypted environment.",
-        ],
-      }),
   }),
   explore: spec({
     name: "explore",

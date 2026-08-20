@@ -80,7 +80,7 @@ describe("orchestration task tools", () => {
       startedAt: "2026-01-02T03:04:05.000Z",
     });
     const restarted = task({
-      id: "task_restart",
+      id: "task_generation_one",
       name: "dev",
       restartedFromTaskId: "task_root",
       restartRootTaskId: "task_root",
@@ -185,30 +185,100 @@ describe("orchestration task tools", () => {
     );
   });
 
-  it("deduplicates bulk cancellation while preserving first-seen order", async () => {
-    const first = task({ id: "task_first", status: "running" });
-    const second = task({ id: "task_second", status: "running" });
+  it("stops one selected task through task_control", async () => {
+    const running = task({ id: "task_running", status: "running" });
     const calls: string[] = [];
-    const dispatcher = await createDispatcher([first, second], {
+    const dispatcher = await createDispatcher([running], {
       cancelTask: async (taskId) => {
         calls.push(taskId);
         return task({
-          ...(taskId === first.id ? first : second),
+          ...running,
           status: "cancelled",
           signal: "SIGTERM",
         });
       },
     });
 
-    const result = (await dispatcher.execute(toolCall("task_cancel"), {
-      taskIds: [second.id, first.id, second.id],
-    })) as { tasks: TaskRecord[] };
+    const result = (await dispatcher.execute(toolCall("task_control"), {
+      taskId: running.id,
+      action: "stop",
+    })) as { action: string; task: TaskRecord };
 
-    assert.deepEqual(calls, [second.id, first.id]);
+    assert.deepEqual(calls, [running.id]);
+    assert.equal(result.action, "stop");
+    assert.equal(result.task.id, running.id);
+    assert.equal(result.task.status, "cancelled");
+  });
+
+  it("restarts one selected task through task_control", async () => {
+    const running = task({ id: "task_running", status: "running" });
+    const dispatcher = await createDispatcher([running]);
+
+    const result = (await dispatcher.execute(toolCall("task_control"), {
+      taskId: running.id,
+      action: "restart",
+    })) as {
+      action: string;
+      task: TaskRecord;
+      restartedFromTaskId: string;
+    };
+
+    assert.equal(result.action, "restart");
+    assert.equal(result.task.id, "task_replacement");
+    assert.equal(result.restartedFromTaskId, running.id);
+  });
+
+  it("bounds task_start peers while preserving their total", async () => {
+    const peers = Array.from({ length: 22 }, (_, index) =>
+      task({
+        id: `task_peer_${index}`,
+        status: "running",
+        startedAt: new Date(Date.UTC(2026, 0, 2, 3, 4, index)).toISOString(),
+      }),
+    ).reverse();
+    const dispatcher = await createDispatcher(peers, {
+      startTask: async () => task({ id: "task_started", status: "running" }),
+    });
+
+    const result = (await dispatcher.execute(toolCall("task_start"), {
+      command: "pnpm dev",
+    })) as {
+      otherActiveTasks: TaskRecord[];
+      otherActiveTaskCount: number;
+    };
+
+    assert.equal(result.otherActiveTaskCount, 22);
+    assert.equal(result.otherActiveTasks.length, 20);
+    assert.equal(result.otherActiveTasks[0]?.id, "task_peer_21");
+    assert.equal(result.otherActiveTasks[19]?.id, "task_peer_2");
+  });
+
+  it("returns other scoped active tasks after task_start", async () => {
+    const peer = task({ id: "task_peer", status: "ready" });
+    const terminal = task({ id: "task_terminal", status: "completed" });
+    const outside = task({
+      id: "task_outside",
+      cwd: "/tmp/other-project",
+      status: "running",
+    });
+    const dispatcher = await createDispatcher([peer, terminal, outside], {
+      startTask: async () => task({ id: "task_started", status: "running" }),
+    });
+
+    const result = (await dispatcher.execute(toolCall("task_start"), {
+      command: "pnpm dev",
+    })) as {
+      task: TaskRecord;
+      otherActiveTasks: TaskRecord[];
+      otherActiveTaskCount: number;
+    };
+
+    assert.equal(result.task.id, "task_started");
     assert.deepEqual(
-      result.tasks.map((item) => item.id),
-      [second.id, first.id],
+      result.otherActiveTasks.map((item) => item.id),
+      [peer.id],
     );
+    assert.equal(result.otherActiveTaskCount, 1);
   });
 });
 
@@ -217,6 +287,7 @@ async function createDispatcher(
   overrides: Partial<{
     restartTask: (taskId: string) => Promise<TaskRecord>;
     cancelTask: (taskId: string) => Promise<TaskRecord>;
+    startTask: (input: unknown) => Promise<TaskRecord>;
     runForegroundBashWithPromotion: (input: unknown) => Promise<unknown>;
     settings: Settings;
   }> = {},
@@ -243,7 +314,7 @@ async function createDispatcher(
         const record = tasks.getTask(taskId);
         const restarted = task({
           ...record,
-          id: "task_restarted",
+          id: "task_replacement",
           restartedFromTaskId: record.id,
           restartRootTaskId: record.restartRootTaskId ?? record.id,
           restartGeneration: (record.restartGeneration ?? 0) + 1,
@@ -272,7 +343,13 @@ async function createDispatcher(
     events: { publish: async () => undefined },
     tasks,
     pythonRuntime: {},
-    startTask: async () => task({ id: "task_started" }),
+    startTask: async (input: unknown) => {
+      const started = overrides.startTask
+        ? await overrides.startTask(input)
+        : task({ id: "task_started", status: "running" });
+      byId.set(started.id, started);
+      return started;
+    },
     getAgent: () => ({
       id: "agent_test",
       projectDir: root,

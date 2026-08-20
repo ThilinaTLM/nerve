@@ -105,11 +105,7 @@ export function activeToolNamesForAgent(
 
   const disabled = new Set<ToolName>(options.disabledToolNames ?? []);
   if (agent.mode === "planning") {
-    for (const name of [
-      "task_start",
-      "task_cancel",
-      "task_restart",
-    ] as ToolName[]) {
+    for (const name of ["task_start", "task_control"] as ToolName[]) {
       disabled.add(name);
     }
     for (const group of ["jira", "confluence"] as const) {

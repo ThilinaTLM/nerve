@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  taskCancelToolResultSchema,
+  taskControlToolResultSchema,
   taskEnvInfoSchema,
   taskLaunchConfigSchema,
   taskLogQueryResponseSchema,
   taskLogQuerySchema,
   taskRecordSchema,
-  taskRestartToolResultSchema,
   taskStartToolResultSchema,
   taskStatusToolResultSchema,
   toolCallRecordSchema,
@@ -69,17 +68,24 @@ describe("tool task result metadata", () => {
     assert.equal(
       taskStartToolResultSchema.safeParse({
         task: record(),
-        tasks: [record()],
+        otherActiveTasks: [],
+        otherActiveTaskCount: 0,
       }).success,
-      false,
+      true,
     );
     assert.equal(taskStatusToolResultSchema.safeParse({}).success, false);
     assert.equal(
-      taskCancelToolResultSchema.safeParse({ tasks: [] }).success,
+      taskControlToolResultSchema.safeParse({
+        action: "stop",
+        task: record({ status: "cancelled" }),
+      }).success,
       false,
     );
     assert.equal(
-      taskRestartToolResultSchema.safeParse({ task: record() }).success,
+      taskControlToolResultSchema.safeParse({
+        action: "restart",
+        task: record(),
+      }).success,
       false,
     );
   });

@@ -34,8 +34,7 @@ describe("read-only tool availability and permissions", () => {
       "explain_image",
       "explore",
       "task_start",
-      "task_cancel",
-      "task_restart",
+      "task_control",
     ] as const;
     for (const name of expectedExcluded) {
       assert.ok(!activeToolNames.includes(name), `expected excluded: ${name}`);

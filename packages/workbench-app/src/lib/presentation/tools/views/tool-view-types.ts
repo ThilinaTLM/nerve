@@ -269,10 +269,12 @@ export type ToolView =
     }
   | {
       kind: "task_action";
-      action: "start" | "cancel" | "restart";
+      action: "start" | "stop" | "restart";
       task?: TaskToolSummaryPayload;
       tasks?: TaskToolSummaryPayload[];
       outcomes?: TaskCancelOutcomePreviewPayload[];
+      otherActiveTasks?: TaskToolSummaryPayload[];
+      otherActiveTaskCount?: number;
       outcomeCount?: number;
       restartedFromTaskId?: string;
       previewUnavailable: boolean;

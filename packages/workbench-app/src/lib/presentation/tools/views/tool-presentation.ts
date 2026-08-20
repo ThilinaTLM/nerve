@@ -702,10 +702,7 @@ export function toolPresentation(
         ...base,
         badge: `task_${view.action}`,
         primaryArg: task?.name ? { text: task.name } : base.primaryArg,
-        meta:
-          view.action === "cancel" && (view.outcomeCount ?? 0) > 1
-            ? [{ text: plural(view.outcomeCount ?? 0, "outcome") }]
-            : [],
+        meta: [],
         detailsAction: previewDetailsAction,
       };
     }

@@ -14,7 +14,7 @@ describe("tool prompt guidelines", () => {
     assert.deepEqual(guidelines, [
       "Prefer dedicated file tools over bash for inspection and search.",
       'Write large Python outputs under os.environ["NERVE_PYTHON_ARTIFACT_DIR"]; do not pass secrets through env or use Python for long-lived or interactive processes.',
-      "Rely on asynchronous task updates; do not poll task_status or task_logs.",
+      "Before starting a server or watcher, inspect active tasks with task_status unless current task state is already known; after launch, rely on asynchronous updates instead of polling task_status or task_logs.",
     ]);
   });
 

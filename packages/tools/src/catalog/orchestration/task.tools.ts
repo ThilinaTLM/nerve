@@ -130,40 +130,32 @@ const taskLogsParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const taskCancelParameters = Type.Object(
+const taskControlParameters = Type.Object(
   {
-    taskId: Type.Optional(
-      Type.String({ description: "Task ID or stable name" }),
-    ),
-    taskIds: Type.Optional(
-      Type.Array(Type.String({ description: "Task ID or stable name" }), {
-        minItems: 1,
-        maxItems: 20,
-      }),
-    ),
-    groupId: Type.Optional(Type.String({ description: "Task group ID" })),
+    taskId: Type.String({ description: "Task ID or stable name" }),
+    action: Type.Union([Type.Literal("stop"), Type.Literal("restart")], {
+      description: "Control action",
+    }),
     signal: Type.Optional(
-      Type.Union([
-        Type.Literal("SIGTERM"),
-        Type.Literal("SIGINT"),
-        Type.Literal("SIGKILL"),
-      ]),
+      Type.Union(
+        [
+          Type.Literal("SIGTERM"),
+          Type.Literal("SIGINT"),
+          Type.Literal("SIGKILL"),
+        ],
+        { description: "Stop only: requested process signal" },
+      ),
     ),
     timeoutMs: Type.Optional(
       Type.Number({
-        description: "Cancellation timeout in milliseconds",
+        description: "Stop only: cancellation timeout in milliseconds",
         minimum: 1,
         maximum: 30_000,
       }),
     ),
-    reason: Type.Optional(Type.String({ description: "Cancellation reason" })),
-  },
-  { additionalProperties: false },
-);
-
-const taskRestartParameters = Type.Object(
-  {
-    taskId: Type.String({ description: "Task ID or stable name" }),
+    reason: Type.Optional(
+      Type.String({ description: "Stop only: cancellation reason" }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -214,27 +206,15 @@ export const taskToolDefinitions = [
     executionMode: "parallel",
   },
   {
-    name: "task_cancel",
-    group: "taskManagement",
-    baseRisk: "command",
-    traits: ["write_capable"],
-    executionKind: "host",
-    label: "task_cancel",
-    description:
-      "Cancel explicitly selected tasks by ID/name, ID/name array, or group.",
-    parameters: taskCancelParameters,
-    executionMode: "sequential",
-  },
-  {
-    name: "task_restart",
+    name: "task_control",
     group: "taskManagement",
     baseRisk: "command",
     traits: ["write_capable", "long_running"],
     executionKind: "host",
-    label: "task_restart",
+    label: "task_control",
     description:
-      "Restart one task by ID or stable name while preserving stored launch settings and environment.",
-    parameters: taskRestartParameters,
+      "Stop or restart one task by ID or stable name; restart preserves stored launch settings and environment.",
+    parameters: taskControlParameters,
     executionMode: "sequential",
   },
 ] as const satisfies readonly ToolDefinition[];
