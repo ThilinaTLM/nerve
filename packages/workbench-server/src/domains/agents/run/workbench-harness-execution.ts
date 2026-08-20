@@ -23,10 +23,7 @@ import type {
 } from "../../runs/runtime/index.js";
 import { toolNameSchema } from "@nervekit/contracts";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
-import {
-  createAgentToolsForAgent,
-  toolPromptMetadata,
-} from "../../tools/agent-tool-adapter.js";
+import { createAgentToolsForAgent } from "../../tools/agent-tool-adapter.js";
 import {
   toPublicToolCallArgsPreview,
   toToolCallTranscriptRecord,
@@ -143,7 +140,6 @@ export async function executeWorkbenchHarness(
       return composeAgentSystemPrompt(
         currentAgent,
         currentActiveToolNames,
-        toolPromptMetadata(currentActiveToolNames),
         resources,
         {
           planDir: planDirForStorageHome(this.deps.storage.paths.home),

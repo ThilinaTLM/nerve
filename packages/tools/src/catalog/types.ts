@@ -21,8 +21,6 @@ interface ToolDefinitionBase<TParams extends TObject = TObject> {
   name: ToolName;
   label: string;
   description: string;
-  promptSnippet?: string;
-  promptGuidelines?: string[];
   parameters: TParams;
   prepareArguments?: (args: unknown) => Static<TParams>;
   executionMode?: CoreToolExecutionMode;

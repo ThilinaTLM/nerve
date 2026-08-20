@@ -49,10 +49,6 @@ export const interactionToolDefinitions = [
     label: "Ask User",
     description:
       "Ask one focused free-text question when progress depends on the user's decision or unavailable context.",
-    promptSnippet: "Ask the user a focused free-text clarification question",
-    promptGuidelines: [
-      "Ask the user only for decisions or context unavailable from the repo/tools.",
-    ],
     parameters: askUserParameters,
     executionMode: "sequential",
   },
@@ -64,8 +60,6 @@ export const interactionToolDefinitions = [
     executionKind: "host",
     label: "Set Todos",
     description: "Set or replace the todo list for the current task.",
-    promptSnippet:
-      "Set the todo list for the current task, replacing any existing todos",
     parameters: todosSetParameters,
     executionMode: "sequential",
   },
@@ -77,7 +71,6 @@ export const interactionToolDefinitions = [
     executionKind: "host",
     label: "Get Todos",
     description: "Get the current todo list with completion status.",
-    promptSnippet: "Get the current todo list with completion status",
     parameters: todosGetParameters,
     executionMode: "parallel",
   },

@@ -67,16 +67,6 @@ function defaultPrompt(options: {
   };
 
   const activeTools = new Set(options.selectedTools);
-  if (
-    activeTools.has("bash") &&
-    (!activeTools.has("grep") ||
-      !activeTools.has("find") ||
-      !activeTools.has("ls"))
-  ) {
-    addToolRule(
-      "Use bash for file listing/search only when dedicated grep/find/ls tools are unavailable.",
-    );
-  }
   for (const guideline of options.promptGuidelines) addToolRule(guideline);
   if (options.mode !== "planning" && activeTools.has("plan_mode_enter")) {
     addToolRule(
@@ -85,50 +75,16 @@ function defaultPrompt(options: {
   }
 
   return promptText`
-    You are Nerve's coding agent. Work in the current project, use tools safely, and keep responses concise.
+    You are Nerve's coding agent. Work safely in the current project and keep responses concise.
 
-    ${formatToolsBlock(options.selectedTools)}
-
-    Tool schemas are authoritative for arguments and capabilities.
-
-    ${formatTaggedBulletSection("tool_rules", combineRelatedToolRules(toolRules))}
+    ${formatTaggedBulletSection("tool_rules", toolRules)}
 
     <working_rules>
-    - Keep going until the task is done or blocked by a user decision.
-    - After each tool result, choose the next concrete action.
-    - Final responses should summarize changes, validation, and remaining limits.
-    - Show file paths clearly when discussing files.
+    - Continue until the task is complete or blocked by a user decision.
+    - Use Mermaid diagrams when they clarify complex relationships or flows; otherwise prefer prose.
+    - In the final response, summarize changes, validation, and remaining limits.
     </working_rules>
   `;
-}
-
-function formatToolsBlock(selectedTools: string[]): string {
-  const tools = selectedTools.length > 0 ? selectedTools.join(", ") : "none";
-  return ["<tools>", tools, "</tools>"].join("\n");
-}
-
-function combineRelatedToolRules(items: string[]): string[] {
-  const finiteBashRule = "Use bash for finite checks, tests, and builds.";
-  const taskStartRule =
-    "Use task_start for servers, watchers, and other long-lived processes.";
-  if (!items.includes(finiteBashRule) || !items.includes(taskStartRule)) {
-    return items;
-  }
-
-  const combinedRule =
-    "Use bash for finite checks, tests, and builds; use task_start for servers, watchers, and other long-lived processes.";
-  let inserted = false;
-  const combined: string[] = [];
-  for (const item of items) {
-    if (item !== finiteBashRule && item !== taskStartRule) {
-      combined.push(item);
-      continue;
-    }
-    if (inserted) continue;
-    combined.push(combinedRule);
-    inserted = true;
-  }
-  return combined;
 }
 
 function formatTaggedBulletSection(tag: string, items: string[]): string {
@@ -144,25 +100,13 @@ function buildPlanModeInstructions(planDir: string): string {
   const planDirAttribute = escapeXml(planDir.replace(/\\/g, "/"));
   return promptText`
     <plan_mode active="true" plan_dir="${planDirAttribute}">
-    Research the problem and produce a reviewed implementation plan before making any workspace changes.
+    Research and produce a user-reviewed implementation plan before workspace changes.
 
-    Hard rules:
-    - Use only read-only tools and safe commands during research.
-    - Use write/edit tools only to create or update plan files under plan_dir.
-    - Present the final plan with plan_mode_present and obtain user approval before implementation.
-
-    Workflow:
-    1. Inspect the codebase and evaluate viable implementation options.
-    2. Ask the user only when a decision depends on their requirements or preferences.
-    3. Write a self-contained, file-specific implementation plan under plan_dir.
-    4. Resolve all open decisions using ask_user tool, then use edit tool to update the plan.
-    5. Present the finalized plan.
-
-    Plan quality:
-    - Include affected files/symbols, ordered implementation steps, validation, risks, and migrations when applicable.
-    - Leave no unresolved questions, placeholders, or decision callouts.
-    - Make the plan complete enough to serve as the implementation's single source of truth, enabling another agent to execute it without additional context.
-    - When multiple viable approaches exist, compare them and get user feedback before choosing one.
+    - Keep research read-only; write only plan files under plan_dir.
+    - Inspect the codebase, compare viable approaches, and ask the user only about requirement-dependent decisions.
+    - Write a self-contained plan with affected files/symbols, ordered steps, validation, risks, and migrations when applicable.
+    - Resolve every decision; leave no open questions or placeholders.
+    - Present the plan with plan_mode_present and obtain approval before implementation.
     </plan_mode>
   `;
 }

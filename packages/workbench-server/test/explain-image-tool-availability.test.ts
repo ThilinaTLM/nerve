@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AgentRecord } from "@nervekit/contracts";
-import {
-  activeToolNamesForAgent,
-  toolPromptMetadata,
-} from "../src/domains/tools/agent-tool-adapter.js";
+import { activeToolNamesForAgent } from "../src/domains/tools/agent-tool-adapter.js";
 
 function agent(): AgentRecord {
   return {
@@ -61,14 +58,5 @@ describe("explain_image availability", () => {
       ),
       false,
     );
-  });
-
-  it("leaves no prompt metadata when disabled", () => {
-    const names = active({ disabled: true, fallbackReady: true });
-    const metadata = toolPromptMetadata(names);
-    assert.equal(names.includes("explain_image"), false);
-    assert.equal(metadata.activeToolNames.includes("explain_image"), false);
-    assert.equal("explain_image" in metadata.snippets, false);
-    assert.equal(JSON.stringify(metadata).includes("explain_image"), false);
   });
 });

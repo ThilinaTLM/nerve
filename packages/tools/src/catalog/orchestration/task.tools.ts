@@ -186,10 +186,6 @@ export const taskToolDefinitions = [
     label: "task_start",
     description:
       "Start one supervised background process for a server, watcher, or other long-lived Bash-compatible command.",
-    promptSnippet: "Start one supervised long-lived background process",
-    promptGuidelines: [
-      "Use task_start for servers, watchers, and other known long-lived processes; use bash for finite commands. Rely on asynchronous terminal updates and do not poll task_status or task_logs.",
-    ],
     parameters: taskStartParameters,
     executionMode: "sequential",
   },
@@ -202,7 +198,6 @@ export const taskToolDefinitions = [
     label: "task_status",
     description:
       "Discover tasks or inspect task state once. Defaults to active tasks in the current scope; explicit selectors include terminal tasks.",
-    promptSnippet: "Discover tasks and inspect current task state",
     parameters: taskStatusParameters,
     executionMode: "parallel",
   },
@@ -215,7 +210,6 @@ export const taskToolDefinitions = [
     label: "task_logs",
     description:
       "Inspect one explicitly selected task's captured output for recent logs, diagnostics, warnings, or incremental output.",
-    promptSnippet: "Inspect logs for one selected background task",
     parameters: taskLogsParameters,
     executionMode: "parallel",
   },
@@ -228,7 +222,6 @@ export const taskToolDefinitions = [
     label: "task_cancel",
     description:
       "Cancel explicitly selected tasks by ID/name, ID/name array, or group.",
-    promptSnippet: "Cancel explicitly selected supervised tasks",
     parameters: taskCancelParameters,
     executionMode: "sequential",
   },
@@ -241,8 +234,6 @@ export const taskToolDefinitions = [
     label: "task_restart",
     description:
       "Restart one task by ID or stable name while preserving stored launch settings and environment.",
-    promptSnippet:
-      "Restart one supervised task with its stored launch settings",
     parameters: taskRestartParameters,
     executionMode: "sequential",
   },

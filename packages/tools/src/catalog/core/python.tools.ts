@@ -44,14 +44,7 @@ export const pythonToolDefinitions = [
     executor: executePython,
     label: "python_exec",
     description:
-      "Execute inline Python or a script. Returns bounded output plus artifact/transcript paths when needed.",
-    promptSnippet:
-      "Execute short Python snippets or scripts for parsing, calculations, data inspection, and one-off transformations.",
-    promptGuidelines: [
-      "Use python_exec for short scripts/data work; provide exactly one of code or path.",
-      'Write large outputs under os.environ["NERVE_PYTHON_ARTIFACT_DIR"]; never pass secrets via env.',
-      "Do not use python_exec for servers, watchers, daemons, or scripts that wait for stdin.",
-    ],
+      "Execute inline Python or a script with bounded output and artifact support.",
     parameters: pythonParameters,
     executionMode: "sequential",
   },

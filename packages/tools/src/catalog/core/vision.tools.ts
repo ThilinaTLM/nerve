@@ -30,11 +30,6 @@ export const visionToolDefinitions = [
     label: "Explain Image",
     description:
       "Ask the vision model configured in Nerve Settings to explain an image as detailed text.",
-    promptSnippet:
-      "Explain an image path with the configured vision model when you cannot inspect images directly",
-    promptGuidelines: [
-      "Use explain_image for image paths you need to understand. Include a focused prompt when the user asks about a specific visual detail.",
-    ],
     parameters: explainImageParameters,
     executionMode: "sequential",
   },

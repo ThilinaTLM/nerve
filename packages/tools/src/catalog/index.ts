@@ -14,6 +14,7 @@ export * from "./manifest.js";
 export * from "./orchestration/explore.tools.js";
 export * from "./orchestration/plan-mode.tools.js";
 export * from "./orchestration/task.tools.js";
+export * from "./prompt-guidelines.js";
 export * from "./risk.js";
 export * from "./types.js";
 

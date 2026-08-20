@@ -43,12 +43,7 @@ export const shellToolDefinitions = [
     classifyRisk: classifyCommandRisk,
     label: "bash",
     description:
-      "Run a finite Bash-compatible shell command. On Windows, Nerve resolves bash.exe such as Git Bash. Long commands may be promoted to a background task; use timeout to cap runtime.",
-    promptSnippet: "Run awaited shell commands",
-    promptGuidelines: [
-      "Prefer read/grep/find/ls over shell for file inspection and search.",
-      "Use bash for finite checks, tests, and builds. Commands run in a Bash-compatible shell; on Windows this is typically Git Bash.",
-    ],
+      "Run a finite Bash-compatible command; long commands may become supervised tasks.",
     parameters: bashParameters,
     executionMode: "sequential",
   },
