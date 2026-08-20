@@ -147,6 +147,59 @@ describe("native managed process facade", () => {
   });
 
   it(
+    "preserves detached descendants after the root exits",
+    { timeout: 5_000 },
+    async () => {
+      const managed = spawnManagedProcess(node, [
+        "-e",
+        `const { spawn } = require("node:child_process");
+       const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+       console.log(child.pid);
+       child.unref();`,
+      ]);
+      const childPid = await firstOutputNumber(managed.stdout);
+      try {
+        assert.equal((await managed.closed).exitCode, 0);
+        assert.equal(await processIsAlive(childPid), true);
+      } finally {
+        try {
+          process.kill(childPid, "SIGKILL");
+        } catch {
+          // The descendant may have exited independently.
+        }
+        await waitForProcessExit(childPid);
+      }
+    },
+  );
+
+  it(
+    "terminates inherited-pipe descendants after the root exits",
+    { timeout: 5_000 },
+    async () => {
+      const managed = spawnManagedProcess(node, [
+        "-e",
+        `const { spawn } = require("node:child_process");
+       const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: ["ignore", 1, 2] });
+       console.log(child.pid);
+       child.unref();`,
+      ]);
+      const childPid = await firstOutputNumber(managed.stdout);
+      let closed = false;
+      void managed.closed.then(() => {
+        closed = true;
+      });
+
+      await managed.exited;
+      assert.equal(closed, false);
+      const result = await managed.terminate("SIGKILL");
+      assert.equal(result.attempted, true);
+      assert.ok(["job-object", "process-group"].includes(result.method));
+      await managed.closed;
+      await waitForProcessExit(childPid);
+    },
+  );
+
+  it(
     "terminates a managed process tree promptly",
     { timeout: 5_000 },
     async () => {

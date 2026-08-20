@@ -59,6 +59,15 @@ impl OwnedJob {
             TerminationResult::failed(TerminationMethod::JobObject, error.to_string())
         }
     }
+
+    pub(crate) fn release(self) {
+        if configure_kill_on_close(self.0, false).is_err() {
+            // Releasing a kill-on-close job after natural completion must never
+            // kill detached descendants. Keep the handle until process exit if
+            // Windows unexpectedly refuses the limit update.
+            std::mem::forget(self);
+        }
+    }
 }
 
 enum OpenedProcess {
@@ -240,11 +249,18 @@ fn create_job() -> Result<OwnedJob, String> {
         return Err(std::io::Error::last_os_error().to_string());
     }
     let job = OwnedJob(handle);
+    configure_kill_on_close(job.0, true)?;
+    Ok(job)
+}
+
+fn configure_kill_on_close(handle: HANDLE, enabled: bool) -> Result<(), String> {
     let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
-    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if enabled {
+        limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    }
     let configured = unsafe {
         SetInformationJobObject(
-            job.0,
+            handle,
             JobObjectExtendedLimitInformation,
             &limits as *const _ as *const c_void,
             size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
@@ -253,7 +269,7 @@ fn create_job() -> Result<OwnedJob, String> {
     if configured == 0 {
         return Err(std::io::Error::last_os_error().to_string());
     }
-    Ok(job)
+    Ok(())
 }
 
 fn resume_process_thread(pid: u32) -> Result<(), String> {
