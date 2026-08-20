@@ -145,6 +145,11 @@ const filledPairs = [
 const semanticTokens = ["success", "warning", "info", "destructive"] as const;
 const surfaceTokens = ["background", "card", "popover", "sidebar"] as const;
 const subtleSurfaceAlpha = 0.08;
+const maximumSurfaceChroma: Record<ColorMode, number> = {
+  light: 0.018,
+  dark: 0.025,
+};
+const minimumPrimaryChroma = 0.09;
 
 describe("theme text contrast", () => {
   it("keeps filled semantic token pairs at WCAG AA contrast", () => {
@@ -186,6 +191,26 @@ describe("theme text contrast", () => {
           );
         }
       }
+    }
+  });
+
+  it("keeps large surfaces subdued and primary accents identifiable", () => {
+    for (const [themeName, tokens] of Object.entries(themes) as [
+      ThemeName,
+      Record<TokenName, Oklch>,
+    ][]) {
+      const mode: ColorMode = themeName.endsWith("-light") ? "light" : "dark";
+      for (const surfaceName of surfaceTokens) {
+        const chroma = tokens[surfaceName][1];
+        assert.ok(
+          chroma <= maximumSurfaceChroma[mode],
+          `${themeName} ${surfaceName} chroma ${chroma} exceeds the subdued ${mode} surface limit ${maximumSurfaceChroma[mode]}`,
+        );
+      }
+      assert.ok(
+        tokens.primary[1] >= minimumPrimaryChroma,
+        `${themeName} primary chroma ${tokens.primary[1]} is below the identifiable accent minimum ${minimumPrimaryChroma}`,
+      );
     }
   });
 
