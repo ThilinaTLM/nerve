@@ -83,7 +83,7 @@ describe("daemon supervisor", () => {
     await world.scheduler.advance(800);
     world.children[0]?.emitOutput(
       "stderr",
-      'NERVE_STARTUP_PROGRESS {"type":"nerve.startup.progress","phase":"storage-migration","message":"Upgrading workspace storage"}\n',
+      'NERVE_STARTUP_PROGRESS {"type":"nerve.startup.progress","kind":"heartbeat","phase":"storage-migration","message":"Upgrading workspace storage"}\n',
     );
     await world.scheduler.advance(600);
     const rejected = assert.rejects(startup, (error) => {
@@ -95,6 +95,37 @@ describe("daemon supervisor", () => {
     world.children[0]?.exit(1);
     await world.scheduler.advance(200);
     await rejected;
+  });
+
+  it("bounds a continuously heartbeating startup with an absolute ceiling", async () => {
+    const world = fakeDaemonWorld({ discovery: [undefined] });
+    let uiProgress = 0;
+    const supervisor = new DaemonSupervisor(
+      {
+        mode: "local",
+        owned: true,
+        paths,
+        serverMain: "/opt/nerve/server/main.js",
+        launchEnv: { ELECTRON_RUN_AS_NODE: "1" },
+        readinessTimeoutMs: 1_000,
+        onStartupProgress: () => {
+          uiProgress += 1;
+        },
+      },
+      world.ports,
+    );
+    const startup = supervisor.startOwned();
+    const rejected = assert.rejects(startup, /absolute startup ceiling/);
+    for (let elapsed = 0; elapsed < 15 * 60_000; elapsed += 800) {
+      world.children[0]?.emitOutput(
+        "stderr",
+        'NERVE_STARTUP_PROGRESS {"type":"nerve.startup.progress","kind":"heartbeat","phase":"storage-migration","message":"Upgrading workspace storage"}\n',
+      );
+      await world.scheduler.advance(800);
+    }
+    await rejected;
+    assert.equal(uiProgress, 0, "heartbeats do not repeat loading text");
+    assert.equal(world.crashReports[0]?.context?.timeoutKind, "absolute");
   });
 
   it("restarts after an owned child exit and reports crash details", async () => {

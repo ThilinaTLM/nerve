@@ -263,8 +263,12 @@ export class ToolService {
   }
 
   /** Whether the tool-call records were loaded from the persisted snapshot. */
-  get toolCallHydrationSource(): "files" {
+  get toolCallHydrationSource(): "sqlite" | "native" | "files" {
     return this.toolCallRepository.hydrationSource;
+  }
+
+  get toolCallHydrationStats() {
+    return this.toolCallRepository.hydrationStatsValue;
   }
 
   listApprovals(status?: ApprovalRecord["status"]): ApprovalRecord[] {
@@ -360,6 +364,10 @@ export class ToolService {
         }),
       )
       .filter((question) => status === undefined || question.status === status);
+  }
+
+  invalidateHydrationSnapshot(): void {
+    this.toolCallRepository.invalidateHydrationSnapshot();
   }
 
   async removeRecordsForConversations(

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -64,7 +64,7 @@ async function createRemoteFixture(): Promise<{
     createdAt: "",
     updatedAt: "",
   };
-  const service = new GitService(() => project);
+  const service = new GitService(() => project, { executionHome: root });
   return { root, remoteDir, localDir, service };
 }
 
@@ -77,6 +77,17 @@ async function withRemoteFixture(
   try {
     await fn(fixture);
   } finally {
+    try {
+      const metadata = JSON.parse(
+        await readFile(
+          join(fixture.root, "execution-runtime", "worker.json"),
+          "utf8",
+        ),
+      ) as { pid: number };
+      process.kill(metadata.pid, "SIGTERM");
+    } catch {
+      // The worker is optional until the first Git mutation.
+    }
     await rm(fixture.root, { recursive: true, force: true });
   }
 }

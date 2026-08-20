@@ -8,6 +8,7 @@ import {
   DAEMON_DIAGNOSTIC_GRACE_MS,
   DAEMON_HEALTH_POLL_INTERVAL_MS,
   DAEMON_MAX_RESTART_ATTEMPTS,
+  DAEMON_MIN_ABSOLUTE_STARTUP_TIMEOUT_MS,
   DAEMON_READY_POLL_INTERVAL_MS,
   DAEMON_SHUTDOWN_TIMEOUT_MS,
   DAEMON_UNHEALTHY_CONFIRMATION_MS,
@@ -222,12 +223,20 @@ export class DaemonSupervisor {
     const { paths, serverMain, launchEnv, launchArgs, readinessTimeoutMs } =
       this.requireOwnedConfig();
     const output = new OutputBuffer();
-    let deadline = this.ports.scheduler.now() + readinessTimeoutMs;
+    const startupStartedAt = this.ports.scheduler.now();
+    let inactivityDeadline = startupStartedAt + readinessTimeoutMs;
+    const absoluteTimeoutMs = Math.max(
+      readinessTimeoutMs,
+      DAEMON_MIN_ABSOLUTE_STARTUP_TIMEOUT_MS,
+    );
+    const absoluteDeadline = startupStartedAt + absoluteTimeoutMs;
+    let lastProgress: DaemonStartupProgress | undefined;
     const progress = new DaemonStartupProgressDecoder((event) => {
-      // Treat the configured startup timeout as an inactivity timeout while
-      // the daemon reports legitimate long-running startup work.
-      deadline = this.ports.scheduler.now() + readinessTimeoutMs;
-      this.config.onStartupProgress?.(event);
+      // Heartbeats prove that startup is alive and refresh only the inactivity
+      // deadline. The immutable absolute deadline still bounds async hangs.
+      inactivityDeadline = this.ports.scheduler.now() + readinessTimeoutMs;
+      lastProgress = event;
+      if (event.kind === "progress") this.config.onStartupProgress?.(event);
     });
     this.ports.logger.log("info", "Starting owned local daemon", {
       context: { serverMain, dataDir: paths.home, readinessTimeoutMs },
@@ -259,7 +268,10 @@ export class DaemonSupervisor {
     });
     this.child = child;
 
-    while (this.ports.scheduler.now() < deadline) {
+    while (
+      this.ports.scheduler.now() < inactivityDeadline &&
+      this.ports.scheduler.now() < absoluteDeadline
+    ) {
       if (child.spawnError) {
         const crashReportPath = this.writeOwnedCrashReport(
           "startupError",
@@ -303,23 +315,43 @@ export class DaemonSupervisor {
       await this.ports.scheduler.delay(DAEMON_READY_POLL_INTERVAL_MS);
     }
 
+    const absoluteTimeoutReached =
+      this.ports.scheduler.now() >= absoluteDeadline;
+    const timeoutMessage = absoluteTimeoutReached
+      ? `Nerve daemon did not become ready within the ${absoluteTimeoutMs}ms absolute startup ceiling.`
+      : `Nerve daemon stopped reporting startup activity for ${readinessTimeoutMs}ms.`;
     await this.stopOwnedChild(child);
     const crashReportPath = this.writeOwnedCrashReport(
       "startupTimeout",
-      `Nerve daemon did not become ready within ${readinessTimeoutMs}ms.`,
-      { child, context: { serverMain, readinessTimeoutMs } },
+      timeoutMessage,
+      {
+        child,
+        context: {
+          serverMain,
+          readinessTimeoutMs,
+          absoluteTimeoutMs,
+          timeoutKind: absoluteTimeoutReached ? "absolute" : "inactivity",
+          lastProgress,
+        },
+      },
     );
-    const error = daemonStartupError(
-      `Nerve daemon did not become ready within ${readinessTimeoutMs}ms.`,
-      output,
-      { dataDir: paths.home, readinessTimeoutMs, crashReportPath },
-    );
+    const error = daemonStartupError(timeoutMessage, output, {
+      dataDir: paths.home,
+      readinessTimeoutMs,
+      absoluteTimeoutMs,
+      timeoutKind: absoluteTimeoutReached ? "absolute" : "inactivity",
+      lastProgress,
+      crashReportPath,
+    });
     this.ports.logger.log("error", "Owned local daemon startup timed out", {
       error,
       context: {
         output: output.tail(),
         dataDir: paths.home,
         readinessTimeoutMs,
+        absoluteTimeoutMs,
+        timeoutKind: absoluteTimeoutReached ? "absolute" : "inactivity",
+        lastProgress,
         crashReportPath,
       },
     });

@@ -51,7 +51,23 @@ describe("canonical ToolCallRepository", () => {
     first.index.close();
     const second = await repository(home);
     await second.repository.hydrate();
+    assert.equal(second.repository.hydrationSource, "sqlite");
     assert.equal(second.repository.get("tool_test").revision, 1);
+    second.index.close();
+  });
+
+  it("rebuilds canonical state when the disposable snapshot is invalid", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-repository-"));
+    roots.push(home);
+    const first = await repository(home);
+    await first.repository.create(toolCall("tool_rebuild"));
+    first.index.invalidateToolCallHydrationSnapshot();
+    first.index.close();
+
+    const second = await repository(home);
+    await second.repository.hydrate();
+    assert.notEqual(second.repository.hydrationSource, "sqlite");
+    assert.equal(second.repository.get("tool_rebuild").id, "tool_rebuild");
     second.index.close();
   });
 

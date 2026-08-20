@@ -59,8 +59,9 @@ test("cancels a worker-owned process tree", async () => {
     terminationGraceMs: 100,
     belowNormalPriority: true,
   });
+  const subscription = client.subscribe("test_cancel");
   const cancellation = await client.cancel("test_cancel", "SIGKILL");
   assert.equal(cancellation.attempted, true);
-  const terminal = await client.subscribe("test_cancel").settled;
+  const terminal = await subscription.settled;
   assert.equal(terminal.status, "failed");
 });

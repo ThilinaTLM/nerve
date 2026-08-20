@@ -74,7 +74,27 @@ interface NativeProcessHandle {
   terminate(signal?: string): TerminationResult;
 }
 
+export interface NativeToolCallScanFile {
+  conversationId: string;
+  toolCallId: string;
+  bytes: Buffer;
+}
+
+export interface NativeToolCallScanBatch {
+  files: NativeToolCallScanFile[];
+  bytes: number;
+  done: boolean;
+}
+
+interface NativeToolCallScannerBinding {
+  nextBatch(
+    maxFiles: number,
+    maxBytes: number,
+  ): Promise<NativeToolCallScanBatch>;
+}
+
 interface NativeBinding {
+  NativeToolCallScanner: new (home: string) => NativeToolCallScannerBinding;
   inspectManagedTarget(target: ManagedTarget): InspectionResult;
   readGitRepositoryInfo(path: string): Promise<NativeGitRepositoryInfoResult>;
   readGitSnapshot(
@@ -113,6 +133,25 @@ interface NativeBinding {
 }
 
 const binding = loadBinding();
+export class CanonicalToolCallScanner {
+  private readonly scanner: NativeToolCallScannerBinding;
+
+  constructor(home: string) {
+    this.scanner = new binding.NativeToolCallScanner(home);
+  }
+
+  nextBatch(
+    maxFiles = 256,
+    maxBytes = 4 * 1024 * 1024,
+  ): Promise<NativeToolCallScanBatch> {
+    if (!Number.isInteger(maxFiles) || maxFiles <= 0)
+      throw new Error("maxFiles must be a positive integer.");
+    if (!Number.isInteger(maxBytes) || maxBytes <= 0)
+      throw new Error("maxBytes must be a positive integer.");
+    return this.scanner.nextBatch(maxFiles, maxBytes);
+  }
+}
+
 const childProcesses = new WeakMap<ChildProcess, ManagedProcess>();
 
 export type NativeGitErrorCategory =

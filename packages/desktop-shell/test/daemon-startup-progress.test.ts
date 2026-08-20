@@ -12,13 +12,14 @@ describe("daemon startup progress", () => {
 
     decoder.push("ordinary stderr\nNERVE_STARTUP_PRO");
     decoder.push(
-      'GRESS {"type":"nerve.startup.progress","phase":"storage-migration",',
+      'GRESS {"type":"nerve.startup.progress","kind":"progress","phase":"storage-migration",',
     );
     decoder.push('"message":"Upgrading workspace storage"}\n');
 
     assert.deepEqual(received, [
       {
         type: "nerve.startup.progress",
+        kind: "progress",
         phase: "storage-migration",
         message: "Upgrading workspace storage",
       },

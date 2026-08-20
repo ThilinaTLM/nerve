@@ -28,6 +28,10 @@ export class ConversationLifecycleService {
     private readonly entryRepository: EntryRepository,
     private readonly harnessStorage: ConversationHarnessStorage,
     private readonly removeAgent: (agentId: string) => Promise<void>,
+    private readonly invalidateToolRecords: () => void,
+    private readonly removeToolRecords: (
+      conversationIds: Iterable<string>,
+    ) => Promise<void>,
   ) {}
 
   async createConversation(
@@ -80,10 +84,12 @@ export class ConversationLifecycleService {
     )) {
       await this.removeAgent(agent.id);
     }
+    this.invalidateToolRecords();
+    await this.conversationRepository.remove(conversationId);
+    await this.removeToolRecords([conversationId]);
     this.state.conversations.delete(conversationId);
     this.state.entries.delete(conversationId);
     this.index.removeConversation(conversationId);
-    await this.conversationRepository.remove(conversationId);
     await this.events.publish("conversation.deleted", {
       conversationId,
       projectId: conversation.projectId,

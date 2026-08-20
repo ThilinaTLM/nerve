@@ -14,6 +14,8 @@ export const DAEMON_RESTART_BACKOFF_MS = Object.freeze([
 export const DAEMON_MAX_RESTART_ATTEMPTS = 5;
 export const DAEMON_HEALTHY_RESET_MS = 60_000;
 export const DAEMON_READY_POLL_INTERVAL_MS = 200;
+/** Absolute ceiling for a live but unresolved startup. */
+export const DAEMON_MIN_ABSOLUTE_STARTUP_TIMEOUT_MS = 15 * 60_000;
 
 /** Backoff delay for a 1-based restart attempt, clamped to the last value. */
 export function restartBackoffMs(attempt: number): number {

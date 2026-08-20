@@ -349,6 +349,9 @@ export function composeRuntime(
     entryRepository,
     services.harnessStorage,
     removeAgentInternal,
+    () => services.tools.invalidateHydrationSnapshot(),
+    (conversationIds) =>
+      services.tools.removeRecordsForConversations(conversationIds),
   );
   services.conversationQuery = new ConversationQueryService({
     events,

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { DaemonStartupProgress } from "@nervekit/contracts";
 import type { ChildExit } from "./types.js";
 
 const MAX_OUTPUT_LINES = 200;
@@ -60,12 +61,22 @@ export function daemonStartupError(
   context?: {
     dataDir?: string;
     readinessTimeoutMs?: number;
+    absoluteTimeoutMs?: number;
+    timeoutKind?: "inactivity" | "absolute";
+    lastProgress?: DaemonStartupProgress;
     crashReportPath?: string;
   },
 ): DaemonStartupError {
   const diagnostics = [
     context?.readinessTimeoutMs
       ? `Startup timeout: ${context.readinessTimeoutMs}ms`
+      : undefined,
+    context?.absoluteTimeoutMs
+      ? `Absolute startup ceiling: ${context.absoluteTimeoutMs}ms`
+      : undefined,
+    context?.timeoutKind ? `Timeout kind: ${context.timeoutKind}` : undefined,
+    context?.lastProgress
+      ? `Last startup phase: ${context.lastProgress.phase} (${context.lastProgress.message})`
       : undefined,
     context?.dataDir ? `Data dir: ${context.dataDir}` : undefined,
     context?.dataDir

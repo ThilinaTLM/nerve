@@ -3,11 +3,13 @@ export const DAEMON_STARTUP_PROGRESS_PREFIX = "NERVE_STARTUP_PROGRESS ";
 
 export const daemonStartupProgressSchema = z.object({
   type: z.literal("nerve.startup.progress"),
+  kind: z.enum(["progress", "heartbeat"]),
   phase: z.enum([
+    "starting",
     "storage-check",
     "storage-migration",
-    "starting",
-    "hydrating",
+    "execution-worker",
+    "runtime-hydration",
     "starting-server",
   ]),
   message: z.string().min(1),

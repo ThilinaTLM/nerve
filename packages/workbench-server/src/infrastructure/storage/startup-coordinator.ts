@@ -160,6 +160,7 @@ async function runMigrations(
     reportProgress: ({ description }) => {
       options.reportStartupProgress?.({
         type: "nerve.startup.progress",
+        kind: "progress",
         phase: "storage-migration",
         message: description,
       });

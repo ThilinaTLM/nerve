@@ -23,7 +23,11 @@ describe("tool service lifecycle", () => {
         publish: async (type: string, data: unknown) =>
           events.push({ type, data }),
       } as never,
-      { upsertToolCall: () => undefined } as never,
+      {
+        upsertToolCall: () => undefined,
+        invalidateToolCallHydrationSnapshot: () => undefined,
+        markToolCallHydrationSnapshotReady: () => undefined,
+      } as never,
       {} as never,
       {
         runtimeForProject: async () => undefined,
@@ -202,6 +206,8 @@ function buildToolService(
     }) as never,
     {
       upsertToolCall: () => undefined,
+      invalidateToolCallHydrationSnapshot: () => undefined,
+      markToolCallHydrationSnapshotReady: () => undefined,
       upsertApproval: () => undefined,
       writeToolCallSnapshot: () => undefined,
       isToolCallSnapshotValid: () => ({ valid: false, reason: "no-meta" }),

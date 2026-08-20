@@ -4,10 +4,7 @@ import type { AddressInfo } from "node:net";
 import { networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { serve } from "@hono/node-server";
-import {
-  DAEMON_STARTUP_PROGRESS_PREFIX,
-  type DaemonStartupProgress,
-} from "@nervekit/contracts";
+import type { DaemonStartupProgress } from "@nervekit/contracts";
 import { ExecutionWorkerClient } from "@nervekit/native";
 import WebSocket, { WebSocketServer } from "ws";
 import {
@@ -44,6 +41,7 @@ import {
   resolveDataDir,
   writeDaemonFile,
 } from "./infrastructure/storage/index.js";
+import { StartupProgressReporter } from "./infrastructure/startup/startup-progress.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
 import { installProtocolWebSocketUpgrade } from "./protocol/protocol-websocket.js";
 
@@ -105,69 +103,25 @@ async function appendStartupRecord(
   }
 }
 
-let startupHeartbeat: ReturnType<typeof setInterval> | undefined;
-let startupPhase: "starting" | "hydrating" | "starting-server" = "starting";
-let startupMessage = "Preparing Nerve services";
-function reportStartupProgress(phase: string, message: string): void {
-  process.stderr.write(
-    `${DAEMON_STARTUP_PROGRESS_PREFIX}${JSON.stringify({
-      type: "nerve.startup.progress",
-      phase,
-      message,
-    })}\n`,
-  );
-}
-
-/**
- * Keep the desktop readiness window open while the daemon is still starting.
- * The desktop supervisor extends its readiness deadline on every startup
- * progress event, so an actively-progressing startup (including slow
- * migrations or a large hydration) is never killed prematurely.
- */
-function startStartupHeartbeat(): void {
-  if (startupHeartbeat) return;
-  reportStartupProgress(startupPhase, startupMessage);
-  startupHeartbeat = setInterval(
-    () => reportStartupProgress(startupPhase, startupMessage),
-    5_000,
-  );
-  startupHeartbeat.unref();
-}
-
-function setStartupPhase(
-  phase: "starting" | "hydrating" | "starting-server",
-  message: string,
-): void {
-  startupPhase = phase;
-  startupMessage = message;
-  reportStartupProgress(phase, message);
-}
-
-function stopStartupHeartbeat(): void {
-  if (startupHeartbeat) {
-    clearInterval(startupHeartbeat);
-    startupHeartbeat = undefined;
-  }
-}
+const startupProgress = new StartupProgressReporter();
 
 async function main() {
   prepareEnterpriseNetworkEnvironment();
   const dataDir = resolveDataDir();
   process.env.NERVE_HOME ??= dataDir;
-  startStartupHeartbeat();
+  startupProgress.start();
   const storageStartedAt = performance.now();
   const storage = await initializeStorage(dataDir, {
-    reportStartupProgress: (progress: DaemonStartupProgress) => {
-      process.stderr.write(
-        `${DAEMON_STARTUP_PROGRESS_PREFIX}${JSON.stringify(progress)}\n`,
-      );
-    },
+    reportStartupProgress: (progress: DaemonStartupProgress) =>
+      startupProgress.update(progress.phase, progress.message),
   });
   const storageDurationMs = Math.round(performance.now() - storageStartedAt);
+  startupProgress.update("execution-worker", "Starting the execution worker");
   const executionWorker = await ExecutionWorkerClient.connect(
     storage.paths.home,
   );
   await executionWorker.health();
+  startupProgress.update("runtime-hydration", "Hydrating workspace state");
   installNodeDiagnosticReports(dataDir);
   runtimeMonitor = installDaemonRuntimeMonitor(dataDir);
   const resolvedConfiguration = resolveApplicationConfiguration({
@@ -247,7 +201,7 @@ async function main() {
   );
   const runtimeCapabilitiesReady = state.registry.refreshRuntimeCapabilities();
   const eventHydrateStartedAt = Date.now();
-  setStartupPhase("hydrating", "Hydrating workspace state");
+  startupProgress.update("runtime-hydration", "Hydrating workspace state");
   await state.events.hydrate();
   const eventsHydrateDurationMs = Date.now() - eventHydrateStartedAt;
   const workspaceBounds = await state.events.bounds("workspace");
@@ -288,7 +242,7 @@ async function main() {
     });
   }
   const app = createApp(state);
-  setStartupPhase("starting-server", "Starting the daemon server");
+  startupProgress.update("starting-server", "Starting the daemon server");
 
   const server = serve(
     {
@@ -323,7 +277,7 @@ async function main() {
           pid: process.pid,
         },
       });
-      stopStartupHeartbeat();
+      startupProgress.stop();
       await appendStartupRecord(storage.paths.home, {
         type: "nerve.startup",
         source: "daemon",
@@ -349,6 +303,7 @@ async function main() {
         taskNotificationsDurationMs:
           registryTimings.taskNotificationsDurationMs,
         toolCallHydrationSource: registryTimings.toolCallHydrationSource,
+        toolCallHydrationStats: registryTimings.toolCallHydrationStats,
       });
       performanceMonitor ??= installDaemonPerformanceMonitor({
         enabled: performanceDiagnosticsEnabled,
@@ -419,7 +374,7 @@ async function main() {
   const shutdown = async (signal: NodeJS.Signals) => {
     if (shuttingDown) return;
     shuttingDown = true;
-    stopStartupHeartbeat();
+    startupProgress.stop();
     performanceMonitor?.stop();
     performanceMonitor = undefined;
     const startedAt = Date.now();
@@ -497,7 +452,7 @@ function installCrashGuards(
   ) => {
     if (exiting) return;
     exiting = true;
-    stopStartupHeartbeat();
+    startupProgress.stop();
     // Always surface to stderr (captured by the desktop daemon output buffer).
     console.error(`[nerve] fatal ${kind}:`, error);
     const crashReportPath = writeCrashReportSync(dataDir, {
@@ -600,7 +555,7 @@ function formatHostForUrl(host: string): string {
 }
 
 main().catch((error) => {
-  stopStartupHeartbeat();
+  startupProgress.stop();
   console.error(error);
   const dataDir = resolveDataDir();
   installNodeDiagnosticReports(dataDir);

@@ -623,9 +623,12 @@ function openSocket(
   });
 }
 
+const socketFrameRemainders = new WeakMap<Socket, Buffer>();
+
 function readFrame(socket: Socket, timeoutMs: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    let buffered = Buffer.alloc(0);
+    let buffered = socketFrameRemainders.get(socket) ?? Buffer.alloc(0);
+    socketFrameRemainders.delete(socket);
     let expected: number | undefined;
     const timeout = setTimeout(
       () => finish(new Error("Execution worker response timed out.")),
@@ -638,9 +641,7 @@ function readFrame(socket: Socket, timeoutMs: number): Promise<Buffer> {
       if (error) reject(error);
       else resolve(value ?? Buffer.alloc(0));
     };
-    const onError = (error: Error) => finish(error);
-    const onData = (chunk: Buffer) => {
-      buffered = Buffer.concat([buffered, chunk]);
+    const consume = () => {
       if (expected === undefined && buffered.length >= 4) {
         expected = buffered.readUInt32BE(0);
         buffered = buffered.subarray(4);
@@ -652,11 +653,20 @@ function readFrame(socket: Socket, timeoutMs: number): Promise<Buffer> {
         }
       }
       if (expected !== undefined && buffered.length >= expected) {
-        finish(undefined, buffered.subarray(0, expected));
+        const frame = buffered.subarray(0, expected);
+        const remainder = buffered.subarray(expected);
+        if (remainder.length > 0) socketFrameRemainders.set(socket, remainder);
+        finish(undefined, frame);
       }
+    };
+    const onError = (error: Error) => finish(error);
+    const onData = (chunk: Buffer) => {
+      buffered = Buffer.concat([buffered, chunk]);
+      consume();
     };
     socket.on("data", onData);
     socket.once("error", onError);
+    consume();
   });
 }
 

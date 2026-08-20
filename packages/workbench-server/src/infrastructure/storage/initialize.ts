@@ -79,30 +79,19 @@ export async function initializeStorage(
   } = {},
 ): Promise<InitializedStorage> {
   const paths = storagePaths(home);
-  let currentProgress: DaemonStartupProgress = {
+  const reportProgress = (progress: DaemonStartupProgress) =>
+    options.reportStartupProgress?.(progress);
+  reportProgress({
     type: "nerve.startup.progress",
+    kind: "progress",
     phase: "storage-check",
     message: "Checking workspace storage",
-  };
-  const reportProgress = (progress: DaemonStartupProgress) => {
-    currentProgress = progress;
-    options.reportStartupProgress?.(progress);
-  };
-  reportProgress(currentProgress);
-  const heartbeat = options.reportStartupProgress
-    ? setInterval(() => reportProgress(currentProgress), 5_000)
-    : undefined;
-  heartbeat?.unref();
-  let migrationReport: MigrationReport;
-  try {
-    migrationReport = (
-      await coordinateStorageStartup(paths.home, {
-        reportStartupProgress: reportProgress,
-      })
-    ).migrationReport;
-  } finally {
-    if (heartbeat) clearInterval(heartbeat);
-  }
+  });
+  const migrationReport = (
+    await coordinateStorageStartup(paths.home, {
+      reportStartupProgress: reportProgress,
+    })
+  ).migrationReport;
   await chmod(paths.home, 0o700);
   for (const subdir of dataSubdirs) {
     const mode = subdir === "auth" || subdir === "keys" ? 0o700 : 0o755;

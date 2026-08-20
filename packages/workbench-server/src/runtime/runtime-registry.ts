@@ -197,6 +197,7 @@ export class RuntimeRegistry {
       rebuildIndex: () => this.rebuildIndex(),
       hydratePromptSuggestions: () => this.promptSuggestions.hydrate(),
       toolCallHydrationSource: this.tools.toolCallHydrationSource,
+      toolCallHydrationStats: () => this.tools.toolCallHydrationStats,
     });
   }
 

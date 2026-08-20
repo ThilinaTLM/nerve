@@ -10,6 +10,11 @@ import type {
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
 import { INDEX_STORE_SCHEMA_SQL } from "./schema.js";
+import {
+  ToolCallHydrationIndex,
+  type ToolCallHydrationSnapshot,
+} from "./tool-call-hydration-index.js";
+export { TOOL_CALL_HYDRATION_SCHEMA_VERSION } from "./tool-call-hydration-index.js";
 
 export interface IndexCounts {
   projects: number;
@@ -291,14 +296,32 @@ export class IndexStore {
     preview: ToolCallTranscriptRecord,
   ): void {
     if (this.updatesDeferred) return;
-    this.writeToolCallPreview(toolCall, preview, true);
+    this.guard(() => {
+      this.ensureToolCallPreviewTable();
+      this.toolCallHydration().upsert(toolCall, preview);
+    });
+  }
+
+  readToolCallHydrationSnapshot(): ToolCallHydrationSnapshot | undefined {
+    return this.guard(() => this.toolCallHydration().readSnapshot());
+  }
+
+  listToolCallHydrationJson(): string[] {
+    return this.guard(() => this.toolCallHydration().listHydrationJson());
+  }
+
+  invalidateToolCallHydrationSnapshot(): void {
+    this.guard(() => this.toolCallHydration().invalidate());
+  }
+
+  markToolCallHydrationSnapshotReady(migrationFingerprint: string): void {
+    this.guard(() => this.toolCallHydration().markReady(migrationFingerprint));
   }
 
   beginToolCallRebuild(): void {
     this.guard(() => {
       this.ensureToolCallPreviewTable();
-      this.db.exec("BEGIN IMMEDIATE");
-      this.db.exec("DELETE FROM tool_calls");
+      this.toolCallHydration().beginRebuild();
     });
   }
 
@@ -306,19 +329,17 @@ export class IndexStore {
     toolCall: ToolCallRecord,
     preview: ToolCallTranscriptRecord,
   ): void {
-    this.writeToolCallPreview(toolCall, preview, false);
+    this.toolCallHydration().appendRebuild(toolCall, preview);
   }
 
-  finishToolCallRebuild(): void {
-    this.guard(() => this.db.exec("COMMIT"));
+  finishToolCallRebuild(migrationFingerprint: string): void {
+    this.guard(() =>
+      this.toolCallHydration().finishRebuild(migrationFingerprint),
+    );
   }
 
   rollbackToolCallRebuild(): void {
-    try {
-      this.db.exec("ROLLBACK");
-    } catch {
-      // No active transaction after an earlier SQLite failure.
-    }
+    this.toolCallHydration().rollbackRebuild();
   }
 
   countToolCalls(): number {
@@ -396,11 +417,16 @@ export class IndexStore {
     });
   }
 
+  deleteToolCallsForConversations(conversationIds: readonly string[]): void {
+    if (this.updatesDeferred) return;
+    this.guard(() =>
+      this.toolCallHydration().deleteForConversations(conversationIds),
+    );
+  }
+
   deleteToolCall(id: string): void {
     if (this.updatesDeferred) return;
-    this.guard(() => {
-      this.db.prepare("DELETE FROM tool_calls WHERE id = ?").run(id);
-    });
+    this.guard(() => this.toolCallHydration().delete(id));
   }
 
   upsertPromptSuggestionTrust(record: PromptSuggestionTrustIndexRecord): void {
@@ -702,49 +728,9 @@ export class IndexStore {
     this.db.exec("DROP TABLE IF EXISTS tool_calls");
   }
 
-  private writeToolCallPreview(
-    toolCall: ToolCallRecord,
-    preview: ToolCallTranscriptRecord,
-    guarded: boolean,
-  ): void {
-    const operation = () => {
-      if (guarded) this.ensureToolCallPreviewTable();
-      this.db
-        .prepare(
-          `INSERT INTO tool_calls (
-             id, conversation_id, project_id, agent_id, run_id, status,
-             pending_interaction_kind, revision, updated_at, preview_json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-             conversation_id = excluded.conversation_id,
-             project_id = excluded.project_id,
-             agent_id = excluded.agent_id,
-             run_id = excluded.run_id,
-             status = excluded.status,
-             pending_interaction_kind = excluded.pending_interaction_kind,
-             revision = excluded.revision,
-             updated_at = excluded.updated_at,
-             preview_json = excluded.preview_json`,
-        )
-        .run(
-          toolCall.id,
-          toolCall.conversationId,
-          toolCall.projectId,
-          toolCall.agentId,
-          toolCall.runId ?? null,
-          toolCall.status,
-          toolCall.interactions.find(
-            (interaction) => interaction.status === "pending",
-          )?.kind ?? null,
-          toolCall.revision,
-          toolCall.updatedAt,
-          JSON.stringify(preview),
-        );
-    };
-    if (guarded) this.guard(operation);
-    else operation();
+  private toolCallHydration(): ToolCallHydrationIndex {
+    return new ToolCallHydrationIndex(this.db);
   }
-
   private recoverReplacementFiles(): void {
     const backupPath = `${this.path}.cleanup-backup`;
     if (!existsSync(this.path) && existsSync(backupPath)) {
