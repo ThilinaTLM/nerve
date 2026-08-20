@@ -173,8 +173,7 @@ describe("shared tool runtime contract", () => {
       },
       status: async () => ({ content: "status" }),
       logs: async () => ({ content: "logs" }),
-      cancel: async () => ({ content: "cancelled" }),
-      restart: async () => ({ content: "restarted" }),
+      control: async () => ({ content: "controlled" }),
     });
     await tasks.task_start?.(
       { command: "pnpm check" },
@@ -192,21 +191,23 @@ describe("shared tool runtime contract", () => {
         Promise.resolve(),
       /taskId/,
     );
-    await tasks.task_cancel?.(
-      { taskId: "task_one" },
-      { ...context, toolName: "task_cancel" },
+    await tasks.task_control?.(
+      { taskId: "task_one", action: "stop" },
+      { ...context, toolName: "task_control" },
     );
     await assert.rejects(
-      tasks.task_cancel?.({}, { ...context, toolName: "task_cancel" }) ??
-        Promise.resolve(),
-      /required/,
-    );
-    await assert.rejects(
-      tasks.task_cancel?.(
-        { taskId: "task_one", groupId: "taskgrp_one" },
-        { ...context, toolName: "task_cancel" },
+      tasks.task_control?.(
+        { action: "stop" },
+        { ...context, toolName: "task_control" },
       ) ?? Promise.resolve(),
-      /Provide only one/,
+      /taskId/,
+    );
+    await assert.rejects(
+      tasks.task_control?.(
+        { taskId: "task_one", action: "restart", reason: "replace" },
+        { ...context, toolName: "task_control" },
+      ) ?? Promise.resolve(),
+      /stop-only/,
     );
 
     const explore = createExploreHandlers({

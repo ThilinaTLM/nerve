@@ -3,11 +3,9 @@ import type {
   AgentRecord,
   UserConfigurableToolName,
 } from "@nervekit/contracts";
+import { promptGuidelinesForTools } from "@nervekit/tools";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
-import {
-  activeToolNamesForAgent,
-  toolPromptMetadata,
-} from "../../tools/agent-tool-adapter.js";
+import { activeToolNamesForAgent } from "../../tools/agent-tool-adapter.js";
 import { buildNerveSystemPrompt } from "../prompting/nerve-system-prompt.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
 
@@ -35,34 +33,26 @@ export async function buildAgentSystemPrompt(
     jiraEnabled: options.jiraEnabled,
     confluenceEnabled: options.confluenceEnabled,
   });
-  const promptMetadata = toolPromptMetadata(activeToolNames);
   const resources = await loadHarnessResources(agent.projectDir, {
     storageHome: options.storageHome,
     disabledSkillNames: options.disabledSkillNames,
     enabledAgentBrowserSkillNames: options.enabledAgentBrowserSkillNames,
     agentBrowserSkills: options.agentBrowserSkills,
   });
-  return composeAgentSystemPrompt(
-    agent,
-    activeToolNames,
-    promptMetadata,
-    resources,
-    {
-      planDir: options.storageHome
-        ? planDirForStorageHome(options.storageHome)
-        : undefined,
-    },
-  );
+  return composeAgentSystemPrompt(agent, activeToolNames, resources, {
+    planDir: options.storageHome
+      ? planDirForStorageHome(options.storageHome)
+      : undefined,
+  });
 }
 
 /**
  * Synchronous prompt composition shared by the runner (which preloads
- * resources/metadata in its hot path) and {@link buildAgentSystemPrompt}.
+ * resources in its hot path) and {@link buildAgentSystemPrompt}.
  */
 export function composeAgentSystemPrompt(
   agent: AgentRecord,
   activeToolNames: ReturnType<typeof activeToolNamesForAgent>,
-  promptMetadata: ReturnType<typeof toolPromptMetadata>,
   resources: Awaited<ReturnType<typeof loadHarnessResources>>,
   options: {
     planDir?: string;
@@ -73,7 +63,7 @@ export function composeAgentSystemPrompt(
     cwd: agent.projectDir,
     mode: agent.mode,
     selectedTools: activeToolNames,
-    promptGuidelines: promptMetadata.guidelines,
+    promptGuidelines: promptGuidelinesForTools(activeToolNames),
     contextFiles: resources.contextFiles,
     skills: resources.skills,
     customPrompt: resources.systemPrompt,

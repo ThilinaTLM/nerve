@@ -615,6 +615,8 @@ export type TaskCancelResultPayload = z.infer<typeof taskCancelResultSchema>;
 export const taskStartToolResultSchema = z
   .object({
     task: taskRecordSchema,
+    otherActiveTasks: z.array(taskRecordSchema),
+    otherActiveTaskCount: z.number().int().nonnegative(),
     contentBlocks: z.array(toolContentBlockSchema).optional(),
   })
   .strict();
@@ -629,27 +631,28 @@ export const taskStatusToolResultSchema = z
   .strict();
 export type TaskStatusToolResult = z.infer<typeof taskStatusToolResultSchema>;
 
-/** Exact dispatcher result of task_cancel. */
-export const taskCancelToolResultSchema = z
-  .object({
-    tasks: z.array(taskRecordSchema),
-    cancelResults: z.array(taskCancelResultSchema),
-    contentBlocks: z.array(toolContentBlockSchema).optional(),
-  })
-  .strict();
-export type TaskCancelToolResult = z.infer<typeof taskCancelToolResultSchema>;
-
-/** Exact dispatcher result of task_restart. */
-export const taskRestartToolResultSchema = z
-  .object({
-    task: taskRecordSchema,
-    restartedFromTaskId: z.string().startsWith("task_"),
-    newTaskId: z.string().startsWith("task_"),
-    restartRootTaskId: z.string().startsWith("task_"),
-    contentBlocks: z.array(toolContentBlockSchema).optional(),
-  })
-  .strict();
-export type TaskRestartToolResult = z.infer<typeof taskRestartToolResultSchema>;
+/** Exact dispatcher result of task_control. */
+export const taskControlToolResultSchema = z.discriminatedUnion("action", [
+  z
+    .object({
+      action: z.literal("stop"),
+      task: taskRecordSchema,
+      result: taskCancelResultSchema,
+      contentBlocks: z.array(toolContentBlockSchema).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("restart"),
+      task: taskRecordSchema,
+      restartedFromTaskId: z.string().startsWith("task_"),
+      newTaskId: z.string().startsWith("task_"),
+      restartRootTaskId: z.string().startsWith("task_"),
+      contentBlocks: z.array(toolContentBlockSchema).optional(),
+    })
+    .strict(),
+]);
+export type TaskControlToolResult = z.infer<typeof taskControlToolResultSchema>;
 
 /** Exact dispatcher result of task_logs. */
 export const taskLogsToolResultSchema = taskLogQueryResponseSchema

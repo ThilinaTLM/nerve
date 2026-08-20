@@ -294,7 +294,6 @@ export const filesystemToolDefinitions = [
     label: "read",
     description:
       "Read text files or images. Supports line/byte windows; text output is bounded.",
-    promptSnippet: "Read file contents, including image files as attachments",
     parameters: readParameters,
     executionMode: "parallel",
   },
@@ -308,11 +307,6 @@ export const filesystemToolDefinitions = [
     label: "edit",
     description:
       "Edit one existing file with replacements, insertions, line edits, or a single-file patch; fails on ambiguous edits.",
-    promptSnippet:
-      "Make single-file edits with replacements, insertions, line edits, patch, dry-run, matchMode, and occurrence",
-    promptGuidelines: [
-      "Use edit for existing files; make unique, non-overlapping edits against the original file.",
-    ],
     parameters: editParameters,
     prepareArguments: prepareEditArguments,
     executionMode: "sequential",
@@ -327,8 +321,6 @@ export const filesystemToolDefinitions = [
     label: "write",
     description:
       "Create or overwrite a file, creating parent directories as needed.",
-    promptSnippet: "Create or overwrite files",
-    promptGuidelines: ["Use write only for new files or complete rewrites."],
     parameters: writeParameters,
     executionMode: "sequential",
   },
@@ -342,7 +334,6 @@ export const filesystemToolDefinitions = [
     label: "grep",
     description:
       "Search file contents with regex or literal patterns; results are bounded.",
-    promptSnippet: "Search file contents for patterns",
     parameters: grepParameters,
     executionMode: "parallel",
   },
@@ -356,7 +347,6 @@ export const filesystemToolDefinitions = [
     label: "find",
     description:
       "Find files by glob pattern; results respect .gitignore and are bounded.",
-    promptSnippet: "Find files by glob pattern (respects .gitignore)",
     parameters: findParameters,
     executionMode: "parallel",
   },
@@ -370,7 +360,6 @@ export const filesystemToolDefinitions = [
     label: "ls",
     description:
       "List directory entries sorted alphabetically, including dotfiles.",
-    promptSnippet: "List directory contents",
     parameters: lsParameters,
     executionMode: "parallel",
   },

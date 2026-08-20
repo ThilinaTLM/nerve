@@ -69,7 +69,11 @@ export type TaskCancelOutcomePreviewPayload = z.infer<
 
 /** Public transcript preview of task_start. */
 export const taskStartToolResultPreviewSchema = z
-  .object({ task: taskToolSummarySchema })
+  .object({
+    task: taskToolSummarySchema,
+    otherActiveTasks: z.array(taskToolSummarySchema),
+    otherActiveTaskCount: z.number().int().nonnegative(),
+  })
   .strict();
 export type TaskStartToolResultPreview = z.infer<
   typeof taskStartToolResultPreviewSchema
@@ -83,25 +87,29 @@ export type TaskStatusToolResultPreview = z.infer<
   typeof taskStatusToolResultPreviewSchema
 >;
 
-/** Public transcript preview of task_cancel. */
-export const taskCancelToolResultPreviewSchema = z
-  .object({ outcomes: z.array(taskCancelOutcomePreviewSchema) })
-  .strict();
-export type TaskCancelToolResultPreview = z.infer<
-  typeof taskCancelToolResultPreviewSchema
->;
-
-/** Public transcript preview of task_restart. */
-export const taskRestartToolResultPreviewSchema = z
-  .object({
-    task: taskToolSummarySchema,
-    restartedFromTaskId: z.string().startsWith("task_"),
-    newTaskId: z.string().startsWith("task_"),
-    restartRootTaskId: z.string().startsWith("task_"),
-  })
-  .strict();
-export type TaskRestartToolResultPreview = z.infer<
-  typeof taskRestartToolResultPreviewSchema
+/** Public transcript preview of task_control. */
+export const taskControlToolResultPreviewSchema = z.discriminatedUnion(
+  "action",
+  [
+    z
+      .object({
+        action: z.literal("stop"),
+        outcome: taskCancelOutcomePreviewSchema,
+      })
+      .strict(),
+    z
+      .object({
+        action: z.literal("restart"),
+        task: taskToolSummarySchema,
+        restartedFromTaskId: z.string().startsWith("task_"),
+        newTaskId: z.string().startsWith("task_"),
+        restartRootTaskId: z.string().startsWith("task_"),
+      })
+      .strict(),
+  ],
+);
+export type TaskControlToolResultPreview = z.infer<
+  typeof taskControlToolResultPreviewSchema
 >;
 
 /** Public transcript preview of task_logs. */

@@ -25,9 +25,8 @@ import { parseConfluenceView } from "./confluence-result-view";
 import { parseExploreProgressLog } from "./explore-progress";
 import { parseJiraView } from "./jira-result-view";
 import {
-  parseTaskCancelResult,
+  parseTaskControlResult,
   parseTaskLogsResult,
-  parseTaskRestartResult,
   parseTaskStartResult,
   parseTaskStatusResult,
 } from "./task-result-parser";
@@ -521,26 +520,15 @@ export function parseToolView(
       };
     }
 
-    case "task_cancel": {
-      const data = parseTaskCancelResult(rawResult);
-      const visibleOutcomes = data.outcomes?.length ?? 0;
+    case "task_control": {
+      const data = parseTaskControlResult(rawResult);
+      const action =
+        stringField(args.action) === "restart" ? "restart" : "stop";
       return {
         kind: "task_action",
-        action: "cancel",
-        task: data.tasks?.[0],
+        action,
         ...data,
-        outcomeCount:
-          visibleOutcomes + previewOverflowHidden(toolCall, "tasks", "head"),
-        liveLog: liveOutput?.text,
-      };
-    }
-
-    case "task_restart": {
-      const data = parseTaskRestartResult(rawResult);
-      return {
-        kind: "task_action",
-        action: "restart",
-        ...data,
+        outcomeCount: data.outcomes?.length,
         liveLog: liveOutput?.text,
       };
     }

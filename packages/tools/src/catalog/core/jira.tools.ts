@@ -21,9 +21,6 @@ import {
 import { jiraManageAttachmentParameters } from "./jira-attachment.schema.js";
 import type { ToolDefinition } from "../types.js";
 
-const jiraGuideline =
-  "Use Jira tools for ticket work only when the Jira module is enabled; keep JQL, fields, and result limits narrow, use saved JSON artifact paths for large analyses, and mutate tickets only when the user asked for Jira changes.";
-
 const stringArray = (description: string) =>
   Type.Array(Type.String(), { description });
 const unknownRecord = (description: string) =>
@@ -552,8 +549,6 @@ export const jiraToolDefinitions = [
     label: "Jira Search Users",
     description:
       "Find directory users or issue/project-assignable users. Directory search requires Jira Browse users and groups permission; omitted scope uses the configured default project when present.",
-    promptSnippet: "Find Jira users/accountIds before assigning tickets",
-    promptGuidelines: [jiraGuideline],
     parameters: searchUsersParameters,
     executionMode: "parallel",
   },
@@ -567,8 +562,6 @@ export const jiraToolDefinitions = [
     label: "Jira Search Issues",
     description:
       "Search Jira Cloud issues with JQL. Continue with next_page_token; comments, worklogs, and changelog use numeric offsets on jira_get_issue. Saves raw JSON for analysis.",
-    promptSnippet: "Search Jira issues with narrow JQL, fields, and limits",
-    promptGuidelines: [jiraGuideline],
     parameters: searchIssuesParameters,
     executionMode: "parallel",
   },
@@ -582,8 +575,6 @@ export const jiraToolDefinitions = [
     label: "Jira Get Issue",
     description:
       "Fetch one Jira issue, optionally including comments, transitions, edit metadata, worklogs, changelog, remote links, and attachment metadata.",
-    promptSnippet: "Fetch a Jira issue by key or ID",
-    promptGuidelines: [jiraGuideline],
     parameters: getIssueParameters,
     executionMode: "parallel",
   },
@@ -597,8 +588,6 @@ export const jiraToolDefinitions = [
     label: "Jira Get Project",
     description:
       "Fetch Jira project metadata, optionally including statuses, components, versions, issue types, create metadata, fields, priorities, and resolutions.",
-    promptSnippet: "Fetch Jira project metadata",
-    promptGuidelines: [jiraGuideline],
     parameters: getProjectParameters,
     executionMode: "parallel",
   },
@@ -611,8 +600,6 @@ export const jiraToolDefinitions = [
     executor: executeJiraSearchBoards,
     label: "Jira Search Boards",
     description: "Search visible Jira Software boards.",
-    promptSnippet: "Search Jira Software boards with narrow filters",
-    promptGuidelines: [jiraGuideline],
     parameters: searchBoardsParameters,
     executionMode: "parallel",
   },
@@ -626,8 +613,6 @@ export const jiraToolDefinitions = [
     label: "Jira Get Board",
     description:
       "Fetch one Jira Software board with optional sprints and backlog issues.",
-    promptSnippet: "Fetch one Jira board and bounded agile data",
-    promptGuidelines: [jiraGuideline],
     parameters: getBoardParameters,
     executionMode: "parallel",
   },
@@ -640,8 +625,6 @@ export const jiraToolDefinitions = [
     executor: executeJiraGetSprint,
     label: "Jira Get Sprint",
     description: "Fetch one Jira sprint with optional issues.",
-    promptSnippet: "Fetch one Jira sprint",
-    promptGuidelines: [jiraGuideline],
     parameters: getSprintParameters,
     executionMode: "parallel",
   },
@@ -654,8 +637,6 @@ export const jiraToolDefinitions = [
     executor: executeJiraDownloadAttachment,
     label: "Jira Download Attachment",
     description: "Download one Jira attachment to a local artifact.",
-    promptSnippet: "Download one Jira attachment by id",
-    promptGuidelines: [jiraGuideline],
     parameters: downloadAttachmentParameters,
     executionMode: "parallel",
   },
@@ -669,8 +650,6 @@ export const jiraToolDefinitions = [
     label: "Jira Create Issue",
     description:
       "Create a Jira issue using typed common fields plus optional raw fields.",
-    promptSnippet: "Create Jira issues only when explicitly requested",
-    promptGuidelines: [jiraGuideline],
     parameters: createIssueParameters,
     executionMode: "sequential",
   },
@@ -683,8 +662,6 @@ export const jiraToolDefinitions = [
     executor: executeJiraUpdateIssue,
     label: "Jira Update Issue",
     description: "Update common Jira issue fields plus optional raw fields.",
-    promptSnippet: "Update Jira issues only when explicitly requested",
-    promptGuidelines: [jiraGuideline],
     parameters: updateIssueParameters,
     executionMode: "sequential",
   },
@@ -697,8 +674,6 @@ export const jiraToolDefinitions = [
     executor: executeJiraManageComment,
     label: "Jira Manage Comment",
     description: "Create, update, or delete one Jira issue comment.",
-    promptSnippet: "Manage one Jira comment only when explicitly requested",
-    promptGuidelines: [jiraGuideline],
     parameters: manageCommentParameters,
     executionMode: "sequential",
   },
@@ -711,8 +686,6 @@ export const jiraToolDefinitions = [
     executor: executeJiraManageWorklog,
     label: "Jira Manage Worklog",
     description: "Create, update, or delete one Jira worklog.",
-    promptSnippet: "Manage one Jira worklog only when explicitly requested",
-    promptGuidelines: [jiraGuideline],
     parameters: manageWorklogParameters,
     executionMode: "sequential",
   },
@@ -725,8 +698,6 @@ export const jiraToolDefinitions = [
     executor: executeJiraManageIssueLink,
     label: "Jira Manage Issue Link",
     description: "Create or delete one Jira issue link.",
-    promptSnippet: "Manage one Jira issue link only when explicitly requested",
-    promptGuidelines: [jiraGuideline],
     parameters: manageIssueLinkParameters,
     executionMode: "sequential",
   },
@@ -739,8 +710,6 @@ export const jiraToolDefinitions = [
     executor: executeJiraManageAttachment,
     label: "Jira Manage Attachment",
     description: "Upload or delete one Jira attachment.",
-    promptSnippet: "Manage one Jira attachment only when explicitly requested",
-    promptGuidelines: [jiraGuideline],
     parameters: jiraManageAttachmentParameters,
     executionMode: "sequential",
     classifyRisk: (args) =>
@@ -755,8 +724,6 @@ export const jiraToolDefinitions = [
     executor: executeJiraManageSprint,
     label: "Jira Manage Sprint",
     description: "Create, update, start, close, or delete one Jira sprint.",
-    promptSnippet: "Manage one Jira sprint only when explicitly requested",
-    promptGuidelines: [jiraGuideline],
     parameters: manageSprintParameters,
     executionMode: "sequential",
   },
@@ -769,8 +736,6 @@ export const jiraToolDefinitions = [
     executor: executeJiraManageBacklog,
     label: "Jira Manage Backlog",
     description: "Move or rank one Jira issue in a backlog or sprint.",
-    promptSnippet: "Move or rank one Jira issue only when explicitly requested",
-    promptGuidelines: [jiraGuideline],
     parameters: manageBacklogParameters,
     executionMode: "sequential",
   },
@@ -784,8 +749,6 @@ export const jiraToolDefinitions = [
     label: "Jira Transition Issue",
     description:
       "Discover or execute Jira workflow transitions with safe matching and dry-run support.",
-    promptSnippet: "Transition Jira issues only when explicitly requested",
-    promptGuidelines: [jiraGuideline],
     parameters: transitionIssueParameters,
     executionMode: "sequential",
   },

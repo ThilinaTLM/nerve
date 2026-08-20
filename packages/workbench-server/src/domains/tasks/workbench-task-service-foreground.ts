@@ -272,7 +272,7 @@ export async function runForegroundBashWithPromotion(
     "",
     "A terminal status and output update will arrive automatically. Do not poll.",
     `Use task_status({ taskId: "${promoted.id}" }) or task_logs({ taskId: "${promoted.id}" }) only for on-demand diagnostics.`,
-    `Use task_cancel({ taskId: "${promoted.id}" }) to stop it explicitly.`,
+    `Use task_control({ taskId: "${promoted.id}", action: "stop" }) to stop it explicitly.`,
   ].join("\n");
   const result = await buildProcessTextResult({
     text,

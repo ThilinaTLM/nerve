@@ -1,10 +1,9 @@
 import {
   taskCancelResultSchema,
-  taskCancelToolResultPreviewSchema,
+  taskControlToolResultPreviewSchema,
   taskLogEventSchema,
   taskLogsToolResultPreviewSchema,
   taskRecordSchema,
-  taskRestartToolResultPreviewSchema,
   taskStartToolResultPreviewSchema,
   taskStatusToolResultPreviewSchema,
   taskToolSummarySchema,
@@ -18,6 +17,8 @@ export type ParsedTaskActionResult = {
   task?: TaskToolSummaryPayload;
   tasks?: TaskToolSummaryPayload[];
   outcomes?: TaskCancelOutcomePreviewPayload[];
+  otherActiveTasks?: TaskToolSummaryPayload[];
+  otherActiveTaskCount?: number;
   restartedFromTaskId?: string;
   previewUnavailable: boolean;
 };
@@ -121,25 +122,70 @@ export function parseTaskStartResult(
 ): ParsedTaskActionResult {
   const compact = taskStartToolResultPreviewSchema.safeParse(rawResult);
   if (compact.success) {
-    return { task: compact.data.task, previewUnavailable: false };
+    return {
+      task: compact.data.task,
+      otherActiveTasks: compact.data.otherActiveTasks,
+      otherActiveTaskCount: compact.data.otherActiveTaskCount,
+      previewUnavailable: false,
+    };
   }
-  const task = taskSummary(record(rawResult).task);
-  return { task, previewUnavailable: !task };
+  const result = record(rawResult);
+  const task = taskSummary(result.task);
+  const parsedOthers = taskSummaries(result.otherActiveTasks);
+  const otherActiveTaskCount =
+    typeof result.otherActiveTaskCount === "number"
+      ? result.otherActiveTaskCount
+      : undefined;
+  return {
+    task,
+    otherActiveTasks: parsedOthers.tasks,
+    otherActiveTaskCount,
+    previewUnavailable:
+      !task || !parsedOthers.valid || otherActiveTaskCount === undefined,
+  };
 }
 
-export function parseTaskRestartResult(
+export function parseTaskControlResult(
   rawResult: unknown,
 ): ParsedTaskActionResult {
-  const compact = taskRestartToolResultPreviewSchema.safeParse(rawResult);
+  const compact = taskControlToolResultPreviewSchema.safeParse(rawResult);
   if (compact.success) {
+    if (compact.data.action === "stop") {
+      const task = compact.data.outcome.task;
+      return {
+        task,
+        tasks: task ? [task] : [],
+        outcomes: [compact.data.outcome],
+        previewUnavailable: false,
+      };
+    }
     return {
       task: compact.data.task,
       restartedFromTaskId: compact.data.restartedFromTaskId,
       previewUnavailable: false,
     };
   }
+
   const result = record(rawResult);
   const task = taskSummary(result.task);
+  if (result.action === "stop") {
+    const parsed = taskCancelResultSchema.safeParse(result.result);
+    if (!parsed.success) {
+      return { task, tasks: task ? [task] : [], previewUnavailable: true };
+    }
+    const outcome: TaskCancelOutcomePreviewPayload = {
+      task,
+      outcome: parsed.data.outcome,
+      status: parsed.data.status,
+      message: parsed.data.message,
+    };
+    return {
+      task,
+      tasks: task ? [task] : [],
+      outcomes: [outcome],
+      previewUnavailable: !task,
+    };
+  }
   const restartedFromTaskId =
     typeof result.restartedFromTaskId === "string"
       ? result.restartedFromTaskId
@@ -147,54 +193,8 @@ export function parseTaskRestartResult(
   return {
     task,
     restartedFromTaskId,
-    previewUnavailable: !task || !restartedFromTaskId,
-  };
-}
-
-export function parseTaskCancelResult(
-  rawResult: unknown,
-): ParsedTaskActionResult {
-  const compact = taskCancelToolResultPreviewSchema.safeParse(rawResult);
-  if (compact.success) {
-    return {
-      tasks: compact.data.outcomes.flatMap((outcome) =>
-        outcome.task ? [outcome.task] : [],
-      ),
-      outcomes: compact.data.outcomes,
-      previewUnavailable: false,
-    };
-  }
-
-  const result = record(rawResult);
-  const taskValues = Array.isArray(result.tasks) ? result.tasks : [];
-  if (!Array.isArray(result.cancelResults)) {
-    return { tasks: [], outcomes: [], previewUnavailable: true };
-  }
-  const outcomes: TaskCancelOutcomePreviewPayload[] = [];
-  let valid = true;
-  for (let index = 0; index < result.cancelResults.length; index += 1) {
-    const parsed = taskCancelResultSchema.safeParse(
-      result.cancelResults[index],
-    );
-    if (!parsed.success) {
-      valid = false;
-      continue;
-    }
-    const taskValue = taskValues[index];
-    const task =
-      taskValue === undefined ? undefined : taskSummary(taskValues[index]);
-    if (taskValue !== undefined && !task) valid = false;
-    outcomes.push({
-      task,
-      outcome: parsed.data.outcome,
-      status: parsed.data.status,
-      message: parsed.data.message,
-    });
-  }
-  return {
-    tasks: outcomes.flatMap((outcome) => (outcome.task ? [outcome.task] : [])),
-    outcomes,
-    previewUnavailable: !valid,
+    previewUnavailable:
+      result.action !== "restart" || !task || !restartedFromTaskId,
   };
 }
 

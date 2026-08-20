@@ -1,12 +1,11 @@
 import {
   taskCancelResultSchema,
+  taskControlToolResultPreviewSchema,
   taskLogsToolResultPreviewSchema,
   taskLogEventSchema,
   taskRecordSchema,
-  taskRestartToolResultPreviewSchema,
   taskStartToolResultPreviewSchema,
   taskStatusToolResultPreviewSchema,
-  taskCancelToolResultPreviewSchema,
   type TaskCancelOutcomePreviewPayload,
   type TaskLogEvent,
   type TaskRecord,
@@ -15,7 +14,6 @@ import {
 } from "@nervekit/contracts";
 
 const TASK_STATUS_PREVIEW_COUNT = 5;
-const TASK_CANCEL_PREVIEW_COUNT = 3;
 const TASK_LOG_PREVIEW_COUNT = 10;
 
 const NAME_MAX_BYTES = 96;
@@ -30,7 +28,7 @@ const CREDENTIAL_URL = /^[a-z][a-z0-9+.-]*:\/\/[^/\s]*@/i;
 
 type TaskToolName = Extract<
   ToolName,
-  "task_start" | "task_status" | "task_logs" | "task_cancel" | "task_restart"
+  "task_start" | "task_status" | "task_logs" | "task_control"
 >;
 
 export type TaskToolPreviewOverflow = {
@@ -176,9 +174,30 @@ export function buildTaskToolTranscriptPreview(
     case "task_start": {
       const task = taskToolSummary(resultRecord.task);
       if (!task) return { valid: false };
-      const resultPreview = { task };
+      const source = array(resultRecord.otherActiveTasks);
+      const selected = source.slice(0, TASK_STATUS_PREVIEW_COUNT);
+      const otherActiveTasks = summaries(selected);
+      if (!otherActiveTasks) return { valid: false };
+      const otherActiveTaskCount = resultRecord.otherActiveTaskCount;
+      if (
+        typeof otherActiveTaskCount !== "number" ||
+        otherActiveTaskCount < source.length
+      ) {
+        return { valid: false };
+      }
+      const resultPreview = {
+        task,
+        otherActiveTasks,
+        otherActiveTaskCount,
+      };
       return {
         resultPreview,
+        overflow: overflow(
+          otherActiveTaskCount,
+          selected.length,
+          "tasks",
+          "head",
+        ),
         valid:
           taskStartToolResultPreviewSchema.safeParse(resultPreview).success,
       };
@@ -226,39 +245,28 @@ export function buildTaskToolTranscriptPreview(
       };
     }
 
-    case "task_cancel": {
-      const taskValues = array(resultRecord.tasks);
-      const resultValues = array(resultRecord.cancelResults);
-      const selectedResults = resultValues.slice(0, TASK_CANCEL_PREVIEW_COUNT);
-      const outcomes: TaskCancelOutcomePreviewPayload[] = [];
-      for (let index = 0; index < selectedResults.length; index += 1) {
-        const parsed = taskCancelResultSchema.safeParse(selectedResults[index]);
+    case "task_control": {
+      const task = taskToolSummary(resultRecord.task);
+      if (!task) return { valid: false };
+      if (resultRecord.action === "stop") {
+        const parsed = taskCancelResultSchema.safeParse(resultRecord.result);
         if (!parsed.success) return { valid: false };
-        const taskValue = taskValues[index];
-        const task =
-          taskValue === undefined ? undefined : taskToolSummary(taskValue);
-        if (taskValue !== undefined && !task) return { valid: false };
-        outcomes.push({
+        const outcome: TaskCancelOutcomePreviewPayload = {
           task,
           outcome: parsed.data.outcome,
           status: parsed.data.status,
           message: boundedUtf8(parsed.data.message, MESSAGE_MAX_BYTES),
-        });
+        };
+        const resultPreview = { action: "stop" as const, outcome };
+        return {
+          resultPreview,
+          valid:
+            taskControlToolResultPreviewSchema.safeParse(resultPreview).success,
+        };
       }
-      const resultPreview = { outcomes };
-      const total = Math.max(taskValues.length, resultValues.length);
-      return {
-        resultPreview,
-        overflow: overflow(total, selectedResults.length, "tasks", "head"),
-        valid:
-          taskCancelToolResultPreviewSchema.safeParse(resultPreview).success,
-      };
-    }
-
-    case "task_restart": {
-      const task = taskToolSummary(resultRecord.task);
-      if (!task) return { valid: false };
+      if (resultRecord.action !== "restart") return { valid: false };
       const resultPreview = {
+        action: "restart" as const,
         task,
         restartedFromTaskId: resultRecord.restartedFromTaskId,
         newTaskId: resultRecord.newTaskId,
@@ -267,7 +275,7 @@ export function buildTaskToolTranscriptPreview(
       return {
         resultPreview,
         valid:
-          taskRestartToolResultPreviewSchema.safeParse(resultPreview).success,
+          taskControlToolResultPreviewSchema.safeParse(resultPreview).success,
       };
     }
   }
@@ -285,9 +293,7 @@ export function isTaskToolResultPreview(
       return taskStatusToolResultPreviewSchema.safeParse(result).success;
     case "task_logs":
       return taskLogsToolResultPreviewSchema.safeParse(result).success;
-    case "task_cancel":
-      return taskCancelToolResultPreviewSchema.safeParse(result).success;
-    case "task_restart":
-      return taskRestartToolResultPreviewSchema.safeParse(result).success;
+    case "task_control":
+      return taskControlToolResultPreviewSchema.safeParse(result).success;
   }
 }

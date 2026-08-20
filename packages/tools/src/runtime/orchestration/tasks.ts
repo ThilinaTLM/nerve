@@ -15,8 +15,7 @@ export type TaskToolPort = {
   start: TaskPortHandler;
   status: TaskPortHandler;
   logs: TaskPortHandler;
-  cancel: TaskPortHandler;
-  restart: TaskPortHandler;
+  control: TaskPortHandler;
 };
 
 function validateTaskArgs(
@@ -28,17 +27,31 @@ function validateTaskArgs(
     if (args.tasks !== undefined) {
       throw new ToolValidationError("task_start does not accept tasks[].");
     }
-  } else if (name === "task_restart" || name === "task_logs") {
+  } else if (name === "task_logs") {
     requiredString(args.taskId, "taskId");
     if (args.groupId !== undefined || args.taskIds !== undefined) {
       throw new ToolValidationError(`${name} accepts only taskId.`);
     }
-  } else if (name === "task_cancel") {
-    parseTaskSelector(args, {
-      required: true,
-      allowTaskIds: true,
-      maxTaskIds: 20,
-    });
+  } else if (name === "task_control") {
+    requiredString(args.taskId, "taskId");
+    if (args.groupId !== undefined || args.taskIds !== undefined) {
+      throw new ToolValidationError("task_control accepts only taskId.");
+    }
+    if (args.action !== "stop" && args.action !== "restart") {
+      throw new ToolValidationError(
+        "task_control action must be stop or restart.",
+      );
+    }
+    if (
+      args.action === "restart" &&
+      (args.signal !== undefined ||
+        args.timeoutMs !== undefined ||
+        args.reason !== undefined)
+    ) {
+      throw new ToolValidationError(
+        "task_control restart does not accept stop-only arguments.",
+      );
+    }
   } else if (name === "task_status") {
     parseTaskSelector(args, {
       required: false,
@@ -81,7 +94,6 @@ export function createTaskHandlers(port: TaskToolPort): ToolHandlerRegistry {
     task_start: handler("task_start", port.start),
     task_status: handler("task_status", port.status),
     task_logs: handler("task_logs", port.logs),
-    task_cancel: handler("task_cancel", port.cancel),
-    task_restart: handler("task_restart", port.restart),
+    task_control: handler("task_control", port.control),
   };
 }

@@ -15,12 +15,21 @@ const completionMessage = $derived(
     ? "Task started; process state is shown below."
     : view.action === "restart"
       ? "Task restarted; process state is shown below."
-      : "Cancellation completed.",
+      : "Task stopped.",
 );
 
 const tasks = $derived(view.tasks ?? (view.task ? [view.task] : []));
 const outcomes = $derived(view.outcomes ?? []);
-const hasResult = $derived(tasks.length > 0 || outcomes.length > 0);
+const otherActiveTasks = $derived(view.otherActiveTasks ?? []);
+const otherActiveTaskCount = $derived(
+  view.otherActiveTaskCount ?? otherActiveTasks.length,
+);
+const hiddenOtherActiveTaskCount = $derived(
+  Math.max(0, otherActiveTaskCount - otherActiveTasks.length),
+);
+const hasResult = $derived(
+  tasks.length > 0 || outcomes.length > 0 || otherActiveTasks.length > 0,
+);
 </script>
 
 {#if hasResult}
@@ -30,7 +39,7 @@ const hasResult = $derived(tasks.length > 0 || outcomes.length > 0);
         {completionMessage}
       </p>
     {/if}
-    {#if view.action === "cancel"}
+    {#if view.action === "stop"}
       {#each outcomes as outcome, index (`${outcome.task?.id ?? "none"}-${index}`)}
         <div class="grid gap-1">
           {#if outcome.task}<TaskRow task={outcome.task} />{/if}
@@ -50,6 +59,22 @@ const hasResult = $derived(tasks.length > 0 || outcomes.length > 0);
       {#each tasks as task (task.id)}
         <TaskRow {task} />
       {/each}
+    {/if}
+    {#if view.action === "start" && otherActiveTaskCount > 0}
+      <div class="grid gap-1">
+        <p class="m-0 text-xs font-medium text-muted-foreground">
+          Other active tasks
+        </p>
+        {#each otherActiveTasks as task (task.id)}
+          <TaskRow {task} />
+        {/each}
+        {#if hiddenOtherActiveTaskCount > 0}
+          <p class="m-0 text-xs text-muted-foreground">
+            {hiddenOtherActiveTaskCount} more active
+            {hiddenOtherActiveTaskCount === 1 ? "task" : "tasks"} omitted.
+          </p>
+        {/if}
+      </div>
     {/if}
     {#if view.action === "restart" && view.task && view.restartedFromTaskId}
       <p class="m-0 text-xs text-muted-foreground">

@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  taskCancelToolResultPreviewSchema,
+  taskControlToolResultPreviewSchema,
   taskLogsToolResultPreviewSchema,
-  taskRestartToolResultPreviewSchema,
   taskStartToolResultPreviewSchema,
   taskStatusToolResultPreviewSchema,
   taskToolSummarySchema,
@@ -48,7 +47,7 @@ describe("task tool transcript preview contracts", () => {
     );
   });
 
-  it("accepts start, status, logs, cancel, and restart previews", () => {
+  it("accepts start, status, logs, stop, and restart previews", () => {
     const task = summary();
     const event = {
       seq: 1,
@@ -59,7 +58,11 @@ describe("task tool transcript preview contracts", () => {
     };
 
     assert.equal(
-      taskStartToolResultPreviewSchema.safeParse({ task }).success,
+      taskStartToolResultPreviewSchema.safeParse({
+        task,
+        otherActiveTasks: [summary({ id: "task_peer" })],
+        otherActiveTaskCount: 1,
+      }).success,
       true,
     );
     assert.equal(
@@ -76,20 +79,20 @@ describe("task tool transcript preview contracts", () => {
       true,
     );
     assert.equal(
-      taskCancelToolResultPreviewSchema.safeParse({
-        outcomes: [
-          {
-            task: summary({ status: "cancelled" }),
-            outcome: "cancelled",
-            status: "cancelled",
-            message: "dev cancelled with SIGTERM.",
-          },
-        ],
+      taskControlToolResultPreviewSchema.safeParse({
+        action: "stop",
+        outcome: {
+          task: summary({ status: "cancelled" }),
+          outcome: "cancelled",
+          status: "cancelled",
+          message: "dev cancelled with SIGTERM.",
+        },
       }).success,
       true,
     );
     assert.equal(
-      taskRestartToolResultPreviewSchema.safeParse({
+      taskControlToolResultPreviewSchema.safeParse({
+        action: "restart",
         task: summary({
           id: "task_new",
           lineage: { restartedFromTaskId: "task_old" },

@@ -1,11 +1,11 @@
 ---
 title: Agent tool catalog
-description: The 51 agent-callable tools, availability gates, risks, and important limits.
+description: The 50 agent-callable tools, availability gates, risks, and important limits.
 sidebar:
   order: 3
 ---
 
-Nerve exposes 51 tool names. Availability also depends on mode, permission, runtime discovery, module settings, and user toggles.
+Nerve exposes 50 tool names. Availability also depends on mode, permission, runtime discovery, module settings, and user toggles.
 
 ## Files and execution
 
@@ -42,9 +42,9 @@ Questions suspend a run. To-dos are structured current-work state, not backgroun
 
 ## Background tasks
 
-- `task_start`, `task_status`, `task_logs`, `task_cancel`, `task_restart`
+- `task_start`, `task_status`, `task_logs`, `task_control`
 
-Task start supports readiness URL/pattern, encrypted-at-rest env values, and runtime up to 24 hours. Status/log tools are bounded and agents receive asynchronous updates rather than polling.
+Task start supports readiness URL/pattern, encrypted-at-rest env values, and runtime up to 24 hours. Its result also reports other active tasks in the workspace scope. Use `task_control` with `action: "stop"` or `action: "restart"` for one selected task. Status/log tools are bounded and agents receive asynchronous updates rather than polling.
 
 ## Explore and planning
 

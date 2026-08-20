@@ -503,7 +503,7 @@ export function createWorkbenchTaskResources(
     capabilities: {
       prepareOrphan: async (task) => ({
         visibility: "background",
-        error: `Task supervision was lost. Use task_cancel for process-tree cleanup before restart or removal.`,
+        error: `Task supervision was lost. Use task_control with action "stop" for process-tree cleanup before restart or removal.`,
         runtime: task.runtime,
         notifications: task.notifications
           ? { ...task.notifications, enabled: true, terminal: true }

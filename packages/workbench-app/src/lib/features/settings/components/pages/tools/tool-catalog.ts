@@ -138,12 +138,9 @@ export const toolGroups: ToolGroupDef[] = [
         description: "Read recent, warning, error, or filtered task logs.",
       },
       {
-        name: "task_cancel",
-        description: "Terminate a running or orphaned background task.",
-      },
-      {
-        name: "task_restart",
-        description: "Restart a task with its saved launch settings.",
+        name: "task_control",
+        description:
+          "Stop or restart a task, preserving saved launch settings on restart.",
       },
     ],
   },

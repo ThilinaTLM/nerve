@@ -23,12 +23,6 @@ import {
   boundModelText,
 } from "./tool-result-model-limits.js";
 
-export type AgentToolPromptMetadata = {
-  activeToolNames: string[];
-  snippets: Record<string, string>;
-  guidelines: string[];
-};
-
 export function createAgentToolsForAgent(
   agent: AgentRecord,
   tools: ToolService,
@@ -111,11 +105,7 @@ export function activeToolNamesForAgent(
 
   const disabled = new Set<ToolName>(options.disabledToolNames ?? []);
   if (agent.mode === "planning") {
-    for (const name of [
-      "task_start",
-      "task_cancel",
-      "task_restart",
-    ] as ToolName[]) {
+    for (const name of ["task_start", "task_control"] as ToolName[]) {
       disabled.add(name);
     }
     for (const group of ["jira", "confluence"] as const) {
@@ -134,29 +124,6 @@ export function activeToolNamesForAgent(
     disabledNames: [...disabled],
     unavailableNames: unavailable,
   }).activeToolNames;
-}
-
-export function toolPromptMetadata(
-  activeToolNames: string[],
-): AgentToolPromptMetadata {
-  const active = new Set(activeToolNames);
-  const snippets: Record<string, string> = {};
-  const guidelines: string[] = [];
-  const seenGuidelines = new Set<string>();
-
-  for (const definition of allToolDefinitions) {
-    if (!active.has(definition.name)) continue;
-    if (definition.promptSnippet)
-      snippets[definition.name] = definition.promptSnippet;
-    for (const guideline of definition.promptGuidelines ?? []) {
-      const normalized = guideline.trim();
-      if (!normalized || seenGuidelines.has(normalized)) continue;
-      seenGuidelines.add(normalized);
-      guidelines.push(normalized);
-    }
-  }
-
-  return { activeToolNames: [...active], snippets, guidelines };
 }
 
 export function toolCallResultForModel(

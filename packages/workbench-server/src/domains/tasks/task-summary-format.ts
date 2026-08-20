@@ -77,7 +77,12 @@ export function formatLogEvent(event: TaskLogEvent): string {
   return `[${event.seq} ${event.stream} ${event.level}] ${truncateTaskText(event.line, MAX_LOG_LINE)}`;
 }
 
-export function formatTaskStartSummary(task: TaskRecord): string {
+export function formatTaskStartSummary(input: {
+  task: TaskRecord;
+  otherActiveTasks: TaskRecord[];
+  otherActiveTaskCount: number;
+}): string {
+  const { task, otherActiveTasks, otherActiveTaskCount } = input;
   const readiness = formatReadiness(task);
   const bits = [
     `Started background task ${task.name ?? taskCommandPreview(task)}: ${task.id} — ${task.status}`,
@@ -86,7 +91,25 @@ export function formatTaskStartSummary(task: TaskRecord): string {
   if (task.readiness.readyUrl) bits.push(`readyUrl=${task.readiness.readyUrl}`);
   const ports = formatTaskPorts(task);
   if (ports) bits.push(`ports=${ports}`);
-  return `${bits.join("; ")}\nA terminal update will arrive asynchronously. Do not poll; use task_status or task_logs only for on-demand diagnostics.`;
+
+  const lines = [bits.join("; ")];
+  if (otherActiveTaskCount === 0) {
+    lines.push("No other active tasks are in this workspace scope.");
+  } else {
+    lines.push(
+      `${otherActiveTaskCount} other active ${otherActiveTaskCount === 1 ? "task" : "tasks"} in this workspace scope:`,
+      ...otherActiveTasks.map(
+        (other) =>
+          `- ${oneLineTaskSummary(other)}; cwd=${truncateTaskText(other.cwd)}; cmd=${taskCommandPreview(other)}`,
+      ),
+    );
+    const omitted = otherActiveTaskCount - otherActiveTasks.length;
+    if (omitted > 0) lines.push(`- ${omitted} more omitted`);
+  }
+  lines.push(
+    "A terminal update will arrive asynchronously. Do not poll; use task_status or task_logs only for on-demand diagnostics.",
+  );
+  return lines.join("\n");
 }
 
 export function formatTaskStatusSummary(tasks: TaskRecord[]): string {

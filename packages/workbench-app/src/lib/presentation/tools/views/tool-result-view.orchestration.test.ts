@@ -57,6 +57,22 @@ describe("parseToolView ask_user/todos/task/explore", () => {
           startedAt: "2026-01-01T00:00:00.000Z",
           updatedAt: "2026-01-01T00:00:00.000Z",
         },
+        otherActiveTasks: [
+          {
+            id: "task_01H00000000000000000000001",
+            name: "storybook",
+            cwd: CWD,
+            command: "npm run storybook",
+            status: "running",
+            readiness: { outcome: "pending" },
+            stdoutPath: "/y/out",
+            stderrPath: "/y/err",
+            logsPath: "/y/log",
+            startedAt: "2026-01-01T00:00:01.000Z",
+            updatedAt: "2026-01-01T00:00:01.000Z",
+          },
+        ],
+        otherActiveTaskCount: 1,
       },
     );
     const view = parseToolView(tc);
@@ -65,9 +81,73 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(view.action, "start");
     assert.equal(view.task?.status, "ready");
     assert.equal(view.task?.readiness.matched, "http://localhost:3000");
+    assert.equal(view.otherActiveTasks?.[0]?.name, "storybook");
+    assert.equal(view.otherActiveTaskCount, 1);
     const presentation = toolPresentation(view, tc);
     assert.equal(presentation.dotTone, "good");
     assert.equal(presentation.dotPulse, false);
+  });
+
+  it("parses task_control stop and restart previews", () => {
+    const stopped = parseToolView(
+      transcriptToolCall(
+        "task_control",
+        { taskId: "task_old", action: "stop" },
+        {
+          action: "stop",
+          outcome: {
+            task: {
+              id: "task_old",
+              name: "dev",
+              cwd: CWD,
+              command: "pnpm dev",
+              status: "cancelled",
+              readiness: { outcome: "none" },
+              timing: { startedAt: "2026-01-01T00:00:00.000Z" },
+            },
+            outcome: "cancelled",
+            status: "cancelled",
+            message: "dev stopped.",
+          },
+        },
+      ),
+    );
+    const restarted = parseToolView(
+      transcriptToolCall(
+        "task_control",
+        { taskId: "task_old", action: "restart" },
+        {
+          action: "restart",
+          task: {
+            id: "task_new",
+            name: "dev",
+            cwd: CWD,
+            command: "pnpm dev",
+            status: "running",
+            readiness: { outcome: "none" },
+            timing: { startedAt: "2026-01-01T00:00:01.000Z" },
+            lineage: { restartedFromTaskId: "task_old" },
+          },
+          restartedFromTaskId: "task_old",
+          newTaskId: "task_new",
+          restartRootTaskId: "task_old",
+        },
+      ),
+    );
+
+    assert.equal(stopped.kind === "task_action" && stopped.action, "stop");
+    assert.equal(
+      stopped.kind === "task_action" && stopped.outcomes?.[0]?.outcome,
+      "cancelled",
+    );
+    assert.equal(
+      restarted.kind === "task_action" && restarted.action,
+      "restart",
+    );
+    assert.equal(
+      restarted.kind === "task_action" && restarted.task?.id,
+      "task_new",
+    );
   });
 
   it("parses compact explore transcript previews", () => {

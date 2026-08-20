@@ -55,10 +55,10 @@ export function orphanedHydrateMessage(
   runtime: TaskRuntime | undefined,
 ): string {
   if (runtime?.childPid) {
-    return `Task supervision was lost after daemon restart. Use task_cancel to attempt cleanup of PID ${runtime.childPid}.`;
+    return `Task supervision was lost after daemon restart. Use task_control with action "stop" to attempt cleanup of PID ${runtime.childPid}.`;
   }
   if (runtime?.processGroupId) {
-    return `Task supervision was lost after daemon restart. Use task_cancel to attempt cleanup of process group ${runtime.processGroupId}.`;
+    return `Task supervision was lost after daemon restart. Use task_control with action "stop" to attempt cleanup of process group ${runtime.processGroupId}.`;
   }
   return "Task supervision was lost after daemon restart, and no PID metadata was captured.";
 }

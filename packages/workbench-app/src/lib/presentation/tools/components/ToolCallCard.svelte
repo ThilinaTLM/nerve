@@ -169,7 +169,12 @@ function hasMeaningfulDurableBody(view: ParsedToolView | undefined): boolean {
     case "todos":
       return view.items.length > 0;
     case "task_action":
-      return Boolean(view.task || view.tasks?.length || view.liveLog?.length);
+      return Boolean(
+        view.task ||
+        view.tasks?.length ||
+        view.otherActiveTasks?.length ||
+        view.liveLog?.length,
+      );
     case "task_status":
       return view.tasks.length > 0;
     case "task_logs":

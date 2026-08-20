@@ -48,10 +48,13 @@ export function summarizeExploreToolCall(
         "Reading task logs",
         `${taskScopeLabel(args)}${modeSuffix(args)}`,
       );
-    case "task_cancel":
-      return activity("Stopping background task", taskScopeLabel(args));
-    case "task_restart":
-      return activity("Restarting background task", taskScopeLabel(args));
+    case "task_control":
+      return activity(
+        args.action === "restart"
+          ? "Restarting background task"
+          : "Stopping background task",
+        taskScopeLabel(args),
+      );
     case "jira_search_users":
       return activity(
         "Searching Jira users",

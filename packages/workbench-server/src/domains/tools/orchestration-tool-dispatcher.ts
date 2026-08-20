@@ -18,7 +18,7 @@ import {
 import {
   type AgentRecord,
   type Mode,
-  taskRestartToolResultSchema,
+  taskControlToolResultSchema,
   taskStartToolResultSchema,
   taskStatusToolResultSchema,
   type TaskRecord,
@@ -38,6 +38,7 @@ import type { PythonRuntimeService } from "../runtime/python-runtime-service.js"
 import { isActiveTaskStatus } from "../tasks/index.js";
 import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import {
+  formatTaskCancelSummary,
   formatTaskStartSummary,
   formatTaskStatusSummary,
 } from "../tasks/task-summary-format.js";
@@ -54,9 +55,9 @@ import {
   publishExploreProgress as publishExploreProgressImpl,
   publishToolExecutionUpdate as publishToolExecutionUpdateImpl,
   requestPlanReview as requestPlanReviewImpl,
+  classifyCancelResult,
   resolveNameMatches as resolveNameMatchesImpl,
   resolveTaskReference as resolveTaskReferenceImpl,
-  taskCancelFromTool as taskCancelFromToolImpl,
   taskLogsFromTool as taskLogsFromToolImpl,
   tasksInScope as tasksInScopeImpl,
 } from "./orchestration-tool-dispatcher-handlers.js";
@@ -64,6 +65,7 @@ import type { TodoStateService } from "./todo-state.service.js";
 import {
   optionalBoundedIntegerArg,
   optionalStringArg,
+  signalArg,
   stringArg,
   stringRecordArg,
 } from "./tool-args.js";
@@ -212,8 +214,7 @@ export class OrchestrationToolDispatcher {
         start: (args) => result(this.startTasksFromTool(toolCall, args)),
         status: (args) => result(this.taskStatusFromTool(toolCall, args)),
         logs: (args) => result(this.taskLogsFromTool(toolCall, args)),
-        cancel: (args) => result(this.taskCancelFromTool(toolCall, args)),
-        restart: (args) => result(this.restartTaskFromTool(toolCall, args)),
+        control: (args) => result(this.controlTaskFromTool(toolCall, args)),
       }),
       ...createExploreHandlers({
         run: (request, _identity, signal) =>
@@ -380,14 +381,26 @@ export class OrchestrationToolDispatcher {
         contentIndex: toolCall.contentIndex,
       },
     });
+    const activePeers = this.tasksInScope(toolCall).filter(
+      (candidate) =>
+        candidate.id !== task.id && isActiveTaskStatus(candidate.status),
+    );
+    const otherActiveTaskCount = activePeers.length;
+    const otherActiveTasks = activePeers.slice(0, 20);
     const bounded = await buildProcessTextResult({
-      text: formatTaskStartSummary(task),
+      text: formatTaskStartSummary({
+        task,
+        otherActiveTasks,
+        otherActiveTaskCount,
+      }),
       outputFilePrefix: "nerve-task-start",
       exitMessagePrefix: "Task start",
       dataDir: this.deps.storage.paths.home,
     });
     return taskStartToolResultSchema.parse({
       task,
+      otherActiveTasks,
+      otherActiveTaskCount,
       contentBlocks: bounded.contentBlocks,
     });
   }
@@ -456,28 +469,64 @@ export class OrchestrationToolDispatcher {
       contentBlocks: bounded.contentBlocks,
     });
   }
-  async restartTaskFromTool(
+  async controlTaskFromTool(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
   ): Promise<unknown> {
-    const restartedFromTaskId = this.resolveTaskReference(
+    const action = stringArg(args, "action");
+    const before = this.resolveTaskReference(
       stringArg(args, "taskId"),
       toolCall,
-    ).id;
-    const task =
-      await this.restartTaskWithStructuredErrors(restartedFromTaskId);
-    const label = task.name ? `${task.name} (${task.id})` : task.id;
-    return taskRestartToolResultSchema.parse({
+    );
+
+    if (action === "restart") {
+      const restartedFromTaskId = before.id;
+      const task =
+        await this.restartTaskWithStructuredErrors(restartedFromTaskId);
+      const label = task.name ? `${task.name} (${task.id})` : task.id;
+      return taskControlToolResultSchema.parse({
+        action,
+        task,
+        restartedFromTaskId,
+        newTaskId: task.id,
+        restartRootTaskId: task.restartRootTaskId ?? restartedFromTaskId,
+        contentBlocks: [
+          {
+            type: "text",
+            text: `Restarted ${restartedFromTaskId} as ${label}. Use task_status/task_logs with taskId "${task.id}".`,
+          },
+        ],
+      });
+    }
+
+    if (action !== "stop") {
+      throw new CodedToolError(
+        "TASK_ARGUMENT_INVALID",
+        "task_control action must be stop or restart.",
+      );
+    }
+    const request = {
+      signal: signalArg(args.signal),
+      timeoutMs: optionalBoundedIntegerArg(args.timeoutMs, "timeoutMs", {
+        min: 1,
+        max: 30_000,
+      }),
+      reason: optionalStringArg(args.reason),
+    };
+    const requestedSignal = request.signal ?? "SIGTERM";
+    const task = await this.deps.tasks.cancelTask(before.id, request);
+    const result = classifyCancelResult(before, task, requestedSignal);
+    const bounded = await buildProcessTextResult({
+      text: formatTaskCancelSummary([result]),
+      outputFilePrefix: "nerve-task-stop",
+      exitMessagePrefix: "Task stop",
+      dataDir: this.deps.storage.paths.home,
+    });
+    return taskControlToolResultSchema.parse({
+      action,
       task,
-      restartedFromTaskId,
-      newTaskId: task.id,
-      restartRootTaskId: task.restartRootTaskId ?? restartedFromTaskId,
-      contentBlocks: [
-        {
-          type: "text",
-          text: `Restarted ${restartedFromTaskId} as ${label}. Use task_status/task_logs with taskId "${task.id}".`,
-        },
-      ],
+      result,
+      contentBlocks: bounded.contentBlocks,
     });
   }
 
@@ -495,12 +544,6 @@ export class OrchestrationToolDispatcher {
     }
   }
 
-  async taskCancelFromTool(
-    toolCall: ToolCallRecord,
-    args: Record<string, unknown>,
-  ): Promise<unknown> {
-    return await taskCancelFromToolImpl.call(this, toolCall, args);
-  }
   async taskLogsFromTool(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,

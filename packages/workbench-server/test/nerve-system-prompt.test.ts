@@ -3,6 +3,29 @@ import { describe, it } from "node:test";
 import { buildNerveSystemPrompt } from "../src/domains/agents/prompting/nerve-system-prompt.js";
 
 describe("Nerve system prompt", () => {
+  it("keeps default guidance concise and uses Mermaid selectively", () => {
+    const prompt = buildNerveSystemPrompt({
+      cwd: "/workspace/nerve",
+      selectedTools: ["read", "bash"],
+      promptGuidelines: [
+        "Prefer dedicated file tools over bash for inspection and search.",
+        "Prefer dedicated file tools over bash for inspection and search.",
+      ],
+    });
+
+    assert.match(
+      prompt,
+      /Use Mermaid diagrams when they clarify complex relationships or flows; otherwise prefer prose\./,
+    );
+    assert.equal(
+      prompt.match(/Prefer dedicated file tools over bash/g)?.length,
+      1,
+    );
+    assert.doesNotMatch(prompt, /<tools>/);
+    assert.doesNotMatch(prompt, /Tool schemas are authoritative/);
+    assert.doesNotMatch(prompt, /After each tool result/);
+  });
+
   it("keeps the environment stable and excludes runtime task state", () => {
     const options = {
       cwd: "C:\\workspace\\nerve",

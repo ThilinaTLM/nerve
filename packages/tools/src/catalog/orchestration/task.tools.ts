@@ -130,40 +130,32 @@ const taskLogsParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const taskCancelParameters = Type.Object(
+const taskControlParameters = Type.Object(
   {
-    taskId: Type.Optional(
-      Type.String({ description: "Task ID or stable name" }),
-    ),
-    taskIds: Type.Optional(
-      Type.Array(Type.String({ description: "Task ID or stable name" }), {
-        minItems: 1,
-        maxItems: 20,
-      }),
-    ),
-    groupId: Type.Optional(Type.String({ description: "Task group ID" })),
+    taskId: Type.String({ description: "Task ID or stable name" }),
+    action: Type.Union([Type.Literal("stop"), Type.Literal("restart")], {
+      description: "Control action",
+    }),
     signal: Type.Optional(
-      Type.Union([
-        Type.Literal("SIGTERM"),
-        Type.Literal("SIGINT"),
-        Type.Literal("SIGKILL"),
-      ]),
+      Type.Union(
+        [
+          Type.Literal("SIGTERM"),
+          Type.Literal("SIGINT"),
+          Type.Literal("SIGKILL"),
+        ],
+        { description: "Stop only: requested process signal" },
+      ),
     ),
     timeoutMs: Type.Optional(
       Type.Number({
-        description: "Cancellation timeout in milliseconds",
+        description: "Stop only: cancellation timeout in milliseconds",
         minimum: 1,
         maximum: 30_000,
       }),
     ),
-    reason: Type.Optional(Type.String({ description: "Cancellation reason" })),
-  },
-  { additionalProperties: false },
-);
-
-const taskRestartParameters = Type.Object(
-  {
-    taskId: Type.String({ description: "Task ID or stable name" }),
+    reason: Type.Optional(
+      Type.String({ description: "Stop only: cancellation reason" }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -186,10 +178,6 @@ export const taskToolDefinitions = [
     label: "task_start",
     description:
       "Start one supervised background process for a server, watcher, or other long-lived Bash-compatible command.",
-    promptSnippet: "Start one supervised long-lived background process",
-    promptGuidelines: [
-      "Use task_start for servers, watchers, and other known long-lived processes; use bash for finite commands. Rely on asynchronous terminal updates and do not poll task_status or task_logs.",
-    ],
     parameters: taskStartParameters,
     executionMode: "sequential",
   },
@@ -202,7 +190,6 @@ export const taskToolDefinitions = [
     label: "task_status",
     description:
       "Discover tasks or inspect task state once. Defaults to active tasks in the current scope; explicit selectors include terminal tasks.",
-    promptSnippet: "Discover tasks and inspect current task state",
     parameters: taskStatusParameters,
     executionMode: "parallel",
   },
@@ -215,35 +202,19 @@ export const taskToolDefinitions = [
     label: "task_logs",
     description:
       "Inspect one explicitly selected task's captured output for recent logs, diagnostics, warnings, or incremental output.",
-    promptSnippet: "Inspect logs for one selected background task",
     parameters: taskLogsParameters,
     executionMode: "parallel",
   },
   {
-    name: "task_cancel",
-    group: "taskManagement",
-    baseRisk: "command",
-    traits: ["write_capable"],
-    executionKind: "host",
-    label: "task_cancel",
-    description:
-      "Cancel explicitly selected tasks by ID/name, ID/name array, or group.",
-    promptSnippet: "Cancel explicitly selected supervised tasks",
-    parameters: taskCancelParameters,
-    executionMode: "sequential",
-  },
-  {
-    name: "task_restart",
+    name: "task_control",
     group: "taskManagement",
     baseRisk: "command",
     traits: ["write_capable", "long_running"],
     executionKind: "host",
-    label: "task_restart",
+    label: "task_control",
     description:
-      "Restart one task by ID or stable name while preserving stored launch settings and environment.",
-    promptSnippet:
-      "Restart one supervised task with its stored launch settings",
-    parameters: taskRestartParameters,
+      "Stop or restart one task by ID or stable name; restart preserves stored launch settings and environment.",
+    parameters: taskControlParameters,
     executionMode: "sequential",
   },
 ] as const satisfies readonly ToolDefinition[];

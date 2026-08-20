@@ -14,9 +14,6 @@ import {
 } from "../../execution/confluence/confluence.js";
 import type { ToolDefinition } from "../types.js";
 
-const confluenceGuideline =
-  "Use Confluence tools only when the Confluence module is enabled; use storage XML/JSONL as the editable source of truth, treat markdown as read-only, keep limits narrow, and mutate pages/attachments only when explicitly requested.";
-
 const stringArray = (description: string) =>
   Type.Array(Type.String(), { description });
 const bodyFormatRead = Type.Union([
@@ -369,9 +366,6 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceSearchSpaces,
     label: "Confluence Search Spaces",
     description: "List or resolve visible Confluence Cloud spaces.",
-    promptSnippet:
-      "List Confluence spaces or resolve exact keys/ids; use page search for free text",
-    promptGuidelines: [confluenceGuideline],
     parameters: searchSpacesParameters,
     executionMode: "parallel",
   },
@@ -385,8 +379,6 @@ export const confluenceToolDefinitions = [
     label: "Confluence Search Pages",
     description:
       "Find Confluence pages by simple filters or CQL/free-text search.",
-    promptSnippet: "Search Confluence pages with CQL or narrow filters",
-    promptGuidelines: [confluenceGuideline],
     parameters: searchPagesParameters,
     executionMode: "parallel",
   },
@@ -400,9 +392,6 @@ export const confluenceToolDefinitions = [
     label: "Confluence Get Page",
     description:
       "Fetch one Confluence page with optional body, related metadata, attachments, and markdown sidecar.",
-    promptSnippet:
-      "Fetch a Confluence page by id; use storage XML as the source of truth",
-    promptGuidelines: [confluenceGuideline],
     parameters: getPageParameters,
     executionMode: "parallel",
   },
@@ -416,8 +405,6 @@ export const confluenceToolDefinitions = [
     label: "Confluence Download Page",
     description:
       "Download one page into editable JSON/storage XML artifacts with optional page attachments.",
-    promptSnippet: "Download one Confluence page before file-backed editing",
-    promptGuidelines: [confluenceGuideline],
     parameters: downloadPageParameters,
     executionMode: "parallel",
   },
@@ -431,8 +418,6 @@ export const confluenceToolDefinitions = [
     label: "Confluence Create Page",
     description:
       "Create a Confluence page from inline storage XML, a body file, or a page JSON/JSONL row.",
-    promptSnippet: "Create Confluence pages only when explicitly requested",
-    promptGuidelines: [confluenceGuideline],
     parameters: createPageParameters,
     executionMode: "sequential",
   },
@@ -446,9 +431,6 @@ export const confluenceToolDefinitions = [
     label: "Confluence Update Page",
     description:
       "Update one Confluence page from inline body, body file, or a page JSON/JSONL row with stale-version protection.",
-    promptSnippet:
-      "Update Confluence pages only from storage XML/JSONL when explicitly requested",
-    promptGuidelines: [confluenceGuideline],
     parameters: updatePageParameters,
     executionMode: "sequential",
   },
@@ -462,9 +444,6 @@ export const confluenceToolDefinitions = [
     label: "Confluence Manage Comment",
     description:
       "Create, update, delete, resolve, or reopen one Confluence comment.",
-    promptSnippet:
-      "Manage one Confluence comment only when explicitly requested",
-    promptGuidelines: [confluenceGuideline],
     parameters: manageCommentParameters,
     executionMode: "sequential",
   },
@@ -478,9 +457,6 @@ export const confluenceToolDefinitions = [
     label: "Confluence Manage Page",
     description:
       "Trash, restore, or permanently purge one Confluence page; archive is not supported by the API.",
-    promptSnippet:
-      "Manage one Confluence page lifecycle only when explicitly requested",
-    promptGuidelines: [confluenceGuideline],
     parameters: managePageParameters,
     executionMode: "sequential",
     classifyRisk: (args) =>
@@ -495,8 +471,6 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceManageLabel,
     label: "Confluence Manage Label",
     description: "Add or remove one label on one Confluence page.",
-    promptSnippet: "Manage one Confluence label only when explicitly requested",
-    promptGuidelines: [confluenceGuideline],
     parameters: manageLabelParameters,
     executionMode: "sequential",
   },
@@ -510,9 +484,6 @@ export const confluenceToolDefinitions = [
     label: "Confluence Manage Restriction",
     description:
       "Add or remove one page restriction subject, or explicitly clear one operation.",
-    promptSnippet:
-      "Manage one Confluence restriction target only when explicitly requested",
-    promptGuidelines: [confluenceGuideline],
     parameters: manageRestrictionParameters,
     executionMode: "sequential",
     classifyRisk: (args) =>
@@ -527,9 +498,6 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceManageAttachment,
     label: "Confluence Manage Attachment",
     description: "Upload, rename, or delete one Confluence attachment.",
-    promptSnippet:
-      "Manage one Confluence attachment only when explicitly requested",
-    promptGuidelines: [confluenceGuideline],
     parameters: manageAttachmentParameters,
     executionMode: "sequential",
   },
