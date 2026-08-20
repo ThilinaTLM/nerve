@@ -53,16 +53,19 @@ impl ManagedProcess {
     }
 
     pub(crate) fn terminate(&self, signal: &str) -> TerminationResult {
-        if self.state.exited.load(Ordering::Acquire) {
-            return TerminationResult::not_attempted(TerminationMethod::None, None);
-        }
         let guard = self
             .state
             .containment_guard
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(result) = guard.as_ref().and_then(ContainmentGuard::terminate) {
+        if let Some(result) = guard
+            .as_ref()
+            .and_then(|guard| guard.terminate(&self.state.target, signal))
+        {
             return result;
+        }
+        if self.state.exited.load(Ordering::Acquire) {
+            return TerminationResult::not_attempted(TerminationMethod::None, None);
         }
         sys_process::terminate(&self.state.target, signal)
     }
@@ -113,15 +116,16 @@ pub(crate) fn spawn(
         };
         wait_state.exited.store(true, Ordering::Release);
         (events.exit)(result.clone());
-        // Closing the kill-on-close Windows Job after the root exits prevents
-        // descendants from keeping inherited pipes open forever. The Unix guard
-        // is deliberately inert because process groups do not own a handle.
-        let _ = wait_state
-            .containment_guard
-            .lock()
-            .map(|mut guard| guard.take());
         for output_thread in output_threads {
             let _ = output_thread.join();
+        }
+        let guard = wait_state
+            .containment_guard
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        if let Some(guard) = guard {
+            guard.release();
         }
         (events.close)(result);
     });

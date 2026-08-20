@@ -1,6 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::ffi::c_void;
-use std::mem::size_of;
 use std::os::windows::io::AsRawHandle;
 use std::os::windows::process::CommandExt;
 use std::process::{Child, Command};
@@ -11,9 +9,7 @@ use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
 };
 use windows_sys::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-    SetInformationJobObject, TerminateJobObject,
+    AssignProcessToJobObject, CreateJobObjectW, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
     CREATE_NO_WINDOW, CREATE_SUSPENDED, GetExitCodeProcess, GetProcessTimes, OpenProcess,
@@ -239,21 +235,7 @@ fn create_job() -> Result<OwnedJob, String> {
     if handle.is_null() {
         return Err(std::io::Error::last_os_error().to_string());
     }
-    let job = OwnedJob(handle);
-    let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
-    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-    let configured = unsafe {
-        SetInformationJobObject(
-            job.0,
-            JobObjectExtendedLimitInformation,
-            &limits as *const _ as *const c_void,
-            size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-        )
-    };
-    if configured == 0 {
-        return Err(std::io::Error::last_os_error().to_string());
-    }
-    Ok(job)
+    Ok(OwnedJob(handle))
 }
 
 fn resume_process_thread(pid: u32) -> Result<(), String> {

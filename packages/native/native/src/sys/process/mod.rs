@@ -27,16 +27,23 @@ pub(crate) struct ContainmentGuard;
 pub(crate) struct ContainmentGuard(windows::OwnedJob);
 
 impl ContainmentGuard {
-    pub(crate) fn terminate(&self) -> Option<TerminationResult> {
+    pub(crate) fn terminate(
+        &self,
+        target: &ManagedTarget,
+        signal: &str,
+    ) -> Option<TerminationResult> {
         #[cfg(unix)]
         {
-            None
+            Some(signal_target(target, signal))
         }
         #[cfg(windows)]
         {
+            let _ = (target, signal);
             Some(self.0.terminate())
         }
     }
+
+    pub(crate) fn release(self) {}
 }
 
 pub(crate) fn capabilities() -> Vec<String> {

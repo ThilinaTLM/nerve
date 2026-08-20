@@ -15,6 +15,12 @@ Keep `native/src/lib.rs` limited to module wiring and boundary re-exports. Featu
 
 The shared filesystem walker in `native/src/` is an internal primitive for search and find, not a generic exported operation. Watchers remain a separate long-lived feature.
 
+## Managed process boundary
+
+Managed commands retain platform containment while the root process or inherited stdout/stderr pipes remain active. Root exit and pipe closure are separate lifecycle events: `exited` reports that the root was reaped, while `closed` waits for inherited output handles to close.
+
+On Windows, the active tree remains in a Job Object so explicit cancellation, timeout handling, foreground Bash promotion, and graceful daemon shutdown can terminate the complete supervised tree. Natural completion releases the Job Object without terminating descendants only after output pipes close. A correctly detached daemon can therefore survive its launcher across tool calls, matching Unix behavior; a descendant that retains managed pipes remains supervised and keeps `closed` pending until it exits or is terminated.
+
 ## Git boundary
 
 The native Git API is deliberately narrow and structured. It supports repository metadata, worktree/index status, refs and branch upstreams, remotes, ahead/behind ancestry, recent commits, stash listing, revision resolution, branch-name validation, and bounded revision/index/worktree document reads. Every potentially expensive repository operation is an N-API worker task rather than main-thread work.

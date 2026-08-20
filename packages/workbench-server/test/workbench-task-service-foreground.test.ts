@@ -69,6 +69,63 @@ describe("task manager foreground bash auto-promotion", () => {
     );
   });
 
+  it("keeps a promoted task supervised for explicit cancellation", async () => {
+    const child = fakeChild();
+    const { supervisor, terminateSignals } = fakeSupervisor({
+      child,
+      onTerminate(signal) {
+        child.emitClose(null, signal);
+      },
+    });
+    const { manager, storage } = await createManager(supervisor);
+
+    const result = await manager.runForegroundBashWithPromotion({
+      command: "long-running command",
+      cwd: storage.paths.home,
+      projectId: "proj_test",
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      autoPromoteAfterMs: 10,
+      origin: { kind: "agent_tool", toolCallId: "tool_test" },
+    });
+    assert.equal(result.kind, "promoted");
+
+    const cancelled = await manager.cancelTask(result.task.id, {
+      signal: "SIGKILL",
+      reason: "Stopped from the task panel.",
+    });
+
+    assert.deepEqual(terminateSignals, ["SIGKILL"]);
+    assert.equal(cancelled.status, "cancelled");
+  });
+
+  it("force-kills a promoted active task during shutdown", async () => {
+    const child = fakeChild();
+    const { supervisor, terminateSignals } = fakeSupervisor({
+      child,
+      onTerminate(signal) {
+        child.emitClose(null, signal);
+      },
+    });
+    const { manager, storage } = await createManager(supervisor);
+
+    const result = await manager.runForegroundBashWithPromotion({
+      command: "long-running command",
+      cwd: storage.paths.home,
+      projectId: "proj_test",
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      autoPromoteAfterMs: 10,
+      origin: { kind: "agent_tool", toolCallId: "tool_test" },
+    });
+    assert.equal(result.kind, "promoted");
+
+    await manager.shutdown();
+
+    assert.deepEqual(terminateSignals, ["SIGKILL"]);
+    assert.equal(manager.getTask(result.task.id).status, "cancelled");
+  });
+
   it(
     "returns normal bash output and removes the hidden task when it finishes before promotion",
     { timeout: 10_000 },
