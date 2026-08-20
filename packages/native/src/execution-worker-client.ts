@@ -49,11 +49,16 @@ export class ExecutionWorkerClient {
 
   static async connect(home: string): Promise<ExecutionWorkerClient> {
     await ensureCompatibleWorker(home);
-    const existing = await connectExisting(home);
-    if (existing) return existing;
+    let lastError: unknown;
+    try {
+      const existing = await connectExisting(home);
+      if (existing) return existing;
+    } catch (error) {
+      if (!isRetryableConnectionError(error)) throw error;
+      lastError = error;
+    }
     launchWorker(home);
     const deadline = Date.now() + STARTUP_TIMEOUT_MS;
-    let lastError: unknown;
     while (Date.now() < deadline) {
       await delay(50);
       try {
@@ -412,8 +417,8 @@ interface WorkerErrorLike {
 /** Connection-level failures that mean the worker has gone away or moved. */
 export function isRetryableConnectionError(error: unknown): boolean {
   const code =
-    (error as WorkerErrorLike | null)?.errno ??
-    (error as NodeJS.ErrnoException).code;
+    (error as NodeJS.ErrnoException | null)?.code ??
+    (error as WorkerErrorLike | null)?.errno;
   const name = (error as Error | null)?.name;
   const message = (error as Error | null)?.message ?? "";
   if (

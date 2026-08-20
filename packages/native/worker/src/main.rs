@@ -841,20 +841,37 @@ fn read_events(
     after_cursor: u64,
 ) -> Result<(Vec<OutputEvent>, u64, ExecutionSnapshot), String> {
     let journal_path = execution.dir.join("events.jsonl");
+    let (offset, committed_end) = {
+        let offsets = execution.journal_offsets.lock().map_err(lock_error)?;
+        (
+            offsets
+                .get(after_cursor as usize)
+                .copied()
+                .or_else(|| offsets.last().copied())
+                .unwrap_or(0),
+            offsets.last().copied().unwrap_or(0),
+        )
+    };
+    let (events, cursor) =
+        read_committed_events(&journal_path, offset, committed_end, after_cursor)?;
+    let snapshot = execution.snapshot.lock().map_err(lock_error)?.clone();
+    Ok((events, cursor, snapshot))
+}
+
+fn read_committed_events(
+    journal_path: &Path,
+    offset: u64,
+    committed_end: u64,
+    after_cursor: u64,
+) -> Result<(Vec<OutputEvent>, u64), String> {
     let mut file = File::open(journal_path).map_err(|error| error.to_string())?;
-    let offsets = execution.journal_offsets.lock().map_err(lock_error)?;
-    let offset = offsets
-        .get(after_cursor as usize)
-        .copied()
-        .or_else(|| offsets.last().copied())
-        .unwrap_or(0);
-    drop(offsets);
     file.seek(SeekFrom::Start(offset))
         .map_err(|error| error.to_string())?;
+    let committed_bytes = committed_end.saturating_sub(offset);
     let mut events = Vec::new();
     let mut bytes = 0;
     let mut cursor = after_cursor;
-    for line in BufReader::new(file).lines() {
+    for line in BufReader::new(file.take(committed_bytes)).lines() {
         let line = line.map_err(|error| error.to_string())?;
         let event: OutputEvent = serde_json::from_str(&line).map_err(|error| error.to_string())?;
         if event.cursor <= after_cursor {
@@ -867,8 +884,7 @@ fn read_events(
             break;
         }
     }
-    let snapshot = execution.snapshot.lock().map_err(lock_error)?.clone();
-    Ok((events, cursor, snapshot))
+    Ok((events, cursor))
 }
 
 fn journal_offsets(path: &Path) -> Result<Vec<u64>, String> {
@@ -1103,7 +1119,12 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{Request, StartParams, constant_time_eq, validate_execution_id};
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::{
+        Request, StartParams, constant_time_eq, read_committed_events, validate_execution_id,
+    };
 
     #[test]
     fn validates_execution_ids() {
@@ -1121,6 +1142,31 @@ mod tests {
             serde_json::from_value(request.params).expect("start params fixture");
         assert_eq!(start.execution_id, "tool_fixture");
         assert!(start.below_normal_priority);
+    }
+
+    #[test]
+    fn ignores_an_uncommitted_partial_journal_line() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "nerve-worker-journal-{}-{unique}.jsonl",
+            std::process::id()
+        ));
+        let committed = concat!(
+            r#"{"cursor":1,"kind":"output","stream":"stdout","dataBase64":"b2s="}"#,
+            "\n"
+        );
+        fs::write(&path, format!("{committed}{{\"cursor\":2,\"kind\":\"out"))
+            .expect("write journal fixture");
+
+        let result = read_committed_events(&path, 0, committed.len() as u64, 0);
+        let _ = fs::remove_file(&path);
+
+        let (events, cursor) = result.expect("read committed journal events");
+        assert_eq!(events.len(), 1);
+        assert_eq!(cursor, 1);
     }
 
     #[test]

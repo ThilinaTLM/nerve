@@ -50,6 +50,25 @@ test("starts idempotently and replays durable output by cursor", async () => {
   );
 });
 
+test("replaces a dead worker with stale endpoint metadata", async () => {
+  const first = await fixture();
+  const initialHealth = await first.health();
+  process.kill(initialHealth.pid, "SIGTERM");
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(initialHealth.pid, 0);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    } catch {
+      break;
+    }
+  }
+
+  const replacement = await ExecutionWorkerClient.connect(first.home);
+  const replacementHealth = await replacement.health();
+  assert.notEqual(replacementHealth.pid, initialHealth.pid);
+});
+
 test("cancels a worker-owned process tree", async () => {
   const client = await fixture();
   await client.start({
