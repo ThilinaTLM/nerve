@@ -4,12 +4,15 @@ Cross-platform native runtime primitives for Nerve. The npm package and Rust cra
 
 ## Rust architecture
 
-`native/src` uses a hybrid feature-first layout:
+`native/src` uses a feature-first layout:
 
-- `api/` contains only N-API DTOs, exported functions/classes, callback adapters, and conversions.
-- Feature modules contain N-API-independent mechanics and models. `process/` owns managed subprocess trees, while `git/` owns stateless, read-only local repository access through `gix`.
-- `sys/` contains compile-time-selected operating-system integration, unsafe code, and FFI.
-- `runtime/` is reserved for shared cancellation, bounded batching, and exactly-once completion primitives. Add these modules with their first consumer rather than as empty scaffolding.
+- `api/` contains only N-API DTOs, exported functions/classes, callback adapters, and conversions. Git and process boundaries have their own submodules.
+- `process/` owns policy validation, managed subprocess state, native output accounting, and active-process admission.
+- `git/` owns stateless, read-only local repository access through `gix`.
+- `runtime/` owns the shared Tokio executor used for asynchronous process pipes, waits, and timers.
+- `platform/process/` contains compile-time-selected Linux, macOS, and Windows containment, identity, signaling, and resource-limit integration. Unsafe code and OS FFI stay in this layer.
+
+The TypeScript facade follows the same feature split under `src/git/` and `src/process/`; `src/binding/` alone loads and describes the raw addon. `src/index.ts` remains the public barrel, so consumers continue importing only `@nervekit/native`.
 
 Keep `native/src/lib.rs` limited to module wiring and boundary re-exports. Feature modules must not import `napi` or expose Node concepts. Convert transport-neutral internal records at the `api` boundary, and avoid generic `utils.rs`, `common.rs`, or `types.rs` modules.
 
@@ -17,7 +20,13 @@ The shared filesystem walker in `native/src/` is an internal primitive for searc
 
 ## Managed process boundary
 
-Managed commands retain platform containment while the root process or inherited stdout/stderr pipes remain active. Root exit and pipe closure are separate lifecycle events: `exited` reports that the root was reaped, while `closed` waits for inherited output handles to close.
+Managed commands retain platform containment while the root process or inherited stdout/stderr pipes remain active. Root exit and pipe closure are separate lifecycle events: `exited` reports that the root was reaped, while `closed` waits for inherited output handles to close and for native buffered output to be consumed.
+
+Pipe reads, child waits, and wall timers run on one shared Rust async runtime instead of creating three operating-system threads per child. Rust owns a byte-bounded queue of stream-tagged output. N-API sends only a coalesced readiness notification; the TypeScript facade pulls bounded batches and pauses pulling whenever a Node `PassThrough` reports backpressure. A full Rust queue therefore propagates bounded backpressure through the OS pipe rather than growing daemon memory.
+
+Per-spawn policies can bound queue bytes, total output, wall time, memory, CPU, and process count. Output, wall time, and native admission are platform-independent. Linux uses delegated cgroups v2; Windows applies Job Object memory, CPU-rate, and active-process limits; macOS currently reports tree-wide OS resource limits as unsupported. Every requested OS limit reports `enforced`, `fallback`, or `unsupported`. `required` policy rejects unsupported limits before command execution, while `best-effort` preserves local availability and exposes the weaker result.
+
+Linux discovers the daemon's unified cgroup from `/proc/self/cgroup`. Deployments with an explicitly delegated subtree can set `NERVE_CGROUP_ROOT`; the runtime validates that it is a writable cgroup v2 directory before launching commands into child cgroups.
 
 On Windows, the active tree remains in a Job Object so explicit cancellation, timeout handling, foreground Bash promotion, and graceful daemon shutdown can terminate the complete supervised tree. Natural completion releases the Job Object without terminating descendants only after output pipes close. A correctly detached daemon can therefore survive its launcher across tool calls, matching Unix behavior; a descendant that retains managed pipes remains supervised and keeps `closed` pending until it exits or is terminated.
 

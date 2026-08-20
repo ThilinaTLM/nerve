@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { pathToFileURL } from "node:url";
 import {
+  configureManagedProcessRuntime,
   inspectManagedTarget,
   nativeRuntimeCapabilities,
   spawnManagedProcess,
@@ -67,14 +68,16 @@ describe("native managed process facade", () => {
     assert.equal(Array.isArray(capabilities.capabilities), true);
   });
 
+  it("configures native admission before spawning", () => {
+    configureManagedProcessRuntime({ maxActiveProcesses: 2 });
+    configureManagedProcessRuntime({ maxActiveProcesses: 2 });
+  });
+
   it("fails module initialization when the native binding is missing", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-native-missing-"));
     const isolatedModule = join(root, "index.ts");
     try {
-      await copyFile(
-        new URL("../src/index.ts", import.meta.url),
-        isolatedModule,
-      );
+      await cp(new URL("../src", import.meta.url), root, { recursive: true });
       const result = spawnSync(
         node,
         [
@@ -111,6 +114,151 @@ describe("native managed process facade", () => {
     process.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
     assert.equal((await process.exited).exitCode, 0);
     assert.equal(Buffer.concat(chunks).toString(), "ok");
+  });
+
+  it("reports best-effort resource enforcement", async () => {
+    const managed = spawnManagedProcess(node, ["-e", ""], {
+      policy: {
+        enforcement: "best-effort",
+        memoryBytes: 1024 * 1024 * 1024,
+        maxCpuCores: 1,
+        maxProcesses: 32,
+      },
+    });
+    assert.deepEqual(
+      managed.enforcement.map((entry) => entry.resource).sort(),
+      ["cpu", "memory", "processes"],
+    );
+    managed.stdout.resume();
+    managed.stderr.resume();
+    await managed.closed;
+  });
+
+  it(
+    "fails required enforcement when the configured backend is unavailable",
+    { skip: process.platform !== "linux" },
+    () => {
+      const previous = process.env.NERVE_CGROUP_ROOT;
+      process.env.NERVE_CGROUP_ROOT = join(tmpdir(), "missing-nerve-cgroup");
+      try {
+        assert.throws(
+          () =>
+            spawnManagedProcess(node, ["-e", ""], {
+              policy: {
+                enforcement: "required",
+                maxCpuCores: 1,
+              },
+            }),
+          /cgroup|directory/i,
+        );
+      } finally {
+        if (previous === undefined) delete process.env.NERVE_CGROUP_ROOT;
+        else process.env.NERVE_CGROUP_ROOT = previous;
+      }
+    },
+  );
+
+  it("rejects invalid output policies before execution", () => {
+    assert.throws(
+      () =>
+        spawnManagedProcess(node, ["-e", ""], {
+          policy: { output: { totalBytes: 1024 } },
+        }),
+      /overflow is required/,
+    );
+  });
+
+  it("bounds queued output and resumes after a delayed consumer", async () => {
+    const managed = spawnManagedProcess(
+      node,
+      ["-e", "process.stdout.write(Buffer.alloc(2 * 1024 * 1024, 97))"],
+      { policy: { output: { queueBytes: 32 * 1024, batchBytes: 16 * 1024 } } },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const chunks: Buffer[] = [];
+    managed.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
+    assert.equal((await managed.closed).exitCode, 0);
+    assert.equal(Buffer.concat(chunks).length, 2 * 1024 * 1024);
+    assert.equal((await managed.outputStats).totalOmittedBytes, 0);
+  });
+
+  it("terminates and reports output overflow", async () => {
+    const managed = spawnManagedProcess(
+      node,
+      ["-e", "process.stdout.write(Buffer.alloc(1024 * 1024, 97))"],
+      {
+        policy: {
+          output: {
+            queueBytes: 32 * 1024,
+            batchBytes: 16 * 1024,
+            totalBytes: 4096,
+            overflow: "terminate",
+          },
+        },
+      },
+    );
+    managed.stdout.resume();
+    managed.stderr.resume();
+    const exit = await managed.closed;
+    assert.equal(exit.reason, "output_limit");
+    const stats = await managed.outputStats;
+    assert.ok(stats.totalObservedBytes > stats.totalDeliveredBytes);
+    assert.equal(stats.totalDeliveredBytes, 4096);
+  });
+
+  it("truncates output while continuing to drain the child", async () => {
+    const managed = spawnManagedProcess(
+      node,
+      ["-e", "process.stdout.write(Buffer.alloc(128 * 1024, 98))"],
+      {
+        policy: {
+          output: {
+            queueBytes: 16 * 1024,
+            batchBytes: 4096,
+            totalBytes: 4096,
+            overflow: "truncate",
+          },
+        },
+      },
+    );
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    managed.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+    managed.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    const exit = await managed.closed;
+    assert.equal(exit.exitCode, 0);
+    assert.equal(exit.reason, "exited");
+    assert.equal(Buffer.concat(stdout).length, 4096);
+    assert.match(Buffer.concat(stderr).toString(), /output bytes omitted/);
+    assert.equal((await managed.outputStats).totalOmittedBytes, 124 * 1024);
+  });
+
+  it("enforces native wall time", async () => {
+    const managed = spawnManagedProcess(
+      node,
+      ["-e", "setInterval(() => {}, 1000)"],
+      { policy: { wallTimeMs: 50 } },
+    );
+    managed.stdout.resume();
+    managed.stderr.resume();
+    assert.equal((await managed.closed).reason, "timeout");
+  });
+
+  it("rejects spawns above the native admission ceiling", async () => {
+    const first = spawnManagedProcess(node, [
+      "-e",
+      "setInterval(() => {}, 1000)",
+    ]);
+    const second = spawnManagedProcess(node, [
+      "-e",
+      "setInterval(() => {}, 1000)",
+    ]);
+    assert.throws(
+      () => spawnManagedProcess(node, ["-e", "setInterval(() => {}, 1000)"]),
+      /capacity reached/,
+    );
+    await Promise.all([first.terminate(), second.terminate()]);
+    await Promise.all([first.closed, second.closed]);
   });
 
   it("inspects and terminates a serialized managed target", async () => {

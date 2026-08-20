@@ -15,6 +15,7 @@ import {
   type TerminationMethod,
 } from "@nervekit/native";
 import { resolveBashShellConfig } from "@nervekit/tools";
+import { taskProcessPolicy } from "./task-process-policy.js";
 import {
   defaultTaskPortInspector,
   type TaskPortInspector,
@@ -31,6 +32,7 @@ export type ProcessLifecycleResult =
       kind: "closed";
       exitCode: number | null;
       signal: NodeJS.Signals | null;
+      reason?: ManagedProcessExit["reason"];
     }
   | { kind: "error"; error: Error };
 
@@ -87,6 +89,7 @@ export function createTaskSupervisor(
       const child = spawnManagedChildProcess(shell.shell, shell.args, {
         cwd: options.cwd,
         env: processEnvironment(options.env),
+        policy: taskProcessPolicy(),
       });
       const managed = managedProcessForChild(child);
       if (!managed) {

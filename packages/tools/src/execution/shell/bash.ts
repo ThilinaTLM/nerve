@@ -7,6 +7,7 @@ import { numberArg } from "../common/args.js";
 import { resolveCommandCwd } from "../common/command-cwd.js";
 import { BoundedProcessOutput } from "../common/bounded-process-output.js";
 import { LiveOutputDelivery } from "../common/live-output.js";
+import { bashProcessPolicy } from "../common/managed-process-policy.js";
 import { forceKillProcessTree } from "../common/process-tree.js";
 import { buildProcessResult } from "../common/process-result.js";
 import { resolveBashShellConfig } from "./shell-config.js";
@@ -54,6 +55,11 @@ export async function executeBash(
       {
         cwd,
         env: nonInteractiveShellEnv(),
+        policy: bashProcessPolicy(
+          timeoutSeconds && timeoutSeconds > 0
+            ? timeoutSeconds * 1000
+            : undefined,
+        ),
       },
     );
 

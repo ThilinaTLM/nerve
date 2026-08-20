@@ -1,5 +1,6 @@
 import type { ChildProcessByStdio } from "node:child_process";
 import { spawnManagedChildProcess } from "@nervekit/native";
+import { searchProcessPolicy } from "../common/managed-process-policy.js";
 import { createReadStream } from "node:fs";
 import { open } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
@@ -24,6 +25,7 @@ import { isErrnoException } from "./path.js";
 
 const GREP_TIMEOUT_MS = 30_000;
 const STDERR_LIMIT = 64 * 1024;
+const STDOUT_LINE_LIMIT = 1024 * 1024;
 const BINARY_PROBE_BYTES = 8 * 1024;
 
 type GrepMatch = NonNullable<ToolExecutionResult["matches"]>[number];
@@ -122,11 +124,9 @@ async function runRg(
   return new Promise<GrepRunResult>((resolve, reject) => {
     let child: ChildProcessByStdio<null, Readable, Readable>;
     try {
-      child = spawnManagedChildProcess("rg", rgArgs) as ChildProcessByStdio<
-        null,
-        Readable,
-        Readable
-      >;
+      child = spawnManagedChildProcess("rg", rgArgs, {
+        policy: searchProcessPolicy,
+      }) as ChildProcessByStdio<null, Readable, Readable>;
     } catch (error) {
       reject(commandUnavailableError(error));
       return;
@@ -238,6 +238,13 @@ async function runRg(
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
       stdoutBuffer += chunk;
+      if (
+        stdoutBuffer.length > STDOUT_LINE_LIMIT &&
+        !stdoutBuffer.includes("\n")
+      ) {
+        failAndKill(new Error("ripgrep returned an oversized JSON record."));
+        return;
+      }
       let newline = stdoutBuffer.indexOf("\n");
       while (newline >= 0 && !processError && !stoppedForLimit) {
         const line = stdoutBuffer.slice(0, newline).replace(/\r$/, "");

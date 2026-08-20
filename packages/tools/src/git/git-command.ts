@@ -1,4 +1,5 @@
 import { spawnManagedProcess } from "@nervekit/native";
+import { gitProcessPolicy } from "../execution/common/managed-process-policy.js";
 
 const COMMAND_TIMEOUT_MS = 20_000;
 const MAX_BUFFER = 16 * 1024 * 1024;
@@ -31,6 +32,7 @@ export async function runGitCommand(
     child = spawnManagedProcess(bin, args, {
       cwd,
       env: process.env,
+      policy: gitProcessPolicy,
     });
   } catch (error) {
     throw new GitCommandError(command, null, errorMessage(error));
@@ -75,6 +77,9 @@ export async function runGitCommand(
   } finally {
     clearTimeout(timer);
   }
+
+  if (!failure && result.reason === "timeout") failure = "timeout";
+  if (!failure && result.reason === "output_limit") failure = "overflow";
 
   const stdoutText = Buffer.concat(stdout).toString("utf8");
   const stderrText = Buffer.concat(stderr).toString("utf8");
