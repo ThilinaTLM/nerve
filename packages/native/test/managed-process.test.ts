@@ -153,7 +153,7 @@ describe("native managed process facade", () => {
       const managed = spawnManagedProcess(node, [
         "-e",
         `const { spawn } = require("node:child_process");
-       const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+       const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", detached: process.platform === "win32" });
        console.log(child.pid);
        child.unref();`,
       ]);
@@ -179,7 +179,7 @@ describe("native managed process facade", () => {
       const managed = spawnManagedProcess(node, [
         "-e",
         `const { spawn } = require("node:child_process");
-       const child = spawn(process.execPath, ["-e", "setInterval(() => process.stdout.write('alive\\n'), 20)"], { stdio: ["ignore", "inherit", "inherit"] });
+       const child = spawn(process.execPath, ["-e", "setInterval(() => process.stdout.write('alive\\n'), 20)"], { stdio: ["ignore", "inherit", "inherit"], detached: process.platform === "win32" });
        console.log(child.pid);
        child.unref();`,
       ]);
