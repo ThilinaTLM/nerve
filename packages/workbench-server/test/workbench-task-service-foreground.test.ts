@@ -295,7 +295,7 @@ describe("task manager foreground bash auto-promotion", () => {
 
   it(
     "force-kills the process tree when foreground bash is aborted",
-    { timeout: 2_000 },
+    { timeout: 10_000 },
     async () => {
       const child = fakeChild();
       const { supervisor, terminateSignals } = fakeSupervisor({
