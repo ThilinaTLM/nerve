@@ -31,7 +31,7 @@ The coding agent uses the summarizer directly. Its default output is structured 
 
 ```sh
 latest=$(ls -1t "$HOME/.nerve/logs"/performance-*.jsonl | head -n1)
-pnpm performance:summarize -- \
+node scripts/summarize-performance-jsonl.mjs \
   --startup "$HOME/.nerve/logs/startup.jsonl" \
   --performance "$latest"
 ```
@@ -39,7 +39,7 @@ pnpm performance:summarize -- \
 For an intermittent incident, the agent can isolate an inclusive time window:
 
 ```sh
-pnpm performance:summarize -- \
+node scripts/summarize-performance-jsonl.mjs \
   --performance "$latest" \
   --since "2026-08-15T10:20:00Z" \
   --until "2026-08-15T10:25:00Z"

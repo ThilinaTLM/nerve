@@ -1,4 +1,4 @@
-name: Prepare Release
+name: Tag Release
 
 on:
   workflow_dispatch:
@@ -9,18 +9,17 @@ on:
         type: string
 
 concurrency:
-  group: prepare-release-v${{ inputs.version }}
+  group: tag-release-v${{ inputs.version }}
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  prepare-release:
+  tag-release:
     name: Bump version and create tag
     runs-on: ubuntu-latest
     permissions:
-      actions: write
       contents: write
 
     steps:
@@ -128,10 +127,16 @@ jobs:
             "HEAD:refs/heads/${DEFAULT_BRANCH}" \
             "refs/tags/${release_tag}"
 
-      - name: Dispatch release workflow at tag
+      - name: Request release publication
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_VERSION: ${{ inputs.version }}
-        run: gh workflow run release.yml --ref "v${RELEASE_VERSION}"
+        run: |
+          gh api --method POST "repos/${GH_REPO}/dispatches" --input - <<EOF
+          {
+            "event_type": "release-tagged",
+            "client_payload": { "tag": "v${RELEASE_VERSION}" }
+          }
+          EOF

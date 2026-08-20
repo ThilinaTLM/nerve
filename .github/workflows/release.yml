@@ -1,4 +1,4 @@
-name: Release
+name: Publish Release
 
 on:
   push:
@@ -7,10 +7,15 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+"
       # Pre-releases: v1.2.3-rc.1, v1.2.3-beta.2, etc.
       - "v[0-9]+.[0-9]+.[0-9]+-*"
-  workflow_dispatch:
+  repository_dispatch:
+    types:
+      - release-tagged
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.tag || github.ref_name }}
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: release-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.tag || github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -22,18 +27,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Require a tag ref
+      - name: Require a release tag
         shell: bash
-        env:
-          RELEASE_REF_TYPE: ${{ github.ref_type }}
         run: |
-          if [ "${RELEASE_REF_TYPE}" != "tag" ]; then
-            echo "Release must run against a tag ref" >&2
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: ${RELEASE_TAG}" >&2
             exit 1
           fi
 
       - name: Check out release commit
         uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -41,8 +46,6 @@ jobs:
           node-version: 24
 
       - name: Verify release tag
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
         run: node scripts/verify-release-tag.mjs "${RELEASE_TAG}"
 
   native-prebuilds:
@@ -74,6 +77,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
@@ -109,6 +114,8 @@ jobs:
     steps:
       - name: Check out release commit
         uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -134,7 +141,7 @@ jobs:
           merge-multiple: true
 
       - name: Verify native prebuild inventory
-        run: pnpm release:verify-native
+        run: node scripts/verify-native-prebuilds.mjs
 
       - name: Check formatting, lint, and packages
         run: pnpm check
@@ -149,16 +156,16 @@ jobs:
         run: pnpm build
 
       - name: Smoke built workbench HTTP and WebSocket parity
-        run: pnpm release:smoke:workbench
+        run: node scripts/smoke-workbench-release.mjs
 
       - name: Smoke desktop resolution and CLI
-        run: pnpm release:smoke:desktop
+        run: node scripts/smoke-desktop-release.mjs
 
       - name: Package unpacked desktop bundle
         run: pnpm --filter @nervekit/desktop-shell package:dir
 
       - name: Smoke packaged desktop identity and assets
-        run: pnpm release:smoke:desktop-package
+        run: node scripts/smoke-desktop-package.mjs
 
       - name: Pack and verify npm tarball
         run: node scripts/pack-npm.mjs
@@ -186,6 +193,8 @@ jobs:
     steps:
       - name: Check out release commit
         uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -205,7 +214,7 @@ jobs:
           merge-multiple: true
 
       - name: Verify native prebuild inventory
-        run: pnpm release:verify-native
+        run: node scripts/verify-native-prebuilds.mjs
 
       - name: Build all packages
         run: pnpm build
@@ -217,13 +226,13 @@ jobs:
         run: pnpm --filter @nervekit/desktop-shell package:dir
 
       - name: Smoke packaged desktop identity and assets
-        run: pnpm release:smoke:desktop-package
+        run: node scripts/smoke-desktop-package.mjs
 
       - name: Pack and verify npm tarball
         run: node scripts/pack-npm.mjs
 
       - name: Verify built desktop runtime
-        run: pnpm release:smoke:desktop
+        run: node scripts/smoke-desktop-release.mjs
 
   build-website:
     name: Build website
@@ -239,6 +248,8 @@ jobs:
     steps:
       - name: Check out release commit
         uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -306,8 +317,6 @@ jobs:
 
       - name: Publish npm tarball
         shell: bash
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           name="@nervekit/desktop"
@@ -371,7 +380,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
