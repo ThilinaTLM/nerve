@@ -1,6 +1,8 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import Maximize from "@lucide/svelte/icons/maximize";
+import Mouse from "@lucide/svelte/icons/mouse";
 import ZoomIn from "@lucide/svelte/icons/zoom-in";
 import ZoomOut from "@lucide/svelte/icons/zoom-out";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -11,6 +13,7 @@ type Props = {
   source: string;
   ariaLabel?: string;
   class?: string;
+  defaultWheelZoomEnabled?: boolean;
   onOpenStandalone?: () => void;
 };
 
@@ -23,6 +26,7 @@ let {
   source,
   ariaLabel = "Mermaid diagram",
   class: className = "",
+  defaultWheelZoomEnabled = false,
   onOpenStandalone,
 }: Props = $props();
 
@@ -35,6 +39,7 @@ let offsetY = $state(0);
 let diagramWidth = $state(0);
 let diagramHeight = $state(0);
 let automaticFit = $state(true);
+let wheelZoomEnabled = $state(untrack(() => defaultWheelZoomEnabled));
 let dragging = $state(false);
 let activePointerId: number | undefined;
 let dragStartX = 0;
@@ -96,7 +101,8 @@ function zoomAt(nextScale: number, clientX?: number, clientY?: number) {
 }
 
 function handleWheel(event: WheelEvent) {
-  if (renderState !== "rendered") return;
+  if ((!wheelZoomEnabled && !event.ctrlKey) || renderState !== "rendered")
+    return;
   event.preventDefault();
   zoomAt(scale * Math.exp(-event.deltaY * 0.001), event.clientX, event.clientY);
 }
@@ -227,50 +233,65 @@ $effect(() => {
 
   {#if renderState === "rendered"}
     <div
-      class="absolute right-3 top-3 z-10 flex items-center gap-0.5 rounded-md border border-border bg-popover/90 p-1 text-popover-foreground shadow-sm backdrop-blur-sm"
+      class="absolute right-2 top-2 z-10 flex items-center gap-0.5 rounded-md border border-border bg-popover/90 p-0.5 text-popover-foreground shadow-sm backdrop-blur-sm"
       role="toolbar"
-      aria-label="Diagram zoom controls"
+      aria-label="Diagram controls"
       tabindex="-1"
       onpointerdown={(event) => event.stopPropagation()}
     >
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-xs"
+        pressed={wheelZoomEnabled}
+        active={wheelZoomEnabled}
+        ariaLabel={wheelZoomEnabled
+          ? "Disable mouse wheel zoom"
+          : "Enable mouse wheel zoom; hold Control for temporary zoom"}
+        title={wheelZoomEnabled
+          ? "Disable mouse wheel zoom"
+          : "Enable mouse wheel zoom (Ctrl+wheel temporarily)"}
+        onclick={() => (wheelZoomEnabled = !wheelZoomEnabled)}
+      >
+        <Mouse class="size-3.5" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-xs"
         ariaLabel="Zoom out"
         title="Zoom out"
         disabled={scale <= MIN_SCALE}
         onclick={() => zoomAt(scale / ZOOM_STEP)}
       >
-        <ZoomOut class="size-4" />
+        <ZoomOut class="size-3" />
       </Button>
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-xs"
         ariaLabel="Zoom in"
         title="Zoom in"
         disabled={scale >= MAX_SCALE}
         onclick={() => zoomAt(scale * ZOOM_STEP)}
       >
-        <ZoomIn class="size-4" />
+        <ZoomIn class="size-3" />
       </Button>
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-xs"
         ariaLabel="Fit diagram to view"
         title="Fit to view"
         onclick={fitDiagram}
       >
-        <Maximize class="size-4" />
+        <Maximize class="size-3" />
       </Button>
       {#if onOpenStandalone}
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon-xs"
           ariaLabel="Open diagram in tab"
           title="Open diagram in tab"
           onclick={onOpenStandalone}
         >
-          <ExternalLink class="size-4" />
+          <ExternalLink class="size-3" />
         </Button>
       {/if}
     </div>

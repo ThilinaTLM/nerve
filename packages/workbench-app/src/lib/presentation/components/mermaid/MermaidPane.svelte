@@ -35,7 +35,12 @@ let {
       <p class="m-0 max-w-xl text-sm">{error}</p>
     </div>
   {:else if source}
-    <MermaidDiagram class="h-full" {source} {ariaLabel} />
+    <MermaidDiagram
+      class="h-full"
+      {source}
+      {ariaLabel}
+      defaultWheelZoomEnabled
+    />
     {#if truncated}
       <p
         class="absolute bottom-3 left-3 m-0 rounded-md border border-border bg-background/90 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm"

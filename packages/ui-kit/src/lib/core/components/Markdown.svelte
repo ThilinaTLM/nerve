@@ -23,6 +23,7 @@ import {
   resolveDisplayPath,
   splitPathLineSuffix,
 } from "@nervekit/ui-kit/core/utils/path-links";
+import { observeMermaidVisibility } from "./mermaid-visibility.js";
 import MermaidDiagram from "./MermaidDiagram.svelte";
 
 type Props = {
@@ -142,7 +143,10 @@ function copyButtonHandler(node: HTMLDivElement) {
   };
 }
 
-type MermaidEnhancement = { destroy: () => void };
+type MermaidEnhancement = {
+  destroy: () => void;
+  matches: (root: HTMLElement, value: MermaidHandlerValue) => boolean;
+};
 type MermaidHandlerValue = {
   html: string;
   source: string;
@@ -150,39 +154,111 @@ type MermaidHandlerValue = {
   onOpenMermaid?: (block: MermaidMarkdownBlock) => void;
 };
 
+type MermaidHostValue = {
+  host: HTMLElement;
+  source: string;
+  ariaLabel: string;
+  extracted?: MermaidMarkdownBlock;
+};
+
+function nearestVerticalScrollRoot(root: HTMLElement): Element | null {
+  const document = root.ownerDocument;
+  for (let parent = root.parentElement; parent; parent = parent.parentElement) {
+    if (parent === document.body || parent === document.documentElement) break;
+    const overflowY = getComputedStyle(parent).overflowY;
+    if (
+      /^(auto|overlay|scroll)$/u.test(overflowY) &&
+      parent.scrollHeight > parent.clientHeight
+    )
+      return parent;
+  }
+  return null;
+}
+
+function createMermaidPlaceholder(host: HTMLElement): void {
+  const placeholder = host.ownerDocument.createElement("div");
+  placeholder.className =
+    "grid h-full place-items-center p-4 text-sm text-muted-foreground";
+  placeholder.textContent = "Mermaid diagram";
+  placeholder.setAttribute("aria-hidden", "true");
+  host.setAttribute("aria-busy", "true");
+  host.replaceChildren(placeholder);
+}
+
 function enhanceMermaidBlocks(
   root: HTMLElement,
   value: MermaidHandlerValue,
 ): MermaidEnhancement {
   const components: Record<string, unknown>[] = [];
-  const blocks = value.onOpenMermaid
-    ? extractMermaidMarkdownBlocks(value.source, value.sourceLineStart)
-    : [];
-  const hosts = root.querySelectorAll<HTMLElement>("[data-mermaid-diagram]");
-  for (const [index, host] of [...hosts].entries()) {
+  const blocks = extractMermaidMarkdownBlocks(
+    value.source,
+    value.sourceLineStart,
+  );
+  const hosts = [
+    ...root.querySelectorAll<HTMLElement>("[data-mermaid-diagram]"),
+  ];
+  const hostValues: MermaidHostValue[] = [];
+  let active = true;
+
+  for (const [index, host] of hosts.entries()) {
     const extracted = blocks[index];
     const source =
       extracted?.source ?? host.querySelector("pre > code")?.textContent ?? "";
     if (!source.trim()) continue;
-    const ariaLabel = host.getAttribute("aria-label") ?? "Mermaid diagram";
-    host.replaceChildren();
-    components.push(
-      mount(MermaidDiagram, {
-        target: host,
-        props: {
-          source,
-          ariaLabel,
-          class: "h-full w-full",
-          onOpenStandalone:
-            extracted && value.onOpenMermaid
-              ? () => value.onOpenMermaid?.(extracted)
-              : undefined,
-        },
-      }),
-    );
+    hostValues.push({
+      host,
+      source,
+      extracted,
+      ariaLabel: host.getAttribute("aria-label") ?? "Mermaid diagram",
+    });
+    createMermaidPlaceholder(host);
   }
+
+  const stopObserving = observeMermaidVisibility(
+    hostValues.map((value) => value.host),
+    {
+      root: nearestVerticalScrollRoot(root),
+      mount: (target) => {
+        const host = target as HTMLElement;
+        const hostValue = hostValues.find((value) => value.host === host);
+        if (!active || !host.isConnected || !hostValue) return;
+        host.removeAttribute("aria-busy");
+        host.replaceChildren();
+        components.push(
+          mount(MermaidDiagram, {
+            target: host,
+            props: {
+              source: hostValue.source,
+              ariaLabel: hostValue.ariaLabel,
+              class: "h-full w-full",
+              onOpenStandalone:
+                hostValue.extracted && value.onOpenMermaid
+                  ? () => value.onOpenMermaid?.(hostValue.extracted!)
+                  : undefined,
+            },
+          }),
+        );
+      },
+    },
+  );
+
   return {
+    matches(nextRoot, nextValue) {
+      if (
+        nextValue.source !== value.source ||
+        nextValue.sourceLineStart !== value.sourceLineStart ||
+        nextValue.onOpenMermaid !== value.onOpenMermaid
+      )
+        return false;
+      const nextHosts = nextRoot.querySelectorAll("[data-mermaid-diagram]");
+      return (
+        nextHosts.length === hosts.length &&
+        hosts.every((host, index) => nextHosts[index] === host)
+      );
+    },
     destroy() {
+      active = false;
+      stopObserving();
       for (const component of components) void unmount(component);
     },
   };
@@ -194,11 +270,14 @@ function mermaidHandler(node: HTMLDivElement, value: MermaidHandlerValue) {
 
   async function update(nextValue: MermaidHandlerValue) {
     const current = ++generation;
-    enhancement?.destroy();
-    enhancement = undefined;
-    if (!nextValue.html.includes("data-mermaid-diagram")) return;
+    if (!nextValue.html.includes("data-mermaid-diagram")) {
+      enhancement?.destroy();
+      enhancement = undefined;
+      return;
+    }
     await tick();
-    if (current !== generation) return;
+    if (current !== generation || enhancement?.matches(node, nextValue)) return;
+    enhancement?.destroy();
     enhancement = enhanceMermaidBlocks(node, nextValue);
   }
 
