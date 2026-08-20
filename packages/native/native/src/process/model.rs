@@ -115,6 +115,43 @@ impl TerminationMethod {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ExitReason {
+    Exited,
+    Signal,
+    Timeout,
+    #[cfg(target_os = "linux")]
+    MemoryLimit,
+    #[cfg(target_os = "linux")]
+    ProcessLimit,
+    OutputLimit,
+    Internal,
+}
+
+impl ExitReason {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Exited => "exited",
+            Self::Signal => "signal",
+            Self::Timeout => "timeout",
+            #[cfg(target_os = "linux")]
+            Self::MemoryLimit => "memory_limit",
+            #[cfg(target_os = "linux")]
+            Self::ProcessLimit => "process_limit",
+            Self::OutputLimit => "output_limit",
+            Self::Internal => "internal",
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct EnforcementEntry {
+    pub(crate) resource: String,
+    pub(crate) status: String,
+    pub(crate) method: String,
+    pub(crate) detail: Option<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct TerminationResult {
     pub(crate) attempted: bool,

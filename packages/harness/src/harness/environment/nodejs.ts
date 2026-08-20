@@ -1,4 +1,5 @@
 import type { ChildProcess } from "node:child_process";
+import { harnessProcessPolicy } from "./process-policy.js";
 import {
   spawnManagedChildProcess,
   terminateManagedChildProcess,
@@ -107,6 +108,14 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
+const COMMAND_CAPTURE_MAX_BYTES = 32 * 1024 * 1024;
+
+function appendBounded(current: string, chunk: string): string {
+  const remaining = COMMAND_CAPTURE_MAX_BYTES - current.length;
+  if (remaining <= 0) return current;
+  return current + Buffer.from(chunk).subarray(0, remaining).toString("utf8");
+}
+
 async function runCommand(
   command: string,
   args: string[],
@@ -116,7 +125,9 @@ async function runCommand(
     let stdout = "";
     let child: ChildProcess;
     try {
-      child = spawnManagedChildProcess(command, args);
+      child = spawnManagedChildProcess(command, args, {
+        policy: harnessProcessPolicy(timeoutMs),
+      });
     } catch {
       resolve({ stdout: "", status: null });
       return;
@@ -126,7 +137,7 @@ async function runCommand(
     }, timeoutMs);
     child.stdout?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => {
-      stdout += chunk;
+      stdout = appendBounded(stdout, chunk);
     });
     child.on("error", () => {
       clearTimeout(timeout);
@@ -292,6 +303,11 @@ export class NodeExecutionEnv implements ExecutionEnv {
           {
             cwd,
             env: getShellEnv(this.shellEnv, options?.env),
+            policy: harnessProcessPolicy(
+              typeof options?.timeout === "number"
+                ? options.timeout * 1000
+                : undefined,
+            ),
           },
         );
       } catch (error) {
@@ -323,7 +339,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
       child.stdout?.setEncoding("utf8");
       child.stderr?.setEncoding("utf8");
       child.stdout?.on("data", (chunk: string) => {
-        stdout += chunk;
+        stdout = appendBounded(stdout, chunk);
         try {
           options?.onStdout?.(chunk);
         } catch (error) {
@@ -337,7 +353,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
         }
       });
       child.stderr?.on("data", (chunk: string) => {
-        stderr += chunk;
+        stderr = appendBounded(stderr, chunk);
         try {
           options?.onStderr?.(chunk);
         } catch (error) {

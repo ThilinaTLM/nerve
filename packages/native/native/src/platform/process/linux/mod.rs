@@ -1,3 +1,7 @@
+mod cgroup;
+
+pub(crate) use cgroup::{CgroupGuard, prepare as prepare_cgroup};
+
 use std::fs;
 use std::io::ErrorKind;
 

@@ -8,7 +8,9 @@ import { join } from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import { resolveCommandCwd } from "../common/command-cwd.js";
+import { BoundedProcessOutput } from "../common/bounded-process-output.js";
 import { LiveOutputDelivery } from "../common/live-output.js";
+import { pythonProcessPolicy } from "../common/managed-process-policy.js";
 import { forceKillProcessTree } from "../common/process-tree.js";
 import { buildProcessResult } from "../common/process-result.js";
 import { pathNotFoundMessage, resolveToolPath } from "../filesystem/path.js";
@@ -356,9 +358,7 @@ async function runPythonProcess({
   signal,
   onUpdate,
 }: RunPythonProcessOptions): Promise<ToolExecutionResult> {
-  const stdoutChunks: Buffer[] = [];
-  const stderrChunks: Buffer[] = [];
-  const combinedChunks: Buffer[] = [];
+  const output = new BoundedProcessOutput();
   const startedAt = performance.now();
 
   return await new Promise<ToolExecutionResult>((resolve, reject) => {
@@ -392,6 +392,7 @@ async function runPythonProcess({
           NERVE_PYTHON_ALLOW_FILEWRITE: policy.allowFileWrite ? "1" : "0",
           NERVE_PYTHON_ARTIFACT_DIR: artifactDir,
         },
+        policy: pythonProcessPolicy(timeoutSeconds * 1000),
       },
     );
 
@@ -459,13 +460,11 @@ async function runPythonProcess({
     }, timeoutSeconds * 1000);
 
     child.stdout?.on("data", (chunk: Buffer) => {
-      stdoutChunks.push(chunk);
-      combinedChunks.push(chunk);
+      output.push("stdout", chunk);
       liveOutput.write("stdout", chunk, child.stdout ?? undefined);
     });
     child.stderr?.on("data", (chunk: Buffer) => {
-      stderrChunks.push(chunk);
-      combinedChunks.push(chunk);
+      output.push("stderr", chunk);
       liveOutput.write("stderr", chunk, child.stderr ?? undefined);
     });
     child.on("error", (error) => {
@@ -482,11 +481,12 @@ async function runPythonProcess({
       void liveOutput
         .end()
         .then(() => listArtifacts(artifactDir))
-        .then((artifacts) =>
-          buildProcessResult({
-            stdoutChunks,
-            stderrChunks,
-            combinedChunks,
+        .then((artifacts) => {
+          const snapshot = output.snapshot();
+          return buildProcessResult({
+            stdoutChunks: snapshot.stdoutChunks,
+            stderrChunks: snapshot.stderrChunks,
+            combinedChunks: snapshot.combinedChunks,
             code,
             signal: closeSignal,
             outputFilePrefix: "nerve-python",
@@ -509,8 +509,8 @@ async function runPythonProcess({
               artifactDir: artifacts.length > 0 ? artifactDir : undefined,
               artifacts,
             },
-          }),
-        )
+          });
+        })
         .then(resolve)
         .catch(reject);
     });

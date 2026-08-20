@@ -21,6 +21,14 @@ gix = { version = "=0.86.0", default-features = false, features = [
   "sha1",
   "sha256",
 ] }
+tokio = { version = "1.53.0", features = [
+  "io-util",
+  "macros",
+  "process",
+  "rt-multi-thread",
+  "sync",
+  "time",
+] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.180"

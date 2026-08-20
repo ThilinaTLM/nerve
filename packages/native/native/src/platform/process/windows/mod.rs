@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
-use std::os::windows::io::AsRawHandle;
 use std::os::windows::process::CommandExt;
-use std::process::{Child, Command};
+
+use tokio::process::{Child, Command};
 
 use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
@@ -9,15 +9,22 @@ use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
 };
 use windows_sys::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, TerminateJobObject,
+    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_CPU_RATE_CONTROL_ENABLE,
+    JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP, JOB_OBJECT_LIMIT_ACTIVE_PROCESS,
+    JOB_OBJECT_LIMIT_JOB_MEMORY, JOBOBJECT_CPU_RATE_CONTROL_INFORMATION,
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectCpuRateControlInformation,
+    JobObjectExtendedLimitInformation, SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
     CREATE_NO_WINDOW, CREATE_SUSPENDED, GetExitCodeProcess, GetProcessTimes, OpenProcess,
-    OpenThread, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE, ResumeThread,
-    THREAD_SUSPEND_RESUME, TerminateProcess,
+    OpenThread, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
+    ResumeThread, THREAD_SUSPEND_RESUME, TerminateProcess,
 };
 
-use crate::process::{InspectionResult, ManagedTarget, TerminationMethod, TerminationResult};
+use crate::process::{
+    EnforcementEntry, EnforcementMode, InspectionResult, ManagedTarget, ResourcePolicy,
+    TerminationMethod, TerminationResult,
+};
 
 const ERROR_ACCESS_DENIED: i32 = 5;
 const ERROR_INVALID_PARAMETER: i32 = 87;
@@ -55,6 +62,122 @@ impl OwnedJob {
             TerminationResult::failed(TerminationMethod::JobObject, error.to_string())
         }
     }
+
+    fn configure(&self, policy: &ResourcePolicy) -> Result<Vec<EnforcementEntry>, String> {
+        let mut entries = Vec::new();
+        if policy.memory_bytes.is_some() || policy.max_processes.is_some() {
+            let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            if let Some(memory) = policy.memory_bytes {
+                limits.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_JOB_MEMORY;
+                limits.JobMemoryLimit = usize::try_from(memory)
+                    .map_err(|_| "Windows Job memory limit exceeds platform size".to_string())?;
+            }
+            if let Some(processes) = policy.max_processes {
+                limits.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
+                limits.BasicLimitInformation.ActiveProcessLimit = processes;
+            }
+            let result = unsafe {
+                SetInformationJobObject(
+                    self.0,
+                    JobObjectExtendedLimitInformation,
+                    (&limits as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                    size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                )
+            };
+            if result == 0 {
+                let detail = std::io::Error::last_os_error().to_string();
+                require_or_record(
+                    policy.enforcement,
+                    &mut entries,
+                    policy.memory_bytes.is_some(),
+                    "memory",
+                    &detail,
+                )?;
+                require_or_record(
+                    policy.enforcement,
+                    &mut entries,
+                    policy.max_processes.is_some(),
+                    "processes",
+                    &detail,
+                )?;
+            } else {
+                if policy.memory_bytes.is_some() {
+                    entries.push(enforced("memory", "windows-job-memory"));
+                }
+                if policy.max_processes.is_some() {
+                    entries.push(enforced("processes", "windows-job-active-process"));
+                }
+            }
+        }
+        if let Some(cores) = policy.max_cpu_cores {
+            let processors = std::thread::available_parallelism()
+                .map(|value| value.get())
+                .unwrap_or(1) as f64;
+            let rate = ((cores / processors) * 10_000.0)
+                .ceil()
+                .clamp(1.0, 10_000.0) as u32;
+            let cpu = JOBOBJECT_CPU_RATE_CONTROL_INFORMATION {
+                ControlFlags: JOB_OBJECT_CPU_RATE_CONTROL_ENABLE
+                    | JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP,
+                Anonymous: windows_sys::Win32::System::JobObjects::JOBOBJECT_CPU_RATE_CONTROL_INFORMATION_0 {
+                    CpuRate: rate,
+                },
+            };
+            if unsafe {
+                SetInformationJobObject(
+                    self.0,
+                    JobObjectCpuRateControlInformation,
+                    (&cpu as *const JOBOBJECT_CPU_RATE_CONTROL_INFORMATION).cast(),
+                    size_of::<JOBOBJECT_CPU_RATE_CONTROL_INFORMATION>() as u32,
+                )
+            } == 0
+            {
+                require_or_record(
+                    policy.enforcement,
+                    &mut entries,
+                    true,
+                    "cpu",
+                    &std::io::Error::last_os_error().to_string(),
+                )?;
+            } else {
+                entries.push(enforced("cpu", "windows-job-cpu-rate"));
+            }
+        }
+        Ok(entries)
+    }
+}
+
+fn enforced(resource: &str, method: &str) -> EnforcementEntry {
+    EnforcementEntry {
+        resource: resource.to_string(),
+        status: "enforced".to_string(),
+        method: method.to_string(),
+        detail: None,
+    }
+}
+
+fn require_or_record(
+    mode: EnforcementMode,
+    entries: &mut Vec<EnforcementEntry>,
+    requested: bool,
+    resource: &str,
+    detail: &str,
+) -> Result<(), String> {
+    if !requested {
+        return Ok(());
+    }
+    if mode == EnforcementMode::Required {
+        return Err(format!(
+            "Failed to enforce required Windows Job {resource} limit: {detail}"
+        ));
+    }
+    entries.push(EnforcementEntry {
+        resource: resource.to_string(),
+        status: "unsupported".to_string(),
+        method: "none".to_string(),
+        detail: Some(detail.to_string()),
+    });
+    Ok(())
 }
 
 enum OpenedProcess {
@@ -134,23 +257,40 @@ pub(crate) fn terminate(target: &ManagedTarget, _signal: &str) -> TerminationRes
 
 pub(crate) fn spawn_suspended_in_job(
     command: &mut Command,
-) -> std::result::Result<(Child, OwnedJob), String> {
+    policy: &ResourcePolicy,
+) -> std::result::Result<(Child, OwnedJob, Vec<EnforcementEntry>), String> {
     let job = create_job()?;
-    command.creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW);
+    let enforcement = job.configure(policy)?;
+    command
+        .as_std_mut()
+        .creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW);
     let mut child = command.spawn().map_err(|error| error.to_string())?;
-    let process_handle = child.as_raw_handle() as HANDLE;
-
-    if unsafe { AssignProcessToJobObject(job.0, process_handle) } == 0 {
+    let process_handle = unsafe {
+        OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SET_QUOTA | PROCESS_TERMINATE,
+            0,
+            child.id().unwrap_or_default(),
+        )
+    };
+    if process_handle.is_null() {
         let error = std::io::Error::last_os_error();
-        let _ = child.kill();
+        let _ = child.start_kill();
+        return Err(format!("Failed to open suspended process: {error}"));
+    }
+    let process_handle = OwnedHandle(process_handle);
+
+    if unsafe { AssignProcessToJobObject(job.0, process_handle.0) } == 0 {
+        let error = std::io::Error::last_os_error();
+        let _ = child.start_kill();
         return Err(format!("Failed to assign process to Windows Job: {error}"));
     }
-    if let Err(error) = resume_process_thread(child.id()) {
+    let pid = child.id().unwrap_or_default();
+    if let Err(error) = resume_process_thread(pid) {
         let _ = job.terminate();
-        let _ = child.wait();
+        let _ = child.start_kill();
         return Err(error);
     }
-    Ok((child, job))
+    Ok((child, job, enforcement))
 }
 
 fn open_process_with_identity(pid: u32, access: u32) -> OpenedProcess {

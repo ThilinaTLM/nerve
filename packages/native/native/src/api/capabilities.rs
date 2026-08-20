@@ -1,6 +1,6 @@
 use napi_derive::napi;
 
-use crate::sys::process;
+use crate::platform::process;
 
 #[napi(object)]
 pub struct NativeRuntimeCapabilities {

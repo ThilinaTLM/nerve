@@ -8,6 +8,7 @@ import {
   DAEMON_STARTUP_PROGRESS_PREFIX,
   type DaemonStartupProgress,
 } from "@nervekit/contracts";
+import { configureManagedProcessRuntime } from "@nervekit/native";
 import WebSocket, { WebSocketServer } from "ws";
 import {
   createOrchestratorState,
@@ -106,6 +107,7 @@ async function appendStartupRecord(
 
 async function main() {
   prepareEnterpriseNetworkEnvironment();
+  configureManagedProcessRuntime({ maxActiveProcesses: 64 });
   const dataDir = resolveDataDir();
   const storageStartedAt = performance.now();
   const storage = await initializeStorage(dataDir, {
