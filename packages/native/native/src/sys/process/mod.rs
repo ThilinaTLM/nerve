@@ -43,10 +43,7 @@ impl ContainmentGuard {
         }
     }
 
-    pub(crate) fn release(self) {
-        #[cfg(windows)]
-        self.0.release();
-    }
+    pub(crate) fn release(self) {}
 }
 
 pub(crate) fn capabilities() -> Vec<String> {

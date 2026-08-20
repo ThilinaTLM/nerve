@@ -179,7 +179,7 @@ describe("native managed process facade", () => {
       const managed = spawnManagedProcess(node, [
         "-e",
         `const { spawn } = require("node:child_process");
-       const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: ["ignore", 1, 2] });
+       const child = spawn(process.execPath, ["-e", "setInterval(() => process.stdout.write('alive\\n'), 20)"], { stdio: ["ignore", "inherit", "inherit"] });
        console.log(child.pid);
        child.unref();`,
       ]);
