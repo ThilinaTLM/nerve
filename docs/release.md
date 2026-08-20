@@ -20,7 +20,7 @@ Keep the root and workspace versions aligned and tag `v<version>`.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm release:verify-tag -- v0.13.0
+node scripts/verify-release-tag.mjs v0.13.0
 pnpm fix
 pnpm check
 pnpm test
@@ -28,27 +28,36 @@ pnpm build
 node scripts/pack-npm.mjs
 ```
 
-`release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. Final packing requires the exact six-file native prebuild inventory in `packages/native/prebuilds`; `pnpm release:verify-native` rejects missing, extra, or developer-local artifacts. The release workflow produces this inventory. Ordinary local development needs only the host binding under `packages/native/prebuilds/local` and does not produce a publishable package.
+`release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. Final packing requires the exact six-file native prebuild inventory in `packages/native/prebuilds`; `node scripts/verify-native-prebuilds.mjs` rejects missing, extra, or developer-local artifacts. The release workflow produces this inventory. Ordinary local development needs only the host binding under `packages/native/prebuilds/local` and does not produce a publishable package.
 
 `node scripts/pack-npm.mjs` must produce only `release/npm/nervekit-desktop-<version>.tgz`; it verifies exact names, versions, contents, bundled package resolution, package entrypoints, native prebuilds, and the desktop launcher through an isolated install.
 
 Run the finite built-artifact smokes after `pnpm build`:
 
 ```sh
-pnpm release:verify-npm          # inspect packed tarballs and isolated install
-pnpm release:smoke:workbench     # built workbench server HTTP/WS parity
-pnpm release:smoke:desktop       # desktop --version/--help and server resolution
+node scripts/verify-npm-tarballs.mjs       # inspect packed tarballs and isolated install
+node scripts/smoke-workbench-release.mjs   # built workbench server HTTP/WS parity
+node scripts/smoke-desktop-release.mjs     # desktop --version/--help and server resolution
 pnpm --filter @nervekit/desktop-shell package:dir
-pnpm release:smoke:desktop-package
+node scripts/smoke-desktop-package.mjs
 ```
 
 ## Automated release flow
 
-Run the **Prepare Release** workflow manually with the exact version to publish. It updates all workspace versions on protected `main`, creates the signed release commit and annotated `v<version>` tag, atomically pushes both refs, and dispatches the **Release** workflow at that immutable tag.
+Run the **Tag Release** workflow manually with the exact version to publish. It updates all workspace versions on protected `main`, creates the signed release commit and annotated `v<version>` tag, atomically pushes both refs, and emits the internal `release-tagged` event for that immutable tag.
 
-The **Release** workflow validates the tag and builds the native runtime on architecture-matched runners for Linux x64/ARM64, Windows 11 x64/ARM64, macOS Intel, and macOS Apple Silicon. Every runner executes the generated addon before the artifacts are merged. Representative Linux, Windows, and macOS jobs then run the complete quality and Electron package smokes against the merged inventory. The workflow builds and deploys the website to GitHub Pages, publishes to npm through OIDC, and creates the GitHub release. Website deployment occurs only after release validation and npm publication. It rejects manual dispatches from branch refs. Direct pushes of matching SemVer tags also start Release automatically.
+The **Publish Release** workflow responds to that event, validates the tag, and builds the native runtime on architecture-matched runners for Linux x64/ARM64, Windows 11 x64/ARM64, macOS Intel, and macOS Apple Silicon. Every runner executes the generated addon before the artifacts are merged. Representative Linux, Windows, and macOS jobs then run the complete quality and Electron package smokes against the merged inventory. The workflow builds and deploys the website to GitHub Pages, publishes to npm through OIDC, and creates the GitHub release. Website deployment occurs only after release validation and npm publication. Direct pushes of matching SemVer tags also start Publish Release automatically.
 
-If preparation pushes the commit and tag but the dispatch step fails, rerun **Release** manually and select the existing tag. Do not recreate or move the tag.
+If Tag Release pushes the commit and tag but emitting the event fails, re-emit it for the existing immutable tag. Do not recreate or move the tag:
+
+```sh
+gh api --method POST "repos/ThilinaTLM/nerve/dispatches" --input - <<'EOF'
+{
+  "event_type": "release-tagged",
+  "client_payload": { "tag": "v0.13.0" }
+}
+EOF
+```
 
 ## State reset before testing an incompatible development store
 
@@ -58,7 +67,7 @@ The deterministic workbench error is `Incompatible Nerve state at <path>...`, en
 
 ## Release commit signing
 
-The manually dispatched **Prepare Release** workflow creates its version-bump commit on protected `main`, so it must use the dedicated `Nerve Release Bot` GPG key registered on the `ThilinaTLM` GitHub account. The initiating maintainer remains the commit author; `Nerve Release Bot <41065538+ThilinaTLM@users.noreply.github.com>` is the signing committer.
+The manually dispatched **Tag Release** workflow creates its version-bump commit on protected `main`, so it must use the dedicated `Nerve Release Bot` GPG key registered on the `ThilinaTLM` GitHub account. The initiating maintainer remains the commit author; `Nerve Release Bot <41065538+ThilinaTLM@users.noreply.github.com>` is the signing committer.
 
 Configure these repository Actions secrets together:
 
@@ -66,7 +75,7 @@ Configure these repository Actions secrets together:
 - `RELEASE_GPG_PASSPHRASE`: the private-key passphrase
 - `RELEASE_GPG_FINGERPRINT`: the full primary-key fingerprint
 
-The matching public key must remain registered with GitHub. Prepare Release imports the private key into an ephemeral keyring and fails before its atomic push if a secret is missing, the fingerprint differs, the key cannot be unlocked, or the release commit does not verify against that fingerprint.
+The matching public key must remain registered with GitHub. Tag Release imports the private key into an ephemeral keyring and fails before its atomic push if a secret is missing, the fingerprint differs, the key cannot be unlocked, or the release commit does not verify against that fingerprint.
 
 The current automation key expires on 2028-08-10. Rotate it before expiry by generating and registering a replacement key, replacing all three secrets together, validating a release, and then removing the old public key. If the key may be compromised, remove it from GitHub and replace the secrets before another release.
 

@@ -86,7 +86,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Fast baseline (format, lint, boundaries, scripts tests)
-        run: pnpm exec oxfmt --check && pnpm exec eslint . && pnpm check:boundaries && pnpm test:scripts
+        run: pnpm exec oxfmt --check && pnpm exec eslint . && node scripts/check-package-boundaries.mjs && node --test "scripts/**/*.test.mjs"
 
       - name: Typecheck and check all packages
         if: github.event_name != 'pull_request' || needs.paths.outputs.code == 'true'
@@ -102,4 +102,4 @@ jobs:
 
       - name: Smoke built workbench HTTP and WebSocket parity
         if: github.event_name != 'pull_request' || needs.paths.outputs.workbench == 'true'
-        run: pnpm release:smoke:workbench
+        run: node scripts/smoke-workbench-release.mjs

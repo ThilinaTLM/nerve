@@ -22,8 +22,6 @@ pnpm dev                    # daemon + Vite workbench
 pnpm dev:ui                 # UI against an existing daemon
 pnpm build                  # TypeScript packages and staged Workbench assets
 pnpm build:native           # host Rust addon in packages/native/prebuilds/local
-pnpm check:native           # Rust formatting and clippy checks
-pnpm test:native            # Rust unit tests
 pnpm fix                    # Rust, TypeScript, Svelte, and ESLint fixes
 pnpm check                  # formatting, lint, boundaries, package and Rust checks
 pnpm test                   # build the host addon, then run package and Rust tests
