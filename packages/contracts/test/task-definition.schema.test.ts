@@ -20,6 +20,23 @@ test("task definitions default to a single active run", () => {
   assert.equal(definition.runPolicy, "single");
 });
 
+test("task definitions accept an optional guarded TCP port", () => {
+  assert.equal(
+    createTaskDefinitionRequestSchema.parse({ command: "pnpm dev", port: 3000 })
+      .port,
+    3000,
+  );
+  assert.throws(() =>
+    createTaskDefinitionRequestSchema.parse({ command: "pnpm dev", port: 0 }),
+  );
+  assert.throws(() =>
+    createTaskDefinitionRequestSchema.parse({
+      command: "pnpm dev",
+      port: 65_536,
+    }),
+  );
+});
+
 test("task definitions support explicit concurrent runs", () => {
   assert.equal(
     createTaskDefinitionRequestSchema.parse({

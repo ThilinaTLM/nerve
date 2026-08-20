@@ -1,6 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::os::windows::process::CommandExt;
 
+use netstat2::{AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState, get_sockets_info};
+
+use super::TcpListenerInfo;
+
 use tokio::process::{Child, Command};
 
 use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, HANDLE, INVALID_HANDLE_VALUE};
@@ -204,6 +208,45 @@ pub(crate) fn inspect(target: &ManagedTarget) -> InspectionResult {
         }
         OpenedProcess::Found(_, _, true) => InspectionResult::alive(),
     }
+}
+
+pub(crate) fn inspect_tcp_listeners(port: Option<u16>) -> Result<Vec<TcpListenerInfo>, String> {
+    let sockets = get_sockets_info(
+        AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6,
+        ProtocolFlags::TCP,
+    )
+    .map_err(|error| error.to_string())?;
+    let mut listeners = Vec::new();
+    for socket in sockets {
+        let ProtocolSocketInfo::Tcp(tcp) = socket.protocol_socket_info else {
+            continue;
+        };
+        if tcp.state != TcpState::Listen || port.is_some_and(|expected| expected != tcp.local_port)
+        {
+            continue;
+        }
+        for pid in socket.associated_pids {
+            let OpenedProcess::Found(_, identity, true) =
+                open_process_with_identity(pid, PROCESS_QUERY_LIMITED_INFORMATION)
+            else {
+                continue;
+            };
+            listeners.push(TcpListenerInfo {
+                protocol: if tcp.local_addr.is_ipv6() {
+                    "tcp6"
+                } else {
+                    "tcp"
+                },
+                address: tcp.local_addr.to_string(),
+                port: tcp.local_port,
+                pid,
+                process_group_id: None,
+                identity,
+                process_name: None,
+            });
+        }
+    }
+    Ok(listeners)
 }
 
 pub(crate) fn terminate(target: &ManagedTarget, _signal: &str) -> TerminationResult {

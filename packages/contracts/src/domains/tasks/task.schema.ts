@@ -37,6 +37,18 @@ export const taskReadinessSchema = z.object({
 });
 export type TaskReadiness = z.infer<typeof taskReadinessSchema>;
 
+export const taskPortConflictListenerSchema = z.object({
+  protocol: z.enum(["tcp", "tcp6"]),
+  address: z.string().min(1),
+  port: z.number().int().positive().max(65_535),
+  pid: z.number().int().positive(),
+  identity: z.string().min(1),
+  processName: z.string().min(1).optional(),
+});
+export type TaskPortConflictListener = z.infer<
+  typeof taskPortConflictListenerSchema
+>;
+
 export const taskListeningPortSchema = z.object({
   protocol: z.enum(["tcp", "tcp6"]),
   address: z.string().min(1),

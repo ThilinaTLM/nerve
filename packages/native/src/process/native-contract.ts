@@ -6,6 +6,7 @@ import type {
   ManagedTarget,
   NativeContainment,
   TerminationResult,
+  TcpListenerProcess,
 } from "./types.js";
 
 export interface NativeOutputEvent {
@@ -33,6 +34,11 @@ export interface NativeProcessHandle {
 }
 
 export interface ProcessNativeBinding {
+  inspectTcpListeners(port?: number): TcpListenerProcess[];
+  terminateTcpListener(
+    listener: TcpListenerProcess,
+    signal?: string,
+  ): TerminationResult;
   inspectManagedTarget(target: ManagedTarget): InspectionResult;
   terminateManagedTarget(
     target: ManagedTarget,

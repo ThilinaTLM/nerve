@@ -8,9 +8,11 @@ import { pathToFileURL } from "node:url";
 import {
   configureManagedProcessRuntime,
   inspectManagedTarget,
+  inspectTcpListeners,
   nativeRuntimeCapabilities,
   spawnManagedProcess,
   terminateManagedTarget,
+  terminateTcpListener,
 } from "../src/index.js";
 
 const node = process.execPath;
@@ -277,6 +279,40 @@ describe("native managed process facade", () => {
     const terminated = await terminateManagedTarget(managed.target, "SIGKILL");
     assert.equal(terminated.terminated, true);
     await managed.closed;
+  });
+
+  it("discovers and identity-checks TCP listener termination", async () => {
+    const managed = spawnManagedProcess(node, [
+      "-e",
+      "const n=require('node:net');const s=n.createServer();s.listen(0,'127.0.0.1',()=>console.log(s.address().port));setInterval(()=>{},1000)",
+    ]);
+    const port = await new Promise<number>((resolve, reject) => {
+      managed.stdout.once("data", (chunk: Buffer) =>
+        resolve(Number(String(chunk).trim())),
+      );
+      managed.stderr.once("data", (chunk: Buffer) =>
+        reject(new Error(String(chunk))),
+      );
+    });
+    const listener = inspectTcpListeners(port).find(
+      (candidate) => candidate.pid === managed.pid,
+    );
+    assert.ok(listener);
+    const stale = await terminateTcpListener(
+      { ...listener, identity: `${listener.identity}-stale` },
+      "SIGKILL",
+    );
+    assert.equal(stale.terminated, false);
+    assert.match(stale.error ?? "", /identity/i);
+    const terminated = await terminateTcpListener(listener, "SIGKILL");
+    assert.equal(terminated.terminated, true);
+    await managed.exited;
+    assert.equal(
+      inspectTcpListeners(port).some(
+        (candidate) => candidate.pid === managed.pid,
+      ),
+      false,
+    );
   });
 
   it("observes exit before inherited pipes close", async () => {

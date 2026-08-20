@@ -1,51 +1,45 @@
-import { spawn } from "node:child_process";
-import { readdir, readFile, readlink } from "node:fs/promises";
-import { join } from "node:path";
-import type { TaskListeningPort, TaskRuntime } from "@nervekit/contracts";
+import type {
+  TaskListeningPort,
+  TaskPortConflictListener,
+  TaskRuntime,
+} from "@nervekit/contracts";
+import {
+  inspectTcpListeners,
+  terminateTcpListener,
+  type TcpListenerProcess,
+  type TerminationResult,
+} from "@nervekit/native";
 
 export interface TaskPortInspector {
   inspectRuntime(runtime: TaskRuntime): Promise<TaskListeningPort[]>;
   inspectListeners(ports: TaskListeningPort[]): Promise<TaskListeningPort[]>;
+  inspectPort(port: number): Promise<TaskPortConflictListener[]>;
+  terminateListener(
+    listener: TaskPortConflictListener,
+    signal: "SIGTERM" | "SIGKILL",
+  ): Promise<TerminationResult>;
 }
 
 export const defaultTaskPortInspector: TaskPortInspector = {
   inspectRuntime: inspectRuntimeListeningPorts,
   inspectListeners: inspectPortListeners,
+  inspectPort: inspectConfiguredPort,
+  terminateListener: terminateConfiguredPortListener,
 };
-
-const LISTEN_STATE = "0A";
-const PROC_ROOT = "/proc";
-
-interface ProcSocket {
-  protocol: "tcp" | "tcp6";
-  address: string;
-  port: number;
-  inode: string;
-}
-
-interface ProcIdentity {
-  pid: number;
-  processGroupId?: number;
-  processStartTimeTicks?: number;
-}
 
 export async function inspectRuntimeListeningPorts(
   runtime: TaskRuntime,
   now = new Date(),
 ): Promise<TaskListeningPort[]> {
   if (runtime.platform !== process.platform || !runtime.childPid) return [];
-  if (process.platform === "darwin") return inspectDarwinPorts(runtime, now);
-  if (process.platform === "win32") return inspectWindowsPorts(runtime, now);
-  if (process.platform !== "linux") return [];
-
-  const ports = await inspectAllListeningPorts(now);
   return dedupeListeningPorts(
-    ports.filter((port) => {
-      if (runtime.processGroupId) {
-        return port.processGroupId === runtime.processGroupId;
-      }
-      return port.pid === runtime.childPid;
-    }),
+    inspectTcpListeners()
+      .filter((listener) =>
+        runtime.processGroupId
+          ? listener.processGroupId === runtime.processGroupId
+          : listener.pid === runtime.childPid,
+      )
+      .map((listener) => taskListeningPort(listener, now)),
   );
 }
 
@@ -53,16 +47,42 @@ export async function inspectPortListeners(
   ports: TaskListeningPort[],
   now = new Date(),
 ): Promise<TaskListeningPort[]> {
-  if (process.platform !== "linux" || ports.length === 0) return [];
+  if (ports.length === 0) return [];
   const expected = new Set(
     ports.map((port) => endpointKey(port.protocol, port.address, port.port)),
   );
-  const current = await inspectAllListeningPorts(now);
+  const listeners = await inspectPorts([
+    ...new Set(ports.map(({ port }) => port)),
+  ]);
   return dedupeListeningPorts(
-    current.filter((port) =>
-      expected.has(endpointKey(port.protocol, port.address, port.port)),
-    ),
+    listeners
+      .filter((listener) =>
+        expected.has(
+          endpointKey(listener.protocol, listener.address, listener.port),
+        ),
+      )
+      .map((listener) => taskListeningPort(listener, now)),
   );
+}
+
+export async function inspectConfiguredPort(
+  port: number,
+): Promise<TaskPortConflictListener[]> {
+  return inspectTcpListeners(port).map((listener) => ({
+    protocol: listener.protocol,
+    address: listener.address,
+    port: listener.port,
+    pid: listener.pid,
+    identity: listener.identity,
+    processName: listener.processName,
+  }));
+}
+
+export async function terminateConfiguredPortListener(
+  listener: TaskPortConflictListener,
+  signal: "SIGTERM" | "SIGKILL",
+): Promise<TerminationResult> {
+  return terminateTcpListener(listener, signal);
 }
 
 export function isSameProcessIdentity(
@@ -118,335 +138,33 @@ export function formatListeningPort(port: TaskListeningPort): string {
   return `${host}:${port.port}/${port.protocol}`;
 }
 
-async function inspectAllListeningPorts(
-  now = new Date(),
-): Promise<TaskListeningPort[]> {
-  const sockets = await readListeningSockets();
-  if (sockets.size === 0) return [];
-
-  const detectedAt = now.toISOString();
-  const ports: TaskListeningPort[] = [];
-  for (const identity of await readProcSocketOwners(sockets)) {
-    for (const socket of identity.sockets) {
-      ports.push({
-        protocol: socket.protocol,
-        address: socket.address,
-        port: socket.port,
-        pid: identity.pid,
-        processGroupId: identity.processGroupId,
-        processStartTimeTicks: identity.processStartTimeTicks,
-        detectedAt,
-      });
-    }
-  }
-  return dedupeListeningPorts(ports);
-}
-
-async function readListeningSockets(): Promise<Map<string, ProcSocket>> {
-  const sockets = new Map<string, ProcSocket>();
-  await Promise.all([
-    readProcNetTcp("tcp").then((rows) => {
-      for (const row of rows) sockets.set(row.inode, row);
-    }),
-    readProcNetTcp("tcp6").then((rows) => {
-      for (const row of rows) sockets.set(row.inode, row);
-    }),
-  ]);
-  return sockets;
-}
-
-async function readProcNetTcp(protocol: "tcp" | "tcp6"): Promise<ProcSocket[]> {
-  let content: string;
-  try {
-    content = await readFile(join(PROC_ROOT, "net", protocol), "utf8");
-  } catch {
-    return [];
-  }
-
-  const rows: ProcSocket[] = [];
-  for (const line of content.split("\n").slice(1)) {
-    const columns = line.trim().split(/\s+/);
-    if (columns.length < 10) continue;
-    const localAddress = columns[1];
-    const state = columns[3];
-    const inode = columns[9];
-    if (!localAddress || state !== LISTEN_STATE || !inode || inode === "0") {
-      continue;
-    }
-    const parsed = parseProcNetLocalAddress(protocol, localAddress);
-    if (!parsed) continue;
-    rows.push({ protocol, inode, ...parsed });
-  }
-  return rows;
-}
-
-async function readProcSocketOwners(
-  sockets: Map<string, ProcSocket>,
-): Promise<Array<ProcIdentity & { sockets: ProcSocket[] }>> {
-  let entries: string[];
-  try {
-    entries = await readdir(PROC_ROOT);
-  } catch {
-    return [];
-  }
-
-  const owners: Array<ProcIdentity & { sockets: ProcSocket[] }> = [];
-  await Promise.all(
-    entries.map(async (entry) => {
-      if (!/^\d+$/.test(entry)) return;
-      const pid = Number(entry);
-      const identity = await readProcIdentity(pid);
-      if (!identity) return;
-      const owned = await readProcessSockets(pid, sockets);
-      if (owned.length === 0) return;
-      owners.push({ ...identity, sockets: owned });
-    }),
+async function inspectPorts(ports: number[]): Promise<TcpListenerProcess[]> {
+  const listeners = await Promise.all(
+    ports.map(async (port) => inspectTcpListeners(port)),
   );
-  return owners;
+  return listeners.flat();
 }
 
-async function readProcessSockets(
-  pid: number,
-  sockets: Map<string, ProcSocket>,
-): Promise<ProcSocket[]> {
-  const fdDir = join(PROC_ROOT, String(pid), "fd");
-  let fds: string[];
-  try {
-    fds = await readdir(fdDir);
-  } catch {
-    return [];
-  }
-
-  const owned = new Map<string, ProcSocket>();
-  await Promise.all(
-    fds.map(async (fd) => {
-      let target: string;
-      try {
-        target = await readlink(join(fdDir, fd));
-      } catch {
-        return;
-      }
-      const inode = socketInode(target);
-      if (!inode) return;
-      const socket = sockets.get(inode);
-      if (socket) owned.set(inode, socket);
-    }),
-  );
-  return [...owned.values()];
-}
-
-async function readProcIdentity(
-  pid: number,
-): Promise<ProcIdentity | undefined> {
-  let stat: string;
-  try {
-    stat = await readFile(join(PROC_ROOT, String(pid), "stat"), "utf8");
-  } catch {
-    return undefined;
-  }
-  const closeParen = stat.lastIndexOf(")");
-  if (closeParen < 0) return { pid };
-  const fields = stat
-    .slice(closeParen + 2)
-    .trim()
-    .split(/\s+/);
-  const processGroupId = positiveNumber(fields[2]);
-  const processStartTimeTicks = nonNegativeNumber(fields[19]);
-  return { pid, processGroupId, processStartTimeTicks };
-}
-
-function parseProcNetLocalAddress(
-  protocol: "tcp" | "tcp6",
-  value: string,
-): { address: string; port: number } | undefined {
-  const [addressHex, portHex] = value.split(":");
-  if (!addressHex || !portHex) return undefined;
-  const port = Number.parseInt(portHex, 16);
-  if (!Number.isInteger(port) || port <= 0 || port > 65_535) return undefined;
-  const address =
-    protocol === "tcp"
-      ? parseIpv4ProcAddress(addressHex)
-      : parseIpv6ProcAddress(addressHex);
-  return address ? { address, port } : undefined;
-}
-
-function parseIpv4ProcAddress(hex: string): string | undefined {
-  if (!/^[0-9A-Fa-f]{8}$/.test(hex)) return undefined;
-  const bytes = hex
-    .match(/../g)
-    ?.reverse()
-    .map((byte) => Number.parseInt(byte, 16));
-  if (!bytes || bytes.some((byte) => !Number.isInteger(byte))) return undefined;
-  return bytes.join(".");
-}
-
-function parseIpv6ProcAddress(hex: string): string | undefined {
-  if (!/^[0-9A-Fa-f]{32}$/.test(hex)) return undefined;
-  const bytes: number[] = [];
-  for (let i = 0; i < hex.length; i += 8) {
-    const word = hex.slice(i, i + 8);
-    const wordBytes = word.match(/../g)?.reverse() ?? [];
-    for (const byte of wordBytes) bytes.push(Number.parseInt(byte, 16));
-  }
-  if (bytes.length !== 16 || bytes.some((byte) => !Number.isInteger(byte))) {
-    return undefined;
-  }
-  const groups: string[] = [];
-  for (let i = 0; i < bytes.length; i += 2) {
-    groups.push((((bytes[i] ?? 0) << 8) | (bytes[i + 1] ?? 0)).toString(16));
-  }
-  return compressIpv6(groups);
-}
-
-function compressIpv6(groups: string[]): string {
-  let bestStart = -1;
-  let bestLength = 0;
-  for (let i = 0; i < groups.length;) {
-    if (groups[i] !== "0") {
-      i += 1;
-      continue;
-    }
-    let end = i;
-    while (end < groups.length && groups[end] === "0") end += 1;
-    const length = end - i;
-    if (length > bestLength && length > 1) {
-      bestStart = i;
-      bestLength = length;
-    }
-    i = end;
-  }
-  if (bestStart < 0) return groups.join(":");
-  const before = groups.slice(0, bestStart).join(":");
-  const after = groups.slice(bestStart + bestLength).join(":");
-  if (!before && !after) return "::";
-  if (!before) return `::${after}`;
-  if (!after) return `${before}::`;
-  return `${before}::${after}`;
-}
-
-function socketInode(target: string): string | undefined {
-  const match = /^socket:\[(\d+)\]$/.exec(target);
-  return match?.[1];
-}
-
-function positiveNumber(value: string | undefined): number | undefined {
-  if (!value) return undefined;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-}
-
-function nonNegativeNumber(value: string | undefined): number | undefined {
-  if (!value) return undefined;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
-}
-
-async function inspectDarwinPorts(
-  runtime: TaskRuntime,
+function taskListeningPort(
+  listener: TcpListenerProcess,
   now: Date,
-): Promise<TaskListeningPort[]> {
-  const result = await runCommand(
-    "lsof",
-    [
-      "-nP",
-      "-a",
-      "-p",
-      String(runtime.childPid),
-      "-iTCP",
-      "-sTCP:LISTEN",
-      "-F",
-      "n",
-    ],
-    2_000,
-  ).catch(() => undefined);
-  if (!result || result.code !== 0) return [];
-  return dedupeListeningPorts(
-    result.stdout
-      .split("\n")
-      .filter((line) => line.startsWith("n"))
-      .flatMap((line): TaskListeningPort[] => {
-        const match = /(?:\[([^\]]+)\]|([^:]+)):(\d+)$/.exec(line.slice(1));
-        if (!match) return [];
-        return [
-          {
-            protocol: "tcp",
-            address: match[1] ?? match[2] ?? "*",
-            port: Number(match[3]),
-            pid: runtime.childPid,
-            processGroupId: runtime.processGroupId,
-            detectedAt: now.toISOString(),
-          },
-        ];
-      }),
-  );
-}
-
-async function inspectWindowsPorts(
-  runtime: TaskRuntime,
-  now: Date,
-): Promise<TaskListeningPort[]> {
-  const script = `Get-NetTCPConnection -State Listen -OwningProcess ${runtime.childPid} -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess | ConvertTo-Json -Compress`;
-  const result = await runCommand(
-    "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-Command", script],
-    3_000,
-  ).catch(() => undefined);
-  if (!result || result.code !== 0 || !result.stdout.trim()) return [];
-  try {
-    const parsed = JSON.parse(result.stdout) as
-      | WindowsListener
-      | WindowsListener[];
-    const rows = Array.isArray(parsed) ? parsed : [parsed];
-    return dedupeListeningPorts(
-      rows.map((row) => ({
-        protocol: row.LocalAddress.includes(":") ? "tcp6" : "tcp",
-        address: row.LocalAddress,
-        port: row.LocalPort,
-        pid: row.OwningProcess,
-        detectedAt: now.toISOString(),
-      })),
-    );
-  } catch {
-    return [];
-  }
-}
-
-interface WindowsListener {
-  LocalAddress: string;
-  LocalPort: number;
-  OwningProcess: number;
-}
-
-async function runCommand(
-  command: string,
-  args: string[],
-  timeoutMs: number,
-): Promise<{ code: number | null; stdout: string }> {
-  return await new Promise((resolve, reject) => {
-    let child;
-    try {
-      child = spawn(command, args, {
-        stdio: ["ignore", "pipe", "ignore"],
-        windowsHide: true,
-      });
-    } catch (error) {
-      reject(error);
-      return;
-    }
-    let stdout = "";
-    child.stdout?.on("data", (chunk: Buffer) => {
-      stdout = `${stdout}${String(chunk)}`.slice(-256 * 1024);
-    });
-    const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
-    child.once("error", (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.once("close", (code) => {
-      clearTimeout(timer);
-      resolve({ code, stdout });
-    });
-  });
+): TaskListeningPort {
+  const processStartTimeTicks = listener.identity.startsWith("linux:")
+    ? Number(listener.identity.slice("linux:".length))
+    : undefined;
+  return {
+    protocol: listener.protocol,
+    address: listener.address,
+    port: listener.port,
+    pid: listener.pid,
+    processGroupId: listener.processGroupId,
+    processStartTimeTicks:
+      Number.isSafeInteger(processStartTimeTicks) &&
+      (processStartTimeTicks ?? -1) >= 0
+        ? processStartTimeTicks
+        : undefined,
+    detectedAt: now.toISOString(),
+  };
 }
 
 function endpointKey(

@@ -14,7 +14,7 @@ import type { TaskPanelDefinition } from "./task-panel-types";
 type Props = {
   open?: boolean;
   definition?: TaskPanelDefinition;
-  initial?: { label?: string; command: string; cwd?: string };
+  initial?: { label?: string; command: string; cwd?: string; port?: number };
   projectCwd?: string;
   saving?: boolean;
   title?: string;
@@ -42,6 +42,7 @@ let {
 let label = $state("");
 let commandText = $state("");
 let cwd = $state("");
+let port = $state<number | undefined>(undefined);
 let runPolicy = $state<"single" | "concurrent">("single");
 
 const dialogTitle = $derived(
@@ -56,7 +57,10 @@ const dialogDescription = $derived(
 const dialogSubmitLabel = $derived(
   submitLabel ?? (definition ? "Save task" : "Create task"),
 );
-const canSave = $derived(!saving && commandText.trim().length > 0);
+const portValid = $derived(
+  port === undefined || (Number.isInteger(port) && port >= 1 && port <= 65_535),
+);
+const canSave = $derived(!saving && commandText.trim().length > 0 && portValid);
 
 $effect(() => {
   if (!open) return;
@@ -64,6 +68,7 @@ $effect(() => {
   label = source?.label ?? "";
   commandText = source?.command ?? "";
   cwd = source?.cwd ?? "";
+  port = source?.port;
   runPolicy = definition?.runPolicy ?? "single";
 });
 
@@ -75,6 +80,7 @@ function submit() {
     command: commandText.trim(),
     ...(nextLabel.length > 0 ? { label: nextLabel } : {}),
     ...(nextCwd.length > 0 ? { cwd: nextCwd } : {}),
+    ...(port === undefined ? {} : { port }),
     runPolicy,
   });
 }
@@ -110,6 +116,23 @@ function submit() {
       />
       <p class="text-xs text-muted-foreground">
         This is the shell command run by the play button.
+      </p>
+    </div>
+
+    <div class="grid gap-1.5">
+      <Label for="task-definition-port">Port</Label>
+      <Input
+        id="task-definition-port"
+        bind:value={port}
+        type="number"
+        min="1"
+        max="65535"
+        placeholder="3000"
+        disabled={saving}
+        aria-invalid={!portValid}
+      />
+      <p class="text-xs text-muted-foreground">
+        Optional TCP port to check before this task starts.
       </p>
     </div>
 
