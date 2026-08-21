@@ -135,6 +135,7 @@ export class ProviderCatalogStore {
         cost: model.cost,
         contextWindow: model.contextWindow,
         maxTokens: model.maxTokens,
+        samplingParams: model.samplingParams,
         headers: { ...(provider?.headers ?? {}), ...(model.headers ?? {}) },
         compat: model.compat ?? provider?.compat,
       });

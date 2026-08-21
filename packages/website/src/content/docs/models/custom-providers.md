@@ -21,15 +21,28 @@ The UI supports the transports Nerve deliberately registers with pi-ai. “OpenA
 
 ## Model definition
 
-A model belongs to a configured provider and can declare:
+Choose **Add model**, select an already configured or authenticated provider, and paste one pi-compatible model object into the JSON editor. Copy the object inside the provider's `models` array—not the outer `providers` configuration—from [pi.dev/models](https://pi.dev/models), or edit the template Nerve provides.
 
-- model ID and display name;
-- context and maximum-output limits;
-- reasoning capability and supported thinking levels/mappings;
-- text/image input modalities;
-- input/output/cache cost metadata.
+```json
+{
+  "id": "my-model",
+  "name": "My Model",
+  "reasoning": false,
+  "input": ["text"],
+  "contextWindow": 128000,
+  "maxTokens": 16384,
+  "cost": {
+    "input": 0,
+    "output": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0
+  }
+}
+```
 
-The runtime inherits connection fields from its custom provider or a built-in provider template. Test a new definition with read-only permission before granting mutation.
+Nerve accepts pi model metadata such as `thinkingLevelMap`, `compat`, model headers, sampling parameters, and tiered costs. Invalid JSON, unknown fields, and full provider configurations are rejected instead of being silently discarded.
+
+Provider URLs, API types, headers shared by every model, and API keys remain in provider settings. The runtime inherits those connection fields from the selected custom provider or built-in provider template. Test a new definition with read-only permission before granting mutation.
 
 ## Removal
 

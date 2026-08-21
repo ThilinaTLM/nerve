@@ -1,20 +1,20 @@
 <script lang="ts">
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import type { ModelDefinition, ThinkingLevel } from "$lib/api";
-import { thinkingLevels } from "@nervekit/contracts";
+import type { ModelDefinition } from "$lib/api";
 import { upsertModelDefinition } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
-import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import SelectField, {
   type SelectItem,
 } from "@nervekit/ui-kit/components/ui/select-field";
-import { SettingsToggleRow } from "$lib/presentation/components/settings";
-import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
-import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
-import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
+import { CodeMirrorEditor } from "$lib/presentation/components/code";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
+import {
+  DEFAULT_MODEL_JSON,
+  modelDefinitionToJson,
+  parseModelDefinitionJson,
+} from "./model-definition-json";
 
 type Props = {
   open?: boolean;
@@ -25,19 +25,10 @@ type Props = {
 let { open = $bindable(false), model, providerItems = [] }: Props = $props();
 
 const editing = $derived(Boolean(model));
-const THINKING_LEVELS: ThinkingLevel[] = [...thinkingLevels];
-
 let provider = $state("");
-let modelId = $state("");
-let name = $state("");
-let reasoning = $state(false);
-let thinking = $state<ThinkingLevel[]>(["off"]);
-let imageInput = $state(false);
-let contextWindow = $state(0);
-let maxTokens = $state(0);
-let headersText = $state("");
+let jsonText = $state(DEFAULT_MODEL_JSON);
 let busy = $state(false);
-let error = $state<string | undefined>(undefined);
+let submitError = $state<string | undefined>(undefined);
 
 const selectProviderItems = $derived<SelectItem[]>(
   editing &&
@@ -49,83 +40,31 @@ const selectProviderItems = $derived<SelectItem[]>(
       ]
     : providerItems,
 );
-const isCustomProvider = $derived(
-  providerCatalogState.customProviders.some((custom) => custom.id === provider),
-);
 const providerAvailable = $derived(
   providerItems.some((item) => item.value === provider),
 );
+const parseResult = $derived(
+  parseModelDefinitionJson(jsonText, provider, model?.modelId),
+);
+const canSubmit = $derived(parseResult.success && providerAvailable && !busy);
 
 $effect(() => {
   if (!open) return;
   provider = model?.provider ?? "";
-  modelId = model?.modelId ?? "";
-  name = model?.name ?? "";
-  reasoning = model?.reasoning ?? false;
-  thinking = model?.supportedThinkingLevels ?? ["off"];
-  imageInput = model?.input?.includes("image") ?? false;
-  contextWindow = model?.contextWindow ?? 0;
-  maxTokens = model?.maxTokens ?? 0;
-  headersText = headersToText(model?.headers);
-  error = undefined;
+  jsonText = model ? modelDefinitionToJson(model) : DEFAULT_MODEL_JSON;
+  submitError = undefined;
 });
 
-function headersToText(headers?: Record<string, string>): string {
-  if (!headers) return "";
-  return Object.entries(headers)
-    .map(([key, value]) => `${key}: ${value}`)
-    .join("\n");
-}
-
-function parseHeaders(text: string): Record<string, string> {
-  const headers: Record<string, string> = {};
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const index = trimmed.indexOf(":");
-    if (index === -1) continue;
-    const key = trimmed.slice(0, index).trim();
-    if (key) headers[key] = trimmed.slice(index + 1).trim();
-  }
-  return headers;
-}
-
-function setThinking(values: string[]): void {
-  const next = THINKING_LEVELS.filter((level) => values.includes(level));
-  thinking = next.length > 0 ? next : ["off"];
-}
-
-const canSubmit = $derived(
-  provider.trim().length > 0 &&
-    providerAvailable &&
-    modelId.trim().length > 0 &&
-    name.trim().length > 0 &&
-    !busy,
-);
-
 async function submit() {
-  if (!canSubmit) return;
+  if (!canSubmit || !parseResult.success) return;
   busy = true;
-  error = undefined;
+  submitError = undefined;
   try {
-    const headers = parseHeaders(headersText);
-    const next: ModelDefinition = {
-      provider,
-      modelId: modelId.trim(),
-      name: name.trim(),
-      reasoning,
-      supportedThinkingLevels: thinking.length > 0 ? thinking : ["off"],
-      input: imageInput ? ["text", "image"] : ["text"],
-      contextWindow: Math.max(0, Math.trunc(contextWindow)),
-      maxTokens: Math.max(0, Math.trunc(maxTokens)),
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      ...(Object.keys(headers).length > 0 ? { headers } : {}),
-    };
-    await upsertModelDefinition(next);
+    await upsertModelDefinition(parseResult.model);
     await refreshProviderCatalog();
     open = false;
-  } catch (err) {
-    error = err instanceof Error ? err.message : String(err);
+  } catch (error) {
+    submitError = error instanceof Error ? error.message : String(error);
   } finally {
     busy = false;
   }
@@ -135,10 +74,10 @@ async function submit() {
 <Dialog
   bind:open
   title={editing ? `Edit ${model?.name}` : "Add model"}
-  description="Register a model under a configured or authenticated provider."
-  size="md"
+  description="Select a configured provider and define one pi-compatible model."
+  size="wide"
 >
-  <div class="grid gap-3">
+  <div class="grid min-h-0 gap-3">
     <div class="grid gap-1.5">
       <Label>Provider</Label>
       <SelectField
@@ -147,118 +86,70 @@ async function submit() {
         onValueChange={(value) => (provider = value)}
         placeholder="Select a provider"
         ariaLabel="Provider"
-        disabled={editing}
+        disabled={busy || editing}
       />
     </div>
 
-    <div class="grid gap-3 sm:grid-cols-2">
-      <div class="grid gap-1.5">
-        <Label for="model-id">Model id</Label>
-        <Input
-          size="xs"
-          id="model-id"
-          bind:value={modelId}
-          placeholder="llama-3.1-8b"
-          disabled={busy || editing}
-        />
-      </div>
-      <div class="grid gap-1.5">
-        <Label for="model-name">Display name</Label>
-        <Input
-          size="xs"
-          id="model-name"
-          bind:value={name}
-          placeholder="Llama 3.1 8B"
-          disabled={busy}
-        />
-      </div>
-    </div>
-
     {#if provider.length > 0 && !providerAvailable}
-      <p class="flex items-center gap-1.5 text-xs text-destructive">
-        <TriangleAlert size={14} strokeWidth={2} />
+      <p
+        class="flex items-center gap-1.5 text-xs text-destructive"
+        role="alert"
+      >
+        <TriangleAlert class="size-3.5" aria-hidden="true" />
         This provider is not configured or authenticated.
       </p>
     {/if}
 
-    <div class="grid gap-3 sm:grid-cols-2">
-      <div class="grid gap-1.5">
-        <Label for="model-context">Context window (tokens)</Label>
-        <Input
-          size="xs"
-          id="model-context"
-          type="number"
-          min="0"
-          bind:value={contextWindow}
-          disabled={busy}
-        />
-      </div>
-      <div class="grid gap-1.5">
-        <Label for="model-max-tokens">Max output tokens</Label>
-        <Input
-          size="xs"
-          id="model-max-tokens"
-          type="number"
-          min="0"
-          bind:value={maxTokens}
-          disabled={busy}
-        />
-      </div>
-    </div>
-
-    <SettingsToggleRow
-      checked={reasoning}
-      label="Reasoning model"
-      description="Enable thinking/reasoning controls for this model."
-      onCheckedChange={(value) => (reasoning = value)}
-    />
-
-    <div class="grid gap-1.5">
-      <Label>Supported thinking levels</Label>
-      <ToggleGroup.Root
-        type="multiple"
-        variant="outline"
-        size="sm"
-        value={thinking}
-        onValueChange={setThinking}
-        aria-label="Supported thinking levels"
-      >
-        {#each THINKING_LEVELS as level (level)}
-          <ToggleGroup.Item value={level} aria-label={level} class="text-xs">
-            {level}
-          </ToggleGroup.Item>
-        {/each}
-      </ToggleGroup.Root>
-    </div>
-
-    <SettingsToggleRow
-      checked={imageInput}
-      label="Image input"
-      description="The model accepts image content in addition to text."
-      onCheckedChange={(value) => (imageInput = value)}
-    />
-
-    {#if isCustomProvider}
-      <div class="grid gap-1.5">
-        <Label for="model-headers">Header overrides (optional)</Label>
-        <Textarea
-          id="model-headers"
-          bind:value={headersText}
-          rows={2}
-          placeholder="X-Header: value"
-          disabled={busy}
-        />
+    <div class="grid min-h-0 gap-1.5">
+      <div class="flex flex-wrap items-end justify-between gap-2">
+        <Label>Model JSON</Label>
         <p class="text-xs text-muted-foreground">
-          Merged on top of the provider headers. One
-          <code class="font-mono">Name: value</code> per line.
+          Find model JSON on
+          <a
+            class="text-info underline underline-offset-2"
+            href="https://pi.dev/models"
+            target="_blank"
+            rel="noreferrer">pi.dev/models</a
+          >.
         </p>
       </div>
-    {/if}
+      <div
+        class="h-96 min-h-64 overflow-hidden rounded-md border bg-background"
+      >
+        <CodeMirrorEditor
+          value={jsonText}
+          onChange={(value) => {
+            jsonText = value;
+            submitError = undefined;
+          }}
+          disabled={busy}
+          ariaLabel="Model definition JSON"
+        />
+      </div>
+      {#if provider && !parseResult.success}
+        <p
+          class="flex items-start gap-1.5 text-xs text-destructive"
+          role="alert"
+        >
+          <TriangleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+          {parseResult.error}
+        </p>
+      {:else}
+        <p class="text-xs text-muted-foreground">
+          Paste one object from a provider's
+          <code class="font-mono">models</code> array. Provider URLs and API keys
+          stay in provider settings.
+        </p>
+      {/if}
+    </div>
 
-    {#if error}
-      <p class="flex items-center gap-1.5 text-xs text-destructive">
-        <TriangleAlert size={14} strokeWidth={2} />
-        {error}
+    {#if submitError}
+      <p
+        class="flex items-center gap-1.5 text-xs text-destructive"
+        role="alert"
+      >
+        <TriangleAlert class="size-3.5" aria-hidden="true" />
+        {submitError}
       </p>
     {/if}
   </div>
