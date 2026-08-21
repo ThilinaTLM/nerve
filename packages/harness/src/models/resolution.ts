@@ -56,6 +56,7 @@ function toPiModel(model: AgentCustomModel): Model<string> | undefined {
       },
     contextWindow: model.contextWindow ?? template?.contextWindow ?? 0,
     maxTokens: model.maxTokens ?? template?.maxTokens ?? 0,
+    samplingParams: model.samplingParams ?? template?.samplingParams,
     headers: { ...(template?.headers ?? {}), ...(model.headers ?? {}) },
     compat: (model.compat ?? template?.compat) as never,
   } as Model<string>;

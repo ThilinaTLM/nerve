@@ -1,14 +1,22 @@
 import {
+  bracketMatching,
   HighlightStyle,
   StreamLanguage,
   syntaxHighlighting,
 } from "@codemirror/language";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+} from "@codemirror/commands";
 import type { Extension } from "@codemirror/state";
 import { EditorState } from "@codemirror/state";
 import {
   drawSelection,
   EditorView,
   highlightSpecialChars,
+  keymap,
   lineNumbers,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
@@ -335,6 +343,20 @@ function codeMinimapExtension(): Extension {
     displayText: "blocks",
     showOverlay: "always",
   });
+}
+
+export function editableCodeExtensions(ariaLabel: string): Extension[] {
+  return [
+    history(),
+    lineNumbers(),
+    highlightSpecialChars(),
+    drawSelection(),
+    bracketMatching(),
+    syntaxHighlighting(codeHighlightStyle),
+    keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
+    EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
+    codeMirrorTheme,
+  ];
 }
 
 export function readOnlyCodeExtensions(input: {

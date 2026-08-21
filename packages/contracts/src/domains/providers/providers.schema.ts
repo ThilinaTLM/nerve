@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { modelInputSchema, thinkingLevelSchema } from "../models/index.js";
+import {
+  modelInputSchema,
+  type ThinkingLevel,
+  thinkingLevelSchema,
+  thinkingLevels,
+} from "../models/index.js";
 
 /**
  * pi-ai `KnownApi` values. Custom providers pick one of these API
@@ -20,11 +25,20 @@ export const piApiSchema = z.enum([
 ]);
 export type PiApi = z.infer<typeof piApiSchema>;
 
-export const modelCostSchema = z.object({
+const modelCostRatesSchema = z.object({
   input: z.number().nonnegative().default(0),
   output: z.number().nonnegative().default(0),
   cacheRead: z.number().nonnegative().default(0),
   cacheWrite: z.number().nonnegative().default(0),
+});
+
+export const modelCostTierSchema = modelCostRatesSchema.extend({
+  inputTokensAbove: z.number().int().nonnegative(),
+});
+export type ModelCostTier = z.infer<typeof modelCostTierSchema>;
+
+export const modelCostSchema = modelCostRatesSchema.extend({
+  tiers: z.array(modelCostTierSchema).optional(),
 });
 export type ModelCost = z.infer<typeof modelCostSchema>;
 
@@ -77,8 +91,52 @@ export const modelDefinitionSchema = z.object({
   }),
   contextWindow: z.number().int().nonnegative().default(0),
   maxTokens: z.number().int().nonnegative().default(0),
+  samplingParams: z.record(z.string(), z.unknown()).optional(),
 });
 export type ModelDefinition = z.infer<typeof modelDefinitionSchema>;
+
+/**
+ * One model object from a pi `models` array. Provider connection and credential
+ * fields intentionally remain outside this schema because Nerve manages them
+ * separately.
+ */
+export const piModelConfigSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1).optional(),
+    api: piApiSchema.optional(),
+    reasoning: z.boolean().default(false),
+    thinkingLevelMap: z
+      .partialRecord(thinkingLevelSchema, z.string().nullable())
+      .optional(),
+    input: z.array(modelInputSchema).min(1).default(["text"]),
+    cost: modelCostSchema.default({
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+    }),
+    contextWindow: z.number().int().nonnegative().default(128_000),
+    maxTokens: z.number().int().nonnegative().default(16_384),
+    samplingParams: z.record(z.string(), z.unknown()).optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    compat: providerCompatSchema.optional(),
+  })
+  .strict();
+export type PiModelConfig = z.infer<typeof piModelConfigSchema>;
+
+/** Mirrors pi-ai's `getSupportedThinkingLevels()` behavior. */
+export function supportedThinkingLevelsForPiModel(
+  model: Pick<PiModelConfig, "reasoning" | "thinkingLevelMap">,
+): ThinkingLevel[] {
+  if (!model.reasoning) return ["off"];
+  return thinkingLevels.filter((level) => {
+    const mapped = model.thinkingLevelMap?.[level];
+    if (mapped === null) return false;
+    if (level === "xhigh" || level === "max") return mapped !== undefined;
+    return true;
+  });
+}
 
 export const providerCatalogSchema = z.object({
   version: z.literal(1).default(1),

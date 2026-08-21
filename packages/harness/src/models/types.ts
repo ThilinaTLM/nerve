@@ -36,9 +36,17 @@ export interface AgentCustomModel {
     output: number;
     cacheRead: number;
     cacheWrite: number;
+    tiers?: Array<{
+      inputTokensAbove: number;
+      input: number;
+      output: number;
+      cacheRead: number;
+      cacheWrite: number;
+    }>;
   };
   contextWindow?: number;
   maxTokens?: number;
+  samplingParams?: Record<string, unknown>;
   headers?: Record<string, string>;
   compat?: Record<string, unknown>;
 }
