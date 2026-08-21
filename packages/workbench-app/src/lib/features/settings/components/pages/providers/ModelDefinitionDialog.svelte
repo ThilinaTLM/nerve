@@ -104,8 +104,13 @@ async function submit() {
       <div class="flex flex-wrap items-end justify-between gap-2">
         <Label>Model JSON</Label>
         <p class="text-xs text-muted-foreground">
-          Paste one object from a provider's
-          <code class="font-mono">models</code> array.
+          Find model JSON on
+          <a
+            class="text-info underline underline-offset-2"
+            href="https://pi.dev/models"
+            target="_blank"
+            rel="noreferrer">pi.dev/models</a
+          >.
         </p>
       </div>
       <div
@@ -131,8 +136,9 @@ async function submit() {
         </p>
       {:else}
         <p class="text-xs text-muted-foreground">
-          Use the model object only. Provider URLs and API keys stay in provider
-          settings.
+          Paste one object from a provider's
+          <code class="font-mono">models</code> array. Provider URLs and API keys
+          stay in provider settings.
         </p>
       {/if}
     </div>
