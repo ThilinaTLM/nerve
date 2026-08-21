@@ -3,6 +3,7 @@ import type {
   StartTaskRequest,
   TaskLogQuery,
   TaskLogQueryResponse,
+  TaskPortConflictListener,
   TaskRecord,
 } from "@nervekit/contracts";
 import { apiGet, apiPathSegment } from "@nervekit/ui-kit/core/api/client";
@@ -27,9 +28,14 @@ export async function startTask(body: StartTaskRequest): Promise<TaskRecord> {
 
 export async function launchTaskDefinition(
   definitionId: string,
-): Promise<{ task: TaskRecord; disposition: "started" | "focused_existing" }> {
-  return (await protocolRequest("task.launchDefinition", { definitionId }))
-    .result;
+  terminateListeners?: TaskPortConflictListener[],
+) {
+  return (
+    await protocolRequest("task.launchDefinition", {
+      definitionId,
+      terminateListeners,
+    })
+  ).result;
 }
 
 export async function cancelTask(

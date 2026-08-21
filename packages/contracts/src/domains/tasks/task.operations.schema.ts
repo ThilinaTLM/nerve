@@ -2,6 +2,7 @@ import {
   startTaskRequestSchema,
   taskLogQueryResponseSchema,
   taskLogQuerySchema,
+  taskPortConflictListenerSchema,
   taskRecordSchema,
 } from "./index.js";
 import { z } from "zod";
@@ -15,7 +16,28 @@ const taskRestartParamsSchema = taskIdParamsSchema.extend({
 });
 const taskDefinitionLaunchParamsSchema = z.object({
   definitionId: z.string().startsWith("taskdef_"),
+  terminateListeners: z.array(taskPortConflictListenerSchema).min(1).optional(),
 });
+
+export const taskDefinitionLaunchResultSchema = z.discriminatedUnion(
+  "disposition",
+  [
+    z.object({
+      disposition: z.enum(["started", "focused_existing"]),
+      task: taskRecordSchema,
+    }),
+    z.object({
+      disposition: z.literal("port_conflict"),
+      conflict: z.object({
+        port: z.number().int().positive().max(65_535),
+        listeners: z.array(taskPortConflictListenerSchema).min(1),
+      }),
+    }),
+  ],
+);
+export type TaskDefinitionLaunchResult = z.infer<
+  typeof taskDefinitionLaunchResultSchema
+>;
 const taskLogsParamsSchema = taskIdParamsSchema.merge(taskLogQuerySchema);
 const taskCancelParamsSchema = taskIdParamsSchema.extend({
   signal: z.enum(["SIGTERM", "SIGINT", "SIGKILL"]).optional(),
@@ -45,10 +67,7 @@ export const tasksOperationDefinitions = [
   defineOperation(
     "task.launchDefinition",
     taskDefinitionLaunchParamsSchema,
-    z.object({
-      task: taskRecordSchema,
-      disposition: z.enum(["started", "focused_existing"]),
-    }),
+    taskDefinitionLaunchResultSchema,
     "mutation",
     "recommended",
     ["workbench_server"] as const,

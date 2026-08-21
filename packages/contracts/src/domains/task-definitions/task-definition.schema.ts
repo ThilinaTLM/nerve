@@ -5,6 +5,8 @@ export type TaskDefinitionRunPolicy = z.infer<
   typeof taskDefinitionRunPolicySchema
 >;
 
+export const taskDefinitionPortSchema = z.number().int().min(1).max(65_535);
+
 export const taskDefinitionScopeSchema = z.object({
   kind: z.literal("project"),
   projectId: z.string().startsWith("proj_"),
@@ -17,6 +19,7 @@ export const taskDefinitionSchema = z.object({
   label: z.string().min(1).optional(),
   command: z.string().min(1),
   cwd: z.string().min(1).optional(),
+  port: taskDefinitionPortSchema.optional(),
   runPolicy: taskDefinitionRunPolicySchema.default("single"),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -27,6 +30,7 @@ export const createTaskDefinitionRequestSchema = z.object({
   label: z.string().min(1).optional(),
   command: z.string().min(1),
   cwd: z.string().min(1).optional(),
+  port: taskDefinitionPortSchema.optional(),
   runPolicy: taskDefinitionRunPolicySchema.default("single"),
   sourceTaskId: z.string().startsWith("task_").optional(),
 });
@@ -38,6 +42,7 @@ export const updateTaskDefinitionRequestSchema = z.object({
   label: z.string().min(1).optional(),
   command: z.string().min(1),
   cwd: z.string().min(1).optional(),
+  port: taskDefinitionPortSchema.optional(),
   runPolicy: taskDefinitionRunPolicySchema,
 });
 export type UpdateTaskDefinitionRequest = z.infer<

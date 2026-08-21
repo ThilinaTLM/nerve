@@ -14,12 +14,21 @@ use std::os::unix::process::CommandExt;
 
 #[cfg(unix)]
 use crate::process::EnforcementMode;
-#[cfg(unix)]
-use crate::process::TerminationMethod;
 use crate::process::{
     Containment, EnforcementEntry, ExitReason, InspectionResult, ManagedTarget, ResourcePolicy,
-    TerminationResult,
+    TerminationMethod, TerminationResult,
 };
+
+#[derive(Clone, Debug)]
+pub(crate) struct TcpListenerInfo {
+    pub(crate) protocol: &'static str,
+    pub(crate) address: String,
+    pub(crate) port: u16,
+    pub(crate) pid: u32,
+    pub(crate) process_group_id: Option<u32>,
+    pub(crate) identity: String,
+    pub(crate) process_name: Option<String>,
+}
 
 pub(crate) struct SpawnedChild {
     pub(crate) child: Child,
@@ -83,6 +92,8 @@ pub(crate) fn capabilities() -> Vec<String> {
         "bounded-output-queue".to_string(),
         "async-process-io".to_string(),
         "managed-resource-policy".to_string(),
+        "tcp-listener-inspection".to_string(),
+        "tcp-listener-termination".to_string(),
     ];
     #[cfg(unix)]
     {
@@ -257,14 +268,55 @@ pub(crate) fn terminate(target: &ManagedTarget, signal: &str) -> TerminationResu
     platform_terminate(target, signal)
 }
 
+pub(crate) fn inspect_tcp_listeners(port: Option<u16>) -> Result<Vec<TcpListenerInfo>, String> {
+    platform_inspect_tcp_listeners(port)
+}
+
+pub(crate) fn terminate_tcp_listener(
+    listener: &TcpListenerInfo,
+    signal: &str,
+) -> TerminationResult {
+    let current = match platform_inspect_tcp_listeners(Some(listener.port)) {
+        Ok(current) => current,
+        Err(error) => {
+            return TerminationResult::not_attempted(TerminationMethod::None, Some(error));
+        }
+    };
+    if !current.iter().any(|candidate| {
+        candidate.pid == listener.pid
+            && candidate.identity == listener.identity
+            && candidate.port == listener.port
+    }) {
+        return TerminationResult::not_attempted(
+            TerminationMethod::None,
+            Some("TCP listener identity no longer matches".to_string()),
+        );
+    }
+    platform_terminate(
+        &ManagedTarget {
+            pid: listener.pid,
+            process_group_id: None,
+            containment: Containment::ProcessGroup,
+            identity: listener.identity.clone(),
+        },
+        signal,
+    )
+}
+
+#[cfg(target_os = "linux")]
+use linux::inspect_tcp_listeners as platform_inspect_tcp_listeners;
 #[cfg(target_os = "linux")]
 use linux::{
     identity as platform_identity, inspect as platform_inspect, terminate as platform_terminate,
 };
 #[cfg(target_os = "macos")]
+use macos::inspect_tcp_listeners as platform_inspect_tcp_listeners;
+#[cfg(target_os = "macos")]
 use macos::{
     identity as platform_identity, inspect as platform_inspect, terminate as platform_terminate,
 };
+#[cfg(windows)]
+use windows::inspect_tcp_listeners as platform_inspect_tcp_listeners;
 #[cfg(windows)]
 use windows::{
     identity as platform_identity, inspect as platform_inspect, terminate as platform_terminate,

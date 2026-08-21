@@ -1,6 +1,7 @@
 import path from "node:path";
 import type {
   StartTaskRequest,
+  TaskPortConflictListener,
   TaskLogQuery,
   TaskLogQueryResponse,
   TaskOutputRetention,
@@ -13,6 +14,11 @@ import type {
   DomainEventPublisherPort,
   IdPort,
 } from "../../core/ports.js";
+import {
+  inspectDefinitionPort,
+  type TaskDefinitionLaunchOutcome,
+  type TaskDefinitionPortGuard,
+} from "./task-definition-launch.js";
 import { TaskProcessSupervisor } from "./task-process-supervisor.js";
 import { isTerminalTaskStatus } from "./task-status.js";
 
@@ -148,6 +154,7 @@ export interface TaskServicePorts {
   readonly capabilities?: TaskOptionalCapabilitiesPort;
   readonly timers?: TaskTimerPort;
   readonly diagnostics?: DiagnosticPort;
+  readonly definitionPortGuard?: TaskDefinitionPortGuard;
   readonly stopTimeoutMs?: number;
 }
 
@@ -165,7 +172,10 @@ export type TaskStartInput = StartTaskRequest & {
 };
 
 export class TaskService {
-  private readonly definitionLaunches = new Map<string, Promise<TaskRecord>>();
+  private readonly definitionLaunches = new Map<
+    string,
+    Promise<TaskDefinitionLaunchOutcome>
+  >();
   private readonly stopReasons = new Map<string, "cancelled" | "timed_out">();
   private readonly startCallbacks = new Map<
     string,
@@ -330,12 +340,12 @@ export class TaskService {
     request: TaskStartInput & {
       definitionId: string;
       definitionRunPolicy: "single" | "concurrent";
+      definitionPort?: number;
+      terminateListeners?: readonly TaskPortConflictListener[];
     },
-  ): Promise<{
-    task: TaskRecord;
-    disposition: "started" | "focused_existing";
-  }> {
-    if (request.definitionRunPolicy === "concurrent") {
+  ): Promise<TaskDefinitionLaunchOutcome> {
+    const guarded = request.definitionPort !== undefined;
+    if (request.definitionRunPolicy === "concurrent" && !guarded) {
       return { task: await this.start(request), disposition: "started" };
     }
     const active = (await this.list()).find(
@@ -347,12 +357,28 @@ export class TaskService {
     );
     if (active) return { task: active, disposition: "focused_existing" };
     const pending = this.definitionLaunches.get(request.definitionId);
-    if (pending)
-      return { task: await pending, disposition: "focused_existing" };
-    const launch = this.start(request);
+    if (pending) {
+      const outcome = await pending;
+      return outcome.disposition === "started"
+        ? { task: outcome.task, disposition: "focused_existing" }
+        : outcome;
+    }
+    const launch = (async (): Promise<TaskDefinitionLaunchOutcome> => {
+      const listeners = await inspectDefinitionPort(
+        this.ports.definitionPortGuard,
+        request.definitionPort,
+        request.terminateListeners,
+      );
+      return listeners.length > 0 && request.definitionPort !== undefined
+        ? {
+            disposition: "port_conflict",
+            conflict: { port: request.definitionPort, listeners },
+          }
+        : { task: await this.start(request), disposition: "started" };
+    })();
     this.definitionLaunches.set(request.definitionId, launch);
     try {
-      return { task: await launch, disposition: "started" };
+      return await launch;
     } finally {
       if (this.definitionLaunches.get(request.definitionId) === launch)
         this.definitionLaunches.delete(request.definitionId);

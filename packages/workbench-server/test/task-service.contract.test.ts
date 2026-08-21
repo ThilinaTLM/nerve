@@ -75,6 +75,7 @@ function servicePortsForRecords(
     diagnostics?: TaskServicePorts["diagnostics"];
     timers?: TaskServicePorts["timers"];
     clock?: TaskServicePorts["clock"];
+    definitionPortGuard?: TaskServicePorts["definitionPortGuard"];
   } = {},
 ): TaskServicePorts {
   return {
@@ -110,8 +111,53 @@ function servicePortsForRecords(
     ids: { next: () => "task_contract" },
     diagnostics: options.diagnostics,
     timers: options.timers,
+    definitionPortGuard: options.definitionPortGuard,
   };
 }
+
+test("definition launch returns a port conflict and starts only after confirmed release", async () => {
+  const records = new Map<string, TaskRecord>();
+  const events: DomainEventIntent[] = [];
+  const listener = {
+    protocol: "tcp" as const,
+    address: "127.0.0.1",
+    port: 3000,
+    pid: 99,
+    identity: "linux:123",
+    processName: "node",
+  };
+  const approvals: unknown[] = [];
+  const ports = servicePortsForRecords(records, events, {
+    definitionPortGuard: {
+      prepare: async (_port, approved) => {
+        approvals.push(approved);
+        return approved ? [] : [listener];
+      },
+    },
+  });
+  const service = new TaskService(ports);
+  const request = {
+    definitionId: "taskdef_web",
+    definitionRunPolicy: "single" as const,
+    definitionPort: 3000,
+    cwd: "/workspace",
+    command: "pnpm dev",
+  };
+
+  assert.deepEqual(await service.launchDefinition(request), {
+    disposition: "port_conflict",
+    conflict: { port: 3000, listeners: [listener] },
+  });
+  assert.equal(records.size, 0);
+
+  const launched = await service.launchDefinition({
+    ...request,
+    terminateListeners: [listener],
+  });
+  assert.equal(launched.disposition, "started");
+  assert.equal(records.size, 1);
+  assert.deepEqual(approvals, [undefined, [listener]]);
+});
 
 test("runtime timeout includes process startup and identity delay", async () => {
   const records = new Map<string, TaskRecord>();

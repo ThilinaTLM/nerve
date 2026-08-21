@@ -67,6 +67,13 @@ export interface TaskSupervisor {
   inspectPortListeners(
     ports: TaskListeningPort[],
   ): Promise<TaskListeningPort[]>;
+  inspectConfiguredPort(
+    port: number,
+  ): Promise<import("@nervekit/contracts").TaskPortConflictListener[]>;
+  terminateConfiguredPortListener(
+    listener: import("@nervekit/contracts").TaskPortConflictListener,
+    signal: "SIGTERM" | "SIGKILL",
+  ): Promise<TerminateTaskResult>;
 }
 
 export function managedTaskShellCommand(
@@ -137,6 +144,9 @@ export function createTaskSupervisor(
       return portInspector.inspectRuntime(runtime);
     },
     inspectPortListeners: (ports) => portInspector.inspectListeners(ports),
+    inspectConfiguredPort: (port) => portInspector.inspectPort(port),
+    terminateConfiguredPortListener: (listener, signal) =>
+      portInspector.terminateListener(listener, signal),
   };
 }
 

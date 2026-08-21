@@ -56,6 +56,7 @@ const status = $derived(latest?.status ?? "saved");
 const label = $derived(taskDefinitionLabel(entry));
 const command = $derived(entry.definition.command);
 const cwd = $derived(entry.definition.cwd);
+const port = $derived(entry.definition.port);
 const concurrent = $derived(entry.definition.runPolicy === "concurrent");
 const canStart = $derived(concurrent || entry.activeRuns.length === 0);
 const activeRun = $derived(entry.activeRuns[0]);
@@ -70,7 +71,9 @@ const recoveryHint = $derived(
     : undefined,
 );
 const tooltip = $derived(
-  [command, cwd, recoveryHint].filter(Boolean).join("\n"),
+  [command, cwd, port ? `TCP port ${port}` : undefined, recoveryHint]
+    .filter(Boolean)
+    .join("\n"),
 );
 const runLabel = $derived(
   concurrent && activeRun ? "Start another run" : "Run task",

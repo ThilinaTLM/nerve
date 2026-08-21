@@ -6,6 +6,7 @@ use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 
 use crate::platform::process as sys_process;
+use crate::platform::process::TcpListenerInfo;
 use crate::process::{
     self, Containment, EnforcementEntry, InspectionResult, ManagedProcess, ManagedProcessEvents,
     ManagedTarget, OutputDrain, OutputStats, RequestedOutputPolicy, RequestedPolicy,
@@ -74,6 +75,57 @@ impl From<ManagedTarget> for NativeManagedTarget {
             containment: value.containment.as_str().to_string(),
             identity: value.identity,
         }
+    }
+}
+
+#[napi(object)]
+#[derive(Clone, Debug)]
+pub struct NativeTcpListener {
+    pub protocol: String,
+    pub address: String,
+    pub port: u32,
+    pub pid: u32,
+    pub process_group_id: Option<u32>,
+    pub identity: String,
+    pub process_name: Option<String>,
+}
+
+impl From<TcpListenerInfo> for NativeTcpListener {
+    fn from(value: TcpListenerInfo) -> Self {
+        Self {
+            protocol: value.protocol.to_string(),
+            address: value.address,
+            port: u32::from(value.port),
+            pid: value.pid,
+            process_group_id: value.process_group_id,
+            identity: value.identity,
+            process_name: value.process_name,
+        }
+    }
+}
+
+impl TryFrom<NativeTcpListener> for TcpListenerInfo {
+    type Error = napi::Error;
+
+    fn try_from(value: NativeTcpListener) -> Result<Self> {
+        let protocol = match value.protocol.as_str() {
+            "tcp" => "tcp",
+            "tcp6" => "tcp6",
+            _ => return Err(napi::Error::from_reason("Unsupported TCP protocol")),
+        };
+        let port = u16::try_from(value.port)
+            .ok()
+            .filter(|port| *port > 0)
+            .ok_or_else(|| napi::Error::from_reason("Invalid TCP listener port"))?;
+        Ok(Self {
+            protocol,
+            address: value.address,
+            port,
+            pid: value.pid,
+            process_group_id: value.process_group_id,
+            identity: value.identity,
+            process_name: value.process_name,
+        })
     }
 }
 
@@ -261,6 +313,33 @@ impl NativeManagedProcess {
 pub fn configure_managed_process_runtime(options: NativeRuntimeOptions) -> Result<()> {
     let maximum = positive_usize("maxActiveProcesses", options.max_active_processes)?;
     process::configure_registry(maximum).map_err(napi::Error::from_reason)
+}
+
+#[napi]
+pub fn inspect_tcp_listeners(port: Option<u32>) -> Result<Vec<NativeTcpListener>> {
+    let port = port
+        .map(|value| {
+            u16::try_from(value)
+                .ok()
+                .filter(|port| *port > 0)
+                .ok_or_else(|| napi::Error::from_reason("Invalid TCP listener port"))
+        })
+        .transpose()?;
+    sys_process::inspect_tcp_listeners(port)
+        .map(|listeners| listeners.into_iter().map(Into::into).collect())
+        .map_err(napi::Error::from_reason)
+}
+
+#[napi]
+pub fn terminate_tcp_listener(
+    listener: NativeTcpListener,
+    signal: Option<String>,
+) -> Result<NativeTerminationResult> {
+    Ok(sys_process::terminate_tcp_listener(
+        &listener.try_into()?,
+        signal.as_deref().unwrap_or("SIGTERM"),
+    )
+    .into())
 }
 
 #[napi]

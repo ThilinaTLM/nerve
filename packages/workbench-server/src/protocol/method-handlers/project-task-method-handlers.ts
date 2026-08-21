@@ -74,7 +74,10 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
     task: await state.registry.startTask(params),
   }),
   "task.launchDefinition": (state, params) =>
-    state.registry.launchTaskDefinition(params.definitionId),
+    state.registry.launchTaskDefinition(
+      params.definitionId,
+      params.terminateListeners,
+    ),
   "task.get": (state, params) => ({
     task: state.registry.getTask(params.taskId),
   }),

@@ -2,6 +2,7 @@ import type { ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import type { TaskDefinitionPortGuard } from "./task-definition-launch.js";
 import type {
   TaskProcessExit,
   TaskServicePorts,
@@ -11,7 +12,11 @@ import type {
   DomainEventPublisherPort,
   PerformanceDiagnosticsPort,
 } from "../../core/ports.js";
-import type { StartTaskRequest, TaskRecord } from "@nervekit/contracts";
+import type {
+  StartTaskRequest,
+  TaskPortConflictListener,
+  TaskRecord,
+} from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
@@ -30,6 +35,60 @@ import {
   type TaskSupervisor,
 } from "./task-supervisor.js";
 import { TaskRepository } from "./task.repository.js";
+
+function createDefinitionPortGuard(
+  supervisor: TaskSupervisor,
+): TaskDefinitionPortGuard {
+  const inspect = (port: number) => supervisor.inspectConfiguredPort(port);
+  const key = (listener: TaskPortConflictListener) =>
+    `${listener.pid}|${listener.identity}`;
+  const waitForChange = async (port: number) => {
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const current = await inspect(port);
+      if (current.length === 0) return current;
+    }
+    return inspect(port);
+  };
+
+  return {
+    async prepare(port, approvedListeners) {
+      let current = await inspect(port);
+      if (current.length === 0 || !approvedListeners) return current;
+      const approved = new Set(approvedListeners.map(key));
+      if (current.some((listener) => !approved.has(key(listener)))) {
+        return current;
+      }
+      const unique = [
+        ...new Map(
+          current.map((listener) => [key(listener), listener]),
+        ).values(),
+      ];
+      for (const listener of unique) {
+        const result = await supervisor.terminateConfiguredPortListener(
+          listener,
+          "SIGTERM",
+        );
+        if (result.error) throw new Error(result.error);
+      }
+      current = await waitForChange(port);
+      if (current.length === 0) return current;
+      if (current.some((listener) => !approved.has(key(listener)))) {
+        return current;
+      }
+      for (const listener of [
+        ...new Map(current.map((item) => [key(item), item])).values(),
+      ]) {
+        const result = await supervisor.terminateConfiguredPortListener(
+          listener,
+          "SIGKILL",
+        );
+        if (result.error) throw new Error(result.error);
+      }
+      return waitForChange(port);
+    },
+  };
+}
 
 class WorkbenchReadinessCoordinator {
   private readonly output = new Map<string, string>();
@@ -205,6 +264,7 @@ export function createWorkbenchTaskResources(
       },
     },
     events: eventPublisher,
+    definitionPortGuard: createDefinitionPortGuard(supervisor),
     diagnostics: logger
       ? {
           debug: (message, data) => {

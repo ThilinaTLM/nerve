@@ -78,6 +78,19 @@ let runsDialogOpen = $state(false);
 // The wide bottom dock can host the run output next to the list.
 const SPLIT_MIN_WIDTH = 720;
 const splitLayout = $derived(panelWidth >= SPLIT_MIN_WIDTH);
+const portConflictDescription = $derived.by(() => {
+  const conflict = model.portConflict;
+  if (!conflict) return "";
+  const processes = [
+    ...new Map(
+      conflict.listeners.map((listener) => [
+        `${listener.pid}|${listener.identity}`,
+        `${listener.processName ?? "Process"} (PID ${listener.pid})`,
+      ]),
+    ).values(),
+  ];
+  return `${processes.join(", ")} is listening on TCP port ${conflict.port}. Terminate ${processes.length === 1 ? "it" : "them"} and run this task?`;
+});
 const prunableRuns = $derived(
   projected.runs.filter((entry) => entry.isRemovable).length,
 );
@@ -371,6 +384,18 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
     void createDefinition({ ...input, sourceTaskId: saveSourceTask.id })}
   onOpenChange={(open) => {
     if (!open) saveSourceTask = undefined;
+  }}
+/>
+<ConfirmDialog
+  open={Boolean(model.portConflict)}
+  destructive
+  title="Port already in use"
+  description={portConflictDescription}
+  confirmLabel="Terminate and run"
+  onConfirm={() => void panelActions.confirmPortConflict()}
+  onCancel={() => void panelActions.dismissPortConflict()}
+  onOpenChange={(open) => {
+    if (!open) void panelActions.dismissPortConflict();
   }}
 />
 <ConfirmDialog

@@ -33,6 +33,9 @@ tokio = { version = "1.53.0", features = [
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.180"
 
+[target.'cfg(any(target_os = "macos", windows))'.dependencies]
+netstat2 = "0.11.2"
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = [
   "Win32_Foundation",

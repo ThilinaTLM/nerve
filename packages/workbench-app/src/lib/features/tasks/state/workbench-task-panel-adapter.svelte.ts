@@ -73,6 +73,7 @@ export function createWorkbenchTaskPanelAdapter(
 ): { readonly model: TaskPanelModel; readonly actions: TaskPanelActions } {
   let loadingDefinitions = $state(false);
   let runningDefinitionId = $state<string | undefined>(undefined);
+  let portConflict = $state<TaskPanelModel["portConflict"]>(undefined);
   const definitionRevalidation = createTaskDefinitionRevalidationGate();
   const definitions = $derived(
     cachedTaskDefinitions(activeProject()?.id) ?? [],
@@ -105,6 +106,7 @@ export function createWorkbenchTaskPanelAdapter(
         defaultCwd: project?.dir ?? "",
         definitionsLoading: loadingDefinitions,
         runningDefinitionId,
+        portConflict,
         capabilities: {
           start:
             project && hostActions.runCommand ? enabledCapability : noRunner,
@@ -134,6 +136,37 @@ export function createWorkbenchTaskPanelAdapter(
     return definitions.find((item) => item.id === definition.id);
   }
 
+  async function launchDefinition(
+    definition: TaskPanelDefinition,
+    terminateListeners?: import("@nervekit/contracts").TaskPortConflictListener[],
+  ): Promise<void> {
+    const project = activeProject();
+    if (!project) return;
+    runningDefinitionId = definition.id;
+    try {
+      const result = await launchTaskDefinition(
+        definition.id,
+        terminateListeners,
+      );
+      if (result.disposition === "port_conflict") {
+        portConflict = { definition, ...result.conflict };
+        return;
+      }
+      portConflict = undefined;
+      await loadWorkspaceState();
+      notify.success(
+        result.disposition === "focused_existing"
+          ? "Task is already running"
+          : "Task started",
+        { description: definition.label ?? definition.command },
+      );
+    } catch (error) {
+      showCriticalError("Could not run task", errorMessage(error));
+    } finally {
+      runningDefinitionId = undefined;
+    }
+  }
+
   const host: TaskPanelActions = {
     selectTask: async (taskId) => {
       taskState.selectedTaskId = taskId;
@@ -155,24 +188,14 @@ export function createWorkbenchTaskPanelAdapter(
         name: request.name,
       });
     },
-    runDefinition: async (definition) => {
-      const project = activeProject();
-      if (!project) return;
-      runningDefinitionId = definition.id;
-      try {
-        const result = await launchTaskDefinition(definition.id);
-        await loadWorkspaceState();
-        notify.success(
-          result.disposition === "focused_existing"
-            ? "Task is already running"
-            : "Task started",
-          { description: definition.label ?? definition.command },
-        );
-      } catch (error) {
-        showCriticalError("Could not run task", errorMessage(error));
-      } finally {
-        runningDefinitionId = undefined;
-      }
+    runDefinition: (definition) => launchDefinition(definition),
+    confirmPortConflict: () => {
+      const pending = portConflict;
+      if (!pending) return;
+      return launchDefinition(pending.definition, [...pending.listeners]);
+    },
+    dismissPortConflict: () => {
+      portConflict = undefined;
     },
     cancelTask: (id, request) => hostActions.cancelTask?.(id, request),
     forceKillTask: (id) =>

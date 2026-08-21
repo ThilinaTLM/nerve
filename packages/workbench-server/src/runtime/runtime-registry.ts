@@ -791,7 +791,10 @@ export class RuntimeRegistry {
     return this.tasks.startTask(request);
   }
 
-  async launchTaskDefinition(definitionId: string) {
+  async launchTaskDefinition(
+    definitionId: string,
+    terminateListeners?: import("@nervekit/contracts").TaskPortConflictListener[],
+  ) {
     for (const project of this.listProjects()) {
       const definition = (
         await this.services.taskDefinitions.list(project.id)
@@ -800,6 +803,8 @@ export class RuntimeRegistry {
       return this.tasks.launchDefinition({
         definitionId: definition.id,
         definitionRunPolicy: definition.runPolicy,
+        definitionPort: definition.port,
+        terminateListeners,
         projectId: project.id,
         cwd: definition.cwd ?? project.dir,
         command: definition.command,

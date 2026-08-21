@@ -4,6 +4,7 @@ import type {
   StartTaskRequest,
   TaskLogQuery,
   TaskLogQueryResponse,
+  TaskPortConflictListener,
   TaskRecord,
   UpdateTaskDefinitionRequest,
 } from "@nervekit/contracts";
@@ -14,6 +15,7 @@ export interface TaskPanelDefinition {
   readonly label?: string;
   readonly command: string;
   readonly cwd?: string;
+  readonly port?: number;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly runPolicy: "single" | "concurrent";
@@ -77,6 +79,11 @@ export interface TaskPanelModel {
   readonly defaultCwd: string;
   readonly definitionsLoading: boolean;
   readonly runningDefinitionId?: string;
+  readonly portConflict?: {
+    readonly definition: TaskPanelDefinition;
+    readonly port: number;
+    readonly listeners: readonly TaskPortConflictListener[];
+  };
   readonly capabilities: TaskPanelCapabilities;
 }
 
@@ -87,6 +94,8 @@ export interface TaskPanelActions {
   readonly runDefinition: (
     definition: TaskPanelDefinition,
   ) => void | Promise<void>;
+  readonly confirmPortConflict: () => void | Promise<void>;
+  readonly dismissPortConflict: () => void | Promise<void>;
   readonly cancelTask: (
     taskId: string,
     request?: CancelTaskRequest,

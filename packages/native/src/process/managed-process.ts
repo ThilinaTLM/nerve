@@ -14,12 +14,28 @@ import type {
   ManagedProcessRuntimeOptions,
   ManagedTarget,
   TerminationResult,
+  TcpListenerProcess,
 } from "./types.js";
 
 export function configureManagedProcessRuntime(
   options: ManagedProcessRuntimeOptions,
 ): void {
   binding.configureManagedProcessRuntime(options);
+}
+
+export function inspectTcpListeners(port?: number): TcpListenerProcess[] {
+  return binding.inspectTcpListeners(port);
+}
+
+export async function terminateTcpListener(
+  listener: TcpListenerProcess,
+  signal: NodeJS.Signals = "SIGTERM",
+): Promise<TerminationResult> {
+  try {
+    return binding.terminateTcpListener(listener, signal);
+  } catch (error) {
+    return failedTermination(error);
+  }
 }
 
 export function inspectManagedTarget(target: ManagedTarget): InspectionResult {

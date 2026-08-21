@@ -8,6 +8,16 @@ export type TerminationMethod =
   | "direct-child"
   | "none";
 
+export interface TcpListenerProcess {
+  protocol: "tcp" | "tcp6";
+  address: string;
+  port: number;
+  pid: number;
+  processGroupId?: number;
+  identity: string;
+  processName?: string;
+}
+
 export interface ManagedTarget {
   pid: number;
   processGroupId?: number;

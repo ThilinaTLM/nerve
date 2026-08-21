@@ -1,6 +1,10 @@
 use std::ffi::{c_int, c_void};
 use std::mem::size_of;
 
+use netstat2::{AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState, get_sockets_info};
+
+use super::TcpListenerInfo;
+
 use crate::process::{InspectionResult, ManagedTarget, TerminationMethod, TerminationResult};
 
 const PROC_PIDTBSDINFO: c_int = 3;
@@ -100,6 +104,53 @@ pub(crate) fn terminate(target: &ManagedTarget, signal: &str) -> TerminationResu
         }
     }
     super::signal_target(target, signal)
+}
+
+pub(crate) fn inspect_tcp_listeners(port: Option<u16>) -> Result<Vec<TcpListenerInfo>, String> {
+    let sockets = get_sockets_info(
+        AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6,
+        ProtocolFlags::TCP,
+    )
+    .map_err(|error| error.to_string())?;
+    let mut listeners = Vec::new();
+    for socket in sockets {
+        let ProtocolSocketInfo::Tcp(tcp) = socket.protocol_socket_info else {
+            continue;
+        };
+        if tcp.state != TcpState::Listen || port.is_some_and(|expected| expected != tcp.local_port)
+        {
+            continue;
+        }
+        for pid in socket.associated_pids {
+            let ReadIdentity::Found(info) = read_identity(pid) else {
+                continue;
+            };
+            listeners.push(TcpListenerInfo {
+                protocol: if tcp.local_addr.is_ipv6() {
+                    "tcp6"
+                } else {
+                    "tcp"
+                },
+                address: tcp.local_addr.to_string(),
+                port: tcp.local_port,
+                pid,
+                process_group_id: Some(info.pbi_pgid),
+                identity: identity_value(&info),
+                process_name: c_string(&info.pbi_name),
+            });
+        }
+    }
+    Ok(listeners)
+}
+
+fn c_string(value: &[u8]) -> Option<String> {
+    let end = value
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(value.len());
+    String::from_utf8(value[..end].to_vec())
+        .ok()
+        .filter(|value| !value.is_empty())
 }
 
 fn identity_value(value: &ProcBsdInfo) -> String {

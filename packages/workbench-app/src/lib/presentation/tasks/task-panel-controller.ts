@@ -71,6 +71,7 @@ export function normalizeTaskDefinition(
     label: definition.label,
     command: definition.command,
     cwd: definition.cwd,
+    port: definition.port,
     createdAt: definition.createdAt,
     updatedAt: definition.updatedAt,
     runPolicy: definition.runPolicy,
@@ -270,6 +271,10 @@ export function createTaskPanelActions(
     runDefinition: (definition) => {
       if (enabled("start")) return host.runDefinition(definition);
     },
+    confirmPortConflict: () => {
+      if (enabled("start")) return host.confirmPortConflict();
+    },
+    dismissPortConflict: () => host.dismissPortConflict(),
     cancelTask: (taskId, request) => {
       if (enabled("cancel")) return host.cancelTask(taskId, request);
     },

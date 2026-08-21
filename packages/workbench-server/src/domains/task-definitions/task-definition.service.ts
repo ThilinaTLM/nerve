@@ -43,6 +43,7 @@ export class TaskDefinitionService {
       label: request.label,
       command: request.command,
       cwd: request.cwd,
+      port: request.port,
       runPolicy: request.runPolicy,
       createdAt: now,
       updatedAt: now,
@@ -69,6 +70,7 @@ export class TaskDefinitionService {
       label: request.label,
       command: request.command,
       cwd: request.cwd,
+      port: request.port,
       runPolicy: request.runPolicy,
       updatedAt: new Date().toISOString(),
     };
