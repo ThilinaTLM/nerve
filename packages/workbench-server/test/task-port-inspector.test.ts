@@ -19,7 +19,7 @@ function runtime(): TaskRuntime {
 }
 
 describe("task port inspector", () => {
-  it("detects current-process TCP listeners on supported POSIX hosts", async () => {
+  it("detects current-process TCP listeners on supported hosts", async () => {
     const server = createServer();
     await new Promise<void>((resolve) =>
       server.listen(0, "127.0.0.1", resolve),
@@ -28,7 +28,11 @@ describe("task port inspector", () => {
       const address = server.address();
       assert.ok(address && typeof address === "object");
       const ports = await inspectRuntimeListeningPorts(runtime());
-      if (process.platform !== "linux" && process.platform !== "darwin") {
+      if (
+        !(["linux", "darwin", "win32"] as NodeJS.Platform[]).includes(
+          process.platform,
+        )
+      ) {
         assert.deepEqual(ports, []);
         return;
       }
