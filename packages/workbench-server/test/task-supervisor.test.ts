@@ -46,9 +46,10 @@ describe("task supervisor", () => {
   });
 
   it("persists native containment and stable identity metadata", async () => {
-    const spawned = defaultTaskSupervisor.spawn("sleep 30", {
-      cwd: process.cwd(),
-    });
+    const spawned = defaultTaskSupervisor.spawn(
+      `${node} -e ${JSON.stringify("setInterval(() => {}, 1000)")}`,
+      { cwd: process.cwd() },
+    );
     const runtime = await spawned.runtime;
     try {
       assert.equal(runtime.version, 2);
