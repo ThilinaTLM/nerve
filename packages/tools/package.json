@@ -28,7 +28,7 @@
     "build": "tsc -b",
     "check": "tsc -b --pretty false",
     "test": "tsx --test test/*.test.ts",
-    "test:native": "tsx --test test/bash.test.ts test/filesystem.test.ts test/process-tree.test.ts test/python-runtime.test.ts test/search-find.test.ts test/shell-config.test.ts"
+    "test:native": "tsx --test test/bash.test.ts test/process-tree.test.ts"
   },
   "dependencies": {
     "@nervekit/contracts": "workspace:*",

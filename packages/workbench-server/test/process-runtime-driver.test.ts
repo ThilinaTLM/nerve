@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { defaultTaskSupervisor } from "../src/domains/tasks/task-supervisor.js";
 
+const node = JSON.stringify(process.execPath);
+
 test("captures immediate native exit and close outcomes", async () => {
-  const spawned = defaultTaskSupervisor.spawn("printf done", {
-    cwd: process.cwd(),
-  });
+  const spawned = defaultTaskSupervisor.spawn(
+    `${node} -e ${JSON.stringify("process.stdout.write('done')")}`,
+    { cwd: process.cwd() },
+  );
   assert.equal((await spawned.exited).kind, "closed");
   assert.equal((await spawned.closed).kind, "closed");
   assert.equal((await spawned.runtime).platform, process.platform);
