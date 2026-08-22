@@ -1,8 +1,8 @@
 import { SvelteSet } from "svelte/reactivity";
-import type { GitContext } from "$lib/core/types/state-types";
+import type { GitContext } from "$lib/features/git/state/git-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { gitContextFingerprint } from "./git-context-helpers";
 import {
   applyGitContextFromProject,

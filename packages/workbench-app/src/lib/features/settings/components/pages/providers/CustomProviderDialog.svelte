@@ -36,7 +36,7 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import SelectField from "@nervekit/ui-kit/components/ui/select-field";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
-import { encryptApiKey } from "$lib/core/utils/credential-crypto";
+import { encryptApiKey } from "$lib/platform/crypto/credential-crypto";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 
 type Props = {

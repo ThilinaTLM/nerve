@@ -6,7 +6,7 @@ import type {
   PruneProjectConversationsRequest,
   StatusResponse,
 } from "$lib/api";
-import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
+import type { ConversationActivityState } from "$lib/kernel/conversations/activity";
 
 export type DeleteTarget = {
   kind: "project" | "conversation";

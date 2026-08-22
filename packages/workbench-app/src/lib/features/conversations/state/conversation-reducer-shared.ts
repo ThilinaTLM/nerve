@@ -1,7 +1,7 @@
 import type { ConversationEntry } from "$lib/api";
-import type { ConversationViewState } from "$lib/core/types/state-types";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import type { ConversationViewState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 
 export function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;

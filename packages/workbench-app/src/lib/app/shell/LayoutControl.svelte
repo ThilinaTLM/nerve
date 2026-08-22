@@ -14,11 +14,11 @@ import Popover, {
   PopoverRow,
   PopoverSection,
 } from "@nervekit/ui-kit/components/ui/popover-panel";
-import { formatShortcut } from "$lib/core/shortcuts/keyboard";
+import { formatShortcut } from "$lib/kernel/shortcuts/keyboard";
 import {
   getShortcut,
   type ShortcutCommandId,
-} from "$lib/core/shortcuts/registry";
+} from "$lib/kernel/shortcuts/registry";
 import {
   DOCK_LABELS,
   type DockId,
@@ -29,7 +29,7 @@ import {
   MIN_ZOOM_LEVEL,
   clampZoomLevel,
   zoomPercentForLevel,
-} from "./appearance.svelte";
+} from "$lib/platform/appearance/appearance.svelte";
 
 type Props = {
   zoomLevel?: number;

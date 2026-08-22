@@ -19,7 +19,7 @@ import type {
   ConversationTransientState,
   PendingConversationState,
   TranscriptItem,
-} from "$lib/core/types/state-types";
+} from "$lib/features/conversations/state/conversation-state.svelte";
 import type { ComposerSuggestion } from "./composer-suggestion";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 

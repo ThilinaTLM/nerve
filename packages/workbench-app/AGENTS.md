@@ -1,8 +1,8 @@
 # Web styling conventions (`packages/workbench-app`)
 
-Inherits the root `AGENTS.md`. These rules govern all CSS/Tailwind in this package. `$lib/presentation` owns product presentation and may depend only on presentation-local modules, `@nervekit/contracts`, and `@nervekit/ui-kit`; it must not import `$lib/app`, `$lib/features`, or `$lib/core`. Git and task utility wrappers remain thin adapters around canonical presentation hosts; app state, protocol calls, polling, navigation, notifications, and clipboard effects stay outside the presentation directory.
+Inherits the root `AGENTS.md`. These rules govern all CSS/Tailwind in this package. `$lib/presentation` owns only cross-feature, stateless product UI and may depend only on presentation-local modules, `@nervekit/contracts`, and `@nervekit/ui-kit`; it must not import `$lib/app`, `$lib/application`, `$lib/features`, `$lib/kernel`, or `$lib/platform`. Feature-specific Git and task presentation is owned by those feature slices. App state, protocol calls, polling, navigation, notifications, and clipboard effects stay outside the presentation directory.
 
-Application `*Shell` components are state/effect adapters around canonical `*Pane` components from `$lib/presentation`. Do not recreate presentation markup in app or feature adapters.
+Application `*Host` components are state/effect adapters around canonical feature `*View` or rendered `*Panel` components. `*Shell` is reserved for genuinely generic layout structure, and `*Pane` names a bounded subregion. Concrete feature registration and all cross-feature UI wiring belong in `$lib/app/composition`; generic shell modules must consume public feature APIs or registered descriptors rather than private feature modules. A feature must never import another feature, including its public barrel. Do not recreate presentation markup in app or feature hosts.
 
 ## Two authoring tiers
 

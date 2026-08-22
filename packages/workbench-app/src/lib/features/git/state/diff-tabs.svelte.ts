@@ -1,19 +1,19 @@
 import type { GitDiffArea } from "@nervekit/contracts";
-import { diffViewKey } from "$lib/core/state/state-keys";
+import { diffViewKey } from "$lib/kernel/navigation/view-keys";
 import { getGitFileDiff } from "$lib/features/git/api/git.api";
 import {
   gitState,
   type DiffViewState,
 } from "$lib/features/git/state/git-state.svelte";
-import { showCriticalError } from "$lib/features/notifications/critical-errors.svelte";
+import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
 import {
   addCenterTab,
   nextCenterTabAfterClose,
   removeCenterTab,
   selectCenterTab,
   setActiveCenterTab,
-} from "$lib/features/workspace/state/center-tabs.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+} from "$lib/application/workspace/center-tabs.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 
 export function encodeDiffTabId(input: {
   projectId: string;
@@ -64,7 +64,7 @@ export async function openDiffPane(input: {
 }): Promise<void> {
   if (input.projectId !== workspaceState.selectedProjectId) {
     const { selectProject } =
-      await import("$lib/features/workspace/state/workspace-actions.svelte");
+      await import("$lib/application/workspace/workspace-actions.svelte");
     await selectProject(input.projectId);
   }
   const id = encodeDiffTabId(input);

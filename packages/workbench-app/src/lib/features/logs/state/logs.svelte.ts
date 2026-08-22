@@ -4,8 +4,8 @@ import {
   removeCenterTab,
   selectCenterTab,
   setActiveCenterTab,
-} from "$lib/features/workspace/state/center-tabs.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+} from "$lib/application/workspace/center-tabs.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 
 const LOGS_TAB = { kind: "logs" as const, id: "logs" as const };
 

@@ -1,18 +1,18 @@
 import type { AgentRecord, ProjectRecord } from "$lib/api";
-import { pendingConversationKey } from "$lib/core/state/state-keys";
+import { pendingConversationKey } from "$lib/kernel/navigation/view-keys";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
 import {
   addCenterTab,
   setActiveCenterTab,
-} from "$lib/features/workspace/state/center-tabs.svelte";
+} from "$lib/application/workspace/center-tabs.svelte";
 import {
   composerDraft,
   resetSelection,
   selection,
-} from "$lib/features/workspace/state/selection.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
-import { resolveNewAgentComposerSelection } from "./agent-selection-defaults";
+} from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+import { resolveNewAgentComposerSelection } from "$lib/application/preferences/agent-selection";
 import { clearTranscriptState, createPendingConversationId } from "./state";
 
 export function openPendingConversation(
@@ -20,11 +20,11 @@ export function openPendingConversation(
   initialMode?: AgentRecord["mode"],
 ) {
   const id = createPendingConversationId();
-  const defaults = settingsState.settingsDraft
+  const defaults = settingsReadModel.settingsDraft
     ? resolveNewAgentComposerSelection(
-        settingsState.settingsDraft,
-        settingsState.models,
-        settingsState.authProviders,
+        settingsReadModel.settingsDraft,
+        settingsReadModel.models,
+        settingsReadModel.authProviders,
       )
     : {
         selectedModelKey: conversationState.selectedModelKey,

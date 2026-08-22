@@ -1,9 +1,9 @@
-import { shortenPath } from "$lib/core/utils/path";
-import { shortProjectLabel } from "$lib/core/utils/project-tree";
+import { shortenPath } from "$lib/kernel/utils/path";
+import { shortProjectLabel } from "$lib/kernel/utils/project-tree";
 import type {
   CenterTabIdentity,
   CenterTabModel,
-} from "$lib/features/workspace";
+} from "$lib/application/workspace";
 
 export type TabIdentity = CenterTabIdentity;
 

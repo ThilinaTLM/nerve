@@ -1,7 +1,7 @@
 import type {
   ConversationViewState,
   TranscriptItem,
-} from "$lib/core/types/state-types";
+} from "$lib/features/conversations/state/conversation-state.svelte";
 
 export interface ConversationTerminalUiState {
   optimisticMessages: TranscriptItem[];

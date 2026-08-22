@@ -1,11 +1,11 @@
-import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
+import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
 import { protocolRequest } from "@nervekit/protocol";
 import { conversationStream } from "@nervekit/contracts";
-import { removeEventStream } from "$lib/core/events/stream-cursors.svelte";
+import { removeEventStream } from "$lib/application/event-routing/stream-cursors.svelte";
 import {
   conversationViewKey,
   pendingConversationKey,
-} from "$lib/core/state/state-keys";
+} from "$lib/kernel/navigation/view-keys";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import {
   nextCenterTabAfterClose,
@@ -13,9 +13,9 @@ import {
   replaceOpenCenterTabs,
   selectCenterTab,
   setActiveCenterTab,
-} from "$lib/features/workspace/state/center-tabs.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+} from "$lib/application/workspace/center-tabs.svelte";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import {
   applyActiveConversationSelection,
   refreshConversationView,
@@ -35,9 +35,9 @@ export async function openConversation(conversationId: string) {
     (await protocolRequest("conversation.get", { conversationId })).result
       .conversation;
   if (conversation.projectId !== workspaceState.selectedProjectId) {
-    const { selectProject } =
-      await import("$lib/features/workspace/state/workspace-actions.svelte");
-    await selectProject(conversation.projectId);
+    const { selectWorkspaceProject } =
+      await import("$lib/application/workspace/workspace-commands");
+    await selectWorkspaceProject(conversation.projectId);
   }
   addConversationTab(conversation.id);
   conversationState.activeConversationTabId = conversation.id;

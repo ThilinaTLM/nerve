@@ -1,4 +1,4 @@
-import type { CenterTabIdentity } from "$lib/features/workspace";
+import type { CenterTabIdentity } from "$lib/application/workspace";
 
 export type CenterTabRefreshDependencies = {
   refreshConversation(id: string): void;

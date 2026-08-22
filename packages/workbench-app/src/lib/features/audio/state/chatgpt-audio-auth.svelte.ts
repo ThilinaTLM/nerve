@@ -1,4 +1,4 @@
-import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
 import { hasChatGptAudioAuth } from "./chatgpt-audio-auth";
 
 export {
@@ -8,6 +8,6 @@ export {
 
 export const chatGptAudioAuth = {
   get configured(): boolean {
-    return hasChatGptAudioAuth(settingsState.authProviders);
+    return hasChatGptAudioAuth(settingsReadModel.authProviders);
   },
 };

@@ -3,10 +3,10 @@ import type { AgentRecord, ConversationRecord, ProjectRecord } from "$lib/api";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
-import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
+import type { ConversationActivityState } from "$lib/kernel/conversations/activity";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
-import { buildConversationRows } from "$lib/core/utils/project-tree";
+import { buildConversationRows } from "$lib/kernel/utils/project-tree";
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 
 type Props = {

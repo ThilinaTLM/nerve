@@ -1,4 +1,4 @@
-import type { WorkbenchEvent } from "$lib/core/events/event-bus";
+import type { WorkbenchEvent } from "$lib/kernel/events/event-bus";
 import type { GitAutoRefreshDemand } from "./git-auto-refresh-scheduler";
 
 const PR_RELEVANT_REASONS = new Set([

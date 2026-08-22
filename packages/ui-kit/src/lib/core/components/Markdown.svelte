@@ -386,7 +386,7 @@ $effect(() => () => streamingScheduler.destroy());
 
 {#if showingStreaming}
   <div
-    class="markdown"
+    class="markdown select-text"
     use:copyButtonHandler
     use:mermaidHandler={{
       html: streamingPrefixHtml,
@@ -403,7 +403,7 @@ $effect(() => () => streamingScheduler.destroy());
   </div>
 {:else}
   <div
-    class="markdown"
+    class="markdown select-text"
     use:copyButtonHandler
     use:mermaidHandler={{ html, source: text, sourceLineStart, onOpenMermaid }}
   >

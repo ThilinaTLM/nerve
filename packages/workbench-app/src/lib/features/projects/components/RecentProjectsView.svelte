@@ -8,7 +8,7 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
-import { tildePath } from "$lib/core/utils/path";
+import { tildePath } from "$lib/kernel/utils/path";
 import { ItemScrollRegion, ItemSurface } from "$lib/presentation";
 import type { ProjectGitOverview } from "$lib/features/projects/state/project-overview";
 import type { ProjectSwitcherItem } from "$lib/features/projects/state/project-switcher";

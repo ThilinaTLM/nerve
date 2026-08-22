@@ -13,17 +13,17 @@ import type {
   EventEnvelope,
   ToolCallTranscriptRecord,
 } from "$lib/api";
-import { removeEventStream } from "$lib/core/events/stream-cursors.svelte";
-import { conversationViewKey } from "$lib/core/state/state-keys";
-import type { ConversationViewState } from "$lib/core/types/state-types";
+import { removeEventStream } from "$lib/application/event-routing/stream-cursors.svelte";
+import { conversationViewKey } from "$lib/kernel/navigation/view-keys";
+import type { ConversationViewState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import {
   ensureConversationView,
   openConversation,
   refreshConversationView,
 } from "$lib/features/conversations/state/conversation-flow.svelte";
-import { invalidateGit } from "$lib/features/git/state/git-context.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
+import { invalidateGit } from "$lib/application/git/git-refresh";
+import { selection } from "$lib/application/workspace/selection.svelte";
 import { conversationIdFromEvent } from "./conversation-event-routing";
 import {
   clearContextUsageRefresh,

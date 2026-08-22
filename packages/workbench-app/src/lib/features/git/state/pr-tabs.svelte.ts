@@ -1,5 +1,5 @@
 import type { GithubPr, GithubPrMergeMethod } from "@nervekit/contracts";
-import { prViewKey } from "$lib/core/state/state-keys";
+import { prViewKey } from "$lib/kernel/navigation/view-keys";
 import {
   demandPrTab,
   loadPrCore,
@@ -24,8 +24,8 @@ import {
   removeCenterTab,
   selectCenterTab,
   setActiveCenterTab,
-} from "$lib/features/workspace/state/center-tabs.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+} from "$lib/application/workspace/center-tabs.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 
 function encodePrTabId(
   projectId: string,
@@ -124,7 +124,7 @@ export async function openPrPane(input: {
 }): Promise<void> {
   if (input.projectId !== workspaceState.selectedProjectId) {
     const { selectProject } =
-      await import("$lib/features/workspace/state/workspace-actions.svelte");
+      await import("$lib/application/workspace/workspace-actions.svelte");
     await selectProject(input.projectId);
   }
   const id = encodePrTabId(input.projectId, input.repo, input.number);

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import type { WorkbenchNotifyEvent } from "$lib/core/events/event-bus";
-import { clearEventHandlers, dispatchEvent } from "$lib/core/events/event-bus";
+import type { WorkbenchNotifyEvent } from "$lib/kernel/events/event-bus";
+import {
+  clearEventHandlers,
+  dispatchEvent,
+} from "$lib/kernel/events/event-bus";
 import { registerFileExplorerEventHandler } from "./file-explorer-events";
 
 const ts = "2026-08-16T00:00:00.000Z";

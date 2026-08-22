@@ -24,11 +24,5 @@ export type {
   WithoutChildrenOrChild,
 } from "@nervekit/ui-kit/core/utils";
 export { cn } from "@nervekit/ui-kit/core/utils";
-export { default as GitPanelView } from "./git/GitPanelView.svelte";
-export * from "./git/git-panel-controller.js";
-export * from "./git/git-panel-types.js";
-export { default as TasksPanelView } from "./tasks/TasksPanelView.svelte";
-export * from "./tasks/task-panel-controller.js";
-export * from "./tasks/task-panel-types.js";
 export * from "./state/index.js";
 export { default as ToolCallCard } from "./tools/components/ToolCallCard.svelte";

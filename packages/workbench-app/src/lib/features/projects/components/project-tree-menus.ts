@@ -9,9 +9,9 @@ import type {
   ProjectRecord,
   StatusResponse,
 } from "$lib/api";
-import { writeClipboardText } from "$lib/core/clipboard";
-import { shortProjectLabel } from "$lib/core/utils/project-tree";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
+import { shortProjectLabel } from "$lib/kernel/utils/project-tree";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import type { DeleteTarget } from "./project-agent-tree-props";
 import VsCodeIcon from "./VsCodeIcon.svelte";
 import ZedIcon from "./ZedIcon.svelte";

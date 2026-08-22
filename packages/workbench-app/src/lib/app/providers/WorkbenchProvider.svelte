@@ -4,14 +4,14 @@ import {
   desktopRuntime,
   initializeDesktopRuntime,
   syncDesktopCloseToTray,
-} from "$lib/features/desktop";
+} from "$lib/platform/desktop";
 import {
   configureNotificationPreferences,
   initializeNotificationAudio,
   initializeNotifications,
-} from "$lib/features/notifications/notify.svelte";
-import { registerFeatureEventHandlers } from "$lib/features/register-feature-events";
-import { zoomState } from "$lib/app/shell/appearance.svelte";
+} from "$lib/application/notifications/notify.svelte";
+import { registerFeatureEventHandlers } from "$lib/app/composition/register-feature-events";
+import { zoomState } from "$lib/platform/appearance/appearance.svelte";
 import {
   revealPanelView,
   togglePanelDock,
@@ -28,24 +28,21 @@ import {
   toggleComposerMic,
 } from "$lib/features/conversations";
 import { focusProjectSearch } from "$lib/features/projects";
-import { createAppShortcuts } from "$lib/core/shortcuts/app-shortcuts.svelte";
+import { createAppShortcuts } from "$lib/application/commands/app-shortcuts.svelte";
 import {
   clearGitContext,
   refreshGitContext,
   startGitRefreshCoordinator,
   createGitStartupPolicy,
 } from "$lib/features/git";
-import {
-  openSettingsPane,
-  settingsSelectors,
-  setUiZoomLevel,
-} from "$lib/features/settings";
+import { settingsSelectors } from "$lib/features/settings";
+import { openSettingsPane, setUiZoomLevel } from "$lib/application/settings";
 import {
   disconnectWorkbench,
   initializeWorkbench,
-} from "$lib/core/events/websocket-client.svelte";
-import { workbenchStartupState } from "$lib/core/startup/workbench-startup-state.svelte";
-import { shouldRevealWorkbench } from "$lib/core/startup/workbench-startup-machine";
+} from "$lib/application/startup/workbench-client.svelte";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import { shouldRevealWorkbench } from "$lib/application/startup/workbench-startup-machine";
 import StartupSplash from "$lib/app/shell/StartupSplash.svelte";
 import {
   centerTabsExcept,
@@ -55,7 +52,7 @@ import {
   selectCenterTab,
   workspaceSelectors,
   workspaceState,
-} from "$lib/features/workspace";
+} from "$lib/application/workspace";
 import { refreshCenterTab } from "$lib/app/shell/refresh-center-tab.svelte";
 
 type Props = {

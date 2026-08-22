@@ -1,9 +1,9 @@
-import { onAnyEvent, type WorkbenchEvent } from "$lib/core/events/event-bus";
-import { shouldRefreshSettings } from "$lib/features/workspace/state/workspace-event-policy";
+import { onAnyEvent, type WorkbenchEvent } from "$lib/kernel/events/event-bus";
+import { shouldRefreshSettings } from "$lib/application/workspace/workspace-event-policy";
 import {
   hasPendingSettingsSave,
   loadSettingsPanel,
-} from "./settings-actions.svelte";
+} from "$lib/application/settings";
 
 export function registerSettingsEventHandlers(): () => void {
   return onAnyEvent(handleSettingsEvent);

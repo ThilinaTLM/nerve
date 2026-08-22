@@ -1,19 +1,19 @@
 import {
   conversationViewKey,
   pendingConversationKey,
-} from "$lib/core/state/state-keys";
+} from "$lib/kernel/navigation/view-keys";
 import type {
   ConversationViewState,
   PendingConversationState,
-} from "$lib/core/types/state-types";
+} from "$lib/features/conversations/state/conversation-state.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { saveVisibleProjectSession } from "$lib/features/workspace/state/workspace-tab-sessions";
-import { addCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
+import { saveVisibleProjectSession } from "$lib/application/workspace/workspace-tab-sessions";
+import { addCenterTab } from "$lib/application/workspace/center-tabs.svelte";
 import {
   composerDraft,
   resetSelection,
-} from "$lib/features/workspace/state/selection.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+} from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 
 export function ensureConversationView(
   conversationId: string,

@@ -8,9 +8,9 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { ShellStatusBar, type DockToggle } from "$lib/presentation/shell";
 import type { TaskRecord, ProjectRecord, StatusResponse } from "$lib/api";
 import type { SubscriptionUsageEntry } from "$lib/features/usage";
-import { tildePath } from "$lib/core/utils/path";
+import { tildePath } from "$lib/kernel/utils/path";
 import StatusPopover from "./StatusPopover.svelte";
-import SubscriptionUsageChip from "$lib/features/usage/components/SubscriptionUsageChip.svelte";
+import { SubscriptionUsageChip } from "$lib/features/usage";
 import LayoutControl from "./LayoutControl.svelte";
 
 type GitStatus = {

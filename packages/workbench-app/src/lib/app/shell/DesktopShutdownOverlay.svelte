@@ -1,5 +1,5 @@
 <script lang="ts">
-import { desktopRuntime, desktopShutdownState } from "$lib/features/desktop";
+import { desktopRuntime, desktopShutdownState } from "$lib/platform/desktop";
 
 const desktopQuitting = $derived(
   desktopRuntime.quitting || desktopShutdownState.quitRequested,

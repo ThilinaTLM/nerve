@@ -1,5 +1,5 @@
 <script lang="ts">
-import WorkbenchShellContainer from "$lib/app/shell/WorkbenchShellContainer.svelte";
+import WorkbenchHost from "$lib/app/shell/WorkbenchHost.svelte";
 import WorkbenchProvider from "$lib/app/providers/WorkbenchProvider.svelte";
 </script>
 
@@ -8,5 +8,5 @@ import WorkbenchProvider from "$lib/app/providers/WorkbenchProvider.svelte";
 </svelte:head>
 
 <WorkbenchProvider>
-  <WorkbenchShellContainer />
+  <WorkbenchHost />
 </WorkbenchProvider>

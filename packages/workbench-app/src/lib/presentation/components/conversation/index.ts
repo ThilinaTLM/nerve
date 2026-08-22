@@ -1,8 +1,8 @@
-export { default as AgentComposer } from "./agent-composer.svelte";
-export { default as ConversationPane } from "./conversation-pane.svelte";
-export { default as ConversationBanner } from "./conversation-banner.svelte";
-export { default as ConversationEmptyState } from "./conversation-empty-state.svelte";
-export { default as ConversationSignal } from "./conversation-signal.svelte";
+export { default as AgentComposer } from "./AgentComposer.svelte";
+export { default as ConversationPane } from "./ConversationPane.svelte";
+export { default as ConversationBanner } from "./ConversationBanner.svelte";
+export { default as ConversationEmptyState } from "./ConversationEmptyState.svelte";
+export { default as ConversationSignal } from "./ConversationSignal.svelte";
 export {
   conversationStarters,
   type ConversationStarter,

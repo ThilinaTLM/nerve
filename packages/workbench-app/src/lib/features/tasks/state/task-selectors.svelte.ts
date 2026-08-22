@@ -1,6 +1,6 @@
-import { isPathInDirectory } from "$lib/core/utils/path";
-import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { isPathInDirectory } from "$lib/kernel/utils/path";
+import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { taskEntryId } from "./task-tabs.svelte";
 import { taskState } from "./task-state.svelte";
 

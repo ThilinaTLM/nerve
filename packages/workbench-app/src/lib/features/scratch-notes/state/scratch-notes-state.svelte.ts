@@ -1,6 +1,6 @@
 import type { ScratchNote } from "@nervekit/contracts";
 import { SvelteMap } from "svelte/reactivity";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   createScratchNote as createScratchNoteRequest,
   deleteScratchNote as deleteScratchNoteRequest,

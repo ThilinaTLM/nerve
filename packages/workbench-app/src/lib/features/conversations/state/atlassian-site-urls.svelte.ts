@@ -1,8 +1,8 @@
-import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
 
 /** Optional link decoration derived from the orchestrated core settings load. */
 function selectedSiteUrl(provider: "jira" | "confluence"): string | undefined {
-  const settings = settingsState.settingsDraft;
+  const settings = settingsReadModel.settingsDraft;
   if (!settings) return undefined;
   const profileId = settings.tools[provider].profileId;
   return settings.providers.atlassianProfiles.find(

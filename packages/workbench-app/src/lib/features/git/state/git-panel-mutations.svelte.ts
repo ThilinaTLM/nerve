@@ -22,9 +22,9 @@ import {
 import {
   errorDetails,
   showCriticalError,
-} from "$lib/features/notifications/critical-errors.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
-import { gitFilesInScope, gitPathspecs } from "$lib/presentation";
+} from "$lib/application/notifications/critical-errors.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
+import { gitFilesInScope, gitPathspecs } from "$lib/features/git";
 import {
   refreshGitOverview,
   scheduleAutomaticGitRefresh,

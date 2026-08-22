@@ -4,7 +4,7 @@ import type {
 } from "@nervekit/contracts";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { WorkbenchEventHandler } from "$lib/core/events/event-bus";
+import type { WorkbenchEventHandler } from "$lib/kernel/events/event-bus";
 import { createSubagentTranscriptWatcher } from "./subagent-transcript-watcher.js";
 
 const ts = "2026-08-02T00:00:00.000Z";

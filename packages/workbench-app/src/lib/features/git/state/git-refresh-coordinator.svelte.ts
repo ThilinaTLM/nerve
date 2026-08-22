@@ -20,9 +20,9 @@ import {
   getGithubPrInitial,
   getGithubPrOverview,
 } from "$lib/api";
-import { queryClient, queryKeys } from "$lib/core/query";
-import { showCriticalError } from "$lib/features/notifications/critical-errors.svelte";
-import { prViewKey } from "$lib/core/state/state-keys";
+import { queryClient, queryKeys } from "$lib/platform/query/client";
+import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
+import { prViewKey } from "$lib/kernel/navigation/view-keys";
 import {
   gitState,
   type PrResourceState,

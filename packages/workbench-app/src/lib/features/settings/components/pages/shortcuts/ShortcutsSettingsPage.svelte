@@ -11,8 +11,8 @@ import {
   DEFAULT_SHORTCUTS,
   type ShortcutCategory,
   type ShortcutCommand,
-} from "$lib/core/shortcuts/registry";
-import { formatShortcut } from "$lib/core/shortcuts/keyboard";
+} from "$lib/kernel/shortcuts/registry";
+import { formatShortcut } from "$lib/kernel/shortcuts/keyboard";
 
 type ShortcutGroup = {
   category: ShortcutCategory;

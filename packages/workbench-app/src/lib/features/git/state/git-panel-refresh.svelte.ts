@@ -11,11 +11,11 @@ import {
 import {
   gitProjectStateKey,
   gitRepoStateKey,
-} from "$lib/core/state/state-keys";
-import { queryClient, queryKeys } from "$lib/core/query";
+} from "$lib/kernel/navigation/view-keys";
+import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { hasPendingPrChecks } from "$lib/features/git/checks";
-import { showCriticalError } from "$lib/features/notifications/critical-errors.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   GitAutoRefreshScheduler,
   type GitAutoRefreshDemand,

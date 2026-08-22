@@ -2,8 +2,8 @@
 
 import { mount } from "svelte";
 import Root from "./Root.svelte";
-import { applyZoomLevel } from "./lib/app/shell/appearance.svelte";
-import { registerPwaServiceWorker } from "./lib/core/pwa/register-pwa";
+import { applyZoomLevel } from "./lib/platform/appearance/appearance.svelte";
+import { registerPwaServiceWorker } from "./lib/platform/pwa/register-pwa";
 import "./styles/app.css";
 
 let initialZoomLevel: string | null = null;

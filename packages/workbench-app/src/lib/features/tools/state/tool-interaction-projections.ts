@@ -1,9 +1,9 @@
 import type {
-  ApprovalWithToolCall,
   PlanReviewRecord,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
-} from "$lib/api";
+} from "@nervekit/contracts";
+import type { ApprovalWithToolCall } from "$lib/presentation/state/tool-types";
 
 export function pendingApprovals(
   toolCalls: readonly ToolCallTranscriptRecord[],

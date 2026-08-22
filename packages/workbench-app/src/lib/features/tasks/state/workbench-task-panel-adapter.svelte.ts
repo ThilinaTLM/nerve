@@ -10,10 +10,10 @@ import type {
   CreateTaskDefinitionRequest,
   UpdateTaskDefinitionRequest,
 } from "@nervekit/contracts";
-import { writeClipboardText } from "$lib/core/clipboard";
-import { onEvent } from "$lib/core/events/event-bus";
-import { showCriticalError } from "$lib/features/notifications/critical-errors.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
+import { onEvent } from "$lib/kernel/events/event-bus";
+import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   getTaskLogs,
   launchTaskDefinition,
@@ -23,7 +23,7 @@ import {
   setTaskEntryRun,
   taskEntryKey,
 } from "$lib/features/tasks/state/task-tabs.svelte";
-import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
+import { loadWorkspaceState } from "$lib/application/workspace/workspace-actions.svelte";
 import {
   createTaskDefinition,
   deleteTaskDefinition,
@@ -37,14 +37,18 @@ import {
 } from "$lib/features/tasks/state/task-definitions.svelte";
 import { createTaskDefinitionRevalidationGate } from "$lib/features/tasks/state/task-definition-revalidation";
 import {
-  createTaskPanelActions,
   disabledCapability,
   enabledCapability,
+} from "$lib/kernel/capabilities/feature-capability";
+import {
+  createTaskPanelActions,
   normalizeTaskDefinition,
-  type TaskPanelActions,
-  type TaskPanelDefinition,
-  type TaskPanelModel,
-} from "$lib/presentation";
+} from "$lib/features/tasks/ui/task-panel-controller";
+import type {
+  TaskPanelActions,
+  TaskPanelDefinition,
+  TaskPanelModel,
+} from "$lib/features/tasks/ui/task-panel-types";
 
 export type WorkbenchTaskPanelHostActions = {
   readonly openTaskOutput?: (id: string) => void;

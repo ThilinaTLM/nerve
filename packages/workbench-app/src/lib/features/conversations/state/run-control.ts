@@ -1,14 +1,14 @@
 import { cancelConversationCompaction, compactConversation } from "$lib/api";
 import { protocolRequest } from "@nervekit/protocol";
-import { queryClient, queryKeys } from "$lib/core/query";
-import { conversationViewKey } from "$lib/core/state/state-keys";
-import type { CompactionNotice } from "$lib/core/types/state-types";
+import { queryClient, queryKeys } from "$lib/platform/query/client";
+import { conversationViewKey } from "$lib/kernel/navigation/view-keys";
+import type { CompactionNotice } from "$lib/features/conversations/state/conversation-state.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { flushAgentConfigChanges } from "$lib/features/conversations/state/agent-config-mutations.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
-import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { reloadWorkspace } from "$lib/application/workspace/workspace-commands";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { createAbortActiveRun } from "./run-abort";
 import { ensureConversationView } from "./state";
 import { openConversation } from "./tabs";
@@ -25,7 +25,7 @@ export async function navigateToEntry(
     summarize,
   });
   await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
-  await loadWorkspaceState();
+  await reloadWorkspace();
   await openConversation(conversationId);
 }
 
@@ -47,7 +47,7 @@ export async function compactActiveConversation() {
     await compactConversation(conversationId);
     view.transient = { ...view.transient, compaction: undefined };
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
-    await loadWorkspaceState();
+    await reloadWorkspace();
     await openConversation(conversationId);
   } catch (caught) {
     if (compactionCancellationRequested.delete(conversationId)) return;
