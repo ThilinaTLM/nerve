@@ -61,14 +61,20 @@ describe("RuntimeRegistry conversation lifecycle", () => {
     await state.registry.hydrate();
 
     const repaired = state.registry.getConversation(oldConversationId);
-    assert.equal(repaired.title, text);
+    assert.equal(
+      repaired.title,
+      "Build a focused onboarding screen that explains projects, conversations",
+    );
     assert.equal(repaired.updatedAt, createdAt);
     assert.equal(repaired.lastUserMessageAt, createdAt);
 
     const persisted = JSON.parse(
       await readFile(join(conversationDir, "conversation.json"), "utf8"),
     ) as ConversationRecord;
-    assert.equal(persisted.title, text);
+    assert.equal(
+      persisted.title,
+      "Build a focused onboarding screen that explains projects, conversations",
+    );
     assert.equal(persisted.updatedAt, createdAt);
     assert.equal(persisted.lastUserMessageAt, createdAt);
   });
