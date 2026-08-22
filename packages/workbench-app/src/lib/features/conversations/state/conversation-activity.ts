@@ -76,6 +76,17 @@ export function conversationActivityForRecord(input: {
     };
   }
 
+  if (input.view?.activeRun?.status === "interrupted") {
+    return {
+      tone: "danger",
+      pulse: false,
+      label: "Agent error",
+      busy: false,
+      needsUser: false,
+      source: "live-view",
+    };
+  }
+
   if (
     input.agent?.status === "running" ||
     input.view?.sending ||

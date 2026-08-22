@@ -120,6 +120,19 @@ describe("conversation activity", () => {
     });
     assert.equal(failed.tone, "danger");
 
+    const interrupted = conversationActivityForRecord({
+      conversationId: "conversation-1",
+      agent: agent("agent-1", "conversation-1", "running"),
+      view: view("conversation-1", {
+        activeRun: {
+          status: "interrupted",
+        } as NonNullable<ConversationViewState["activeRun"]>,
+      }),
+    });
+    assert.equal(interrupted.tone, "danger");
+    assert.equal(interrupted.pulse, false);
+    assert.equal(interrupted.busy, false);
+
     const idle = conversationActivityForRecord({
       conversationId: "conversation-1",
     });

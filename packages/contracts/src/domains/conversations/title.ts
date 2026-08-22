@@ -2,6 +2,8 @@ const DEFAULT_CONVERSATION_TITLE = "New Conversation";
 const IMAGE_REVIEW_TITLE = "Image Review";
 const FILE_REVIEW_TITLE = "File Review";
 const LINK_REVIEW_TITLE = "Link Review";
+const GENERAL_CHAT_TITLE = "General Chat";
+const MAX_TITLE_CODE_POINTS = 80;
 const MIN_READABLE_CHARS = 3;
 
 const COMMON_FILE_EXTENSIONS = [
@@ -64,6 +66,74 @@ const IMAGE_FILE_EXTENSIONS = [
   "webp",
 ].join("|");
 
+const ACTION_WORDS = [
+  "add",
+  "analyze",
+  "audit",
+  "build",
+  "change",
+  "check",
+  "commit",
+  "compare",
+  "configure",
+  "create",
+  "debug",
+  "deploy",
+  "design",
+  "disable",
+  "document",
+  "edit",
+  "enable",
+  "evaluate",
+  "explain",
+  "explore",
+  "find",
+  "fix",
+  "generate",
+  "implement",
+  "improve",
+  "inspect",
+  "install",
+  "investigate",
+  "learn",
+  "login",
+  "make",
+  "migrate",
+  "open",
+  "optimize",
+  "push",
+  "rebase",
+  "refactor",
+  "remove",
+  "rename",
+  "report",
+  "research",
+  "resolve",
+  "review",
+  "rewrite",
+  "run",
+  "set up",
+  "show",
+  "simplify",
+  "stage",
+  "test",
+  "understand",
+  "update",
+  "upgrade",
+  "use",
+  "write",
+];
+
+const ACTION_PATTERN = ACTION_WORDS.join("|").replace(" ", "\\s+");
+const LEADING_ACTION_RE = new RegExp(`^(?:${ACTION_PATTERN})(?:\\s|:|$)`, "iu");
+const ANY_ACTION_RE = new RegExp(`\\b(?:${ACTION_PATTERN})\\b`, "iu");
+
+interface TitleCandidate {
+  text: string;
+  sourceIndex: number;
+  explicitEntity: boolean;
+}
+
 function fileReferencePattern(extensions = COMMON_FILE_EXTENSIONS): RegExp {
   return new RegExp(
     String.raw`(?:\b[A-Za-z]:[\\/][^\s),;]+|(?:^|\s)(?:~|\.{1,2}|/)?(?:[\w.-]+[\\/])+[\w.-]+(?::\d+(?::\d+)?)?|\b[\w.-]+\.(?:${extensions})(?::\d+(?::\d+)?)?)`,
@@ -72,38 +142,25 @@ function fileReferencePattern(extensions = COMMON_FILE_EXTENSIONS): RegExp {
 }
 
 function stripCodeBlocks(text: string): string {
-  return text.replace(/```[\s\S]*?```/g, " ").replace(/~~~[\s\S]*?~~~/g, " ");
+  return text
+    .replace(/```[\s\S]*?```/gu, "\n")
+    .replace(/~~~[\s\S]*?~~~/gu, "\n");
 }
 
 function stripUrls(text: string): string {
-  return text.replace(/https?:\/\/\S+|www\.\S+/gi, " ");
-}
-
-function stripFileReferences(text: string): string {
-  return text
-    .replace(/\b[A-Za-z]:[\\/][^\s),;]+/g, " ")
-    .replace(
-      /(?:^|\s)(?:~|\.{1,2}|\/)?(?:[\w.-]+[\\/])+[\w.-]+(?::\d+(?::\d+)?)?/g,
-      " ",
-    )
-    .replace(
-      new RegExp(
-        `\\b[\\w.-]+\\.(?:${COMMON_FILE_EXTENSIONS})(?::\\d+(?::\\d+)?)?`,
-        "gi",
-      ),
-      " ",
-    );
+  return text.replace(/https?:\/\/\S+|www\.\S+/giu, " ");
 }
 
 function stripMarkdown(text: string): string {
   return text
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/[*_~]/g, "")
-    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
-    .replace(/^\s*[-*+]\s+/gm, "")
-    .replace(/^\s*\d+[.)]\s+/gm, "");
+    .replace(/!\[[^\]]*\]\([^)]*\)/gu, " ")
+    .replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1")
+    .replace(/`([^`]+)`/gu, "$1")
+    .replace(/[“”]/gu, '"')
+    .replace(/[‘’]/gu, "'")
+    .replace(/[*_~]/gu, "")
+    .replace(/^\s{0,3}#{1,6}\s+/gu, "")
+    .replace(/^\s*(?:[-*+]|\d+[.)])\s+/gu, "");
 }
 
 function readableCharCount(text: string): number {
@@ -114,69 +171,132 @@ function wordCount(text: string): number {
   return (text.match(/[\p{L}\p{N}]+/gu) ?? []).length;
 }
 
-function isCodeOrLogLine(line: string): boolean {
+function isNoiseLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return true;
-  if (/^(>|\$|>>>|\.\.\.|at\s+|\+{3}|-{3}|@@|\[[\w:-]+\])/.test(trimmed)) {
+  if (
+    /^(?:>|\$|>>>|\.\.\.|at\s+|\+{3}|-{3}|@@|\[[\w:-]+\]|exit code:|status:)/iu.test(
+      trimmed,
+    )
+  ) {
+    return true;
+  }
+  if (/^(?:error|warn|info|debug)\s*\[[^\]]+\]/iu.test(trimmed)) return true;
+  if (
+    /^\d{4}-\d{2}-\d{2}[T\s]\S*\s+(?:error|warn|info|debug)\b/iu.test(trimmed)
+  ) {
     return true;
   }
   const punctuation = trimmed.replace(/[\p{L}\p{N}\s]/gu, "");
   return trimmed.length >= 8 && punctuation.length / trimmed.length > 0.45;
 }
 
-function normalizeCandidate(text: string): string {
-  return stripFileReferences(stripUrls(stripMarkdown(text)))
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .replace(/\btoolcall\b/giu, "tool call")
+function pathBasename(reference: string): string {
+  const withoutLocation = reference.replace(/:\d+(?::\d+)?$/u, "");
+  return withoutLocation.split(/[\\/]/u).filter(Boolean).at(-1) ?? reference;
+}
+
+function normalizePaths(text: string): string {
+  return text
+    .replace(/\b[A-Za-z]:[\\/][^\s),;]+/gu, (match) => pathBasename(match))
     .replace(
-      /\bthe similar UI to the write and edit tool calls?\b/giu,
-      "similar UI for write and edit tool calls",
-    )
-    .replace(/[\r\n\t]+/g, " ")
-    .replace(/\s+/g, " ")
-    .replace(/\s+([,.;:!?])/g, "$1")
-    .replace(/^(?:i\s+think\s+)?(?:we\s+)?should\s+(?=[\p{L}\p{N}])/iu, "")
-    .replace(/^please\s+(?=[\p{L}\p{N}])/iu, "")
-    .replace(
-      /^(?:fix|update|change|edit|review|check|open|look at)\s+(?:and\s+)?(?=[\p{Lu}\p{N}])/iu,
-      "",
-    )
-    .replace(/\b(?:in|at|from|for|and|or)\s+([,.;:!?])/giu, "$1")
-    .replace(/\b(?:in|at|from|for|and|or)$/iu, "")
-    .replace(/[([\]{}<>]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+      /(?:~|\.{1,2}|\/)?(?:[\w.-]+[\\/])+[\w.-]+(?::\d+(?::\d+)?)?/gu,
+      (match) => pathBasename(match),
+    );
+}
+
+function collectExplicitEntities(text: string): Set<string> {
+  const entities = new Set<string>();
+  const add = (value: string) => {
+    const normalized = pathBasename(value.trim()).toLocaleLowerCase();
+    if (readableCharCount(normalized) >= 2) entities.add(normalized);
+  };
+  for (const match of text.matchAll(/[`'“”]([^`'“”]{2,80})[`'“”]/gu)) {
+    add(match[1] ?? "");
+  }
+  const pathPattern = new RegExp(fileReferencePattern().source, "giu");
+  for (const match of text.matchAll(pathPattern)) add(match[0]);
+  for (const match of text.matchAll(
+    /\b(?:[\p{Ll}\d]+[A-Z][\p{L}\p{N}]*|[A-Z][\p{Ll}\d]+(?:[A-Z][\p{L}\p{N}]*)+|[\p{L}\d]+_[\p{L}\d_]+|[\p{L}\d]+-[\p{L}\d-]+)\b/gu,
+  )) {
+    add(match[0]);
+  }
+  return entities;
+}
+
+function removeRequestPrefix(text: string): string {
+  let value = text.trim();
+  const prefix =
+    /^(?:(?:so|also|currently|now|then)\s*,?\s+|i\s+think\s+|(?:please|kindly)\s+|(?:can|could|would|will|should)\s+(?:you|we)\s+|(?:we|you)\s+should\s+|i\s+want\s+you\s+to\s+|i(?:'d|\s+would)\s+like\s+(?:you\s+)?to\s+|help\s+me\s+(?:to\s+)?|let(?:'s|\s+us)\s+)/iu;
+  while (prefix.test(value)) value = value.replace(prefix, "").trim();
+  return value;
+}
+
+function normalizeProse(text: string): string {
+  return removeRequestPrefix(
+    normalizePaths(stripUrls(stripMarkdown(text)))
+      .replace(
+        new RegExp(`^[\\w.-]+\\.(?:${IMAGE_FILE_EXTENSIONS})\\s+`, "iu"),
+        "",
+      )
+      .replace(/\boutofdate\b/giu, "out of date")
+      .replace(/[\r\n\t]+/gu, " ")
+      .replace(/\s+/gu, " ")
+      .replace(/\s+([,.;:!?])/gu, "$1")
+      .trim(),
+  );
 }
 
 function sentenceFragments(text: string): string[] {
-  const fragments = text.match(/[^.!?]+[.!?]?/gu) ?? [text];
-  return fragments.map((fragment) => fragment.trim()).filter(Boolean);
+  return text
+    .split(/(?<=[.!?])\s+/u)
+    .map((fragment) => fragment.trim())
+    .filter(Boolean);
 }
 
-function candidateFragments(text: string): string[] {
-  const withoutBlocks = stripCodeBlocks(text);
-  const fragments: string[] = [];
-  for (const line of withoutBlocks.split(/\r?\n+/)) {
-    const trimmed = line.trim();
-    if (isCodeOrLogLine(trimmed)) continue;
-    const normalized = normalizeCandidate(trimmed);
-    for (const fragment of sentenceFragments(normalized)) {
-      fragments.push(normalizeCandidate(fragment));
+function safeEnglishTransformation(text: string): string {
+  const withoutPunctuation = text.replace(/[.!?]+$/gu, "").trim();
+  const how = withoutPunctuation.match(
+    /^how\s+(?:do|can|should|would)\s+(?:i|we|you)\s+(.+)$/iu,
+  );
+  if (how?.[1] && ANY_ACTION_RE.test(how[1])) return how[1];
+
+  if (
+    !/^(?:why|how|what|when|where|who)\b/iu.test(withoutPunctuation) &&
+    !LEADING_ACTION_RE.test(withoutPunctuation)
+  ) {
+    const outdated = withoutPunctuation.match(
+      /^the\s+(.+?)\s+(is|are)\s+(?:out\s+of\s+date|outdated)$/iu,
+    );
+    if (outdated?.[1] && outdated[2]) {
+      return `${outdated[1]} ${outdated[2]} out of date`;
+    }
+    const broken = withoutPunctuation.match(
+      /^(.+?)\s+(?:is|are|keeps?\s+)?(?:broken|failing|fails|crashing|crashes)$/iu,
+    );
+    const subject = broken?.[1]?.replace(/\s+(?:is|are|keeps?)$/iu, "").trim();
+    if (subject && readableCharCount(subject) >= 2) {
+      return `Fix ${subject}`;
     }
   }
-  return fragments;
+  return text;
 }
 
-function isLowInformationCandidate(candidate: string): boolean {
-  const normalized = candidate
+function isLowInformation(text: string): boolean {
+  const normalized = text
     .toLocaleLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
+    .replace(/\s+/gu, " ")
     .trim();
-  if (!normalized) return true;
   if (readableCharCount(normalized) < MIN_READABLE_CHARS) return true;
-  if (/^(?:what do you think|thoughts|wdyt)$/u.test(normalized)) return true;
+  if (
+    /^(?:request|context|question|task|issue|problem|help|thoughts|what do you think|wdyt)$/u.test(
+      normalized,
+    ) ||
+    /^use agent browser\b.*\bdogfood skills\b/u.test(normalized)
+  ) {
+    return true;
+  }
   if (
     /^(?:(?:please|can you|could you|would you)\s+)?(?:see|look|look at|check|review|open|inspect|read|fix|update|edit|change|help)$/u.test(
       normalized,
@@ -184,74 +304,118 @@ function isLowInformationCandidate(candidate: string): boolean {
   ) {
     return true;
   }
-  if (
-    wordCount(normalized) <= 2 &&
-    /^(?:please\s+)?(?:see|look|check|review|open|inspect|read)\b/u.test(
-      normalized,
-    )
-  ) {
-    return true;
-  }
-  return false;
+  return new RegExp(
+    `^(?:${ACTION_PATTERN})\\s+(?:this|that|it|them|these|those)(?:\\s+(?:please|for me))?$`,
+    "iu",
+  ).test(normalized);
 }
 
-function scoreCandidate(candidate: string, index: number): number {
-  if (isLowInformationCandidate(candidate)) return Number.NEGATIVE_INFINITY;
+function containsExplicitEntity(text: string, entities: Set<string>): boolean {
+  const normalized = text.toLocaleLowerCase();
+  return [...entities].some((entity) => normalized.includes(entity));
+}
 
-  const words = wordCount(candidate);
-  if (words < 3) return Number.NEGATIVE_INFINITY;
+function isOnlyFileReference(text: string): boolean {
+  const references = new RegExp(fileReferencePattern().source, "giu");
+  return (
+    text.replace(references, "").replace(/[\s:;,.!?()[\]{}-]+/gu, "") === ""
+  );
+}
+
+function candidateFragments(
+  text: string,
+  entities: Set<string>,
+): TitleCandidate[] {
+  const candidates: TitleCandidate[] = [];
+  let sourceIndex = 0;
+  for (const line of stripCodeBlocks(text).split(/\r?\n+/u)) {
+    const raw = line.trim();
+    if (isNoiseLine(raw)) continue;
+    if (hasFileReference(raw) && isOnlyFileReference(raw)) continue;
+    const normalized = normalizeProse(raw);
+    for (const fragment of sentenceFragments(normalized)) {
+      const variants = [removeRequestPrefix(fragment)];
+      for (const clause of fragment.split(/[,;:]\s+/u).slice(1)) {
+        const normalizedClause = normalizeProse(clause);
+        if (LEADING_ACTION_RE.test(normalizedClause))
+          variants.push(normalizedClause);
+      }
+      for (const variant of variants) {
+        const transformed = safeEnglishTransformation(variant);
+        if (!isLowInformation(transformed)) {
+          candidates.push({
+            text: transformed,
+            sourceIndex,
+            explicitEntity: containsExplicitEntity(transformed, entities),
+          });
+        }
+      }
+      sourceIndex += 1;
+    }
+  }
+  return candidates;
+}
+
+function scoreCandidate(candidate: TitleCandidate): number {
+  const { text, sourceIndex, explicitEntity } = candidate;
+  const words = wordCount(text);
+  if (words === 0) return Number.NEGATIVE_INFINITY;
 
   let score = Math.min(words, 12) * 2;
-  if (words > 16) score -= (words - 16) * 0.5;
-
+  if (words > 16) score -= (words - 16) * 1.5;
+  if (LEADING_ACTION_RE.test(text)) score += 36;
+  else if (ANY_ACTION_RE.test(text)) score += 14;
+  if (/^(?:how|what|why|when|where|who)\b/iu.test(text)) score += 12;
+  if (explicitEntity) score += 12;
   if (
-    /\b(?:improve|fix|update|change|edit|review|redesign|test|build|add|remove|show|generate|write|create|make|debug|investigate|explain|compare|refactor|implement)\b/iu.test(
-      candidate,
-    )
-  ) {
-    score += 20;
-  }
-  if (
-    /^(?:improve|fix|update|change|edit|review|redesign|test|build|add|remove|show|generate|write|create|make|debug|investigate|explain|compare|refactor|implement)\b/iu.test(
-      candidate,
-    )
-  ) {
-    score += 16;
-  }
-  if (
-    /\b(?:ui|tool|call|title|conversation|settings|error|issue|bug|status|display|page|component|api|name)\b/iu.test(
-      candidate,
+    /\b(?:bug|broken|crash|error|fail|failing|issue|out of date|outdated|problem)\b/iu.test(
+      text,
     )
   ) {
     score += 8;
   }
   if (
-    /\b(?:broken|hard|slow|fail|fails|error|issue|problem|confusing|unclear)\b/iu.test(
-      candidate,
-    )
+    /^(?:because|for context|here is|this is|i think|we need)\b/iu.test(text)
   ) {
-    score += 8;
+    score -= 16;
   }
-  if (/^(?:because|sometime|sometimes|here is|this is)\b/iu.test(candidate)) {
+  if (words <= 2 && !LEADING_ACTION_RE.test(text) && !explicitEntity)
     score -= 12;
-  }
-
-  return score - index * 0.1;
+  return score - sourceIndex * 1.5;
 }
 
-function firstSentence(text: string): string {
-  const match = text.match(/^(.{12,}?[.!?])(?:\s|$)/u);
-  return (match?.[1] ?? text).trim();
+function capitalizeSafely(text: string): string {
+  const firstWord = text.match(/^[\p{L}\p{N}_-]+/u)?.[0] ?? "";
+  if (/[A-Z_]/u.test(firstWord.slice(1))) return text;
+  return text.replace(/^\p{Ll}/u, (character) => character.toLocaleUpperCase());
+}
+
+function truncateCodePoints(text: string): string {
+  const points = Array.from(text);
+  if (points.length <= MAX_TITLE_CODE_POINTS) return text;
+  const window = points.slice(0, MAX_TITLE_CODE_POINTS + 1);
+  let boundary = -1;
+  for (let index = 0; index < MAX_TITLE_CODE_POINTS; index += 1) {
+    if (/\s/u.test(window[index] ?? "")) boundary = index;
+  }
+  const end =
+    boundary >= Math.floor(MAX_TITLE_CODE_POINTS / 2)
+      ? boundary
+      : MAX_TITLE_CODE_POINTS;
+  return window.slice(0, end).join("").trimEnd();
 }
 
 function finalClean(title: string): string {
   const cleaned = title
     .replace(/^[\s:;,.!?\-–—]+/u, "")
-    .replace(/[\s:;,\-–—]+$/u, "")
-    .replace(/\s+/g, " ")
+    .replace(/[\s:;,.!?。！？\-–—]+$/u, "")
+    .replace(/\b([\p{L}\p{N}_-]+)(?:\s+\1\b)+/giu, "$1")
+    .replace(/\s+/gu, " ")
     .trim();
   if (!cleaned) return "";
-  return cleaned.replace(/^\p{Ll}/u, (char) => char.toLocaleUpperCase());
+  return truncateCodePoints(capitalizeSafely(cleaned))
+    .replace(/[\s:;,.!?。！？\-–—]+$/u, "")
+    .trim();
 }
 
 function hasImageReference(text: string): boolean {
@@ -266,10 +430,22 @@ function hasFileReference(text: string): boolean {
 }
 
 function hasUrlReference(text: string): boolean {
-  return /https?:\/\/\S+|www\.\S+/i.test(text);
+  return /https?:\/\/\S+|www\.\S+/iu.test(text);
+}
+
+function isGreetingOnly(text: string): boolean {
+  const normalized = text
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+  return /^(?:hi|hello|hey|hiya|greetings|yo|good\s+(?:morning|afternoon|evening))(?:\s+(?:there|nerve|everyone|team|all))?$/u.test(
+    normalized,
+  );
 }
 
 function fallbackTitle(text: string): string {
+  if (isGreetingOnly(text)) return GENERAL_CHAT_TITLE;
   if (hasUrlReference(text)) return LINK_REVIEW_TITLE;
   if (hasImageReference(text)) return IMAGE_REVIEW_TITLE;
   if (hasFileReference(text)) return FILE_REVIEW_TITLE;
@@ -277,21 +453,19 @@ function fallbackTitle(text: string): string {
 }
 
 export function deriveConversationTitle(text: string): string {
-  const candidates = candidateFragments(text)
-    .map((candidate) => finalClean(firstSentence(candidate)))
-    .filter((candidate) => readableCharCount(candidate) >= MIN_READABLE_CHARS);
-
-  let best = "";
+  if (isGreetingOnly(text)) return GENERAL_CHAT_TITLE;
+  const entities = collectExplicitEntities(text);
+  const candidates = candidateFragments(text, entities);
+  let best: TitleCandidate | undefined;
   let bestScore = Number.NEGATIVE_INFINITY;
-  candidates.forEach((candidate, index) => {
-    const score = scoreCandidate(candidate, index);
+  for (const candidate of candidates) {
+    const score = scoreCandidate(candidate);
     if (score > bestScore) {
       best = candidate;
       bestScore = score;
     }
-  });
-
-  return best || fallbackTitle(text);
+  }
+  return (best && finalClean(best.text)) || fallbackTitle(text);
 }
 
 export function expandTruncatedConversationTitle(
