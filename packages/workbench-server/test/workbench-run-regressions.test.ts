@@ -417,6 +417,51 @@ describe("workbench coordinator behavior regressions", () => {
     );
   });
 
+  it("omits an interrupted run overlay outside its checkpoint branch", async () => {
+    const runtime = new RuntimeState();
+    const checkpointId = "checkpoint_branch";
+    const states = [
+      {
+        run: {
+          ...runRecord("interrupted", 4),
+          lastCheckpointId: checkpointId,
+          recoverability: "checkpoint" as const,
+        },
+        transitions: [],
+        prompts: [],
+        interactions: [],
+        checkpoints: [
+          {
+            checkpointId,
+            harnessLeafId: "entry_run_leaf",
+          },
+        ],
+        deliveries: [],
+      },
+    ];
+    const query = new WorkbenchRunQuery(
+      {
+        list: async () => states,
+        listActive: async () => states,
+      } as never,
+      runtime,
+    );
+
+    assert.equal(
+      await query.activeForConversation("conv_regression", ["entry_ancestor"]),
+      undefined,
+    );
+    assert.equal(
+      (
+        await query.activeForConversation("conv_regression", [
+          "entry_ancestor",
+          "entry_run_leaf",
+        ])
+      )?.status,
+      "interrupted",
+    );
+  });
+
   it("continues a valid pending plan interaction without starting a replacement run", async () => {
     const fixture = acceptanceFixture("pending");
 

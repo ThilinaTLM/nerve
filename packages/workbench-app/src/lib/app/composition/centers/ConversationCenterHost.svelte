@@ -285,24 +285,29 @@ function setPaneComposerText(value: string) {
   composerDraft.text = value;
 }
 
-async function runActivePaneAction(action: () => void | Promise<void>) {
+async function runActivePaneAction<T>(action: () => T | Promise<T>) {
   await ensurePaneSelected();
-  await action();
+  return action();
 }
 
 async function jumpToConversationEntry(
   entryId: string | undefined,
   summarize = false,
 ) {
-  await runActivePaneAction(() => navigateToEntry(entryId, summarize));
-  focusComposer();
+  const navigated = await runActivePaneAction(() =>
+    navigateToEntry(entryId, summarize),
+  );
+  if (navigated) focusComposer();
 }
 
 async function editConversationEntry(entry: {
   parentEntryId?: string;
   text: string;
 }) {
-  await runActivePaneAction(() => navigateToEntry(entry.parentEntryId));
+  const navigated = await runActivePaneAction(() =>
+    navigateToEntry(entry.parentEntryId),
+  );
+  if (!navigated) return;
   setPaneComposerText(entry.text);
   focusComposer();
 }

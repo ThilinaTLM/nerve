@@ -1,5 +1,8 @@
 import {
   bracketMatching,
+  codeFolding,
+  foldGutter,
+  foldKeymap,
   HighlightStyle,
   StreamLanguage,
   syntaxHighlighting,
@@ -10,6 +13,7 @@ import {
   historyKeymap,
   indentWithTab,
 } from "@codemirror/commands";
+import { highlightSelectionMatches, search } from "@codemirror/search";
 import type { Extension } from "@codemirror/state";
 import { EditorState } from "@codemirror/state";
 import {
@@ -48,7 +52,10 @@ export type CodeLanguageId =
   | "php"
   | "sql"
   | "vue"
-  | "less";
+  | "less"
+  | "angular"
+  | "liquid"
+  | "wast";
 
 const extensionLanguages: Record<string, CodeLanguageId> = {
   js: "javascript",
@@ -106,7 +113,17 @@ const extensionLanguages: Record<string, CodeLanguageId> = {
   sql: "sql",
   vue: "vue",
   less: "less",
+  angular: "angular",
+  liquid: "liquid",
+  wat: "wast",
+  wast: "wast",
 };
+
+function filenameLanguage(base: string): CodeLanguageId | undefined {
+  if (/\.component\.html$/i.test(base)) return "angular";
+  if (/^\.env(?:\..+)?$/i.test(base)) return "shellscript";
+  return undefined;
+}
 
 const languageIds = new Set<CodeLanguageId>(Object.values(extensionLanguages));
 const languageCache = new Map<CodeLanguageId, Promise<Extension>>();
@@ -120,6 +137,8 @@ export function codeLanguageId(
     return normalized as CodeLanguageId;
   }
   const base = normalized.split(/[\\/]/).pop() ?? normalized;
+  const byFilename = filenameLanguage(base);
+  if (byFilename) return byFilename;
   const dot = base.lastIndexOf(".");
   return dot > 0 ? extensionLanguages[base.slice(dot + 1)] : undefined;
 }
@@ -235,6 +254,18 @@ async function loadLanguage(id: CodeLanguageId): Promise<Extension> {
       const { less } = await import("@codemirror/lang-less");
       return less();
     }
+    case "angular": {
+      const { angular } = await import("@codemirror/lang-angular");
+      return angular();
+    }
+    case "liquid": {
+      const { liquid } = await import("@codemirror/lang-liquid");
+      return liquid();
+    }
+    case "wast": {
+      const { wast } = await import("@codemirror/lang-wast");
+      return wast();
+    }
     case "bash":
     case "shellscript": {
       const { shell } = await import("@codemirror/legacy-modes/mode/shell");
@@ -278,27 +309,59 @@ export const codeMirrorTheme = EditorView.theme({
   },
   ".cm-content": {
     minHeight: "100%",
-    padding: "calc(var(--spacing) * 4) 0",
+    padding: "calc(var(--spacing) * 2) 0",
     caretColor: "var(--primary)",
   },
   ".cm-line": {
     padding: "0 calc(var(--spacing) * 4) 0 calc(var(--spacing) * 2)",
   },
   ".cm-gutters": {
-    backgroundColor: "var(--background)",
+    backgroundColor: "color-mix(in oklab, var(--background) 72%, var(--card))",
     color: "var(--muted-foreground)",
-    borderRight: "none",
+    borderRight:
+      "1px solid color-mix(in oklab, var(--background) 55%, var(--border))",
+  },
+  ".cm-lineNumbers": {
+    fontSize: "var(--text-xs)",
   },
   ".cm-lineNumbers .cm-gutterElement": {
-    padding: "0 calc(var(--spacing) * 2)",
+    padding: "0 calc(var(--spacing) * 1) 0 calc(var(--spacing) * 2)",
+  },
+  ".cm-foldGutter .cm-gutterElement": {
+    color: "var(--muted-foreground)",
+    padding: "0",
+  },
+  ".cm-fold-marker": {
+    alignItems: "center",
+    display: "inline-flex",
+    height: "100%",
+    justifyContent: "center",
+    width: "calc(var(--spacing) * 4)",
+  },
+  ".cm-foldPlaceholder": {
+    color: "var(--muted-foreground)",
+    backgroundColor: "var(--muted)",
+    border: "1px solid var(--border)",
   },
   "&.cm-focused": { outline: "none" },
   "&.cm-focused .cm-cursor": { borderLeftColor: "var(--primary)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection":
     {
-      backgroundColor: "color-mix(in oklab, var(--primary) 22%, transparent)",
+      backgroundColor:
+        "color-mix(in oklab, var(--background) 78%, var(--primary)) !important",
     },
   ".cm-activeLine": { backgroundColor: "transparent" },
+  ".cm-searchMatch": {
+    backgroundColor:
+      "color-mix(in oklab, var(--background) 65%, var(--warning)) !important",
+    borderRadius: "var(--radius-sm)",
+    boxShadow: "inset 0 -1px 0 var(--warning)",
+  },
+  ".cm-searchMatch-selected": {
+    backgroundColor:
+      "color-mix(in oklab, var(--background) 52%, var(--primary)) !important",
+    boxShadow: "inset 0 0 0 1px var(--primary)",
+  },
   ".cm-target-line": {
     backgroundColor: "color-mix(in oklab, var(--warning) 18%, transparent)",
     boxShadow:
@@ -363,16 +426,27 @@ export function readOnlyCodeExtensions(input: {
   lineStart?: number;
   ariaLabel: string;
   minimap?: boolean;
+  highlightSelectionMatches?: boolean;
+  foldMarkerDOM?: (open: boolean) => HTMLElement;
 }): Extension[] {
   const lineStart = input.lineStart ?? 1;
   return [
     EditorState.readOnly.of(true),
     EditorView.editable.of(false),
-    EditorView.contentAttributes.of({ "aria-label": input.ariaLabel }),
+    EditorView.contentAttributes.of({
+      "aria-label": input.ariaLabel,
+      tabindex: "0",
+    }),
     lineNumbers({ formatNumber: (line) => String(lineStart + line - 1) }),
+    foldGutter({ markerDOM: input.foldMarkerDOM }),
+    codeFolding(),
+    bracketMatching(),
     highlightSpecialChars(),
     drawSelection(),
+    search(),
+    input.highlightSelectionMatches ? highlightSelectionMatches() : [],
     syntaxHighlighting(codeHighlightStyle),
+    keymap.of(foldKeymap),
     input.minimap ? codeMinimapExtension() : [],
     codeMirrorTheme,
   ];

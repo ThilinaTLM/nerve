@@ -2,6 +2,10 @@ import { getFileContent } from "$lib/api";
 import { fileViewKey, mermaidViewKey } from "$lib/kernel/navigation/view-keys";
 import { defaultFileDisplayMode } from "@nervekit/ui-kit/core/utils/file-display";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
+import {
+  fileViewerPreferences,
+  setWrapLongLines,
+} from "$lib/features/filesystem/state/file-viewer-preferences.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   addCenterTab,
@@ -57,6 +61,7 @@ export async function openFilePane(input: {
     projectId: input.projectId,
     path: input.path,
     line: input.line,
+    wrapLines: fileViewerPreferences.wrapLongLines,
     loading: false,
   };
   fileState.fileViews[key].line = input.line;
@@ -88,7 +93,9 @@ export function toggleFileDisplayMode(id: string) {
 export function toggleFileLineWrap(id: string) {
   const view = fileState.fileViews[fileViewKey(id)];
   if (!view) return;
-  view.wrapLines = !view.wrapLines;
+  const next = !view.wrapLines;
+  view.wrapLines = next;
+  setWrapLongLines(next);
 }
 
 export function closeFileTabsAtPath(input: {

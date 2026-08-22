@@ -25,15 +25,14 @@ const treeNodes = $derived(conversationSelectors.treeNodes);
 const toolCalls = $derived(conversationSelectors.toolCalls);
 
 async function branchFromConversationEntry(entryId: string | undefined) {
-  await navigateToEntry(entryId);
-  focusComposer();
+  if (await navigateToEntry(entryId)) focusComposer();
 }
 
 async function editConversationEntry(entry: {
   parentEntryId?: string;
   text: string;
 }) {
-  await navigateToEntry(entry.parentEntryId);
+  if (!(await navigateToEntry(entry.parentEntryId))) return;
   setActiveComposerText(entry.text);
   focusComposer();
 }

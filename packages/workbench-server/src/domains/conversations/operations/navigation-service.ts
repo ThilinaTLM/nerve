@@ -1,5 +1,6 @@
 import type { ConversationTreeEntry } from "@nervekit/harness";
 import type {
+  ConversationActiveRunSnapshot,
   ConversationEntry,
   ConversationRecord,
   NavigateConversationRequest,
@@ -25,6 +26,9 @@ export class NavigationService {
     private readonly harnessStorage: ConversationHarnessStorage,
     private readonly rebuildConversations: () => Promise<void>,
     private readonly events: StreamLogRegistry,
+    private readonly getActiveRunStatus: (
+      conversationId: string,
+    ) => Promise<ConversationActiveRunSnapshot["status"] | undefined>,
   ) {}
 
   async navigateConversation(
@@ -33,6 +37,16 @@ export class NavigationService {
   ): Promise<ConversationRecord> {
     const conversation = this.getConversation(conversationId);
     const activeEntryId = request.activeEntryId ?? undefined;
+    if (conversation.activeEntryId !== activeEntryId) {
+      const activeRunStatus = await this.getActiveRunStatus(conversationId);
+      if (activeRunStatus && activeRunStatus !== "interrupted") {
+        throw new ApplicationError(
+          409,
+          "CONVERSATION_RUN_ACTIVE",
+          "Stop or interrupt the active run before branching from conversation history.",
+        );
+      }
+    }
     if (
       activeEntryId &&
       !(this.entriesByConversationId.get(conversation.id) ?? []).some(

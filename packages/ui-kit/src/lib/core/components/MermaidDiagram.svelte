@@ -233,7 +233,7 @@ $effect(() => {
 
   {#if renderState === "rendered"}
     <div
-      class="absolute right-2 top-2 z-10 flex items-center gap-0.5 rounded-md border border-border bg-popover/90 p-0.5 text-popover-foreground shadow-sm backdrop-blur-sm"
+      class="absolute right-3 top-3 z-10 flex items-center gap-0.5 rounded-md border border-border bg-popover p-0.5 text-popover-foreground shadow-sm"
       role="toolbar"
       aria-label="Diagram controls"
       tabindex="-1"

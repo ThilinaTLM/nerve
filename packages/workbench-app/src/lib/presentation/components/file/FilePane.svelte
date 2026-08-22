@@ -15,10 +15,16 @@ let {
   view,
   onOpenFile,
   onOpenMermaid,
+  highlightSelectionMatches = false,
+  onToggleSelectionMatches,
+  onToggleWrap,
 }: {
   view?: FilePaneViewModel;
   onOpenFile?: (path: string, line?: number) => void;
   onOpenMermaid?: (block: MermaidMarkdownBlock) => void;
+  highlightSelectionMatches?: boolean;
+  onToggleSelectionMatches?: () => void;
+  onToggleWrap?: () => void;
 } = $props();
 
 const resolved = $derived(view ? resolveFilePaneModel(view) : undefined);
@@ -46,6 +52,10 @@ const showMermaidPreview = $derived(
         targetLine={resolved.targetLine}
         wrap={view?.wrapLines}
         ariaLabel={`File contents: ${resolved.filePath}`}
+        onCopy={(ok) => notifyCopyResult(ok, "selection")}
+        {highlightSelectionMatches}
+        {onToggleSelectionMatches}
+        {onToggleWrap}
       />
       {#if file.truncated}
         <p
