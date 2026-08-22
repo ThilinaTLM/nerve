@@ -2,6 +2,7 @@ const DEFAULT_CONVERSATION_TITLE = "New Conversation";
 const IMAGE_REVIEW_TITLE = "Image Review";
 const FILE_REVIEW_TITLE = "File Review";
 const LINK_REVIEW_TITLE = "Link Review";
+const GENERAL_CHAT_TITLE = "General Chat";
 const MAX_TITLE_CODE_POINTS = 80;
 const MIN_READABLE_CHARS = 3;
 
@@ -226,7 +227,7 @@ function collectExplicitEntities(text: string): Set<string> {
 function removeRequestPrefix(text: string): string {
   let value = text.trim();
   const prefix =
-    /^(?:(?:so|also|currently|now|then)\s*,?\s+|(?:please|kindly)\s+|(?:can|could|would|will|should)\s+(?:you|we)\s+|(?:we|you)\s+should\s+|i\s+want\s+you\s+to\s+|i(?:'d|\s+would)\s+like\s+(?:you\s+)?to\s+|help\s+me\s+(?:to\s+)?|let(?:'s|\s+us)\s+)/iu;
+    /^(?:(?:so|also|currently|now|then)\s*,?\s+|i\s+think\s+|(?:please|kindly)\s+|(?:can|could|would|will|should)\s+(?:you|we)\s+|(?:we|you)\s+should\s+|i\s+want\s+you\s+to\s+|i(?:'d|\s+would)\s+like\s+(?:you\s+)?to\s+|help\s+me\s+(?:to\s+)?|let(?:'s|\s+us)\s+)/iu;
   while (prefix.test(value)) value = value.replace(prefix, "").trim();
   return value;
 }
@@ -238,6 +239,7 @@ function normalizeProse(text: string): string {
         new RegExp(`^[\\w.-]+\\.(?:${IMAGE_FILE_EXTENSIONS})\\s+`, "iu"),
         "",
       )
+      .replace(/\boutofdate\b/giu, "out of date")
       .replace(/[\r\n\t]+/gu, " ")
       .replace(/\s+/gu, " ")
       .replace(/\s+([,.;:!?])/gu, "$1")
@@ -263,6 +265,12 @@ function safeEnglishTransformation(text: string): string {
     !/^(?:why|how|what|when|where|who)\b/iu.test(withoutPunctuation) &&
     !LEADING_ACTION_RE.test(withoutPunctuation)
   ) {
+    const outdated = withoutPunctuation.match(
+      /^the\s+(.+?)\s+(is|are)\s+(?:out\s+of\s+date|outdated)$/iu,
+    );
+    if (outdated?.[1] && outdated[2]) {
+      return `${outdated[1]} ${outdated[2]} out of date`;
+    }
     const broken = withoutPunctuation.match(
       /^(.+?)\s+(?:is|are|keeps?\s+)?(?:broken|failing|fails|crashing|crashes)$/iu,
     );
@@ -296,9 +304,10 @@ function isLowInformation(text: string): boolean {
   ) {
     return true;
   }
-  return new RegExp(`^(?:${ACTION_PATTERN})\\s+(?:this|that|it)$`, "iu").test(
-    normalized,
-  );
+  return new RegExp(
+    `^(?:${ACTION_PATTERN})\\s+(?:this|that|it|them|these|those)(?:\\s+(?:please|for me))?$`,
+    "iu",
+  ).test(normalized);
 }
 
 function containsExplicitEntity(text: string, entities: Set<string>): boolean {
@@ -359,7 +368,9 @@ function scoreCandidate(candidate: TitleCandidate): number {
   if (/^(?:how|what|why|when|where|who)\b/iu.test(text)) score += 12;
   if (explicitEntity) score += 12;
   if (
-    /\b(?:bug|broken|crash|error|fail|failing|issue|problem)\b/iu.test(text)
+    /\b(?:bug|broken|crash|error|fail|failing|issue|out of date|outdated|problem)\b/iu.test(
+      text,
+    )
   ) {
     score += 8;
   }
@@ -422,7 +433,19 @@ function hasUrlReference(text: string): boolean {
   return /https?:\/\/\S+|www\.\S+/iu.test(text);
 }
 
+function isGreetingOnly(text: string): boolean {
+  const normalized = text
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+  return /^(?:hi|hello|hey|hiya|greetings|yo|good\s+(?:morning|afternoon|evening))(?:\s+(?:there|nerve|everyone|team|all))?$/u.test(
+    normalized,
+  );
+}
+
 function fallbackTitle(text: string): string {
+  if (isGreetingOnly(text)) return GENERAL_CHAT_TITLE;
   if (hasUrlReference(text)) return LINK_REVIEW_TITLE;
   if (hasImageReference(text)) return IMAGE_REVIEW_TITLE;
   if (hasFileReference(text)) return FILE_REVIEW_TITLE;
@@ -430,6 +453,7 @@ function fallbackTitle(text: string): string {
 }
 
 export function deriveConversationTitle(text: string): string {
+  if (isGreetingOnly(text)) return GENERAL_CHAT_TITLE;
   const entities = collectExplicitEntities(text);
   const candidates = candidateFragments(text, entities);
   let best: TitleCandidate | undefined;

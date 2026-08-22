@@ -52,6 +52,15 @@ describe("conversation titles", () => {
     );
   });
 
+  it("prefers a specific problem statement over a generic follow-up", () => {
+    assert.equal(
+      deriveConversationTitle(
+        "I think the workflow badges we have in README are outofdate? Can you check them?",
+      ),
+      "Workflow badges we have in README are out of date",
+    );
+  });
+
   it("normalizes request prefixes, markdown, and safe English questions", () => {
     assert.equal(
       deriveConversationTitle(
@@ -83,6 +92,15 @@ describe("conversation titles", () => {
     assert.ok(Array.from(title).length <= 80);
     assert.equal(/[\uD800-\uDBFF]$/u.test(title), false);
     assert.match(title, /^Improve/u);
+  });
+
+  it("uses a meaningful title for greeting-only conversations", () => {
+    assert.equal(deriveConversationTitle("Hi"), "General Chat");
+    assert.equal(deriveConversationTitle("Hello there 👋"), "General Chat");
+    assert.equal(
+      deriveConversationTitle("Hi, can you review the settings page?"),
+      "Review the settings page",
+    );
   });
 
   it("uses stable fallbacks for reference-only prompts", () => {
