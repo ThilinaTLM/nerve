@@ -35,11 +35,8 @@ import {
   startGitRefreshCoordinator,
   createGitStartupPolicy,
 } from "$lib/features/git";
-import {
-  openSettingsPane,
-  settingsSelectors,
-  setUiZoomLevel,
-} from "$lib/features/settings";
+import { settingsSelectors } from "$lib/features/settings";
+import { openSettingsPane, setUiZoomLevel } from "$lib/application/settings";
 import {
   disconnectWorkbench,
   initializeWorkbench,

@@ -16,7 +16,7 @@ import {
   type VirtualScrollerController,
 } from "@nervekit/ui-kit/components/ui/virtual-list";
 import type { TimelineItem } from "../../state/timeline";
-import ConversationSignal from "../conversation/conversation-signal.svelte";
+import ConversationSignal from "../conversation/ConversationSignal.svelte";
 import QueuedPromptRow from "./QueuedPromptRow.svelte";
 import TranscriptRow from "./TranscriptRow.svelte";
 import WorkingIndicator from "./WorkingIndicator.svelte";

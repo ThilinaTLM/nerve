@@ -1,8 +1,8 @@
 <script lang="ts">
 import { type ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { PanelRow, PanelRowCard } from "$lib/presentation/panel";
-import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
-import { conversationActivityForRecord } from "$lib/features/conversations/state/conversation-activity";
+import type { ConversationActivityState } from "$lib/kernel/conversations/activity";
+import { conversationActivityForRecord } from "$lib/kernel/conversations/activity";
 import type { ConversationRow } from "$lib/kernel/utils/project-tree";
 import { shortAgentModel } from "$lib/kernel/utils/project-tree";
 import { dateTimeLabel } from "@nervekit/ui-kit/core/utils/time";

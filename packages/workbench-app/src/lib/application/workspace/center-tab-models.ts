@@ -12,7 +12,7 @@ import type {
   FileDisplayMode,
   FileRenderKind,
 } from "@nervekit/ui-kit/core/utils/file-display";
-import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
+import type { ConversationActivityState } from "$lib/kernel/conversations/activity";
 
 export type ConversationTabModel = {
   kind: "conversation";

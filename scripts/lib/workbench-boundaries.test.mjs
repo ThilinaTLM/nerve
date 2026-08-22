@@ -43,6 +43,23 @@ describe("workbench boundaries", () => {
     );
   });
 
+  it("forbids every direct dependency between distinct features", () => {
+    assert.equal(
+      workbenchBoundaryViolation(
+        `${root}/features/tasks/state/task-tabs.ts`,
+        `${root}/features/conversations/index.ts`,
+      ),
+      "feature tasks may not depend on feature conversations; compose cross-feature workflows in app/composition or application",
+    );
+    assert.equal(
+      workbenchBoundaryViolation(
+        `${root}/features/tasks/state/task-tabs.ts`,
+        `${root}/features/tasks/api/tasks.ts`,
+      ),
+      undefined,
+    );
+  });
+
   it("reserves private feature wiring for composition", () => {
     assert.match(
       workbenchBoundaryViolation(

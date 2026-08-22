@@ -25,8 +25,8 @@ import {
 } from "$lib/features/conversations/state/composer-config.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
-import { openSettingsPane } from "$lib/features/settings/state/settings-actions.svelte";
-import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
+import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
 import { replaceCenterTab } from "$lib/application/workspace/center-tabs.svelte";
 import {
   composerDraft,
@@ -131,9 +131,9 @@ export async function ensureAgent(): Promise<string> {
 function hasUsableModel(): boolean {
   return (
     scopedUsableModelOptions(
-      settingsState.models,
-      settingsState.authProviders,
-      settingsState.settingsDraft?.scopedModels,
+      settingsReadModel.models,
+      settingsReadModel.authProviders,
+      settingsReadModel.settingsDraft?.scopedModels,
     ).length > 0
   );
 }

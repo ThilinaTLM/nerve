@@ -1,5 +1,4 @@
 import { loadTaskLogWindow } from "$lib/features/tasks/state/task-logs.svelte";
-import { openConversation } from "$lib/features/conversations/state/conversation-flow.svelte";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import {
   addCenterTab,
@@ -65,7 +64,9 @@ export async function openTaskTab(taskId: string) {
 }
 
 export async function selectCenterConversationTab(conversationId: string) {
-  await openConversation(conversationId);
+  const tab = { kind: "conversation" as const, id: conversationId };
+  addCenterTab(tab);
+  await selectCenterTab(tab);
 }
 
 export async function selectCenterTaskTab(entryId: string) {

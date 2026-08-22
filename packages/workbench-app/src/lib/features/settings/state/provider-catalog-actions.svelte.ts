@@ -1,5 +1,5 @@
 import { getProviderCatalog } from "$lib/api";
-import { loadSettingsPanel } from "./settings-actions.svelte";
+import { loadSettingsPanel } from "$lib/application/settings";
 import { providerCatalogState } from "./provider-catalog-state.svelte";
 
 let loadInFlight: Promise<void> | undefined;

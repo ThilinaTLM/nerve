@@ -1,22 +1,17 @@
 import { modelKey, parseModelKey } from "$lib/presentation/utils/model";
-import type {
-  AgentRecord,
-  ModelInfo,
-  ModelSelection,
-  Settings,
-} from "$lib/api";
+import type { AgentRecord, ModelInfo, ModelSelection } from "$lib/api";
 import { pendingConversationKey } from "$lib/kernel/navigation/view-keys";
 import { queueAgentConfigChange } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { queueSettingsSave } from "$lib/features/settings/state/settings-actions.svelte";
-import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { rememberLastAgentSelection } from "$lib/application/settings";
+import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { mainAgentForConversation } from "./main-agent";
 import {
   clampThinkingLevelForModel,
   supportedThinkingLevelsForModel,
-} from "./agent-selection-defaults";
+} from "$lib/application/preferences/agent-selection";
 
 export function currentActiveAgent(): AgentRecord | undefined {
   const conversation = workspaceState.conversations.find(
@@ -35,7 +30,7 @@ export function selectedModel(): ModelSelection | undefined {
 }
 
 export function selectedModelInfo(): ModelInfo | undefined {
-  return settingsState.models.find(
+  return settingsReadModel.models.find(
     (model) => modelKey(model) === conversationState.selectedModelKey,
   );
 }
@@ -44,18 +39,6 @@ export { clampThinkingLevelForModel, supportedThinkingLevelsForModel };
 
 export function supportedThinkingLevelsForSelectedModel(): AgentRecord["thinkingLevel"][] {
   return supportedThinkingLevelsForModel(selectedModelInfo());
-}
-
-type LastAgentSelectionPatch = Partial<Settings["lastAgentSelection"]>;
-
-function rememberLastAgentSelection(patch: LastAgentSelectionPatch): void {
-  const settings = settingsState.settingsDraft;
-  if (!settings?.rememberLastAgentSelection) return;
-  settings.lastAgentSelection = {
-    ...settings.lastAgentSelection,
-    ...patch,
-  };
-  queueSettingsSave({ lastAgentSelection: patch }, { immediate: true });
 }
 
 function activePendingComposerConversation() {

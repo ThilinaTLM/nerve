@@ -1,5 +1,5 @@
 <script lang="ts">
-import { openSettingsPane } from "$lib/features/settings";
+import { openSettingsPane } from "$lib/application/settings";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { SelectRow } from "@nervekit/ui-kit/components/ui/select-row";

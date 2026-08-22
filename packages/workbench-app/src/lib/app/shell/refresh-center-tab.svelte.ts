@@ -2,7 +2,7 @@ import { refreshConversationView } from "$lib/features/conversations";
 import { refreshFilePane, refreshMermaidPane } from "$lib/features/filesystem";
 import { refreshDiffPane, refreshPrPane } from "$lib/features/git";
 import { requestLogsRefresh } from "$lib/features/logs";
-import { loadSettingsPanel } from "$lib/features/settings";
+import { loadSettingsPanel } from "$lib/application/settings";
 import { selectCenterTab } from "$lib/application/workspace";
 import { createCenterTabRefresh } from "./center-tab-refresh";
 

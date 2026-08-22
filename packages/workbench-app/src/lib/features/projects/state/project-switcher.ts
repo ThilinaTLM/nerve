@@ -7,7 +7,7 @@ import {
   projectKey,
   shortProjectLabel,
 } from "$lib/kernel/utils/project-tree";
-import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
+import type { ConversationActivityState } from "$lib/kernel/conversations/activity";
 
 export type ProjectActivitySummary = {
   needsUser: number;

@@ -30,6 +30,12 @@ export function workbenchBoundaryViolation(sourceFile, targetFile) {
     return `presentation may not depend on ${targetLayer}`;
   }
 
+  const sourceFeature = featureOwner(source);
+  const targetFeature = featureOwner(target);
+  if (sourceFeature && targetFeature && sourceFeature !== targetFeature) {
+    return `feature ${sourceFeature} may not depend on feature ${targetFeature}; compose cross-feature workflows in app/composition or application`;
+  }
+
   if (sourceLayer === "features" && targetLayer === "app") {
     return "features may not depend on app composition";
   }
@@ -106,6 +112,11 @@ export function findDependencyCycles(graph) {
     if (!indexes.has(node)) visit(node);
   }
   return cycles;
+}
+
+function featureOwner(path) {
+  const match = /^features\/([^/]+)(?:\/|$)/.exec(path);
+  return match?.[1];
 }
 
 function isPrivateFeaturePath(path) {

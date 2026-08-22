@@ -27,7 +27,7 @@ import {
 import {
   closeSettingsTab,
   selectCenterSettingsTab,
-} from "$lib/features/settings/state/settings-actions.svelte";
+} from "$lib/application/settings/settings-actions.svelte";
 import {
   closeTaskTab,
   selectCenterTaskTab,

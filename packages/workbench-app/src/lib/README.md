@@ -68,7 +68,9 @@ Cross-feature workflows and runtime coordination:
 - `event-routing/` owns stream cursor coordination;
 - `workspace/` owns global selection, center-tab navigation, workspace hydration, and its server adapter;
 - `commands/` owns app-wide shortcut handling;
-- `notifications/` owns cross-cutting in-app/native notification policy.
+- `notifications/` owns cross-cutting in-app/native notification policy;
+- `settings/`, `preferences/`, and `usage/` expose cross-feature commands/read models without leaking feature stores;
+- `conversations/` and `git/` own workflows and effects spanning those feature boundaries.
 
 If a workflow mutates or queries several features, it belongs here or in `app/composition`, not inside one of the participating features.
 
@@ -76,9 +78,9 @@ If a workflow mutates or queries several features, it belongs here or in `app/co
 
 Product capabilities such as conversations, filesystem, Git, projects, settings, and tasks. A feature owns its API adapters, domain/state, use cases, and feature-specific UI. Large feature slices may use `domain/`, `application/`, `infrastructure/`, and `ui/`; small slices should not create empty ceremonial folders.
 
-Each feature’s `index.ts` is its public surface. Prefer explicit command, query, type, event-registration, and view exports. Do not expose mutable state merely as an import shortcut.
+Each feature’s `index.ts` is its public surface for app/application composition. Prefer explicit command, query, type, event-registration, and view exports. Do not expose mutable state merely as an import shortcut. A feature may not import any other feature, even through that public surface; use kernel contracts, application coordinators, or app composition instead.
 
-Git and task presentation/controllers are feature-owned under `features/git/ui` and `features/tasks/ui`; their state/effect adapters remain beside the owning feature.
+Git and task presentation/controllers are feature-owned under `features/git/ui` and `features/tasks/ui`. A state/effect adapter that only connects one feature remains with that feature; a host that connects several features belongs in `app/composition`.
 
 ### `presentation/`
 
@@ -98,6 +100,15 @@ The package’s external API barrel. It is not an internal service locator. Inte
 - Unknown persisted panel ids are dropped; new panel descriptors join their default dock automatically.
 - Restored inactive tabs remain metadata-only during startup. The active conversation is critical; other active-tab loaders are progressive.
 - Feature event handlers are exported from feature public barrels and registered once by `app/composition/register-feature-events.ts`.
+
+## Component naming
+
+- `*Host` owns state/effects, injects capabilities, or hosts a registered center/panel surface.
+- `*View` is a rendered feature screen driven by props and callbacks.
+- `*Panel` is rendered dock content; `*Pane` is a bounded subregion.
+- `*Frame` and the rare `*Shell` name global or generic layout structure.
+- `*Adapter` is reserved for reusable translation bridges, not used as a synonym for host.
+- Svelte component filenames use PascalCase.
 
 ## Source conventions
 

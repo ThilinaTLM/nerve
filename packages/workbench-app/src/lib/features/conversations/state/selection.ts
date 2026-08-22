@@ -12,7 +12,6 @@ import { installEventCursors } from "$lib/application/event-routing/stream-curso
 import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { stoppingAfterConversationSnapshot } from "$lib/features/conversations/state/conversation-terminal-state";
-import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import {
   replaceOpenCenterTabs,
   setActiveCenterTab,
@@ -122,7 +121,6 @@ export function clearConversationState() {
   setActiveCenterTab(undefined);
   conversationState.conversationViews = {};
   conversationState.pendingConversations = {};
-  fileState.fileViews = {};
   clearActiveSelection();
   persistConversationTabs();
 }

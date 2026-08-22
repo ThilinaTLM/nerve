@@ -1,4 +1,3 @@
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { settingsState } from "./settings-state.svelte";
 
 export const settingsSelectors = {
@@ -10,8 +9,5 @@ export const settingsSelectors = {
   },
   get settingsMessage() {
     return settingsState.settingsMessage;
-  },
-  get selectedModelKey() {
-    return conversationState.selectedModelKey;
   },
 };

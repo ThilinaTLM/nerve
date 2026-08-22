@@ -3,7 +3,7 @@ import { shouldRefreshSettings } from "$lib/application/workspace/workspace-even
 import {
   hasPendingSettingsSave,
   loadSettingsPanel,
-} from "./settings-actions.svelte";
+} from "$lib/application/settings";
 
 export function registerSettingsEventHandlers(): () => void {
   return onAnyEvent(handleSettingsEvent);

@@ -11,7 +11,7 @@ import { hasChatGptAudioAuth } from "$lib/features/audio";
 import { conversationSelectors } from "$lib/features/conversations";
 import { openConversationHistory } from "$lib/features/conversations/state/composer-signals.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { openSettingsPane } from "$lib/features/settings/state/settings-actions.svelte";
+import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
 import {
   captureCenterTabsPresentation,
   restoreCenterTabsPresentation,

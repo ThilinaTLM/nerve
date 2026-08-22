@@ -7,7 +7,7 @@ import {
   SettingsInlineMessage,
   SettingsListItem,
 } from "$lib/presentation/components/settings";
-import { loadSettingsPanel } from "$lib/features/settings/state/settings-actions.svelte";
+import { loadSettingsPanel } from "$lib/application/settings/settings-actions.svelte";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
 import AddProviderDialog from "./AddProviderDialog.svelte";
 

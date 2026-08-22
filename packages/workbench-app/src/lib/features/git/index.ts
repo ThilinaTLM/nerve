@@ -14,6 +14,6 @@ export { startGitRefreshCoordinator } from "./state/git-refresh-coordinator.svel
 export { registerGitEventHandlers } from "./state/git-events";
 export { createGitStartupPolicy } from "./state/git-startup-policy";
 export { createWorkbenchGitPanelAdapter } from "./state/workbench-git-panel-adapter.svelte";
-export { default as GitPanelView } from "./ui/GitPanelView.svelte";
+export { default as GitPanel } from "./ui/GitPanel.svelte";
 export * from "./ui/git-panel-controller";
 export * from "./ui/git-panel-types";

@@ -1,15 +1,7 @@
 export * from "./api/conversations.api";
-export { default as ContextPanelView } from "./components/ContextPanelView.svelte";
-export { default as ConversationShell } from "./components/ConversationShell.svelte";
+export { default as ConversationContextPanel } from "./components/ConversationContextPanel.svelte";
 export { default as ConversationHistoryDialog } from "./components/ConversationHistoryDialog.svelte";
-export type { ConversationActivityState } from "./state/conversation-activity";
-export type { NewAgentComposerSelection } from "./state/agent-selection-defaults";
-export {
-  clampThinkingLevelForModel,
-  resolveNewAgentComposerSelection,
-  supportedThinkingLevelsForModel,
-  THINKING_LEVEL_ORDER,
-} from "./state/agent-selection-defaults";
+export type { ConversationActivityState } from "$lib/kernel/conversations/activity";
 export {
   setComposerApprovalPolicy,
   setComposerMode,

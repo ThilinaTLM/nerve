@@ -12,7 +12,7 @@ import type { ConversationViewState } from "$lib/features/conversations/state/co
 import {
   buildConversationActivityById,
   conversationActivityForRecord,
-} from "./conversation-activity";
+} from "$lib/kernel/conversations/activity";
 
 function conversation(id: string, activeAgentId?: string): ConversationRecord {
   return { id, activeAgentId, mode: "coding" } as ConversationRecord;

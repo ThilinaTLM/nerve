@@ -1,27 +1,27 @@
-export { default as SettingsShell } from "./settings-shell.svelte";
-export { default as SettingsSidebarStatus } from "./settings-sidebar-status.svelte";
+export { default as SettingsShell } from "./SettingsShell.svelte";
+export { default as SettingsSidebarStatus } from "./SettingsSidebarStatus.svelte";
 
-export { default as SettingsPageHeader } from "./settings-page-header.svelte";
-export { default as SettingsSection } from "./settings-section.svelte";
+export { default as SettingsPageHeader } from "./SettingsPageHeader.svelte";
+export { default as SettingsSection } from "./SettingsSection.svelte";
 export { settingsSectionDomId } from "./section-id";
-export { default as SettingsGroup } from "./settings-group.svelte";
-export { default as SettingsRow } from "./settings-row.svelte";
-export { default as SettingsToggleRow } from "./settings-toggle-row.svelte";
-export { default as SettingsSelectRow } from "./settings-select-row.svelte";
-export { default as SettingsFieldRow } from "./settings-field-row.svelte";
-export { default as SettingsChoiceCards } from "./settings-choice-cards.svelte";
-export { default as SettingsPreviewCards } from "./settings-preview-cards.svelte";
-export type { SettingsPreviewOption } from "./settings-preview-cards.svelte";
-export { default as SettingsList } from "./settings-list.svelte";
-export { default as SettingsListItem } from "./settings-list-item.svelte";
-export { default as SettingsDisclosureItem } from "./settings-disclosure-item.svelte";
-export { default as SettingsSummaryRow } from "./settings-summary-row.svelte";
-export { default as SettingsStatGrid } from "./settings-stat-grid.svelte";
-export type { SettingsStat } from "./settings-stat-grid.svelte";
-export { default as SettingsEmptyState } from "./settings-empty-state.svelte";
-export { default as SettingsInlineMessage } from "./settings-inline-message.svelte";
-export { default as SettingsToolbar } from "./settings-toolbar.svelte";
-export { default as SettingsKeyValueRow } from "./settings-key-value-row.svelte";
+export { default as SettingsGroup } from "./SettingsGroup.svelte";
+export { default as SettingsRow } from "./SettingsRow.svelte";
+export { default as SettingsToggleRow } from "./SettingsToggleRow.svelte";
+export { default as SettingsSelectRow } from "./SettingsSelectRow.svelte";
+export { default as SettingsFieldRow } from "./SettingsFieldRow.svelte";
+export { default as SettingsChoiceCards } from "./SettingsChoiceCards.svelte";
+export { default as SettingsPreviewCards } from "./SettingsPreviewCards.svelte";
+export type { SettingsPreviewOption } from "./SettingsPreviewCards.svelte";
+export { default as SettingsList } from "./SettingsList.svelte";
+export { default as SettingsListItem } from "./SettingsListItem.svelte";
+export { default as SettingsDisclosureItem } from "./SettingsDisclosureItem.svelte";
+export { default as SettingsSummaryRow } from "./SettingsSummaryRow.svelte";
+export { default as SettingsStatGrid } from "./SettingsStatGrid.svelte";
+export type { SettingsStat } from "./SettingsStatGrid.svelte";
+export { default as SettingsEmptyState } from "./SettingsEmptyState.svelte";
+export { default as SettingsInlineMessage } from "./SettingsInlineMessage.svelte";
+export { default as SettingsToolbar } from "./SettingsToolbar.svelte";
+export { default as SettingsKeyValueRow } from "./SettingsKeyValueRow.svelte";
 export type {
   SettingsChoice,
   SettingsPageDef,

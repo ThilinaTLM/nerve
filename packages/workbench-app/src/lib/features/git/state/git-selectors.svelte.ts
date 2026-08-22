@@ -1,25 +1,14 @@
 import { modelKey } from "$lib/presentation/utils/model";
 import {
-  conversationViewKey,
   gitProjectStateKey,
   gitRepoStateKey,
   prViewKey,
 } from "$lib/kernel/navigation/view-keys";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { gitPanelState } from "./git-panel.svelte";
 import { gitState } from "./git-state.svelte";
-
-function activeView() {
-  const conversationId =
-    selection.conversationId ?? conversationState.activeConversationTabId;
-  if (!conversationId) return undefined;
-  return conversationState.conversationViews[
-    conversationViewKey(conversationId)
-  ];
-}
 
 export const gitSelectors = {
   get activeCenterPrView() {
@@ -67,7 +56,7 @@ export const gitSelectors = {
     };
   },
   get branchDepth() {
-    return activeView()?.treeNodes.length ?? 0;
+    return workspaceSelectors.activeConversationBranchDepth;
   },
 };
 

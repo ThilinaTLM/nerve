@@ -18,7 +18,7 @@ import {
 import {
   buildConversationActivityById,
   idleConversationActivity,
-} from "$lib/features/conversations/state/conversation-activity";
+} from "$lib/kernel/conversations/activity";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
@@ -100,6 +100,15 @@ function centerTabKey(tab: CenterTabIdentity): string {
 }
 
 export const workspaceSelectors = {
+  get activeConversationBranchDepth() {
+    const conversationId =
+      selection.conversationId ?? conversationState.activeConversationTabId;
+    if (!conversationId) return 0;
+    return (
+      conversationState.conversationViews[conversationViewKey(conversationId)]
+        ?.treeNodes.length ?? 0
+    );
+  },
   get status() {
     return workspaceState.status;
   },

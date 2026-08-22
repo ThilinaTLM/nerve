@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { SubscriptionUsage, SubscriptionWindow } from "$lib/api";
-import type { SubscriptionUsageEntry } from "$lib/features/usage/state/usage-selectors.svelte";
+import type { SubscriptionUsageEntry } from "$lib/features/usage/usage-types";
 import {
   formatResetAfterSeconds,
   formatResetAt,

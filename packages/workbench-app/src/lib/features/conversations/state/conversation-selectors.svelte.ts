@@ -10,8 +10,8 @@ import {
   conversationViewKey,
   pendingConversationKey,
 } from "$lib/kernel/navigation/view-keys";
-import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { usageState } from "$lib/features/usage/state/usage-state.svelte";
+import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
+import { usageReadModel } from "$lib/application/usage/usage-read-model.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
@@ -133,14 +133,14 @@ const conversationSelectorsValue = {
       (agent) => agent.id === selection.agentId,
     )?.model;
     if (!model) return undefined;
-    return settingsState.models.find(
+    return settingsReadModel.models.find(
       (candidate) =>
         candidate.provider === model.provider &&
         candidate.modelId === model.modelId,
     );
   },
   get activeContextWindow(): number {
-    const selectedModelInfo = settingsState.models.find(
+    const selectedModelInfo = settingsReadModel.models.find(
       (model) => modelKey(model) === conversationState.selectedModelKey,
     );
     if (selectedModelInfo?.contextWindow)
@@ -154,9 +154,9 @@ const conversationSelectorsValue = {
   },
   get usableModels() {
     return scopedUsableModelOptions(
-      settingsState.models,
-      settingsState.authProviders,
-      settingsState.settingsDraft?.scopedModels,
+      settingsReadModel.models,
+      settingsReadModel.authProviders,
+      settingsReadModel.settingsDraft?.scopedModels,
     );
   },
   get live() {
@@ -177,7 +177,7 @@ const conversationSelectorsValue = {
   get activeSubscriptionUsage() {
     const provider = this.activeSubscriptionProvider;
     if (!provider) return undefined;
-    return usageState.subscriptionUsage[provider];
+    return usageReadModel.subscriptionUsage[provider];
   },
 };
 

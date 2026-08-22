@@ -46,7 +46,7 @@ import {
   reconcileComposerSelectionFromSettings,
   refreshAncillarySettingsData,
   refreshSubscriptionUsage,
-} from "$lib/features/settings";
+} from "$lib/application/settings";
 import {
   startReleasePolling,
   stopReleasePolling,

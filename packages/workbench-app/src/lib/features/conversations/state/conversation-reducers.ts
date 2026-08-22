@@ -22,7 +22,7 @@ import {
   openConversation,
   refreshConversationView,
 } from "$lib/features/conversations/state/conversation-flow.svelte";
-import { invalidateGit } from "$lib/features/git/state/git-context.svelte";
+import { invalidateGit } from "$lib/application/git/git-refresh";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { conversationIdFromEvent } from "./conversation-event-routing";
 import {
