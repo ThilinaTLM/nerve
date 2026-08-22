@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type {
+  ApplicationLogQuery,
   ApplicationLogQueryResponse,
   ApplicationLogRecord,
 } from "@nervekit/contracts";
@@ -35,7 +36,11 @@ function log(
 function response(
   ...logs: ApplicationLogRecord[]
 ): ApplicationLogQueryResponse {
-  return { logs, nextCursor: logs.at(-1)?.seq ?? 0 };
+  return {
+    logs,
+    nextCursor: logs.at(-1)?.seq ?? 0,
+    hasMoreBefore: false,
+  };
 }
 
 function dependencies(
@@ -135,6 +140,81 @@ describe("logs pane controller", () => {
       ["2"],
     );
     assert.equal(controller.loading, false);
+  });
+
+  it("loads and deduplicates older pages with an exclusive sequence cursor", async () => {
+    const queries: ApplicationLogQuery[] = [];
+    const controller = new LogsPaneController(
+      dependencies({
+        getLogs: async (query) => {
+          queries.push(query);
+          if (query.beforeSeq === undefined) {
+            return { ...response(log("3"), log("4")), hasMoreBefore: true };
+          }
+          return response(log("1"), log("2"), log("3"));
+        },
+      }),
+    );
+
+    await controller.refresh();
+    await controller.loadEarlier();
+
+    assert.equal(queries[1]?.beforeSeq, 3);
+    assert.deepEqual(
+      controller.rows.map((entry) => entry.message),
+      ["4", "3", "2", "1"],
+    );
+    assert.equal(controller.hasMoreBefore, false);
+  });
+
+  it("invalidates historical paging as soon as filters change", async () => {
+    const controller = new LogsPaneController(
+      dependencies({
+        getLogs: async () => ({
+          ...response(log("2")),
+          hasMoreBefore: true,
+        }),
+      }),
+    );
+
+    await controller.refresh();
+    controller.setContains("new filter");
+
+    assert.equal(controller.hasMoreBefore, false);
+    assert.equal(controller.loadingEarlier, false);
+  });
+
+  it("keeps visible rows when an older page fails and ignores it after refresh", async () => {
+    let rejectPage!: (reason: Error) => void;
+    let calls = 0;
+    const controller = new LogsPaneController(
+      dependencies({
+        getLogs: async (query) => {
+          calls += 1;
+          if (calls === 1)
+            return { ...response(log("2")), hasMoreBefore: true };
+          if (query.beforeSeq !== undefined) {
+            return new Promise((_, reject) => {
+              rejectPage = reject;
+            });
+          }
+          return response(log("5"));
+        },
+      }),
+    );
+
+    await controller.refresh();
+    const older = controller.loadEarlier();
+    await controller.refresh();
+    rejectPage(new Error("old failure"));
+    await older;
+
+    assert.deepEqual(
+      controller.rows.map((entry) => entry.message),
+      ["5"],
+    );
+    assert.equal(controller.historyError, undefined);
+    assert.equal(controller.loadingEarlier, false);
   });
 });
 

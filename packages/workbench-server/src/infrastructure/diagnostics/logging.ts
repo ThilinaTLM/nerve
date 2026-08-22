@@ -12,6 +12,7 @@ import {
 } from "@nervekit/contracts";
 import {
   appendJsonLine,
+  forEachJsonLineReverse,
   readJsonLines,
   readJsonLinesTail,
   rewriteJsonLines,
@@ -174,38 +175,50 @@ export class ApplicationLogger {
   async query(query: ApplicationLogQuery = {}): Promise<{
     logs: ApplicationLogRecord[];
     nextCursor: number;
+    hasMoreBefore: boolean;
   }> {
-    if (!this.enabled) return { logs: [], nextCursor: 0 };
+    if (!this.enabled) return { logs: [], nextCursor: 0, hasMoreBefore: false };
+    if (this.root !== this) return this.root.query(query);
+
     const limit = query.limit ?? 100;
-    let logs = await this.root.readAllLogs();
     if (query.sinceSeq !== undefined) {
-      logs = logs.filter((log) => log.seq > (query.sinceSeq ?? 0));
-    }
-    if (query.level) logs = logs.filter((log) => log.level === query.level);
-    if (query.source) logs = logs.filter((log) => log.source === query.source);
-    if (query.component) {
-      logs = logs.filter((log) => log.component === query.component);
-    }
-    for (const key of [
-      "requestId",
-      "projectId",
-      "conversationId",
-      "agentId",
-      "runId",
-      "toolCallId",
-      "taskId",
-    ] as const) {
-      const value = query[key];
-      if (value) logs = logs.filter((log) => log[key] === value);
-    }
-    if (query.contains) {
-      const needle = query.contains.toLowerCase();
-      logs = logs.filter((log) =>
-        JSON.stringify(log).toLowerCase().includes(needle),
+      const sinceSeq = query.sinceSeq;
+      const matches = (await this.readAllLogs()).filter(
+        (log) => log.seq > sinceSeq && matchesLogQuery(log, query),
       );
+      const logs = matches.slice(0, limit);
+      return {
+        logs,
+        nextCursor: logs.at(-1)?.seq ?? sinceSeq,
+        hasMoreBefore: false,
+      };
     }
-    const allNextCursor = logs.at(-1)?.seq ?? this.root.#seq;
-    return { logs: logs.slice(-limit), nextCursor: allNextCursor };
+
+    const newestFirst: ApplicationLogRecord[] = [];
+    const files = (await this.applicationLogFiles()).reverse();
+    for (const file of files) {
+      await forEachJsonLineReverse<unknown>(
+        join(this.logsDir(), file),
+        (value) => {
+          const parsed = applicationLogRecordSchema.safeParse(value);
+          if (!parsed.success) return;
+          const log = parsed.data;
+          if (query.beforeSeq !== undefined && log.seq >= query.beforeSeq)
+            return;
+          if (!matchesLogQuery(log, query)) return;
+          newestFirst.push(log);
+          return newestFirst.length < limit + 1;
+        },
+      );
+      if (newestFirst.length >= limit + 1) break;
+    }
+
+    const logs = newestFirst.slice(0, limit).reverse();
+    return {
+      logs,
+      nextCursor: logs.at(-1)?.seq ?? 0,
+      hasMoreBefore: newestFirst.length > limit,
+    };
   }
 
   async prune(
@@ -474,6 +487,13 @@ function hasPruneFilter(query: ApplicationLogPruneRequest): boolean {
 }
 
 function matchesLogPrune(
+  log: ApplicationLogRecord,
+  query: ApplicationLogPruneRequest,
+): boolean {
+  return matchesLogQuery(log, query);
+}
+
+function matchesLogQuery(
   log: ApplicationLogRecord,
   query: ApplicationLogPruneRequest,
 ): boolean {

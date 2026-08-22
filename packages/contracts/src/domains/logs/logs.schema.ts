@@ -81,12 +81,15 @@ export const daemonCrashReportSchema = z.object({
 });
 export type DaemonCrashReport = z.infer<typeof daemonCrashReportSchema>;
 
-export const applicationLogQuerySchema = z.object({
+const applicationLogQueryFieldsSchema = z.object({
   level: applicationLogLevelSchema.optional(),
   source: applicationLogSourceSchema.optional(),
   component: z.string().min(1).optional(),
   contains: z.string().optional(),
+  /** Return records newer than this exclusive sequence cursor. */
   sinceSeq: z.number().int().nonnegative().optional(),
+  /** Return records older than this exclusive sequence cursor. */
+  beforeSeq: z.number().int().positive().optional(),
   limit: z.number().int().positive().max(500).optional(),
   requestId: z.string().optional(),
   projectId: z.string().startsWith("proj_").optional(),
@@ -96,20 +99,34 @@ export const applicationLogQuerySchema = z.object({
   toolCallId: z.string().startsWith("tool_").optional(),
   taskId: z.string().startsWith("task_").optional(),
 });
+
+export const applicationLogQuerySchema = applicationLogQueryFieldsSchema.refine(
+  (query) => query.sinceSeq === undefined || query.beforeSeq === undefined,
+  {
+    message: "sinceSeq and beforeSeq cannot be combined",
+    path: ["beforeSeq"],
+  },
+);
 export type ApplicationLogQuery = z.infer<typeof applicationLogQuerySchema>;
 
 export const applicationLogQueryResponseSchema = z.object({
+  /** Records are always returned in ascending sequence order. */
   logs: z.array(applicationLogRecordSchema),
+  /** Newest sequence returned, suitable for a later sinceSeq query. */
   nextCursor: z.number().int().nonnegative(),
+  /** Whether another matching historical page exists. */
+  hasMoreBefore: z.boolean(),
 });
 export type ApplicationLogQueryResponse = z.infer<
   typeof applicationLogQueryResponseSchema
 >;
 
-export const applicationLogPruneRequestSchema = applicationLogQuerySchema.omit({
-  limit: true,
-  sinceSeq: true,
-});
+export const applicationLogPruneRequestSchema =
+  applicationLogQueryFieldsSchema.omit({
+    limit: true,
+    sinceSeq: true,
+    beforeSeq: true,
+  });
 export type ApplicationLogPruneRequest = z.infer<
   typeof applicationLogPruneRequestSchema
 >;

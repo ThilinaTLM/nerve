@@ -25,7 +25,15 @@ export function logContextEntries(
 export function hasLogDetail(log: ApplicationLogRecord): boolean {
   return (
     Boolean(log.error) ||
-    logContextEntries(log).length > 0 ||
-    logReferences(log).length > 0
+    Boolean(log.context && Object.keys(log.context).length > 0) ||
+    Boolean(
+      log.requestId ||
+      log.projectId ||
+      log.conversationId ||
+      log.agentId ||
+      log.runId ||
+      log.toolCallId ||
+      log.taskId,
+    )
   );
 }
