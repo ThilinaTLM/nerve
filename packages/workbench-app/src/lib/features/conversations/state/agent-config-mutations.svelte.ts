@@ -1,10 +1,10 @@
 import { modelKey } from "$lib/presentation/utils/model";
 import { updateAgentConfig } from "$lib/api";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
-import { upsertAgentRecordFresh } from "$lib/features/workspace/state/entity-reducers";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
+import { upsertAgentRecordFresh } from "$lib/application/workspace/entity-reducers";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import {
   AgentConfigMutationQueue,
   type AgentConfigPatch,

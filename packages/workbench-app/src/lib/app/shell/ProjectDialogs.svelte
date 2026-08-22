@@ -6,8 +6,8 @@ import {
   navigateToEntry,
   setActiveComposerText,
 } from "$lib/features/conversations";
-import ConversationHistoryDialog from "$lib/features/conversations/components/ConversationHistoryDialog.svelte";
-import ProjectDirectoryPicker from "$lib/features/projects/components/ProjectDirectoryPicker.svelte";
+import { ConversationHistoryDialog } from "$lib/features/conversations";
+import { ProjectDirectoryPicker } from "$lib/features/projects";
 import {
   createConversationForDirectory,
   deleteProjectAndRefresh,
@@ -15,7 +15,7 @@ import {
   selectProject,
   workspaceSelectors,
   workspaceState,
-} from "$lib/features/workspace";
+} from "$lib/application/workspace";
 
 const status = $derived(workspaceSelectors.status);
 const projects = $derived(workspaceSelectors.projects);

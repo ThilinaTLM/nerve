@@ -5,8 +5,8 @@ import type {
   StorageCleanupStatusResponse,
   StorageUsageResponse,
 } from "$lib/api";
-import { onEvent } from "$lib/core/events/event-bus";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { onEvent } from "$lib/kernel/events/event-bus";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   cancelStorageCleanup,
   getStorageCleanup,

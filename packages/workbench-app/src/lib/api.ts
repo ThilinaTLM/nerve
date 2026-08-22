@@ -148,4 +148,4 @@ export * from "./features/skills/api/skills.api";
 export * from "./features/tasks/api/tasks.api";
 export * from "./features/tools/api/tools.api";
 export * from "./features/usage/api/usage.api";
-export * from "./features/workspace/api/workspace.api";
+export * from "./application/workspace/infrastructure/workspace.api";

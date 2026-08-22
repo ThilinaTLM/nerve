@@ -5,7 +5,7 @@ import type { NotificationTone } from "$lib/api";
 import {
   notificationToneOptions,
   previewNotificationSound,
-} from "$lib/features/notifications/state/notification-sounds";
+} from "$lib/application/notifications/state/notification-sounds";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Popover from "@nervekit/ui-kit/components/ui/popover";
 import { SelectRow } from "@nervekit/ui-kit/components/ui/select-row";

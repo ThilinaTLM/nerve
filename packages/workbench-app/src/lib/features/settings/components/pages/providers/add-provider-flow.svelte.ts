@@ -7,7 +7,7 @@ import {
   setProviderApiKey,
   startOAuthFlow,
 } from "$lib/api";
-import { encryptApiKey } from "$lib/core/utils/credential-crypto";
+import { encryptApiKey } from "$lib/platform/crypto/credential-crypto";
 
 export type AddProviderStep = "choose" | "api-key" | "oauth";
 

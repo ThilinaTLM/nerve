@@ -5,12 +5,12 @@ import {
 import { scopedUsableModelOptions } from "$lib/presentation/utils/model";
 import { deleteConversation } from "$lib/api";
 import { protocolRequest } from "@nervekit/protocol";
-import { queryClient, queryKeys } from "$lib/core/query";
-import { pendingConversationKey } from "$lib/core/state/state-keys";
+import { queryClient, queryKeys } from "$lib/platform/query/client";
+import { pendingConversationKey } from "$lib/kernel/navigation/view-keys";
 import type {
   ConversationViewState,
   PendingConversationState,
-} from "$lib/core/types/state-types";
+} from "$lib/features/conversations/state/conversation-state.svelte";
 import {
   flushAgentConfigChanges,
   queueAgentConfigChange,
@@ -24,16 +24,16 @@ import {
   setComposerMode,
 } from "$lib/features/conversations/state/composer-config.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import { openSettingsPane } from "$lib/features/settings/state/settings-actions.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { replaceCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
+import { replaceCenterTab } from "$lib/application/workspace/center-tabs.svelte";
 import {
   composerDraft,
   selection,
-} from "$lib/features/workspace/state/selection.svelte";
-import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+} from "$lib/application/workspace/selection.svelte";
+import { reloadWorkspace } from "$lib/application/workspace/workspace-commands";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { executeComposerSlashCommand } from "./composer-slash-command";
 import { optimisticUserMessage } from "./conversation-optimistic";
 import { startNewConversationRun } from "./new-conversation-run";
@@ -121,7 +121,7 @@ export async function ensureAgent(): Promise<string> {
     ).result;
     selection.agentId = agent.id;
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
-    await loadWorkspaceState();
+    await reloadWorkspace();
     return agent.id;
   }
   workspaceState.projectPickerOpen = true;
@@ -219,7 +219,7 @@ async function sendPendingPrompt(
     if (clearComposer) composerDraft.text = "";
     persistConversationTabs();
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
-    await loadWorkspaceState();
+    await reloadWorkspace();
     // Run, transcript, and tool events live on the conversation stream, so
     // establish its authoritative snapshot cursor before starting the run.
     await startNewConversationRun({

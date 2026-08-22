@@ -2,7 +2,7 @@
 import type { ProjectRecord, TaskRecord } from "$lib/api";
 import type { CancelTaskRequest } from "@nervekit/contracts";
 import { createWorkbenchTaskPanelAdapter } from "$lib/features/tasks/state/workbench-task-panel-adapter.svelte";
-import { TasksPanelView } from "$lib/presentation";
+import { TasksPanelPresentation } from "$lib/features/tasks";
 
 type Props = {
   activeProject?: ProjectRecord;
@@ -52,4 +52,4 @@ const adapter = createWorkbenchTaskPanelAdapter(
 );
 </script>
 
-<TasksPanelView model={adapter.model} actions={adapter.actions} />
+<TasksPanelPresentation model={adapter.model} actions={adapter.actions} />

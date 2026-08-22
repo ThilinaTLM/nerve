@@ -2,15 +2,15 @@
 import { type QueuedPromptRecord } from "$lib/api";
 import { SvelteSet } from "svelte/reactivity";
 import { protocolRequest } from "@nervekit/protocol";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
-import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
-import { composerDraft } from "$lib/features/workspace/state/selection.svelte";
-import { selectCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
-import type { CenterTabIdentity } from "$lib/features/workspace";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
+import { composerDraft } from "$lib/application/workspace/selection.svelte";
+import { selectCenterTab } from "$lib/application/workspace/center-tabs.svelte";
+import type { CenterTabIdentity } from "$lib/application/workspace";
 import {
   conversationViewKey,
   pendingConversationKey,
-} from "$lib/core/state/state-keys";
+} from "$lib/kernel/navigation/view-keys";
 import {
   modelKey,
   scopedUsableModelOptions,
@@ -62,15 +62,15 @@ import Sparkles from "@lucide/svelte/icons/sparkles";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { gitContextFingerprint } from "$lib/features/git/state/git-context.svelte";
 import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
-import { workbenchStartupState } from "$lib/core/startup/workbench-startup-state.svelte";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { refreshPromptSuggestions } from "$lib/features/prompt-suggestions/state/prompt-suggestions-actions.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/components/PromptSuggestionTrustDialog.svelte";
 import type { ComposerSuggestion } from "./composer-suggestion";
 import {
   completeFiles,
   newConversationInProject,
-} from "$lib/features/workspace/state/workspace-actions.svelte";
+} from "$lib/application/workspace/workspace-actions.svelte";
 
 type Props = {
   tab?: CenterTabIdentity;

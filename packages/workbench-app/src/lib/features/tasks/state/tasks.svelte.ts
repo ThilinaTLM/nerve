@@ -6,7 +6,7 @@ import {
   restartTask,
   startTask,
 } from "$lib/api";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   loadTaskLogWindow,
   refreshTaskLogWindow,
@@ -15,13 +15,13 @@ import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import {
   activateFallbackCenterTab,
   removeCenterTab,
-} from "$lib/features/workspace/state/center-tabs.svelte";
+} from "$lib/application/workspace/center-tabs.svelte";
 import {
   setTaskEntryRun,
   taskEntryKey,
 } from "$lib/features/tasks/state/task-tabs.svelte";
-import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { loadWorkspaceState } from "$lib/application/workspace/workspace-actions.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 export async function selectTask(taskId: string) {
   taskState.selectedTaskId = taskId;
   await loadTaskLogWindow(taskId);

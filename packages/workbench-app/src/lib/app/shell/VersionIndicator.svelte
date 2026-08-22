@@ -10,7 +10,7 @@ import Popover, {
 } from "@nervekit/ui-kit/components/ui/popover-panel";
 import { onDestroy } from "svelte";
 import { scale } from "svelte/transition";
-import { writeClipboardText } from "$lib/core/clipboard";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { displayVersion, isVersionOutdated } from "$lib/features/releases";
 
 type Props = {

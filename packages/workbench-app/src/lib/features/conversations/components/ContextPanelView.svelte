@@ -16,8 +16,8 @@ import type {
   ProjectRecord,
   StatusResponse,
 } from "$lib/api";
-import { writeClipboardText } from "$lib/core/clipboard";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 import ContextAgentsTree from "./ContextAgentsTree.svelte";
 import ContextConversationUsage from "./ContextConversationUsage.svelte";

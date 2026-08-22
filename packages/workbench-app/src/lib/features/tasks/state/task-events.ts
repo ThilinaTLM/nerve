@@ -1,7 +1,7 @@
 import type { TaskRecord } from "@nervekit/contracts";
 import { refreshTaskLogWindow } from "./task-logs.svelte";
-import { onEvent } from "$lib/core/events/event-bus";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { onEvent } from "$lib/kernel/events/event-bus";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { applyVisibleTaskRecord } from "./task-reducers";
 import { taskState } from "./task-state.svelte";
 

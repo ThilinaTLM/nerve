@@ -2,11 +2,11 @@
 import { WorkbenchShell } from "$lib/presentation/shell";
 import DesktopShutdownOverlay from "$lib/app/shell/DesktopShutdownOverlay.svelte";
 import EditorSurface from "$lib/app/shell/EditorSurface.svelte";
-import PanelViewHost from "$lib/app/shell/PanelViewHost.svelte";
+import PanelViewHost from "$lib/app/composition/PanelViewComposition.svelte";
 import ProjectDialogs from "$lib/app/shell/ProjectDialogs.svelte";
 import StatusBarContainer from "$lib/app/shell/StatusBarContainer.svelte";
 import TitlebarContainer from "$lib/app/shell/TitlebarContainer.svelte";
-import { panelViewDescriptors } from "$lib/app/shell/panel-views";
+import { panelViewDescriptors } from "$lib/app/composition/panel-views";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import {
   activatePanelView,
@@ -20,10 +20,10 @@ import {
   toggleDock,
 } from "$lib/app/shell/shell-layout.svelte";
 import { createWorkbenchGitPanelAdapter } from "$lib/features/git";
-import BrowserNotificationPrompt from "$lib/features/notifications/BrowserNotificationPrompt.svelte";
-import CriticalErrorDialog from "$lib/features/notifications/CriticalErrorDialog.svelte";
-import { OnboardingHost } from "$lib/features/onboarding";
-import { workspaceSelectors } from "$lib/features/workspace";
+import BrowserNotificationPrompt from "$lib/application/notifications/BrowserNotificationPrompt.svelte";
+import CriticalErrorDialog from "$lib/application/notifications/CriticalErrorDialog.svelte";
+import { OnboardingHost } from "$lib/app/onboarding";
+import { workspaceSelectors } from "$lib/application/workspace";
 
 const isCompact = $derived(responsive.isCompact);
 const activeEditorTab = $derived(workspaceSelectors.activeCenterTab);

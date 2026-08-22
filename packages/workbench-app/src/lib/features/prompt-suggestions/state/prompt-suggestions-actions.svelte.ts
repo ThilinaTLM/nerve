@@ -11,7 +11,7 @@ import {
   updatePromptSuggestionEnabled,
   updatePromptSuggestionTrust,
 } from "$lib/api";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import { promptSuggestionsState } from "./prompt-suggestions-state.svelte";
 
 export async function refreshPromptSuggestions(

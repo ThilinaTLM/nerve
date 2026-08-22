@@ -1,4 +1,4 @@
-import type { ConversationViewState } from "$lib/core/types/state-types";
+import type { ConversationViewState } from "$lib/features/conversations/state/conversation-state.svelte";
 
 export type NewConversationRunView = Pick<
   ConversationViewState,

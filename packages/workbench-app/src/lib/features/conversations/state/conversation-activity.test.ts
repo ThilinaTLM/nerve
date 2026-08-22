@@ -7,8 +7,8 @@ import type {
   PlanReviewRecord,
   UserQuestionRecord,
 } from "$lib/api";
-import { conversationViewKey } from "$lib/core/state/state-keys";
-import type { ConversationViewState } from "$lib/core/types/state-types";
+import { conversationViewKey } from "$lib/kernel/navigation/view-keys";
+import type { ConversationViewState } from "$lib/features/conversations/state/conversation-state.svelte";
 import {
   buildConversationActivityById,
   conversationActivityForRecord,

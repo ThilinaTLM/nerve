@@ -1,35 +1,33 @@
 <script lang="ts">
 import Titlebar from "$lib/app/shell/Titlebar.svelte";
 import AlertDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
-import { getShortcutLabel } from "$lib/core/shortcuts/registry";
-import { shortProjectLabel } from "$lib/core/utils/project-tree";
-import PruneConversationsDialog from "$lib/features/projects/components/PruneConversationsDialog.svelte";
-import type {
-  DeleteTarget,
-  PruneTarget,
-} from "$lib/features/projects/components/project-agent-tree-props";
+import { getShortcutLabel } from "$lib/kernel/shortcuts/registry";
+import { shortProjectLabel } from "$lib/kernel/utils/project-tree";
 import {
   buildProjectMenu,
   countAgeEligible,
   countKeepEligible,
   countProjectConversations,
+  PruneConversationsDialog,
+  type DeleteTarget,
+  type ProjectSwitcherItem,
   type ProjectTreeMenuContext,
-} from "$lib/features/projects/components/project-tree-menus";
-import type { ProjectSwitcherItem } from "$lib/features/projects";
+  type PruneTarget,
+} from "$lib/features/projects";
 import {
   closeDesktopWindow,
   desktopRuntime,
   desktopShutdownState,
   minimizeDesktopWindow,
   toggleMaximizeDesktopWindow,
-} from "$lib/features/desktop";
+} from "$lib/platform/desktop";
 import { releaseState } from "$lib/features/releases";
 import { openLogsPane } from "$lib/features/logs";
 import {
   guideState,
   incompleteGuideCount,
   openGuide,
-} from "$lib/features/onboarding";
+} from "$lib/app/onboarding";
 import { openSettingsPane, settingsSelectors } from "$lib/features/settings";
 import {
   deleteProjectAndRefresh,
@@ -39,7 +37,7 @@ import {
   selectProject,
   workspaceSelectors,
   workspaceState,
-} from "$lib/features/workspace";
+} from "$lib/application/workspace";
 import { quickProjectItems } from "$lib/features/projects";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import { resolveHeaderType } from "$lib/app/shell/header-type";

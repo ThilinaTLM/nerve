@@ -7,8 +7,8 @@ import {
   removeCenterTab,
   selectCenterTab,
   setActiveCenterTab,
-} from "$lib/features/workspace/state/center-tabs.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+} from "$lib/application/workspace/center-tabs.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import type { TaskRecord } from "@nervekit/contracts";
 
 export function taskEntryId(task: TaskRecord): string {
@@ -55,7 +55,7 @@ export async function openTaskTab(taskId: string) {
     owningTask.projectId !== workspaceState.selectedProjectId
   ) {
     const { selectProject } =
-      await import("$lib/features/workspace/state/workspace-actions.svelte");
+      await import("$lib/application/workspace/workspace-actions.svelte");
     await selectProject(owningTask.projectId);
   }
   const entryId = taskEntryKey(taskId);

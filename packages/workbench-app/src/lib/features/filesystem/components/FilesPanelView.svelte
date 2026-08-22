@@ -24,12 +24,12 @@ import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { getProjectGitFileStatus } from "$lib/api";
-import { writeClipboardText } from "$lib/core/clipboard";
-import { workbenchStartupState } from "$lib/core/startup/workbench-startup-state.svelte";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
   desktopRuntime,
   getDesktopBridge,
-} from "$lib/features/desktop/state/desktop-bridge.svelte";
+} from "$lib/platform/desktop/desktop-bridge.svelte";
 import { createProjectEntry } from "$lib/features/filesystem/api/filesystem.api";
 import { fileSelectors } from "$lib/features/filesystem/state/file-selectors.svelte";
 import {
@@ -59,8 +59,8 @@ import {
 import {
   errorDetails,
   showCriticalError,
-} from "$lib/features/notifications/critical-errors.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
+} from "$lib/application/notifications/critical-errors.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   formatProjectEntryReference,
   PROJECT_ENTRY_DRAG_MIME,

@@ -20,16 +20,16 @@ import type {
   WorkbenchTabModel,
 } from "$lib/presentation/shell";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { writeClipboardText } from "$lib/core/clipboard";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import type {
   CenterTabIdentity,
   CenterTabModel,
-} from "$lib/features/workspace";
-import { notify } from "$lib/features/notifications/notify.svelte";
+} from "$lib/application/workspace";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   getShortcutAriaLabel,
   getShortcutLabel,
-} from "$lib/core/shortcuts/registry";
+} from "$lib/kernel/shortcuts/registry";
 import {
   fileToggleLabel,
   fileWrapLabel,

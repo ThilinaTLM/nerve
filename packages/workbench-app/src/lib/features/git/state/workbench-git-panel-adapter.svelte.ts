@@ -7,7 +7,7 @@ import {
   type GitPanelActions,
   type GitPanelModel,
   type GitRemoteOperation,
-} from "$lib/presentation";
+} from "$lib/features/git";
 import type { ProjectRecord } from "$lib/api";
 import { openDiffPane } from "$lib/features/git/state/diff-tabs.svelte";
 import { openPrPane } from "$lib/features/git/state/pr-tabs.svelte";
@@ -15,9 +15,9 @@ import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
 import {
   gitProjectStateKey,
   gitRepoStateKey,
-} from "$lib/core/state/state-keys";
+} from "$lib/kernel/navigation/view-keys";
 import { pendingPollTargets, PR_PENDING_POLL_MS } from "./git-refresh-policy";
-import { workbenchStartupState } from "$lib/core/startup/workbench-startup-state.svelte";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { shouldActivateGitPanel } from "./git-startup-policy";
 import {
   applyGitRepoStash,

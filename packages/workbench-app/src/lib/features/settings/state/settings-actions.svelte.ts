@@ -22,7 +22,7 @@ import {
   applyColorTheme,
   applyZoomLevel,
   clampZoomLevel,
-} from "$lib/app/shell/appearance.svelte";
+} from "$lib/platform/appearance/appearance.svelte";
 import {
   clampThinkingLevelForModel,
   resolveNewAgentComposerSelection,
@@ -31,8 +31,8 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
 import {
   getDesktopDaemonCapability,
   restartDesktopDaemon,
-} from "$lib/features/desktop/state/desktop-bridge.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
+} from "$lib/platform/desktop/desktop-bridge.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { usageState } from "$lib/features/usage/state/usage-state.svelte";
 import {
@@ -41,9 +41,9 @@ import {
   removeCenterTab,
   selectCenterTab,
   setActiveCenterTab,
-} from "$lib/features/workspace/state/center-tabs.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+} from "$lib/application/workspace/center-tabs.svelte";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 export type SettingsSaveOptions = {
   immediate?: boolean;
   debounceMs?: number;

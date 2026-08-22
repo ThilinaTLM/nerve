@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { GithubPrMergeMethod } from "@nervekit/contracts";
 import { checkoutGithubPr, mergeGithubPr } from "$lib/api";
-import { GithubPrPane } from "$lib/presentation/git";
+import { GithubPrPane } from "$lib/features/git/ui";
 import { invalidateGit } from "$lib/features/git/state/git-context.svelte";
 import {
   applyMergedPr,
@@ -22,8 +22,8 @@ import {
 import {
   errorDetails,
   showCriticalError,
-} from "$lib/features/notifications/critical-errors.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
+} from "$lib/application/notifications/critical-errors.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 
 const activeCenterPrView = $derived(gitSelectors.activeCenterPrView);
 const activeFileDiff = $derived(selectedPrFileDiffResource(activeCenterPrView));

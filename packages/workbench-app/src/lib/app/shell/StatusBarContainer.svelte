@@ -5,7 +5,7 @@ import {
   type DockToggle,
 } from "$lib/presentation/shell";
 import StatusBar from "$lib/app/shell/StatusBar.svelte";
-import { zoomState } from "$lib/app/shell/appearance.svelte";
+import { zoomState } from "$lib/platform/appearance/appearance.svelte";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import {
   hasPanelDockContent,
@@ -18,7 +18,7 @@ import { gitSelectors } from "$lib/features/git";
 import { taskSelectors } from "$lib/features/tasks";
 import { settingsSelectors, setUiZoomLevel } from "$lib/features/settings";
 import { usageSelectors } from "$lib/features/usage";
-import { workspaceSelectors } from "$lib/features/workspace";
+import { workspaceSelectors } from "$lib/application/workspace";
 
 const activeProject = $derived(workspaceSelectors.activeProject);
 const connection = $derived(workspaceSelectors.connection);

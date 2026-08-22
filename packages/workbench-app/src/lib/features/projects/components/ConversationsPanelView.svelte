@@ -2,8 +2,8 @@
 import ProjectConversationNavigator from "$lib/features/projects/components/ProjectConversationNavigator.svelte";
 import { projectNavigatorSignals } from "$lib/features/projects/state/project-navigator-signals.svelte";
 import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
-import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { openConversation } from "$lib/features/conversations/state/tabs";
 import {
   deleteConversationAndRefresh,
@@ -11,7 +11,7 @@ import {
   newConversationInProject,
   openProjectInEditorAndNotify,
   pruneProjectConversationsAndRefresh,
-} from "$lib/features/workspace/state/workspace-actions.svelte";
+} from "$lib/application/workspace/workspace-actions.svelte";
 
 const status = $derived(workspaceSelectors.status);
 const projectIds = $derived(new Set(workspaceSelectors.selectedProjectIds));

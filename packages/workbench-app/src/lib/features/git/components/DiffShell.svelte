@@ -1,9 +1,9 @@
 <script lang="ts">
-import { diffViewKey } from "$lib/core/state/state-keys";
-import { GitDiffPane } from "$lib/presentation/git";
+import { diffViewKey } from "$lib/kernel/navigation/view-keys";
+import { GitDiffPane } from "$lib/features/git/ui";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { refreshDiffPane } from "$lib/features/git/state/diff-tabs.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 
 const activeView = $derived.by(() => {
   const active = workspaceState.activeCenterTab;

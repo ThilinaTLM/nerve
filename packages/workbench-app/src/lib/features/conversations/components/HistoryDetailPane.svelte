@@ -8,12 +8,12 @@ import type { ConversationEntry, ToolCallTranscriptRecord } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import PlainText from "@nervekit/ui-kit/core/components/PlainText.svelte";
-import { writeClipboardText } from "$lib/core/clipboard";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
   dateTimeLabel,
   relativeTimeLabel,
 } from "@nervekit/ui-kit/core/utils/time";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import type { HistoryGraphRow } from "./history-graph";
 import { buildHistoryEntryView } from "./history-entry-view";
 import { HISTORY_ICONS, HISTORY_TONE_TEXT } from "./history-icons";

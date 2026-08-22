@@ -3,7 +3,7 @@ import LayoutGrid from "@lucide/svelte/icons/layout-grid";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { ItemCollection, ItemSurface } from "$lib/presentation";
-import { getShortcutAriaLabel } from "$lib/core/shortcuts/registry";
+import { getShortcutAriaLabel } from "$lib/kernel/shortcuts/registry";
 import {
   projectActivitySignal,
   type ProjectActivitySignal,

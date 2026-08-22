@@ -1,5 +1,5 @@
 <script lang="ts">
-import { TaskOutputPane } from "$lib/presentation/tasks";
+import { TaskOutputPane } from "$lib/features/tasks/ui";
 import { loadEarlierTaskLogs } from "$lib/features/tasks/state/task-logs.svelte";
 import {
   cancelSelectedTask,

@@ -1,6 +1,8 @@
 export * from "./api/conversations.api";
 export { default as ContextPanelView } from "./components/ContextPanelView.svelte";
 export { default as ConversationShell } from "./components/ConversationShell.svelte";
+export { default as ConversationHistoryDialog } from "./components/ConversationHistoryDialog.svelte";
+export type { ConversationActivityState } from "./state/conversation-activity";
 export type { NewAgentComposerSelection } from "./state/agent-selection-defaults";
 export {
   clampThinkingLevelForModel,
@@ -40,4 +42,6 @@ export {
   compactActiveConversation,
   navigateToEntry,
 } from "./state/run-control";
+export { restoreConversationTabs } from "./state/conversation-flow.svelte";
 export { refreshConversationView } from "./state/selection";
+export { registerConversationEventHandlers } from "./state/conversation-events";

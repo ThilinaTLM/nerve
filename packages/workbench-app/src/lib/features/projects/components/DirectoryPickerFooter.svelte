@@ -2,7 +2,7 @@
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { shortenPath } from "$lib/core/utils/path";
+import { shortenPath } from "$lib/kernel/utils/path";
 import type { FilesystemSignal } from "$lib/api";
 import type { SignalMetaByKind } from "./directory-picker-types";
 

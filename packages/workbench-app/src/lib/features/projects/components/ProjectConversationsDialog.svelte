@@ -6,7 +6,7 @@ import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
-import { buildConversationRows } from "$lib/core/utils/project-tree";
+import { buildConversationRows } from "$lib/kernel/utils/project-tree";
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 
 type Props = {

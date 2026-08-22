@@ -4,13 +4,13 @@ import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts";
 import { uploadClipboardImage } from "$lib/api";
-import { getDesktopBridge } from "$lib/features/desktop/state/desktop-bridge.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
-import TranscriptionActivity from "$lib/core/audio/TranscriptionActivity.svelte";
+import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
+import TranscriptionActivity from "$lib/features/conversations/audio/TranscriptionActivity.svelte";
 import {
   voiceInputSession,
   type VoiceInputTarget,
-} from "$lib/core/audio/voice-input-session.svelte";
+} from "$lib/features/conversations/audio/voice-input-session.svelte";
 import { AgentComposer } from "$lib/presentation/components/conversation";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
@@ -21,7 +21,7 @@ import PromptSuggestionChips from "../components/PromptSuggestionChips.svelte";
 import {
   getShortcutAriaLabel,
   getShortcutLabel,
-} from "$lib/core/shortcuts/registry";
+} from "$lib/kernel/shortcuts/registry";
 import type { PromptComposerProps } from "../components/prompt-composer-props";
 import { deriveComposerAvailability } from "./composer-availability";
 import { resolveDroppedPaths } from "./dropped-paths";

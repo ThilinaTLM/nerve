@@ -1,5 +1,5 @@
-import { fileViewKey, mermaidViewKey } from "$lib/core/state/state-keys";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { fileViewKey, mermaidViewKey } from "$lib/kernel/navigation/view-keys";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { fileState } from "./file-state.svelte";
 
 export const fileSelectors = {

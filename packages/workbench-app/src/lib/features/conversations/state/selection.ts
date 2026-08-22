@@ -7,8 +7,8 @@ import {
   getProject,
   type ProjectRecord,
 } from "$lib/api";
-import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
-import { installEventCursors } from "$lib/core/events/stream-cursors.svelte";
+import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
+import { installEventCursors } from "$lib/application/event-routing/stream-cursors.svelte";
 import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { stoppingAfterConversationSnapshot } from "$lib/features/conversations/state/conversation-terminal-state";
@@ -16,12 +16,12 @@ import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import {
   replaceOpenCenterTabs,
   setActiveCenterTab,
-} from "$lib/features/workspace/state/center-tabs.svelte";
+} from "$lib/application/workspace/center-tabs.svelte";
 import {
   composerDraft,
   selection,
-} from "$lib/features/workspace/state/selection.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+} from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { mainAgentForConversation } from "./main-agent";
 import {
   clearActiveSelection,

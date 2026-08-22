@@ -1,17 +1,17 @@
 import type { AgentRecord, ProjectRecord } from "$lib/api";
-import { pendingConversationKey } from "$lib/core/state/state-keys";
+import { pendingConversationKey } from "$lib/kernel/navigation/view-keys";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import {
   addCenterTab,
   setActiveCenterTab,
-} from "$lib/features/workspace/state/center-tabs.svelte";
+} from "$lib/application/workspace/center-tabs.svelte";
 import {
   composerDraft,
   resetSelection,
   selection,
-} from "$lib/features/workspace/state/selection.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+} from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { resolveNewAgentComposerSelection } from "./agent-selection-defaults";
 import { clearTranscriptState, createPendingConversationId } from "./state";
 

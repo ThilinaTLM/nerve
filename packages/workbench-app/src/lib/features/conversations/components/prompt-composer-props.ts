@@ -10,7 +10,7 @@ import type {
   ProjectRecord,
   UserQuestionRecord,
 } from "$lib/api";
-import type { PendingConversationState } from "$lib/core/types/state-types";
+import type { PendingConversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import type { ComposerSuggestion } from "./composer-suggestion";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 

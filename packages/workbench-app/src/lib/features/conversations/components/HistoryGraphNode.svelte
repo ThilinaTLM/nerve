@@ -8,9 +8,9 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ContextMenu, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { writeClipboardText } from "$lib/core/clipboard";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { relativeTimeLabel } from "@nervekit/ui-kit/core/utils/time";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import type {
   HistoryEntryNodeData,
   HistoryFlowNode,

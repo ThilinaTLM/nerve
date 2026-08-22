@@ -9,12 +9,12 @@ import type { PlanReviewRecord, UserQuestionRecord } from "$lib/api";
 import {
   conversationViewKey,
   pendingConversationKey,
-} from "$lib/core/state/state-keys";
+} from "$lib/kernel/navigation/view-keys";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { usageState } from "$lib/features/usage/state/usage-state.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
-import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { conversationState } from "./conversation-state.svelte";
 
 function activeView() {

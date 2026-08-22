@@ -1,14 +1,14 @@
 import type { ConversationUiCapabilities } from "$lib/presentation/context.svelte";
-import TranscriptionActivity from "$lib/core/audio/TranscriptionActivity.svelte";
-import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
+import TranscriptionActivity from "$lib/features/conversations/audio/TranscriptionActivity.svelte";
+import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
 import {
   appendTranscriptText,
   voiceInputTargetKey,
-} from "$lib/core/audio/voice-input-target";
+} from "$lib/features/conversations/audio/voice-input-target";
 import {
   getShortcutAriaLabel,
   getShortcutLabel,
-} from "$lib/core/shortcuts/registry";
+} from "$lib/kernel/shortcuts/registry";
 import {
   AudioInputAuthRequiredDialog,
   chatGptAudioAuth,
@@ -21,11 +21,11 @@ import {
 } from "$lib/features/conversations/state/atlassian-site-urls.svelte";
 import { uploadClipboardImage } from "$lib/features/filesystem/api/filesystem.api";
 import { resolveDroppedPaths } from "$lib/features/conversations/adapters/dropped-paths";
-import { getDesktopBridge } from "$lib/features/desktop/state/desktop-bridge.svelte";
+import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
-import { completeFiles } from "$lib/features/workspace/state/workspace-actions.svelte";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+import { completeFiles } from "$lib/application/workspace/workspace-actions.svelte";
 
 /**
  * Build the workbench capability object consumed by the shared conversation

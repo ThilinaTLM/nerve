@@ -24,7 +24,7 @@ import {
   PanelSectionHeader,
 } from "$lib/presentation/panel";
 import type { AgentRecord } from "$lib/api";
-import { shortAgentModel } from "$lib/core/utils/project-tree";
+import { shortAgentModel } from "$lib/kernel/utils/project-tree";
 
 let {
   conversationAgents = [],

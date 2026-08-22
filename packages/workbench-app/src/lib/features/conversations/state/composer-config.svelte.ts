@@ -5,13 +5,13 @@ import type {
   ModelSelection,
   Settings,
 } from "$lib/api";
-import { pendingConversationKey } from "$lib/core/state/state-keys";
+import { pendingConversationKey } from "$lib/kernel/navigation/view-keys";
 import { queueAgentConfigChange } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { queueSettingsSave } from "$lib/features/settings/state/settings-actions.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { mainAgentForConversation } from "./main-agent";
 import {
   clampThinkingLevelForModel,

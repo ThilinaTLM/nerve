@@ -1,7 +1,12 @@
 <script lang="ts">
 import { EditorArea } from "$lib/presentation/shell";
 import EditorTabStripContainer from "$lib/app/shell/EditorTabStripContainer.svelte";
-import ConversationShell from "$lib/features/conversations/components/ConversationShell.svelte";
+import {
+  centerViewLoaders,
+  ConversationShell,
+  type CenterViewModule,
+  type RegisteredCenterViewKind,
+} from "$lib/app/composition/center-views";
 import LazyShellPending from "$lib/app/shell/LazyShellPending.svelte";
 import {
   centerTabsExcept,
@@ -14,12 +19,12 @@ import {
   selectCenterTab,
   workspaceSelectors,
   workspaceState,
-} from "$lib/features/workspace";
+} from "$lib/application/workspace";
 import {
   toggleFileDisplayMode,
   toggleFileLineWrap,
 } from "$lib/features/filesystem";
-import type { CenterTabIdentity } from "$lib/features/workspace";
+import type { CenterTabIdentity } from "$lib/application/workspace";
 import {
   conversationPaneTabKey,
   conversationPaneTabListsEqual,
@@ -68,27 +73,15 @@ function closeOtherCenterTabs(tab: CenterTabIdentity) {
   void closeCenterTabs(centerTabsExcept(tab), tab);
 }
 
-// On-demand center shells are code-split so their (potentially large) feature
-// modules are not parsed during startup. The import fires when the tab is
-// first activated; the chunk then loads in tens of milliseconds from localhost.
-type CenterShellModule = Promise<{ default: import("svelte").Component }>;
-const centerShells = {
-  task: () => import("$lib/features/tasks/components/TaskShell.svelte"),
-  file: () => import("$lib/features/filesystem/components/FileShell.svelte"),
-  mermaid: () =>
-    import("$lib/features/filesystem/components/MermaidShell.svelte"),
-  pr: () => import("$lib/features/git/components/PrShell.svelte"),
-  diff: () => import("$lib/features/git/components/DiffShell.svelte"),
-  settings: () =>
-    import("$lib/features/settings/components/SettingsShell.svelte"),
-  logs: () => import("$lib/features/logs/components/LogsShell.svelte"),
-} satisfies Record<string, () => CenterShellModule>;
-
-let loadedShells = $state<Partial<Record<string, CenterShellModule>>>({});
+// Registered views stay code-split and load only when first activated.
+let loadedShells = $state<
+  Partial<Record<RegisteredCenterViewKind, CenterViewModule>>
+>({});
 $effect(() => {
   const kind = activeCenterTab?.kind;
-  if (!kind || !(kind in centerShells) || loadedShells[kind]) return;
-  loadedShells[kind] = centerShells[kind as keyof typeof centerShells]();
+  if (!kind || !(kind in centerViewLoaders)) return;
+  const registeredKind = kind as RegisteredCenterViewKind;
+  loadedShells[registeredKind] ??= centerViewLoaders[registeredKind]();
 });
 
 function closeCenterTabsRight(tab: CenterTabIdentity) {

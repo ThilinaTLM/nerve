@@ -1,8 +1,8 @@
 import { getFileContent } from "$lib/api";
-import { fileViewKey, mermaidViewKey } from "$lib/core/state/state-keys";
+import { fileViewKey, mermaidViewKey } from "$lib/kernel/navigation/view-keys";
 import { defaultFileDisplayMode } from "@nervekit/ui-kit/core/utils/file-display";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   addCenterTab,
   nextCenterTabAfterClose,
@@ -10,8 +10,8 @@ import {
   replaceOpenCenterTabs,
   selectCenterTab,
   setActiveCenterTab,
-} from "$lib/features/workspace/state/center-tabs.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+} from "$lib/application/workspace/center-tabs.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { SvelteSet } from "svelte/reactivity";
 
 function encodeFileTabId(projectId: string, path: string): string {
@@ -46,7 +46,7 @@ export async function openFilePane(input: {
 }) {
   if (input.projectId !== workspaceState.selectedProjectId) {
     const { selectProject } =
-      await import("$lib/features/workspace/state/workspace-actions.svelte");
+      await import("$lib/application/workspace/workspace-actions.svelte");
     await selectProject(input.projectId);
   }
   const id = encodeFileTabId(input.projectId, input.path);

@@ -1,10 +1,10 @@
 <script lang="ts">
 import { untrack } from "svelte";
-import { writeClipboardText } from "$lib/core/clipboard";
-import { notify } from "$lib/features/notifications/notify.svelte";
-import { getDesktopBridge } from "$lib/features/desktop/state/desktop-bridge.svelte";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
+import { notify } from "$lib/application/notifications/notify.svelte";
+import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import type { WorkbenchConversationAdapterProps } from "./workbench-conversation-adapter-props";
-import { shortProjectLabel } from "$lib/core/utils/project-tree";
+import { shortProjectLabel } from "$lib/kernel/utils/project-tree";
 import {
   activeRunStreamingText,
   buildActiveRunTimeline,

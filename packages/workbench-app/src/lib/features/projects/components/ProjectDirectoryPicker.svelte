@@ -2,8 +2,8 @@
 import { untrack } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import FolderSearch from "@lucide/svelte/icons/folder-search";
-import { writeClipboardText } from "$lib/core/clipboard";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import {
@@ -11,9 +11,9 @@ import {
   type FilesystemDirectoryResponse,
   type ProjectRecord,
 } from "$lib/api";
-import { queryClient, queryKeys } from "$lib/core/query";
+import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { discoverGitRepos, GIT_STALE_MS } from "$lib/features/git";
-import { looksLikePath, pathKey } from "$lib/core/utils/path";
+import { looksLikePath, pathKey } from "$lib/kernel/utils/path";
 import DirectoryPickerFooter from "./DirectoryPickerFooter.svelte";
 import DirectoryPickerList from "./DirectoryPickerList.svelte";
 import DirectoryPickerSearch from "./DirectoryPickerSearch.svelte";

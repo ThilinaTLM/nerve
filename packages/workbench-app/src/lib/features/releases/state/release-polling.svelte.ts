@@ -1,5 +1,5 @@
-import { queryClient, queryKeys } from "$lib/core/query";
-import { clientLog } from "$lib/core/logger/client-logger";
+import { queryClient, queryKeys } from "$lib/platform/query/client";
+import { clientLog } from "$lib/platform/logging/client-logger";
 import { getLatestRelease } from "../api/releases.api";
 import { releaseState } from "./release-state.svelte";
 

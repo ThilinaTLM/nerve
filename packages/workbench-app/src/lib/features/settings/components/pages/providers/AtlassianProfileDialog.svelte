@@ -5,7 +5,7 @@ import {
   getCredentialKey,
   setProviderApiKey,
 } from "$lib/api";
-import { encryptApiKey } from "$lib/core/utils/credential-crypto";
+import { encryptApiKey } from "$lib/platform/crypto/credential-crypto";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import SettingsFormDialog from "../../shared/settings-form-dialog.svelte";

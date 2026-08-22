@@ -1,5 +1,5 @@
 <script lang="ts">
-import { writeClipboardText } from "$lib/core/clipboard";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
   getApplicationLogs,
   pruneApplicationLogs,

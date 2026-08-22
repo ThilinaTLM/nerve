@@ -1,4 +1,4 @@
-import type { GitContext } from "$lib/core/types/state-types";
+import type { GitContext } from "$lib/features/git/state/git-state.svelte";
 
 export function gitContextFingerprint(ctx: GitContext): string {
   return JSON.stringify({

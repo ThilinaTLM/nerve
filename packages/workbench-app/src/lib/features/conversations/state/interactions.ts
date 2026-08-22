@@ -2,12 +2,12 @@ import {
   resolveToolInteraction,
   type PlanReviewResolveOptions,
 } from "$lib/features/tools/api/tools.api";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   upsertAgentRecordFresh,
   upsertConversationRecord,
   upsertPendingToolCall,
-} from "$lib/features/workspace/state/entity-reducers";
+} from "$lib/application/workspace/entity-reducers";
 import { createInteractionActions } from "./interaction-actions";
 import { openConversation } from "./tabs";
 

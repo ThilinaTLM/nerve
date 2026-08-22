@@ -1,4 +1,4 @@
-import type { CenterTabIdentity } from "$lib/features/workspace";
+import type { CenterTabIdentity } from "$lib/application/workspace";
 
 export const DEFAULT_KEEP_MOUNTED_CONVERSATION_PANE_LIMIT = 4;
 

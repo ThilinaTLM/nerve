@@ -14,15 +14,15 @@ import type {
 import {
   gitProjectStateKey,
   gitRepoStateKey,
-} from "$lib/core/state/state-keys";
-import type { GitContext } from "$lib/core/types/state-types";
+} from "$lib/kernel/navigation/view-keys";
+import type { GitContext } from "$lib/features/git/state/git-state.svelte";
 import {
   defaultGitPrFilterConfig,
   normalizeGitPrFilterConfig,
   type GitPrFilterConfig,
   type ScopedFileMutation,
   type StashMutation,
-} from "$lib/presentation";
+} from "$lib/features/git";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { gitContextFingerprint } from "./git-context-helpers";
 import {

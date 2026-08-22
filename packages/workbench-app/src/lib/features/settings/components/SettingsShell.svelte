@@ -3,7 +3,7 @@ import { settingsState } from "$lib/features/settings/state/settings-state.svelt
 
 import SettingsPage from "$lib/features/settings/components/SettingsPage.svelte";
 import { settingsSelectors } from "$lib/features/settings/state/settings-selectors.svelte";
-import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
+import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import {
   loadSettingsSkills,
   queueSettingsSave,

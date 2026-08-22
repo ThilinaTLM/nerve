@@ -13,10 +13,10 @@ import {
   PanelToolbarButton,
   PanelView,
 } from "$lib/presentation/panel";
-import { buildConversationRows } from "$lib/core/utils/project-tree";
+import { buildConversationRows } from "$lib/kernel/utils/project-tree";
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
-import { getShortcutLabel } from "$lib/core/shortcuts/registry";
+import { getShortcutLabel } from "$lib/kernel/shortcuts/registry";
 import {
   buildConversationMenu,
   type ProjectTreeMenuContext,
