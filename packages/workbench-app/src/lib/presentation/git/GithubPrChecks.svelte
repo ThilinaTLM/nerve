@@ -8,10 +8,12 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { githubCheckRunOutcome } from "./github-pr-checks";
 import GithubPrSection from "./GithubPrSection.svelte";
-import { checksTone } from "./pr-pane-helpers";
+import { checksTone, sortCheckRuns } from "./pr-pane-helpers";
 
 type Props = { checks: GithubChecksSummary };
 let { checks }: Props = $props();
+const sortedRuns = $derived(sortCheckRuns(checks.runs));
+const hasCounts = $derived(checks.passed + checks.failed + checks.pending > 0);
 </script>
 
 <GithubPrSection title="Checks" contentClass="p-0">
@@ -30,25 +32,51 @@ let { checks }: Props = $props();
     </Badge>
   {/snippet}
 
-  <p class="px-3 py-1.5 text-muted-foreground">
-    {checks.passed} passed · {checks.failed} failed ·
-    {checks.pending} pending
-  </p>
+  <div
+    class="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 text-muted-foreground"
+  >
+    {#if hasCounts}
+      {#if checks.passed > 0}
+        <span class="inline-flex items-center gap-1 text-success">
+          <Check class="size-3" aria-hidden="true" />
+          {checks.passed} passed
+        </span>
+      {/if}
+      {#if checks.failed > 0}
+        <span class="inline-flex items-center gap-1 text-destructive">
+          <X class="size-3" aria-hidden="true" />
+          {checks.failed} failed
+        </span>
+      {/if}
+      {#if checks.pending > 0}
+        <span class="inline-flex items-center gap-1 text-warning">
+          <Spinner class="size-3" />
+          {checks.pending} pending
+        </span>
+      {/if}
+    {:else}
+      <span>No checks have been reported.</span>
+    {/if}
+  </div>
 
   {#if checks.runs.length === 0}
-    <p
-      class="border-t border-border/60 px-3 py-3 text-xs text-muted-foreground"
-    >
-      No checks have been reported.
-    </p>
+    {#if hasCounts}
+      <p
+        class="border-t border-border/50 px-3 py-2 text-xs text-muted-foreground"
+      >
+        No individual check runs to show.
+      </p>
+    {/if}
   {:else}
     <ul
-      class="divide-y divide-border/60 border-t border-border/60"
+      class="divide-y divide-border/50 border-t border-border/50"
       aria-label="Check runs"
     >
-      {#each checks.runs as run (`${run.name}:${run.url ?? ""}`)}
+      {#each sortedRuns as run (`${run.name}:${run.url ?? ""}`)}
         {@const outcome = githubCheckRunOutcome(run.status)}
-        <li class="flex min-w-0 items-center gap-2 px-3 py-1.5">
+        <li
+          class="flex min-w-0 items-center gap-2 px-3 py-1.5 hover:bg-accent/40"
+        >
           <span class="min-w-0 flex-1 truncate text-foreground">{run.name}</span
           >
           {#if run.url}

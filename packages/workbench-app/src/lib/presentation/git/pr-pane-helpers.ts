@@ -18,6 +18,8 @@ type TimelineEntry =
 export type MergeReadiness = {
   status: "ready" | "blocked" | "unknown";
   reasons: string[];
+  /** Admins may merge even when branch-protection requirements block the PR. */
+  canOverride: boolean;
 };
 
 export function checksTone(checks: GithubChecksSummary): BadgeTone {
@@ -68,6 +70,66 @@ export function formatPrDate(value?: string): string {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
 }
 
+export function formatRelativePrDate(value?: string, now = Date.now()): string {
+  if (!value) return "";
+  const date = new Date(value);
+  const time = date.getTime();
+  if (Number.isNaN(time)) return "";
+  const seconds = Math.round((now - time) / 1000);
+  if (seconds < 45) return "just now";
+  if (seconds < 90) return "1m ago";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year:
+      date.getFullYear() === new Date(now).getFullYear()
+        ? undefined
+        : "numeric",
+  });
+}
+
+export function reviewSurfaceClass(state: string): string {
+  if (state === "APPROVED") return "bg-success/8";
+  if (state === "CHANGES_REQUESTED") return "bg-destructive/8";
+  return "";
+}
+
+const COLLAPSED_BODY_LINES = 14;
+
+export function bodyLineCount(body: string): number {
+  return body.split("\n").length;
+}
+
+export function shouldCollapseBody(body: string): boolean {
+  return bodyLineCount(body) > COLLAPSED_BODY_LINES;
+}
+
+const CHECK_RUN_SORT_ORDER = { failed: 0, pending: 1, passed: 2 } as const;
+
+export function sortCheckRuns<T extends { name: string; status: string }>(
+  runs: T[],
+): T[] {
+  return [...runs].sort((left, right) => {
+    const leftRank =
+      CHECK_RUN_SORT_ORDER[
+        githubCheckRunOutcome(left.status) as keyof typeof CHECK_RUN_SORT_ORDER
+      ] ?? 3;
+    const rightRank =
+      CHECK_RUN_SORT_ORDER[
+        githubCheckRunOutcome(right.status) as keyof typeof CHECK_RUN_SORT_ORDER
+      ] ?? 3;
+    return leftRank !== rightRank
+      ? leftRank - rightRank
+      : left.name.localeCompare(right.name);
+  });
+}
+
 export function formatPrDateCompact(value?: string): string {
   if (!value) return "";
   const date = new Date(value);
@@ -100,11 +162,24 @@ export function mergeReadiness(
   detail: GithubPrCore & GithubPrOverview & { checks: GithubChecksSummary },
 ): MergeReadiness {
   if (detail.state !== "OPEN") {
-    return { status: "blocked", reasons: ["Pull request is not open"] };
+    return {
+      status: "blocked",
+      reasons: ["Pull request is not open"],
+      canOverride: false,
+    };
   }
   if (detail.isDraft) {
-    return { status: "blocked", reasons: ["Pull request is still a draft"] };
+    return {
+      status: "blocked",
+      reasons: ["Pull request is still a draft"],
+      canOverride: false,
+    };
   }
+  const canOverride =
+    (detail.viewerPermission === "ADMIN" ||
+      detail.viewerPermission === "MAINTAIN") &&
+    detail.mergeable === "MERGEABLE" &&
+    detail.mergeSettings.allowedMethods.length > 0;
   if (
     !detail.headRefOid ||
     detail.mergeable === null ||
@@ -113,6 +188,7 @@ export function mergeReadiness(
     return {
       status: "unknown",
       reasons: ["GitHub is calculating mergeability"],
+      canOverride: false,
     };
   }
 
@@ -136,8 +212,8 @@ export function mergeReadiness(
   if (detail.mergeSettings.allowedMethods.length === 0)
     reasons.push("No merge method is enabled");
   return reasons.length > 0
-    ? { status: "blocked", reasons: [...new Set(reasons)] }
-    : { status: "ready", reasons: [] };
+    ? { status: "blocked", reasons: [...new Set(reasons)], canOverride }
+    : { status: "ready", reasons: [], canOverride };
 }
 
 export function divergenceLabel(detail: GithubPrOverview): string {

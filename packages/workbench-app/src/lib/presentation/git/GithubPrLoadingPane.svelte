@@ -12,7 +12,7 @@ type Props = {
 };
 let { view, onRefresh, onOpenExternal }: Props = $props();
 const tabTriggerClass =
-  "h-full flex-none gap-1.5 rounded-sm px-2.5 text-xs font-medium data-active:bg-background data-active:shadow-xs data-active:ring-1 data-active:ring-border";
+  "h-full flex-none gap-1.5 rounded-sm px-2.5 text-xs font-medium data-active:bg-background data-active:shadow-xs";
 </script>
 
 <GithubPrHeader
@@ -24,41 +24,44 @@ const tabTriggerClass =
 />
 <Tabs.Root value="conversation" class="min-h-0 flex-1 gap-0">
   <div class="shrink-0 px-4 pt-3 pb-2">
-    <Tabs.List
-      class="h-8 gap-1 rounded-md bg-accent/35 p-1 ring-1 ring-border ring-inset"
-    >
-      <Tabs.Trigger value="conversation" class={tabTriggerClass}
-        >Conversation</Tabs.Trigger
-      >
-      <Tabs.Trigger value="commits" class={tabTriggerClass}
-        >Commits</Tabs.Trigger
-      >
-      <Tabs.Trigger value="checks" class={tabTriggerClass}>Checks</Tabs.Trigger>
-      <Tabs.Trigger value="files" class={tabTriggerClass}
-        >Files changed</Tabs.Trigger
-      >
-    </Tabs.List>
-  </div>
-  <Tabs.Content value="conversation" class="min-h-0 flex-1">
-    <ScrollArea class="h-full" viewportClass="@container px-4 pr-2 pt-1 pb-8">
-      <div
-        class="grid items-start gap-2 @3xl:grid-cols-[minmax(0,1fr)_18rem] @6xl:grid-cols-[minmax(0,1fr)_22rem]"
-      >
-        <GithubPrSectionSkeleton
-          variant="conversation"
-          label="Loading pull request conversation"
-        />
-        <aside class="flex flex-col gap-2">
+    <div class="shrink-0 px-4 pt-2 pb-1.5">
+      <Tabs.List class="h-7 gap-0.5 rounded-md bg-accent/35 p-0.5">
+        >
+        <Tabs.Trigger value="conversation" class={tabTriggerClass}
+          >Conversation</Tabs.Trigger
+        >
+        <Tabs.Trigger value="commits" class={tabTriggerClass}
+          >Commits</Tabs.Trigger
+        >
+        <Tabs.Trigger value="checks" class={tabTriggerClass}
+          >Checks</Tabs.Trigger
+        >
+        <Tabs.Trigger value="files" class={tabTriggerClass}
+          >Files changed</Tabs.Trigger
+        >
+      </Tabs.List>
+    </div>
+    <Tabs.Content value="conversation" class="min-h-0 flex-1">
+      <ScrollArea class="h-full" viewportClass="@container px-4 pr-2 pt-1 pb-8">
+        <div
+          class="grid items-start gap-2 @3xl:grid-cols-[minmax(0,1fr)_18rem] @6xl:grid-cols-[minmax(0,1fr)_22rem]"
+        >
           <GithubPrSectionSkeleton
-            variant="overview"
-            label="Loading pull request overview"
+            variant="conversation"
+            label="Loading pull request conversation"
           />
-          <GithubPrSectionSkeleton
-            variant="merge"
-            label="Loading pull request merge status"
-          />
-        </aside>
-      </div>
-    </ScrollArea>
-  </Tabs.Content>
-</Tabs.Root>
+          <aside class="flex flex-col gap-2">
+            <GithubPrSectionSkeleton
+              variant="overview"
+              label="Loading pull request overview"
+            />
+            <GithubPrSectionSkeleton
+              variant="merge"
+              label="Loading pull request merge status"
+            />
+          </aside>
+        </div>
+      </ScrollArea>
+    </Tabs.Content>
+  </div></Tabs.Root
+>

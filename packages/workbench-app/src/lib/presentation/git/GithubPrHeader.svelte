@@ -14,7 +14,13 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import { formatPrDateCompact, stateLabel, stateTone } from "./pr-pane-helpers";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
+import {
+  formatPrDateCompact,
+  formatRelativePrDate,
+  stateLabel,
+  stateTone,
+} from "./pr-pane-helpers";
 
 type Props = {
   number: number;
@@ -49,7 +55,7 @@ const StateIcon = $derived(
 );
 </script>
 
-<header class="border-b bg-background px-4 py-2.5">
+<header class="border-b bg-background px-4 py-2">
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 items-center gap-2">
@@ -76,7 +82,7 @@ const StateIcon = $derived(
 
       {#if detail}
         <div
-          class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
+          class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
         >
           <span>
             Opened by <span class="font-medium text-foreground"
@@ -84,7 +90,22 @@ const StateIcon = $derived(
             >
           </span>
           <span aria-hidden="true">·</span>
-          <span>{formatPrDateCompact(detail.createdAt)}</span>
+          <Tooltip.Root>
+            <Tooltip.Trigger>
+              {#snippet child({ props })}
+                <button
+                  {...props}
+                  type="button"
+                  class="inline cursor-help rounded-xs hover:text-foreground"
+                >
+                  {formatRelativePrDate(detail.createdAt)}
+                </button>
+              {/snippet}
+            </Tooltip.Trigger>
+            <Tooltip.Content sideOffset={5}
+              >{formatPrDateCompact(detail.createdAt)}</Tooltip.Content
+            >
+          </Tooltip.Root>
         </div>
       {:else}
         <div
@@ -97,19 +118,21 @@ const StateIcon = $derived(
       {/if}
 
       <div
-        class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
+        class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
       >
         {#if display}
           <span
             class="inline-flex items-center gap-1"
             aria-label={`Merges ${display.headRefName} into ${display.baseRefName}`}
           >
-            <Badge variant="outline" size="xs" class="font-mono"
-              >{display.baseRefName}</Badge
+            <span
+              class="max-w-44 truncate rounded-sm bg-muted px-1.5 py-0.5 font-mono text-muted-foreground"
+              title={display.baseRefName}>{display.baseRefName}</span
             >
             <ArrowLeft class="size-3" aria-hidden="true" />
-            <Badge variant="outline" size="xs" class="font-mono"
-              >{display.headRefName}</Badge
+            <span
+              class="max-w-44 truncate rounded-sm bg-muted px-1.5 py-0.5 font-mono text-muted-foreground"
+              title={display.headRefName}>{display.headRefName}</span
             >
           </span>
         {:else}

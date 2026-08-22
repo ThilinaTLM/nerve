@@ -91,6 +91,7 @@ type GithubPrDetailRaw = {
   mergeable?: string | null;
   mergeStateStatus?: string | null;
   reviewDecision?: string | null;
+  viewerPermission?: string | null;
   comments?: {
     nodes?: Array<{
       id?: string;
@@ -154,6 +155,7 @@ const CONVERSATION_FIELDS = `
 `;
 const OVERVIEW_FIELDS = `
   headRefOid baseRefOid mergeable mergeStateStatus reviewDecision
+  viewerPermission
   labels(first: 100) { nodes { name color } }
   reviewRequests(first: 100) {
     nodes {
@@ -369,6 +371,22 @@ export function allowedMergeMethods(raw: GithubRepoRaw): GithubPrMergeMethod[] {
   return methods;
 }
 
+const VIEWER_PERMISSIONS = [
+  "ADMIN",
+  "MAINTAIN",
+  "WRITE",
+  "READ",
+  "NONE",
+] as const;
+
+type GithubViewerPermission = (typeof VIEWER_PERMISSIONS)[number];
+
+function mapViewerPermission(
+  raw: string | null | undefined,
+): GithubViewerPermission | null {
+  return VIEWER_PERMISSIONS.find((permission) => permission === raw) ?? null;
+}
+
 function mapPrCore(raw: GithubPrDetailRaw): GithubPrCore {
   return {
     number: raw.number,
@@ -427,6 +445,7 @@ function mapPrOverview(
     mergeable: raw.mergeable ?? null,
     mergeStateStatus: raw.mergeStateStatus ?? null,
     reviewDecision: raw.reviewDecision ?? null,
+    viewerPermission: mapViewerPermission(raw.viewerPermission),
     behindBy,
     labels: compact(raw.labels?.nodes).flatMap((label) =>
       label.name ? [{ name: label.name, color: label.color }] : [],

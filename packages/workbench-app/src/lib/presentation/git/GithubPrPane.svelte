@@ -68,7 +68,7 @@ const checks = $derived(view?.checks.data?.checks);
 const files = $derived(view?.files.data);
 
 const tabTriggerClass =
-  "h-full flex-none gap-1.5 rounded-sm px-2.5 text-xs font-medium data-active:bg-background data-active:shadow-xs data-active:ring-1 data-active:ring-border";
+  "h-full flex-none gap-1.5 rounded-sm px-2.5 text-xs font-medium data-active:bg-background data-active:shadow-xs";
 
 function changeTab(value: string) {
   if (
@@ -176,10 +176,8 @@ function confirmCheckout() {
       onValueChange={changeTab}
       class="min-h-0 flex-1 gap-0"
     >
-      <div class="shrink-0 px-4 pt-3 pb-2">
-        <Tabs.List
-          class="h-8 gap-1 rounded-md bg-accent/35 p-1 ring-1 ring-border ring-inset"
-        >
+      <div class="shrink-0 px-4 pt-2 pb-1.5">
+        <Tabs.List class="h-7 gap-0.5 rounded-md bg-accent/35 p-0.5">
           <Tabs.Trigger value="conversation" class={tabTriggerClass}>
             Conversation
             {#if conversation}<span class="text-muted-foreground"

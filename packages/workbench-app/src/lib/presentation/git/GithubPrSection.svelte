@@ -23,14 +23,9 @@ let {
 const hasHeader = $derived(Boolean(title) || Boolean(header));
 </script>
 
-<section
-  class={cn(
-    "min-w-0 rounded-md bg-accent/35 text-xs ring-1 ring-border ring-inset",
-    className,
-  )}
->
+<section class={cn("min-w-0 rounded-md bg-accent/35 text-xs", className)}>
   {#if hasHeader}
-    <div class="flex min-h-7 items-center gap-2 px-3 py-1.5">
+    <div class="flex min-h-7 items-center gap-2 px-3 py-1">
       {#if header}
         {@render header()}
       {:else}
@@ -47,8 +42,8 @@ const hasHeader = $derived(Boolean(title) || Boolean(header));
   {/if}
   <div
     class={cn(
-      hasHeader && "border-t border-border/60",
-      contentClass ?? "px-3 py-2.5",
+      hasHeader && "border-t border-border/50",
+      contentClass ?? "px-3 py-2",
     )}
   >
     {@render children()}

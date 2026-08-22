@@ -1,6 +1,7 @@
 <script lang="ts">
 import Check from "@lucide/svelte/icons/check";
 import GitMerge from "@lucide/svelte/icons/git-merge";
+import ShieldAlert from "@lucide/svelte/icons/shield-alert";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type {
   GithubChecksSummary,
@@ -43,8 +44,15 @@ const showMerge = $derived(
     detail.mergeSettings.allowedMethods.length > 0,
 );
 
+/** Blocked by requirements only — admins may bypass them via override merge. */
+const showOverride = $derived(
+  !showMerge && readiness.status === "blocked" && readiness.canOverride,
+);
+
 function requestMerge() {
-  if (method && readiness.status === "ready") confirmOpen = true;
+  if (!method) return;
+  if (readiness.status === "ready") confirmOpen = true;
+  else if (showOverride) confirmOpen = true;
 }
 
 function confirmMerge() {
@@ -54,9 +62,13 @@ function confirmMerge() {
 }
 </script>
 
-<GithubPrSection contentClass="px-3 py-2.5">
+<GithubPrSection contentClass="px-3 py-2">
   <div class="flex items-start gap-2">
-    <span class="grid size-6 shrink-0 place-items-center rounded-md bg-muted">
+    <span
+      class={`grid size-6 shrink-0 place-items-center rounded-md ${
+        readiness.status === "ready" ? "bg-success/15" : "bg-warning/15"
+      }`}
+    >
       {#if readiness.status === "ready"}
         <GitMerge class="size-3.5 text-success" />
       {:else}
@@ -100,7 +112,7 @@ function confirmMerge() {
   </div>
 
   {#if showMerge && method}
-    <div class="mt-2.5">
+    <div class="mt-2">
       <SplitButton
         variant="success"
         disabled={merging || readiness.status !== "ready"}
@@ -113,16 +125,31 @@ function confirmMerge() {
           />{/if}
         {merging ? "Merging…" : mergeMethodLabel(method)}
         {#snippet menu()}
-          {#each detail.mergeSettings.allowedMethods as option (option)}
-            <DropdownMenu.Item onSelect={() => onMethodChange?.(option)}>
-              <span class="w-4"
-                >{#if option === method}<Check class="size-4" />{/if}</span
-              >
-              {mergeMethodLabel(option)}
-            </DropdownMenu.Item>
-          {/each}
+          {@render methodMenu()}
         {/snippet}
       </SplitButton>
+    </div>
+  {:else if showOverride && method}
+    <div class="mt-2">
+      <SplitButton
+        variant="outline"
+        disabled={merging}
+        triggerLabel="Choose merge method to override with"
+        menuClass="w-56"
+        onclick={requestMerge}
+      >
+        {#if merging}<Spinner class="size-3.5" />{:else}<ShieldAlert
+            class="size-3.5"
+          />{/if}
+        {merging ? "Merging…" : `Override and ${method}`}
+        {#snippet menu()}
+          {@render methodMenu()}
+        {/snippet}
+      </SplitButton>
+      <p class="mt-1 text-xs text-muted-foreground">
+        Merges without waiting for requirements. Only possible while you have
+        admin access.
+      </p>
     </div>
   {/if}
 
@@ -131,11 +158,24 @@ function confirmMerge() {
   {/if}
 </GithubPrSection>
 
+{#snippet methodMenu()}
+  {#each detail.mergeSettings.allowedMethods as option (option)}
+    <DropdownMenu.Item onSelect={() => onMethodChange?.(option)}>
+      <span class="w-4"
+        >{#if option === method}<Check class="size-4" />{/if}</span
+      >
+      {mergeMethodLabel(option)}
+    </DropdownMenu.Item>
+  {/each}
+{/snippet}
+
 <ConfirmDialog
   bind:open={confirmOpen}
   title={`Merge pull request #${detail.number}?`}
-  description={`${method ? mergeMethodLabel(method) : "Merge"} will merge ${detail.headRefName} into ${detail.baseRefName} at head ${detail.headRefOid.slice(0, 7)}.`}
-  confirmLabel="Confirm merge"
-  confirmVariant="success"
+  description={showOverride
+    ? `${method ? mergeMethodLabel(method) : "Merge"} will merge ${detail.headRefName} into ${detail.baseRefName} at head ${detail.headRefOid.slice(0, 7)}, skipping branch-protection requirements.`
+    : `${method ? mergeMethodLabel(method) : "Merge"} will merge ${detail.headRefName} into ${detail.baseRefName} at head ${detail.headRefOid.slice(0, 7)}.`}
+  confirmLabel={showOverride ? "Override and merge" : "Confirm merge"}
+  confirmVariant={showOverride ? "default" : "success"}
   onConfirm={confirmMerge}
 />

@@ -429,10 +429,22 @@ export const githubPrConversationSchema = z.object({
 });
 export type GithubPrConversation = z.infer<typeof githubPrConversationSchema>;
 
+export const githubPrViewerPermissionSchema = z.enum([
+  "ADMIN",
+  "MAINTAIN",
+  "WRITE",
+  "READ",
+  "NONE",
+]);
+export type GithubPrViewerPermission = z.infer<
+  typeof githubPrViewerPermissionSchema
+>;
+
 export const githubPrOverviewSchema = z.object({
   mergeable: z.string().nullable(),
   mergeStateStatus: z.string().nullable(),
   reviewDecision: z.string().nullable(),
+  viewerPermission: githubPrViewerPermissionSchema.nullable(),
   behindBy: z.number().int().nonnegative().nullable(),
   labels: z.array(githubPrLabelSchema),
   reviewRequests: z.array(githubPrReviewerSchema),
