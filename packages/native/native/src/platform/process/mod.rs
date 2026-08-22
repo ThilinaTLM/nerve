@@ -30,6 +30,61 @@ pub(crate) struct TcpListenerInfo {
     pub(crate) process_name: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct ManagedProcessHostStatus {
+    pub(crate) backend: String,
+    pub(crate) hard_limits_available: bool,
+    pub(crate) enforcement: String,
+    pub(crate) detail: Option<String>,
+}
+
+pub(crate) fn initialize_managed_process_host(
+    delegated_scope: bool,
+    allow_uncontained: bool,
+) -> Result<ManagedProcessHostStatus, String> {
+    #[cfg(target_os = "linux")]
+    {
+        match linux::initialize_managed_root(delegated_scope) {
+            Ok(root) => Ok(ManagedProcessHostStatus {
+                backend: "cgroup_v2".to_string(),
+                hard_limits_available: true,
+                enforcement: "required".to_string(),
+                detail: Some(root.display().to_string()),
+            }),
+            Err(error) if allow_uncontained => Ok(ManagedProcessHostStatus {
+                backend: "process_group".to_string(),
+                hard_limits_available: false,
+                enforcement: "best_effort".to_string(),
+                detail: Some(error),
+            }),
+            Err(error) => Err(error),
+        }
+    }
+    #[cfg(windows)]
+    {
+        let _ = (delegated_scope, allow_uncontained);
+        Ok(ManagedProcessHostStatus {
+            backend: "windows_job".to_string(),
+            hard_limits_available: true,
+            enforcement: "required".to_string(),
+            detail: None,
+        })
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = (delegated_scope, allow_uncontained);
+        Ok(ManagedProcessHostStatus {
+            backend: "process_group".to_string(),
+            hard_limits_available: false,
+            enforcement: "best_effort".to_string(),
+            detail: Some(
+                "macOS does not provide tree-wide CPU, memory, and process-count limits"
+                    .to_string(),
+            ),
+        })
+    }
+}
+
 pub(crate) struct SpawnedChild {
     pub(crate) child: Child,
     pub(crate) target: ManagedTarget,
@@ -192,7 +247,7 @@ fn prepare_resource_limits(
     policy: &ResourcePolicy,
 ) -> Result<PreparedResources, String> {
     #[cfg(target_os = "linux")]
-    if policy.memory_bytes.is_some()
+    let backend_error = if policy.memory_bytes.is_some()
         || policy.max_cpu_cores.is_some()
         || policy.max_processes.is_some()
     {
@@ -204,9 +259,13 @@ fn prepare_resource_limits(
                 });
             }
             Err(error) if policy.enforcement == EnforcementMode::Required => return Err(error),
-            Err(_) => {}
+            Err(error) => Some(error),
         }
-    }
+    } else {
+        None
+    };
+    #[cfg(target_os = "macos")]
+    let backend_error: Option<String> = None;
 
     let mut entries = Vec::new();
     record_unsupported(
@@ -214,21 +273,27 @@ fn prepare_resource_limits(
         policy.enforcement,
         policy.memory_bytes.is_some(),
         "memory",
-        "RLIMIT_AS constrains virtual address reservations and is not a safe RSS fallback",
+        backend_error.as_deref().unwrap_or(
+            "RLIMIT_AS constrains virtual address reservations and is not a safe RSS fallback",
+        ),
     )?;
     record_unsupported(
         &mut entries,
         policy.enforcement,
         policy.max_processes.is_some(),
         "processes",
-        "RLIMIT_NPROC is user-wide and is not a safe process-tree fallback",
+        backend_error
+            .as_deref()
+            .unwrap_or("RLIMIT_NPROC is user-wide and is not a safe process-tree fallback"),
     )?;
     record_unsupported(
         &mut entries,
         policy.enforcement,
         policy.max_cpu_cores.is_some(),
         "cpu",
-        "CPU rate limits require a delegated cgroup or platform watchdog",
+        backend_error
+            .as_deref()
+            .unwrap_or("CPU rate limits require a delegated cgroup or platform watchdog"),
     )?;
     Ok(PreparedResources {
         enforcement: entries,

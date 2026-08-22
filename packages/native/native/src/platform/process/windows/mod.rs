@@ -15,9 +15,10 @@ use windows_sys::Win32::System::Diagnostics::ToolHelp::{
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_CPU_RATE_CONTROL_ENABLE,
     JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP, JOB_OBJECT_LIMIT_ACTIVE_PROCESS,
-    JOB_OBJECT_LIMIT_JOB_MEMORY, JOBOBJECT_CPU_RATE_CONTROL_INFORMATION,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectCpuRateControlInformation,
-    JobObjectExtendedLimitInformation, SetInformationJobObject, TerminateJobObject,
+    JOB_OBJECT_LIMIT_JOB_MEMORY, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    JOBOBJECT_CPU_RATE_CONTROL_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JobObjectCpuRateControlInformation, JobObjectExtendedLimitInformation, SetInformationJobObject,
+    TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
     CREATE_NO_WINDOW, CREATE_SUSPENDED, GetExitCodeProcess, GetProcessTimes, OpenProcess,
@@ -69,8 +70,9 @@ impl OwnedJob {
 
     fn configure(&self, policy: &ResourcePolicy) -> Result<Vec<EnforcementEntry>, String> {
         let mut entries = Vec::new();
-        if policy.memory_bytes.is_some() || policy.max_processes.is_some() {
+        {
             let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            limits.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
             if let Some(memory) = policy.memory_bytes {
                 limits.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_JOB_MEMORY;
                 limits.JobMemoryLimit = usize::try_from(memory)
@@ -89,21 +91,10 @@ impl OwnedJob {
                 )
             };
             if result == 0 {
-                let detail = std::io::Error::last_os_error().to_string();
-                require_or_record(
-                    policy.enforcement,
-                    &mut entries,
-                    policy.memory_bytes.is_some(),
-                    "memory",
-                    &detail,
-                )?;
-                require_or_record(
-                    policy.enforcement,
-                    &mut entries,
-                    policy.max_processes.is_some(),
-                    "processes",
-                    &detail,
-                )?;
+                return Err(format!(
+                    "Could not configure Windows Job containment: {}",
+                    std::io::Error::last_os_error()
+                ));
             } else {
                 if policy.memory_bytes.is_some() {
                     entries.push(enforced("memory", "windows-job-memory"));

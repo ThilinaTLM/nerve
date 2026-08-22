@@ -1,18 +1,133 @@
 import { spawn } from "node:child_process";
-import { readFile, access } from "node:fs/promises";
+import { access, readFile, readdir, stat } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type DaemonFile, daemonFileSchema } from "@nervekit/contracts";
 import { serializeCrashError, writeCrashReportSync } from "../crash-reports.js";
 import { desktopLog } from "../logging.js";
+import {
+  DAEMON_DIAGNOSTIC_POLL_INTERVAL_MS,
+  DAEMON_DIAGNOSTIC_TIMEOUT_MS,
+} from "./policy.js";
 import type {
   DaemonConnectionPorts,
+  DaemonDiagnosticCaptureResult,
   DaemonHealthCheckResult,
 } from "./ports.js";
 import type { DaemonPaths, HealthyDaemon } from "./types.js";
 import { localConnectUrl, type NetworkInterfacesSnapshot } from "./urls.js";
 
 const HEALTH_CHECK_TIMEOUT_MS = 1500;
+let daemonScopeCounter = 0;
+
+export function resolveDaemonLaunch(input: {
+  serverMain: string;
+  args?: string[];
+  env: NodeJS.ProcessEnv;
+}): {
+  command: string;
+  args: string[];
+  env: NodeJS.ProcessEnv;
+  systemdUnit?: string;
+} {
+  const daemonArgs = [input.serverMain, ...(input.args ?? [])];
+  if (
+    process.platform !== "linux" ||
+    input.env.NERVE_ALLOW_UNCONTAINED_PROCESSES === "1" ||
+    input.env.NERVE_CGROUP_ROOT
+  ) {
+    return { command: process.execPath, args: daemonArgs, env: input.env };
+  }
+  daemonScopeCounter += 1;
+  const systemdUnit = `nerve-daemon-${process.pid}-${daemonScopeCounter}.scope`;
+  return {
+    command: "systemd-run",
+    args: [
+      "--user",
+      "--scope",
+      "--quiet",
+      "--collect",
+      `--unit=${systemdUnit}`,
+      "--property=Delegate=yes",
+      "--",
+      process.execPath,
+      ...daemonArgs,
+    ],
+    env: { ...input.env, NERVE_LINUX_DELEGATED_CGROUP: "1" },
+    systemdUnit,
+  };
+}
+
+export async function captureDiagnosticReport(
+  child: ReturnType<typeof spawn>,
+  dataDir: string,
+): Promise<DaemonDiagnosticCaptureResult> {
+  const startedAt = Date.now();
+  if (process.platform === "win32") {
+    return { outcome: "unsupported", elapsedMs: 0 };
+  }
+  const pid = child.pid;
+  if (!pid) {
+    return {
+      outcome: "request_failed",
+      elapsedMs: 0,
+      error: "Daemon PID is unavailable",
+    };
+  }
+  const directory = join(dataDir, "crashes");
+  const before = new Set(await readdir(directory).catch(() => []));
+  if (!child.kill("SIGUSR2")) {
+    return {
+      outcome: "request_failed",
+      elapsedMs: Date.now() - startedAt,
+      error: "SIGUSR2 could not be delivered",
+    };
+  }
+  const pidMarker = `.${pid}.`;
+  let candidate:
+    | { path: string; size: number; mtimeMs: number; stable: number }
+    | undefined;
+  while (Date.now() - startedAt < DAEMON_DIAGNOSTIC_TIMEOUT_MS) {
+    await new Promise((resolve) =>
+      setTimeout(resolve, DAEMON_DIAGNOSTIC_POLL_INTERVAL_MS),
+    );
+    const names = await readdir(directory).catch(() => []);
+    const name = names.find(
+      (value) =>
+        !before.has(value) &&
+        value.startsWith("report.") &&
+        value.includes(pidMarker) &&
+        value.endsWith(".json"),
+    );
+    if (!name) continue;
+    const path = join(directory, name);
+    const info = await stat(path).catch(() => undefined);
+    if (!info?.isFile()) continue;
+    if (
+      candidate?.path === path &&
+      candidate.size === info.size &&
+      candidate.mtimeMs === info.mtimeMs
+    ) {
+      candidate.stable += 1;
+      if (candidate.stable >= 2) {
+        return {
+          outcome: "captured",
+          elapsedMs: Date.now() - startedAt,
+          path,
+        };
+      }
+    } else {
+      candidate = {
+        path,
+        size: info.size,
+        mtimeMs: info.mtimeMs,
+        stable: 0,
+      };
+    }
+  }
+  return { outcome: "timed_out", elapsedMs: Date.now() - startedAt };
+}
 
 /** Thin Node/Electron-shell adapters behind the daemon runtime ports. */
 export function createNodeDaemonPorts(): DaemonConnectionPorts {
@@ -22,26 +137,33 @@ export function createNodeDaemonPorts(): DaemonConnectionPorts {
     discovery: { findHealthyDaemon },
     launcher: {
       launch: (input) => {
-        const child = spawn(
-          process.execPath,
-          [input.serverMain, ...(input.args ?? [])],
-          {
-            env: input.env,
-            stdio: ["ignore", "pipe", "pipe"],
-            windowsHide: true,
-          },
-        );
+        const launch = resolveDaemonLaunch(input);
+        const child = spawn(launch.command, launch.args, {
+          env: launch.env,
+          stdio: ["ignore", "pipe", "pipe"],
+          windowsHide: true,
+        });
         child.stdout?.on("data", (chunk) => input.onOutput("stdout", chunk));
         child.stderr?.on("data", (chunk) => input.onOutput("stderr", chunk));
         child.once("error", (error) => input.onError(error));
-        child.once("exit", (code, signal) => input.onExit({ code, signal }));
+        child.once("exit", (code, signal) => {
+          if (launch.systemdUnit) {
+            const cleanup = spawn(
+              "systemctl",
+              ["--user", "stop", launch.systemdUnit],
+              { stdio: "ignore", windowsHide: true },
+            );
+            cleanup.unref();
+          }
+          input.onExit({ code, signal });
+        });
         return {
           get pid() {
             return child.pid;
           },
           kill: (signal) => child.kill(signal),
-          requestDiagnosticReport: () =>
-            process.platform === "win32" ? false : child.kill("SIGUSR2"),
+          requestDiagnosticReport: (dataDir) =>
+            captureDiagnosticReport(child, dataDir),
         };
       },
     },

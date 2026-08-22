@@ -123,9 +123,11 @@ export class FakeChild {
         }
         return true;
       },
-      requestDiagnosticReport: () => {
+      requestDiagnosticReport: async () => {
         this.kills.push("SIGUSR2");
-        return !this.exited;
+        return this.exited
+          ? { outcome: "request_failed", elapsedMs: 0 }
+          : { outcome: "captured", elapsedMs: 0, path: "/tmp/report.json" };
       },
     };
   }

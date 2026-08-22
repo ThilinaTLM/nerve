@@ -4,10 +4,7 @@ import {
   DaemonStartupError,
   isDaemonStartupErrorCode,
 } from "../src/daemon/diagnostics.ts";
-import {
-  DAEMON_DIAGNOSTIC_GRACE_MS,
-  DAEMON_RESTART_BACKOFF_MS,
-} from "../src/daemon/policy.ts";
+import { DAEMON_RESTART_BACKOFF_MS } from "../src/daemon/policy.ts";
 import { DaemonSupervisor } from "../src/daemon/supervisor.ts";
 import type {
   DaemonStatus,
@@ -133,9 +130,7 @@ describe("daemon supervisor", () => {
     world.healthResults.value = false;
     await world.scheduler.advance(5_000);
     // Third failure crossed the threshold; owned-child discovery succeeds during restart.
-    await world.scheduler.advance(
-      DAEMON_DIAGNOSTIC_GRACE_MS + DAEMON_RESTART_BACKOFF_MS[0] + 1_000,
-    );
+    await world.scheduler.advance(DAEMON_RESTART_BACKOFF_MS[0] + 1_000);
     assert.equal(world.launches.length, 2, "old child replaced");
     assert.deepEqual(
       world.children[0]?.kills.slice(0, 2),
@@ -149,6 +144,31 @@ describe("daemon supervisor", () => {
     assert.equal((healthReports[0]?.context?.checks as unknown[])?.length, 3);
     assert.equal(daemon.getStatus(), "ready");
     assert.ok(statuses.some((entry) => entry.status === "restarting"));
+    await daemon.stop();
+  });
+
+  it("recovers when the bounded final health probe succeeds", async () => {
+    const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
+    const originalCheck = world.ports.health.check;
+    let checks = 0;
+    world.ports.health.check = async () => {
+      checks += 1;
+      if (checks === 4) {
+        return { healthy: true, outcome: "ok", durationMs: 1, status: 200 };
+      }
+      return {
+        healthy: false,
+        outcome: "timeout",
+        durationMs: 1,
+      };
+    };
+    const daemon = await ownedSupervisor(world).startOwned();
+    await world.scheduler.advance(15_000);
+    assert.equal(checks, 4);
+    assert.equal(world.launches.length, 1);
+    assert.equal(daemon.getStatus(), "ready");
+    assert.deepEqual(world.children[0]?.kills, ["SIGUSR2"]);
+    world.ports.health.check = originalCheck;
     await daemon.stop();
   });
 

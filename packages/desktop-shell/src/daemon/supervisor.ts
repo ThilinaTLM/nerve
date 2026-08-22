@@ -5,7 +5,6 @@ import type {
 import { daemonStartupError, formatExit, OutputBuffer } from "./diagnostics.js";
 import { DaemonStartupProgressDecoder } from "./startup-progress.js";
 import {
-  DAEMON_DIAGNOSTIC_GRACE_MS,
   DAEMON_HEALTH_POLL_INTERVAL_MS,
   DAEMON_MAX_RESTART_ATTEMPTS,
   DAEMON_READY_POLL_INTERVAL_MS,
@@ -82,6 +81,7 @@ export class DaemonSupervisor {
   private restarting = false;
   private stopped = false;
   private restartChain: Promise<void> = Promise.resolve();
+  private healthCheckInFlight = false;
 
   private url = "";
   private token?: string;
@@ -367,6 +367,16 @@ export class DaemonSupervisor {
   }
 
   private async runHealthCheck(): Promise<void> {
+    if (this.healthCheckInFlight) return;
+    this.healthCheckInFlight = true;
+    try {
+      await this.performHealthCheck();
+    } finally {
+      this.healthCheckInFlight = false;
+    }
+  }
+
+  private async performHealthCheck(): Promise<void> {
     if (this.stopped || this.restarting) return;
     if (!this.url || !this.token) return;
     const health = await this.ports.health.check(this.url, this.token);
@@ -389,6 +399,19 @@ export class DaemonSupervisor {
     const status = health.status === undefined ? "" : ` ${health.status}`;
     const reason = `Daemon stopped responding after ${this.consecutiveFailures} failed health checks (${health.outcome}${status}).`;
     await this.captureUnhealthyDiagnostics(reason);
+    if (this.stopped || this.restarting || this.child?.exited) return;
+    const recovery = await this.ports.health.check(this.url, this.token);
+    if (recovery.healthy) {
+      this.consecutiveFailures = 0;
+      this.failedHealthChecks.length = 0;
+      this.lastHealthyAt = this.ports.scheduler.now();
+      if (this.status !== "ready") this.setStatus("ready");
+      return;
+    }
+    this.failedHealthChecks.push(recovery);
+    if (this.failedHealthChecks.length > DAEMON_UNHEALTHY_THRESHOLD + 1) {
+      this.failedHealthChecks.shift();
+    }
     void this.scheduleRestart(reason);
   }
 
@@ -397,7 +420,9 @@ export class DaemonSupervisor {
   private async captureUnhealthyDiagnostics(reason: string): Promise<void> {
     if (!this.config.owned || !this.child || !this.config.paths) return;
     const child = this.child;
-    const diagnosticRequested = child.handle.requestDiagnosticReport();
+    const diagnostic = await child.handle.requestDiagnosticReport(
+      this.config.paths.home,
+    );
     this.ports.crashReporter.write(this.config.paths.home, {
       kind: "healthFailure",
       message: reason,
@@ -405,20 +430,17 @@ export class DaemonSupervisor {
       uptimeMs: Math.max(0, this.ports.scheduler.now() - child.startedAt),
       outputTail: child.output.tail(),
       context: {
-        diagnosticRequested,
+        diagnostic,
         checks: this.failedHealthChecks.map((check) => ({ ...check })),
       },
     });
     this.ports.logger.log("warn", "Owned daemon failed health checks", {
       context: {
         reason,
-        diagnosticRequested,
+        diagnostic,
         checks: this.failedHealthChecks.map((check) => ({ ...check })),
       },
     });
-    if (diagnosticRequested) {
-      await this.ports.scheduler.delay(DAEMON_DIAGNOSTIC_GRACE_MS);
-    }
   }
 
   private requestManualRestart(): Promise<void> {

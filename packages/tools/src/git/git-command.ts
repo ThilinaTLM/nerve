@@ -32,7 +32,7 @@ export async function runGitCommand(
     child = spawnManagedProcess(bin, args, {
       cwd,
       env: process.env,
-      policy: gitProcessPolicy,
+      policy: gitProcessPolicy(),
     });
   } catch (error) {
     throw new GitCommandError(command, null, errorMessage(error));

@@ -1,6 +1,6 @@
 mod cgroup;
 
-pub(crate) use cgroup::{CgroupGuard, prepare as prepare_cgroup};
+pub(crate) use cgroup::{CgroupGuard, initialize_managed_root, prepare as prepare_cgroup};
 
 use std::collections::{HashMap, HashSet};
 use std::fs;

@@ -31,10 +31,19 @@ export interface DaemonDiscoveryPort {
   findHealthyDaemon(paths: DaemonPaths): Promise<HealthyDaemon | undefined>;
 }
 
+export interface DaemonDiagnosticCaptureResult {
+  outcome: "captured" | "timed_out" | "unsupported" | "request_failed";
+  elapsedMs: number;
+  path?: string;
+  error?: string;
+}
+
 export interface DaemonChildHandle {
   readonly pid?: number;
   kill(signal: "SIGTERM" | "SIGKILL"): boolean;
-  requestDiagnosticReport(): boolean;
+  requestDiagnosticReport(
+    dataDir: string,
+  ): Promise<DaemonDiagnosticCaptureResult>;
 }
 
 export interface DaemonChildLauncherPort {

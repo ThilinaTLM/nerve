@@ -1,14 +1,64 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
+  captureDiagnosticReport,
   checkHealth,
   findHealthyDaemon,
+  resolveDaemonLaunch,
 } from "../src/daemon/node-integration.ts";
 
 describe("daemon Node health integration", () => {
+  it("wraps Linux desktop daemons in a delegated systemd scope", () => {
+    const launch = resolveDaemonLaunch({
+      serverMain: "/opt/nerve/main.js",
+      args: ["--port", "3747"],
+      env: { TEST_VALUE: "preserved" },
+    });
+    if (process.platform === "linux") {
+      assert.equal(launch.command, "systemd-run");
+      assert.ok(launch.args.includes("--property=Delegate=yes"));
+      assert.ok(launch.args.includes("/opt/nerve/main.js"));
+      assert.equal(launch.env.TEST_VALUE, "preserved");
+      assert.equal(launch.env.NERVE_LINUX_DELEGATED_CGROUP, "1");
+      assert.match(launch.systemdUnit ?? "", /^nerve-daemon-.*\.scope$/);
+    } else {
+      assert.equal(launch.command, process.execPath);
+    }
+
+    const compatibility = resolveDaemonLaunch({
+      serverMain: "/opt/nerve/main.js",
+      env: { NERVE_ALLOW_UNCONTAINED_PROCESSES: "1" },
+    });
+    assert.equal(compatibility.command, process.execPath);
+    assert.equal(compatibility.systemdUnit, undefined);
+  });
+  it("waits until a PID-scoped diagnostic report is stable", async () => {
+    if (process.platform === "win32") return;
+    const home = await mkdtemp(join(tmpdir(), "nerve-diagnostic-capture-"));
+    const crashes = join(home, "crashes");
+    await mkdir(crashes);
+    const pid = 91234;
+    const report = join(crashes, `report.20260822.000000.${pid}.0.001.json`);
+    try {
+      const child = {
+        pid,
+        kill: () => {
+          setTimeout(() => void writeFile(report, '{"complete":true}'), 10);
+          return true;
+        },
+      } as Parameters<typeof captureDiagnosticReport>[0];
+      const result = await captureDiagnosticReport(child, home);
+      assert.equal(result.outcome, "captured");
+      assert.equal(result.path, report);
+      assert.ok(result.elapsedMs < 5_000);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   it("uses the authenticated minimal health endpoint", async () => {
     let requestedUrl = "";
     let authorization = "";
