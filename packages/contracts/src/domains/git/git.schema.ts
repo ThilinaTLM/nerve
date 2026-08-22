@@ -429,12 +429,12 @@ export const githubPrConversationSchema = z.object({
 });
 export type GithubPrConversation = z.infer<typeof githubPrConversationSchema>;
 
+/** Mirrors GitHub's RepositoryPermission enum (Repository.viewerPermission). */
 export const githubPrViewerPermissionSchema = z.enum([
   "ADMIN",
   "MAINTAIN",
   "WRITE",
   "READ",
-  "NONE",
 ]);
 export type GithubPrViewerPermission = z.infer<
   typeof githubPrViewerPermissionSchema

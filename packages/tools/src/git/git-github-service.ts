@@ -91,7 +91,6 @@ type GithubPrDetailRaw = {
   mergeable?: string | null;
   mergeStateStatus?: string | null;
   reviewDecision?: string | null;
-  viewerPermission?: string | null;
   comments?: {
     nodes?: Array<{
       id?: string;
@@ -133,6 +132,7 @@ type GithubPrDetailRaw = {
 type GithubRepoRaw = {
   mergeCommitAllowed?: boolean;
   squashMergeAllowed?: boolean;
+  viewerPermission?: string | null;
   rebaseMergeAllowed?: boolean;
   pullRequest?: GithubPrDetailRaw | null;
 };
@@ -155,7 +155,6 @@ const CONVERSATION_FIELDS = `
 `;
 const OVERVIEW_FIELDS = `
   headRefOid baseRefOid mergeable mergeStateStatus reviewDecision
-  viewerPermission
   labels(first: 100) { nodes { name color } }
   reviewRequests(first: 100) {
     nodes {
@@ -185,6 +184,7 @@ const CHECK_FIELDS = `
 `;
 const REPOSITORY_SETTINGS_FIELDS = `
   mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed
+  viewerPermission
 `;
 
 function repositoryQuery(fields: string, includeSettings = false): string {
@@ -371,13 +371,7 @@ export function allowedMergeMethods(raw: GithubRepoRaw): GithubPrMergeMethod[] {
   return methods;
 }
 
-const VIEWER_PERMISSIONS = [
-  "ADMIN",
-  "MAINTAIN",
-  "WRITE",
-  "READ",
-  "NONE",
-] as const;
+const VIEWER_PERMISSIONS = ["ADMIN", "MAINTAIN", "WRITE", "READ"] as const;
 
 type GithubViewerPermission = (typeof VIEWER_PERMISSIONS)[number];
 
@@ -445,7 +439,7 @@ function mapPrOverview(
     mergeable: raw.mergeable ?? null,
     mergeStateStatus: raw.mergeStateStatus ?? null,
     reviewDecision: raw.reviewDecision ?? null,
-    viewerPermission: mapViewerPermission(raw.viewerPermission),
+    viewerPermission: mapViewerPermission(settings.viewerPermission),
     behindBy,
     labels: compact(raw.labels?.nodes).flatMap((label) =>
       label.name ? [{ name: label.name, color: label.color }] : [],
