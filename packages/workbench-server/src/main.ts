@@ -8,7 +8,10 @@ import {
   DAEMON_STARTUP_PROGRESS_PREFIX,
   type DaemonStartupProgress,
 } from "@nervekit/contracts";
-import { configureManagedProcessRuntime } from "@nervekit/native";
+import {
+  configureManagedProcessRuntime,
+  initializeManagedProcessHost,
+} from "@nervekit/native";
 import WebSocket, { WebSocketServer } from "ws";
 import {
   createOrchestratorState,
@@ -107,6 +110,16 @@ async function appendStartupRecord(
 
 async function main() {
   prepareEnterpriseNetworkEnvironment();
+  const delegatedScope = process.env.NERVE_LINUX_DELEGATED_CGROUP === "1";
+  const resourceContainment = initializeManagedProcessHost({
+    delegatedScope,
+    allowUncontained:
+      process.env.NERVE_ALLOW_UNCONTAINED_PROCESSES === "1" ||
+      process.platform === "darwin" ||
+      (process.platform === "linux" &&
+        !delegatedScope &&
+        !process.env.NERVE_CGROUP_ROOT),
+  });
   configureManagedProcessRuntime({ maxActiveProcesses: 64 });
   const dataDir = resolveDataDir();
   const storageStartedAt = performance.now();
@@ -144,6 +157,7 @@ async function main() {
     applicationLogsEnabled: loggingEnabled,
     performanceDiagnosticsEnabled,
     applicationConfiguration: resolvedConfiguration.snapshot,
+    resourceContainment,
   });
   const loggerHydrateStartedAt = performance.now();
   await state.logger.hydrate();
@@ -269,12 +283,14 @@ async function main() {
             : undefined,
           dataDir: storage.paths.home,
           pid: process.pid,
+          resourceContainment,
         },
       });
       await appendStartupRecord(storage.paths.home, {
         type: "nerve.startup",
         source: "daemon",
         pid: process.pid,
+        resourceContainment,
         port: state.port,
         listeningDurationMs: Math.round(
           performance.now() - processStartupStartedAt,

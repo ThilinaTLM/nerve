@@ -19,6 +19,12 @@ Read-only, supervised, and autonomous levels govern agent tool dispatch. Plannin
 
 Direct user-initiated Git/PR/editor actions have their own UI confirmations and are not agent tool approvals.
 
+## Resource containment
+
+Managed commands always have wall-time, bounded-output, process-admission, and tree-termination controls. Linux desktop additionally runs the daemon in a delegated cgroup v2 scope and applies aggregate CPU, memory, and process/thread limits to each execution tree. Windows 11 uses Job Objects with equivalent job-level limits. macOS has no direct equivalent, so hard tree-wide CPU, memory, and process-count limits are reported unsupported.
+
+Resource containment protects daemon availability; it is not a security sandbox. Commands still run as the same user and retain filesystem, network, credential, and same-user process access. On Linux, `NERVE_ALLOW_UNCONTAINED_PROCESSES=1` explicitly disables the default delegated-scope requirement for compatibility and should be used only when that weaker behavior is understood.
+
 ## Credentials and external data
 
 Provider, Tavily, Atlassian, and other secrets use encrypted storage where implemented. At execution time, the selected service or child process necessarily receives credentials. Logs, artifacts, prompts, imported project instructions, and external tool output can still expose sensitive information.

@@ -9,6 +9,7 @@ import {
   type ApplicationConfigurationSnapshot,
   createId,
   type DaemonFile,
+  type ManagedResourceContainmentStatus,
   type MobileHttpsInfo,
   type StatusResponse,
 } from "@nervekit/contracts";
@@ -69,6 +70,7 @@ export interface OrchestratorState {
   agentBrowserSkills: AgentBrowserSkillCatalog;
   performanceDiagnostics: PerformanceDiagnosticsPort;
   applicationConfiguration: ApplicationConfigurationSnapshot;
+  resourceContainment: ManagedResourceContainmentStatus;
 }
 
 export function createOrchestratorState(
@@ -79,6 +81,7 @@ export function createOrchestratorState(
     applicationLogsEnabled?: boolean;
     performanceDiagnosticsEnabled?: boolean;
     applicationConfiguration?: ApplicationConfigurationSnapshot;
+    resourceContainment?: ManagedResourceContainmentStatus;
   } = {},
 ): OrchestratorState {
   const index = new IndexStore(storage.paths.sqlitePath);
@@ -228,6 +231,12 @@ export function createOrchestratorState(
     agentBrowserSkills,
     subscriptionUsage,
     performanceDiagnostics,
+    resourceContainment: options.resourceContainment ?? {
+      backend: "process_group",
+      hardLimitsAvailable: false,
+      enforcement: "best_effort",
+      detail: "Managed resource containment was not initialized",
+    },
     applicationConfiguration:
       options.applicationConfiguration ??
       resolveApplicationConfiguration({
@@ -307,5 +316,6 @@ export function statusResponse(state: OrchestratorState): StatusResponse {
       python: state.registry.pythonRuntime.statusSnapshot(),
       editors: state.registry.editors.statusSnapshot(),
     },
+    resourceContainment: state.resourceContainment,
   };
 }

@@ -32,6 +32,16 @@ const mobileHttpsInfoSchema = z.object({
 });
 export type MobileHttpsInfo = z.infer<typeof mobileHttpsInfoSchema>;
 
+export const managedResourceContainmentStatusSchema = z.object({
+  backend: z.enum(["cgroup_v2", "windows_job", "process_group"]),
+  hardLimitsAvailable: z.boolean(),
+  enforcement: z.enum(["required", "best_effort"]),
+  detail: z.string().optional(),
+});
+export type ManagedResourceContainmentStatus = z.infer<
+  typeof managedResourceContainmentStatusSchema
+>;
+
 export const statusResponseSchema = z.object({
   daemonId: z.string().startsWith("daemon_"),
   version: z.string(),
@@ -51,6 +61,7 @@ export const statusResponseSchema = z.object({
     python: pythonRuntimeStatusSchema,
     editors: externalEditorStatusesSchema,
   }),
+  resourceContainment: managedResourceContainmentStatusSchema,
 });
 export type StatusResponse = z.infer<typeof statusResponseSchema>;
 

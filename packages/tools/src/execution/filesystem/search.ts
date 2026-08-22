@@ -125,7 +125,7 @@ async function runRg(
     let child: ChildProcessByStdio<null, Readable, Readable>;
     try {
       child = spawnManagedChildProcess("rg", rgArgs, {
-        policy: searchProcessPolicy,
+        policy: searchProcessPolicy(),
       }) as ChildProcessByStdio<null, Readable, Readable>;
     } catch (error) {
       reject(commandUnavailableError(error));
