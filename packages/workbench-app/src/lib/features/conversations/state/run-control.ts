@@ -16,17 +16,24 @@ import { openConversation } from "./tabs";
 export async function navigateToEntry(
   entryId: string | undefined,
   summarize = false,
-) {
-  if (!selection.conversationId) return;
+): Promise<boolean> {
+  if (!selection.conversationId) return false;
   const conversationId = selection.conversationId;
-  await protocolRequest("conversation.navigate", {
-    conversationId,
-    activeEntryId: entryId ?? null,
-    summarize,
-  });
-  await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
-  await reloadWorkspace();
-  await openConversation(conversationId);
+  try {
+    await protocolRequest("conversation.navigate", {
+      conversationId,
+      activeEntryId: entryId ?? null,
+      summarize,
+    });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
+    await reloadWorkspace();
+    await openConversation(conversationId);
+    return true;
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    notify.error("Could not branch conversation", { description: message });
+    return false;
+  }
 }
 
 export async function compactActiveConversation() {

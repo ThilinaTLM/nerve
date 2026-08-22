@@ -48,6 +48,7 @@ export interface ConversationQueryServiceDeps {
   listToolCallPreviews: (conversationId: string) => ToolCallTranscriptRecord[];
   getActiveRun: (
     conversationId: string,
+    activeEntryIds: readonly string[],
   ) => Promise<ConversationActiveRunSnapshot | undefined>;
 }
 
@@ -65,7 +66,10 @@ export class ConversationQueryService {
       .catch(() => undefined);
     const entries = this.deps.getConversationEntries(conversationId);
     const activeEntryIds = entries.map((entry) => entry.id);
-    const activeRun = await this.deps.getActiveRun(conversationId);
+    const activeRun = await this.deps.getActiveRun(
+      conversationId,
+      activeEntryIds,
+    );
     return {
       conversation: this.deps.state.getConversation(conversationId),
       entries,
@@ -88,15 +92,11 @@ export class ConversationQueryService {
     entries: ConversationEntry[],
     activeRunId: string | undefined,
   ): ToolCallTranscriptRecord[] {
-    const runIds = new Set(
-      entries.flatMap((entry) => (entry.runId ? [entry.runId] : [])),
-    );
     const toolIds = toolRecordIdsFromEntries(entries);
     return this.deps.listToolCallPreviews(conversationId).filter((toolCall) => {
       if (toolCall.conversationId !== conversationId) return false;
       if (toolCall.hidden) return false;
       if (activeRunId && toolCall.runId === activeRunId) return true;
-      if (toolCall.runId && runIds.has(toolCall.runId)) return true;
       if (toolIds.has(toolCall.id)) return true;
       if (toolCall.sourceToolCallId && toolIds.has(toolCall.sourceToolCallId))
         return true;

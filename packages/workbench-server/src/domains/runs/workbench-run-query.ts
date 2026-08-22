@@ -20,6 +20,7 @@ export class WorkbenchRunQuery {
 
   async activeForConversation(
     conversationId: string,
+    activeEntryIds?: readonly string[],
   ): Promise<ConversationActiveRunSnapshot | undefined> {
     const canonical = (await this.unitOfWork.listActive())
       .filter(
@@ -29,6 +30,17 @@ export class WorkbenchRunQuery {
       )
       .sort((a, b) => b.run.updatedAt.localeCompare(a.run.updatedAt))[0];
     if (!canonical) return undefined;
+    const branchAnchor = canonical.checkpoints.find(
+      (checkpoint) =>
+        checkpoint.checkpointId === canonical.run.lastCheckpointId,
+    )?.harnessLeafId;
+    if (
+      activeEntryIds &&
+      branchAnchor &&
+      !activeEntryIds.includes(branchAnchor)
+    ) {
+      return undefined;
+    }
     const transient =
       this.state.conversationRuntime.snapshotForConversation(conversationId);
     const retry = retrySnapshot(canonical);

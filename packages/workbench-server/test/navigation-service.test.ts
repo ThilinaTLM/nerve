@@ -96,6 +96,7 @@ describe("NavigationService", () => {
           events.push({ type, data });
         },
       } as never,
+      async () => undefined,
     );
 
     const updated = await service.navigateConversation("conv_test", {
@@ -117,5 +118,67 @@ describe("NavigationService", () => {
     assert.equal(navigated?.data.activeEntryId, "entry_summary");
     assert.equal(navigated?.data.targetEntryId, "entry_target");
     assert.equal(navigated?.data.summaryEntry, undefined);
+  });
+
+  it("protects the harness leaf until a live run is interrupted", async () => {
+    let conversation = {
+      id: "conv_test",
+      projectId: "proj_test",
+      title: "Test",
+      mode: "coding",
+      permissionLevel: "standard",
+      approvalPolicy: {},
+      activeEntryId: "entry_old",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    } as never;
+    const targetEntry = {
+      id: "entry_target",
+      conversationId: "conv_test",
+      role: "user",
+      kind: "message",
+      text: "target",
+      createdAt: timestamp,
+    } as never;
+    let leafId = "entry_old";
+    let activeRunStatus: "running" | "interrupted" = "running";
+    const service = new NavigationService(
+      () => conversation,
+      () => ({ id: "proj_test", dir: "/tmp/project" }) as never,
+      new Map([["conv_test", [targetEntry]]]),
+      async (updated) => {
+        conversation = updated as never;
+      },
+      async () => targetEntry,
+      {
+        setLeaf: async (
+          _conversation: unknown,
+          entryId: string | undefined,
+        ) => {
+          leafId = entryId ?? "";
+        },
+      } as never,
+      async () => undefined,
+      { publish: async () => undefined } as never,
+      async () => activeRunStatus,
+    );
+
+    await assert.rejects(
+      service.navigateConversation("conv_test", {
+        activeEntryId: "entry_target",
+      }),
+      (error: unknown) =>
+        error instanceof Error &&
+        error.message ===
+          "Stop or interrupt the active run before branching from conversation history.",
+    );
+    assert.equal(leafId, "entry_old");
+
+    activeRunStatus = "interrupted";
+    const updated = await service.navigateConversation("conv_test", {
+      activeEntryId: "entry_target",
+    });
+    assert.equal(updated.activeEntryId, "entry_target");
+    assert.equal(leafId, "entry_target");
   });
 });

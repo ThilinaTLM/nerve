@@ -288,6 +288,8 @@ export function composeRuntime(
     services.harnessStorage,
     rebuildConversations,
     events,
+    async (conversationId) =>
+      (await services.runQuery.activeForConversation(conversationId))?.status,
   );
   services.exportService = new ExportService(
     getConversation,
@@ -361,8 +363,8 @@ export function composeRuntime(
       services.workbenchRun.getContextUsage(conversationId),
     listToolCallPreviews: (conversationId) =>
       services.tools.listToolCallPreviews({ conversationId, limit: 1_000 }),
-    getActiveRun: (conversationId) =>
-      services.runQuery.activeForConversation(conversationId),
+    getActiveRun: (conversationId, activeEntryIds) =>
+      services.runQuery.activeForConversation(conversationId, activeEntryIds),
   });
   services.agentLifecycle = new AgentLifecycleService(
     storage,
