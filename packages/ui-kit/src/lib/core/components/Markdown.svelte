@@ -631,6 +631,9 @@ $effect(() => () => streamingScheduler.destroy());
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  border-radius: calc(var(--radius) - 0.25rem);
+  background: color-mix(in oklab, var(--card) 60%, transparent);
 }
 
 .markdown :global(table) {
@@ -638,14 +641,17 @@ $effect(() => () => streamingScheduler.destroy());
   min-width: 0;
   max-width: 100%;
   table-layout: fixed;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
 }
 
 .markdown :global(th),
 .markdown :global(td) {
-  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
+  border-left: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 2.5);
   text-align: left;
   vertical-align: top;
   white-space: normal;
@@ -653,8 +659,31 @@ $effect(() => () => streamingScheduler.destroy());
   word-break: break-word;
 }
 
+.markdown :global(tbody tr:last-child th),
+.markdown :global(tbody tr:last-child td) {
+  border-bottom: none;
+}
+
+.markdown :global(th:first-child),
+.markdown :global(td:first-child) {
+  border-left: none;
+}
+
+.markdown :global(tbody tr:nth-child(odd)) {
+  background: color-mix(in oklab, var(--muted) 35%, transparent);
+}
+
+.markdown :global(tbody tr:hover) {
+  background: color-mix(in oklab, var(--accent) 45%, transparent);
+}
+
 .markdown :global(th) {
-  background: var(--input);
-  color: var(--foreground);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in oklab, var(--card) 92%, var(--muted));
+  color: var(--muted-foreground);
+  font-weight: var(--font-weight-medium);
+  border-bottom-color: color-mix(in oklab, var(--border) 80%, transparent);
 }
 </style>
