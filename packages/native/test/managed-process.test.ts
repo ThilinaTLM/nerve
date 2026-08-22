@@ -331,7 +331,7 @@ describe("native managed process facade", () => {
   });
 
   it(
-    "preserves detached descendants after the root exits",
+    "contains detached descendants according to platform guarantees",
     { timeout: 5_000 },
     async () => {
       const managed = spawnManagedProcess(node, [
@@ -344,7 +344,10 @@ describe("native managed process facade", () => {
       const childPid = await firstOutputNumber(managed.stdout);
       try {
         assert.equal((await managed.closed).exitCode, 0);
-        assert.equal(await processIsAlive(childPid), true);
+        assert.equal(
+          await processIsAlive(childPid),
+          process.platform !== "win32",
+        );
       } finally {
         try {
           process.kill(childPid, "SIGKILL");

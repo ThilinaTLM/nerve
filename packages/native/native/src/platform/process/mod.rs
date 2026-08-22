@@ -246,9 +246,8 @@ fn prepare_resource_limits(
     _process: &mut Command,
     policy: &ResourcePolicy,
 ) -> Result<PreparedResources, String> {
-    let mut backend_error: Option<String> = None;
     #[cfg(target_os = "linux")]
-    if policy.memory_bytes.is_some()
+    let backend_error = if policy.memory_bytes.is_some()
         || policy.max_cpu_cores.is_some()
         || policy.max_processes.is_some()
     {
@@ -260,9 +259,13 @@ fn prepare_resource_limits(
                 });
             }
             Err(error) if policy.enforcement == EnforcementMode::Required => return Err(error),
-            Err(error) => backend_error = Some(error),
+            Err(error) => Some(error),
         }
-    }
+    } else {
+        None
+    };
+    #[cfg(target_os = "macos")]
+    let backend_error: Option<String> = None;
 
     let mut entries = Vec::new();
     record_unsupported(
