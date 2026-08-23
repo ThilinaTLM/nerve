@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { discoverEditorialCatalog } from "./discover-catalog.js";
+import { discoverEditorialCatalog } from "./catalog.js";
 import {
   buildDiscoverSections,
   discoverAttentionCount,
   resolveDiscoverEditorial,
   shouldOpenDiscoverOnStartup,
   unseenEditorialCount,
-} from "./discover-policy.js";
-import { guideCatalog } from "./guide-catalog.js";
-import { resolveGuides } from "./guide-catalog-policy.js";
+} from "./policy.js";
+import { guideCatalog } from "./guides/catalog.js";
+import { resolveGuides } from "./guides/catalog-policy.js";
 
 const noSignals = {
   "project-open": false,

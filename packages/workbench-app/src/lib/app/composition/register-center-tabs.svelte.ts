@@ -27,7 +27,7 @@ import {
 import {
   closeDiscoverTab,
   selectCenterDiscoverTab,
-} from "$lib/app/onboarding/discover-tabs.svelte";
+} from "$lib/app/discover/tabs.svelte";
 import {
   closeSettingsTab,
   selectCenterSettingsTab,

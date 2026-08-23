@@ -1,9 +1,9 @@
-import type { ResolvedGuide } from "./guide-catalog-policy.js";
+import type { ResolvedGuide } from "./guides/catalog-policy.js";
 import type {
   DiscoverEditorialDefinition,
   DiscoverEditorialId,
-} from "./discover-catalog.js";
-import type { DiscoverSeenVersions } from "./discover-progress.js";
+} from "./catalog.js";
+import type { DiscoverSeenVersions } from "./progress.js";
 
 export type ResolvedDiscoverEditorial = DiscoverEditorialDefinition & {
   unseen: boolean;

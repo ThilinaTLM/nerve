@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { adjacentSetupStep, setupStepsForArea } from "./setup-guide-policy.js";
+import { adjacentSetupStep, setupStepsForArea } from "./setup-policy.js";
 
 describe("setup guide policy", () => {
   it("opens the project picker before highlighting Browse", () => {

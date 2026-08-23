@@ -8,21 +8,15 @@ import {
   guideState,
   moveSetupGuide,
   moveTour,
-} from "../guide-state.svelte.js";
-import { considerAutomaticDiscover } from "../discover-state.svelte.js";
-import GuidedTourOverlay from "./GuidedTourOverlay.svelte";
-
-$effect(() => {
-  if (responsive.isPhone) return;
-  considerAutomaticDiscover();
-});
+} from "../state.svelte.js";
+import GuideOverlay from "./GuideOverlay.svelte";
 
 const tourStep = $derived(currentTourStep());
 const setupStep = $derived(currentSetupStep());
 </script>
 
 {#if !responsive.isPhone && guideState.mode === "tour" && tourStep}
-  <GuidedTourOverlay
+  <GuideOverlay
     step={tourStep}
     variant="modal"
     index={guideState.stepIndex}
@@ -35,7 +29,7 @@ const setupStep = $derived(currentSetupStep());
     onClose={closeActiveRun}
   />
 {:else if !responsive.isPhone && guideState.mode === "coach" && setupStep}
-  <GuidedTourOverlay
+  <GuideOverlay
     step={setupStep}
     variant="coach"
     index={guideState.setupStepIndex}

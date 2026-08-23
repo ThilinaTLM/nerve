@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { DiscoverNewsArtwork } from "../discover-catalog.js";
+import type { DiscoverNewsArtwork } from "../catalog.js";
 
 type Props = {
   artwork: DiscoverNewsArtwork;

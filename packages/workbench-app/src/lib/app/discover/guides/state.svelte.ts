@@ -19,26 +19,26 @@ import {
 import { workspaceSelectors } from "$lib/application/workspace";
 import { newConversation } from "$lib/application/workspace/workspace-actions.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
-import { guideCatalog, type GuideId } from "./guide-catalog.js";
+import { guideCatalog, type GuideId } from "./catalog.js";
 import {
   autoCompletedGuideIds,
   incompleteGuideCount as countIncompleteGuides,
   resolveGuides,
   type GuideSignals,
   type ResolvedGuide,
-} from "./guide-catalog-policy.js";
+} from "./catalog-policy.js";
 import {
   completeGuideVersion,
   readGuideCompletionVersions,
   writeGuideCompletionVersions,
   type GuideCompletionVersions,
-} from "./guide-completion.js";
-import { guideItemsForRun, tourSteps, type TourStep } from "./guide-content.js";
-import { adjacentStep } from "./guide-controller.js";
-import { setupStepsForArea, adjacentSetupStep } from "./setup-guide-policy.js";
-import type { SetupGuideArea, SetupGuideStep } from "./setup-guide-content.js";
+} from "./completion.js";
+import { guideItemsForRun, tourSteps, type TourStep } from "./tour-content.js";
+import { adjacentStep } from "./tour-controller.js";
+import { setupStepsForArea, adjacentSetupStep } from "./setup-policy.js";
+import type { SetupGuideArea, SetupGuideStep } from "./setup-content.js";
 import { activeTabIsConversation } from "./tour-readiness.js";
-import { openDiscoverPane } from "./discover-tabs.svelte.js";
+import { openDiscoverPane } from "../tabs.svelte.js";
 
 type GuideMode = "closed" | "tour" | "preparing-coach" | "coach";
 

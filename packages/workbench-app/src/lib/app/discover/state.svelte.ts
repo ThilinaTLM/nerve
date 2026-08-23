@@ -1,25 +1,25 @@
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { discoverEditorialCatalog } from "./discover-catalog.js";
+import { discoverEditorialCatalog } from "./catalog.js";
 import {
   buildDiscoverSections,
   discoverAttentionCount,
   resolveDiscoverEditorial,
   shouldOpenDiscoverOnStartup,
   unseenEditorialCount,
-} from "./discover-policy.js";
+} from "./policy.js";
 import {
   markEditorialSeen,
   readDiscoverSeenVersions,
   writeDiscoverSeenVersions,
   type DiscoverSeenVersions,
-} from "./discover-progress.js";
-import { openDiscoverPane } from "./discover-tabs.svelte.js";
+} from "./progress.js";
+import { openDiscoverPane } from "./tabs.svelte.js";
 import {
   catalogGuides,
   incompleteGuideCount,
   reconcileComputedGuideCompletion,
-} from "./guide-state.svelte.js";
+} from "./guides/state.svelte.js";
 
 export const discoverState = $state({
   consideredGeneration: undefined as number | undefined,

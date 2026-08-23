@@ -2,9 +2,9 @@
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import Lightbulb from "@lucide/svelte/icons/lightbulb";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import type { DiscoverEditorialAction } from "../discover-catalog.js";
-import type { GuideId } from "../guide-catalog.js";
-import type { DiscoverSections } from "../discover-policy.js";
+import type { DiscoverEditorialAction } from "../catalog.js";
+import type { GuideId } from "../guides/catalog.js";
+import type { DiscoverSections } from "../policy.js";
 import DiscoverCard from "./DiscoverCard.svelte";
 import DiscoverNewsCarousel from "./DiscoverNewsCarousel.svelte";
 

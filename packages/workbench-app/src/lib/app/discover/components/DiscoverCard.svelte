@@ -15,10 +15,10 @@ import type { Component } from "svelte";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Card, CardContent } from "@nervekit/ui-kit/components/ui/card";
-import type { ResolvedDiscoverEditorial } from "../discover-policy.js";
-import type { DiscoverEditorialAction } from "../discover-catalog.js";
-import type { GuideId, GuidePriority } from "../guide-catalog.js";
-import type { ResolvedGuide } from "../guide-catalog-policy.js";
+import type { ResolvedDiscoverEditorial } from "../policy.js";
+import type { DiscoverEditorialAction } from "../catalog.js";
+import type { GuideId, GuidePriority } from "../guides/catalog.js";
+import type { ResolvedGuide } from "../guides/catalog-policy.js";
 
 type Props = {
   guide?: ResolvedGuide;

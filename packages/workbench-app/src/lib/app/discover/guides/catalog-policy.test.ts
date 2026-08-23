@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { guideCatalog, type GuideDefinition } from "./guide-catalog.js";
-import { guideItemsForRun } from "./guide-content.js";
+import { guideCatalog, type GuideDefinition } from "./catalog.js";
+import { guideItemsForRun } from "./tour-content.js";
 import {
   autoCompletedGuideIds,
   incompleteGuideCount,
   resolveGuides,
-} from "./guide-catalog-policy.js";
+} from "./catalog-policy.js";
 
 const noSignals = {
   "project-open": false,

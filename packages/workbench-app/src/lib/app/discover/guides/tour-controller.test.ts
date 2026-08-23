@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { adjacentStep, calloutPlacement } from "./guide-controller.js";
+import { adjacentStep, calloutPlacement } from "./tour-controller.js";
 
-describe("onboarding guide policy", () => {
+describe("tour controller", () => {
   it("clamps step navigation", () => {
     assert.equal(adjacentStep(0, 3, -1), 0);
     assert.equal(adjacentStep(1, 3, 1), 2);

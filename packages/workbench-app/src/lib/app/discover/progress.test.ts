@@ -5,7 +5,7 @@ import {
   markEditorialSeen,
   readDiscoverSeenVersions,
   writeDiscoverSeenVersions,
-} from "./discover-progress.js";
+} from "./progress.js";
 
 function storage(initial?: string) {
   const values = new Map<string, string>();

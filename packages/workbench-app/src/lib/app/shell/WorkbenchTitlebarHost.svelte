@@ -24,11 +24,8 @@ import {
 } from "$lib/platform/desktop";
 import { releaseState } from "$lib/features/releases";
 import { openLogsPane } from "$lib/features/logs";
-import {
-  discoverTitlebarCount,
-  guideState,
-  openDiscoverPane,
-} from "$lib/app/onboarding";
+import { discoverTitlebarCount, openDiscoverPane } from "$lib/app/discover";
+import { guideState } from "$lib/app/discover/guides";
 import { settingsSelectors } from "$lib/features/settings";
 import { openSettingsPane } from "$lib/application/settings";
 import {

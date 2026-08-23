@@ -1,4 +1,4 @@
-import type { GuideId } from "./guide-catalog.js";
+import type { GuideId } from "./guides/catalog.js";
 
 export type DiscoverEditorialId =
   | "discover-home"

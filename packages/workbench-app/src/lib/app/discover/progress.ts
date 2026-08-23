@@ -1,7 +1,7 @@
 import {
   discoverEditorialCatalog,
   type DiscoverEditorialId,
-} from "./discover-catalog.js";
+} from "./catalog.js";
 
 export const DISCOVER_SEEN_STORAGE_KEY = "nerve.discover.seen";
 

@@ -2,7 +2,7 @@ import {
   setupGuideSteps,
   type SetupGuideArea,
   type SetupGuideStep,
-} from "./setup-guide-content.js";
+} from "./setup-content.js";
 
 export function setupStepsForArea(
   area: SetupGuideArea,

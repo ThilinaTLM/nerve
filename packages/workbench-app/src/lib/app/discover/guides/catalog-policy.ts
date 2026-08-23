@@ -2,8 +2,8 @@ import type {
   GuideCompletionSignal,
   GuideDefinition,
   GuideId,
-} from "./guide-catalog.js";
-import type { GuideCompletionVersions } from "./guide-completion.js";
+} from "./catalog.js";
+import type { GuideCompletionVersions } from "./completion.js";
 
 export type GuideSignals = Record<GuideCompletionSignal, boolean>;
 

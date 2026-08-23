@@ -1,16 +1,13 @@
 <script lang="ts">
 import { openSettingsPane } from "$lib/application/settings";
 import { workspaceSelectors } from "$lib/application/workspace";
-import DiscoverView from "$lib/app/onboarding/components/DiscoverView.svelte";
 import {
+  DiscoverView,
   discoverSections,
   markDiscoverSeen,
-} from "$lib/app/onboarding/discover-state.svelte";
-import {
-  markGuideCompleted,
-  startGuide,
-} from "$lib/app/onboarding/guide-state.svelte";
-import type { DiscoverEditorialAction } from "$lib/app/onboarding/discover-catalog";
+  type DiscoverEditorialAction,
+} from "$lib/app/discover";
+import { markGuideCompleted, startGuide } from "$lib/app/discover/guides";
 
 const sections = $derived(discoverSections());
 $effect(() => {

@@ -1,4 +1,4 @@
-import type { SetupGuideArea } from "./setup-guide-content.js";
+import type { SetupGuideArea } from "./setup-content.js";
 
 export type GuideId =
   | "open-project"

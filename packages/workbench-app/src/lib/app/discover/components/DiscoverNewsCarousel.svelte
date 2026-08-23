@@ -5,8 +5,8 @@ import { onMount } from "svelte";
 import { fade } from "svelte/transition";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import type { DiscoverEditorialAction } from "../discover-catalog.js";
-import type { ResolvedDiscoverHighlight } from "../discover-policy.js";
+import type { DiscoverEditorialAction } from "../catalog.js";
+import type { ResolvedDiscoverHighlight } from "../policy.js";
 import DiscoverNewsArtwork from "./DiscoverNewsArtwork.svelte";
 
 type Props = {
