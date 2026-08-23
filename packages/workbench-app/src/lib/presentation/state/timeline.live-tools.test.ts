@@ -340,6 +340,54 @@ describe("buildConversationTimeline live tools", () => {
     assert.deepEqual(timeline.filter((item) => item.kind === "tool").length, 1);
   });
 
+  it("overlays live output onto an already materialized tool card", () => {
+    const record = toolCall(
+      "tool_materialized",
+      "2026-01-01T00:00:01.000Z",
+      "bash",
+      "provider_call_1",
+      {
+        runId: "run_active",
+        liveMessageId: "msg_materialized",
+        contentIndex: 1,
+        status: "running",
+      },
+    );
+    const timeline = buildConversationTimeline(
+      [
+        { id: "entry_user", role: "user", text: "Run command" },
+        {
+          id: "entry_assistant",
+          role: "assistant",
+          text: "[Tool call: bash]",
+          liveMessageId: "msg_materialized",
+        },
+      ],
+      [record],
+      activeRun({
+        runId: "run_active",
+        toolOutputsByToolCallId: {
+          tool_materialized: {
+            toolCallId: "tool_materialized",
+            chunks: [
+              {
+                stream: "stdout",
+                text: "tick 1\n",
+                ts: "2026-01-01T00:00:02.000Z",
+              },
+            ],
+            text: "tick 1\n",
+            updatedAt: "2026-01-01T00:00:02.000Z",
+          },
+        },
+      }),
+    );
+
+    const tools = timeline.filter((item) => item.kind === "tool");
+    assert.equal(tools.length, 1);
+    assert.equal(tools[0]?.liveOutput?.text, "tick 1\n");
+  });
+
   it("does not render orphaned live-status tools without an active owner", () => {
     const timeline = buildConversationTimeline(
       [{ id: "entry_final", role: "assistant", text: "All done." }],

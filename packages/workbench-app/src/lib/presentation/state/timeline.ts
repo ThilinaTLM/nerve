@@ -456,15 +456,20 @@ export function selectVisibleCommitted(
     (!context || context.failedAssistantRunIds.has(activeRun.runId))
       ? activeRun.runId
       : undefined;
+  const liveOutputs = activeRun?.toolOutputsByToolCallId;
+  const hasLiveOutputs = Boolean(liveOutputs && Object.keys(liveOutputs).length);
 
-  if (hiddenEntryIds.size === 0 && !hiddenRunId) return items;
+  if (hiddenEntryIds.size === 0 && !hiddenRunId && !hasLiveOutputs) return items;
 
   const hidden = [...hiddenEntryIds];
+  const visible: TimelineItem[] = [];
+  let changed = false;
 
-  return items.filter((item) => {
+  for (const item of items) {
     const entryId = committedEntryId(item);
     if (entryId && hidden.some((value) => entryIdMatches(entryId, value))) {
-      return false;
+      changed = true;
+      continue;
     }
     if (
       hiddenRunId &&
@@ -473,12 +478,27 @@ export function selectVisibleCommitted(
       item.item.stopReason === "error" &&
       item.item.runId === hiddenRunId
     ) {
-      return false;
+      changed = true;
+      continue;
     }
-    return true;
-  });
-}
 
+    if (
+      activeRun &&
+      item.kind === "tool" &&
+      item.toolCall?.runId === activeRun.runId
+    ) {
+      const liveOutput = liveOutputs?.[item.toolCall.id];
+      if (liveOutput && item.liveOutput !== liveOutput) {
+        visible.push({ ...item, liveOutput });
+        changed = true;
+        continue;
+      }
+    }
+    visible.push(item);
+  }
+
+  return changed ? visible : items;
+}
 type MessageSlot =
   | { contentIndex: number; order: number; type: "block"; blockIndex: number }
   | {
