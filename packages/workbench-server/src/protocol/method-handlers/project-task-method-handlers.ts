@@ -11,6 +11,8 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
   }),
   "project.openEditor": (state, params) =>
     state.registry.openProjectInEditor(params.projectId, params),
+  "project.openTerminal": (state, params) =>
+    state.registry.openProjectInTerminal(params.projectId, params),
   "project.conversations.prune": (state, params) =>
     state.registry.pruneProjectConversations(params.projectId, params),
   "project.delete": async (state, params) => {

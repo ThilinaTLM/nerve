@@ -14,10 +14,7 @@ let {
 } = $props();
 </script>
 
-<span
-  class="flex size-3.5 shrink-0 items-center justify-center"
-  aria-hidden="true"
->
+<span class="flex shrink-0 items-center justify-center" aria-hidden="true">
   {#if activity.indicator === "needs-user"}
     <Bell class="size-3 text-warning" />
   {:else if activity.indicator === "error"}

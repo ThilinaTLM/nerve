@@ -17,9 +17,9 @@ Import creates new IDs and remaps parent references. Valid entries from the comp
 
 Importing a conversation does not import its original project directory or source files. Associate work with a directory available on the current machine.
 
-## Open an external editor
+## Open an external editor or terminal
 
-Nerve discovers and launches **Visual Studio Code** and **Zed** through PATH, operating-system application integration, and known locations. Other editors are not currently exposed by the project editor service.
+Nerve discovers and launches **Visual Studio Code** and **Zed** through PATH, operating-system application integration, and known locations. Project context menus target the project root; Files panel context menus can target an individual file or folder. Project roots and folders can also be opened in a supported host terminal. Other editors are not currently exposed.
 
 The workbench file pane remains a preview. Continue editing in your external editor or through approved agent file tools.
 

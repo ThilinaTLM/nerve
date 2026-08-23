@@ -25,6 +25,16 @@ export type ExternalEditorStatuses = z.infer<
   typeof externalEditorStatusesSchema
 >;
 
+export const externalTerminalStatusSchema = z.object({
+  available: z.boolean(),
+  source: z.enum(["path", "system", "known_path"]).optional(),
+  executable: z.string().optional(),
+  error: z.string().optional(),
+});
+export type ExternalTerminalStatus = z.infer<
+  typeof externalTerminalStatusSchema
+>;
+
 const mobileHttpsInfoSchema = z.object({
   port: z.number().int().positive(),
   url: z.string().url(),
@@ -60,6 +70,7 @@ export const statusResponseSchema = z.object({
   runtime: z.object({
     python: pythonRuntimeStatusSchema,
     editors: externalEditorStatusesSchema,
+    terminal: externalTerminalStatusSchema,
   }),
   resourceContainment: managedResourceContainmentStatusSchema,
 });
