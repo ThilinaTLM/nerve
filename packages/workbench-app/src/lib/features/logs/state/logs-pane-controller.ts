@@ -3,6 +3,7 @@ import type {
   ApplicationLogPruneRequest,
   ApplicationLogQuery,
   ApplicationLogQueryResponse,
+  ApplicationLogRecord,
   ApplicationLogSource,
 } from "@nervekit/contracts";
 
@@ -16,6 +17,8 @@ export type LogsPaneDependencies = {
   ) => Promise<{ pruned: number }>;
   writeText: (text: string) => Promise<void>;
 };
+
+const LOG_PAGE_SIZE = 200;
 
 export function logsFilterRequest(input: {
   level: LogLevelFilter;
@@ -31,9 +34,7 @@ export function logsFilterRequest(input: {
   };
 }
 
-export function serializeApplicationLogs(
-  logs: ApplicationLogQueryResponse["logs"],
-): string {
+export function serializeApplicationLogs(logs: ApplicationLogRecord[]): string {
   return logs
     .map(
       (log) =>
@@ -43,17 +44,20 @@ export function serializeApplicationLogs(
 }
 
 export class LogsPaneController {
-  logs: ApplicationLogQueryResponse | undefined;
+  rows: ApplicationLogRecord[] = [];
   level: LogLevelFilter = "all";
   source: LogSourceFilter = "all";
   component = "";
   contains = "";
+  hasMoreBefore = false;
   loading = false;
+  loadingEarlier = false;
   pruning = false;
   error: string | undefined;
+  historyError: string | undefined;
   notice: string | undefined;
 
-  #refreshGeneration = 0;
+  #generation = 0;
   readonly #dependencies: LogsPaneDependencies;
   readonly #onChange: () => void;
 
@@ -63,10 +67,6 @@ export class LogsPaneController {
   ) {
     this.#dependencies = dependencies;
     this.#onChange = onChange;
-  }
-
-  get rows(): ApplicationLogQueryResponse["logs"] {
-    return [...(this.logs?.logs ?? [])].reverse();
   }
 
   get filtersActive(): boolean {
@@ -80,27 +80,31 @@ export class LogsPaneController {
 
   get pruneDescription(): string {
     return this.filtersActive
-      ? "This removes stored Nerve application logs matching the current filters. New request logs may appear immediately after pruning."
-      : "This removes stored Nerve application logs. New request logs may appear immediately after pruning.";
+      ? "This removes every stored Nerve application log matching the current filters, including entries that are not loaded. New request logs may appear immediately after pruning."
+      : "This removes every stored Nerve application log, including entries that are not loaded. New request logs may appear immediately after pruning.";
   }
 
   setLevel(value: LogLevelFilter): void {
     this.level = value;
+    this.invalidateHistory();
     this.#onChange();
   }
 
   setSource(value: LogSourceFilter): void {
     this.source = value;
+    this.invalidateHistory();
     this.#onChange();
   }
 
   setComponent(value: string): void {
     this.component = value;
+    this.invalidateHistory();
     this.#onChange();
   }
 
   setContains(value: string): void {
     this.contains = value;
+    this.invalidateHistory();
     this.#onChange();
   }
 
@@ -109,23 +113,68 @@ export class LogsPaneController {
   }
 
   async refresh(): Promise<void> {
-    const generation = ++this.#refreshGeneration;
+    const generation = ++this.#generation;
     this.loading = true;
+    this.loadingEarlier = false;
     this.error = undefined;
+    this.historyError = undefined;
     this.#onChange();
     try {
-      const logs = await this.#dependencies.getLogs({
+      const response = await this.#dependencies.getLogs({
         ...this.currentFilterRequest(),
-        limit: 160,
+        limit: LOG_PAGE_SIZE,
       });
-      if (generation === this.#refreshGeneration) this.logs = logs;
+      if (generation !== this.#generation) return;
+      this.rows = response.logs.toReversed();
+      this.hasMoreBefore = response.hasMoreBefore;
     } catch (caught) {
-      if (generation === this.#refreshGeneration) {
+      if (generation === this.#generation) {
         this.error = caught instanceof Error ? caught.message : String(caught);
       }
     } finally {
-      if (generation === this.#refreshGeneration) {
+      if (generation === this.#generation) {
         this.loading = false;
+        this.#onChange();
+      }
+    }
+  }
+
+  async loadEarlier(): Promise<void> {
+    const beforeSeq = this.rows.at(-1)?.seq;
+    if (
+      beforeSeq === undefined ||
+      !this.hasMoreBefore ||
+      this.loading ||
+      this.loadingEarlier
+    ) {
+      return;
+    }
+
+    const generation = this.#generation;
+    this.loadingEarlier = true;
+    this.historyError = undefined;
+    this.#onChange();
+    try {
+      const response = await this.#dependencies.getLogs({
+        ...this.currentFilterRequest(),
+        beforeSeq,
+        limit: LOG_PAGE_SIZE,
+      });
+      if (generation !== this.#generation) return;
+      const loadedIds = new Set(this.rows.map((log) => log.id));
+      const older = response.logs
+        .toReversed()
+        .filter((log) => !loadedIds.has(log.id));
+      this.rows = [...this.rows, ...older];
+      this.hasMoreBefore = response.hasMoreBefore;
+    } catch (caught) {
+      if (generation === this.#generation) {
+        this.historyError =
+          caught instanceof Error ? caught.message : String(caught);
+      }
+    } finally {
+      if (generation === this.#generation) {
+        this.loadingEarlier = false;
         this.#onChange();
       }
     }
@@ -136,7 +185,15 @@ export class LogsPaneController {
     this.source = "all";
     this.component = "";
     this.contains = "";
+    this.invalidateHistory();
     this.#onChange();
+  }
+
+  private invalidateHistory(): void {
+    this.#generation += 1;
+    this.hasMoreBefore = false;
+    this.loadingEarlier = false;
+    this.historyError = undefined;
   }
 
   async prune(): Promise<boolean> {

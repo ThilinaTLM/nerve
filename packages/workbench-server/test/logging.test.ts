@@ -42,7 +42,11 @@ describe("ApplicationLogger", () => {
     await logger.flush();
 
     assert.equal(result, 42);
-    assert.deepEqual(await logger.query(), { logs: [], nextCursor: 0 });
+    assert.deepEqual(await logger.query(), {
+      logs: [],
+      nextCursor: 0,
+      hasMoreBefore: false,
+    });
     assert.deepEqual(await logger.prune(), { pruned: 0, remaining: 0 });
     await assert.rejects(access(join(home, "logs")));
   });
@@ -138,6 +142,92 @@ describe("ApplicationLogger", () => {
 
     const since = await logger.query({ sinceSeq: warn.logs[0].seq });
     assert.equal(since.logs.length, 0);
+  });
+
+  it("pages newest and older matching logs without gaps or duplicates", async () => {
+    const home = await tempHome();
+    const logger = new ApplicationLogger({
+      dataDir: home,
+      component: "test",
+      level: "debug",
+      mirrorToConsole: false,
+    });
+    await logger.hydrate();
+    for (let index = 1; index <= 7; index += 1) {
+      await logger.info(`message ${index}`);
+    }
+
+    const latest = await logger.query({ limit: 3 });
+    assert.deepEqual(
+      latest.logs.map((entry) => entry.seq),
+      [5, 6, 7],
+    );
+    assert.equal(latest.hasMoreBefore, true);
+
+    const middle = await logger.query({
+      beforeSeq: latest.logs[0].seq,
+      limit: 3,
+    });
+    assert.deepEqual(
+      middle.logs.map((entry) => entry.seq),
+      [2, 3, 4],
+    );
+    assert.equal(middle.hasMoreBefore, true);
+
+    const oldest = await logger.query({
+      beforeSeq: middle.logs[0].seq,
+      limit: 3,
+    });
+    assert.deepEqual(
+      oldest.logs.map((entry) => entry.seq),
+      [1],
+    );
+    assert.equal(oldest.hasMoreBefore, false);
+  });
+
+  it("pages across nonmatching records and does not skip bounded newer batches", async () => {
+    const home = await tempHome();
+    const logger = new ApplicationLogger({
+      dataDir: home,
+      component: "test",
+      level: "debug",
+      mirrorToConsole: false,
+    });
+    await logger.hydrate();
+    for (let index = 1; index <= 8; index += 1) {
+      if (index % 2 === 0) await logger.warn(`warning ${index}`);
+      else await logger.info(`info ${index}`);
+    }
+
+    const warnings = await logger.query({ level: "warn", limit: 2 });
+    assert.deepEqual(
+      warnings.logs.map((entry) => entry.seq),
+      [6, 8],
+    );
+    assert.equal(warnings.hasMoreBefore, true);
+    const olderWarnings = await logger.query({
+      level: "warn",
+      beforeSeq: warnings.logs[0].seq,
+      limit: 2,
+    });
+    assert.deepEqual(
+      olderWarnings.logs.map((entry) => entry.seq),
+      [2, 4],
+    );
+
+    const firstNewer = await logger.query({ sinceSeq: 0, limit: 3 });
+    const secondNewer = await logger.query({
+      sinceSeq: firstNewer.nextCursor,
+      limit: 3,
+    });
+    assert.deepEqual(
+      firstNewer.logs.map((entry) => entry.seq),
+      [1, 2, 3],
+    );
+    assert.deepEqual(
+      secondNewer.logs.map((entry) => entry.seq),
+      [4, 5, 6],
+    );
   });
 
   it("prunes all application logs", async () => {

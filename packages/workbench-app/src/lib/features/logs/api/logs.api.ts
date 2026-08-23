@@ -2,6 +2,7 @@ import type {
   ApplicationLogLevel,
   ApplicationLogPruneRequest,
   ApplicationLogPruneResponse,
+  ApplicationLogQuery,
   ApplicationLogQueryResponse,
   ApplicationLogSource,
 } from "@nervekit/contracts";
@@ -12,19 +13,13 @@ export type {
   ApplicationLogLevel,
   ApplicationLogPruneRequest,
   ApplicationLogPruneResponse,
+  ApplicationLogQuery,
   ApplicationLogQueryResponse,
   ApplicationLogSource,
 };
 
 export async function getApplicationLogs(
-  query: {
-    level?: ApplicationLogLevel;
-    source?: ApplicationLogSource;
-    component?: string;
-    contains?: string;
-    sinceSeq?: number;
-    limit?: number;
-  } = {},
+  query: ApplicationLogQuery = {},
 ): Promise<ApplicationLogQueryResponse> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {

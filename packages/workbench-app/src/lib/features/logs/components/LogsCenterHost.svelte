@@ -1,4 +1,6 @@
 <script lang="ts">
+import { onDestroy, untrack } from "svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
   getApplicationLogs,
@@ -9,6 +11,7 @@ import { LogsPaneController } from "$lib/features/logs/state/logs-pane-controlle
 import { LogsPane } from "$lib/presentation/logs";
 
 let revision = $state(0);
+let filterTimer: ReturnType<typeof setTimeout> | undefined;
 const controller = new LogsPaneController(
   {
     getLogs: getApplicationLogs,
@@ -26,31 +29,74 @@ const model = $derived.by(() => {
     source: controller.source,
     component: controller.component,
     contains: controller.contains,
+    hasMoreBefore: controller.hasMoreBefore,
     loading: controller.loading,
+    loadingEarlier: controller.loadingEarlier,
     pruning: controller.pruning,
     error: controller.error,
-    notice: controller.notice,
+    historyError: controller.historyError,
     filtersActive: controller.filtersActive,
     pruneDescription: controller.pruneDescription,
   };
 });
 
+function cancelScheduledRefresh(): void {
+  if (filterTimer !== undefined) clearTimeout(filterTimer);
+  filterTimer = undefined;
+}
+
+function refreshNow(): void {
+  cancelScheduledRefresh();
+  void controller.refresh();
+}
+
+function scheduleFilterRefresh(): void {
+  cancelScheduledRefresh();
+  filterTimer = setTimeout(() => {
+    filterTimer = undefined;
+    void controller.refresh();
+  }, 250);
+}
+
+onDestroy(cancelScheduledRefresh);
+
 $effect(() => {
   void logRefreshState.request;
-  void controller.refresh();
+  untrack(refreshNow);
 });
 </script>
 
 <LogsPane
   {model}
   actions={{
-    onLevelChange: (value) => controller.setLevel(value),
-    onSourceChange: (value) => controller.setSource(value),
-    onComponentChange: (value) => controller.setComponent(value),
-    onContainsChange: (value) => controller.setContains(value),
-    onClearFilters: () => controller.clearFilters(),
-    onRefresh: () => controller.refresh(),
+    onLevelChange: (value) => {
+      controller.setLevel(value);
+      refreshNow();
+    },
+    onSourceChange: (value) => {
+      controller.setSource(value);
+      refreshNow();
+    },
+    onComponentChange: (value) => {
+      controller.setComponent(value);
+      scheduleFilterRefresh();
+    },
+    onContainsChange: (value) => {
+      controller.setContains(value);
+      scheduleFilterRefresh();
+    },
+    onClearFilters: () => {
+      controller.clearFilters();
+      refreshNow();
+    },
+    onRefresh: refreshNow,
+    onLoadEarlier: () => controller.loadEarlier(),
     onCopy: () => controller.copy(),
-    onPrune: () => controller.prune(),
+    onCopySelection: (text) => writeClipboardText(text),
+    onPrune: async () => {
+      const pruned = await controller.prune();
+      if (pruned && controller.notice) notify.success(controller.notice);
+      return pruned;
+    },
   }}
 />

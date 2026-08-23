@@ -13,10 +13,12 @@ export type LogsPaneModel = {
   source: LogsSourceFilter;
   component: string;
   contains: string;
+  hasMoreBefore: boolean;
   loading: boolean;
+  loadingEarlier: boolean;
   pruning: boolean;
   error?: string;
-  notice?: string;
+  historyError?: string;
   filtersActive: boolean;
   pruneDescription: string;
 };
@@ -28,6 +30,8 @@ export type LogsPaneActions = {
   onContainsChange: (value: string) => void;
   onClearFilters: () => void;
   onRefresh: () => void | Promise<void>;
+  onLoadEarlier: () => void | Promise<void>;
   onCopy: () => void | Promise<void>;
+  onCopySelection: (text: string) => void | Promise<void>;
   onPrune: () => boolean | Promise<boolean>;
 };

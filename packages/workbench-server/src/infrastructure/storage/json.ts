@@ -80,17 +80,32 @@ export async function readJsonLinesTail<T>(
   limit: number,
 ): Promise<T[]> {
   if (limit <= 0) return [];
+  const reversed: T[] = [];
+  await forEachJsonLineReverse<T>(path, (value) => {
+    reversed.push(value);
+    return reversed.length < limit;
+  });
+  return reversed.reverse();
+}
+
+/**
+ * Visit valid JSONL entries newest-first using bounded backwards reads. Return
+ * false from the visitor to stop without reading the rest of the file.
+ */
+export async function forEachJsonLineReverse<T>(
+  path: string,
+  onValue: (value: T) => boolean | void,
+): Promise<void> {
   const handle = await open(path, "r").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return undefined;
     throw error;
   });
-  if (!handle) return [];
+  if (!handle) return;
 
-  const reversed: T[] = [];
   let position = (await handle.stat()).size;
   let leadingFragment: Buffer = Buffer.alloc(0);
   try {
-    while (position > 0 && reversed.length < limit) {
+    while (position > 0) {
       const length = Math.min(JSONL_TAIL_CHUNK_BYTES, position);
       position -= length;
       const chunk = Buffer.allocUnsafe(length);
@@ -100,18 +115,14 @@ export async function readJsonLinesTail<T>(
       leadingFragment = lines.shift() ?? Buffer.alloc(0);
       for (let index = lines.length - 1; index >= 0; index -= 1) {
         const value = parseJsonTailLine<T>(path, lines[index]);
-        if (value !== undefined) reversed.push(value);
-        if (reversed.length >= limit) break;
+        if (value !== undefined && onValue(value) === false) return;
       }
     }
-    if (position === 0 && reversed.length < limit) {
-      const value = parseJsonTailLine<T>(path, leadingFragment);
-      if (value !== undefined) reversed.push(value);
-    }
+    const value = parseJsonTailLine<T>(path, leadingFragment);
+    if (value !== undefined) onValue(value);
   } finally {
     await handle.close();
   }
-  return reversed.reverse();
 }
 
 function splitBufferLines(value: Buffer): Buffer[] {

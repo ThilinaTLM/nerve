@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import {
+  forEachJsonLineReverse,
   readJsonLinesTail,
   readTextFileConsistent,
   withFileMutation,
@@ -53,6 +54,40 @@ describe("readTextFileConsistent", () => {
     releaseAppend();
     assert.equal(await read, '{"value":1}\n');
     await append;
+  });
+});
+
+describe("forEachJsonLineReverse", () => {
+  it("visits records newest-first across chunks and stops early", async () => {
+    const path = await tempPath();
+    const records = Array.from({ length: 4_000 }, (_, index) => ({
+      index,
+      text: `${"x".repeat(31)}–${index}`,
+    }));
+    await writeFile(
+      path,
+      records.map((record) => JSON.stringify(record)).join("\r\n"),
+    );
+
+    const visited: number[] = [];
+    await forEachJsonLineReverse<(typeof records)[number]>(path, (record) => {
+      visited.push(record.index);
+      return visited.length < 3;
+    });
+    assert.deepEqual(visited, [3_999, 3_998, 3_997]);
+  });
+
+  it("skips blank and malformed lines and handles missing files", async () => {
+    const path = await tempPath();
+    await writeFile(path, '{"value":1}\nnot-json\n\n{"value":2}');
+    const values: unknown[] = [];
+    await forEachJsonLineReverse(path, (value) => {
+      values.push(value);
+    });
+    await forEachJsonLineReverse(`${path}.missing`, () => {
+      assert.fail("missing files must not yield values");
+    });
+    assert.deepEqual(values, [{ value: 2 }, { value: 1 }]);
   });
 });
 

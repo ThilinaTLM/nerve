@@ -20,6 +20,7 @@ export function createLogRoutes(state: OrchestratorState): Hono {
         component: c.req.query("component"),
         contains: c.req.query("contains"),
         sinceSeq: numberQuery(c.req.query("sinceSeq")),
+        beforeSeq: numberQuery(c.req.query("beforeSeq")),
         limit: numberQuery(c.req.query("limit")),
         requestId: c.req.query("requestId"),
         projectId: c.req.query("projectId"),
