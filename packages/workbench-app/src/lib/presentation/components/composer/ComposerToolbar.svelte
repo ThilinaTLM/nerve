@@ -14,7 +14,6 @@ import type {
 } from "@nervekit/contracts";
 import Popover, {
   PopoverBody,
-  PopoverHeader,
   PopoverRow,
   PopoverSection,
 } from "@nervekit/ui-kit/components/ui/popover-panel";
@@ -28,9 +27,8 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 type PermissionOption = {
   value: PermissionLevel;
   label: string;
+  /** Drives the composer tab trigger icon only; popover rows are icon-less. */
   icon: Component;
-  /** Tone for the row icon; carries the risk signal for higher levels. */
-  iconClass: string;
 };
 
 type Props = {
@@ -102,19 +100,16 @@ const permissionOptions = $derived<PermissionOption[]>([
     value: "read_only",
     label: "Read only",
     icon: Lock,
-    iconClass: "text-muted-foreground",
   },
   {
     value: "supervised",
     label: "Supervised",
     icon: Shield,
-    iconClass: "text-muted-foreground",
   },
   {
     value: "autonomous",
     label: "Autonomous",
     icon: Zap,
-    iconClass: "text-warning",
   },
 ]);
 
@@ -161,11 +156,12 @@ function openPermissionSettings(): void {
       </span>
     {/snippet}
     <PopoverBody>
-      <PopoverHeader title="Permission level">
+      <PopoverSection label="Permission level">
         {#snippet action()}
           <Button
             size="icon-xs"
             variant="ghost"
+            class="self-center"
             ariaLabel="Open permission settings"
             title="Open permission settings"
             onclick={openPermissionSettings}
@@ -173,24 +169,15 @@ function openPermissionSettings(): void {
             <Settings class="size-3.5" aria-hidden="true" />
           </Button>
         {/snippet}
-      </PopoverHeader>
-      <PopoverSection>
-        {#each permissionOptions as option (option.value)}
-          {@const ActiveIcon = option.icon}
-          <PopoverRow
-            label={option.label}
-            selected={option.value === permissionLevel}
-            onclick={() => selectPermission(option.value)}
-          >
-            {#snippet icon()}
-              <ActiveIcon
-                class={`size-4 flex-none ${option.iconClass}`}
-                strokeWidth={2.1}
-                aria-hidden="true"
-              />
-            {/snippet}
-          </PopoverRow>
-        {/each}
+        <div class="grid gap-2">
+          {#each permissionOptions as option (option.value)}
+            <PopoverRow
+              label={option.label}
+              selected={option.value === permissionLevel}
+              onclick={() => selectPermission(option.value)}
+            />
+          {/each}
+        </div>
       </PopoverSection>
     </PopoverBody>
   </Popover>

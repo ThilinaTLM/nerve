@@ -1,7 +1,7 @@
 import type { QueuedPromptRecord } from "@nervekit/contracts";
 import { activeRunStreamingText } from "./active-run.js";
+import { buildActiveRunTimeline } from "./active-run-timeline.js";
 import {
-  buildActiveRunTimeline,
   buildCommittedTimeline,
   selectVisibleCommitted,
   type TimelineItem,
