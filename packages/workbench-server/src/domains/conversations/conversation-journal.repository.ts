@@ -86,7 +86,9 @@ export class ConversationJournalRepository {
     );
   }
 
-  async hydrateAll(): Promise<ConversationJournalState[]> {
+  async hydrateAll(
+    options: { fresh?: boolean } = {},
+  ): Promise<ConversationJournalState[]> {
     const root = join(this.storage.paths.home, "conversations");
     const directories = await readdir(root, { withFileTypes: true }).catch(
       () => [],
@@ -98,7 +100,9 @@ export class ConversationJournalRepository {
       if (!directory.isDirectory() || !directory.name.startsWith("conv_")) {
         continue;
       }
-      const state = await this.load(directory.name);
+      const state = options.fresh
+        ? await this.loadFresh(directory.name)
+        : await this.load(directory.name);
       if (state.revision > 0) states.push(state);
     }
     return states;
@@ -154,7 +158,12 @@ export class ConversationJournalRepository {
     expectedRevision?: number,
   ): Promise<ConversationJournalCommit> {
     return this.exclusive(conversationId, async () => {
-      const state = await this.loadFresh(conversationId);
+      // The repository is the sole in-process writer and the conversation lock
+      // serializes commits. Replaying the entire append-only journal here made
+      // every tool lifecycle update O(journal size), which became seconds for
+      // established conversations. A cold repository still replays once;
+      // subsequent commits advance the validated in-memory projection.
+      const state = await this.load(conversationId);
       if (input.idempotencyKey) {
         const existing = state.idempotencyKeys.get(input.idempotencyKey);
         if (existing) return existing;
@@ -224,9 +233,7 @@ export class ConversationJournalRepository {
     });
   }
 
-  private async loadFresh(
-    conversationId: string,
-  ): Promise<ConversationJournalState> {
+  async loadFresh(conversationId: string): Promise<ConversationJournalState> {
     const path = this.journalPath(conversationId);
     const state = emptyState(conversationId);
     let raw: string;
@@ -475,7 +482,6 @@ function applyEvent(
         (delivery) => delivery.intentId === event.delivery.intentId,
       );
       if (!existing) projection.deliveries.push(event.delivery);
-      compactRunProjection(projection);
     }
   }
 }
@@ -514,20 +520,7 @@ function applyRunProjectionTransition(
     transitions: [...(previous?.transitions ?? []), transition],
     deliveries: [...(previous?.deliveries ?? [])],
   };
-  compactRunProjection(projection);
   return projection;
-}
-
-function compactRunProjection(projection: ConversationRunProjection): void {
-  const delivered = new Set(
-    projection.deliveries.map((delivery) => delivery.intentId),
-  );
-  const latest = projection.transitions.at(-1);
-  projection.transitions = projection.transitions.filter(
-    (transition) =>
-      transition === latest ||
-      transition.events.some((intent) => !delivered.has(intent.id)),
-  );
 }
 
 function emptyState(conversationId: string): ConversationJournalState {

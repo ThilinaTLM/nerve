@@ -70,17 +70,24 @@ function parseEventPayload(
   definition: PublicEventDefinition,
   payload: unknown,
 ): unknown {
-  const parsed = definition.payloadSchema.parse(payload);
-  if (!isRecord(parsed) || !isRecord(payload)) return parsed;
-  if (
-    typeof parsed.conversationId !== "string" ||
-    typeof payload.conversationRevision !== "number" ||
-    !Number.isSafeInteger(payload.conversationRevision) ||
-    payload.conversationRevision < 0
-  ) {
-    return parsed;
+  if (!isRecord(payload) || !("conversationRevision" in payload)) {
+    return definition.payloadSchema.parse(payload);
   }
-  return { ...parsed, conversationRevision: payload.conversationRevision };
+  const { conversationRevision, ...domainPayload } = payload;
+  if (
+    typeof conversationRevision !== "number" ||
+    !Number.isSafeInteger(conversationRevision) ||
+    conversationRevision < 0
+  ) {
+    throw new Error("Conversation revision must be a nonnegative safe integer");
+  }
+  // Revision is transport ordering metadata, not part of each domain payload.
+  // Remove it before parsing so strict event schemas remain strict about actual
+  // domain fields, then restore it only for conversation-scoped events.
+  const parsed = definition.payloadSchema.parse(domainPayload);
+  return isRecord(parsed) && typeof parsed.conversationId === "string"
+    ? { ...parsed, conversationRevision }
+    : parsed;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

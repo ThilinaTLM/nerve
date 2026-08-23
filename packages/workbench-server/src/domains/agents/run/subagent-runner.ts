@@ -376,10 +376,17 @@ export class SubagentRunner {
     let errorMessage: string | undefined;
     let abortRequested = false;
     let harness: AgentHarness | undefined;
-    const abortRun = () => {
+    let settleRun!: () => void;
+    const runSettled = new Promise<void>((resolve) => {
+      settleRun = resolve;
+    });
+    const abortRun = async () => {
       abortRequested = true;
       abortController.abort();
       harness?.requestAbort();
+      // Cancellation is confirmed only after the child projects its terminal
+      // status, not merely after its AbortController is tripped.
+      await runSettled;
     };
     const unregister = spec.parentRunId
       ? this.deps.executions.register(spec.parentRunId, runId, abortRun)
@@ -541,6 +548,7 @@ export class SubagentRunner {
     } finally {
       unregister?.();
       spec.signal?.removeEventListener("abort", abortFromParent);
+      settleRun();
     }
   }
   private async openChildStorage(

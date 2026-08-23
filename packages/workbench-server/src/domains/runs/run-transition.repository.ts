@@ -46,20 +46,26 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   });
 
   private readonly journal: ConversationJournalRepository;
+  private readonly refreshJournalReads: boolean;
 
   constructor(
     journalOrHome: ConversationJournalRepository | string,
     cacheMaximum = 32,
   ) {
-    this.journal =
-      typeof journalOrHome === "string"
-        ? new ConversationJournalRepository({ paths: { home: journalOrHome } })
-        : journalOrHome;
+    if (typeof journalOrHome === "string") {
+      this.refreshJournalReads = true;
+      this.journal = new ConversationJournalRepository({
+        paths: { home: journalOrHome },
+      });
+    } else {
+      this.refreshJournalReads = false;
+      this.journal = journalOrHome;
+    }
     this.cache = new BoundedRunStateCache(cacheMaximum);
   }
 
   async load(runId: string): Promise<RunHydratedState | undefined> {
-    const cached = this.cache.get(runId);
+    const cached = this.refreshJournalReads ? undefined : this.cache.get(runId);
     if (cached) return cached;
     const state = await this.hydrate(runId);
     if (state) {
@@ -108,9 +114,13 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
 
   async list(): Promise<readonly RunHydratedState[]> {
     const states: RunHydratedState[] = [];
-    for (const journalState of await this.journal.hydrateAll()) {
+    for (const journalState of await this.journal.hydrateAll({
+      fresh: this.refreshJournalReads,
+    })) {
       for (const runId of journalState.runProjections.keys()) {
-        const cached = this.cache.get(runId);
+        const cached = this.refreshJournalReads
+          ? undefined
+          : this.cache.get(runId);
         const state = cached ?? this.reduceFromJournal(journalState, runId);
         if (!state) continue;
         if (!cached && ACTIVE_STATUSES.has(state.run.status))
@@ -364,7 +374,9 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
 
   private async scanMetadata(): Promise<RunRecord[]> {
     const records: RunRecord[] = [];
-    for (const state of await this.journal.hydrateAll()) {
+    for (const state of await this.journal.hydrateAll({
+      fresh: this.refreshJournalReads,
+    })) {
       for (const projection of state.runProjections.values()) {
         records.push(projection.run);
       }
@@ -375,7 +387,9 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   }
 
   private async hydrate(runId: string): Promise<RunHydratedState | undefined> {
-    for (const state of await this.journal.hydrateAll()) {
+    for (const state of await this.journal.hydrateAll({
+      fresh: this.refreshJournalReads,
+    })) {
       const hydrated = this.reduceFromJournal(state, runId);
       if (hydrated) return hydrated;
     }

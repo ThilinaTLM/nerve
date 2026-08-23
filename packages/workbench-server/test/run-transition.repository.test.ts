@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type {
+  ConversationEntry,
   RunEventDeliveryRecord,
   RunPromptRecord,
   RunRecord,
@@ -56,6 +57,19 @@ function prompt(status: "queued" | "delivered"): RunPromptRecord {
   };
 }
 
+function transcriptEntry(): ConversationEntry {
+  return {
+    id: "entry_cache_test",
+    conversationId,
+    agentId: "agent_cache_test",
+    runId,
+    role: "user",
+    kind: "message",
+    text: "inspect the repository",
+    createdAt: startedAt,
+  };
+}
+
 function transitions() {
   let id = 0;
   const ids = { next: () => String(++id) };
@@ -66,6 +80,7 @@ function transitions() {
     0,
     {
       prompts: [prompt("queued")],
+      entries: [transcriptEntry()],
       events: [
         {
           id: "intent_cache_test",
@@ -115,6 +130,11 @@ test("run state and deliveries replay from the conversation journal", async (t) 
   const replayed = await restarted.load(runId);
   assert.equal(replayed?.run.revision, 2);
   assert.deepEqual(replayed?.deliveries, [delivery]);
+  assert.deepEqual(
+    replayed?.transitions.flatMap((transition) => transition.entries),
+    [transcriptEntry()],
+    "event settlement must not discard transcript evidence needed by checkpoints",
+  );
 
   const journal = await readFile(
     join(home, "conversations", conversationId, "journal.jsonl"),

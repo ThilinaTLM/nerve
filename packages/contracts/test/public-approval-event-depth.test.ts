@@ -20,6 +20,23 @@ describe("public approval event depth", () => {
     assert.equal(parsed.conversationRevision, 7);
   });
 
+  it("retains revisions for strict conversation event payloads", () => {
+    const parsed = validatePublicEvent(
+      "agent.subagent_transcript.run.started",
+      {
+        conversationId: "conv_test",
+        conversationRevision: 8,
+        projectId: "proj_test",
+        parentAgentId: "agent_parent",
+        childAgentId: "agent_child",
+        runId: "run_test",
+        startedAt: "2026-08-23T00:00:00.000Z",
+      },
+      "workbench_server",
+    ) as { conversationRevision?: number };
+    assert.equal(parsed.conversationRevision, 8);
+  });
+
   it("accepts canonical command-prefix approval selectors", () => {
     const result = publicEventDataGuardSchema.safeParse({
       conversationId: "conv_test",
