@@ -1,12 +1,13 @@
 import type { GuideId } from "./guides/catalog.js";
 
 export type DiscoverEditorialId =
+  | "conversation-inbox"
   | "discover-home"
   | "workbench-tour"
   | "focused-model-list"
   | "tool-selection";
 export type DiscoverEditorialKind = "highlight" | "tip";
-export type DiscoverNewsArtwork = "discover" | "workbench";
+export type DiscoverNewsArtwork = "conversations" | "discover" | "workbench";
 
 export type DiscoverEditorialAction =
   | { kind: "guide"; guideId: GuideId; label: string }
@@ -36,6 +37,18 @@ export type DiscoverEditorialDefinition = DiscoverEditorialBase &
 
 export const discoverEditorialCatalog: readonly DiscoverEditorialDefinition[] =
   [
+    {
+      id: "conversation-inbox",
+      version: 1,
+      kind: "highlight",
+      artwork: "conversations",
+      title: "Turn conversations into a focused inbox",
+      description:
+        "Pinned, Today, and Yesterday groups keep active work organized. Mark finished conversations complete, then use the new settings menu to tune or clean up your list.",
+      releaseLabel: "Conversation inbox",
+      featured: true,
+      new: true,
+    },
     {
       id: "discover-home",
       version: 1,

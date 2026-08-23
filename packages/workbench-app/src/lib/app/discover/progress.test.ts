@@ -57,6 +57,7 @@ describe("Discover progress", () => {
     const seen = markEditorialSeen({});
     assert.deepEqual(seen, {
       "discover-home": 1,
+      "conversation-inbox": 1,
       "workbench-tour": 1,
       "focused-model-list": 1,
       "tool-selection": 1,

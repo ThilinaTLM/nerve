@@ -12,6 +12,7 @@ import { guideCatalog } from "./guides/catalog.js";
 import { resolveGuides } from "./guides/catalog-policy.js";
 
 const noSignals = {
+  "atlassian-ready": false,
   "project-open": false,
   "provider-ready": false,
   "voice-ready": false,
@@ -43,17 +44,20 @@ describe("Discover policy", () => {
     );
     assert.deepEqual(
       sections.highlights.map((item) => item.id),
-      ["discover-home", "workbench-tour"],
+      ["conversation-inbox", "discover-home", "workbench-tour"],
     );
     assert.deepEqual(
       sections.highlights.map((item) => item.artwork),
-      ["discover", "workbench"],
+      ["conversations", "discover", "workbench"],
     );
     assert.deepEqual(
       sections.tips.map((item) => item.id),
       ["focused-model-list", "tool-selection"],
     );
-    assert.equal(sections.startHere.at(-1)?.id, "web-search");
+    assert.deepEqual(
+      sections.startHere.slice(-2).map((guide) => guide.id),
+      ["web-search", "atlassian"],
+    );
     assert.deepEqual(
       sections.tips.find((item) => item.id === "tool-selection")?.action,
       {
@@ -68,13 +72,14 @@ describe("Discover policy", () => {
   it("tracks editorial attention separately from guide completion", () => {
     const unread = resolveDiscoverEditorial(discoverEditorialCatalog, {});
     const seen = resolveDiscoverEditorial(discoverEditorialCatalog, {
+      "conversation-inbox": 1,
       "discover-home": 1,
       "workbench-tour": 1,
       "focused-model-list": 1,
       "tool-selection": 1,
     });
 
-    assert.equal(unseenEditorialCount(unread), 4);
+    assert.equal(unseenEditorialCount(unread), 5);
     assert.equal(unseenEditorialCount(seen), 0);
     assert.equal(
       discoverAttentionCount({

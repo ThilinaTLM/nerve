@@ -97,6 +97,7 @@ async function save(): Promise<void> {
   description="Use one Atlassian connection for Jira, Confluence, or both."
   saveLabel="Save profile"
   bodyClass="sm:grid-cols-2"
+  bodyTourId="setup-atlassian-profile-form"
   errorClass="sm:col-span-2"
   {busy}
   {error}

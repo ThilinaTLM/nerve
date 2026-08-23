@@ -75,7 +75,7 @@ let { artwork }: Props = $props();
         />
       </g>
     </svg>
-  {:else}
+  {:else if artwork === "workbench"}
     <svg class="size-full" viewBox="0 0 240 120" fill="none">
       <circle cx="194" cy="25" r="13" class="fill-success/12" />
       <circle cx="33" cy="95" r="10" class="fill-info/12" />
@@ -164,6 +164,81 @@ let { artwork }: Props = $props();
         height="7"
         rx="3.5"
         class="fill-muted-foreground/20"
+      />
+    </svg>
+  {:else}
+    <svg class="size-full" viewBox="0 0 240 120" fill="none">
+      <circle cx="194" cy="95" r="15" class="fill-info/12" />
+      <circle cx="39" cy="20" r="10" class="fill-primary/10" />
+
+      <rect
+        x="34"
+        y="10"
+        width="172"
+        height="100"
+        rx="7"
+        class="fill-card stroke-border"
+        stroke-width="2"
+      />
+      <path d="M34 31H206" class="stroke-border" />
+      <path
+        d="M46 20H76"
+        class="stroke-muted-foreground/35"
+        stroke-width="5"
+        stroke-linecap="round"
+      />
+      <circle
+        cx="191"
+        cy="20"
+        r="5"
+        class="fill-primary/15 stroke-primary/50"
+      />
+      <path
+        d="M191 12V15M191 25V28M183 20H186M196 20H199"
+        class="stroke-primary/60"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+
+      <path
+        d="M46 41H80"
+        class="stroke-foreground/55"
+        stroke-width="4"
+        stroke-linecap="round"
+      />
+      <rect x="45" y="49" width="150" height="18" rx="5" class="fill-muted" />
+      <circle cx="55" cy="58" r="4" class="fill-primary/65" />
+      <path
+        d="M65 58H126"
+        class="stroke-muted-foreground/45"
+        stroke-width="4"
+        stroke-linecap="round"
+      />
+      <path
+        d="M46 76H68"
+        class="stroke-foreground/55"
+        stroke-width="4"
+        stroke-linecap="round"
+      />
+      <rect x="45" y="84" width="150" height="18" rx="5" class="fill-muted" />
+      <circle
+        cx="55"
+        cy="93"
+        r="4"
+        class="fill-background stroke-success/70"
+        stroke-width="2"
+      />
+      <path
+        d="M65 93H148"
+        class="stroke-muted-foreground/45"
+        stroke-width="4"
+        stroke-linecap="round"
+      />
+      <path
+        d="M178 89V97M174 93H182"
+        class="stroke-success/70"
+        stroke-width="2"
+        stroke-linecap="round"
       />
     </svg>
   {/if}

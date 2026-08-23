@@ -1,4 +1,5 @@
 export type SetupGuideArea =
+  | "atlassian"
   | "open-project"
   | "provider"
   | "voice"
@@ -179,6 +180,121 @@ export const setupGuideSteps: Record<
         kind: "settings",
         pageId: "providers",
         sectionId: "tavily-profiles",
+      },
+    },
+  ],
+  atlassian: [
+    {
+      id: "atlassian-add-profile",
+      title: "Add an Atlassian profile",
+      description:
+        "Create a named connection that Jira and Confluence can share.",
+      targetId: "setup-atlassian-add-profile",
+      fallback:
+        "Open Settings → Providers → Atlassian Profiles and choose Add profile.",
+      preparation: {
+        kind: "settings",
+        pageId: "providers",
+        sectionId: "atlassian-profiles",
+      },
+      advanceByClickingTarget: true,
+    },
+    {
+      id: "atlassian-profile-details",
+      title: "Enter the connection details",
+      description:
+        "Name the profile, then enter your Atlassian site URL, account email, and API token. Default Jira project and Confluence space keys are optional. Save the profile when ready.",
+      targetId: "setup-atlassian-profile-form",
+      fallback:
+        "Complete the Add Atlassian profile dialog and choose Save profile.",
+      preparation: {
+        kind: "settings",
+        pageId: "providers",
+        sectionId: "atlassian-profiles",
+      },
+    },
+    {
+      id: "atlassian-configure-jira",
+      title: "Configure Jira",
+      description: "Choose which Atlassian profile Jira tools should use.",
+      targetId: "setup-atlassian-configure-jira",
+      fallback:
+        "Open Settings → Tools → Third Party and choose Configure for Jira.",
+      preparation: {
+        kind: "settings",
+        pageId: "tools",
+        sectionId: "third-party",
+      },
+      advanceByClickingTarget: true,
+    },
+    {
+      id: "atlassian-select-jira-profile",
+      title: "Choose the Jira profile",
+      description:
+        "Select your Atlassian profile and save it as the connection used by Jira tools.",
+      targetId: "setup-atlassian-select-jira-profile",
+      fallback:
+        "In the Configure Jira dialog, select a profile and choose Save.",
+      preparation: {
+        kind: "settings",
+        pageId: "tools",
+        sectionId: "third-party",
+      },
+    },
+    {
+      id: "atlassian-enable-jira",
+      title: "Enable Jira tools",
+      description:
+        "Turn on Jira to let agents search and manage Jira Cloud issues.",
+      targetId: "setup-atlassian-enable-jira",
+      fallback: "Under Settings → Tools → Third Party, enable the Jira switch.",
+      preparation: {
+        kind: "settings",
+        pageId: "tools",
+        sectionId: "third-party",
+      },
+    },
+    {
+      id: "atlassian-configure-confluence",
+      title: "Configure Confluence",
+      description:
+        "Choose which Atlassian profile Confluence tools should use.",
+      targetId: "setup-atlassian-configure-confluence",
+      fallback:
+        "Under Settings → Tools → Third Party, choose Configure for Confluence.",
+      preparation: {
+        kind: "settings",
+        pageId: "tools",
+        sectionId: "third-party",
+      },
+      advanceByClickingTarget: true,
+    },
+    {
+      id: "atlassian-select-confluence-profile",
+      title: "Choose the Confluence profile",
+      description:
+        "Select the same Atlassian profile or another account, then save it for Confluence tools.",
+      targetId: "setup-atlassian-select-confluence-profile",
+      fallback:
+        "In the Configure Confluence dialog, select a profile and choose Save.",
+      preparation: {
+        kind: "settings",
+        pageId: "tools",
+        sectionId: "third-party",
+      },
+    },
+    {
+      id: "atlassian-enable-confluence",
+      title: "Enable Confluence tools",
+      description:
+        "Turn on Confluence to let agents search and manage spaces, pages, comments, and attachments.",
+      targetId: "setup-atlassian-enable-confluence",
+      fallback:
+        "Under Settings → Tools → Third Party, enable the Confluence switch.",
+      preparation: {
+        kind: "settings",
+        pageId: "tools",
+        sectionId: "third-party",
       },
     },
   ],

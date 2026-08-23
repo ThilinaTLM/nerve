@@ -70,6 +70,7 @@ function setProfile(id: IntegrationId, profileId: string): void {
         {#snippet actions()}
           <ToolConfigureButton
             label={`Configure ${integration.label}`}
+            tourId={`setup-atlassian-configure-${integration.id}`}
             onclick={() => {
               profileDialogIntegration = integration.id;
               profileDialogOpen = true;
@@ -81,6 +82,7 @@ function setProfile(id: IntegrationId, profileId: string): void {
               ready(integration.id)}
             disabled={!ready(integration.id)}
             aria-label={`Enable ${integration.label}`}
+            data-tour-id={`setup-atlassian-enable-${integration.id}`}
             onCheckedChange={(checked) => setEnabled(integration.id, checked)}
           />
         {/snippet}
@@ -101,6 +103,7 @@ function setProfile(id: IntegrationId, profileId: string): void {
     }))}
     selectedProfileId={settingsDraft.tools[profileDialogIntegration].profileId}
     providerSection="atlassian-profiles"
+    selectionTourId={`setup-atlassian-select-${profileDialogIntegration}-profile`}
     onSave={(profileId) =>
       setProfile(profileDialogIntegration!, profileId ?? "")}
   />

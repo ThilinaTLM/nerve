@@ -10,6 +10,7 @@ import { hasChatGptAudioAuth } from "$lib/features/audio";
 import { conversationSelectors } from "$lib/features/conversations";
 import { openConversationHistory } from "$lib/features/conversations/state/composer-signals.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { atlassianProfileReady } from "$lib/features/settings/components/pages/providers/provider-profiles";
 import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
 import {
   captureCenterTabsPresentation,
@@ -74,6 +75,21 @@ export function voiceConfigured(): boolean {
   return hasChatGptAudioAuth(settingsState.authProviders);
 }
 
+export function atlassianConfigured(): boolean {
+  const settings = settingsState.settingsDraft;
+  if (!settings) return false;
+  return (["jira", "confluence"] as const).every((integration) => {
+    const configuration = settings.tools[integration];
+    const profile = settings.providers.atlassianProfiles.find(
+      (candidate) => candidate.id === configuration.profileId,
+    );
+    return (
+      configuration.enabled &&
+      atlassianProfileReady(profile, settingsState.authProviders)
+    );
+  });
+}
+
 export function webSearchConfigured(): boolean {
   const profileId = settingsState.settingsDraft?.tools.web.tavilyProfileId;
   return Boolean(
@@ -90,6 +106,7 @@ export function webSearchConfigured(): boolean {
 function guideSignals(): GuideSignals {
   return {
     "project-open": Boolean(workspaceSelectors.activeProject),
+    "atlassian-ready": atlassianConfigured(),
     "provider-ready": providerConfigured(),
     "voice-ready": voiceConfigured(),
     "web-search-ready": webSearchConfigured(),

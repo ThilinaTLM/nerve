@@ -9,6 +9,7 @@ import {
 } from "./catalog-policy.js";
 
 const noSignals = {
+  "atlassian-ready": false,
   "project-open": false,
   "provider-ready": false,
   "voice-ready": false,
@@ -45,6 +46,7 @@ describe("guide catalog policy", () => {
       guideCatalog,
       {},
       {
+        "atlassian-ready": true,
         "project-open": true,
         "provider-ready": true,
         "voice-ready": true,
@@ -76,6 +78,28 @@ describe("guide catalog policy", () => {
     assert.equal(webSearch?.ready, true);
     assert.equal(webSearch?.completed, true);
     assert.deepEqual(autoCompletedGuideIds(guides, {}), ["web-search"]);
+  });
+
+  it("auto-completes Atlassian setup only when both integrations are ready", () => {
+    const incomplete = resolveGuides(guideCatalog, {}, noSignals).find(
+      (guide) => guide.id === "atlassian",
+    );
+    assert.equal(incomplete?.ready, false);
+    assert.equal(incomplete?.completed, false);
+
+    const guides = resolveGuides(
+      guideCatalog,
+      {},
+      {
+        ...noSignals,
+        "atlassian-ready": true,
+      },
+    );
+    const atlassian = guides.find((guide) => guide.id === "atlassian");
+    assert.equal(atlassian?.priority, "optional");
+    assert.equal(atlassian?.lifecycle, "new");
+    assert.equal(atlassian?.completed, true);
+    assert.deepEqual(autoCompletedGuideIds(guides, {}), ["atlassian"]);
   });
 
   it("excludes upcoming guides from incomplete counts", () => {

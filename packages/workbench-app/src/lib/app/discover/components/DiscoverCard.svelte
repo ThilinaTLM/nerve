@@ -1,5 +1,6 @@
 <script lang="ts">
 import Bot from "@lucide/svelte/icons/bot";
+import Blocks from "@lucide/svelte/icons/blocks";
 import Check from "@lucide/svelte/icons/check";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import Compass from "@lucide/svelte/icons/compass";
@@ -41,6 +42,7 @@ let {
 }: Props = $props();
 
 const guideIcons: Record<GuideId, Component> = {
+  atlassian: Blocks,
   "open-project": FolderOpen,
   provider: KeyRound,
   voice: Mic,

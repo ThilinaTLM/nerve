@@ -76,6 +76,7 @@ async function remove(): Promise<void> {
   sectionId="atlassian-profiles"
   title="Atlassian profiles"
   addLabel="Add profile"
+  addTourId="setup-atlassian-add-profile"
   emptyTitle="No Atlassian profiles"
   emptyDescription="Add a connection for Jira and Confluence."
   items={settingsDraft.providers.atlassianProfiles}
