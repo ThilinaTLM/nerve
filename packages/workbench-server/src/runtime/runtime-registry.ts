@@ -20,6 +20,8 @@ import type {
   NavigateConversationRequest,
   OpenProjectInEditorRequest,
   OpenProjectInEditorResponse,
+  OpenProjectInTerminalRequest,
+  OpenProjectInTerminalResponse,
   PlanImplementationSelection,
   PlanReviewStatus,
   ProjectRecord,
@@ -109,6 +111,10 @@ export class RuntimeRegistry {
 
   get editors() {
     return this.services.editors;
+  }
+
+  get terminal() {
+    return this.services.terminal;
   }
 
   get projectIcons() {
@@ -233,6 +239,7 @@ export class RuntimeRegistry {
     const operations = [
       ["Python runtime discovery", this.pythonRuntime.refresh()],
       ["Editor discovery", this.editors.refresh()],
+      ["Terminal discovery", this.terminal.refresh()],
     ] as const;
     await this.logSettledOperations(operations);
   }
@@ -366,7 +373,14 @@ export class RuntimeRegistry {
     projectId: string,
     request: OpenProjectInEditorRequest,
   ): Promise<OpenProjectInEditorResponse> {
-    return this.services.editors.openProject(projectId, request.editor);
+    return this.services.editors.openProject(projectId, request);
+  }
+
+  async openProjectInTerminal(
+    projectId: string,
+    request: OpenProjectInTerminalRequest,
+  ): Promise<OpenProjectInTerminalResponse> {
+    return this.services.terminal.openProject(projectId, request);
   }
 
   async pruneProjectConversations(

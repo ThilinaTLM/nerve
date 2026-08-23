@@ -2,6 +2,8 @@ import {
   createProjectRequestSchema,
   openProjectInEditorRequestSchema,
   openProjectInEditorResponseSchema,
+  openProjectInTerminalRequestSchema,
+  openProjectInTerminalResponseSchema,
   projectRecordSchema,
   pruneProjectConversationsRequestSchema,
   pruneProjectConversationsResponseSchema,
@@ -15,6 +17,9 @@ const projectIdSchema = z.string().startsWith("proj_");
 const projectIdParamsSchema = z.object({ projectId: projectIdSchema });
 const projectOpenEditorParamsSchema = projectIdParamsSchema.merge(
   openProjectInEditorRequestSchema,
+);
+const projectOpenTerminalParamsSchema = projectIdParamsSchema.merge(
+  openProjectInTerminalRequestSchema,
 );
 const projectPruneConversationsParamsSchema = z.intersection(
   projectIdParamsSchema,
@@ -57,6 +62,15 @@ export const projectsOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.project.openEditor",
+  ),
+  defineOperation(
+    "project.openTerminal",
+    projectOpenTerminalParamsSchema,
+    openProjectInTerminalResponseSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.project.openTerminal",
   ),
   defineOperation(
     "project.conversations.prune",

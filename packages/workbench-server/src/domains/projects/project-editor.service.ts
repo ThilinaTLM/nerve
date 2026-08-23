@@ -11,11 +11,13 @@ import {
 import type {
   ExternalEditorStatus,
   ExternalEditorStatuses,
+  OpenProjectInEditorRequest,
   OpenProjectInEditorResponse,
   ProjectEditor,
   ProjectRecord,
 } from "@nervekit/contracts";
 import { ApplicationError } from "../../core/application-error.js";
+import { resolveProjectLaunchTarget } from "./project-launch-target.js";
 
 type EditorLauncherSource = NonNullable<ExternalEditorStatus["source"]>;
 
@@ -157,9 +159,10 @@ export class ProjectEditorService {
 
   async openProject(
     projectId: string,
-    editor: ProjectEditor,
+    request: OpenProjectInEditorRequest,
   ): Promise<OpenProjectInEditorResponse> {
     const project = this.getProject(projectId);
+    const { editor } = request;
     const launcher =
       this.launchers[editor] ?? (await this.refreshEditor(editor));
     if (!launcher) {
@@ -170,10 +173,11 @@ export class ProjectEditorService {
       );
     }
 
+    const target = await resolveProjectLaunchTarget(project, request.path);
     try {
       const child = this.spawnCommand(
         launcher.command,
-        launcher.argsForDir(project.dir),
+        launcher.argsForDir(target),
         {
           detached: true,
           stdio: "ignore",
@@ -192,7 +196,7 @@ export class ProjectEditorService {
       );
     }
 
-    return { projectId: project.id, editor, dir: project.dir };
+    return { projectId: project.id, editor, path: target };
   }
 
   private async refreshEditor(

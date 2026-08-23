@@ -13,6 +13,7 @@ import {
   getSlashCompletions,
   getWorkspaceSnapshot,
   openProjectInEditor,
+  openProjectInTerminal,
   type ProjectEditor,
   type ProjectRecord,
   type PruneProjectConversationsRequest,
@@ -376,9 +377,10 @@ export async function deleteConversationAndRefresh(conversationId: string) {
 export async function openProjectInEditorAndNotify(
   projectId: string,
   editor: ProjectEditor,
+  path?: string,
 ) {
   try {
-    await openProjectInEditor(projectId, editor);
+    await openProjectInEditor(projectId, editor, path);
     notify.success(
       editor === "vscode"
         ? "Opening project in VS Code"
@@ -391,6 +393,20 @@ export async function openProjectInEditorAndNotify(
       editor === "vscode" ? "Could not open VS Code" : "Could not open Zed",
       { description: message },
     );
+  }
+}
+
+export async function openProjectInTerminalAndNotify(
+  projectId: string,
+  path?: string,
+) {
+  try {
+    await openProjectInTerminal(projectId, path);
+    notify.success("Opening project in Terminal");
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    workspaceState.error = message;
+    notify.error("Could not open Terminal", { description: message });
   }
 }
 

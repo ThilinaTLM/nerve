@@ -31,9 +31,11 @@ export type ProjectAgentTreeProps = {
   conversationActivityById?: Record<string, ConversationActivityState>;
   searchFocusToken?: number;
   editorAvailability?: StatusResponse["runtime"]["editors"];
+  terminalAvailability?: StatusResponse["runtime"]["terminal"];
   onOpenConversation?: (conversationId: string) => void;
   onNewConversationInProject?: (projectDir: string) => void;
   onOpenProjectInEditor?: (projectId: string, editor: ProjectEditor) => void;
+  onOpenProjectInTerminal?: (projectId: string) => void;
   onDeleteProject?: (projectId: string) => void;
   onDeleteConversation?: (conversationId: string) => void;
   onUpdateConversationState?: (

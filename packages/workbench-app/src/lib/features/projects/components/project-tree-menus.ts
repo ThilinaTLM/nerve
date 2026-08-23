@@ -20,13 +20,13 @@ import { shortProjectLabel } from "$lib/kernel/utils/project-tree";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import type { DeleteTarget } from "./project-agent-tree-props";
 import type { ConversationActivityState } from "$lib/kernel/conversations/activity";
-import VsCodeIcon from "./VsCodeIcon.svelte";
-import ZedIcon from "./ZedIcon.svelte";
+import { buildExternalLaunchMenu } from "$lib/presentation/components/external-launch-menu";
 
 export type ProjectTreeMenuContext = {
   homeDir?: string;
   newConversationShortcut?: string;
   editorAvailability?: StatusResponse["runtime"]["editors"];
+  terminalAvailability?: StatusResponse["runtime"]["terminal"];
   conversationCount: (projectId: string) => number;
   onOpenConversation?: (conversationId: string) => void;
   conversationActivity?: (
@@ -38,6 +38,7 @@ export type ProjectTreeMenuContext = {
   ) => void;
   onNewConversationInProject?: (projectDir: string) => void;
   onOpenProjectInEditor?: (projectId: string, editor: ProjectEditor) => void;
+  onOpenProjectInTerminal?: (projectId: string) => void;
   requestPrune: (project: ProjectRecord) => void;
   requestDelete: (target: DeleteTarget) => void;
 };
@@ -97,33 +98,24 @@ async function copyToClipboard(text: string, label: string): Promise<void> {
   }
 }
 
-function projectEditorMenu(
+function projectLaunchMenu(
   project: ProjectRecord,
   ctx: ProjectTreeMenuContext,
 ): ContextMenuItem[] {
-  const items: ContextMenuItem[] = [];
-  if (ctx.editorAvailability?.vscode.available) {
-    items.push({
-      label: "Open in VS Code",
-      icon: VsCodeIcon,
-      onSelect: () => ctx.onOpenProjectInEditor?.(project.id, "vscode"),
-    });
-  }
-  if (ctx.editorAvailability?.zed.available) {
-    items.push({
-      label: "Open in Zed",
-      icon: ZedIcon,
-      onSelect: () => ctx.onOpenProjectInEditor?.(project.id, "zed"),
-    });
-  }
-  return items;
+  return buildExternalLaunchMenu({
+    targetKind: "directory",
+    editors: ctx.editorAvailability,
+    terminal: ctx.terminalAvailability,
+    openEditor: (editor) => ctx.onOpenProjectInEditor?.(project.id, editor),
+    openTerminal: () => ctx.onOpenProjectInTerminal?.(project.id),
+  });
 }
 
 export function buildProjectMenu(
   project: ProjectRecord,
   ctx: ProjectTreeMenuContext,
 ): ContextMenuItem[] {
-  const editorItems = projectEditorMenu(project, ctx);
+  const launchItems = projectLaunchMenu(project, ctx);
   const items: ContextMenuItem[] = [
     {
       label: "New chat",
@@ -132,8 +124,8 @@ export function buildProjectMenu(
       onSelect: () => ctx.onNewConversationInProject?.(project.dir),
     },
   ];
-  if (editorItems.length > 0) {
-    items.push({ type: "separator" }, ...editorItems);
+  if (launchItems.length > 0) {
+    items.push({ type: "separator" }, ...launchItems);
   }
   items.push(
     { type: "separator" },

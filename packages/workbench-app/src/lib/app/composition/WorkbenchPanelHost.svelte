@@ -23,6 +23,8 @@ import {
 } from "$lib/features/tasks";
 import {
   exportUrl,
+  openProjectInEditorAndNotify,
+  openProjectInTerminalAndNotify,
   selection,
   systemPromptUrl,
   workspaceSelectors,
@@ -115,7 +117,17 @@ function focusTasks() {
     <LazyViewPending />
   {:then module}
     {@const Component = module?.default}
-    {#if Component}<Component {activeProject} />{/if}
+    {#if Component}
+      <Component
+        {activeProject}
+        editorAvailability={status?.runtime.editors}
+        terminalAvailability={status?.runtime.terminal}
+        onOpenInEditor={(projectId, editor, path) =>
+          void openProjectInEditorAndNotify(projectId, editor, path)}
+        onOpenInTerminal={(projectId, path) =>
+          void openProjectInTerminalAndNotify(projectId, path)}
+      />
+    {/if}
   {/await}
 {:else if viewId === "conversations"}
   <ConversationsPanelHost />

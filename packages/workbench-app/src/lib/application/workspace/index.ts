@@ -19,6 +19,7 @@ export {
   newConversationInProject,
   openProjectDirectory,
   openProjectInEditorAndNotify,
+  openProjectInTerminalAndNotify,
   pruneProjectConversationsAndRefresh,
   selectProject,
   systemPromptUrl,

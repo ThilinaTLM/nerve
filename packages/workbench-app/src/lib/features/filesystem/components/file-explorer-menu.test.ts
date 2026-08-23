@@ -30,10 +30,18 @@ const actions: FileExplorerMenuActions = {
   trash() {},
 };
 
-function labels(entry: FilesystemProjectEntry, native: boolean): string[] {
-  return buildFileExplorerMenu(entry, actions, native, icons).flatMap((item) =>
-    "label" in item ? [item.label] : [],
-  );
+function labels(
+  entry: FilesystemProjectEntry,
+  native: boolean,
+  launchItems: ReturnType<typeof buildFileExplorerMenu> = [],
+): string[] {
+  return buildFileExplorerMenu(
+    entry,
+    actions,
+    native,
+    icons,
+    launchItems,
+  ).flatMap((item) => ("label" in item ? [item.label] : []));
 }
 
 describe("file explorer menus", () => {
@@ -60,13 +68,42 @@ describe("file explorer menus", () => {
     assert.ok(labels(directory, true).includes("Move to trash"));
   });
 
-  it("offers root operations without destructive or relative-path actions", () => {
-    const rootLabels = buildProjectRootMenu(actions, true, icons).flatMap(
-      (item) => ("label" in item ? [item.label] : []),
+  it("inserts target-appropriate external launch groups", () => {
+    const editors = [
+      { label: "Open in VS Code", onSelect() {} },
+      { label: "Open in Zed", onSelect() {} },
+    ];
+    const terminal = { label: "Open in Terminal", onSelect() {} };
+    const file: FilesystemProjectEntry = {
+      name: "index.ts",
+      path: "src/index.ts",
+      kind: "file",
+      symlink: false,
+    };
+    const directory: FilesystemProjectEntry = {
+      name: "src",
+      path: "src",
+      kind: "directory",
+      symlink: false,
+    };
+    assert.ok(labels(file, false, editors).includes("Open in VS Code"));
+    assert.ok(
+      labels(directory, false, [...editors, terminal]).includes(
+        "Open in Terminal",
+      ),
     );
+  });
+
+  it("offers root operations without destructive or relative-path actions", () => {
+    const rootLabels = buildProjectRootMenu(actions, true, icons, [
+      { label: "Open in VS Code", onSelect() {} },
+      { label: "Open in Terminal", onSelect() {} },
+    ]).flatMap((item) => ("label" in item ? [item.label] : []));
     assert.deepEqual(rootLabels, [
       "New file",
       "New folder",
+      "Open in VS Code",
+      "Open in Terminal",
       "Open with default app",
       "Show in file manager",
       "Copy path",

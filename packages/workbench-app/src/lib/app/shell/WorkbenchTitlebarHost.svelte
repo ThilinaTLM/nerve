@@ -35,6 +35,7 @@ import {
   deleteProjectAndRefresh,
   newConversationInProject,
   openProjectInEditorAndNotify,
+  openProjectInTerminalAndNotify,
   pruneProjectConversationsAndRefresh,
   selectProject,
   workspaceSelectors,
@@ -77,11 +78,14 @@ const menuContext = $derived<ProjectTreeMenuContext>({
   homeDir: status?.storage.userHome,
   newConversationShortcut,
   editorAvailability: status?.runtime.editors,
+  terminalAvailability: status?.runtime.terminal,
   conversationCount: (projectId) =>
     countProjectConversations(conversations, projectId),
   onNewConversationInProject: newConversationInProject,
   onOpenProjectInEditor: (projectId, editor) =>
     void openProjectInEditorAndNotify(projectId, editor),
+  onOpenProjectInTerminal: (projectId) =>
+    void openProjectInTerminalAndNotify(projectId),
   requestPrune: (project) => {
     pendingPrune = {
       id: project.id,

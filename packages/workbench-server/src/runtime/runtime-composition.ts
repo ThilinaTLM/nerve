@@ -50,6 +50,7 @@ import {
   ProjectIconService,
   ProjectLifecycleService,
   ProjectRepository,
+  ProjectTerminalService,
   PruneProjectConversationsService,
 } from "../domains/projects/index.js";
 import {
@@ -122,6 +123,7 @@ export interface RuntimeServices {
   runQuery: WorkbenchRunQuery;
   workbenchRun: WorkbenchRunService;
   editors: ProjectEditorService;
+  terminal: ProjectTerminalService;
   projectIcons: ProjectIconService;
   projectLifecycle: ProjectLifecycleService;
   conversationLifecycle: ConversationLifecycleService;
@@ -327,6 +329,7 @@ export function composeRuntime(
   );
   services.pythonRuntime = new PythonRuntimeService(storage);
   services.editors = new ProjectEditorService(getProject);
+  services.terminal = new ProjectTerminalService(getProject);
   services.projectLifecycle = new ProjectLifecycleService(
     projectRepository,
     events,

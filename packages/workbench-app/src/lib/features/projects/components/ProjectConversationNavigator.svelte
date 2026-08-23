@@ -51,10 +51,12 @@ let {
   conversationActivityById = {},
   searchFocusToken = 0,
   editorAvailability,
+  terminalAvailability,
   homeDir,
   onOpenConversation,
   onNewConversationInProject,
   onOpenProjectInEditor,
+  onOpenProjectInTerminal,
   onDeleteConversation,
   onUpdateConversationState,
   onPruneProjectConversations,
@@ -107,6 +109,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
   homeDir,
   newConversationShortcut,
   editorAvailability,
+  terminalAvailability,
   conversationCount: (projectId) =>
     conversations.filter((conversation) => conversation.projectId === projectId)
       .length,
@@ -116,6 +119,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
   onUpdateConversationState,
   onNewConversationInProject,
   onOpenProjectInEditor,
+  onOpenProjectInTerminal,
   requestPrune: (project: ProjectRecord) =>
     onPruneProjectConversations?.(project.id, {
       strategy: "keepLatest",

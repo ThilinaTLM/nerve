@@ -2,6 +2,7 @@ import { taskDefinitionSchema } from "@nervekit/contracts";
 import type {
   CreateTaskDefinitionRequest,
   OpenProjectInEditorResponse,
+  OpenProjectInTerminalResponse,
   ProjectEditor,
   TaskDefinition,
   ProjectRecord,
@@ -42,11 +43,25 @@ export async function pruneProjectConversations(
 export async function openProjectInEditor(
   projectId: string,
   editor: ProjectEditor,
+  path?: string,
 ): Promise<OpenProjectInEditorResponse> {
   return (
     await protocolRequest("project.openEditor", {
       projectId,
       editor,
+      path,
+    })
+  ).result;
+}
+
+export async function openProjectInTerminal(
+  projectId: string,
+  path?: string,
+): Promise<OpenProjectInTerminalResponse> {
+  return (
+    await protocolRequest("project.openTerminal", {
+      projectId,
+      path,
     })
   ).result;
 }

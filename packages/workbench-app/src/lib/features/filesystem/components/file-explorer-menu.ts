@@ -54,6 +54,7 @@ export function buildProjectRootMenu(
   actions: ProjectRootMenuActions,
   nativeActions: boolean,
   icons: FileExplorerMenuIcons,
+  launchItems: ContextMenuItem[] = [],
 ): ContextMenuItem[] {
   const items: ContextMenuItem[] = [
     { label: "New file", icon: icons.newFile, onSelect: actions.createFile },
@@ -63,6 +64,9 @@ export function buildProjectRootMenu(
       onSelect: actions.createFolder,
     },
   ];
+  if (launchItems.length > 0) {
+    items.push({ type: "separator" }, ...launchItems);
+  }
   if (nativeActions) {
     items.push(
       { type: "separator" },
@@ -90,6 +94,7 @@ export function buildFileExplorerMenu(
   actions: FileExplorerMenuActions,
   nativeActions: boolean,
   icons: FileExplorerMenuIcons,
+  launchItems: ContextMenuItem[] = [],
 ): ContextMenuItem[] {
   const items: ContextMenuItem[] = [
     {
@@ -109,6 +114,9 @@ export function buildFileExplorerMenu(
         onSelect: actions.createFolder,
       },
     );
+  }
+  if (launchItems.length > 0) {
+    items.push({ type: "separator" }, ...launchItems);
   }
   if (nativeActions) {
     items.push(

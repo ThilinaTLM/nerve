@@ -20,9 +20,18 @@ describe("desktop project entry paths", () => {
     );
   });
 
-  it("rejects absolute, empty, and traversing paths", () => {
+  it("resolves an empty path to the project root", () => {
+    assert.equal(
+      resolveProjectEntryPath(
+        { root: "/workspace/project", relativePath: "" },
+        "linux",
+      ),
+      "/workspace/project",
+    );
+  });
+
+  it("rejects absolute and traversing paths", () => {
     for (const relativePath of [
-      "",
       "/tmp/file",
       "C:/tmp/file",
       "../file",

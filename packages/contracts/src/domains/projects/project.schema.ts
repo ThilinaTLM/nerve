@@ -12,8 +12,11 @@ export type ProjectRecord = z.infer<typeof projectRecordSchema>;
 export const projectEditorSchema = z.enum(["vscode", "zed"]);
 export type ProjectEditor = z.infer<typeof projectEditorSchema>;
 
+export const projectLaunchPathSchema = z.string().min(1);
+
 export const openProjectInEditorRequestSchema = z.object({
   editor: projectEditorSchema,
+  path: projectLaunchPathSchema.optional(),
 });
 export type OpenProjectInEditorRequest = z.infer<
   typeof openProjectInEditorRequestSchema
@@ -22,10 +25,25 @@ export type OpenProjectInEditorRequest = z.infer<
 export const openProjectInEditorResponseSchema = z.object({
   projectId: z.string().startsWith("proj_"),
   editor: projectEditorSchema,
-  dir: z.string().min(1),
+  path: z.string().min(1),
 });
 export type OpenProjectInEditorResponse = z.infer<
   typeof openProjectInEditorResponseSchema
+>;
+
+export const openProjectInTerminalRequestSchema = z.object({
+  path: projectLaunchPathSchema.optional(),
+});
+export type OpenProjectInTerminalRequest = z.infer<
+  typeof openProjectInTerminalRequestSchema
+>;
+
+export const openProjectInTerminalResponseSchema = z.object({
+  projectId: z.string().startsWith("proj_"),
+  dir: z.string().min(1),
+});
+export type OpenProjectInTerminalResponse = z.infer<
+  typeof openProjectInTerminalResponseSchema
 >;
 
 export const createProjectRequestSchema = z.object({

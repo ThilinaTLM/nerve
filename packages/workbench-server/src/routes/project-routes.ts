@@ -2,6 +2,7 @@ import {
   createProjectRequestSchema,
   createTaskDefinitionRequestSchema,
   openProjectInEditorRequestSchema,
+  openProjectInTerminalRequestSchema,
   pruneProjectConversationsRequestSchema,
   updateTaskDefinitionRequestSchema,
 } from "@nervekit/contracts";
@@ -61,6 +62,18 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
       const body = openProjectInEditorRequestSchema.parse(await c.req.json());
       return c.json(
         await state.registry.openProjectInEditor(
+          routeParam(c, "projectId"),
+          body,
+        ),
+      );
+    }),
+  );
+  app.post(
+    "/:projectId/open-terminal",
+    routeHandler(async (c) => {
+      const body = openProjectInTerminalRequestSchema.parse(await c.req.json());
+      return c.json(
+        await state.registry.openProjectInTerminal(
           routeParam(c, "projectId"),
           body,
         ),

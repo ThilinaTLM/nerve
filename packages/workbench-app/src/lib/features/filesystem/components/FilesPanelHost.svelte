@@ -12,7 +12,7 @@ import Locate from "@lucide/svelte/icons/locate";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import type { ProjectRecord } from "$lib/api";
+import type { ProjectEditor, ProjectRecord, StatusResponse } from "$lib/api";
 import type {
   FilesystemProjectEntry,
   GitProjectFileStatus,
@@ -74,6 +74,7 @@ import {
   PanelTree,
   PanelView,
 } from "$lib/presentation/panel";
+import { buildExternalLaunchMenu } from "$lib/presentation/components/external-launch-menu";
 import CreateProjectEntryDialog from "./CreateProjectEntryDialog.svelte";
 import MaterialFileIcon from "./MaterialFileIcon.svelte";
 import {
@@ -82,7 +83,23 @@ import {
   buildProjectRootMenu,
 } from "./file-explorer-menu";
 
-let { activeProject }: { activeProject?: ProjectRecord } = $props();
+let {
+  activeProject,
+  editorAvailability,
+  terminalAvailability,
+  onOpenInEditor,
+  onOpenInTerminal,
+}: {
+  activeProject?: ProjectRecord;
+  editorAvailability?: StatusResponse["runtime"]["editors"];
+  terminalAvailability?: StatusResponse["runtime"]["terminal"];
+  onOpenInEditor?: (
+    projectId: string,
+    editor: ProjectEditor,
+    path?: string,
+  ) => void;
+  onOpenInTerminal?: (projectId: string, path?: string) => void;
+} = $props();
 
 let gitFiles = $state<GitProjectFileStatus[]>([]);
 let pendingCreate = $state<{
@@ -288,6 +305,18 @@ async function movePendingToTrash(): Promise<void> {
   }
 }
 
+function launchMenu(entry?: FilesystemProjectEntry): ContextMenuItem[] {
+  if (!activeProject || (entry && entry.kind === "other")) return [];
+  const path = entry?.path;
+  return buildExternalLaunchMenu({
+    targetKind: entry?.kind === "file" ? "file" : "directory",
+    editors: editorAvailability,
+    terminal: terminalAvailability,
+    openEditor: (editor) => onOpenInEditor?.(activeProject.id, editor, path),
+    openTerminal: () => onOpenInTerminal?.(activeProject.id, path),
+  });
+}
+
 function rootMenu(): ContextMenuItem[] {
   const entry = rootEntry;
   if (!activeProject || !entry) return [];
@@ -309,6 +338,7 @@ function rootMenu(): ContextMenuItem[] {
       newFolder: FolderPlus,
       trash: Trash2,
     },
+    launchMenu(),
   );
 }
 
@@ -342,6 +372,7 @@ function itemMenu(item: FileExplorerTreeItem): ContextMenuItem[] {
       newFolder: FolderPlus,
       trash: Trash2,
     },
+    launchMenu(entry),
   );
 }
 

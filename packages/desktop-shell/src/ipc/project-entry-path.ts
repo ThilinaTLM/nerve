@@ -20,8 +20,8 @@ export function resolveProjectEntryPath(
   const normalizedRelative = relativePath.trim().replaceAll("\\", "/");
   if (!normalizedRoot || !pathApi.isAbsolute(normalizedRoot))
     throw new Error("Project entry root must be absolute.");
+  if (!normalizedRelative) return pathApi.resolve(normalizedRoot);
   if (
-    !normalizedRelative ||
     normalizedRelative.includes("\0") ||
     normalizedRelative.startsWith("/") ||
     /^[A-Za-z]:\//.test(normalizedRelative)

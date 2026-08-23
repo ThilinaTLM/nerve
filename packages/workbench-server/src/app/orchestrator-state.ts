@@ -315,6 +315,7 @@ export function statusResponse(state: OrchestratorState): StatusResponse {
     runtime: {
       python: state.registry.pythonRuntime.statusSnapshot(),
       editors: state.registry.editors.statusSnapshot(),
+      terminal: state.registry.terminal.statusSnapshot(),
     },
     resourceContainment: state.resourceContainment,
   };
