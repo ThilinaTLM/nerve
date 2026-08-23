@@ -27,6 +27,7 @@ import { ProjectFilesystemWatcher } from "../domains/filesystem/project-filesyst
 import { ConversationService } from "../domains/conversations/conversation-service.js";
 import { ConversationHarnessStorage } from "../domains/conversations/conversation-harness-storage.js";
 import {
+  ConversationJournalRepository,
   ConversationLifecycleService,
   ConversationQueryService,
   ConversationRepository,
@@ -224,9 +225,15 @@ export function composeRuntime(
     scratchNoteRepository,
     getProject,
   );
-  const conversationRepository = new ConversationRepository(storage);
+  const conversationJournal = new ConversationJournalRepository(storage);
+  events.setConversationRevisionResolver(
+    (conversationId) => conversationJournal.state(conversationId)?.revision,
+  );
+  const conversationRepository = new ConversationRepository(
+    conversationJournal,
+  );
   const agentRepository = new AgentRepository(storage);
-  const entryRepository = new EntryRepository(storage);
+  const entryRepository = new EntryRepository(conversationJournal);
   services.harnessStorage = new ConversationHarnessStorage(
     conversationRepository,
     getConversation,
@@ -369,6 +376,8 @@ export function composeRuntime(
     state,
     getConversationEntries: (conversationId) =>
       services.conversationLifecycle.getConversationEntries(conversationId),
+    getConversationRevision: async (conversationId) =>
+      (await conversationJournal.load(conversationId)).revision,
     getConversationTree: (conversationId) =>
       services.conversationLifecycle.getConversationTree(conversationId),
     getContextUsage: (conversationId) =>
@@ -549,6 +558,7 @@ export function composeRuntime(
     state.conversationRuntime,
     logger.child({ component: "tool" }),
     services.permissionExceptions,
+    conversationJournal,
   );
   services.subagentTranscriptLive = new SubagentTranscriptLiveService(events);
   services.subagentTranscripts = new SubagentTranscriptService({
@@ -586,6 +596,7 @@ export function composeRuntime(
   });
   services.runRuntime = createWorkbenchRunRuntime({
     home: storage.paths.home,
+    journal: conversationJournal,
     state,
     events,
     tools: services.tools,

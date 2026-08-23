@@ -11,6 +11,7 @@ import type { ConversationTransientState } from "./transcript-types.js";
 export interface ConversationRenderState {
   conversationId?: string;
   snapshot?: ConversationSnapshot;
+  conversationRevision?: number;
   entries: ConversationEntry[];
   activeEntryIds: string[];
   toolCalls: ToolCallTranscriptRecord[];

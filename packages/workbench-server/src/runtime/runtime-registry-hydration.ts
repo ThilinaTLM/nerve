@@ -21,7 +21,7 @@ export type RegistryHydrationCounts = {
 export interface RegistryHydrationTimings {
   stateDurationMs: number;
   indexDurationMs: number;
-  toolCallHydrationSource: "files";
+  toolCallHydrationSource: "journal";
   storesHydrationDurationMs: number;
   storeDurationsMs: StoreHydrationDurations;
   counts: RegistryHydrationCounts;
@@ -55,7 +55,7 @@ export interface RuntimeRegistryHydrationOptions {
   readonly recoverTaskNotifications: () => Promise<void>;
   readonly rebuildIndex: () => Promise<void>;
   readonly hydratePromptSuggestions: () => Promise<void>;
-  readonly toolCallHydrationSource: "files";
+  readonly toolCallHydrationSource: "journal";
 }
 
 /** Coordinates startup hydration while keeping RuntimeRegistry as the façade. */

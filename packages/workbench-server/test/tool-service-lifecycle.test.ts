@@ -122,17 +122,11 @@ describe("tool service lifecycle", () => {
     );
     assert.equal(payload.toolCall.contentIndex, 2);
 
-    const canonical = await readFile(
-      join(
-        home,
-        "conversations",
-        toolCall.conversationId,
-        "tool-calls",
-        `${toolCall.id}.json`,
-      ),
+    const journal = await readFile(
+      join(home, "conversations", toolCall.conversationId, "journal.jsonl"),
       "utf8",
     );
-    assert.match(canonical, /Validation failed for tool edit/);
+    assert.match(journal, /Validation failed for tool edit/);
   });
 
   it("routes python_exec through the workbench runtime override", async () => {

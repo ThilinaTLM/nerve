@@ -230,7 +230,31 @@ export function buildCommittedTimeline(
     isHiddenByFailedRun(item, hiddenFailedRunIds);
 
   transcript.forEach((item, index) => {
-    if (isToolCallPlaceholder(item)) return;
+    if (isToolCallPlaceholder(item)) {
+      const anchored = item.liveMessageId
+        ? orderedToolCalls
+            .filter(
+              (toolCall) =>
+                toolCall.liveMessageId === item.liveMessageId &&
+                !consumedToolCallIds.has(toolCall.id),
+            )
+            .sort(
+              (left, right) =>
+                (left.contentIndex ?? 0) - (right.contentIndex ?? 0) ||
+                left.id.localeCompare(right.id),
+            )
+        : [];
+      for (const toolCall of anchored) {
+        items.push({
+          kind: "tool",
+          key: toolTimelineKey(toolCall),
+          toolCall,
+          anchorEntryId: item.id,
+        });
+        consumedToolCallIds.add(toolCall.id);
+      }
+      return;
+    }
     if (item.compaction) {
       items.push({
         kind: "compaction",
@@ -266,6 +290,7 @@ export function buildCommittedTimeline(
         ? toolCallsByProviderId.get(item.toolCallId)
         : undefined;
     if (toolCall) {
+      if (consumedToolCallIds.has(toolCall.id)) return;
       items.push({
         kind: "tool",
         key: toolTimelineKey(toolCall),

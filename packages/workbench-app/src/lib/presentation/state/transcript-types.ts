@@ -89,6 +89,7 @@ export type TranscriptItem = {
   contentIndex?: number;
   /** Turn coordinates retained across live and durable presentation. */
   turnId?: string;
+  liveMessageId?: string;
   messageOrdinal?: number;
   toolCallId?: string;
   toolRecordId?: string;

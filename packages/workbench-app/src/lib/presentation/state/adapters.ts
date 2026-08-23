@@ -76,6 +76,7 @@ export function fromConversationSnapshot(
   return {
     conversationId: snapshot.conversation.id,
     snapshot,
+    conversationRevision: snapshot.conversationRevision,
     entries: snapshot.entries,
     activeEntryIds: snapshot.activeEntryIds,
     toolCalls: snapshot.toolCalls,
@@ -97,6 +98,18 @@ export function fromConversationSnapshot(
  * the snapshot entries removes persisted text/thinking while retaining an
  * unresolved tool slot through the durable-record handoff.
  */
+function revisionFromEvent(data: unknown): number | undefined {
+  if (!data || typeof data !== "object" || Array.isArray(data))
+    return undefined;
+  const revision = (data as { conversationRevision?: unknown })
+    .conversationRevision;
+  return typeof revision === "number" &&
+    Number.isSafeInteger(revision) &&
+    revision >= 0
+    ? revision
+    : undefined;
+}
+
 function drainedSnapshotActiveRun(
   activeRun: ConversationActiveRunSnapshot | undefined,
   entries: ConversationEntry[],
@@ -143,8 +156,35 @@ export function applyConversationEvent(
     return state;
   }
 
-  const next: ConversationRenderState = { ...state, cursorSeq: event.seq };
-  if (!handled) return next;
+  const eventRevision = revisionFromEvent(event.data);
+  const currentRevision = state.conversationRevision;
+  if (
+    eventRevision !== undefined &&
+    currentRevision !== undefined &&
+    eventRevision > currentRevision + 1
+  ) {
+    reportGap(
+      options,
+      event.data as { conversationId?: string; runId?: string },
+      event.type,
+    );
+    return state;
+  }
+  const next: ConversationRenderState = {
+    ...state,
+    cursorSeq: event.seq,
+    conversationRevision:
+      eventRevision === undefined
+        ? currentRevision
+        : Math.max(currentRevision ?? 0, eventRevision),
+  };
+  if (
+    !handled ||
+    (eventRevision !== undefined &&
+      currentRevision !== undefined &&
+      eventRevision < currentRevision)
+  )
+    return next;
 
   const draft = new ConversationCowDraft(next);
   const type = event.type as ConversationEventType;

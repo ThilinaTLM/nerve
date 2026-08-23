@@ -66,6 +66,27 @@ export function publicEventDefinition(
   return definitionMap.get(name);
 }
 
+function parseEventPayload(
+  definition: PublicEventDefinition,
+  payload: unknown,
+): unknown {
+  const parsed = definition.payloadSchema.parse(payload);
+  if (!isRecord(parsed) || !isRecord(payload)) return parsed;
+  if (
+    typeof parsed.conversationId !== "string" ||
+    typeof payload.conversationRevision !== "number" ||
+    !Number.isSafeInteger(payload.conversationRevision) ||
+    payload.conversationRevision < 0
+  ) {
+    return parsed;
+  }
+  return { ...parsed, conversationRevision: payload.conversationRevision };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 export function validatePublicEvent(
   name: string,
   payload: unknown,
@@ -76,7 +97,7 @@ export function validatePublicEvent(
   if (!item.allowedSourceRoles.includes(sourceRole)) {
     throw new Error(`Event ${name} cannot be emitted by ${sourceRole}`);
   }
-  return item.payloadSchema.parse(payload);
+  return parseEventPayload(item, payload);
 }
 
 export function parsePublicEventEnvelope(
@@ -96,7 +117,7 @@ export function parsePublicEventEnvelope(
   }
   return {
     ...envelope,
-    data: item.payloadSchema.parse(envelope.data),
+    data: parseEventPayload(item, envelope.data),
   };
 }
 

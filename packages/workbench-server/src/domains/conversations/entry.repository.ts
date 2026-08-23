@@ -1,42 +1,30 @@
-import { join } from "node:path";
-import {
-  type ConversationEntry,
-  type ConversationRecord,
-  type ConversationTree,
-  conversationEntrySchema,
+import type {
+  ConversationEntry,
+  ConversationRecord,
+  ConversationTree,
 } from "@nervekit/contracts";
-import {
-  appendJsonLine,
-  type InitializedStorage,
-  readJsonLines,
-} from "../../infrastructure/storage/index.js";
+import type { ConversationJournalRepository } from "./conversation-journal.repository.js";
 
 export class EntryRepository {
-  constructor(private readonly storage: InitializedStorage) {}
-
-  entriesPath(conversationId: string): string {
-    return join(
-      this.storage.paths.home,
-      "conversations",
-      conversationId,
-      "entries.jsonl",
-    );
-  }
+  constructor(private readonly journal: ConversationJournalRepository) {}
 
   async loadForConversation(
     conversationId: string,
   ): Promise<ConversationEntry[]> {
-    const rawEntries = await readJsonLines<unknown>(
-      this.entriesPath(conversationId),
-    ).catch(() => []);
-    return rawEntries
-      .map((entry) => conversationEntrySchema.safeParse(entry))
-      .filter((result) => result.success)
-      .map((result) => result.data);
+    return [...(await this.journal.load(conversationId)).entries];
   }
 
   async append(entry: ConversationEntry): Promise<void> {
-    await appendJsonLine(this.entriesPath(entry.conversationId), entry, 0o600);
+    await this.journal.commit(entry.conversationId, {
+      kind: "conversation.entry_appended",
+      events: [
+        {
+          kind: "conversation.entry_appended",
+          conversationId: entry.conversationId,
+          entry,
+        },
+      ],
+    });
   }
 
   displayLinkedEntries(entries: ConversationEntry[]): ConversationEntry[] {

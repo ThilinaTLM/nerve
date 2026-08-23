@@ -1,7 +1,6 @@
-import { open, readdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import {
   toolCallRecordSchema,
+  type ConversationJournalEvent,
   type ToolCallRecord,
   type ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
@@ -9,11 +8,12 @@ import type {
   IndexStore,
   ToolCallPreviewQuery,
 } from "../../infrastructure/index-store/index-store.js";
-import {
-  atomicWriteJson,
-  type InitializedStorage,
-} from "../../infrastructure/storage/index.js";
+import { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
+import {
+  externalizeToolCallResult,
+  hydrateToolCallResult,
+} from "./tool-result-artifact.js";
 
 const TERMINAL_CACHE_MAX_BYTES = 16 * 1024 * 1024;
 
@@ -22,7 +22,7 @@ export interface ToolCallHydrationStats {
   uniqueCount: number;
   fileBytes: number;
   activeCount: number;
-  source: "files";
+  source: "journal";
 }
 
 export class ToolCallRevisionConflictError extends Error {
@@ -38,11 +38,7 @@ export class ToolCallRevisionConflictError extends Error {
   }
 }
 
-/**
- * Canonical tool calls live in per-conversation JSON files. Only mutable calls
- * remain resident; immutable terminal details are loaded lazily into a
- * byte-bounded cache. SQLite contains disposable, bounded transcript previews.
- */
+/** Journal-backed canonical tool-call projection. */
 export class ToolCallRepository {
   readonly records: Map<string, ToolCallRecord> = new Map();
   private readonly terminalCache = new Map<
@@ -56,13 +52,24 @@ export class ToolCallRepository {
     uniqueCount: 0,
     fileBytes: 0,
     activeCount: 0,
-    source: "files",
+    source: "journal",
   };
 
+  private readonly journal: ConversationJournalRepository;
+  private readonly index: IndexStore;
+
   constructor(
-    private readonly storage: InitializedStorage,
-    private readonly index: IndexStore,
-  ) {}
+    journalOrStorage:
+      | ConversationJournalRepository
+      | { paths: { home: string } },
+    index: IndexStore,
+  ) {
+    this.journal =
+      journalOrStorage instanceof ConversationJournalRepository
+        ? journalOrStorage
+        : new ConversationJournalRepository(journalOrStorage);
+    this.index = index;
+  }
 
   async hydrate(
     onRecord?: (record: ToolCallRecord) => void,
@@ -70,53 +77,24 @@ export class ToolCallRepository {
     this.records.clear();
     this.terminalCache.clear();
     this.terminalCacheBytes = 0;
-    let fileBytes = 0;
-    let rowCount = 0;
     const ids = new Set<string>();
+    let rowCount = 0;
     this.index.beginToolCallRebuild();
     try {
-      const conversations = await readdir(
-        join(this.storage.paths.home, "conversations"),
-        { withFileTypes: true },
-      ).catch(() => []);
-      for (const conversation of conversations.sort((a, b) =>
-        a.name.localeCompare(b.name),
-      )) {
-        if (!conversation.isDirectory() || !validId(conversation.name, "conv_"))
-          continue;
-        const directory = join(
-          this.storage.paths.home,
-          "conversations",
-          conversation.name,
-          "tool-calls",
-        );
-        const files = await readdir(directory, { withFileTypes: true }).catch(
-          () => [],
-        );
-        for (const file of files.sort((a, b) => a.name.localeCompare(b.name))) {
-          if (!file.isFile() || !file.name.endsWith(".json")) continue;
-          const id = file.name.slice(0, -5);
-          if (!validId(id, "tool_"))
-            throw new Error(
-              `Invalid canonical tool-call filename '${file.name}'.`,
-            );
-          const raw = await readFile(join(directory, file.name), "utf8");
-          fileBytes += Buffer.byteLength(raw);
-          const record = toolCallRecordSchema.parse(JSON.parse(raw));
-          if (record.id !== id || record.conversationId !== conversation.name) {
-            throw new Error(
-              `Canonical tool-call path identity mismatch for '${id}'.`,
-            );
+      for (const state of await this.journal.hydrateAll()) {
+        for (const record of [...state.toolCalls.values()].sort((left, right) =>
+          left.id.localeCompare(right.id),
+        )) {
+          if (ids.has(record.id)) {
+            throw new Error(`Duplicate canonical tool call '${record.id}'.`);
           }
-          if (ids.has(id))
-            throw new Error(`Duplicate canonical tool call '${id}'.`);
-          ids.add(id);
+          ids.add(record.id);
           rowCount += 1;
           this.index.appendToolCallRebuild(
             record,
             toToolCallTranscriptRecord(record),
           );
-          if (!isTerminal(record.status)) this.records.set(id, record);
+          if (!isTerminal(record.status)) this.records.set(record.id, record);
           onRecord?.(record);
         }
       }
@@ -128,15 +106,15 @@ export class ToolCallRepository {
     this.hydrationStats = {
       rowCount,
       uniqueCount: rowCount,
-      fileBytes,
+      fileBytes: 0,
       activeCount: this.records.size,
-      source: "files",
+      source: "journal",
     };
     return this.listActive();
   }
 
-  get hydrationSource(): "files" {
-    return "files";
+  get hydrationSource(): "journal" {
+    return "journal";
   }
 
   get hydrationStatsValue(): ToolCallHydrationStats {
@@ -186,21 +164,15 @@ export class ToolCallRepository {
     const active = this.records.get(toolCallId);
     if (active) return active;
     const cached = this.terminalCache.get(toolCallId);
-    if (cached) {
-      this.terminalCache.delete(toolCallId);
-      this.terminalCache.set(toolCallId, cached);
-      return cached.record;
-    }
+    if (cached) return cached.record;
     const conversationId = this.index.toolCallConversationId(toolCallId);
     if (!conversationId) throw new Error("Tool call not found.");
-    const raw = await readFile(
-      this.path({ id: toolCallId, conversationId }),
-      "utf8",
+    const stored = (await this.journal.load(conversationId)).toolCalls.get(
+      toolCallId,
     );
-    const record = toolCallRecordSchema.parse(JSON.parse(raw));
-    if (record.id !== toolCallId || record.conversationId !== conversationId)
-      throw new Error("Canonical tool-call identity mismatch.");
-    this.cacheTerminal(record, Buffer.byteLength(raw));
+    if (!stored) throw new Error("Tool call not found.");
+    const record = await hydrateToolCallResult(this.journal.homePath(), stored);
+    this.cacheTerminal(record, Buffer.byteLength(JSON.stringify(record)));
     return record;
   }
 
@@ -221,25 +193,25 @@ export class ToolCallRepository {
   async create(toolCall: ToolCallRecord): Promise<ToolCallRecord> {
     const record = toolCallRecordSchema.parse({ ...toolCall, revision: 1 });
     return this.serialize(record.id, async () => {
-      if (this.records.has(record.id))
+      const state = await this.journal.load(record.conversationId);
+      if (state.toolCalls.has(record.id)) {
         throw new Error(`Tool call '${record.id}' already exists.`);
-      const path = this.path(record);
-      await import("node:fs/promises").then(({ mkdir }) =>
-        mkdir(dirname(path), { recursive: true, mode: 0o755 }),
+      }
+      const stored = await externalizeToolCallResult(
+        this.journal.homePath(),
+        record,
       );
-      const handle = await open(path, "wx", 0o600);
-      try {
-        await handle.writeFile(`${JSON.stringify(record, null, 2)}\n`);
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
-      if (isTerminal(record.status)) {
-        this.cacheTerminal(record, Buffer.byteLength(JSON.stringify(record)));
-      } else {
-        this.records.set(record.id, record);
-      }
-      this.index.upsertToolCall(record, toToolCallTranscriptRecord(record));
+      await this.journal.commit(record.conversationId, {
+        kind: "tool_call.created",
+        events: [
+          {
+            kind: "tool_call.upserted",
+            conversationId: record.conversationId,
+            toolCall: stored,
+          },
+        ],
+      });
+      this.observe(record);
       return record;
     });
   }
@@ -258,26 +230,65 @@ export class ToolCallRepository {
           current.revision,
         );
       }
-      if (isTerminal(current.status))
+      if (isTerminal(current.status)) {
         throw new Error(`Terminal tool call '${toolCallId}' is immutable.`);
+      }
       const candidate = mutate(current);
       assertImmutableIdentity(current, candidate);
       const next = toolCallRecordSchema.parse({
         ...candidate,
         revision: current.revision + 1,
       });
-      await atomicWriteJson(this.path(next), next, 0o600);
-      if (isTerminal(next.status)) {
-        this.records.delete(next.id);
-        this.cacheTerminal(next, Buffer.byteLength(JSON.stringify(next)));
-      } else {
-        this.records.set(next.id, next);
+      const journalState = await this.journal.load(next.conversationId);
+      const stored = await externalizeToolCallResult(
+        this.journal.homePath(),
+        next,
+      );
+      const events: ConversationJournalEvent[] = [
+        {
+          kind: "tool_call.upserted",
+          conversationId: next.conversationId,
+          toolCall: stored,
+        },
+      ];
+      const suspensions = new Set<string>();
+      for (const normalized of journalState.interactions.values()) {
+        if (normalized.toolCallId !== next.id) continue;
+        const interaction = next.interactions[normalized.interaction.ordinal];
+        if (!interaction) continue;
+        events.push({
+          kind: "interaction.upserted",
+          conversationId: next.conversationId,
+          interaction: {
+            ...normalized,
+            toolCallRevision: next.revision,
+            interaction,
+          },
+        });
+        suspensions.add(normalized.suspensionId);
       }
-      try {
-        this.index.upsertToolCall(next, toToolCallTranscriptRecord(next));
-      } catch {
-        /* Canonical file remains authoritative. */
+      for (const suspensionId of suspensions) {
+        const suspension = journalState.suspensions.get(suspensionId);
+        if (!suspension) continue;
+        events.push({
+          kind: "suspension.upserted",
+          conversationId: next.conversationId,
+          suspension: {
+            ...suspension,
+            members: suspension.members.map((member) =>
+              member.toolCallId === next.id
+                ? { ...member, toolCallRevision: next.revision }
+                : member,
+            ),
+            updatedAt: next.updatedAt,
+          },
+        });
       }
+      await this.journal.commit(next.conversationId, {
+        kind: "tool_call.revised",
+        events,
+      });
+      this.observe(next);
       return next;
     });
   }
@@ -293,6 +304,20 @@ export class ToolCallRepository {
       this.terminalCache.delete(id);
       this.terminalCacheBytes -= cached.bytes;
       this.index.deleteToolCall(id);
+    }
+  }
+
+  private observe(record: ToolCallRecord): void {
+    if (isTerminal(record.status)) {
+      this.records.delete(record.id);
+      this.cacheTerminal(record, Buffer.byteLength(JSON.stringify(record)));
+    } else {
+      this.records.set(record.id, record);
+    }
+    try {
+      this.index.upsertToolCall(record, toToolCallTranscriptRecord(record));
+    } catch {
+      // The journal remains authoritative; SQLite is disposable.
     }
   }
 
@@ -314,21 +339,6 @@ export class ToolCallRepository {
       this.terminalCache.delete(oldestId);
       this.terminalCacheBytes -= oldest?.bytes ?? 0;
     }
-  }
-
-  private path(record: Pick<ToolCallRecord, "id" | "conversationId">): string {
-    if (
-      !validId(record.id, "tool_") ||
-      !validId(record.conversationId, "conv_")
-    )
-      throw new Error("Invalid tool-call storage identity.");
-    return join(
-      this.storage.paths.home,
-      "conversations",
-      record.conversationId,
-      "tool-calls",
-      `${record.id}.json`,
-    );
   }
 
   private async serialize<T>(
@@ -373,13 +383,10 @@ function assertImmutableIdentity(
   next: ToolCallRecord,
 ): void {
   for (const key of immutableKeys) {
-    if (JSON.stringify(current[key]) !== JSON.stringify(next[key]))
+    if (JSON.stringify(current[key]) !== JSON.stringify(next[key])) {
       throw new Error(`Tool-call identity field '${key}' is immutable.`);
+    }
   }
-}
-
-function validId(value: string, prefix: string): boolean {
-  return value.startsWith(prefix) && /^[A-Za-z0-9_-]+$/.test(value);
 }
 
 function isTerminal(status: ToolCallRecord["status"]): boolean {

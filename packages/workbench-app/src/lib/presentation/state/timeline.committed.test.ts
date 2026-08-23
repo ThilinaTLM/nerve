@@ -185,6 +185,38 @@ describe("buildConversationTimeline committed transcript", () => {
     ]);
   });
 
+  it("keeps a tool at its invocation slot when its result arrives later", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Run it" },
+      {
+        id: "entry_invocation",
+        role: "assistant",
+        text: "[Tool call: read({})]",
+        liveMessageId: "message_invocation",
+      },
+      { id: "entry_followup", role: "user", text: "Queued while waiting" },
+      {
+        id: "entry_result",
+        role: "system",
+        text: "done",
+        toolRecordId: "tool_invocation",
+      },
+    ];
+    const call = {
+      ...toolCall("tool_invocation", "2026-01-01T00:00:04.000Z"),
+      liveMessageId: "message_invocation",
+      contentIndex: 0,
+    };
+
+    const timeline = buildConversationTimeline(transcript, [call]);
+
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "tool-slot:message_invocation:0",
+      "entry_followup",
+    ]);
+  });
+
   it("anchors tool cards by source tool-call id when no internal id exists", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "Use a failing tool" },

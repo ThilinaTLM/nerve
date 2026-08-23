@@ -1,5 +1,5 @@
-import { join } from "node:path";
 import type {
+  ConversationJournalEvent,
   RunEventDeliveryRecord,
   RunRecord,
   RunTransitionRecord,
@@ -8,31 +8,18 @@ import {
   runEventDeliveryRecordSchema,
   runTransitionRecordSchema,
 } from "@nervekit/contracts";
+import { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
 import {
   ACTIVE_STATUSES,
   ActiveRunLookup,
   applyRunEventDelivery,
   applyRunTransition,
   BoundedRunStateCache,
-  reduceRunTransitions,
   RunRevisionConflictError,
   type RunHydratedState,
   type RunUnitOfWorkPort,
 } from "./runtime/index.js";
-import {
-  appendJsonLine,
-  atomicWriteJson,
-  listChildDirs,
-  readJsonLinesTail,
-  readTextFileConsistent,
-} from "../../infrastructure/storage/index.js";
 
-/**
- * Reserved intent id prefix for per-run delivery-settlement checkpoints. The
- * checkpoint records the run revision whose public-event intents are all
- * durably delivered, letting startup sweeps skip full hydration of settled
- * runs (the run journal is the only authoritative source for pending intents).
- */
 export const DELIVERY_SETTLED_PREFIX = "__nerve_settled__";
 
 export function deliverySettledIntentId(
@@ -48,20 +35,26 @@ export function isDeliverySettledRecord(
   return delivery?.intentId.startsWith(DELIVERY_SETTLED_PREFIX) === true;
 }
 
+/** Run projection/unit of work backed by conversation aggregate journals. */
 export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   private readonly locks = new Map<string, Promise<void>>();
   private readonly cache: BoundedRunStateCache;
-  /** Lightweight run-record listing cached by the one-time active hydration. */
   private metadata: RunRecord[] | undefined;
   private readonly lookup = new ActiveRunLookup({
     load: (runId) => this.load(runId),
     hydrateActive: () => this.hydrateAllActive(),
   });
 
+  private readonly journal: ConversationJournalRepository;
+
   constructor(
-    private readonly home: string,
+    journalOrHome: ConversationJournalRepository | string,
     cacheMaximum = 32,
   ) {
+    this.journal =
+      typeof journalOrHome === "string"
+        ? new ConversationJournalRepository({ paths: { home: journalOrHome } })
+        : journalOrHome;
     this.cache = new BoundedRunStateCache(cacheMaximum);
   }
 
@@ -115,15 +108,16 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
 
   async list(): Promise<readonly RunHydratedState[]> {
     const states: RunHydratedState[] = [];
-    for (const runId of await listChildDirs(this.root())) {
-      const cached = this.cache.get(runId);
-      const state = cached ?? (await this.hydrate(runId));
-      if (!state) continue;
-      if (!cached && ACTIVE_STATUSES.has(state.run.status)) {
-        this.cache.set(state);
+    for (const journalState of await this.journal.hydrateAll()) {
+      for (const runId of journalState.runProjections.keys()) {
+        const cached = this.cache.get(runId);
+        const state = cached ?? this.reduceFromJournal(journalState, runId);
+        if (!state) continue;
+        if (!cached && ACTIVE_STATUSES.has(state.run.status))
+          this.cache.set(state);
+        this.lookup.observe(state);
+        states.push(state);
       }
-      this.lookup.observe(state);
-      states.push(state);
     }
     this.lookup.markInitialized();
     return states.sort((left, right) =>
@@ -131,21 +125,39 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
     );
   }
 
-  /**
-   * Lightweight listing of every run record (id/status/scope/agent/timestamps)
-   * without hydrating transition history. Reads the last committed transition
-   * of each journal backwards in bounded chunks, so cost scales with the number
-   * of runs, not with the size of their journals.
-   */
+  async hasActionableInteraction(
+    runId: string,
+    toolCallId: string,
+  ): Promise<boolean> {
+    const runState = await this.loadFresh(runId);
+    if (!runState || runState.run.status !== "waiting") return false;
+    const journalState = await this.journal.load(runState.run.conversationId);
+    const interaction = [...journalState.interactions.values()].find(
+      (candidate) =>
+        candidate.runId === runId &&
+        candidate.executionId === runState.run.executionId &&
+        candidate.toolCallId === toolCallId &&
+        candidate.interaction.status !== "cancelled",
+    );
+    if (!interaction) return false;
+    const suspension = journalState.suspensions.get(interaction.suspensionId);
+    const toolCall = journalState.toolCalls.get(toolCallId);
+    const member = suspension?.members.find(
+      (candidate) => candidate.interactionId === interaction.id,
+    );
+    return Boolean(
+      suspension?.status === "open" &&
+      member &&
+      toolCall &&
+      member.toolCallRevision === interaction.toolCallRevision &&
+      toolCall.revision === interaction.toolCallRevision,
+    );
+  }
+
   async listMetadata(): Promise<readonly RunRecord[]> {
     return (this.metadata ??= await this.scanMetadata());
   }
 
-  /**
-   * One-time authoritative initialization: discovers active runs from a
-   * metadata scan and fully hydrates only those, so startup never reads
-   * terminal transition history. Terminal runs are loaded lazily on demand.
-   */
   async hydrateAllActive(): Promise<void> {
     const records = await this.scanMetadata();
     this.metadata = records;
@@ -157,21 +169,7 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
         this.lookup.observe(state);
       }
     }
-  }
-
-  private async scanMetadata(): Promise<RunRecord[]> {
-    const records: RunRecord[] = [];
-    for (const runId of await listChildDirs(this.root())) {
-      // The last valid transition carries the authoritative latest run record.
-      // A torn final line falls back to the previous committed transition, so
-      // a partially-written append never hides an active run from recovery.
-      const [latest] = await readJsonLinesTail<RunTransitionRecord>(
-        this.transitionsPath(runId),
-        1,
-      );
-      if (latest?.run) records.push(latest.run);
-    }
-    return records;
+    this.lookup.markInitialized();
   }
 
   async commit(
@@ -190,64 +188,54 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
         );
       }
       const next = applyRunTransition(current, parsed);
-      await appendJsonLine(this.transitionsPath(parsed.runId), parsed, 0o600);
+      const events: ConversationJournalEvent[] = [
+        {
+          kind: "run.transition_committed",
+          conversationId: parsed.run.conversationId,
+          transition: parsed,
+        },
+        ...(await this.normalizedInteractionEvents(next, parsed)),
+      ];
+      await this.journal.commit(parsed.run.conversationId, {
+        kind: `run.${parsed.kind}`,
+        committedAt: parsed.committedAt,
+        events,
+      });
       this.cache.set(next);
       this.lookup.observe(next);
+      this.metadata = undefined;
       return next;
     });
   }
 
-  /**
-   * Enumerates undelivered public-event intents. Settled runs (whose last
-   * delivery-settlement checkpoint covers their last committed transition)
-   * are skipped from a bounded tail scan; only unsettled runs are hydrated
-   * in full. Runs that hydrate clean with no pending intents are checkpointed
-   * as settled so later sweeps skip them too.
-   */
   async pendingEventIntents() {
     const pending: Array<{
       runId: string;
       revision: number;
       intent: RunTransitionRecord["events"][number];
     }> = [];
-    for (const runId of await listChildDirs(this.root())) {
-      const [latestTransition] = await readJsonLinesTail<RunTransitionRecord>(
-        this.transitionsPath(runId),
-        1,
-      );
-      if (!latestTransition) continue;
-      const [latestDelivery] = await readJsonLinesTail<RunEventDeliveryRecord>(
-        this.deliveriesPath(runId),
-        1,
-      );
-      if (
-        isDeliverySettledRecord(latestDelivery) &&
-        latestDelivery.revision >= latestTransition.run.revision
-      ) {
-        continue;
-      }
-      const state = await this.hydrate(runId);
-      if (!state) continue;
+    for (const state of await this.list()) {
+      const journalState = await this.journal.load(state.run.conversationId);
       const delivered = new Set(state.deliveries.map((item) => item.intentId));
-      const runPending: typeof pending = [];
       for (const transition of state.transitions) {
         for (const intent of transition.events) {
           if (!delivered.has(intent.id)) {
-            runPending.push({
+            const conversationRevision =
+              journalState.intentConversationRevisions.get(intent.id);
+            pending.push({
               runId: transition.runId,
               revision: transition.revision,
-              intent,
+              intent:
+                conversationRevision === undefined || !isRecord(intent.data)
+                  ? intent
+                  : {
+                      ...intent,
+                      data: { ...intent.data, conversationRevision },
+                    },
             });
           }
         }
       }
-      if (runPending.length === 0) {
-        // Nothing to re-deliver: record settlement so the next startup sweep
-        // can skip this run entirely.
-        await this.markDeliverySettled(runId, state.run.revision);
-        continue;
-      }
-      pending.push(...runPending);
     }
     return pending.sort(
       (left, right) =>
@@ -256,27 +244,15 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
     );
   }
 
-  /**
-   * Append a delivery-settlement checkpoint for `runId` through `revision`:
-   * all public-event intents up to that revision are durably delivered.
-   * Settlement is only consulted from the journal on the next sweep, so no
-   * in-memory state is updated.
-   */
   async markDeliverySettled(runId: string, revision: number): Promise<void> {
-    await this.exclusive(runId, async () => {
-      const intentId = deliverySettledIntentId(runId, revision);
-      await appendJsonLine(
-        this.deliveriesPath(runId),
-        {
-          intentId,
-          runId,
-          revision,
-          eventId: intentId.slice(0, 256),
-          sequence: revision,
-          deliveredAt: new Date().toISOString(),
-        } satisfies RunEventDeliveryRecord,
-        0o600,
-      );
+    const intentId = deliverySettledIntentId(runId, revision);
+    await this.markEventDelivered({
+      intentId,
+      runId,
+      revision,
+      eventId: intentId.slice(0, 256),
+      sequence: revision,
+      deliveredAt: new Date().toISOString(),
     });
   }
 
@@ -287,52 +263,130 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
       if (!state) throw new Error(`Unknown run: ${parsed.runId}`);
       const next = applyRunEventDelivery(state, parsed);
       if (next === state) return;
-      await appendJsonLine(this.deliveriesPath(parsed.runId), parsed, 0o600);
+      await this.journal.commit(state.run.conversationId, {
+        kind: "run.event_delivered",
+        committedAt: parsed.deliveredAt,
+        events: [
+          {
+            kind: "run.event_delivered",
+            conversationId: state.run.conversationId,
+            delivery: parsed,
+          },
+        ],
+      });
       this.cache.set(next);
     });
   }
 
-  async materialize(state: RunHydratedState): Promise<void> {
-    const root = this.runRoot(state.run.runId);
-    await Promise.all([
-      atomicWriteJson(join(root, "state.json"), state.run, 0o600),
-      atomicWriteJson(join(root, "prompts.json"), state.prompts, 0o600),
-      atomicWriteJson(
-        join(root, "interactions.json"),
-        state.interactions,
-        0o600,
-      ),
-      atomicWriteJson(join(root, "checkpoints.json"), state.checkpoints, 0o600),
-    ]);
+  async materialize(): Promise<void> {
+    // Journal projections are materialized in memory; files are not authoritative.
+  }
+
+  private async normalizedInteractionEvents(
+    state: RunHydratedState,
+    transition: RunTransitionRecord,
+  ): Promise<ConversationJournalEvent[]> {
+    if (transition.interactions.length === 0) return [];
+    const journalState = await this.journal.load(state.run.conversationId);
+    const events: ConversationJournalEvent[] = [];
+    const checkpointIds = new Set(
+      transition.interactions.map((interaction) => interaction.checkpointId),
+    );
+    for (const runInteraction of transition.interactions) {
+      const toolCall = journalState.toolCalls.get(runInteraction.toolCallId);
+      const toolInteraction =
+        toolCall?.interactions[runInteraction.interactionOrdinal];
+      if (!toolCall || !toolInteraction) {
+        throw new Error(
+          `Run interaction '${runInteraction.id}' has no canonical tool interaction.`,
+        );
+      }
+      events.push({
+        kind: "interaction.upserted",
+        conversationId: state.run.conversationId,
+        interaction: {
+          id: runInteraction.id,
+          conversationId: state.run.conversationId,
+          runId: state.run.runId,
+          executionId: state.run.executionId,
+          suspensionId: suspensionId(runInteraction.checkpointId),
+          checkpointId: runInteraction.checkpointId,
+          toolCallId: toolCall.id,
+          toolCallRevision: toolCall.revision,
+          interaction: toolInteraction,
+        },
+      });
+    }
+    for (const checkpointId of checkpointIds) {
+      const members = state.interactions.filter(
+        (interaction) => interaction.checkpointId === checkpointId,
+      );
+      const orderedIds =
+        members[0]?.batchToolCallIds ??
+        members.map((interaction) => interaction.toolCallId);
+      const ordered = orderedIds.flatMap((toolCallId) => {
+        const interaction = members.find(
+          (candidate) => candidate.toolCallId === toolCallId,
+        );
+        return interaction ? [interaction] : [];
+      });
+      if (ordered.length === 0) continue;
+      events.push({
+        kind: "suspension.upserted",
+        conversationId: state.run.conversationId,
+        suspension: {
+          id: suspensionId(checkpointId),
+          conversationId: state.run.conversationId,
+          runId: state.run.runId,
+          executionId: state.run.executionId,
+          checkpointId,
+          status: ordered.some(
+            (interaction) => interaction.status === "pending",
+          )
+            ? "open"
+            : "resolved",
+          members: ordered.map((interaction, ordinal) => ({
+            ordinal,
+            interactionId: interaction.id,
+            toolCallId: interaction.toolCallId,
+            toolCallRevision:
+              journalState.toolCalls.get(interaction.toolCallId)?.revision ??
+              interaction.toolCallRevision,
+            kind: interaction.kind,
+          })),
+          createdAt: ordered[0]!.createdAt,
+          updatedAt: state.run.updatedAt,
+        },
+      });
+    }
+    return events;
+  }
+
+  private async scanMetadata(): Promise<RunRecord[]> {
+    const records: RunRecord[] = [];
+    for (const state of await this.journal.hydrateAll()) {
+      for (const projection of state.runProjections.values()) {
+        records.push(projection.run);
+      }
+    }
+    return records.sort((left, right) =>
+      left.updatedAt.localeCompare(right.updatedAt),
+    );
   }
 
   private async hydrate(runId: string): Promise<RunHydratedState | undefined> {
-    const transitions = await strictJsonLines(
-      this.transitionsPath(runId),
-      runTransitionRecordSchema,
-    );
-    if (transitions.length === 0) return undefined;
-    const deliveries = await strictJsonLines(
-      this.deliveriesPath(runId),
-      runEventDeliveryRecordSchema,
-    );
-    return reduceRunTransitions(transitions, deliveries);
+    for (const state of await this.journal.hydrateAll()) {
+      const hydrated = this.reduceFromJournal(state, runId);
+      if (hydrated) return hydrated;
+    }
+    return undefined;
   }
 
-  private root(): string {
-    return join(this.home, "run-runtime", "runs");
-  }
-
-  private runRoot(runId: string): string {
-    return join(this.root(), safe(runId));
-  }
-
-  private transitionsPath(runId: string): string {
-    return join(this.runRoot(runId), "transitions.jsonl");
-  }
-
-  private deliveriesPath(runId: string): string {
-    return join(this.runRoot(runId), "event-deliveries.jsonl");
+  private reduceFromJournal(
+    state: Awaited<ReturnType<ConversationJournalRepository["load"]>>,
+    runId: string,
+  ): RunHydratedState | undefined {
+    return state.runProjections.get(runId);
   }
 
   private async exclusive<T>(
@@ -354,40 +408,10 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   }
 }
 
-async function strictJsonLines<T>(
-  path: string,
-  schema: { parse(value: unknown): T },
-): Promise<T[]> {
-  let raw: string;
-  try {
-    raw = await readTextFileConsistent(path);
-  } catch (error) {
-    if (isNotFound(error)) return [];
-    throw error;
-  }
-  return raw
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0)
-    .map((line, index) => {
-      try {
-        return schema.parse(JSON.parse(line) as unknown);
-      } catch (error) {
-        throw new Error(`Corrupt run journal ${path}:${index + 1}`, {
-          cause: error,
-        });
-      }
-    });
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function isNotFound(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: unknown }).code === "ENOENT"
-  );
-}
-
-function safe(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_.-]/g, "_");
+function suspensionId(checkpointId: string): string {
+  return `suspension_${checkpointId.slice("checkpoint_".length)}`;
 }

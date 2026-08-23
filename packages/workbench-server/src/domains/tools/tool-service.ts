@@ -43,6 +43,7 @@ import {
   ToolCallRepository,
 } from "./index.js";
 import { InteractionSessionService } from "./interaction-session.service.js";
+import { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
 import { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
@@ -174,6 +175,7 @@ export class ToolService {
   private readonly interactionSessions: InteractionSessionService;
   private readonly dispatcher: OrchestrationToolDispatcher;
   private readonly executor: ToolExecutorService;
+  private readonly conversationJournal: ConversationJournalRepository;
   private readonly waiters = new Map<
     string,
     Set<(toolCall: ToolCallRecord) => void>
@@ -203,8 +205,14 @@ export class ToolService {
     private readonly conversationRuntime: ConversationRuntime,
     private readonly logger?: ApplicationLogger,
     private readonly permissionExceptions?: PermissionExceptionService,
+    journal?: ConversationJournalRepository,
   ) {
-    this.toolCallRepository = new ToolCallRepository(storage, index);
+    this.conversationJournal =
+      journal ?? new ConversationJournalRepository(storage);
+    this.toolCallRepository = new ToolCallRepository(
+      this.conversationJournal,
+      index,
+    );
     this.toolCalls = this.toolCallRepository.records;
     this.interactionSessions = new InteractionSessionService({
       events: this.events,
@@ -279,7 +287,7 @@ export class ToolService {
   }
 
   /** Whether the tool-call records were loaded from the persisted snapshot. */
-  get toolCallHydrationSource(): "files" {
+  get toolCallHydrationSource(): "journal" {
     return this.toolCallRepository.hydrationSource;
   }
 
@@ -301,7 +309,12 @@ export class ToolService {
     return toolCalls
       .flatMap((toolCall) =>
         toolCall.interactions.flatMap((interaction) =>
-          interaction.kind === "approval"
+          interaction.kind === "approval" &&
+          (interaction.status !== "pending" ||
+            this.conversationJournal.isActionableToolInteraction(
+              toolCall as ToolCallRecord,
+              interaction.ordinal,
+            ))
             ? [this.projectApproval(toolCall, interaction.ordinal)]
             : [],
         ),
@@ -346,7 +359,15 @@ export class ToolService {
     return toolCalls
       .flatMap((toolCall) =>
         toolCall.interactions.flatMap((interaction) => {
-          if (interaction.kind !== "user_input") return [];
+          if (
+            interaction.kind !== "user_input" ||
+            (interaction.status === "pending" &&
+              !this.conversationJournal.isActionableToolInteraction(
+                toolCall as ToolCallRecord,
+                interaction.ordinal,
+              ))
+          )
+            return [];
           const projected: UserQuestionRecord = {
             id: `question_${toolCall.id}_${interaction.ordinal}`,
             toolCallId: toolCall.id,
@@ -513,7 +534,25 @@ export class ToolService {
         ],
       });
       const approval = this.projectApproval(pending, 0);
-      await this.emitToolCallLifecycle(pending, options);
+      try {
+        await this.emitToolCallLifecycle(pending, options);
+      } catch (error) {
+        const failedAt = new Date().toISOString();
+        const failed = await this.updateToolCall(pending.id, {
+          status: "failed",
+          error: "Approval registration failed before the run could suspend.",
+          interactions: pending.interactions.map((interaction) => ({
+            ...interaction,
+            status: "cancelled" as const,
+            updatedAt: failedAt,
+            cancelledAt: failedAt,
+          })),
+        });
+        await this.emitToolCallLifecycle(failed, options).catch(
+          () => undefined,
+        );
+        throw error;
+      }
       await this.logger?.info("Tool approval requested", {
         toolCallId: pending.id,
         agentId: pending.agentId,
@@ -884,6 +923,38 @@ export class ToolService {
     return await this.toolCallRepository.getCanonical(toolCallId);
   }
 
+  async abandonPendingInteraction(
+    toolCallId: string,
+    reason: string,
+  ): Promise<ToolCallRecord> {
+    const toolCall = await this.getToolCallDetails(toolCallId);
+    const now = new Date().toISOString();
+    if (
+      toolCall.status !== "waiting" ||
+      !toolCall.interactions.some(
+        (interaction) => interaction.status === "pending",
+      )
+    ) {
+      return toolCall;
+    }
+    const failed = await this.updateToolCall(toolCallId, {
+      status: "failed",
+      error: reason,
+      interactions: toolCall.interactions.map((interaction) =>
+        interaction.status === "pending"
+          ? {
+              ...interaction,
+              status: "cancelled" as const,
+              updatedAt: now,
+              cancelledAt: now,
+            }
+          : interaction,
+      ),
+    });
+    await this.publishToolCallUpdated(failed).catch(() => undefined);
+    return failed;
+  }
+
   private async updateToolCall(
     toolCallId: string,
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
@@ -939,8 +1010,12 @@ export class ToolService {
   private async publishToolCallUpdated(
     toolCall: ToolCallRecord,
   ): Promise<void> {
+    const conversationRevision = (
+      await this.conversationJournal.load(toolCall.conversationId)
+    ).revision;
     await this.events.publish("toolCall.updated", {
       conversationId: toolCall.conversationId,
+      conversationRevision,
       agentId: toolCall.agentId,
       projectId: toolCall.projectId,
       runId: toolCall.runId,

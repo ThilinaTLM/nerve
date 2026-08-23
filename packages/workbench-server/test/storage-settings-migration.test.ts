@@ -107,7 +107,7 @@ describe("settings migrations", () => {
     };
     assert.equal(
       rerunLedger.applied.at(-1)?.id,
-      "0014-fixed-supervised-baseline",
+      "0015-conversation-aggregate-journals",
     );
     const second = await initializeStorage(root);
     assert.deepEqual(second.settings, storage.settings);

@@ -6,8 +6,6 @@ import type {
   TranscriptItem,
 } from "./transcript-types";
 
-const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
-
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
@@ -240,6 +238,7 @@ export function entryToTranscriptItems(
       id: `${entry.id}:thinking:${index}`,
       runId: entry.runId,
       turnId: entry.turnId,
+      liveMessageId: entry.liveMessageId,
       messageOrdinal: entry.messageOrdinal,
       role: "assistant",
       kind: entry.kind,
@@ -251,27 +250,22 @@ export function entryToTranscriptItems(
       errorMessage,
     });
   }
-
-  const isToolOnlyAssistantPlaceholder =
-    entry.role === "assistant" && TOOL_CALL_PLACEHOLDER.test(entry.text.trim());
-
-  if (!isToolOnlyAssistantPlaceholder || entry.role !== "assistant") {
-    items.push({
-      id: entry.id,
-      runId: entry.runId,
-      turnId: entry.turnId,
-      messageOrdinal: entry.messageOrdinal,
-      role: entry.role,
-      kind: entry.kind,
-      displayKind: "message",
-      text: entry.text,
-      createdAt: entry.createdAt,
-      usage: entry.usage,
-      stopReason,
-      errorMessage,
-      ...metadata,
-    });
-  }
+  items.push({
+    id: entry.id,
+    runId: entry.runId,
+    turnId: entry.turnId,
+    liveMessageId: entry.liveMessageId,
+    messageOrdinal: entry.messageOrdinal,
+    role: entry.role,
+    kind: entry.kind,
+    displayKind: "message",
+    text: entry.text,
+    createdAt: entry.createdAt,
+    usage: entry.usage,
+    stopReason,
+    errorMessage,
+    ...metadata,
+  });
 
   return items;
 }

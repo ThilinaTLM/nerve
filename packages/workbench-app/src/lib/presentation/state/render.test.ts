@@ -125,6 +125,7 @@ describe("conversation render projection", () => {
         createdAt: ts,
         updatedAt: ts,
       },
+      conversationRevision: 1,
       tree: { conversationId: "conv_workbench", rootEntryIds: [], nodes: [] },
       entries: [
         {

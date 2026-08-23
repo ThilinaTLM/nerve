@@ -15,6 +15,7 @@ import { migration0011 } from "./migrations/0011-import-legacy-portable-state.js
 import { migration0012 } from "./migrations/0012-remove-workers.js";
 import { migration0013 } from "./migrations/0013-permission-settings.js";
 import { migration0014 } from "./migrations/0014-fixed-supervised-baseline.js";
+import { migration0015 } from "./migrations/0015-conversation-aggregate-journals.js";
 
 export const storageMigrationRegistry: readonly StorageMigration[] =
   Object.freeze([
@@ -32,6 +33,7 @@ export const storageMigrationRegistry: readonly StorageMigration[] =
     migration0012,
     migration0013,
     migration0014,
+    migration0015,
   ]);
 
 export function validateMigrationRegistry(

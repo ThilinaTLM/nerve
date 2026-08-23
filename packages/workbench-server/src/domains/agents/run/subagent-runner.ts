@@ -1,10 +1,9 @@
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   AgentHarness,
   Conversation,
-  JsonlConversationStorage,
   NodeExecutionEnv,
   resolveAgentModel,
 } from "@nervekit/harness";
@@ -22,10 +21,7 @@ import type {
 import { createId } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
-import {
-  type InitializedStorage,
-  pathExists,
-} from "../../../infrastructure/storage/index.js";
+import { type InitializedStorage } from "../../../infrastructure/storage/index.js";
 import type { AuthManager } from "../../auth/index.js";
 import type { ConversationHarnessStorage } from "../../conversations/conversation-harness-storage.js";
 import {
@@ -550,33 +546,19 @@ export class SubagentRunner {
   private async openChildStorage(
     child: AgentRecord,
     historyMode: SubagentHistoryMode,
-  ): Promise<JsonlConversationStorage> {
-    const childDir = join(this.deps.storage.paths.home, "agents", child.id);
-    await mkdir(childDir, { recursive: true, mode: 0o700 });
-    const childPath = join(childDir, "conversation.jsonl");
-    const env = new NodeExecutionEnv({
-      cwd: child.projectDir,
-      shellPath: this.deps.storage.settings.runtime.shellPath,
-    });
-    if (historyMode === "copy_parent") {
-      const parentPath = this.deps.harnessStorage.conversationPath(
+  ) {
+    const storage = await this.deps.harnessStorage.openAgentStorage(child);
+    if (
+      historyMode === "copy_parent" &&
+      (await storage.getEntries()).length === 0
+    ) {
+      for (const entry of await this.deps.harnessStorage.modelEntries(
         child.conversationId,
-      );
-      if ((await pathExists(parentPath)) && !(await pathExists(childPath))) {
-        await copyFile(parentPath, childPath);
-        return JsonlConversationStorage.open(env, childPath);
+      )) {
+        await storage.appendEntry(entry);
       }
     }
-    if (!(await pathExists(childPath))) {
-      return JsonlConversationStorage.create(env, childPath, {
-        cwd: child.projectDir,
-        conversationId: child.conversationId,
-        parentConversationPath: this.deps.harnessStorage.conversationPath(
-          child.conversationId,
-        ),
-      });
-    }
-    return JsonlConversationStorage.open(env, childPath);
+    return storage;
   }
 
   private async writeExploreReport(input: {
