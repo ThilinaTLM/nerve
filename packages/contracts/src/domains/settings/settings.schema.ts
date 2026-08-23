@@ -13,10 +13,7 @@ import {
   permissionExceptionSchema,
   permissionLevelSchema,
 } from "../permissions/permissions.schema.js";
-import {
-  toolNameSchema,
-  userConfigurableToolNameSchema,
-} from "../tools/records.schema.js";
+import { userConfigurableToolNameSchema } from "../tools/records.schema.js";
 
 export const modeSchema = z.enum(["planning", "coding"]);
 export type Mode = z.infer<typeof modeSchema>;
@@ -59,22 +56,6 @@ const permissionExceptionsSchema = z
         });
       }
       ids.add(exception.id);
-      if (exception.selector.kind === "tool") {
-        if (!toolNameSchema.safeParse(exception.selector.toolName).success) {
-          context.addIssue({
-            code: "custom",
-            message: `Unknown tool '${exception.selector.toolName}'`,
-            path: [index, "selector", "toolName"],
-          });
-        }
-        if (exception.selector.toolName === "bash") {
-          context.addIssue({
-            code: "custom",
-            message: "Bash requires a command-prefix exception.",
-            path: [index, "selector", "toolName"],
-          });
-        }
-      }
     }
   });
 

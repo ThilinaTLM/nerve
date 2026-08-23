@@ -85,21 +85,15 @@ describe("settings schema", () => {
         exceptions: [
           {
             id: "exception_datadog",
+            tool: "bash",
             effect: "allow",
-            selector: {
-              kind: "command_prefix",
-              tokens: ["datadog", "logs", "read"],
-            },
-            risk: "command",
+            rule: "datadog logs read*",
           },
           {
             id: "exception_secrets",
+            tool: "read",
             effect: "deny",
-            selector: {
-              kind: "path_glob",
-              access: "read_write",
-              pattern: "secrets/**",
-            },
+            rule: "secrets/**",
           },
         ],
       },
@@ -111,9 +105,9 @@ describe("settings schema", () => {
           exceptions: [
             {
               id: "exception_python",
+              tool: "unknown_tool",
               effect: "allow",
-              selector: { kind: "tool", toolName: "python_exec" },
-              risk: "command",
+              rule: "*",
             },
           ],
         },

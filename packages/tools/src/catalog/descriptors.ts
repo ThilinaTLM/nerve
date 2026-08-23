@@ -1,6 +1,18 @@
 import type { ToolDescriptor } from "@nervekit/contracts";
 import { coreToolDefinitions, toolManifest } from "./manifest.js";
-import type { ToolDefinition } from "./types.js";
+import type {
+  ToolDefinition,
+  ToolPermissionTargetDescriptor,
+} from "./types.js";
+
+function ruleKind(
+  target: ToolPermissionTargetDescriptor | undefined,
+): ToolDescriptor["permission"]["ruleKind"] {
+  if (target?.kind === "path") return "path_glob";
+  if (target?.kind === "command_segments") return "command_glob";
+  if (target?.kind === "web_host") return "url_glob";
+  return "tool";
+}
 
 function descriptor(definition: ToolDefinition): ToolDescriptor {
   return {
@@ -11,6 +23,10 @@ function descriptor(definition: ToolDefinition): ToolDescriptor {
     group: definition.group,
     executionKind: definition.executionKind,
     traits: [...definition.traits],
+    permission: {
+      durableAllow: definition.permission?.durableAllow ?? "tool",
+      ruleKind: ruleKind(definition.permission?.targets?.[0]),
+    },
   };
 }
 

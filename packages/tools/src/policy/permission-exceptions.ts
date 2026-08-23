@@ -1,23 +1,18 @@
 import { createHash } from "node:crypto";
 import type {
   PermissionException,
-  PermissionSelector,
   ToolName,
   ToolRisk,
 } from "@nervekit/contracts";
 import { requireToolDefinition } from "../catalog/manifest.js";
 import {
-  commandPrefixMatches,
-  suggestedCommandPrefix,
-} from "./shell-command-assessment.js";
-import { pathGlobMatches, webHostMatches } from "./path-glob.js";
+  pathGlobMatches,
+  patternMatches,
+  escapeGlobLiteral,
+} from "./path-glob.js";
 import type { PermissionTarget, ToolRiskAssessment } from "./types.js";
 
-type PermissionExceptionDraft = PermissionException extends infer T
-  ? T extends { id: string }
-    ? Omit<T, "id">
-    : never
-  : never;
+type PermissionExceptionDraft = Omit<PermissionException, "id">;
 
 const NEVER_DURABLE_RISKS = new Set<ToolRisk>([
   "destructive",
@@ -29,9 +24,9 @@ export function permissionExceptionKey(
   exception: PermissionExceptionDraft | PermissionException,
 ): string {
   return JSON.stringify({
+    tool: exception.tool,
     effect: exception.effect,
-    ...(exception.effect === "allow" ? { risk: exception.risk } : {}),
-    selector: exception.selector,
+    rule: exception.rule,
   });
 }
 
@@ -44,10 +39,7 @@ export function permissionExceptionId(
 export function withPermissionExceptionId(
   exception: PermissionExceptionDraft,
 ): PermissionException {
-  return {
-    ...exception,
-    id: permissionExceptionId(exception),
-  } as PermissionException;
+  return { ...exception, id: permissionExceptionId(exception) };
 }
 
 export function deduplicatePermissionExceptions(
@@ -70,7 +62,8 @@ export function matchingDenyExceptions(input: {
   return input.exceptions.filter(
     (exception) =>
       exception.effect === "deny" &&
-      selectorMatchesRequest(exception.selector, input.toolName, input.targets),
+      exception.tool === input.toolName &&
+      ruleMatchesRequest(exception.rule, input.toolName, input.targets),
   );
 }
 
@@ -80,24 +73,23 @@ export function coveringAllowExceptions(input: {
   targets: readonly PermissionTarget[];
   exceptions: readonly PermissionException[];
 }): PermissionException[] {
+  if (NEVER_DURABLE_RISKS.has(input.risk)) return [];
+  const definition = requireToolDefinition(input.toolName);
+  if ((definition.permission?.durableAllow ?? "tool") === "never") return [];
   const candidates = input.exceptions.filter(
     (exception) =>
-      exception.effect === "allow" && exception.risk === input.risk,
+      exception.effect === "allow" && exception.tool === input.toolName,
   );
   const requiredTargets = input.targets.filter(
     (target) => target.kind !== "command_segment" || target.risk !== "read",
   );
   if (requiredTargets.length === 0) {
-    return candidates.filter(
-      (exception) =>
-        exception.selector.kind === "tool" &&
-        exception.selector.toolName === input.toolName,
-    );
+    return candidates.filter((exception) => exception.rule === "*");
   }
   const matched = new Map<string, PermissionException>();
   for (const target of requiredTargets) {
     const covering = candidates.filter((exception) =>
-      selectorMatchesTarget(exception.selector, input.toolName, target),
+      ruleMatchesTarget(exception.rule, input.toolName, target),
     );
     if (covering.length === 0) return [];
     for (const exception of covering) matched.set(exception.id, exception);
@@ -122,25 +114,20 @@ export function suggestedPermissionExceptions(input: {
   const result: PermissionException[] = [];
   for (const target of durableAllow === "target" ? input.targets : []) {
     if (target.kind === "command_segment" && target.risk === "read") continue;
-    let selector: PermissionSelector | undefined;
+    let rule: string | undefined;
     if (target.kind === "command_segment") {
-      const tokens = suggestedCommandPrefix(target.normalizedTokens);
-      if (tokens.length) selector = { kind: "command_prefix", tokens };
+      rule = escapeGlobLiteral(target.normalizedTokens.join(" "));
     } else if (target.kind === "path" && target.projectRelativePath) {
-      selector = {
-        kind: "path_glob",
-        access: target.access,
-        pattern: escapePathGlob(target.projectRelativePath),
-      };
-    } else if (target.kind === "web_host") {
-      selector = { kind: "web_host", pattern: target.host };
+      rule = escapeGlobLiteral(target.projectRelativePath);
+    } else if (target.kind === "web_url") {
+      rule = escapeGlobLiteral(target.url);
     }
-    if (selector) {
+    if (rule) {
       result.push(
         withPermissionExceptionId({
+          tool: input.toolName,
           effect: "allow",
-          risk: input.assessment.risk,
-          selector,
+          rule,
         }),
       );
     }
@@ -148,55 +135,49 @@ export function suggestedPermissionExceptions(input: {
   if (result.length === 0 && durableAllow === "tool") {
     result.push(
       withPermissionExceptionId({
+        tool: input.toolName,
         effect: "allow",
-        risk: input.assessment.risk,
-        selector: { kind: "tool", toolName: input.toolName },
+        rule: "*",
       }),
     );
   }
   return deduplicatePermissionExceptions(result);
 }
 
-function selectorMatchesRequest(
-  selector: PermissionSelector,
+function ruleMatchesRequest(
+  rule: string,
   toolName: ToolName,
   targets: readonly PermissionTarget[],
 ): boolean {
-  if (selector.kind === "tool") return selector.toolName === toolName;
-  return targets.some((target) =>
-    selectorMatchesTarget(selector, toolName, target),
-  );
+  const definition = requireToolDefinition(toolName);
+  if (!definition.permission?.targets?.length) return rule === "*";
+  return targets.some((target) => ruleMatchesTarget(rule, toolName, target));
 }
 
-function selectorMatchesTarget(
-  selector: PermissionSelector,
+function ruleMatchesTarget(
+  rule: string,
   toolName: ToolName,
   target: PermissionTarget,
 ): boolean {
-  if (selector.kind === "tool") return selector.toolName === toolName;
-  if (selector.kind === "command_prefix") {
+  const targetKind =
+    requireToolDefinition(toolName).permission?.targets?.[0]?.kind;
+  if (targetKind === "command_segments") {
     return (
       target.kind === "command_segment" &&
-      commandPrefixMatches(target.normalizedTokens, selector.tokens)
+      patternMatches(target.normalizedTokens.join(" "), rule)
     );
   }
-  if (selector.kind === "web_host") {
-    return (
-      target.kind === "web_host" &&
-      webHostMatches(target.host, selector.pattern)
-    );
+  if (targetKind === "web_host") {
+    return target.kind === "web_url" && patternMatches(target.url, rule);
   }
-  if (target.kind !== "path" || !target.projectRelativePath) return false;
-  const accessMatches =
-    selector.access === "read_write" || selector.access === target.access;
-  return (
-    accessMatches &&
-    pathTargetMatchesGlob(
-      target.projectRelativePath,
-      target.scope,
-      selector.pattern,
-    )
-  );
+  if (
+    targetKind !== "path" ||
+    target.kind !== "path" ||
+    !target.projectRelativePath
+  ) {
+    return false;
+  }
+  return pathTargetMatchesGlob(target.projectRelativePath, target.scope, rule);
 }
 
 function pathTargetMatchesGlob(
@@ -209,11 +190,4 @@ function pathTargetMatchesGlob(
   const literalPrefix = pattern.split(/[?*[{]/, 1)[0]?.replace(/\/$/, "") ?? "";
   if (path === ".") return true;
   return literalPrefix === path || literalPrefix.startsWith(`${path}/`);
-}
-
-function escapePathGlob(path: string): string {
-  return path
-    .replaceAll("[", "[[]")
-    .replaceAll("*", "[*]")
-    .replaceAll("?", "[?]");
 }

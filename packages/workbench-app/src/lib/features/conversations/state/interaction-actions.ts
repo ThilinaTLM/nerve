@@ -38,7 +38,7 @@ export interface InteractionActionDeps {
 export interface InteractionActions {
   grantApproval(
     id: string,
-    scope?: "single_call" | "always_project" | "always_global",
+    scope?: "single_call" | "always_project" | "always_user",
   ): Promise<void>;
   denyApproval(id: string): Promise<void>;
   acceptPendingPlanReview(

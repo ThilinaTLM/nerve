@@ -18,7 +18,7 @@ type Props = {
   detailsAction?: { label: string; onClick: () => void };
   onGrantApproval?: (
     id: string,
-    scope?: "single_call" | "always_project" | "always_global",
+    scope?: "single_call" | "always_project" | "always_user",
   ) => void | Promise<void>;
   onDenyApproval?: (id: string) => void | Promise<void>;
 };
@@ -31,12 +31,12 @@ let {
 }: Props = $props();
 
 let decision = $state<
-  "approve" | "always_project" | "always_global" | "deny" | undefined
+  "approve" | "always_project" | "always_user" | "deny" | undefined
 >();
 let actionError = $state<string | undefined>();
 
 async function decide(
-  kind: "approve" | "always_project" | "always_global" | "deny",
+  kind: "approve" | "always_project" | "always_user" | "deny",
 ) {
   if (decision) return;
   const callback = kind === "deny" ? onDenyApproval : onGrantApproval;
@@ -68,10 +68,7 @@ function riskTone(risk: string | undefined): MetaTone {
 function exceptionLabel(
   exception: ApprovalWithToolCall["suggestedExceptions"][number],
 ): string {
-  const selector = exception.selector;
-  if (selector.kind === "tool") return selector.toolName;
-  if (selector.kind === "command_prefix") return selector.tokens.join(" ");
-  return selector.pattern;
+  return `${exception.tool}: ${exception.rule}`;
 }
 
 const meta = $derived<MetaItem[]>([
@@ -82,11 +79,11 @@ const canPersistProject = $derived(
   approval.offeredScopes.includes("always_project") &&
     approval.suggestedExceptions.length > 0,
 );
-const canPersistGlobal = $derived(
-  approval.offeredScopes.includes("always_global") &&
+const canPersistUser = $derived(
+  approval.offeredScopes.includes("always_user") &&
     approval.suggestedExceptions.length > 0,
 );
-const hasPersistentChoice = $derived(canPersistProject || canPersistGlobal);
+const hasPersistentChoice = $derived(canPersistProject || canPersistUser);
 const reviewedTarget = $derived(
   approval.suggestedExceptions.map(exceptionLabel).join(", "),
 );
@@ -125,13 +122,13 @@ const reviewedTarget = $derived(
                 Always approve in project
               </DropdownMenu.Item>
             {/if}
-            {#if canPersistGlobal}
+            {#if canPersistUser}
               <DropdownMenu.Item
                 disabled={Boolean(decision)}
-                title={`Always approve ${reviewedTarget} globally`}
-                onSelect={() => void decide("always_global")}
+                title={`Always approve ${reviewedTarget} for this user`}
+                onSelect={() => void decide("always_user")}
               >
-                Always approve globally
+                Always approve for user
               </DropdownMenu.Item>
             {/if}
           {/snippet}

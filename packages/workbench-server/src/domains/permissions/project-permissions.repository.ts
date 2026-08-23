@@ -10,7 +10,7 @@ import {
 } from "../../infrastructure/storage/index.js";
 
 const emptyPermissions = (): ProjectPermissions => ({
-  version: 1,
+  version: 2,
   exceptions: [],
 });
 

@@ -24,7 +24,7 @@ const actions = createInteractionActions({
 
 export const grantApproval = (
   id: string,
-  scope?: "single_call" | "always_project" | "always_global",
+  scope?: "single_call" | "always_project" | "always_user",
 ) => actions.grantApproval(id, scope);
 export const denyApproval = (id: string) => actions.denyApproval(id);
 export const acceptPendingPlanReview = (

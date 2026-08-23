@@ -2,9 +2,10 @@ import type {
   PermissionException,
   ProjectPermissions,
   ProjectRecord,
+  ToolDescriptor,
 } from "$lib/api";
 
-export type PermissionScope = "project" | "global";
+export type PermissionScope = "project" | "user";
 
 type Dependencies = {
   getProject(projectId: string): Promise<ProjectPermissions>;
@@ -12,104 +13,155 @@ type Dependencies = {
     projectId: string,
     permissions: ProjectPermissions,
   ): Promise<ProjectPermissions>;
-  updateGlobal(exceptions: PermissionException[]): Promise<void>;
+  updateUser(exceptions: PermissionException[]): Promise<void>;
+  listTools(): Promise<ToolDescriptor[]>;
 };
 
 export class PermissionsPageState {
-  scope = $state<PermissionScope>("global");
   project = $state<ProjectRecord>();
   projectPermissions = $state<ProjectPermissions>();
-  loading = $state(false);
-  error = $state<string>();
-  pendingIds = $state<string[]>([]);
+  tools = $state<ToolDescriptor[]>([]);
+  projectLoading = $state(false);
+  toolsLoading = $state(false);
+  projectError = $state<string>();
+  userError = $state<string>();
+  toolsError = $state<string>();
+  pendingKeys = $state<string[]>([]);
   private generation = 0;
 
-  constructor(private readonly dependencies: Dependencies) {}
+  constructor(private readonly dependencies: Dependencies) {
+    void this.loadTools();
+  }
 
   selectProject(project: ProjectRecord | undefined): void {
     if (this.project?.id === project?.id) return;
     this.project = project;
-    this.scope = project ? "project" : "global";
     this.projectPermissions = undefined;
-    this.error = undefined;
+    this.projectError = undefined;
     this.generation += 1;
     if (project) void this.loadProject(project.id, this.generation);
   }
 
-  retry(): void {
+  retryProject(): void {
     if (!this.project) return;
     const generation = ++this.generation;
     void this.loadProject(this.project.id, generation);
   }
 
-  exceptions(globalExceptions: PermissionException[]): PermissionException[] {
-    return this.scope === "project"
-      ? (this.projectPermissions?.exceptions ?? [])
-      : globalExceptions;
+  retryTools(): void {
+    void this.loadTools();
   }
 
-  async save(exceptions: PermissionException[]): Promise<void> {
-    this.error = undefined;
-    if (this.scope === "global") {
-      await this.dependencies.updateGlobal(exceptions);
+  error(scope: PermissionScope): string | undefined {
+    return scope === "project" ? this.projectError : this.userError;
+  }
+
+  isPending(scope: PermissionScope, id: string): boolean {
+    return this.pendingKeys.includes(`${scope}:${id}`);
+  }
+
+  async remove(
+    scope: PermissionScope,
+    id: string,
+    userExceptions: PermissionException[],
+  ): Promise<void> {
+    const key = `${scope}:${id}`;
+    if (this.pendingKeys.includes(key)) return;
+    this.pendingKeys = [...this.pendingKeys, key];
+    this.setError(scope, undefined);
+    try {
+      const current = this.exceptions(scope, userExceptions);
+      await this.save(
+        scope,
+        current.filter((exception) => exception.id !== id),
+      );
+    } catch (error) {
+      this.setError(
+        scope,
+        errorMessage(error, "Could not remove the exception."),
+      );
+    } finally {
+      this.pendingKeys = this.pendingKeys.filter(
+        (candidate) => candidate !== key,
+      );
+    }
+  }
+
+  async add(
+    scope: PermissionScope,
+    exception: PermissionException,
+    userExceptions: PermissionException[],
+  ): Promise<boolean> {
+    const current = this.exceptions(scope, userExceptions);
+    if (
+      current.some(
+        (candidate) =>
+          candidate.tool === exception.tool &&
+          candidate.effect === exception.effect &&
+          candidate.rule === exception.rule,
+      )
+    ) {
+      this.setError(scope, "This exception already exists in this scope.");
+      return false;
+    }
+    const key = `${scope}:${exception.id}`;
+    this.pendingKeys = [...this.pendingKeys, key];
+    this.setError(scope, undefined);
+    try {
+      await this.save(scope, [...current, exception]);
+      return true;
+    } catch (error) {
+      this.setError(
+        scope,
+        errorMessage(error, "Could not save the exception."),
+      );
+      return false;
+    } finally {
+      this.pendingKeys = this.pendingKeys.filter(
+        (candidate) => candidate !== key,
+      );
+    }
+  }
+
+  private exceptions(
+    scope: PermissionScope,
+    userExceptions: PermissionException[],
+  ): PermissionException[] {
+    return scope === "project"
+      ? (this.projectPermissions?.exceptions ?? [])
+      : userExceptions;
+  }
+
+  private async save(
+    scope: PermissionScope,
+    exceptions: PermissionException[],
+  ): Promise<void> {
+    if (scope === "user") {
+      await this.dependencies.updateUser(exceptions);
       return;
     }
-    if (!this.project) return;
+    if (!this.project) throw new Error("Select a project first.");
     const saved = await this.dependencies.updateProject(this.project.id, {
-      version: 1,
+      version: 2,
       exceptions,
     });
     this.projectPermissions = saved;
   }
 
-  async remove(
-    id: string,
-    globalExceptions: PermissionException[],
-  ): Promise<void> {
-    if (this.pendingIds.includes(id)) return;
-    this.pendingIds = [...this.pendingIds, id];
-    try {
-      const next = this.exceptions(globalExceptions).filter(
-        (exception) => exception.id !== id,
-      );
-      await this.save(next);
-    } catch (error) {
-      this.error = errorMessage(error, "Could not remove the exception.");
-    } finally {
-      this.pendingIds = this.pendingIds.filter((candidate) => candidate !== id);
-    }
+  private setError(scope: PermissionScope, value: string | undefined): void {
+    if (scope === "project") this.projectError = value;
+    else this.userError = value;
   }
 
-  async add(
-    exception: PermissionException,
-    globalExceptions: PermissionException[],
-  ): Promise<boolean> {
-    const current = this.exceptions(globalExceptions);
-    if (
-      current.some(
-        (candidate) =>
-          candidate.effect === exception.effect &&
-          (candidate.effect !== "allow" ||
-            (exception.effect === "allow" &&
-              candidate.risk === exception.risk)) &&
-          JSON.stringify(candidate.selector) ===
-            JSON.stringify(exception.selector),
-      )
-    ) {
-      this.error = "This exception already exists in the selected scope.";
-      return false;
-    }
-    this.pendingIds = [...this.pendingIds, exception.id];
+  private async loadTools(): Promise<void> {
+    this.toolsLoading = true;
     try {
-      await this.save([...current, exception]);
-      return true;
+      this.tools = await this.dependencies.listTools();
+      this.toolsError = undefined;
     } catch (error) {
-      this.error = errorMessage(error, "Could not save the exception.");
-      return false;
+      this.toolsError = errorMessage(error, "Could not load tools.");
     } finally {
-      this.pendingIds = this.pendingIds.filter(
-        (candidate) => candidate !== exception.id,
-      );
+      this.toolsLoading = false;
     }
   }
 
@@ -117,19 +169,22 @@ export class PermissionsPageState {
     projectId: string,
     generation: number,
   ): Promise<void> {
-    this.loading = true;
+    this.projectLoading = true;
     try {
       const permissions = await this.dependencies.getProject(projectId);
       if (generation !== this.generation || this.project?.id !== projectId)
         return;
       this.projectPermissions = permissions;
-      this.error = undefined;
+      this.projectError = undefined;
     } catch (error) {
       if (generation !== this.generation || this.project?.id !== projectId)
         return;
-      this.error = errorMessage(error, "Could not load project exceptions.");
+      this.projectError = errorMessage(
+        error,
+        "Could not load project exceptions.",
+      );
     } finally {
-      if (generation === this.generation) this.loading = false;
+      if (generation === this.generation) this.projectLoading = false;
     }
   }
 }

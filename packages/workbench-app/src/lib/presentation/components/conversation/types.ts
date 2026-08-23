@@ -129,7 +129,7 @@ export type ConversationPaneActions = {
   onDismissUserQuestion?: (id: string) => void | Promise<void>;
   onGrantApproval?: (
     id: string,
-    scope?: "single_call" | "always_project" | "always_global",
+    scope?: "single_call" | "always_project" | "always_user",
   ) => void | Promise<void>;
   onDenyApproval?: (id: string) => void | Promise<void>;
   onAcceptPlanReview?: (

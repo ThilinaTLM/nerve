@@ -576,9 +576,9 @@ export class RuntimeRegistry {
       const durableScope =
         request.resolution.scope === "always_project"
           ? "project"
-          : request.resolution.scope === "always_global" ||
+          : request.resolution.scope === "always_user" ||
               request.resolution.scope === "always"
-            ? "global"
+            ? "user"
             : undefined;
       if (request.resolution.action === "allow" && durableScope) {
         if (
@@ -587,7 +587,7 @@ export class RuntimeRegistry {
             interaction.request.offeredScopes.includes(
               request.resolution.scope ?? "single_call",
             ) ||
-            (request.resolution.scope === "always_global" &&
+            (request.resolution.scope === "always_user" &&
               interaction.request.offeredScopes.includes("always"))
           ) ||
           interaction.request.suggestedExceptions.length === 0

@@ -105,10 +105,7 @@ describe("settings migrations", () => {
     const rerunLedger = JSON.parse(await readFile(ledgerPath, "utf8")) as {
       applied: Array<{ id: string }>;
     };
-    assert.equal(
-      rerunLedger.applied.at(-1)?.id,
-      "0015-conversation-aggregate-journals",
-    );
+    assert.equal(rerunLedger.applied.at(-1)?.id, "0016-permission-rules");
     const second = await initializeStorage(root);
     assert.deepEqual(second.settings, storage.settings);
   });

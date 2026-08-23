@@ -50,7 +50,6 @@ import {
   ProjectEditorService,
   ProjectIconService,
   ProjectLifecycleService,
-  ProjectPermissionsRepository,
   ProjectRepository,
   ProjectTerminalService,
   PruneProjectConversationsService,
@@ -71,7 +70,10 @@ import {
 } from "../domains/tasks/index.js";
 import { WorkbenchTaskService } from "../domains/tasks/workbench-task-service.js";
 import { ToolService } from "../domains/tools/tool-service.js";
-import { PermissionExceptionService } from "../domains/tools/permission-exception.service.js";
+import {
+  PermissionExceptionService,
+  ProjectPermissionsRepository,
+} from "../domains/permissions/index.js";
 import {
   createWorkbenchRunRuntime,
   type WorkbenchRunRuntime,

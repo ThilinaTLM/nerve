@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { permissionExceptionSchema } from "../permissions/index.js";
-import { toolNameSchema } from "../tools/records.schema.js";
 
 const projectPermissionExceptionsSchema = z
   .array(permissionExceptionSchema)
@@ -16,22 +15,11 @@ const projectPermissionExceptionsSchema = z
         });
       }
       ids.add(exception.id);
-      if (
-        exception.selector.kind === "tool" &&
-        (!toolNameSchema.safeParse(exception.selector.toolName).success ||
-          exception.selector.toolName === "bash")
-      ) {
-        context.addIssue({
-          code: "custom",
-          message: "Tool exceptions require an active non-Bash tool name.",
-          path: [index, "selector", "toolName"],
-        });
-      }
     }
   });
 
 export const projectPermissionsSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   exceptions: projectPermissionExceptionsSchema,
 });
 export type ProjectPermissions = z.infer<typeof projectPermissionsSchema>;

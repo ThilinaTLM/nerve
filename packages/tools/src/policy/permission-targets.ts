@@ -39,14 +39,9 @@ function targetsForDescriptor(
   if (descriptor.kind === "web_host") {
     const value = input.args[descriptor.argument];
     try {
-      return [
-        {
-          kind: "web_host",
-          host: new URL(
-            typeof value === "string" ? value : "",
-          ).hostname.toLowerCase(),
-        },
-      ];
+      const url = new URL(typeof value === "string" ? value : "");
+      url.hostname = url.hostname.toLowerCase();
+      return [{ kind: "web_url", url: url.href }];
     } catch {
       return [];
     }

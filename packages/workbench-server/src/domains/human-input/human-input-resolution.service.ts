@@ -343,7 +343,7 @@ export class HumanInputResolutionService {
       | "run"
       | "always"
       | "always_project"
-      | "always_global",
+      | "always_user",
   ): Promise<ToolCallRecord> {
     return this.approvalBatches.resolve(
       approvalId,

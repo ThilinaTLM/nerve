@@ -40,7 +40,7 @@ export class ApprovalBatchResolutionService {
       | "run"
       | "always"
       | "always_project"
-      | "always_global",
+      | "always_user",
   ): Promise<ToolCallRecord> {
     const projected = this.approval(approvalId);
     if (projected.status !== "pending") {

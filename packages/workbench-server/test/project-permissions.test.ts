@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
 import type { ProjectRecord } from "@nervekit/contracts";
-import { ProjectPermissionsRepository } from "../src/domains/projects/project-permissions.repository.js";
+import { ProjectPermissionsRepository } from "../src/domains/permissions/project-permissions.repository.js";
 import { ProjectRepository } from "../src/domains/projects/project.repository.js";
-import { PermissionExceptionService } from "../src/domains/tools/permission-exception.service.js";
+import { PermissionExceptionService } from "../src/domains/permissions/permission-exceptions.service.js";
 import type { StreamLogRegistry } from "../src/infrastructure/events/index.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 
@@ -18,7 +18,7 @@ afterEach(async () => {
 });
 
 describe("project permission exceptions", () => {
-  it("stores project exceptions in the host-side project directory and unions global exceptions", async () => {
+  it("stores project exceptions in the host-side project directory and unions user exceptions", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-project-permissions-"));
     roots.push(root);
     const storage = await initializeStorage(root);
@@ -69,28 +69,25 @@ describe("project permission exceptions", () => {
     );
     const projectException = {
       id: "exception_project",
+      tool: "bash" as const,
       effect: "allow" as const,
-      selector: {
-        kind: "command_prefix" as const,
-        tokens: ["gh", "pr", "view"],
-      },
-      risk: "command" as const,
+      rule: "gh pr view*",
     };
-    const globalException = {
-      id: "exception_global",
+    const userException = {
+      id: "exception_user",
+      tool: "web_search" as const,
       effect: "allow" as const,
-      selector: { kind: "tool" as const, toolName: "web_search" },
-      risk: "network" as const,
+      rule: "*",
     };
 
     await service.add("proj_one", "project", [projectException]);
-    await service.add("proj_one", "global", [globalException]);
+    await service.add("proj_one", "user", [userException]);
 
     assert.deepEqual(await service.effective("proj_one"), [
-      globalException,
+      userException,
       projectException,
     ]);
-    assert.deepEqual(await service.effective("proj_two"), [globalException]);
+    assert.deepEqual(await service.effective("proj_two"), [userException]);
     assert.deepEqual(
       JSON.parse(
         await readFile(
@@ -98,7 +95,7 @@ describe("project permission exceptions", () => {
           "utf8",
         ),
       ),
-      { version: 1, exceptions: [projectException] },
+      { version: 2, exceptions: [projectException] },
     );
     assert.equal(published.includes("project.permissions.updated"), true);
     assert.equal(published.includes("settings.updated"), true);

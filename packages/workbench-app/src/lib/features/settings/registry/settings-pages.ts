@@ -61,7 +61,8 @@ export const settingsPages: SettingsPageDef[] = [
       "Choose a simple default and manage focused allow or block exceptions.",
     sections: [
       { id: "default-permission", label: "Default permission" },
-      { id: "exceptions", label: "Exceptions" },
+      { id: "project-exceptions", label: "Project Exceptions" },
+      { id: "user-exceptions", label: "User Exceptions" },
     ],
   },
   {

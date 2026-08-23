@@ -1,5 +1,22 @@
 import { posix } from "node:path";
 
+export function validatePattern(pattern: string): string | undefined {
+  const value = pattern.trim();
+  if (!value) return "Enter a glob pattern.";
+  if (/\r|\n|\0/.test(value)) return "Glob patterns must be a single line.";
+  try {
+    posix.matchesGlob("example", value);
+    return undefined;
+  } catch {
+    return "Enter a valid glob pattern.";
+  }
+}
+
+export function patternMatches(value: string, pattern: string): boolean {
+  if (validatePattern(pattern)) return false;
+  return posix.matchesGlob(value, pattern.trim());
+}
+
 export function validatePathGlob(pattern: string): string | undefined {
   const value = pattern.trim();
   if (!value) return "Enter a path pattern.";
@@ -10,38 +27,32 @@ export function validatePathGlob(pattern: string): string | undefined {
   if (value.split("/").includes("..")) {
     return "Path patterns cannot traverse outside the project.";
   }
-  try {
-    posix.matchesGlob("example/path.txt", value);
-    return undefined;
-  } catch {
-    return "Enter a valid path glob.";
-  }
+  return validatePattern(value);
 }
 
 export function pathGlobMatches(path: string, pattern: string): boolean {
   if (validatePathGlob(pattern)) return false;
-  return posix.matchesGlob(path, pattern);
+  return posix.matchesGlob(path, pattern.trim());
 }
 
-export function validateWebHostPattern(pattern: string): string | undefined {
-  const value = pattern.trim().toLowerCase();
-  const host = value.startsWith("*.") ? value.slice(2) : value;
-  if (!host || host.length > 253 || !/^[a-z0-9.-]+$/.test(host)) {
-    return "Enter a hostname such as example.com or *.example.com.";
-  }
-  if (host.startsWith(".") || host.endsWith(".") || host.includes("..")) {
-    return "Enter a valid hostname.";
+export function validateCommandGlob(pattern: string): string | undefined {
+  const error = validatePattern(pattern);
+  if (error) return error;
+  return pattern.trim() === "*"
+    ? "Use a focused command pattern instead of matching every command."
+    : undefined;
+}
+
+export function validateUrlGlob(pattern: string): string | undefined {
+  const value = pattern.trim();
+  const error = validatePattern(value);
+  if (error) return error;
+  if (!value.includes("://")) {
+    return "URL patterns must include a scheme, such as https:// or *://.";
   }
   return undefined;
 }
 
-export function webHostMatches(host: string, pattern: string): boolean {
-  if (validateWebHostPattern(pattern)) return false;
-  const normalizedHost = host.toLowerCase();
-  const normalizedPattern = pattern.trim().toLowerCase();
-  if (!normalizedPattern.startsWith("*.")) {
-    return normalizedHost === normalizedPattern;
-  }
-  const suffix = normalizedPattern.slice(2);
-  return normalizedHost.endsWith(`.${suffix}`) && normalizedHost !== suffix;
+export function escapeGlobLiteral(value: string): string {
+  return value.replace(/[?*[{]/g, (character) => `[${character}]`);
 }

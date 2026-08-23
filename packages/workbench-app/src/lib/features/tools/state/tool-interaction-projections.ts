@@ -7,16 +7,16 @@ import type { ApprovalWithToolCall } from "$lib/presentation/state/tool-types";
 
 function approvalScopes(
   scopes: readonly string[],
-): Array<"single_call" | "always_project" | "always_global"> {
+): Array<"single_call" | "always_project" | "always_user"> {
   return [
     ...new Set(
-      scopes.map((scope) => (scope === "always" ? "always_global" : scope)),
+      scopes.map((scope) => (scope === "always" ? "always_user" : scope)),
     ),
   ].filter(
-    (scope): scope is "single_call" | "always_project" | "always_global" =>
+    (scope): scope is "single_call" | "always_project" | "always_user" =>
       scope === "single_call" ||
       scope === "always_project" ||
-      scope === "always_global",
+      scope === "always_user",
   );
 }
 

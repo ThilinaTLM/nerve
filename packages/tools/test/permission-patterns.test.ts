@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   pathGlobMatches,
+  patternMatches,
+  validateCommandGlob,
   validatePathGlob,
-  validateWebHostPattern,
-  webHostMatches,
+  validateUrlGlob,
 } from "../src/index.js";
 
 describe("permission exception patterns", () => {
@@ -16,12 +17,29 @@ describe("permission exception patterns", () => {
     assert.match(validatePathGlob("/etc/**") ?? "", /relative/);
   });
 
-  it("matches exact hosts and leading-wildcard subdomains only", () => {
-    assert.equal(validateWebHostPattern("*.example.com"), undefined);
-    assert.equal(webHostMatches("api.example.com", "*.example.com"), true);
-    assert.equal(webHostMatches("example.com", "*.example.com"), false);
-    assert.equal(webHostMatches("other.example.net", "*.example.com"), false);
-    assert.equal(webHostMatches("example.com", "example.com"), true);
-    assert.match(validateWebHostPattern("*.*.example.com") ?? "", /hostname/);
+  it("matches normalized command globs", () => {
+    assert.equal(validateCommandGlob("pnpm test*"), undefined);
+    assert.equal(
+      patternMatches("pnpm test --filter tools", "pnpm test*"),
+      true,
+    );
+    assert.equal(patternMatches("pnpm fix", "pnpm test*"), false);
+    assert.match(validateCommandGlob("*") ?? "", /focused/);
+  });
+
+  it("matches URL globs across normalized full URLs", () => {
+    assert.equal(validateUrlGlob("https://*.example.com/**"), undefined);
+    assert.equal(
+      patternMatches(
+        "https://docs.example.com/guide/start",
+        "https://*.example.com/**",
+      ),
+      true,
+    );
+    assert.equal(
+      patternMatches("https://example.com/guide", "https://*.example.com/**"),
+      false,
+    );
+    assert.match(validateUrlGlob("*.example.com/**") ?? "", /scheme/);
   });
 });

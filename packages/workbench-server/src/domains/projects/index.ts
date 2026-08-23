@@ -1,5 +1,4 @@
 export { ProjectRepository } from "./project.repository.js";
-export { ProjectPermissionsRepository } from "./project-permissions.repository.js";
 export { ProjectLifecycleService } from "./project.service.js";
 export { ProjectEditorService } from "./project-editor.service.js";
 export { ProjectTerminalService } from "./project-terminal.service.js";

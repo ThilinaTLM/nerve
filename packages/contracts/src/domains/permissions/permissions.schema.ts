@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toolNameSchema } from "../tools/tool-name.schema.js";
 
 export const permissionLevelSchema = z.enum([
   "autonomous",
@@ -25,124 +26,75 @@ export type PermissionExceptionEffect = z.infer<
   typeof permissionExceptionEffectSchema
 >;
 
-export const permissionPathAccessSchema = z.enum([
-  "read",
-  "write",
-  "read_write",
+export const permissionRuleKindSchema = z.enum([
+  "path_glob",
+  "command_glob",
+  "url_glob",
+  "tool",
 ]);
-export type PermissionPathAccess = z.infer<typeof permissionPathAccessSchema>;
+export type PermissionRuleKind = z.infer<typeof permissionRuleKindSchema>;
 
-const toolSelectorSchema = z.object({
-  kind: z.literal("tool"),
-  toolName: z.string().min(1).max(128),
-});
-const commandPrefixSelectorSchema = z.object({
-  kind: z.literal("command_prefix"),
-  tokens: z.array(z.string().trim().min(1).max(256)).min(1).max(16),
-});
-const pathGlobSelectorSchema = z.object({
-  kind: z.literal("path_glob"),
-  access: permissionPathAccessSchema,
-  pattern: z.string().trim().min(1).max(512),
-});
-const webHostSelectorSchema = z.object({
-  kind: z.literal("web_host"),
-  pattern: z.string().trim().min(1).max(253),
-});
+export const durablePermissionSchema = z.enum(["never", "tool", "target"]);
+export type DurablePermission = z.infer<typeof durablePermissionSchema>;
 
-export const permissionSelectorSchema = z.discriminatedUnion("kind", [
-  toolSelectorSchema,
-  commandPrefixSelectorSchema,
-  pathGlobSelectorSchema,
-  webHostSelectorSchema,
-]);
-export type PermissionSelector = z.infer<typeof permissionSelectorSchema>;
-
-const permissionExceptionBaseSchema = z.object({
-  id: z.string().startsWith("exception_").max(128),
-  selector: permissionSelectorSchema,
-});
+const pathRuleTools = new Set(["read", "edit", "write", "grep", "find", "ls"]);
 
 export const permissionExceptionSchema = z
-  .discriminatedUnion("effect", [
-    permissionExceptionBaseSchema.extend({
-      effect: z.literal("allow"),
-      risk: toolRiskSchema,
-    }),
-    permissionExceptionBaseSchema.extend({
-      effect: z.literal("deny"),
-    }),
-  ])
+  .object({
+    id: z.string().startsWith("exception_").max(128),
+    tool: toolNameSchema,
+    effect: permissionExceptionEffectSchema,
+    rule: z.string().trim().min(1).max(1_024),
+  })
   .superRefine((exception, context) => {
-    const selector = exception.selector;
-    if (selector.kind === "path_glob") {
-      const pattern = selector.pattern;
+    const rule = exception.rule;
+    if (/\r|\n|\0/.test(rule)) {
+      context.addIssue({
+        code: "custom",
+        message: "Permission rules must be a single line.",
+        path: ["rule"],
+      });
+    }
+    if (pathRuleTools.has(exception.tool)) {
       if (
-        pattern.includes("\\") ||
-        pattern.startsWith("/") ||
-        /^[A-Za-z]:/.test(pattern) ||
-        pattern.split("/").includes("..")
+        rule.includes("\\") ||
+        rule.startsWith("/") ||
+        /^[A-Za-z]:/.test(rule) ||
+        rule.split("/").includes("..")
       ) {
         context.addIssue({
           code: "custom",
-          message:
-            "Path globs must be project-relative and use forward slashes.",
-          path: ["selector", "pattern"],
+          message: "Path rules must be project-relative POSIX globs.",
+          path: ["rule"],
         });
       }
+      return;
     }
-    if (selector.kind === "web_host") {
-      const host = selector.pattern.startsWith("*.")
-        ? selector.pattern.slice(2)
-        : selector.pattern;
-      if (
-        !/^[a-z0-9.-]+$/i.test(host) ||
-        host.startsWith(".") ||
-        host.endsWith(".") ||
-        host.includes("..")
-      ) {
+    if (exception.tool === "bash") {
+      if (rule === "*") {
         context.addIssue({
           code: "custom",
-          message:
-            "Host patterns must be exact hosts or use one leading wildcard.",
-          path: ["selector", "pattern"],
+          message: "Bash rules must use a focused command glob.",
+          path: ["rule"],
         });
       }
+      return;
     }
-    if (exception.effect !== "allow") return;
-    if (["destructive", "secret", "deployment"].includes(exception.risk)) {
+    if (exception.tool === "web_fetch") {
+      if (!rule.includes("://")) {
+        context.addIssue({
+          code: "custom",
+          message: "Web Fetch rules must include a URL scheme glob.",
+          path: ["rule"],
+        });
+      }
+      return;
+    }
+    if (rule !== "*") {
       context.addIssue({
         code: "custom",
-        message: `Risk '${exception.risk}' cannot be durably allowed.`,
-        path: ["risk"],
-      });
-    }
-    if (selector.kind === "tool" && selector.toolName === "python_exec") {
-      context.addIssue({
-        code: "custom",
-        message: "Python execution cannot be durably allowed.",
-        path: ["selector", "toolName"],
-      });
-    }
-    if (selector.kind === "command_prefix" && exception.risk !== "command") {
-      context.addIssue({
-        code: "custom",
-        message: "Command prefixes require command risk.",
-        path: ["risk"],
-      });
-    }
-    if (selector.kind === "path_glob" && exception.risk !== "workspace_write") {
-      context.addIssue({
-        code: "custom",
-        message: "Path allows require workspace-write risk.",
-        path: ["risk"],
-      });
-    }
-    if (selector.kind === "web_host" && exception.risk !== "network") {
-      context.addIssue({
-        code: "custom",
-        message: "Website allows require network risk.",
-        path: ["risk"],
+        message: "Whole-tool permission rules must be '*'.",
+        path: ["rule"],
       });
     }
   });

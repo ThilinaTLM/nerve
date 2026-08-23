@@ -9,9 +9,9 @@ import {
   type InitializedStorage,
   writeSettings,
 } from "../../infrastructure/storage/index.js";
-import type { ProjectPermissionsRepository } from "../projects/project-permissions.repository.js";
+import type { ProjectPermissionsRepository } from "./project-permissions.repository.js";
 
-export type DurableExceptionScope = "project" | "global";
+export type DurableExceptionScope = "project" | "user";
 
 export class PermissionExceptionService {
   private readonly queues = new Map<string, Promise<void>>();
@@ -61,7 +61,7 @@ export class PermissionExceptionService {
       await this.exclusive(`project:${projectId}`, async () => {
         const current = await this.projects.get(projectId);
         const permissions = await this.projects.replace(projectId, {
-          version: 1,
+          version: 2,
           exceptions: deduplicatePermissionExceptions([
             ...current.exceptions,
             ...exceptions,
@@ -74,7 +74,7 @@ export class PermissionExceptionService {
       });
       return;
     }
-    await this.exclusive("global", async () => {
+    await this.exclusive("user", async () => {
       const settings = await writeSettings(this.storage, {
         permissions: {
           exceptions: deduplicatePermissionExceptions([

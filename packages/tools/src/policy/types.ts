@@ -28,8 +28,8 @@ export type PermissionTarget =
       projectRelativePath?: string;
     }
   | {
-      kind: "web_host";
-      host: string;
+      kind: "web_url";
+      url: string;
     }
   | {
       kind: "command_segment";

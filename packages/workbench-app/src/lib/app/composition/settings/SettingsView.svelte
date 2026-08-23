@@ -29,6 +29,7 @@ import { ModelsPageState } from "$lib/features/settings/components/pages/models/
 import NotificationsSettingsPage from "$lib/features/settings/components/pages/notifications/NotificationsSettingsPage.svelte";
 import PermissionsSettingsPage from "$lib/features/settings/components/pages/permissions/PermissionsSettingsPage.svelte";
 import { PermissionsPageState } from "$lib/features/settings/components/pages/permissions/permissions-page-state.svelte";
+import { listTools } from "$lib/features/tools/api/tools.api";
 import {
   getProjectPermissions,
   updateProjectPermissions,
@@ -115,12 +116,13 @@ let {
 const permissionsPageState = new PermissionsPageState({
   getProject: getProjectPermissions,
   updateProject: updateProjectPermissions,
-  updateGlobal: async (exceptions) => {
+  updateUser: async (exceptions) => {
     const saved = await updateSettings({ permissions: { exceptions } });
     if (settingsDraft) {
       settingsDraft.permissions.exceptions = saved.permissions.exceptions;
     }
   },
+  listTools,
 });
 
 /** Skills sections mirror the sources that actually have skills. */

@@ -63,21 +63,16 @@ describe("tool permission policy", () => {
     });
     assert.equal(mixed.risk, "command");
     assert.equal(mixed.decision, "approval");
-    assert.deepEqual(mixed.suggestedExceptions[0]?.selector, {
-      kind: "command_prefix",
-      tokens: ["pnpm", "fix"],
-    });
+    assert.equal(mixed.suggestedExceptions[0]?.tool, "bash");
+    assert.equal(mixed.suggestedExceptions[0]?.rule, "pnpm fix");
   });
 
   it("requires every mutating command segment to be covered", () => {
     const exception = {
       id: "exception_datadog",
       effect: "allow" as const,
-      risk: "command" as const,
-      selector: {
-        kind: "command_prefix" as const,
-        tokens: ["datadog", "logs", "read"],
-      },
+      tool: "bash" as const,
+      rule: "datadog logs read*",
     };
     const allowed = evaluateToolPermission({
       toolName: "bash",
@@ -99,11 +94,8 @@ describe("tool permission policy", () => {
     const exception = {
       id: "exception_datadog",
       effect: "allow" as const,
-      risk: "command" as const,
-      selector: {
-        kind: "command_prefix" as const,
-        tokens: ["datadog", "logs", "read"],
-      },
+      tool: "bash" as const,
+      rule: "datadog logs read*",
     };
     const result = evaluateToolPermission({
       toolName: "bash",
@@ -120,11 +112,8 @@ describe("tool permission policy", () => {
     const block = {
       id: "exception_block",
       effect: "deny" as const,
-      selector: {
-        kind: "path_glob" as const,
-        access: "read_write" as const,
-        pattern: "secrets/**",
-      },
+      tool: "read" as const,
+      rule: "secrets/**",
     };
     const context = { cwd: "/workspace", projectDir: "/workspace" };
     assert.equal(
@@ -142,21 +131,17 @@ describe("tool permission policy", () => {
         toolName: "grep",
         args: { pattern: "token", path: "." },
         permissionLevel: "autonomous",
-        exceptions: [block],
+        exceptions: [{ ...block, id: "exception_grep", tool: "grep" }],
         context,
       }).decision,
       "deny",
-      "recursive reads are blocked when their scope can include a denied path",
+      "recursive reads are blocked when their tool rule can include a denied path",
     );
     const allow = {
       id: "exception_write",
       effect: "allow" as const,
-      risk: "workspace_write" as const,
-      selector: {
-        kind: "path_glob" as const,
-        access: "write" as const,
-        pattern: "generated/**",
-      },
+      tool: "write" as const,
+      rule: "generated/**",
     };
     assert.equal(
       evaluateToolPermission({
@@ -184,8 +169,8 @@ describe("tool permission policy", () => {
     const allow = {
       id: "exception_web",
       effect: "allow" as const,
-      risk: "network" as const,
-      selector: { kind: "web_host" as const, pattern: "*.example.com" },
+      tool: "web_fetch" as const,
+      rule: "https://*.example.com/**",
     };
     assert.equal(
       evaluateToolPermission({

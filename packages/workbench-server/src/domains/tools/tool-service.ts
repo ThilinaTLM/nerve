@@ -30,7 +30,7 @@ import type {
   ToolAnchor,
 } from "../runs/runtime/conversation-runtime.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { PermissionExceptionService } from "./permission-exception.service.js";
+import type { PermissionExceptionService } from "../permissions/permission-exceptions.service.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
@@ -156,15 +156,15 @@ export type TaskStarter = (
 
 function durableApprovalScopes(
   scopes: readonly string[],
-): Array<"single_call" | "always_project" | "always_global"> {
+): Array<"single_call" | "always_project" | "always_user"> {
   const mapped = scopes.map((scope) =>
-    scope === "always" ? "always_global" : scope,
+    scope === "always" ? "always_user" : scope,
   );
   return [...new Set(mapped)].filter(
-    (scope): scope is "single_call" | "always_project" | "always_global" =>
+    (scope): scope is "single_call" | "always_project" | "always_user" =>
       scope === "single_call" ||
       scope === "always_project" ||
-      scope === "always_global",
+      scope === "always_user",
   );
 }
 
@@ -526,7 +526,7 @@ export class ToolService {
               risk: evaluation.risk,
               reason: evaluation.reason,
               offeredScopes: evaluation.suggestedExceptions?.length
-                ? ["single_call", "always_project", "always_global"]
+                ? ["single_call", "always_project", "always_user"]
                 : ["single_call"],
               suggestedExceptions: evaluation.suggestedExceptions ?? [],
             },
@@ -744,7 +744,7 @@ export class ToolService {
       | "run"
       | "always"
       | "always_project"
-      | "always_global",
+      | "always_user",
   ): Promise<ApprovalRecord> {
     const approval = this.projectApprovals().find(
       (candidate) => candidate.id === approvalId,

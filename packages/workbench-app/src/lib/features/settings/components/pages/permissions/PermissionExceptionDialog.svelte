@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { PermissionException } from "$lib/api";
+import type { PermissionException, ToolDescriptor } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
@@ -10,151 +10,167 @@ import { createExceptionId } from "./permission-exception-presentation";
 
 type Props = {
   open?: boolean;
+  scopeLabel: string;
+  tools: ToolDescriptor[];
   onSave?: (exception: PermissionException) => Promise<boolean>;
 };
 
-let { open = $bindable(false), onSave }: Props = $props();
-let kind = $state<"path" | "host">("path");
+let { open = $bindable(false), scopeLabel, tools, onSave }: Props = $props();
+let tool = $state<PermissionException["tool"]>("write");
 let behavior = $state<"allow" | "deny">("allow");
-let access = $state<"read" | "write" | "read_write">("write");
-let pattern = $state("");
+let rule = $state("");
 let saving = $state(false);
 let error = $state<string>();
 
+const selectedTool = $derived(
+  tools.find((candidate) => candidate.name === tool),
+);
+const ruleKind = $derived(selectedTool?.permission.ruleKind ?? "tool");
+const canAllow = $derived(selectedTool?.permission.durableAllow !== "never");
+const toolItems = $derived(
+  [...tools]
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((descriptor) => ({
+      value: descriptor.name,
+      label: descriptor.name,
+      detail: ruleDescription(descriptor.permission.ruleKind),
+    })),
+);
+
 $effect(() => {
   if (!open) return;
-  kind = "path";
-  behavior = "allow";
-  access = "write";
-  pattern = "";
+  const preferred =
+    tools.find((candidate) => candidate.name === "write") ?? tools[0];
+  if (preferred) tool = preferred.name;
+  behavior = preferred?.permission.durableAllow === "never" ? "deny" : "allow";
+  rule = preferred?.permission.ruleKind === "tool" ? "*" : "";
   error = undefined;
 });
 
+$effect(() => {
+  if (ruleKind === "tool") rule = "*";
+  if (!canAllow && behavior === "allow") behavior = "deny";
+});
+
 function validate(): string | undefined {
-  const value = pattern.trim();
-  if (!value)
-    return kind === "path" ? "Enter a path pattern." : "Enter a hostname.";
-  if (kind === "path") {
+  const value = rule.trim();
+  if (!value) return "Enter a rule.";
+  if (/\r|\n|\0/.test(value)) return "Rules must be a single line.";
+  if (ruleKind === "path_glob") {
     if (
       value.includes("\\") ||
       value.startsWith("/") ||
       /^[A-Za-z]:/.test(value) ||
       value.split("/").includes("..")
-    ) {
+    )
       return "Use a project-relative glob with forward slashes.";
-    }
-    return undefined;
   }
-  const host = value.startsWith("*.") ? value.slice(2) : value;
-  return /^[a-z0-9.-]+$/i.test(host) && !host.includes("..")
-    ? undefined
-    : "Enter a hostname such as example.com or *.example.com.";
+  if (ruleKind === "command_glob" && value === "*") {
+    return "Use a focused command pattern instead of matching every command.";
+  }
+  if (ruleKind === "url_glob" && !value.includes("://")) {
+    return "Include a scheme, such as https:// or *://.";
+  }
+  return undefined;
 }
 
 async function save(): Promise<void> {
   error = validate();
-  if (error || !onSave) return;
+  if (error || !onSave || !selectedTool) return;
   saving = true;
-  const selector =
-    kind === "path"
-      ? {
-          kind: "path_glob" as const,
-          access: behavior === "allow" ? ("write" as const) : access,
-          pattern: pattern.trim(),
-        }
-      : { kind: "web_host" as const, pattern: pattern.trim().toLowerCase() };
-  const exception: PermissionException =
-    behavior === "allow"
-      ? {
-          id: createExceptionId(),
-          effect: behavior,
-          risk: kind === "path" ? "workspace_write" : "network",
-          selector,
-        }
-      : { id: createExceptionId(), effect: behavior, selector };
   try {
+    const exception: PermissionException = {
+      id: createExceptionId(),
+      tool: selectedTool.name,
+      effect: behavior,
+      rule: rule.trim(),
+    };
     if (await onSave(exception)) open = false;
   } finally {
     saving = false;
   }
+}
+
+function onToolChange(value: string): void {
+  tool = value as PermissionException["tool"];
+  const descriptor = tools.find((candidate) => candidate.name === value);
+  rule = descriptor?.permission.ruleKind === "tool" ? "*" : "";
+  error = undefined;
+}
+
+function ruleDescription(
+  kind: ToolDescriptor["permission"]["ruleKind"],
+): string {
+  if (kind === "path_glob") return "Project path glob";
+  if (kind === "command_glob") return "Command glob";
+  if (kind === "url_glob") return "URL glob";
+  return "Whole tool";
+}
+
+function ruleLabel(): string {
+  if (ruleKind === "path_glob") return "Project-relative path glob";
+  if (ruleKind === "command_glob") return "Command pattern (glob)";
+  if (ruleKind === "url_glob") return "URL pattern (glob)";
+  return "Rule";
+}
+
+function rulePlaceholder(): string {
+  if (ruleKind === "path_glob") return "packages/**";
+  if (ruleKind === "command_glob") return "pnpm test*";
+  if (ruleKind === "url_glob") return "https://*.example.com/**";
+  return "*";
 }
 </script>
 
 <Dialog
   bind:open
   size="sm"
-  title="Add permission exception"
-  description="Allows only skip prompts in Supervised. Blocks apply to every permission level, including Autonomous."
+  title={`Add ${scopeLabel.toLowerCase()} exception`}
+  description="Choose one tool, whether matching calls are allowed or denied, and the rule they must match."
 >
   <div class="grid gap-3">
     <div class="grid gap-1.5">
-      <Label>Target</Label>
+      <Label>Tool</Label>
       <SelectField
-        items={[
-          { value: "path", label: "Files and folders" },
-          { value: "host", label: "Website" },
-        ]}
-        value={kind}
-        onValueChange={(value) => (kind = value as typeof kind)}
-        ariaLabel="Exception target"
+        items={toolItems}
+        value={tool}
+        onValueChange={onToolChange}
+        ariaLabel="Exception tool"
       />
     </div>
     <div class="grid gap-1.5">
-      <Label>Behavior</Label>
+      <Label>Access</Label>
       <SelectField
         items={[
           {
             value: "allow",
-            label:
-              kind === "path"
-                ? "Allow writes without asking (Supervised only)"
-                : "Allow fetches without asking (Supervised only)",
+            label: "Allow",
+            detail: "Skip prompts in Supervised",
+            disabled: !canAllow,
           },
-          { value: "deny", label: "Block access" },
+          { value: "deny", label: "Deny", detail: "Block at every level" },
         ]}
         value={behavior}
         onValueChange={(value) => (behavior = value as typeof behavior)}
-        ariaLabel="Exception behavior"
+        ariaLabel="Exception access"
       />
     </div>
-    {#if kind === "path" && behavior === "deny"}
-      <div class="grid gap-1.5">
-        <Label>Access</Label>
-        <SelectField
-          items={[
-            { value: "read_write", label: "Read and write" },
-            { value: "read", label: "Read only" },
-            { value: "write", label: "Write only" },
-          ]}
-          value={access}
-          onValueChange={(value) => (access = value as typeof access)}
-          ariaLabel="File access"
-        />
-      </div>
-    {/if}
     <div class="grid gap-1.5">
-      <Label for="permission-exception-pattern"
-        >{kind === "path" ? "Project-relative path glob" : "Hostname"}</Label
-      >
+      <Label for="permission-exception-rule">{ruleLabel()}</Label>
       <Input
-        id="permission-exception-pattern"
+        id="permission-exception-rule"
         size="xs"
-        bind:value={pattern}
-        placeholder={kind === "path" ? "secrets/**" : "*.example.com"}
-        ariaLabel="Exception pattern"
+        bind:value={rule}
+        placeholder={rulePlaceholder()}
+        disabled={ruleKind === "tool"}
+        ariaLabel="Exception rule"
+        class="font-mono"
       />
       <p class="text-xs text-muted-foreground">
-        {kind === "path"
-          ? "Examples: src/generated/** or **/.env*"
-          : "Use an exact host or a leading wildcard for subdomains."}
+        {ruleDescription(ruleKind)} for <span class="font-mono">{tool}</span>.
+        {#if !canAllow}
+          This tool can only be denied persistently.{/if}
       </p>
-      {#if pattern.trim()}
-        <p class="text-xs text-info">
-          Preview: {kind === "path"
-            ? `project/${pattern.trim()}`
-            : `https://${pattern.trim()}`}
-        </p>
-      {/if}
       {#if error}<p class="text-xs text-destructive">{error}</p>{/if}
     </div>
   </div>
@@ -165,7 +181,11 @@ async function save(): Promise<void> {
       disabled={saving}
       onclick={() => (open = false)}>Cancel</Button
     >
-    <Button size="sm" disabled={saving} onclick={() => void save()}>
+    <Button
+      size="sm"
+      disabled={saving || tools.length === 0}
+      onclick={() => void save()}
+    >
       {#if saving}<Spinner class="size-3.5" />Saving…{:else}Add exception{/if}
     </Button>
   {/snippet}

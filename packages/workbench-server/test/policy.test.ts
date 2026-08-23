@@ -115,9 +115,9 @@ describe("Workbench tool permission", () => {
   it("cannot override planning denials with an exception", () => {
     const exception: PermissionException = {
       id: "exception_write",
+      tool: "write",
       effect: "allow",
-      risk: "workspace_write",
-      selector: { kind: "path_glob", access: "write", pattern: "**" },
+      rule: "**",
     };
     const result = evaluateWorkbenchToolPermission(
       agent("supervised", "planning"),

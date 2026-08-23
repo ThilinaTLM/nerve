@@ -37,7 +37,7 @@ describe("public approval event depth", () => {
     assert.equal(parsed.conversationRevision, 8);
   });
 
-  it("accepts canonical command-prefix approval selectors", () => {
+  it("accepts canonical approval rules", () => {
     const result = publicEventDataGuardSchema.safeParse({
       conversationId: "conv_test",
       toolCall: {
@@ -48,12 +48,7 @@ describe("public approval event depth", () => {
             kind: "approval",
             request: {
               suggestedExceptions: [
-                {
-                  selector: {
-                    kind: "command_prefix",
-                    tokens: ["pnpm", "test"],
-                  },
-                },
+                { tool: "bash", effect: "allow", rule: "pnpm test*" },
               ],
             },
           },

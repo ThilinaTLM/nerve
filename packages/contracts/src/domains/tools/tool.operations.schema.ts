@@ -48,7 +48,7 @@ export const toolInteractionResolutionSchema = z.discriminatedUnion("kind", [
         "run",
         "always",
         "always_project",
-        "always_global",
+        "always_user",
       ])
       .optional(),
   }),
