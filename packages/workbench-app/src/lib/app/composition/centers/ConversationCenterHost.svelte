@@ -17,6 +17,7 @@ import {
 } from "$lib/presentation/utils/model";
 import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { openSettingsPane } from "$lib/application/settings";
 import WorkbenchConversationAdapter from "$lib/app/composition/conversations/WorkbenchConversationHost.svelte";
 import {
   composerSignals,
@@ -473,6 +474,8 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   onPermissionChange={(value) => {
     void runActivePaneAction(() => setComposerPermission(value));
   }}
+  onOpenPermissionSettings={() =>
+    void openSettingsPane("permissions", "default-permission")}
   onGrantApproval={grantApproval}
   onDenyApproval={denyApproval}
   onAcceptPlanReview={(id, options) => acceptPendingPlanReview(id, options)}

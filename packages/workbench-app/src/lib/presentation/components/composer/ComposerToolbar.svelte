@@ -2,6 +2,7 @@
 import ClipboardList from "@lucide/svelte/icons/clipboard-list";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Lock from "@lucide/svelte/icons/lock";
+import Settings from "@lucide/svelte/icons/settings";
 import Shield from "@lucide/svelte/icons/shield";
 import Zap from "@lucide/svelte/icons/zap";
 import type {
@@ -22,11 +23,11 @@ import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
 import type { ConversationUsageSummary } from "../../usage/conversation-usage.js";
 import TodoProgressChip from "./TodoProgressChip.svelte";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 
 type PermissionOption = {
   value: PermissionLevel;
   label: string;
-  detail: string;
   icon: Component;
   /** Tone for the row icon; carries the risk signal for higher levels. */
   iconClass: string;
@@ -62,6 +63,7 @@ type Props = {
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onCompact?: () => void;
   onPermissionChange?: (value: PermissionLevel) => void;
+  onOpenPermissionSettings?: () => void;
 };
 
 let {
@@ -92,27 +94,25 @@ let {
   onThinkingLevelChange,
   onCompact,
   onPermissionChange,
+  onOpenPermissionSettings,
 }: Props = $props();
 
 const permissionOptions = $derived<PermissionOption[]>([
   {
     value: "read_only",
     label: "Read only",
-    detail: "No writes or mutating commands",
     icon: Lock,
     iconClass: "text-muted-foreground",
   },
   {
     value: "supervised",
     label: "Supervised",
-    detail: "Allow safe reads; ask before other tool calls",
     icon: Shield,
     iconClass: "text-muted-foreground",
   },
   {
     value: "autonomous",
     label: "Autonomous",
-    detail: "Allow tool calls without approval",
     icon: Zap,
     iconClass: "text-warning",
   },
@@ -129,12 +129,17 @@ function selectPermission(value: PermissionLevel) {
   if (value !== permissionLevel) onPermissionChange?.(value);
   permissionOpen = false;
 }
+
+function openPermissionSettings(): void {
+  permissionOpen = false;
+  onOpenPermissionSettings?.();
+}
 </script>
 
 <div class="composer-tabs" data-tour-id="composer-controls">
   <Popover
     bind:open={permissionOpen}
-    size="lg"
+    size="sm"
     triggerClass="composer-tab w-7 p-0 max-sm:w-7.5"
     ariaLabel="Permission level"
     triggerTitle={permissionShortcut
@@ -156,13 +161,24 @@ function selectPermission(value: PermissionLevel) {
       </span>
     {/snippet}
     <PopoverBody>
-      <PopoverHeader title="Permission level" />
+      <PopoverHeader title="Permission level">
+        {#snippet action()}
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            ariaLabel="Open permission settings"
+            title="Open permission settings"
+            onclick={openPermissionSettings}
+          >
+            <Settings class="size-3.5" aria-hidden="true" />
+          </Button>
+        {/snippet}
+      </PopoverHeader>
       <PopoverSection>
         {#each permissionOptions as option (option.value)}
           {@const ActiveIcon = option.icon}
           <PopoverRow
             label={option.label}
-            detail={option.detail}
             selected={option.value === permissionLevel}
             onclick={() => selectPermission(option.value)}
           >

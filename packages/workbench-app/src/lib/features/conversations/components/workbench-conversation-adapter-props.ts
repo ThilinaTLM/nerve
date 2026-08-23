@@ -81,6 +81,7 @@ export type WorkbenchConversationAdapterProps = {
   onThinkingLevelChange?: (value: AgentRecord["thinkingLevel"]) => void;
   onModeChange?: (value: AgentRecord["mode"]) => void;
   onPermissionChange?: (value: AgentRecord["permissionLevel"]) => void;
+  onOpenPermissionSettings?: () => void;
   onGrantApproval?: (
     id: string,
     scope?: "single_call" | "always_project" | "always_global",

@@ -76,6 +76,7 @@ let {
   onThinkingLevelChange,
   onModeChange,
   onPermissionChange,
+  onOpenPermissionSettings,
   onGrantApproval,
   onDenyApproval,
   onAcceptPlanReview,
@@ -314,6 +315,7 @@ function menuForTranscript(
       {onThinkingLevelChange}
       {onModeChange}
       {onPermissionChange}
+      {onOpenPermissionSettings}
     />
   {/snippet}
 

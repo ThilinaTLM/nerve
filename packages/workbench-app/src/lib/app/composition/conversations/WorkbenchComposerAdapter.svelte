@@ -64,6 +64,7 @@ let {
   onThinkingLevelChange,
   onModeChange,
   onPermissionChange,
+  onOpenPermissionSettings,
 }: PromptComposerProps = $props();
 
 // A newly created pending conversation opens directly into its first prompt,
@@ -399,6 +400,7 @@ function handleMicContextMenu(event: MouseEvent) {
     onThinkingLevelChange,
     onModeChange,
     onPermissionChange,
+    onOpenPermissionSettings,
     onPasteImage: pasteImage,
     onDropFiles: fileDropSupported ? dropFiles : undefined,
   }}

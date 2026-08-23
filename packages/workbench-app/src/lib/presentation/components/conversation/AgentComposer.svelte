@@ -125,6 +125,7 @@ function submit(): void {
       onModelChange={actions.onModelChange}
       onThinkingLevelChange={actions.onThinkingLevelChange}
       onPermissionChange={actions.onPermissionChange}
+      onOpenPermissionSettings={actions.onOpenPermissionSettings}
     />
   {/snippet}
 

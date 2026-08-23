@@ -121,6 +121,7 @@ export type ConversationPaneActions = {
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onModeChange?: (value: Mode) => void;
   onPermissionChange?: (value: PermissionLevel) => void;
+  onOpenPermissionSettings?: () => void;
   onPasteImage?: (file: File) => Promise<string>;
   onDropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
   onOpenFile?: (path: string, line?: number) => void;
