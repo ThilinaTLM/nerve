@@ -1,4 +1,5 @@
 <script lang="ts">
+import { tick } from "svelte";
 import X from "@lucide/svelte/icons/x";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
@@ -7,12 +8,28 @@ type Props = {
   contains: string;
   rowCount: number;
   loading: boolean;
+  focusRequest: number;
   onContainsChange: (value: string) => void;
   onClose: () => void;
 };
 
-let { contains, rowCount, loading, onContainsChange, onClose }: Props =
-  $props();
+let {
+  contains,
+  rowCount,
+  loading,
+  focusRequest,
+  onContainsChange,
+  onClose,
+}: Props = $props();
+let input: HTMLInputElement | null = $state(null);
+
+$effect(() => {
+  void focusRequest;
+  void tick().then(() => {
+    input?.focus();
+    input?.select();
+  });
+});
 </script>
 
 <div
@@ -21,6 +38,7 @@ let { contains, rowCount, loading, onContainsChange, onClose }: Props =
   aria-label="Find in logs"
 >
   <SearchInput
+    bind:ref={input}
     value={contains}
     class="w-full"
     inputClass="border-0 bg-transparent shadow-none"

@@ -47,6 +47,8 @@ const sources: LogsSourceFilter[] = [
 let { model, actions }: Props = $props();
 
 let confirmPruneOpen = $state(false);
+let findFocusRequest = $state(0);
+let paneElement: HTMLElement | null = $state(null);
 let selectedText = $state("");
 let toolbarVisible = $state(false);
 let virtualController = $state<VirtualScrollerController>();
@@ -64,6 +66,21 @@ const components = $derived(
     left.localeCompare(right),
   ),
 );
+
+function handleFindShortcut(event: KeyboardEvent): void {
+  if (
+    event.key.toLowerCase() !== "f" ||
+    (!event.ctrlKey && !event.metaKey) ||
+    event.altKey ||
+    !paneElement ||
+    paneElement.getClientRects().length === 0
+  ) {
+    return;
+  }
+  event.preventDefault();
+  toolbarVisible = true;
+  findFocusRequest += 1;
+}
 
 function captureSelection(): void {
   selectedText = window.getSelection()?.toString().trim() ?? "";
@@ -108,14 +125,22 @@ $effect(() => {
 });
 
 $effect(() => {
+  const controller = virtualController;
   const firstId = model.rows[0]?.id;
   if (!firstId) {
     previousFirstId = undefined;
     return;
   }
-  if (firstId === previousFirstId) return;
+  if (!controller || firstId === previousFirstId) return;
+  const viewport = controller.getViewportElement();
+  if (!viewport) return;
+
   previousFirstId = firstId;
-  virtualController?.scrollToIndex(0, { align: "start" });
+  viewport.scrollTop = 0;
+  const frame = requestAnimationFrame(() => {
+    viewport.scrollTop = 0;
+  });
+  return () => cancelAnimationFrame(frame);
 });
 
 $effect(() => {
@@ -126,12 +151,15 @@ $effect(() => {
 });
 </script>
 
+<svelte:window onkeydown={handleFindShortcut} />
+
 <ContextMenu.Root>
   <ContextMenu.Trigger
     class="block size-full select-text"
     oncontextmenu={captureSelection}
   >
     <section
+      bind:this={paneElement}
       class="relative size-full min-h-0 overflow-hidden bg-background"
       role="log"
       aria-label="Application logs"
@@ -141,6 +169,7 @@ $effect(() => {
           contains={model.contains}
           rowCount={model.rows.length}
           loading={model.loading}
+          focusRequest={findFocusRequest}
           onContainsChange={actions.onContainsChange}
           onClose={() => (toolbarVisible = false)}
         />
@@ -172,7 +201,7 @@ $effect(() => {
         estimateSize={(index) => (index === viewRows.length - 1 ? 48 : 20)}
         overscan={16}
         anchor="start"
-        paddingStart={toolbarVisible ? 76 : 6}
+        paddingStart={toolbarVisible ? 76 : 12}
         paddingEnd={8}
         viewportTabIndex={0}
         viewportAriaLabel="Scrollable application logs"
