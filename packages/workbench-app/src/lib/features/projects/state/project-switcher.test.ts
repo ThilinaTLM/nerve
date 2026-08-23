@@ -22,6 +22,7 @@ function conversation(
   id: string,
   projectId: string,
   updatedAt: string,
+  patch: Partial<ConversationRecord> = {},
 ): ConversationRecord {
   return {
     id,
@@ -30,6 +31,7 @@ function conversation(
     updatedAt,
     createdAt: updatedAt,
     lastUserMessageAt: updatedAt,
+    ...patch,
   } as ConversationRecord;
 }
 
@@ -62,17 +64,24 @@ function activity(
   };
 }
 
-test("summarizes current waiting, failed, and running conversations", () => {
+test("summarizes active conversations and ignores completed activity", () => {
+  const completedAt = "2026-01-04";
   const conversations = [
     conversation("error", "p", "2026-01-01"),
     conversation("waiting", "p", "2026-01-02"),
     conversation("running", "p", "2026-01-03"),
+    conversation("completed-error", "p", completedAt, { completedAt }),
+    conversation("completed-waiting", "p", completedAt, { completedAt }),
+    conversation("completed-running", "p", completedAt, { completedAt }),
   ];
   assert.deepEqual(
     summarizeProjectActivity(conversations, {
       error: activity({ tone: "danger", busy: true }),
       waiting: activity({ tone: "warn", needsUser: true }),
       running: activity({ tone: "running", busy: true }),
+      "completed-error": activity({ tone: "danger", busy: true }),
+      "completed-waiting": activity({ tone: "warn", needsUser: true }),
+      "completed-running": activity({ tone: "running", busy: true }),
     }),
     { needsUser: 1, failed: 1, running: 1 },
   );

@@ -41,6 +41,7 @@ export function summarizeProjectActivity(
     running: 0,
   };
   for (const conversation of conversations) {
+    if (conversation.completedAt) continue;
     const activity = activityById[conversation.id];
     if (!activity) continue;
     if (activity.needsUser) summary.needsUser += 1;
