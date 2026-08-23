@@ -16,6 +16,7 @@ let {
   error,
   errorClass,
   bodyClass,
+  bodyTourId,
   closeOnInteractOutside = true,
   onSave,
   children,
@@ -30,6 +31,7 @@ let {
   error?: string;
   errorClass?: string;
   bodyClass?: string;
+  bodyTourId?: string;
   closeOnInteractOutside?: boolean;
   onSave: () => void;
   children: Snippet;
@@ -37,7 +39,7 @@ let {
 </script>
 
 <Dialog bind:open {title} {description} {size} {closeOnInteractOutside}>
-  <div class={cn("grid gap-3", bodyClass)}>
+  <div class={cn("grid gap-3", bodyClass)} data-tour-id={bodyTourId}>
     {@render children()}
     {#if error}
       <p class={cn("text-xs text-destructive", errorClass)}>{error}</p>

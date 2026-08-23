@@ -12,6 +12,7 @@ type Props = {
   profiles: Profile[];
   selectedProfileId?: string;
   providerSection: "tavily-profiles" | "atlassian-profiles";
+  selectionTourId?: string;
   onSave: (profileId: string | undefined) => void;
 };
 
@@ -22,6 +23,7 @@ let {
   profiles,
   selectedProfileId,
   providerSection,
+  selectionTourId,
   onSave,
 }: Props = $props();
 
@@ -45,7 +47,7 @@ function manageProfiles(): void {
 </script>
 
 <Dialog bind:open size="sm" {title} {description}>
-  <div class="grid gap-2">
+  <div class="grid gap-2" data-tour-id={selectionTourId}>
     <SelectRow
       label="No profile"
       selected={draftProfileId === ""}

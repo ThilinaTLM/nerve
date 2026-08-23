@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { adjacentSetupStep, setupStepsForArea } from "./setup-guide-policy.js";
+import { adjacentSetupStep, setupStepsForArea } from "./setup-policy.js";
 
 describe("setup guide policy", () => {
   it("opens the project picker before highlighting Browse", () => {
@@ -61,6 +61,38 @@ describe("setup guide policy", () => {
     assert.equal(steps[0]?.advanceByClickingTarget, true);
   });
 
+  it("guides Atlassian profile setup and both tool integrations", () => {
+    const steps = setupStepsForArea("atlassian", {
+      codexConnected: false,
+    });
+    assert.deepEqual(
+      steps.map((step) => step.targetId),
+      [
+        "setup-atlassian-add-profile",
+        "setup-atlassian-profile-form",
+        "setup-atlassian-configure-jira",
+        "setup-atlassian-select-jira-profile",
+        "setup-atlassian-enable-jira",
+        "setup-atlassian-configure-confluence",
+        "setup-atlassian-select-confluence-profile",
+        "setup-atlassian-enable-confluence",
+      ],
+    );
+    assert.deepEqual(steps[0]?.preparation, {
+      kind: "settings",
+      pageId: "providers",
+      sectionId: "atlassian-profiles",
+    });
+    assert.deepEqual(steps[2]?.preparation, {
+      kind: "settings",
+      pageId: "tools",
+      sectionId: "third-party",
+    });
+    assert.equal(steps[0]?.advanceByClickingTarget, true);
+    assert.equal(steps[2]?.advanceByClickingTarget, true);
+    assert.equal(steps[5]?.advanceByClickingTarget, true);
+  });
+
   it("opens required dialogs when advancing to dialog-backed steps", () => {
     assert.equal(
       setupStepsForArea("voice", { codexConnected: false })[0]
@@ -74,6 +106,11 @@ describe("setup guide policy", () => {
     );
     assert.equal(
       setupStepsForArea("web-search", { codexConnected: false })[0]
+        ?.advanceByClickingTarget,
+      true,
+    );
+    assert.equal(
+      setupStepsForArea("atlassian", { codexConnected: false })[0]
         ?.advanceByClickingTarget,
       true,
     );

@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { guideCatalog, type GuideDefinition } from "./guide-catalog.js";
-import { guideItemsForRun } from "./guide-content.js";
+import { guideCatalog, type GuideDefinition } from "./catalog.js";
+import { guideItemsForRun } from "./tour-content.js";
 import {
   autoCompletedGuideIds,
   incompleteGuideCount,
   resolveGuides,
-  shouldAutoOpenCatalog,
-} from "./guide-catalog-policy.js";
+} from "./catalog-policy.js";
 
 const noSignals = {
+  "atlassian-ready": false,
   "project-open": false,
   "provider-ready": false,
   "voice-ready": false,
@@ -46,6 +46,7 @@ describe("guide catalog policy", () => {
       guideCatalog,
       {},
       {
+        "atlassian-ready": true,
         "project-open": true,
         "provider-ready": true,
         "voice-ready": true,
@@ -79,6 +80,28 @@ describe("guide catalog policy", () => {
     assert.deepEqual(autoCompletedGuideIds(guides, {}), ["web-search"]);
   });
 
+  it("auto-completes Atlassian setup only when both integrations are ready", () => {
+    const incomplete = resolveGuides(guideCatalog, {}, noSignals).find(
+      (guide) => guide.id === "atlassian",
+    );
+    assert.equal(incomplete?.ready, false);
+    assert.equal(incomplete?.completed, false);
+
+    const guides = resolveGuides(
+      guideCatalog,
+      {},
+      {
+        ...noSignals,
+        "atlassian-ready": true,
+      },
+    );
+    const atlassian = guides.find((guide) => guide.id === "atlassian");
+    assert.equal(atlassian?.priority, "optional");
+    assert.equal(atlassian?.lifecycle, "new");
+    assert.equal(atlassian?.completed, true);
+    assert.deepEqual(autoCompletedGuideIds(guides, {}), ["atlassian"]);
+  });
+
   it("excludes upcoming guides from incomplete counts", () => {
     const upcoming: GuideDefinition = {
       ...guideCatalog[0],
@@ -86,29 +109,6 @@ describe("guide catalog policy", () => {
     };
     const guides = resolveGuides([upcoming, guideCatalog[1]], {}, noSignals);
     assert.equal(incompleteGuideCount(guides), 1);
-  });
-
-  it("opens once per ready startup generation while guides remain incomplete", () => {
-    const base = {
-      progressiveActive: true,
-      settingsLoaded: true,
-      incompleteCount: 2,
-      generation: 3,
-    };
-    assert.equal(shouldAutoOpenCatalog(base), true);
-    assert.equal(
-      shouldAutoOpenCatalog({ ...base, consideredGeneration: 3 }),
-      false,
-    );
-    assert.equal(shouldAutoOpenCatalog({ ...base, incompleteCount: 0 }), false);
-    assert.equal(
-      shouldAutoOpenCatalog({
-        ...base,
-        generation: 4,
-        consideredGeneration: 3,
-      }),
-      true,
-    );
   });
 
   it("runs only newly introduced Workbench steps until a manual replay", () => {

@@ -22,7 +22,8 @@ import {
 import { createWorkbenchGitPanelAdapter } from "$lib/features/git";
 import BrowserNotificationPrompt from "$lib/application/notifications/BrowserNotificationPrompt.svelte";
 import CriticalErrorDialog from "$lib/application/notifications/CriticalErrorDialog.svelte";
-import { OnboardingHost } from "$lib/app/onboarding";
+import { DiscoverStartupHost } from "$lib/app/discover";
+import { GuideOverlayHost } from "$lib/app/discover/guides";
 import { workspaceSelectors } from "$lib/application/workspace";
 
 const isCompact = $derived(responsive.isCompact);
@@ -89,7 +90,8 @@ $effect(() => {
   {#snippet overlays()}
     <BrowserNotificationPrompt />
     <CriticalErrorDialog />
-    <OnboardingHost />
+    <DiscoverStartupHost />
+    <GuideOverlayHost />
     <DesktopShutdownOverlay />
   {/snippet}
 </WorkbenchShell>

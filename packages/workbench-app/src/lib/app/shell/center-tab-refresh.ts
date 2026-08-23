@@ -21,6 +21,7 @@ export function createCenterTabRefresh(
         return;
       case "pending-conversation":
       case "task":
+      case "discover":
         dependencies.selectTab(tab);
         return;
       case "file":

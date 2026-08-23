@@ -1,4 +1,4 @@
-import { guideCatalog, type GuideId } from "./guide-catalog.js";
+import { guideCatalog, type GuideId } from "./catalog.js";
 
 export const GUIDE_COMPLETION_STORAGE_KEY = "nerve.guides.completion";
 export const LEGACY_PRODUCT_TOUR_STORAGE_KEY =

@@ -2,8 +2,8 @@ import type {
   GuideCompletionSignal,
   GuideDefinition,
   GuideId,
-} from "./guide-catalog.js";
-import type { GuideCompletionVersions } from "./guide-completion.js";
+} from "./catalog.js";
+import type { GuideCompletionVersions } from "./completion.js";
 
 export type GuideSignals = Record<GuideCompletionSignal, boolean>;
 
@@ -53,19 +53,4 @@ export function autoCompletedGuideIds(
 
 export function incompleteGuideCount(guides: readonly ResolvedGuide[]): number {
   return guides.filter((guide) => guide.available && !guide.completed).length;
-}
-
-export function shouldAutoOpenCatalog(input: {
-  progressiveActive: boolean;
-  settingsLoaded: boolean;
-  incompleteCount: number;
-  generation: number;
-  consideredGeneration?: number;
-}): boolean {
-  return (
-    input.progressiveActive &&
-    input.settingsLoaded &&
-    input.incompleteCount > 0 &&
-    input.consideredGeneration !== input.generation
-  );
 }

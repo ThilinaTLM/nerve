@@ -6,7 +6,7 @@ import {
   completeGuideVersion,
   readGuideCompletionVersions,
   writeGuideCompletionVersions,
-} from "./guide-completion.js";
+} from "./completion.js";
 
 type TestStorage = {
   values: Record<string, string>;

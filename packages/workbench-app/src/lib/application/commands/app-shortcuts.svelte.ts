@@ -72,6 +72,7 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
   function centerTabIdentity(tab: CenterTabLike): CenterTabIdentity {
     if (tab.kind === "settings") return { kind: "settings", id: "settings" };
     if (tab.kind === "logs") return { kind: "logs", id: "logs" };
+    if (tab.kind === "discover") return { kind: "discover", id: "discover" };
     return { kind: tab.kind, id: tab.id } as CenterTabIdentity;
   }
 

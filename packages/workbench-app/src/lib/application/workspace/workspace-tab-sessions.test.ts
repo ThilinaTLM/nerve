@@ -35,10 +35,12 @@ test("falls back deterministically when MRU data is absent", () => {
 
 test("supports global singleton identities in the same ordering model", () => {
   const settings: CenterTabIdentity = { kind: "settings", id: "settings" };
-  assert.deepEqual(reorderTabs([a, settings, b], settings, 2), [
+  const discover: CenterTabIdentity = { kind: "discover", id: "discover" };
+  assert.deepEqual(reorderTabs([a, settings, discover, b], discover, 3), [
     a,
-    b,
     settings,
+    b,
+    discover,
   ]);
 });
 
@@ -52,6 +54,7 @@ test("only restored conversations activate in the critical lane", () => {
     [{ kind: "file", id: "file" }, "progressive"],
     [{ kind: "mermaid", id: "mermaid" }, "progressive"],
     [{ kind: "settings", id: "settings" }, "progressive"],
+    [{ kind: "discover", id: "discover" }, "progressive"],
   ];
   for (const [tab, expected] of cases)
     assert.equal(startupTabActivationLane(tab), expected);

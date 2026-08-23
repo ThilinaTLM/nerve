@@ -6,11 +6,11 @@ import {
   revealPanelViewTemporarily,
   type ShellPresentationSnapshot,
 } from "$lib/app/shell/shell-layout.svelte";
-import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { hasChatGptAudioAuth } from "$lib/features/audio";
 import { conversationSelectors } from "$lib/features/conversations";
 import { openConversationHistory } from "$lib/features/conversations/state/composer-signals.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { atlassianProfileReady } from "$lib/features/settings/components/pages/providers/provider-profiles";
 import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
 import {
   captureCenterTabsPresentation,
@@ -20,28 +20,28 @@ import {
 import { workspaceSelectors } from "$lib/application/workspace";
 import { newConversation } from "$lib/application/workspace/workspace-actions.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
-import { guideCatalog, type GuideId } from "./guide-catalog.js";
+import { guideCatalog, type GuideId } from "./catalog.js";
 import {
   autoCompletedGuideIds,
   incompleteGuideCount as countIncompleteGuides,
   resolveGuides,
-  shouldAutoOpenCatalog,
   type GuideSignals,
   type ResolvedGuide,
-} from "./guide-catalog-policy.js";
+} from "./catalog-policy.js";
 import {
   completeGuideVersion,
   readGuideCompletionVersions,
   writeGuideCompletionVersions,
   type GuideCompletionVersions,
-} from "./guide-completion.js";
-import { guideItemsForRun, tourSteps, type TourStep } from "./guide-content.js";
-import { adjacentStep } from "./guide-controller.js";
-import { setupStepsForArea, adjacentSetupStep } from "./setup-guide-policy.js";
-import type { SetupGuideArea, SetupGuideStep } from "./setup-guide-content.js";
+} from "./completion.js";
+import { guideItemsForRun, tourSteps, type TourStep } from "./tour-content.js";
+import { adjacentStep } from "./tour-controller.js";
+import { setupStepsForArea, adjacentSetupStep } from "./setup-policy.js";
+import type { SetupGuideArea, SetupGuideStep } from "./setup-content.js";
 import { activeTabIsConversation } from "./tour-readiness.js";
+import { openDiscoverPane } from "../tabs.svelte.js";
 
-type GuideMode = "closed" | "catalog" | "tour" | "preparing-coach" | "coach";
+type GuideMode = "closed" | "tour" | "preparing-coach" | "coach";
 
 type PresentationSnapshot = {
   shell: ShellPresentationSnapshot;
@@ -53,7 +53,6 @@ type PresentationSnapshot = {
 
 export const guideState = $state({
   mode: "closed" as GuideMode,
-  consideredGeneration: undefined as number | undefined,
   preparing: false,
   targetAvailable: false,
   runSteps: [] as TourStep[],
@@ -76,6 +75,21 @@ export function voiceConfigured(): boolean {
   return hasChatGptAudioAuth(settingsState.authProviders);
 }
 
+export function atlassianConfigured(): boolean {
+  const settings = settingsState.settingsDraft;
+  if (!settings) return false;
+  return (["jira", "confluence"] as const).every((integration) => {
+    const configuration = settings.tools[integration];
+    const profile = settings.providers.atlassianProfiles.find(
+      (candidate) => candidate.id === configuration.profileId,
+    );
+    return (
+      configuration.enabled &&
+      atlassianProfileReady(profile, settingsState.authProviders)
+    );
+  });
+}
+
 export function webSearchConfigured(): boolean {
   const profileId = settingsState.settingsDraft?.tools.web.tavilyProfileId;
   return Boolean(
@@ -92,6 +106,7 @@ export function webSearchConfigured(): boolean {
 function guideSignals(): GuideSignals {
   return {
     "project-open": Boolean(workspaceSelectors.activeProject),
+    "atlassian-ready": atlassianConfigured(),
     "provider-ready": providerConfigured(),
     "voice-ready": voiceConfigured(),
     "web-search-ready": webSearchConfigured(),
@@ -127,7 +142,7 @@ export function markGuideCompleted(id: GuideId): void {
     persistCompletionVersions(versions);
 }
 
-function reconcileComputedCompletion(): void {
+export function reconcileComputedGuideCompletion(): void {
   const resolved = catalogGuides();
   let versions = guideState.completionVersions;
   for (const id of autoCompletedGuideIds(resolved, versions)) {
@@ -136,29 +151,6 @@ function reconcileComputedCompletion(): void {
   }
   if (versions !== guideState.completionVersions)
     persistCompletionVersions(versions);
-}
-
-export function considerAutomaticGuide(): void {
-  if (!workbenchStartupState.progressiveActive || !settingsState.settingsDraft)
-    return;
-  reconcileComputedCompletion();
-  const generation = workbenchStartupState.generation;
-  if (
-    !shouldAutoOpenCatalog({
-      progressiveActive: workbenchStartupState.progressiveActive,
-      settingsLoaded: Boolean(settingsState.settingsDraft),
-      incompleteCount: incompleteGuideCount(),
-      generation,
-      consideredGeneration: guideState.consideredGeneration,
-    })
-  )
-    return;
-  guideState.consideredGeneration = generation;
-  guideState.mode = "catalog";
-}
-
-export function openGuide(): void {
-  guideState.mode = "catalog";
 }
 
 function capturePresentation(): PresentationSnapshot {
@@ -356,14 +348,13 @@ export async function moveSetupGuide(direction: -1 | 1): Promise<void> {
 }
 
 function returnFromActiveRun(): void {
+  guideState.mode = "closed";
   if (
     guideState.activeGuideId === "open-project" &&
     workspaceState.projectPickerOpen
-  ) {
-    guideState.mode = "closed";
+  )
     return;
-  }
-  guideState.mode = "catalog";
+  openDiscoverPane();
 }
 
 export function closeActiveRun(): void {
@@ -430,20 +421,4 @@ export function moveTour(direction: -1 | 1): void {
   guideState.stepIndex = next;
   const step = currentTourStep();
   if (step) void prepareTourStep(step);
-}
-
-function closeGuide(): void {
-  preparationId += 1;
-  guideState.mode = "closed";
-  guideState.preparing = false;
-  restorePresentation();
-  requestAnimationFrame(() => {
-    document
-      .querySelector<HTMLElement>('[data-tour-id="help"]')
-      ?.focus({ preventScroll: true });
-  });
-}
-
-export function later(): void {
-  closeGuide();
 }

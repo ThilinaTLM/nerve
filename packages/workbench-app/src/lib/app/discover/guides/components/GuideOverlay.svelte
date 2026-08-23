@@ -5,9 +5,9 @@ import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import Check from "@lucide/svelte/icons/check";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Progress } from "@nervekit/ui-kit/components/ui/progress";
-import type { TourStep } from "../guide-content.js";
-import type { SetupGuideStep } from "../setup-guide-content.js";
-import { calloutPlacement, type Rect } from "../guide-controller.js";
+import type { TourStep } from "../tour-content.js";
+import type { SetupGuideStep } from "../setup-content.js";
+import { calloutPlacement, type Rect } from "../tour-controller.js";
 
 type Props = {
   step: TourStep | SetupGuideStep;

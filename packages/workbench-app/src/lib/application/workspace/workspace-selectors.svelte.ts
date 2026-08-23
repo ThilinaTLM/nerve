@@ -39,6 +39,7 @@ import {
 export type {
   CenterTabModel,
   ConversationTabModel,
+  DiscoverTabModel,
   DiffTabModel,
   FileTabModel,
   LogsTabModel,
@@ -52,6 +53,7 @@ export type {
 import type {
   CenterTabModel,
   ConversationTabModel,
+  DiscoverTabModel,
   DiffTabModel,
   FileTabModel,
   LogsTabModel,
@@ -409,6 +411,18 @@ export const workspaceSelectors = {
         ]
       : [];
   },
+  get openDiscoverTabs(): DiscoverTabModel[] {
+    return workspaceState.openCenterTabs.some((tab) => tab.kind === "discover")
+      ? [
+          {
+            kind: "discover" as const,
+            id: "discover" as const,
+            active: activeTabMatches("discover", "discover"),
+            sending: false,
+          },
+        ]
+      : [];
+  },
   get openConversationTabIds(): Set<string> {
     const ids = new SvelteSet<string>();
     for (const tab of workspaceState.openCenterTabs) {
@@ -428,6 +442,7 @@ export const workspaceSelectors = {
       this.openDiffTabs,
       this.openSettingsTabs,
       this.openLogsTabs,
+      this.openDiscoverTabs,
     ];
     for (const collection of collections) {
       for (const model of collection) {
