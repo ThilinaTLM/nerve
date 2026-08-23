@@ -83,7 +83,10 @@ export type WorkbenchConversationAdapterProps = {
   onModeChange?: (value: AgentRecord["mode"]) => void;
   onPermissionChange?: (value: AgentRecord["permissionLevel"]) => void;
   onApprovalPolicyChange?: (value: AgentRecord["approvalPolicy"]) => void;
-  onGrantApproval?: (id: string) => void | Promise<void>;
+  onGrantApproval?: (
+    id: string,
+    scope?: "single_call" | "always_project" | "always_global",
+  ) => void | Promise<void>;
   onDenyApproval?: (id: string) => void | Promise<void>;
   onAcceptPlanReview?: (
     id: string,

@@ -24,6 +24,7 @@ describe("settings schema", () => {
       },
       desktop: { closeToTray: true, headerType: undefined },
       tools: undefined,
+      supervision: undefined,
       skills: undefined,
     });
 
@@ -40,6 +41,7 @@ describe("settings schema", () => {
     );
     assert.equal(settings.lastAgentSelection.thinkingLevel, "off");
     assert.deepEqual(settings.runtime, {});
+    assert.deepEqual(settings.supervision, { grants: [] });
     assert.deepEqual(settings.ui, {
       theme: "nerve",
       colorMode: "system",
@@ -83,6 +85,42 @@ describe("settings schema", () => {
     assert.deepEqual(settings.tools.imageExplanation, {
       thinkingLevel: "off",
     });
+  });
+
+  it("validates bounded supervision grants", () => {
+    const patch = updateSettingsRequestSchema.parse({
+      supervision: {
+        grants: [
+          {
+            id: "grant_datadog",
+            target: "command_prefix",
+            tokens: ["datadog", "logs", "read"],
+            risk: "command",
+          },
+          {
+            id: "grant_edit",
+            target: "tool",
+            toolName: "edit",
+            risk: "workspace_write",
+          },
+        ],
+      },
+    });
+    assert.equal(patch.supervision?.grants?.length, 2);
+    assert.throws(() =>
+      updateSettingsRequestSchema.parse({
+        supervision: {
+          grants: [
+            {
+              id: "grant_bash",
+              target: "tool",
+              toolName: "bash",
+              risk: "command",
+            },
+          ],
+        },
+      }),
+    );
   });
 
   it("backfills event tones for the previous notification settings shape", () => {

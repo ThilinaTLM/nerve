@@ -77,6 +77,63 @@ describe("tool policy", () => {
     assert.equal(mutatingStrict.risk, "workspace_write");
   });
 
+  it("applies risk-bound tool and command grants in supervised mode", () => {
+    const edit = evaluateToolPolicy(
+      agent("supervised"),
+      "edit",
+      { path: "src/app.ts", insertions: [] },
+      {
+        dataDir: "/tmp/nerve",
+        grants: [
+          {
+            id: "grant_edit",
+            target: "tool",
+            toolName: "edit",
+            risk: "workspace_write",
+          },
+        ],
+      },
+    );
+    assert.equal(edit.decision, "allow");
+
+    const customRead = evaluateToolPolicy(
+      agent("supervised"),
+      "bash",
+      { command: "datadog logs read --service api && git status --short" },
+      {
+        dataDir: "/tmp/nerve",
+        grants: [
+          {
+            id: "grant_datadog",
+            target: "command_prefix",
+            tokens: ["datadog", "logs", "read"],
+            risk: "command",
+          },
+        ],
+      },
+    );
+    assert.equal(customRead.decision, "allow");
+
+    const destructive = evaluateToolPolicy(
+      agent("supervised"),
+      "bash",
+      { command: "datadog logs read && rm -rf build" },
+      {
+        dataDir: "/tmp/nerve",
+        grants: [
+          {
+            id: "grant_datadog",
+            target: "command_prefix",
+            tokens: ["datadog", "logs", "read"],
+            risk: "command",
+          },
+        ],
+      },
+    );
+    assert.equal(destructive.decision, "approval");
+    assert.equal(destructive.risk, "destructive");
+  });
+
   it("classifies web tools as network with normal permission handling", () => {
     assert.equal(
       evaluateToolPolicy(

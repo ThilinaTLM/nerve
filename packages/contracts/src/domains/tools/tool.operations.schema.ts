@@ -41,7 +41,16 @@ export const toolInteractionResolutionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("approval"),
     action: z.enum(["allow", "deny"]),
     note: z.string().max(4_096).optional(),
-    scope: z.enum(["single_call", "same_tool_same_args", "run"]).optional(),
+    scope: z
+      .enum([
+        "single_call",
+        "same_tool_same_args",
+        "run",
+        "always",
+        "always_project",
+        "always_global",
+      ])
+      .optional(),
   }),
   z.object({
     kind: z.literal("user_input"),

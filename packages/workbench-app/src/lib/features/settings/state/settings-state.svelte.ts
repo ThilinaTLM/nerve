@@ -4,11 +4,15 @@ import type {
   AvailableSkill,
   ModelInfo,
   Settings,
+  ToolDescriptor,
 } from "$lib/api";
 
 export const settingsState = $state({
   models: [] as ModelInfo[],
   authProviders: [] as AuthProviderMetadata[],
+  toolDescriptors: [] as ToolDescriptor[],
+  toolDescriptorsLoading: false,
+  toolDescriptorsLoaded: false,
   agentBrowserSkills: [] as AvailableSkill[],
   globalSkills: [] as AvailableSkill[],
   projectSkills: [] as AvailableSkill[],

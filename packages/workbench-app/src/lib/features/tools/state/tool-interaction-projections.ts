@@ -5,6 +5,21 @@ import type {
 } from "@nervekit/contracts";
 import type { ApprovalWithToolCall } from "$lib/presentation/state/tool-types";
 
+function approvalScopes(
+  scopes: readonly string[],
+): Array<"single_call" | "always_project" | "always_global"> {
+  return [
+    ...new Set(
+      scopes.map((scope) => (scope === "always" ? "always_global" : scope)),
+    ),
+  ].filter(
+    (scope): scope is "single_call" | "always_project" | "always_global" =>
+      scope === "single_call" ||
+      scope === "always_project" ||
+      scope === "always_global",
+  );
+}
+
 export function pendingApprovals(
   toolCalls: readonly ToolCallTranscriptRecord[],
 ): ApprovalWithToolCall[] {
@@ -22,6 +37,8 @@ export function pendingApprovals(
               reason: interaction.request.reason,
               status: "pending" as const,
               requestedAt: interaction.requestedAt,
+              offeredScopes: approvalScopes(interaction.request.offeredScopes),
+              suggestedGrants: interaction.request.suggestedGrants,
               toolCall,
             },
           ]

@@ -36,7 +36,10 @@ export interface InteractionActionDeps {
   openConversation(conversationId: string): Promise<void>;
 }
 export interface InteractionActions {
-  grantApproval(id: string): Promise<void>;
+  grantApproval(
+    id: string,
+    scope?: "single_call" | "always_project" | "always_global",
+  ): Promise<void>;
   denyApproval(id: string): Promise<void>;
   acceptPendingPlanReview(
     id: string,
@@ -73,10 +76,10 @@ export function createInteractionActions(
     }
   }
   return {
-    async grantApproval(id) {
+    async grantApproval(id, scope = "single_call") {
       await resolve(
         id,
-        { kind: "approval", action: "allow" },
+        { kind: "approval", action: "allow", scope },
         "Could not grant approval",
       );
       deps.notify.success("Approval granted");

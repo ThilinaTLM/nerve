@@ -18,9 +18,12 @@ Every dispatch produces persisted lifecycle records. File mutations serialize pe
 The server evaluates mode, permission, risk, tool availability, and request details:
 
 - read-only denies non-read actions and all ordinary network/child spawning;
-- supervised requests approval for non-read risks, with optional read autoapproval;
+- supervised requests approval for non-read risks, with optional read autoapproval and risk-bound always-allow grants;
+- effective grants are the deduplicated union of global settings and host-side project permissions under `~/.nerve/projects/<project-id>/permissions.json`; workspace `.nerve` files are never authoritative permission sources;
 - autonomous permits allowed risks without normal approval;
 - planning adds path-constrained writes, tool omissions, and shell guardrails.
+
+The supervision engine evaluates the manifest risk, argument-sensitive refinements, agent permission level, hard host constraints, and user preferences to produce one `allow`, `approval`, or `deny` decision. Compound Bash calls are parsed into segments; every segment must be known read-only or match a normalized command-prefix grant before the call can run without approval.
 
 Approval can authorize a policy-permitted action. It cannot override a hard read-only or planning denial.
 

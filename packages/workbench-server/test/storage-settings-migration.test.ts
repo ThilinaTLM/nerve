@@ -1,12 +1,22 @@
 import assert from "node:assert/strict";
-import { lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, it } from "node:test";
 import {
   type DaemonStartupProgress,
   defaultSettings,
 } from "@nervekit/contracts";
+import { MIGRATION_0002_INDEX_SCHEMA_SQL } from "../src/infrastructure/migrations/migrations/0002-index-schema.js";
 import {
   initializeStorage,
   readCurrentSettingsForBootstrap,
@@ -57,6 +67,47 @@ describe("settings migrations", () => {
       await readCurrentSettingsForBootstrap(root),
       storage.settings,
     );
+  });
+
+  it("upgrades a fully migrated pre-supervision home before desktop bootstrap", async () => {
+    const root = await mkdtemp(
+      join(tmpdir(), "nerve-settings-pre-supervision-"),
+    );
+    roots.push(root);
+    const fixture = new URL("./fixtures/storage/pre-0013/", import.meta.url);
+    await mkdir(join(root, "migrations"), { recursive: true });
+    await Promise.all([
+      copyFile(new URL("VERSION", fixture), join(root, "VERSION")),
+      copyFile(new URL("config.json", fixture), join(root, "config.json")),
+      copyFile(
+        new URL("migrations/ledger.json", fixture),
+        join(root, "migrations", "ledger.json"),
+      ),
+      writeFile(join(root, "local-auth-token"), "fixture-token\n"),
+    ]);
+    const database = new DatabaseSync(join(root, "state.sqlite"));
+    database.exec(MIGRATION_0002_INDEX_SCHEMA_SQL);
+    database.close();
+
+    const ledgerPath = join(root, "migrations", "ledger.json");
+
+    await assert.rejects(
+      readCurrentSettingsForBootstrap(root),
+      /pending migration.*supervision/i,
+    );
+    const storage = await initializeStorage(root);
+    assert.deepEqual(storage.settings.supervision, { grants: [] });
+    assert.deepEqual(
+      await readCurrentSettingsForBootstrap(root),
+      storage.settings,
+    );
+
+    const rerunLedger = JSON.parse(await readFile(ledgerPath, "utf8")) as {
+      applied: Array<{ id: string }>;
+    };
+    assert.equal(rerunLedger.applied.at(-1)?.id, "0013-supervision-settings");
+    const second = await initializeStorage(root);
+    assert.deepEqual(second.settings, storage.settings);
   });
 
   it("uses only canonical settings for a current home", async () => {

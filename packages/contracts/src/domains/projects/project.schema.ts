@@ -1,4 +1,44 @@
 import { z } from "zod";
+import {
+  supervisionGrantSchema,
+  toolNameSchema,
+} from "../tools/records.schema.js";
+
+const projectSupervisionGrantsSchema = z
+  .array(supervisionGrantSchema)
+  .max(256)
+  .superRefine((grants, context) => {
+    const ids = new Set<string>();
+    for (const [index, grant] of grants.entries()) {
+      if (ids.has(grant.id)) {
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate supervision grant id '${grant.id}'`,
+          path: [index, "id"],
+        });
+      }
+      ids.add(grant.id);
+      if (
+        grant.target === "tool" &&
+        (!toolNameSchema.safeParse(grant.toolName).success ||
+          grant.toolName === "bash")
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Tool grants require an active non-Bash tool name.",
+          path: [index, "toolName"],
+        });
+      }
+    }
+  });
+
+export const projectSupervisionPreferencesSchema = z.object({
+  version: z.literal(1),
+  grants: projectSupervisionGrantsSchema,
+});
+export type ProjectSupervisionPreferences = z.infer<
+  typeof projectSupervisionPreferencesSchema
+>;
 
 export const projectRecordSchema = z.object({
   id: z.string().startsWith("proj_"),

@@ -49,6 +49,7 @@ import {
   ProjectEditorService,
   ProjectIconService,
   ProjectLifecycleService,
+  ProjectPermissionsRepository,
   ProjectRepository,
   ProjectTerminalService,
   PruneProjectConversationsService,
@@ -69,6 +70,7 @@ import {
 } from "../domains/tasks/index.js";
 import { WorkbenchTaskService } from "../domains/tasks/workbench-task-service.js";
 import { ToolService } from "../domains/tools/tool-service.js";
+import { SupervisionPreferencesService } from "../domains/tools/supervision-preferences.service.js";
 import {
   createWorkbenchRunRuntime,
   type WorkbenchRunRuntime,
@@ -104,6 +106,7 @@ export interface RuntimeServices {
   pythonRuntime: PythonRuntimeService;
   plans: PlanService;
   tools: ToolService;
+  supervisionPreferences: SupervisionPreferencesService;
   git: GitService;
   gitRepositoryWatcher: GitRepositoryWatcher;
   projectFilesystemWatcher: ProjectFilesystemWatcher;
@@ -203,6 +206,12 @@ export function composeRuntime(
   };
 
   const projectRepository = new ProjectRepository(storage);
+  services.supervisionPreferences = new SupervisionPreferencesService(
+    storage,
+    new ProjectPermissionsRepository(storage),
+    getProject,
+    events,
+  );
   services.taskDefinitions = new TaskDefinitionService(
     new TaskDefinitionRepository(storage),
     getProject,
@@ -539,6 +548,7 @@ export function composeRuntime(
       services.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
     state.conversationRuntime,
     logger.child({ component: "tool" }),
+    services.supervisionPreferences,
   );
   services.subagentTranscriptLive = new SubagentTranscriptLiveService(events);
   services.subagentTranscripts = new SubagentTranscriptService({

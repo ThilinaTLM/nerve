@@ -17,7 +17,7 @@ import {
   scopedUsableModelOptions,
 } from "$lib/presentation/utils/model";
 import type { SettingsChange } from "$lib/features/settings/components/pages/settings-change";
-import { modeItems, permissionItems } from "./agent-options";
+import { modeItems } from "./agent-options";
 import ModelPickerRow from "./ModelPickerRow.svelte";
 
 type Props = {
@@ -145,20 +145,6 @@ function setDefaultMode(value: string): void {
   settingsDraft.defaultMode = next;
   onSettingsChange?.({ defaultMode: next }, { immediate: true });
 }
-
-function setDefaultPermission(value: string): void {
-  const next = value as Settings["defaultPermissionLevel"];
-  settingsDraft.defaultPermissionLevel = next;
-  onSettingsChange?.({ defaultPermissionLevel: next }, { immediate: true });
-}
-
-function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
-  settingsDraft.defaultApprovalPolicy.autoApproveReadOnly = autoApproveReadOnly;
-  onSettingsChange?.(
-    { defaultApprovalPolicy: { autoApproveReadOnly } },
-    { immediate: true },
-  );
-}
 </script>
 
 <SettingsGroup>
@@ -170,17 +156,6 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
       ariaLabel="Default mode"
       tourId="setup-agent-default-mode"
       onValueChange={setDefaultMode}
-    />
-  </SettingsRow>
-
-  <SettingsRow label="Default permission" layout="stacked">
-    <SettingsChoiceCards
-      items={permissionItems}
-      variant="radio"
-      value={settingsDraft.defaultPermissionLevel}
-      ariaLabel="Default permission"
-      tourId="setup-agent-default-permission"
-      onValueChange={setDefaultPermission}
     />
   </SettingsRow>
 
@@ -229,13 +204,6 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
       <SettingsKeyValueRow label="Network access" value="Tool-dependent" />
     {/snippet}
   </ModelPickerRow>
-
-  <SettingsToggleRow
-    label="Auto-approve read-only tools in supervised mode"
-    description="Let supervised agents read files, search, list directories, and inspect task status without prompting."
-    checked={settingsDraft.defaultApprovalPolicy.autoApproveReadOnly}
-    onCheckedChange={setAutoApproveReadOnly}
-  />
 
   <SettingsToggleRow
     label="Use last selections for new agents"

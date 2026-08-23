@@ -9,6 +9,7 @@ import type {
   ProjectRecord,
   Settings,
   StatusResponse,
+  ToolDescriptor,
   UpdateApplicationConfigurationRequest,
   UpdateSettingsRequest,
 } from "$lib/api";
@@ -26,6 +27,11 @@ import ModelsPageActions from "$lib/features/settings/components/pages/models/Mo
 import ModelsSettingsPage from "$lib/features/settings/components/pages/models/ModelsSettingsPage.svelte";
 import { ModelsPageState } from "$lib/features/settings/components/pages/models/models-page-state.svelte";
 import NotificationsSettingsPage from "$lib/features/settings/components/pages/notifications/NotificationsSettingsPage.svelte";
+import PermissionsSettingsPage from "$lib/features/settings/components/pages/permissions/PermissionsSettingsPage.svelte";
+import {
+  getProjectPermissions,
+  updateProjectPermissions,
+} from "$lib/features/projects/api/projects.api";
 import ProvidersSettingsPage from "$lib/features/settings/components/pages/providers/ProvidersSettingsPage.svelte";
 import ShortcutsSettingsPage from "$lib/features/settings/components/pages/shortcuts/ShortcutsSettingsPage.svelte";
 import SkillsSettingsPage from "$lib/features/settings/components/pages/skills/SkillsSettingsPage.svelte";
@@ -61,6 +67,8 @@ type Props = {
   activeSectionId?: string;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
+  toolDescriptors?: ToolDescriptor[];
+  toolDescriptorsLoading?: boolean;
   activeProject?: ProjectRecord;
   agentBrowserSkills?: AvailableSkill[];
   globalSkills?: AvailableSkill[];
@@ -89,6 +97,8 @@ let {
   activeSectionId = $bindable("appearance"),
   models = [],
   authProviders = [],
+  toolDescriptors = [],
+  toolDescriptorsLoading = false,
   activeProject,
   agentBrowserSkills = [],
   globalSkills = [],
@@ -213,6 +223,16 @@ function statusText(): string {
           {settingsDraft}
           {models}
           {authProviders}
+          {onSettingsChange}
+        />
+      {:else if page.id === "permissions"}
+        <PermissionsSettingsPage
+          {settingsDraft}
+          {toolDescriptors}
+          {toolDescriptorsLoading}
+          {activeProject}
+          {getProjectPermissions}
+          {updateProjectPermissions}
           {onSettingsChange}
         />
       {:else if page.id === "tools"}

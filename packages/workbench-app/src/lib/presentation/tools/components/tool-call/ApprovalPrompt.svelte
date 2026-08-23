@@ -1,6 +1,7 @@
 <script lang="ts">
 import Check from "@lucide/svelte/icons/check";
 import X from "@lucide/svelte/icons/x";
+import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import type { ApprovalWithToolCall } from "../../../state/tool-types";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -16,7 +17,10 @@ type Props = {
   /** False when the card's argument section already shows the body. */
   includeBody?: boolean;
   detailsAction?: { label: string; onClick: () => void };
-  onGrantApproval?: (id: string) => void | Promise<void>;
+  onGrantApproval?: (
+    id: string,
+    scope?: "single_call" | "always_project" | "always_global",
+  ) => void | Promise<void>;
   onDenyApproval?: (id: string) => void | Promise<void>;
 };
 let {
@@ -29,18 +33,23 @@ let {
   onDenyApproval,
 }: Props = $props();
 
-let decision = $state<"approve" | "deny" | undefined>();
+let decision = $state<
+  "approve" | "always_project" | "always_global" | "deny" | undefined
+>();
 let actionError = $state<string | undefined>();
 
-async function decide(kind: "approve" | "deny") {
-  // One shared in-flight state covers both choices and rejects duplicates.
+async function decide(
+  kind: "approve" | "always_project" | "always_global" | "deny",
+) {
+  // One shared in-flight state covers every choice and rejects duplicates.
   if (decision) return;
-  const callback = kind === "approve" ? onGrantApproval : onDenyApproval;
+  const callback = kind === "deny" ? onDenyApproval : onGrantApproval;
   if (!callback) return;
   decision = kind;
   actionError = undefined;
   try {
-    await callback(approval.id);
+    if (kind === "deny") await callback(approval.id);
+    else await callback(approval.id, kind === "approve" ? "single_call" : kind);
   } catch (error) {
     actionError =
       error instanceof Error && error.message.trim()
@@ -84,6 +93,39 @@ const meta = $derived<MetaItem[]>([
           <Check size={14} strokeWidth={2.4} />Approve
         {/if}
       </Button>
+      {#if approval.offeredScopes.includes("always_project") && approval.suggestedGrants.length > 0}
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={Boolean(decision)}
+          title={approval.suggestedGrants
+            .map((grant) =>
+              grant.target === "tool" ? grant.toolName : grant.tokens.join(" "),
+            )
+            .join(", ")}
+          onclick={() => void decide("always_project")}
+        >
+          {#if decision === "always_project"}
+            <Spinner class="size-3.5" />Saving…
+          {:else}
+            <ShieldCheck class="size-3.5" />Always in project
+          {/if}
+        </Button>
+      {/if}
+      {#if approval.offeredScopes.includes("always_global") && approval.suggestedGrants.length > 0}
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={Boolean(decision)}
+          onclick={() => void decide("always_global")}
+        >
+          {#if decision === "always_global"}
+            <Spinner class="size-3.5" />Saving…
+          {:else}
+            Always globally
+          {/if}
+        </Button>
+      {/if}
       <Button
         size="sm"
         variant="secondary"

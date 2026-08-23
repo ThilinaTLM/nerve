@@ -6,6 +6,7 @@ function descriptor(definition: ToolDefinition): ToolDescriptor {
   return {
     name: definition.name,
     risk: definition.baseRisk,
+    argumentSensitive: Boolean(definition.classifyRisk),
     description: definition.description,
     group: definition.group,
     executionKind: definition.executionKind,

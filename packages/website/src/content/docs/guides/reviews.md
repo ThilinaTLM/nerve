@@ -11,7 +11,7 @@ Nerve places review gates beside the work that caused them. While one is pending
 
 In supervised mode, non-read actions pause before execution. Review the tool name, arguments, risk, workspace target, and any preview. Approve only the request you understand. A denied or failed action remains visible in the transcript.
 
-Read-only tools can also require approval when read autoapproval is disabled. Autonomous permission skips normal approval for allowed risks; read-only policy denies disallowed tools rather than offering an approval override.
+Read-only tools can also require approval when read autoapproval is disabled. When Nerve can describe a bounded, risk-specific grant, **Always in project** saves it only for the current Nerve project; **Always globally** applies it to every project. Project grants live in Nerve's host-side project metadata under `~/.nerve/projects/<project-id>`, not in the agent-writable workspace. Autonomous permission skips normal approval for allowed risks; read-only policy denies disallowed tools rather than offering an approval override.
 
 ## User questions
 

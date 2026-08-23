@@ -30,6 +30,7 @@ import type {
   ToolAnchor,
 } from "../runs/runtime/conversation-runtime.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
+import type { SupervisionPreferencesService } from "./supervision-preferences.service.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
@@ -152,6 +153,20 @@ export type TaskStarter = (
   },
 ) => Promise<TaskRecord>;
 
+function durableApprovalScopes(
+  scopes: readonly string[],
+): Array<"single_call" | "always_project" | "always_global"> {
+  const mapped = scopes.map((scope) =>
+    scope === "always" ? "always_global" : scope,
+  );
+  return [...new Set(mapped)].filter(
+    (scope): scope is "single_call" | "always_project" | "always_global" =>
+      scope === "single_call" ||
+      scope === "always_project" ||
+      scope === "always_global",
+  );
+}
+
 export class ToolService {
   readonly toolCalls: Map<string, ToolCallRecord>;
   private readonly toolCallRepository: ToolCallRepository;
@@ -187,6 +202,7 @@ export class ToolService {
     ) => Promise<AgentRecord>,
     private readonly conversationRuntime: ConversationRuntime,
     private readonly logger?: ApplicationLogger,
+    private readonly supervisionPreferences?: SupervisionPreferencesService,
   ) {
     this.toolCallRepository = new ToolCallRepository(storage, index);
     this.toolCalls = this.toolCallRepository.records;
@@ -317,6 +333,8 @@ export class ToolService {
       requestedAt: interaction.requestedAt,
       resolvedAt: interaction.resolvedAt,
       resolutionNote: interaction.resolution?.note,
+      offeredScopes: durableApprovalScopes(interaction.request.offeredScopes),
+      suggestedGrants: interaction.request.suggestedGrants,
     };
   }
 
@@ -387,8 +405,12 @@ export class ToolService {
   ): Promise<ToolExecutionResponse> {
     const now = new Date().toISOString();
     const latestAgent = this.getAgent(agent.id);
+    const grants = this.supervisionPreferences
+      ? await this.supervisionPreferences.effective(latestAgent.projectId)
+      : this.storage.settings.supervision.grants;
     const evaluation = evaluateToolPolicy(latestAgent, toolName, args, {
       dataDir: this.storage.paths.home,
+      grants,
     });
     const decision =
       evaluation.decision === "allow" && options.forceApproval === true
@@ -477,7 +499,10 @@ export class ToolService {
             request: {
               risk: evaluation.risk,
               reason: evaluation.reason,
-              offeredScopes: ["single_call"],
+              offeredScopes: evaluation.suggestedGrants?.length
+                ? ["single_call", "always_project", "always_global"]
+                : ["single_call"],
+              suggestedGrants: evaluation.suggestedGrants ?? [],
             },
           },
         ],
@@ -669,6 +694,13 @@ export class ToolService {
     decision: "allow" | "deny",
     note?: string,
     resolutionRequestId?: string,
+    scope?:
+      | "single_call"
+      | "same_tool_same_args"
+      | "run"
+      | "always"
+      | "always_project"
+      | "always_global",
   ): Promise<ApprovalRecord> {
     const approval = this.projectApprovals().find(
       (candidate) => candidate.id === approvalId,
@@ -686,7 +718,7 @@ export class ToolService {
             updatedAt: resolvedAt,
             resolvedAt,
             resolutionRequestId,
-            resolution: { action: decision, note },
+            resolution: { action: decision, note, scope },
           }
         : interaction,
     );

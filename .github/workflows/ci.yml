@@ -59,6 +59,35 @@ jobs:
               - 'Cargo.lock'
               - 'rust-toolchain.toml'
 
+  storage-windows:
+    name: Storage migrations (Windows)
+    runs-on: windows-latest
+    needs: paths
+    if: github.event_name != 'pull_request' || needs.paths.outputs.workbench == 'true'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build native host and type dependencies
+        run: pnpm build:native && pnpm --filter @nervekit/workbench-server... check
+      - name: Run storage migration tests on native Windows filesystems
+        run: pnpm --filter @nervekit/workbench-server test:migrations
+
   validate:
     name: Check and test (Ubuntu)
     runs-on: ubuntu-latest

@@ -17,7 +17,9 @@ import {
 } from "./legacy-import-envelope.js";
 import { readLegacyPortableState } from "./legacy-portable-state.js";
 import { atomicWriteJson, readJsonFile } from "./json.js";
+import { storagePaths } from "./paths.js";
 import { inspectWorkbenchHome } from "./state-layout.js";
+import { assertCurrentStorage } from "./storage-postconditions.js";
 
 export type LegacyCredentialMigrationStatus = "imported" | "none" | "failed";
 export type LegacyPortableImportStatus = "imported" | "none";
@@ -155,7 +157,7 @@ async function runMigrations(
   home: string,
   options: StorageStartupOptions,
 ): Promise<MigrationReport> {
-  return (options.runMigrations ?? runStorageMigrations)(home, {
+  const report = await (options.runMigrations ?? runStorageMigrations)(home, {
     now: options.now,
     reportProgress: ({ description }) => {
       options.reportStartupProgress?.({
@@ -165,6 +167,8 @@ async function runMigrations(
       });
     },
   });
+  if (!options.runMigrations) await assertCurrentStorage(storagePaths(home));
+  return report;
 }
 
 async function writeJournal(

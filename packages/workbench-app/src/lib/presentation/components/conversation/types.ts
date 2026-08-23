@@ -129,7 +129,10 @@ export type ConversationPaneActions = {
   onOpenFile?: (path: string, line?: number) => void;
   onAnswerUserQuestion?: (id: string, answer: string) => void | Promise<void>;
   onDismissUserQuestion?: (id: string) => void | Promise<void>;
-  onGrantApproval?: (id: string) => void | Promise<void>;
+  onGrantApproval?: (
+    id: string,
+    scope?: "single_call" | "always_project" | "always_global",
+  ) => void | Promise<void>;
   onDenyApproval?: (id: string) => void | Promise<void>;
   onAcceptPlanReview?: (
     id: string,

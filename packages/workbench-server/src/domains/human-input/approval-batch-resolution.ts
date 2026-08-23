@@ -34,6 +34,13 @@ export class ApprovalBatchResolutionService {
     decision: "allow" | "deny",
     note?: string,
     resolutionRequestId?: string,
+    scope?:
+      | "single_call"
+      | "same_tool_same_args"
+      | "run"
+      | "always"
+      | "always_project"
+      | "always_global",
   ): Promise<ToolCallRecord> {
     const approval = this.pendingApproval(approvalId);
     const pendingToolCall = this.deps.tools.getToolCall(approval.toolCallId);
@@ -43,6 +50,7 @@ export class ApprovalBatchResolutionService {
         decision,
         note,
         resolutionRequestId,
+        scope,
       );
       return this.deps.tools.finalizeDecidedApproval(approvalId);
     }
@@ -70,6 +78,7 @@ export class ApprovalBatchResolutionService {
           decision,
           note,
           resolutionRequestId,
+          scope,
         );
         if (!(await this.batchReady(batch))) {
           return this.deps.tools.getToolCall(currentToolCall.id);

@@ -1,10 +1,16 @@
 import { resolve } from "node:path";
 import {
   classifyToolRisk,
+  evaluateSupervision,
   isAllowedPlanModeBashCommand,
   isReadOnlyNetworkToolForApproval,
 } from "@nervekit/tools";
-import type { AgentRecord, ToolName, ToolRisk } from "@nervekit/contracts";
+import type {
+  AgentRecord,
+  SupervisionGrant,
+  ToolName,
+  ToolRisk,
+} from "@nervekit/contracts";
 import {
   isPathInsidePlanDir,
   planDirForStorageHome,
@@ -19,10 +25,12 @@ export interface PolicyEvaluation {
   reason: string;
   normalizedArgs: Record<string, unknown>;
   cwd: string;
+  suggestedGrants?: SupervisionGrant[];
 }
 
 export interface PolicyContext {
   dataDir: string;
+  grants?: readonly SupervisionGrant[];
 }
 
 export function evaluateToolPolicy(
@@ -45,7 +53,27 @@ export function evaluateToolPolicy(
       cwd,
       context,
     );
-    if (planningDecision) return planningDecision;
+    if (planningDecision) {
+      if (planningDecision.decision !== "approval") return planningDecision;
+      const supervised = evaluateSupervision({
+        toolName,
+        args,
+        normalizedArgs: planningDecision.normalizedArgs,
+        agent: {
+          permissionLevel: agent.permissionLevel,
+          mode: agent.mode,
+          autoApproveReadOnly:
+            agent.approvalPolicy?.autoApproveReadOnly ?? true,
+        },
+        preferences: { grants: context.grants ?? [] },
+      });
+      return supervised.decision === "allow"
+        ? { ...planningDecision, decision: "allow", reason: supervised.reason }
+        : {
+            ...planningDecision,
+            suggestedGrants: supervised.suggestedGrants,
+          };
+    }
   }
 
   if (toolName === "plan_mode_present" || toolName === "plan_mode_force_exit") {
@@ -58,50 +86,24 @@ export function evaluateToolPolicy(
     };
   }
 
-  if (risk === "interaction") {
-    return {
-      decision: "allow",
-      risk,
-      reason: "User-interaction tool call is allowed.",
-      normalizedArgs,
-      cwd,
-    };
-  }
-
-  if (risk === "read") {
-    return evaluateReadRiskPolicy(agent, risk, normalizedArgs, cwd);
-  }
-
-  if (isReadOnlyNetworkToolForApproval(toolName)) {
-    return evaluateReadOnlyNetworkRiskPolicy(agent, risk, normalizedArgs, cwd);
-  }
-
-  if (agent.permissionLevel === "read_only") {
-    return {
-      decision: "deny",
-      risk,
-      reason: `Tool risk '${risk}' is not allowed for read_only agents.`,
-      normalizedArgs,
-      cwd,
-    };
-  }
-
-  if (agent.permissionLevel === "supervised") {
-    return {
-      decision: "approval",
-      risk,
-      reason: `Supervised agent requires approval for '${risk}' tool calls.`,
-      normalizedArgs,
-      cwd,
-    };
-  }
-
-  return {
-    decision: "allow",
-    risk,
-    reason: `Autonomous agent may run '${risk}' tool calls without approval.`,
+  const supervised = evaluateSupervision({
+    toolName,
+    args,
     normalizedArgs,
+    agent: {
+      permissionLevel: agent.permissionLevel,
+      mode: agent.mode,
+      autoApproveReadOnly: agent.approvalPolicy?.autoApproveReadOnly ?? true,
+    },
+    preferences: { grants: context.grants ?? [] },
+  });
+  return {
+    decision: supervised.decision,
+    risk: supervised.risk,
+    reason: supervised.reason,
+    normalizedArgs: supervised.normalizedArgs,
     cwd,
+    suggestedGrants: supervised.suggestedGrants,
   };
 }
 
@@ -113,7 +115,7 @@ function evaluateReadRiskPolicy(
 ): PolicyEvaluation {
   if (
     agent.permissionLevel === "supervised" &&
-    agent.approvalPolicy.autoApproveReadOnly === false
+    agent.approvalPolicy?.autoApproveReadOnly === false
   ) {
     return {
       decision: "approval",
@@ -150,7 +152,7 @@ function evaluateReadOnlyNetworkRiskPolicy(
   }
   if (
     agent.permissionLevel === "supervised" &&
-    agent.approvalPolicy.autoApproveReadOnly === false
+    agent.approvalPolicy?.autoApproveReadOnly === false
   ) {
     return {
       decision: "approval",

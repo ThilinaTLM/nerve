@@ -9,7 +9,11 @@ import {
   applicationSettingsSchema,
   defaultApplicationSettings,
 } from "./application-configuration.schema.js";
-import { userConfigurableToolNameSchema } from "../tools/records.schema.js";
+import {
+  supervisionGrantSchema,
+  toolNameSchema,
+  userConfigurableToolNameSchema,
+} from "../tools/records.schema.js";
 
 export const modeSchema = z.enum(["planning", "coding"]);
 export type Mode = z.infer<typeof modeSchema>;
@@ -55,6 +59,43 @@ export type AgentSelectionSettings = z.infer<
 const runtimeSettingsSchema = z.object({
   pythonExecutablePath: z.string().trim().min(1).optional(),
   shellPath: z.string().trim().min(1).optional(),
+});
+
+const supervisionGrantsSchema = z
+  .array(supervisionGrantSchema)
+  .max(256)
+  .superRefine((grants, context) => {
+    const ids = new Set<string>();
+    for (const [index, grant] of grants.entries()) {
+      if (ids.has(grant.id)) {
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate supervision grant id '${grant.id}'`,
+          path: [index, "id"],
+        });
+      }
+      ids.add(grant.id);
+      if (grant.target === "tool") {
+        if (!toolNameSchema.safeParse(grant.toolName).success) {
+          context.addIssue({
+            code: "custom",
+            message: `Unknown tool '${grant.toolName}'`,
+            path: [index, "toolName"],
+          });
+        }
+        if (grant.toolName === "bash") {
+          context.addIssue({
+            code: "custom",
+            message: "Bash requires a command-prefix grant.",
+            path: [index, "toolName"],
+          });
+        }
+      }
+    }
+  });
+
+const supervisionSettingsSchema = z.object({
+  grants: supervisionGrantsSchema.default([]),
 });
 
 export const atlassianProfileSchema = z.object({
@@ -288,6 +329,7 @@ export const settingsSchema = z.object({
     baseDelayMs: z.number().int().positive().default(2000),
   }),
   runtime: runtimeSettingsSchema.default({}),
+  supervision: supervisionSettingsSchema.default({ grants: [] }),
   providers: providersSettingsSchema.default({
     atlassianProfiles: [],
     tavilyProfiles: [],
@@ -367,6 +409,7 @@ export const defaultSettings: Settings = {
     baseDelayMs: 2000,
   },
   runtime: {},
+  supervision: { grants: [] },
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
     disabled: ["explain_image"],
@@ -458,6 +501,11 @@ export const updateSettingsRequestSchema = z.object({
       enabled: z.boolean().optional(),
       maxRetries: z.number().int().nonnegative().optional(),
       baseDelayMs: z.number().int().positive().optional(),
+    })
+    .optional(),
+  supervision: z
+    .object({
+      grants: supervisionGrantsSchema.optional(),
     })
     .optional(),
   runtime: z

@@ -25,6 +25,24 @@ export const toolRiskSchema = z.enum([
 ]);
 export type ToolRisk = z.infer<typeof toolRiskSchema>;
 
+const supervisionGrantBaseSchema = z.object({
+  id: z.string().startsWith("grant_").max(128),
+  risk: toolRiskSchema,
+});
+
+export const supervisionGrantSchema = z.discriminatedUnion("target", [
+  supervisionGrantBaseSchema.extend({
+    target: z.literal("tool"),
+    toolName: z.string().min(1).max(128),
+  }),
+  supervisionGrantBaseSchema.extend({
+    target: z.literal("command_prefix"),
+    risk: z.literal("command"),
+    tokens: z.array(z.string().trim().min(1).max(256)).min(1).max(16),
+  }),
+]);
+export type SupervisionGrant = z.infer<typeof supervisionGrantSchema>;
+
 export const toolGroupNameSchema = z.enum([
   "fileInspection",
   "fileEditing",
@@ -137,6 +155,7 @@ export type RecordedToolName = z.infer<typeof recordedToolNameSchema>;
 export const toolDescriptorSchema = z.object({
   name: toolNameSchema,
   risk: toolRiskSchema,
+  argumentSensitive: z.boolean().default(false),
   description: z.string(),
   group: toolGroupNameSchema,
   executionKind: toolExecutionKindSchema,
@@ -179,14 +198,33 @@ export const approvalToolInteractionSchema = interactionBaseSchema.extend({
     reason: z.string().min(1).max(4_096),
     normalizedArgs: boundedPublicObjectSchema.optional(),
     offeredScopes: z
-      .array(z.enum(["single_call", "same_tool_same_args", "run"]))
-      .max(3),
+      .array(
+        z.enum([
+          "single_call",
+          "same_tool_same_args",
+          "run",
+          "always",
+          "always_project",
+          "always_global",
+        ]),
+      )
+      .max(6),
+    suggestedGrants: z.array(supervisionGrantSchema).max(16).default([]),
   }),
   resolution: z
     .object({
       action: z.enum(["allow", "deny"]),
       note: z.string().max(4_096).optional(),
-      scope: z.enum(["single_call", "same_tool_same_args", "run"]).optional(),
+      scope: z
+        .enum([
+          "single_call",
+          "same_tool_same_args",
+          "run",
+          "always",
+          "always_project",
+          "always_global",
+        ])
+        .optional(),
     })
     .optional(),
 });
@@ -360,6 +398,13 @@ export type ToolCallTranscriptRecord = z.infer<
   typeof toolCallTranscriptRecordSchema
 >;
 
+export const approvalGrantScopeSchema = z.enum([
+  "single_call",
+  "always_project",
+  "always_global",
+]);
+export type ApprovalGrantScope = z.infer<typeof approvalGrantScopeSchema>;
+
 export const approvalStatusSchema = z.enum(["pending", "granted", "denied"]);
 export type ApprovalStatus = z.infer<typeof approvalStatusSchema>;
 
@@ -375,6 +420,11 @@ export const approvalRecordSchema = z.object({
   requestedAt: z.string().datetime(),
   resolvedAt: z.string().datetime().optional(),
   resolutionNote: z.string().max(4_096).optional(),
+  offeredScopes: z
+    .array(approvalGrantScopeSchema)
+    .max(3)
+    .default(["single_call"]),
+  suggestedGrants: z.array(supervisionGrantSchema).max(16).default([]),
 });
 export type ApprovalRecord = z.infer<typeof approvalRecordSchema>;
 

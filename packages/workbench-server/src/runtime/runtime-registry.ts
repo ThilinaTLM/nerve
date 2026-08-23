@@ -25,6 +25,7 @@ import type {
   PlanImplementationSelection,
   PlanReviewStatus,
   ProjectRecord,
+  ProjectSupervisionPreferences,
   PromptRequest,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
@@ -126,7 +127,7 @@ export class RuntimeRegistry {
   }
 
   constructor(
-    storage: InitializedStorage,
+    private readonly storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
     private readonly index: IndexStore,
     private readonly auth: AuthManager,
@@ -296,6 +297,20 @@ export class RuntimeRegistry {
 
   getProject(projectId: string): ProjectRecord {
     return this.services.projectLifecycle.getProject(projectId);
+  }
+
+  getProjectPermissions(projectId: string) {
+    return this.services.supervisionPreferences.project(projectId);
+  }
+
+  updateProjectPermissions(
+    projectId: string,
+    permissions: ProjectSupervisionPreferences,
+  ) {
+    return this.services.supervisionPreferences.replaceProject(
+      projectId,
+      permissions,
+    );
   }
 
   watchProjectFilesystem(projectId: string): void {
@@ -561,12 +576,44 @@ export class RuntimeRegistry {
       );
     }
     if (request.resolution.kind === "approval") {
+      const durableScope =
+        request.resolution.scope === "always_project"
+          ? "project"
+          : request.resolution.scope === "always_global" ||
+              request.resolution.scope === "always"
+            ? "global"
+            : undefined;
+      if (request.resolution.action === "allow" && durableScope) {
+        if (
+          interaction.kind !== "approval" ||
+          !(
+            interaction.request.offeredScopes.includes(
+              request.resolution.scope ?? "single_call",
+            ) ||
+            (request.resolution.scope === "always_global" &&
+              interaction.request.offeredScopes.includes("always"))
+          ) ||
+          interaction.request.suggestedGrants.length === 0
+        ) {
+          throw new ApplicationError(
+            400,
+            "APPROVAL_SCOPE_NOT_OFFERED",
+            "This approval does not offer the requested durable grant scope.",
+          );
+        }
+        await this.services.supervisionPreferences.add(
+          current.projectId,
+          durableScope,
+          interaction.request.suggestedGrants,
+        );
+      }
       const id = `approval_${current.id}_${interaction.ordinal}`;
       const toolCall = await this.services.humanInput.resolveApproval(
         id,
         request.resolution.action,
         request.resolution.note,
         request.resolutionRequestId,
+        request.resolution.scope,
       );
       return { toolCall };
     }

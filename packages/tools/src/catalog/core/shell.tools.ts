@@ -1,10 +1,7 @@
 import type { ToolRisk } from "@nervekit/contracts";
 import { Type } from "typebox";
 import { executeBash } from "../../execution/shell/bash.js";
-import {
-  hasDangerousCommandPattern,
-  isKnownReadOnlyCommand,
-} from "../../safety/command-policy.js";
+import { analyzeShellCommand } from "../../safety/command-analysis.js";
 import type { ToolDefinition } from "../types.js";
 
 const bashParameters = Type.Object(
@@ -27,9 +24,7 @@ const bashParameters = Type.Object(
 
 function classifyCommandRisk(args: Record<string, unknown>): ToolRisk {
   const command = typeof args.command === "string" ? args.command : "";
-  if (hasDangerousCommandPattern(command)) return "destructive";
-  if (isKnownReadOnlyCommand(command)) return "read";
-  return "command";
+  return analyzeShellCommand(command).risk;
 }
 
 export const shellToolDefinitions = [
