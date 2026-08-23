@@ -2,17 +2,24 @@ import MessageSquarePlus from "@lucide/svelte/icons/message-square-plus";
 import MessageSquareText from "@lucide/svelte/icons/message-square-text";
 import Copy from "@lucide/svelte/icons/copy";
 import Trash2 from "@lucide/svelte/icons/trash-2";
+import Pin from "@lucide/svelte/icons/pin";
+import PinOff from "@lucide/svelte/icons/pin-off";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
+import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
+import CircleOff from "@lucide/svelte/icons/circle-off";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import type {
   ConversationRecord,
   ProjectEditor,
   ProjectRecord,
   StatusResponse,
+  UpdateConversationStateRequest,
 } from "$lib/api";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { shortProjectLabel } from "$lib/kernel/utils/project-tree";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import type { DeleteTarget } from "./project-agent-tree-props";
+import type { ConversationActivityState } from "$lib/kernel/conversations/activity";
 import VsCodeIcon from "./VsCodeIcon.svelte";
 import ZedIcon from "./ZedIcon.svelte";
 
@@ -22,6 +29,13 @@ export type ProjectTreeMenuContext = {
   editorAvailability?: StatusResponse["runtime"]["editors"];
   conversationCount: (projectId: string) => number;
   onOpenConversation?: (conversationId: string) => void;
+  conversationActivity?: (
+    conversationId: string,
+  ) => ConversationActivityState | undefined;
+  onUpdateConversationState?: (
+    conversationId: string,
+    request: UpdateConversationStateRequest,
+  ) => void;
   onNewConversationInProject?: (projectDir: string) => void;
   onOpenProjectInEditor?: (projectId: string, editor: ProjectEditor) => void;
   requestPrune: (project: ProjectRecord) => void;
@@ -51,6 +65,16 @@ export function countAgeEligible(
       updatedAt < cutoff
     );
   }).length;
+}
+
+export function countCompletedEligible(
+  conversations: ConversationRecord[],
+  projectId: string,
+): number {
+  return conversations.filter(
+    (conversation) =>
+      conversation.projectId === projectId && Boolean(conversation.completedAt),
+  ).length;
 }
 
 export function countKeepEligible(
@@ -145,9 +169,38 @@ export function buildConversationMenu(
   conversation: ConversationRecord,
   ctx: ProjectTreeMenuContext,
 ): ContextMenuItem[] {
+  const activity = ctx.conversationActivity?.(conversation.id);
+  const stateItems: ContextMenuItem[] = [
+    {
+      label: conversation.pinned ? "Unpin" : "Pin",
+      icon: conversation.pinned ? PinOff : Pin,
+      onSelect: () =>
+        ctx.onUpdateConversationState?.(conversation.id, {
+          pinned: !conversation.pinned,
+        }),
+    },
+    {
+      label: conversation.completedAt ? "Reopen" : "Mark done",
+      icon: conversation.completedAt ? RotateCcw : CircleCheck,
+      onSelect: () =>
+        ctx.onUpdateConversationState?.(conversation.id, {
+          completed: !conversation.completedAt,
+        }),
+    },
+  ];
+  if (activity?.clearableFailure) {
+    stateItems.push({
+      label: "Clear status",
+      icon: CircleOff,
+      onSelect: () =>
+        ctx.onUpdateConversationState?.(conversation.id, {
+          clearRuntimeStatus: true,
+        }),
+    });
+  }
   return [
     {
-      label: "Open conversation",
+      label: "Open",
       icon: MessageSquareText,
       onSelect: () => ctx.onOpenConversation?.(conversation.id),
     },
@@ -158,13 +211,15 @@ export function buildConversationMenu(
       onSelect: () => ctx.onNewConversationInProject?.(project.dir),
     },
     { type: "separator" },
+    ...stateItems,
+    { type: "separator" },
     {
-      label: "Copy conversation ID",
+      label: "Copy ID",
       icon: Copy,
       onSelect: () => void copyToClipboard(conversation.id, "conversation id"),
     },
     {
-      label: "Delete conversation",
+      label: "Delete",
       icon: Trash2,
       destructive: true,
       onSelect: () =>

@@ -5,11 +5,11 @@ import type { ConversationActivityState } from "$lib/kernel/conversations/activi
 import { conversationActivityForRecord } from "$lib/kernel/conversations/activity";
 import type { ConversationRow } from "$lib/kernel/utils/project-tree";
 import { shortAgentModel } from "$lib/kernel/utils/project-tree";
-import { dateTimeLabel } from "@nervekit/ui-kit/core/utils/time";
+import ConversationStatusIndicator from "./ConversationStatusIndicator.svelte";
 
 type Props = {
   row: ConversationRow;
-  /** Conversation has an open tab; drives the solid status dot. */
+  /** Conversation has an open center tab; fills dot-based indicators. */
   isOpen?: boolean;
   /** Conversation currently shown in the main pane. */
   isActive?: boolean;
@@ -34,6 +34,8 @@ const dotActivity = $derived(
       conversationId: row.conversation.id,
       agent: row.agent,
       mode: row.agent?.mode ?? row.conversation.mode,
+      completedAt: row.conversation.completedAt,
+      runtimeStatusClearedAt: row.conversation.runtimeStatusClearedAt,
     }),
 );
 const mode = $derived(row.agent?.mode ?? row.conversation.mode);
@@ -43,10 +45,9 @@ const permission = $derived(
 const tooltip = $derived(
   [
     row.conversation.title,
-    `status: ${status}`,
+    `status: ${dotActivity.label ?? status}`,
     `mode: ${mode} · ${permission}`,
     `model: ${shortAgentModel(row.agent)}`,
-    `updated: ${dateTimeLabel(row.conversation.updatedAt)}`,
     row.conversation.id,
   ].join("\n"),
 );
@@ -61,10 +62,11 @@ const tooltip = $derived(
     label={row.conversation.title}
     labelLines={2}
     title={tooltip}
-    status={dotActivity.tone}
-    statusVariant={isOpen ? "solid" : "outline"}
-    pulse={dotActivity.pulse}
     class="px-2"
     active={isActive}
-  />
+  >
+    {#snippet leading()}
+      <ConversationStatusIndicator activity={dotActivity} {isOpen} />
+    {/snippet}
+  </PanelRow>
 </PanelRowCard>

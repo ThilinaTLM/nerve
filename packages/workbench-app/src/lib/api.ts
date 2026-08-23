@@ -110,6 +110,7 @@ export type {
   ToolCallRecord,
   ToolCallTranscriptRecord,
   ToolInteractionResolution,
+  UpdateConversationStateRequest,
   UpdatePromptSuggestionTrustRequest,
   UpdateTaskDefinitionRequest,
   UpdateScratchNoteRequest,

@@ -9,6 +9,7 @@ export type {
 export {
   buildProjectMenu,
   countAgeEligible,
+  countCompletedEligible,
   countKeepEligible,
   countProjectConversations,
   type ProjectTreeMenuContext,

@@ -1,6 +1,7 @@
 <script lang="ts">
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import Plus from "@lucide/svelte/icons/plus";
+import Settings from "@lucide/svelte/icons/settings";
 import type { ProjectRecord } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import AlertDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
@@ -10,21 +11,35 @@ import {
   PanelHeader,
   PanelList,
   PanelScrollRegion,
+  PanelSectionHeader,
   PanelToolbarButton,
   PanelView,
 } from "$lib/presentation/panel";
-import { buildConversationRows } from "$lib/kernel/utils/project-tree";
+import {
+  buildConversationSections,
+  limitConversationSections,
+} from "$lib/kernel/utils/project-tree";
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
+import ConversationListSettingsDialog from "./ConversationListSettingsDialog.svelte";
+import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
 import { getShortcutLabel } from "$lib/kernel/shortcuts/registry";
 import {
   buildConversationMenu,
+  countAgeEligible,
+  countCompletedEligible,
+  countKeepEligible,
+  countProjectConversations,
   type ProjectTreeMenuContext,
 } from "./project-tree-menus";
 import type {
   DeleteTarget,
   ProjectAgentTreeProps,
 } from "./project-agent-tree-props";
+import {
+  conversationListPreferences,
+  setHideCompletedConversations,
+} from "$lib/features/projects/state/conversation-list-preferences.svelte";
 
 let {
   projects = [],
@@ -41,6 +56,7 @@ let {
   onNewConversationInProject,
   onOpenProjectInEditor,
   onDeleteConversation,
+  onUpdateConversationState,
   onPruneProjectConversations,
 }: ProjectAgentTreeProps = $props();
 
@@ -48,15 +64,32 @@ const MAX_LISTED_CONVERSATIONS = 100;
 
 let pendingDelete = $state<DeleteTarget | undefined>();
 let allConversationsOpen = $state(false);
+let settingsOpen = $state(false);
+let cleanUpOpen = $state(false);
 
 const activeProject = $derived(
   projects.find((project) => project.id === selectedProjectId) ?? projects[0],
 );
 const projectIds = $derived(projects.map((project) => project.id));
-const rows = $derived(
-  buildConversationRows({ conversations, agents, projectIds }),
+const sections = $derived(
+  buildConversationSections({
+    conversations,
+    agents,
+    projectIds,
+    hideCompleted: conversationListPreferences.hideCompleted,
+  }),
 );
-const displayedRows = $derived(rows.slice(0, MAX_LISTED_CONVERSATIONS));
+const rowCount = $derived(
+  sections.reduce((count, section) => count + section.rows.length, 0),
+);
+const displayedSections = $derived(
+  limitConversationSections(sections, MAX_LISTED_CONVERSATIONS),
+);
+const hasProjectConversations = $derived(
+  conversations.some((conversation) =>
+    projectIds.includes(conversation.projectId),
+  ),
+);
 const newConversationShortcut = getShortcutLabel("conversation.new");
 const switchProjectShortcut = getShortcutLabel("conversation.newFromProject");
 const emptyStateHint = switchProjectShortcut
@@ -78,6 +111,9 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     conversations.filter((conversation) => conversation.projectId === projectId)
       .length,
   onOpenConversation,
+  conversationActivity: (conversationId) =>
+    conversationActivityById[conversationId],
+  onUpdateConversationState,
   onNewConversationInProject,
   onOpenProjectInEditor,
   requestPrune: (project: ProjectRecord) =>
@@ -91,8 +127,13 @@ const menuContext = $derived<ProjectTreeMenuContext>({
 
 <Tooltip.Provider delayDuration={300} disableHoverableContent>
   <PanelView padded={false} scroll={false}>
-    <PanelHeader title="Conversations" count={rows.length}>
+    <PanelHeader title="Conversations" count={rowCount}>
       {#snippet trailing()}
+        <PanelToolbarButton
+          icon={Settings}
+          label="Conversation settings"
+          onclick={() => (settingsOpen = true)}
+        />
         <span class="inline-flex" data-tour-id="panel-new-conversation">
           <PanelToolbarButton
             icon={Plus}
@@ -112,11 +153,15 @@ const menuContext = $derived<ProjectTreeMenuContext>({
 
     {#if !activeProject}
       <PanelEmpty title="No project selected." description={emptyStateHint} />
-    {:else if rows.length === 0}
+    {:else if rowCount === 0}
       <PanelEmpty
         icon={MessagesSquare}
-        title="No conversations yet"
-        description="Conversations are scoped to this project."
+        title={hasProjectConversations
+          ? "No conversations to show"
+          : "No conversations yet"}
+        description={hasProjectConversations
+          ? "Completed conversations are hidden."
+          : "Conversations are scoped to this project."}
       >
         {#snippet action()}
           <Button
@@ -133,31 +178,68 @@ const menuContext = $derived<ProjectTreeMenuContext>({
       <PanelScrollRegion
         ariaLabel="Conversations"
         activeKey={selectedConversationId}
+        topShadowClass="top-7 h-2"
+        contentClass="pb-2"
       >
-        <PanelList ariaLabel="Conversations" class="shrink-0 gap-1 pt-1 pb-0">
-          {#each displayedRows as row (row.conversation.id)}
-            {@const rowProject =
-              projects.find(
-                (project) => project.id === row.conversation.projectId,
-              ) ?? activeProject}
-            <ProjectAgentTreeNode
-              {row}
-              isOpen={openConversationTabIds?.has(row.conversation.id) ?? false}
-              isActive={row.conversation.id === selectedConversationId}
-              activity={conversationActivityById[row.conversation.id]}
-              menuItems={buildConversationMenu(
-                rowProject,
-                row.conversation,
-                menuContext,
-              )}
-              {onOpenConversation}
-            />
-          {/each}
-        </PanelList>
+        {#each displayedSections as section (section.key)}
+          <PanelSectionHeader
+            title={section.label}
+            count={section.rows.length}
+          />
+          <PanelList
+            ariaLabel={`${section.label} conversations`}
+            class="shrink-0 gap-1 pb-0"
+          >
+            {#each section.rows as row (row.conversation.id)}
+              {@const rowProject =
+                projects.find(
+                  (project) => project.id === row.conversation.projectId,
+                ) ?? activeProject}
+              <ProjectAgentTreeNode
+                {row}
+                isOpen={openConversationTabIds?.has(row.conversation.id) ??
+                  false}
+                isActive={row.conversation.id === selectedConversationId}
+                activity={conversationActivityById[row.conversation.id]}
+                menuItems={buildConversationMenu(
+                  rowProject,
+                  row.conversation,
+                  menuContext,
+                )}
+                {onOpenConversation}
+              />
+            {/each}
+          </PanelList>
+        {/each}
       </PanelScrollRegion>
     {/if}
   </PanelView>
 </Tooltip.Provider>
+<ConversationListSettingsDialog
+  bind:open={settingsOpen}
+  hideCompleted={conversationListPreferences.hideCompleted}
+  cleanUpDisabled={!activeProject ||
+    countProjectConversations(conversations, activeProject.id) === 0}
+  onHideCompletedChange={setHideCompletedConversations}
+  onCleanUp={() => (cleanUpOpen = true)}
+/>
+
+{#if activeProject}
+  <PruneConversationsDialog
+    bind:open={cleanUpOpen}
+    projectLabel={activeProject.name}
+    totalCount={countProjectConversations(conversations, activeProject.id)}
+    ageEligible={(days) =>
+      countAgeEligible(conversations, activeProject.id, days)}
+    keepEligible={(keep) =>
+      countKeepEligible(conversations, activeProject.id, keep)}
+    completedEligible={() =>
+      countCompletedEligible(conversations, activeProject.id)}
+    onConfirm={(request) =>
+      onPruneProjectConversations?.(activeProject.id, request)}
+  />
+{/if}
+
 <AlertDialog
   open={pendingDelete?.kind === "conversation"}
   title="Delete conversation?"
@@ -186,6 +268,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     {selectedConversationId}
     {openConversationTabIds}
     {conversationActivityById}
+    hideCompleted={conversationListPreferences.hideCompleted}
     {onOpenConversation}
     buildMenu={(conversation) =>
       buildConversationMenu(

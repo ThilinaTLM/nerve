@@ -159,6 +159,9 @@ export class PruneProjectConversationsService {
         return Number.isFinite(updatedAt) && updatedAt < cutoffMs;
       });
     }
+    if (request.strategy === "completed") {
+      return conversations.filter((conversation) => conversation.completedAt);
+    }
     const byProject = new Map<string, ConversationRecord[]>();
     for (const conversation of conversations) {
       const values = byProject.get(conversation.projectId) ?? [];

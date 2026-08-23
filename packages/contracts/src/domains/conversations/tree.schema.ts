@@ -22,8 +22,28 @@ export const conversationRecordSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   lastUserMessageAt: z.string().datetime().optional(),
+  pinned: z.boolean().optional(),
+  completedAt: z.string().datetime().optional(),
+  runtimeStatusClearedAt: z.string().datetime().optional(),
 });
 export type ConversationRecord = z.infer<typeof conversationRecordSchema>;
+
+export const updateConversationStateRequestSchema = z
+  .object({
+    pinned: z.boolean().optional(),
+    completed: z.boolean().optional(),
+    clearRuntimeStatus: z.literal(true).optional(),
+  })
+  .refine(
+    (request) =>
+      request.pinned !== undefined ||
+      request.completed !== undefined ||
+      request.clearRuntimeStatus === true,
+    { message: "At least one conversation state change is required" },
+  );
+export type UpdateConversationStateRequest = z.infer<
+  typeof updateConversationStateRequestSchema
+>;
 
 export const createConversationRequestSchema = z.object({
   projectId: z.string().startsWith("proj_"),

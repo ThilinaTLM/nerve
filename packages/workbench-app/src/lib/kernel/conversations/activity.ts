@@ -28,21 +28,32 @@ export type ConversationActivitySource =
   | "live-view"
   | "none";
 
+export type ConversationActivityIndicator =
+  | "idle"
+  | "running"
+  | "needs-user"
+  | "error"
+  | "completed";
+
 export type ConversationActivityState = {
+  indicator: ConversationActivityIndicator;
   tone: StatusTone;
   pulse: boolean;
   label?: string;
   busy: boolean;
   needsUser: boolean;
   source: ConversationActivitySource;
+  clearableFailure?: boolean;
 };
 
 export const idleConversationActivity: ConversationActivityState = {
+  indicator: "idle",
   tone: "neutral",
   pulse: false,
   busy: false,
   needsUser: false,
   source: "none",
+  clearableFailure: false,
 };
 
 export function agentForConversation(
@@ -61,65 +72,85 @@ export function conversationActivityForRecord(input: {
   mode?: AgentRecord["mode"];
   view?: ConversationLiveActivity;
   hasPendingHumanInput?: boolean;
+  completedAt?: string;
+  runtimeStatusClearedAt?: string;
 }): ConversationActivityState {
   const pending = Boolean(input.hasPendingHumanInput);
+  const failureCleared = Boolean(
+    input.runtimeStatusClearedAt &&
+    (!input.agent?.updatedAt ||
+      input.agent.updatedAt <= input.runtimeStatusClearedAt),
+  );
   const waiting = input.view?.activeRun?.status === "waiting";
+  const failed =
+    input.view?.activeRun?.status === "interrupted" ||
+    input.agent?.status === "error";
+  if (failed && !failureCleared) {
+    return {
+      indicator: "error",
+      tone: "danger",
+      pulse: false,
+      label: "Agent error",
+      busy: false,
+      needsUser: false,
+      source:
+        input.view?.activeRun?.status === "interrupted" ? "live-view" : "agent",
+      clearableFailure: true,
+    };
+  }
   if (pending || waiting || input.agent?.status === "awaiting_user") {
     return {
+      indicator: "needs-user",
       tone: "warn",
       pulse: false,
       label: "Needs user action",
       busy: false,
       needsUser: true,
       source: pending ? "pending-input" : waiting ? "live-view" : "agent",
+      clearableFailure: false,
     };
   }
 
   if (input.view?.transient?.compaction?.state === "running") {
     return {
+      indicator: "running",
       tone: "running",
       pulse: true,
       label: "Compacting context",
       busy: true,
       needsUser: false,
       source: "live-view",
-    };
-  }
-
-  if (input.view?.activeRun?.status === "interrupted") {
-    return {
-      tone: "danger",
-      pulse: false,
-      label: "Agent error",
-      busy: false,
-      needsUser: false,
-      source: "live-view",
+      clearableFailure: false,
     };
   }
 
   if (
     input.agent?.status === "running" ||
     input.view?.sending ||
-    input.view?.activeRun
+    (input.view?.activeRun && input.view.activeRun.status !== "interrupted")
   ) {
     return {
+      indicator: "running",
       tone: agentRunningTone(input.agent?.mode ?? input.mode),
       pulse: true,
       label: "Agent running",
       busy: true,
       needsUser: false,
       source: input.agent?.status === "running" ? "agent" : "live-view",
+      clearableFailure: false,
     };
   }
 
-  if (input.agent?.status === "error") {
+  if (input.completedAt) {
     return {
-      tone: "danger",
+      indicator: "completed",
+      tone: "neutral",
       pulse: false,
-      label: "Agent error",
+      label: "Completed",
       busy: false,
       needsUser: false,
-      source: "agent",
+      source: "none",
+      clearableFailure: false,
     };
   }
 
@@ -175,6 +206,8 @@ export function buildConversationActivityById(input: {
       mode: agent?.mode ?? conversation.mode,
       view: input.views[conversationViewKey(conversation.id)],
       hasPendingHumanInput: pendingConversationIds.has(conversation.id),
+      completedAt: conversation.completedAt,
+      runtimeStatusClearedAt: conversation.runtimeStatusClearedAt,
     });
   }
   return result;

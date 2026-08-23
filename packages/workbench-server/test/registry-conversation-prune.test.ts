@@ -81,6 +81,41 @@ describe("RuntimeRegistry conversation pruning", () => {
     }
   });
 
+  it("prunes completed conversations and keeps unfinished conversations", async () => {
+    const state = await createState("nerve-registry-prune-completed-");
+    try {
+      const project = await state.registry.createProject({
+        dir: state.storage.paths.home,
+      });
+      const completed = await state.registry.createConversation({
+        projectId: project.id,
+        title: "Completed Conversation",
+      });
+      const unfinished = await state.registry.createConversation({
+        projectId: project.id,
+        title: "Unfinished Conversation",
+      });
+      await state.registry.updateConversationState(completed.id, {
+        completed: true,
+      });
+
+      const result = await state.registry.pruneProjectConversations(
+        project.id,
+        { strategy: "completed" },
+      );
+
+      assert.equal(result.strategy, "completed");
+      assert.deepEqual(result.prunedConversationIds, [completed.id]);
+      assert.throws(() => state.registry.getConversation(completed.id));
+      assert.equal(
+        state.registry.getConversation(unfinished.id).id,
+        unfinished.id,
+      );
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("skips old conversations with active agents or active tasks", async () => {
     const state = await createState("nerve-registry-prune-skip-");
     try {

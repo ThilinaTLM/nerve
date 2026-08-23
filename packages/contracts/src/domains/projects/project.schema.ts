@@ -34,7 +34,11 @@ export const createProjectRequestSchema = z.object({
 });
 export type CreateProjectRequest = z.infer<typeof createProjectRequestSchema>;
 
-export const pruneStrategySchema = z.enum(["olderThanDays", "keepLatest"]);
+export const pruneStrategySchema = z.enum([
+  "olderThanDays",
+  "keepLatest",
+  "completed",
+]);
 export type PruneStrategy = z.infer<typeof pruneStrategySchema>;
 
 export const pruneProjectConversationsRequestSchema = z.discriminatedUnion(
@@ -47,6 +51,9 @@ export const pruneProjectConversationsRequestSchema = z.discriminatedUnion(
     z.object({
       strategy: z.literal("keepLatest"),
       keepLatest: z.number().int().nonnegative().max(10000),
+    }),
+    z.object({
+      strategy: z.literal("completed"),
     }),
   ],
 );

@@ -15,6 +15,7 @@ type Props = {
   totalCount?: number;
   ageEligible?: (days: number) => number;
   keepEligible?: (keep: number) => number;
+  completedEligible?: () => number;
   onConfirm?: (request: PruneProjectConversationsRequest) => void;
   onOpenChange?: (open: boolean) => void;
 };
@@ -25,6 +26,7 @@ let {
   totalCount = 0,
   ageEligible = () => 0,
   keepEligible = () => 0,
+  completedEligible = () => 0,
   onConfirm,
   onOpenChange,
 }: Props = $props();
@@ -39,6 +41,11 @@ const strategyItems: RadioItem[] = [
     value: "keepLatest",
     label: "By count",
     detail: "Keep the most recent conversations and remove the rest.",
+  },
+  {
+    value: "completed",
+    label: "Completed",
+    detail: "Remove all conversations marked done.",
   },
 ];
 
@@ -60,20 +67,28 @@ const keepItems: SelectItem[] = [
   { value: "100", label: "Keep the latest 100" },
 ];
 
-let strategy = $state<"olderThanDays" | "keepLatest">("olderThanDays");
+let strategy = $state<"olderThanDays" | "keepLatest" | "completed">(
+  "olderThanDays",
+);
 let olderThanDays = $state("7");
 let keepLatest = $state("20");
 
 const removeCount = $derived(
   strategy === "olderThanDays"
     ? ageEligible(Number(olderThanDays))
-    : keepEligible(Number(keepLatest)),
+    : strategy === "keepLatest"
+      ? keepEligible(Number(keepLatest))
+      : completedEligible(),
 );
 
 function buildRequest(): PruneProjectConversationsRequest {
-  return strategy === "olderThanDays"
-    ? { strategy: "olderThanDays", olderThanDays: Number(olderThanDays) }
-    : { strategy: "keepLatest", keepLatest: Number(keepLatest) };
+  if (strategy === "olderThanDays") {
+    return { strategy: "olderThanDays", olderThanDays: Number(olderThanDays) };
+  }
+  if (strategy === "keepLatest") {
+    return { strategy: "keepLatest", keepLatest: Number(keepLatest) };
+  }
+  return { strategy: "completed" };
 }
 
 function handleConfirm() {
@@ -104,21 +119,23 @@ function handleOpenChange(next: boolean) {
       ariaLabel="Cleanup strategy"
     />
 
-    <div class="prune-control">
-      {#if strategy === "olderThanDays"}
-        <SelectField
-          items={ageItems}
-          bind:value={olderThanDays}
-          ariaLabel="Age window"
-        />
-      {:else}
-        <SelectField
-          items={keepItems}
-          bind:value={keepLatest}
-          ariaLabel="Conversations to keep"
-        />
-      {/if}
-    </div>
+    {#if strategy !== "completed"}
+      <div class="prune-control">
+        {#if strategy === "olderThanDays"}
+          <SelectField
+            items={ageItems}
+            bind:value={olderThanDays}
+            ariaLabel="Age window"
+          />
+        {:else}
+          <SelectField
+            items={keepItems}
+            bind:value={keepLatest}
+            ariaLabel="Conversations to keep"
+          />
+        {/if}
+      </div>
+    {/if}
 
     <p class="prune-summary">
       Removes up to <strong>{removeCount}</strong> of {totalCount} conversation{totalCount ===

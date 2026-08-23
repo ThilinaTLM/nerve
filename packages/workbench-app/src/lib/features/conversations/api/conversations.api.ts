@@ -4,6 +4,7 @@ import type {
   ConversationRecord,
   ConversationSnapshot,
   SnapshotCursor,
+  UpdateConversationStateRequest,
 } from "@nervekit/contracts";
 import { protocolRequest } from "@nervekit/protocol";
 
@@ -49,4 +50,16 @@ export async function deleteConversation(
   await protocolRequest("conversation.delete", {
     conversationId,
   });
+}
+
+export async function updateConversationState(
+  conversationId: string,
+  request: UpdateConversationStateRequest,
+): Promise<ConversationRecord> {
+  return (
+    await protocolRequest("conversation.state.update", {
+      conversationId,
+      ...request,
+    })
+  ).result.conversation;
 }

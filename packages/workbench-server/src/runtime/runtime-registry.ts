@@ -32,6 +32,7 @@ import type {
   ToolName,
   ToolCallRecord,
   UpdateAgentRequest,
+  UpdateConversationStateRequest,
   UpdateScratchNoteRequest,
   UpdateTaskDefinitionRequest,
   UserQuestionStatus,
@@ -307,6 +308,16 @@ export class RuntimeRegistry {
 
   getConversation(conversationId: string): ConversationRecord {
     return this.services.conversationLifecycle.getConversation(conversationId);
+  }
+
+  async updateConversationState(
+    conversationId: string,
+    request: UpdateConversationStateRequest,
+  ): Promise<ConversationRecord> {
+    return this.services.conversationLifecycle.updateConversationState(
+      conversationId,
+      request,
+    );
   }
 
   async createAgent(

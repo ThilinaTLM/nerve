@@ -6,7 +6,11 @@ import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import type { ConversationActivityState } from "$lib/kernel/conversations/activity";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
-import { buildConversationRows } from "$lib/kernel/utils/project-tree";
+import {
+  buildConversationSections,
+  type ConversationRow,
+  type ConversationSection,
+} from "$lib/kernel/utils/project-tree";
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 
 type Props = {
@@ -19,6 +23,7 @@ type Props = {
   selectedConversationId?: string;
   openConversationTabIds?: Set<string>;
   conversationActivityById?: Record<string, ConversationActivityState>;
+  hideCompleted?: boolean;
   onOpenConversation?: (conversationId: string) => void;
   buildMenu?: (conversation: ConversationRecord) => ContextMenuItem[];
   onOpenChange?: (open: boolean) => void;
@@ -33,6 +38,7 @@ let {
   selectedConversationId,
   openConversationTabIds,
   conversationActivityById = {},
+  hideCompleted = false,
   onOpenConversation,
   buildMenu,
   onOpenChange,
@@ -41,9 +47,27 @@ let {
 let filter = $state("");
 let searchInputEl = $state<HTMLInputElement | null>(null);
 
-// Rows are sorted by latest user message by buildConversationRows.
-const rows = $derived(
-  buildConversationRows({ conversations, agents, projectIds, filter }),
+type ConversationListItem =
+  | { kind: "section"; section: ConversationSection }
+  | { kind: "conversation"; row: ConversationRow };
+
+const sections = $derived(
+  buildConversationSections({
+    conversations,
+    agents,
+    projectIds,
+    filter,
+    hideCompleted,
+  }),
+);
+const rowCount = $derived(
+  sections.reduce((count, section) => count + section.rows.length, 0),
+);
+const items = $derived.by<ConversationListItem[]>(() =>
+  sections.flatMap((section) => [
+    { kind: "section" as const, section },
+    ...section.rows.map((row) => ({ kind: "conversation" as const, row })),
+  ]),
 );
 
 $effect(() => {
@@ -74,7 +98,7 @@ function openAndClose(conversationId: string) {
   flush
   bind:open
   title="Conversations"
-  description={`${rows.length} in ${projectLabel}`}
+  description={`${rowCount} in ${projectLabel}`}
   class="project-conversations-dialog"
   onOpenChange={handleOpenChange}
 >
@@ -90,7 +114,7 @@ function openAndClose(conversationId: string) {
       </div>
 
       <div class="list-region">
-        {#if rows.length === 0}
+        {#if rowCount === 0}
           <p
             class="mx-2 my-3 grid min-h-48 place-items-center gap-1 text-center font-mono text-xs text-muted-foreground"
           >
@@ -98,23 +122,42 @@ function openAndClose(conversationId: string) {
           </p>
         {:else}
           <VirtualScroller
-            items={rows}
-            getKey={(row) => row.conversation.id}
-            estimateSize={() => 48}
+            {items}
+            getKey={(item) =>
+              item.kind === "section"
+                ? `section:${item.section.key}`
+                : item.row.conversation.id}
+            estimateSize={(index) =>
+              items[index]?.kind === "section" ? 28 : 48}
             viewportClass="h-full px-0.5"
           >
             {#snippet row({ item })}
-              <div class="py-0.5">
-                <ProjectAgentTreeNode
-                  row={item}
-                  isOpen={openConversationTabIds?.has(item.conversation.id) ??
-                    false}
-                  isActive={item.conversation.id === selectedConversationId}
-                  activity={conversationActivityById[item.conversation.id]}
-                  menuItems={buildMenu?.(item.conversation) ?? []}
-                  onOpenConversation={openAndClose}
-                />
-              </div>
+              {#if item.kind === "section"}
+                <div
+                  class="flex h-7 items-center gap-1 bg-card px-2 text-xs font-semibold text-foreground"
+                >
+                  <span>{item.section.label}</span>
+                  <span class="text-muted-foreground">
+                    {item.section.rows.length}
+                  </span>
+                </div>
+              {:else}
+                <div class="py-0.5">
+                  <ProjectAgentTreeNode
+                    row={item.row}
+                    isOpen={openConversationTabIds?.has(
+                      item.row.conversation.id,
+                    ) ?? false}
+                    isActive={item.row.conversation.id ===
+                      selectedConversationId}
+                    activity={conversationActivityById[
+                      item.row.conversation.id
+                    ]}
+                    menuItems={buildMenu?.(item.row.conversation) ?? []}
+                    onOpenConversation={openAndClose}
+                  />
+                </div>
+              {/if}
             {/snippet}
           </VirtualScroller>
         {/if}
