@@ -153,6 +153,33 @@ test("groups aliases and aggregates their conversations", () => {
   assert.ok(items.every((item) => item.label !== "app"));
 });
 
+test("derives project recency from user prompts instead of later conversation updates", () => {
+  const items = buildProjectSwitcherItems({
+    projects: [
+      project("p1", "One", "/one", "2026-01-01"),
+      project("p2", "Two", "/two", "2026-01-01"),
+    ],
+    conversations: [
+      conversation("c1", "p1", "2026-01-05", {
+        createdAt: "2026-01-01",
+        lastUserMessageAt: "2026-01-02",
+      }),
+      conversation("c2", "p2", "2026-01-04", {
+        createdAt: "2026-01-01",
+        lastUserMessageAt: "2026-01-03",
+      }),
+    ],
+    tasks: [],
+    activityById: {},
+  });
+
+  assert.deepEqual(
+    items.map((item) => item.key),
+    ["/two", "/one"],
+  );
+  assert.equal(items.find((item) => item.key === "/one")?.sortAt, "2026-01-02");
+});
+
 test("counts only active background tasks and resolves legacy cwd by longest path", () => {
   const items = buildProjectSwitcherItems({
     projects: [

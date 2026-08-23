@@ -55,7 +55,9 @@ export class ProtocolServerSession {
   #rpcDispatcher?: RpcDispatcher;
   #negotiatedCapabilities: string[] = [];
   #handshakeTimeout?: unknown;
+  #deliveryTail: Promise<void> = Promise.resolve();
   #flushScheduled = false;
+  #flushInFlight?: Promise<void>;
   #overflowed = false;
 
   constructor(options: ServerSessionOptions) {
@@ -278,24 +280,53 @@ export class ProtocolServerSession {
 
   async flush(): Promise<void> {
     if (this.state !== "ready" || this.#overflowed) return;
-    this.#flushScheduled = false;
-    for (const [stream, events] of this.#eventBuffer.takePendingLive()) {
-      if (!this.#activeStreams.has(stream) || this.#replaying.has(stream))
-        continue;
-      await this.#sendEvents(stream, events, "live", "live");
-    }
-    const notifyEvents = this.#eventBuffer.takeNotifications();
-    if (notifyEvents.length > 0) {
-      await this.#sender.send(
-        this.#options.createMessage(
-          "event.notify",
-          { events: notifyEvents },
-          {
-            target: this.peer,
-          },
-        ),
-        "live",
+    this.#flushScheduled = true;
+    if (!this.#flushInFlight) {
+      const flush = this.#enqueueDelivery(() => this.#drainScheduledFlushes());
+      this.#flushInFlight = flush;
+      void flush.then(
+        () => {
+          if (this.#flushInFlight !== flush) return;
+          this.#flushInFlight = undefined;
+          if (this.#flushScheduled) {
+            void this.flush().catch(() =>
+              this.#overflow("Event delivery failed"),
+            );
+          }
+        },
+        () => {
+          if (this.#flushInFlight === flush) this.#flushInFlight = undefined;
+        },
       );
+    }
+    await this.#flushInFlight;
+  }
+
+  async #drainScheduledFlushes(): Promise<void> {
+    while (
+      this.#flushScheduled &&
+      this.state === "ready" &&
+      !this.#overflowed
+    ) {
+      this.#flushScheduled = false;
+      for (const [stream, events] of this.#eventBuffer.takePendingLive()) {
+        if (!this.#activeStreams.has(stream) || this.#replaying.has(stream))
+          continue;
+        await this.#sendEvents(stream, events, "live", "live");
+      }
+      const notifyEvents = this.#eventBuffer.takeNotifications();
+      if (notifyEvents.length > 0) {
+        await this.#sender.send(
+          this.#options.createMessage(
+            "event.notify",
+            { events: notifyEvents },
+            {
+              target: this.peer,
+            },
+          ),
+          "live",
+        );
+      }
     }
   }
 
@@ -465,39 +496,43 @@ export class ProtocolServerSession {
       return mode !== "snapshot_required" && mode !== "unavailable";
     });
     const nextActive = new Set(acceptedCursors.map((cursor) => cursor.stream));
-    this.#activeStreams.clear();
-    this.#streamStates.clear();
-    for (const state of decision.streams) {
-      if (!nextActive.has(state.stream)) continue;
-      this.#activeStreams.add(state.stream);
-      this.#streamStates.set(state.stream, state);
-    }
-    this.#eventBuffer.dropInactive(nextActive);
-    for (const cursor of acceptedCursors) {
-      const mode = subscribed.find(
-        (state) => state.stream === cursor.stream,
-      )?.mode;
-      if (mode === "replay") this.#replaying.add(cursor.stream);
-    }
-
-    await this.#sendSubscriptionUpdated(message, true, subscribed);
-    await subscriptions.activate?.(
-      acceptedCursors,
-      decision.streams.filter((state) => nextActive.has(state.stream)),
-    );
-
-    for (const cursor of acceptedCursors) {
-      const state = statesByName.get(cursor.stream) as StreamState;
-      if (cursor.processedSeq < state.latestSeq) {
-        await this.#replayStream(cursor, state.latestSeq);
+    await this.#enqueueDelivery(async () => {
+      this.#activeStreams.clear();
+      this.#streamStates.clear();
+      this.#replaying.clear();
+      for (const state of decision.streams) {
+        if (!nextActive.has(state.stream)) continue;
+        this.#activeStreams.add(state.stream);
+        this.#streamStates.set(state.stream, state);
       }
-      this.#replaying.delete(cursor.stream);
-      const buffered = this.#eventBuffer.takeReplayBuffered(cursor.stream);
-      const fresh = buffered.filter((event) => event.seq > state.latestSeq);
-      if (fresh.length > 0)
-        await this.#sendEvents(cursor.stream, fresh, "live", "live");
-    }
-    await this.flush();
+      this.#eventBuffer.dropInactive(nextActive);
+      for (const cursor of acceptedCursors) {
+        const mode = subscribed.find(
+          (state) => state.stream === cursor.stream,
+        )?.mode;
+        if (mode === "replay") this.#replaying.add(cursor.stream);
+      }
+
+      await this.#sendSubscriptionUpdated(message, true, subscribed);
+      await subscriptions.activate?.(
+        acceptedCursors,
+        decision.streams.filter((state) => nextActive.has(state.stream)),
+      );
+
+      for (const cursor of acceptedCursors) {
+        const state = statesByName.get(cursor.stream) as StreamState;
+        if (cursor.processedSeq < state.latestSeq) {
+          await this.#replayStream(cursor, state.latestSeq);
+        }
+        this.#replaying.delete(cursor.stream);
+        const buffered = this.#eventBuffer.takeReplayBuffered(cursor.stream);
+        const fresh = buffered.filter((event) => event.seq > state.latestSeq);
+        if (fresh.length > 0)
+          await this.#sendEvents(cursor.stream, fresh, "live", "live");
+      }
+      this.#flushScheduled = true;
+      await this.#drainScheduledFlushes();
+    });
   }
 
   async #replayStream(cursor: StreamCursor, throughSeq: number): Promise<void> {
@@ -563,13 +598,22 @@ export class ProtocolServerSession {
     );
   }
 
+  #enqueueDelivery<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.#deliveryTail.then(operation, operation);
+    this.#deliveryTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
   #scheduleFlush(): void {
     if (this.#flushScheduled) return;
     this.#flushScheduled = true;
-    queueMicrotask(
-      () =>
-        void this.flush().catch(() => this.#overflow("Event delivery failed")),
-    );
+    queueMicrotask(() => {
+      if (this.#flushInFlight) return;
+      void this.flush().catch(() => this.#overflow("Event delivery failed"));
+    });
   }
 
   async #overflow(message: string): Promise<void> {

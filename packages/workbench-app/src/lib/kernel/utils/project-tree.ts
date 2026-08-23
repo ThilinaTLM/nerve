@@ -122,18 +122,18 @@ export function activeConversationAgent(
   );
 }
 
-export function conversationLastActivityAt(
+export function conversationLastUserPromptAt(
   conversation: ConversationRecord,
 ): string {
-  return conversation.updatedAt || conversation.createdAt;
+  return conversation.lastUserMessageAt ?? conversation.createdAt;
 }
 
-function compareConversationsByLastActivityDesc(
+function compareConversationsByLastUserPromptDesc(
   a: ConversationRecord,
   b: ConversationRecord,
 ): number {
-  const sortCompare = conversationLastActivityAt(b).localeCompare(
-    conversationLastActivityAt(a),
+  const sortCompare = conversationLastUserPromptAt(b).localeCompare(
+    conversationLastUserPromptAt(a),
   );
   if (sortCompare !== 0) return sortCompare;
   const createdCompare = b.createdAt.localeCompare(a.createdAt);
@@ -173,11 +173,11 @@ export function buildConversationRows(options: {
       agent: activeConversationAgent(conversation, agents),
     }))
     .sort((a, b) =>
-      compareConversationsByLastActivityDesc(a.conversation, b.conversation),
+      compareConversationsByLastUserPromptDesc(a.conversation, b.conversation),
     );
 }
 
-function compareConversationRowsByCompletionThenActivity(
+function compareConversationRowsByCompletionThenUserPrompt(
   a: ConversationRow,
   b: ConversationRow,
 ): number {
@@ -186,7 +186,7 @@ function compareConversationRowsByCompletionThenActivity(
     Number(Boolean(b.conversation.completedAt));
   return (
     completionCompare ||
-    compareConversationsByLastActivityDesc(a.conversation, b.conversation)
+    compareConversationsByLastUserPromptDesc(a.conversation, b.conversation)
   );
 }
 
@@ -213,17 +213,17 @@ function conversationDateSectionKey(
   conversation: ConversationRecord,
   now: Date,
 ): Exclude<ConversationSection["key"], "pinned"> {
-  const activity = new Date(conversationLastActivityAt(conversation));
-  if (Number.isNaN(activity.getTime())) return "older";
+  const lastUserPrompt = new Date(conversationLastUserPromptAt(conversation));
+  if (Number.isNaN(lastUserPrompt.getTime())) return "older";
   const today = startOfLocalDay(now);
-  const activityDay = startOfLocalDay(activity);
-  if (activityDay.getTime() >= today.getTime()) return "today";
+  const lastUserPromptDay = startOfLocalDay(lastUserPrompt);
+  if (lastUserPromptDay.getTime() >= today.getTime()) return "today";
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  if (activityDay.getTime() >= yesterday.getTime()) return "yesterday";
+  if (lastUserPromptDay.getTime() >= yesterday.getTime()) return "yesterday";
   const previousWeek = new Date(today);
   previousWeek.setDate(previousWeek.getDate() - 7);
-  return activityDay.getTime() >= previousWeek.getTime()
+  return lastUserPromptDay.getTime() >= previousWeek.getTime()
     ? "previous-7-days"
     : "older";
 }
@@ -264,7 +264,7 @@ export function buildConversationSections(options: {
             key,
             label: CONVERSATION_SECTION_LABELS[key],
             rows: sectionRows.sort(
-              compareConversationRowsByCompletionThenActivity,
+              compareConversationRowsByCompletionThenUserPrompt,
             ),
           },
         ]
@@ -342,7 +342,7 @@ export function buildProjectGroups(options: {
       conversation,
       agent: activeConversationAgent(conversation, agents),
     });
-    const conversationSortAt = conversationLastActivityAt(conversation);
+    const conversationSortAt = conversationLastUserPromptAt(conversation);
     if (conversationSortAt > group.sortAt) group.sortAt = conversationSortAt;
     byDir.set(key, group);
   }
@@ -363,7 +363,7 @@ export function buildProjectGroups(options: {
 
   const groups = sorted.slice(0, maxProjects).map((group) => {
     const rows = group.rows.sort((a, b) =>
-      compareConversationsByLastActivityDesc(a.conversation, b.conversation),
+      compareConversationsByLastUserPromptDesc(a.conversation, b.conversation),
     );
     const folder = projectFolderName(group.project.dir);
     const label =

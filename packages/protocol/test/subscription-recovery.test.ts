@@ -66,6 +66,14 @@ class MemoryStreams {
 
 type Pair = ReturnType<typeof createPair>;
 
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 function createPair(
   logs: MemoryStreams,
   options: {
@@ -80,6 +88,10 @@ function createPair(
     maxBufferedEvents?: number;
     knownStreams?: readonly string[];
     addressServerByRole?: boolean;
+    serverSend?: (
+      message: ProtocolV1Message,
+      deliver: () => Promise<void>,
+    ) => Promise<void>;
   } = {},
 ) {
   const clientOutbound: ProtocolV1Message[] = [];
@@ -107,8 +119,14 @@ function createPair(
     heartbeat: { intervalMs: 60_000, timeoutMs: 120_000 },
     sessionId: () => "session_test",
     send: async (message: NerveMessage) => {
-      serverOutbound.push(message as ProtocolV1Message);
-      await client.receive(message as ProtocolV1Message);
+      const protocolMessage = message as ProtocolV1Message;
+      serverOutbound.push(protocolMessage);
+      const deliver = () => client.receive(protocolMessage);
+      if (options.serverSend) {
+        await options.serverSend(protocolMessage, deliver);
+      } else {
+        await deliver();
+      }
     },
     close: options.close,
     maxBufferedEvents: options.maxBufferedEvents,
@@ -335,6 +353,161 @@ describe("subscription-only replay and recovery", () => {
       (message) => message.kind === "stream.subscription.set",
     ).length;
     assert.equal(after, before + 1);
+  });
+
+  it("serializes overlapping multi-stream live flushes", async () => {
+    const logs = new MemoryStreams();
+    const blocker = "conv/conv_blocker";
+    const conversation = "conv/conv_test";
+    const sendBlocked = deferred();
+    const releaseSend = deferred();
+    const delivered: ProtocolV1Message[] = [];
+    let blockNextBlockerBatch = false;
+    const pair = createPair(logs, {
+      serverSend: async (message, deliver) => {
+        if (message.kind !== "event.batch" && message.kind !== "event.notify") {
+          await deliver();
+          return;
+        }
+        delivered.push(message);
+        if (
+          blockNextBlockerBatch &&
+          message.kind === "event.batch" &&
+          message.data.stream === blocker
+        ) {
+          blockNextBlockerBatch = false;
+          sendBlocked.resolve();
+          await releaseSend.promise;
+        }
+      },
+    });
+    await start(pair);
+    await pair.client.subscribe([
+      { stream: blocker, processedSeq: 0 },
+      { stream: conversation, processedSeq: 0 },
+    ]);
+
+    blockNextBlockerBatch = true;
+    void pair.server.publish(blocker, logs.append(blocker));
+    void pair.server.publish(
+      conversation,
+      logs.append(conversation, "run.started", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        startedAt: ts,
+      }),
+    );
+    await sendBlocked.promise;
+
+    void pair.server.publish(conversation, logs.append(conversation));
+    void pair.server.notify({
+      id: "evt_tool_output",
+      ts,
+      type: "conversation.live.tool_output.delta",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        toolCallId: "tool_test",
+        toolName: "Bash",
+        stream: "stdout",
+        offset: 0,
+        delta: "tick 1\n",
+      },
+    });
+    releaseSend.resolve();
+    await pair.server.flush();
+
+    const conversationBatches = delivered.filter(
+      (message) =>
+        message.kind === "event.batch" && message.data.stream === conversation,
+    );
+    assert.deepEqual(
+      conversationBatches.map((message) =>
+        message.kind === "event.batch"
+          ? message.data.events.map((event) => event.seq)
+          : [],
+      ),
+      [[1], [2]],
+    );
+    const runBatchIndex = delivered.findIndex(
+      (message) =>
+        message.kind === "event.batch" &&
+        message.data.stream === conversation &&
+        message.data.events.some((event) => event.type === "run.started"),
+    );
+    const outputIndex = delivered.findIndex(
+      (message) => message.kind === "event.notify",
+    );
+    assert.equal(runBatchIndex >= 0, true);
+    assert.equal(outputIndex > runBatchIndex, true);
+  });
+
+  it("replays run state before notifications queued during subscription activation", async () => {
+    const logs = new MemoryStreams();
+    const conversation = "conv/conv_test";
+    logs.append(conversation, "run.started", {
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      projectId: "proj_test",
+      runId: "run_test",
+      startedAt: ts,
+    });
+    const acknowledgementBlocked = deferred();
+    const releaseAcknowledgement = deferred();
+    const deliveryOrder: string[] = [];
+    let blockSubscriptionAcknowledgement = true;
+    const pair = createPair(logs, {
+      apply: (_stream, event) => deliveryOrder.push(`event:${event.type}`),
+      notify: (events) => {
+        deliveryOrder.push(...events.map((event) => `notify:${event.type}`));
+      },
+      serverSend: async (message, deliver) => {
+        if (
+          blockSubscriptionAcknowledgement &&
+          message.kind === "stream.subscription.updated" &&
+          message.data.accepted
+        ) {
+          blockSubscriptionAcknowledgement = false;
+          acknowledgementBlocked.resolve();
+          await releaseAcknowledgement.promise;
+        }
+        await deliver();
+      },
+    });
+    await start(pair);
+
+    const subscription = pair.client.subscribe([
+      { stream: conversation, processedSeq: 0 },
+    ]);
+    await acknowledgementBlocked.promise;
+    void pair.server.notify({
+      id: "evt_tool_output_during_subscription",
+      ts,
+      type: "conversation.live.tool_output.delta",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        toolCallId: "tool_test",
+        toolName: "explore",
+        stream: "stdout",
+        offset: 0,
+        delta: "progress\n",
+      },
+    });
+    releaseAcknowledgement.resolve();
+    await subscription;
+    await pair.server.flush();
+
+    assert.deepEqual(deliveryOrder, [
+      "event:run.started",
+      "notify:conversation.live.tool_output.delta",
+    ]);
   });
 
   it("delivers notify events without changing cursors and coalesces latest scope", async () => {

@@ -107,6 +107,57 @@ describe("python executor", () => {
     assert.equal(details.scriptPath, scriptPath);
   });
 
+  it(
+    "streams flushed output before the Python process completes",
+    { timeout: 5_000 },
+    async (t) => {
+      const runtime = await runtimeOrSkip(t);
+      if (!runtime) return;
+      const project = await createTempProject();
+      const updates: string[] = [];
+      let settled = false;
+      let resolveFirstUpdate!: (chunk: string) => void;
+      const firstUpdate = new Promise<string>((resolve) => {
+        resolveFirstUpdate = resolve;
+      });
+
+      const execution = executePython(
+        {
+          code: [
+            "import time",
+            "print('tick 1', flush=True)",
+            "time.sleep(0.25)",
+            "print('tick 2', flush=True)",
+          ].join("\n"),
+        },
+        {
+          cwd: project.root,
+          pythonRuntime: runtime,
+          onUpdate: (update) => {
+            if (update.kind !== "output") return;
+            updates.push(update.chunk);
+            if (updates.length === 1) resolveFirstUpdate(update.chunk);
+          },
+        },
+      );
+      void execution.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+
+      assert.match(await firstUpdate, /tick 1/);
+      assert.equal(settled, false);
+
+      const result = await execution;
+      assert.equal(result.exitCode, 0);
+      assert.match(updates.join(""), /tick 1[\s\S]*tick 2/);
+    },
+  );
+
   it("rejects missing or non-file Python script paths", async (t) => {
     const runtime = await runtimeOrSkip(t);
     if (!runtime) return;

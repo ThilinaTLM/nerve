@@ -131,12 +131,33 @@ export function applyConversationNotification(
   if (!conversationLiveEventTypeSet.has(event.type)) return state;
   const runId = (event.data as { runId?: string }).runId;
   if (!runId || state.activeRun?.runId !== runId) return state;
+  // Ephemeral delivery can race with a newer snapshot, but it must not move
+  // the durable aggregate watermark. Run identity and per-output offsets guard
+  // current/future notifications after this stale check.
+  const eventRevision = revisionFromEvent(event.data);
+  if (
+    eventRevision !== undefined &&
+    state.conversationRevision !== undefined &&
+    eventRevision < state.conversationRevision
+  ) {
+    return state;
+  }
+  const data =
+    event.data && typeof event.data === "object" && !Array.isArray(event.data)
+      ? { ...event.data, conversationRevision: undefined }
+      : event.data;
   const applied = applyConversationEvent(
     state,
-    { ...event, seq: state.cursorSeq + 1 },
+    { ...event, data, seq: state.cursorSeq + 1 },
     options,
   );
-  return applied === state ? state : { ...applied, cursorSeq: state.cursorSeq };
+  return applied === state
+    ? state
+    : {
+        ...applied,
+        cursorSeq: state.cursorSeq,
+        conversationRevision: state.conversationRevision,
+      };
 }
 
 export function applyConversationEvent(
@@ -156,20 +177,11 @@ export function applyConversationEvent(
     return state;
   }
 
+  // Aggregate journal revisions include internal commits with no public event,
+  // so forward jumps are expected. The dense public stream sequence above is
+  // the sole event-gap detector; this revision is only a stale-state watermark.
   const eventRevision = revisionFromEvent(event.data);
   const currentRevision = state.conversationRevision;
-  if (
-    eventRevision !== undefined &&
-    currentRevision !== undefined &&
-    eventRevision > currentRevision + 1
-  ) {
-    reportGap(
-      options,
-      event.data as { conversationId?: string; runId?: string },
-      event.type,
-    );
-    return state;
-  }
   const next: ConversationRenderState = {
     ...state,
     cursorSeq: event.seq,

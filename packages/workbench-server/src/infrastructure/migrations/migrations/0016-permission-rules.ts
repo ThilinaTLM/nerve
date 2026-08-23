@@ -191,7 +191,12 @@ async function migrateConversationJournal(file: string): Promise<void> {
       checksum: `sha256:${"0".repeat(64)}`,
     };
     const normalized = conversationJournalCommitSchema.parse(candidate);
-    const { checksum: _placeholder, ...base } = normalized;
+    const { checksum: normalizedChecksum, ...base } = normalized;
+    if (normalizedChecksum !== candidate.checksum) {
+      throw new Error(
+        `Conversation journal checksum normalization failed at line ${index + 1}.`,
+      );
+    }
     const commit = conversationJournalCommitSchema.parse({
       ...base,
       checksum: journalChecksum(base),
