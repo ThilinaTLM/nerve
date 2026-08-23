@@ -54,18 +54,3 @@ export function autoCompletedGuideIds(
 export function incompleteGuideCount(guides: readonly ResolvedGuide[]): number {
   return guides.filter((guide) => guide.available && !guide.completed).length;
 }
-
-export function shouldAutoOpenCatalog(input: {
-  progressiveActive: boolean;
-  settingsLoaded: boolean;
-  incompleteCount: number;
-  generation: number;
-  consideredGeneration?: number;
-}): boolean {
-  return (
-    input.progressiveActive &&
-    input.settingsLoaded &&
-    input.incompleteCount > 0 &&
-    input.consideredGeneration !== input.generation
-  );
-}

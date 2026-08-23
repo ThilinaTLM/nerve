@@ -17,6 +17,8 @@ export const centerViewLoaders = {
   settings: () =>
     import("$lib/app/composition/centers/SettingsCenterHost.svelte"),
   logs: () => import("$lib/features/logs/components/LogsCenterHost.svelte"),
+  discover: () =>
+    import("$lib/app/composition/centers/DiscoverCenterHost.svelte"),
 } satisfies Record<string, () => CenterViewModule>;
 
 export type RegisteredCenterViewKind = keyof typeof centerViewLoaders;

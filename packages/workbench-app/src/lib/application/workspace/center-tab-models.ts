@@ -102,6 +102,14 @@ export type LogsTabModel = {
   error?: string;
 };
 
+export type DiscoverTabModel = {
+  kind: "discover";
+  id: "discover";
+  active: boolean;
+  sending: boolean;
+  error?: string;
+};
+
 export type PrTabModel = {
   kind: "pr";
   id: string;
@@ -123,4 +131,5 @@ export type CenterTabModel =
   | PrTabModel
   | DiffTabModel
   | SettingsTabModel
-  | LogsTabModel;
+  | LogsTabModel
+  | DiscoverTabModel;

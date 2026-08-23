@@ -1,6 +1,6 @@
 <script lang="ts">
 import Logs from "@lucide/svelte/icons/logs";
-import CircleHelp from "@lucide/svelte/icons/circle-help";
+import Compass from "@lucide/svelte/icons/compass";
 import Settings from "@lucide/svelte/icons/settings";
 import { Toolbar } from "bits-ui";
 import { NerveMark } from "$lib/presentation";
@@ -25,8 +25,8 @@ type Props = {
   closeToTray?: boolean;
   quitting?: boolean;
   settingsActive?: boolean;
-  guideActive?: boolean;
-  incompleteGuideCount?: number;
+  discoverActive?: boolean;
+  discoverAttentionCount?: number;
   logsActive?: boolean;
   applicationLogsEnabled?: boolean;
   currentVersion?: string;
@@ -35,7 +35,7 @@ type Props = {
   onOpenProject?: () => void;
   onSelectProject?: (projectId: string) => void;
   onOpenLogs?: () => void;
-  onOpenGuide?: () => void;
+  onOpenDiscover?: () => void;
   onOpenSettings?: () => void;
   onMinimize?: () => void;
   onToggleMaximize?: () => void;
@@ -51,8 +51,8 @@ let {
   closeToTray = true,
   quitting = false,
   settingsActive = false,
-  guideActive = false,
-  incompleteGuideCount = 0,
+  discoverActive = false,
+  discoverAttentionCount = 0,
   logsActive = false,
   applicationLogsEnabled = false,
   currentVersion,
@@ -61,7 +61,7 @@ let {
   onOpenProject,
   onSelectProject,
   onOpenLogs,
-  onOpenGuide,
+  onOpenDiscover,
   onOpenSettings,
   onMinimize,
   onToggleMaximize,
@@ -109,21 +109,21 @@ let {
         size="icon-sm"
         class="relative max-sm:hidden"
         data-tour-id="help"
-        ariaLabel={incompleteGuideCount > 0
-          ? `Open Nerve guides, ${incompleteGuideCount} incomplete`
-          : "Open Nerve guides"}
-        title="Open Nerve guides"
-        active={guideActive}
-        pressed={guideActive}
-        onclick={() => onOpenGuide?.()}
+        ariaLabel={discoverAttentionCount > 0
+          ? `Open Discover, ${discoverAttentionCount} items need attention`
+          : "Open Discover"}
+        title="Open Discover"
+        active={discoverActive}
+        pressed={discoverActive}
+        onclick={() => onOpenDiscover?.()}
       >
-        <CircleHelp size={16} strokeWidth={2.1} />
-        {#if incompleteGuideCount > 0}
+        <Compass size={16} strokeWidth={2.1} />
+        {#if discoverAttentionCount > 0}
           <span
             class="absolute -right-1 -top-1 inline-flex min-w-4 items-center justify-center rounded-full bg-info px-1 text-xs font-medium text-info-foreground"
             aria-hidden="true"
           >
-            {incompleteGuideCount}
+            {discoverAttentionCount}
           </span>
         {/if}
       </Button>

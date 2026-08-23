@@ -6,7 +6,6 @@ import {
   revealPanelViewTemporarily,
   type ShellPresentationSnapshot,
 } from "$lib/app/shell/shell-layout.svelte";
-import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { hasChatGptAudioAuth } from "$lib/features/audio";
 import { conversationSelectors } from "$lib/features/conversations";
 import { openConversationHistory } from "$lib/features/conversations/state/composer-signals.svelte";
@@ -25,7 +24,6 @@ import {
   autoCompletedGuideIds,
   incompleteGuideCount as countIncompleteGuides,
   resolveGuides,
-  shouldAutoOpenCatalog,
   type GuideSignals,
   type ResolvedGuide,
 } from "./guide-catalog-policy.js";
@@ -40,8 +38,9 @@ import { adjacentStep } from "./guide-controller.js";
 import { setupStepsForArea, adjacentSetupStep } from "./setup-guide-policy.js";
 import type { SetupGuideArea, SetupGuideStep } from "./setup-guide-content.js";
 import { activeTabIsConversation } from "./tour-readiness.js";
+import { openDiscoverPane } from "./discover-tabs.svelte.js";
 
-type GuideMode = "closed" | "catalog" | "tour" | "preparing-coach" | "coach";
+type GuideMode = "closed" | "tour" | "preparing-coach" | "coach";
 
 type PresentationSnapshot = {
   shell: ShellPresentationSnapshot;
@@ -53,7 +52,6 @@ type PresentationSnapshot = {
 
 export const guideState = $state({
   mode: "closed" as GuideMode,
-  consideredGeneration: undefined as number | undefined,
   preparing: false,
   targetAvailable: false,
   runSteps: [] as TourStep[],
@@ -127,7 +125,7 @@ export function markGuideCompleted(id: GuideId): void {
     persistCompletionVersions(versions);
 }
 
-function reconcileComputedCompletion(): void {
+export function reconcileComputedGuideCompletion(): void {
   const resolved = catalogGuides();
   let versions = guideState.completionVersions;
   for (const id of autoCompletedGuideIds(resolved, versions)) {
@@ -136,29 +134,6 @@ function reconcileComputedCompletion(): void {
   }
   if (versions !== guideState.completionVersions)
     persistCompletionVersions(versions);
-}
-
-export function considerAutomaticGuide(): void {
-  if (!workbenchStartupState.progressiveActive || !settingsState.settingsDraft)
-    return;
-  reconcileComputedCompletion();
-  const generation = workbenchStartupState.generation;
-  if (
-    !shouldAutoOpenCatalog({
-      progressiveActive: workbenchStartupState.progressiveActive,
-      settingsLoaded: Boolean(settingsState.settingsDraft),
-      incompleteCount: incompleteGuideCount(),
-      generation,
-      consideredGeneration: guideState.consideredGeneration,
-    })
-  )
-    return;
-  guideState.consideredGeneration = generation;
-  guideState.mode = "catalog";
-}
-
-export function openGuide(): void {
-  guideState.mode = "catalog";
 }
 
 function capturePresentation(): PresentationSnapshot {
@@ -356,14 +331,13 @@ export async function moveSetupGuide(direction: -1 | 1): Promise<void> {
 }
 
 function returnFromActiveRun(): void {
+  guideState.mode = "closed";
   if (
     guideState.activeGuideId === "open-project" &&
     workspaceState.projectPickerOpen
-  ) {
-    guideState.mode = "closed";
+  )
     return;
-  }
-  guideState.mode = "catalog";
+  openDiscoverPane();
 }
 
 export function closeActiveRun(): void {
@@ -430,20 +404,4 @@ export function moveTour(direction: -1 | 1): void {
   guideState.stepIndex = next;
   const step = currentTourStep();
   if (step) void prepareTourStep(step);
-}
-
-function closeGuide(): void {
-  preparationId += 1;
-  guideState.mode = "closed";
-  guideState.preparing = false;
-  restorePresentation();
-  requestAnimationFrame(() => {
-    document
-      .querySelector<HTMLElement>('[data-tour-id="help"]')
-      ?.focus({ preventScroll: true });
-  });
-}
-
-export function later(): void {
-  closeGuide();
 }

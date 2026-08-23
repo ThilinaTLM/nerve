@@ -26,7 +26,11 @@ const storageKey = "nerve.workspaceTabs.v2";
 const legacyStorageKey = "nerve.conversationTabs.v1";
 const maxSessions = 24;
 const maxTabs = 30;
-const globalKinds = new Set<CenterTabIdentity["kind"]>(["settings", "logs"]);
+const globalKinds = new Set<CenterTabIdentity["kind"]>([
+  "settings",
+  "logs",
+  "discover",
+]);
 let hydrated = false;
 
 export const tabKey = tabIdentityKey;
@@ -223,21 +227,19 @@ type StoredPayload = {
 function isIdentity(value: unknown): value is CenterTabIdentity {
   if (!value || typeof value !== "object") return false;
   const tab = value as { kind?: unknown; id?: unknown };
-  return (
-    typeof tab.kind === "string" &&
-    typeof tab.id === "string" &&
-    [
-      "conversation",
-      "pending-conversation",
-      "task",
-      "file",
-      "mermaid",
-      "pr",
-      "diff",
-      "settings",
-      "logs",
-    ].includes(tab.kind)
-  );
+  if (typeof tab.kind !== "string" || typeof tab.id !== "string") return false;
+  if (tab.kind === "settings") return tab.id === "settings";
+  if (tab.kind === "logs") return tab.id === "logs";
+  if (tab.kind === "discover") return tab.id === "discover";
+  return [
+    "conversation",
+    "pending-conversation",
+    "task",
+    "file",
+    "mermaid",
+    "pr",
+    "diff",
+  ].includes(tab.kind);
 }
 
 function isMermaidBlockLocator(value: unknown): value is MermaidBlockLocator {

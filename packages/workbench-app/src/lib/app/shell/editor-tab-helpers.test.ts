@@ -61,6 +61,18 @@ test("labels embedded Mermaid tabs with their source and block location", () => 
   assert.equal(statusLabel(model), "Loading diagram");
 });
 
+test("labels the Discover singleton tab", () => {
+  const model: Extract<CenterTabModel, { kind: "discover" }> = {
+    kind: "discover",
+    id: "discover",
+    active: true,
+    sending: false,
+  };
+
+  assert.equal(tabLabel(model), "Discover");
+  assert.equal(tabTitle(model), "Discover Nerve");
+});
+
 test("falls back from blank display names to name and command", () => {
   assert.equal(tabLabel(tab(task({ displayName: "  ", name: "API" }))), "API");
   assert.equal(

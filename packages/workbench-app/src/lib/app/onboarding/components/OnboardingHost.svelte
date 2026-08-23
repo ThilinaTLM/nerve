@@ -1,42 +1,27 @@
 <script lang="ts">
 import { responsive } from "$lib/app/shell/responsive.svelte";
-import { workspaceSelectors } from "$lib/application/workspace";
 import {
-  catalogGuides,
   closeActiveRun,
-  considerAutomaticGuide,
   currentSetupStep,
   currentTourStep,
   finishActiveRun,
   guideState,
-  later,
-  markGuideCompleted,
   moveSetupGuide,
   moveTour,
-  startGuide,
 } from "../guide-state.svelte.js";
-import GuideCatalogDialog from "./GuideCatalogDialog.svelte";
+import { considerAutomaticDiscover } from "../discover-state.svelte.js";
 import GuidedTourOverlay from "./GuidedTourOverlay.svelte";
 
 $effect(() => {
   if (responsive.isPhone) return;
-  considerAutomaticGuide();
+  considerAutomaticDiscover();
 });
 
 const tourStep = $derived(currentTourStep());
 const setupStep = $derived(currentSetupStep());
-const guides = $derived(catalogGuides());
 </script>
 
-{#if !responsive.isPhone && guideState.mode === "catalog"}
-  <GuideCatalogDialog
-    {guides}
-    workbenchBlocked={!workspaceSelectors.activeProject}
-    onStartGuide={startGuide}
-    onMarkCompleted={markGuideCompleted}
-    onLater={later}
-  />
-{:else if !responsive.isPhone && guideState.mode === "tour" && tourStep}
+{#if !responsive.isPhone && guideState.mode === "tour" && tourStep}
   <GuidedTourOverlay
     step={tourStep}
     variant="modal"

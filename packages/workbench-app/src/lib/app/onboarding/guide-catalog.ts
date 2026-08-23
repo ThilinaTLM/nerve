@@ -10,6 +10,7 @@ export type GuideId =
   | "workbench";
 
 export type GuidePriority = "must-do" | "highly-recommended" | "optional";
+export type GuideCategory = "setup" | "walkthrough";
 export type GuideLifecycle = "available" | "new" | "upcoming";
 export type GuideCompletionSignal =
   | "project-open"
@@ -26,6 +27,7 @@ export type GuideDefinition = {
   version: number;
   title: string;
   description: string;
+  category: GuideCategory;
   priority: GuidePriority;
   lifecycle: GuideLifecycle;
   actionLabel?: string;
@@ -40,6 +42,7 @@ export const guideCatalog: readonly GuideDefinition[] = [
     title: "Open a project",
     description:
       "Choose a project folder so Nerve can keep conversations, files, Git changes, and agent work together.",
+    category: "setup",
     priority: "must-do",
     lifecycle: "available",
     actionLabel: "Start guide",
@@ -52,6 +55,7 @@ export const guideCatalog: readonly GuideDefinition[] = [
     title: "Connect a model provider",
     description:
       "Authenticate a subscription, API key, or compatible custom provider before prompting an agent.",
+    category: "setup",
     priority: "must-do",
     lifecycle: "available",
     actionLabel: "Start guide",
@@ -64,6 +68,7 @@ export const guideCatalog: readonly GuideDefinition[] = [
     title: "Enable voice input",
     description:
       "Connect an OpenAI Codex subscription to dictate prompts from the composer.",
+    category: "setup",
     priority: "highly-recommended",
     lifecycle: "available",
     actionLabel: "Start guide",
@@ -76,6 +81,7 @@ export const guideCatalog: readonly GuideDefinition[] = [
     title: "Configure scoped models",
     description:
       "Choose which authenticated models appear in the composer so model selection stays focused.",
+    category: "setup",
     priority: "highly-recommended",
     lifecycle: "available",
     actionLabel: "Start guide",
@@ -87,6 +93,7 @@ export const guideCatalog: readonly GuideDefinition[] = [
     title: "Configure agent defaults",
     description:
       "Choose the mode, permissions, model, and thinking defaults used by new agents.",
+    category: "setup",
     priority: "highly-recommended",
     lifecycle: "available",
     actionLabel: "Start guide",
@@ -98,6 +105,7 @@ export const guideCatalog: readonly GuideDefinition[] = [
     title: "Set up web search",
     description:
       "Add a Tavily API key to let agents use the web_search tool for current information.",
+    category: "setup",
     priority: "optional",
     lifecycle: "available",
     actionLabel: "Start guide",
@@ -110,6 +118,7 @@ export const guideCatalog: readonly GuideDefinition[] = [
     title: "Work through the Workbench",
     description:
       "Tour conversations, composer controls, panels, Git workflows, tasks, providers, settings, and Help.",
+    category: "walkthrough",
     priority: "highly-recommended",
     lifecycle: "available",
     actionLabel: "Start tour",

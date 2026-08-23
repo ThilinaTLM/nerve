@@ -25,6 +25,10 @@ import {
   selectCenterLogsTab,
 } from "$lib/features/logs/state/logs.svelte";
 import {
+  closeDiscoverTab,
+  selectCenterDiscoverTab,
+} from "$lib/app/onboarding/discover-tabs.svelte";
+import {
   closeSettingsTab,
   selectCenterSettingsTab,
 } from "$lib/application/settings/settings-actions.svelte";
@@ -45,6 +49,7 @@ registerCenterTabDispatch({
     diff: (tab) => selectCenterDiffTab(tab.id),
     settings: () => selectCenterSettingsTab(),
     logs: () => selectCenterLogsTab(),
+    discover: () => selectCenterDiscoverTab(),
   },
   close: {
     conversation: (tab) => closeConversationTab(tab.id),
@@ -56,5 +61,6 @@ registerCenterTabDispatch({
     diff: (tab) => closeDiffTab(tab.id),
     settings: () => closeSettingsTab(),
     logs: () => closeLogsTab(),
+    discover: () => closeDiscoverTab(),
   },
 });

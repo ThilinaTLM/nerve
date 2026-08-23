@@ -25,9 +25,9 @@ import {
 import { releaseState } from "$lib/features/releases";
 import { openLogsPane } from "$lib/features/logs";
 import {
+  discoverTitlebarCount,
   guideState,
-  incompleteGuideCount,
-  openGuide,
+  openDiscoverPane,
 } from "$lib/app/onboarding";
 import { settingsSelectors } from "$lib/features/settings";
 import { openSettingsPane } from "$lib/application/settings";
@@ -70,7 +70,7 @@ const headerType = $derived(
     desktopRuntime.platform,
   ),
 );
-const incompleteGuides = $derived(incompleteGuideCount());
+const discoverAttention = $derived(discoverTitlebarCount());
 const desktopQuitting = $derived(
   desktopRuntime.quitting || desktopShutdownState.quitRequested,
 );
@@ -145,11 +145,9 @@ async function handleDesktopClose() {
   closeToTray={settingsDraft?.desktop.closeToTray ?? true}
   quitting={desktopQuitting}
   settingsActive={activeCenterTab?.kind === "settings"}
-  guideActive={guideState.mode === "catalog" ||
-    guideState.mode === "tour" ||
-    guideState.mode === "preparing-coach" ||
-    guideState.mode === "coach"}
-  incompleteGuideCount={incompleteGuides}
+  discoverActive={activeCenterTab?.kind === "discover" ||
+    guideState.mode !== "closed"}
+  discoverAttentionCount={discoverAttention}
   logsActive={activeCenterTab?.kind === "logs"}
   applicationLogsEnabled={status?.capabilities.applicationLogs ?? false}
   currentVersion={status?.version}
@@ -158,7 +156,7 @@ async function handleDesktopClose() {
   onOpenProject={openProjectPicker}
   onSelectProject={(projectId) => void selectProject(projectId)}
   onOpenLogs={() => openLogsPane()}
-  onOpenGuide={openGuide}
+  onOpenDiscover={openDiscoverPane}
   onOpenSettings={() => void openSettingsPane()}
   onMinimize={() => void minimizeDesktopWindow()}
   onToggleMaximize={() => void toggleMaximizeDesktopWindow()}

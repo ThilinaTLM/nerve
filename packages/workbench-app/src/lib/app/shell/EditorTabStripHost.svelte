@@ -2,6 +2,7 @@
 import BookOpenText from "@lucide/svelte/icons/book-open-text";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Copy from "@lucide/svelte/icons/copy";
+import Compass from "@lucide/svelte/icons/compass";
 import FileDiff from "@lucide/svelte/icons/file-diff";
 import FileText from "@lucide/svelte/icons/file-text";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
@@ -134,6 +135,7 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
   else if (tab.kind === "diff") model.icon = FileDiff;
   else if (tab.kind === "settings") model.icon = Settings;
   else if (tab.kind === "logs") model.icon = Logs;
+  else if (tab.kind === "discover") model.icon = Compass;
 
   return model;
 }

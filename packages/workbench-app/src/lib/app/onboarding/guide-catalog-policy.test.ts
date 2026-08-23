@@ -6,7 +6,6 @@ import {
   autoCompletedGuideIds,
   incompleteGuideCount,
   resolveGuides,
-  shouldAutoOpenCatalog,
 } from "./guide-catalog-policy.js";
 
 const noSignals = {
@@ -86,29 +85,6 @@ describe("guide catalog policy", () => {
     };
     const guides = resolveGuides([upcoming, guideCatalog[1]], {}, noSignals);
     assert.equal(incompleteGuideCount(guides), 1);
-  });
-
-  it("opens once per ready startup generation while guides remain incomplete", () => {
-    const base = {
-      progressiveActive: true,
-      settingsLoaded: true,
-      incompleteCount: 2,
-      generation: 3,
-    };
-    assert.equal(shouldAutoOpenCatalog(base), true);
-    assert.equal(
-      shouldAutoOpenCatalog({ ...base, consideredGeneration: 3 }),
-      false,
-    );
-    assert.equal(shouldAutoOpenCatalog({ ...base, incompleteCount: 0 }), false);
-    assert.equal(
-      shouldAutoOpenCatalog({
-        ...base,
-        generation: 4,
-        consideredGeneration: 3,
-      }),
-      true,
-    );
   });
 
   it("runs only newly introduced Workbench steps until a manual replay", () => {
