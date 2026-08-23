@@ -106,7 +106,7 @@ async function addException(exception: PermissionException): Promise<boolean> {
 <SettingsSection
   id="exceptions"
   title="Exceptions"
-  description="Keep the standard baseline and add only the specific actions you want to allow or block."
+  description="Allow exceptions only skip prompts in Supervised; they do not expand Read only or affect Autonomous. Block exceptions apply to every permission level."
 >
   <SettingsGroup>
     <SettingsRow label="Scope" layout="stacked">
@@ -141,8 +141,10 @@ async function addException(exception: PermissionException): Promise<boolean> {
 
   <div class="flex items-center justify-between gap-2">
     <p class="text-xs text-muted-foreground">
-      Bash and tool exceptions are created from an approval request and can be
-      revoked here.
+      To add a Bash command or tool allow exception, review it in Supervised and
+      choose Always in project or Always globally. Nerve derives an exact-risk
+      exception from that request; command prefixes cannot be entered manually
+      here.
     </p>
     <Button
       size="sm"

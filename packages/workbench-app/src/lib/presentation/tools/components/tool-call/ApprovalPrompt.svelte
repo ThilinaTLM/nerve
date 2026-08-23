@@ -89,6 +89,12 @@ const meta = $derived<MetaItem[]>([
   {#if approval.reason}
     <p class="m-0 text-sm text-muted-foreground">{approval.reason}</p>
   {/if}
+  {#if approval.suggestedExceptions.length > 0}
+    <p class="m-0 text-xs text-muted-foreground">
+      Choosing an “Always…” option saves the reviewed target as a Supervised
+      allow exception.
+    </p>
+  {/if}
   <ToolFooter {meta} {detailsAction}>
     {#snippet actions()}
       <Button
@@ -107,7 +113,7 @@ const meta = $derived<MetaItem[]>([
           size="sm"
           variant="secondary"
           disabled={Boolean(decision)}
-          title={approval.suggestedExceptions.map(exceptionLabel).join(", ")}
+          title={`Save a Supervised allow exception for ${approval.suggestedExceptions.map(exceptionLabel).join(", ")}`}
           onclick={() => void decide("always_project")}
         >
           {#if decision === "always_project"}
@@ -122,6 +128,7 @@ const meta = $derived<MetaItem[]>([
           size="sm"
           variant="ghost"
           disabled={Boolean(decision)}
+          title={`Save a Supervised allow exception for ${approval.suggestedExceptions.map(exceptionLabel).join(", ")}`}
           onclick={() => void decide("always_global")}
         >
           {#if decision === "always_global"}

@@ -84,7 +84,7 @@ async function save(): Promise<void> {
   bind:open
   size="sm"
   title="Add permission exception"
-  description="Create a focused exception to the standard permission baseline."
+  description="Allows only skip prompts in Supervised. Blocks apply to every permission level, including Autonomous."
 >
   <div class="grid gap-3">
     <div class="grid gap-1.5">
@@ -107,8 +107,8 @@ async function save(): Promise<void> {
             value: "allow",
             label:
               kind === "path"
-                ? "Allow writes without asking"
-                : "Allow fetches without asking",
+                ? "Allow writes without asking (Supervised only)"
+                : "Allow fetches without asking (Supervised only)",
           },
           { value: "deny", label: "Block access" },
         ]}

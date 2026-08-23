@@ -28,8 +28,8 @@ The daemon reaches external services only when required by your selected model, 
 Choose coding or planning mode and one of three authority levels:
 
 - **Read-only** blocks mutation, command execution, ordinary network calls, and child-agent spawning.
-- **Supervised** asks before non-read actions; selected read operations can be autoapproved.
-- **Autonomous** runs allowed actions without approval.
+- **Supervised** automatically allows safe reads and asks before other actions unless an exact-risk allow exception applies.
+- **Autonomous** runs allowed actions without approval, while explicit block exceptions still apply.
 
 These controls are enforced by Nerve's tool policy, but they are not an operating-system sandbox. Review commands and integrations according to the trust you place in the model and project.
 
