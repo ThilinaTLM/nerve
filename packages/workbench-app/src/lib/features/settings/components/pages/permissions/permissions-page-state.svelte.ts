@@ -12,7 +12,7 @@ type Dependencies = {
     projectId: string,
     permissions: ProjectPermissions,
   ): Promise<ProjectPermissions>;
-  updateGlobal(exceptions: PermissionException[]): void;
+  updateGlobal(exceptions: PermissionException[]): Promise<void>;
 };
 
 export class PermissionsPageState {
@@ -51,7 +51,7 @@ export class PermissionsPageState {
   async save(exceptions: PermissionException[]): Promise<void> {
     this.error = undefined;
     if (this.scope === "global") {
-      this.dependencies.updateGlobal(exceptions);
+      await this.dependencies.updateGlobal(exceptions);
       return;
     }
     if (!this.project) return;

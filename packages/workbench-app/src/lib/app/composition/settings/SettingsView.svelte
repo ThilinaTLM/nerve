@@ -12,6 +12,7 @@ import type {
   UpdateApplicationConfigurationRequest,
   UpdateSettingsRequest,
 } from "$lib/api";
+import { updateSettings } from "$lib/api";
 import {
   SettingsShell,
   SettingsSidebarStatus,
@@ -114,10 +115,11 @@ let {
 const permissionsPageState = new PermissionsPageState({
   getProject: getProjectPermissions,
   updateProject: updateProjectPermissions,
-  updateGlobal: (exceptions) => {
-    if (!settingsDraft) return;
-    settingsDraft.permissions.exceptions = exceptions;
-    onSettingsChange?.({ permissions: { exceptions } }, { immediate: true });
+  updateGlobal: async (exceptions) => {
+    const saved = await updateSettings({ permissions: { exceptions } });
+    if (settingsDraft) {
+      settingsDraft.permissions.exceptions = saved.permissions.exceptions;
+    }
   },
 });
 
