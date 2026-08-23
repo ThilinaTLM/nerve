@@ -1,8 +1,9 @@
 import type {
+  PermissionException,
+  ProjectPermissions,
   ProjectRecord,
-  ProjectSupervisionPreferences,
-  SupervisionGrant,
 } from "@nervekit/contracts";
+import { deduplicatePermissionExceptions } from "@nervekit/tools";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import {
   type InitializedStorage,
@@ -10,9 +11,9 @@ import {
 } from "../../infrastructure/storage/index.js";
 import type { ProjectPermissionsRepository } from "../projects/project-permissions.repository.js";
 
-export type DurableGrantScope = "project" | "global";
+export type DurableExceptionScope = "project" | "global";
 
-export class SupervisionPreferencesService {
+export class PermissionExceptionService {
   private readonly queues = new Map<string, Promise<void>>();
 
   constructor(
@@ -22,15 +23,15 @@ export class SupervisionPreferencesService {
     private readonly events: StreamLogRegistry,
   ) {}
 
-  async project(projectId: string): Promise<ProjectSupervisionPreferences> {
+  async project(projectId: string): Promise<ProjectPermissions> {
     this.getProject(projectId);
     return this.projects.get(projectId);
   }
 
   async replaceProject(
     projectId: string,
-    permissions: ProjectSupervisionPreferences,
-  ): Promise<ProjectSupervisionPreferences> {
+    permissions: ProjectPermissions,
+  ): Promise<ProjectPermissions> {
     this.getProject(projectId);
     return this.exclusive(`project:${projectId}`, async () => {
       const saved = await this.projects.replace(projectId, permissions);
@@ -42,18 +43,18 @@ export class SupervisionPreferencesService {
     });
   }
 
-  async effective(projectId: string): Promise<SupervisionGrant[]> {
+  async effective(projectId: string): Promise<PermissionException[]> {
     const project = await this.project(projectId);
-    return deduplicateGrants([
-      ...this.storage.settings.supervision.grants,
-      ...project.grants,
+    return deduplicatePermissionExceptions([
+      ...this.storage.settings.permissions.exceptions,
+      ...project.exceptions,
     ]);
   }
 
   async add(
     projectId: string,
-    scope: DurableGrantScope,
-    grants: readonly SupervisionGrant[],
+    scope: DurableExceptionScope,
+    exceptions: readonly PermissionException[],
   ): Promise<void> {
     this.getProject(projectId);
     if (scope === "project") {
@@ -61,7 +62,10 @@ export class SupervisionPreferencesService {
         const current = await this.projects.get(projectId);
         const permissions = await this.projects.replace(projectId, {
           version: 1,
-          grants: deduplicateGrants([...current.grants, ...grants]),
+          exceptions: deduplicatePermissionExceptions([
+            ...current.exceptions,
+            ...exceptions,
+          ]),
         });
         await this.events.publish("project.permissions.updated", {
           projectId,
@@ -72,10 +76,10 @@ export class SupervisionPreferencesService {
     }
     await this.exclusive("global", async () => {
       const settings = await writeSettings(this.storage, {
-        supervision: {
-          grants: deduplicateGrants([
-            ...this.storage.settings.supervision.grants,
-            ...grants,
+        permissions: {
+          exceptions: deduplicatePermissionExceptions([
+            ...this.storage.settings.permissions.exceptions,
+            ...exceptions,
           ]),
         },
       });
@@ -95,21 +99,4 @@ export class SupervisionPreferencesService {
       if (this.queues.get(key) === tail) this.queues.delete(key);
     });
   }
-}
-
-export function supervisionGrantKey(grant: SupervisionGrant): string {
-  return grant.target === "tool"
-    ? `tool:${grant.toolName}:${grant.risk}`
-    : `command:${grant.tokens.join("\u0000")}:${grant.risk}`;
-}
-
-export function deduplicateGrants(
-  grants: readonly SupervisionGrant[],
-): SupervisionGrant[] {
-  const unique = new Map<string, SupervisionGrant>();
-  for (const grant of grants) {
-    const key = supervisionGrantKey(grant);
-    if (!unique.has(key)) unique.set(key, grant);
-  }
-  return [...unique.values()];
 }

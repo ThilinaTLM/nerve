@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import {
-  type ProjectSupervisionPreferences,
-  projectSupervisionPreferencesSchema,
+  type ProjectPermissions,
+  projectPermissionsSchema,
 } from "@nervekit/contracts";
 import {
   atomicWriteJson,
@@ -9,9 +9,9 @@ import {
   readJsonFile,
 } from "../../infrastructure/storage/index.js";
 
-const emptyPermissions = (): ProjectSupervisionPreferences => ({
+const emptyPermissions = (): ProjectPermissions => ({
   version: 1,
-  grants: [],
+  exceptions: [],
 });
 
 export class ProjectPermissionsRepository {
@@ -29,7 +29,7 @@ export class ProjectPermissionsRepository {
     );
   }
 
-  async get(projectId: string): Promise<ProjectSupervisionPreferences> {
+  async get(projectId: string): Promise<ProjectPermissions> {
     const raw = await readJsonFile<unknown>(this.file(projectId)).catch(
       (error: NodeJS.ErrnoException) => {
         if (error.code === "ENOENT") return undefined;
@@ -38,14 +38,14 @@ export class ProjectPermissionsRepository {
     );
     return raw === undefined
       ? emptyPermissions()
-      : projectSupervisionPreferencesSchema.parse(raw);
+      : projectPermissionsSchema.parse(raw);
   }
 
   async replace(
     projectId: string,
-    permissions: ProjectSupervisionPreferences,
-  ): Promise<ProjectSupervisionPreferences> {
-    const parsed = projectSupervisionPreferencesSchema.parse(permissions);
+    permissions: ProjectPermissions,
+  ): Promise<ProjectPermissions> {
+    const parsed = projectPermissionsSchema.parse(permissions);
     await atomicWriteJson(this.file(projectId), parsed, 0o600);
     return parsed;
   }

@@ -1,7 +1,7 @@
 import type { ToolRisk } from "@nervekit/contracts";
 import { Type } from "typebox";
 import { executeBash } from "../../execution/shell/bash.js";
-import { analyzeShellCommand } from "../../safety/command-analysis.js";
+import { assessShellCommand } from "../../policy/shell-command-assessment.js";
 import type { ToolDefinition } from "../types.js";
 
 const bashParameters = Type.Object(
@@ -24,7 +24,7 @@ const bashParameters = Type.Object(
 
 function classifyCommandRisk(args: Record<string, unknown>): ToolRisk {
   const command = typeof args.command === "string" ? args.command : "";
-  return analyzeShellCommand(command).risk;
+  return assessShellCommand(command).risk;
 }
 
 export const shellToolDefinitions = [
@@ -32,6 +32,10 @@ export const shellToolDefinitions = [
     name: "bash",
     group: "shell",
     baseRisk: "command",
+    permission: {
+      durableAllow: "target",
+      targets: [{ kind: "command_segments", argument: "command" }],
+    },
     traits: ["write_capable"],
     executionKind: "local",
     executor: executeBash,

@@ -39,6 +39,7 @@ export const pythonToolDefinitions = [
     name: "python_exec",
     group: "python",
     baseRisk: "command",
+    permission: { durableAllow: "never" },
     traits: ["write_capable"],
     executionKind: "local",
     executor: executePython,

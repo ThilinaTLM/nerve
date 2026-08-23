@@ -118,7 +118,7 @@ function runBatch(options: {
   };
 }
 
-test("stages parallel tools without overriding their own supervision decisions", async () => {
+test("stages parallel tools without overriding their own permission decisions", async () => {
   const primary = pendingWaitRecord("tool_primary", "bash", "approval");
   const batch = runBatch({
     primary,

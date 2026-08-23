@@ -30,7 +30,7 @@ Send an inspection-first prompt such as:
 
 > Inspect this project and explain its architecture. Do not modify files.
 
-You will see text and any thinking returned by the provider, plus cards for file reads, search, and other tool calls. If autoapproval for reads is off, approve each read card. Non-read tools remain gated in supervised mode.
+You will see text and any thinking returned by the provider, plus cards for file reads, search, and other tool calls. Supervised mode automatically allows safe reads. Commands, changes, and network access remain gated unless a focused allow exception applies.
 
 ## Navigate the workbench
 

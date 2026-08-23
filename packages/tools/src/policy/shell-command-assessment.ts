@@ -1,18 +1,18 @@
-import type { ToolRisk } from "@nervekit/contracts";
-import { isBlockedCommandSegment } from "./command-policy.js";
+import { isBlockedCommandSegment } from "../safety/command-policy.js";
 import {
   extractSegments,
   hasCommandSubstitution,
   hasUnsafeConstructs,
   hasUnsafeRedirects,
   parseCommand,
-} from "./command-policy-parser.js";
+} from "../safety/command-policy-parser.js";
 import {
   getXargsInvokedCommandIndex,
   normalizeCommandName,
   stripEnvVarAssignments,
   unwrapCommandTokens,
-} from "./command-policy-wrappers.js";
+} from "../safety/command-policy-wrappers.js";
+import type { ShellCommandAssessment } from "./types.js";
 
 const READ_ONLY_ROOTS = new Set([
   "cat",
@@ -37,20 +37,6 @@ const READ_ONLY_ROOTS = new Set([
   "which",
 ]);
 
-export interface ShellCommandSegmentAssessment {
-  tokens: string[];
-  normalizedTokens: string[];
-  risk: "read" | "command";
-  reason: string;
-}
-
-export interface ShellCommandAssessment {
-  risk: Extract<ToolRisk, "read" | "command" | "destructive">;
-  summary: string;
-  segments: ShellCommandSegmentAssessment[];
-  supported: boolean;
-}
-
 function normalizedInvocation(tokens: string[]): string[] {
   return unwrapCommandTokens(stripEnvVarAssignments(tokens));
 }
@@ -61,24 +47,15 @@ function isReadOnlySegment(tokens: string[]): boolean {
   const root = normalizeCommandName(normalized[0] ?? "");
   if (root === "git") return true;
   if (root === "xargs") {
-    const invokedIndex = getXargsInvokedCommandIndex(normalized);
-    return (
-      invokedIndex !== undefined &&
-      isReadOnlySegment(normalized.slice(invokedIndex))
-    );
+    const index = getXargsInvokedCommandIndex(normalized);
+    return index !== undefined && isReadOnlySegment(normalized.slice(index));
   }
   return READ_ONLY_ROOTS.has(root);
 }
 
-export function analyzeShellCommand(command: string): ShellCommandAssessment {
-  if (!command.trim()) {
-    return {
-      risk: "command",
-      summary: "Empty commands are not treated as read-only.",
-      segments: [],
-      supported: false,
-    };
-  }
+export function assessShellCommand(command: string): ShellCommandAssessment {
+  if (!command.trim())
+    return unsupported("Empty commands are not treated as read-only.");
   if (
     /(^|\s)(rm\s+-rf|sudo|mkfs|dd\s+if=|chmod\s+-R|chown\s+-R|git\s+reset\s+--hard|git\s+clean\s+-fd|docker\s+system\s+prune|kubectl\s+delete)(\s|$)/.test(
       command,
@@ -91,30 +68,15 @@ export function analyzeShellCommand(command: string): ShellCommandAssessment {
       supported: true,
     };
   }
-  if (hasCommandSubstitution(command)) {
-    return {
-      risk: "command",
-      summary: "Command substitution requires supervision.",
-      segments: [],
-      supported: false,
-    };
-  }
+  if (hasCommandSubstitution(command))
+    return unsupported("Command substitution requires approval.");
   const entries = parseCommand(command);
-  if (!entries || entries.length === 0) {
-    return {
-      risk: "command",
-      summary: "The shell command could not be parsed safely.",
-      segments: [],
-      supported: false,
-    };
-  }
+  if (!entries?.length)
+    return unsupported("The shell command could not be parsed safely.");
   if (hasUnsafeConstructs(entries) || hasUnsafeRedirects(entries)) {
-    return {
-      risk: "command",
-      summary: "The command uses mutating or unsupported shell syntax.",
-      segments: [],
-      supported: false,
-    };
+    return unsupported(
+      "The command uses mutating or unsupported shell syntax.",
+    );
   }
   const segments = extractSegments(entries).map((tokens) => {
     const normalizedTokens = normalizedInvocation(tokens);
@@ -129,7 +91,7 @@ export function analyzeShellCommand(command: string): ShellCommandAssessment {
     };
   });
   const readOnly =
-    segments.length > 0 && segments.every((item) => item.risk === "read");
+    segments.length > 0 && segments.every((segment) => segment.risk === "read");
   return {
     risk: readOnly ? "read" : "command",
     summary: readOnly
@@ -138,6 +100,10 @@ export function analyzeShellCommand(command: string): ShellCommandAssessment {
     segments,
     supported: true,
   };
+}
+
+function unsupported(summary: string): ShellCommandAssessment {
+  return { risk: "command", summary, segments: [], supported: false };
 }
 
 export function commandPrefixMatches(

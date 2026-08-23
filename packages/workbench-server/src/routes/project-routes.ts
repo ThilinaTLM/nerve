@@ -3,7 +3,7 @@ import {
   createTaskDefinitionRequestSchema,
   openProjectInEditorRequestSchema,
   openProjectInTerminalRequestSchema,
-  projectSupervisionPreferencesSchema,
+  projectPermissionsSchema,
   pruneProjectConversationsRequestSchema,
   updateTaskDefinitionRequestSchema,
 } from "@nervekit/contracts";
@@ -70,9 +70,7 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
   app.put(
     "/:projectId/permissions",
     routeHandler(async (c) => {
-      const permissions = projectSupervisionPreferencesSchema.parse(
-        await c.req.json(),
-      );
+      const permissions = projectPermissionsSchema.parse(await c.req.json());
       return c.json({
         permissions: await state.registry.updateProjectPermissions(
           routeParam(c, "projectId"),

@@ -5,7 +5,6 @@ import Lock from "@lucide/svelte/icons/lock";
 import Shield from "@lucide/svelte/icons/shield";
 import Zap from "@lucide/svelte/icons/zap";
 import type {
-  ApprovalPolicy,
   ContextUsage,
   ModelInfo,
   PermissionLevel,
@@ -18,7 +17,6 @@ import Popover, {
   PopoverRow,
   PopoverSection,
 } from "@nervekit/ui-kit/components/ui/popover-panel";
-import Switch from "@nervekit/ui-kit/components/ui/switch-field";
 import type { Component } from "svelte";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
@@ -44,7 +42,6 @@ type Props = {
   modePlanning: boolean;
   onToggleMode?: () => void;
   permissionLevel: PermissionLevel;
-  approvalPolicy: ApprovalPolicy;
   permissionShortcut?: string;
   permissionShortcutAria?: string;
   modeShortcut?: string;
@@ -65,7 +62,6 @@ type Props = {
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onCompact?: () => void;
   onPermissionChange?: (value: PermissionLevel) => void;
-  onApprovalPolicyChange?: (value: ApprovalPolicy) => void;
 };
 
 let {
@@ -76,7 +72,6 @@ let {
   modePlanning,
   onToggleMode,
   permissionLevel,
-  approvalPolicy,
   permissionShortcut,
   permissionShortcutAria,
   modeShortcut,
@@ -97,7 +92,6 @@ let {
   onThinkingLevelChange,
   onCompact,
   onPermissionChange,
-  onApprovalPolicyChange,
 }: Props = $props();
 
 const permissionOptions = $derived<PermissionOption[]>([
@@ -111,9 +105,7 @@ const permissionOptions = $derived<PermissionOption[]>([
   {
     value: "supervised",
     label: "Supervised",
-    detail: approvalPolicy.autoApproveReadOnly
-      ? "Ask before non-read tool calls"
-      : "Ask before read and non-read tool calls",
+    detail: "Allow safe reads; ask before other tool calls",
     icon: Shield,
     iconClass: "text-muted-foreground",
   },
@@ -136,10 +128,6 @@ let permissionOpen = $state(false);
 function selectPermission(value: PermissionLevel) {
   if (value !== permissionLevel) onPermissionChange?.(value);
   permissionOpen = false;
-}
-
-function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
-  onApprovalPolicyChange?.({ ...approvalPolicy, autoApproveReadOnly });
 }
 </script>
 
@@ -188,17 +176,6 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
           </PopoverRow>
         {/each}
       </PopoverSection>
-      {#if permissionLevel === "supervised"}
-        <PopoverSection separated>
-          <Switch
-            checked={approvalPolicy.autoApproveReadOnly}
-            disabled={controlsDisabled}
-            label="Auto-approve read-only tools"
-            description="Allow read, grep, find, ls, todos, and task status/log/list without prompting."
-            onCheckedChange={setAutoApproveReadOnly}
-          />
-        </PopoverSection>
-      {/if}
     </PopoverBody>
   </Popover>
 

@@ -30,7 +30,7 @@ import type {
   ToolAnchor,
 } from "../runs/runtime/conversation-runtime.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { SupervisionPreferencesService } from "./supervision-preferences.service.js";
+import type { PermissionExceptionService } from "./permission-exception.service.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
@@ -38,7 +38,7 @@ import type { PlanService } from "../plans/plan-service.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
 import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import {
-  evaluateToolPolicy,
+  evaluateWorkbenchToolPermission,
   TodoStateService,
   ToolCallRepository,
 } from "./index.js";
@@ -202,7 +202,7 @@ export class ToolService {
     ) => Promise<AgentRecord>,
     private readonly conversationRuntime: ConversationRuntime,
     private readonly logger?: ApplicationLogger,
-    private readonly supervisionPreferences?: SupervisionPreferencesService,
+    private readonly permissionExceptions?: PermissionExceptionService,
   ) {
     this.toolCallRepository = new ToolCallRepository(storage, index);
     this.toolCalls = this.toolCallRepository.records;
@@ -334,7 +334,7 @@ export class ToolService {
       resolvedAt: interaction.resolvedAt,
       resolutionNote: interaction.resolution?.note,
       offeredScopes: durableApprovalScopes(interaction.request.offeredScopes),
-      suggestedGrants: interaction.request.suggestedGrants,
+      suggestedExceptions: interaction.request.suggestedExceptions,
     };
   }
 
@@ -405,13 +405,18 @@ export class ToolService {
   ): Promise<ToolExecutionResponse> {
     const now = new Date().toISOString();
     const latestAgent = this.getAgent(agent.id);
-    const grants = this.supervisionPreferences
-      ? await this.supervisionPreferences.effective(latestAgent.projectId)
-      : this.storage.settings.supervision.grants;
-    const evaluation = evaluateToolPolicy(latestAgent, toolName, args, {
-      dataDir: this.storage.paths.home,
-      grants,
-    });
+    const exceptions = this.permissionExceptions
+      ? await this.permissionExceptions.effective(latestAgent.projectId)
+      : this.storage.settings.permissions.exceptions;
+    const evaluation = evaluateWorkbenchToolPermission(
+      latestAgent,
+      toolName,
+      args,
+      {
+        dataDir: this.storage.paths.home,
+        exceptions,
+      },
+    );
     const decision =
       evaluation.decision === "allow" && options.forceApproval === true
         ? "approval"
@@ -499,10 +504,10 @@ export class ToolService {
             request: {
               risk: evaluation.risk,
               reason: evaluation.reason,
-              offeredScopes: evaluation.suggestedGrants?.length
+              offeredScopes: evaluation.suggestedExceptions?.length
                 ? ["single_call", "always_project", "always_global"]
                 : ["single_call"],
-              suggestedGrants: evaluation.suggestedGrants ?? [],
+              suggestedExceptions: evaluation.suggestedExceptions ?? [],
             },
           },
         ],

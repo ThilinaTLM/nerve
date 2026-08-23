@@ -159,23 +159,9 @@ export async function writeSettings(
       : "defaultModel" in patch
         ? { defaultModel: patch.defaultModel }
         : {};
-  const defaultApprovalPolicyPatch = patch.defaultApprovalPolicy
-    ? {
-        ...storage.settings.defaultApprovalPolicy,
-        ...patch.defaultApprovalPolicy,
-      }
-    : undefined;
   const lastAgentSelectionPatch = patch.lastAgentSelection
     ? {
         ...patch.lastAgentSelection,
-        ...(patch.lastAgentSelection.approvalPolicy
-          ? {
-              approvalPolicy: {
-                ...storage.settings.lastAgentSelection.approvalPolicy,
-                ...patch.lastAgentSelection.approvalPolicy,
-              },
-            }
-          : {}),
         ...(patch.lastAgentSelection.model === null
           ? { model: undefined }
           : {}),
@@ -288,9 +274,6 @@ export async function writeSettings(
     ...storage.settings,
     ...patch,
     ...defaultModelPatch,
-    ...(defaultApprovalPolicyPatch
-      ? { defaultApprovalPolicy: defaultApprovalPolicyPatch }
-      : {}),
     application: {
       ...storage.settings.application,
       ...(patch.application ?? {}),

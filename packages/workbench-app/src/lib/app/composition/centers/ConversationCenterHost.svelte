@@ -47,7 +47,6 @@ import {
 } from "$lib/features/conversations/state/prompt-send";
 import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import {
-  setComposerApprovalPolicy,
   setComposerMode,
   setComposerModel,
   setComposerPermission,
@@ -194,13 +193,6 @@ const selectedPermissionLevel = $derived(
     activeAgent?.permissionLevel ??
     activeConversation?.permissionLevel ??
     conversationState.selectedPermissionLevel,
-);
-const selectedApprovalPolicy = $derived(
-  activePendingConversation?.approvalPolicy ??
-    activeAgentConfigOverride?.approvalPolicy ??
-    activeAgent?.approvalPolicy ??
-    activeConversation?.approvalPolicy ??
-    conversationState.selectedApprovalPolicy,
 );
 const activeComposerText = $derived(
   activePendingConversation?.composerText ?? view?.composerText ?? "",
@@ -443,7 +435,6 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   {planReviewThinkingLevel}
   mode={selectedMode}
   permissionLevel={selectedPermissionLevel}
-  approvalPolicy={selectedApprovalPolicy}
   {slashCompletions}
   contextUsage={view?.contextUsage}
   {conversationUsage}
@@ -481,9 +472,6 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   }}
   onPermissionChange={(value) => {
     void runActivePaneAction(() => setComposerPermission(value));
-  }}
-  onApprovalPolicyChange={(value) => {
-    void runActivePaneAction(() => setComposerApprovalPolicy(value));
   }}
   onGrantApproval={grantApproval}
   onDenyApproval={denyApproval}

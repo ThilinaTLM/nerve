@@ -5,7 +5,7 @@ import {
   openProjectInTerminalRequestSchema,
   openProjectInTerminalResponseSchema,
   projectRecordSchema,
-  projectSupervisionPreferencesSchema,
+  projectPermissionsSchema,
   pruneProjectConversationsRequestSchema,
   pruneProjectConversationsResponseSchema,
 } from "./index.js";
@@ -58,7 +58,7 @@ export const projectsOperationDefinitions = [
   defineOperation(
     "project.permissions.get",
     projectIdParamsSchema,
-    z.object({ permissions: projectSupervisionPreferencesSchema }),
+    z.object({ permissions: projectPermissionsSchema }),
     "read",
     "none",
     ["workbench_server"] as const,
@@ -67,9 +67,9 @@ export const projectsOperationDefinitions = [
   defineOperation(
     "project.permissions.update",
     projectIdParamsSchema.extend({
-      permissions: projectSupervisionPreferencesSchema,
+      permissions: projectPermissionsSchema,
     }),
-    z.object({ permissions: projectSupervisionPreferencesSchema }),
+    z.object({ permissions: projectPermissionsSchema }),
     "mutation",
     "recommended",
     ["workbench_server"] as const,

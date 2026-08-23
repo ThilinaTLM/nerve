@@ -51,7 +51,6 @@ let {
   thinkingLevel = "off",
   mode = "coding",
   permissionLevel = "autonomous",
-  approvalPolicy = { autoApproveReadOnly: true },
   slashCompletions = [],
   fileCompletions,
   composerSuggestions = [],
@@ -65,7 +64,6 @@ let {
   onThinkingLevelChange,
   onModeChange,
   onPermissionChange,
-  onApprovalPolicyChange,
 }: PromptComposerProps = $props();
 
 // A newly created pending conversation opens directly into its first prompt,
@@ -339,7 +337,6 @@ function handleMicContextMenu(event: MouseEvent) {
     thinkingLevel,
     mode,
     permissionLevel,
-    approvalPolicy,
     contextUsage,
     conversationUsage,
     contextWindow,
@@ -402,7 +399,6 @@ function handleMicContextMenu(event: MouseEvent) {
     onThinkingLevelChange,
     onModeChange,
     onPermissionChange,
-    onApprovalPolicyChange,
     onPasteImage: pasteImage,
     onDropFiles: fileDropSupported ? dropFiles : undefined,
   }}

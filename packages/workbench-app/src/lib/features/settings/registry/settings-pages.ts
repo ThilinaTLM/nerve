@@ -58,12 +58,10 @@ export const settingsPages: SettingsPageDef[] = [
     label: "Permissions",
     icon: Shield,
     description:
-      "Understand tool risk and manage supervised-mode approval preferences.",
+      "Choose a simple default and manage focused allow or block exceptions.",
     sections: [
-      { id: "defaults", label: "Defaults" },
-      { id: "behavior", label: "How permissions behave" },
-      { id: "project-allowed", label: "Current project" },
-      { id: "always-allowed", label: "Global grants" },
+      { id: "default-permission", label: "Default permission" },
+      { id: "exceptions", label: "Exceptions" },
     ],
   },
   {

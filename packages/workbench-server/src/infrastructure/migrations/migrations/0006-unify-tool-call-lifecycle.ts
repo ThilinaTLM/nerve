@@ -341,7 +341,7 @@ function interactionFromApproval(record: LegacyRecord): ToolInteraction {
       risk: (record.risk ?? "interaction") as never,
       reason: String(record.reason ?? "Approval required"),
       offeredScopes: ["single_call"],
-      suggestedGrants: [],
+      suggestedExceptions: [],
     },
     ...(status === "resolved"
       ? {

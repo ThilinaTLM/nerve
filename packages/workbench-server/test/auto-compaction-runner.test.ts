@@ -208,10 +208,6 @@ function agentRecord(
     status: "idle",
     mode: "coding",
     permissionLevel: "supervised",
-    approvalPolicy: {
-      autoApproveReadOnly: true,
-      allowReadOnlyWithoutPrompt: true,
-    },
     workspaceScope: "project",
     model: { provider, modelId },
     thinkingLevel: "off",

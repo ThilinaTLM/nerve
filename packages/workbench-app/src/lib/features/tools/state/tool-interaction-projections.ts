@@ -38,7 +38,7 @@ export function pendingApprovals(
               status: "pending" as const,
               requestedAt: interaction.requestedAt,
               offeredScopes: approvalScopes(interaction.request.offeredScopes),
-              suggestedGrants: interaction.request.suggestedGrants,
+              suggestedExceptions: interaction.request.suggestedExceptions,
               toolCall,
             },
           ]

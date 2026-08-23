@@ -109,7 +109,6 @@ function submit(): void {
       modeShortcut={model.modeShortcut}
       modeShortcutAria={model.modeShortcutAria}
       thinkingShortcut={model.thinkingShortcut}
-      approvalPolicy={model.approvalPolicy}
       contextUsage={model.contextUsage}
       conversationUsage={model.conversationUsage}
       contextWindow={model.contextWindow ?? 0}
@@ -126,7 +125,6 @@ function submit(): void {
       onModelChange={actions.onModelChange}
       onThinkingLevelChange={actions.onThinkingLevelChange}
       onPermissionChange={actions.onPermissionChange}
-      onApprovalPolicyChange={actions.onApprovalPolicyChange}
     />
   {/snippet}
 

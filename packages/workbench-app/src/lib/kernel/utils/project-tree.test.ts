@@ -25,7 +25,6 @@ function conversation(
     title: `Conversation ${suffix}`,
     mode: "coding",
     permissionLevel: "autonomous",
-    approvalPolicy: { autoApproveReadOnly: true },
     createdAt: updatedAt,
     updatedAt,
     ...state,

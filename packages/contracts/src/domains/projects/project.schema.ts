@@ -1,44 +1,40 @@
 import { z } from "zod";
-import {
-  supervisionGrantSchema,
-  toolNameSchema,
-} from "../tools/records.schema.js";
+import { permissionExceptionSchema } from "../permissions/index.js";
+import { toolNameSchema } from "../tools/records.schema.js";
 
-const projectSupervisionGrantsSchema = z
-  .array(supervisionGrantSchema)
+const projectPermissionExceptionsSchema = z
+  .array(permissionExceptionSchema)
   .max(256)
-  .superRefine((grants, context) => {
+  .superRefine((exceptions, context) => {
     const ids = new Set<string>();
-    for (const [index, grant] of grants.entries()) {
-      if (ids.has(grant.id)) {
+    for (const [index, exception] of exceptions.entries()) {
+      if (ids.has(exception.id)) {
         context.addIssue({
           code: "custom",
-          message: `Duplicate supervision grant id '${grant.id}'`,
+          message: `Duplicate permission exception id '${exception.id}'`,
           path: [index, "id"],
         });
       }
-      ids.add(grant.id);
+      ids.add(exception.id);
       if (
-        grant.target === "tool" &&
-        (!toolNameSchema.safeParse(grant.toolName).success ||
-          grant.toolName === "bash")
+        exception.selector.kind === "tool" &&
+        (!toolNameSchema.safeParse(exception.selector.toolName).success ||
+          exception.selector.toolName === "bash")
       ) {
         context.addIssue({
           code: "custom",
-          message: "Tool grants require an active non-Bash tool name.",
-          path: [index, "toolName"],
+          message: "Tool exceptions require an active non-Bash tool name.",
+          path: [index, "selector", "toolName"],
         });
       }
     }
   });
 
-export const projectSupervisionPreferencesSchema = z.object({
+export const projectPermissionsSchema = z.object({
   version: z.literal(1),
-  grants: projectSupervisionGrantsSchema,
+  exceptions: projectPermissionExceptionsSchema,
 });
-export type ProjectSupervisionPreferences = z.infer<
-  typeof projectSupervisionPreferencesSchema
->;
+export type ProjectPermissions = z.infer<typeof projectPermissionsSchema>;
 
 export const projectRecordSchema = z.object({
   id: z.string().startsWith("proj_"),

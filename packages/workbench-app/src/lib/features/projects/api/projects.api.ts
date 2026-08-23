@@ -6,7 +6,7 @@ import type {
   ProjectEditor,
   TaskDefinition,
   ProjectRecord,
-  ProjectSupervisionPreferences,
+  ProjectPermissions,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
   UpdateTaskDefinitionRequest,
@@ -27,15 +27,15 @@ export async function getProject(projectId: string): Promise<ProjectRecord> {
 
 export async function getProjectPermissions(
   projectId: string,
-): Promise<ProjectSupervisionPreferences> {
+): Promise<ProjectPermissions> {
   return (await protocolRequest("project.permissions.get", { projectId }))
     .result.permissions;
 }
 
 export async function updateProjectPermissions(
   projectId: string,
-  permissions: ProjectSupervisionPreferences,
-): Promise<ProjectSupervisionPreferences> {
+  permissions: ProjectPermissions,
+): Promise<ProjectPermissions> {
   return (
     await protocolRequest("project.permissions.update", {
       projectId,

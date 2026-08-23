@@ -9,7 +9,6 @@ import type {
   ProjectRecord,
   Settings,
   StatusResponse,
-  ToolDescriptor,
   UpdateApplicationConfigurationRequest,
   UpdateSettingsRequest,
 } from "$lib/api";
@@ -28,6 +27,7 @@ import ModelsSettingsPage from "$lib/features/settings/components/pages/models/M
 import { ModelsPageState } from "$lib/features/settings/components/pages/models/models-page-state.svelte";
 import NotificationsSettingsPage from "$lib/features/settings/components/pages/notifications/NotificationsSettingsPage.svelte";
 import PermissionsSettingsPage from "$lib/features/settings/components/pages/permissions/PermissionsSettingsPage.svelte";
+import { PermissionsPageState } from "$lib/features/settings/components/pages/permissions/permissions-page-state.svelte";
 import {
   getProjectPermissions,
   updateProjectPermissions,
@@ -67,8 +67,6 @@ type Props = {
   activeSectionId?: string;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
-  toolDescriptors?: ToolDescriptor[];
-  toolDescriptorsLoading?: boolean;
   activeProject?: ProjectRecord;
   agentBrowserSkills?: AvailableSkill[];
   globalSkills?: AvailableSkill[];
@@ -97,8 +95,6 @@ let {
   activeSectionId = $bindable("appearance"),
   models = [],
   authProviders = [],
-  toolDescriptors = [],
-  toolDescriptorsLoading = false,
   activeProject,
   agentBrowserSkills = [],
   globalSkills = [],
@@ -114,6 +110,16 @@ let {
   onColorModeChange,
   onSkillsRetry,
 }: Props = $props();
+
+const permissionsPageState = new PermissionsPageState({
+  getProject: getProjectPermissions,
+  updateProject: updateProjectPermissions,
+  updateGlobal: (exceptions) => {
+    if (!settingsDraft) return;
+    settingsDraft.permissions.exceptions = exceptions;
+    onSettingsChange?.({ permissions: { exceptions } }, { immediate: true });
+  },
+});
 
 /** Skills sections mirror the sources that actually have skills. */
 const skillSections = $derived(
@@ -228,11 +234,8 @@ function statusText(): string {
       {:else if page.id === "permissions"}
         <PermissionsSettingsPage
           {settingsDraft}
-          {toolDescriptors}
-          {toolDescriptorsLoading}
           {activeProject}
-          {getProjectPermissions}
-          {updateProjectPermissions}
+          controller={permissionsPageState}
           {onSettingsChange}
         />
       {:else if page.id === "tools"}

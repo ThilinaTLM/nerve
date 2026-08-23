@@ -9,6 +9,7 @@ export * from "./domains/git/index.js";
 export * from "./domains/logs/index.js";
 export * from "./domains/models/index.js";
 export * from "./domains/pinned-commands/index.js";
+export * from "./domains/permissions/index.js";
 export * from "./domains/plans/index.js";
 export * from "./domains/projects/index.js";
 export * from "./domains/prompt-suggestions/index.js";

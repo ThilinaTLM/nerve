@@ -58,7 +58,6 @@ export type WorkbenchConversationAdapterProps = {
   thinkingLevel?: AgentRecord["thinkingLevel"];
   mode?: AgentRecord["mode"];
   permissionLevel?: AgentRecord["permissionLevel"];
-  approvalPolicy?: AgentRecord["approvalPolicy"];
   slashCompletions?: CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   composerSuggestions?: ComposerSuggestion[];
@@ -82,7 +81,6 @@ export type WorkbenchConversationAdapterProps = {
   onThinkingLevelChange?: (value: AgentRecord["thinkingLevel"]) => void;
   onModeChange?: (value: AgentRecord["mode"]) => void;
   onPermissionChange?: (value: AgentRecord["permissionLevel"]) => void;
-  onApprovalPolicyChange?: (value: AgentRecord["approvalPolicy"]) => void;
   onGrantApproval?: (
     id: string,
     scope?: "single_call" | "always_project" | "always_global",

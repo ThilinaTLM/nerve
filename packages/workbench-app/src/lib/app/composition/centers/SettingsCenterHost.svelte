@@ -4,7 +4,6 @@ import { settingsState } from "$lib/features/settings/state/settings-state.svelt
 import SettingsPage from "$lib/app/composition/settings/SettingsView.svelte";
 import { settingsSelectors } from "$lib/features/settings/state/settings-selectors.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
-import { listTools } from "$lib/features/tools/api/tools.api";
 import {
   loadSettingsSkills,
   queueSettingsSave,
@@ -24,24 +23,6 @@ $effect(() => {
   if (settingsState.skillsProjectId === (projectId ?? null)) return;
   void loadSettingsSkills(projectId);
 });
-
-$effect(() => {
-  if (
-    settingsState.activePageId !== "permissions" ||
-    settingsState.toolDescriptorsLoaded ||
-    settingsState.toolDescriptorsLoading
-  )
-    return;
-  settingsState.toolDescriptorsLoading = true;
-  void listTools()
-    .then((tools) => {
-      settingsState.toolDescriptors = tools;
-      settingsState.toolDescriptorsLoaded = true;
-    })
-    .finally(() => {
-      settingsState.toolDescriptorsLoading = false;
-    });
-});
 </script>
 
 <SettingsPage
@@ -54,8 +35,6 @@ $effect(() => {
   bind:activeSectionId={settingsState.activeSectionId}
   models={settingsState.models}
   authProviders={settingsState.authProviders}
-  toolDescriptors={settingsState.toolDescriptors}
-  toolDescriptorsLoading={settingsState.toolDescriptorsLoading}
   {activeProject}
   agentBrowserSkills={settingsState.agentBrowserSkills}
   globalSkills={settingsState.globalSkills}

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { decideToolPermission, resolveToolAvailability } from "../src/index.js";
+import {
+  evaluateRuntimeToolPermission,
+  resolveToolAvailability,
+} from "../src/index.js";
 
 describe("read-only tool availability and permissions", () => {
   it("grants read-only agents the full read/interaction toolset", () => {
@@ -54,12 +57,11 @@ describe("read-only tool availability and permissions", () => {
       "plan_mode_force_exit",
     ] as const) {
       assert.equal(
-        decideToolPermission(
+        evaluateRuntimeToolPermission(
           name,
           {},
           {
             permissionLevel: "read_only",
-            approvalPolicy: { autoApproveReadOnly: true },
           },
         ).decision,
         "allow",

@@ -51,12 +51,6 @@ const effectivePermissionLevel = $derived(
     ? settingsDraft.lastAgentSelection.permissionLevel
     : settingsDraft.defaultPermissionLevel,
 );
-const effectiveApprovalPolicy = $derived(
-  settingsDraft.rememberLastAgentSelection
-    ? settingsDraft.lastAgentSelection.approvalPolicy
-    : settingsDraft.defaultApprovalPolicy,
-);
-
 const fallbackThinkingLevels = $derived<Settings["defaultThinkingLevel"][]>(
   defaultModelInfo?.supportedThinkingLevels?.length
     ? defaultModelInfo.supportedThinkingLevels
@@ -68,17 +62,6 @@ const defaultThinkingLevel = $derived(
     defaultModelInfo,
   ),
 );
-
-function readPolicy(
-  permission: Settings["defaultPermissionLevel"] | undefined,
-): string {
-  if (
-    permission === "supervised" &&
-    !effectiveApprovalPolicy.autoApproveReadOnly
-  )
-    return "Approval required";
-  return "Allowed";
-}
 
 function permissionPolicy(
   permission: Settings["defaultPermissionLevel"] | undefined,
@@ -123,7 +106,6 @@ function onRememberLastSelectionChange(checked: boolean): void {
   const lastAgentSelection = {
     mode: conversationState.selectedMode,
     permissionLevel: conversationState.selectedPermissionLevel,
-    approvalPolicy: conversationState.selectedApprovalPolicy,
     ...(model ? { model } : {}),
     thinkingLevel: conversationState.selectedThinkingLevel,
   } satisfies Settings["lastAgentSelection"];
@@ -189,10 +171,7 @@ function setDefaultMode(value: string): void {
       {/if}
     {/snippet}
     {#snippet policy()}
-      <SettingsKeyValueRow
-        label="File system read"
-        value={readPolicy(effectivePermissionLevel)}
-      />
+      <SettingsKeyValueRow label="File system read" value="Allowed" />
       <SettingsKeyValueRow
         label="File system write"
         value={permissionPolicy(effectivePermissionLevel)}

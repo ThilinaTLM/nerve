@@ -10,7 +10,10 @@ import {
   defaultApplicationSettings,
 } from "./application-configuration.schema.js";
 import {
-  supervisionGrantSchema,
+  permissionExceptionSchema,
+  permissionLevelSchema,
+} from "../permissions/permissions.schema.js";
+import {
   toolNameSchema,
   userConfigurableToolNameSchema,
 } from "../tools/records.schema.js";
@@ -27,28 +30,9 @@ export type ColorMode = z.infer<typeof colorModeSchema>;
 export const headerTypeSchema = z.enum(["auto", "linux", "windows", "macos"]);
 export type HeaderType = z.infer<typeof headerTypeSchema>;
 
-export const permissionLevelSchema = z.enum([
-  "autonomous",
-  "supervised",
-  "read_only",
-]);
-export type PermissionLevel = z.infer<typeof permissionLevelSchema>;
-
-export const approvalPolicySchema = z.object({
-  autoApproveReadOnly: z.boolean().default(true),
-});
-export type ApprovalPolicy = z.infer<typeof approvalPolicySchema>;
-export const defaultApprovalPolicy: ApprovalPolicy = {
-  autoApproveReadOnly: true,
-};
-const approvalPolicyPatchSchema = z.object({
-  autoApproveReadOnly: z.boolean().optional(),
-});
-
 export const agentSelectionSettingsSchema = z.object({
   mode: modeSchema.default("coding"),
   permissionLevel: permissionLevelSchema.default("autonomous"),
-  approvalPolicy: approvalPolicySchema.default(defaultApprovalPolicy),
   model: modelSelectionSchema.optional(),
   thinkingLevel: thinkingLevelSchema.default("off"),
 });
@@ -61,41 +45,41 @@ const runtimeSettingsSchema = z.object({
   shellPath: z.string().trim().min(1).optional(),
 });
 
-const supervisionGrantsSchema = z
-  .array(supervisionGrantSchema)
+const permissionExceptionsSchema = z
+  .array(permissionExceptionSchema)
   .max(256)
-  .superRefine((grants, context) => {
+  .superRefine((exceptions, context) => {
     const ids = new Set<string>();
-    for (const [index, grant] of grants.entries()) {
-      if (ids.has(grant.id)) {
+    for (const [index, exception] of exceptions.entries()) {
+      if (ids.has(exception.id)) {
         context.addIssue({
           code: "custom",
-          message: `Duplicate supervision grant id '${grant.id}'`,
+          message: `Duplicate permission exception id '${exception.id}'`,
           path: [index, "id"],
         });
       }
-      ids.add(grant.id);
-      if (grant.target === "tool") {
-        if (!toolNameSchema.safeParse(grant.toolName).success) {
+      ids.add(exception.id);
+      if (exception.selector.kind === "tool") {
+        if (!toolNameSchema.safeParse(exception.selector.toolName).success) {
           context.addIssue({
             code: "custom",
-            message: `Unknown tool '${grant.toolName}'`,
-            path: [index, "toolName"],
+            message: `Unknown tool '${exception.selector.toolName}'`,
+            path: [index, "selector", "toolName"],
           });
         }
-        if (grant.toolName === "bash") {
+        if (exception.selector.toolName === "bash") {
           context.addIssue({
             code: "custom",
-            message: "Bash requires a command-prefix grant.",
-            path: [index, "toolName"],
+            message: "Bash requires a command-prefix exception.",
+            path: [index, "selector", "toolName"],
           });
         }
       }
     }
   });
 
-const supervisionSettingsSchema = z.object({
-  grants: supervisionGrantsSchema.default([]),
+const permissionSettingsSchema = z.object({
+  exceptions: permissionExceptionsSchema.default([]),
 });
 
 export const atlassianProfileSchema = z.object({
@@ -275,14 +259,12 @@ export type TranscriptionSettings = z.infer<typeof transcriptionSettingsSchema>;
 export const settingsSchema = z.object({
   defaultMode: modeSchema,
   defaultPermissionLevel: permissionLevelSchema,
-  defaultApprovalPolicy: approvalPolicySchema.default(defaultApprovalPolicy),
   defaultModel: modelSelectionSchema.optional(),
   defaultThinkingLevel: thinkingLevelSchema.default("off"),
   rememberLastAgentSelection: z.boolean().default(false),
   lastAgentSelection: agentSelectionSettingsSchema.default({
     mode: "coding",
     permissionLevel: "autonomous",
-    approvalPolicy: defaultApprovalPolicy,
     thinkingLevel: "off",
   }),
   exploreAgent: z.object({
@@ -329,7 +311,7 @@ export const settingsSchema = z.object({
     baseDelayMs: z.number().int().positive().default(2000),
   }),
   runtime: runtimeSettingsSchema.default({}),
-  supervision: supervisionSettingsSchema.default({ grants: [] }),
+  permissions: permissionSettingsSchema.default({ exceptions: [] }),
   providers: providersSettingsSchema.default({
     atlassianProfiles: [],
     tavilyProfiles: [],
@@ -360,13 +342,11 @@ export type Settings = z.infer<typeof settingsSchema>;
 export const defaultSettings: Settings = {
   defaultMode: "coding",
   defaultPermissionLevel: "autonomous",
-  defaultApprovalPolicy,
   defaultThinkingLevel: "off",
   rememberLastAgentSelection: false,
   lastAgentSelection: {
     mode: "coding",
     permissionLevel: "autonomous",
-    approvalPolicy: defaultApprovalPolicy,
     thinkingLevel: "off",
   },
   exploreAgent: {
@@ -409,7 +389,7 @@ export const defaultSettings: Settings = {
     baseDelayMs: 2000,
   },
   runtime: {},
-  supervision: { grants: [] },
+  permissions: { exceptions: [] },
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
     disabled: ["explain_image"],
@@ -426,7 +406,6 @@ export const defaultSettings: Settings = {
 export const updateSettingsRequestSchema = z.object({
   defaultMode: modeSchema.optional(),
   defaultPermissionLevel: permissionLevelSchema.optional(),
-  defaultApprovalPolicy: approvalPolicyPatchSchema.optional(),
   defaultModel: modelSelectionSchema.nullable().optional(),
   defaultThinkingLevel: thinkingLevelSchema.optional(),
   rememberLastAgentSelection: z.boolean().optional(),
@@ -434,7 +413,6 @@ export const updateSettingsRequestSchema = z.object({
     .object({
       mode: modeSchema.optional(),
       permissionLevel: permissionLevelSchema.optional(),
-      approvalPolicy: approvalPolicyPatchSchema.optional(),
       model: modelSelectionSchema.nullable().optional(),
       thinkingLevel: thinkingLevelSchema.optional(),
     })
@@ -503,9 +481,9 @@ export const updateSettingsRequestSchema = z.object({
       baseDelayMs: z.number().int().positive().optional(),
     })
     .optional(),
-  supervision: z
+  permissions: z
     .object({
-      grants: supervisionGrantsSchema.optional(),
+      exceptions: permissionExceptionsSchema.optional(),
     })
     .optional(),
   runtime: z

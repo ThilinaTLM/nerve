@@ -68,10 +68,6 @@ export async function applyActiveConversationSelection(
     override?.permissionLevel ??
     conversationAgent?.permissionLevel ??
     conversation.permissionLevel;
-  conversationState.selectedApprovalPolicy =
-    override?.approvalPolicy ??
-    conversationAgent?.approvalPolicy ??
-    conversation.approvalPolicy;
 }
 
 export async function refreshConversationView(conversationId: string) {

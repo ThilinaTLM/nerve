@@ -17,7 +17,6 @@ import type { ConversationUsageSummary } from "$lib/presentation/usage/conversat
 export type Mode = AgentRecord["mode"];
 export type PermissionLevel = AgentRecord["permissionLevel"];
 export type ThinkingLevel = AgentRecord["thinkingLevel"];
-export type ApprovalPolicy = AgentRecord["approvalPolicy"];
 
 export type PromptComposerProps = {
   text?: string;
@@ -44,7 +43,6 @@ export type PromptComposerProps = {
   thinkingLevel?: ThinkingLevel;
   mode?: Mode;
   permissionLevel?: PermissionLevel;
-  approvalPolicy?: ApprovalPolicy;
   slashCompletions?: CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   composerSuggestions?: ComposerSuggestion[];
@@ -58,5 +56,4 @@ export type PromptComposerProps = {
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onModeChange?: (value: Mode) => void;
   onPermissionChange?: (value: PermissionLevel) => void;
-  onApprovalPolicyChange?: (value: ApprovalPolicy) => void;
 };

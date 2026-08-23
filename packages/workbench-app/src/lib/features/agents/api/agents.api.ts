@@ -7,7 +7,6 @@ export async function updateAgentConfig(
     model?: ModelSelection | null;
     mode?: AgentRecord["mode"];
     permissionLevel?: AgentRecord["permissionLevel"];
-    approvalPolicy?: AgentRecord["approvalPolicy"];
     thinkingLevel?: AgentRecord["thinkingLevel"];
   },
 ): Promise<AgentRecord> {

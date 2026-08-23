@@ -11,7 +11,6 @@ describe("settings schema", () => {
     const settings = settingsSchema.parse({
       ...defaultSettings,
       defaultThinkingLevel: undefined,
-      defaultApprovalPolicy: undefined,
       rememberLastAgentSelection: undefined,
       lastAgentSelection: undefined,
       notifications: undefined,
@@ -24,24 +23,17 @@ describe("settings schema", () => {
       },
       desktop: { closeToTray: true, headerType: undefined },
       tools: undefined,
-      supervision: undefined,
+      permissions: undefined,
       skills: undefined,
     });
 
     assert.equal(settings.defaultThinkingLevel, "off");
-    assert.deepEqual(settings.defaultApprovalPolicy, {
-      autoApproveReadOnly: true,
-    });
     assert.equal(settings.rememberLastAgentSelection, false);
     assert.equal(settings.lastAgentSelection.mode, "coding");
     assert.equal(settings.lastAgentSelection.permissionLevel, "autonomous");
-    assert.equal(
-      settings.lastAgentSelection.approvalPolicy.autoApproveReadOnly,
-      true,
-    );
     assert.equal(settings.lastAgentSelection.thinkingLevel, "off");
     assert.deepEqual(settings.runtime, {});
-    assert.deepEqual(settings.supervision, { grants: [] });
+    assert.deepEqual(settings.permissions, { exceptions: [] });
     assert.deepEqual(settings.ui, {
       theme: "nerve",
       colorMode: "system",
@@ -87,34 +79,40 @@ describe("settings schema", () => {
     });
   });
 
-  it("validates bounded supervision grants", () => {
+  it("validates bounded permission exceptions", () => {
     const patch = updateSettingsRequestSchema.parse({
-      supervision: {
-        grants: [
+      permissions: {
+        exceptions: [
           {
-            id: "grant_datadog",
-            target: "command_prefix",
-            tokens: ["datadog", "logs", "read"],
+            id: "exception_datadog",
+            effect: "allow",
+            selector: {
+              kind: "command_prefix",
+              tokens: ["datadog", "logs", "read"],
+            },
             risk: "command",
           },
           {
-            id: "grant_edit",
-            target: "tool",
-            toolName: "edit",
-            risk: "workspace_write",
+            id: "exception_secrets",
+            effect: "deny",
+            selector: {
+              kind: "path_glob",
+              access: "read_write",
+              pattern: "secrets/**",
+            },
           },
         ],
       },
     });
-    assert.equal(patch.supervision?.grants?.length, 2);
+    assert.equal(patch.permissions?.exceptions?.length, 2);
     assert.throws(() =>
       updateSettingsRequestSchema.parse({
-        supervision: {
-          grants: [
+        permissions: {
+          exceptions: [
             {
-              id: "grant_bash",
-              target: "tool",
-              toolName: "bash",
+              id: "exception_python",
+              effect: "allow",
+              selector: { kind: "tool", toolName: "python_exec" },
               risk: "command",
             },
           ],
@@ -211,10 +209,6 @@ describe("settings schema", () => {
         colorMode: "dark",
       },
       desktop: { headerType: "macos" },
-      defaultApprovalPolicy: { autoApproveReadOnly: false },
-      lastAgentSelection: {
-        approvalPolicy: { autoApproveReadOnly: false },
-      },
       skills: {
         disabled: ["diagram", "imagegen"],
         agentBrowser: { enabled: ["core", "dogfood"] },
@@ -295,11 +289,6 @@ describe("settings schema", () => {
         false,
       );
     }
-    assert.equal(parsed.defaultApprovalPolicy?.autoApproveReadOnly, false);
-    assert.equal(
-      parsed.lastAgentSelection?.approvalPolicy?.autoApproveReadOnly,
-      false,
-    );
     assert.equal(parsed.runtime?.pythonExecutablePath, "/usr/bin/python3");
     assert.equal(
       parsed.runtime?.shellPath,

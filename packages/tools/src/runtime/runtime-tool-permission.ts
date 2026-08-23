@@ -1,25 +1,21 @@
 import type { ToolName } from "@nervekit/contracts";
-import { evaluateSupervision } from "../supervision/supervision-engine.js";
-import type { SharedPermissionInput, ToolDecision } from "./types.js";
+import { evaluateToolPermission } from "../policy/evaluate-tool-permission.js";
+import type { RuntimeToolPermissionInput, ToolDecision } from "./types.js";
 
-export function decideToolPermission(
+export function evaluateRuntimeToolPermission(
   name: ToolName,
   args: Record<string, unknown>,
-  input: SharedPermissionInput,
+  input: RuntimeToolPermissionInput,
 ): ToolDecision {
-  const evaluated = evaluateSupervision({
+  const evaluated = evaluateToolPermission({
     toolName: name,
     args,
-    agent: {
-      permissionLevel: input.permissionLevel,
-      mode: "coding",
-      autoApproveReadOnly: input.approvalPolicy.autoApproveReadOnly,
-    },
+    permissionLevel: input.permissionLevel,
   });
   const { risk, normalizedArgs } = evaluated;
   let { decision, reason } = evaluated;
 
-  if (input.groupRequireApproval === "always") {
+  if (input.groupRequireApproval === "always" && decision !== "deny") {
     decision = "approval";
     reason = "The tool group requires approval.";
   } else if (

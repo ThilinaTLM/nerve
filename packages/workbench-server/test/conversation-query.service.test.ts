@@ -12,7 +12,6 @@ describe("ConversationQueryService", () => {
       title: "Test",
       mode: "coding",
       permissionLevel: "standard",
-      approvalPolicy: {},
       activeEntryId: "entry_selected",
       createdAt: timestamp,
       updatedAt: timestamp,

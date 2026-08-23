@@ -25,7 +25,7 @@ import type {
   PlanImplementationSelection,
   PlanReviewStatus,
   ProjectRecord,
-  ProjectSupervisionPreferences,
+  ProjectPermissions,
   PromptRequest,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
@@ -300,14 +300,11 @@ export class RuntimeRegistry {
   }
 
   getProjectPermissions(projectId: string) {
-    return this.services.supervisionPreferences.project(projectId);
+    return this.services.permissionExceptions.project(projectId);
   }
 
-  updateProjectPermissions(
-    projectId: string,
-    permissions: ProjectSupervisionPreferences,
-  ) {
-    return this.services.supervisionPreferences.replaceProject(
+  updateProjectPermissions(projectId: string, permissions: ProjectPermissions) {
+    return this.services.permissionExceptions.replaceProject(
       projectId,
       permissions,
     );
@@ -593,7 +590,7 @@ export class RuntimeRegistry {
             (request.resolution.scope === "always_global" &&
               interaction.request.offeredScopes.includes("always"))
           ) ||
-          interaction.request.suggestedGrants.length === 0
+          interaction.request.suggestedExceptions.length === 0
         ) {
           throw new ApplicationError(
             400,
@@ -601,10 +598,10 @@ export class RuntimeRegistry {
             "This approval does not offer the requested durable grant scope.",
           );
         }
-        await this.services.supervisionPreferences.add(
+        await this.services.permissionExceptions.add(
           current.projectId,
           durableScope,
-          interaction.request.suggestedGrants,
+          interaction.request.suggestedExceptions,
         );
       }
       const id = `approval_${current.id}_${interaction.ordinal}`;

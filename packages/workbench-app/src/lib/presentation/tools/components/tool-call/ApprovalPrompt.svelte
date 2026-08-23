@@ -69,6 +69,15 @@ function riskTone(risk: string | undefined): MetaTone {
   return "default";
 }
 
+function exceptionLabel(
+  exception: ApprovalWithToolCall["suggestedExceptions"][number],
+): string {
+  const selector = exception.selector;
+  if (selector.kind === "tool") return selector.toolName;
+  if (selector.kind === "command_prefix") return selector.tokens.join(" ");
+  return selector.pattern;
+}
+
 const meta = $derived<MetaItem[]>([
   ...presentation.secondary,
   { text: approval.risk, tone: riskTone(approval.risk) },
@@ -93,16 +102,12 @@ const meta = $derived<MetaItem[]>([
           <Check size={14} strokeWidth={2.4} />Approve
         {/if}
       </Button>
-      {#if approval.offeredScopes.includes("always_project") && approval.suggestedGrants.length > 0}
+      {#if approval.offeredScopes.includes("always_project") && approval.suggestedExceptions.length > 0}
         <Button
           size="sm"
           variant="secondary"
           disabled={Boolean(decision)}
-          title={approval.suggestedGrants
-            .map((grant) =>
-              grant.target === "tool" ? grant.toolName : grant.tokens.join(" "),
-            )
-            .join(", ")}
+          title={approval.suggestedExceptions.map(exceptionLabel).join(", ")}
           onclick={() => void decide("always_project")}
         >
           {#if decision === "always_project"}
@@ -112,7 +117,7 @@ const meta = $derived<MetaItem[]>([
           {/if}
         </Button>
       {/if}
-      {#if approval.offeredScopes.includes("always_global") && approval.suggestedGrants.length > 0}
+      {#if approval.offeredScopes.includes("always_global") && approval.suggestedExceptions.length > 0}
         <Button
           size="sm"
           variant="ghost"

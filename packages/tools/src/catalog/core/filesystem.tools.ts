@@ -288,6 +288,17 @@ export const filesystemToolDefinitions = [
     name: "read",
     group: "fileInspection",
     baseRisk: "read",
+    permission: {
+      durableAllow: "target",
+      targets: [
+        {
+          kind: "path",
+          access: "read",
+          scope: "exact",
+          arguments: ["path"],
+        },
+      ],
+    },
     traits: [],
     executionKind: "local",
     executor: executeRead,
@@ -301,6 +312,17 @@ export const filesystemToolDefinitions = [
     name: "edit",
     group: "fileEditing",
     baseRisk: "workspace_write",
+    permission: {
+      durableAllow: "target",
+      targets: [
+        {
+          kind: "path",
+          access: "write",
+          scope: "exact",
+          arguments: ["path"],
+        },
+      ],
+    },
     traits: ["write_capable"],
     executionKind: "local",
     executor: executeEdit,
@@ -315,6 +337,17 @@ export const filesystemToolDefinitions = [
     name: "write",
     group: "fileEditing",
     baseRisk: "workspace_write",
+    permission: {
+      durableAllow: "target",
+      targets: [
+        {
+          kind: "path",
+          access: "write",
+          scope: "exact",
+          arguments: ["path"],
+        },
+      ],
+    },
     traits: ["write_capable"],
     executionKind: "local",
     executor: executeWrite,
@@ -328,6 +361,18 @@ export const filesystemToolDefinitions = [
     name: "grep",
     group: "fileInspection",
     baseRisk: "read",
+    permission: {
+      durableAllow: "target",
+      targets: [
+        {
+          kind: "path",
+          access: "read",
+          scope: "tree",
+          arguments: ["paths", "path"],
+          defaultValue: ".",
+        },
+      ],
+    },
     traits: [],
     executionKind: "local",
     executor: executeGrep,
@@ -341,6 +386,18 @@ export const filesystemToolDefinitions = [
     name: "find",
     group: "fileInspection",
     baseRisk: "read",
+    permission: {
+      durableAllow: "target",
+      targets: [
+        {
+          kind: "path",
+          access: "read",
+          scope: "tree",
+          arguments: ["path"],
+          defaultValue: ".",
+        },
+      ],
+    },
     traits: [],
     executionKind: "local",
     executor: executeFind,
@@ -354,6 +411,18 @@ export const filesystemToolDefinitions = [
     name: "ls",
     group: "fileInspection",
     baseRisk: "read",
+    permission: {
+      durableAllow: "target",
+      targets: [
+        {
+          kind: "path",
+          access: "read",
+          scope: "tree",
+          arguments: ["path"],
+          defaultValue: ".",
+        },
+      ],
+    },
     traits: [],
     executionKind: "local",
     executor: executeLs,

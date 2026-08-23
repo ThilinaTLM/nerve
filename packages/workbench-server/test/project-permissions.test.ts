@@ -6,7 +6,7 @@ import { afterEach, describe, it } from "node:test";
 import type { ProjectRecord } from "@nervekit/contracts";
 import { ProjectPermissionsRepository } from "../src/domains/projects/project-permissions.repository.js";
 import { ProjectRepository } from "../src/domains/projects/project.repository.js";
-import { SupervisionPreferencesService } from "../src/domains/tools/supervision-preferences.service.js";
+import { PermissionExceptionService } from "../src/domains/tools/permission-exception.service.js";
 import type { StreamLogRegistry } from "../src/infrastructure/events/index.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 
@@ -17,8 +17,8 @@ afterEach(async () => {
   );
 });
 
-describe("project supervision permissions", () => {
-  it("stores project grants in the host-side project directory and unions global grants", async () => {
+describe("project permission exceptions", () => {
+  it("stores project exceptions in the host-side project directory and unions global exceptions", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-project-permissions-"));
     roots.push(root);
     const storage = await initializeStorage(root);
@@ -57,7 +57,7 @@ describe("project supervision permissions", () => {
       },
     } as unknown as StreamLogRegistry;
     const repository = new ProjectPermissionsRepository(storage);
-    const service = new SupervisionPreferencesService(
+    const service = new PermissionExceptionService(
       storage,
       repository,
       (id) => {
@@ -67,27 +67,30 @@ describe("project supervision permissions", () => {
       },
       events,
     );
-    const projectGrant = {
-      id: "grant_project",
-      target: "command_prefix" as const,
-      tokens: ["gh", "pr", "view"],
+    const projectException = {
+      id: "exception_project",
+      effect: "allow" as const,
+      selector: {
+        kind: "command_prefix" as const,
+        tokens: ["gh", "pr", "view"],
+      },
       risk: "command" as const,
     };
-    const globalGrant = {
-      id: "grant_global",
-      target: "tool" as const,
-      toolName: "web_search",
+    const globalException = {
+      id: "exception_global",
+      effect: "allow" as const,
+      selector: { kind: "tool" as const, toolName: "web_search" },
       risk: "network" as const,
     };
 
-    await service.add("proj_one", "project", [projectGrant]);
-    await service.add("proj_one", "global", [globalGrant]);
+    await service.add("proj_one", "project", [projectException]);
+    await service.add("proj_one", "global", [globalException]);
 
     assert.deepEqual(await service.effective("proj_one"), [
-      globalGrant,
-      projectGrant,
+      globalException,
+      projectException,
     ]);
-    assert.deepEqual(await service.effective("proj_two"), [globalGrant]);
+    assert.deepEqual(await service.effective("proj_two"), [globalException]);
     assert.deepEqual(
       JSON.parse(
         await readFile(
@@ -95,7 +98,7 @@ describe("project supervision permissions", () => {
           "utf8",
         ),
       ),
-      { version: 1, grants: [projectGrant] },
+      { version: 1, exceptions: [projectException] },
     );
     assert.equal(published.includes("project.permissions.updated"), true);
     assert.equal(published.includes("settings.updated"), true);
@@ -105,7 +108,7 @@ describe("project supervision permissions", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-project-permissions-"));
     roots.push(root);
     const storage = await initializeStorage(root);
-    const service = new SupervisionPreferencesService(
+    const service = new PermissionExceptionService(
       storage,
       new ProjectPermissionsRepository(storage),
       () => {

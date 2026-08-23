@@ -1,5 +1,4 @@
 import type {
-  ApprovalPolicy,
   CompletionItem,
   ContextUsage,
   Mode,
@@ -56,7 +55,6 @@ export type ConversationComposerModel = {
   thinkingLevel: ThinkingLevel;
   mode: Mode;
   permissionLevel: PermissionLevel;
-  approvalPolicy: ApprovalPolicy;
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
   contextWindow?: number;
@@ -123,7 +121,6 @@ export type ConversationPaneActions = {
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onModeChange?: (value: Mode) => void;
   onPermissionChange?: (value: PermissionLevel) => void;
-  onApprovalPolicyChange?: (value: ApprovalPolicy) => void;
   onPasteImage?: (file: File) => Promise<string>;
   onDropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
   onOpenFile?: (path: string, line?: number) => void;

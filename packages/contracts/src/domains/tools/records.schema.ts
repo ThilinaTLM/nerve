@@ -1,5 +1,9 @@
 import { z } from "zod";
 import {
+  permissionExceptionSchema,
+  toolRiskSchema,
+} from "../permissions/permissions.schema.js";
+import {
   boundedPublicJsonSchema,
   boundedPublicObjectSchema,
 } from "../events/bounded-public-data.schema.js";
@@ -11,37 +15,6 @@ const toolCallTranscriptErrorDetailsSchema =
   boundedPublicObjectSchema.transform(
     (value): Record<string, unknown> => value,
   );
-
-export const toolRiskSchema = z.enum([
-  "read",
-  "workspace_write",
-  "command",
-  "network",
-  "secret",
-  "destructive",
-  "agent_spawn",
-  "deployment",
-  "interaction",
-]);
-export type ToolRisk = z.infer<typeof toolRiskSchema>;
-
-const supervisionGrantBaseSchema = z.object({
-  id: z.string().startsWith("grant_").max(128),
-  risk: toolRiskSchema,
-});
-
-export const supervisionGrantSchema = z.discriminatedUnion("target", [
-  supervisionGrantBaseSchema.extend({
-    target: z.literal("tool"),
-    toolName: z.string().min(1).max(128),
-  }),
-  supervisionGrantBaseSchema.extend({
-    target: z.literal("command_prefix"),
-    risk: z.literal("command"),
-    tokens: z.array(z.string().trim().min(1).max(256)).min(1).max(16),
-  }),
-]);
-export type SupervisionGrant = z.infer<typeof supervisionGrantSchema>;
 
 export const toolGroupNameSchema = z.enum([
   "fileInspection",
@@ -209,7 +182,7 @@ export const approvalToolInteractionSchema = interactionBaseSchema.extend({
         ]),
       )
       .max(6),
-    suggestedGrants: z.array(supervisionGrantSchema).max(16).default([]),
+    suggestedExceptions: z.array(permissionExceptionSchema).max(16).default([]),
   }),
   resolution: z
     .object({
@@ -424,7 +397,7 @@ export const approvalRecordSchema = z.object({
     .array(approvalGrantScopeSchema)
     .max(3)
     .default(["single_call"]),
-  suggestedGrants: z.array(supervisionGrantSchema).max(16).default([]),
+  suggestedExceptions: z.array(permissionExceptionSchema).max(16).default([]),
 });
 export type ApprovalRecord = z.infer<typeof approvalRecordSchema>;
 

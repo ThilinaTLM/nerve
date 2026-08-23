@@ -2,7 +2,7 @@ import { z } from "zod";
 import { definePublicEvent } from "../events/event-definition.schema.js";
 import {
   projectRecordSchema,
-  projectSupervisionPreferencesSchema,
+  projectPermissionsSchema,
   pruneProjectConversationsResponseSchema,
 } from "./project.schema.js";
 
@@ -23,7 +23,7 @@ export const projectEventDefinitions = [
     "project.permissions.updated",
     z.object({
       projectId: z.string().startsWith("proj_"),
-      permissions: projectSupervisionPreferencesSchema,
+      permissions: projectPermissionsSchema,
     }),
     { allowedSourceRoles: workbenchRoles, scope: ["projectId"] },
   ),

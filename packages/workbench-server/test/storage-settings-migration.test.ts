@@ -69,9 +69,9 @@ describe("settings migrations", () => {
     );
   });
 
-  it("upgrades a fully migrated pre-supervision home before desktop bootstrap", async () => {
+  it("upgrades a fully migrated pre-permission-settings home before desktop bootstrap", async () => {
     const root = await mkdtemp(
-      join(tmpdir(), "nerve-settings-pre-supervision-"),
+      join(tmpdir(), "nerve-settings-pre-permissions-"),
     );
     roots.push(root);
     const fixture = new URL("./fixtures/storage/pre-0013/", import.meta.url);
@@ -93,10 +93,10 @@ describe("settings migrations", () => {
 
     await assert.rejects(
       readCurrentSettingsForBootstrap(root),
-      /pending migration.*supervision/i,
+      /pending migration.*permission/i,
     );
     const storage = await initializeStorage(root);
-    assert.deepEqual(storage.settings.supervision, { grants: [] });
+    assert.deepEqual(storage.settings.permissions, { exceptions: [] });
     assert.deepEqual(
       await readCurrentSettingsForBootstrap(root),
       storage.settings,
@@ -105,7 +105,10 @@ describe("settings migrations", () => {
     const rerunLedger = JSON.parse(await readFile(ledgerPath, "utf8")) as {
       applied: Array<{ id: string }>;
     };
-    assert.equal(rerunLedger.applied.at(-1)?.id, "0013-supervision-settings");
+    assert.equal(
+      rerunLedger.applied.at(-1)?.id,
+      "0014-fixed-supervised-baseline",
+    );
     const second = await initializeStorage(root);
     assert.deepEqual(second.settings, storage.settings);
   });

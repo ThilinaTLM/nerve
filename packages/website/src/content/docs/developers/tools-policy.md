@@ -17,15 +17,15 @@ Every dispatch produces persisted lifecycle records. File mutations serialize pe
 
 The server evaluates mode, permission, risk, tool availability, and request details:
 
-- read-only denies non-read actions and all ordinary network/child spawning;
-- supervised requests approval for non-read risks, with optional read autoapproval and risk-bound always-allow grants;
-- effective grants are the deduplicated union of global settings and host-side project permissions under `~/.nerve/projects/<project-id>/permissions.json`; workspace `.nerve` files are never authoritative permission sources;
-- autonomous permits allowed risks without normal approval;
-- planning adds path-constrained writes, tool omissions, and shell guardrails.
+- Read only allows local inspection and interaction, but denies commands, network access, mutations, and child spawning;
+- Supervised automatically allows safe local reads and audited read-only integrations, then requests approval for other risks unless an exact-risk allow exception covers the complete request;
+- Autonomous permits allowed risks without normal approval, but explicit block exceptions still apply;
+- effective exceptions are the deduplicated union of global settings and host-side project permissions under `~/.nerve/projects/<project-id>/permissions.json`; workspace `.nerve` files are never authoritative permission sources;
+- planning adds path-constrained writes, tool omissions, and shell guardrails before generic permission evaluation.
 
-The supervision engine evaluates the manifest risk, argument-sensitive refinements, agent permission level, hard host constraints, and user preferences to produce one `allow`, `approval`, or `deny` decision. Compound Bash calls are parsed into segments; every segment must be known read-only or match a normalized command-prefix grant before the call can run without approval.
+The permission engine combines manifest and argument-sensitive risk, normalized request targets, permission level, hard host constraints, and typed user exceptions to produce `allow`, `approval`, or `deny`. Block exceptions win across scopes. Allow exceptions cannot expand Read only or bypass planning restrictions. Compound Bash calls are parsed into segments, and every mutating segment must match an exact-risk command-prefix exception before the call can run without approval. Python execution remains opaque and never receives a durable allow suggestion.
 
-Approval can authorize a policy-permitted action. It cannot override a hard read-only or planning denial.
+File path exceptions use project-relative POSIX globs such as `secrets/**`; web exceptions use exact or leading-wildcard hostnames. They apply to Nerve's corresponding tools and are not an operating-system sandbox.
 
 ## Distinctions
 

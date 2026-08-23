@@ -1,16 +1,16 @@
 import type { ToolName } from "@nervekit/contracts";
 import { requireToolDefinition } from "../catalog/manifest.js";
-import { analyzeShellCommand } from "../safety/command-analysis.js";
-import type { RiskAssessment } from "./types.js";
+import { assessShellCommand } from "./shell-command-assessment.js";
+import type { ToolRiskAssessment } from "./types.js";
 
 export function assessToolRisk(
   toolName: ToolName,
   args: Record<string, unknown>,
-): RiskAssessment {
+): ToolRiskAssessment {
   const definition = requireToolDefinition(toolName);
   if (toolName === "bash") {
     const command = typeof args.command === "string" ? args.command : "";
-    const assessment = analyzeShellCommand(command);
+    const assessment = assessShellCommand(command);
     return {
       risk: assessment.risk,
       source: "arguments",

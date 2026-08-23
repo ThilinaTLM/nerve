@@ -1,11 +1,7 @@
 import { z } from "zod";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/index.js";
-import {
-  approvalPolicySchema,
-  defaultApprovalPolicy,
-  modeSchema,
-  permissionLevelSchema,
-} from "../settings/index.js";
+import { permissionLevelSchema } from "../permissions/index.js";
+import { modeSchema } from "../settings/index.js";
 
 export const workspaceScopeSchema = z.object({
   roots: z.array(z.string()).min(1),
@@ -13,14 +9,9 @@ export const workspaceScopeSchema = z.object({
 });
 export type WorkspaceScope = z.infer<typeof workspaceScopeSchema>;
 
-const approvalPolicyPatchSchema = z.object({
-  autoApproveReadOnly: z.boolean().optional(),
-});
-
 export const updateAgentRequestSchema = z.object({
   mode: modeSchema.optional(),
   permissionLevel: permissionLevelSchema.optional(),
-  approvalPolicy: approvalPolicyPatchSchema.optional(),
   model: modelSelectionSchema.nullable().optional(),
   thinkingLevel: thinkingLevelSchema.optional(),
 });
@@ -55,7 +46,6 @@ export const agentRecordSchema = z.object({
   rootAgentId: z.string().startsWith("agent_"),
   mode: modeSchema,
   permissionLevel: permissionLevelSchema,
-  approvalPolicy: approvalPolicySchema.default(defaultApprovalPolicy),
   workspaceScope: workspaceScopeSchema,
   systemPrompt: z.string().min(1).optional(),
   /** Subagent work description; present on child agents spawned by orchestration tools. */
@@ -80,7 +70,6 @@ export const createAgentRequestSchema = z.object({
   task: z.string().optional(),
   mode: modeSchema.optional(),
   permissionLevel: permissionLevelSchema.optional(),
-  approvalPolicy: approvalPolicyPatchSchema.optional(),
   workspaceScope: workspaceScopeSchema.optional(),
   systemPrompt: z.string().min(1).optional(),
   budget: createAgentBudgetRequestSchema.optional(),

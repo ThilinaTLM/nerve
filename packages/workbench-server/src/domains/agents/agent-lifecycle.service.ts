@@ -25,7 +25,6 @@ function isModeOnlyUpdate(
   return (
     request.mode !== undefined &&
     request.permissionLevel === undefined &&
-    request.approvalPolicy === undefined &&
     request.model === undefined &&
     request.thinkingLevel === undefined
   );
@@ -35,7 +34,6 @@ function isRuntimeConfigUpdate(request: UpdateAgentRequest): boolean {
   return (
     request.mode === undefined &&
     (request.permissionLevel !== undefined ||
-      request.approvalPolicy !== undefined ||
       request.model !== undefined ||
       request.thinkingLevel !== undefined)
   );
@@ -86,7 +84,6 @@ export class AgentLifecycleService {
       : {
           mode: this.storage.settings.defaultMode,
           permissionLevel: this.storage.settings.defaultPermissionLevel,
-          approvalPolicy: this.storage.settings.defaultApprovalPolicy,
           model: this.storage.settings.defaultModel,
           thinkingLevel: this.storage.settings.defaultThinkingLevel,
         };
@@ -94,12 +91,6 @@ export class AgentLifecycleService {
     const permissionLevel =
       request.permissionLevel ??
       (parent ? parent.permissionLevel : conversation.permissionLevel);
-    const approvalPolicy = {
-      ...(parent
-        ? parent.approvalPolicy
-        : (conversation.approvalPolicy ?? defaultSelection.approvalPolicy)),
-      ...(request.approvalPolicy ?? {}),
-    };
     const model = parent
       ? request.model
       : (request.model ?? defaultSelection.model);
@@ -123,7 +114,6 @@ export class AgentLifecycleService {
       rootAgentId: parent?.rootAgentId ?? id,
       mode,
       permissionLevel,
-      approvalPolicy,
       workspaceScope: request.workspaceScope ?? { roots: [projectDir] },
       systemPrompt: request.systemPrompt,
       task: request.task,
@@ -200,10 +190,6 @@ export class AgentLifecycleService {
         const updated: AgentRecord = {
           ...agent,
           permissionLevel: request.permissionLevel ?? agent.permissionLevel,
-          approvalPolicy: {
-            ...agent.approvalPolicy,
-            ...(request.approvalPolicy ?? {}),
-          },
           model,
           thinkingLevel: clampAgentThinkingLevel(
             model,
@@ -229,10 +215,6 @@ export class AgentLifecycleService {
       ...agent,
       mode: request.mode ?? agent.mode,
       permissionLevel: request.permissionLevel ?? agent.permissionLevel,
-      approvalPolicy: {
-        ...agent.approvalPolicy,
-        ...(request.approvalPolicy ?? {}),
-      },
       model,
       thinkingLevel: clampAgentThinkingLevel(
         model,
