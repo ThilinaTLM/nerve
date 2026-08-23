@@ -17,6 +17,12 @@ export const conversationAgentMethodHandlers = defineWorkbenchMethodHandlers({
     await state.registry.removeConversation(params.conversationId);
     return { ok: true };
   },
+  "conversation.state.update": async (state, params) => ({
+    conversation: await state.registry.updateConversationState(
+      params.conversationId,
+      params,
+    ),
+  }),
   "conversation.entries.list": (state, params) => ({
     entries: state.registry.getConversationEntries(params.conversationId),
   }),

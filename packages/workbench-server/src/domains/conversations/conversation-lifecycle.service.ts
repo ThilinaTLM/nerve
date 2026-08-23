@@ -3,6 +3,7 @@ import {
   type ConversationRecord,
   type ConversationTree,
   type CreateConversationRequest,
+  type UpdateConversationStateRequest,
   createId,
   expandTruncatedConversationTitle,
 } from "@nervekit/contracts";
@@ -119,6 +120,26 @@ export class ConversationLifecycleService {
     this.state.conversations.set(conversation.id, conversation);
     this.index.upsertConversation(conversation);
     await this.writeConversation(conversation);
+    await this.events.publish("conversation.updated", { conversation });
+  }
+
+  async updateConversationState(
+    conversationId: string,
+    request: UpdateConversationStateRequest,
+  ): Promise<ConversationRecord> {
+    const conversation = this.getConversation(conversationId);
+    const now = new Date().toISOString();
+    const updated: ConversationRecord = {
+      ...conversation,
+      ...(request.pinned !== undefined ? { pinned: request.pinned } : {}),
+      ...(request.completed === true ? { completedAt: now } : {}),
+      ...(request.clearRuntimeStatus === true
+        ? { runtimeStatusClearedAt: now }
+        : {}),
+    };
+    if (request.completed === false) delete updated.completedAt;
+    await this.updateConversation(updated);
+    return updated;
   }
 
   async appendEntry(
@@ -159,12 +180,14 @@ export class ConversationLifecycleService {
         entry.createdAt > conversation.lastUserMessageAt)
         ? entry.createdAt
         : conversation.lastUserMessageAt;
-    await this.updateConversation({
+    const updatedConversation: ConversationRecord = {
       ...conversation,
       activeEntryId: entry.id,
       updatedAt: entry.createdAt,
       lastUserMessageAt,
-    });
+    };
+    if (entry.role === "user") delete updatedConversation.completedAt;
+    await this.updateConversation(updatedConversation);
     if (options.mirrorToHarness !== false)
       await this.harnessStorage.appendEntry(entry);
     return entry;

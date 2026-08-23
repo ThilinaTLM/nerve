@@ -3,6 +3,7 @@ import {
   createConversationRequestSchema,
   importConversationRequestSchema,
   navigateConversationRequestSchema,
+  updateConversationStateRequestSchema,
 } from "@nervekit/contracts";
 import { Hono } from "hono";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
@@ -59,6 +60,20 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) => {
       await state.registry.removeConversation(routeParam(c, "conversationId"));
       return c.body(null, 204);
+    }),
+  );
+  app.patch(
+    "/conversations/:conversationId/state",
+    routeHandler(async (c) => {
+      const body = updateConversationStateRequestSchema.parse(
+        await c.req.json(),
+      );
+      return c.json({
+        conversation: await state.registry.updateConversationState(
+          routeParam(c, "conversationId"),
+          body,
+        ),
+      });
     }),
   );
   app.get(

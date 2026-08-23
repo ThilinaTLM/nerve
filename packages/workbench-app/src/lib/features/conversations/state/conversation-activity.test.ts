@@ -98,6 +98,7 @@ describe("conversation activity", () => {
       hasPendingHumanInput: true,
     });
     assert.equal(needsUser.needsUser, true);
+    assert.equal(needsUser.indicator, "needs-user");
 
     const compacting = conversationActivityForRecord({
       conversationId: "conversation-1",
@@ -107,18 +108,28 @@ describe("conversation activity", () => {
       }),
     });
     assert.equal(compacting.label, "Compacting context");
+    assert.equal(compacting.indicator, "running");
 
     const running = conversationActivityForRecord({
       conversationId: "conversation-1",
       agent: agent("agent-1", "conversation-1", "running"),
     });
     assert.equal(running.busy, true);
+    assert.equal(running.indicator, "running");
 
     const failed = conversationActivityForRecord({
       conversationId: "conversation-1",
       agent: agent("agent-1", "conversation-1", "error"),
     });
     assert.equal(failed.tone, "danger");
+    assert.equal(failed.indicator, "error");
+
+    const failedWithPendingInput = conversationActivityForRecord({
+      conversationId: "conversation-1",
+      agent: agent("agent-1", "conversation-1", "error"),
+      hasPendingHumanInput: true,
+    });
+    assert.equal(failedWithPendingInput.indicator, "error");
 
     const interrupted = conversationActivityForRecord({
       conversationId: "conversation-1",
@@ -137,6 +148,58 @@ describe("conversation activity", () => {
       conversationId: "conversation-1",
     });
     assert.equal(idle.source, "none");
+    assert.equal(idle.indicator, "idle");
+  });
+
+  it("shows completion only when idle and clears only stale failures", () => {
+    const completed = conversationActivityForRecord({
+      conversationId: "conversation-1",
+      completedAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.equal(completed.tone, "neutral");
+    assert.equal(completed.indicator, "completed");
+    assert.equal(completed.label, "Completed");
+
+    const waiting = conversationActivityForRecord({
+      conversationId: "conversation-1",
+      completedAt: "2026-01-01T00:00:00.000Z",
+      agent: agent("agent-1", "conversation-1", "awaiting_user"),
+    });
+    assert.equal(waiting.needsUser, true);
+    assert.equal(waiting.clearableFailure, false);
+
+    const staleFailure = conversationActivityForRecord({
+      conversationId: "conversation-1",
+      agent: {
+        ...agent("agent-1", "conversation-1", "error"),
+        updatedAt: "2026-01-01T00:01:00.000Z",
+      },
+      runtimeStatusClearedAt: "2026-01-01T00:02:00.000Z",
+    });
+    assert.equal(staleFailure.tone, "neutral");
+
+    const clearedInterrupted = conversationActivityForRecord({
+      conversationId: "conversation-1",
+      view: view("conversation-1", {
+        activeRun: {
+          status: "interrupted",
+        } as NonNullable<ConversationViewState["activeRun"]>,
+      }),
+      runtimeStatusClearedAt: "2026-01-01T00:02:00.000Z",
+    });
+    assert.equal(clearedInterrupted.tone, "neutral");
+    assert.equal(clearedInterrupted.busy, false);
+
+    const laterFailure = conversationActivityForRecord({
+      conversationId: "conversation-1",
+      agent: {
+        ...agent("agent-1", "conversation-1", "error"),
+        updatedAt: "2026-01-01T00:03:00.000Z",
+      },
+      runtimeStatusClearedAt: "2026-01-01T00:02:00.000Z",
+    });
+    assert.equal(laterFailure.tone, "danger");
+    assert.equal(laterFailure.clearableFailure, true);
   });
 
   it("projects a larger conversation collection correctly", () => {

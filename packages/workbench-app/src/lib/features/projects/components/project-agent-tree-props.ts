@@ -5,6 +5,7 @@ import type {
   ProjectRecord,
   PruneProjectConversationsRequest,
   StatusResponse,
+  UpdateConversationStateRequest,
 } from "$lib/api";
 import type { ConversationActivityState } from "$lib/kernel/conversations/activity";
 
@@ -35,6 +36,10 @@ export type ProjectAgentTreeProps = {
   onOpenProjectInEditor?: (projectId: string, editor: ProjectEditor) => void;
   onDeleteProject?: (projectId: string) => void;
   onDeleteConversation?: (conversationId: string) => void;
+  onUpdateConversationState?: (
+    conversationId: string,
+    request: UpdateConversationStateRequest,
+  ) => void;
   onPruneProjectConversations?: (
     projectId: string,
     request: PruneProjectConversationsRequest,

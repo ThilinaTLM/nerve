@@ -122,18 +122,18 @@ export function activeConversationAgent(
   );
 }
 
-export function conversationLastUserSortAt(
+export function conversationLastActivityAt(
   conversation: ConversationRecord,
 ): string {
-  return conversation.lastUserMessageAt ?? conversation.createdAt;
+  return conversation.updatedAt || conversation.createdAt;
 }
 
-function compareConversationsByLastUserMessageDesc(
+function compareConversationsByLastActivityDesc(
   a: ConversationRecord,
   b: ConversationRecord,
 ): number {
-  const sortCompare = conversationLastUserSortAt(b).localeCompare(
-    conversationLastUserSortAt(a),
+  const sortCompare = conversationLastActivityAt(b).localeCompare(
+    conversationLastActivityAt(a),
   );
   if (sortCompare !== 0) return sortCompare;
   const createdCompare = b.createdAt.localeCompare(a.createdAt);
@@ -173,8 +173,116 @@ export function buildConversationRows(options: {
       agent: activeConversationAgent(conversation, agents),
     }))
     .sort((a, b) =>
-      compareConversationsByLastUserMessageDesc(a.conversation, b.conversation),
+      compareConversationsByLastActivityDesc(a.conversation, b.conversation),
     );
+}
+
+function compareConversationRowsByCompletionThenActivity(
+  a: ConversationRow,
+  b: ConversationRow,
+): number {
+  const completionCompare =
+    Number(Boolean(a.conversation.completedAt)) -
+    Number(Boolean(b.conversation.completedAt));
+  return (
+    completionCompare ||
+    compareConversationsByLastActivityDesc(a.conversation, b.conversation)
+  );
+}
+
+export type ConversationSection = {
+  key: "pinned" | "today" | "yesterday" | "previous-7-days" | "older";
+  label: string;
+  rows: ConversationRow[];
+};
+
+const CONVERSATION_SECTION_LABELS: Record<ConversationSection["key"], string> =
+  {
+    pinned: "Pinned",
+    today: "Today",
+    yesterday: "Yesterday",
+    "previous-7-days": "Previous 7 days",
+    older: "Older",
+  };
+
+function startOfLocalDay(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function conversationDateSectionKey(
+  conversation: ConversationRecord,
+  now: Date,
+): Exclude<ConversationSection["key"], "pinned"> {
+  const activity = new Date(conversationLastActivityAt(conversation));
+  if (Number.isNaN(activity.getTime())) return "older";
+  const today = startOfLocalDay(now);
+  const activityDay = startOfLocalDay(activity);
+  if (activityDay.getTime() >= today.getTime()) return "today";
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (activityDay.getTime() >= yesterday.getTime()) return "yesterday";
+  const previousWeek = new Date(today);
+  previousWeek.setDate(previousWeek.getDate() - 7);
+  return activityDay.getTime() >= previousWeek.getTime()
+    ? "previous-7-days"
+    : "older";
+}
+
+export function buildConversationSections(options: {
+  conversations: ConversationRecord[];
+  agents: AgentRecord[];
+  projectIds: Iterable<string>;
+  filter?: string;
+  now?: Date;
+  hideCompleted?: boolean;
+}): ConversationSection[] {
+  const rows = buildConversationRows(options).filter(
+    (row) => !options.hideCompleted || !row.conversation.completedAt,
+  );
+  const now = options.now ?? new Date();
+  const byKey = new Map<ConversationSection["key"], ConversationRow[]>();
+  for (const row of rows) {
+    const key = row.conversation.pinned
+      ? "pinned"
+      : conversationDateSectionKey(row.conversation, now);
+    const sectionRows = byKey.get(key) ?? [];
+    sectionRows.push(row);
+    byKey.set(key, sectionRows);
+  }
+  const order: ConversationSection["key"][] = [
+    "pinned",
+    "today",
+    "yesterday",
+    "previous-7-days",
+    "older",
+  ];
+  return order.flatMap((key) => {
+    const sectionRows = byKey.get(key);
+    return sectionRows?.length
+      ? [
+          {
+            key,
+            label: CONVERSATION_SECTION_LABELS[key],
+            rows: sectionRows.sort(
+              compareConversationRowsByCompletionThenActivity,
+            ),
+          },
+        ]
+      : [];
+  });
+}
+
+export function limitConversationSections(
+  sections: ConversationSection[],
+  limit: number,
+): ConversationSection[] {
+  let remaining = limit;
+  return sections.flatMap((section) => {
+    if (remaining <= 0) return [];
+    const rows = section.rows.slice(0, remaining);
+    remaining -= rows.length;
+    return rows.length ? [{ ...section, rows }] : [];
+  });
 }
 
 export function buildProjectGroups(options: {
@@ -234,7 +342,7 @@ export function buildProjectGroups(options: {
       conversation,
       agent: activeConversationAgent(conversation, agents),
     });
-    const conversationSortAt = conversationLastUserSortAt(conversation);
+    const conversationSortAt = conversationLastActivityAt(conversation);
     if (conversationSortAt > group.sortAt) group.sortAt = conversationSortAt;
     byDir.set(key, group);
   }
@@ -255,7 +363,7 @@ export function buildProjectGroups(options: {
 
   const groups = sorted.slice(0, maxProjects).map((group) => {
     const rows = group.rows.sort((a, b) =>
-      compareConversationsByLastUserMessageDesc(a.conversation, b.conversation),
+      compareConversationsByLastActivityDesc(a.conversation, b.conversation),
     );
     const folder = projectFolderName(group.project.dir);
     const label =

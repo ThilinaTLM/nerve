@@ -195,9 +195,6 @@ export class MessageMirror {
       title,
       updatedAt: new Date().toISOString(),
     });
-    await this.deps.events.publish("conversation.updated", {
-      conversation: this.deps.state.conversations.get(conversation.id),
-    });
   }
 }
 

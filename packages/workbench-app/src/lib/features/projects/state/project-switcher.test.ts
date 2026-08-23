@@ -52,6 +52,7 @@ function activity(
   input: Partial<ConversationActivityState>,
 ): ConversationActivityState {
   return {
+    indicator: "idle",
     tone: "neutral",
     pulse: false,
     busy: false,

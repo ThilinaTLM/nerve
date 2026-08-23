@@ -137,6 +137,72 @@ describe("RuntimeRegistry conversation lifecycle", () => {
     }
   });
 
+  it("persists conversation state and reopens on the next user entry", async () => {
+    const state = await createState("nerve-registry-conversation-state-");
+    try {
+      const project = await state.registry.createProject({
+        dir: state.storage.paths.home,
+      });
+      const conversation = await state.registry.createConversation({
+        projectId: project.id,
+      });
+      const activityAt = conversation.updatedAt;
+
+      const pinned = await state.registry.updateConversationState(
+        conversation.id,
+        { pinned: true, completed: true, clearRuntimeStatus: true },
+      );
+      assert.equal(pinned.pinned, true);
+      assert.ok(pinned.completedAt);
+      assert.ok(pinned.runtimeStatusClearedAt);
+      assert.equal(pinned.updatedAt, activityAt);
+
+      await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        role: "assistant",
+        text: "Still complete",
+        createdAt: "2026-01-01T00:01:00.000Z",
+      });
+      assert.ok(state.registry.getConversation(conversation.id).completedAt);
+
+      await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        role: "user",
+        text: "Reopen this",
+        createdAt: "2026-01-01T00:02:00.000Z",
+      });
+      const reopened = state.registry.getConversation(conversation.id);
+      assert.equal(reopened.completedAt, undefined);
+      assert.equal(reopened.pinned, true);
+      assert.equal(reopened.updatedAt, "2026-01-01T00:02:00.000Z");
+
+      const explicitlyReopened = await state.registry.updateConversationState(
+        conversation.id,
+        { completed: false, pinned: false },
+      );
+      assert.equal(explicitlyReopened.completedAt, undefined);
+      assert.equal(explicitlyReopened.pinned, false);
+      assert.equal(explicitlyReopened.updatedAt, reopened.updatedAt);
+
+      const persisted = JSON.parse(
+        await readFile(
+          join(
+            state.storage.paths.home,
+            "conversations",
+            conversation.id,
+            "conversation.json",
+          ),
+          "utf8",
+        ),
+      ) as ConversationRecord;
+      assert.equal(persisted.pinned, false);
+      assert.equal(persisted.completedAt, undefined);
+      assert.ok(persisted.runtimeStatusClearedAt);
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("creates projects, conversations, and agents through public APIs", async () => {
     const state = await createState();
     try {

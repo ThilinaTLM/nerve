@@ -267,6 +267,7 @@ export const workspaceSelectors = {
         sending: pending.sending,
         activity: pending.sending
           ? {
+              indicator: "running",
               tone: agentRunningTone(pending.mode),
               pulse: true,
               label: "Agent running",

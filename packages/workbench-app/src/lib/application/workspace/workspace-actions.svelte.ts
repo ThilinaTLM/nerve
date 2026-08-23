@@ -17,6 +17,8 @@ import {
   type ProjectRecord,
   type PruneProjectConversationsRequest,
   pruneProjectConversations,
+  type UpdateConversationStateRequest,
+  updateConversationState,
 } from "$lib/api";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { recoverSnapshotFromNetwork } from "$lib/application/workspace/snapshot-recovery";
@@ -37,6 +39,7 @@ import {
   type CenterTabIdentity,
 } from "$lib/application/workspace/workspace-state.svelte";
 import { mergeAgentsByUpdatedAt } from "./agent-freshness";
+import { upsertConversationRecord } from "./entity-reducers";
 import { projectForNewConversation } from "./new-conversation-project";
 import { closeCenterTabs } from "./center-tab-actions.svelte";
 import { selectCenterTab, setActiveCenterTab } from "./center-tabs.svelte";
@@ -335,6 +338,21 @@ export async function deleteProjectAndRefresh(projectId: string) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workspaceState.error = message;
     notify.error("Could not remove project", { description: message });
+  }
+}
+
+export async function updateConversationStateAndRefresh(
+  conversationId: string,
+  request: UpdateConversationStateRequest,
+) {
+  try {
+    upsertConversationRecord(
+      await updateConversationState(conversationId, request),
+    );
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    workspaceState.error = message;
+    notify.error("Could not update conversation", { description: message });
   }
 }
 

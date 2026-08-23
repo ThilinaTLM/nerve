@@ -6,6 +6,7 @@ import { shortProjectLabel } from "$lib/kernel/utils/project-tree";
 import {
   buildProjectMenu,
   countAgeEligible,
+  countCompletedEligible,
   countKeepEligible,
   countProjectConversations,
   PruneConversationsDialog,
@@ -184,6 +185,8 @@ async function handleDesktopClose() {
     pendingPrune ? countAgeEligible(conversations, pendingPrune.id, days) : 0}
   keepEligible={(keep) =>
     pendingPrune ? countKeepEligible(conversations, pendingPrune.id, keep) : 0}
+  completedEligible={() =>
+    pendingPrune ? countCompletedEligible(conversations, pendingPrune.id) : 0}
   onConfirm={confirmPrune}
   onOpenChange={(open) => {
     if (!open) pendingPrune = undefined;

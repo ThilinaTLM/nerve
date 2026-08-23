@@ -11,6 +11,7 @@ import {
   newConversationInProject,
   openProjectInEditorAndNotify,
   pruneProjectConversationsAndRefresh,
+  updateConversationStateAndRefresh,
 } from "$lib/application/workspace/workspace-actions.svelte";
 
 const status = $derived(workspaceSelectors.status);
@@ -45,6 +46,8 @@ const conversationActivityById = $derived(
     void openProjectInEditorAndNotify(projectId, editor)}
   onDeleteProject={(id) => void deleteProjectAndRefresh(id)}
   onDeleteConversation={(id) => void deleteConversationAndRefresh(id)}
+  onUpdateConversationState={(id, request) =>
+    void updateConversationStateAndRefresh(id, request)}
   onPruneProjectConversations={(id, request) =>
     void pruneProjectConversationsAndRefresh(id, request)}
 />

@@ -10,6 +10,7 @@ let {
   class: className,
   viewportClass,
   contentClass,
+  topShadowClass,
   children,
 }: {
   viewport?: HTMLDivElement;
@@ -18,6 +19,7 @@ let {
   class?: string;
   viewportClass?: string;
   contentClass?: string;
+  topShadowClass?: string;
   children: Snippet;
 } = $props();
 
@@ -61,8 +63,11 @@ $effect(() => {
     </div>
   </div>
   <div
-    class="item-scroll-shadow item-scroll-shadow-top pointer-events-none absolute inset-x-0 top-0 h-6 opacity-0 transition-opacity duration-150"
-    class:opacity-100={canScrollUp}
+    class={cn(
+      "item-scroll-shadow item-scroll-shadow-top pointer-events-none absolute inset-x-0 h-6 opacity-0 transition-opacity duration-150",
+      topShadowClass ?? "top-0",
+      canScrollUp && "opacity-100",
+    )}
   ></div>
   <div
     class="item-scroll-shadow item-scroll-shadow-bottom pointer-events-none absolute inset-x-0 bottom-0 h-6 opacity-0 transition-opacity duration-150"
