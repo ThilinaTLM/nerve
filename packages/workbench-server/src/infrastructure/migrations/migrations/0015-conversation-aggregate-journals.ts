@@ -37,7 +37,10 @@ export const migration0015: StorageMigration = {
   },
   async up(context) {
     const home = context.paths.home;
-    const journal = new ConversationJournalRepository({ paths: { home } });
+    const journal = new ConversationJournalRepository(
+      { paths: { home } },
+      { legacyFileMode: true },
+    );
     const conversations = await childDirectories(join(home, "conversations"));
     let transitionCount = 0;
 
@@ -229,7 +232,10 @@ export const migration0015: StorageMigration = {
         );
       }
     }
-    const journal = new ConversationJournalRepository({ paths: { home } });
+    const journal = new ConversationJournalRepository(
+      { paths: { home } },
+      { legacyFileMode: true },
+    );
     for (const conversationId of await childDirectories(
       join(home, "conversations"),
     )) {

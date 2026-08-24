@@ -37,7 +37,8 @@ import {
 } from "../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../core/ports.js";
 import { StreamLogRegistry } from "../infrastructure/events/index.js";
-import { IndexStore } from "../infrastructure/index-store/index.js";
+import { RuntimeProjectionStore } from "../infrastructure/runtime-projection-store/index.js";
+import type { CanonicalStore } from "../infrastructure/canonical-store/index.js";
 import {
   EncryptedFileSecretProvider,
   type SecretProvider,
@@ -57,7 +58,8 @@ export interface OrchestratorState {
   logger: ApplicationLogger;
   applicationLogsEnabled: boolean;
   registry: RuntimeRegistry;
-  index: IndexStore;
+  index: RuntimeProjectionStore;
+  canonicalStore: CanonicalStore;
   storageUsage: StorageUsageService;
   storageCleanup: StorageCleanupService;
   latestRelease: LatestReleaseService;
@@ -84,7 +86,11 @@ export function createOrchestratorState(
     resourceContainment?: ManagedResourceContainmentStatus;
   } = {},
 ): OrchestratorState {
-  const index = new IndexStore(storage.paths.sqlitePath);
+  // Transitional query cache only; canonical state.sqlite is never opened by
+  // RuntimeProjectionStore. The cache is removed with the remaining legacy query callers.
+  const index = new RuntimeProjectionStore(
+    join(storage.paths.home, "cache", "legacy-index.sqlite"),
+  );
   index.initialize();
   const performanceDiagnostics = options.performanceDiagnosticsEnabled
     ? new PerformanceMetricsCollector(
@@ -101,6 +107,7 @@ export function createOrchestratorState(
     enabled: options.applicationLogsEnabled ?? false,
   });
   const events = new StreamLogRegistry(storage.paths.home, {
+    canonicalStore: storage.canonicalStore,
     diagnostics: performanceDiagnostics.enabled
       ? performanceDiagnostics
       : undefined,
@@ -171,7 +178,7 @@ export function createOrchestratorState(
     credentials: piCredentials,
     models: piModels,
   });
-  const providerCatalog = new ProviderCatalogStore(storage.paths.providersPath);
+  const providerCatalog = new ProviderCatalogStore(storage);
   setCustomModelProvider(() => providerCatalog.resolvedModels());
   const credentialKey = new CredentialKeyService();
   const oauthFlows = new OAuthFlowManager(auth, events);
@@ -220,6 +227,7 @@ export function createOrchestratorState(
     applicationLogsEnabled: options.applicationLogsEnabled ?? false,
     registry,
     index,
+    canonicalStore: storage.canonicalStore,
     storageUsage,
     storageCleanup,
     latestRelease,
@@ -268,6 +276,7 @@ export async function shutdownOrchestratorState(
   await state.events.shutdown();
   await state.logger.flush();
   state.index.close();
+  await state.canonicalStore.close();
 }
 
 export function toDaemonFile(state: OrchestratorState): DaemonFile {

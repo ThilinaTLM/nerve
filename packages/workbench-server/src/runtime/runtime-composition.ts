@@ -85,7 +85,7 @@ import type { SubscriptionUsageService } from "../domains/usage/subscription-usa
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../core/ports.js";
 import type { StreamLogRegistry } from "../infrastructure/events/index.js";
-import type { IndexStore } from "../infrastructure/index-store/index.js";
+import type { RuntimeProjectionStore } from "../infrastructure/runtime-projection-store/index.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../infrastructure/storage/index.js";
 import type { RuntimeState } from "./runtime-state.js";
@@ -94,7 +94,7 @@ import type { AppendEntryInput, AppendEntryOptions } from "./types.js";
 export interface RuntimeDeps {
   storage: InitializedStorage;
   events: StreamLogRegistry;
-  index: IndexStore;
+  index: RuntimeProjectionStore;
   auth: AuthManager;
   secrets: SecretProvider;
   subscriptionUsage: SubscriptionUsageService;
@@ -298,6 +298,9 @@ export function composeRuntime(
     rebuildConversations,
     events,
     compactionSummarizer,
+    {},
+    (input, modelEntry) =>
+      services.conversationLifecycle.appendCompactionAtomic(input, modelEntry),
   );
   services.navigationService = new NavigationService(
     getConversation,

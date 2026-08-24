@@ -9,6 +9,7 @@ import {
   estimateTokens,
   prepareCompaction,
 } from "@nervekit/harness";
+import { createId } from "@nervekit/contracts";
 import type {
   CompactConversationRequest,
   ConversationCompactionReason,
@@ -121,6 +122,10 @@ export class CompactionService {
     private readonly events: StreamLogRegistry,
     private readonly summarize?: CompactionSummarizer,
     private readonly progressOptions: CompactionProgressPublisherOptions = {},
+    private readonly appendCompactionAtomic?: (
+      input: AppendConversationEntryInput & { id: string; createdAt: string },
+      modelEntry: ConversationTreeEntry,
+    ) => Promise<ConversationEntry>,
   ) {}
 
   async compactConversation(
@@ -321,32 +326,52 @@ export class CompactionService {
         };
         throwIfCompactionAborted(operation.controller.signal);
         operation.committing = true;
-        const entry = await this.appendEntry(
-          {
-            conversationId,
-            agentId: options.agentId,
-            runId: options.runId,
-            parentEntryId: branchLeafId,
-            role: "system",
-            kind: "compaction",
-            text: summary,
-            summary,
-            tokensBefore: preparation.tokensBefore,
-            firstKeptEntryId,
-            details,
-          },
-          { mirrorToHarness: false },
-        );
-        await storage.appendEntry({
-          type: "compaction",
-          id: entry.id,
-          parentId: entry.parentEntryId ?? null,
-          timestamp: entry.createdAt,
+        const baseEntryInput: AppendConversationEntryInput = {
+          conversationId,
+          agentId: options.agentId,
+          runId: options.runId,
+          parentEntryId: branchLeafId,
+          role: "system",
+          kind: "compaction",
+          text: summary,
           summary,
-          firstKeptEntryId,
           tokensBefore: preparation.tokensBefore,
+          firstKeptEntryId,
           details,
-        });
+        };
+        let entry: ConversationEntry;
+        if (this.appendCompactionAtomic) {
+          const entryId = createId("entry");
+          const createdAt = new Date().toISOString();
+          const modelEntry: ConversationTreeEntry = {
+            type: "compaction",
+            id: entryId,
+            parentId: branchLeafId,
+            timestamp: createdAt,
+            summary,
+            firstKeptEntryId,
+            tokensBefore: preparation.tokensBefore,
+            details,
+          };
+          entry = await this.appendCompactionAtomic(
+            { ...baseEntryInput, id: entryId, createdAt },
+            modelEntry,
+          );
+        } else {
+          entry = await this.appendEntry(baseEntryInput, {
+            mirrorToHarness: false,
+          });
+          await storage.appendEntry({
+            type: "compaction",
+            id: entry.id,
+            parentId: entry.parentEntryId ?? null,
+            timestamp: entry.createdAt,
+            summary,
+            firstKeptEntryId,
+            tokensBefore: preparation.tokensBefore,
+            details,
+          });
+        }
         await this.rebuildConversations();
         await this.events.publish("conversation.compacted", {
           conversationId,

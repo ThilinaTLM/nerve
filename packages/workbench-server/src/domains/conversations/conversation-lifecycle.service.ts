@@ -7,8 +7,9 @@ import {
   createId,
   expandTruncatedConversationTitle,
 } from "@nervekit/contracts";
+import type { ConversationTreeEntry } from "@nervekit/harness";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { IndexStore } from "../../infrastructure/index-store/index.js";
+import type { RuntimeProjectionStore } from "../../infrastructure/runtime-projection-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type {
@@ -23,7 +24,7 @@ export class ConversationLifecycleService {
   constructor(
     private readonly storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
-    private readonly index: IndexStore,
+    private readonly index: RuntimeProjectionStore,
     private readonly state: RuntimeState,
     private readonly conversationRepository: ConversationRepository,
     private readonly entryRepository: EntryRepository,
@@ -192,6 +193,45 @@ export class ConversationLifecycleService {
     await this.updateConversation(updatedConversation);
     if (options.mirrorToHarness !== false)
       await this.harnessStorage.appendEntry(entry);
+    return entry;
+  }
+
+  async appendCompactionAtomic(
+    input: AppendEntryInput & { id: string; createdAt: string },
+    modelEntry: ConversationTreeEntry,
+  ): Promise<ConversationEntry> {
+    const conversation = this.getConversation(input.conversationId);
+    const entry: ConversationEntry = {
+      id: input.id,
+      conversationId: input.conversationId,
+      agentId: input.agentId,
+      runId: input.runId,
+      parentEntryId: input.parentEntryId ?? conversation.activeEntryId,
+      role: input.role,
+      kind: input.kind ?? "compaction",
+      text: input.text,
+      summary: input.summary,
+      tokensBefore: input.tokensBefore,
+      firstKeptEntryId: input.firstKeptEntryId,
+      details: input.details,
+      createdAt: input.createdAt,
+    };
+    const updatedConversation: ConversationRecord = {
+      ...conversation,
+      activeEntryId: entry.id,
+      updatedAt: entry.createdAt,
+    };
+    await this.entryRepository.appendCompaction({
+      entry,
+      modelEntry,
+      conversation: updatedConversation,
+      agentId: input.agentId,
+    });
+    const entries = this.state.entries.get(input.conversationId) ?? [];
+    entries.push(entry);
+    this.state.entries.set(input.conversationId, entries);
+    this.state.conversations.set(input.conversationId, updatedConversation);
+    this.index.upsertConversation(updatedConversation);
     return entry;
   }
 

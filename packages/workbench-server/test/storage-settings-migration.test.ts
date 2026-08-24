@@ -105,7 +105,7 @@ describe("settings migrations", () => {
     const rerunLedger = JSON.parse(await readFile(ledgerPath, "utf8")) as {
       applied: Array<{ id: string }>;
     };
-    assert.equal(rerunLedger.applied.at(-1)?.id, "0016-permission-rules");
+    assert.equal(rerunLedger.applied.at(-1)?.id, "0017-canonical-sqlite");
     const second = await initializeStorage(root);
     assert.deepEqual(second.settings, storage.settings);
   });
@@ -121,9 +121,9 @@ describe("settings migrations", () => {
     );
 
     await writeFile(join(root, "config.json"), "not-json\n");
-    await assert.rejects(
-      readCurrentSettingsForBootstrap(root),
-      /settings.*unreadable/i,
+    assert.deepEqual(
+      await readCurrentSettingsForBootstrap(root),
+      storage.settings,
     );
   });
 

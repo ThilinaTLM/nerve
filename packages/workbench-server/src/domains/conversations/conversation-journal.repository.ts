@@ -1,6 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, readdir, rm, truncate } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { CanonicalStore } from "../../infrastructure/canonical-store/index.js";
+import {
+  deserializeState,
+  serializeState,
+  type SerializedConversationState,
+} from "./conversation-state-materializer.js";
 import type { ConversationTreeEntry } from "@nervekit/harness";
 import {
   CONVERSATION_JOURNAL_EPOCH,
@@ -67,7 +73,26 @@ export class ConversationJournalRepository {
   private readonly states = new Map<string, ConversationJournalState>();
   private readonly locks = journalLocks;
 
-  constructor(private readonly storage: { paths: { home: string } }) {}
+  private readonly canonical?: CanonicalStore;
+  private readonly ready: Promise<void>;
+  constructor(
+    private readonly storage: {
+      paths: { home: string; sqlitePath?: string };
+      canonicalStore?: CanonicalStore;
+    },
+    private readonly options: { legacyFileMode?: boolean } = {},
+  ) {
+    if (!options.legacyFileMode) {
+      this.canonical =
+        storage.canonicalStore ??
+        new CanonicalStore(
+          storage.paths.sqlitePath ?? join(storage.paths.home, "state.sqlite"),
+        );
+      this.ready = this.canonical.initialize();
+    } else {
+      this.ready = Promise.resolve();
+    }
+  }
 
   homePath(): string {
     return this.storage.paths.home;
@@ -93,16 +118,23 @@ export class ConversationJournalRepository {
     const directories = await readdir(root, { withFileTypes: true }).catch(
       () => [],
     );
+    await this.ready;
     const states: ConversationJournalState[] = [];
-    for (const directory of directories.sort((left, right) =>
-      left.name.localeCompare(right.name),
-    )) {
-      if (!directory.isDirectory() || !directory.name.startsWith("conv_")) {
-        continue;
+    const conversationIds = new Set(
+      (this.canonical
+        ? await this.canonical.listDocumentKeys("conversation_state")
+        : []
+      ).map((document) => document.scopeId),
+    );
+    for (const directory of directories) {
+      if (directory.isDirectory() && directory.name.startsWith("conv_")) {
+        conversationIds.add(directory.name);
       }
+    }
+    for (const conversationId of [...conversationIds].sort()) {
       const state = options.fresh
-        ? await this.loadFresh(directory.name)
-        : await this.load(directory.name);
+        ? await this.loadFresh(conversationId)
+        : await this.load(conversationId);
       if (state.revision > 0) states.push(state);
     }
     return states;
@@ -209,14 +241,18 @@ export class ConversationJournalRepository {
       });
       const next = cloneState(state);
       applyCommit(next, parsed);
-      const path = this.journalPath(conversationId);
-      await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-      const handle = await open(path, "a", 0o600);
-      try {
-        await handle.write(`${JSON.stringify(parsed)}\n`, undefined, "utf8");
-        await handle.sync();
-      } finally {
-        await handle.close();
+      if (this.options.legacyFileMode) {
+        const path = this.journalPath(conversationId);
+        await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+        const handle = await open(path, "a", 0o600);
+        try {
+          await handle.write(`${JSON.stringify(parsed)}\n`, undefined, "utf8");
+          await handle.sync();
+        } finally {
+          await handle.close();
+        }
+      } else {
+        await this.persistState(next, parsed);
       }
       this.states.set(conversationId, next);
       return parsed;
@@ -226,6 +262,7 @@ export class ConversationJournalRepository {
   async remove(conversationId: string): Promise<void> {
     await this.exclusive(conversationId, async () => {
       this.states.delete(conversationId);
+      await this.canonical?.deleteConversationState(conversationId);
       await rm(dirname(this.journalPath(conversationId)), {
         recursive: true,
         force: true,
@@ -234,6 +271,18 @@ export class ConversationJournalRepository {
   }
 
   async loadFresh(conversationId: string): Promise<ConversationJournalState> {
+    await this.ready;
+    const stored =
+      await this.canonical?.readDocument<SerializedConversationState>(
+        "conversation_state",
+        conversationId,
+        "state",
+      );
+    if (stored) {
+      const restored = deserializeState(stored.data);
+      this.states.set(conversationId, restored);
+      return restored;
+    }
     const path = this.journalPath(conversationId);
     const state = emptyState(conversationId);
     let raw: string;
@@ -281,10 +330,22 @@ export class ConversationJournalRepository {
       applyCommit(state, commit);
       consumedBytes += bytes;
     }
+    if (state.revision > 0 && !this.options.legacyFileMode)
+      await this.persistState(state);
     this.states.set(conversationId, state);
     return state;
   }
 
+  private async persistState(
+    state: ConversationJournalState,
+    commit?: ConversationJournalCommit,
+  ): Promise<void> {
+    await this.ready;
+    await this.canonical!.persistConversationState(
+      serializeState(state),
+      commit,
+    );
+  }
   private async exclusive<T>(
     conversationId: string,
     action: () => Promise<T>,

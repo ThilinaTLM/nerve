@@ -1,38 +1,39 @@
-import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import { taskDefinitionSchema, type TaskDefinition } from "@nervekit/contracts";
-import {
-  atomicWriteJson,
-  type InitializedStorage,
-  readJsonFile,
-} from "../../infrastructure/storage/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 
 export class TaskDefinitionRepository {
   constructor(private readonly storage: InitializedStorage) {}
 
-  private file(projectId: string): string {
-    return join(
-      this.storage.paths.home,
-      "projects",
-      projectId,
-      "task-definitions.json",
-    );
-  }
-
   async list(projectId: string): Promise<TaskDefinition[]> {
-    const raw = await readJsonFile<unknown>(this.file(projectId)).catch(
-      () => undefined,
+    const document = await this.storage.canonicalStore.readDocument<unknown>(
+      "task_definitions",
+      projectId,
+      "definitions",
     );
-    if (!Array.isArray(raw)) return [];
-    return raw.map((value) => taskDefinitionSchema.parse(value));
+    if (!Array.isArray(document?.data)) return [];
+    return document.data.map((definition) =>
+      taskDefinitionSchema.parse(definition),
+    );
   }
 
   async replace(
     projectId: string,
     definitions: TaskDefinition[],
   ): Promise<void> {
-    const file = this.file(projectId);
-    await mkdir(dirname(file), { recursive: true, mode: 0o755 });
-    await atomicWriteJson(file, definitions, 0o600);
+    const parsed = definitions.map((definition) =>
+      taskDefinitionSchema.parse(definition),
+    );
+    const current = await this.storage.canonicalStore.readDocument(
+      "task_definitions",
+      projectId,
+      "definitions",
+    );
+    await this.storage.canonicalStore.writeDocument({
+      namespace: "task_definitions",
+      scopeId: projectId,
+      documentId: "definitions",
+      data: parsed,
+      expectedRevision: current?.revision ?? 0,
+    });
   }
 }

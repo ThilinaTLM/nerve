@@ -3,6 +3,7 @@ import {
   durablePermissionSchema,
   permissionExceptionSchema,
   permissionRuleKindSchema,
+  supervisionDecisionSchema,
   toolRiskSchema,
 } from "../permissions/permissions.schema.js";
 import { recordedToolNameSchema, toolNameSchema } from "./tool-name.schema.js";
@@ -87,6 +88,57 @@ export const toolCallStatusSchema = z.enum([
   "cancelled",
 ]);
 export type ToolCallStatus = z.infer<typeof toolCallStatusSchema>;
+
+export const toolPhaseSchema = z.enum([
+  "drafting",
+  "drafted",
+  "executing",
+  "completed",
+  "failed",
+  "denied",
+  "cancelled",
+  "interrupted",
+]);
+export type ToolPhase = z.infer<typeof toolPhaseSchema>;
+
+export const supervisionStatusSchema = z.enum([
+  "pending",
+  "approved",
+  "denied",
+]);
+export const supervisionDecisionSourceSchema = z.enum([
+  "automatic",
+  "user",
+  "policy",
+]);
+export const toolExecutionStatusSchema = z.enum([
+  "running",
+  "waiting_for_input",
+  "completed",
+  "failed",
+  "cancelled",
+  "interrupted",
+]);
+
+export const durableToolSupervisionSchema = z.object({
+  status: supervisionStatusSchema,
+  source: supervisionDecisionSourceSchema.optional(),
+  decision: supervisionDecisionSchema,
+  decidedAt: z.string().datetime().optional(),
+});
+export type DurableToolSupervision = z.infer<
+  typeof durableToolSupervisionSchema
+>;
+
+export const durableToolExecutionSchema = z.object({
+  kind: toolExecutionKindSchema,
+  status: toolExecutionStatusSchema,
+  executionId: z.string().startsWith("exec_"),
+  hostHandle: z.string().min(1).max(512).optional(),
+  startedAt: z.string().datetime(),
+  endedAt: z.string().datetime().optional(),
+});
+export type DurableToolExecution = z.infer<typeof durableToolExecutionSchema>;
 
 export const toolInteractionStatusSchema = z.enum([
   "pending",
@@ -220,6 +272,7 @@ const toolCallRecordBaseSchema = z.object({
   sourceToolCallId: z.string().min(1).optional(),
   providerToolCallId: z.string().min(1).optional(),
   runId: z.string().startsWith("run_").optional(),
+  groupId: z.string().startsWith("group_").optional(),
   turnId: z.string().startsWith("turn_").optional(),
   liveMessageId: z.string().startsWith("msg_").optional(),
   contentIndex: z.number().int().nonnegative().optional(),
@@ -227,6 +280,10 @@ const toolCallRecordBaseSchema = z.object({
   args: z.unknown(),
   cwd: z.string().min(1),
   status: toolCallStatusSchema,
+  /** Canonical lifecycle. `status` remains the bounded transcript projection. */
+  phase: toolPhaseSchema.optional(),
+  supervision: durableToolSupervisionSchema.optional(),
+  execution: durableToolExecutionSchema.optional(),
   revision: z.number().int().positive().safe(),
   attempt: z.number().int().nonnegative().safe(),
   interactions: z.array(toolInteractionSchema).max(16),

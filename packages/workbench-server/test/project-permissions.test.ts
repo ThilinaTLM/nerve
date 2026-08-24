@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -18,7 +18,7 @@ afterEach(async () => {
 });
 
 describe("project permission exceptions", () => {
-  it("stores project exceptions in the host-side project directory and unions user exceptions", async () => {
+  it("stores scoped canonical rules and unions user exceptions", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-project-permissions-"));
     roots.push(root);
     const storage = await initializeStorage(root);
@@ -89,13 +89,15 @@ describe("project permission exceptions", () => {
     ]);
     assert.deepEqual(await service.effective("proj_two"), [userException]);
     assert.deepEqual(
-      JSON.parse(
-        await readFile(
-          join(root, "projects", "proj_one", "permissions.json"),
-          "utf8",
-        ),
-      ),
-      { version: 2, exceptions: [projectException] },
+      (await storage.canonicalStore.listPermissionRules("proj_one"))
+        .filter((rule) => rule.scope === "project")
+        .map((rule) => ({
+          id: `exception_${rule.id.replace(/^rule_project_?/, "")}`,
+          tool: rule.toolName,
+          effect: rule.effect,
+          rule: rule.pattern,
+        })),
+      [projectException],
     );
     assert.equal(published.includes("project.permissions.updated"), true);
     assert.equal(published.includes("settings.updated"), true);

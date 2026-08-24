@@ -6,7 +6,7 @@ import {
   type ProjectRecord,
 } from "@nervekit/contracts";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { IndexStore } from "../../infrastructure/index-store/index.js";
+import type { RuntimeProjectionStore } from "../../infrastructure/runtime-projection-store/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ProjectRepository } from "./project.repository.js";
 
@@ -14,7 +14,7 @@ export class ProjectLifecycleService {
   constructor(
     private readonly projectRepository: ProjectRepository,
     private readonly events: StreamLogRegistry,
-    private readonly index: IndexStore,
+    private readonly index: RuntimeProjectionStore,
     private readonly state: RuntimeState,
     private readonly removeConversation: (
       conversationId: string,

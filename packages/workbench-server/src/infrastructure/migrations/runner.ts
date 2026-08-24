@@ -24,6 +24,10 @@ import {
   type RollbackBundle,
 } from "./rollback-bundle.js";
 import { transaction, withMigrationDatabase } from "./sqlite.js";
+import {
+  CANONICAL_SCHEMA_CHECKSUM,
+  CANONICAL_SCHEMA_VERSION,
+} from "../canonical-store/schema.js";
 
 export interface RunStorageMigrationsOptions {
   registry?: readonly StorageMigration[];
@@ -37,6 +41,33 @@ export interface RunStorageMigrationsOptions {
 }
 
 export async function runStorageMigrations(
+  home: string,
+  options: RunStorageMigrationsOptions = {},
+): Promise<MigrationReport> {
+  const paths = storagePaths(home);
+  if (await pathExists(paths.sqlitePath)) {
+    const canonical = (() => {
+      try {
+        return withMigrationDatabase(paths.sqlitePath, (database) =>
+          Boolean(
+            database
+              .prepare(
+                `SELECT 1 AS present FROM sqlite_master
+                 WHERE type = 'table' AND name = 'schema_migrations'`,
+              )
+              .get(),
+          ),
+        );
+      } catch {
+        return false;
+      }
+    })();
+    if (canonical) return runCanonicalMigrations(home, options);
+  }
+  return runLegacyImportMigrations(home, options);
+}
+
+async function runLegacyImportMigrations(
   home: string,
   options: RunStorageMigrationsOptions = {},
 ): Promise<MigrationReport> {
@@ -173,6 +204,66 @@ export async function runStorageMigrations(
       })),
       backupBytes: bundle?.bytes ?? 0,
       archivePaths: archives,
+    };
+  } finally {
+    await lock.release();
+  }
+}
+
+async function runCanonicalMigrations(
+  home: string,
+  options: RunStorageMigrationsOptions,
+): Promise<MigrationReport> {
+  const startedAt = performance.now();
+  const paths = storagePaths(home);
+  const migrationsDir = join(home, "migrations");
+  await mkdir(migrationsDir, { recursive: true, mode: 0o700 });
+  const lock = await acquireMigrationLock(
+    join(migrationsDir, "lock.json"),
+    options.lockTimeoutMs,
+  );
+  try {
+    withMigrationDatabase(paths.sqlitePath, (database) => {
+      const rows = database
+        .prepare(
+          `SELECT version, checksum FROM schema_migrations ORDER BY version`,
+        )
+        .all() as unknown as Array<{ version: number; checksum: string }>;
+      const newest = rows.at(-1);
+      if (!newest)
+        throw new MigrationError("Canonical migration ledger is empty.");
+      if (newest.version > CANONICAL_SCHEMA_VERSION) {
+        throw new MigrationError(
+          `Storage schema ${newest.version} is newer than supported schema ${CANONICAL_SCHEMA_VERSION}.`,
+        );
+      }
+      const current = rows.find(
+        (row) => row.version === CANONICAL_SCHEMA_VERSION,
+      );
+      if (current && current.checksum !== CANONICAL_SCHEMA_CHECKSUM) {
+        throw new MigrationError(
+          `Storage schema checksum drift at version ${CANONICAL_SCHEMA_VERSION}.`,
+        );
+      }
+      if (!current) {
+        throw new MigrationError(
+          `Storage schema ${newest.version} requires a newer migration registry.`,
+        );
+      }
+      const foreignKeys = database.prepare("PRAGMA foreign_key_check").all();
+      if (foreignKeys.length > 0)
+        throw new MigrationError("Canonical SQLite foreign key check failed.");
+      const quick = database.prepare("PRAGMA quick_check").get() as
+        | { quick_check?: string }
+        | undefined;
+      if (quick?.quick_check !== "ok")
+        throw new MigrationError("Canonical SQLite quick check failed.");
+    });
+    return {
+      durationMs: Math.round(performance.now() - startedAt),
+      executions: [],
+      backupBytes: 0,
+      archivePaths: [],
     };
   } finally {
     await lock.release();

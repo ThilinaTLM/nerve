@@ -4,6 +4,8 @@ import {
   type DaemonFile,
   type DaemonStartupProgress,
   defaultSettings,
+  type PermissionException,
+  type PermissionRule,
   type Settings,
   settingsSchema,
   type UpdateSettingsRequest,
@@ -16,6 +18,8 @@ import {
 } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
 import type { MigrationReport } from "../migrations/index.js";
+import { CanonicalStore } from "../canonical-store/index.js";
+import { CanonicalDatabase } from "../canonical-store/canonical-database.js";
 import { coordinateStorageStartup } from "./startup-coordinator.js";
 import { inspectWorkbenchHome } from "./state-layout.js";
 import { normalizedJsonPaths } from "./storage-postconditions.js";
@@ -35,6 +39,7 @@ export interface InitializedStorage {
   settings: Settings;
   localToken: string;
   migrationReport: MigrationReport;
+  canonicalStore: CanonicalStore;
 }
 
 export async function readCurrentSettingsForBootstrap(
@@ -54,10 +59,22 @@ export async function readCurrentSettingsForBootstrap(
     );
   }
 
-  const path = storagePaths(home).configPath;
+  const paths = storagePaths(home);
+  const path = paths.configPath;
   let raw: unknown;
   try {
-    raw = await readJsonFile<unknown>(path);
+    const canonical = new CanonicalDatabase(paths.sqlitePath);
+    try {
+      try {
+        raw = canonical.readSettings<unknown>()?.data;
+      } catch (error) {
+        if (!String(error).includes("no such table: settings_store"))
+          throw error;
+      }
+    } finally {
+      canonical.close();
+    }
+    raw ??= await readJsonFile<unknown>(path);
   } catch (cause) {
     throw new Error(`Current Nerve settings at ${path} are unreadable.`, {
       cause,
@@ -124,15 +141,19 @@ export async function initializeStorage(
     await chmod(dir, mode).catch(() => undefined);
   }
 
-  const settings = settingsSchema.parse(
-    await readJsonFile<unknown>(paths.configPath),
-  );
-
   if (!(await pathExists(paths.sqlitePath))) {
     throw new Error(
       `Storage migrations completed without the required SQLite index at ${paths.sqlitePath}.`,
     );
   }
+
+  const canonicalStore = new CanonicalStore(paths.sqlitePath);
+  await canonicalStore.initialize();
+  const storedSettings = await canonicalStore.readSettings<unknown>();
+  const settings = storedSettings
+    ? settingsSchema.parse(storedSettings.data)
+    : settingsSchema.parse(await readJsonFile<unknown>(paths.configPath));
+  if (!storedSettings) await canonicalStore.writeSettings(settings, 0);
 
   if (!(await pathExists(paths.localTokenPath))) {
     const token = `nt_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;
@@ -146,7 +167,33 @@ export async function initializeStorage(
     );
   }
 
-  return { paths, settings, localToken, migrationReport };
+  return { paths, settings, localToken, migrationReport, canonicalStore };
+}
+
+function userRule(
+  exception: PermissionException,
+  timestamp: string,
+): PermissionRule {
+  const matcherKind = ["read", "edit", "write", "grep", "find", "ls"].includes(
+    exception.tool,
+  )
+    ? ("path_glob" as const)
+    : exception.tool === "bash"
+      ? ("command_glob" as const)
+      : exception.tool === "web_fetch"
+        ? ("url_glob" as const)
+        : ("whole_tool" as const);
+  return {
+    id: `rule_user_${exception.id.replace(/^exception_/, "")}`.slice(0, 128),
+    scope: "user",
+    effect: exception.effect,
+    toolName: exception.tool,
+    matcherKind,
+    pattern: exception.rule,
+    enabled: true,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
 }
 
 export async function writeSettings(
@@ -334,7 +381,18 @@ export async function writeSettings(
     tools: { ...storage.settings.tools, ...(toolsPatch ?? {}) },
     skills: { ...storage.settings.skills, ...(skillsPatch ?? {}) },
   });
-  await atomicWriteJson(storage.paths.configPath, next, 0o600);
+  const current = await storage.canonicalStore.readSettings<Settings>();
+  await storage.canonicalStore.writeSettings(next, current?.revision ?? 0);
+  if (patch.permissions?.exceptions) {
+    const timestamp = new Date().toISOString();
+    await storage.canonicalStore.replacePermissionRules(
+      "user",
+      undefined,
+      patch.permissions.exceptions.map((exception) =>
+        userRule(exception, timestamp),
+      ),
+    );
+  }
   storage.settings = next;
   return next;
 }

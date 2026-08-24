@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
 import type { ProjectRecord } from "@nervekit/contracts";
@@ -110,8 +111,17 @@ describe("PromptSuggestionService", () => {
     const status = (await service.listStatuses(project.id)).find(
       (candidate) => candidate.definitionKey === "builtin:commit-changes",
     );
+    const database = new DatabaseSync(join(home, "state.sqlite"));
+    const enabled = database
+      .prepare(
+        `SELECT data FROM domain_documents
+         WHERE namespace = 'prompt_suggestion_enablement'
+           AND document_id = 'builtin:commit-changes'`,
+      )
+      .get() as { data: Uint8Array };
+    database.close();
     assert.match(
-      await readFile(join(home, "prompt-suggestions", "enabled.json"), "utf8"),
+      Buffer.from(enabled.data).toString("utf8"),
       /builtin:commit-changes/,
     );
     assert.equal(status?.enabled, false);

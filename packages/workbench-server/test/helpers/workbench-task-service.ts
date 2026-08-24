@@ -22,7 +22,7 @@ import type {
   TerminateTaskResult,
 } from "../../src/domains/tasks/task-supervisor.js";
 import { StreamLogRegistry } from "../../src/infrastructure/events/index.js";
-import { IndexStore } from "../../src/infrastructure/index-store/index.js";
+import { RuntimeProjectionStore } from "../../src/infrastructure/runtime-projection-store/index.js";
 import {
   atomicWriteJson,
   type InitializedStorage,
@@ -38,7 +38,7 @@ export interface FakeChild extends ChildProcess {
 }
 
 const roots: string[] = [];
-const indexes: IndexStore[] = [];
+const indexes: RuntimeProjectionStore[] = [];
 
 after(async () => {
   for (const index of indexes) index.close();
@@ -89,11 +89,11 @@ export async function createManager(
   manager: WorkbenchTaskService;
   storage: InitializedStorage;
   events: StreamLogRegistry;
-  index: IndexStore;
+  index: RuntimeProjectionStore;
   launchConfigs: MemoryTaskLaunchConfigStore;
 }> {
   const storage = await initializeStorage(await tempHome("nerve-tasks-"));
-  const index = new IndexStore(storage.paths.sqlitePath);
+  const index = new RuntimeProjectionStore(storage.paths.sqlitePath);
   index.initialize();
   indexes.push(index);
   const events = new StreamLogRegistry(storage.paths.home);

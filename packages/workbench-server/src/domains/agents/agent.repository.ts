@@ -1,12 +1,6 @@
-import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { type AgentRecord, agentRecordSchema } from "@nervekit/contracts";
-import {
-  atomicWriteJson,
-  type InitializedStorage,
-  listChildDirs,
-  readJsonFile,
-} from "../../infrastructure/storage/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 
 export class AgentRepository {
   constructor(private readonly storage: InitializedStorage) {}
@@ -20,24 +14,36 @@ export class AgentRepository {
   }
 
   async loadAll(): Promise<AgentRecord[]> {
-    const root = join(this.storage.paths.home, "agents");
-    const agents: AgentRecord[] = [];
-    for (const agentId of await listChildDirs(root)) {
-      const parsed = agentRecordSchema.safeParse(
-        await readJsonFile<unknown>(this.agentPath(agentId)).catch(
-          () => undefined,
-        ),
-      );
-      if (parsed.success) agents.push(parsed.data);
-    }
-    return agents;
+    return (
+      await this.storage.canonicalStore.listDocuments<unknown>(
+        "agent",
+        "global",
+      )
+    ).map((document) => agentRecordSchema.parse(document.data));
   }
 
   async write(agent: AgentRecord): Promise<void> {
-    await atomicWriteJson(this.agentPath(agent.id), agent, 0o600);
+    const parsed = agentRecordSchema.parse(agent);
+    const current = await this.storage.canonicalStore.readDocument(
+      "agent",
+      "global",
+      parsed.id,
+    );
+    await this.storage.canonicalStore.writeDocument({
+      namespace: "agent",
+      scopeId: "global",
+      documentId: parsed.id,
+      data: parsed,
+      expectedRevision: current?.revision ?? 0,
+      now: parsed.updatedAt,
+    });
   }
 
   async remove(agentId: string): Promise<void> {
-    await rm(this.agentDir(agentId), { recursive: true, force: true });
+    await this.storage.canonicalStore.deleteDocument(
+      "agent",
+      "global",
+      agentId,
+    );
   }
 }

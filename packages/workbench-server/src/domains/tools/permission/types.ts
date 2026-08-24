@@ -1,8 +1,14 @@
-import type { PermissionException, ToolRisk } from "@nervekit/contracts";
+import type {
+  PermissionException,
+  PermissionRule,
+  SupervisionDecision,
+  ToolRisk,
+} from "@nervekit/contracts";
 
 export interface WorkbenchPermissionContext {
   dataDir: string;
   exceptions?: readonly PermissionException[];
+  rules?: readonly PermissionRule[];
 }
 
 export interface WorkbenchPermissionEvaluation {
@@ -12,4 +18,5 @@ export interface WorkbenchPermissionEvaluation {
   normalizedArgs: Record<string, unknown>;
   cwd: string;
   suggestedExceptions?: PermissionException[];
+  supervision?: SupervisionDecision;
 }

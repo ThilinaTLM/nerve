@@ -8,7 +8,7 @@ import {
   ToolCallRepository,
   ToolCallRevisionConflictError,
 } from "../src/domains/tools/tool-call.repository.js";
-import { IndexStore } from "../src/infrastructure/index-store/index.js";
+import { RuntimeProjectionStore } from "../src/infrastructure/runtime-projection-store/index.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 
 const roots: string[] = [];
@@ -38,7 +38,7 @@ function toolCall(id: string): ToolCallRecord {
 
 async function repository(home: string) {
   const storage = await initializeStorage(home);
-  const index = new IndexStore(storage.paths.sqlitePath);
+  const index = new RuntimeProjectionStore(storage.paths.sqlitePath);
   return { index, repository: new ToolCallRepository(storage, index) };
 }
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -122,11 +123,15 @@ describe("tool service lifecycle", () => {
     );
     assert.equal(payload.toolCall.contentIndex, 2);
 
-    const journal = await readFile(
-      join(home, "conversations", toolCall.conversationId, "journal.jsonl"),
-      "utf8",
+    const database = new DatabaseSync(join(home, "state.sqlite"));
+    const stored = database
+      .prepare(`SELECT data FROM conversation_records WHERE id = ?`)
+      .get(toolCall.id) as { data: Uint8Array };
+    database.close();
+    assert.match(
+      Buffer.from(stored.data).toString("utf8"),
+      /Validation failed for tool edit/,
     );
-    assert.match(journal, /Validation failed for tool edit/);
   });
 
   it("routes python_exec through the workbench runtime override", async () => {

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -136,11 +137,14 @@ test("run state and deliveries replay from the conversation journal", async (t) 
     "event settlement must not discard transcript evidence needed by checkpoints",
   );
 
-  const journal = await readFile(
-    join(home, "conversations", conversationId, "journal.jsonl"),
-    "utf8",
-  );
-  assert.equal(journal.trim().split("\n").length, 3);
+  const database = new DatabaseSync(join(home, "state.sqlite"));
+  const count = database
+    .prepare(
+      `SELECT COUNT(*) AS count FROM durable_events WHERE conversation_id = ?`,
+    )
+    .get(conversationId) as { count: number };
+  database.close();
+  assert.equal(count.count, 3);
 });
 
 test("run commits preserve per-run compare-and-swap", async (t) => {

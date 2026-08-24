@@ -48,7 +48,7 @@ import { ApplicationError } from "../core/application-error.js";
 import type { PerformanceDiagnosticsPort } from "../core/ports.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../infrastructure/events/index.js";
-import type { IndexStore } from "../infrastructure/index-store/index.js";
+import type { RuntimeProjectionStore } from "../infrastructure/runtime-projection-store/index.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../infrastructure/storage/index.js";
 import { composeRuntime, type RuntimeServices } from "./runtime-composition.js";
@@ -129,7 +129,7 @@ export class RuntimeRegistry {
   constructor(
     private readonly storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
-    private readonly index: IndexStore,
+    private readonly index: RuntimeProjectionStore,
     private readonly auth: AuthManager,
     secrets: SecretProvider,
     private readonly subscriptionUsage: SubscriptionUsageService,

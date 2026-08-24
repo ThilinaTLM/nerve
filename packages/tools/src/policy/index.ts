@@ -1,4 +1,5 @@
 export * from "./evaluate-tool-permission.js";
+export * from "./evaluate-tool-supervision.js";
 export * from "./path-glob.js";
 export * from "./permission-exceptions.js";
 export * from "./permission-targets.js";

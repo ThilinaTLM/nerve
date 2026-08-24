@@ -1,17 +1,12 @@
-import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import type { PromptSuggestionTrustStatus } from "@nervekit/contracts";
 import { z } from "zod";
+import { CanonicalStore } from "../../infrastructure/canonical-store/index.js";
 import type {
-  IndexStore,
+  RuntimeProjectionStore,
   PromptSuggestionTrustIndexRecord,
-} from "../../infrastructure/index-store/index.js";
+} from "../../infrastructure/runtime-projection-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import {
-  atomicWriteJson,
-  pathExists,
-  readJsonFile,
-} from "../../infrastructure/storage/json.js";
 
 const trustRecordSchema = z.object({
   trustId: z.string().min(1),
@@ -25,21 +20,26 @@ const trustRecordSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 
-const trustFileSchema = z.object({
-  version: z.literal(1).default(1),
-  records: z.array(trustRecordSchema).default([]),
-});
-
 export type PromptSuggestionTrustRecord = z.infer<typeof trustRecordSchema>;
 
 export class PromptSuggestionTrustRepository {
-  private readonly path: string;
+  private readonly store: CanonicalStore;
+  private readonly ready: Promise<void>;
 
   constructor(
     storage: InitializedStorage,
-    private readonly index: IndexStore,
+    // Kept in the constructor until the remaining query-only RuntimeProjectionStore APIs
+    // are removed; canonical SQLite is authoritative.
+    private readonly index: RuntimeProjectionStore,
   ) {
-    this.path = join(storage.paths.home, "prompt-suggestions", "trust.json");
+    this.store =
+      storage.canonicalStore ??
+      new CanonicalStore(
+        storage.paths.sqlitePath ?? join(storage.paths.home, "state.sqlite"),
+      );
+    this.ready = storage.canonicalStore
+      ? Promise.resolve()
+      : this.store.initialize();
   }
 
   async hydrateIndex(): Promise<void> {
@@ -47,14 +47,23 @@ export class PromptSuggestionTrustRepository {
   }
 
   async list(): Promise<PromptSuggestionTrustRecord[]> {
-    if (!(await pathExists(this.path))) return [];
-    const raw = await readJsonFile<unknown>(this.path).catch(() => undefined);
-    const parsed = trustFileSchema.safeParse(raw);
-    return parsed.success ? parsed.data.records : [];
+    await this.ready;
+    return (
+      await this.store.listDocuments<unknown>(
+        "prompt_suggestion_trust",
+        "global",
+      )
+    ).map((document) => trustRecordSchema.parse(document.data));
   }
 
   async get(trustId: string): Promise<PromptSuggestionTrustRecord | undefined> {
-    return (await this.list()).find((record) => record.trustId === trustId);
+    await this.ready;
+    const document = await this.store.readDocument<unknown>(
+      "prompt_suggestion_trust",
+      "global",
+      trustId,
+    );
+    return document ? trustRecordSchema.parse(document.data) : undefined;
   }
 
   async set(
@@ -69,44 +78,42 @@ export class PromptSuggestionTrustRepository {
     },
   ): Promise<PromptSuggestionTrustRecord> {
     const now = new Date().toISOString();
-    const records = await this.list();
-    const existing = records.find((record) => record.trustId === input.trustId);
-    const next: PromptSuggestionTrustRecord = {
+    await this.ready;
+    const current = await this.store.readDocument<unknown>(
+      "prompt_suggestion_trust",
+      "global",
+      input.trustId,
+    );
+    const existing = current
+      ? trustRecordSchema.parse(current.data)
+      : undefined;
+    const next = trustRecordSchema.parse({
       ...input,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
-    };
-    await this.writeRecords([
-      ...records.filter((record) => record.trustId !== input.trustId),
-      next,
-    ]);
+    });
+    await this.store.writeDocument({
+      namespace: "prompt_suggestion_trust",
+      scopeId: "global",
+      documentId: input.trustId,
+      data: next,
+      expectedRevision: current?.revision ?? 0,
+      now,
+    });
     this.index.upsertPromptSuggestionTrust(next);
     return next;
   }
 
   async remove(trustId: string): Promise<void> {
-    const records = (await this.list()).filter(
-      (record) => record.trustId !== trustId,
+    await this.store.deleteDocument(
+      "prompt_suggestion_trust",
+      "global",
+      trustId,
     );
-    await this.writeRecords(records);
     this.index.deletePromptSuggestionTrust(trustId);
   }
 
   async statusesFromIndex(): Promise<PromptSuggestionTrustIndexRecord[]> {
-    return this.index.listPromptSuggestionTrust();
-  }
-
-  private async writeRecords(
-    records: PromptSuggestionTrustRecord[],
-  ): Promise<void> {
-    await mkdir(dirname(this.path), { recursive: true, mode: 0o700 });
-    await atomicWriteJson(
-      this.path,
-      {
-        version: 1,
-        records: records.sort((a, b) => a.path.localeCompare(b.path)),
-      },
-      0o600,
-    );
+    return (await this.list()).map((record) => ({ ...record }));
   }
 }

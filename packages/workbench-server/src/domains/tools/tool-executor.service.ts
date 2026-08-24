@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import type { ToolCallRecord } from "@nervekit/contracts";
+import { requireToolDefinition } from "@nervekit/tools";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { toolErrorDetails } from "./tool-errors.js";
@@ -13,6 +15,12 @@ export interface ToolExecutorDeps {
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
   ): Promise<ToolCallRecord>;
   publishToolCallUpdated(toolCall: ToolCallRecord): Promise<void>;
+  claimExecution(
+    id: string,
+    expectedRevision: number,
+    patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
+  ): Promise<ToolCallRecord>;
+  assertExecutionBoundary(toolCall: ToolCallRecord): Promise<void>;
   dispatcher: OrchestrationToolDispatcher;
   storageHome: string;
   logger?: ApplicationLogger;
@@ -25,9 +33,31 @@ export class ToolExecutorService {
     toolCallId: string,
     options: ToolRequestOptions = {},
   ): Promise<ToolCallRecord> {
-    const toolCall = await this.deps.updateToolCall(toolCallId, {
-      status: "running",
-    });
+    const drafted = this.deps.getToolCall(toolCallId);
+    if (
+      drafted.status !== "committed" ||
+      drafted.phase !== "drafted" ||
+      drafted.supervision?.status !== "approved"
+    ) {
+      throw new Error("Tool execution requires a durably approved draft.");
+    }
+    await this.deps.assertExecutionBoundary(drafted);
+    const definition = requireToolDefinition(drafted.toolName as never);
+    const startedAt = new Date().toISOString();
+    const toolCall = await this.deps.claimExecution(
+      toolCallId,
+      drafted.revision,
+      {
+        status: "running",
+        phase: "executing",
+        execution: {
+          kind: definition.executionKind,
+          status: "running",
+          executionId: `exec_${randomUUID()}`,
+          startedAt,
+        },
+      },
+    );
     await this.emitLifecycle(toolCall, options);
     const started = performance.now();
     await this.deps.logger?.info("Tool execution started", {
