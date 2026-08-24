@@ -264,6 +264,10 @@ function entryDetails(message: AgentMessage): unknown {
     .map((part) => ({ text: part.thinking, redacted: part.redacted }))
     .filter((part) => part.text.length > 0 || part.redacted === true);
   const details: Record<string, unknown> = {};
+  const toolCalls = message.content.filter((part) => part.type === "toolCall");
+  // A single invocation can be paired with its direct result in history. A
+  // multi-call assistant message intentionally remains an aggregate request.
+  if (toolCalls.length === 1) details.toolCallId = toolCalls[0].id;
   if (thinkingBlocks.length > 0) details.thinkingBlocks = thinkingBlocks;
   if (message.stopReason === "aborted" || message.stopReason === "error") {
     details.stopReason = message.stopReason;

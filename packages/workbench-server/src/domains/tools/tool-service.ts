@@ -32,7 +32,7 @@ import type {
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { PermissionExceptionService } from "../permissions/permission-exceptions.service.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { IndexStore } from "../../infrastructure/index-store/index.js";
+import type { RuntimeProjectionStore } from "../../infrastructure/runtime-projection-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
@@ -184,7 +184,7 @@ export class ToolService {
   constructor(
     private readonly storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
-    index: IndexStore,
+    index: RuntimeProjectionStore,
     private readonly tasks: WorkbenchTaskService,
     private readonly pythonRuntime: PythonRuntimeService,
     private readonly startTask: TaskStarter,
@@ -247,6 +247,11 @@ export class ToolService {
       publishToolCallUpdated: (toolCall) =>
         this.publishToolCallUpdated(toolCall),
       dispatcher: this.dispatcher,
+      claimExecution: (id, expectedRevision, patch) =>
+        this.updateToolCallAtRevision(id, expectedRevision, patch),
+      assertExecutionBoundary: (toolCall) =>
+        this.assertExecutionBoundary(toolCall),
+
       storageHome: this.storage.paths.home,
       logger: this.logger,
     });
@@ -429,6 +434,9 @@ export class ToolService {
     const exceptions = this.permissionExceptions
       ? await this.permissionExceptions.effective(latestAgent.projectId)
       : this.storage.settings.permissions.exceptions;
+    const rules = this.permissionExceptions
+      ? await this.permissionExceptions.effectiveRules(latestAgent.projectId)
+      : undefined;
     const evaluation = evaluateWorkbenchToolPermission(
       latestAgent,
       toolName,
@@ -436,12 +444,25 @@ export class ToolService {
       {
         dataDir: this.storage.paths.home,
         exceptions,
+        rules,
       },
     );
     const decision =
       evaluation.decision === "allow" && options.forceApproval === true
         ? "approval"
         : evaluation.decision;
+    const supervisionDecision = evaluation.supervision
+      ? {
+          ...evaluation.supervision,
+          ...(decision === "approval" &&
+          evaluation.supervision.decision === "allow"
+            ? {
+                decision: "prompt" as const,
+                reason: "The tool group requires approval.",
+              }
+            : {}),
+        }
+      : undefined;
     const providerToolCallId =
       options.providerToolCallId ?? options.sourceToolCallId;
     const anchor = options.anchor;
@@ -461,6 +482,25 @@ export class ToolService {
       args: evaluation.normalizedArgs,
       cwd: evaluation.cwd,
       status: "committed",
+      phase: "drafted",
+      supervision: supervisionDecision
+        ? {
+            status:
+              decision === "allow"
+                ? "approved"
+                : decision === "deny"
+                  ? "denied"
+                  : "pending",
+            source:
+              decision === "allow"
+                ? "automatic"
+                : decision === "deny"
+                  ? "policy"
+                  : undefined,
+            decision: supervisionDecision,
+            decidedAt: decision === "approval" ? undefined : now,
+          }
+        : undefined,
       revision: 1,
       attempt: 0,
       interactions: [],
@@ -768,7 +808,15 @@ export class ToolService {
     );
     const updated = await this.updateToolCall(current.id, {
       interactions,
-      status: decision === "allow" ? "running" : "denied",
+      status: decision === "allow" ? "committed" : "denied",
+      supervision: current.supervision
+        ? {
+            ...current.supervision,
+            status: decision === "allow" ? "approved" : "denied",
+            source: "user",
+            decidedAt: resolvedAt,
+          }
+        : undefined,
       ...(decision === "deny" ? { error: note ?? "Denied by user." } : {}),
     });
     const decided = this.projectApproval(updated, ordinal);
@@ -955,11 +1003,53 @@ export class ToolService {
     return failed;
   }
 
+  private async assertExecutionBoundary(
+    toolCall: ToolCallRecord,
+  ): Promise<void> {
+    const agent = this.getAgent(toolCall.agentId);
+    const exceptions = this.permissionExceptions
+      ? await this.permissionExceptions.effective(agent.projectId)
+      : this.storage.settings.permissions.exceptions;
+    const rules = this.permissionExceptions
+      ? await this.permissionExceptions.effectiveRules(agent.projectId)
+      : undefined;
+    const evaluation = evaluateWorkbenchToolPermission(
+      agent,
+      toolCall.toolName as ToolName,
+      toolCall.args as Record<string, unknown>,
+      { dataDir: this.storage.paths.home, exceptions, rules },
+    );
+    if (
+      evaluation.decision === "deny" ||
+      !evaluation.supervision ||
+      evaluation.supervision.policySnapshotHash !==
+        toolCall.supervision?.decision.policySnapshotHash ||
+      JSON.stringify(evaluation.normalizedArgs) !==
+        JSON.stringify(toolCall.args)
+    ) {
+      throw new Error(
+        "Tool approval is stale or its execution target no longer satisfies policy.",
+      );
+    }
+  }
+
   private async updateToolCall(
     toolCallId: string,
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
   ): Promise<ToolCallRecord> {
     const current = this.getToolCall(toolCallId);
+    return this.updateToolCallAtRevision(toolCallId, current.revision, patch);
+  }
+
+  private async updateToolCallAtRevision(
+    toolCallId: string,
+    expectedRevision: number,
+    patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
+  ): Promise<ToolCallRecord> {
+    const current = this.getToolCall(toolCallId);
+    if (current.revision !== expectedRevision) {
+      throw new Error(`Stale tool-call revision for ${toolCallId}.`);
+    }
     if (patch.status && patch.status !== current.status) {
       assertTransition(
         toolCallTransitions,
@@ -974,14 +1064,31 @@ export class ToolService {
       ["completed", "denied", "failed", "cancelled"].includes(patch.status);
     const next = await this.toolCallRepository.replace(
       toolCallId,
-      current.revision,
+      expectedRevision,
       (record) => ({
         ...record,
         ...patch,
+        ...(patch.status ? { phase: phaseForStatus(patch.status) } : {}),
         ...(patch.status === "running" && record.status !== "running"
           ? { attempt: record.attempt + 1 }
           : {}),
         ...(terminal ? { settledAt: updatedAt } : {}),
+        ...(terminal && record.execution
+          ? {
+              execution: {
+                ...record.execution,
+                status:
+                  patch.status === "completed"
+                    ? ("completed" as const)
+                    : patch.status === "cancelled"
+                      ? ("cancelled" as const)
+                      : patch.status === "failed" || patch.status === "denied"
+                        ? ("failed" as const)
+                        : ("interrupted" as const),
+                endedAt: updatedAt,
+              },
+            }
+          : {}),
         updatedAt,
       }),
     );
@@ -1078,6 +1185,26 @@ function resolvePendingForResume(
     resolvedAt: now,
     resolution: { action, feedback: review?.feedback },
   };
+}
+
+function phaseForStatus(
+  status: ToolCallRecord["status"],
+): NonNullable<ToolCallRecord["phase"]> {
+  switch (status) {
+    case "committed":
+    case "waiting":
+      return "drafted";
+    case "running":
+      return "executing";
+    case "completed":
+      return "completed";
+    case "denied":
+      return "denied";
+    case "cancelled":
+      return "cancelled";
+    case "failed":
+      return "failed";
+  }
 }
 
 function interruptedToolCallPatch(errorMessage: string) {

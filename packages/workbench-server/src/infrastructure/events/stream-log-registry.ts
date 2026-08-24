@@ -12,6 +12,7 @@ import {
 } from "@nervekit/contracts";
 import type { RenameDependencies } from "../storage/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
+import type { CanonicalStore } from "../canonical-store/index.js";
 import { StreamLog, type StreamFlushObservation } from "./stream-log.js";
 
 export type PublishedEvent<T = unknown> = EventEnvelope<T> | NotifyEvent<T>;
@@ -34,6 +35,7 @@ export interface StreamLogRegistryOptions {
     failure: EventPublishFailure,
   ) => void | Promise<void>;
   readonly renameDependencies?: RenameDependencies;
+  readonly canonicalStore?: CanonicalStore;
 }
 
 export class StreamLogRegistry {
@@ -60,7 +62,7 @@ export class StreamLogRegistry {
   }
 
   async hydrate(): Promise<void> {
-    await this.#log(WORKSPACE_STREAM);
+    if (!this.options.canonicalStore) await this.#log(WORKSPACE_STREAM);
   }
 
   publish<T>(type: string, data: T): Promise<PublishedEvent<T>> {
@@ -130,7 +132,7 @@ export class StreamLogRegistry {
   ): Promise<{ value: T; cursor: { stream: string; processedSeq: number } }> {
     return this.#enqueueStream(stream, async () => {
       const value = await build();
-      const processedSeq = (await this.#log(stream)).bounds().latestSeq;
+      const processedSeq = (await this.bounds(stream)).latestSeq;
       return { value, cursor: { stream, processedSeq } };
     });
   }
@@ -140,16 +142,36 @@ export class StreamLogRegistry {
     fromSeq: number,
     limit: number,
   ): Promise<StreamState & { events: readonly EventEnvelope[] }> {
+    if (this.options.canonicalStore) {
+      const bounds =
+        await this.options.canonicalStore.durableEventBounds(stream);
+      const events = (
+        await this.options.canonicalStore.readDurableEvents(
+          stream,
+          fromSeq,
+          limit,
+        )
+      ).map((event) => ({
+        seq: event.sequence,
+        id: event.intentId,
+        ts: event.occurredAt,
+        type: event.eventType,
+        data: event.data,
+      })) as EventEnvelope[];
+      return { ...bounds, events };
+    }
     const log = await this.#log(stream);
     return { ...log.bounds(), events: log.read(fromSeq, limit) };
   }
 
   async bounds(stream: string): Promise<StreamState> {
-    return (await this.#log(stream)).bounds();
+    return this.options.canonicalStore
+      ? await this.options.canonicalStore.durableEventBounds(stream)
+      : (await this.#log(stream)).bounds();
   }
 
   async latestSeq(stream: string): Promise<number> {
-    return (await this.#log(stream)).bounds().latestSeq;
+    return (await this.bounds(stream)).latestSeq;
   }
 
   subscribe(listener: (event: EventEnvelope) => void): () => void {
@@ -172,6 +194,10 @@ export class StreamLogRegistry {
   removeConversationStream(conversationId: string): Promise<void> {
     const stream = `conv/${conversationId}`;
     return this.#enqueueStream(stream, async () => {
+      if (this.options.canonicalStore) {
+        await this.options.canonicalStore.removeDurableEventStream(stream);
+        return;
+      }
       const pending = this.#logs.get(stream);
       this.#logs.delete(stream);
       const log = pending ? await pending : await this.#openLog(stream);
@@ -228,6 +254,35 @@ export class StreamLogRegistry {
     }
 
     const stream = streamForEvent(type, normalized);
+    if (this.options.canonicalStore) {
+      const stored = await this.options.canonicalStore.appendDurableEvent({
+        stream,
+        intentId: id,
+        eventType: type,
+        data: normalized,
+        occurredAt: ts,
+        conversationId: parseConversationStream(stream) ?? undefined,
+      });
+      const event = {
+        seq: stored.sequence,
+        id,
+        ts,
+        type,
+        data: normalized,
+      } as EventEnvelope<T>;
+      this.options.diagnostics?.count("event.durable");
+      this.#intentResults.set(id, event as EventEnvelope);
+      for (const listener of this.#eventListeners) {
+        safelyNotify(() => listener(event as EventEnvelope), event.type);
+      }
+      for (const listener of this.#sequencedListeners) {
+        safelyNotify(
+          () => listener(stream, event as EventEnvelope),
+          event.type,
+        );
+      }
+      return event;
+    }
     const log = await this.#log(stream);
     const existing = log.eventForIntent(id);
     if (existing) {

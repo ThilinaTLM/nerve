@@ -1,9 +1,9 @@
 import type { ToolCallTranscriptRecord } from "$lib/api";
-import {
-  classifyHistoryEntry,
-  type HistoryGraphRow,
-  type HistoryIconName,
-  type HistoryNodeType,
+import { buildHistoryEntryView } from "./history-entry-view";
+import type {
+  HistoryGraphRow,
+  HistoryIconName,
+  HistoryNodeType,
 } from "./history-graph";
 
 /**
@@ -69,7 +69,7 @@ export type HistoryVisible = {
 function makeSegment(
   indices: number[],
   rows: HistoryGraphRow[],
-  descByIndex: ReturnType<typeof classifyHistoryEntry>[],
+  descByIndex: ReturnType<typeof buildHistoryEntryView>["descriptor"][],
 ): HistorySegment {
   const head = rows[indices[0]];
   const tail = rows[indices[indices.length - 1]];
@@ -103,8 +103,13 @@ export function buildHistoryVisible(
   toolCallsById: Map<string, ToolCallTranscriptRecord>,
   expanded: Set<string>,
 ): HistoryVisible {
-  const descByIndex = rows.map((row) =>
-    classifyHistoryEntry(row.node.entry, toolCallsById),
+  const descByIndex = rows.map(
+    (row) =>
+      buildHistoryEntryView(
+        row.node.entry,
+        toolCallsById,
+        row.pairedResultEntry,
+      ).descriptor,
   );
 
   const isCollapsible = (i: number): boolean => {
@@ -138,9 +143,11 @@ export function buildHistoryVisible(
     }
     const prevIndex = run.at(-1);
     const prev = prevIndex === undefined ? undefined : rows[prevIndex];
+    const parentEntryId = rows[i].node.entry.parentEntryId;
     const linked =
       prev !== undefined &&
-      rows[i].node.entry.parentEntryId === prev.node.entry.id;
+      parentEntryId !== undefined &&
+      prev.underlyingEntryIds.includes(parentEntryId);
     if (run.length && !linked) flushRun();
     run.push(i);
   }
@@ -151,7 +158,9 @@ export function buildHistoryVisible(
   const visibleIndexById = new Map<string, number>();
 
   const pushEntry = (index: number) => {
-    visibleIndexById.set(rows[index].node.entry.id, items.length);
+    for (const id of rows[index].underlyingEntryIds) {
+      visibleIndexById.set(id, items.length);
+    }
     items.push({ type: "entry", row: rows[index] });
   };
 
@@ -172,7 +181,9 @@ export function buildHistoryVisible(
       const visibleIndex = items.length;
       items.push({ type: "segment", segment });
       for (const index of group.indices) {
-        visibleIndexById.set(rows[index].node.entry.id, visibleIndex);
+        for (const id of rows[index].underlyingEntryIds) {
+          visibleIndexById.set(id, visibleIndex);
+        }
       }
     }
   }

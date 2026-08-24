@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -11,17 +11,20 @@ import type { StreamLogRegistry } from "../src/infrastructure/events/index.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 
 const roots: string[] = [];
+const stores: Array<{ close(): Promise<void> }> = [];
 afterEach(async () => {
+  await Promise.all(stores.splice(0).map((store) => store.close()));
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
 });
 
 describe("project permission exceptions", () => {
-  it("stores project exceptions in the host-side project directory and unions user exceptions", async () => {
+  it("stores scoped canonical rules and unions user exceptions", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-project-permissions-"));
     roots.push(root);
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
     const records = new ProjectRepository(storage);
     const now = new Date().toISOString();
     const projects = new Map<string, ProjectRecord>([
@@ -89,13 +92,15 @@ describe("project permission exceptions", () => {
     ]);
     assert.deepEqual(await service.effective("proj_two"), [userException]);
     assert.deepEqual(
-      JSON.parse(
-        await readFile(
-          join(root, "projects", "proj_one", "permissions.json"),
-          "utf8",
-        ),
-      ),
-      { version: 2, exceptions: [projectException] },
+      (await storage.canonicalStore.listPermissionRules("proj_one"))
+        .filter((rule) => rule.scope === "project")
+        .map((rule) => ({
+          id: `exception_${rule.id.replace(/^rule_project_?/, "")}`,
+          tool: rule.toolName,
+          effect: rule.effect,
+          rule: rule.pattern,
+        })),
+      [projectException],
     );
     assert.equal(published.includes("project.permissions.updated"), true);
     assert.equal(published.includes("settings.updated"), true);
@@ -105,6 +110,7 @@ describe("project permission exceptions", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-project-permissions-"));
     roots.push(root);
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
     const service = new PermissionExceptionService(
       storage,
       new ProjectPermissionsRepository(storage),

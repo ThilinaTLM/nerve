@@ -1,35 +1,32 @@
-import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import { type ScratchNote, scratchNoteSchema } from "@nervekit/contracts";
-import {
-  atomicWriteJson,
-  type InitializedStorage,
-  readJsonFile,
-} from "../../infrastructure/storage/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 
 export class ScratchNoteRepository {
   constructor(private readonly storage: InitializedStorage) {}
 
-  private file(projectId: string): string {
-    return join(
-      this.storage.paths.home,
-      "projects",
-      projectId,
-      "scratch-notes.json",
-    );
-  }
-
   async list(projectId: string): Promise<ScratchNote[]> {
-    const raw = await readJsonFile<unknown>(this.file(projectId)).catch(
-      () => undefined,
+    const document = await this.storage.canonicalStore.readDocument<unknown>(
+      "scratch_notes",
+      projectId,
+      "notes",
     );
-    if (!Array.isArray(raw)) return [];
-    return raw.map((value) => scratchNoteSchema.parse(value));
+    if (!Array.isArray(document?.data)) return [];
+    return document.data.map((note) => scratchNoteSchema.parse(note));
   }
 
   async replace(projectId: string, notes: ScratchNote[]): Promise<void> {
-    const path = this.file(projectId);
-    await mkdir(dirname(path), { recursive: true, mode: 0o755 });
-    await atomicWriteJson(path, notes, 0o600);
+    const parsed = notes.map((note) => scratchNoteSchema.parse(note));
+    const current = await this.storage.canonicalStore.readDocument(
+      "scratch_notes",
+      projectId,
+      "notes",
+    );
+    await this.storage.canonicalStore.writeDocument({
+      namespace: "scratch_notes",
+      scopeId: projectId,
+      documentId: "notes",
+      data: parsed,
+      expectedRevision: current?.revision ?? 0,
+    });
   }
 }

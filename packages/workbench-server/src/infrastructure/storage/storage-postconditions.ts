@@ -3,10 +3,39 @@ import { join } from "node:path";
 import { readLedger, validateLedger } from "../migrations/ledger.js";
 import { storageMigrationRegistry } from "../migrations/registry.js";
 import { withMigrationDatabase } from "../migrations/sqlite.js";
+import { decode } from "../canonical-store/payload-codecs.js";
 import { pathExists, readJsonFile } from "./json.js";
 import type { StoragePaths } from "./paths.js";
 
 export async function assertCurrentStorage(paths: StoragePaths): Promise<void> {
+  if (await pathExists(paths.sqlitePath)) {
+    const canonical = withMigrationDatabase(paths.sqlitePath, (database) => {
+      const table = database
+        .prepare(
+          `SELECT 1 AS present FROM sqlite_master
+           WHERE type = 'table' AND name = 'schema_migrations'`,
+        )
+        .get();
+      if (!table) return false;
+      const settings = database
+        .prepare(`SELECT data FROM settings_store WHERE id = 'settings'`)
+        .get() as { data?: Uint8Array | string } | undefined;
+      if (!settings?.data)
+        throw new Error("Canonical settings are missing after migrations.");
+      settingsSchema.parse(decode(settings.data));
+      const foreignKeys = database.prepare("PRAGMA foreign_key_check").all();
+      if (foreignKeys.length > 0)
+        throw new Error("SQLite foreign_key_check failed after migrations.");
+      const result = database.prepare("PRAGMA quick_check").get() as
+        | { quick_check?: unknown }
+        | undefined;
+      if (result?.quick_check !== "ok")
+        throw new Error("SQLite quick_check failed after migrations.");
+      return true;
+    });
+    if (canonical) return;
+  }
+
   const raw = await readJsonFile<unknown>(paths.configPath);
   const parsed = settingsSchema.safeParse(raw);
   if (!parsed.success) {

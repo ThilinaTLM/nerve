@@ -16,6 +16,7 @@ export type HistoryEntryView = {
   argsText: string;
   resultText: string;
   errorText: string;
+  timingText: string;
   detailPreview: string;
 };
 
@@ -56,9 +57,17 @@ function meaningfulValue(value: unknown): boolean {
 export function buildHistoryEntryView(
   entry: ConversationEntry,
   toolCallsById: Map<string, ToolCallTranscriptRecord>,
+  pairedResultEntry?: ConversationEntry,
 ): HistoryEntryView {
-  const descriptor = classifyHistoryEntry(entry, toolCallsById);
-  const record = resolveToolCallForEntry(entry, toolCallsById);
+  const descriptor = classifyHistoryEntry(
+    pairedResultEntry ?? entry,
+    toolCallsById,
+  );
+  const record =
+    resolveToolCallForEntry(entry, toolCallsById) ??
+    (pairedResultEntry
+      ? resolveToolCallForEntry(pairedResultEntry, toolCallsById)
+      : undefined);
   const thinkingText = (asThinkingBlocks(entry) ?? [])
     .map((block) => block?.text ?? "")
     .filter(Boolean)
@@ -75,18 +84,30 @@ export function buildHistoryEntryView(
   const argsText = meaningfulValue(record?.argsPreview)
     ? formatHistoryValue(record?.argsPreview)
     : "";
-  const resultValue =
-    entry.role === "system" && entry.text ? entry.text : record?.resultPreview;
+  const resultEntry =
+    pairedResultEntry ?? (entry.role === "system" ? entry : undefined);
+  const resultValue = resultEntry?.text || record?.resultPreview;
   const resultText = meaningfulValue(resultValue)
     ? formatHistoryValue(resultValue)
     : "";
   const errorText = record?.error ?? "";
+  const elapsedMs = record?.settledAt
+    ? Date.parse(record.settledAt) - Date.parse(record.createdAt)
+    : undefined;
+  const timingText =
+    elapsedMs !== undefined && Number.isFinite(elapsedMs) && elapsedMs >= 0
+      ? elapsedMs < 1_000
+        ? `${elapsedMs} ms`
+        : `${(elapsedMs / 1_000).toFixed(elapsedMs < 10_000 ? 1 : 0)} s`
+      : "";
 
   const detailText = isToolEntry
     ? errorText
       ? `Error\n${errorText}`
-      : entry.role === "system" && resultText
-        ? `Result\n${resultText}`
+      : resultEntry && resultText
+        ? argsText
+          ? `Arguments\n${argsText}\n\nResult\n${resultText}`
+          : `Result\n${resultText}`
         : argsText
           ? `Arguments\n${argsText}`
           : resultText
@@ -104,6 +125,7 @@ export function buildHistoryEntryView(
     argsText,
     resultText,
     errorText,
+    timingText,
     detailPreview: boundedHistoryExcerpt(detailText),
   };
 }

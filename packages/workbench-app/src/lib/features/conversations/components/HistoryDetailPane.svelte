@@ -41,7 +41,13 @@ const entry = $derived(
   selection?.kind === "entry" ? selection.row.node.entry : undefined,
 );
 const view = $derived(
-  entry ? buildHistoryEntryView(entry, toolCallsById) : undefined,
+  entry && selection?.kind === "entry"
+    ? buildHistoryEntryView(
+        entry,
+        toolCallsById,
+        selection.row.pairedResultEntry,
+      )
+    : undefined,
 );
 const desc = $derived(view?.descriptor);
 const record = $derived(view?.record);
@@ -120,6 +126,7 @@ async function copyId(id: string) {
         {@const stepDesc = buildHistoryEntryView(
           row.node.entry,
           toolCallsById,
+          row.pairedResultEntry,
         ).descriptor}
         {@const StepIcon = HISTORY_ICONS[stepDesc.icon]}
         <button
@@ -220,6 +227,7 @@ async function copyId(id: string) {
                   class="rounded-full border px-1.5 py-0.5"
                   >{record.status}</span
                 >{/if}
+              {#if view.timingText}<span>{view.timingText}</span>{/if}
             </div>
           {/if}
           {#if view.argsText}

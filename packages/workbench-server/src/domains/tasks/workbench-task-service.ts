@@ -16,7 +16,7 @@ import {
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { IndexStore } from "../../infrastructure/index-store/index.js";
+import type { RuntimeProjectionStore } from "../../infrastructure/runtime-projection-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import {
   isActiveTaskStatus,
@@ -111,7 +111,7 @@ export class WorkbenchTaskService extends TaskService {
   constructor(
     readonly storage: InitializedStorage,
     readonly events: StreamLogRegistry,
-    readonly index: IndexStore,
+    readonly index: RuntimeProjectionStore,
     readonly logger?: ApplicationLogger,
     options: WorkbenchTaskServiceOptions = {},
   ) {

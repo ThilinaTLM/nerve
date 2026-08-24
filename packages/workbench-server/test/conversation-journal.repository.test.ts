@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -94,32 +95,108 @@ test("conversation entry appends are first-write-wins by id", async (t) => {
   assert.deepEqual(state.entries, [original]);
 });
 
-test("conversation journal truncates a non-terminated final append", async (t) => {
-  const home = await mkdtemp(join(tmpdir(), "nerve-journal-torn-"));
+test("conversation commits materialize typed records and durable events", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-record-materialize-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const repository = new ConversationJournalRepository({ paths: { home } });
   await repository.commit(conversationId, {
-    kind: "conversation.created",
+    kind: "conversation.entry_appended",
     committedAt: now,
     events: [
       {
-        kind: "conversation.upserted",
+        kind: "conversation.entry_appended",
         conversationId,
-        conversation: conversation("Durable"),
+        entry: {
+          id: "entry_materialized",
+          conversationId,
+          role: "user",
+          text: "Durable",
+          createdAt: now,
+        },
       },
     ],
   });
-  const path = repository.journalPath(conversationId);
-  await appendFile(path, '{"epoch":1,"conversationId":"conv_journal_test"');
-
-  const replayed = await new ConversationJournalRepository({
-    paths: { home },
-  }).load(conversationId);
-  assert.equal(replayed.revision, 1);
-  assert.equal((await readFile(path, "utf8")).endsWith("\n"), true);
+  const database = new DatabaseSync(join(home, "state.sqlite"));
+  t.after(() => database.close());
+  const record = database
+    .prepare(
+      `SELECT kind, sequence, revision FROM conversation_records WHERE id = ?`,
+    )
+    .get("entry_materialized") as Record<string, unknown>;
+  assert.deepEqual(
+    { ...record },
+    {
+      kind: "message",
+      sequence: 1,
+      revision: 1,
+    },
+  );
+  const event = database
+    .prepare(`SELECT event_type FROM durable_events WHERE conversation_id = ?`)
+    .get(conversationId) as { event_type: string };
+  assert.equal(event.event_type, "conversation.entry_appended");
 });
 
-test("conversation journal fails closed on durable corruption and bad references", async (t) => {
+test("hot journal commits update only affected materialized records", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-record-incremental-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const repository = new ConversationJournalRepository({ paths: { home } });
+  const entry = (id: string, text: string): ConversationEntry => ({
+    id,
+    conversationId,
+    role: "user",
+    text,
+    createdAt: now,
+  });
+  await repository.commit(conversationId, {
+    kind: "conversation.entry_appended",
+    events: [
+      {
+        kind: "conversation.entry_appended",
+        conversationId,
+        entry: entry("entry_preserved", "First"),
+      },
+    ],
+  });
+
+  const database = new DatabaseSync(join(home, "state.sqlite"));
+  t.after(() => database.close());
+  database.exec(`
+    CREATE TABLE record_delete_audit (id TEXT NOT NULL) STRICT;
+    CREATE TRIGGER audit_conversation_record_delete
+    AFTER DELETE ON conversation_records
+    BEGIN
+      INSERT INTO record_delete_audit (id) VALUES (OLD.id);
+    END;
+  `);
+
+  await repository.commit(conversationId, {
+    kind: "conversation.entry_appended",
+    events: [
+      {
+        kind: "conversation.entry_appended",
+        conversationId,
+        entry: entry("entry_added", "Second"),
+      },
+    ],
+  });
+
+  const audit = database
+    .prepare(`SELECT COUNT(*) AS count FROM record_delete_audit`)
+    .get() as { count: number };
+  assert.equal(audit.count, 0);
+  const records = database
+    .prepare(
+      `SELECT id FROM conversation_records WHERE conversation_id = ? ORDER BY sequence`,
+    )
+    .all(conversationId) as Array<{ id: string }>;
+  assert.deepEqual(
+    records.map((record) => record.id),
+    ["entry_preserved", "entry_added"],
+  );
+});
+
+test("conversation storage fails closed on malformed canonical state and bad references", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-journal-corrupt-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const repository = new ConversationJournalRepository({ paths: { home } });
@@ -147,10 +224,16 @@ test("conversation journal fails closed on durable corruption and bad references
       },
     ],
   });
-  const path = repository.journalPath(conversationId);
-  await writeFile(path, `${await readFile(path, "utf8")}{bad-json}\n`);
+  const database = new DatabaseSync(join(home, "state.sqlite"));
+  database
+    .prepare(
+      `UPDATE domain_documents SET data = ?
+       WHERE namespace = 'conversation_state' AND scope_id = ?`,
+    )
+    .run(Buffer.from("{bad-json"), conversationId);
+  database.close();
   await assert.rejects(
     new ConversationJournalRepository({ paths: { home } }).load(conversationId),
-    /corrupt at line 2/,
+    /JSON/,
   );
 });

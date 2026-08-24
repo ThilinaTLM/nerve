@@ -1,4 +1,5 @@
-import { existsSync, renameSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
+import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type {
   AgentRecord,
@@ -57,13 +58,14 @@ export interface IndexReplacementToken {
   readonly backupPath: string;
 }
 
-export class IndexStore {
+export class RuntimeProjectionStore {
   private db: DatabaseSync;
   private healthy = true;
   private updatesDeferred = false;
   private toolCallPreviewSchemaReady = false;
 
   constructor(readonly path: string) {
+    mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.recoverReplacementFiles();
     this.db = new DatabaseSync(path);
   }

@@ -193,14 +193,16 @@ export function buildHistoryFlow({
   const visibleNodeIdByEntryId = new Map<string, string>();
   for (const item of visible.items) {
     if (item.type === "entry") {
-      visibleNodeIdByEntryId.set(
-        item.row.node.entry.id,
-        historyEntryNodeId(item.row.node.entry.id),
-      );
+      const nodeId = historyEntryNodeId(item.row.node.entry.id);
+      for (const id of item.row.underlyingEntryIds) {
+        visibleNodeIdByEntryId.set(id, nodeId);
+      }
     } else {
       const nodeId = historySegmentNodeId(item.segment.id);
       for (const row of item.segment.rows) {
-        visibleNodeIdByEntryId.set(row.node.entry.id, nodeId);
+        for (const id of row.underlyingEntryIds) {
+          visibleNodeIdByEntryId.set(id, nodeId);
+        }
       }
     }
   }

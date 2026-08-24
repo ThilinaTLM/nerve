@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { resolveToolPath } from "@nervekit/tools";
 
 export function planDirForStorageHome(storageHome: string): string {
@@ -12,15 +12,24 @@ export async function ensurePlanDir(storageHome: string): Promise<string> {
   return dir;
 }
 
+export function isPathInsideDirectory(
+  directory: string,
+  candidatePath: string,
+): boolean {
+  const relativePath = relative(resolve(directory), resolve(candidatePath));
+  return (
+    relativePath === "" ||
+    (relativePath !== ".." &&
+      !relativePath.startsWith(`..${sep}`) &&
+      !isAbsolute(relativePath))
+  );
+}
+
 export function isPathInsidePlanDir(
   planDir: string,
   candidatePath: string,
 ): boolean {
-  const relativePath = relative(planDir, candidatePath);
-  return (
-    relativePath === "" ||
-    (!relativePath.startsWith("..") && !isAbsolute(relativePath))
-  );
+  return isPathInsideDirectory(planDir, candidatePath);
 }
 
 export function resolvePlanPath(cwd: string, input: unknown): string {

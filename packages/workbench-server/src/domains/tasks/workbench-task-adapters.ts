@@ -19,7 +19,7 @@ import type {
 } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { IndexStore } from "../../infrastructure/index-store/index.js";
+import type { RuntimeProjectionStore } from "../../infrastructure/runtime-projection-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import {
   type TaskLaunchConfigStore,
@@ -231,7 +231,7 @@ export type WorkbenchTaskAdapterOptions = {
 export function createWorkbenchTaskResources(
   storage: InitializedStorage,
   events: StreamLogRegistry,
-  index: IndexStore,
+  index: RuntimeProjectionStore,
   logger: ApplicationLogger | undefined,
   options: WorkbenchTaskAdapterOptions,
 ): WorkbenchTaskResources {

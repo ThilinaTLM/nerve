@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
-import { join } from "node:path";
 import { describe, it } from "node:test";
 import { WorkbenchTaskService } from "../src/domains/tasks/workbench-task-service.js";
 import { StreamLogRegistry } from "../src/infrastructure/events/index.js";
-import { readJsonFile } from "../src/infrastructure/storage/index.js";
 import {
   createManager,
   fakeChild,
@@ -39,9 +37,14 @@ describe("task manager launch env", () => {
       await createManager(supervisor);
 
     const task = await startFakeTask(manager, storage, env);
-    const persisted = await readJsonFile<Record<string, unknown>>(
-      join(storage.paths.home, "tasks", task.id, "task.json"),
-    );
+    const persisted = (
+      await storage.canonicalStore.readDocument<Record<string, unknown>>(
+        "task",
+        "global",
+        task.id,
+      )
+    )?.data;
+    assert.ok(persisted);
     const launchConfig = await launchConfigs.read(task.id);
 
     assert.deepEqual(spawnCalls[0]?.options.env, env);

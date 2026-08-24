@@ -5,9 +5,9 @@ import {
   type ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
 import type {
-  IndexStore,
+  RuntimeProjectionStore,
   ToolCallPreviewQuery,
-} from "../../infrastructure/index-store/index-store.js";
+} from "../../infrastructure/runtime-projection-store/runtime-projection-store.js";
 import { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import {
@@ -56,13 +56,13 @@ export class ToolCallRepository {
   };
 
   private readonly journal: ConversationJournalRepository;
-  private readonly index: IndexStore;
+  private readonly index: RuntimeProjectionStore;
 
   constructor(
     journalOrStorage:
       | ConversationJournalRepository
       | { paths: { home: string } },
-    index: IndexStore,
+    index: RuntimeProjectionStore,
   ) {
     this.journal =
       journalOrStorage instanceof ConversationJournalRepository

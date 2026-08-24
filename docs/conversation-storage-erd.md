@@ -1,21 +1,19 @@
-# Conversation storage ERD (brainstorm)
+# Conversation storage model
 
-> **Status:** Non-normative design exploration. This describes a possible replacement for the current conversation journals; it is not an implementation plan or product contract.
+> **Status:** Concise record of the agreed storage brainstorm. It is non-normative until implemented in contracts and migrations.
 
-## Direction
+## Design
 
-Use one canonical SQLite database for all projects, conversations, agents, entries, runs, and tool calls. Current state is directly queryable. A bounded outbox supports reliable event delivery, but the outbox is not the canonical state and is not an indefinitely retained event-sourcing journal.
+Use one canonical SQLite database. A conversation is a stable container; everything durable that happens within it is a typed conversation record.
 
-The design aims to:
+This keeps the storage model small:
 
-- store each piece of authoritative data once;
-- use one conversation/model-context entry tree rather than separate display and model copies;
-- store all tool arguments and results through one transactional payload abstraction, regardless of size;
-- represent approvals, user questions, and plan review with one interaction model;
-- preserve branching, sub-agent isolation, retries, recovery checkpoints, and reliable event delivery;
-- keep frequently queried fields relational while allowing JSON at genuinely extensible boundaries.
+- `CONVERSATION` stores stable metadata.
+- `AGENT` stores parent/sub-agent identity, configuration, and active context leaf.
+- `CONVERSATION_RECORD` stores messages, summaries, runs, tool calls, and optional tool batches through one versioned payload abstraction.
+- `DURABLE_EVENT` provides ordered, reliable UI notification without being the canonical state.
 
-## Entity relationship diagram
+## ERD
 
 ```mermaid
 erDiagram
@@ -23,28 +21,12 @@ erDiagram
     CONVERSATION ||--o{ AGENT : owns
     AGENT o|--o{ AGENT : parent_of
 
-    CONVERSATION ||--o{ ENTRY : contains
-    AGENT ||--o{ ENTRY : owns_context
-    ENTRY o|--o{ ENTRY : parent_of
-    ENTRY ||--o{ ENTRY_BLOCK : contains
+    CONVERSATION ||--o{ CONVERSATION_RECORD : contains
+    AGENT o|--o{ CONVERSATION_RECORD : owns
+    CONVERSATION_RECORD o|--o{ CONVERSATION_RECORD : parent_of
 
-    CONVERSATION ||--o{ RUN : contains
-    AGENT ||--o{ RUN : executes
-    RUN ||--o{ RUN_ATTEMPT : attempts
-    RUN_ATTEMPT ||--o{ CHECKPOINT : creates
-
-    CONVERSATION ||--o{ RUN_PROMPT : queues
-    AGENT ||--o{ RUN_PROMPT : receives
-    RUN o|--o{ RUN_PROMPT : assigned_to
-
-    RUN ||--o{ TOOL_CALL : invokes
-    TOOL_CALL ||--|{ TOOL_PAYLOAD : has
-    TOOL_CALL ||--o{ TOOL_INTERACTION : requests
-    TOOL_CALL o|--o{ ENTRY_BLOCK : referenced_by
-    CHECKPOINT o|--o{ TOOL_INTERACTION : resumes_from
-
-    CONVERSATION ||--o{ OUTBOX_EVENT : publishes
-    RUN o|--o{ OUTBOX_EVENT : produces
+    CONVERSATION ||--o{ DURABLE_EVENT : publishes
+    CONVERSATION_RECORD o|--o{ DURABLE_EVENT : changed_as
 
     PROJECT {
         text id PK
@@ -59,11 +41,9 @@ erDiagram
         text project_id FK
         text active_agent_id FK
         text title
-        text default_mode
-        text default_permission_level
+        json settings
         integer pinned
         integer completed_at_ms
-        integer last_user_message_at_ms
         integer created_at_ms
         integer updated_at_ms
     }
@@ -72,201 +52,191 @@ erDiagram
         text id PK
         text conversation_id FK
         text parent_agent_id FK
-        text root_agent_id FK
-        text active_entry_id FK
-        text mode
-        text permission_level
+        text active_record_id FK
         text status
-        text model_provider
-        text model_id
-        text thinking_level
-        json configuration_json
+        json configuration
         integer created_at_ms
         integer updated_at_ms
     }
 
-    ENTRY {
+    CONVERSATION_RECORD {
         text id PK
         text conversation_id FK
         text agent_id FK
-        text parent_entry_id FK
-        text run_id FK
-        text role
-        text kind
-        integer visible_in_transcript
-        integer include_in_model_context
-        integer input_tokens
-        integer output_tokens
-        integer cache_read_tokens
-        integer cache_write_tokens
-        integer cost_microusd
-        json metadata_json
-        integer created_at_ms
-    }
-
-    ENTRY_BLOCK {
-        integer id PK
-        text entry_id FK
-        integer ordinal
-        text kind
-        text tool_call_id FK
-        text text_content
-        text mime_type
-        blob data
-    }
-
-    RUN {
-        text id PK
-        text conversation_id FK
-        text agent_id FK
+        text parent_id FK
+        text run_id
+        text group_id
+        integer sequence
         integer revision
-        text status
-        text recoverability
-        text active_attempt_id FK
-        text failure_code
-        text failure_message
-        integer failure_retryable
-        integer failure_continuable
-        integer created_at_ms
-        integer updated_at_ms
-        integer terminal_at_ms
-    }
-
-    RUN_ATTEMPT {
-        text id PK
-        text run_id FK
-        integer ordinal
-        text status
-        text provider_boundary
-        text failure_code
-        text failure_message
-        integer started_at_ms
-        integer completed_at_ms
-    }
-
-    RUN_PROMPT {
-        text id PK
-        text conversation_id FK
-        text agent_id FK
-        text run_id FK
-        integer ordinal
-        text behavior
-        text status
-        json content_json
-        integer delivery_attempts
-        integer created_at_ms
-        integer updated_at_ms
-    }
-
-    CHECKPOINT {
-        text id PK
-        text run_attempt_id FK
-        text parent_checkpoint_id FK
-        text boundary
-        text active_entry_id FK
-        integer schema_version
-        blob recovery_state
-        text checksum
-        integer created_at_ms
-    }
-
-    TOOL_CALL {
-        text id PK
-        text run_id FK
-        text agent_id FK
-        text tool_name
-        text tool_group
-        text execution_kind
-        text status
-        text risk
-        integer revision
-        integer attempt
-        text cwd
-        json args_preview_json
-        json result_preview_json
-        text error_code
-        text error_message
-        integer error_retryable
-        integer hidden
-        integer created_at_ms
-        integer updated_at_ms
-        integer settled_at_ms
-    }
-
-    TOOL_PAYLOAD {
-        text tool_call_id PK,FK
-        text kind PK
-        text encoding
-        blob data
-        text digest
-        integer byte_length
-    }
-
-    TOOL_INTERACTION {
-        text id PK
-        text tool_call_id FK
-        text checkpoint_id FK
-        text batch_id
-        integer ordinal
         text kind
         text status
-        json request_json
-        json resolution_json
-        text resolution_request_id
-        integer requested_at_ms
+        blob data
+        integer created_at_ms
         integer updated_at_ms
-        integer resolved_at_ms
-        integer cancelled_at_ms
     }
 
-    OUTBOX_EVENT {
+    DURABLE_EVENT {
         integer sequence PK
         text conversation_id FK
-        text run_id FK
+        text record_id FK
+        integer record_revision
         text event_type
-        json payload_json
+        json data
         integer occurred_at_ms
-        integer delivery_attempts
-        integer delivered_at_ms
-        text last_error
     }
 ```
 
-## Entity responsibilities
+`data` is a discriminated, versioned payload validated by the shared contracts and storage package. Frequently queried envelope fields remain relational and indexed. SQLite handles every payload through the same abstraction regardless of size; there is no tool-result file threshold.
 
-### Conversation entries
+## Record kinds
 
-`ENTRY` is the canonical conversation and model-context tree. `parent_entry_id` provides branching, while `agent_id` gives each parent or sub-agent an isolated context. The agent's `active_entry_id` identifies its current leaf.
+```text
+RecordKind
+  message | summary | run | tool_call | tool_batch
+```
 
-`visible_in_transcript` and `include_in_model_context` are independent because visibility and model inclusion are orthogonal. This supports ordinary messages, UI-only notices, model-only context, and private sub-agent context without copying content.
+- `message` contains its role, ordered content blocks, model-context visibility, usage, and queued/delivered state when applicable.
+- `summary` represents conversation compaction or a branch summary.
+- `run` contains current execution state, retry count, failure, and latest recovery checkpoint. Attempts and checkpoints do not require separate tables unless they become independently queried product data.
+- `tool_call` contains arguments, result, supervision decision, execution state, human interaction, errors, and execution identity.
+- `tool_batch` is optional and is used only when a batch has its own lifecycle or one batch-wide supervision decision. Otherwise `group_id` is sufficient.
 
-`ENTRY_BLOCK` preserves ordered structured content. Text, thinking, images, tool invocations, and tool results are blocks of the same entry. Tool blocks reference canonical `TOOL_CALL` rows rather than embedding another tool record.
+`parent_id` forms the conversation/context tree. Each agent's `active_record_id` identifies its active branch leaf. Conversation metadata remains separate so it is not repeated on every record.
 
-### Runs and recovery
+## Tool-call lifecycle
 
-`RUN` contains the latest durable run state. `RUN_ATTEMPT` records each execution or retry without repeatedly serializing a cumulative run snapshot.
+Supervision is a gate between drafting and execution. Human-in-the-loop interaction occurs during execution.
 
-`CHECKPOINT` contains a versioned, checksummed recovery payload at a defined provider boundary. Recovery checkpoints should have a bounded retention policy; they are not permanent audit history.
+```mermaid
+stateDiagram-v2
+    [*] --> Drafting
+    Drafting --> Drafted: arguments finalized
 
-`RUN_PROMPT` owns queued, steered, and follow-up prompts. A prompt may exist before assignment to a run, so `run_id` is nullable.
+    Drafted --> Executing: automatically approved
+    Drafted --> AwaitingApproval: user approval required
+    AwaitingApproval --> Executing: approved
+    AwaitingApproval --> Denied: denied
 
-### Tool calls and interactions
+    Executing --> WaitingForInput: execution requests input
+    WaitingForInput --> Executing: input committed
 
-`TOOL_CALL` contains lifecycle and queryable metadata. `tool_name` is an open string so adding a tool does not require a database migration. Group, execution kind, and risk are recorded as the values effective when the call was created.
+    Executing --> Completed
+    Executing --> Failed
+    Executing --> Cancelled
+    Executing --> Interrupted
 
-`TOOL_PAYLOAD` is the uniform storage path for every tool argument and result. `(tool_call_id, kind)` is the composite primary key. Arguments exist from creation; results are added when available. Small and large payloads have identical transactional behavior, with no filesystem threshold or artifact marker.
+    Denied --> [*]
+    Completed --> [*]
+    Failed --> [*]
+    Cancelled --> [*]
+    Interrupted --> [*]
+```
 
-`TOOL_INTERACTION` is the sole canonical model for approval, user input, and plan review. Kind-specific request and resolution objects are discriminated JSON contracts. `batch_id` groups interactions when the UI resolves several together; no separate suspension copy is required. A run is suspended when it has pending interactions and resumes from the referenced checkpoint.
+`AwaitingApproval` is represented by `phase = drafted` with pending supervision. `WaitingForInput` is represented by `phase = executing` with a pending execution interaction.
 
-### Outbox
+### Tool enums
 
-`OUTBOX_EVENT` provides atomic event publication: state changes and their outward-facing events are inserted in the same transaction. Delivered rows can be pruned after the required reconnect/replay window. Domain state never has to be reconstructed from this table.
+```text
+ToolPhase
+  drafting | drafted | executing | completed | failed | denied | cancelled | interrupted
 
-## Enum catalogue
+SupervisionStatus
+  pending | approved | denied
 
-SQLite has no native enum type. Closed enums are stored as readable `TEXT` with `CHECK` constraints. Integer ordinals are avoided because they are difficult to inspect and evolve.
+SupervisionDecisionSource
+  automatic | user | policy
 
-### Conversation and agent
+ExecutionStatus
+  running | waiting_for_input
+
+ExecutionInteractionStatus
+  pending | resolved | cancelled
+
+ExecutionInteractionKind
+  user_input | plan_review
+
+ToolExecutionKind
+  local | host
+
+ToolRisk
+  read | workspace_write | command | network | secret | destructive
+  agent_spawn | deployment | interaction
+```
+
+`tool_name`, model IDs, providers, and event types remain open strings so new implementations do not require database enum migrations.
+
+### Durable transition rules
+
+1. Finalized arguments are committed before supervision begins.
+2. Approval or denial is committed before any side effect starts.
+3. The executor revision-checks and commits `drafted -> executing` before claiming the tool.
+4. A human-input request is committed as `executing/waiting_for_input` before showing an actionable UI.
+5. The answer is committed before execution resumes or completes.
+6. Completion, failure, cancellation, denial, and interruption are durable terminal states.
+
+Waiting states restore exactly after restart. A running external process is reattached only when a durable host/task handle supports it; otherwise it becomes `interrupted` and is never blindly rerun after an ambiguous crash.
+
+## Parallel tool calls
+
+Parallel calls are independent `tool_call` records sharing `run_id` and `group_id`. At the same time, one call may be awaiting supervision, another executing, another waiting for human input, and another completed.
+
+The aggregate run state is derived as follows:
+
+- if any call is executable or executing, the run remains active;
+- if none can run and one or more calls await approval/input, the run is waiting;
+- once all calls are terminal, the run may continue to the next model step.
+
+Whether unsupervised siblings execute while another call awaits approval is a scheduling policy, not a storage limitation. Multiple individual approvals can be resolved atomically; a `tool_batch` record is reserved for genuinely batch-wide decisions.
+
+## Durable and transient events
+
+```mermaid
+flowchart LR
+    Runtime[Model / tool runtime]
+    Storage[(SQLite records)]
+    Durable[Durable event stream]
+    Live[Transient live stream]
+    UI[UI projection]
+
+    Runtime -->|transactional state change| Storage
+    Storage -->|ordered event after commit| Durable
+    Durable --> UI
+    Runtime -->|content, argument, output, progress deltas| Live
+    Live --> UI
+    UI -->|reload or reconnect| Storage
+```
+
+### Durable events
+
+Durable events are inserted in the same transaction as their record change. They carry the record ID and revision and support reconnect sequencing. They are notification history, not canonical state, and may be pruned after the supported replay window.
+
+Examples:
+
+```text
+tool.drafted | tool.approval_requested | tool.approved | tool.denied
+tool.started | tool.input_requested | tool.input_resolved | tool.completed
+run.waiting | run.completed | compaction.completed
+```
+
+### Transient events
+
+Transient events are sent over the live protocol and are not stored:
+
+```text
+message.content.delta | message.thinking.delta
+tool.arguments.delta | tool.output.delta
+compaction.summary.delta
+```
+
+They carry `conversation_id`, `run_id`, `record_id` or `draft_id`, stream kind, and a monotonic stream sequence. The UI overlays them on durable records and removes the overlay when final durable state arrives. A terminated provider stream resumes from the last durable boundary rather than pretending partial generation can continue.
+
+## Compaction
+
+Compaction writes one `summary` record containing the generated summary, covered record range, first retained record, and token information. Original records remain available for history and branching; model-context construction replaces only the compacted prefix.
+
+Summary generation progress is transient. On success, one transaction inserts the summary, advances the agent's active leaf/context metadata, and emits `compaction.completed`.
+
+## Other enums
 
 ```text
 Mode
@@ -277,182 +247,57 @@ PermissionLevel
 
 AgentStatus
   idle | running | awaiting_user | aborted | error
-```
 
-Conversation completion is represented by nullable `completed_at_ms`, and pinning is an independent boolean. A conversation status enum would duplicate those fields.
-
-### Entries
-
-```text
-EntryRole
+MessageRole
   user | assistant | system | tool
 
-EntryKind
-  message | compaction | branch_summary | explore_report
-
-EntryBlockKind
+MessageBlockKind
   text | thinking | image | tool_call | tool_result
-```
 
-Run status and task activity are projected from their canonical tables rather than copied into entries.
-
-### Runs and recovery
-
-```text
 RunStatus
-  starting
-  running
-  retrying
-  waiting
-  suspended
-  cancellation_requested
-  cancellation_failed
-  interrupted
-  completed
-  failed
-  cancelled
+  starting | running | retrying | waiting | cancelling
+  completed | failed | cancelled | interrupted
 
 RunRecoverability
-  not_needed | checkpoint | retryable | manual | none
-
-RunAttemptStatus
-  starting | streaming | waiting | completed | failed | cancelled | superseded
-
-CheckpointBoundary
-  before_provider_request
-  after_provider_response
-  after_tool_result
-  suspension
-
-PromptBehavior
-  steer | follow-up
-
-PromptStatus
-  queued | accepted | delivered | cancelled | failed
+  checkpoint | retryable | manual | none
 ```
 
-### Tool calls
+Closed enums use readable SQLite `TEXT` with `CHECK` constraints. IDs remain prefixed text IDs, booleans use constrained integers, timestamps use Unix epoch milliseconds, and every mutable record uses an integer revision for compare-and-swap updates.
+
+## Performance approach
+
+The database stores durable boundaries, not streaming deltas. Token generation, argument drafting, command output, and compaction progress stay on the transient event path, so they do not create database writes per chunk.
+
+SQLite uses WAL mode with one short-transaction writer and concurrent readers. The storage package should own the writer queue, prepared statements, and read connections off the UI/runtime event loop. Parallel conversations and sub-agents may prepare work concurrently; SQLite serializes only their brief commits.
+
+Important practices:
+
+- commit related records and durable events in one transaction;
+- batch parallel tool-call creation and terminal updates when they share one model boundary;
+- use `synchronous = FULL` for approval-before-side-effect durability unless measurements establish another safe contract;
+- select only envelope columns for lists and decode record payloads lazily;
+- paginate conversation history and never replay or hydrate every conversation at startup;
+- keep indexes limited to actual envelope queries;
+- prune delivered durable events and superseded recovery data;
+- checkpoint WAL deliberately and use SQLite's backup API for consistent live backups;
+- measure commit latency, WAL growth, payload decode time, and UI event-loop delay before adding physical payload splitting or compression.
+
+Large and small tool payloads retain one domain abstraction. If benchmarks show write amplification from large inline payloads, the storage package may move payload bytes to an internal payload table without changing the record API or domain model.
+
+## Core indexes and invariants
 
 ```text
-ToolCallStatus
-  committed | waiting | running | completed | denied | failed | cancelled
-
-ToolExecutionKind
-  local | host
-
-ToolRisk
-  read
-  workspace_write
-  command
-  network
-  secret
-  destructive
-  agent_spawn
-  deployment
-  interaction
-
-ToolGroup
-  fileInspection
-  fileEditing
-  shell
-  python
-  web
-  vision
-  jira
-  confluence
-  input
-  todos
-  taskManagement
-  explore
-  planMode
-
-ToolPayloadKind
-  args | result
-
-ToolPayloadEncoding
-  json_utf8 | json_zstd
+conversation_records(conversation_id, sequence)
+conversation_records(conversation_id, agent_id, kind, status)
+conversation_records(parent_id)
+conversation_records(run_id, group_id, kind, status)
+durable_events(conversation_id, sequence)
 ```
 
-`tool_name`, model provider, model ID, and event type are intentionally open strings rather than enums.
-
-### Tool interactions
-
-```text
-ToolInteractionKind
-  approval | user_input | plan_review
-
-ToolInteractionStatus
-  pending | resolved | cancelled
-
-ApprovalAction
-  allow | deny
-
-ApprovalScope
-  single_call
-  same_tool_same_args
-  run
-  always
-  always_project
-  always_user
-
-UserInputAction
-  answer | dismiss
-
-PlanReviewAction
-  accept
-  accept_in_new_chat
-  request_changes
-  reject
-  discard
-```
-
-Kind-specific actions and fields are validated by the shared discriminated request/resolution contracts.
-
-## SQLite type conventions
-
-| Domain value               | SQLite representation                                                                   |
-| -------------------------- | --------------------------------------------------------------------------------------- |
-| IDs                        | `TEXT`, retaining the existing prefixed IDs such as `conv_`, `run_`, and `tool_`        |
-| Closed enums               | `TEXT NOT NULL` with `CHECK` constraints                                                |
-| Extensible discriminators  | Unconstrained `TEXT` validated at the contract boundary                                 |
-| Booleans                   | `INTEGER` constrained to `0` or `1`                                                     |
-| Timestamps                 | Unix epoch milliseconds in `INTEGER` columns; API contracts may expose ISO 8601 strings |
-| Token counts and revisions | Non-negative `INTEGER`                                                                  |
-| Cost                       | Integer micro-USD to avoid floating-point accumulation errors                           |
-| Flexible metadata          | JSON text with `json_valid(...)` constraints where supported                            |
-| Potentially large payloads | `BLOB`, with an explicit encoding and byte length                                       |
-| Digests                    | Lowercase SHA-256 text or fixed-width bytes, chosen consistently                        |
-
-The shared contracts remain the semantic source of truth. Database constraints protect durable invariants and reject corrupt writes close to storage.
-
-## Key constraints
-
-- Foreign keys are enabled and conversation-owned rows cascade on conversation deletion.
-- Entry parents must belong to the same conversation and agent context.
-- `(entry_id, ordinal)` is unique for entry blocks.
-- `(run_id, ordinal)` is unique for run attempts and assigned prompts.
-- `(tool_call_id, kind)` is unique for tool payloads.
-- `(tool_call_id, ordinal)` is unique for tool interactions.
-- Terminal runs, attempts, and tool calls require their corresponding terminal timestamp.
-- A waiting tool call has exactly one pending interaction; batch membership does not change per-call ownership.
-- Tool results and interactions reference the same canonical tool call revision where stale-resolution protection is required.
-- Outbox `sequence` is globally monotonic; `delivered_at_ms IS NULL` identifies pending delivery.
-
-## Initial index shape
-
-Indexes should follow actual query paths rather than index every field. The likely baseline is:
-
-```text
-conversations(project_id, updated_at_ms DESC)
-entries(conversation_id, agent_id, created_at_ms)
-entries(parent_entry_id)
-entry_blocks(entry_id, ordinal)
-runs(conversation_id, status, updated_at_ms DESC)
-run_attempts(run_id, ordinal)
-run_prompts(agent_id, status, created_at_ms)
-tool_calls(run_id, status, updated_at_ms DESC)
-tool_interactions(status, requested_at_ms) WHERE status = 'pending'
-outbox_events(sequence) WHERE delivered_at_ms IS NULL
-```
-
-Whether `conversation_id` should also be copied onto `TOOL_CALL` for a direct covering index is a measurement-driven denormalization decision. It is not required for correctness.
+- Record sequence is unique within a conversation.
+- Parent records belong to the same conversation and valid agent context.
+- Record updates require the expected revision.
+- Durable state and its durable event commit atomically.
+- Only durably approved calls may enter execution.
+- At most one unresolved execution interaction exists per tool call.
+- Conversation-owned records and events cascade on conversation deletion.

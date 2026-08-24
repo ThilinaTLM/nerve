@@ -1,3 +1,4 @@
+import type { ConversationTreeEntry } from "@nervekit/harness";
 import type {
   ConversationEntry,
   ConversationRecord,
@@ -31,6 +32,42 @@ export class EntryRepository {
         (candidate) => candidate.id === entry.id,
       ) ?? entry
     );
+  }
+
+  async appendCompaction(input: {
+    entry: ConversationEntry;
+    modelEntry: ConversationTreeEntry;
+    conversation: ConversationRecord;
+    agentId?: string;
+  }): Promise<void> {
+    await this.journal.commit(input.entry.conversationId, {
+      kind: "compaction.completed",
+      idempotencyKey: `compaction:${input.entry.id}`,
+      events: [
+        {
+          kind: "conversation.entry_appended",
+          conversationId: input.entry.conversationId,
+          entry: input.entry,
+        },
+        {
+          kind: "conversation.upserted",
+          conversationId: input.entry.conversationId,
+          conversation: input.conversation,
+        },
+        {
+          kind: "model_context.entry_appended",
+          conversationId: input.entry.conversationId,
+          ownerAgentId: input.agentId,
+          entry: input.modelEntry as never,
+        },
+        {
+          kind: "model_context.leaf_changed",
+          conversationId: input.entry.conversationId,
+          ownerAgentId: input.agentId,
+          entryId: input.modelEntry.id,
+        },
+      ],
+    });
   }
 
   displayLinkedEntries(entries: ConversationEntry[]): ConversationEntry[] {

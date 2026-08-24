@@ -1,12 +1,6 @@
-import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { type ProjectRecord, projectRecordSchema } from "@nervekit/contracts";
-import {
-  atomicWriteJson,
-  type InitializedStorage,
-  listChildDirs,
-  readJsonFile,
-} from "../../infrastructure/storage/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 
 export class ProjectRepository {
   constructor(private readonly storage: InitializedStorage) {}
@@ -15,29 +9,42 @@ export class ProjectRepository {
     return join(this.storage.paths.home, "projects", projectId);
   }
 
+  /** Retained only as a path helper for user-authored project sidecars. */
   projectPath(projectId: string): string {
     return join(this.projectDir(projectId), "project.json");
   }
 
   async loadAll(): Promise<ProjectRecord[]> {
-    const root = join(this.storage.paths.home, "projects");
-    const projects: ProjectRecord[] = [];
-    for (const projectId of await listChildDirs(root)) {
-      const parsed = projectRecordSchema.safeParse(
-        await readJsonFile<unknown>(this.projectPath(projectId)).catch(
-          () => undefined,
-        ),
-      );
-      if (parsed.success) projects.push(parsed.data);
-    }
-    return projects;
+    return (
+      await this.storage.canonicalStore.listDocuments<unknown>(
+        "project",
+        "global",
+      )
+    ).map((document) => projectRecordSchema.parse(document.data));
   }
 
   async write(project: ProjectRecord): Promise<void> {
-    await atomicWriteJson(this.projectPath(project.id), project, 0o600);
+    const parsed = projectRecordSchema.parse(project);
+    const current = await this.storage.canonicalStore.readDocument(
+      "project",
+      "global",
+      parsed.id,
+    );
+    await this.storage.canonicalStore.writeDocument({
+      namespace: "project",
+      scopeId: "global",
+      documentId: parsed.id,
+      data: parsed,
+      expectedRevision: current?.revision ?? 0,
+      now: parsed.updatedAt,
+    });
   }
 
   async remove(projectId: string): Promise<void> {
-    await rm(this.projectDir(projectId), { recursive: true, force: true });
+    await this.storage.canonicalStore.deleteDocument(
+      "project",
+      "global",
+      projectId,
+    );
   }
 }

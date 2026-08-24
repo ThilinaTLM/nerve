@@ -18,6 +18,26 @@ function toolCall(overrides: Partial<ToolCallRecord> = {}): ToolCallRecord {
     args: {},
     cwd: "/tmp/project",
     status: "committed",
+    phase: "drafted",
+    revision: 1,
+    attempt: 0,
+    interactions: [],
+    supervision: {
+      status: "approved",
+      source: "automatic",
+      decidedAt: "2026-01-02T03:04:05.000Z",
+      decision: {
+        version: 1,
+        decision: "allow",
+        effectiveRisk: "read",
+        reason: "test",
+        normalizedArgs: {},
+        normalizedTargets: [],
+        matchedRuleIds: [],
+        policySnapshotHash: `sha256:${"0".repeat(64)}`,
+        suggestedRules: [],
+      },
+    },
     createdAt: "2026-01-02T03:04:05.000Z",
     updatedAt: "2026-01-02T03:04:05.000Z",
     ...overrides,
@@ -40,6 +60,18 @@ function createExecutor(input: {
       return record;
     },
     publishToolCallUpdated: input.publish ?? (async () => undefined),
+    claimExecution: async (_id, expectedRevision, patch) => {
+      assert.equal(record.revision, expectedRevision);
+      record = {
+        ...record,
+        ...patch,
+        revision: record.revision + 1,
+        updatedAt: "2026-01-02T03:04:06.000Z",
+      };
+      input.onUpdate?.(record);
+      return record;
+    },
+    assertExecutionBoundary: async () => undefined,
     storageHome: input.storageHome ?? "/tmp/nerve-test",
     dispatcher: { execute: input.execute },
   } as never);
@@ -99,7 +131,6 @@ describe("ToolExecutorService structured errors", () => {
 
   it("clears stale error metadata when dispatch later succeeds", async () => {
     let record = toolCall({
-      status: "failed",
       error: "old failure",
       errorDetails: { code: "OLD", message: "old failure" },
     });
@@ -233,6 +264,26 @@ describe("ToolExecutorService structured errors", () => {
     assert.ok(result.details?.rawResultPath);
     const raw = await readFile(result.details.rawResultPath, "utf8");
     assert.match(raw, new RegExp(`"content": "${"x".repeat(100)}`));
+  });
+
+  it("CAS-claims one approved draft before dispatch", async () => {
+    let executions = 0;
+    const executor = createExecutor({
+      record: toolCall(),
+      execute: async () => {
+        executions += 1;
+        return { ok: true };
+      },
+    });
+    const outcomes = await Promise.allSettled([
+      executor.executeAllowedTool("tool_test"),
+      executor.executeAllowedTool("tool_test"),
+    ]);
+    assert.equal(
+      outcomes.filter((outcome) => outcome.status === "fulfilled").length,
+      1,
+    );
+    assert.equal(executions, 1);
   });
 
   it("keeps the completed record when lifecycle publication fails", async () => {

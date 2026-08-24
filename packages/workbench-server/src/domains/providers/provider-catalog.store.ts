@@ -6,31 +6,26 @@ import {
   type ProviderCatalog,
   providerCatalogSchema,
 } from "@nervekit/contracts";
-import {
-  atomicWriteJson,
-  pathExists,
-  readJsonFile,
-} from "../../infrastructure/storage/json.js";
+import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 
 /**
- * File-first store for user-defined providers and models, persisted to
- * `~/.nerve/providers.json`. Non-sensitive metadata only — API keys live in the
- * encrypted secret store via `AuthManager`.
+ * Canonical store for non-sensitive provider/model metadata. API keys remain
+ * in the encrypted secret store via `AuthManager`.
  */
 export class ProviderCatalogStore {
   #catalog: ProviderCatalog = defaultProviderCatalog;
   #loaded = false;
 
-  constructor(private readonly path: string) {}
+  constructor(private readonly storage: InitializedStorage) {}
 
   async load(): Promise<ProviderCatalog> {
-    if (await pathExists(this.path)) {
-      const raw = await readJsonFile<unknown>(this.path).catch(() => undefined);
-      const parsed = providerCatalogSchema.safeParse(raw ?? {});
-      this.#catalog = parsed.success ? parsed.data : defaultProviderCatalog;
-    } else {
-      this.#catalog = defaultProviderCatalog;
-    }
+    const document = await this.storage.canonicalStore.readDocument<unknown>(
+      "provider_catalog",
+      "global",
+      "catalog",
+    );
+    const parsed = providerCatalogSchema.safeParse(document?.data ?? {});
+    this.#catalog = parsed.success ? parsed.data : defaultProviderCatalog;
     this.#loaded = true;
     return this.#catalog;
   }
@@ -45,7 +40,18 @@ export class ProviderCatalogStore {
 
   private async write(next: ProviderCatalog): Promise<ProviderCatalog> {
     const validated = providerCatalogSchema.parse(next);
-    await atomicWriteJson(this.path, validated, 0o600);
+    const current = await this.storage.canonicalStore.readDocument(
+      "provider_catalog",
+      "global",
+      "catalog",
+    );
+    await this.storage.canonicalStore.writeDocument({
+      namespace: "provider_catalog",
+      scopeId: "global",
+      documentId: "catalog",
+      data: validated,
+      expectedRevision: current?.revision ?? 0,
+    });
     this.#catalog = validated;
     return validated;
   }
