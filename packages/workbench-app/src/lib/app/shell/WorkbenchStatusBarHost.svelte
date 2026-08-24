@@ -13,7 +13,10 @@ import {
   shellSheets,
   togglePanelDock,
 } from "$lib/app/shell/shell-layout.svelte";
-import { conversationSelectors } from "$lib/features/conversations";
+import {
+  conversationSelectors,
+  openConversation,
+} from "$lib/features/conversations";
 import { gitSelectors } from "$lib/features/git";
 import { taskSelectors } from "$lib/features/tasks";
 import { settingsSelectors } from "$lib/features/settings";
@@ -27,6 +30,9 @@ const live = $derived(conversationSelectors.live);
 const pendingApprovalCount = $derived(
   conversationSelectors.pendingApprovalCount,
 );
+const pendingApprovalConversationId = $derived(
+  conversationSelectors.approvals[0]?.conversationId,
+);
 const tasks = $derived(taskSelectors.scopedTasks);
 const gitStatus = $derived(gitSelectors.gitStatus);
 const subscriptionUsages = $derived(usageSelectors.subscriptionUsages);
@@ -38,6 +44,11 @@ const currentZoomLevel = $derived(
 
 const isCompact = $derived(responsive.isCompact);
 const isPhone = $derived(responsive.isPhone);
+
+function openPendingApproval(): void {
+  const conversationId = pendingApprovalConversationId;
+  if (conversationId) void openConversation(conversationId);
+}
 
 // In compact mode the dock toggles drive the overlay sheets instead of the
 // desktop collapse model; mirror the sheet state so the pressed affordance
@@ -63,6 +74,7 @@ const dockToggles = $derived<DockToggle[]>(
   {connection}
   {live}
   pendingApprovals={pendingApprovalCount}
+  onOpenPendingApproval={openPendingApproval}
   {tasks}
   {gitStatus}
   {subscriptionUsages}

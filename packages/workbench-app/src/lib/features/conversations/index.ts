@@ -34,5 +34,6 @@ export {
   navigateToEntry,
 } from "./state/run-control";
 export { restoreConversationTabs } from "./state/conversation-flow.svelte";
+export { openConversation } from "./state/tabs";
 export { refreshConversationView } from "./state/selection";
 export { registerConversationEventHandlers } from "./state/conversation-events";

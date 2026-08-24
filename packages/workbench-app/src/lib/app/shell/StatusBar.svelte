@@ -5,6 +5,7 @@ import Diff from "@lucide/svelte/icons/diff";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Terminal from "@lucide/svelte/icons/terminal";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { ShellStatusBar, type DockToggle } from "$lib/presentation/shell";
 import type { TaskRecord, ProjectRecord, StatusResponse } from "$lib/api";
 import type { SubscriptionUsageEntry } from "$lib/features/usage";
@@ -31,6 +32,7 @@ type Props = {
   connection?: string;
   live?: boolean;
   pendingApprovals?: number;
+  onOpenPendingApproval?: () => void;
   tasks?: TaskRecord[];
   gitStatus?: GitStatus;
   subscriptionUsages?: SubscriptionUsageEntry[];
@@ -47,6 +49,7 @@ let {
   connection = "connecting",
   live = false,
   pendingApprovals = 0,
+  onOpenPendingApproval,
   tasks = [],
   gitStatus,
   subscriptionUsages = [],
@@ -165,10 +168,17 @@ function gitStatusTitle(status: GitStatus): string {
         {/if}
 
         {#if pendingApprovals > 0}
-          <span class="footer-item warn" title="Pending approvals">
+          <Button
+            variant="ghost"
+            size="xs"
+            class="footer-item warn text-xs"
+            ariaLabel={`Open ${pendingApprovals === 1 ? "pending approval" : "pending approvals"}`}
+            title={`${pendingApprovals} ${pendingApprovals === 1 ? "pending approval" : "pending approvals"} · Open conversation`}
+            onclick={() => onOpenPendingApproval?.()}
+          >
             <TriangleAlert size={12} strokeWidth={2.1} aria-hidden="true" />
             <span>{pendingApprovals}</span>
-          </span>
+          </Button>
         {/if}
 
         <SubscriptionUsageChip usages={subscriptionUsages} />
