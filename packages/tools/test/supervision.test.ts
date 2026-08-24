@@ -95,6 +95,53 @@ test("external paths retain normal supervised read and write behavior", () => {
   );
 });
 
+test("unsupported bash syntax follows the configured permission level", () => {
+  const common = {
+    toolName: "bash" as const,
+    args: { command: 'gh pr create --body "$(cat file)"' },
+    mode: "coding" as const,
+    projectId: "proj_test",
+    projectDir: "/workspace",
+    cwd: "/workspace",
+    rules: [],
+    evaluatedAt: timestamp,
+  };
+
+  const supervised = evaluateToolSupervision({
+    ...common,
+    permissionLevel: "supervised",
+  });
+  assert.equal(supervised.decision, "prompt");
+  assert.equal(supervised.effectiveRisk, "command");
+  assert.deepEqual(supervised.normalizedTargets, []);
+  assert.deepEqual(supervised.suggestedRules, []);
+
+  const autonomous = evaluateToolSupervision({
+    ...common,
+    permissionLevel: "autonomous",
+  });
+  assert.equal(autonomous.decision, "allow");
+  assert.equal(autonomous.effectiveRisk, "command");
+  assert.deepEqual(autonomous.normalizedTargets, []);
+});
+
+test("malformed non-bash targets remain denied", () => {
+  const decision = evaluateToolSupervision({
+    toolName: "web_fetch",
+    args: { url: "not a url" },
+    mode: "coding",
+    permissionLevel: "autonomous",
+    projectId: "proj_test",
+    projectDir: "/workspace",
+    cwd: "/workspace",
+    rules: [],
+    evaluatedAt: timestamp,
+  });
+
+  assert.equal(decision.decision, "deny");
+  assert.equal(decision.reason, "Tool targets are missing or malformed.");
+});
+
 test("supervision applies covering deny rules before allows", () => {
   const decision = evaluate([
     rule({ id: "rule_allow", pattern: "https://evil.example/*" }),
