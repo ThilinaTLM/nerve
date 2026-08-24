@@ -4,6 +4,7 @@ import {
   type Settings,
   settingsSchema,
 } from "@nervekit/contracts";
+import { migrateLegacyPermissionValue } from "./legacy-permission-rules.js";
 import {
   migrateApplicationConfiguration,
   migrateLegacyAppearanceSettings,
@@ -112,6 +113,17 @@ function migrateRemovedNotificationTones(value: unknown): {
     : { value, changed: false };
 }
 
+function migrateLegacyPermissionSettings(value: unknown): {
+  value: unknown;
+  changed: boolean;
+} {
+  const migrated = migrateLegacyPermissionValue(value);
+  return {
+    value: migrated,
+    changed: JSON.stringify(migrated) !== JSON.stringify(value),
+  };
+}
+
 export function normalizeSettings(value: unknown): {
   settings: Settings;
   changed: boolean;
@@ -120,6 +132,7 @@ export function normalizeSettings(value: unknown): {
     migrateApplicationConfiguration,
     migrateLegacyAppearanceSettings,
     migrateLegacyToolNames,
+    migrateLegacyPermissionSettings,
     migrateImageExplanationTool,
     migrateRemovedNotificationTones,
   ];

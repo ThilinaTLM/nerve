@@ -12,6 +12,7 @@ import type {
   UpdateApplicationConfigurationRequest,
   UpdateSettingsRequest,
 } from "$lib/api";
+import { updateSettings } from "$lib/api";
 import {
   SettingsShell,
   SettingsSidebarStatus,
@@ -26,6 +27,13 @@ import ModelsPageActions from "$lib/features/settings/components/pages/models/Mo
 import ModelsSettingsPage from "$lib/features/settings/components/pages/models/ModelsSettingsPage.svelte";
 import { ModelsPageState } from "$lib/features/settings/components/pages/models/models-page-state.svelte";
 import NotificationsSettingsPage from "$lib/features/settings/components/pages/notifications/NotificationsSettingsPage.svelte";
+import PermissionsSettingsPage from "$lib/features/settings/components/pages/permissions/PermissionsSettingsPage.svelte";
+import { PermissionsPageState } from "$lib/features/settings/components/pages/permissions/permissions-page-state.svelte";
+import { listTools } from "$lib/features/tools/api/tools.api";
+import {
+  getProjectPermissions,
+  updateProjectPermissions,
+} from "$lib/features/projects/api/projects.api";
 import ProvidersSettingsPage from "$lib/features/settings/components/pages/providers/ProvidersSettingsPage.svelte";
 import ShortcutsSettingsPage from "$lib/features/settings/components/pages/shortcuts/ShortcutsSettingsPage.svelte";
 import SkillsSettingsPage from "$lib/features/settings/components/pages/skills/SkillsSettingsPage.svelte";
@@ -104,6 +112,18 @@ let {
   onColorModeChange,
   onSkillsRetry,
 }: Props = $props();
+
+const permissionsPageState = new PermissionsPageState({
+  getProject: getProjectPermissions,
+  updateProject: updateProjectPermissions,
+  updateUser: async (exceptions) => {
+    const saved = await updateSettings({ permissions: { exceptions } });
+    if (settingsDraft) {
+      settingsDraft.permissions.exceptions = saved.permissions.exceptions;
+    }
+  },
+  listTools,
+});
 
 /** Skills sections mirror the sources that actually have skills. */
 const skillSections = $derived(
@@ -213,6 +233,13 @@ function statusText(): string {
           {settingsDraft}
           {models}
           {authProviders}
+          {onSettingsChange}
+        />
+      {:else if page.id === "permissions"}
+        <PermissionsSettingsPage
+          {settingsDraft}
+          {activeProject}
+          controller={permissionsPageState}
           {onSettingsChange}
         />
       {:else if page.id === "tools"}

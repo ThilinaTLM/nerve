@@ -1,7 +1,7 @@
 import type {
   AgentMessage,
+  ConversationStorage,
   ConversationTreeEntry,
-  JsonlConversationStorage,
 } from "@nervekit/harness";
 import {
   type AgentRecord,
@@ -113,7 +113,7 @@ export class MessageMirror {
 
   async mirrorNewHarnessEntries(
     agent: AgentRecord,
-    storage: JsonlConversationStorage,
+    storage: ConversationStorage,
     knownEntryIds: Set<string>,
     metadata: {
       runId?: string;

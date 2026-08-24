@@ -2,7 +2,7 @@ import type { StatusTone } from "@nervekit/ui-kit/core/utils/status";
 import type { ConversationRecord, ProjectRecord, TaskRecord } from "$lib/api";
 import { isPathInDirectory } from "$lib/kernel/utils/path";
 import {
-  conversationLastActivityAt,
+  conversationLastUserPromptAt,
   projectFolderName,
   projectKey,
   shortProjectLabel,
@@ -41,6 +41,7 @@ export function summarizeProjectActivity(
     running: 0,
   };
   for (const conversation of conversations) {
+    if (conversation.completedAt) continue;
     const activity = activityById[conversation.id];
     if (!activity) continue;
     if (activity.needsUser) summary.needsUser += 1;
@@ -155,7 +156,7 @@ export function buildProjectSwitcherItems(input: {
       idSet.has(conversation.projectId),
     );
     const latestConversation = conversations
-      .map(conversationLastActivityAt)
+      .map(conversationLastUserPromptAt)
       .sort((a, b) => b.localeCompare(a))[0];
     const folder = projectFolderName(project.dir);
     return {

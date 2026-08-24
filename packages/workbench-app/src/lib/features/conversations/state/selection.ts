@@ -12,6 +12,7 @@ import { installEventCursors } from "$lib/application/event-routing/stream-curso
 import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { stoppingAfterConversationSnapshot } from "$lib/features/conversations/state/conversation-terminal-state";
+import { KeyedSingleFlight } from "$lib/features/conversations/state/keyed-single-flight";
 import {
   replaceOpenCenterTabs,
   setActiveCenterTab,
@@ -68,50 +69,50 @@ export async function applyActiveConversationSelection(
     override?.permissionLevel ??
     conversationAgent?.permissionLevel ??
     conversation.permissionLevel;
-  conversationState.selectedApprovalPolicy =
-    override?.approvalPolicy ??
-    conversationAgent?.approvalPolicy ??
-    conversation.approvalPolicy;
 }
 
-export async function refreshConversationView(conversationId: string) {
-  const view = ensureConversationView(conversationId);
-  view.loading = true;
-  try {
-    const response = await getConversationSnapshotWithCursor(conversationId);
-    const snapshot = response.snapshot;
-    // Canonical state comes straight from the shared snapshot ingestion
-    // (which drains already-materialized active-run messages).
-    const canonical = fromConversationSnapshot(snapshot);
-    const previousRunId = view.activeRun?.runId;
-    view.activeEntryId = snapshot.tree.activeEntryId;
-    view.activeEntryIds = canonical.activeEntryIds;
-    view.entries = canonical.entries;
-    view.toolCalls = canonical.toolCalls;
-    view.treeNodes = snapshot.tree.nodes;
-    view.activeRun = canonical.activeRun;
-    view.transient = undefined;
-    view.optimisticMessages = [];
-    view.queuedPrompts = canonical.queuedPrompts ?? [];
-    view.contextUsage = canonical.contextUsage;
-    view.cursorSeq = canonical.cursorSeq;
-    view.stopping = stoppingAfterConversationSnapshot(
-      view.stopping,
-      previousRunId,
-      canonical.activeRun?.runId,
-    );
-    workspaceState.conversations = workspaceState.conversations.map(
-      (candidate) =>
-        candidate.id === conversationId ? snapshot.conversation : candidate,
-    );
-    view.sending = canonical.sending ?? false;
-    installEventCursors(response.cursor.streams);
-    if (selection.conversationId === conversationId) {
-      selection.entryId = snapshot.tree.activeEntryId;
+const conversationSnapshotRefreshes = new KeyedSingleFlight<string, void>();
+
+export function refreshConversationView(conversationId: string): Promise<void> {
+  return conversationSnapshotRefreshes.run(conversationId, async () => {
+    const view = ensureConversationView(conversationId);
+    view.loading = true;
+    try {
+      const response = await getConversationSnapshotWithCursor(conversationId);
+      const snapshot = response.snapshot;
+      // Canonical state comes straight from the shared snapshot ingestion
+      // (which drains already-materialized active-run messages).
+      const canonical = fromConversationSnapshot(snapshot);
+      const previousRunId = view.activeRun?.runId;
+      view.activeEntryId = snapshot.tree.activeEntryId;
+      view.activeEntryIds = canonical.activeEntryIds;
+      view.entries = canonical.entries;
+      view.toolCalls = canonical.toolCalls;
+      view.treeNodes = snapshot.tree.nodes;
+      view.activeRun = canonical.activeRun;
+      view.transient = undefined;
+      view.optimisticMessages = [];
+      view.queuedPrompts = canonical.queuedPrompts ?? [];
+      view.contextUsage = canonical.contextUsage;
+      view.cursorSeq = canonical.cursorSeq;
+      view.stopping = stoppingAfterConversationSnapshot(
+        view.stopping,
+        previousRunId,
+        canonical.activeRun?.runId,
+      );
+      workspaceState.conversations = workspaceState.conversations.map(
+        (candidate) =>
+          candidate.id === conversationId ? snapshot.conversation : candidate,
+      );
+      view.sending = canonical.sending ?? false;
+      installEventCursors(response.cursor.streams);
+      if (selection.conversationId === conversationId) {
+        selection.entryId = snapshot.tree.activeEntryId;
+      }
+    } finally {
+      view.loading = false;
     }
-  } finally {
-    view.loading = false;
-  }
+  });
 }
 
 export function clearConversationState() {

@@ -337,12 +337,20 @@ export class HumanInputResolutionService {
     decision: "allow" | "deny",
     note?: string,
     resolutionRequestId?: string,
+    scope?:
+      | "single_call"
+      | "same_tool_same_args"
+      | "run"
+      | "always"
+      | "always_project"
+      | "always_user",
   ): Promise<ToolCallRecord> {
     return this.approvalBatches.resolve(
       approvalId,
       decision,
       note,
       resolutionRequestId,
+      scope,
     );
   }
 

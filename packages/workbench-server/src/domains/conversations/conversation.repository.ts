@@ -1,60 +1,35 @@
-import { rm } from "node:fs/promises";
-import { join } from "node:path";
-import {
-  type ConversationRecord,
-  conversationRecordSchema,
-} from "@nervekit/contracts";
-import {
-  atomicWriteJson,
-  type InitializedStorage,
-  listChildDirs,
-  readJsonFile,
-} from "../../infrastructure/storage/index.js";
+import { dirname } from "node:path";
+import type { ConversationRecord } from "@nervekit/contracts";
+import type { ConversationJournalRepository } from "./conversation-journal.repository.js";
 
+/** Journal-backed conversation metadata repository. */
 export class ConversationRepository {
-  constructor(private readonly storage: InitializedStorage) {}
+  constructor(readonly journal: ConversationJournalRepository) {}
 
   conversationDir(conversationId: string): string {
-    return join(this.storage.paths.home, "conversations", conversationId);
-  }
-
-  conversationPath(conversationId: string): string {
-    return join(this.conversationDir(conversationId), "conversation.json");
-  }
-
-  harnessPath(conversationId: string): string {
-    return join(this.conversationDir(conversationId), "harness.jsonl");
+    return dirname(this.journal.journalPath(conversationId));
   }
 
   async loadAll(): Promise<ConversationRecord[]> {
-    const root = join(this.storage.paths.home, "conversations");
-    const conversationIds = await listChildDirs(root);
-    const parsed = await Promise.all(
-      conversationIds.map(async (conversationId) =>
-        conversationRecordSchema.safeParse(
-          await readJsonFile<unknown>(
-            this.conversationPath(conversationId),
-          ).catch(() => undefined),
-        ),
-      ),
-    );
-    return parsed
-      .filter((result) => result.success)
-      .map((result) => result.data);
+    return (await this.journal.hydrateAll())
+      .flatMap((state) => (state.conversation ? [state.conversation] : []))
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
   }
 
   async write(conversation: ConversationRecord): Promise<void> {
-    await atomicWriteJson(
-      this.conversationPath(conversation.id),
-      conversation,
-      0o600,
-    );
+    await this.journal.commit(conversation.id, {
+      kind: "conversation.upserted",
+      events: [
+        {
+          kind: "conversation.upserted",
+          conversationId: conversation.id,
+          conversation,
+        },
+      ],
+    });
   }
 
   async remove(conversationId: string): Promise<void> {
-    await rm(this.conversationDir(conversationId), {
-      recursive: true,
-      force: true,
-    });
+    await this.journal.remove(conversationId);
   }
 }

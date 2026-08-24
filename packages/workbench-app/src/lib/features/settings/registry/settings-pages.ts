@@ -9,6 +9,7 @@ import Monitor from "@lucide/svelte/icons/monitor";
 import Mic from "@lucide/svelte/icons/mic";
 import Server from "@lucide/svelte/icons/server";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
+import Shield from "@lucide/svelte/icons/shield";
 import Wrench from "@lucide/svelte/icons/wrench";
 import type { SettingsPageDef } from "$lib/presentation/components/settings";
 
@@ -50,6 +51,18 @@ export const settingsPages: SettingsPageDef[] = [
       { id: "defaults", label: "Defaults" },
       { id: "compaction", label: "Compaction" },
       { id: "explore", label: "Explore agent" },
+    ],
+  },
+  {
+    id: "permissions",
+    label: "Permissions",
+    icon: Shield,
+    description:
+      "Choose a simple default and manage focused allow or block exceptions.",
+    sections: [
+      { id: "default-permission", label: "Default permission" },
+      { id: "project-exceptions", label: "Project Exceptions" },
+      { id: "user-exceptions", label: "User Exceptions" },
     ],
   },
   {

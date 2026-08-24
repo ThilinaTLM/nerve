@@ -27,6 +27,7 @@ import { ProjectFilesystemWatcher } from "../domains/filesystem/project-filesyst
 import { ConversationService } from "../domains/conversations/conversation-service.js";
 import { ConversationHarnessStorage } from "../domains/conversations/conversation-harness-storage.js";
 import {
+  ConversationJournalRepository,
   ConversationLifecycleService,
   ConversationQueryService,
   ConversationRepository,
@@ -70,6 +71,10 @@ import {
 import { WorkbenchTaskService } from "../domains/tasks/workbench-task-service.js";
 import { ToolService } from "../domains/tools/tool-service.js";
 import {
+  PermissionExceptionService,
+  ProjectPermissionsRepository,
+} from "../domains/permissions/index.js";
+import {
   createWorkbenchRunRuntime,
   type WorkbenchRunRuntime,
 } from "../domains/runs/run-composition.js";
@@ -104,6 +109,7 @@ export interface RuntimeServices {
   pythonRuntime: PythonRuntimeService;
   plans: PlanService;
   tools: ToolService;
+  permissionExceptions: PermissionExceptionService;
   git: GitService;
   gitRepositoryWatcher: GitRepositoryWatcher;
   projectFilesystemWatcher: ProjectFilesystemWatcher;
@@ -203,6 +209,12 @@ export function composeRuntime(
   };
 
   const projectRepository = new ProjectRepository(storage);
+  services.permissionExceptions = new PermissionExceptionService(
+    storage,
+    new ProjectPermissionsRepository(storage),
+    getProject,
+    events,
+  );
   services.taskDefinitions = new TaskDefinitionService(
     new TaskDefinitionRepository(storage),
     getProject,
@@ -215,9 +227,15 @@ export function composeRuntime(
     scratchNoteRepository,
     getProject,
   );
-  const conversationRepository = new ConversationRepository(storage);
+  const conversationJournal = new ConversationJournalRepository(storage);
+  events.setConversationRevisionResolver(
+    (conversationId) => conversationJournal.state(conversationId)?.revision,
+  );
+  const conversationRepository = new ConversationRepository(
+    conversationJournal,
+  );
   const agentRepository = new AgentRepository(storage);
-  const entryRepository = new EntryRepository(storage);
+  const entryRepository = new EntryRepository(conversationJournal);
   services.harnessStorage = new ConversationHarnessStorage(
     conversationRepository,
     getConversation,
@@ -360,6 +378,8 @@ export function composeRuntime(
     state,
     getConversationEntries: (conversationId) =>
       services.conversationLifecycle.getConversationEntries(conversationId),
+    getConversationRevision: async (conversationId) =>
+      (await conversationJournal.load(conversationId)).revision,
     getConversationTree: (conversationId) =>
       services.conversationLifecycle.getConversationTree(conversationId),
     getContextUsage: (conversationId) =>
@@ -539,6 +559,8 @@ export function composeRuntime(
       services.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
     state.conversationRuntime,
     logger.child({ component: "tool" }),
+    services.permissionExceptions,
+    conversationJournal,
   );
   services.subagentTranscriptLive = new SubagentTranscriptLiveService(events);
   services.subagentTranscripts = new SubagentTranscriptService({
@@ -576,6 +598,7 @@ export function composeRuntime(
   });
   services.runRuntime = createWorkbenchRunRuntime({
     home: storage.paths.home,
+    journal: conversationJournal,
     state,
     events,
     tools: services.tools,

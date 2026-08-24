@@ -30,6 +30,7 @@ import type {
   ToolAnchor,
 } from "../runs/runtime/conversation-runtime.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
+import type { PermissionExceptionService } from "../permissions/permission-exceptions.service.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
@@ -37,11 +38,12 @@ import type { PlanService } from "../plans/plan-service.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
 import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import {
-  evaluateToolPolicy,
+  evaluateWorkbenchToolPermission,
   TodoStateService,
   ToolCallRepository,
 } from "./index.js";
 import { InteractionSessionService } from "./interaction-session.service.js";
+import { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
 import { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
@@ -152,6 +154,20 @@ export type TaskStarter = (
   },
 ) => Promise<TaskRecord>;
 
+function durableApprovalScopes(
+  scopes: readonly string[],
+): Array<"single_call" | "always_project" | "always_user"> {
+  const mapped = scopes.map((scope) =>
+    scope === "always" ? "always_user" : scope,
+  );
+  return [...new Set(mapped)].filter(
+    (scope): scope is "single_call" | "always_project" | "always_user" =>
+      scope === "single_call" ||
+      scope === "always_project" ||
+      scope === "always_user",
+  );
+}
+
 export class ToolService {
   readonly toolCalls: Map<string, ToolCallRecord>;
   private readonly toolCallRepository: ToolCallRepository;
@@ -159,6 +175,7 @@ export class ToolService {
   private readonly interactionSessions: InteractionSessionService;
   private readonly dispatcher: OrchestrationToolDispatcher;
   private readonly executor: ToolExecutorService;
+  private readonly conversationJournal: ConversationJournalRepository;
   private readonly waiters = new Map<
     string,
     Set<(toolCall: ToolCallRecord) => void>
@@ -187,8 +204,15 @@ export class ToolService {
     ) => Promise<AgentRecord>,
     private readonly conversationRuntime: ConversationRuntime,
     private readonly logger?: ApplicationLogger,
+    private readonly permissionExceptions?: PermissionExceptionService,
+    journal?: ConversationJournalRepository,
   ) {
-    this.toolCallRepository = new ToolCallRepository(storage, index);
+    this.conversationJournal =
+      journal ?? new ConversationJournalRepository(storage);
+    this.toolCallRepository = new ToolCallRepository(
+      this.conversationJournal,
+      index,
+    );
     this.toolCalls = this.toolCallRepository.records;
     this.interactionSessions = new InteractionSessionService({
       events: this.events,
@@ -263,7 +287,7 @@ export class ToolService {
   }
 
   /** Whether the tool-call records were loaded from the persisted snapshot. */
-  get toolCallHydrationSource(): "files" {
+  get toolCallHydrationSource(): "journal" {
     return this.toolCallRepository.hydrationSource;
   }
 
@@ -285,7 +309,12 @@ export class ToolService {
     return toolCalls
       .flatMap((toolCall) =>
         toolCall.interactions.flatMap((interaction) =>
-          interaction.kind === "approval"
+          interaction.kind === "approval" &&
+          (interaction.status !== "pending" ||
+            this.conversationJournal.isActionableToolInteraction(
+              toolCall as ToolCallRecord,
+              interaction.ordinal,
+            ))
             ? [this.projectApproval(toolCall, interaction.ordinal)]
             : [],
         ),
@@ -317,6 +346,8 @@ export class ToolService {
       requestedAt: interaction.requestedAt,
       resolvedAt: interaction.resolvedAt,
       resolutionNote: interaction.resolution?.note,
+      offeredScopes: durableApprovalScopes(interaction.request.offeredScopes),
+      suggestedExceptions: interaction.request.suggestedExceptions,
     };
   }
 
@@ -328,7 +359,15 @@ export class ToolService {
     return toolCalls
       .flatMap((toolCall) =>
         toolCall.interactions.flatMap((interaction) => {
-          if (interaction.kind !== "user_input") return [];
+          if (
+            interaction.kind !== "user_input" ||
+            (interaction.status === "pending" &&
+              !this.conversationJournal.isActionableToolInteraction(
+                toolCall as ToolCallRecord,
+                interaction.ordinal,
+              ))
+          )
+            return [];
           const projected: UserQuestionRecord = {
             id: `question_${toolCall.id}_${interaction.ordinal}`,
             toolCallId: toolCall.id,
@@ -387,9 +426,18 @@ export class ToolService {
   ): Promise<ToolExecutionResponse> {
     const now = new Date().toISOString();
     const latestAgent = this.getAgent(agent.id);
-    const evaluation = evaluateToolPolicy(latestAgent, toolName, args, {
-      dataDir: this.storage.paths.home,
-    });
+    const exceptions = this.permissionExceptions
+      ? await this.permissionExceptions.effective(latestAgent.projectId)
+      : this.storage.settings.permissions.exceptions;
+    const evaluation = evaluateWorkbenchToolPermission(
+      latestAgent,
+      toolName,
+      args,
+      {
+        dataDir: this.storage.paths.home,
+        exceptions,
+      },
+    );
     const decision =
       evaluation.decision === "allow" && options.forceApproval === true
         ? "approval"
@@ -477,13 +525,34 @@ export class ToolService {
             request: {
               risk: evaluation.risk,
               reason: evaluation.reason,
-              offeredScopes: ["single_call"],
+              offeredScopes: evaluation.suggestedExceptions?.length
+                ? ["single_call", "always_project", "always_user"]
+                : ["single_call"],
+              suggestedExceptions: evaluation.suggestedExceptions ?? [],
             },
           },
         ],
       });
       const approval = this.projectApproval(pending, 0);
-      await this.emitToolCallLifecycle(pending, options);
+      try {
+        await this.emitToolCallLifecycle(pending, options);
+      } catch (error) {
+        const failedAt = new Date().toISOString();
+        const failed = await this.updateToolCall(pending.id, {
+          status: "failed",
+          error: "Approval registration failed before the run could suspend.",
+          interactions: pending.interactions.map((interaction) => ({
+            ...interaction,
+            status: "cancelled" as const,
+            updatedAt: failedAt,
+            cancelledAt: failedAt,
+          })),
+        });
+        await this.emitToolCallLifecycle(failed, options).catch(
+          () => undefined,
+        );
+        throw error;
+      }
       await this.logger?.info("Tool approval requested", {
         toolCallId: pending.id,
         agentId: pending.agentId,
@@ -669,6 +738,13 @@ export class ToolService {
     decision: "allow" | "deny",
     note?: string,
     resolutionRequestId?: string,
+    scope?:
+      | "single_call"
+      | "same_tool_same_args"
+      | "run"
+      | "always"
+      | "always_project"
+      | "always_user",
   ): Promise<ApprovalRecord> {
     const approval = this.projectApprovals().find(
       (candidate) => candidate.id === approvalId,
@@ -686,7 +762,7 @@ export class ToolService {
             updatedAt: resolvedAt,
             resolvedAt,
             resolutionRequestId,
-            resolution: { action: decision, note },
+            resolution: { action: decision, note, scope },
           }
         : interaction,
     );
@@ -847,6 +923,38 @@ export class ToolService {
     return await this.toolCallRepository.getCanonical(toolCallId);
   }
 
+  async abandonPendingInteraction(
+    toolCallId: string,
+    reason: string,
+  ): Promise<ToolCallRecord> {
+    const toolCall = await this.getToolCallDetails(toolCallId);
+    const now = new Date().toISOString();
+    if (
+      toolCall.status !== "waiting" ||
+      !toolCall.interactions.some(
+        (interaction) => interaction.status === "pending",
+      )
+    ) {
+      return toolCall;
+    }
+    const failed = await this.updateToolCall(toolCallId, {
+      status: "failed",
+      error: reason,
+      interactions: toolCall.interactions.map((interaction) =>
+        interaction.status === "pending"
+          ? {
+              ...interaction,
+              status: "cancelled" as const,
+              updatedAt: now,
+              cancelledAt: now,
+            }
+          : interaction,
+      ),
+    });
+    await this.publishToolCallUpdated(failed).catch(() => undefined);
+    return failed;
+  }
+
   private async updateToolCall(
     toolCallId: string,
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
@@ -902,8 +1010,12 @@ export class ToolService {
   private async publishToolCallUpdated(
     toolCall: ToolCallRecord,
   ): Promise<void> {
+    const conversationRevision = (
+      await this.conversationJournal.load(toolCall.conversationId)
+    ).revision;
     await this.events.publish("toolCall.updated", {
       conversationId: toolCall.conversationId,
+      conversationRevision,
       agentId: toolCall.agentId,
       projectId: toolCall.projectId,
       runId: toolCall.runId,

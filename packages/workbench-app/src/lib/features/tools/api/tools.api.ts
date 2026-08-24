@@ -1,14 +1,21 @@
 import {
   toolCallRecordSchema,
+  toolDescriptorSchema,
   type AgentRecord,
   type ConversationRecord,
   type ToolCallRecord,
+  type ToolDescriptor,
   type ToolInteractionResolution,
 } from "@nervekit/contracts";
 import { protocolRequest } from "@nervekit/protocol";
 import { interactionAddress } from "../state/tool-interaction-projections";
 import type { PlanReviewResolveOptions } from "../../../presentation/state/tool-types.js";
 export type { PlanReviewResolveOptions } from "../../../presentation/state/tool-types.js";
+
+export async function listTools(): Promise<ToolDescriptor[]> {
+  const result = (await protocolRequest("tool.list", {})).result;
+  return result.tools.map((tool) => toolDescriptorSchema.parse(tool));
+}
 
 export async function getToolCall(toolCallId: string): Promise<ToolCallRecord> {
   const result = (await protocolRequest("toolCall.get", { toolCallId })).result;

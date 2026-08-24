@@ -36,7 +36,6 @@ const queue = new AgentConfigMutationQueue({
     conversationState.selectedThinkingLevel = agent.thinkingLevel;
     conversationState.selectedMode = agent.mode;
     conversationState.selectedPermissionLevel = agent.permissionLevel;
-    conversationState.selectedApprovalPolicy = agent.approvalPolicy;
   },
   onFailed: (agentId, error) => {
     const confirmed = workspaceState.agents.find(
@@ -50,7 +49,6 @@ const queue = new AgentConfigMutationQueue({
       conversationState.selectedThinkingLevel = confirmed.thinkingLevel;
       conversationState.selectedMode = confirmed.mode;
       conversationState.selectedPermissionLevel = confirmed.permissionLevel;
-      conversationState.selectedApprovalPolicy = confirmed.approvalPolicy;
     }
     const description = error instanceof Error ? error.message : String(error);
     notify.error("Could not update agent settings", { description });

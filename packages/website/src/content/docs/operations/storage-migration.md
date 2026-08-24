@@ -9,6 +9,8 @@ sidebar:
 
 Electron's active Chromium profile is intentionally outside `NERVE_HOME`. Backing up only `~/.nerve` does not capture browser local/session storage or the active Electron profile.
 
+Nerve upgrades storage through an append-only, checksum-bound migration ledger. Settings and JSON sidecar changes use canonical JSON migrations with atomic writes, rollback scope, and post-write verification. Release tests exercise a fully migrated prior settings shape before desktop bootstrap, and focused migration tests run on both Linux and Windows.
+
 ## Inspect and clean up
 
 Settings can estimate usage and run asynchronous cleanup for old conversations/logs, crash and Node diagnostic reports, event/tool-call compaction, reports, cache/temp data, and index rebuild. Cleanup skips symlinks during directory clearing and observes cancellation between targets; it cannot interrupt every target operation once started. Cleared disposable directories are recreated only when a producer next needs them.

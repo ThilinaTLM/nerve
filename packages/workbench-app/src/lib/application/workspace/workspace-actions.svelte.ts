@@ -183,8 +183,6 @@ function syncSelectedAgentConfig(
     conversationState.selectedMode = override?.mode ?? activeAgent.mode;
     conversationState.selectedPermissionLevel =
       override?.permissionLevel ?? activeAgent.permissionLevel;
-    conversationState.selectedApprovalPolicy =
-      override?.approvalPolicy ?? activeAgent.approvalPolicy;
     return;
   }
 
@@ -197,7 +195,6 @@ function syncSelectedAgentConfig(
   conversationState.selectedMode = activeConversation.mode;
   conversationState.selectedPermissionLevel =
     activeConversation.permissionLevel;
-  conversationState.selectedApprovalPolicy = activeConversation.approvalPolicy;
 }
 
 export async function loadSlashCommands() {

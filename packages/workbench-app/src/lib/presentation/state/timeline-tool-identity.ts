@@ -19,6 +19,32 @@ export function toolCallSlotKey(
     : undefined;
 }
 
+export function isLiveToolCall(toolCall: ToolCallTranscriptRecord): boolean {
+  return (
+    toolCall.status === "committed" ||
+    toolCall.status === "waiting" ||
+    toolCall.status === "running"
+  );
+}
+
+/** Deterministic creation-time ordering shared by both timeline passes. */
+export function byCreatedAtAscending(
+  a: ToolCallTranscriptRecord,
+  b: ToolCallTranscriptRecord,
+): number {
+  const cmp = a.createdAt.localeCompare(b.createdAt);
+  return cmp !== 0 ? cmp : a.id.localeCompare(b.id);
+}
+
+/**
+ * Stable timeline key for a tool record: content-slot identity when the
+ * record carries live coordinates (survives materialization), durable tool id
+ * for genuinely unanchored/non-run tools.
+ */
+export function toolTimelineKey(toolCall: ToolCallTranscriptRecord): string {
+  return toolCallSlotKey(toolCall) ?? `tool:${toolCall.id}`;
+}
+
 /**
  * Tracks rendered logical calls across durable-id, slot, and same-run provider
  * identities. The latter two cover approval/resume alias records.

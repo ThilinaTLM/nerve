@@ -1,5 +1,4 @@
 import type {
-  ApprovalPolicy,
   CompletionItem,
   ContextUsage,
   Mode,
@@ -56,7 +55,6 @@ export type ConversationComposerModel = {
   thinkingLevel: ThinkingLevel;
   mode: Mode;
   permissionLevel: PermissionLevel;
-  approvalPolicy: ApprovalPolicy;
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
   contextWindow?: number;
@@ -123,13 +121,16 @@ export type ConversationPaneActions = {
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onModeChange?: (value: Mode) => void;
   onPermissionChange?: (value: PermissionLevel) => void;
-  onApprovalPolicyChange?: (value: ApprovalPolicy) => void;
+  onOpenPermissionSettings?: () => void;
   onPasteImage?: (file: File) => Promise<string>;
   onDropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
   onOpenFile?: (path: string, line?: number) => void;
   onAnswerUserQuestion?: (id: string, answer: string) => void | Promise<void>;
   onDismissUserQuestion?: (id: string) => void | Promise<void>;
-  onGrantApproval?: (id: string) => void | Promise<void>;
+  onGrantApproval?: (
+    id: string,
+    scope?: "single_call" | "always_project" | "always_user",
+  ) => void | Promise<void>;
   onDenyApproval?: (id: string) => void | Promise<void>;
   onAcceptPlanReview?: (
     id: string,

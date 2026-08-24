@@ -22,6 +22,8 @@ import {
   joinCanonicalPath,
 } from "../src/infrastructure/migrations/canonical-path.js";
 import { migrationChecksum } from "../src/infrastructure/migrations/checksum.js";
+import { defineCanonicalJsonMigration } from "../src/infrastructure/migrations/define-json-migration.js";
+import { acquireMigrationLock } from "../src/infrastructure/migrations/lock.js";
 import { migration0004 } from "../src/infrastructure/migrations/migrations/0004-dense-event-stream-layout.js";
 import { migration0005 } from "../src/infrastructure/migrations/migrations/0005-current-project-sidecars.js";
 import { migration0006 } from "../src/infrastructure/migrations/migrations/0006-unify-tool-call-lifecycle.js";
@@ -569,6 +571,38 @@ describe("storage migration runner", () => {
     assert.match(await readFile(current, "utf8"), /records/);
   });
 
+  it("defines canonical JSON migrations with automatic backup and idempotence", async () => {
+    const root = await home();
+    await writeFile(join(root, "preferences.json"), '{"name":"Nerve"}\n');
+    const registry = [
+      defineCanonicalJsonMigration({
+        id: "0001-preferences",
+        version: 1,
+        description: "Canonicalize test preferences",
+        relativePath: "preferences.json",
+        readDefault: () => ({ name: "Nerve", enabled: false }),
+        canonicalize: (value) => {
+          const record = value as { name?: unknown; enabled?: unknown };
+          return {
+            name: typeof record.name === "string" ? record.name : "Nerve",
+            enabled:
+              typeof record.enabled === "boolean" ? record.enabled : false,
+          };
+        },
+        verify: (value) => value as { name: string; enabled: boolean },
+      }),
+    ];
+
+    const first = await runStorageMigrations(root, { registry });
+    assert.equal(first.executions[0]?.execution, "ran");
+    assert.deepEqual(
+      JSON.parse(await readFile(join(root, "preferences.json"), "utf8")),
+      { name: "Nerve", enabled: false },
+    );
+    const second = await runStorageMigrations(root, { registry });
+    assert.equal(second.executions.length, 0);
+  });
+
   it("baselines current state without a rollback copy and reruns idempotently", async () => {
     const root = await home();
     const registry = [migration("0001-baseline")];
@@ -625,20 +659,53 @@ describe("storage migration runner", () => {
     );
     await writeFile(
       join(root, "migrations", "ledger.json"),
-      JSON.stringify({ version: 1, applied: [] }),
+      JSON.stringify({
+        format: "nerve-storage-migrations",
+        version: 1,
+        applied: [],
+      }),
     );
     await writeFile(
       join(root, "migrations", "lock.json"),
       JSON.stringify({
         pid: process.pid,
-        hostname: "test",
-        acquiredAt: new Date().toISOString(),
+        host: hostname(),
+        token: "live-test-owner",
+        startedAt: new Date().toISOString(),
+        heartbeatAt: new Date().toISOString(),
       }),
     );
     await assert.rejects(
       runStorageMigrations(root, { registry: [], lockTimeoutMs: 20 }),
       /lock/i,
     );
+  });
+
+  it("releases only its own lock token and takes over an expired lease", async () => {
+    const root = await home();
+    const lockPath = join(root, "migrations", "lock.json");
+    const lock = await acquireMigrationLock(lockPath, 20);
+    const replacement = {
+      pid: process.pid,
+      host: hostname(),
+      token: "replacement-owner",
+      startedAt: new Date().toISOString(),
+      heartbeatAt: new Date().toISOString(),
+    };
+    await writeFile(lockPath, JSON.stringify(replacement));
+    await lock.release();
+    assert.deepEqual(JSON.parse(await readFile(lockPath, "utf8")), replacement);
+
+    await writeFile(
+      lockPath,
+      JSON.stringify({
+        ...replacement,
+        heartbeatAt: "2000-01-01T00:00:00.000Z",
+      }),
+    );
+    const takeover = await acquireMigrationLock(lockPath, 20);
+    await takeover.release();
+    await assert.rejects(readFile(lockPath, "utf8"), /ENOENT/);
   });
 
   it("takes over a stale lock and recovers an interrupted batch before detection", async () => {

@@ -68,6 +68,7 @@ export {
   isLikelyLongRunningCommand,
 } from "./safety/command-policy.js";
 export * from "./types.js";
+export * from "./policy/index.js";
 
 export const coreToolDescriptors: ToolDescriptor[] =
   coreToolDescriptorsFromDefinitions();

@@ -5,6 +5,7 @@ import {
   openProjectInTerminalRequestSchema,
   openProjectInTerminalResponseSchema,
   projectRecordSchema,
+  projectPermissionsSchema,
   pruneProjectConversationsRequestSchema,
   pruneProjectConversationsResponseSchema,
 } from "./index.js";
@@ -53,6 +54,26 @@ export const projectsOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.project.get",
+  ),
+  defineOperation(
+    "project.permissions.get",
+    projectIdParamsSchema,
+    z.object({ permissions: projectPermissionsSchema }),
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.project.permissions.get",
+  ),
+  defineOperation(
+    "project.permissions.update",
+    projectIdParamsSchema.extend({
+      permissions: projectPermissionsSchema,
+    }),
+    z.object({ permissions: projectPermissionsSchema }),
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.project.permissions.update",
   ),
   defineOperation(
     "project.openEditor",

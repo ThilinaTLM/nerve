@@ -231,7 +231,14 @@ export class WorkbenchRunService {
     const interaction = state?.interactions.find(
       (candidate) => candidate.toolCallId === toolCallId,
     );
-    if (!interaction || interaction.status !== "pending") {
+    if (
+      !interaction ||
+      interaction.status !== "pending" ||
+      !(await this.unitOfWork.hasActionableInteraction(
+        interaction.runId,
+        toolCallId,
+      ))
+    ) {
       throw new ApplicationError(
         409,
         "RUN_INTERACTION_NOT_PENDING",
@@ -254,7 +261,11 @@ export class WorkbenchRunService {
       !state ||
       !target ||
       state.run.status !== "waiting" ||
-      target.status !== "pending"
+      target.status !== "pending" ||
+      !(await this.unitOfWork.hasActionableInteraction(
+        state.run.runId,
+        toolCallId,
+      ))
     ) {
       throw new ApplicationError(
         409,
@@ -304,6 +315,53 @@ export class WorkbenchRunService {
       ),
       interactions,
     };
+  }
+
+  async assertApprovalBatchContextUnchanged(
+    batch: ApprovalInteractionBatch,
+  ): Promise<void> {
+    const state = await this.unitOfWork.loadFresh(batch.runId);
+    const checkpoint = state?.checkpoints.find(
+      (candidate) => candidate.checkpointId === batch.checkpointId,
+    );
+    if (!state || !checkpoint || state.run.status !== "waiting") {
+      throw new ApplicationError(
+        409,
+        "RUN_CHECKPOINT_STALE",
+        "The approval checkpoint is no longer active.",
+      );
+    }
+    for (const toolCallId of batch.batchToolCallIds) {
+      if (
+        !(await this.unitOfWork.hasActionableInteraction(
+          batch.runId,
+          toolCallId,
+        ))
+      ) {
+        throw new ApplicationError(
+          409,
+          "RUN_TOOL_REVISION_STALE",
+          "A tool changed after this approval was requested. No tool was executed.",
+        );
+      }
+    }
+    const conversation = this.state.getConversation(state.run.conversationId);
+    const currentEntryIds = activeBranchEntryIds(
+      this.state.getConversationEntries(conversation.id),
+      conversation.activeEntryId,
+    );
+    if (
+      currentEntryIds.length !== checkpoint.entryIds.length ||
+      currentEntryIds.some(
+        (entryId, index) => entryId !== checkpoint.entryIds[index],
+      )
+    ) {
+      throw new ApplicationError(
+        409,
+        "RUN_CHECKPOINT_STALE",
+        "The conversation changed after this approval was requested. No tool was executed.",
+      );
+    }
   }
 
   async resolveInteractionBatchForToolCalls(input: {
@@ -453,4 +511,24 @@ export class WorkbenchRunService {
   private scopeId(agent: AgentRecord): string {
     return `${agent.conversationId}:${agent.id}`;
   }
+}
+
+function activeBranchEntryIds(
+  entries: readonly ConversationEntry[],
+  activeEntryId: string | undefined,
+): string[] {
+  if (!activeEntryId) return [];
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const ids: string[] = [];
+  const visited = new Set<string>();
+  let cursor: string | undefined = activeEntryId;
+  while (cursor) {
+    if (visited.has(cursor)) return [];
+    visited.add(cursor);
+    const entry = byId.get(cursor);
+    if (!entry) return [];
+    ids.push(entry.id);
+    cursor = entry.parentEntryId;
+  }
+  return ids.reverse();
 }

@@ -2,10 +2,10 @@
 import ClipboardList from "@lucide/svelte/icons/clipboard-list";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Lock from "@lucide/svelte/icons/lock";
+import Settings from "@lucide/svelte/icons/settings";
 import Shield from "@lucide/svelte/icons/shield";
 import Zap from "@lucide/svelte/icons/zap";
 import type {
-  ApprovalPolicy,
   ContextUsage,
   ModelInfo,
   PermissionLevel,
@@ -14,24 +14,21 @@ import type {
 } from "@nervekit/contracts";
 import Popover, {
   PopoverBody,
-  PopoverHeader,
   PopoverRow,
   PopoverSection,
 } from "@nervekit/ui-kit/components/ui/popover-panel";
-import Switch from "@nervekit/ui-kit/components/ui/switch-field";
 import type { Component } from "svelte";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
 import type { ConversationUsageSummary } from "../../usage/conversation-usage.js";
 import TodoProgressChip from "./TodoProgressChip.svelte";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 
 type PermissionOption = {
   value: PermissionLevel;
   label: string;
-  detail: string;
+  /** Drives the composer tab trigger icon only; popover rows are icon-less. */
   icon: Component;
-  /** Tone for the row icon; carries the risk signal for higher levels. */
-  iconClass: string;
 };
 
 type Props = {
@@ -44,7 +41,6 @@ type Props = {
   modePlanning: boolean;
   onToggleMode?: () => void;
   permissionLevel: PermissionLevel;
-  approvalPolicy: ApprovalPolicy;
   permissionShortcut?: string;
   permissionShortcutAria?: string;
   modeShortcut?: string;
@@ -65,7 +61,7 @@ type Props = {
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onCompact?: () => void;
   onPermissionChange?: (value: PermissionLevel) => void;
-  onApprovalPolicyChange?: (value: ApprovalPolicy) => void;
+  onOpenPermissionSettings?: () => void;
 };
 
 let {
@@ -76,7 +72,6 @@ let {
   modePlanning,
   onToggleMode,
   permissionLevel,
-  approvalPolicy,
   permissionShortcut,
   permissionShortcutAria,
   modeShortcut,
@@ -97,32 +92,24 @@ let {
   onThinkingLevelChange,
   onCompact,
   onPermissionChange,
-  onApprovalPolicyChange,
+  onOpenPermissionSettings,
 }: Props = $props();
 
 const permissionOptions = $derived<PermissionOption[]>([
   {
     value: "read_only",
     label: "Read only",
-    detail: "No writes or mutating commands",
     icon: Lock,
-    iconClass: "text-muted-foreground",
   },
   {
     value: "supervised",
     label: "Supervised",
-    detail: approvalPolicy.autoApproveReadOnly
-      ? "Ask before non-read tool calls"
-      : "Ask before read and non-read tool calls",
     icon: Shield,
-    iconClass: "text-muted-foreground",
   },
   {
     value: "autonomous",
     label: "Autonomous",
-    detail: "Allow tool calls without approval",
     icon: Zap,
-    iconClass: "text-warning",
   },
 ]);
 
@@ -138,15 +125,16 @@ function selectPermission(value: PermissionLevel) {
   permissionOpen = false;
 }
 
-function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
-  onApprovalPolicyChange?.({ ...approvalPolicy, autoApproveReadOnly });
+function openPermissionSettings(): void {
+  permissionOpen = false;
+  onOpenPermissionSettings?.();
 }
 </script>
 
 <div class="composer-tabs" data-tour-id="composer-controls">
   <Popover
     bind:open={permissionOpen}
-    size="lg"
+    size="sm"
     triggerClass="composer-tab w-7 p-0 max-sm:w-7.5"
     ariaLabel="Permission level"
     triggerTitle={permissionShortcut
@@ -168,37 +156,29 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
       </span>
     {/snippet}
     <PopoverBody>
-      <PopoverHeader title="Permission level" />
-      <PopoverSection>
-        {#each permissionOptions as option (option.value)}
-          {@const ActiveIcon = option.icon}
-          <PopoverRow
-            label={option.label}
-            detail={option.detail}
-            selected={option.value === permissionLevel}
-            onclick={() => selectPermission(option.value)}
+      <PopoverSection label="Permission level">
+        {#snippet action()}
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            class="self-center"
+            ariaLabel="Open permission settings"
+            title="Open permission settings"
+            onclick={openPermissionSettings}
           >
-            {#snippet icon()}
-              <ActiveIcon
-                class={`size-4 flex-none ${option.iconClass}`}
-                strokeWidth={2.1}
-                aria-hidden="true"
-              />
-            {/snippet}
-          </PopoverRow>
-        {/each}
+            <Settings class="size-3.5" aria-hidden="true" />
+          </Button>
+        {/snippet}
+        <div class="grid gap-2">
+          {#each permissionOptions as option (option.value)}
+            <PopoverRow
+              label={option.label}
+              selected={option.value === permissionLevel}
+              onclick={() => selectPermission(option.value)}
+            />
+          {/each}
+        </div>
       </PopoverSection>
-      {#if permissionLevel === "supervised"}
-        <PopoverSection separated>
-          <Switch
-            checked={approvalPolicy.autoApproveReadOnly}
-            disabled={controlsDisabled}
-            label="Auto-approve read-only tools"
-            description="Allow read, grep, find, ls, todos, and task status/log/list without prompting."
-            onCheckedChange={setAutoApproveReadOnly}
-          />
-        </PopoverSection>
-      {/if}
     </PopoverBody>
   </Popover>
 

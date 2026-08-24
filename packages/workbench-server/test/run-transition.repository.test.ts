@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { appendFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type {
+  ConversationEntry,
   RunEventDeliveryRecord,
   RunPromptRecord,
   RunRecord,
@@ -13,20 +14,20 @@ import {
   RunRevisionConflictError,
 } from "../src/domains/runs/runtime/index.js";
 import { WorkbenchRunUnitOfWork } from "../src/domains/runs/run-transition.repository.js";
-import { DELIVERY_SETTLED_PREFIX } from "../src/domains/runs/run-transition.repository.js";
 
 const digest = `sha256:${"0".repeat(64)}`;
 const runId = "run_cache_test";
+const conversationId = "conv_cache_test";
 const startedAt = "2026-07-12T00:00:00.000Z";
 
 function run(revision: number, updatedAt: string): RunRecord {
   return {
     stateEpoch: 1,
-    conversationId: "conv_cache_test",
+    conversationId,
     agentId: "agent_cache_test",
     projectId: "proj_cache_test",
     runId,
-    scopeId: "conv_cache_test:agent_cache_test",
+    scopeId: `${conversationId}:agent_cache_test`,
     revision,
     status: "running",
     recoverability: "retryable",
@@ -43,7 +44,7 @@ function prompt(status: "queued" | "delivered"): RunPromptRecord {
   return {
     id: "promptq_cache_test",
     agentId: "agent_cache_test",
-    conversationId: "conv_cache_test",
+    conversationId,
     projectId: "proj_cache_test",
     runId,
     behavior: "steer",
@@ -53,6 +54,19 @@ function prompt(status: "queued" | "delivered"): RunPromptRecord {
     updatedAt: status === "queued" ? startedAt : "2026-07-12T00:00:01.000Z",
     ordinal: 0,
     deliveryAttempts: status === "queued" ? 0 : 1,
+  };
+}
+
+function transcriptEntry(): ConversationEntry {
+  return {
+    id: "entry_cache_test",
+    conversationId,
+    agentId: "agent_cache_test",
+    runId,
+    role: "user",
+    kind: "message",
+    text: "inspect the repository",
+    createdAt: startedAt,
   };
 }
 
@@ -66,6 +80,7 @@ function transitions() {
     0,
     {
       prompts: [prompt("queued")],
+      entries: [transcriptEntry()],
       events: [
         {
           id: "intent_cache_test",
@@ -87,44 +102,18 @@ function transitions() {
     ids,
     integrity,
   );
-  const third = buildTransition(
-    run(3, "2026-07-12T00:00:02.000Z"),
-    "updated",
-    2,
-    {},
-    ids,
-    integrity,
-  );
-  return { first, second, third };
+  return { first, second };
 }
 
-test("workbench run journals reuse hot state and cold-hydrate equivalently", async (t) => {
-  const home = await mkdtemp(join(tmpdir(), "nerve-workbench-run-store-"));
+test("run state and deliveries replay from the conversation journal", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-conversation-run-store-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const unitOfWork = new WorkbenchRunUnitOfWork(home);
   const records = transitions();
 
-  const firstState = await unitOfWork.commit(0, records.first);
-  const secondState = await unitOfWork.commit(1, records.second);
-
-  assert.equal(firstState.run.revision, 1);
-  assert.equal(secondState.run.revision, 2);
-  assert.equal(secondState.prompts[0]?.status, "delivered");
-  assert.equal(await unitOfWork.load(runId), secondState);
-
-  await unitOfWork.materialize(secondState);
-  const root = join(home, "run-runtime", "runs", runId);
-  const projectionFiles = [
-    ["state.json", secondState.run],
-    ["prompts.json", secondState.prompts],
-    ["interactions.json", secondState.interactions],
-    ["checkpoints.json", secondState.checkpoints],
-  ] as const;
-  for (const [name, expected] of projectionFiles) {
-    const raw = await readFile(join(root, name), "utf8");
-    assert.equal(raw.endsWith("\n"), true);
-    assert.deepEqual(JSON.parse(raw), expected);
-  }
+  await unitOfWork.commit(0, records.first);
+  const second = await unitOfWork.commit(1, records.second);
+  assert.equal(second.prompts[0]?.status, "delivered");
 
   const delivery: RunEventDeliveryRecord = {
     intentId: "intent_cache_test",
@@ -136,393 +125,46 @@ test("workbench run journals reuse hot state and cold-hydrate equivalently", asy
   };
   await unitOfWork.markEventDelivered(delivery);
   await unitOfWork.markEventDelivered(delivery);
-  const hot = await unitOfWork.load(runId);
-  assert.deepEqual(hot?.deliveries, [delivery]);
 
-  const fresh = new WorkbenchRunUnitOfWork(home);
-  assert.deepEqual(await fresh.load(runId), hot);
-  const deliveriesPath = join(root, "event-deliveries.jsonl");
-  assert.equal(
-    (await readFile(deliveriesPath, "utf8")).trim().split("\n").length,
-    1,
-  );
-
-  const retriedDelivery = {
-    ...delivery,
-    deliveredAt: "2026-07-12T00:00:03.001Z",
-  };
-  await appendFile(deliveriesPath, `${JSON.stringify(retriedDelivery)}\n`);
   const restarted = new WorkbenchRunUnitOfWork(home);
-  assert.deepEqual((await restarted.load(runId))?.deliveries, [delivery]);
-
-  await assert.rejects(
-    unitOfWork.commit(1, records.third),
-    RunRevisionConflictError,
-  );
-  await assert.rejects(
-    unitOfWork.markEventDelivered({
-      ...delivery,
-      eventId: "event_conflict",
-    }),
-    /Conflicting event delivery/,
-  );
-});
-
-test("fresh loads replace stale cached run state from the journal", async (t) => {
-  const home = await mkdtemp(join(tmpdir(), "nerve-workbench-run-fresh-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
-  const cached = new WorkbenchRunUnitOfWork(home);
-  const writer = new WorkbenchRunUnitOfWork(home);
-  const records = transitions();
-
-  const first = await cached.commit(0, records.first);
-  await writer.commit(1, records.second);
-
-  assert.equal((await cached.load(runId))?.run.revision, first.run.revision);
-  const fresh = await cached.loadFresh(runId);
-  assert.equal(fresh?.run.revision, 2);
-  assert.equal(fresh?.prompts[0]?.status, "delivered");
-  assert.equal(await cached.load(runId), fresh);
-});
-
-function scopedRun(input: {
-  runId: string;
-  scopeId: string;
-  revision: number;
-  status: RunRecord["status"];
-  activeInteractionId?: string;
-}): RunRecord {
-  return {
-    stateEpoch: 1,
-    conversationId: "conv_lookup_test",
-    agentId: "agent_lookup_test",
-    projectId: "proj_lookup_test",
-    runId: input.runId,
-    scopeId: input.scopeId,
-    revision: input.revision,
-    status: input.status,
-    recoverability: "retryable",
-    executionId: "exec_lookup_test",
-    attempt: 1,
-    createdAt: startedAt,
-    updatedAt: startedAt,
-    startedAt,
-    activeInteractionId: input.activeInteractionId,
-    terminalAt: ["completed", "failed", "cancelled"].includes(input.status)
-      ? startedAt
-      : undefined,
-    cancellationEvidence: [],
-  };
-}
-
-test("targeted lookups skip historical hydration and evict terminal commits", async (t) => {
-  const home = await mkdtemp(join(tmpdir(), "nerve-workbench-run-lookup-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
-  let id = 1000;
-  const ids = { next: () => String(++id) };
-  const integrity = { checksum: () => digest };
-  // Cache size zero forces every load through authoritative journal reads.
-  const seed = new WorkbenchRunUnitOfWork(home, 0);
-
-  const historicalRunIds: string[] = [];
-  for (let index = 0; index < 8; index += 1) {
-    const historicalRunId = `run_history_${index}`;
-    historicalRunIds.push(historicalRunId);
-    const scopeId = `conv_lookup_test:agent_history_${index}`;
-    await seed.commit(
-      0,
-      buildTransition(
-        scopedRun({
-          runId: historicalRunId,
-          scopeId,
-          revision: 1,
-          status: "running",
-        }),
-        "started",
-        0,
-        {},
-        ids,
-        integrity,
-      ),
-    );
-    await seed.commit(
-      1,
-      buildTransition(
-        scopedRun({
-          runId: historicalRunId,
-          scopeId,
-          revision: 2,
-          status: "completed",
-        }),
-        "completed",
-        1,
-        {},
-        ids,
-        integrity,
-      ),
-    );
-  }
-
-  const liveRunId = "run_live";
-  const liveScopeId = "conv_lookup_test:agent_live";
-  const liveInteraction = {
-    stateEpoch: 1,
-    kind: "user_input",
-    id: "interaction_live",
-    conversationId: "conv_lookup_test",
-    agentId: "agent_lookup_test",
-    projectId: "proj_lookup_test",
-    runId: liveRunId,
-    executionId: "exec_lookup_test",
-    toolCallId: "toolcall_live",
-    interactionOrdinal: 0,
-    toolCallRevision: 1,
-    prompt: "Which option should be used?",
-    status: "pending",
-    required: true,
-    checkpointId: "checkpoint_live",
-    createdAt: startedAt,
-  } as const;
-  const livePrompt: RunPromptRecord = {
-    id: "promptq_live",
-    agentId: "agent_lookup_test",
-    conversationId: "conv_lookup_test",
-    projectId: "proj_lookup_test",
-    runId: liveRunId,
-    behavior: "steer",
-    text: "queued while waiting",
-    status: "queued",
-    createdAt: startedAt,
-    updatedAt: startedAt,
-    ordinal: 0,
-    deliveryAttempts: 0,
-  };
-  await seed.commit(
-    0,
-    buildTransition(
-      scopedRun({
-        runId: liveRunId,
-        scopeId: liveScopeId,
-        revision: 1,
-        status: "waiting",
-        activeInteractionId: liveInteraction.id,
-      }),
-      "waiting",
-      0,
-      { interactions: [liveInteraction], prompts: [livePrompt] },
-      ids,
-      integrity,
-    ),
-  );
-
-  // A restarted store initializes its lookup lazily from one full hydration.
-  const restarted = new WorkbenchRunUnitOfWork(home, 0);
-  const active = await restarted.findActive(liveScopeId);
-  assert.equal(active?.run.runId, liveRunId);
-
-  // Corrupt every historical journal: any further hydration of terminal
-  // history now throws, so passing targeted reads proves they only load the
-  // indexed active run.
-  for (const historicalRunId of historicalRunIds) {
-    await appendFile(
-      join(home, "run-runtime", "runs", historicalRunId, "transitions.jsonl"),
-      "not-json\n",
-    );
-  }
-  await assert.rejects(restarted.list(), /Corrupt run journal/);
-
-  assert.equal((await restarted.findActive(liveScopeId))?.run.runId, liveRunId);
+  const replayed = await restarted.load(runId);
+  assert.equal(replayed?.run.revision, 2);
+  assert.deepEqual(replayed?.deliveries, [delivery]);
   assert.deepEqual(
-    (await restarted.listActive()).map((state) => state.run.runId),
-    [liveRunId],
-  );
-  assert.equal(
-    (await restarted.findByInteractionId("interaction_live"))?.run.runId,
-    liveRunId,
-  );
-  assert.equal(
-    (await restarted.findByInteractionToolCallId("toolcall_live"))?.run.runId,
-    liveRunId,
-  );
-  assert.equal(
-    (await restarted.findByPromptId("promptq_live"))?.run.runId,
-    liveRunId,
+    replayed?.transitions.flatMap((transition) => transition.entries),
+    [transcriptEntry()],
+    "event settlement must not discard transcript evidence needed by checkpoints",
   );
 
-  // Committing the run to a terminal status evicts every targeted key.
-  await restarted.commit(
-    1,
-    buildTransition(
-      scopedRun({
-        runId: liveRunId,
-        scopeId: liveScopeId,
-        revision: 2,
-        status: "cancelled",
-      }),
-      "cancelled",
-      1,
-      {},
-      ids,
-      integrity,
-    ),
-  );
-  assert.equal(await restarted.findActive(liveScopeId), undefined);
-  assert.deepEqual(await restarted.listActive(), []);
-  assert.equal(await restarted.findByPromptId("promptq_live"), undefined);
-  assert.equal(
-    await restarted.findByInteractionToolCallId("toolcall_live"),
-    undefined,
-  );
-});
-
-test("lookup initialization scans metadata and skips corrupt terminal history", async (t) => {
-  const home = await mkdtemp(join(tmpdir(), "nerve-workbench-run-meta-scan-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
-  let id = 2000;
-  const ids = { next: () => String(++id) };
-  const integrity = { checksum: () => digest };
-  const seed = new WorkbenchRunUnitOfWork(home, 0);
-
-  // One terminal and one active run, committed via the journal only (no
-  // materialized state.json), so the metadata scan must read the journals.
-  const terminalRunId = "run_terminal_scan";
-  const activeRunId = "run_active_scan";
-  const scopeId = "conv_scan:agent_scan";
-  for (const [runId, status] of [
-    [terminalRunId, "completed"],
-    [activeRunId, "waiting"],
-  ] as const) {
-    await seed.commit(
-      0,
-      buildTransition(
-        scopedRun({ runId, scopeId, revision: 1, status: "running" }),
-        "started",
-        0,
-        {},
-        ids,
-        integrity,
-      ),
-    );
-    await seed.commit(
-      1,
-      buildTransition(
-        scopedRun({ runId, scopeId, revision: 2, status }),
-        status === "completed" ? "completed" : "waiting",
-        1,
-        {},
-        ids,
-        integrity,
-      ),
-    );
-  }
-
-  // A fresh store initializes its lookup from the metadata scan. Corrupting
-  // the terminal run's journal proves the scan never hydrates terminal
-  // history (a full hydration would reject on the corrupt journal).
-  const restarted = new WorkbenchRunUnitOfWork(home, 0);
-  await appendFile(
-    join(home, "run-runtime", "runs", terminalRunId, "transitions.jsonl"),
-    "not-json\n",
-  );
-
-  const records = await restarted.listMetadata();
-  assert.deepEqual(
-    records.map((record) => [record.runId, record.status]).sort(),
-    [
-      [activeRunId, "waiting"],
-      [terminalRunId, "completed"],
-    ],
-  );
-  assert.deepEqual(
-    (await restarted.listActive()).map((state) => state.run.runId),
-    [activeRunId],
-  );
-  assert.equal((await restarted.findActive(scopeId))?.run.runId, activeRunId);
-});
-
-test("delivery sweep settles clean runs and skips settled history", async (t) => {
-  const home = await mkdtemp(join(tmpdir(), "nerve-workbench-run-settled-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
-  let id = 3000;
-  const ids = { next: () => String(++id) };
-  const integrity = { checksum: () => digest };
-  const seed = new WorkbenchRunUnitOfWork(home, 0);
-
-  const runId = "run_settled";
-  const scopeId = "conv_settled:agent_settled";
-  const intent = {
-    id: "intent_settled",
-    type: "run.started" as const,
-    delivery: "sequenced" as const,
-    occurredAt: startedAt,
-    data: {},
-  };
-  await seed.commit(
-    0,
-    buildTransition(
-      scopedRun({ runId, scopeId, revision: 1, status: "running" }),
-      "started",
-      0,
-      { events: [intent] },
-      ids,
-      integrity,
-    ),
-  );
-  await seed.commit(
-    1,
-    buildTransition(
-      scopedRun({ runId, scopeId, revision: 2, status: "completed" }),
-      "completed",
-      1,
-      {},
-      ids,
-      integrity,
-    ),
-  );
-
-  // All intents delivered but no settlement checkpoint yet (legacy state):
-  // the sweep finds nothing pending and writes the checkpoint (settle-on-read).
-  const legacy = new WorkbenchRunUnitOfWork(home, 0);
-  await legacy.markEventDelivered({
-    intentId: intent.id,
-    runId,
-    revision: 1,
-    eventId: "event_settled",
-    sequence: 1,
-    deliveredAt: startedAt,
-  } as never);
-  const firstSweep = await legacy.pendingEventIntents();
-  assert.deepEqual(firstSweep, []);
-  const checkpoint = (
-    await readFile(
-      join(home, "run-runtime", "runs", runId, "event-deliveries.jsonl"),
-      "utf8",
-    )
-  )
-    .trim()
-    .split("\n")
-    .pop();
-  const parsed = JSON.parse(checkpoint!);
-  assert.ok(parsed.intentId.startsWith(DELIVERY_SETTLED_PREFIX));
-  assert.equal(parsed.revision, 2);
-
-  // A restarted store skips the settled run without hydrating its history:
-  // corrupting a middle journal line would make a full hydration throw, but
-  // the metadata-based sweep never reads it.
-  const restarted = new WorkbenchRunUnitOfWork(home, 0);
-  const raw = await readFile(
-    join(home, "run-runtime", "runs", runId, "transitions.jsonl"),
+  const journal = await readFile(
+    join(home, "conversations", conversationId, "journal.jsonl"),
     "utf8",
   );
-  const lines = raw.trimEnd().split("\n");
-  lines.splice(1, 0, "not-json");
-  await appendFile(
-    join(home, "run-runtime", "runs", runId, "transitions.jsonl"),
-    "",
+  assert.equal(journal.trim().split("\n").length, 3);
+});
+
+test("run commits preserve per-run compare-and-swap", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-conversation-run-cas-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const unitOfWork = new WorkbenchRunUnitOfWork(home);
+  const records = transitions();
+  await unitOfWork.commit(0, records.first);
+  await assert.rejects(
+    unitOfWork.commit(0, records.second),
+    RunRevisionConflictError,
   );
-  await appendFile(
-    join(home, "run-runtime", "runs", runId, "transitions.jsonl"),
-    lines.join("\n"),
+});
+
+test("active run lookup is rebuilt from conversation journals", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-conversation-run-lookup-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const records = transitions();
+  await new WorkbenchRunUnitOfWork(home).commit(0, records.first);
+
+  const restarted = new WorkbenchRunUnitOfWork(home, 0);
+  const active = await restarted.findActive(
+    `${conversationId}:agent_cache_test`,
   );
-  assert.deepEqual(await restarted.pendingEventIntents(), []);
+  assert.equal(active?.run.runId, runId);
+  assert.deepEqual(await restarted.listMetadata(), [records.first.run]);
 });

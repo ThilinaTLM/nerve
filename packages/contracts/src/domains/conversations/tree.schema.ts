@@ -1,14 +1,6 @@
 import { z } from "zod";
-import {
-  approvalPolicySchema,
-  defaultApprovalPolicy,
-  modeSchema,
-  permissionLevelSchema,
-} from "../settings/settings.schema.js";
-
-const approvalPolicyPatchSchema = z.object({
-  autoApproveReadOnly: z.boolean().optional(),
-});
+import { permissionLevelSchema } from "../permissions/index.js";
+import { modeSchema } from "../settings/settings.schema.js";
 
 export const conversationRecordSchema = z.object({
   id: z.string().startsWith("conv_"),
@@ -16,7 +8,6 @@ export const conversationRecordSchema = z.object({
   title: z.string().min(1),
   mode: modeSchema,
   permissionLevel: permissionLevelSchema,
-  approvalPolicy: approvalPolicySchema.default(defaultApprovalPolicy),
   activeAgentId: z.string().startsWith("agent_").optional(),
   activeEntryId: z.string().startsWith("entry_").optional(),
   createdAt: z.string().datetime(),
@@ -50,7 +41,6 @@ export const createConversationRequestSchema = z.object({
   title: z.string().min(1).optional(),
   mode: modeSchema.optional(),
   permissionLevel: permissionLevelSchema.optional(),
-  approvalPolicy: approvalPolicyPatchSchema.optional(),
 });
 export type CreateConversationRequest = z.infer<
   typeof createConversationRequestSchema
@@ -67,7 +57,6 @@ export const importConversationRequestSchema = z.object({
     title: z.string().min(1).optional(),
     mode: modeSchema.optional(),
     permissionLevel: permissionLevelSchema.optional(),
-    approvalPolicy: approvalPolicyPatchSchema.optional(),
   }),
   agents: z.array(z.unknown()).default([]),
   entries: z.array(z.unknown()).default([]),

@@ -16,8 +16,8 @@ Planning restrictions reduce accidental mutation but are not an operating-system
 ## Permission levels
 
 - **Read-only:** permits local read tools. It blocks edit/write, Bash, Python, ordinary network calls, Jira/Confluence network reads, and Explore child spawning.
-- **Supervised:** asks for approval on non-read risks. You can choose whether selected local read tools and task status/log inspection autoapprove.
-- **Autonomous:** executes allowed risks without normal approval pauses.
+- **Supervised:** automatically allows safe local reads and audited read-only integrations, then asks for commands, writes, opaque execution, and network access unless an exact-risk allow exception covers the request.
+- **Autonomous:** executes allowed risks without normal approval pauses, while explicit block exceptions and hard guardrails still apply.
 
 Policy is evaluated for every dispatch and recorded with the tool lifecycle.
 

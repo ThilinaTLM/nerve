@@ -9,6 +9,15 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
   "project.get": (state, params) => ({
     project: state.registry.getProject(params.projectId),
   }),
+  "project.permissions.get": async (state, params) => ({
+    permissions: await state.registry.getProjectPermissions(params.projectId),
+  }),
+  "project.permissions.update": async (state, params) => ({
+    permissions: await state.registry.updateProjectPermissions(
+      params.projectId,
+      params.permissions,
+    ),
+  }),
   "project.openEditor": (state, params) =>
     state.registry.openProjectInEditor(params.projectId, params),
   "project.openTerminal": (state, params) =>

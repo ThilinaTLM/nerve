@@ -22,6 +22,7 @@ function conversation(
   id: string,
   projectId: string,
   updatedAt: string,
+  patch: Partial<ConversationRecord> = {},
 ): ConversationRecord {
   return {
     id,
@@ -30,6 +31,7 @@ function conversation(
     updatedAt,
     createdAt: updatedAt,
     lastUserMessageAt: updatedAt,
+    ...patch,
   } as ConversationRecord;
 }
 
@@ -62,17 +64,24 @@ function activity(
   };
 }
 
-test("summarizes current waiting, failed, and running conversations", () => {
+test("summarizes active conversations and ignores completed activity", () => {
+  const completedAt = "2026-01-04";
   const conversations = [
     conversation("error", "p", "2026-01-01"),
     conversation("waiting", "p", "2026-01-02"),
     conversation("running", "p", "2026-01-03"),
+    conversation("completed-error", "p", completedAt, { completedAt }),
+    conversation("completed-waiting", "p", completedAt, { completedAt }),
+    conversation("completed-running", "p", completedAt, { completedAt }),
   ];
   assert.deepEqual(
     summarizeProjectActivity(conversations, {
       error: activity({ tone: "danger", busy: true }),
       waiting: activity({ tone: "warn", needsUser: true }),
       running: activity({ tone: "running", busy: true }),
+      "completed-error": activity({ tone: "danger", busy: true }),
+      "completed-waiting": activity({ tone: "warn", needsUser: true }),
+      "completed-running": activity({ tone: "running", busy: true }),
     }),
     { needsUser: 1, failed: 1, running: 1 },
   );
@@ -142,6 +151,33 @@ test("groups aliases and aggregates their conversations", () => {
   assert.deepEqual(aliased?.projectIds, ["p1", "p2"]);
   assert.equal(aliased?.conversationCount, 2);
   assert.ok(items.every((item) => item.label !== "app"));
+});
+
+test("derives project recency from user prompts instead of later conversation updates", () => {
+  const items = buildProjectSwitcherItems({
+    projects: [
+      project("p1", "One", "/one", "2026-01-01"),
+      project("p2", "Two", "/two", "2026-01-01"),
+    ],
+    conversations: [
+      conversation("c1", "p1", "2026-01-05", {
+        createdAt: "2026-01-01",
+        lastUserMessageAt: "2026-01-02",
+      }),
+      conversation("c2", "p2", "2026-01-04", {
+        createdAt: "2026-01-01",
+        lastUserMessageAt: "2026-01-03",
+      }),
+    ],
+    tasks: [],
+    activityById: {},
+  });
+
+  assert.deepEqual(
+    items.map((item) => item.key),
+    ["/two", "/one"],
+  );
+  assert.equal(items.find((item) => item.key === "/one")?.sortAt, "2026-01-02");
 });
 
 test("counts only active background tasks and resolves legacy cwd by longest path", () => {

@@ -70,6 +70,7 @@ test("startup recovery loads evicted terminal approval tool calls asynchronously
   } as unknown as ToolService;
   const runs = {
     approvalBatchForToolCall: async () => batch,
+    assertApprovalBatchContextUnchanged: async () => undefined,
     resolveInteractionBatchForToolCalls: async () => {
       resolutions += 1;
     },

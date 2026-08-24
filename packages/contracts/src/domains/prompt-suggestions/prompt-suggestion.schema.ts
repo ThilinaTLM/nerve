@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { modeSchema, permissionLevelSchema } from "../settings/index.js";
+import { permissionLevelSchema } from "../permissions/index.js";
+import { modeSchema } from "../settings/index.js";
 
 export const PROMPT_SUGGESTION_NAME_MAX_LENGTH = 64;
 export const PROMPT_SUGGESTION_LABEL_MAX_LENGTH = 80;

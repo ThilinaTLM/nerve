@@ -11,7 +11,6 @@ describe("settings schema", () => {
     const settings = settingsSchema.parse({
       ...defaultSettings,
       defaultThinkingLevel: undefined,
-      defaultApprovalPolicy: undefined,
       rememberLastAgentSelection: undefined,
       lastAgentSelection: undefined,
       notifications: undefined,
@@ -24,22 +23,17 @@ describe("settings schema", () => {
       },
       desktop: { closeToTray: true, headerType: undefined },
       tools: undefined,
+      permissions: undefined,
       skills: undefined,
     });
 
     assert.equal(settings.defaultThinkingLevel, "off");
-    assert.deepEqual(settings.defaultApprovalPolicy, {
-      autoApproveReadOnly: true,
-    });
     assert.equal(settings.rememberLastAgentSelection, false);
     assert.equal(settings.lastAgentSelection.mode, "coding");
     assert.equal(settings.lastAgentSelection.permissionLevel, "autonomous");
-    assert.equal(
-      settings.lastAgentSelection.approvalPolicy.autoApproveReadOnly,
-      true,
-    );
     assert.equal(settings.lastAgentSelection.thinkingLevel, "off");
     assert.deepEqual(settings.runtime, {});
+    assert.deepEqual(settings.permissions, { exceptions: [] });
     assert.deepEqual(settings.ui, {
       theme: "nerve",
       colorMode: "system",
@@ -83,6 +77,42 @@ describe("settings schema", () => {
     assert.deepEqual(settings.tools.imageExplanation, {
       thinkingLevel: "off",
     });
+  });
+
+  it("validates bounded permission exceptions", () => {
+    const patch = updateSettingsRequestSchema.parse({
+      permissions: {
+        exceptions: [
+          {
+            id: "exception_datadog",
+            tool: "bash",
+            effect: "allow",
+            rule: "datadog logs read*",
+          },
+          {
+            id: "exception_secrets",
+            tool: "read",
+            effect: "deny",
+            rule: "secrets/**",
+          },
+        ],
+      },
+    });
+    assert.equal(patch.permissions?.exceptions?.length, 2);
+    assert.throws(() =>
+      updateSettingsRequestSchema.parse({
+        permissions: {
+          exceptions: [
+            {
+              id: "exception_python",
+              tool: "unknown_tool",
+              effect: "allow",
+              rule: "*",
+            },
+          ],
+        },
+      }),
+    );
   });
 
   it("backfills event tones for the previous notification settings shape", () => {
@@ -173,10 +203,6 @@ describe("settings schema", () => {
         colorMode: "dark",
       },
       desktop: { headerType: "macos" },
-      defaultApprovalPolicy: { autoApproveReadOnly: false },
-      lastAgentSelection: {
-        approvalPolicy: { autoApproveReadOnly: false },
-      },
       skills: {
         disabled: ["diagram", "imagegen"],
         agentBrowser: { enabled: ["core", "dogfood"] },
@@ -257,11 +283,6 @@ describe("settings schema", () => {
         false,
       );
     }
-    assert.equal(parsed.defaultApprovalPolicy?.autoApproveReadOnly, false);
-    assert.equal(
-      parsed.lastAgentSelection?.approvalPolicy?.autoApproveReadOnly,
-      false,
-    );
     assert.equal(parsed.runtime?.pythonExecutablePath, "/usr/bin/python3");
     assert.equal(
       parsed.runtime?.shellPath,

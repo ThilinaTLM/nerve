@@ -12,7 +12,6 @@ function agentRecord(overrides: Partial<AgentRecord> = {}): AgentRecord {
     thinkingLevel: "off",
     mode: "coding",
     permissionLevel: "workspace_write",
-    approvalPolicy: { autoApproveReadOnly: true },
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   } as AgentRecord;

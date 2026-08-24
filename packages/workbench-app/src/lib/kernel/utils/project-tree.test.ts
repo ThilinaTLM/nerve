@@ -25,9 +25,9 @@ function conversation(
     title: `Conversation ${suffix}`,
     mode: "coding",
     permissionLevel: "autonomous",
-    approvalPolicy: { autoApproveReadOnly: true },
     createdAt: updatedAt,
     updatedAt,
+    lastUserMessageAt: updatedAt,
     ...state,
   } as ConversationRecord;
 }
@@ -68,6 +68,39 @@ describe("conversation list grouping", () => {
       sections.flatMap((section) => section.rows).length,
       7,
       "pinned rows must not be duplicated in date sections",
+    );
+  });
+
+  it("orders and groups by the last user prompt instead of later updates", () => {
+    const sections = buildConversationSections({
+      projectIds: [projectId],
+      agents: [],
+      now: new Date(2026, 7, 23, 18),
+      conversations: [
+        conversation("01", atLocal(0, 17), {
+          createdAt: atLocal(2),
+          lastUserMessageAt: atLocal(1, 16),
+        }),
+        conversation("02", atLocal(1), {
+          createdAt: atLocal(2),
+          lastUserMessageAt: atLocal(0, 8),
+        }),
+        conversation("03", atLocal(0, 16), {
+          createdAt: atLocal(4),
+          lastUserMessageAt: undefined,
+        }),
+      ],
+    });
+
+    assert.deepEqual(
+      sections.map((section) => section.label),
+      ["Today", "Yesterday", "Previous 7 days"],
+    );
+    assert.deepEqual(
+      sections.flatMap((section) =>
+        section.rows.map((row) => row.conversation.id.slice(-2)),
+      ),
+      ["02", "01", "03"],
     );
   });
 

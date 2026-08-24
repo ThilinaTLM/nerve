@@ -7,7 +7,7 @@ import {
   createTaskHandlers,
   createTodoHandlers,
   createToolDispatcher,
-  decideToolPermission,
+  evaluateRuntimeToolPermission,
   resolveToolAvailability,
   type TodoItem,
   ToolRuntimeError,
@@ -91,24 +91,41 @@ describe("shared tool runtime contract", () => {
     assert.ok(readOnly.activeToolNames.includes("read"));
     assert.ok(!readOnly.activeToolNames.includes("write"));
     assert.equal(
-      decideToolPermission(
+      evaluateRuntimeToolPermission(
         "bash",
         { command: "rm -rf dist" },
         {
           permissionLevel: "supervised",
-          approvalPolicy: { autoApproveReadOnly: true },
         },
       ).decision,
       "approval",
     );
     assert.equal(
-      decideToolPermission(
+      evaluateRuntimeToolPermission(
         "write",
         {},
         {
           permissionLevel: "read_only",
-          approvalPolicy: { autoApproveReadOnly: true },
         },
+      ).decision,
+      "deny",
+    );
+  });
+
+  it("applies explicit tool-group approval requirements after baseline policy", () => {
+    assert.equal(
+      evaluateRuntimeToolPermission(
+        "write",
+        { path: "x", content: "x" },
+        { permissionLevel: "autonomous", groupRequireApproval: "always" },
+      ).decision,
+      "approval",
+    );
+    assert.equal(
+      evaluateRuntimeToolPermission(
+        "write",
+        { path: "x", content: "x" },
+        { permissionLevel: "read_only", groupRequireApproval: "always" },
       ).decision,
       "deny",
     );

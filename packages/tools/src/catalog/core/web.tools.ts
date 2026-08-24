@@ -48,6 +48,10 @@ export const webToolDefinitions = [
     name: "web_fetch",
     group: "web",
     baseRisk: "network",
+    permission: {
+      durableAllow: "target",
+      targets: [{ kind: "web_host", argument: "url" }],
+    },
     traits: [],
     executionKind: "local",
     executor: executeWebFetch,

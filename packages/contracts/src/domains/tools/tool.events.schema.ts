@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { toolRiskSchema } from "../permissions/index.js";
 import { definePublicEvent } from "../events/event-definition.schema.js";
-import { toolNameSchema, toolRiskSchema } from "./records.schema.js";
+import { toolNameSchema } from "./records.schema.js";
 
 export const toolEventDefinitions = [
   definePublicEvent(

@@ -34,8 +34,19 @@ export class ApprovalBatchResolutionService {
     decision: "allow" | "deny",
     note?: string,
     resolutionRequestId?: string,
+    scope?:
+      | "single_call"
+      | "same_tool_same_args"
+      | "run"
+      | "always"
+      | "always_project"
+      | "always_user",
   ): Promise<ToolCallRecord> {
-    const approval = this.pendingApproval(approvalId);
+    const projected = this.approval(approvalId);
+    if (projected.status !== "pending") {
+      return this.duplicateResolution(projected, resolutionRequestId, decision);
+    }
+    const approval = projected;
     const pendingToolCall = this.deps.tools.getToolCall(approval.toolCallId);
     if (!pendingToolCall.runId) {
       await this.deps.tools.decideApproval(
@@ -43,6 +54,7 @@ export class ApprovalBatchResolutionService {
         decision,
         note,
         resolutionRequestId,
+        scope,
       );
       return this.deps.tools.finalizeDecidedApproval(approvalId);
     }
@@ -53,7 +65,14 @@ export class ApprovalBatchResolutionService {
     return this.exclusive(
       `${initialBatch.runId}:${initialBatch.checkpointId}`,
       async () => {
-        const currentApproval = this.pendingApproval(approvalId);
+        const currentApproval = this.approval(approvalId);
+        if (currentApproval.status !== "pending") {
+          return this.duplicateResolution(
+            currentApproval,
+            resolutionRequestId,
+            decision,
+          );
+        }
         const currentToolCall = this.deps.tools.getToolCall(
           currentApproval.toolCallId,
         );
@@ -70,6 +89,7 @@ export class ApprovalBatchResolutionService {
           decision,
           note,
           resolutionRequestId,
+          scope,
         );
         if (!(await this.batchReady(batch))) {
           return this.deps.tools.getToolCall(currentToolCall.id);
@@ -82,11 +102,31 @@ export class ApprovalBatchResolutionService {
   async recoverReadyBatches(): Promise<void> {
     const recovered = new Set<string>();
     for (const approval of this.deps.tools.listApprovals()) {
-      if (approval.status === "pending") continue;
       const toolCall = await this.deps.tools.getToolCallDetails(
         approval.toolCallId,
       );
       if (!toolCall.runId) continue;
+      if (approval.status === "pending") {
+        try {
+          await this.deps.runs.assertPendingInteractionForToolCall(
+            toolCall.id,
+            toolCall.runId,
+          );
+        } catch (error) {
+          if (
+            error instanceof ApplicationError &&
+            error.code === "RUN_INTERACTION_NOT_PENDING"
+          ) {
+            await this.deps.tools.abandonPendingInteraction(
+              toolCall.id,
+              "Approval was cancelled because its source run did not suspend.",
+            );
+            continue;
+          }
+          throw error;
+        }
+        continue;
+      }
       let batch: ApprovalInteractionBatch;
       try {
         batch = await this.deps.runs.approvalBatchForToolCall(
@@ -124,18 +164,42 @@ export class ApprovalBatchResolutionService {
     }
   }
 
-  private pendingApproval(approvalId: string): ApprovalRecord {
+  private approval(approvalId: string): ApprovalRecord {
     const approval = this.deps.tools
       .listApprovals()
       .find((candidate) => candidate.id === approvalId);
-    if (!approval || approval.status !== "pending") {
+    if (!approval) {
       throw new ApplicationError(
         404,
         "APPROVAL_NOT_FOUND",
-        "Approval is not pending.",
+        "Approval was not found.",
       );
     }
     return approval;
+  }
+
+  private async duplicateResolution(
+    approval: ApprovalRecord,
+    resolutionRequestId: string | undefined,
+    decision: "allow" | "deny",
+  ): Promise<ToolCallRecord> {
+    const toolCall = await this.deps.tools.getToolCallDetails(
+      approval.toolCallId,
+    );
+    const ordinal = Number(approval.id.slice(approval.id.lastIndexOf("_") + 1));
+    const interaction = toolCall.interactions[ordinal];
+    if (
+      resolutionRequestId &&
+      interaction?.resolutionRequestId === resolutionRequestId &&
+      interaction.resolution?.action === decision
+    ) {
+      return toolCall;
+    }
+    throw new ApplicationError(
+      409,
+      "APPROVAL_ALREADY_RESOLVED",
+      "Approval was already resolved by another request.",
+    );
   }
 
   private async batchReady(batch: ApprovalInteractionBatch): Promise<boolean> {
@@ -155,6 +219,9 @@ export class ApprovalBatchResolutionService {
     batch: ApprovalInteractionBatch,
     targetToolCallId: string,
   ): Promise<ToolCallRecord> {
+    // Validate the branch before any approved side effect starts. Continuation
+    // validation is intentionally not sufficient because it runs after tools.
+    await this.deps.runs.assertApprovalBatchContextUnchanged(batch);
     const toolCalls: ToolCallRecord[] = [];
     for (const toolCallId of batch.batchToolCallIds) {
       const approval = this.approvalForToolCall(toolCallId);

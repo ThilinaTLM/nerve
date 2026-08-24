@@ -46,18 +46,29 @@ export class StreamLogRegistry {
   readonly #notifyListeners = new Set<(event: NotifyEvent) => void>();
   readonly #streamTails = new Map<string, Promise<unknown>>();
   readonly #intentTails = new Map<string, Promise<unknown>>();
+  #conversationRevision?: (conversationId: string) => number | undefined;
 
   constructor(
     private readonly home: string,
     private readonly options: StreamLogRegistryOptions = {},
   ) {}
 
+  setConversationRevisionResolver(
+    resolve: (conversationId: string) => number | undefined,
+  ): void {
+    this.#conversationRevision = resolve;
+  }
+
   async hydrate(): Promise<void> {
     await this.#log(WORKSPACE_STREAM);
   }
 
   publish<T>(type: string, data: T): Promise<PublishedEvent<T>> {
-    const normalized = validatePublicEvent(type, data, "workbench_server") as T;
+    const normalized = validatePublicEvent(
+      type,
+      this.#withConversationRevision(data),
+      "workbench_server",
+    ) as T;
     return this.#enqueueStream(eventQueueKey(type, normalized), () =>
       this.#publishNow(createId("evt"), type, normalized, true),
     );
@@ -91,7 +102,11 @@ export class StreamLogRegistry {
     type: string,
     data: T,
   ): Promise<PublishedEvent<T>> {
-    const normalized = validatePublicEvent(type, data, "workbench_server") as T;
+    const normalized = validatePublicEvent(
+      type,
+      this.#withConversationRevision(data),
+      "workbench_server",
+    ) as T;
     return this.#enqueueIntent(intentId, () =>
       this.#enqueueStream(eventQueueKey(type, normalized), async () => {
         const existing = this.#intentResults.get(intentId);
@@ -259,6 +274,28 @@ export class StreamLogRegistry {
     this.#logs.set(stream, opened);
     opened.catch(() => this.#logs.delete(stream));
     return opened;
+  }
+
+  #withConversationRevision<T>(data: T): T | Record<string, unknown> {
+    if (
+      !this.#conversationRevision ||
+      !data ||
+      typeof data !== "object" ||
+      Array.isArray(data)
+    ) {
+      return data;
+    }
+    const record = data as Record<string, unknown>;
+    if (
+      typeof record.conversationId !== "string" ||
+      typeof record.conversationRevision === "number"
+    ) {
+      return data;
+    }
+    const revision = this.#conversationRevision(record.conversationId);
+    return revision === undefined
+      ? data
+      : { ...record, conversationRevision: revision };
   }
 
   #reportPublishFailure(failure: EventPublishFailure): void {

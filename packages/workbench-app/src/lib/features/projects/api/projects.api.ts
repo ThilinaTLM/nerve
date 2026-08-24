@@ -6,6 +6,7 @@ import type {
   ProjectEditor,
   TaskDefinition,
   ProjectRecord,
+  ProjectPermissions,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
   UpdateTaskDefinitionRequest,
@@ -22,6 +23,25 @@ export async function getProject(projectId: string): Promise<ProjectRecord> {
       projectId,
     })
   ).result.project;
+}
+
+export async function getProjectPermissions(
+  projectId: string,
+): Promise<ProjectPermissions> {
+  return (await protocolRequest("project.permissions.get", { projectId }))
+    .result.permissions;
+}
+
+export async function updateProjectPermissions(
+  projectId: string,
+  permissions: ProjectPermissions,
+): Promise<ProjectPermissions> {
+  return (
+    await protocolRequest("project.permissions.update", {
+      projectId,
+      permissions,
+    })
+  ).result.permissions;
 }
 
 export async function deleteProject(projectId: string): Promise<void> {

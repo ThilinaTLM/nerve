@@ -837,10 +837,6 @@ function agentRecord(): AgentRecord {
     status: "idle",
     mode: "coding",
     permissionLevel: "supervised",
-    approvalPolicy: {
-      autoApproveReadOnly: true,
-      allowReadOnlyWithoutPrompt: true,
-    },
     workspaceScope: "project",
     model: { provider: "nerve-faux", modelId: "faux-fast" },
     thinkingLevel: "off",

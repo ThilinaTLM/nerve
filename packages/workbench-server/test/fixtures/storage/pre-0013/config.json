@@ -1,0 +1,112 @@
+{
+  "defaultMode": "coding",
+  "defaultPermissionLevel": "autonomous",
+  "defaultApprovalPolicy": {
+    "autoApproveReadOnly": true
+  },
+  "defaultThinkingLevel": "off",
+  "rememberLastAgentSelection": false,
+  "lastAgentSelection": {
+    "mode": "coding",
+    "permissionLevel": "autonomous",
+    "approvalPolicy": {
+      "autoApproveReadOnly": true
+    },
+    "thinkingLevel": "off"
+  },
+  "exploreAgent": {
+    "thinkingLevel": "off"
+  },
+  "application": {
+    "network": {
+      "host": "127.0.0.1",
+      "port": 3747,
+      "allowRemote": false,
+      "mobileHttps": false,
+      "httpsPort": 3748
+    },
+    "diagnostics": {
+      "loggingEnabled": false
+    },
+    "daemon": {
+      "startupTimeoutMs": 60000,
+      "maxOldSpaceMb": 4096
+    },
+    "electron": {
+      "ozonePlatform": "auto",
+      "fontRenderHinting": "slight"
+    }
+  },
+  "ui": {
+    "theme": "nerve",
+    "colorMode": "system",
+    "zoomLevel": 0
+  },
+  "desktop": {
+    "closeToTray": true,
+    "headerType": "auto"
+  },
+  "notifications": {
+    "systemEnabled": true,
+    "soundsEnabled": true,
+    "events": {
+      "question": "bell",
+      "planReview": "chime",
+      "approval": "bell",
+      "completed": "success",
+      "failed": "alert"
+    }
+  },
+  "transcription": {
+    "model": "gpt-4o-transcribe",
+    "languages": [],
+    "vocabulary": []
+  },
+  "compaction": {
+    "auto": true,
+    "profile": "balanced",
+    "customTriggerPercent": 80,
+    "customKeepRecentPercent": 15
+  },
+  "logging": {
+    "level": "info",
+    "retentionDays": 14,
+    "maxBufferedLogs": 2000
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000
+  },
+  "runtime": {},
+  "providers": {
+    "atlassianProfiles": [],
+    "tavilyProfiles": []
+  },
+  "tools": {
+    "disabled": ["explain_image"],
+    "bash": {
+      "autoPromotion": {
+        "enabled": true,
+        "afterMs": 120000
+      }
+    },
+    "jira": {
+      "enabled": false
+    },
+    "confluence": {
+      "enabled": false
+    },
+    "web": {},
+    "imageExplanation": {
+      "thinkingLevel": "off"
+    }
+  },
+  "skills": {
+    "disabled": [],
+    "agentBrowser": {
+      "enabled": []
+    }
+  },
+  "scopedModels": []
+}

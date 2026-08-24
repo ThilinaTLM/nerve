@@ -13,7 +13,7 @@ export const PUBLIC_EVENT_MAX_STRING_CHARS = 16_384;
  */
 export const PUBLIC_EVENT_MAX_CONTENT_BYTES = 1024 * 1024;
 
-const maximumDepth = 8;
+const maximumDepth = 12;
 const maximumEntries = 256;
 
 function boundedPublicJson(

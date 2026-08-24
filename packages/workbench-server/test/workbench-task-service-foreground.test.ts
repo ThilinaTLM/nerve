@@ -138,6 +138,12 @@ describe("task manager foreground bash auto-promotion", () => {
       const { supervisor } = fakeSupervisor({ child, onSpawn: spawned });
       const { manager, storage, events } = await createManager(supervisor);
       const startedEvent = waitForTaskEvent(events, "task.started");
+      const updates: string[] = [];
+      let settled = false;
+      let resolveFirstOutput!: () => void;
+      const firstOutput = new Promise<void>((resolve) => {
+        resolveFirstOutput = resolve;
+      });
 
       const run = manager.runForegroundBashWithPromotion({
         command: "node fake.js",
@@ -147,7 +153,20 @@ describe("task manager foreground bash auto-promotion", () => {
         agentId: "agent_test",
         autoPromoteAfterMs: 1000,
         origin: { kind: "agent_tool", toolCallId: "tool_test" },
+        onOutput: (update) => {
+          if (update.kind !== "output") return;
+          updates.push(update.chunk);
+          if (updates.length === 1) resolveFirstOutput();
+        },
       });
+      void run.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
       const started = await startedEvent;
       await didSpawn;
       const completedEvent = waitForTaskEvent(
@@ -156,6 +175,9 @@ describe("task manager foreground bash auto-promotion", () => {
         started.id,
       );
       child.stdout.emit("data", "out 1\n");
+      await firstOutput;
+      assert.equal(settled, false);
+      assert.equal(updates.join(""), "out 1\n");
       child.stderr.emit("data", "err 1\n");
       child.stdout.emit("data", "out 2\n");
       child.emitClose(0, null);

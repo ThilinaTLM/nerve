@@ -102,7 +102,7 @@ const BLOCKED_BASH_ROOT_COMMANDS = new Set([
   "zsh",
 ]);
 
-function isBlockedCommandSegment(tokens: string[]): boolean {
+export function isBlockedCommandSegment(tokens: string[]): boolean {
   const stripped = stripEnvVarAssignments(tokens);
   const unwrapped = unwrapCommandTokens(stripped);
   if (unwrapped.length === 0) return false;

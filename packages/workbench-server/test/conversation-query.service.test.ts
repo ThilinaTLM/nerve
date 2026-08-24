@@ -12,7 +12,6 @@ describe("ConversationQueryService", () => {
       title: "Test",
       mode: "coding",
       permissionLevel: "standard",
-      approvalPolicy: {},
       activeEntryId: "entry_selected",
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -57,6 +56,7 @@ describe("ConversationQueryService", () => {
       events: { latestSeq: async () => 0 } as never,
       state: { getConversation: () => conversation } as never,
       getConversationEntries: () => entries,
+      getConversationRevision: async () => 3,
       getConversationTree: () =>
         ({
           conversationId: "conv_test",

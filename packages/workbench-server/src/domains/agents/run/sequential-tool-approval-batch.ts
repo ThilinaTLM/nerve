@@ -57,9 +57,6 @@ export async function waitForSequentialToolInteractionBatch(
             runId,
             remaining.id,
           ),
-          forceApproval:
-            !isNativeInteractionTool(primaryToolCall.toolName) ||
-            !isNativeInteractionTool(parsedToolName.data),
           durableSuspend: true,
           onLifecycle: (toolCall) =>
             sink.upsertToolCalls([toToolCallTranscriptRecord(toolCall)]),

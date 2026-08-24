@@ -122,10 +122,10 @@ describe("conversation render projection", () => {
         title: "Workbench",
         mode: "coding",
         permissionLevel: "supervised",
-        approvalPolicy: { autoApproveReadOnly: true },
         createdAt: ts,
         updatedAt: ts,
       },
+      conversationRevision: 1,
       tree: { conversationId: "conv_workbench", rootEntryIds: [], nodes: [] },
       entries: [
         {

@@ -17,7 +17,7 @@ import {
   scopedUsableModelOptions,
 } from "$lib/presentation/utils/model";
 import type { SettingsChange } from "$lib/features/settings/components/pages/settings-change";
-import { modeItems, permissionItems } from "./agent-options";
+import { modeItems } from "./agent-options";
 import ModelPickerRow from "./ModelPickerRow.svelte";
 
 type Props = {
@@ -51,12 +51,6 @@ const effectivePermissionLevel = $derived(
     ? settingsDraft.lastAgentSelection.permissionLevel
     : settingsDraft.defaultPermissionLevel,
 );
-const effectiveApprovalPolicy = $derived(
-  settingsDraft.rememberLastAgentSelection
-    ? settingsDraft.lastAgentSelection.approvalPolicy
-    : settingsDraft.defaultApprovalPolicy,
-);
-
 const fallbackThinkingLevels = $derived<Settings["defaultThinkingLevel"][]>(
   defaultModelInfo?.supportedThinkingLevels?.length
     ? defaultModelInfo.supportedThinkingLevels
@@ -68,17 +62,6 @@ const defaultThinkingLevel = $derived(
     defaultModelInfo,
   ),
 );
-
-function readPolicy(
-  permission: Settings["defaultPermissionLevel"] | undefined,
-): string {
-  if (
-    permission === "supervised" &&
-    !effectiveApprovalPolicy.autoApproveReadOnly
-  )
-    return "Approval required";
-  return "Allowed";
-}
 
 function permissionPolicy(
   permission: Settings["defaultPermissionLevel"] | undefined,
@@ -123,7 +106,6 @@ function onRememberLastSelectionChange(checked: boolean): void {
   const lastAgentSelection = {
     mode: conversationState.selectedMode,
     permissionLevel: conversationState.selectedPermissionLevel,
-    approvalPolicy: conversationState.selectedApprovalPolicy,
     ...(model ? { model } : {}),
     thinkingLevel: conversationState.selectedThinkingLevel,
   } satisfies Settings["lastAgentSelection"];
@@ -145,20 +127,6 @@ function setDefaultMode(value: string): void {
   settingsDraft.defaultMode = next;
   onSettingsChange?.({ defaultMode: next }, { immediate: true });
 }
-
-function setDefaultPermission(value: string): void {
-  const next = value as Settings["defaultPermissionLevel"];
-  settingsDraft.defaultPermissionLevel = next;
-  onSettingsChange?.({ defaultPermissionLevel: next }, { immediate: true });
-}
-
-function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
-  settingsDraft.defaultApprovalPolicy.autoApproveReadOnly = autoApproveReadOnly;
-  onSettingsChange?.(
-    { defaultApprovalPolicy: { autoApproveReadOnly } },
-    { immediate: true },
-  );
-}
 </script>
 
 <SettingsGroup>
@@ -170,17 +138,6 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
       ariaLabel="Default mode"
       tourId="setup-agent-default-mode"
       onValueChange={setDefaultMode}
-    />
-  </SettingsRow>
-
-  <SettingsRow label="Default permission" layout="stacked">
-    <SettingsChoiceCards
-      items={permissionItems}
-      variant="radio"
-      value={settingsDraft.defaultPermissionLevel}
-      ariaLabel="Default permission"
-      tourId="setup-agent-default-permission"
-      onValueChange={setDefaultPermission}
     />
   </SettingsRow>
 
@@ -214,10 +171,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
       {/if}
     {/snippet}
     {#snippet policy()}
-      <SettingsKeyValueRow
-        label="File system read"
-        value={readPolicy(effectivePermissionLevel)}
-      />
+      <SettingsKeyValueRow label="File system read" value="Allowed" />
       <SettingsKeyValueRow
         label="File system write"
         value={permissionPolicy(effectivePermissionLevel)}
@@ -229,13 +183,6 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
       <SettingsKeyValueRow label="Network access" value="Tool-dependent" />
     {/snippet}
   </ModelPickerRow>
-
-  <SettingsToggleRow
-    label="Auto-approve read-only tools in supervised mode"
-    description="Let supervised agents read files, search, list directories, and inspect task status without prompting."
-    checked={settingsDraft.defaultApprovalPolicy.autoApproveReadOnly}
-    onCheckedChange={setAutoApproveReadOnly}
-  />
 
   <SettingsToggleRow
     label="Use last selections for new agents"

@@ -3,7 +3,6 @@ export { default as ConversationContextPanel } from "./components/ConversationCo
 export { default as ConversationHistoryDialog } from "./components/ConversationHistoryDialog.svelte";
 export type { ConversationActivityState } from "$lib/kernel/conversations/activity";
 export {
-  setComposerApprovalPolicy,
   setComposerMode,
   setComposerPermission,
   setComposerThinkingLevel,

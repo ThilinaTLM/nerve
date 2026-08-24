@@ -59,7 +59,6 @@ let {
   thinkingLevel = "off",
   mode = "coding",
   permissionLevel = "autonomous",
-  approvalPolicy = { autoApproveReadOnly: true },
   slashCompletions = [],
   fileCompletions,
   composerSuggestions = [],
@@ -77,7 +76,7 @@ let {
   onThinkingLevelChange,
   onModeChange,
   onPermissionChange,
-  onApprovalPolicyChange,
+  onOpenPermissionSettings,
   onGrantApproval,
   onDenyApproval,
   onAcceptPlanReview,
@@ -246,7 +245,6 @@ function menuForTranscript(
       thinkingLevel,
       mode,
       permissionLevel,
-      approvalPolicy,
       contextUsage,
       conversationUsage,
       contextWindow,
@@ -304,7 +302,6 @@ function menuForTranscript(
       {thinkingLevel}
       {mode}
       {permissionLevel}
-      {approvalPolicy}
       {slashCompletions}
       {fileCompletions}
       {composerSuggestions}
@@ -318,7 +315,7 @@ function menuForTranscript(
       {onThinkingLevelChange}
       {onModeChange}
       {onPermissionChange}
-      {onApprovalPolicyChange}
+      {onOpenPermissionSettings}
     />
   {/snippet}
 

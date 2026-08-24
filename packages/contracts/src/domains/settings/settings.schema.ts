@@ -9,6 +9,10 @@ import {
   applicationSettingsSchema,
   defaultApplicationSettings,
 } from "./application-configuration.schema.js";
+import {
+  permissionExceptionSchema,
+  permissionLevelSchema,
+} from "../permissions/permissions.schema.js";
 import { userConfigurableToolNameSchema } from "../tools/records.schema.js";
 
 export const modeSchema = z.enum(["planning", "coding"]);
@@ -23,28 +27,9 @@ export type ColorMode = z.infer<typeof colorModeSchema>;
 export const headerTypeSchema = z.enum(["auto", "linux", "windows", "macos"]);
 export type HeaderType = z.infer<typeof headerTypeSchema>;
 
-export const permissionLevelSchema = z.enum([
-  "autonomous",
-  "supervised",
-  "read_only",
-]);
-export type PermissionLevel = z.infer<typeof permissionLevelSchema>;
-
-export const approvalPolicySchema = z.object({
-  autoApproveReadOnly: z.boolean().default(true),
-});
-export type ApprovalPolicy = z.infer<typeof approvalPolicySchema>;
-export const defaultApprovalPolicy: ApprovalPolicy = {
-  autoApproveReadOnly: true,
-};
-const approvalPolicyPatchSchema = z.object({
-  autoApproveReadOnly: z.boolean().optional(),
-});
-
 export const agentSelectionSettingsSchema = z.object({
   mode: modeSchema.default("coding"),
   permissionLevel: permissionLevelSchema.default("autonomous"),
-  approvalPolicy: approvalPolicySchema.default(defaultApprovalPolicy),
   model: modelSelectionSchema.optional(),
   thinkingLevel: thinkingLevelSchema.default("off"),
 });
@@ -55,6 +40,27 @@ export type AgentSelectionSettings = z.infer<
 const runtimeSettingsSchema = z.object({
   pythonExecutablePath: z.string().trim().min(1).optional(),
   shellPath: z.string().trim().min(1).optional(),
+});
+
+const permissionExceptionsSchema = z
+  .array(permissionExceptionSchema)
+  .max(256)
+  .superRefine((exceptions, context) => {
+    const ids = new Set<string>();
+    for (const [index, exception] of exceptions.entries()) {
+      if (ids.has(exception.id)) {
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate permission exception id '${exception.id}'`,
+          path: [index, "id"],
+        });
+      }
+      ids.add(exception.id);
+    }
+  });
+
+const permissionSettingsSchema = z.object({
+  exceptions: permissionExceptionsSchema.default([]),
 });
 
 export const atlassianProfileSchema = z.object({
@@ -234,14 +240,12 @@ export type TranscriptionSettings = z.infer<typeof transcriptionSettingsSchema>;
 export const settingsSchema = z.object({
   defaultMode: modeSchema,
   defaultPermissionLevel: permissionLevelSchema,
-  defaultApprovalPolicy: approvalPolicySchema.default(defaultApprovalPolicy),
   defaultModel: modelSelectionSchema.optional(),
   defaultThinkingLevel: thinkingLevelSchema.default("off"),
   rememberLastAgentSelection: z.boolean().default(false),
   lastAgentSelection: agentSelectionSettingsSchema.default({
     mode: "coding",
     permissionLevel: "autonomous",
-    approvalPolicy: defaultApprovalPolicy,
     thinkingLevel: "off",
   }),
   exploreAgent: z.object({
@@ -288,6 +292,7 @@ export const settingsSchema = z.object({
     baseDelayMs: z.number().int().positive().default(2000),
   }),
   runtime: runtimeSettingsSchema.default({}),
+  permissions: permissionSettingsSchema.default({ exceptions: [] }),
   providers: providersSettingsSchema.default({
     atlassianProfiles: [],
     tavilyProfiles: [],
@@ -318,13 +323,11 @@ export type Settings = z.infer<typeof settingsSchema>;
 export const defaultSettings: Settings = {
   defaultMode: "coding",
   defaultPermissionLevel: "autonomous",
-  defaultApprovalPolicy,
   defaultThinkingLevel: "off",
   rememberLastAgentSelection: false,
   lastAgentSelection: {
     mode: "coding",
     permissionLevel: "autonomous",
-    approvalPolicy: defaultApprovalPolicy,
     thinkingLevel: "off",
   },
   exploreAgent: {
@@ -367,6 +370,7 @@ export const defaultSettings: Settings = {
     baseDelayMs: 2000,
   },
   runtime: {},
+  permissions: { exceptions: [] },
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
     disabled: ["explain_image"],
@@ -383,7 +387,6 @@ export const defaultSettings: Settings = {
 export const updateSettingsRequestSchema = z.object({
   defaultMode: modeSchema.optional(),
   defaultPermissionLevel: permissionLevelSchema.optional(),
-  defaultApprovalPolicy: approvalPolicyPatchSchema.optional(),
   defaultModel: modelSelectionSchema.nullable().optional(),
   defaultThinkingLevel: thinkingLevelSchema.optional(),
   rememberLastAgentSelection: z.boolean().optional(),
@@ -391,7 +394,6 @@ export const updateSettingsRequestSchema = z.object({
     .object({
       mode: modeSchema.optional(),
       permissionLevel: permissionLevelSchema.optional(),
-      approvalPolicy: approvalPolicyPatchSchema.optional(),
       model: modelSelectionSchema.nullable().optional(),
       thinkingLevel: thinkingLevelSchema.optional(),
     })
@@ -458,6 +460,11 @@ export const updateSettingsRequestSchema = z.object({
       enabled: z.boolean().optional(),
       maxRetries: z.number().int().nonnegative().optional(),
       baseDelayMs: z.number().int().positive().optional(),
+    })
+    .optional(),
+  permissions: z
+    .object({
+      exceptions: permissionExceptionsSchema.optional(),
     })
     .optional(),
   runtime: z

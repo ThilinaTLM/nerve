@@ -1,9 +1,4 @@
-import { join } from "node:path";
-import {
-  JsonlConversationStorage,
-  NodeExecutionEnv,
-  type ConversationTreeEntry,
-} from "@nervekit/harness";
+import { type ConversationTreeEntry } from "@nervekit/harness";
 import {
   conversationStream,
   SUBAGENT_TRANSCRIPT_MAX_ENTRIES,
@@ -15,10 +10,7 @@ import {
   type SubagentTranscriptSnapshot,
 } from "@nervekit/contracts";
 import { ApplicationError } from "../../core/application-error.js";
-import {
-  type InitializedStorage,
-  pathExists,
-} from "../../infrastructure/storage/index.js";
+import { type InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { ToolService } from "../tools/tool-service.js";
@@ -175,49 +167,28 @@ export class SubagentTranscriptService {
     const captured = await this.deps.events.withCursor(
       conversationStream(child.conversationId),
       async () => {
-        const childPath = join(
-          this.deps.storage.paths.home,
-          "agents",
-          child.id,
-          "conversation.jsonl",
+        const parentIds = new Set(
+          (
+            await this.deps.harnessStorage.modelEntries(parent.conversationId)
+          ).map((entry) => entry.id),
         );
-        let projected: SubagentTranscriptEntry[] = [];
-        if (await pathExists(childPath)) {
-          const env = new NodeExecutionEnv({
-            cwd: child.projectDir,
-            shellPath: this.deps.storage.settings.runtime.shellPath,
-          });
-          const childStorage = await JsonlConversationStorage.open(
-            env,
-            childPath,
-          );
-          const parentPath = this.deps.harnessStorage.conversationPath(
-            parent.conversationId,
-          );
-          const parentIds = new Set<string>();
-          if (await pathExists(parentPath)) {
-            const parentStorage = await JsonlConversationStorage.open(
-              env,
-              parentPath,
-            );
-            for (const entry of await parentStorage.getEntries())
-              parentIds.add(entry.id);
-          }
-          projected = messageEntries(await childStorage.getEntries())
-            .filter((entry) => !parentIds.has(entry.id))
-            .map((entry) =>
-              boundedEntry(
-                projectHarnessMessageEntry({
-                  entry,
-                  conversationId: child.conversationId,
-                  agentId: child.id,
-                }),
-              ),
-            )
-            .filter((entry): entry is SubagentTranscriptEntry =>
-              Boolean(entry),
-            );
-        }
+        const projected = messageEntries(
+          await this.deps.harnessStorage.modelEntries(
+            child.conversationId,
+            child.id,
+          ),
+        )
+          .filter((entry) => !parentIds.has(entry.id))
+          .map((entry) =>
+            boundedEntry(
+              projectHarnessMessageEntry({
+                entry,
+                conversationId: child.conversationId,
+                agentId: child.id,
+              }),
+            ),
+          )
+          .filter((entry): entry is SubagentTranscriptEntry => Boolean(entry));
 
         const allToolCalls = this.deps.tools
           .listToolCallPreviews({ agentId: child.id, limit: 1_000 })

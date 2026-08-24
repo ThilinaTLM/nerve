@@ -545,6 +545,7 @@ export interface ConversationActiveRunSnapshot {
 
 export interface ConversationSnapshot {
   conversation: ConversationRecord;
+  conversationRevision: number;
   entries: ConversationEntry[];
   activeEntryIds: string[];
   tree: ConversationTree;
@@ -670,6 +671,7 @@ export const conversationActiveRunSnapshotSchema = z.object({
 
 export const conversationSnapshotSchema = z.object({
   conversation: conversationRecordSchema,
+  conversationRevision: z.number().int().nonnegative(),
   entries: z.array(conversationEntrySchema),
   activeEntryIds: z.array(z.string().startsWith("entry_")),
   tree: conversationTreeSchema,

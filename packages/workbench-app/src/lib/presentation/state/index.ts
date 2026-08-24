@@ -1,4 +1,5 @@
 export * from "./active-run.js";
+export * from "./active-run-timeline.js";
 export * from "./adapters.js";
 export * from "./conversation-view.js";
 export * from "./render.js";

@@ -1,46 +1,51 @@
 <script lang="ts">
 import Check from "@lucide/svelte/icons/check";
 import X from "@lucide/svelte/icons/x";
-import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import type { ApprovalWithToolCall } from "../../../state/tool-types";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import { SplitButton } from "@nervekit/ui-kit/components/ui/split-button";
+import type { ApprovalWithToolCall } from "../../../state/tool-types";
 import type { ToolArgumentPresentation } from "../../lifecycle/registry";
 import type { MetaItem, MetaTone } from "../../views/tool-presentation";
-import ToolApprovalSummary from "./ToolApprovalSummary.svelte";
 import ToolFooter from "./ToolFooter.svelte";
 
 type Props = {
   approval: ApprovalWithToolCall;
   toolName: string;
   presentation: ToolArgumentPresentation;
-  /** False when the card's argument section already shows the body. */
   includeBody?: boolean;
   detailsAction?: { label: string; onClick: () => void };
-  onGrantApproval?: (id: string) => void | Promise<void>;
+  onGrantApproval?: (
+    id: string,
+    scope?: "single_call" | "always_project" | "always_user",
+  ) => void | Promise<void>;
   onDenyApproval?: (id: string) => void | Promise<void>;
 };
 let {
   approval,
-  toolName,
   presentation,
-  includeBody = true,
   detailsAction,
   onGrantApproval,
   onDenyApproval,
 }: Props = $props();
 
-let decision = $state<"approve" | "deny" | undefined>();
+let decision = $state<
+  "approve" | "always_project" | "always_user" | "deny" | undefined
+>();
 let actionError = $state<string | undefined>();
 
-async function decide(kind: "approve" | "deny") {
-  // One shared in-flight state covers both choices and rejects duplicates.
+async function decide(
+  kind: "approve" | "always_project" | "always_user" | "deny",
+) {
   if (decision) return;
-  const callback = kind === "approve" ? onGrantApproval : onDenyApproval;
+  const callback = kind === "deny" ? onDenyApproval : onGrantApproval;
   if (!callback) return;
   decision = kind;
   actionError = undefined;
   try {
-    await callback(approval.id);
+    if (kind === "deny") await callback(approval.id);
+    else await callback(approval.id, kind === "approve" ? "single_call" : kind);
   } catch (error) {
     actionError =
       error instanceof Error && error.message.trim()
@@ -60,30 +65,87 @@ function riskTone(risk: string | undefined): MetaTone {
   return "default";
 }
 
+function exceptionLabel(
+  exception: ApprovalWithToolCall["suggestedExceptions"][number],
+): string {
+  return `${exception.tool}: ${exception.rule}`;
+}
+
 const meta = $derived<MetaItem[]>([
   ...presentation.secondary,
   { text: approval.risk, tone: riskTone(approval.risk) },
 ]);
+const canPersistProject = $derived(
+  approval.offeredScopes.includes("always_project") &&
+    approval.suggestedExceptions.length > 0,
+);
+const canPersistUser = $derived(
+  approval.offeredScopes.includes("always_user") &&
+    approval.suggestedExceptions.length > 0,
+);
+const hasPersistentChoice = $derived(canPersistProject || canPersistUser);
+const reviewedTarget = $derived(
+  approval.suggestedExceptions.map(exceptionLabel).join(", "),
+);
 </script>
 
 <div class="grid gap-2" aria-label="Tool approval">
-  <ToolApprovalSummary {toolName} {presentation} {includeBody} />
-  {#if approval.reason}
-    <p class="m-0 text-sm text-muted-foreground">{approval.reason}</p>
-  {/if}
   <ToolFooter {meta} {detailsAction}>
     {#snippet actions()}
-      <Button
-        size="sm"
-        disabled={Boolean(decision)}
-        onclick={() => void decide("approve")}
-      >
-        {#if decision === "approve"}
-          <Spinner class="size-3.5" />Approving…
-        {:else}
-          <Check size={14} strokeWidth={2.4} />Approve
-        {/if}
-      </Button>
+      {#if hasPersistentChoice}
+        <SplitButton
+          size="sm"
+          disabled={Boolean(decision)}
+          menuAlign="end"
+          menuClass="w-56"
+          triggerLabel="Approval options"
+          onclick={() => void decide("approve")}
+        >
+          {#if decision === "approve"}
+            <Spinner class="size-3.5" />Approving…
+          {:else}
+            <Check class="size-3.5" strokeWidth={2.4} />Approve
+          {/if}
+          {#snippet menu()}
+            <DropdownMenu.Item
+              disabled={Boolean(decision)}
+              onSelect={() => void decide("approve")}
+            >
+              Approve once
+            </DropdownMenu.Item>
+            {#if canPersistProject}
+              <DropdownMenu.Item
+                disabled={Boolean(decision)}
+                title={`Always approve ${reviewedTarget} in this project`}
+                onSelect={() => void decide("always_project")}
+              >
+                Always approve in project
+              </DropdownMenu.Item>
+            {/if}
+            {#if canPersistUser}
+              <DropdownMenu.Item
+                disabled={Boolean(decision)}
+                title={`Always approve ${reviewedTarget} for this user`}
+                onSelect={() => void decide("always_user")}
+              >
+                Always approve for user
+              </DropdownMenu.Item>
+            {/if}
+          {/snippet}
+        </SplitButton>
+      {:else}
+        <Button
+          size="sm"
+          disabled={Boolean(decision)}
+          onclick={() => void decide("approve")}
+        >
+          {#if decision === "approve"}
+            <Spinner class="size-3.5" />Approving…
+          {:else}
+            <Check class="size-3.5" strokeWidth={2.4} />Approve
+          {/if}
+        </Button>
+      {/if}
       <Button
         size="sm"
         variant="secondary"
@@ -93,7 +155,7 @@ const meta = $derived<MetaItem[]>([
         {#if decision === "deny"}
           <Spinner class="size-3.5" />Denying…
         {:else}
-          <X size={14} strokeWidth={2.4} />Deny
+          <X class="size-3.5" strokeWidth={2.4} />Deny
         {/if}
       </Button>
     {/snippet}

@@ -1,5 +1,4 @@
 import type {
-  ApprovalPolicy,
   PermissionLevel,
   ToolGroupName,
   ToolName,
@@ -64,11 +63,9 @@ export type ToolLifecycleHooks = {
   ) => void | Promise<void>;
 };
 
-export type SharedPermissionInput = {
+export type RuntimeToolPermissionInput = {
   permissionLevel: PermissionLevel;
-  approvalPolicy: ApprovalPolicy;
   groupRequireApproval?: "never" | "risky" | "always";
-  allowReadOnlyNetwork?: boolean;
 };
 
 export class ToolRuntimeError extends Error {

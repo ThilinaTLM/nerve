@@ -9,7 +9,6 @@ export interface AgentConfigPatch {
   thinkingLevel?: AgentRecord["thinkingLevel"];
   mode?: AgentRecord["mode"];
   permissionLevel?: AgentRecord["permissionLevel"];
-  approvalPolicy?: AgentRecord["approvalPolicy"];
 }
 
 export interface AgentConfigMutationQueueDeps {
@@ -39,7 +38,6 @@ const PATCH_FIELDS = [
   "thinkingLevel",
   "mode",
   "permissionLevel",
-  "approvalPolicy",
 ] as const;
 
 /**
@@ -158,9 +156,6 @@ function runtimeConfigFields(
   if (patch.permissionLevel !== undefined) {
     runtime.permissionLevel = patch.permissionLevel;
   }
-  if (patch.approvalPolicy !== undefined) {
-    runtime.approvalPolicy = patch.approvalPolicy;
-  }
   return hasFields(runtime) ? runtime : undefined;
 }
 
@@ -191,11 +186,6 @@ function sameFieldValue(
     return Boolean(
       a && b && a.provider === b.provider && a.modelId === b.modelId,
     );
-  }
-  if (field === "approvalPolicy") {
-    const a = left as AgentRecord["approvalPolicy"] | undefined;
-    const b = right as AgentRecord["approvalPolicy"] | undefined;
-    return Boolean(a && b && a.autoApproveReadOnly === b.autoApproveReadOnly);
   }
   return false;
 }

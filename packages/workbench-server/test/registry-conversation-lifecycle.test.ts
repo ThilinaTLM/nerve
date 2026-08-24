@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { describe, it } from "node:test";
 import type {
   ConversationEntry,
   ConversationRecord,
 } from "@nervekit/contracts";
 import { createOrchestratorState } from "../src/app/orchestrator-state.js";
+import { ConversationJournalRepository } from "../src/domains/conversations/conversation-journal.repository.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 import {
   appendRegistryEntry,
@@ -22,12 +21,6 @@ describe("RuntimeRegistry conversation lifecycle", () => {
     const storage = await initializeStorage(
       await tempHome("nerve-registry-title-repair-"),
     );
-    const conversationDir = join(
-      storage.paths.home,
-      "conversations",
-      oldConversationId,
-    );
-    await mkdir(conversationDir, { recursive: true });
     const text =
       "Build a focused onboarding screen that explains projects, conversations, agents, and local tool permissions without overwhelming first-time users.";
     const conversation: ConversationRecord = {
@@ -48,14 +41,23 @@ describe("RuntimeRegistry conversation lifecycle", () => {
       text,
       createdAt,
     };
-    await writeFile(
-      join(conversationDir, "conversation.json"),
-      `${JSON.stringify(conversation)}\n`,
-    );
-    await writeFile(
-      join(conversationDir, "entries.jsonl"),
-      `${JSON.stringify(entry)}\n`,
-    );
+    const journal = new ConversationJournalRepository(storage);
+    await journal.commit(oldConversationId, {
+      kind: "test.bootstrap",
+      committedAt: createdAt,
+      events: [
+        {
+          kind: "conversation.upserted",
+          conversationId: oldConversationId,
+          conversation,
+        },
+        {
+          kind: "conversation.entry_appended",
+          conversationId: oldConversationId,
+          entry,
+        },
+      ],
+    });
 
     const state = createOrchestratorState(storage, "127.0.0.1", 0);
     await state.registry.hydrate();
@@ -68,9 +70,9 @@ describe("RuntimeRegistry conversation lifecycle", () => {
     assert.equal(repaired.updatedAt, createdAt);
     assert.equal(repaired.lastUserMessageAt, createdAt);
 
-    const persisted = JSON.parse(
-      await readFile(join(conversationDir, "conversation.json"), "utf8"),
-    ) as ConversationRecord;
+    const persisted = (
+      await new ConversationJournalRepository(storage).load(oldConversationId)
+    ).conversation as ConversationRecord;
     assert.equal(
       persisted.title,
       "Build a focused onboarding screen that explains projects, conversations",
@@ -184,17 +186,11 @@ describe("RuntimeRegistry conversation lifecycle", () => {
       assert.equal(explicitlyReopened.pinned, false);
       assert.equal(explicitlyReopened.updatedAt, reopened.updatedAt);
 
-      const persisted = JSON.parse(
-        await readFile(
-          join(
-            state.storage.paths.home,
-            "conversations",
-            conversation.id,
-            "conversation.json",
-          ),
-          "utf8",
-        ),
-      ) as ConversationRecord;
+      const persisted = (
+        await new ConversationJournalRepository(state.storage).load(
+          conversation.id,
+        )
+      ).conversation as ConversationRecord;
       assert.equal(persisted.pinned, false);
       assert.equal(persisted.completedAt, undefined);
       assert.ok(persisted.runtimeStatusClearedAt);

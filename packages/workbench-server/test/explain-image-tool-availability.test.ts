@@ -12,7 +12,6 @@ function agent(): AgentRecord {
     rootAgentId: "agent_01HN0000000000000000000000",
     mode: "coding",
     permissionLevel: "autonomous",
-    approvalPolicy: { autoApproveReadOnly: true },
     workspaceScope: { roots: ["/tmp/project"] },
     budget: { depth: 0, maxDepth: 3 },
     status: "idle",

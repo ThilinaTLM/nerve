@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -11,6 +11,7 @@ import {
 } from "../src/app/orchestrator-state.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 import { WorkbenchRunUnitOfWork } from "../src/domains/runs/run-transition.repository.js";
+import { ConversationJournalRepository } from "../src/domains/conversations/conversation-journal.repository.js";
 
 describe("explore subagent transcript isolation", () => {
   it("keeps child harness messages and tools out of the parent conversation", async () => {
@@ -47,14 +48,6 @@ describe("explore subagent transcript isolation", () => {
         projectId: project.id,
         conversationId: conversation.id,
       });
-      const parentHarnessPath = join(
-        root,
-        "conversations",
-        conversation.id,
-        "harness.jsonl",
-      );
-      const parentHarnessBefore = await readFile(parentHarnessPath, "utf8");
-
       const result = await orchestrator.registry.requestTool(
         parent.id,
         "explore",
@@ -97,14 +90,10 @@ describe("explore subagent transcript isolation", () => {
       );
       assert.deepEqual(snapshot.entries, []);
       assert.deepEqual(snapshot.activeEntryIds, []);
-      assert.equal(
-        await readFile(parentHarnessPath, "utf8"),
-        parentHarnessBefore,
-      );
-
-      const childHarness = await readFile(
-        join(root, "agents", child.id, "conversation.jsonl"),
-        "utf8",
+      const childHarness = JSON.stringify(
+        (
+          await new ConversationJournalRepository(storage).load(conversation.id)
+        ).agentModelEntries.get(child.id) ?? [],
       );
       assert.match(childHarness, /focused read-only verification/);
       assert.match(childHarness, /Task-specific context/);
@@ -225,20 +214,20 @@ describe("explore subagent transcript isolation", () => {
       );
 
       await shutdownOrchestratorState(orchestrator);
-      const conversationPath = join(
-        root,
-        "conversations",
-        conversation.id,
-        "conversation.json",
-      );
-      await writeFile(
-        conversationPath,
-        `${JSON.stringify({
-          ...orchestrator.registry.getConversation(conversation.id),
-          activeAgentId: child.id,
-        })}\n`,
-        "utf8",
-      );
+      const journal = new ConversationJournalRepository(storage);
+      const persistedBefore = (await journal.load(conversation.id))
+        .conversation;
+      assert.ok(persistedBefore);
+      await journal.commit(conversation.id, {
+        kind: "test.child_active_agent",
+        events: [
+          {
+            kind: "conversation.upserted",
+            conversationId: conversation.id,
+            conversation: { ...persistedBefore, activeAgentId: child.id },
+          },
+        ],
+      });
 
       const restartedStorage = await initializeStorage(root);
       restarted = createOrchestratorState(restartedStorage, "127.0.0.1", 0);
@@ -247,12 +236,12 @@ describe("explore subagent transcript isolation", () => {
         restarted.registry.getConversation(conversation.id).activeAgentId,
         parent.id,
       );
-      const persisted = JSON.parse(
-        await readFile(conversationPath, "utf8"),
-      ) as {
-        activeAgentId?: string;
-      };
-      assert.equal(persisted.activeAgentId, parent.id);
+      const persisted = (
+        await new ConversationJournalRepository(restartedStorage).load(
+          conversation.id,
+        )
+      ).conversation;
+      assert.equal(persisted?.activeAgentId, parent.id);
     } finally {
       await shutdownOrchestratorState(orchestrator);
       if (restarted) await shutdownOrchestratorState(restarted);

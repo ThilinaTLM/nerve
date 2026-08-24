@@ -18,6 +18,7 @@ import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
 import type { MigrationReport } from "../migrations/index.js";
 import { coordinateStorageStartup } from "./startup-coordinator.js";
 import { inspectWorkbenchHome } from "./state-layout.js";
+import { normalizedJsonPaths } from "./storage-postconditions.js";
 
 const dataSubdirs = [
   "auth",
@@ -63,10 +64,22 @@ export async function readCurrentSettingsForBootstrap(
     });
   }
   const parsed = settingsSchema.safeParse(raw);
-  if (!parsed.success || JSON.stringify(raw) !== JSON.stringify(parsed.data)) {
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .slice(0, 8)
+      .map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
+      .join("; ");
     throw new Error(
-      `Current Nerve settings at ${path} are malformed or require a pending migration.`,
-      { cause: parsed.success ? undefined : parsed.error },
+      `Current Nerve settings at ${path} are invalid: ${issues}`,
+      {
+        cause: parsed.error,
+      },
+    );
+  }
+  const changed = normalizedJsonPaths(raw, parsed.data);
+  if (changed.length > 0) {
+    throw new Error(
+      `Current Nerve settings at ${path} require a pending migration at: ${changed.slice(0, 12).join(", ")}.`,
     );
   }
   return parsed.data;
@@ -146,23 +159,9 @@ export async function writeSettings(
       : "defaultModel" in patch
         ? { defaultModel: patch.defaultModel }
         : {};
-  const defaultApprovalPolicyPatch = patch.defaultApprovalPolicy
-    ? {
-        ...storage.settings.defaultApprovalPolicy,
-        ...patch.defaultApprovalPolicy,
-      }
-    : undefined;
   const lastAgentSelectionPatch = patch.lastAgentSelection
     ? {
         ...patch.lastAgentSelection,
-        ...(patch.lastAgentSelection.approvalPolicy
-          ? {
-              approvalPolicy: {
-                ...storage.settings.lastAgentSelection.approvalPolicy,
-                ...patch.lastAgentSelection.approvalPolicy,
-              },
-            }
-          : {}),
         ...(patch.lastAgentSelection.model === null
           ? { model: undefined }
           : {}),
@@ -275,9 +274,6 @@ export async function writeSettings(
     ...storage.settings,
     ...patch,
     ...defaultModelPatch,
-    ...(defaultApprovalPolicyPatch
-      ? { defaultApprovalPolicy: defaultApprovalPolicyPatch }
-      : {}),
     application: {
       ...storage.settings.application,
       ...(patch.application ?? {}),

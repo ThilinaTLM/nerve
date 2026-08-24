@@ -22,7 +22,10 @@ const actions = createInteractionActions({
   openConversation,
 });
 
-export const grantApproval = (id: string) => actions.grantApproval(id);
+export const grantApproval = (
+  id: string,
+  scope?: "single_call" | "always_project" | "always_user",
+) => actions.grantApproval(id, scope);
 export const denyApproval = (id: string) => actions.denyApproval(id);
 export const acceptPendingPlanReview = (
   id: string,

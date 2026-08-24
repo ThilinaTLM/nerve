@@ -17,6 +17,17 @@ export type ToolExecutor = (
   context: ToolExecutionContext,
 ) => Promise<ToolExecutionResult>;
 
+export type ToolPermissionTargetDescriptor =
+  | {
+      kind: "path";
+      access: "read" | "write";
+      scope: "exact" | "tree";
+      arguments: readonly string[];
+      defaultValue?: string;
+    }
+  | { kind: "web_host"; argument: string }
+  | { kind: "command_segments"; argument: string };
+
 interface ToolDefinitionBase<TParams extends TObject = TObject> {
   name: ToolName;
   label: string;
@@ -28,6 +39,10 @@ interface ToolDefinitionBase<TParams extends TObject = TObject> {
   baseRisk: ToolRisk;
   traits: readonly ToolTrait[];
   classifyRisk?: ToolArgumentRiskClassifier;
+  permission?: {
+    durableAllow: "never" | "tool" | "target";
+    targets?: readonly ToolPermissionTargetDescriptor[];
+  };
 }
 
 export interface LocalToolDefinition<

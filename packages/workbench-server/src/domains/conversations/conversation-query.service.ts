@@ -43,6 +43,7 @@ export interface ConversationQueryServiceDeps {
   events: StreamLogRegistry;
   state: RuntimeState;
   getConversationEntries: (conversationId: string) => ConversationEntry[];
+  getConversationRevision: (conversationId: string) => Promise<number>;
   getConversationTree: (conversationId: string) => ConversationTree;
   getContextUsage: (conversationId: string) => Promise<ContextUsage>;
   listToolCallPreviews: (conversationId: string) => ToolCallTranscriptRecord[];
@@ -58,9 +59,10 @@ export class ConversationQueryService {
   async getConversationSnapshot(
     conversationId: string,
   ): Promise<ConversationSnapshot> {
-    const cursorSeq = await this.deps.events.latestSeq(
-      conversationStream(conversationId),
-    );
+    const [cursorSeq, conversationRevision] = await Promise.all([
+      this.deps.events.latestSeq(conversationStream(conversationId)),
+      this.deps.getConversationRevision(conversationId),
+    ]);
     const contextUsage = await this.deps
       .getContextUsage(conversationId)
       .catch(() => undefined);
@@ -72,6 +74,7 @@ export class ConversationQueryService {
     );
     return {
       conversation: this.deps.state.getConversation(conversationId),
+      conversationRevision,
       entries,
       activeEntryIds,
       tree: this.deps.getConversationTree(conversationId),

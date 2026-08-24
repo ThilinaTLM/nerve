@@ -10,6 +10,7 @@ import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
+import type { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
 import type { WorkbenchExploreAdmission } from "../agents/run/workbench-explore-admission.js";
 import type { WorkbenchSubagentExecutions } from "../agents/run/workbench-subagent-executions.js";
 import type { ToolService } from "../tools/tool-service.js";
@@ -41,6 +42,7 @@ export interface WorkbenchRunRuntime {
 
 export function createWorkbenchRunRuntime(input: {
   home: string;
+  journal: ConversationJournalRepository;
   state: RuntimeState;
   events: StreamLogRegistry;
   tools: ToolService;
@@ -62,7 +64,7 @@ export function createWorkbenchRunRuntime(input: {
     status: AgentRecord["status"],
   ): Promise<void>;
 }): WorkbenchRunRuntime {
-  const unitOfWork = new WorkbenchRunUnitOfWork(input.home);
+  const unitOfWork = new WorkbenchRunUnitOfWork(input.journal);
   const integrity = new WorkbenchRunIntegrity();
   const publisher = new WorkbenchRunEventPublisher(input.events);
   const notify = new WorkbenchRunNotifyPublisher(input.events);

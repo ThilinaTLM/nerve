@@ -25,11 +25,72 @@ function startRun(): EventEnvelope {
     seq: 1,
     ts,
     type: "run.started",
-    data: { ...liveBase, startedAt: ts },
+    data: { ...liveBase, conversationRevision: 5, startedAt: ts },
   };
 }
 
 describe("conversation live notifications", () => {
+  it("applies Bash, Python, and Explore output only while their run is active", () => {
+    const cases = [
+      { toolName: "bash", delta: "bash tick 1\n" },
+      { toolName: "python_exec", delta: "python tick 1\n" },
+      {
+        toolName: "explore",
+        delta: `${JSON.stringify({ type: "explore_progress", phase: "started" })}\n`,
+      },
+    ];
+
+    for (const [index, testCase] of cases.entries()) {
+      let state = applyConversationEvent(
+        emptyConversationRenderState("conv_test"),
+        startRun(),
+      );
+      const toolCallId = `tool_test_${index}`;
+      const output = notify("conversation.live.tool_output.delta", {
+        ...liveBase,
+        conversationRevision: 9,
+        toolCallId,
+        toolName: testCase.toolName,
+        stream: "stdout",
+        offset: 0,
+        delta: testCase.delta,
+      });
+
+      let gaps = 0;
+      state = applyConversationNotification(state, output, {
+        onGap: () => gaps++,
+      });
+      assert.equal(
+        state.activeRun?.toolOutputsByToolCallId[toolCallId]?.text,
+        testCase.delta,
+        testCase.toolName,
+      );
+      assert.equal(state.cursorSeq, 1);
+      assert.equal(state.conversationRevision, 5);
+      assert.equal(gaps, 0);
+
+      const staleOutput = notify("conversation.live.tool_output.delta", {
+        ...liveBase,
+        conversationRevision: 4,
+        toolCallId: `${toolCallId}_stale`,
+        toolName: testCase.toolName,
+        stream: "stdout",
+        offset: 0,
+        delta: "stale\n",
+      });
+      assert.equal(applyConversationNotification(state, staleOutput), state);
+
+      state = applyConversationEvent(state, {
+        id: "evt_2",
+        seq: 2,
+        ts,
+        type: "run.completed",
+        data: { ...liveBase, conversationRevision: 10, completedAt: ts },
+      });
+      assert.equal(applyConversationNotification(state, output), state);
+    }
+  });
+
   it("applies full live detail without advancing the durable cursor", () => {
     let state = applyConversationEvent(
       emptyConversationRenderState("conv_test"),

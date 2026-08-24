@@ -1,11 +1,6 @@
 export { InteractionSessionService } from "./interaction-session.service.js";
 export { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
-export type {
-  PolicyContext,
-  PolicyDecision,
-  PolicyEvaluation,
-} from "./policy.js";
-export { evaluateToolPolicy } from "./policy.js";
+export * from "./permission/index.js";
 export type { TodoItem } from "./todo-state.service.js";
 export {
   TodoStateService,

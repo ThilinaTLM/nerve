@@ -17,6 +17,7 @@ import {
 } from "$lib/presentation/utils/model";
 import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { openSettingsPane } from "$lib/application/settings";
 import WorkbenchConversationAdapter from "$lib/app/composition/conversations/WorkbenchConversationHost.svelte";
 import {
   composerSignals,
@@ -47,7 +48,6 @@ import {
 } from "$lib/features/conversations/state/prompt-send";
 import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import {
-  setComposerApprovalPolicy,
   setComposerMode,
   setComposerModel,
   setComposerPermission,
@@ -194,13 +194,6 @@ const selectedPermissionLevel = $derived(
     activeAgent?.permissionLevel ??
     activeConversation?.permissionLevel ??
     conversationState.selectedPermissionLevel,
-);
-const selectedApprovalPolicy = $derived(
-  activePendingConversation?.approvalPolicy ??
-    activeAgentConfigOverride?.approvalPolicy ??
-    activeAgent?.approvalPolicy ??
-    activeConversation?.approvalPolicy ??
-    conversationState.selectedApprovalPolicy,
 );
 const activeComposerText = $derived(
   activePendingConversation?.composerText ?? view?.composerText ?? "",
@@ -443,7 +436,6 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   {planReviewThinkingLevel}
   mode={selectedMode}
   permissionLevel={selectedPermissionLevel}
-  approvalPolicy={selectedApprovalPolicy}
   {slashCompletions}
   contextUsage={view?.contextUsage}
   {conversationUsage}
@@ -482,9 +474,8 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   onPermissionChange={(value) => {
     void runActivePaneAction(() => setComposerPermission(value));
   }}
-  onApprovalPolicyChange={(value) => {
-    void runActivePaneAction(() => setComposerApprovalPolicy(value));
-  }}
+  onOpenPermissionSettings={() =>
+    void openSettingsPane("permissions", "default-permission")}
   onGrantApproval={grantApproval}
   onDenyApproval={denyApproval}
   onAcceptPlanReview={(id, options) => acceptPendingPlanReview(id, options)}

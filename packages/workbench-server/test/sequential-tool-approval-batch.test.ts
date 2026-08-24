@@ -118,7 +118,7 @@ function runBatch(options: {
   };
 }
 
-test("stages EVERY parallel tool into one approval batch when the primary awaits approval", async () => {
+test("stages parallel tools without overriding their own permission decisions", async () => {
   const primary = pendingWaitRecord("tool_primary", "bash", "approval");
   const batch = runBatch({
     primary,
@@ -130,14 +130,14 @@ test("stages EVERY parallel tool into one approval batch when the primary awaits
 
   await batch.run();
 
-  // Both remaining parallel tools must be staged (evaluated) with forced approval.
+  // Both remaining parallel tools are staged and evaluated independently.
   assert.equal(batch.requested.length, 2);
   assert.deepEqual(
     batch.requested.map((r) => r.toolName),
     ["python_exec", "bash"],
   );
   for (const request of batch.requested) {
-    assert.equal(request.options.forceApproval, true);
+    assert.equal(request.options.forceApproval, undefined);
   }
 
   // The primary and every staged call must join one shared wait batch.
@@ -178,7 +178,7 @@ test("stages a native interaction tool alongside an ask_user primary without for
   await batch.run();
 
   assert.equal(batch.requested.length, 1);
-  assert.equal(batch.requested[0]!.options.forceApproval, false);
+  assert.equal(batch.requested[0]!.options.forceApproval, undefined);
   assert.equal(batch.waits.length, 2);
   assert.ok(batch.batchWaitIds().includes("tool_ask"));
   assert.ok(batch.batchWaitIds().includes("tool_staged_1"));

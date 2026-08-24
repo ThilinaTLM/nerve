@@ -39,7 +39,10 @@ type Props = {
   onOpenFile?: (path: string, line?: number) => void;
   onAnswerUserQuestion?: (questionId: string, answer: string) => void;
   onDismissUserQuestion?: (questionId: string) => void;
-  onGrantApproval?: (id: string) => void;
+  onGrantApproval?: (
+    id: string,
+    scope?: "single_call" | "always_project" | "always_user",
+  ) => void | Promise<void>;
   onDenyApproval?: (id: string) => void;
   onAcceptPlanReview?: (
     id: string,
