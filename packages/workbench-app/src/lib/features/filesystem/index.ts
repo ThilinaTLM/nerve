@@ -12,6 +12,7 @@ export {
   toggleFileLineWrap,
 } from "./state/file-tabs.svelte";
 export {
+  openInlineMermaidPane,
   openMarkdownMermaidPane,
   refreshMermaidPane,
 } from "./state/mermaid-tabs.svelte";

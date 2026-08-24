@@ -25,6 +25,7 @@ import type {
   TranscriptItem,
 } from "../../state/transcript-types.js";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
+import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/core/components/mermaid-blocks";
 
 export type ConversationComposerCapabilities = {
   voice?: boolean;
@@ -125,6 +126,7 @@ export type ConversationPaneActions = {
   onPasteImage?: (file: File) => Promise<string>;
   onDropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
   onOpenFile?: (path: string, line?: number) => void;
+  onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
   onAnswerUserQuestion?: (id: string, answer: string) => void | Promise<void>;
   onDismissUserQuestion?: (id: string) => void | Promise<void>;
   onGrantApproval?: (

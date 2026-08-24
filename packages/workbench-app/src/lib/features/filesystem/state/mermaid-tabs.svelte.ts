@@ -17,7 +17,7 @@ import {
 } from "@nervekit/ui-kit/core/components/mermaid-blocks";
 import { fileState } from "./file-state.svelte";
 
-function encodeMermaidTabId(
+function encodeFileMermaidTabId(
   projectId: string,
   path: string,
   block: MermaidMarkdownBlock,
@@ -25,13 +25,22 @@ function encodeMermaidTabId(
   return `${projectId}:${encodeURIComponent(path)}:mermaid:${block.locator.startLine}:${block.locator.fingerprint}`;
 }
 
-function existingViewId(
+export function encodeInlineMermaidTabId(
+  projectId: string,
+  sourceKey: string,
+  block: MermaidMarkdownBlock,
+): string {
+  return `${projectId}:inline-mermaid:${encodeURIComponent(sourceKey)}:${block.locator.ordinal}:${block.locator.fingerprint}`;
+}
+
+function existingFileViewId(
   projectId: string,
   path: string,
   block: MermaidMarkdownBlock,
 ): string | undefined {
   const candidates = Object.values(fileState.mermaidViews).filter(
     (view) =>
+      view.origin === "file" &&
       view.projectId === projectId &&
       view.path === path &&
       view.locator.fingerprint === block.locator.fingerprint,
@@ -39,11 +48,12 @@ function existingViewId(
   return candidates.reduce<string | undefined>((closestId, candidate) => {
     if (!closestId) return candidate.id;
     const closest = fileState.mermaidViews[mermaidViewKey(closestId)];
+    const closestLine =
+      closest?.origin === "file"
+        ? closest.locator.startLine
+        : Number.POSITIVE_INFINITY;
     return Math.abs(candidate.locator.startLine - block.locator.startLine) <
-      Math.abs(
-        (closest?.locator.startLine ?? Number.POSITIVE_INFINITY) -
-          block.locator.startLine,
-      )
+      Math.abs(closestLine - block.locator.startLine)
       ? candidate.id
       : closestId;
   }, undefined);
@@ -51,7 +61,7 @@ function existingViewId(
 
 async function loadMermaidView(id: string) {
   const view = fileState.mermaidViews[mermaidViewKey(id)];
-  if (!view) return;
+  if (!view || view.origin === "inline") return;
   view.loading = true;
   view.error = undefined;
   try {
@@ -89,6 +99,18 @@ async function loadMermaidView(id: string) {
   }
 }
 
+async function selectProject(projectId: string): Promise<void> {
+  if (projectId === workspaceState.selectedProjectId) return;
+  const { selectProject } =
+    await import("$lib/application/workspace/workspace-actions.svelte");
+  await selectProject(projectId);
+}
+
+function activateMermaidTab(id: string): void {
+  addCenterTab({ kind: "mermaid", id });
+  setActiveCenterTab({ kind: "mermaid", id });
+}
+
 export async function openMarkdownMermaidPane(input: {
   projectId: string;
   path: string;
@@ -96,16 +118,14 @@ export async function openMarkdownMermaidPane(input: {
   name?: string;
   block: MermaidMarkdownBlock;
 }) {
-  if (input.projectId !== workspaceState.selectedProjectId) {
-    const { selectProject } =
-      await import("$lib/application/workspace/workspace-actions.svelte");
-    await selectProject(input.projectId);
-  }
-  const existing = existingViewId(input.projectId, input.path, input.block);
+  await selectProject(input.projectId);
+  const existing = existingFileViewId(input.projectId, input.path, input.block);
   const id =
-    existing ?? encodeMermaidTabId(input.projectId, input.path, input.block);
+    existing ??
+    encodeFileMermaidTabId(input.projectId, input.path, input.block);
   const key = mermaidViewKey(id);
   fileState.mermaidViews[key] ??= {
+    origin: "file",
     id,
     projectId: input.projectId,
     path: input.path,
@@ -116,18 +136,49 @@ export async function openMarkdownMermaidPane(input: {
     loading: false,
   };
   const view = fileState.mermaidViews[key];
+  if (view.origin !== "file") return;
   view.source = input.block.source;
   view.locator = input.block.locator;
   view.error = undefined;
-  addCenterTab({ kind: "mermaid", id });
-  setActiveCenterTab({ kind: "mermaid", id });
+  activateMermaidTab(id);
+}
+
+export async function openInlineMermaidPane(input: {
+  projectId: string;
+  sourceKey: string;
+  name?: string;
+  block: MermaidMarkdownBlock;
+}) {
+  await selectProject(input.projectId);
+  const id = encodeInlineMermaidTabId(
+    input.projectId,
+    input.sourceKey,
+    input.block,
+  );
+  const key = mermaidViewKey(id);
+  fileState.mermaidViews[key] ??= {
+    origin: "inline",
+    id,
+    projectId: input.projectId,
+    sourceKey: input.sourceKey,
+    name: input.name ?? "Assistant diagram",
+    locator: input.block.locator,
+    source: input.block.source,
+    loading: false,
+  };
+  const view = fileState.mermaidViews[key];
+  if (view.origin !== "inline") return;
+  view.source = input.block.source;
+  view.locator = input.block.locator;
+  view.name = input.name ?? "Assistant diagram";
+  view.error = undefined;
+  activateMermaidTab(id);
 }
 
 export async function selectCenterMermaidTab(id: string) {
   const view = fileState.mermaidViews[mermaidViewKey(id)];
   if (!view) return;
-  addCenterTab({ kind: "mermaid", id });
-  setActiveCenterTab({ kind: "mermaid", id });
+  activateMermaidTab(id);
   if (!view.source && !view.loading) await loadMermaidView(id);
 }
 

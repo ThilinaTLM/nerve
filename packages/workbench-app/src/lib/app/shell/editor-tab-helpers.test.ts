@@ -45,6 +45,7 @@ test("labels embedded Mermaid tabs with their source and block location", () => 
   const model: Extract<CenterTabModel, { kind: "mermaid" }> = {
     kind: "mermaid",
     id: "diagram_a",
+    origin: "file",
     path: "/repo/docs/architecture.md",
     relativePath: "docs/architecture.md",
     name: "architecture.md",
@@ -59,6 +60,24 @@ test("labels embedded Mermaid tabs with their source and block location", () => 
     "/repo/docs/architecture.md · Mermaid diagram at line 42",
   );
   assert.equal(statusLabel(model), "Loading diagram");
+});
+
+test("labels Mermaid tabs opened from assistant messages", () => {
+  const model: Extract<CenterTabModel, { kind: "mermaid" }> = {
+    kind: "mermaid",
+    id: "diagram_assistant",
+    origin: "inline",
+    name: "Assistant diagram",
+    locator: { ordinal: 1, startLine: 12, fingerprint: "def" },
+    active: true,
+    sending: false,
+  };
+
+  assert.equal(tabLabel(model), "Assistant diagram 2");
+  assert.equal(
+    tabTitle(model),
+    "Assistant diagram 2 · Mermaid diagram from assistant message",
+  );
 });
 
 test("labels the Discover singleton tab", () => {

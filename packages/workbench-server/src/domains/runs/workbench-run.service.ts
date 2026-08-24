@@ -350,12 +350,7 @@ export class WorkbenchRunService {
       this.state.getConversationEntries(conversation.id),
       conversation.activeEntryId,
     );
-    if (
-      currentEntryIds.length !== checkpoint.entryIds.length ||
-      currentEntryIds.some(
-        (entryId, index) => entryId !== checkpoint.entryIds[index],
-      )
-    ) {
+    if (!activeBranchEndsWithCheckpoint(currentEntryIds, checkpoint.entryIds)) {
       throw new ApplicationError(
         409,
         "RUN_CHECKPOINT_STALE",
@@ -511,6 +506,19 @@ export class WorkbenchRunService {
   private scopeId(agent: AgentRecord): string {
     return `${agent.conversationId}:${agent.id}`;
   }
+}
+
+// Checkpoints contain this run's transcript, while the active branch also
+// contains entries from earlier runs. The run transcript must remain its tail.
+export function activeBranchEndsWithCheckpoint(
+  activeBranchEntryIds: readonly string[],
+  checkpointEntryIds: readonly string[],
+): boolean {
+  if (checkpointEntryIds.length > activeBranchEntryIds.length) return false;
+  const offset = activeBranchEntryIds.length - checkpointEntryIds.length;
+  return checkpointEntryIds.every(
+    (entryId, index) => activeBranchEntryIds[offset + index] === entryId,
+  );
 }
 
 function activeBranchEntryIds(

@@ -341,8 +341,9 @@ export const workspaceSelectors = {
         {
           kind: "mermaid" as const,
           id: tab.id,
-          path: view.path,
-          relativePath: view.relativePath,
+          origin: view.origin,
+          path: view.origin === "file" ? view.path : undefined,
+          relativePath: view.origin === "file" ? view.relativePath : undefined,
           name: view.name,
           locator: view.locator,
           active: activeTabMatches("mermaid", tab.id),

@@ -66,6 +66,7 @@ export type FileTabModel = {
 export type MermaidTabModel = {
   kind: "mermaid";
   id: string;
+  origin: "file" | "inline";
   path?: string;
   relativePath?: string;
   name?: string;

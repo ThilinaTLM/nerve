@@ -29,12 +29,15 @@ export function tabLabel(tab: CenterTabModel): string {
       "File"
     );
   if (tab.kind === "mermaid") {
+    const diagramNumber = tab.locator ? tab.locator.ordinal + 1 : undefined;
+    if (tab.origin === "inline")
+      return `${tab.name ?? "Assistant diagram"}${diagramNumber ? ` ${diagramNumber}` : ""}`;
     const name =
       tab.name ??
       tab.relativePath?.split("/").pop() ??
       tab.path?.split("/").pop() ??
       "Markdown";
-    return `${name} · diagram ${tab.locator ? tab.locator.ordinal + 1 : ""}`.trim();
+    return `${name} · diagram ${diagramNumber ?? ""}`.trim();
   }
   if (tab.kind === "pr") return `#${tab.number}`;
   if (tab.kind === "diff") {
@@ -54,8 +57,11 @@ export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
     return `${taskLabel(tab)} · ${tab.task.status} · ${shortenPath(tab.task.cwd, homeDir)} · ${tab.task.id}`;
   }
   if (tab.kind === "file") return tab.file?.path ?? tab.path ?? tab.id;
-  if (tab.kind === "mermaid")
+  if (tab.kind === "mermaid") {
+    if (tab.origin === "inline")
+      return `${tabLabel(tab)} · Mermaid diagram from assistant message`;
     return `${tab.path ?? tab.id} · Mermaid diagram${tab.locator ? ` at line ${tab.locator.startLine}` : ""}`;
+  }
   if (tab.kind === "diff")
     return `${tab.path ?? tab.id} · ${tab.area === "staged" ? "staged" : "unstaged"} changes${tab.repo && tab.repo !== "." ? ` · ${tab.repo}` : ""}`;
   if (tab.kind === "pr")
