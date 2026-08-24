@@ -142,7 +142,13 @@ export class ConversationLifecycleService {
     options: AppendEntryOptions = {},
   ): Promise<ConversationEntry> {
     const conversation = this.getConversation(input.conversationId);
-    const entry: ConversationEntry = {
+    const entries = this.state.entries.get(input.conversationId) ?? [];
+    const existing = input.id
+      ? entries.find((candidate) => candidate.id === input.id)
+      : undefined;
+    if (existing) return existing;
+
+    let entry: ConversationEntry = {
       id: input.id ?? createId("entry"),
       conversationId: input.conversationId,
       agentId: input.agentId,
@@ -165,10 +171,11 @@ export class ConversationLifecycleService {
       details: input.details,
       createdAt: input.createdAt ?? new Date().toISOString(),
     };
-    const entries = this.state.entries.get(input.conversationId) ?? [];
+    entry = await this.entryRepository.append(entry);
+    const committed = entries.find((candidate) => candidate.id === entry.id);
+    if (committed) return committed;
     entries.push(entry);
     this.state.entries.set(input.conversationId, entries);
-    await this.entryRepository.append(entry);
     const lastUserMessageAt =
       entry.role === "user" &&
       (!conversation.lastUserMessageAt ||

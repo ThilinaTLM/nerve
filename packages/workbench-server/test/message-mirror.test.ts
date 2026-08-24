@@ -75,11 +75,14 @@ function toolResultStorageEntry(
   };
 }
 
-function createMirror(storageEntries: unknown[]) {
+function createMirror(
+  storageEntries: unknown[],
+  existingEntries: ConversationEntry[] = [],
+) {
   const appended: AppendEntryInput[] = [];
   const mirror = new MessageMirror({
     state: {
-      getConversationEntries: () => [],
+      getConversationEntries: () => existingEntries,
       conversations: new Map(),
     } as unknown as RuntimeState,
     appendEntry: async (input) => {
@@ -133,6 +136,35 @@ describe("AssistantEntryMetaQueue", () => {
 });
 
 describe("MessageMirror assistant message correlation", () => {
+  it("does not mirror a harness entry already present in the transcript", async () => {
+    const storageEntry = toolResultStorageEntry("entry_existing", {
+      text: "Task cancelled",
+      toolName: "task_control",
+    });
+    const existing = {
+      id: "entry_existing",
+      conversationId: agent.conversationId,
+      role: "system",
+      kind: "task_event",
+      text: "Background task cancelled.",
+      createdAt: "2026-01-01T00:00:02.000Z",
+    } satisfies ConversationEntry;
+    const { mirror, storage, appended } = createMirror(
+      [storageEntry],
+      [existing],
+    );
+
+    const mirrored = await mirror.mirrorNewHarnessEntries(
+      agent,
+      storage,
+      new Set(),
+      { runId: "run_retry", turnId: "turn_retry" },
+    );
+
+    assert.deepEqual(mirrored, []);
+    assert.deepEqual(appended, []);
+  });
+
   it("assigns FIFO metas to assistant entries within one batch", async () => {
     const { mirror, storage, appended } = createMirror([
       assistantStorageEntry("entry_a1", "first answer"),

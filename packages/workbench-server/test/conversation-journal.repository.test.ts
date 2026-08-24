@@ -3,7 +3,10 @@ import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { ConversationRecord } from "@nervekit/contracts";
+import type {
+  ConversationEntry,
+  ConversationRecord,
+} from "@nervekit/contracts";
 import { ConversationJournalRepository } from "../src/domains/conversations/conversation-journal.repository.js";
 
 const conversationId = "conv_journal_test";
@@ -49,6 +52,46 @@ test("conversation journal commits are chained and idempotent", async (t) => {
   assert.equal(replayed.revision, 1);
   assert.equal(replayed.conversation?.title, "Journal test");
   assert.match(replayed.checksum, /^sha256:[a-f0-9]{64}$/);
+});
+
+test("conversation entry appends are first-write-wins by id", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-entry-idempotent-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const repository = new ConversationJournalRepository({ paths: { home } });
+  const original: ConversationEntry = {
+    id: "entry_task_event",
+    conversationId,
+    role: "system",
+    kind: "task_event",
+    text: "Task completed",
+    createdAt: now,
+  };
+  await repository.commit(conversationId, {
+    kind: "conversation.entry_appended",
+    events: [
+      { kind: "conversation.entry_appended", conversationId, entry: original },
+    ],
+  });
+  await repository.commit(conversationId, {
+    kind: "conversation.entry_appended",
+    events: [
+      {
+        kind: "conversation.entry_appended",
+        conversationId,
+        entry: {
+          ...original,
+          parentEntryId: "entry_concurrent_parent",
+          text: "Task completed with regenerated details",
+        },
+      },
+    ],
+  });
+
+  const state = await new ConversationJournalRepository({
+    paths: { home },
+  }).load(conversationId);
+  assert.equal(state.revision, 2);
+  assert.deepEqual(state.entries, [original]);
 });
 
 test("conversation journal truncates a non-terminated final append", async (t) => {

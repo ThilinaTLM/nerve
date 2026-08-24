@@ -81,6 +81,53 @@ describe("RuntimeRegistry conversation lifecycle", () => {
     assert.equal(persisted.lastUserMessageAt, createdAt);
   });
 
+  it("returns the first transcript entry when an id is appended again", async () => {
+    const state = await createState("nerve-registry-idempotent-entry-");
+    try {
+      const project = await state.registry.createProject({
+        dir: state.storage.paths.home,
+      });
+      const conversation = await state.registry.createConversation({
+        projectId: project.id,
+      });
+      const entryId = "entry_idempotent_task_event";
+      const original = await appendRegistryEntry(state, {
+        id: entryId,
+        conversationId: conversation.id,
+        role: "system",
+        text: "Task completed",
+        createdAt: "2026-01-01T00:01:00.000Z",
+      });
+      const repeated = await appendRegistryEntry(state, {
+        id: entryId,
+        conversationId: conversation.id,
+        parentEntryId: "entry_different_parent",
+        role: "system",
+        text: "Regenerated task completion",
+        createdAt: "2026-01-01T00:02:00.000Z",
+      });
+
+      assert.deepEqual(repeated, original);
+      assert.deepEqual(state.registry.getConversationEntries(conversation.id), [
+        original,
+      ]);
+      assert.equal(
+        state.registry.getConversation(conversation.id).activeEntryId,
+        entryId,
+      );
+      assert.equal(
+        (
+          await new ConversationJournalRepository(state.storage).load(
+            conversation.id,
+          )
+        ).entries.length,
+        1,
+      );
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("tracks last user message time separately from conversation updates", async () => {
     const state = await createState("nerve-registry-last-user-message-");
     try {

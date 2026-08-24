@@ -230,6 +230,21 @@ export class TaskNotificationService {
       if (!currentEntryId) {
         await this.deps.tasks.markNotificationPending(task.id, slot, entryId);
       }
+      const existingById = this.findExistingTaskEventEntry(
+        task,
+        event,
+        entryId,
+      );
+      if (existingById) {
+        await this.deps.tasks.markNotificationDelivered(
+          task.id,
+          slot,
+          existingById.id,
+          existingById.createdAt,
+        );
+        await this.maybeContinueAwaitedTask(task, event);
+        return;
+      }
       const timestamp = new Date().toISOString();
       const { message } = await this.buildHarnessMessage(
         task,
@@ -283,7 +298,7 @@ export class TaskNotificationService {
     if (task.completion?.inject !== true) return;
     if (!task.agentId) return;
     const activeRunId = await this.activeRunId(task);
-    if (!activeRunId || this.deps.liveRuns.get(activeRunId)) return;
+    if (activeRunId) return;
     const continueAgent = this.deps.continueAgent;
     if (!continueAgent) return;
     await continueAgent(task.agentId).catch((error) =>
@@ -297,14 +312,17 @@ export class TaskNotificationService {
   }
 
   private async activeRunId(task: TaskRecord): Promise<string | undefined> {
-    if (task.origin.kind === "agent_tool" && task.origin.runId) {
-      return task.origin.runId;
-    }
+    const originRunId =
+      task.origin.kind === "agent_tool" ? task.origin.runId : undefined;
+    if (originRunId && this.deps.liveRuns.get(originRunId)) return originRunId;
     if (!task.agentId || !task.conversationId) return undefined;
     const state = await this.deps.runUnitOfWork.findActive(
       `${task.conversationId}:${task.agentId}`,
     );
-    return state?.run.runId;
+    const activeRunId = state?.run.runId;
+    return activeRunId && this.deps.liveRuns.get(activeRunId)
+      ? activeRunId
+      : undefined;
   }
 
   private shouldDeliver(task: TaskRecord, event: HarnessTaskEvent): boolean {
@@ -402,6 +420,17 @@ export class TaskNotificationService {
     message: HarnessMessage<HarnessTaskEventDetails>,
     timestamp: string,
   ): Promise<void> {
+    const event = message.details?.event ?? "completed";
+    const existing = this.findExistingTaskEventEntry(task, event, entryId);
+    if (existing) {
+      await this.deps.tasks.markNotificationDelivered(
+        task.id,
+        slotForEvent(event),
+        existing.id,
+        existing.createdAt,
+      );
+      return;
+    }
     const agent = this.deps.getAgent(task.agentId as string);
     await this.deps.harnessStorage.appendHarnessMessageWithId(
       agent,
@@ -430,7 +459,7 @@ export class TaskNotificationService {
     );
     await this.deps.tasks.markNotificationDelivered(
       task.id,
-      slotForEvent(message.details?.event ?? "completed"),
+      slotForEvent(event),
       entry.id,
       entry.createdAt,
     );
@@ -467,11 +496,13 @@ export class TaskNotificationService {
   private findExistingTaskEventEntry(
     task: TaskRecord,
     event: HarnessTaskEvent,
+    entryId?: string,
   ): ConversationEntry | undefined {
     if (!task.conversationId) return undefined;
     return this.deps
       .getConversationEntries(task.conversationId)
       .find((entry) => {
+        if (entryId && entry.id === entryId) return true;
         if (entry.kind !== "task_event") return false;
         const details = asRecord(entry.details);
         return (

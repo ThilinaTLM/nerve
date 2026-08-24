@@ -60,6 +60,7 @@ export function ageConversation(
 export function appendRegistryEntry(
   state: Awaited<ReturnType<typeof createState>>,
   input: {
+    id?: string;
     conversationId: string;
     parentEntryId?: string | null;
     role: ConversationEntry["role"];
