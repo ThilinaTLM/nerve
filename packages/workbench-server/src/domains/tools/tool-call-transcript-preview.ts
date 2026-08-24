@@ -18,7 +18,7 @@ import {
   buildWebSearchTranscriptPreview,
 } from "./web-tool-transcript-preview.js";
 
-const PREVIEW_COUNT = 10;
+const PREVIEW_COUNT = 6;
 const MAX_PREVIEW_CHARS = 8 * 1024;
 
 type Overflow = NonNullable<ToolCallTranscriptRecord["previewOverflow"]>;
@@ -529,7 +529,14 @@ export function toPublicToolCallArgsPreview(
 export function toToolCallTranscriptRecord(
   toolCall: ToolCallRecord,
 ): ToolCallTranscriptRecord {
-  const { args, result, ...base } = toolCall;
+  const {
+    args,
+    result,
+    resultPreview: storedResultPreview,
+    resultPayload: _resultPayload,
+    ...base
+  } = toolCall;
+  void _resultPayload;
   // Durable supervision retains the complete normalized execution arguments for
   // policy revalidation. Transcript events already carry a bounded argsPreview,
   // so publishing supervision would duplicate unbounded (and potentially
@@ -766,6 +773,8 @@ export function toToolCallTranscriptRecord(
       direction = "head";
     }
   }
+
+  if (storedResultPreview !== undefined) resultPreview = storedResultPreview;
 
   // Project schema-bearing semantic results before verbose arguments.
   const resultFirst =

@@ -53,7 +53,10 @@ export function createAgentToolsForAgent(
         onLifecycle: options.onLifecycle,
       });
       if (toolCall.status === "completed")
-        return toolCallResultForModel(toolCall);
+        return toolCallResultForModel(
+          toolCall,
+          tools.toolResultPayloadPath(toolCall),
+        );
       if (toolCall.status === "waiting") {
         throw new AgentToolSuspension({
           toolCallId: toolCall.id,
@@ -128,11 +131,15 @@ export function activeToolNamesForAgent(
 
 export function toolCallResultForModel(
   toolCall: ToolCallRecord,
+  fullOutputPath?: string,
 ): AgentToolResult<unknown> {
   const content =
     toolCall.status === "completed"
-      ? (contentBlocksFromResult(toolCall.result) ?? [
-          { type: "text" as const, text: formatToolResultForModel(toolCall) },
+      ? (contentBlocksFromResult(toolCall.result, fullOutputPath) ?? [
+          {
+            type: "text" as const,
+            text: formatToolResultForModel(toolCall, fullOutputPath),
+          },
         ])
       : [
           {
@@ -150,6 +157,7 @@ export function toolCallResultForModel(
 
 export function contentBlocksFromResult(
   result: unknown,
+  fullOutputPath?: string,
 ): Array<TextContent | ImageContent> | undefined {
   if (!result || typeof result !== "object") return undefined;
   const contentBlocks = (result as Record<string, unknown>).contentBlocks;
@@ -179,10 +187,13 @@ export function contentBlocksFromResult(
     }
     return undefined;
   }
-  return boundModelContentBlocks(blocks, result);
+  return boundModelContentBlocks(blocks, result, fullOutputPath);
 }
 
-export function formatToolResultForModel(toolCall: ToolCallRecord): string {
+export function formatToolResultForModel(
+  toolCall: ToolCallRecord,
+  fullOutputPath?: string,
+): string {
   if (toolCall.status === "denied") {
     return boundModelText(
       toolCall.error?.trim()
@@ -224,7 +235,8 @@ export function formatToolResultForModel(toolCall: ToolCallRecord): string {
       return `User replied:\n${record.response}`;
     }
   }
-  if (typeof result === "string") return boundModelText(result, result);
+  if (typeof result === "string")
+    return boundModelText(result, result, fullOutputPath);
   if (result && typeof result === "object") {
     const record = result as Record<string, unknown>;
     const parts: string[] = [];
@@ -251,7 +263,12 @@ export function formatToolResultForModel(toolCall: ToolCallRecord): string {
           .join("\n")}`,
       );
     }
-    if (parts.length > 0) return boundModelText(parts.join("\n\n"), result);
+    if (parts.length > 0)
+      return boundModelText(parts.join("\n\n"), result, fullOutputPath);
   }
-  return boundModelText(JSON.stringify(result, null, 2), result);
+  return boundModelText(
+    JSON.stringify(result, null, 2),
+    result,
+    fullOutputPath,
+  );
 }

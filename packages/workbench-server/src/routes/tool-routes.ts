@@ -41,11 +41,11 @@ export function createToolRoutes(state: OrchestratorState): Hono {
   app.get(
     "/tool-calls/:toolCallId",
     routeHandler(async (c) =>
-      c.json({
-        toolCall: await state.registry.tools.getToolCallDetails(
+      c.json(
+        await state.registry.tools.getToolCallUiDetails(
           routeParam(c, "toolCallId"),
         ),
-      }),
+      ),
     ),
   );
   app.post(

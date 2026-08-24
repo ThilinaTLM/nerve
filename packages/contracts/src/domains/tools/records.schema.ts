@@ -263,6 +263,23 @@ export const toolCallErrorDetailsSchema = z.object({
 });
 export type ToolCallErrorDetails = z.infer<typeof toolCallErrorDetailsSchema>;
 
+export const toolResultPayloadReferenceSchema = z
+  .object({
+    version: z.literal(1),
+    kind: z.literal("tool_result"),
+    conversationId: z.string().startsWith("conv_").max(256),
+    toolCallId: z.string().startsWith("tool_").max(256),
+    digest: z.string().regex(/^[a-f0-9]{64}$/),
+    byteLength: z.number().int().nonnegative().safe(),
+    mediaType: z.literal("application/json"),
+    encoding: z.literal("utf-8"),
+    completeness: z.enum(["complete", "legacy_bounded"]),
+  })
+  .strict();
+export type ToolResultPayloadReference = z.infer<
+  typeof toolResultPayloadReferenceSchema
+>;
+
 const toolCallRecordBaseSchema = z.object({
   id: z.string().startsWith("tool_"),
   agentId: z.string().startsWith("agent_"),
@@ -289,6 +306,8 @@ const toolCallRecordBaseSchema = z.object({
   interactions: z.array(toolInteractionSchema).max(16),
   hidden: z.boolean().optional(),
   result: z.unknown().optional(),
+  resultPreview: toolCallTranscriptPreviewSchema.optional(),
+  resultPayload: toolResultPayloadReferenceSchema.optional(),
   error: z.string().optional(),
   errorDetails: toolCallErrorDetailsSchema.optional(),
   createdAt: z.string().datetime(),
@@ -298,6 +317,17 @@ const toolCallRecordBaseSchema = z.object({
 
 export const toolCallRecordSchema = toolCallRecordBaseSchema.superRefine(
   (record, context) => {
+    if (
+      record.resultPayload &&
+      (record.resultPayload.conversationId !== record.conversationId ||
+        record.resultPayload.toolCallId !== record.id)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Tool-result payload ownership must match the tool call.",
+        path: ["resultPayload"],
+      });
+    }
     const pending = record.interactions.filter(
       (interaction) => interaction.status === "pending",
     );
@@ -350,7 +380,14 @@ export type ToolCallPreviewOverflow = z.infer<
  * /api/tool-calls/:toolCallId.
  */
 export const toolCallTranscriptRecordSchema = toolCallRecordBaseSchema
-  .omit({ args: true, result: true, error: true, errorDetails: true })
+  .omit({
+    args: true,
+    result: true,
+    resultPreview: true,
+    resultPayload: true,
+    error: true,
+    errorDetails: true,
+  })
   .extend({
     argsPreview: toolCallTranscriptPreviewSchema.optional(),
     resultPreview: toolCallTranscriptPreviewSchema.optional(),

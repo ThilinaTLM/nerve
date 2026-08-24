@@ -28,7 +28,7 @@ const dataSubdirs = [
   "auth",
   "keys",
   "projects",
-  "conversations",
+  "payloads",
   "agents",
   "plans",
   "logs",
@@ -135,7 +135,10 @@ export async function initializeStorage(
   }
   await chmod(paths.home, 0o700);
   for (const subdir of dataSubdirs) {
-    const mode = subdir === "auth" || subdir === "keys" ? 0o700 : 0o755;
+    const mode =
+      subdir === "auth" || subdir === "keys" || subdir === "payloads"
+        ? 0o700
+        : 0o755;
     const dir = join(paths.home, subdir);
     await mkdir(dir, { recursive: true, mode });
     await chmod(dir, mode).catch(() => undefined);

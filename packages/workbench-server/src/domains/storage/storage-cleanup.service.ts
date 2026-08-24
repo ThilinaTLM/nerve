@@ -279,7 +279,7 @@ export class StorageCleanupService {
         target: "conversations",
         message: "Removing old inactive conversations…",
         run: async () => {
-          const dir = join(this.deps.paths.home, "conversations");
+          const dir = join(this.deps.paths.home, "payloads", "conversations");
           const before = (await dirSize(dir)).bytes;
           const result = await this.deps
             .getRegistry()

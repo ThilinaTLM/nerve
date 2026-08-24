@@ -19,6 +19,7 @@ export type {
   QueuedPromptRecord,
   TaskLogEvent,
   TaskRecord,
+  ToolCallDetails,
   ToolCallRecord,
   ToolCallTranscriptRecord,
   UserQuestionRecord,

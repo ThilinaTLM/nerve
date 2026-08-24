@@ -1,10 +1,10 @@
 # Conversation storage model
 
-> **Status:** Concise record of the agreed storage brainstorm. It is non-normative until implemented in contracts and migrations.
+> **Status:** Normative storage design. Contracts and migrations implement the SQLite record model plus file-backed complete tool results described below.
 
 ## Design
 
-Use one canonical SQLite database. A conversation is a stable container; everything durable that happens within it is a typed conversation record.
+Use canonical SQLite conversation records. A conversation is a stable container; every durable lifecycle transition is a typed conversation record. Complete tool-result bytes that exceed the agent preview contract are stored as owner-scoped payload files, while SQLite remains canonical for their identity, projections, ownership, and integrity reference.
 
 This keeps the storage model small:
 
@@ -86,7 +86,7 @@ erDiagram
     }
 ```
 
-`data` is a discriminated, versioned payload validated by the shared contracts and storage package. Frequently queried envelope fields remain relational and indexed. SQLite handles every payload through the same abstraction regardless of size; there is no tool-result file threshold.
+`data` is a discriminated, versioned payload validated by the shared contracts and storage package. Frequently queried envelope fields remain relational and indexed. A tool-call payload stores its bounded agent result, six-line/item UI preview, and—only when the agent result truncates—a validated descriptor for `<NERVE_HOME>/payloads/conversations/<conversationId>/tool-calls/<toolCallId>.json`. There is no byte-size placement threshold and no payload metadata table or join.
 
 ## Record kinds
 
@@ -102,6 +102,16 @@ RecordKind
 - `tool_batch` is optional and is used only when a batch has its own lifecycle or one batch-wide supervision decision. Otherwise `group_id` is sufficient.
 
 `parent_id` forms the conversation/context tree. Each agent's `active_record_id` identifies its active branch leaf. Conversation metadata remains separate so it is not repeated on every record.
+
+### Tool-result projections
+
+Tool results have independent durable projections:
+
+- The agent projection keeps at most 200 logical lines and then at most 24,000 UTF-8 bytes, with no per-line character cap. If it truncates, the final output reserves room for exactly `Output truncated. Full output: <resolved path>` and the complete result is written to the payload file first.
+- The UI transcript projection keeps at most six tool-appropriate lines/items and exposes a details action.
+- Public events carry only the UI projection.
+- Details reads return the complete canonical value from inline SQLite data when it fit or from the verified payload file when it truncated.
+- Every sequential, parallel, or batched tool call receives its own independent budgets; there is no batch-wide output allowance.
 
 ## Tool-call lifecycle
 
@@ -282,7 +292,7 @@ Important practices:
 - checkpoint WAL deliberately and use SQLite's backup API for consistent live backups;
 - measure commit latency, WAL growth, payload decode time, and UI event-loop delay before adding physical payload splitting or compression.
 
-Large and small tool payloads retain one domain abstraction. If benchmarks show write amplification from large inline payloads, the storage package may move payload bytes to an internal payload table without changing the record API or domain model.
+Tool results retain one domain abstraction. Results that fit the agent contract remain unchanged inline. Truncated results keep their complete readable JSON in the owner-scoped payload file and their two bounded projections in SQLite. The descriptor path is derived from validated owner IDs under the active `NERVE_HOME`; absolute paths are never persisted.
 
 ## Core indexes and invariants
 

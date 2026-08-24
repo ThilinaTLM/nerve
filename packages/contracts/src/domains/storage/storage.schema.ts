@@ -10,6 +10,7 @@ export type DaemonStartupProgress = z.infer<typeof daemonStartupProgressSchema>;
 
 export const storageCategoryKeySchema = z.enum([
   "conversations",
+  "payloads",
   "logs",
   "sqliteIndex",
   "exploreReports",

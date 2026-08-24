@@ -249,6 +249,10 @@ export class RuntimeRegistry {
     if (this.shuttingDown) return;
     const operations = [
       ["Network model refresh", this.auth.refreshModels()],
+      [
+        "Tool-result payload reconciliation",
+        this.tools.reconcileResultPayloads(),
+      ],
     ] as const;
     this.trackBackgroundOperation(this.logSettledOperations(operations));
   }

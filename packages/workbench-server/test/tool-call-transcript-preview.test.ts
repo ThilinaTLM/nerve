@@ -50,16 +50,52 @@ describe("explain_image transcript preview", () => {
     assert.ok(String(details.explanation).length < explanation.length);
     assert.equal("contentBlocks" in result, false);
     assert.deepEqual(preview.previewOverflow, {
-      hidden: 10,
+      hidden: 14,
       noun: "lines",
       direction: "head",
     });
     assert.equal(JSON.stringify(preview).includes("thinking"), false);
   });
 
+  it("keeps the last six bash output lines", () => {
+    const toolCall = {
+      ...explainImageToolCall("unused"),
+      toolName: "bash" as const,
+      args: { command: "seq 1 10" },
+      result: {
+        content: Array.from(
+          { length: 10 },
+          (_, index) => `line ${index + 1}`,
+        ).join("\n"),
+      },
+    } satisfies ToolCallRecord;
+    const preview = toToolCallTranscriptRecord(toolCall);
+    const result = preview.resultPreview as { content?: string };
+    assert.equal(
+      result.content,
+      "line 5\nline 6\nline 7\nline 8\nline 9\nline 10",
+    );
+    assert.deepEqual(preview.previewOverflow, {
+      hidden: 4,
+      noun: "lines",
+      direction: "tail",
+    });
+  });
+
   it("omits unbounded durable supervision arguments from public events", () => {
     const toolCall = {
       ...explainImageToolCall("Interrupted."),
+      resultPayload: {
+        version: 1 as const,
+        kind: "tool_result" as const,
+        conversationId: "conv_01H00000000000000000000000",
+        toolCallId: "tool_01H00000000000000000000000",
+        digest: "a".repeat(64),
+        byteLength: 20_000,
+        mediaType: "application/json" as const,
+        encoding: "utf-8" as const,
+        completeness: "complete" as const,
+      },
       supervision: {
         status: "approved" as const,
         source: "automatic" as const,
@@ -80,6 +116,7 @@ describe("explain_image transcript preview", () => {
     const preview = toToolCallTranscriptRecord(toolCall);
 
     assert.equal(preview.supervision, undefined);
+    assert.equal("resultPayload" in preview, false);
     assert.doesNotThrow(() =>
       validatePublicEvent(
         "toolCall.updated",

@@ -17,6 +17,7 @@ import {
   type StartTaskRequest,
   type TaskRecord,
   type ThinkingLevel,
+  type ToolCallDetails,
   type ToolCallRecord,
   type ToolCallTranscriptRecord,
   type ToolInteraction,
@@ -47,6 +48,7 @@ import { ConversationJournalRepository } from "../conversations/conversation-jou
 import { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
+import { ToolResultPayloadStore } from "./tool-result-payload-store.js";
 
 const HOST_RESTART_TOOL_ERROR =
   "Tool execution was interrupted because the host restarted.";
@@ -176,6 +178,7 @@ export class ToolService {
   private readonly dispatcher: OrchestrationToolDispatcher;
   private readonly executor: ToolExecutorService;
   private readonly conversationJournal: ConversationJournalRepository;
+  readonly resultPayloads: ToolResultPayloadStore;
   private readonly waiters = new Map<
     string,
     Set<(toolCall: ToolCallRecord) => void>
@@ -206,12 +209,16 @@ export class ToolService {
     private readonly logger?: ApplicationLogger,
     private readonly permissionExceptions?: PermissionExceptionService,
     journal?: ConversationJournalRepository,
+    resultPayloads?: ToolResultPayloadStore,
   ) {
     this.conversationJournal =
       journal ?? new ConversationJournalRepository(storage);
+    this.resultPayloads =
+      resultPayloads ?? new ToolResultPayloadStore(storage.paths.home);
     this.toolCallRepository = new ToolCallRepository(
       this.conversationJournal,
       index,
+      this.resultPayloads,
     );
     this.toolCalls = this.toolCallRepository.records;
     this.interactionSessions = new InteractionSessionService({
@@ -252,12 +259,13 @@ export class ToolService {
       assertExecutionBoundary: (toolCall) =>
         this.assertExecutionBoundary(toolCall),
 
-      storageHome: this.storage.paths.home,
+      payloads: this.resultPayloads,
       logger: this.logger,
     });
   }
 
   async hydrate(): Promise<void> {
+    await this.resultPayloads.initialize();
     this.plans.resetToolCallHydration();
     this.todoState.resetToolCallHydration();
     await this.toolCallRepository.hydrate((toolCall) => {
@@ -265,6 +273,18 @@ export class ToolService {
       this.todoState.hydrateFromToolCall(toolCall);
     });
     await this.reconcileInterruptedToolCallsOnStartup();
+  }
+
+  async reconcileResultPayloads(): Promise<void> {
+    const referenced = new Set<string>();
+    for (const state of await this.conversationJournal.hydrateAll()) {
+      for (const toolCall of state.toolCalls.values()) {
+        if (toolCall.resultPayload) {
+          referenced.add(this.resultPayloads.path(toolCall.resultPayload));
+        }
+      }
+    }
+    await this.resultPayloads.reconcile(referenced);
   }
 
   listTools() {
@@ -969,6 +989,16 @@ export class ToolService {
 
   async getToolCallDetails(toolCallId: string): Promise<ToolCallRecord> {
     return await this.toolCallRepository.getCanonical(toolCallId);
+  }
+
+  async getToolCallUiDetails(toolCallId: string): Promise<ToolCallDetails> {
+    return await this.toolCallRepository.getDetails(toolCallId);
+  }
+
+  toolResultPayloadPath(toolCall: ToolCallRecord): string | undefined {
+    return toolCall.resultPayload
+      ? this.resultPayloads.path(toolCall.resultPayload)
+      : undefined;
   }
 
   async abandonPendingInteraction(

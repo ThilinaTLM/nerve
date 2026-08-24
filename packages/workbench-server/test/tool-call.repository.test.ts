@@ -9,6 +9,7 @@ import {
   ToolCallRevisionConflictError,
 } from "../src/domains/tools/tool-call.repository.js";
 import { RuntimeProjectionStore } from "../src/infrastructure/runtime-projection-store/index.js";
+import { ToolResultPayloadStore } from "../src/domains/tools/tool-result-payload-store.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 
 const roots: string[] = [];
@@ -39,7 +40,12 @@ function toolCall(id: string): ToolCallRecord {
 async function repository(home: string) {
   const storage = await initializeStorage(home);
   const index = new RuntimeProjectionStore(storage.paths.sqlitePath);
-  return { index, repository: new ToolCallRepository(storage, index) };
+  const payloads = new ToolResultPayloadStore(home);
+  return {
+    index,
+    payloads,
+    repository: new ToolCallRepository(storage, index, payloads),
+  };
 }
 
 describe("canonical ToolCallRepository", () => {
@@ -114,6 +120,34 @@ describe("canonical ToolCallRepository", () => {
     );
     assert.equal(second.repository.residentStats().cachedTerminalRecords, 1);
     second.index.close();
+  });
+
+  it("loads complete details explicitly without hydrating transcript history", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-repository-"));
+    roots.push(home);
+    const value = await repository(home);
+    const resultPayload = await value.payloads.write(
+      "conv_test",
+      "tool_payload",
+      { content: "complete output" },
+    );
+    await value.repository.create({
+      ...toolCall("tool_payload"),
+      status: "completed",
+      result: { content: "bounded" },
+      resultPreview: { content: "bounded" },
+      resultPayload,
+      settledAt: "2026-07-25T00:00:00.000Z",
+    });
+
+    const details = await value.repository.getDetails("tool_payload");
+    assert.equal(details.completeResultStatus, "payload");
+    assert.deepEqual(details.completeResult, { content: "complete output" });
+    assert.deepEqual(
+      value.repository.listPreviews({ limit: 10 })[0]?.resultPreview,
+      { content: "bounded" },
+    );
+    value.index.close();
   });
 
   it("pages previews stably by updated time and id", async () => {

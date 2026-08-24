@@ -8,6 +8,7 @@ export {
   todosResult,
 } from "./todo-state.service.js";
 export { ToolCallRepository } from "./tool-call.repository.js";
+export { ToolResultPayloadStore } from "./tool-result-payload-store.js";
 export {
   isToolExecutionSuspended,
   ToolExecutionSuspended,
