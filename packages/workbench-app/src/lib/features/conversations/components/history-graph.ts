@@ -129,16 +129,35 @@ function hasThinking(details: Record<string, unknown> | undefined): boolean {
 }
 
 /** Resolve the tool record for a tool-result entry, if available. */
+function toolIdentity(details: Record<string, unknown> | undefined): {
+  recordId?: string;
+  providerId?: string;
+} {
+  if (!details) return {};
+  const nested = asRecord(details.details);
+  const nestedToolCall = asRecord(nested?.toolCall);
+  return {
+    recordId:
+      toolPrefixId(details.toolRecordId) ?? toolPrefixId(nestedToolCall?.id),
+    providerId:
+      stringValue(details.toolCallId) ??
+      stringValue(details.providerToolCallId) ??
+      stringValue(nestedToolCall?.providerToolCallId),
+  };
+}
+
 function resolveToolRecord(
   details: Record<string, unknown> | undefined,
   toolCallsById: Map<string, ToolCallTranscriptRecord>,
 ): ToolCallTranscriptRecord | undefined {
-  if (!details) return undefined;
-  const nested = asRecord(details.details);
-  const nestedToolCall = asRecord(nested?.toolCall);
-  const recordId =
-    toolPrefixId(details.toolRecordId) ?? toolPrefixId(nestedToolCall?.id);
-  return recordId ? toolCallsById.get(recordId) : undefined;
+  const identity = toolIdentity(details);
+  if (identity.recordId) return toolCallsById.get(identity.recordId);
+  if (!identity.providerId) return undefined;
+  return [...toolCallsById.values()].find(
+    (record) =>
+      record.providerToolCallId === identity.providerId ||
+      record.sourceToolCallId === identity.providerId,
+  );
 }
 
 /** Resolve the {@link ToolCallTranscriptRecord} backing a conversation entry, if any. */
@@ -305,7 +324,11 @@ export function classifyHistoryEntry(
 }
 
 export type HistoryGraphRow = {
+  /** The request entry remains the branch/navigation anchor for a paired tool. */
   node: ConversationTreeNode;
+  pairedResultEntry?: ConversationEntry;
+  /** Every stored entry represented by this presentation row. */
+  underlyingEntryIds: string[];
   index: number;
   isOnActivePath: boolean;
   isActive: boolean;
@@ -327,6 +350,7 @@ export type HistoryGraph = {
 export function buildHistoryGraph(
   treeNodes: ConversationTreeNode[],
   activeEntryId: string | undefined,
+  toolCallsById: Map<string, ToolCallTranscriptRecord> = new Map(),
 ): HistoryGraph {
   const byId = new Map(treeNodes.map((node) => [node.entry.id, node]));
   const hasParent = (node: ConversationTreeNode) =>
@@ -361,6 +385,7 @@ export function buildHistoryGraph(
     const children = childrenOf(node);
     rows.push({
       node,
+      underlyingEntryIds: [node.entry.id],
       index: ++index,
       isOnActivePath: activePath.has(node.entry.id),
       isActive: node.entry.id === activeEntryId,
@@ -374,5 +399,77 @@ export function buildHistoryGraph(
   // Detached entries (parent missing from the set) render as extra roots.
   treeNodes.forEach(walk);
 
-  return { rows };
+  return { rows: pairToolHistoryRows(rows, toolCallsById) };
+}
+
+/** Pair only an unbranched, direct request/result chain for one canonical tool. */
+export function pairToolHistoryRows(
+  rows: HistoryGraphRow[],
+  toolCallsById: Map<string, ToolCallTranscriptRecord>,
+): HistoryGraphRow[] {
+  const rowById = new Map(rows.map((row) => [row.node.entry.id, row]));
+  const consumed = new Set<string>();
+  const paired: HistoryGraphRow[] = [];
+
+  for (const row of rows) {
+    const request = row.node.entry;
+    if (consumed.has(request.id)) continue;
+    const requestRecord = resolveToolCallForEntry(request, toolCallsById);
+    const childIds = row.node.childEntryIds;
+    if (
+      request.role !== "assistant" ||
+      !requestRecord ||
+      childIds.length !== 1
+    ) {
+      paired.push({ ...row, index: paired.length + 1 });
+      continue;
+    }
+    const resultRow = rowById.get(childIds[0]);
+    const result = resultRow?.node.entry;
+    const resultRecord = result
+      ? resolveToolCallForEntry(result, toolCallsById)
+      : undefined;
+    const requestProviderId = toolIdentity(
+      asRecord(request.details),
+    ).providerId;
+    const resultProviderId = result
+      ? toolIdentity(asRecord(result.details)).providerId
+      : undefined;
+    const providerMatches = (providerId: string | undefined) =>
+      providerId === undefined ||
+      requestRecord.providerToolCallId === providerId ||
+      requestRecord.sourceToolCallId === providerId;
+    const providerMismatch =
+      !providerMatches(requestProviderId) ||
+      !providerMatches(resultProviderId) ||
+      (requestProviderId !== undefined &&
+        resultProviderId !== undefined &&
+        requestProviderId !== resultProviderId);
+    if (
+      !resultRow ||
+      !result ||
+      result.role !== "system" ||
+      result.parentEntryId !== request.id ||
+      resultRow.isBranchPoint ||
+      !resultRecord ||
+      resultRecord.id !== requestRecord.id ||
+      providerMismatch
+    ) {
+      paired.push({ ...row, index: paired.length + 1 });
+      continue;
+    }
+
+    consumed.add(result.id);
+    paired.push({
+      ...row,
+      pairedResultEntry: result,
+      underlyingEntryIds: [request.id, result.id],
+      index: paired.length + 1,
+      isOnActivePath: row.isOnActivePath || resultRow.isOnActivePath,
+      isActive: row.isActive || resultRow.isActive,
+      isLeaf: resultRow.isLeaf,
+      isBranchPoint: resultRow.isBranchPoint,
+    });
+  }
+  return paired;
 }

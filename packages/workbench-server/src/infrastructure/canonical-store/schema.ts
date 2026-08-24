@@ -1,6 +1,8 @@
-export const CANONICAL_SCHEMA_VERSION = 1;
+export const CANONICAL_SCHEMA_VERSION = 2;
 export const CANONICAL_BASELINE_NAME = "canonical-storage-baseline";
 export const CANONICAL_SCHEMA_CHECKSUM =
+  "531dd8310f8326ba9f21a5b2e3cfae67dfce5b620d3aca28e415ac882b30c3ad";
+export const CANONICAL_V1_SCHEMA_CHECKSUM =
   "d3275fdb99bdb4a4bbb901eeba1300dc812b74c1249f5d256562c22f64751bb2";
 
 export const CANONICAL_SCHEMA_SQL = `
@@ -61,9 +63,15 @@ CREATE TABLE IF NOT EXISTS agent_context_leaves (
   FOREIGN KEY(active_record_id) REFERENCES conversation_records(id) ON DELETE SET NULL
 ) STRICT;
 
+CREATE TABLE IF NOT EXISTS durable_event_stream_counters (
+  stream TEXT PRIMARY KEY,
+  next_sequence INTEGER NOT NULL CHECK(next_sequence > 0)
+) STRICT;
+
 CREATE TABLE IF NOT EXISTS durable_events (
-  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  row_id INTEGER PRIMARY KEY AUTOINCREMENT,
   stream TEXT NOT NULL,
+  stream_sequence INTEGER NOT NULL CHECK(stream_sequence > 0),
   conversation_id TEXT,
   record_id TEXT,
   record_revision INTEGER,
@@ -72,12 +80,13 @@ CREATE TABLE IF NOT EXISTS durable_events (
   payload_version INTEGER NOT NULL CHECK(payload_version > 0),
   data BLOB NOT NULL,
   occurred_at_ms INTEGER NOT NULL,
+  UNIQUE(stream, stream_sequence),
   FOREIGN KEY(record_id) REFERENCES conversation_records(id) ON DELETE CASCADE
 ) STRICT;
 CREATE INDEX IF NOT EXISTS durable_events_stream_sequence
-  ON durable_events(stream, sequence);
+  ON durable_events(stream, stream_sequence);
 CREATE INDEX IF NOT EXISTS durable_events_conversation_sequence
-  ON durable_events(conversation_id, sequence);
+  ON durable_events(conversation_id, stream_sequence);
 
 CREATE TABLE IF NOT EXISTS permission_rules (
   id TEXT PRIMARY KEY,

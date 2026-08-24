@@ -57,7 +57,11 @@ const toolCallsById = $derived(
   new Map(toolCalls.map((call) => [call.id, call])),
 );
 const graph = $derived(
-  buildHistoryGraph(treeNodes, activeConversation?.activeEntryId),
+  buildHistoryGraph(
+    treeNodes,
+    activeConversation?.activeEntryId,
+    toolCallsById,
+  ),
 );
 const hasConversation = $derived(Boolean(activeConversation));
 const rootActive = $derived(
@@ -68,9 +72,13 @@ const rootOnActivePath = $derived(
 );
 const entryViewById = $derived(
   new Map(
-    treeNodes.map(({ entry }) => [
-      entry.id,
-      buildHistoryEntryView(entry, toolCallsById),
+    graph.rows.map((row) => [
+      row.node.entry.id,
+      buildHistoryEntryView(
+        row.node.entry,
+        toolCallsById,
+        row.pairedResultEntry,
+      ),
     ]),
   ),
 );
@@ -126,7 +134,7 @@ $effect(() => {
 
   const activeEntryId = activeConversation?.activeEntryId;
   const activeRow = activeEntryId
-    ? graph.rows.find((row) => row.node.entry.id === activeEntryId)
+    ? graph.rows.find((row) => row.underlyingEntryIds.includes(activeEntryId))
     : undefined;
   selection = activeConversation
     ? activeRow
@@ -147,7 +155,7 @@ function selectHistory(next: HistorySelection) {
 
 function segmentContainingEntry(entryId: string): HistorySegment | undefined {
   return visible.segments.find((segment) =>
-    segment.rows.some((row) => row.node.entry.id === entryId),
+    segment.rows.some((row) => row.underlyingEntryIds.includes(entryId)),
   );
 }
 
@@ -159,7 +167,9 @@ function toggleSegment(segment: HistorySegment) {
       selection?.kind === "entry" ? selection.row.node.entry.id : undefined;
     if (
       selectedEntryId &&
-      segment.rows.some((row) => row.node.entry.id === selectedEntryId)
+      segment.rows.some((row) =>
+        row.underlyingEntryIds.includes(selectedEntryId),
+      )
     ) {
       selection = { kind: "segment", segment };
     }

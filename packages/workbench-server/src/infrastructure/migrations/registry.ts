@@ -18,6 +18,7 @@ import { migration0014 } from "./migrations/0014-fixed-supervised-baseline.js";
 import { migration0015 } from "./migrations/0015-conversation-aggregate-journals.js";
 import { migration0016 } from "./migrations/0016-permission-rules.js";
 import { migration0017 } from "./migrations/0017-canonical-sqlite.js";
+import { migration0018 } from "./migrations/0018-dense-durable-event-stream-sequences.js";
 
 export const storageMigrationRegistry: readonly StorageMigration[] =
   Object.freeze([
@@ -38,6 +39,7 @@ export const storageMigrationRegistry: readonly StorageMigration[] =
     migration0015,
     migration0016,
     migration0017,
+    migration0018,
   ]);
 
 export function validateMigrationRegistry(

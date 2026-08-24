@@ -90,6 +90,11 @@ export class CanonicalDatabase {
     const current = rows.find(
       (row) => row.version === CANONICAL_SCHEMA_VERSION,
     );
+    if (!current && newest) {
+      throw new Error(
+        `Storage schema ${newest.version} requires migration to ${CANONICAL_SCHEMA_VERSION}.`,
+      );
+    }
     if (current && current.checksum !== CANONICAL_SCHEMA_CHECKSUM) {
       throw new Error(
         `Storage schema checksum drift at version ${CANONICAL_SCHEMA_VERSION}.`,
@@ -396,41 +401,7 @@ export class CanonicalDatabase {
     conversationId?: string;
   }): { sequence: number; intentId: string } {
     return this.transaction((database) => {
-      const existing = database
-        .prepare(
-          `SELECT sequence, event_type, data FROM durable_events WHERE intent_id = ?`,
-        )
-        .get(input.intentId) as
-        | { sequence: number; event_type: string; data: Uint8Array | string }
-        | undefined;
-      if (existing) {
-        if (
-          existing.event_type !== input.eventType ||
-          JSON.stringify(decode(existing.data)) !== JSON.stringify(input.data)
-        ) {
-          throw new Error(`Conflicting event intent id: ${input.intentId}`);
-        }
-        return { sequence: existing.sequence, intentId: input.intentId };
-      }
-      const result = database
-        .prepare(
-          `INSERT INTO durable_events (
-             stream, conversation_id, record_id, record_revision, intent_id,
-             event_type, payload_version, data, occurred_at_ms
-           ) VALUES (?, ?, NULL, NULL, ?, ?, 1, ?, ?)`,
-        )
-        .run(
-          input.stream,
-          input.conversationId ?? null,
-          input.intentId,
-          input.eventType,
-          encode(input.data),
-          Date.parse(input.occurredAt),
-        );
-      return {
-        sequence: Number(result.lastInsertRowid),
-        intentId: input.intentId,
-      };
+      return appendDurableEventInTransaction(database, input);
     });
   }
 
@@ -446,7 +417,7 @@ export class CanonicalDatabase {
     | undefined {
     const row = this.database
       .prepare(
-        `SELECT sequence, stream, intent_id, event_type, data, occurred_at_ms
+        `SELECT stream_sequence, stream, intent_id, event_type, data, occurred_at_ms
          FROM durable_events WHERE intent_id = ?`,
       )
       .get(intentId) as DurableEventRow | undefined;
@@ -456,10 +427,10 @@ export class CanonicalDatabase {
   readDurableEvents(stream: string, fromSequence: number, limit: number) {
     const rows = this.database
       .prepare(
-        `SELECT sequence, stream, intent_id, event_type, data, occurred_at_ms
+        `SELECT stream_sequence, stream, intent_id, event_type, data, occurred_at_ms
          FROM durable_events
-         WHERE stream = ? AND sequence >= ?
-         ORDER BY sequence LIMIT ?`,
+         WHERE stream = ? AND stream_sequence >= ?
+         ORDER BY stream_sequence LIMIT ?`,
       )
       .all(stream, fromSequence, limit) as unknown as DurableEventRow[];
     return rows.map(decodeDurableEvent);
@@ -472,7 +443,7 @@ export class CanonicalDatabase {
   } {
     const row = this.database
       .prepare(
-        `SELECT MIN(sequence) AS earliest, MAX(sequence) AS latest
+        `SELECT MIN(stream_sequence) AS earliest, MAX(stream_sequence) AS latest
          FROM durable_events WHERE stream = ?`,
       )
       .get(stream) as { earliest: number | null; latest: number | null };
@@ -535,21 +506,14 @@ export class CanonicalDatabase {
       }
       materializeConversationRecords(database, state);
       if (commit) {
-        database
-          .prepare(
-            `INSERT OR IGNORE INTO durable_events (
-               stream, conversation_id, record_id, record_revision, intent_id,
-               event_type, payload_version, data, occurred_at_ms
-             ) VALUES (?, ?, NULL, NULL, ?, ?, 1, ?, ?)`,
-          )
-          .run(
-            `internal/conv/${state.conversationId}`,
-            state.conversationId,
-            commit.commitId,
-            commit.kind,
-            encode({ version: 1, events: commit.events }),
-            Date.parse(commit.committedAt),
-          );
+        appendDurableEventInTransaction(database, {
+          stream: `internal/conv/${state.conversationId}`,
+          conversationId: state.conversationId,
+          intentId: commit.commitId,
+          eventType: commit.kind,
+          data: { version: 1, events: commit.events },
+          occurredAt: commit.committedAt,
+        });
       }
     });
   }
@@ -592,6 +556,77 @@ export class CanonicalDatabase {
   }
 }
 
+function appendDurableEventInTransaction(
+  database: DatabaseSync,
+  input: {
+    stream: string;
+    intentId: string;
+    eventType: string;
+    data: unknown;
+    occurredAt: string;
+    conversationId?: string;
+  },
+): { sequence: number; intentId: string } {
+  const existing = database
+    .prepare(
+      `SELECT stream_sequence, stream, event_type, data
+       FROM durable_events WHERE intent_id = ?`,
+    )
+    .get(input.intentId) as
+    | {
+        stream_sequence: number;
+        stream: string;
+        event_type: string;
+        data: Uint8Array | string;
+      }
+    | undefined;
+  if (existing) {
+    if (
+      existing.stream !== input.stream ||
+      existing.event_type !== input.eventType ||
+      JSON.stringify(decode(existing.data)) !== JSON.stringify(input.data)
+    ) {
+      throw new Error(`Conflicting event intent id: ${input.intentId}`);
+    }
+    return { sequence: existing.stream_sequence, intentId: input.intentId };
+  }
+
+  database
+    .prepare(
+      `INSERT INTO durable_event_stream_counters (stream, next_sequence)
+       VALUES (?, 1) ON CONFLICT(stream) DO NOTHING`,
+    )
+    .run(input.stream);
+  const counter = database
+    .prepare(
+      `SELECT next_sequence FROM durable_event_stream_counters WHERE stream = ?`,
+    )
+    .get(input.stream) as { next_sequence: number };
+  const sequence = counter.next_sequence;
+  database
+    .prepare(
+      `INSERT INTO durable_events (
+         stream, stream_sequence, conversation_id, record_id, record_revision,
+         intent_id, event_type, payload_version, data, occurred_at_ms
+       ) VALUES (?, ?, ?, NULL, NULL, ?, ?, 1, ?, ?)`,
+    )
+    .run(
+      input.stream,
+      sequence,
+      input.conversationId ?? null,
+      input.intentId,
+      input.eventType,
+      encode(input.data),
+      Date.parse(input.occurredAt),
+    );
+  database
+    .prepare(
+      `UPDATE durable_event_stream_counters SET next_sequence = ? WHERE stream = ?`,
+    )
+    .run(sequence + 1, input.stream);
+  return { sequence, intentId: input.intentId };
+}
+
 export class CanonicalRevisionConflictError extends Error {
   constructor(
     readonly identity: string,
@@ -614,7 +649,7 @@ interface DocumentRow {
 }
 
 interface DurableEventRow {
-  sequence: number;
+  stream_sequence: number;
   stream: string;
   intent_id: string;
   event_type: string;
@@ -655,7 +690,7 @@ function decodeDocument<T>(
 
 function decodeDurableEvent(row: DurableEventRow) {
   return {
-    sequence: row.sequence,
+    sequence: row.stream_sequence,
     stream: row.stream,
     intentId: row.intent_id,
     eventType: row.event_type,

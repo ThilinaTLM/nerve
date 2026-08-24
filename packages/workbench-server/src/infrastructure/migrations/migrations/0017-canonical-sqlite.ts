@@ -14,6 +14,8 @@ import { CanonicalStore } from "../../canonical-store/canonical-store.js";
 import {
   CANONICAL_SCHEMA_CHECKSUM,
   CANONICAL_SCHEMA_SQL,
+  CANONICAL_SCHEMA_VERSION,
+  CANONICAL_V1_SCHEMA_CHECKSUM,
 } from "../../canonical-store/schema.js";
 import { pathExists, readJsonFile } from "../../storage/json.js";
 import { migrationChecksum } from "../checksum.js";
@@ -268,6 +270,17 @@ export const migration0017: StorageMigration = {
         )
         .run(
           "canonical-storage-baseline",
+          CANONICAL_V1_SCHEMA_CHECKSUM,
+          now.getTime(),
+        );
+      database
+        .prepare(
+          `INSERT OR IGNORE INTO schema_migrations (
+             version, name, checksum, applied_at_ms, duration_ms
+           ) VALUES (?, 'dense-durable-event-stream-sequences', ?, ?, 0)`,
+        )
+        .run(
+          CANONICAL_SCHEMA_VERSION,
           CANONICAL_SCHEMA_CHECKSUM,
           now.getTime(),
         );
@@ -356,8 +369,8 @@ export const migration0017: StorageMigration = {
   async verify(context) {
     context.withDatabase((database) => {
       const row = database
-        .prepare(`SELECT checksum FROM schema_migrations WHERE version = 1`)
-        .get() as { checksum?: string } | undefined;
+        .prepare(`SELECT checksum FROM schema_migrations WHERE version = ?`)
+        .get(CANONICAL_SCHEMA_VERSION) as { checksum?: string } | undefined;
       if (row?.checksum !== CANONICAL_SCHEMA_CHECKSUM) {
         throw new Error("Canonical SQLite baseline is missing or changed.");
       }

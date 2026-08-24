@@ -109,7 +109,10 @@ describe("settings migrations", () => {
     const rerunLedger = JSON.parse(await readFile(ledgerPath, "utf8")) as {
       applied: Array<{ id: string }>;
     };
-    assert.equal(rerunLedger.applied.at(-1)?.id, "0017-canonical-sqlite");
+    assert.equal(
+      rerunLedger.applied.at(-1)?.id,
+      "0018-dense-durable-event-stream-sequences",
+    );
     const second = await initializeStorage(root);
     stores.push(second.canonicalStore);
     assert.deepEqual(second.settings, storage.settings);
