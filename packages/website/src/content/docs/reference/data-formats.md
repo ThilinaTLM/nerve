@@ -10,8 +10,8 @@ All Nerve-home paths move with `NERVE_HOME`; default is `~/.nerve`.
 | Data                                       | Default location / format                                 |
 | ------------------------------------------ | --------------------------------------------------------- |
 | State marker                               | `<NERVE_HOME>`; `nerve-workbench-state` v2                |
-| Projects/conversations/settings/auth/tasks | File-first domain storage under `<NERVE_HOME>`            |
-| Conversation entries                       | Append-oriented JSONL with parent lineage                 |
+| Projects/conversations/settings/auth/tasks | Canonical domain storage under `<NERVE_HOME>`             |
+| Conversation records                       | Versioned SQLite payloads with parent lineage             |
 | Protocol event streams                     | Dense per-stream JSONL with bounded retention             |
 | Search/index cache                         | Rebuildable SQLite/cache                                  |
 | Desktop/daemon logs                        | `<NERVE_HOME>/logs`, JSONL                                |

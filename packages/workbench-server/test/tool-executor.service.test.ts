@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -148,17 +148,11 @@ describe("ToolExecutorService structured errors", () => {
     assert.equal(completed.error, undefined);
     assert.equal(completed.errorDetails, undefined);
     assert.equal((completed.result as { ok?: boolean }).ok, true);
-    assert.equal(
-      (
-        completed.result as {
-          details?: { outputLimits?: { model?: { truncated?: boolean } } };
-        }
-      ).details?.outputLimits?.model?.truncated,
-      false,
-    );
+    assert.deepEqual(completed.result, { ok: true });
+    assert.equal(completed.resultPayload, undefined);
   });
 
-  it("writes a recovery sidecar when only the model boundary truncates", async () => {
+  it("writes a durable payload when the agent boundary truncates", async () => {
     const storageHome = await mkdtemp(join(tmpdir(), "nerve-tool-result-"));
     let record = toolCall();
     const rawText = Array.from({ length: 300 }, () => "x".repeat(100)).join(
@@ -179,31 +173,79 @@ describe("ToolExecutorService structured errors", () => {
     const completed = await executor.executeAllowedTool(record.id);
     const result = completed.result as {
       content?: string;
-      details?: {
-        rawResultPath?: string;
-        outputLimits?: {
-          model?: { truncated?: boolean; maxBytes?: number };
-          artifacts?: Array<{ path: string }>;
-        };
-      };
+      details?: Record<string, unknown>;
     };
 
     assert.equal(completed.status, "completed");
     assert.equal(result.content, rawText);
-    assert.equal(result.details?.outputLimits?.model?.truncated, true);
-    assert.equal(result.details?.outputLimits?.model?.maxBytes, 24_000);
-    assert.ok(result.details?.rawResultPath);
-    assert.equal(
-      result.details?.outputLimits?.artifacts?.[0]?.path,
-      result.details?.rawResultPath,
-    );
+    assert.ok(completed.resultPayload);
     assert.match(
-      await readFile(result.details?.rawResultPath ?? "", "utf8"),
+      await readFile(
+        join(
+          storageHome,
+          "payloads",
+          "conversations",
+          completed.conversationId,
+          "tool-calls",
+          `${completed.id}.json`,
+        ),
+        "utf8",
+      ),
       /"content": "xxx/,
     );
   });
 
-  it("reuses continuation metadata instead of writing a generic sidecar", async () => {
+  it("recovers complete process output before applying the agent preview", async () => {
+    const storageHome = await mkdtemp(join(tmpdir(), "nerve-tool-result-"));
+    const sourcePath = join(storageHome, "tmp", "process-output.txt");
+    await mkdir(join(storageHome, "tmp"), { recursive: true });
+    const rawText = Array.from(
+      { length: 300 },
+      (_, index) => `process line ${index}`,
+    ).join("\n");
+    await writeFile(sourcePath, rawText);
+    let record = toolCall();
+    const executor = createExecutor({
+      record,
+      storageHome,
+      onUpdate: (updated) => {
+        record = updated;
+      },
+      execute: async () => ({
+        content: "legacy head/tail preview with verbose metadata",
+        contentBlocks: [
+          {
+            type: "text",
+            text: "legacy head/tail preview with verbose metadata",
+          },
+        ],
+        details: {
+          fullOutputPath: sourcePath,
+          outputLimits: {
+            artifacts: [{ kind: "full_output", path: sourcePath }],
+          },
+        },
+      }),
+    });
+
+    const completed = await executor.executeAllowedTool(record.id);
+    assert.ok(completed.resultPayload);
+    assert.equal(JSON.stringify(completed.result).includes(sourcePath), false);
+    const complete = await readFile(
+      join(
+        storageHome,
+        "payloads",
+        "conversations",
+        completed.conversationId,
+        "tool-calls",
+        `${completed.id}.json`,
+      ),
+      "utf8",
+    );
+    assert.match(complete, /process line 299/);
+  });
+
+  it("uses the same payload contract even when continuation metadata exists", async () => {
     const storageHome = await mkdtemp(join(tmpdir(), "nerve-tool-result-"));
     let record = toolCall();
     const rawText = Array.from({ length: 300 }, () => "x".repeat(100)).join(
@@ -225,19 +267,10 @@ describe("ToolExecutorService structured errors", () => {
     });
 
     const completed = await executor.executeAllowedTool(record.id);
-    const details = (
-      completed.result as {
-        details?: {
-          rawResultPath?: string;
-          outputLimits?: { model?: { truncated?: boolean } };
-        };
-      }
-    ).details;
-    assert.equal(details?.outputLimits?.model?.truncated, true);
-    assert.equal(details?.rawResultPath, undefined);
+    assert.ok(completed.resultPayload);
   });
 
-  it("stores a bounded result with raw-result path for extreme strings", async () => {
+  it("stores a bounded result and complete payload for extreme strings", async () => {
     const storageHome = await mkdtemp(join(tmpdir(), "nerve-tool-result-"));
     let record = toolCall();
     const rawText = "x".repeat(300_000);
@@ -254,15 +287,22 @@ describe("ToolExecutorService structured errors", () => {
     });
 
     const completed = await executor.executeAllowedTool(record.id);
-    const result = completed.result as {
-      content?: string;
-      details?: { rawResultPath?: string };
-    };
+    const result = completed.result as { content?: string };
 
     assert.equal(completed.status, "completed");
-    assert.match(result.content ?? "", /truncated/);
-    assert.ok(result.details?.rawResultPath);
-    const raw = await readFile(result.details.rawResultPath, "utf8");
+    assert.ok((result.content?.length ?? 0) < rawText.length);
+    assert.ok(completed.resultPayload);
+    const raw = await readFile(
+      join(
+        storageHome,
+        "payloads",
+        "conversations",
+        completed.conversationId,
+        "tool-calls",
+        `${completed.id}.json`,
+      ),
+      "utf8",
+    );
     assert.match(raw, new RegExp(`"content": "${"x".repeat(100)}`));
   });
 

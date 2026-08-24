@@ -1,8 +1,10 @@
 import {
+  toolCallDetailsSchema,
   toolCallRecordSchema,
   toolDescriptorSchema,
   type AgentRecord,
   type ConversationRecord,
+  type ToolCallDetails,
   type ToolCallRecord,
   type ToolDescriptor,
   type ToolInteractionResolution,
@@ -20,6 +22,13 @@ export async function listTools(): Promise<ToolDescriptor[]> {
 export async function getToolCall(toolCallId: string): Promise<ToolCallRecord> {
   const result = (await protocolRequest("toolCall.get", { toolCallId })).result;
   return toolCallRecordSchema.parse(result.toolCall);
+}
+
+export async function getToolCallDetails(
+  toolCallId: string,
+): Promise<ToolCallDetails> {
+  const result = (await protocolRequest("toolCall.get", { toolCallId })).result;
+  return toolCallDetailsSchema.parse(result);
 }
 
 export async function resolveToolInteraction(

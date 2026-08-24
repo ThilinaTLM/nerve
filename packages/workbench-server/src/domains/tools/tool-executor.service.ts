@@ -7,6 +7,8 @@ import { toolErrorDetails } from "./tool-errors.js";
 import { isToolExecutionSuspended } from "./tool-execution-suspension.js";
 import { prepareToolResult } from "./tool-result-bounds.js";
 import type { ToolRequestOptions } from "./tool-service.js";
+import { ToolResultPayloadStore } from "./tool-result-payload-store.js";
+import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 
 export interface ToolExecutorDeps {
   getToolCall(id: string): ToolCallRecord;
@@ -22,12 +24,19 @@ export interface ToolExecutorDeps {
   ): Promise<ToolCallRecord>;
   assertExecutionBoundary(toolCall: ToolCallRecord): Promise<void>;
   dispatcher: OrchestrationToolDispatcher;
-  storageHome: string;
+  payloads?: ToolResultPayloadStore;
+  /** Test/legacy construction fallback; runtime composition injects payloads. */
+  storageHome?: string;
   logger?: ApplicationLogger;
 }
 
 export class ToolExecutorService {
-  constructor(private readonly deps: ToolExecutorDeps) {}
+  private readonly payloads: ToolResultPayloadStore;
+
+  constructor(private readonly deps: ToolExecutorDeps) {
+    this.payloads =
+      deps.payloads ?? new ToolResultPayloadStore(deps.storageHome ?? "");
+  }
 
   async executeAllowedTool(
     toolCallId: string,
@@ -78,13 +87,21 @@ export class ToolExecutorService {
         args,
         options,
       );
-      const preparedResult = await prepareToolResult(result, {
+      const prepared = await prepareToolResult(result, {
         toolCallId: toolCall.id,
-        storageHome: this.deps.storageHome,
+        conversationId: toolCall.conversationId,
+        payloads: this.payloads,
       });
+      const resultPreview = toToolCallTranscriptRecord({
+        ...toolCall,
+        result: prepared.result,
+        resultPayload: prepared.resultPayload,
+      }).resultPreview;
       terminal = await this.deps.updateToolCall(toolCall.id, {
         status: "completed",
-        result: preparedResult,
+        result: prepared.result,
+        resultPreview,
+        resultPayload: prepared.resultPayload,
         error: undefined,
         errorDetails: undefined,
       });

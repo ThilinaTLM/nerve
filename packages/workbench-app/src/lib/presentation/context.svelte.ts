@@ -2,7 +2,7 @@ import type {
   CompletionItem,
   EventEnvelope,
   SubagentTranscriptSnapshot,
-  ToolCallRecord,
+  ToolCallDetails,
 } from "@nervekit/contracts";
 import type { Component } from "svelte";
 import { getContext, setContext } from "svelte";
@@ -87,8 +87,8 @@ export interface AskReplyComposerCapability {
 }
 
 export interface ConversationUiCapabilities {
-  /** Fetch a full tool-call record for the details dialog. */
-  fetchToolCall?: (toolCallId: string) => Promise<ToolCallRecord>;
+  /** Fetch the canonical tool call and its on-demand complete result. */
+  fetchToolCall?: (toolCallId: string) => Promise<ToolCallDetails>;
   /** Observe one bounded, read-only child transcript while its dialog is open. */
   watchSubagentTranscript?: (
     parentAgentId: string,

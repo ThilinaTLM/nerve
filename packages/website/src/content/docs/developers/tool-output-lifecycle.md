@@ -19,14 +19,15 @@ The contract status vocabulary is `committed`, `waiting`, `running`, `completed`
 
 The source process result remains complete in its durable log or artifact. The live conversation view, stored tool result, model context, and transcript preview are separate bounded projections:
 
-| Boundary                     | Owner                              | Responsibility                                                                                       |
-| ---------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Process bytes                | `@nervekit/tools` process adapters | Decode UTF-8 incrementally and preserve full output in the task/result store.                        |
-| Live framing                 | `splitLiveOutputChunks`            | Split output into UTF-8-safe events before publication.                                              |
-| Task output                  | `TaskService`                      | Append durable output first, then publish bounded live updates and observers.                        |
-| Conversation live output     | `LiveToolOutputPublisher`          | Serialize each tool call's output queue, publish offsets, and update the rolling runtime projection. |
-| Final result                 | Tool-result preparation            | Keep an inline head/tail preview and write a full-output artifact when required.                     |
-| Model/transcript projections | Tool-result and transcript bounds  | Apply purpose-specific byte, line, and preview limits rather than reusing live limits.               |
+| Boundary                 | Owner                              | Responsibility                                                                                       |
+| ------------------------ | ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Process bytes            | `@nervekit/tools` process adapters | Decode UTF-8 incrementally and preserve full output in the task/result store.                        |
+| Live framing             | `splitLiveOutputChunks`            | Split output into UTF-8-safe events before publication.                                              |
+| Task output              | `TaskService`                      | Append durable output first, then publish bounded live updates and observers.                        |
+| Conversation live output | `LiveToolOutputPublisher`          | Serialize each tool call's output queue, publish offsets, and update the rolling runtime projection. |
+| Complete result          | Tool-result preparation            | Keep unchanged inline when it fits; otherwise write complete JSON under `NERVE_HOME/payloads`.       |
+| Agent projection         | Model result bounds                | Keep 200 logical lines or 24,000 UTF-8 bytes and emit one exact payload-path notice when truncated.  |
+| Transcript projection    | Tool-call transcript projection    | Keep six tool-appropriate lines/items and load complete details only on demand.                      |
 
 The shared live-output budgets are defined by the contracts package:
 
@@ -35,6 +36,18 @@ The shared live-output budgets are defined by the contracts package:
 - the rolling projection retains at most **400 chunks**.
 
 These values come from [`conversation.schema.ts`](https://github.com/ThilinaTLM/nerve/blob/main/packages/contracts/src/domains/conversations/conversation.schema.ts). They are protocol and UI projection limits, not claims about the amount of output Nerve preserves in its source log or artifacts.
+
+## Final-result contract
+
+Agent output is bounded line-first at 200 logical lines and then at 24,000 UTF-8 bytes. There is no separate model per-line character cap. The final text, including the notice, remains within both budgets and preserves valid UTF-8. Output that fits is returned unchanged and creates no payload. Truncated output ends with exactly:
+
+```text
+Output truncated. Full output: /resolved/path/to/full-output
+```
+
+The resolved path is added only to the runtime model result; canonical storage keeps a validated owner/digest descriptor rather than an absolute path. The complete result is written before bounding under `payloads/conversations/<conversationId>/tool-calls/<toolCallId>.json`.
+
+The UI contract is independent: transcript events contain at most six lines/items with existing tool-specific head/tail semantics. Opening details requests the complete canonical result from inline storage or the verified payload. Each call has its own limits even when calls execute sequentially, in parallel, or as a batch; there is no batch-level output budget.
 
 ## Durable and live publication
 

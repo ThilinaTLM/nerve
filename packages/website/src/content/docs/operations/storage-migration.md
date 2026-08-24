@@ -5,7 +5,7 @@ sidebar:
   order: 5
 ---
 
-`NERVE_HOME` defaults to `~/.nerve`. It contains file-first authoritative state for projects, conversations, events, settings, provider/tool authentication, tasks, plans, logs, reports, and caches. SQLite is a rebuildable index/cache rather than the sole source of truth.
+`NERVE_HOME` defaults to `~/.nerve`. Canonical conversation records and durable events live in SQLite. Complete tool results that exceed the agent preview contract live under owner-scoped `payloads/` files referenced and verified by those records. The home also contains settings, provider/tool authentication, tasks, plans, logs, reports, and caches.
 
 Electron's active Chromium profile is intentionally outside `NERVE_HOME`. Backing up only `~/.nerve` does not capture browser local/session storage or the active Electron profile.
 

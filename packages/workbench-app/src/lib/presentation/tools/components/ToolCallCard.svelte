@@ -6,11 +6,13 @@ import type {
   ModelInfo,
   PlanReviewRecord,
   PlanReviewResolveOptions,
-  ToolCallRecord,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "../../state/tool-types";
-import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
+import type {
+  ConversationLiveToolOutputSnapshot,
+  ToolCallDetails,
+} from "@nervekit/contracts";
 import type { ToolDraftViewModel } from "../../state/active-run";
 import type { MetaItem, PrimaryArg } from "../views/tool-presentation";
 import { toolPresentationCached } from "../views/tool-presentation";
@@ -104,7 +106,7 @@ let {
 let detailsOpen = $state(false);
 let detailsLoading = $state(false);
 let detailsError = $state<string | undefined>(undefined);
-let fullToolCall = $state<ToolCallRecord | undefined>(undefined);
+let fullToolCall = $state<ToolCallDetails | undefined>(undefined);
 let fullToolCallPreviewUpdatedAt = $state<string | undefined>(undefined);
 let detailsToolId: string | undefined;
 
@@ -482,7 +484,9 @@ async function openDetails() {
   <ToolCallDetailsDialog
     open={detailsOpen}
     previewToolCall={toolCall}
-    toolCall={fullToolCall}
+    toolCall={fullToolCall?.toolCall}
+    completeResult={fullToolCall?.completeResult}
+    completeResultStatus={fullToolCall?.completeResultStatus}
     loading={detailsLoading}
     error={detailsError}
     {pendingUserQuestion}

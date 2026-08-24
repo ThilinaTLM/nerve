@@ -10,10 +10,11 @@ import {
 } from "./truncate.js";
 
 export const MODEL_TOOL_RESULT_MAX_BYTES = 24_000;
-export const MODEL_TEXT_MAX_LINES = 1000;
-export const MODEL_TEXT_MAX_LINE_CHARS = 4096;
+export const MODEL_TEXT_MAX_LINES = 200;
+/** Model tool results have no independent per-line cap. */
+export const MODEL_TEXT_MAX_LINE_CHARS = Number.MAX_SAFE_INTEGER;
 
-export const FILE_OUTPUT_MAX_LINE_CHARS = MODEL_TEXT_MAX_LINE_CHARS;
+export const FILE_OUTPUT_MAX_LINE_CHARS = 4096;
 export const PROCESS_INLINE_MAX_LINE_CHARS = Math.max(
   PROCESS_PREVIEW_MAX_LINE_CHARS,
   2000,
@@ -199,7 +200,7 @@ export function formatBoundedTextNotice(
 export function boundContentBlocks<T extends ContentBlockLike>(
   blocks: readonly T[],
   budget: TextBudget = {},
-  options: { recoveryHint?: string } = {},
+  options: { recoveryHint?: string; truncationNotice?: string } = {},
 ): BoundedContentBlocksResult<T> {
   const textBlocks = blocks.filter(
     (block): block is T & TextContentBlockLike => block.type === "text",
@@ -228,10 +229,12 @@ export function boundContentBlocks<T extends ContentBlockLike>(
     return { contentBlocks: [...blocks], truncated: false, truncations: [] };
   }
 
-  const rawNotice = formatBoundedTextNotice(aggregate, {
-    label: "tool result",
-    recoveryHint: options.recoveryHint,
-  });
+  const rawNotice =
+    options.truncationNotice ??
+    formatBoundedTextNotice(aggregate, {
+      label: "tool result",
+      recoveryHint: options.recoveryHint,
+    });
   const notice = boundText(rawNotice, {
     maxBytes,
     maxLines: 1,

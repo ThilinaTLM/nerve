@@ -1,16 +1,13 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { appendBoundedTextNotice, boundText } from "@nervekit/tools";
-import type { ToolOutputLimitsPayload } from "@nervekit/contracts";
-import {
-  annotateToolResultModelLimits,
-  hasRecoveryRoute,
-  resultTruncatesForModel,
-} from "./tool-result-model-limits.js";
+import { boundText } from "@nervekit/tools";
+import { readFile, rm } from "node:fs/promises";
+import { isAbsolute, resolve, sep } from "node:path";
+import type { ToolResultPayloadReference } from "@nervekit/contracts";
+import { resultTruncatesForModel } from "./tool-result-model-limits.js";
+import type { ToolResultPayloadStore } from "./tool-result-payload-store.js";
 
 const STORAGE_TEXT_MAX_BYTES = 256 * 1024;
 const STORAGE_TEXT_MAX_LINES = 5000;
-const STORAGE_TEXT_MAX_LINE_CHARS = 16 * 1024;
+const STORAGE_TEXT_MAX_LINE_CHARS = Number.MAX_SAFE_INTEGER;
 
 type BoundSummary = {
   truncated: boolean;
@@ -31,52 +28,126 @@ type BoundValueResult = {
 
 export async function prepareToolResult(
   result: unknown,
-  input: { toolCallId: string; storageHome: string },
-): Promise<unknown> {
-  const bounded = boundValue(result, []);
-  let prepared = bounded.value;
-  let rawResultPath: string | undefined;
-
-  if (bounded.summary.truncated) {
-    const persisted = await persistRawResult(
-      prepared,
-      result,
-      input,
-      rawResultPath,
-      bounded.summary,
-    );
-    prepared = persisted.value;
-    rawResultPath = persisted.path;
+  input: {
+    toolCallId: string;
+    conversationId: string;
+    payloads: ToolResultPayloadStore;
+  },
+): Promise<{
+  result: unknown;
+  resultPayload?: ToolResultPayloadReference;
+}> {
+  const completeResult = await recoverCompleteResult(
+    result,
+    input.payloads.home,
+  );
+  if (!resultTruncatesForModel(completeResult)) {
+    return { result: completeResult };
   }
 
-  if (resultTruncatesForModel(prepared) && !hasRecoveryRoute(prepared)) {
-    const persisted = await persistRawResult(
-      prepared,
-      result,
-      input,
-      rawResultPath,
-    );
-    prepared = persisted.value;
-  }
-
-  return annotateToolResultModelLimits(prepared);
+  // Preserve the complete value before applying any storage/model projection.
+  const resultPayload = await input.payloads.write(
+    input.conversationId,
+    input.toolCallId,
+    completeResult,
+  );
+  const bounded = boundValue(completeResult, []);
+  return {
+    result: bounded.value,
+    resultPayload,
+  };
 }
 
-async function persistRawResult(
-  value: unknown,
+async function recoverCompleteResult(
   result: unknown,
-  input: { toolCallId: string; storageHome: string },
-  existingPath: string | undefined,
-  summary?: BoundSummary,
-): Promise<{ value: unknown; path: string }> {
-  const path =
-    existingPath ??
-    (await writeRawResult({
-      storageHome: input.storageHome,
-      toolCallId: input.toolCallId,
-      result,
-    }));
-  return { value: attachRawResultDetails(value, path, summary), path };
+  home: string,
+): Promise<unknown> {
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    return result;
+  }
+  const record = result as Record<string, unknown>;
+  const details = objectRecord(record.details);
+  const outputLimits = objectRecord(details.outputLimits);
+  const artifacts = Array.isArray(outputLimits.artifacts)
+    ? outputLimits.artifacts
+    : [];
+  const rawPath =
+    typeof details.rawResultPath === "string"
+      ? details.rawResultPath
+      : undefined;
+  const fullOutputPath =
+    typeof details.fullOutputPath === "string"
+      ? details.fullOutputPath
+      : artifacts
+          .map(objectRecord)
+          .find((artifact) => artifact.kind === "full_output")?.path;
+  const sourcePath =
+    rawPath ??
+    (typeof fullOutputPath === "string" ? fullOutputPath : undefined);
+  if (!sourcePath) return result;
+  if (!isSafeLegacySourcePath(home, sourcePath)) {
+    return sanitizeRecoveredResult(result);
+  }
+  try {
+    const raw = await readFile(sourcePath, "utf8");
+    if (isDisposableLegacySourcePath(home, sourcePath)) {
+      await rm(sourcePath, { force: true }).catch(() => undefined);
+    }
+    if (rawPath) return sanitizeRecoveredResult(JSON.parse(raw) as unknown);
+    return sanitizeRecoveredResult({
+      ...record,
+      content: raw,
+      contentBlocks: [{ type: "text", text: raw }],
+    });
+  } catch {
+    return sanitizeRecoveredResult(result);
+  }
+}
+
+function sanitizeRecoveredResult(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeRecoveredResult);
+  if (!value || typeof value !== "object") return value;
+  const output: Record<string, unknown> = {};
+  for (const [key, nested] of Object.entries(value)) {
+    if (
+      key === "rawResultPath" ||
+      key === "fullOutputPath" ||
+      key === "continuation"
+    ) {
+      continue;
+    }
+    if (key === "artifacts" && Array.isArray(nested)) {
+      const safe = nested.filter((artifact) => {
+        const path = objectRecord(artifact).path;
+        return typeof path !== "string" || !isAbsolute(path);
+      });
+      if (safe.length > 0) output[key] = safe;
+      continue;
+    }
+    output[key] = sanitizeRecoveredResult(nested);
+  }
+  return output;
+}
+
+function isSafeLegacySourcePath(home: string, path: string): boolean {
+  if (!isAbsolute(path)) return false;
+  const root = resolve(home);
+  const candidate = resolve(path);
+  return candidate === root || candidate.startsWith(`${root}${sep}`);
+}
+
+function isDisposableLegacySourcePath(home: string, path: string): boolean {
+  const candidate = resolve(path);
+  return ["tool-outputs", "tool-results"].some((directory) => {
+    const root = resolve(home, "tmp", directory);
+    return candidate === root || candidate.startsWith(`${root}${sep}`);
+  });
+}
+
+function objectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function boundValue(value: unknown, path: string[]): BoundValueResult {
@@ -87,17 +158,12 @@ function boundValue(value: unknown, path: string[]): BoundValueResult {
       maxLines: STORAGE_TEXT_MAX_LINES,
       maxLineChars: STORAGE_TEXT_MAX_LINE_CHARS,
     });
-    if (!bounded.truncated) return { value, summary: emptySummary() };
     return {
-      value: appendBoundedTextNotice(bounded, {
-        label: "stored tool result string",
-        recoveryHint:
-          "Full unbounded result is saved to details.rawResultPath.",
-      }),
+      value: bounded.text,
       summary: {
         ...emptySummary(),
-        truncated: true,
-        truncatedStrings: 1,
+        truncated: bounded.truncated,
+        truncatedStrings: bounded.truncated ? 1 : 0,
         omittedLines: bounded.omittedLines,
         omittedBytes: bounded.omittedBytes,
         omittedChars: bounded.omittedChars,
@@ -130,112 +196,8 @@ function boundValue(value: unknown, path: string[]): BoundValueResult {
   return { value: output, summary };
 }
 
-function attachRawResultDetails(
-  value: unknown,
-  rawResultPath: string,
-  summary?: BoundSummary,
-): unknown {
-  const storageLimit = summary
-    ? {
-        truncated: true,
-        omittedLines: summary.omittedLines,
-        omittedBytes: summary.omittedBytes,
-        omittedChars: summary.omittedChars,
-        truncatedLines: summary.truncatedLines,
-        maxBytes: summary.maxBytes,
-        maxLines: summary.maxLines,
-        maxLineChars: summary.maxLineChars,
-        rawResultPath,
-      }
-    : undefined;
-  const record: Record<string, unknown> =
-    value && typeof value === "object" && !Array.isArray(value)
-      ? { ...(value as Record<string, unknown>) }
-      : {
-          content:
-            typeof value === "string" ? value : JSON.stringify(value, null, 2),
-          contentBlocks: [
-            {
-              type: "text",
-              text:
-                typeof value === "string"
-                  ? value
-                  : JSON.stringify(value, null, 2),
-            },
-          ],
-        };
-  const existingDetails =
-    record.details &&
-    typeof record.details === "object" &&
-    !Array.isArray(record.details)
-      ? { ...(record.details as Record<string, unknown>) }
-      : {};
-  const existingLimits =
-    existingDetails.outputLimits &&
-    typeof existingDetails.outputLimits === "object" &&
-    !Array.isArray(existingDetails.outputLimits)
-      ? (existingDetails.outputLimits as ToolOutputLimitsPayload)
-      : undefined;
-  const artifacts = [...(existingLimits?.artifacts ?? [])];
-  if (!artifacts.some((artifact) => artifact.path === rawResultPath)) {
-    artifacts.push({
-      kind: "raw_result",
-      path: rawResultPath,
-      label: "Raw result",
-    });
-  }
-  const outputLimits: ToolOutputLimitsPayload & Record<string, unknown> = {
-    ...(existingLimits ?? {}),
-    ...(summary ?? {}),
-    ...(storageLimit
-      ? { rawResultPath, truncation: storageLimit, storage: storageLimit }
-      : {}),
-    artifacts,
-  };
-  record.details = {
-    ...existingDetails,
-    rawResultPath,
-    outputLimits,
-  };
-  return record;
-}
-
-async function writeRawResult({
-  storageHome,
-  toolCallId,
-  result,
-}: {
-  storageHome: string;
-  toolCallId: string;
-  result: unknown;
-}): Promise<string> {
-  const dir = join(storageHome, "tmp", "tool-results");
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  const path = join(dir, `${toolCallId}.json`);
-  await writeFile(path, stringifyResult(result), {
-    encoding: "utf8",
-    mode: 0o600,
-  });
-  return path;
-}
-
-function stringifyResult(result: unknown): string {
-  const seen = new WeakSet<object>();
-  return JSON.stringify(
-    result,
-    (_key, value) => {
-      if (!value || typeof value !== "object") return value;
-      if (seen.has(value)) return "[Circular]";
-      seen.add(value);
-      return value;
-    },
-    2,
-  );
-}
-
 function isImageDataPath(path: string[]): boolean {
-  if (path.at(-1) !== "data") return false;
-  return path.includes("contentBlocks");
+  return path.at(-1) === "data" && path.includes("contentBlocks");
 }
 
 function emptySummary(): BoundSummary {

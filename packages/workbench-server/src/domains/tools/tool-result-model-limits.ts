@@ -9,8 +9,6 @@ import {
 } from "@nervekit/tools";
 import type { ToolOutputLimitsPayload } from "@nervekit/contracts";
 
-const MAX_RECOVERY_HINT_CHARS = 2_048;
-
 export function annotateToolResultModelLimits(result: unknown): unknown {
   if (!result || typeof result !== "object" || Array.isArray(result)) {
     return result;
@@ -54,45 +52,15 @@ export function resultTruncatesForModel(result: unknown): boolean {
   return modelLimitForResult(result)?.truncated === true;
 }
 
-export function recoveryHintForResult(result: unknown): string | undefined {
-  const limits = outputLimitsFromResult(result);
-  const continuation = limits?.continuation;
-  const hints: string[] = [];
-  if (typeof continuation?.nextOffset === "number") {
-    hints.push(`Continue with offset ${continuation.nextOffset}.`);
-  }
-  if (typeof continuation?.nextByteOffset === "number") {
-    hints.push(`Continue with byteOffset ${continuation.nextByteOffset}.`);
-  }
-  if (typeof continuation?.hint === "string" && continuation.hint.trim()) {
-    hints.push(continuation.hint.trim());
-  }
-  for (const artifact of limits?.artifacts ?? []) {
-    if (!artifact?.path) continue;
-    hints.push(`${artifact.label ?? "Full output"}: ${artifact.path}.`);
-  }
-  if (hints.length === 0) return undefined;
-  const joined = hints.join(" ");
-  return joined.length <= MAX_RECOVERY_HINT_CHARS
-    ? joined
-    : `${joined.slice(0, MAX_RECOVERY_HINT_CHARS - 1)}…`;
-}
-
-export function hasRecoveryRoute(result: unknown): boolean {
-  const limits = outputLimitsFromResult(result);
-  return Boolean(
-    (limits?.continuation &&
-      (typeof limits.continuation.nextOffset === "number" ||
-        typeof limits.continuation.nextByteOffset === "number" ||
-        Boolean(limits.continuation.hint))) ||
-    limits?.artifacts?.some((artifact) => Boolean(artifact.path)),
-  );
-}
-
-export function boundModelText(text: string, result?: unknown): string {
+export function boundModelText(
+  text: string,
+  result?: unknown,
+  fullOutputPath?: string,
+): string {
   const [block] = boundModelContentBlocks(
     [{ type: "text" as const, text }],
     result,
+    fullOutputPath,
   );
   return block?.type === "text" ? block.text : "";
 }
@@ -100,6 +68,7 @@ export function boundModelText(text: string, result?: unknown): string {
 export function boundModelContentBlocks<T extends ContentBlockLike>(
   blocks: readonly T[],
   result?: unknown,
+  fullOutputPath?: string,
 ): T[] {
   return boundContentBlocks(
     blocks,
@@ -108,7 +77,11 @@ export function boundModelContentBlocks<T extends ContentBlockLike>(
       maxLines: MODEL_TEXT_MAX_LINES,
       maxLineChars: MODEL_TEXT_MAX_LINE_CHARS,
     },
-    { recoveryHint: recoveryHintForResult(result) },
+    fullOutputPath
+      ? {
+          truncationNotice: `Output truncated. Full output: ${fullOutputPath}`,
+        }
+      : {},
   ).contentBlocks;
 }
 
@@ -200,18 +173,6 @@ function formattedTextSource(
   }
   if (parts.length > 0) return parts.join("\n\n");
   return JSON.stringify(record, null, 2);
-}
-
-function outputLimitsFromResult(
-  result: unknown,
-): ToolOutputLimitsPayload | undefined {
-  if (!result || typeof result !== "object" || Array.isArray(result)) {
-    return undefined;
-  }
-  const details = objectRecord((result as Record<string, unknown>).details);
-  return details.outputLimits && typeof details.outputLimits === "object"
-    ? (details.outputLimits as ToolOutputLimitsPayload)
-    : undefined;
 }
 
 function objectRecord(value: unknown): Record<string, unknown> {

@@ -112,7 +112,7 @@ describe("settings migrations", () => {
     };
     assert.equal(
       rerunLedger.applied.at(-1)?.id,
-      "0018-dense-durable-event-stream-sequences",
+      "0019-tool-result-payload-files",
     );
     const second = await initializeStorage(root);
     stores.push(second.canonicalStore);

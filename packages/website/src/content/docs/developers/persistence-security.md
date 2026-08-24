@@ -7,9 +7,9 @@ sidebar:
 
 ## Authoritative state
 
-Projects and conversations live under `NERVE_HOME`. Conversation entries are append-only JSONL with parent IDs and an active leaf; the active branch is reconstructed by following parents. Protocol sequenced events use dense per-stream JSONL logs with bounded retention. Ephemeral notifications are not persisted or replayed.
+Projects and conversations live under `NERVE_HOME`. Canonical conversation records and durable protocol events use SQLite. Complete truncated tool results use private owner-scoped files under `payloads/`, referenced by digest-bearing conversation records. Ephemeral notifications are not persisted or replayed.
 
-SQLite supports rebuildable search/index/cache behavior. Code should not turn it into a second authoritative source without changing the documented persistence model.
+The same database also contains rebuildable query projections. Code must keep the canonical conversation records distinct from disposable indexes and caches.
 
 ## Filesystem safety
 

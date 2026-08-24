@@ -70,6 +70,7 @@ import {
 } from "../domains/tasks/index.js";
 import { WorkbenchTaskService } from "../domains/tasks/workbench-task-service.js";
 import { ToolService } from "../domains/tools/tool-service.js";
+import { ToolResultPayloadStore } from "../domains/tools/tool-result-payload-store.js";
 import {
   PermissionExceptionService,
   ProjectPermissionsRepository,
@@ -228,6 +229,7 @@ export function composeRuntime(
     getProject,
   );
   const conversationJournal = new ConversationJournalRepository(storage);
+  const resultPayloads = new ToolResultPayloadStore(storage.paths.home);
   events.setConversationRevisionResolver(
     (conversationId) => conversationJournal.state(conversationId)?.revision,
   );
@@ -375,6 +377,7 @@ export function composeRuntime(
     entryRepository,
     services.harnessStorage,
     removeAgentInternal,
+    resultPayloads,
   );
   services.conversationQuery = new ConversationQueryService({
     events,
@@ -564,6 +567,7 @@ export function composeRuntime(
     logger.child({ component: "tool" }),
     services.permissionExceptions,
     conversationJournal,
+    resultPayloads,
   );
   services.subagentTranscriptLive = new SubagentTranscriptLiveService(events);
   services.subagentTranscripts = new SubagentTranscriptService({

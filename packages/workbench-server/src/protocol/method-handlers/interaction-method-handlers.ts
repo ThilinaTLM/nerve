@@ -16,11 +16,8 @@ export const interactionMethodHandlers: WorkbenchMethodHandlerMap =
         limit: params?.limit,
         cursor: params?.cursor,
       }),
-    "toolCall.get": async (state, params) => ({
-      toolCall: await state.registry.tools.getToolCallDetails(
-        params.toolCallId,
-      ),
-    }),
+    "toolCall.get": async (state, params) =>
+      await state.registry.tools.getToolCallUiDetails(params.toolCallId),
     "toolCall.interaction.resolve": async (state, params) => ({
       ...(await state.registry.resolveToolInteraction(params)),
     }),

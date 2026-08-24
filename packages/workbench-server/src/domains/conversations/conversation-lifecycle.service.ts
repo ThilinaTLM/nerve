@@ -19,6 +19,7 @@ import type {
 import type { ConversationRepository } from "./conversation.repository.js";
 import type { EntryRepository } from "./entry.repository.js";
 import type { ConversationHarnessStorage } from "./conversation-harness-storage.js";
+import type { ToolResultPayloadStore } from "../tools/tool-result-payload-store.js";
 
 export class ConversationLifecycleService {
   constructor(
@@ -30,6 +31,7 @@ export class ConversationLifecycleService {
     private readonly entryRepository: EntryRepository,
     private readonly harnessStorage: ConversationHarnessStorage,
     private readonly removeAgent: (agentId: string) => Promise<void>,
+    private readonly resultPayloads: ToolResultPayloadStore,
   ) {}
 
   async createConversation(
@@ -86,6 +88,9 @@ export class ConversationLifecycleService {
       projectId: conversation.projectId,
     });
     await this.events.removeConversationStream(conversationId);
+    await this.resultPayloads
+      .removeConversation(conversationId)
+      .catch(() => undefined);
   }
 
   getConversationEntries(conversationId: string): ConversationEntry[] {

@@ -9,6 +9,7 @@ export interface StoragePaths {
   providersPath: string;
   daemonPath: string;
   sqlitePath: string;
+  payloadsPath: string;
   localTokenPath: string;
   migrationsPath: string;
   migrationLedgerPath: string;
@@ -28,6 +29,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     providersPath: join(home, "providers.json"),
     daemonPath: join(home, "daemon.json"),
     sqlitePath: join(home, "state.sqlite"),
+    payloadsPath: join(home, "payloads"),
     localTokenPath: join(home, "auth", "local-token"),
     migrationsPath: join(home, "migrations"),
     migrationLedgerPath: join(home, "migrations", "ledger.json"),

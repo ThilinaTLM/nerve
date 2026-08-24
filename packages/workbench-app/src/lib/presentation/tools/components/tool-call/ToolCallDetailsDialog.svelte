@@ -4,6 +4,7 @@ import type {
   ModelInfo,
   PlanReviewRecord,
   PlanReviewResolveOptions,
+  ToolCallDetails,
   ToolCallRecord,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
@@ -19,6 +20,8 @@ type Props = {
   open?: boolean;
   previewToolCall: ToolCallTranscriptRecord;
   toolCall?: ToolCallRecord;
+  completeResult?: unknown;
+  completeResultStatus?: ToolCallDetails["completeResultStatus"];
   loading?: boolean;
   error?: string;
   pendingUserQuestion?: UserQuestionRecord;
@@ -46,6 +49,8 @@ let {
   open = $bindable(false),
   previewToolCall,
   toolCall,
+  completeResult,
+  completeResultStatus,
   loading = false,
   error,
   pendingUserQuestion,
@@ -107,7 +112,20 @@ const argsPreview = $derived(
 const resultPreview = $derived(
   displayToolCall.toolName === "explain_image"
     ? undefined
-    : payloadPreview(payloadValue(displayToolCall, "result", "resultPreview")),
+    : payloadPreview(
+        completeResultStatus && completeResult !== undefined
+          ? completeResult
+          : payloadValue(displayToolCall, "result", "resultPreview"),
+      ),
+);
+const completeResultNotice = $derived(
+  completeResultStatus === "unavailable"
+    ? "The complete result payload is unavailable. Showing the stored preview."
+    : completeResultStatus === "corrupt"
+      ? "The complete result payload failed verification. Showing the stored preview."
+      : completeResultStatus === "legacy_bounded"
+        ? "Only the bounded legacy result is available."
+        : undefined,
 );
 const description = $derived(
   [displayToolCall.status, presentation.primaryArg?.text]
@@ -167,6 +185,9 @@ const description = $derived(
         {onAcceptPlanReviewInNewChat}
         {onRejectPlanReview}
       />
+      {#if completeResultNotice}
+        <p class="m-0 text-sm text-warning">{completeResultNotice}</p>
+      {/if}
       {#if argsPreview || resultPreview}
         <div class="grid gap-2">
           {#if argsPreview}

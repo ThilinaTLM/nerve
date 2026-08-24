@@ -1,6 +1,7 @@
 import {
   toolCallRecordSchema,
   type ConversationJournalEvent,
+  type ToolCallDetails,
   type ToolCallRecord,
   type ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
@@ -11,9 +12,10 @@ import type {
 import { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import {
-  externalizeToolCallResult,
-  hydrateToolCallResult,
-} from "./tool-result-artifact.js";
+  ToolResultPayloadCorruptError,
+  type ToolResultPayloadStore,
+  ToolResultPayloadUnavailableError,
+} from "./tool-result-payload-store.js";
 
 const TERMINAL_CACHE_MAX_BYTES = 16 * 1024 * 1024;
 
@@ -63,6 +65,7 @@ export class ToolCallRepository {
       | ConversationJournalRepository
       | { paths: { home: string } },
     index: RuntimeProjectionStore,
+    private readonly payloads?: ToolResultPayloadStore,
   ) {
     this.journal =
       journalOrStorage instanceof ConversationJournalRepository
@@ -171,9 +174,41 @@ export class ToolCallRepository {
       toolCallId,
     );
     if (!stored) throw new Error("Tool call not found.");
-    const record = await hydrateToolCallResult(this.journal.homePath(), stored);
-    this.cacheTerminal(record, Buffer.byteLength(JSON.stringify(record)));
-    return record;
+    this.cacheTerminal(stored, Buffer.byteLength(JSON.stringify(stored)));
+    return stored;
+  }
+
+  async getDetails(toolCallId: string): Promise<ToolCallDetails> {
+    const toolCall = await this.getCanonical(toolCallId);
+    if (!toolCall.resultPayload) {
+      return {
+        toolCall,
+        completeResult: toolCall.result,
+        completeResultStatus: "inline",
+      };
+    }
+    if (!this.payloads) {
+      return { toolCall, completeResultStatus: "unavailable" };
+    }
+    try {
+      const completeResult = await this.payloads.read(toolCall.resultPayload);
+      return {
+        toolCall,
+        completeResult,
+        completeResultStatus:
+          toolCall.resultPayload.completeness === "legacy_bounded"
+            ? "legacy_bounded"
+            : "payload",
+      };
+    } catch (error) {
+      if (error instanceof ToolResultPayloadCorruptError) {
+        return { toolCall, completeResultStatus: "corrupt" };
+      }
+      if (error instanceof ToolResultPayloadUnavailableError) {
+        return { toolCall, completeResultStatus: "unavailable" };
+      }
+      throw error;
+    }
   }
 
   findByProviderToolCallId(
@@ -197,17 +232,13 @@ export class ToolCallRepository {
       if (state.toolCalls.has(record.id)) {
         throw new Error(`Tool call '${record.id}' already exists.`);
       }
-      const stored = await externalizeToolCallResult(
-        this.journal.homePath(),
-        record,
-      );
       await this.journal.commit(record.conversationId, {
         kind: "tool_call.created",
         events: [
           {
             kind: "tool_call.upserted",
             conversationId: record.conversationId,
-            toolCall: stored,
+            toolCall: record,
           },
         ],
       });
@@ -240,15 +271,11 @@ export class ToolCallRepository {
         revision: current.revision + 1,
       });
       const journalState = await this.journal.load(next.conversationId);
-      const stored = await externalizeToolCallResult(
-        this.journal.homePath(),
-        next,
-      );
       const events: ConversationJournalEvent[] = [
         {
           kind: "tool_call.upserted",
           conversationId: next.conversationId,
-          toolCall: stored,
+          toolCall: next,
         },
       ];
       const suspensions = new Set<string>();

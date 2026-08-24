@@ -29,8 +29,14 @@ interface CategoryMeta {
 const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
   conversations: {
     label: "Conversations",
+    description: "Legacy conversation files pending migration.",
+    cleanable: true,
+    protected: false,
+  },
+  payloads: {
+    label: "Payloads",
     description:
-      "Message history, harness state, and entries per conversation.",
+      "Complete tool results retained when agent output is truncated.",
     cleanable: true,
     protected: false,
   },
@@ -117,6 +123,7 @@ const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
 };
 
 const CATEGORY_ORDER: StorageCategoryKey[] = [
+  "payloads",
   "conversations",
   "logs",
   "sqliteIndex",
@@ -172,16 +179,19 @@ export class StorageUsageService {
       if (entry.isSymbolicLink()) continue;
       const key = categoryForEntry(entry.name);
       const path = join(home, entry.name);
-      if (entry.isDirectory() && key === "conversations") {
-        const children = await readdir(path, { withFileTypes: true }).catch(
-          () => [],
-        );
+      if (entry.isDirectory() && key === "payloads") {
+        add(key, await dirSize(path));
+        const conversationRoot = join(path, "conversations");
+        const children = await readdir(conversationRoot, {
+          withFileTypes: true,
+        }).catch(() => []);
         for (const child of children) {
           if (!child.isDirectory() || child.isSymbolicLink()) continue;
-          const tally = await dirSize(join(path, child.name));
-          add(key, tally);
+          const tally = await dirSize(join(conversationRoot, child.name));
           conversationSizes.push({ id: child.name, bytes: tally.bytes });
         }
+      } else if (entry.isDirectory() && key === "conversations") {
+        add(key, await dirSize(path));
       } else {
         add(
           key,
@@ -263,7 +273,7 @@ export class StorageUsageService {
     return [
       {
         target: "conversations",
-        bytes: category("conversations").bytes,
+        bytes: category("payloads").bytes,
         itemCount: this.deps.getRegistry().listConversations().length,
         estimate: "upTo",
       },
@@ -319,6 +329,8 @@ function categoryForEntry(name: string): StorageCategoryKey {
   switch (name) {
     case "conversations":
       return "conversations";
+    case "payloads":
+      return "payloads";
     case "logs":
       return "logs";
     case "state.sqlite":

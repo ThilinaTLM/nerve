@@ -82,6 +82,14 @@ export type ToolCallRecordPayloadV1 = z.infer<
   typeof toolCallRecordPayloadV1Schema
 >;
 
+export const toolCallRecordPayloadV2Schema = z.object({
+  version: z.literal(2),
+  toolCall: toolCallRecordSchema,
+});
+export type ToolCallRecordPayloadV2 = z.infer<
+  typeof toolCallRecordPayloadV2Schema
+>;
+
 export const toolBatchRecordPayloadV1Schema = z.object({
   version: z.literal(1),
   toolCallIds: z.array(z.string().startsWith("tool_")).min(2).max(64),
@@ -93,6 +101,7 @@ export const conversationRecordPayloadV1Schema = z.union([
   summaryRecordPayloadV1Schema,
   runRecordPayloadV1Schema,
   toolCallRecordPayloadV1Schema,
+  toolCallRecordPayloadV2Schema,
   toolBatchRecordPayloadV1Schema,
 ]);
 export type ConversationRecordPayloadV1 = z.infer<

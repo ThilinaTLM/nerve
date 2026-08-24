@@ -36,6 +36,19 @@ const toolCallGetParamsSchema = z.object({
   runId: z.string().startsWith("run_").optional(),
 });
 
+export const toolCallDetailsSchema = z.object({
+  toolCall: toolCallRecordSchema,
+  completeResult: z.unknown().optional(),
+  completeResultStatus: z.enum([
+    "inline",
+    "payload",
+    "legacy_bounded",
+    "unavailable",
+    "corrupt",
+  ]),
+});
+export type ToolCallDetails = z.infer<typeof toolCallDetailsSchema>;
+
 export const toolInteractionResolutionSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("approval"),
@@ -124,7 +137,7 @@ export const toolsOperationDefinitions = [
   defineOperation(
     "toolCall.get",
     toolCallGetParamsSchema,
-    z.object({ toolCall: toolCallRecordSchema }),
+    toolCallDetailsSchema,
     "read",
     "none",
     ["workbench_server"] as const,

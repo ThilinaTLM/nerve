@@ -85,6 +85,7 @@ interface MaterializedRecord {
   kind: "message" | "summary" | "run" | "tool_call" | "tool_batch";
   status: string;
   revision: number;
+  payloadVersion?: number;
   data: unknown;
   createdAt: string;
   updatedAt: string;
@@ -180,7 +181,8 @@ export function materializeConversationRecords(
       kind: "tool_call",
       status: toolCall.phase ?? toolCall.status,
       revision: toolCall.revision,
-      data: { version: 1, toolCall },
+      payloadVersion: 2,
+      data: { version: 2, toolCall },
       createdAt: toolCall.createdAt,
       updatedAt: toolCall.updatedAt,
     });
@@ -221,7 +223,7 @@ export function materializeConversationRecords(
     `INSERT INTO conversation_records (
        id, conversation_id, agent_id, parent_id, run_id, group_id, sequence,
        revision, kind, status, payload_version, data, created_at_ms, updated_at_ms
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        conversation_id = excluded.conversation_id,
        agent_id = excluded.agent_id,
@@ -273,6 +275,7 @@ export function materializeConversationRecords(
       record.revision,
       record.kind,
       record.status,
+      record.payloadVersion ?? 1,
       encode(record.data),
       Date.parse(record.createdAt),
       Date.parse(record.updatedAt),
