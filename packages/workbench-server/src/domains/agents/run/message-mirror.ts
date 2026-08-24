@@ -132,6 +132,7 @@ export class MessageMirror {
     for (const entry of storageEntries) {
       if (knownEntryIds.has(entry.id)) continue;
       knownEntryIds.add(entry.id);
+      if (visibleEntryIds.has(entry.id)) continue;
       if (entry.type !== "message") continue;
       if (
         entry.message.role !== "user" &&

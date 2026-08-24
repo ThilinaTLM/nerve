@@ -409,11 +409,9 @@ function applyEvent(
         (entry) => entry.id === event.entry.id,
       );
       if (index === -1) state.entries.push(event.entry);
-      else if (
-        JSON.stringify(state.entries[index]) !== JSON.stringify(event.entry)
-      ) {
-        throw new Error(`Conflicting conversation entry '${event.entry.id}'.`);
-      }
+      // Entry ids are the idempotency boundary for transcript materialization.
+      // Concurrent writers can derive different presentation metadata for the
+      // same durable message; the first committed representation wins.
       return;
     }
     case "model_context.entry_appended": {

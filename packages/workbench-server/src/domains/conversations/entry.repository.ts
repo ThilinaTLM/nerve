@@ -14,9 +14,10 @@ export class EntryRepository {
     return [...(await this.journal.load(conversationId)).entries];
   }
 
-  async append(entry: ConversationEntry): Promise<void> {
+  async append(entry: ConversationEntry): Promise<ConversationEntry> {
     await this.journal.commit(entry.conversationId, {
       kind: "conversation.entry_appended",
+      idempotencyKey: `conversation-entry:${entry.id}`,
       events: [
         {
           kind: "conversation.entry_appended",
@@ -25,6 +26,11 @@ export class EntryRepository {
         },
       ],
     });
+    return (
+      (await this.journal.load(entry.conversationId)).entries.find(
+        (candidate) => candidate.id === entry.id,
+      ) ?? entry
+    );
   }
 
   displayLinkedEntries(entries: ConversationEntry[]): ConversationEntry[] {

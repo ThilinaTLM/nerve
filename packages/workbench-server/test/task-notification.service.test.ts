@@ -135,6 +135,87 @@ describe("TaskNotificationService awaited task continuation", () => {
     context.service.stop();
   });
 
+  it("recovers an existing terminal transcript entry without appending it again", async () => {
+    const existing = {
+      id: "entry_existing_notification",
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      runId: "run_test",
+      role: "system",
+      kind: "task_event",
+      text: "Background task completed.",
+      details: {
+        type: "task_event",
+        taskId: "task_test",
+        event: "completed",
+      },
+      createdAt: "2026-01-02T03:04:06.000Z",
+    } satisfies ConversationEntry;
+    const context = createNotificationContext({
+      task: taskRecord(),
+      existingEntries: [existing],
+    });
+    context.service.start();
+
+    await context.events.publish("task.completed", { task: context.task });
+    await waitFor(() => context.tasks.delivered.length === 1);
+
+    assert.deepEqual(context.entries, [existing]);
+    assert.deepEqual(context.harnessMessages, []);
+    assert.deepEqual(context.tasks.pending, []);
+    assert.deepEqual(context.tasks.delivered, [
+      { slot: "terminal", entryId: existing.id },
+    ]);
+    context.service.stop();
+  });
+
+  it("adds cancellation events directly when no run is live", async () => {
+    const context = createNotificationContext({
+      task: taskRecord({ status: "cancelled", signal: "SIGTERM" }),
+    });
+    context.service.start();
+
+    await context.events.publish("task.cancelled", { task: context.task });
+    await waitFor(() => context.entries.length === 1);
+
+    const entry = context.entries[0];
+    assert.equal(entry?.kind, "task_event");
+    assert.match(entry?.text ?? "", /cancelled/i);
+    assert.deepEqual(
+      (entry?.details as { event?: string; signal?: string | null })?.event,
+      "cancelled",
+    );
+    assert.equal(
+      (entry?.details as { signal?: string | null })?.signal,
+      "SIGTERM",
+    );
+    assert.equal(context.harnessMessages.length, 1);
+    assert.equal(context.tasks.delivered[0]?.slot, "terminal");
+    context.service.stop();
+  });
+
+  it("queues into the current live run when the task origin run is dead", async () => {
+    const enqueued: AgentMessage[] = [];
+    const context = createNotificationContext({
+      task: taskRecord(),
+      activeRunId: "run_current",
+      liveRunId: "run_current",
+      liveControl: {
+        enqueueHarnessMessage: async (input) => {
+          enqueued.push(input.message);
+        },
+      },
+    });
+    context.service.start();
+
+    await context.events.publish("task.completed", { task: context.task });
+    await waitFor(() => enqueued.length === 1);
+
+    assert.equal(context.entries.length, 0);
+    assert.equal(enqueued[0]?.role, "harness");
+    context.service.stop();
+  });
+
   it("queues notifications into an active run without starting a second run", async () => {
     const enqueued: AgentMessage[] = [];
     const context = createNotificationContext({
@@ -161,6 +242,9 @@ describe("TaskNotificationService awaited task continuation", () => {
 
 function createNotificationContext(options: {
   task: TaskRecord;
+  existingEntries?: ConversationEntry[];
+  activeRunId?: string;
+  liveRunId?: string;
   liveControl?: {
     enqueueHarnessMessage(input: { message: AgentMessage }): Promise<void>;
   };
@@ -169,7 +253,7 @@ function createNotificationContext(options: {
   const events = new TestEvents();
   const task = options.task;
   const tasks = new FakeTasks(task);
-  const entries: ConversationEntry[] = [];
+  const entries: ConversationEntry[] = [...(options.existingEntries ?? [])];
   const harnessMessages: Array<{
     id: string;
     message: AgentMessage;
@@ -182,10 +266,14 @@ function createNotificationContext(options: {
     events: events as unknown as TaskNotificationServiceDeps["events"],
     liveRuns: {
       get: (runId: string) =>
-        runId === "run_test" ? options.liveControl : undefined,
+        runId === (options.liveRunId ?? "run_test")
+          ? options.liveControl
+          : undefined,
     } as unknown as TaskNotificationServiceDeps["liveRuns"],
     runUnitOfWork: {
-      findActive: async () => ({ run: { runId: "run_test" } }),
+      findActive: async () => ({
+        run: { runId: options.activeRunId ?? "run_test" },
+      }),
     } as unknown as TaskNotificationServiceDeps["runUnitOfWork"],
     appendEntry: async (input) => {
       const entry = {
