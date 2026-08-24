@@ -209,6 +209,9 @@ type StoredTab = CenterTabIdentity & {
   renamedFrom?: string;
   area?: GitDiffArea;
   locator?: MermaidBlockLocator;
+  source?: string;
+  sourceKey?: string;
+  name?: string;
 };
 
 type StoredSession = {
@@ -275,19 +278,37 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
         loading: false,
       };
     } else if (stored.kind === "mermaid") {
-      if (
-        !stored.projectId ||
-        !stored.path ||
-        !isMermaidBlockLocator(stored.locator)
-      )
+      if (!stored.projectId || !isMermaidBlockLocator(stored.locator)) continue;
+      if (stored.path) {
+        fileState.mermaidViews[mermaidViewKey(stored.id)] = {
+          origin: "file",
+          id: stored.id,
+          projectId: stored.projectId,
+          path: stored.path,
+          locator: stored.locator,
+          loading: false,
+        };
+      } else if (
+        typeof stored.source === "string" &&
+        stored.source.trim() &&
+        typeof stored.sourceKey === "string" &&
+        stored.sourceKey &&
+        typeof stored.name === "string" &&
+        stored.name
+      ) {
+        fileState.mermaidViews[mermaidViewKey(stored.id)] = {
+          origin: "inline",
+          id: stored.id,
+          projectId: stored.projectId,
+          sourceKey: stored.sourceKey,
+          name: stored.name,
+          locator: stored.locator,
+          source: stored.source,
+          loading: false,
+        };
+      } else {
         continue;
-      fileState.mermaidViews[mermaidViewKey(stored.id)] = {
-        id: stored.id,
-        projectId: stored.projectId,
-        path: stored.path,
-        locator: stored.locator,
-        loading: false,
-      };
+      }
     } else if (stored.kind === "pr") {
       if (
         !stored.projectId ||
@@ -474,7 +495,8 @@ export function persistWorkspaceTabSessions(): void {
           }
           if (tab.kind === "mermaid") {
             const view = fileState.mermaidViews[mermaidViewKey(tab.id)];
-            return view
+            if (!view) return [];
+            return view.origin === "file"
               ? [
                   {
                     ...tab,
@@ -483,7 +505,16 @@ export function persistWorkspaceTabSessions(): void {
                     locator: view.locator,
                   },
                 ]
-              : [];
+              : [
+                  {
+                    ...tab,
+                    projectId: view.projectId,
+                    locator: view.locator,
+                    source: view.source,
+                    sourceKey: view.sourceKey,
+                    name: view.name,
+                  },
+                ];
           }
           if (tab.kind === "pr") {
             const view = gitState.prViews[prViewKey(tab.id)];

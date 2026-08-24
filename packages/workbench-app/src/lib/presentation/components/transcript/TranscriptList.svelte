@@ -16,6 +16,7 @@ import {
   type VirtualScrollerController,
 } from "@nervekit/ui-kit/components/ui/virtual-list";
 import type { TimelineItem } from "../../state/timeline";
+import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/core/components/mermaid-blocks";
 import ConversationSignal from "../conversation/ConversationSignal.svelte";
 import QueuedPromptRow from "./QueuedPromptRow.svelte";
 import TranscriptRow from "./TranscriptRow.svelte";
@@ -61,6 +62,7 @@ type Props = {
   planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
   lastTimelineKey?: string;
   onOpenFile?: (path: string, line?: number) => void;
+  onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
   onAnswerUserQuestion?: (questionId: string, answer: string) => void;
   onDismissUserQuestion?: (questionId: string) => void;
   onGrantApproval?: (
@@ -117,6 +119,7 @@ let {
   planReviewThinkingLevel = "off",
   lastTimelineKey,
   onOpenFile,
+  onOpenMermaid,
   onAnswerUserQuestion,
   onDismissUserQuestion,
   onGrantApproval,
@@ -354,6 +357,7 @@ $effect(() => {
             {planReviewModelKey}
             {planReviewThinkingLevel}
             {onOpenFile}
+            {onOpenMermaid}
             {onAnswerUserQuestion}
             {onDismissUserQuestion}
             {onGrantApproval}

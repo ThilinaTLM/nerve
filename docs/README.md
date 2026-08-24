@@ -2,6 +2,7 @@
 
 Root `docs/` contains maintainer and development workflow material that is not part of the public product documentation:
 
+- `conversation-storage-erd.md` records the non-normative SQLite conversation-storage ERD brainstorm.
 - `performance-profiling.md` documents automatic source-desktop performance diagnostics and the local summary tool.
 - `release.md` is the maintainer release procedure.
 

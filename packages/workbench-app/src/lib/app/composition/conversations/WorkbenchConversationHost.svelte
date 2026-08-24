@@ -18,6 +18,8 @@ import { setConversationUiCapabilities } from "$lib/presentation/context.svelte"
 import WorkbenchComposerAdapter from "./WorkbenchComposerAdapter.svelte";
 import { workbenchConversationUiCapabilities } from "./conversation-capabilities.svelte";
 import ConversationWelcome from "$lib/features/conversations/components/ConversationWelcome.svelte";
+import { openInlineMermaidPane } from "$lib/features/filesystem";
+import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/core/components/mermaid-blocks";
 
 setConversationUiCapabilities(workbenchConversationUiCapabilities());
 import { transcriptMenu } from "$lib/features/conversations/components/conversation-menus";
@@ -200,6 +202,21 @@ function quoteInComposer(text: string) {
   onComposerChange?.(`${prefix}${quoted}\n\n`);
 }
 
+function openAssistantMermaid(
+  block: MermaidMarkdownBlock,
+  messageKey: string,
+): void {
+  if (!activeProject) return;
+  const conversationKey =
+    activeConversation?.id ?? activePendingConversation?.id ?? "pending";
+  void openInlineMermaidPane({
+    projectId: activeProject.id,
+    sourceKey: `${conversationKey}:${messageKey}`,
+    name: "Assistant diagram",
+    block,
+  });
+}
+
 function menuForTranscript(
   target: TranscriptMenuTarget,
   selectedText?: string,
@@ -262,6 +279,7 @@ function menuForTranscript(
   }}
   actions={{
     onOpenFile,
+    onOpenMermaid: openAssistantMermaid,
     onAnswerUserQuestion,
     onDismissUserQuestion,
     onGrantApproval,

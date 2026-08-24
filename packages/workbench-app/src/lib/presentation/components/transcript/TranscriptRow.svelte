@@ -12,6 +12,7 @@ import type { ConversationMenuBuilders } from "../conversation/types.js";
 import ToolCallCard from "../../tools/components/ToolCallCard.svelte";
 import ToolResultErrorCard from "../../tools/components/tool-call/ToolResultErrorCard.svelte";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
+import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/core/components/mermaid-blocks";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import CompactionCard from "./CompactionCard.svelte";
 import UserMessageContent from "./UserMessageContent.svelte";
@@ -37,6 +38,7 @@ type Props = {
   planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
   lastTimelineKey?: string;
   onOpenFile?: (path: string, line?: number) => void;
+  onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
   onAnswerUserQuestion?: (questionId: string, answer: string) => void;
   onDismissUserQuestion?: (questionId: string) => void;
   onGrantApproval?: (
@@ -72,6 +74,7 @@ let {
   planReviewThinkingLevel = "off",
   lastTimelineKey,
   onOpenFile,
+  onOpenMermaid,
   onAnswerUserQuestion,
   onDismissUserQuestion,
   onGrantApproval,
@@ -104,6 +107,13 @@ const messageState = $derived.by<"running" | "complete" | "static">(() => {
   }
   return "static";
 });
+
+// Markdown uses callback identity to retain its lazy Mermaid enhancement. Keep
+// this handler stable so unrelated transcript updates do not remount diagrams.
+function openMessageMermaid(block: MermaidMarkdownBlock): void {
+  if (node.kind !== "message" || node.item.role !== "assistant") return;
+  onOpenMermaid?.(block, node.item.liveMessageId ?? node.item.id ?? node.key);
+}
 
 let entering = $state(false);
 let activeEntrance = $state<TranscriptEntranceMotion>();
@@ -272,6 +282,9 @@ $effect(() => {
                   streaming={Boolean(node.item.live && !node.item.done)}
                   linkBasePath={activeProject?.dir}
                   {onOpenFile}
+                  onOpenMermaid={node.item.role === "assistant" && onOpenMermaid
+                    ? openMessageMermaid
+                    : undefined}
                   onCopy={notifyCopyResult}
                 />
               {/if}

@@ -116,8 +116,10 @@ export function closeFileTabsAtPath(input: {
   );
   const matchingMermaidIds = new SvelteSet(
     Object.values(fileState.mermaidViews)
-      .filter((view) =>
-        pathMatches(view.projectId, view.relativePath ?? view.path),
+      .filter(
+        (view) =>
+          view.origin === "file" &&
+          pathMatches(view.projectId, view.relativePath ?? view.path),
       )
       .map((view) => view.id),
   );

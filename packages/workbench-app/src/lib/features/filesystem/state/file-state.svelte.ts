@@ -14,18 +14,29 @@ export type FileViewState = {
   error?: string;
 };
 
-export type MarkdownMermaidViewState = {
+type MermaidViewStateBase = {
   id: string;
   projectId: string;
-  path: string;
-  relativePath?: string;
-  name?: string;
   locator: MermaidBlockLocator;
   source?: string;
   loading: boolean;
-  truncated?: boolean;
   error?: string;
 };
+
+export type MarkdownMermaidViewState =
+  | (MermaidViewStateBase & {
+      origin: "file";
+      path: string;
+      relativePath?: string;
+      name?: string;
+      truncated?: boolean;
+    })
+  | (MermaidViewStateBase & {
+      origin: "inline";
+      sourceKey: string;
+      name: string;
+      source: string;
+    });
 
 export const fileState = $state({
   fileViews: {} as Record<string, FileViewState>,

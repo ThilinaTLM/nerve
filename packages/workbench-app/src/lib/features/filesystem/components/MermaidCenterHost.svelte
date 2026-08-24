@@ -3,13 +3,17 @@ import { MermaidPane } from "$lib/presentation/components/mermaid";
 import { fileSelectors } from "$lib/features/filesystem/state/file-selectors.svelte";
 
 const view = $derived(fileSelectors.activeCenterMermaidView);
-const filePath = $derived(view?.relativePath ?? view?.path ?? "Markdown file");
+const sourceLabel = $derived(
+  view?.origin === "file"
+    ? (view.relativePath ?? view.path)
+    : (view?.name ?? "assistant message"),
+);
 </script>
 
 <MermaidPane
   source={view?.source}
   loading={view?.loading}
   error={view?.error}
-  truncated={view?.truncated}
-  ariaLabel={`Mermaid diagram from ${filePath}`}
+  truncated={view?.origin === "file" ? view.truncated : false}
+  ariaLabel={`Mermaid diagram from ${sourceLabel}`}
 />
