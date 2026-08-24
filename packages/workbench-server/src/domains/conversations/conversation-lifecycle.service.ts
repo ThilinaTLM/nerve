@@ -230,7 +230,6 @@ export class ConversationLifecycleService {
       entry,
       modelEntry,
       conversation: updatedConversation,
-      agentId: input.agentId,
     });
     const entries = this.state.entries.get(input.conversationId) ?? [];
     entries.push(entry);

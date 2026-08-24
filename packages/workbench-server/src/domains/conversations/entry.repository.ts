@@ -38,7 +38,6 @@ export class EntryRepository {
     entry: ConversationEntry;
     modelEntry: ConversationTreeEntry;
     conversation: ConversationRecord;
-    agentId?: string;
   }): Promise<void> {
     await this.journal.commit(input.entry.conversationId, {
       kind: "compaction.completed",
@@ -57,13 +56,11 @@ export class EntryRepository {
         {
           kind: "model_context.entry_appended",
           conversationId: input.entry.conversationId,
-          ownerAgentId: input.agentId,
           entry: input.modelEntry as never,
         },
         {
           kind: "model_context.leaf_changed",
           conversationId: input.entry.conversationId,
-          ownerAgentId: input.agentId,
           entryId: input.modelEntry.id,
         },
       ],
