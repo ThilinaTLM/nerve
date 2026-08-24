@@ -504,7 +504,7 @@ export class CanonicalDatabase {
             Date.parse(state.conversation.updatedAt),
           );
       }
-      materializeConversationRecords(database, state);
+      materializeConversationRecords(database, state, commit);
       if (commit) {
         appendDurableEventInTransaction(database, {
           stream: `internal/conv/${state.conversationId}`,

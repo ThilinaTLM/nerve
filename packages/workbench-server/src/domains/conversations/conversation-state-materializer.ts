@@ -93,15 +93,21 @@ interface MaterializedRecord {
 export function materializeConversationRecords(
   database: DatabaseSync,
   state: ConversationJournalState,
+  commit?: ConversationJournalCommit,
 ): void {
-  database
-    .prepare(
-      `UPDATE conversation_records SET parent_id = NULL WHERE conversation_id = ?`,
-    )
-    .run(state.conversationId);
-  database
-    .prepare(`DELETE FROM conversation_records WHERE conversation_id = ?`)
-    .run(state.conversationId);
+  // Cold imports rebuild the complete projection. Hot journal commits only
+  // upsert records named by the commit; deleting and re-encoding the entire
+  // conversation here made every tool lifecycle write O(history size).
+  if (!commit) {
+    database
+      .prepare(
+        `UPDATE conversation_records SET parent_id = NULL WHERE conversation_id = ?`,
+      )
+      .run(state.conversationId);
+    database
+      .prepare(`DELETE FROM conversation_records WHERE conversation_id = ?`)
+      .run(state.conversationId);
+  }
   database
     .prepare(`DELETE FROM agent_context_leaves WHERE conversation_id = ?`)
     .run(state.conversationId);
@@ -210,13 +216,52 @@ export function materializeConversationRecords(
     inserted.add(record.id);
   }
 
+  const affectedRecordIds = commit ? recordIdsAffectedBy(commit) : undefined;
   const insert = database.prepare(
     `INSERT INTO conversation_records (
        id, conversation_id, agent_id, parent_id, run_id, group_id, sequence,
        revision, kind, status, payload_version, data, created_at_ms, updated_at_ms
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       conversation_id = excluded.conversation_id,
+       agent_id = excluded.agent_id,
+       parent_id = excluded.parent_id,
+       run_id = excluded.run_id,
+       group_id = excluded.group_id,
+       sequence = excluded.sequence,
+       revision = excluded.revision,
+       kind = excluded.kind,
+       status = excluded.status,
+       payload_version = excluded.payload_version,
+       data = excluded.data,
+       created_at_ms = excluded.created_at_ms,
+       updated_at_ms = excluded.updated_at_ms`,
   );
+  const existingSequence = affectedRecordIds
+    ? database.prepare(
+        `SELECT sequence FROM conversation_records
+         WHERE conversation_id = ? AND id = ?`,
+      )
+    : undefined;
+  let nextSequence = affectedRecordIds
+    ? (
+        database
+          .prepare(
+            `SELECT COALESCE(MAX(sequence), 0) + 1 AS sequence
+             FROM conversation_records WHERE conversation_id = ?`,
+          )
+          .get(state.conversationId) as { sequence: number }
+      ).sequence
+    : 1;
   for (const [index, record] of ordered.entries()) {
+    if (affectedRecordIds && !affectedRecordIds.has(record.id)) continue;
+    const storedSequence = existingSequence?.get(
+      state.conversationId,
+      record.id,
+    ) as { sequence: number } | undefined;
+    const sequence =
+      storedSequence?.sequence ??
+      (affectedRecordIds ? nextSequence++ : index + 1);
     insert.run(
       record.id,
       state.conversationId,
@@ -224,7 +269,7 @@ export function materializeConversationRecords(
       record.parentId && inserted.has(record.parentId) ? record.parentId : null,
       record.runId ?? null,
       record.groupId ?? null,
-      index + 1,
+      sequence,
       record.revision,
       record.kind,
       record.status,
@@ -257,4 +302,26 @@ export function materializeConversationRecords(
       Math.max(1, state.revision),
     );
   }
+}
+
+function recordIdsAffectedBy(commit: ConversationJournalCommit): Set<string> {
+  const ids = new Set<string>();
+  for (const event of commit.events) {
+    switch (event.kind) {
+      case "conversation.entry_appended":
+      case "model_context.entry_appended":
+        ids.add(event.entry.id);
+        break;
+      case "tool_call.upserted":
+        ids.add(event.toolCall.id);
+        break;
+      case "run.transition_committed":
+        ids.add(event.transition.runId);
+        break;
+      case "run.event_delivered":
+        ids.add(event.delivery.runId);
+        break;
+    }
+  }
+  return ids;
 }
