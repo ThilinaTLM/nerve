@@ -1095,32 +1095,44 @@ export class ToolService {
     const next = await this.toolCallRepository.replace(
       toolCallId,
       expectedRevision,
-      (record) => ({
-        ...record,
-        ...patch,
-        ...(patch.status ? { phase: phaseForStatus(patch.status) } : {}),
-        ...(patch.status === "running" && record.status !== "running"
-          ? { attempt: record.attempt + 1 }
-          : {}),
-        ...(terminal ? { settledAt: updatedAt } : {}),
-        ...(terminal && record.execution
-          ? {
-              execution: {
-                ...record.execution,
-                status:
-                  patch.status === "completed"
-                    ? ("completed" as const)
-                    : patch.status === "cancelled"
-                      ? ("cancelled" as const)
-                      : patch.status === "failed" || patch.status === "denied"
-                        ? ("failed" as const)
-                        : ("interrupted" as const),
-                endedAt: updatedAt,
-              },
-            }
-          : {}),
-        updatedAt,
-      }),
+      (record) => {
+        const candidate: ToolCallRecord = {
+          ...record,
+          ...patch,
+          ...(patch.status ? { phase: phaseForStatus(patch.status) } : {}),
+          ...(patch.status === "running" && record.status !== "running"
+            ? { attempt: record.attempt + 1 }
+            : {}),
+          ...(terminal ? { settledAt: updatedAt } : {}),
+          ...(terminal && record.execution
+            ? {
+                execution: {
+                  ...record.execution,
+                  status:
+                    patch.status === "completed"
+                      ? ("completed" as const)
+                      : patch.status === "cancelled"
+                        ? ("cancelled" as const)
+                        : patch.status === "failed" || patch.status === "denied"
+                          ? ("failed" as const)
+                          : ("interrupted" as const),
+                  endedAt: updatedAt,
+                },
+              }
+            : {}),
+          updatedAt,
+        };
+        if (
+          Object.hasOwn(patch, "result") &&
+          !Object.hasOwn(patch, "resultPreview")
+        ) {
+          candidate.resultPreview = toToolCallTranscriptRecord({
+            ...candidate,
+            resultPreview: undefined,
+          }).resultPreview;
+        }
+        return candidate;
+      },
     );
     if (isTerminalToolCall(next)) this.notifyWaiters(next);
     return next;

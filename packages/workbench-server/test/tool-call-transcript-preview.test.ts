@@ -82,6 +82,55 @@ describe("explain_image transcript preview", () => {
     });
   });
 
+  it("keeps a bounded plan body in the durable transcript preview", () => {
+    const content = Array.from(
+      { length: 10 },
+      (_, index) => `Plan step ${index + 1}`,
+    ).join("\n");
+    const toolCall = {
+      ...explainImageToolCall("unused"),
+      toolName: "plan_mode_present" as const,
+      status: "waiting" as const,
+      result: {
+        review: {
+          id: "plan_review_01H0000000000000000000",
+          planPath: "/tmp/project/.nerve/plans/example.md",
+          content,
+          status: "pending",
+        },
+        outcome: "pending",
+      },
+    } satisfies ToolCallRecord;
+
+    const preview = toToolCallTranscriptRecord(toolCall);
+    const result = preview.resultPreview as {
+      review?: { content?: string };
+    };
+
+    assert.equal(
+      result.review?.content,
+      "Plan step 1\nPlan step 2\nPlan step 3\nPlan step 4\nPlan step 5\nPlan step 6",
+    );
+    assert.deepEqual(preview.previewOverflow, {
+      hidden: 4,
+      noun: "lines",
+      direction: "head",
+    });
+    assert.doesNotThrow(() =>
+      validatePublicEvent(
+        "toolCall.updated",
+        {
+          conversationId: toolCall.conversationId,
+          conversationRevision: 1,
+          agentId: toolCall.agentId,
+          projectId: toolCall.projectId,
+          toolCall: preview,
+        },
+        "workbench_server",
+      ),
+    );
+  });
+
   it("omits unbounded durable supervision arguments from public events", () => {
     const toolCall = {
       ...explainImageToolCall("Interrupted."),
