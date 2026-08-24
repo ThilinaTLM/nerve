@@ -19,7 +19,7 @@ export class LifecycleTransitionError extends Error {
 }
 
 export const toolCallTransitions = {
-  committed: ["waiting", "running", "denied", "cancelled"],
+  committed: ["waiting", "running", "denied", "failed", "cancelled"],
   waiting: ["committed", "running", "denied", "failed", "cancelled"],
   running: ["waiting", "completed", "failed", "cancelled"],
   completed: [],

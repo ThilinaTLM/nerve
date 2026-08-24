@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ToolCallRecord } from "@nervekit/contracts";
+import { type ToolCallRecord, validatePublicEvent } from "@nervekit/contracts";
 import { toToolCallTranscriptRecord } from "../src/domains/tools/tool-call-transcript-preview.js";
 
 function explainImageToolCall(explanation: string): ToolCallRecord {
@@ -55,5 +55,43 @@ describe("explain_image transcript preview", () => {
       direction: "head",
     });
     assert.equal(JSON.stringify(preview).includes("thinking"), false);
+  });
+
+  it("omits unbounded durable supervision arguments from public events", () => {
+    const toolCall = {
+      ...explainImageToolCall("Interrupted."),
+      supervision: {
+        status: "approved" as const,
+        source: "automatic" as const,
+        decision: {
+          version: 1 as const,
+          decision: "allow" as const,
+          effectiveRisk: "read" as const,
+          reason: "Allowed by policy.",
+          normalizedArgs: { content: "x".repeat(20_000) },
+          normalizedTargets: [{ kind: "whole_tool" as const }],
+          matchedRuleIds: [],
+          policySnapshotHash: `sha256:${"a".repeat(64)}`,
+          suggestedRules: [],
+        },
+      },
+    } satisfies ToolCallRecord;
+
+    const preview = toToolCallTranscriptRecord(toolCall);
+
+    assert.equal(preview.supervision, undefined);
+    assert.doesNotThrow(() =>
+      validatePublicEvent(
+        "toolCall.updated",
+        {
+          conversationId: toolCall.conversationId,
+          conversationRevision: 1,
+          agentId: toolCall.agentId,
+          projectId: toolCall.projectId,
+          toolCall: preview,
+        },
+        "workbench_server",
+      ),
+    );
   });
 });

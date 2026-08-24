@@ -603,6 +603,11 @@ describe("Protocol v1 shared schemas", () => {
       true,
     );
     assert.equal(
+      canTransition(toolCallTransitions, "committed", "failed"),
+      true,
+      "startup recovery must be able to fail a committed tool call",
+    );
+    assert.equal(
       canTransition(toolCallTransitions, "completed", "running"),
       false,
     );

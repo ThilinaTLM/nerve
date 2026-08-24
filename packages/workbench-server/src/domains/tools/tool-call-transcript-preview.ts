@@ -530,6 +530,11 @@ export function toToolCallTranscriptRecord(
   toolCall: ToolCallRecord,
 ): ToolCallTranscriptRecord {
   const { args, result, ...base } = toolCall;
+  // Durable supervision retains the complete normalized execution arguments for
+  // policy revalidation. Transcript events already carry a bounded argsPreview,
+  // so publishing supervision would duplicate unbounded (and potentially
+  // sensitive) arguments across the public event boundary.
+  delete base.supervision;
   const argsRecord = record(args);
   const resultRecord = record(result);
   let argsPreview: unknown = args;
