@@ -38,7 +38,8 @@ describe("settings migrations", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-lazy-suggestions-"));
     roots.push(root);
 
-    await initializeStorage(root);
+    const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
 
     await assert.rejects(lstat(join(root, "prompt-suggestions")), /ENOENT/);
     assert.deepEqual(
@@ -154,36 +155,34 @@ describe("settings migrations", () => {
 
   it("moves legacy server settings into application configuration", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
-    try {
-      const legacy = {
-        ...defaultSettings,
-        application: undefined,
-        server: { host: "127.0.0.1", port: 4100, allowRemote: true },
-      };
-      await writeFile(join(root, "config.json"), `${JSON.stringify(legacy)}\n`);
-      const progress: DaemonStartupProgress[] = [];
-      const storage = await initializeStorage(root, {
-        reportStartupProgress: (event) => progress.push(event),
-      });
-      assert.equal(progress[0]?.phase, "storage-check");
-      assert.equal(
-        progress.some((event) => event.phase === "storage-migration"),
-        true,
-      );
-      assert.deepEqual(storage.settings.application.network, {
-        host: "0.0.0.0",
-        port: 4100,
-        allowRemote: true,
-        mobileHttps: false,
-        httpsPort: 3748,
-      });
-      const persisted = JSON.parse(
-        await readFile(join(root, "config.json"), "utf8"),
-      ) as Record<string, unknown>;
-      assert.equal("server" in persisted, false);
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
+    roots.push(root);
+    const legacy = {
+      ...defaultSettings,
+      application: undefined,
+      server: { host: "127.0.0.1", port: 4100, allowRemote: true },
+    };
+    await writeFile(join(root, "config.json"), `${JSON.stringify(legacy)}\n`);
+    const progress: DaemonStartupProgress[] = [];
+    const storage = await initializeStorage(root, {
+      reportStartupProgress: (event) => progress.push(event),
+    });
+    stores.push(storage.canonicalStore);
+    assert.equal(progress[0]?.phase, "storage-check");
+    assert.equal(
+      progress.some((event) => event.phase === "storage-migration"),
+      true,
+    );
+    assert.deepEqual(storage.settings.application.network, {
+      host: "0.0.0.0",
+      port: 4100,
+      allowRemote: true,
+      mobileHttps: false,
+      httpsPort: 3748,
+    });
+    const persisted = JSON.parse(
+      await readFile(join(root, "config.json"), "utf8"),
+    ) as Record<string, unknown>;
+    assert.equal("server" in persisted, false);
   });
 
   for (const colorMode of ["system", "light", "dark"] as const) {
