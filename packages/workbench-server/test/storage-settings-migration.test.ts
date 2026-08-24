@@ -24,8 +24,10 @@ import {
 } from "../src/infrastructure/storage/index.js";
 
 const roots: string[] = [];
+const stores: Array<{ close(): Promise<void> }> = [];
 
 afterEach(async () => {
+  await Promise.all(stores.splice(0).map((store) => store.close()));
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
@@ -63,6 +65,7 @@ describe("settings migrations", () => {
     );
 
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
     assert.deepEqual(
       await readCurrentSettingsForBootstrap(root),
       storage.settings,
@@ -96,6 +99,7 @@ describe("settings migrations", () => {
       /pending migration.*permission/i,
     );
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
     assert.deepEqual(storage.settings.permissions, { exceptions: [] });
     assert.deepEqual(
       await readCurrentSettingsForBootstrap(root),
@@ -107,6 +111,7 @@ describe("settings migrations", () => {
     };
     assert.equal(rerunLedger.applied.at(-1)?.id, "0017-canonical-sqlite");
     const second = await initializeStorage(root);
+    stores.push(second.canonicalStore);
     assert.deepEqual(second.settings, storage.settings);
   });
 
@@ -114,6 +119,7 @@ describe("settings migrations", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-bootstrap-"));
     roots.push(root);
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
 
     assert.deepEqual(
       await readCurrentSettingsForBootstrap(root),
@@ -196,6 +202,7 @@ describe("settings migrations", () => {
       );
 
       const storage = await initializeStorage(root);
+      stores.push(storage.canonicalStore);
 
       assert.deepEqual(storage.settings.ui, {
         theme: "nerve",
@@ -228,6 +235,7 @@ describe("settings migrations", () => {
     );
 
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
 
     assert.deepEqual(storage.settings.notifications, {
       systemEnabled: true,
@@ -267,6 +275,7 @@ describe("settings migrations", () => {
     );
 
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
 
     assert.equal(storage.settings.notifications.events.question, "ping");
     assert.equal(storage.settings.notifications.events.completed, "success");
@@ -281,6 +290,7 @@ describe("settings migrations", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-update-"));
     roots.push(root);
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
 
     await writeSettings(storage, {
       notifications: {
@@ -321,6 +331,7 @@ describe("settings migrations", () => {
     );
 
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
     assert.deepEqual(storage.settings.transcription, {
       model: "gpt-4o-transcribe",
       languages: [],
@@ -363,6 +374,7 @@ describe("settings migrations", () => {
     );
 
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
 
     assert.deepEqual(storage.settings.tools.disabled, [
       "web_search",
@@ -395,6 +407,7 @@ describe("settings migrations", () => {
     );
 
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
 
     assert.deepEqual(storage.settings.tools.disabled, [
       "web_search",

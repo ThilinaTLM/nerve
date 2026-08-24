@@ -11,7 +11,9 @@ import type { StreamLogRegistry } from "../src/infrastructure/events/index.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 
 const roots: string[] = [];
+const stores: Array<{ close(): Promise<void> }> = [];
 afterEach(async () => {
+  await Promise.all(stores.splice(0).map((store) => store.close()));
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
@@ -22,6 +24,7 @@ describe("project permission exceptions", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-project-permissions-"));
     roots.push(root);
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
     const records = new ProjectRepository(storage);
     const now = new Date().toISOString();
     const projects = new Map<string, ProjectRecord>([
@@ -107,6 +110,7 @@ describe("project permission exceptions", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-project-permissions-"));
     roots.push(root);
     const storage = await initializeStorage(root);
+    stores.push(storage.canonicalStore);
     const service = new PermissionExceptionService(
       storage,
       new ProjectPermissionsRepository(storage),
