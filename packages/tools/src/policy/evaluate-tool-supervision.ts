@@ -223,15 +223,6 @@ function validationFailure(
   if (input.toolName === "bash" && commandSupported === false) {
     return undefined; // May still be approved once; it can never match a durable allow.
   }
-  for (const target of targets) {
-    if (
-      input.mode !== "planning" &&
-      target.kind === "path" &&
-      !target.projectRelativePath
-    ) {
-      return "The request targets a path outside the project workspace.";
-    }
-  }
   return undefined;
 }
 

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { describe, it } from "node:test";
 import type {
   AgentRecord,
@@ -61,6 +63,27 @@ describe("Workbench tool permission", () => {
     );
   });
 
+  it("allows filesystem tools to target paths outside the project", () => {
+    assert.equal(
+      evaluateWorkbenchToolPermission(
+        agent("supervised"),
+        "read",
+        { path: "/tmp/outside.txt" },
+        context,
+      ).decision,
+      "allow",
+    );
+    assert.equal(
+      evaluateWorkbenchToolPermission(
+        agent("autonomous"),
+        "write",
+        { path: "/tmp/outside.txt", content: "x" },
+        context,
+      ).decision,
+      "allow",
+    );
+  });
+
   it("keeps plan-only tools unavailable in coding mode", () => {
     const result = evaluateWorkbenchToolPermission(
       agent("autonomous"),
@@ -91,25 +114,47 @@ describe("Workbench tool permission", () => {
     assert.match(denied.reason, /Planning mode blocks bash/);
   });
 
-  it("allows plan writes only inside the host plan directory", () => {
-    const inside = evaluateWorkbenchToolPermission(
+  it("allows plan writes and edits only inside the plan or system temporary directories", () => {
+    const planPath = join(context.dataDir, "plans", "example.md");
+    const insidePlanDir = evaluateWorkbenchToolPermission(
       agent("supervised", "planning"),
       "write",
-      { path: "/home/test/.nerve/plans/example.md", content: "# Plan" },
+      { path: planPath, content: "# Plan" },
       context,
     );
-    assert.equal(inside.decision, "approval");
+    assert.equal(insidePlanDir.decision, "approval");
+    assert.equal(insidePlanDir.normalizedArgs.path, resolve(planPath));
+
+    const temporaryPath = join(tmpdir(), "nerve-plan-mode", "notes.md");
+    const insideTemporaryDir = evaluateWorkbenchToolPermission(
+      agent("autonomous", "planning"),
+      "edit",
+      {
+        path: temporaryPath,
+        replacements: [{ oldText: "old", newText: "new" }],
+      },
+      context,
+    );
+    assert.equal(insideTemporaryDir.decision, "allow");
     assert.equal(
-      inside.normalizedArgs.path,
-      "/home/test/.nerve/plans/example.md",
+      insideTemporaryDir.normalizedArgs.path,
+      resolve(temporaryPath),
+    );
+
+    const outsidePath = resolve(
+      tmpdir(),
+      "..",
+      "nerve-outside-system-temp",
+      "notes.md",
     );
     const outside = evaluateWorkbenchToolPermission(
       agent("autonomous", "planning"),
       "write",
-      { path: "/workspace/plan.md", content: "x" },
+      { path: outsidePath, content: "x" },
       context,
     );
     assert.equal(outside.decision, "deny");
+    assert.match(outside.reason, /system temporary directory/);
   });
 
   it("cannot override planning denials with an exception", () => {

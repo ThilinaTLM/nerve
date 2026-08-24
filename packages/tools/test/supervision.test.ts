@@ -29,11 +29,71 @@ function evaluate(rules: PermissionRule[]) {
     mode: "coding",
     permissionLevel: "autonomous",
     projectId: "proj_test",
+    projectDir: "/workspace",
     cwd: "/workspace",
-    workspaceRoots: ["/workspace"],
     rules,
+    evaluatedAt: timestamp,
   });
 }
+
+test("filesystem tools may target paths outside the project", () => {
+  const requests = [
+    { toolName: "read", args: { path: "/tmp/outside.txt" } },
+    { toolName: "grep", args: { pattern: "needle", path: "/tmp" } },
+    { toolName: "find", args: { pattern: "*.txt", path: "/tmp" } },
+    { toolName: "ls", args: { path: "/tmp" } },
+    {
+      toolName: "edit",
+      args: {
+        path: "/tmp/outside.txt",
+        replacements: [{ oldText: "old", newText: "new" }],
+      },
+    },
+    { toolName: "write", args: { path: "/tmp/outside.txt", content: "x" } },
+  ] as const;
+
+  for (const request of requests) {
+    const decision = evaluateToolSupervision({
+      ...request,
+      mode: "coding",
+      permissionLevel: "autonomous",
+      projectId: "proj_test",
+      projectDir: "/workspace",
+      cwd: "/workspace",
+      rules: [],
+      evaluatedAt: timestamp,
+    });
+    assert.equal(decision.decision, "allow", request.toolName);
+  }
+});
+
+test("external paths retain normal supervised read and write behavior", () => {
+  const common = {
+    mode: "coding" as const,
+    permissionLevel: "supervised" as const,
+    projectId: "proj_test",
+    projectDir: "/workspace",
+    cwd: "/workspace",
+    rules: [],
+    evaluatedAt: timestamp,
+  };
+  assert.equal(
+    evaluateToolSupervision({
+      ...common,
+      toolName: "read",
+      args: { path: "/tmp/outside.txt" },
+    }).decision,
+    "allow",
+  );
+  assert.equal(
+    evaluateToolSupervision({
+      ...common,
+      toolName: "write",
+      args: { path: "/tmp/outside.txt", content: "x" },
+    }).decision,
+    "prompt",
+  );
+});
 
 test("supervision applies covering deny rules before allows", () => {
   const decision = evaluate([

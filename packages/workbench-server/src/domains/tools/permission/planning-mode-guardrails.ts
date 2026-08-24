@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import type { ToolName } from "@nervekit/contracts";
 import {
   assessToolRisk,
@@ -5,7 +6,7 @@ import {
   isReadOnlyNetworkToolForApproval,
 } from "@nervekit/tools";
 import {
-  isPathInsidePlanDir,
+  isPathInsideDirectory,
   planDirForStorageHome,
   resolvePlanPath,
 } from "../../plans/plan-paths.js";
@@ -53,10 +54,14 @@ export function planningModeGuardrails(input: {
     try {
       const targetPath = resolvePlanPath(input.cwd, input.args.path);
       const planDir = planDirForStorageHome(input.dataDir);
-      if (!isPathInsidePlanDir(planDir, targetPath)) {
+      const temporaryDir = tmpdir();
+      const allowed = [planDir, temporaryDir].some((directory) =>
+        isPathInsideDirectory(directory, targetPath),
+      );
+      if (!allowed) {
         return {
           normalizedArgs: input.normalizedArgs,
-          denial: `Planning mode allows ${input.toolName} only for plan files inside ${planDir}. Attempted: ${targetPath}`,
+          denial: `Planning mode allows ${input.toolName} only inside the plan directory (${planDir}) or system temporary directory (${temporaryDir}). Attempted: ${targetPath}`,
         };
       }
       return {
