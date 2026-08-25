@@ -57,6 +57,80 @@ describe("desktop data-directory preparation", () => {
     assert.equal(initialized, false);
   });
 
+  it("leaves a legacy v2 home untouched when migration is declined", async () => {
+    const dialog = dialogRecorder();
+    dialog.showMessageBox = async (options: MessageBoxOptions) => {
+      dialog.dialogs.push(options);
+      return { response: 1 };
+    };
+    let migrated = false;
+    const result = await prepareDesktopDataDirectory(
+      { home: "/home/test/.nerve" },
+      {
+        ...dialog,
+        inspect: (async () => ({
+          kind: "unsupported",
+          reason: "legacy",
+        })) as never,
+        inspectLegacy: (async () => ({ kind: "legacy-v2" })) as never,
+        migrate: (async () => {
+          migrated = true;
+          throw new Error("unexpected");
+        }) as never,
+      },
+    );
+    assert.deepEqual(result, { status: "quit" });
+    assert.equal(migrated, false);
+    assert.equal(dialog.dialogs.length, 1);
+  });
+
+  it("migrates an exact legacy v2 home only after explicit consent", async () => {
+    const dialog = dialogRecorder();
+    let migrated = false;
+    const result = await prepareDesktopDataDirectory(
+      { home: "/home/test/.nerve", mode: "local" },
+      {
+        ...dialog,
+        inspect: (async () => ({
+          kind: "unsupported",
+          reason: "legacy",
+        })) as never,
+        inspectLegacy: (async () => ({ kind: "legacy-v2" })) as never,
+        migrate: (async () => {
+          migrated = true;
+          return {
+            format: "nerve-home-migration",
+            version: 1,
+            sourceFormat: "nerve-workbench-state",
+            sourceVersion: 2,
+            startedAt: "2026-08-26T00:00:00.000Z",
+            completedAt: "2026-08-26T00:00:01.000Z",
+            backupPath: "/home/test/.nerve/backups/legacy-v2",
+            counts: {
+              conversations: 2,
+              conversationRecords: 5,
+              durableEvents: 8,
+              projects: 1,
+              agents: 1,
+              payloads: 1,
+              plans: 1,
+              credentials: 2,
+            },
+            warnings: ["Project allows require re-approval."],
+          };
+        }) as never,
+      },
+    );
+    assert.deepEqual(result, { status: "ready" });
+    assert.equal(migrated, true);
+    assert.deepEqual(dialog.dialogs[0]?.buttons, [
+      "Migrate and continue",
+      "Quit",
+    ]);
+    assert.match(dialog.dialogs[1]?.detail ?? "", /2 conversations/);
+    assert.match(dialog.dialogs[1]?.detail ?? "", /backups\/legacy-v2/);
+  });
+
   it("fails closed and shows one error for unsupported storage", async () => {
     const dialog = dialogRecorder();
     const result = await prepareDesktopDataDirectory(

@@ -7,6 +7,7 @@ export { createApp } from "./app/server.js";
 export { version } from "./app/version.js";
 export * from "./infrastructure/network/index.js";
 export * from "./infrastructure/configuration/index.js";
+export * from "./infrastructure/home-migration/index.js";
 export {
   inspectNerveHome,
   initializeStorage,

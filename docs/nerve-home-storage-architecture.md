@@ -227,6 +227,14 @@ Migration coordination remains under `migrations/`. The startup lock may remain 
 - `migrations/` contains the migration ledger, rollback work, archives, and migration locks.
 - `backups/` contains retained Nerve-managed snapshots or preserved pre-migration homes and must not be treated as cache.
 
+### Legacy v2 migration
+
+Normal startup remains manifest-first and fails closed for unmanifested homes. The only import exception is an explicit, offline migration from the immediately preceding `{ "format": "nerve-workbench-state", "version": 2 }` home. Desktop requires confirmation; remote mode never inspects local storage.
+
+Migration builds and validates a fresh v1 home in a sibling staging directory before renaming anything. It imports the six configuration documents, recognized encrypted provider/tool credentials, projects and agents needed by conversation history, canonical conversation records and durable events, referenced payloads, and user-authored plans. It rewrites managed-file references to logical v1 paths and records file metadata in SQLite.
+
+Logs, crashes, caches, temporary files, task process state/logs, daemon discovery, TLS identity, and other generated runtime state are not imported into the live home. Project allow permissions require new digest-bound approval. The complete source home is retained under `backups/` after successful promotion. A sibling journal and lock make interrupted rename phases recoverable; unknown, malformed, newer, or actively written homes remain untouched.
+
 ## Shared configuration types
 
 The following conceptual TypeScript types define the complete proposed configuration split. Production schemas belong in `packages/contracts`; the types here document file ownership and shape.

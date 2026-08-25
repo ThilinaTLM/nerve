@@ -23,7 +23,7 @@ Schemas reject secret-like protocol metadata keys, but a broad error/details sch
 
 ## Migration
 
-State marker versioning prevents automatic downgrade or malformed/future resets. A server-owned startup coordinator uses a sibling lock/journal, retains the complete legacy home, and imports only validated portable state through the migration ledger. Desktop supplies consent and presentation only; headless startup uses the same backup policy, and remote shell mode never touches local `NERVE_HOME` data.
+Manifest versioning prevents automatic downgrade and malformed/future resets. Ordinary startup is fail-closed. A dedicated offline migrator accepts only the immediately preceding `nerve-workbench-state` v2 format, uses a sibling lock/journal and validated staging home, re-encrypts recognized credentials, converts semantic conversation state and referenced managed files, and retains the complete legacy tree under `backups/`. Desktop supplies explicit consent and presentation; remote shell mode never touches local `NERVE_HOME` data. Logs, caches, task runtime state, daemon metadata, and TLS identity are regenerated rather than imported.
 
 ## Electron boundary
 

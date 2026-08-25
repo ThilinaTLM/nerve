@@ -1,41 +1,50 @@
 ---
 title: Storage, cleanup, and migration
-description: Back up Nerve state, inspect usage, prune safely, and understand legacy migration.
+description: Back up Nerve state, inspect usage, prune safely, and migrate the preceding home format.
 sidebar:
   order: 5
 ---
 
-`NERVE_HOME` defaults to `~/.nerve`. Canonical conversation records and durable events live in SQLite. Complete tool results that exceed the agent preview contract live under owner-scoped `payloads/` files referenced and verified by those records. The home also contains settings, provider/tool authentication, tasks, plans, logs, reports, and caches.
+`NERVE_HOME` defaults to `~/.nerve`. A current home is identified by `manifest.json` with format `nerve-home`, version `1`. Portable configuration lives in six versioned files under `config/`, credentials are encrypted under `secrets/`, canonical conversation state lives in `data/nerve.sqlite`, and managed files use logical home-relative references.
 
-Electron's active Chromium profile is intentionally outside `NERVE_HOME`. Backing up only `~/.nerve` does not capture browser local/session storage or the active Electron profile.
-
-Nerve upgrades storage through an append-only, checksum-bound migration ledger. Settings and JSON sidecar changes use canonical JSON migrations with atomic writes, rollback scope, and post-write verification. Release tests exercise a fully migrated prior settings shape before desktop bootstrap, and focused migration tests run on both Linux and Windows.
+Electron's active Chromium profile remains outside `NERVE_HOME`. A whole-home backup therefore excludes browser session and device-local profile state by design.
 
 ## Inspect and clean up
 
-Settings can estimate usage and run asynchronous cleanup for old conversations/logs, crash and Node diagnostic reports, event/tool-call compaction, reports, cache/temp data, and index rebuild. Cleanup skips symlinks during directory clearing and observes cancellation between targets; it cannot interrupt every target operation once started. Cleared disposable directories are recreated only when a producer next needs them.
+Settings can estimate usage and run asynchronous cleanup for old conversations and diagnostics, event compaction, reports, cache/temp data, and rebuildable indexes. Cleanup skips symlinks and observes cancellation between targets.
 
-Conversation pruning supports age and keep-latest boundaries. It skips running/awaiting agents and conversations with active tasks, then removes associated inactive task/tool/plan/log/index records.
+Conversation pruning skips running or awaiting agents and conversations with active tasks before removing associated inactive records and managed files.
 
-## Legacy-home migration
+## Legacy v2 migration
 
-The workbench server owns one storage startup coordinator for desktop and headless startup. Local desktop mode supplies the confirmation dialog; headless startup applies the same automatic retained-backup policy. Remote desktop mode does not inspect or modify local `NERVE_HOME` state.
+Ordinary startup never guesses or repairs an unknown home. The sole import path is an explicit offline migration from the immediately preceding marker:
 
-For an unversioned legacy home, the coordinator:
+```json
+{
+  "format": "nerve-workbench-state",
+  "version": 2
+}
+```
 
-1. acquires a sibling startup lock and records a recoverable transaction journal;
-2. renames the whole directory to a timestamped backup such as `~/.nerve-bk-20260716-013229`;
-3. stages validated portable data and runs the normal migration ledger;
-4. imports settings, custom provider/model definitions, and recoverable provider/tool credentials inside migration `0011` before the ledger commits.
+Local desktop mode detects this exact format and asks for confirmation. Remote desktop mode does not inspect local `NERVE_HOME`. Unknown, malformed, and newer layouts remain untouched.
 
-Projects, conversations, agents, tasks, plans, logs, run history, indexes, and daemon/session state remain only in the backup. Malformed settings/catalog or ambiguous daemon metadata abort and restore the original home. Credentials that cannot be decrypted cause reauthentication but do not destroy the backup. An interrupted startup journal is recovered deterministically on the next launch rather than guessed.
+Before migration, quit every Nerve process that uses the source home. Migration then:
 
-Current storage migration 0008 removes retired in-home Electron profile data, obsolete empty handover/SQLite paths, pre-dense event archives, and committed internal migration archives. This one-time cleanup is intentionally irreversible and leaves the migration ledger and current authoritative state intact.
+1. acquires a sibling startup lock and recoverable journal;
+2. creates an isolated v1 staging home and a consistent read-only snapshot of legacy SQLite;
+3. imports and validates configuration, recognized encrypted credentials, projects and agents needed by conversations, conversation records and durable events, referenced payloads, and plans;
+4. rewrites managed files to logical v1 references and records their metadata;
+5. validates the complete v1 home before any source rename;
+6. atomically promotes the staged home and retains the complete old tree under `backups/legacy-v2-<timestamp>/`.
 
-Timestamped whole-home backups such as `~/.nerve-bk-*` are different from internal migration archives and remain user-controlled.
+The live v1 home does **not** import logs, crashes, cache, temporary data, task process state or logs, daemon discovery metadata, TLS identity, or generated runtime diagnostics. Project allow permissions require explicit digest-bound approval again. User denies remain authoritative.
+
+Credentials are decrypted only in memory and re-encrypted with the new home key. Secret values are never written to configuration, SQLite, logs, or migration reports. Task launch secrets are not imported.
+
+If validation fails before promotion, the source remains at its original path. The external journal recovers interrupted rename phases deterministically. Nerve never deletes the retained legacy backup automatically.
 
 :::danger
-Nerve never deletes whole-home migration backups automatically and does not auto-reset malformed, unknown, or future versioned stores. Stop all Nerve processes before manual state operations.
+Stop all Nerve processes before migration or manual state operations. Do not add `manifest.json` to a legacy directory manually; that does not convert its contents.
 :::
 
 ## Next steps
