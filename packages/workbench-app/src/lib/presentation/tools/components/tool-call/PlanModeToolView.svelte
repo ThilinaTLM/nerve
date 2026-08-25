@@ -96,7 +96,11 @@ const displayedReview = $derived(
     ? {
         ...resultReview,
         ...planReview,
-        content: planReviewContent(resultReview?.content, planReview.content),
+        content: planReviewContent(
+          resultReview?.content,
+          planReview.content,
+          planReview.summary ?? resultReview?.summary,
+        ),
       }
     : resultReview,
 );
@@ -113,8 +117,15 @@ const acceptedInNewChat = $derived(reviewStatus === "accepted_in_new_chat");
 const rejected = $derived(
   reviewStatus === "changes_requested" || reviewStatus === "discarded",
 );
+const previewContent = $derived(
+  planReviewContent(
+    displayedReview?.content,
+    undefined,
+    displayedReview?.summary,
+  ),
+);
 const preview = $derived(
-  planReviewPreview(displayedReview?.content ?? "", expanded, COLLAPSED_LINES),
+  planReviewPreview(previewContent, expanded, COLLAPSED_LINES),
 );
 const showPlanCard = $derived(
   toolCall.toolName === "plan_mode_present" && Boolean(displayedReview),

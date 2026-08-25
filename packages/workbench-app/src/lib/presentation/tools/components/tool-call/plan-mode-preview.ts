@@ -1,8 +1,9 @@
 export function planReviewContent(
   resultContent: string | undefined,
   hydratedContent: string | undefined,
+  summaryContent?: string,
 ): string {
-  return hydratedContent ?? resultContent ?? "";
+  return hydratedContent ?? resultContent ?? summaryContent ?? "";
 }
 
 export function planReviewPreview(
