@@ -267,9 +267,15 @@ test("refuses a legacy home while its daemon is running", async (t) => {
     join(home, "VERSION"),
     `${JSON.stringify({ format: "nerve-workbench-state", version: 2 })}\n`,
   );
-  await writeFile(join(home, "daemon.json"), JSON.stringify({ pid: process.pid }));
+  await writeFile(
+    join(home, "daemon.json"),
+    JSON.stringify({ pid: process.pid }),
+  );
   await assert.rejects(migrateLegacyV2Home(home), /still running/);
-  assert.match(await readFile(join(home, "VERSION"), "utf8"), /nerve-workbench-state/);
+  assert.match(
+    await readFile(join(home, "VERSION"), "utf8"),
+    /nerve-workbench-state/,
+  );
   await assert.rejects(stat(`${home}.migration.json`));
 });
 
