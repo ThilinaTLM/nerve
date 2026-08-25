@@ -640,7 +640,7 @@ $effect(() => () => streamingScheduler.destroy());
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  table-layout: fixed;
+  table-layout: auto;
   border-collapse: separate;
   border-spacing: 0;
   font-size: var(--text-xs);
