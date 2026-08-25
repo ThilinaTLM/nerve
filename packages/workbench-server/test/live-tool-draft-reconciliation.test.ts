@@ -16,7 +16,13 @@ const usage = {
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 };
 
-function assistant(content: AssistantMessage["content"]): AssistantMessage {
+function assistant(
+  content: AssistantMessage["content"],
+  outcome: Pick<AssistantMessage, "stopReason" | "errorMessage"> = {
+    stopReason: "stop",
+    errorMessage: undefined,
+  },
+): AssistantMessage {
   return {
     role: "assistant",
     content,
@@ -24,7 +30,7 @@ function assistant(content: AssistantMessage["content"]): AssistantMessage {
     provider: "anthropic",
     model: "test-model",
     usage,
-    stopReason: "stop",
+    ...outcome,
     timestamp: Date.now(),
   } as AssistantMessage;
 }
@@ -115,6 +121,78 @@ describe("LiveToolDraftReconciler", () => {
       assert.equal(block.done, true);
       assert.deepEqual(block.args, { command: "pwd" });
     }
+  });
+
+  it("discards every draft when the final message failed", async () => {
+    const fx = setup();
+    const unfinished = fx.startDraft(0, "call_partial", "write");
+    const ended = fx.startDraft(1, "call_ended", "edit");
+    ended.ended = true;
+
+    await fx.reconciler.reconcile(
+      assistant(
+        [
+          {
+            type: "toolCall",
+            id: "call_partial",
+            name: "write",
+            arguments: { path: "plan.md", content: "partial" },
+          },
+          {
+            type: "toolCall",
+            id: "call_ended",
+            name: "edit",
+            arguments: { path: "plan.md", replacements: [] },
+          },
+        ],
+        { stopReason: "error", errorMessage: "terminated" },
+      ),
+      [ended, unfinished],
+    );
+
+    assert.deepEqual(
+      fx.published.map(({ type, data }) => ({
+        type,
+        reason: (data as { reason?: string }).reason,
+        contentIndex: (data as { contentIndex?: number }).contentIndex,
+      })),
+      [
+        {
+          type: "conversation.live.tool_draft.discarded",
+          reason: "invalid",
+          contentIndex: 0,
+        },
+        {
+          type: "conversation.live.tool_draft.discarded",
+          reason: "invalid",
+          contentIndex: 1,
+        },
+      ],
+    );
+    assert.deepEqual(fx.blocks(), []);
+  });
+
+  it("abandons drafts when the final message was aborted", async () => {
+    const fx = setup();
+    const draft = fx.startDraft(0, "call_aborted", "write");
+
+    await fx.reconciler.reconcile(
+      assistant([], {
+        stopReason: "aborted",
+        errorMessage: "Request cancelled",
+      }),
+      [draft],
+    );
+
+    assert.equal(
+      fx.published.at(0)?.type,
+      "conversation.live.tool_draft.discarded",
+    );
+    assert.equal(
+      (fx.published.at(0)?.data as { reason?: string }).reason,
+      "abandoned",
+    );
+    assert.deepEqual(fx.blocks(), []);
   });
 
   it("projects oversized final arguments before publishing a done event", async () => {
