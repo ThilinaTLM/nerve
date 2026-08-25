@@ -213,15 +213,15 @@ function validationFailure(
   if (input.mode === "planning" && input.constraints?.length) {
     return input.constraints[0]?.reason;
   }
+  if (input.toolName === "bash" && commandSupported === false) {
+    return undefined; // Follows the permission level; it can never match a durable allow.
+  }
   const descriptor = requireToolDefinition(input.toolName);
   if (
     (descriptor.permission?.targets?.length ?? 0) > 0 &&
     targets.length === 0
   ) {
     return "Tool targets are missing or malformed.";
-  }
-  if (input.toolName === "bash" && commandSupported === false) {
-    return undefined; // May still be approved once; it can never match a durable allow.
   }
   return undefined;
 }
