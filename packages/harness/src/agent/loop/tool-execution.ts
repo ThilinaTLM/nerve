@@ -259,10 +259,10 @@ function prepareToolCallArguments(
   tool: AgentTool,
   toolCall: AgentToolCall,
 ): AgentToolCall {
-  if (!tool.prepareArguments) {
+  if (!tool.normalizeArguments) {
     return toolCall;
   }
-  const preparedArguments = tool.prepareArguments(toolCall.arguments);
+  const preparedArguments = tool.normalizeArguments(toolCall.arguments);
   if (preparedArguments === toolCall.arguments) {
     return toolCall;
   }

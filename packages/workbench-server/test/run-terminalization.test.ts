@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { RunRecord } from "@nervekit/contracts";
-import { WorkbenchRunTerminalization } from "../src/domains/runs/run-terminalization.js";
+import { WorkbenchRunTerminalization } from "../src/domains/runs/adapters/workbench-run-terminalization.js";
 
 function run(status: RunRecord["status"]): RunRecord {
   return { runId: "run_test", status } as RunRecord;

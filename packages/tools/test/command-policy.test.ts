@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { isAllowedPlanModeBashCommand } from "../src/index.js";
-import { normalizeCommandName } from "../src/safety/command-policy-wrappers.js";
+import { normalizeCommandName } from "../src/policy/shell/wrappers.js";
 
 function expectAllowed(commands: string[]): void {
   for (const command of commands) {

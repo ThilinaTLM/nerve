@@ -33,7 +33,7 @@ interface ToolDefinitionBase<TParams extends TObject = TObject> {
   label: string;
   description: string;
   parameters: TParams;
-  prepareArguments?: (args: unknown) => Static<TParams>;
+  normalizeArguments?: (args: unknown) => Static<TParams>;
   executionMode?: CoreToolExecutionMode;
   group: ToolGroupName;
   baseRisk: ToolRisk;

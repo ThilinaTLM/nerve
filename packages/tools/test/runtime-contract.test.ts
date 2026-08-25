@@ -16,6 +16,7 @@ import {
 describe("shared tool runtime contract", () => {
   it("dispatches local and host tools with preparation, output, and lifecycle", async () => {
     const events: string[] = [];
+    const observedPaths: string[] = [];
     const dispatcher = createToolDispatcher({
       advertisedToolNames: new Set(["edit", "todos_get"]),
       hostHandlers: {
@@ -23,6 +24,7 @@ describe("shared tool runtime contract", () => {
       },
       localOverrides: {
         edit: async (args, context) => {
+          observedPaths.push(`execute:${String(args.path)}`);
           context.onUpdate?.({
             kind: "output",
             stream: "combined",
@@ -31,23 +33,39 @@ describe("shared tool runtime contract", () => {
           return { content: String(args.path) };
         },
       },
-      contextFor: async () => ({ cwd: process.cwd() }),
+      contextFor: async (_name, args) => {
+        observedPaths.push(`context:${String(args.path)}`);
+        return { cwd: process.cwd() };
+      },
       authorize: (name, args) => ({
         decision: "allow",
         risk: name === "edit" ? "workspace_write" : "read",
         reason: "test",
-        normalizedArgs: args,
+        normalizedArgs:
+          name === "edit" ? { ...args, path: "authorized/x" } : args,
       }),
       lifecycle: {
-        requested: () => events.push("requested"),
-        started: () => events.push("started"),
+        requested: (_name, args) => {
+          events.push("requested");
+          observedPaths.push(`requested:${String(args.path)}`);
+        },
+        started: (_name, args) => {
+          events.push("started");
+          observedPaths.push(`started:${String(args.path)}`);
+        },
         output: () => events.push("output"),
         completed: () => events.push("completed"),
       },
     });
     const result = await dispatcher.execute("edit", { path: "x" });
-    assert.equal(result.content, "x");
+    assert.equal(result.content, "authorized/x");
     assert.deepEqual(events, ["requested", "started", "output", "completed"]);
+    assert.deepEqual(observedPaths, [
+      "requested:authorized/x",
+      "context:authorized/x",
+      "started:authorized/x",
+      "execute:authorized/x",
+    ]);
     assert.equal((await dispatcher.execute("todos_get", {})).content, "host");
   });
 

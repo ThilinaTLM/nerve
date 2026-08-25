@@ -62,6 +62,29 @@ describe("daemon lifecycle events", () => {
   });
 });
 
+describe("run cancellation events", () => {
+  it("requires the current project-scoped payload", () => {
+    const current = {
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      runId: "run_test",
+      projectId: "proj_test",
+      cancelledAt: ts,
+    };
+    assert.deepEqual(
+      validatePublicEvent("run.cancelled", current, "workbench_server"),
+      current,
+    );
+    assert.throws(() =>
+      validatePublicEvent(
+        "run.cancelled",
+        { ...current, projectId: undefined },
+        "workbench_server",
+      ),
+    );
+  });
+});
+
 describe("live tool output streams", () => {
   it("accepts model thinking and text channels", () => {
     for (const stream of ["thinking", "text"] as const) {

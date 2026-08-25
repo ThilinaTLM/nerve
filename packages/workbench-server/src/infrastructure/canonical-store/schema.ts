@@ -2,9 +2,6 @@ export const CANONICAL_SCHEMA_VERSION = 2;
 export const CANONICAL_BASELINE_NAME = "canonical-storage-baseline";
 export const CANONICAL_SCHEMA_CHECKSUM =
   "531dd8310f8326ba9f21a5b2e3cfae67dfce5b620d3aca28e415ac882b30c3ad";
-export const CANONICAL_V1_SCHEMA_CHECKSUM =
-  "d3275fdb99bdb4a4bbb901eeba1300dc812b74c1249f5d256562c22f64751bb2";
-
 export const CANONICAL_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,

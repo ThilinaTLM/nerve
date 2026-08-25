@@ -1,5 +1,6 @@
 import type { ToolName } from "@nervekit/contracts";
 import { toolManifest } from "../catalog/manifest.js";
+import { normalizeToolArguments } from "../catalog/normalize-arguments.js";
 import type { ToolDefinition } from "../catalog/types.js";
 import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
 import {
@@ -74,11 +75,10 @@ export function createToolDispatcher(
       if (!definition || !options.advertisedToolNames.has(name)) {
         throw new ToolUnavailableError(name);
       }
-      const prepared = (
-        definition.prepareArguments ? definition.prepareArguments(args) : args
-      ) as Record<string, unknown>;
-      await options.lifecycle?.requested?.(name, prepared);
-      const decision = await options.authorize?.(name, prepared);
+      const normalized = normalizeToolArguments(definition, args);
+      const decision = await options.authorize?.(name, normalized);
+      const authorizedArgs = decision?.normalizedArgs ?? normalized;
+      await options.lifecycle?.requested?.(name, authorizedArgs);
       if (decision?.decision === "deny") {
         const error = new ToolRuntimeError("TOOL_DENIED", decision.reason, {
           toolName: name,
@@ -100,7 +100,7 @@ export function createToolDispatcher(
         throw error;
       }
 
-      const baseContext = await options.contextFor(name, prepared);
+      const baseContext = await options.contextFor(name, authorizedArgs);
       const context: ToolHandlerContext = {
         ...baseContext,
         toolName: name,
@@ -124,9 +124,9 @@ export function createToolDispatcher(
         );
       }
 
-      await options.lifecycle?.started?.(name, prepared);
+      await options.lifecycle?.started?.(name, authorizedArgs);
       try {
-        const result = await handler(prepared, context);
+        const result = await handler(authorizedArgs, context);
         await options.lifecycle?.completed?.(name, result);
         return result;
       } catch (error) {

@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { after, it } from "node:test";
 import type { MigrationContext } from "../src/infrastructure/migrations/migration.js";
-import { migration0012 } from "../src/infrastructure/migrations/migrations/0012-remove-workers.js";
+import { migration0012 } from "../src/infrastructure/migrations/released/0012-remove-workers.js";
 import { runStorageMigrations } from "../src/infrastructure/migrations/runner.js";
 
 const roots: string[] = [];

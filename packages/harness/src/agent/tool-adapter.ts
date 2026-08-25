@@ -11,7 +11,7 @@ export type AgentToolDefinitionLike<TParams extends TObject = TObject> = {
   label: string;
   description: string;
   parameters: TParams;
-  prepareArguments?: (args: unknown) => Static<TParams>;
+  normalizeArguments?: (args: unknown) => Static<TParams>;
   executionMode?: ToolExecutionMode;
 };
 
@@ -49,7 +49,7 @@ export function createAgentToolsFromDefinitions(
       label: definition.label,
       description: definition.description,
       parameters: definition.parameters,
-      prepareArguments: definition.prepareArguments,
+      normalizeArguments: definition.normalizeArguments,
       executionMode: definition.executionMode,
       execute: (sourceToolCallId, params, signal, onUpdate) =>
         execute(

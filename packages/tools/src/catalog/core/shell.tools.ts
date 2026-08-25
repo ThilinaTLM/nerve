@@ -1,7 +1,7 @@
 import type { ToolRisk } from "@nervekit/contracts";
 import { Type } from "typebox";
 import { executeBash } from "../../execution/shell/bash.js";
-import { assessShellCommand } from "../../policy/shell-command-assessment.js";
+import { assessShellCommand } from "../../policy/shell/assessment.js";
 import type { ToolDefinition } from "../types.js";
 
 const bashParameters = Type.Object(

@@ -5,7 +5,7 @@ import { WorkbenchExploreAdmission } from "../src/domains/agents/run/workbench-e
 import {
   WorkbenchRunExecutionFactory,
   type WorkbenchRunExecutionAdapter,
-} from "../src/domains/runs/run-execution.js";
+} from "../src/domains/runs/adapters/workbench-run-execution.js";
 import { WorkbenchLiveExecutions } from "../src/domains/runs/run-live-executions.js";
 import type {
   RunExecutionOutcome,

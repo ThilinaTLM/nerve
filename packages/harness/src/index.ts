@@ -45,7 +45,6 @@ export * from "./harness/conversation/jsonl-storage.js";
 export * from "./harness/conversation/memory-repo.js";
 export * from "./harness/conversation/repo-utils.js";
 export { uuidv7 } from "./harness/conversation/uuid.js";
-export { NodeExecutionEnv } from "./harness/environment/nodejs.js";
 export * from "./harness/messages.js";
 export * from "./harness/resources/prompt-templates.js";
 export * from "./harness/resources/skills/index.js";

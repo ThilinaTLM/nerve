@@ -224,7 +224,6 @@ async function runCanonicalMigrations(
   );
   try {
     await recoverInterruptedBatch(home, migrationsDir, paths.sqlitePath);
-    const context = createContext(paths, options);
     const rows = withMigrationDatabase(paths.sqlitePath, (database) =>
       database
         .prepare(
@@ -241,48 +240,10 @@ async function runCanonicalMigrations(
       );
     }
 
-    let bundle: RollbackBundle | undefined;
-    let execution: MigrationReport["executions"][number] | undefined;
     if (newest.version < CANONICAL_SCHEMA_VERSION) {
-      const migration = (options.registry ?? storageMigrationRegistry).find(
-        (candidate) =>
-          candidate.id === "0018-dense-durable-event-stream-sequences",
+      throw new MigrationError(
+        `Storage schema ${newest.version} predates the supported canonical baseline ${CANONICAL_SCHEMA_VERSION}.`,
       );
-      if (!migration) {
-        throw new MigrationError(
-          `Storage schema ${newest.version} requires a newer migration registry.`,
-        );
-      }
-      const spec = await migration.backup(context);
-      bundle = await createRollbackBundle({
-        home,
-        migrationsDir,
-        id: `canonical-${Date.now()}-${process.pid}`,
-        ledgerDigest: `canonical-schema-${newest.version}`,
-        paths: spec.paths,
-      });
-      const migrationStartedAt = performance.now();
-      try {
-        context.diagnostic(`Applying storage migration ${migration.id}`);
-        options.reportProgress?.({
-          migrationId: migration.id,
-          description: migration.description,
-        });
-        await migration.up(context);
-        await migration.verify(context);
-        execution = {
-          id: migration.id,
-          execution: "ran",
-          durationMs: Math.round(performance.now() - migrationStartedAt),
-        };
-      } catch (error) {
-        await recoverInterruptedBatch(home, migrationsDir, paths.sqlitePath);
-        throw new MigrationError(
-          `Storage migration '${migration.id}' failed and the batch was rolled back.`,
-          migration.id,
-          { cause: error },
-        );
-      }
     }
 
     withMigrationDatabase(paths.sqlitePath, (database) => {
@@ -303,11 +264,10 @@ async function runCanonicalMigrations(
       if (quick?.quick_check !== "ok")
         throw new MigrationError("Canonical SQLite quick check failed.");
     });
-    if (bundle) await discardRollbackBundle(bundle);
     return {
       durationMs: Math.round(performance.now() - startedAt),
-      executions: execution ? [execution] : [],
-      backupBytes: bundle?.bytes ?? 0,
+      executions: [],
+      backupBytes: 0,
       archivePaths: [],
     };
   } finally {

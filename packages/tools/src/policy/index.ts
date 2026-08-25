@@ -3,6 +3,7 @@ export * from "./evaluate-tool-supervision.js";
 export * from "./path-glob.js";
 export * from "./permission-exceptions.js";
 export * from "./permission-targets.js";
-export * from "./shell-command-assessment.js";
+export * from "./shell/assessment.js";
+export * from "./shell/plan-mode.js";
 export * from "./tool-risk-assessment.js";
 export * from "./types.js";

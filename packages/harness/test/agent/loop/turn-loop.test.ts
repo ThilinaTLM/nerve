@@ -385,8 +385,10 @@ describe("agent loop steering queue", () => {
       model: AnyModel;
       reasoning?: unknown;
     }> = [];
+    const ordering: string[] = [];
     let requestCount = 0;
     const streamFn: StreamFn = (requestModel, _context, options) => {
+      ordering.push(`provider:${requestCount + 1}`);
       providerRequests.push({
         model: requestModel as AnyModel,
         reasoning: options.reasoning,
@@ -426,10 +428,13 @@ describe("agent loop steering queue", () => {
       {
         model: modelA,
         convertToLlm,
-        prepareNextTurn: async () => ({
-          model: modelB,
-          thinkingLevel: "high",
-        }),
+        prepareNextTurn: async () => {
+          ordering.push("iteration-boundary");
+          return {
+            model: modelB,
+            thinkingLevel: "high",
+          };
+        },
       },
       async () => undefined,
       undefined,
@@ -437,6 +442,11 @@ describe("agent loop steering queue", () => {
     );
 
     assert.equal(providerRequests.length, 2);
+    assert.deepEqual(ordering.slice(0, 3), [
+      "provider:1",
+      "iteration-boundary",
+      "provider:2",
+    ]);
     assert.equal(providerRequests[0]?.model.id, "model-a");
     assert.equal(providerRequests[0]?.reasoning, undefined);
     assert.equal(providerRequests[1]?.model.id, "model-b");

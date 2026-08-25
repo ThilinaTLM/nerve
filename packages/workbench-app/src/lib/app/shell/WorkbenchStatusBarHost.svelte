@@ -27,11 +27,15 @@ import { workspaceSelectors } from "$lib/application/workspace";
 const activeProject = $derived(workspaceSelectors.activeProject);
 const connection = $derived(workspaceSelectors.connection);
 const live = $derived(conversationSelectors.live);
-const pendingApprovalCount = $derived(
-  conversationSelectors.pendingApprovalCount,
-);
+const pendingApprovals = $derived.by(() => {
+  if (!activeProject) return [];
+  return workspaceSelectors.approvals.filter(
+    (approval) => approval.projectId === activeProject.id,
+  );
+});
+const pendingApprovalCount = $derived(pendingApprovals.length);
 const pendingApprovalConversationId = $derived(
-  conversationSelectors.approvals[0]?.conversationId,
+  pendingApprovals[0]?.conversationId,
 );
 const tasks = $derived(taskSelectors.scopedTasks);
 const gitStatus = $derived(gitSelectors.gitStatus);

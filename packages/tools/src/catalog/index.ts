@@ -11,6 +11,7 @@ export * from "./core/shell.tools.js";
 export * from "./core/web.tools.js";
 export * from "./descriptors.js";
 export * from "./manifest.js";
+export * from "./normalize-arguments.js";
 export * from "./orchestration/explore.tools.js";
 export * from "./orchestration/plan-mode.tools.js";
 export * from "./orchestration/task.tools.js";

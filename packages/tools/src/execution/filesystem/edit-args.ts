@@ -67,7 +67,6 @@ export function normalizeEditArgs(
   args: Record<string, unknown>,
 ): NormalizedEditArgs {
   const dryRun = booleanArg(args.dryRun, false, "dryRun");
-  rejectDeprecatedEditArgs(args);
 
   const operations: NormalizedEditOperation[] = [];
   const replacements = arrayArg(args.replacements, "replacements");
@@ -113,19 +112,6 @@ export function normalizeEditArgs(
   }
 
   return { dryRun, operations };
-}
-
-function rejectDeprecatedEditArgs(args: Record<string, unknown>): void {
-  if (args.operations !== undefined) {
-    throw argumentError(
-      "Tool argument 'operations' is no longer supported; use replacements, insertions, lineReplacements, lineInsertions, or patch.",
-    );
-  }
-  if (args.oldText !== undefined || args.newText !== undefined) {
-    throw argumentError(
-      "Top-level oldText/newText are no longer supported for edit; use replacements: [{ oldText, newText }].",
-    );
-  }
 }
 
 function arrayArg(

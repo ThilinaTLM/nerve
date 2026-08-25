@@ -5,9 +5,9 @@ import {
   Conversation,
   convertToLlm,
   isAgentToolSuspension,
-  NodeExecutionEnv,
   resolveAgentModel,
 } from "@nervekit/harness";
+import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type {
   AgentRecord,
   ConversationEntry,

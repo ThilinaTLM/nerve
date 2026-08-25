@@ -5,6 +5,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -16,7 +17,7 @@ import {
   type DaemonStartupProgress,
   defaultSettings,
 } from "@nervekit/contracts";
-import { MIGRATION_0002_INDEX_SCHEMA_SQL } from "../src/infrastructure/migrations/migrations/0002-index-schema.js";
+import { MIGRATION_0002_INDEX_SCHEMA_SQL } from "../src/infrastructure/migrations/released/0002-index-schema-snapshot.js";
 import {
   initializeStorage,
   readCurrentSettingsForBootstrap,
@@ -73,12 +74,10 @@ describe("settings migrations", () => {
     );
   });
 
-  it("upgrades a fully migrated pre-permission-settings home before desktop bootstrap", async () => {
-    const root = await mkdtemp(
-      join(tmpdir(), "nerve-settings-pre-permissions-"),
-    );
+  it("upgrades a released post-0012 home before desktop bootstrap", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-settings-post-0012-"));
     roots.push(root);
-    const fixture = new URL("./fixtures/storage/pre-0013/", import.meta.url);
+    const fixture = new URL("./fixtures/storage/post-0012/", import.meta.url);
     await mkdir(join(root, "migrations"), { recursive: true });
     await Promise.all([
       copyFile(new URL("VERSION", fixture), join(root, "VERSION")),
@@ -102,6 +101,10 @@ describe("settings migrations", () => {
     const storage = await initializeStorage(root);
     stores.push(storage.canonicalStore);
     assert.deepEqual(storage.settings.permissions, { exceptions: [] });
+    assert.equal(
+      JSON.stringify(storage.settings).includes("approvalPolicy"),
+      false,
+    );
     assert.deepEqual(
       await readCurrentSettingsForBootstrap(root),
       storage.settings,
@@ -110,9 +113,34 @@ describe("settings migrations", () => {
     const rerunLedger = JSON.parse(await readFile(ledgerPath, "utf8")) as {
       applied: Array<{ id: string }>;
     };
-    assert.equal(
-      rerunLedger.applied.at(-1)?.id,
-      "0019-tool-result-payload-files",
+    assert.equal(rerunLedger.applied.at(-1)?.id, "0013-canonical-storage");
+    const canonical = new DatabaseSync(join(root, "state.sqlite"));
+    const tables = new Set(
+      (
+        canonical
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+          .all() as Array<{ name: string }>
+      ).map(({ name }) => name),
+    );
+    canonical.close();
+    assert.equal(tables.has("schema_migrations"), true);
+    for (const retired of [
+      "index_meta",
+      "projects",
+      "conversations",
+      "agents",
+      "tasks",
+      "workers",
+      "tool_calls",
+      "prompt_suggestion_trust",
+    ]) {
+      assert.equal(tables.has(retired), false, `retired table ${retired}`);
+    }
+    assert.deepEqual(
+      (await readdir(join(root, "migrations")))
+        .filter((name) => name.startsWith("."))
+        .sort(),
+      [".canonical-storage-v1"],
     );
     const second = await initializeStorage(root);
     stores.push(second.canonicalStore);
