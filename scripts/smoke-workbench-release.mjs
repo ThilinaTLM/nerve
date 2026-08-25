@@ -64,7 +64,7 @@ try {
   if (!health || typeof health !== "object")
     throw new Error("health response is not JSON");
   const token = (
-    await readFile(join(home, "auth", "local-token"), "utf8")
+    await readFile(join(home, "secrets", "daemon-token"), "utf8")
   ).trim();
   const authenticatedFetch = (input, init = {}) => {
     const headers = new Headers(init.headers);

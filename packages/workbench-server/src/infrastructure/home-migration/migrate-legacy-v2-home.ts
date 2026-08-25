@@ -64,7 +64,7 @@ export async function migrateLegacyV2Home(
 ): Promise<HomeMigrationReport> {
   const now = options.now ?? (() => new Date());
   const startedAt = now();
-  const stamp = startedAt.toISOString().replace(/[-:.]/g, "").replace("Z", "Z");
+  const stamp = startedAt.toISOString().replace(/[-:.]/g, "");
   const parent = dirname(resolve(home));
   const base = resolve(home).split(sep).at(-1) ?? "nerve-home";
   const staging = join(parent, `.${base}.migration-${stamp}`);
