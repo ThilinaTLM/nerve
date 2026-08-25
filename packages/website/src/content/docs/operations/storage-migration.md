@@ -26,13 +26,13 @@ Ordinary startup never guesses or repairs an unknown home. The sole import path 
 }
 ```
 
-Local desktop mode detects this exact format and asks for confirmation. Remote desktop mode does not inspect local `NERVE_HOME`. Unknown, malformed, and newer layouts remain untouched.
+Local desktop mode detects this format and asks for confirmation. The supported released source is Nerve 0.26 with its checksummed migration ledger ending at `0012-remove-workers`. It migrates directly to `nerve-home` v1—do **not** install or run `0013-canonical-storage` first. Canonical-v3 v2 homes produced by later development builds are accepted only as a compatibility source. Remote desktop mode does not inspect local `NERVE_HOME`. Unknown, malformed, partial, checksum-modified, and newer layouts remain untouched.
 
 Before migration, quit every Nerve process that uses the source home. Migration then:
 
 1. acquires a sibling startup lock and recoverable journal;
-2. creates an isolated v1 staging home and a consistent read-only snapshot of legacy SQLite;
-3. imports and validates configuration, recognized encrypted credentials, projects and agents needed by conversations, conversation records and durable events, referenced payloads, and plans;
+2. creates an isolated v1 staging home and reads the released post-0012 source without modifying it (canonical-v3 compatibility sources use a consistent read-only SQLite snapshot);
+3. converts post-0012 JSON and JSONL records directly into the current v1 schema, importing and validating configuration, recognized encrypted credentials, projects and agents needed by conversations, conversation records and durable events, referenced payloads, and plans;
 4. rewrites managed files to logical v1 references and records their metadata;
 5. validates the complete v1 home before any source rename;
 6. atomically promotes the staged home and retains the complete old tree under `backups/legacy-v2-<timestamp>/`.

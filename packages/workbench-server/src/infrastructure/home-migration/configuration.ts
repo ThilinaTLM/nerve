@@ -5,26 +5,33 @@ import {
   type Settings,
   type UserConfiguration,
 } from "@nervekit/contracts";
-import type { DatabaseSync } from "node:sqlite";
 import { configurationWithSettings } from "../configuration/home-configuration.js";
-import { readLegacyDocument } from "./legacy-v2.js";
+
+export interface LegacyConfigurationSource {
+  settings: Settings;
+  providerCatalog?: unknown;
+  credentialNames: Iterable<string>;
+  userRules: Array<{
+    id: string;
+    effect: "allow" | "deny";
+    tool_name: string;
+    matcher_kind: "whole_tool" | "path_glob" | "command_glob" | "url_glob";
+    pattern: string;
+    enabled: number;
+  }>;
+}
 
 export function migrateLegacyConfiguration(
-  database: DatabaseSync,
-  settings: Settings,
-  credentialNames: Iterable<string>,
+  source: LegacyConfigurationSource,
 ): UserConfiguration {
-  const base = configurationWithSettings(defaultUserConfiguration, settings);
-  const rawCatalog = readLegacyDocument<unknown>(
-    database,
-    "provider_catalog",
-    "global",
-    "catalog",
+  const base = configurationWithSettings(
+    defaultUserConfiguration,
+    source.settings,
   );
-  const catalog = rawCatalog
-    ? providerCatalogSchema.parse(rawCatalog)
+  const catalog = source.providerCatalog
+    ? providerCatalogSchema.parse(source.providerCatalog)
     : { version: 1 as const, providers: [], models: [] };
-  const authentication = [...credentialNames]
+  const authentication = [...source.credentialNames]
     .map((name) => {
       const match = /^provider:(.+):(apiKey|oauth)$/.exec(name);
       return match
@@ -38,21 +45,8 @@ export function migrateLegacyConfiguration(
     })
     .filter((value) => value !== undefined)
     .sort((left, right) => left.provider.localeCompare(right.provider));
-  const userRules = database
-    .prepare(
-      `SELECT id, effect, tool_name, matcher_kind, pattern, enabled
-       FROM permission_rules WHERE scope = 'user' ORDER BY id`,
-    )
-    .all() as Array<{
-    id: string;
-    effect: "allow" | "deny";
-    tool_name: string;
-    matcher_kind: "whole_tool" | "path_glob" | "command_glob" | "url_glob";
-    pattern: string;
-    enabled: number;
-  }>;
   const rules = new Map(base.permissions.rules.map((rule) => [rule.id, rule]));
-  for (const rule of userRules) {
+  for (const rule of source.userRules) {
     rules.set(rule.id, {
       id: rule.id,
       effect: rule.effect,

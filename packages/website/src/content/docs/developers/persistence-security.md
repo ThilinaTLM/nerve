@@ -23,7 +23,7 @@ Schemas reject secret-like protocol metadata keys, but a broad error/details sch
 
 ## Migration
 
-Manifest versioning prevents automatic downgrade and malformed/future resets. Ordinary startup is fail-closed. A dedicated offline migrator accepts only the immediately preceding `nerve-workbench-state` v2 format, uses a sibling lock/journal and validated staging home, re-encrypts recognized credentials, converts semantic conversation state and referenced managed files, and retains the complete legacy tree under `backups/`. Desktop supplies explicit consent and presentation; remote shell mode never touches local `NERVE_HOME` data. Logs, caches, task runtime state, daemon metadata, and TLS identity are regenerated rather than imported.
+Manifest versioning prevents automatic downgrade and malformed/future resets. Ordinary startup is fail-closed. A dedicated offline migrator accepts the immediately preceding `nerve-workbench-state` v2 format when it is either the released Nerve 0.26 layout with an immutable ledger through `0012-remove-workers` or the canonical-v3 compatibility layout. The released layout is read directly into a validated current-schema staging home; migration 0013 is not a prerequisite and never runs against the source. The migrator uses a sibling lock/journal, re-encrypts recognized credentials, converts semantic conversation state and referenced managed files, and retains the complete legacy tree under `backups/`. Desktop supplies explicit consent and presentation; remote shell mode never touches local `NERVE_HOME` data. Logs, caches, task runtime state, daemon metadata, and TLS identity are regenerated rather than imported.
 
 ## Electron boundary
 

@@ -28,7 +28,10 @@ import { initializeStorage } from "../storage/initialize.js";
 import { storagePaths } from "../storage/paths.js";
 import { assertCurrentStorage } from "../storage/storage-postconditions.js";
 import { acquireStorageStartupLock } from "../storage/startup-lock.js";
-import { migrateLegacyConfiguration } from "./configuration.js";
+import {
+  migrateLegacyConfiguration,
+  type LegacyConfigurationSource,
+} from "./configuration.js";
 import {
   assertLegacyDaemonStopped,
   childRegularFiles,
@@ -36,8 +39,10 @@ import {
   inspectLegacyV2Home,
   openValidatedLegacyDatabase,
   readLegacyCredentials,
+  readLegacyDocument,
   readLegacySettings,
 } from "./legacy-v2.js";
+import { importPost0012State, readPost0012Configuration } from "./post-0012.js";
 
 const IMPORTED_DOCUMENT_NAMESPACES = new Set([
   "agent",
@@ -77,6 +82,7 @@ export async function migrateLegacyV2Home(
     report(options.reportProgress, "inspect", "Inspecting legacy Nerve home");
     const inspection = await inspectLegacyV2Home(home);
     if (inspection.kind !== "legacy-v2") throw new Error(inspection.reason);
+    const sourceLayout = inspection.layout;
     await assertLegacyDaemonStopped(home);
     for (const path of [staging, backupSibling, journalPath]) {
       if (await lstat(path).catch(() => undefined)) {
@@ -109,15 +115,18 @@ export async function migrateLegacyV2Home(
     );
 
     const snapshotPath = join(storage.paths.tmpPath, "legacy-v2.sqlite");
-    const sourceDatabase = openValidatedLegacyDatabase(
-      join(home, "state.sqlite"),
-    );
-    try {
-      await backup(sourceDatabase, snapshotPath);
-    } finally {
-      sourceDatabase.close();
+    let legacy: DatabaseSync | undefined;
+    if (sourceLayout === "canonical-v3") {
+      const sourceDatabase = openValidatedLegacyDatabase(
+        join(home, "state.sqlite"),
+      );
+      try {
+        await backup(sourceDatabase, snapshotPath);
+      } finally {
+        sourceDatabase.close();
+      }
+      legacy = openValidatedLegacyDatabase(snapshotPath);
     }
-    const legacy = openValidatedLegacyDatabase(snapshotPath);
     let counts: HomeMigrationReport["counts"];
     const warnings: string[] = [
       "Legacy project permission allows were not trusted and require re-approval.",
@@ -130,11 +139,11 @@ export async function migrateLegacyV2Home(
         "Migrating configuration and credentials",
       );
       const credentials = await readLegacyCredentials(home);
-      const configuration = migrateLegacyConfiguration(
-        legacy,
-        readLegacySettings(legacy),
-        credentials.keys(),
-      );
+      const configurationSource =
+        sourceLayout === "released-post-0012"
+          ? await readPost0012Configuration(home, credentials.keys())
+          : canonicalConfigurationSource(legacy!, credentials.keys());
+      const configuration = migrateLegacyConfiguration(configurationSource);
       await writeHomeConfiguration(storage.paths, configuration);
       const targetSecrets = new EncryptedFileSecretProvider(staging);
       for (const [name, value] of credentials)
@@ -152,17 +161,29 @@ export async function migrateLegacyV2Home(
         "conversations",
         "Migrating conversation history",
       );
-      counts = importCanonicalState(
-        snapshotPath,
-        storage.paths.sqlitePath,
-        fileResult.payloadReferences,
-      );
+      if (sourceLayout === "released-post-0012") {
+        const imported = await importPost0012State({
+          sourceHome: home,
+          targetHome: staging,
+          targetSqlitePath: storage.paths.sqlitePath,
+          now: startedAt,
+        });
+        counts = countMigratedState(storage.paths.sqlitePath);
+        fileResult.assets.push(...imported.payloadAssets);
+        fileResult.payloadCount = imported.payloadAssets.length;
+      } else {
+        counts = importCanonicalState(
+          snapshotPath,
+          storage.paths.sqlitePath,
+          fileResult.payloadReferences,
+        );
+      }
       counts.credentials = credentials.size;
       counts.payloads = fileResult.payloadCount;
       counts.plans = fileResult.planCount;
       insertFileAssets(storage.paths.sqlitePath, fileResult.assets);
     } finally {
-      legacy.close();
+      legacy?.close();
       await rm(snapshotPath, { force: true });
     }
 
@@ -174,7 +195,11 @@ export async function migrateLegacyV2Home(
     ledger.entries.push({
       id: "legacy-v2-to-nerve-home-v1",
       appliedAt: now().toISOString(),
-      source: { format: "nerve-workbench-state", version: 2 },
+      source: {
+        format: "nerve-workbench-state",
+        version: 2,
+        layout: sourceLayout,
+      },
       counts,
     });
     await atomicWriteJson(storage.paths.migrationLedgerPath, ledger, 0o600);
@@ -331,6 +356,56 @@ async function migrateManagedFiles(
     planCount,
     assets,
   };
+}
+
+function canonicalConfigurationSource(
+  database: DatabaseSync,
+  credentialNames: Iterable<string>,
+): LegacyConfigurationSource {
+  return {
+    settings: readLegacySettings(database),
+    providerCatalog: readLegacyDocument<unknown>(
+      database,
+      "provider_catalog",
+      "global",
+      "catalog",
+    ),
+    credentialNames,
+    userRules: database
+      .prepare(
+        `SELECT id, effect, tool_name, matcher_kind, pattern, enabled
+         FROM permission_rules WHERE scope = 'user' ORDER BY id`,
+      )
+      .all() as LegacyConfigurationSource["userRules"],
+  };
+}
+
+function countMigratedState(targetPath: string): HomeMigrationReport["counts"] {
+  const database = new DatabaseSync(targetPath, { readOnly: true });
+  try {
+    const count = (sql: string) =>
+      Number((database.prepare(sql).get() as { count: number }).count);
+    return {
+      conversations: count(
+        "SELECT COUNT(*) AS count FROM domain_documents WHERE namespace = 'conversation_state'",
+      ),
+      conversationRecords: count(
+        "SELECT COUNT(*) AS count FROM conversation_records",
+      ),
+      durableEvents: count("SELECT COUNT(*) AS count FROM durable_events"),
+      projects: count(
+        "SELECT COUNT(*) AS count FROM domain_documents WHERE namespace = 'project'",
+      ),
+      agents: count(
+        "SELECT COUNT(*) AS count FROM domain_documents WHERE namespace = 'agent'",
+      ),
+      payloads: 0,
+      plans: 0,
+      credentials: 0,
+    };
+  } finally {
+    database.close();
+  }
 }
 
 function importCanonicalState(
