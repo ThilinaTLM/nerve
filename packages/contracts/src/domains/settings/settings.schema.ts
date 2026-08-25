@@ -28,10 +28,10 @@ export const headerTypeSchema = z.enum(["auto", "linux", "windows", "macos"]);
 export type HeaderType = z.infer<typeof headerTypeSchema>;
 
 export const agentSelectionSettingsSchema = z.object({
-  mode: modeSchema.default("coding"),
-  permissionLevel: permissionLevelSchema.default("autonomous"),
+  mode: modeSchema,
+  permissionLevel: permissionLevelSchema,
   model: modelSelectionSchema.optional(),
-  thinkingLevel: thinkingLevelSchema.default("off"),
+  thinkingLevel: thinkingLevelSchema,
 });
 export type AgentSelectionSettings = z.infer<
   typeof agentSelectionSettingsSchema
@@ -60,7 +60,7 @@ const permissionExceptionsSchema = z
   });
 
 const permissionSettingsSchema = z.object({
-  exceptions: permissionExceptionsSchema.default([]),
+  exceptions: permissionExceptionsSchema,
 });
 
 export const atlassianProfileSchema = z.object({
@@ -104,18 +104,18 @@ const tavilyProfilesSchema = z
   .superRefine(uniqueProfileIds);
 
 export const providersSettingsSchema = z.object({
-  atlassianProfiles: atlassianProfilesSchema.default([]),
-  tavilyProfiles: tavilyProfilesSchema.default([]),
+  atlassianProfiles: atlassianProfilesSchema,
+  tavilyProfiles: tavilyProfilesSchema,
 });
 export type ProvidersSettings = z.infer<typeof providersSettingsSchema>;
 
 export const jiraToolSettingsSchema = z.object({
-  enabled: z.boolean().default(false),
+  enabled: z.boolean(),
   profileId: z.string().trim().min(1).optional(),
 });
 
 export const confluenceToolSettingsSchema = z.object({
-  enabled: z.boolean().default(false),
+  enabled: z.boolean(),
   profileId: z.string().trim().min(1).optional(),
 });
 
@@ -124,33 +124,26 @@ export const webToolSettingsSchema = z.object({
 });
 
 const bashAutoPromotionSettingsSchema = z.object({
-  enabled: z.boolean().default(true),
-  afterMs: z.number().int().positive().max(86_400_000).default(120_000),
+  enabled: z.boolean(),
+  afterMs: z.number().int().positive().max(86_400_000),
 });
 
 const bashToolSettingsSchema = z.object({
-  autoPromotion: bashAutoPromotionSettingsSchema.default({
-    enabled: true,
-    afterMs: 120_000,
-  }),
+  autoPromotion: bashAutoPromotionSettingsSchema,
 });
 
 const imageExplanationToolSettingsSchema = z.object({
   model: modelSelectionSchema.optional(),
-  thinkingLevel: thinkingLevelSchema.default("off"),
+  thinkingLevel: thinkingLevelSchema,
 });
 
 const toolSettingsSchema = z.object({
-  disabled: z.array(userConfigurableToolNameSchema).default(["explain_image"]),
-  bash: bashToolSettingsSchema.default({
-    autoPromotion: { enabled: true, afterMs: 120_000 },
-  }),
-  jira: jiraToolSettingsSchema.default({ enabled: false }),
-  confluence: confluenceToolSettingsSchema.default({ enabled: false }),
-  web: webToolSettingsSchema.default({}),
-  imageExplanation: imageExplanationToolSettingsSchema.default({
-    thinkingLevel: "off",
-  }),
+  disabled: z.array(userConfigurableToolNameSchema),
+  bash: bashToolSettingsSchema,
+  jira: jiraToolSettingsSchema,
+  confluence: confluenceToolSettingsSchema,
+  web: webToolSettingsSchema,
+  imageExplanation: imageExplanationToolSettingsSchema,
 });
 
 export const compactionProfileSchema = z.enum([
@@ -187,26 +180,18 @@ export const defaultNotificationEventSounds = {
 } as const satisfies Record<string, NotificationTone>;
 
 const notificationEventSoundSettingsSchema = z.object({
-  question: notificationToneSchema.default(
-    defaultNotificationEventSounds.question,
-  ),
-  planReview: notificationToneSchema.default(
-    defaultNotificationEventSounds.planReview,
-  ),
-  approval: notificationToneSchema.default(
-    defaultNotificationEventSounds.approval,
-  ),
-  completed: notificationToneSchema.default(
-    defaultNotificationEventSounds.completed,
-  ),
-  failed: notificationToneSchema.default(defaultNotificationEventSounds.failed),
+  question: notificationToneSchema,
+  planReview: notificationToneSchema,
+  approval: notificationToneSchema,
+  completed: notificationToneSchema,
+  failed: notificationToneSchema,
 });
 
 export const autoCompactionSettingsSchema = z.object({
-  auto: z.boolean().default(true),
-  profile: compactionProfileSchema.default("balanced"),
-  customTriggerPercent: z.number().int().min(60).max(90).default(80),
-  customKeepRecentPercent: z.number().int().min(5).max(40).default(15),
+  auto: z.boolean(),
+  profile: compactionProfileSchema,
+  customTriggerPercent: z.number().int().min(60).max(90),
+  customKeepRecentPercent: z.number().int().min(5).max(40),
 });
 export type AutoCompactionSettings = z.infer<
   typeof autoCompactionSettingsSchema
@@ -231,9 +216,9 @@ const transcriptionVocabularyTermSchema = z
   .regex(/^[^<>\r\n]+$/);
 
 export const transcriptionSettingsSchema = z.object({
-  model: transcriptionModelSchema.default("gpt-4o-transcribe"),
-  languages: z.array(transcriptionLanguageSchema).max(10).default([]),
-  vocabulary: z.array(transcriptionVocabularyTermSchema).max(50).default([]),
+  model: transcriptionModelSchema,
+  languages: z.array(transcriptionLanguageSchema).max(10),
+  vocabulary: z.array(transcriptionVocabularyTermSchema).max(50),
 });
 export type TranscriptionSettings = z.infer<typeof transcriptionSettingsSchema>;
 
@@ -241,82 +226,49 @@ export const settingsSchema = z.object({
   defaultMode: modeSchema,
   defaultPermissionLevel: permissionLevelSchema,
   defaultModel: modelSelectionSchema.optional(),
-  defaultThinkingLevel: thinkingLevelSchema.default("off"),
-  rememberLastAgentSelection: z.boolean().default(false),
-  lastAgentSelection: agentSelectionSettingsSchema.default({
-    mode: "coding",
-    permissionLevel: "autonomous",
-    thinkingLevel: "off",
-  }),
+  defaultThinkingLevel: thinkingLevelSchema,
+  rememberLastAgentSelection: z.boolean(),
+  lastAgentSelection: agentSelectionSettingsSchema,
   exploreAgent: z.object({
     model: modelSelectionSchema.optional(),
-    thinkingLevel: thinkingLevelSchema.default("off"),
+    thinkingLevel: thinkingLevelSchema,
   }),
-  application: applicationSettingsSchema.default(defaultApplicationSettings),
+  application: applicationSettingsSchema,
   ui: z.object({
-    theme: colorThemeSchema.default("nerve"),
-    colorMode: colorModeSchema.default("system"),
-    zoomLevel: z.number().int().min(-8).max(8).default(0),
+    theme: colorThemeSchema,
+    colorMode: colorModeSchema,
+    zoomLevel: z.number().int().min(-8).max(8),
   }),
   desktop: z.object({
-    closeToTray: z.boolean().default(true),
-    headerType: headerTypeSchema.default("auto"),
+    closeToTray: z.boolean(),
+    headerType: headerTypeSchema,
   }),
-  notifications: z
-    .object({
-      systemEnabled: z.boolean().default(true),
-      soundsEnabled: z.boolean().default(true),
-      events: notificationEventSoundSettingsSchema.default(
-        defaultNotificationEventSounds,
-      ),
-    })
-    .default({
-      systemEnabled: true,
-      soundsEnabled: true,
-      events: defaultNotificationEventSounds,
-    }),
-  transcription: transcriptionSettingsSchema.default({
-    model: "gpt-4o-transcribe",
-    languages: [],
-    vocabulary: [],
+  notifications: z.object({
+    systemEnabled: z.boolean(),
+    soundsEnabled: z.boolean(),
+    events: notificationEventSoundSettingsSchema,
   }),
+  transcription: transcriptionSettingsSchema,
   compaction: autoCompactionSettingsSchema,
   logging: z.object({
-    level: applicationLogLevelSchema.default("info"),
-    retentionDays: z.number().int().positive().default(14),
-    maxBufferedLogs: z.number().int().positive().default(2000),
+    level: applicationLogLevelSchema,
+    retentionDays: z.number().int().positive(),
+    maxBufferedLogs: z.number().int().positive(),
   }),
   retry: z.object({
-    enabled: z.boolean().default(true),
-    maxRetries: z.number().int().nonnegative().default(3),
-    baseDelayMs: z.number().int().positive().default(2000),
+    enabled: z.boolean(),
+    maxRetries: z.number().int().nonnegative(),
+    baseDelayMs: z.number().int().positive(),
   }),
-  runtime: runtimeSettingsSchema.default({}),
-  permissions: permissionSettingsSchema.default({ exceptions: [] }),
-  providers: providersSettingsSchema.default({
-    atlassianProfiles: [],
-    tavilyProfiles: [],
+  runtime: runtimeSettingsSchema,
+  permissions: permissionSettingsSchema,
+  providers: providersSettingsSchema,
+  tools: toolSettingsSchema,
+  skills: z.object({
+    disabled: z.array(z.string().min(1)),
+    agentBrowser: z.object({ enabled: z.array(z.string().min(1)) }),
   }),
-  tools: toolSettingsSchema.default({
-    disabled: ["explain_image"],
-    bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
-    jira: { enabled: false },
-    confluence: { enabled: false },
-    web: {},
-    imageExplanation: { thinkingLevel: "off" },
-  }),
-  skills: z
-    .object({
-      disabled: z.array(z.string().min(1)).default([]),
-      agentBrowser: z
-        .object({ enabled: z.array(z.string().min(1)).default([]) })
-        .default({ enabled: [] }),
-    })
-    .default({
-      disabled: [],
-      agentBrowser: { enabled: [] },
-    }),
-  scopedModels: z.array(modelSelectionSchema).default([]),
+  scopedModels: z.array(modelSelectionSchema),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 

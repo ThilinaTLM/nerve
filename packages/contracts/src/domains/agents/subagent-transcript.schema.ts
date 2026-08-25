@@ -3,8 +3,8 @@ import { type ThinkingLevel, thinkingLevelSchema } from "../models/index.js";
 import {
   type ConversationActiveRunSnapshot,
   conversationActiveRunSnapshotSchema,
-} from "../conversations/conversation.schema.js";
-import { conversationEntryUsageSchema } from "../conversations/tree.schema.js";
+} from "../conversations/live-state.schema.js";
+import { conversationEntryUsageSchema } from "../conversations/conversation-state.schema.js";
 import {
   type ToolCallTranscriptRecord,
   toolCallTranscriptRecordSchema,

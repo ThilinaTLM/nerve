@@ -4,9 +4,9 @@ import type {
   ExecutionEnv,
   FileInfo,
   FileKind,
-} from "../../../src/harness/environment/types.js";
-import { FileError } from "../../../src/harness/errors.js";
-import { loadSkills } from "../../../src/harness/resources/skills/loader.js";
+} from "../../../src/runtime/environment/types.js";
+import { FileError } from "../../../src/runtime/errors.js";
+import { loadSkills } from "../../../src/runtime/resources/skills/loader.js";
 
 type MemoryEntry = { kind: "directory" } | { kind: "file"; content: string };
 

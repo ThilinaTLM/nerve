@@ -3,10 +3,10 @@ import { describe, it } from "node:test";
 import {
   coalesceQueuedUserEntries,
   takeQueuedMessageEntries,
-} from "../../../src/harness/queue/coalescing.js";
-import type { InboundQueuedMessage } from "../../../src/harness/queue/operations.js";
-import { createHarnessMessage } from "../../../src/harness/messages.js";
-import { createUserMessage } from "../../../src/harness/run/messages.js";
+} from "../../../src/runtime/queue/coalescing.js";
+import type { InboundQueuedMessage } from "../../../src/runtime/queue/operations.js";
+import { createHarnessMessage } from "../../../src/runtime/messages.js";
+import { createUserMessage } from "../../../src/runtime/run/messages.js";
 import type { AgentMessage } from "../../../src/agent/types/index.js";
 
 function textOf(message: AgentMessage): string {

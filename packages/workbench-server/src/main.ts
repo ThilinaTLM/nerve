@@ -14,10 +14,10 @@ import {
 } from "@nervekit/native";
 import WebSocket, { WebSocketServer } from "ws";
 import {
-  createOrchestratorState,
-  shutdownOrchestratorState,
+  createWorkbenchState,
+  shutdownWorkbenchState,
   toDaemonFile,
-} from "./app/orchestrator-state.js";
+} from "./app/workbench-state.js";
 import { createApp } from "./app/server.js";
 import {
   type DaemonPerformanceMonitor,
@@ -153,7 +153,7 @@ async function main() {
       `Refusing to bind Nerve daemon to ${host}. Enable remote connections in Settings or set NERVE_ALLOW_REMOTE=1.`,
     );
   }
-  const state = createOrchestratorState(storage, host, port, {
+  const state = createWorkbenchState(storage, host, port, {
     applicationLogsEnabled: loggingEnabled,
     performanceDiagnosticsEnabled,
     applicationConfiguration: resolvedConfiguration.snapshot,
@@ -230,7 +230,7 @@ async function main() {
   });
   await state.logger.info("Index rebuilt", {
     durationMs: registryTimings.indexDurationMs,
-    context: { ...state.index.counts() },
+    context: { ...state.queryCache.counts() },
   });
   await runtimeCapabilitiesReady;
   state.subscriptionUsage.start();
@@ -419,7 +419,7 @@ async function main() {
         durationMs: Date.now() - startedAt,
       })
       .catch(() => undefined);
-    await shutdownOrchestratorState(state).catch(() => undefined);
+    await shutdownWorkbenchState(state).catch(() => undefined);
     httpsServer?.close();
     server.close(() => {
       runtimeMonitor?.markClean(signal);
@@ -448,7 +448,7 @@ async function main() {
  * the desktop supervisor restarts a clean process.
  */
 function installCrashGuards(
-  logger: ReturnType<typeof createOrchestratorState>["logger"],
+  logger: ReturnType<typeof createWorkbenchState>["logger"],
   dataDir: string,
   monitor: DaemonRuntimeMonitor | undefined,
 ): void {
@@ -510,7 +510,7 @@ function closeWebSocketClients(webSockets: WebSocketServer): void {
 }
 
 function updateMobileHttpsState(
-  state: ReturnType<typeof createOrchestratorState>,
+  state: ReturnType<typeof createWorkbenchState>,
   tls: Awaited<ReturnType<typeof ensureMobileHttpsTlsMaterial>>,
   httpPort: number,
   httpsPort: number,

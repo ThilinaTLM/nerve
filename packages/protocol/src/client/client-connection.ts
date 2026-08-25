@@ -10,9 +10,9 @@ import { ProtocolConnection } from "../transport/connection.js";
 import type {
   ProtocolDiagnosticsPublisher,
   ProtocolTimers,
-} from "../shared/ports.js";
+} from "../core/ports.js";
 import { ReconnectPolicy } from "./reconnect.js";
-import { systemProtocolTimers } from "../shared/runtime.js";
+import { systemProtocolTimers } from "../core/runtime.js";
 import type { ProtocolClientSession } from "./client-session.js";
 import type {
   TransportConnection,
@@ -85,7 +85,7 @@ export class ProtocolClientConnection {
     > &
       Partial<
         Pick<
-          import("../shared/messages.js").MessageFactoryOptions,
+          import("../core/messages.js").MessageFactoryOptions,
           "correlationId" | "causationId" | "traceId" | "target"
         >
       > = {},

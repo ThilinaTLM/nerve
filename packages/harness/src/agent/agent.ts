@@ -7,7 +7,7 @@ import type {
   Transport,
 } from "@earendil-works/pi-ai";
 import { runAgentLoop, runAgentLoopContinue } from "./loop/agent-loop.js";
-import { streamSimpleWithModel } from "../models/provider-registry.js";
+import { streamSimpleWithModel } from "../models/model-streaming.js";
 import type {
   AfterToolCallContext,
   AfterToolCallResult,

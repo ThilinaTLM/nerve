@@ -1,86 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type {
-  ConversationEntry,
-  ConversationRecord,
-} from "@nervekit/contracts";
-import { createOrchestratorState } from "../src/app/orchestrator-state.js";
+import type { ConversationRecord } from "@nervekit/contracts";
 import { ConversationJournalRepository } from "../src/domains/conversations/conversation-journal.repository.js";
-import { initializeStorage } from "../src/infrastructure/storage/index.js";
 import {
   appendRegistryEntry,
-  createdAt,
   createState,
-  firstEntryId,
-  oldConversationId,
-  tempHome,
 } from "./helpers/registry-conversation.js";
 
 describe("RuntimeRegistry conversation lifecycle", () => {
-  it("expands legacy auto-truncated conversation titles on hydrate", async () => {
-    const storage = await initializeStorage(
-      await tempHome("nerve-registry-title-repair-"),
-    );
-    const text =
-      "Build a focused onboarding screen that explains projects, conversations, agents, and local tool permissions without overwhelming first-time users.";
-    const conversation: ConversationRecord = {
-      id: oldConversationId,
-      projectId: "proj_01HN0000000000000000000000",
-      title: "Build a focused onboarding screen that explains projects…",
-      mode: "coding",
-      permissionLevel: "autonomous",
-      activeEntryId: firstEntryId,
-      createdAt,
-      updatedAt: createdAt,
-    };
-    const entry: ConversationEntry = {
-      id: firstEntryId,
-      conversationId: oldConversationId,
-      role: "user",
-      kind: "message",
-      text,
-      createdAt,
-    };
-    const journal = new ConversationJournalRepository(storage);
-    await journal.commit(oldConversationId, {
-      kind: "test.bootstrap",
-      committedAt: createdAt,
-      events: [
-        {
-          kind: "conversation.upserted",
-          conversationId: oldConversationId,
-          conversation,
-        },
-        {
-          kind: "conversation.entry_appended",
-          conversationId: oldConversationId,
-          entry,
-        },
-      ],
-    });
-
-    const state = createOrchestratorState(storage, "127.0.0.1", 0);
-    await state.registry.hydrate();
-
-    const repaired = state.registry.getConversation(oldConversationId);
-    assert.equal(
-      repaired.title,
-      "Build a focused onboarding screen that explains projects, conversations",
-    );
-    assert.equal(repaired.updatedAt, createdAt);
-    assert.equal(repaired.lastUserMessageAt, createdAt);
-
-    const persisted = (
-      await new ConversationJournalRepository(storage).load(oldConversationId)
-    ).conversation as ConversationRecord;
-    assert.equal(
-      persisted.title,
-      "Build a focused onboarding screen that explains projects, conversations",
-    );
-    assert.equal(persisted.updatedAt, createdAt);
-    assert.equal(persisted.lastUserMessageAt, createdAt);
-  });
-
   it("returns the first transcript entry when an id is appended again", async () => {
     const state = await createState("nerve-registry-idempotent-entry-");
     try {
@@ -124,7 +51,7 @@ describe("RuntimeRegistry conversation lifecycle", () => {
         1,
       );
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 
@@ -182,7 +109,7 @@ describe("RuntimeRegistry conversation lifecycle", () => {
         "2026-01-01T00:03:00.000Z",
       );
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 
@@ -242,7 +169,7 @@ describe("RuntimeRegistry conversation lifecycle", () => {
       assert.equal(persisted.completedAt, undefined);
       assert.ok(persisted.runtimeStatusClearedAt);
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 
@@ -270,7 +197,7 @@ describe("RuntimeRegistry conversation lifecycle", () => {
         conversation.id,
       );
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 
@@ -344,7 +271,7 @@ describe("RuntimeRegistry conversation lifecycle", () => {
         "number",
       );
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 });

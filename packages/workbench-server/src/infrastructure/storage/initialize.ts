@@ -10,19 +10,13 @@ import {
   settingsSchema,
   type UpdateSettingsRequest,
 } from "@nervekit/contracts";
-import {
-  atomicWriteJson,
-  pathExists,
-  readJsonFile,
-  writeTextFileIfMissing,
-} from "./json.js";
+import { atomicWriteJson, pathExists, writeTextFileIfMissing } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
 import type { MigrationReport } from "../migrations/index.js";
 import { CanonicalStore } from "../canonical-store/index.js";
 import { CanonicalDatabase } from "../canonical-store/canonical-database.js";
-import { coordinateStorageStartup } from "./startup-coordinator.js";
+import { coordinateStorageStartup } from "../migrations/import/startup-coordinator.js";
 import { inspectWorkbenchHome } from "./state-layout.js";
-import { normalizedJsonPaths } from "./storage-postconditions.js";
 
 const dataSubdirs = [
   "auth",
@@ -60,21 +54,16 @@ export async function readCurrentSettingsForBootstrap(
   }
 
   const paths = storagePaths(home);
-  const path = paths.configPath;
+  const path = paths.sqlitePath;
   let raw: unknown;
   try {
-    const canonical = new CanonicalDatabase(paths.sqlitePath);
+    const canonical = new CanonicalDatabase(path);
     try {
-      try {
-        raw = canonical.readSettings<unknown>()?.data;
-      } catch (error) {
-        if (!String(error).includes("no such table: settings_store"))
-          throw error;
-      }
+      raw = canonical.readSettings<unknown>()?.data;
     } finally {
       canonical.close();
     }
-    raw ??= await readJsonFile<unknown>(path);
+    if (raw === undefined) throw new Error("Canonical settings are missing.");
   } catch (cause) {
     throw new Error(`Current Nerve settings at ${path} are unreadable.`, {
       cause,
@@ -91,12 +80,6 @@ export async function readCurrentSettingsForBootstrap(
       {
         cause: parsed.error,
       },
-    );
-  }
-  const changed = normalizedJsonPaths(raw, parsed.data);
-  if (changed.length > 0) {
-    throw new Error(
-      `Current Nerve settings at ${path} require a pending migration at: ${changed.slice(0, 12).join(", ")}.`,
     );
   }
   return parsed.data;
@@ -153,10 +136,11 @@ export async function initializeStorage(
   const canonicalStore = new CanonicalStore(paths.sqlitePath);
   await canonicalStore.initialize();
   const storedSettings = await canonicalStore.readSettings<unknown>();
-  const settings = storedSettings
-    ? settingsSchema.parse(storedSettings.data)
-    : settingsSchema.parse(await readJsonFile<unknown>(paths.configPath));
-  if (!storedSettings) await canonicalStore.writeSettings(settings, 0);
+  if (!storedSettings) {
+    await canonicalStore.close();
+    throw new Error("Canonical settings are missing after storage migration.");
+  }
+  const settings = settingsSchema.parse(storedSettings.data);
 
   if (!(await pathExists(paths.localTokenPath))) {
     const token = `nt_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;

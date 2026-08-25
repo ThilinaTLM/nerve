@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { continueHarnessRun } from "../src/harness/run/continuation.js";
-import { InMemoryConversationStorage } from "../src/harness/conversation/memory-storage.js";
-import type { ConversationTreeEntry } from "../src/harness/conversation/entries.js";
+import { continueHarnessRun } from "../src/runtime/run/continuation.js";
+import { InMemoryConversationStorage } from "../src/runtime/conversation/adapters/in-memory-storage.js";
+import type { ConversationTreeEntry } from "../src/runtime/conversation/entries.js";
 
 describe("harness continuation setup", () => {
   it("returns to idle and settles waiters when turn-state creation fails", async () => {

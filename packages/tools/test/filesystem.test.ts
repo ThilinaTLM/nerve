@@ -3,11 +3,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { DEFAULT_MAX_BYTES } from "../src/execution/common/truncate.js";
-import {
-  executeLs,
-  executeRead,
-  executeWrite,
-} from "../src/execution/index.js";
+import { executeLs } from "../src/execution/filesystem/list.js";
+import { executeRead } from "../src/execution/filesystem/read.js";
+import { executeWrite } from "../src/execution/filesystem/write.js";
 import { createTempProject } from "./helpers.js";
 
 describe("filesystem executors", () => {

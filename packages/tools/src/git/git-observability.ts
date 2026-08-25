@@ -1,4 +1,4 @@
-import type { GitReadBackend } from "./git-read-backend.js";
+import type { GitReadBackend } from "./read/types.js";
 
 export type GitWorkspaceRef = {
   dir: string;
@@ -25,11 +25,10 @@ export interface GitOverviewObservation {
 }
 
 export interface GitReadObservation {
-  readonly backend: "native" | "cli-compatibility";
+  readonly backend: "native";
   readonly operation: string;
   readonly durationMs: number;
   readonly succeeded: boolean;
-  readonly fallbackCategory?: "unsupported";
 }
 
 export interface GitServiceOptions {

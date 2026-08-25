@@ -1,4 +1,9 @@
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import {
+  optionalString,
+  optionalStringArray,
+  requiredString,
+} from "../atlassian/arguments.js";
 import { jiraRequest, requireJiraConnection } from "./client.js";
 import {
   buildJiraTextResult,
@@ -8,13 +13,8 @@ import {
   takeDisplayItems,
   writeJiraArtifact,
 } from "./format.js";
-import {
-  boundedNumber,
-  optionalString,
-  optionalStringArray,
-  requiredString,
-  validateJql,
-} from "./helpers.js";
+import { boundedNumber } from "../atlassian/arguments.js";
+import { validateJql } from "./helpers.js";
 
 const DEFAULT_SEARCH_FIELDS = [
   "summary",

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { settleMeasuredHydrationOperations } from "../src/runtime/runtime-registry.js";
+import { settleMeasuredHydrationOperations } from "../src/app/runtime/registry.js";
 
 function deferred() {
   let resolve!: () => void;

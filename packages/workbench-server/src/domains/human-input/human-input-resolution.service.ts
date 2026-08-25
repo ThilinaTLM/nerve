@@ -19,7 +19,7 @@ import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging
 import type {
   AppendEntryInput,
   AppendEntryOptions,
-} from "../../runtime/types.js";
+} from "../../app/runtime/types.js";
 import type { WorkbenchRunService } from "../runs/workbench-run.service.js";
 import { agentMessageText } from "../agents/run/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";

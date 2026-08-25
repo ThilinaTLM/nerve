@@ -64,7 +64,7 @@ describe("orchestrator scratch notes", () => {
           error instanceof ApplicationError && error.status === 404,
       );
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 
@@ -87,7 +87,7 @@ describe("orchestrator scratch notes", () => {
         noteA.id,
       );
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 });

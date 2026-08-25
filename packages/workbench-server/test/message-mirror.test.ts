@@ -5,9 +5,9 @@ import {
   type ConversationEntry,
   validatePublicEvent,
 } from "@nervekit/contracts";
-import type { JsonlConversationStorage } from "@nervekit/harness";
+import type { ConversationStorage } from "@nervekit/harness";
 import type { StreamLogRegistry } from "../src/infrastructure/events/index.js";
-import type { RuntimeState } from "../src/runtime/runtime-state.js";
+import type { RuntimeState } from "../src/app/runtime/state.js";
 import {
   type AppendEntryInput,
   AssistantEntryMetaQueue,
@@ -105,7 +105,7 @@ function createMirror(
   });
   const storage = {
     getEntries: async () => storageEntries,
-  } as unknown as JsonlConversationStorage;
+  } as unknown as ConversationStorage;
   return { mirror, storage, appended };
 }
 

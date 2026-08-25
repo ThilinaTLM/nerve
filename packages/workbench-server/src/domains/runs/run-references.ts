@@ -3,7 +3,7 @@ import {
   type RunInteractionRecord,
 } from "@nervekit/contracts";
 import type { RunCheckpointReferencePort } from "./runtime/index.js";
-import type { RuntimeState } from "../../runtime/runtime-state.js";
+import type { RuntimeState } from "../../app/runtime/state.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
 
@@ -34,11 +34,7 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
     }
     const run = runState.run;
     const conversation = this.state.getConversation(run.conversationId);
-    const project = this.state.getProject(run.projectId);
-    const storage = await this.harnessStorage.openStorage(
-      conversation,
-      project.dir,
-    );
+    const storage = await this.harnessStorage.openStorage(conversation);
     const leafId = await storage.getLeafId();
     const entryIds = runState.transitions.flatMap((transition) =>
       transition.entries.map((entry) => entry.id),

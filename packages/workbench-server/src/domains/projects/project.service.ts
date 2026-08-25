@@ -6,15 +6,15 @@ import {
   type ProjectRecord,
 } from "@nervekit/contracts";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeProjectionStore } from "../../infrastructure/runtime-projection-store/index.js";
-import type { RuntimeState } from "../../runtime/runtime-state.js";
+import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
+import type { RuntimeState } from "../../app/runtime/state.js";
 import type { ProjectRepository } from "./project.repository.js";
 
 export class ProjectLifecycleService {
   constructor(
     private readonly projectRepository: ProjectRepository,
     private readonly events: StreamLogRegistry,
-    private readonly index: RuntimeProjectionStore,
+    private readonly queryCache: RuntimeQueryCache,
     private readonly state: RuntimeState,
     private readonly removeConversation: (
       conversationId: string,
@@ -60,7 +60,7 @@ export class ProjectLifecycleService {
       updatedAt: now,
     };
     this.state.projects.set(project.id, project);
-    this.index.upsertProject(project);
+    this.queryCache.upsertProject(project);
     await this.projectRepository.write(project);
     await this.events.publish("project.created", { project });
     return project;
@@ -82,7 +82,7 @@ export class ProjectLifecycleService {
       await this.removeConversation(conversation.id);
     }
     this.state.projects.delete(projectId);
-    this.index.removeProject(projectId);
+    this.queryCache.removeProject(projectId);
     await this.projectRepository.remove(projectId);
     await this.events.publish("project.deleted", { projectId });
   }
@@ -90,7 +90,7 @@ export class ProjectLifecycleService {
   async loadProjects(): Promise<void> {
     for (const project of await this.projectRepository.loadAll()) {
       this.state.projects.set(project.id, project);
-      this.index.upsertProject(project);
+      this.queryCache.upsertProject(project);
     }
   }
 }

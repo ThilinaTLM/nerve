@@ -10,7 +10,7 @@ import type {
 import { parseInlineCommandPrompt } from "@nervekit/contracts";
 import { TERMINAL_STATUSES, type RunCoordinator } from "./runtime/index.js";
 import { ApplicationError } from "../../core/application-error.js";
-import type { RuntimeState } from "../../runtime/runtime-state.js";
+import type { RuntimeState } from "../../app/runtime/state.js";
 import type { ExploreReport } from "../agents/run/subagent-runner.js";
 import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
 

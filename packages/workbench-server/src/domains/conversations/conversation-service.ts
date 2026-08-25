@@ -70,10 +70,7 @@ export class ConversationService {
     entriesByConversationId: Map<string, ConversationEntry[]>,
   ): Promise<Message[]> {
     try {
-      const storage = await this.harnessStorage.openStorage(
-        conversation,
-        projectDir,
-      );
+      const storage = await this.harnessStorage.openStorage(conversation);
       const branch = await storage.getPathToRoot(await storage.getLeafId());
       return convertToLlm(buildConversationContext(branch).messages);
     } catch (error) {

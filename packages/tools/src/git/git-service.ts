@@ -42,13 +42,9 @@ import {
   runGitCommand,
 } from "./git-command.js";
 import { GitWorkflowError } from "./git-errors.js";
-import {
-  GitCliCompatibilityReadBackend,
-  type GitReadBackend,
-  GitReadBackendRouter,
-  type GitReadSnapshot,
-  NativeGitReadBackend,
-} from "./git-read-backend.js";
+import { NativeGitReadBackend } from "./read/native-backend.js";
+import { ObservedGitReadBackend } from "./read/observed-backend.js";
+import type { GitReadBackend, GitReadSnapshot } from "./read/types.js";
 import { GithubApiClient } from "./git-github-api-client.js";
 import {
   parseGithubRepositoryRemote,
@@ -116,11 +112,8 @@ export class GitService {
     );
     this.#readBackend =
       options.readBackend ??
-      new GitReadBackendRouter(
+      new ObservedGitReadBackend(
         new NativeGitReadBackend(options.now),
-        new GitCliCompatibilityReadBackend((cwd, args) =>
-          this.runGit(cwd, args),
-        ),
         (observation) => options.onReadCompleted?.(observation),
       );
     this.#githubApi = new GithubApiClient({

@@ -1,5 +1,5 @@
 import type { AssistantMessage, Context } from "@earendil-works/pi-ai";
-import { streamSimpleWithModel } from "../../models/provider-registry.js";
+import { streamSimpleWithModel } from "../../models/model-streaming.js";
 import type {
   AgentContext,
   AgentLoopConfig,

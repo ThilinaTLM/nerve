@@ -1,4 +1,4 @@
-import type { ProtocolClock, ProtocolTimers } from "../shared/ports.js";
+import type { ProtocolClock, ProtocolTimers } from "../core/ports.js";
 
 export class ServerHeartbeat {
   #interval?: unknown;

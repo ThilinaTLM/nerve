@@ -8,7 +8,7 @@ import {
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeState } from "../../runtime/runtime-state.js";
+import type { RuntimeState } from "../../app/runtime/state.js";
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"

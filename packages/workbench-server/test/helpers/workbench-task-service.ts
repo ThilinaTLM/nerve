@@ -22,7 +22,7 @@ import type {
   TerminateTaskResult,
 } from "../../src/domains/tasks/task-supervisor.js";
 import { StreamLogRegistry } from "../../src/infrastructure/events/index.js";
-import { RuntimeProjectionStore } from "../../src/infrastructure/runtime-projection-store/index.js";
+import { RuntimeQueryCache } from "../../src/infrastructure/query-cache/index.js";
 import {
   atomicWriteJson,
   type InitializedStorage,
@@ -38,10 +38,10 @@ export interface FakeChild extends ChildProcess {
 }
 
 const roots: string[] = [];
-const indexes: RuntimeProjectionStore[] = [];
+const indexes: RuntimeQueryCache[] = [];
 
 after(async () => {
-  for (const index of indexes) index.close();
+  for (const queryCache of indexes) queryCache.close();
   await Promise.all(
     roots.map((root) => rm(root, { recursive: true, force: true })),
   );
@@ -89,22 +89,22 @@ export async function createManager(
   manager: WorkbenchTaskService;
   storage: InitializedStorage;
   events: StreamLogRegistry;
-  index: RuntimeProjectionStore;
+  queryCache: RuntimeQueryCache;
   launchConfigs: MemoryTaskLaunchConfigStore;
 }> {
   const storage = await initializeStorage(await tempHome("nerve-tasks-"));
-  const index = new RuntimeProjectionStore(storage.paths.sqlitePath);
-  index.initialize();
-  indexes.push(index);
+  const queryCache = new RuntimeQueryCache(storage.paths.sqlitePath);
+  queryCache.initialize();
+  indexes.push(queryCache);
   const events = new StreamLogRegistry(storage.paths.home);
   return {
-    manager: new WorkbenchTaskService(storage, events, index, undefined, {
+    manager: new WorkbenchTaskService(storage, events, queryCache, undefined, {
       supervisor,
       launchConfigs,
     }),
     storage,
     events,
-    index,
+    queryCache,
     launchConfigs,
   };
 }
@@ -214,11 +214,11 @@ export function fakeSupervisor(options: FakeSupervisorOptions): {
     spawnCalls,
     supervisor: {
       spawn(command, spawnOptions) {
-        const index = Math.min(spawnIndex, children.length - 1);
+        const queryCache = Math.min(spawnIndex, children.length - 1);
         spawnIndex += 1;
-        const child = children[index] ?? children[0] ?? fakeChild();
+        const child = children[queryCache] ?? children[0] ?? fakeChild();
         const runtime =
-          runtimes[index] ??
+          runtimes[queryCache] ??
           runtimes[0] ??
           runtimeMetadata({ childPid: child.pid });
         spawnCommands.push(command);

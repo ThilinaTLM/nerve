@@ -115,7 +115,7 @@ test("newer and checksum-drifted SQLite schemas are refused", async (t) => {
     .prepare(
       `INSERT INTO schema_migrations
        (version, name, checksum, applied_at_ms, duration_ms)
-       VALUES (3, 'future', 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 1, 0)`,
+       VALUES (4, 'future', 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 1, 0)`,
     )
     .run();
   database.close();

@@ -1,3 +1,4 @@
+import { legacyConfigPath } from "../import/legacy-paths.js";
 import { defaultSettings, settingsSchema } from "@nervekit/contracts";
 import {
   atomicWriteJson,
@@ -15,8 +16,11 @@ export const migration0003: StorageMigration = {
     "0003-normalize-current-settings|v1|Normalize persisted settings to the current schema",
   ),
   async detect(context) {
-    if (!(await pathExists(context.paths.configPath))) return "pending";
-    const raw = await readJsonFile<unknown>(context.paths.configPath);
+    if (!(await pathExists(legacyConfigPath(context.paths.home))))
+      return "pending";
+    const raw = await readJsonFile<unknown>(
+      legacyConfigPath(context.paths.home),
+    );
     const parsed = settingsSchema.safeParse(raw);
     if (!parsed.success) return "pending";
     const normalized = normalizeSettings(raw);
@@ -29,13 +33,19 @@ export const migration0003: StorageMigration = {
     return { paths: ["config.json"] };
   },
   async up(context) {
-    const raw = (await pathExists(context.paths.configPath))
-      ? await readJsonFile<unknown>(context.paths.configPath)
+    const raw = (await pathExists(legacyConfigPath(context.paths.home)))
+      ? await readJsonFile<unknown>(legacyConfigPath(context.paths.home))
       : defaultSettings;
     const normalized = normalizeSettings(raw);
-    await atomicWriteJson(context.paths.configPath, normalized.settings, 0o600);
+    await atomicWriteJson(
+      legacyConfigPath(context.paths.home),
+      normalized.settings,
+      0o600,
+    );
   },
   async verify(context) {
-    settingsSchema.parse(await readJsonFile(context.paths.configPath));
+    settingsSchema.parse(
+      await readJsonFile(legacyConfigPath(context.paths.home)),
+    );
   },
 };

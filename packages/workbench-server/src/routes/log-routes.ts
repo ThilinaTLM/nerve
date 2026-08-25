@@ -1,14 +1,13 @@
 import {
-  applicationLogPruneRequestSchema,
   applicationLogQuerySchema,
   clientApplicationLogRequestSchema,
 } from "@nervekit/contracts";
 import { Hono } from "hono";
-import type { OrchestratorState } from "../app/orchestrator-state.js";
+import type { WorkbenchState } from "../app/workbench-state.js";
 import { numberQuery } from "../http/query.js";
 import { routeHandler } from "../http/responses.js";
 
-export function createLogRoutes(state: OrchestratorState): Hono {
+export function createLogRoutes(state: WorkbenchState): Hono {
   const app = new Hono();
 
   app.get(
@@ -31,14 +30,6 @@ export function createLogRoutes(state: OrchestratorState): Hono {
         taskId: c.req.query("taskId"),
       });
       return c.json(await state.logger.query(query));
-    }),
-  );
-
-  app.post(
-    "/logs/prune",
-    routeHandler(async (c) => {
-      const body = applicationLogPruneRequestSchema.parse(await c.req.json());
-      return c.json(await state.logger.prune(body));
     }),
   );
 

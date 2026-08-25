@@ -3,15 +3,14 @@ import type { Message } from "@earendil-works/pi-ai";
 import {
   type AgentMessage,
   Conversation,
+  type ConversationMetadata,
   type ConversationStorage,
   type ConversationTreeEntry,
-  type JsonlConversationMetadata,
 } from "@nervekit/harness";
 import type {
   AgentRecord,
   ConversationEntry,
   ConversationRecord,
-  ProjectRecord,
 } from "@nervekit/contracts";
 import type { ConversationRepository } from "./index.js";
 
@@ -21,41 +20,34 @@ export class ConversationHarnessStorage {
     private readonly getConversation: (
       conversationId: string,
     ) => ConversationRecord,
-    private readonly getProject: (projectId: string) => ProjectRecord,
   ) {}
 
   async openStorage(
     conversation: ConversationRecord,
-    cwd: string,
-  ): Promise<ConversationStorage<JsonlConversationMetadata>> {
+  ): Promise<ConversationStorage<ConversationMetadata>> {
     await this.conversationRepository.journal.load(conversation.id);
     return new JournalConversationStorage(
       this.conversationRepository,
       conversation.id,
-      cwd,
       conversation.createdAt,
     );
   }
 
   async openAgentStorage(
     agent: AgentRecord,
-  ): Promise<ConversationStorage<JsonlConversationMetadata>> {
+  ): Promise<ConversationStorage<ConversationMetadata>> {
     const conversation = this.getConversation(agent.conversationId);
     await this.conversationRepository.journal.load(conversation.id);
     return new JournalConversationStorage(
       this.conversationRepository,
       conversation.id,
-      agent.projectDir,
       conversation.createdAt,
       agent.id,
     );
   }
 
-  async createConversation(
-    conversation: ConversationRecord,
-    cwd: string,
-  ): Promise<void> {
-    await this.openStorage(conversation, cwd);
+  async createConversation(conversation: ConversationRecord): Promise<void> {
+    await this.openStorage(conversation);
   }
 
   async appendAgentMessage(
@@ -63,8 +55,7 @@ export class ConversationHarnessStorage {
     message: AgentMessage,
   ): Promise<{ id: string; timestamp: string }> {
     const conversation = this.getConversation(agent.conversationId);
-    const project = this.getProject(conversation.projectId);
-    const storage = await this.openStorage(conversation, project.dir);
+    const storage = await this.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
     const id = await harnessConversation.appendMessage(message);
     const entry = await storage.getEntry(id);
@@ -81,8 +72,7 @@ export class ConversationHarnessStorage {
     timestamp = new Date().toISOString(),
   ): Promise<{ id: string; timestamp: string }> {
     const conversation = this.getConversation(agent.conversationId);
-    const project = this.getProject(conversation.projectId);
-    const storage = await this.openStorage(conversation, project.dir);
+    const storage = await this.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
     await harnessConversation.appendMessageWithId(id, message, timestamp);
     const entry = await storage.getEntry(id);
@@ -96,8 +86,7 @@ export class ConversationHarnessStorage {
     timestamp = new Date().toISOString(),
   ): Promise<{ id: string; timestamp: string }> {
     const conversation = this.getConversation(agent.conversationId);
-    const project = this.getProject(conversation.projectId);
-    const storage = await this.openStorage(conversation, project.dir);
+    const storage = await this.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
     await harnessConversation.appendHarnessMessageWithId(
       id,
@@ -111,8 +100,7 @@ export class ConversationHarnessStorage {
   async appendEntry(entry: ConversationEntry): Promise<void> {
     if (entry.role === "system") return;
     const conversation = this.getConversation(entry.conversationId);
-    const project = this.getProject(conversation.projectId);
-    const storage = await this.openStorage(conversation, project.dir);
+    const storage = await this.openStorage(conversation);
     await storage.appendEntry({
       type: "message",
       id: entry.id,
@@ -132,8 +120,7 @@ export class ConversationHarnessStorage {
     fromId: string,
   ): Promise<void> {
     const conversation = this.getConversation(entry.conversationId);
-    const project = this.getProject(conversation.projectId);
-    const storage = await this.openStorage(conversation, project.dir);
+    const storage = await this.openStorage(conversation);
     await storage.appendEntry({
       type: "branch_summary",
       id: entry.id,
@@ -150,8 +137,7 @@ export class ConversationHarnessStorage {
     conversation: ConversationRecord,
     entryId: string | undefined,
   ): Promise<void> {
-    const project = this.getProject(conversation.projectId);
-    const storage = await this.openStorage(conversation, project.dir);
+    const storage = await this.openStorage(conversation);
     await storage.setLeafId(entryId ?? null);
   }
 
@@ -177,22 +163,16 @@ export class ConversationHarnessStorage {
   }
 }
 
-class JournalConversationStorage implements ConversationStorage<JsonlConversationMetadata> {
+class JournalConversationStorage implements ConversationStorage<ConversationMetadata> {
   constructor(
     private readonly conversations: ConversationRepository,
     private readonly conversationId: string,
-    private readonly cwd: string,
     private readonly createdAt: string,
     private readonly ownerAgentId?: string,
   ) {}
 
-  async getMetadata(): Promise<JsonlConversationMetadata> {
-    return {
-      id: this.conversationId,
-      createdAt: this.createdAt,
-      cwd: this.cwd,
-      path: this.conversations.journal.journalPath(this.conversationId),
-    };
+  async getMetadata(): Promise<ConversationMetadata> {
+    return { id: this.conversationId, createdAt: this.createdAt };
   }
 
   async getLeafId(): Promise<string | null> {

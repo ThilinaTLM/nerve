@@ -4,7 +4,7 @@ import type {
   GitRepoSummary,
 } from "@nervekit/contracts";
 import type { GitService } from "./git-service.js";
-import type { GitReadSnapshot } from "./git-read-backend.js";
+import type { GitReadSnapshot } from "./read/types.js";
 import { parsePorcelainV2, parseShortstat } from "./git-status.js";
 
 export async function summarizeRepo(

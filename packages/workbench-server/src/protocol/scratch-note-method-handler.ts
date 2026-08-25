@@ -2,7 +2,7 @@ import type {
   CreateScratchNoteRequest,
   UpdateScratchNoteRequest,
 } from "@nervekit/contracts";
-import type { OrchestratorState } from "../app/orchestrator-state.js";
+import type { WorkbenchState } from "../app/workbench-state.js";
 
 type ScratchNoteMethod =
   | "scratchNote.list"
@@ -11,7 +11,7 @@ type ScratchNoteMethod =
   | "scratchNote.delete";
 
 export async function handleScratchNoteMethod(
-  state: OrchestratorState,
+  state: WorkbenchState,
   method: ScratchNoteMethod,
   params: unknown,
 ): Promise<unknown> {

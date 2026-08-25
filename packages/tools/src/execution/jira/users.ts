@@ -1,4 +1,5 @@
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import { optionalString, requiredString } from "../atlassian/arguments.js";
 import { requireJiraConnection } from "./client.js";
 import {
   buildJiraTextResult,
@@ -8,13 +9,8 @@ import {
   takeDisplayItems,
   writeJiraArtifact,
 } from "./format.js";
-import {
-  boundedNumber,
-  jiraUsersFromResponse,
-  optionalString,
-  requiredString,
-  searchJiraUsers,
-} from "./helpers.js";
+import { boundedNumber } from "../atlassian/arguments.js";
+import { jiraUsersFromResponse, searchJiraUsers } from "./helpers.js";
 
 export async function executeJiraSearchUsers(
   args: Record<string, unknown>,

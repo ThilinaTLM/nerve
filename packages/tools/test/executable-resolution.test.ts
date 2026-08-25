@@ -6,7 +6,7 @@ import {
   executableSearchDirectories,
   locateExecutable,
   runExecutable,
-} from "../src/execution/index.js";
+} from "../src/execution/executable/executable.js";
 import { createTempProject, writeExecutable } from "./helpers.js";
 
 describe("executable resolution", () => {

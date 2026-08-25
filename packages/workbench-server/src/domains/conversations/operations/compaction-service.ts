@@ -161,10 +161,9 @@ export class CompactionService {
 
     try {
       const conversation = this.getConversation(conversationId);
-      const project = this.getProject(conversation.projectId);
       const storage =
         options.activeConversation?.getStorage() ??
-        (await this.harnessStorage.openStorage(conversation, project.dir));
+        (await this.harnessStorage.openStorage(conversation));
       throwIfCompactionAborted(operation.controller.signal);
       const branch = await storage.getPathToRoot(await storage.getLeafId());
       const branchLeafId = branch.at(-1)?.id ?? null;

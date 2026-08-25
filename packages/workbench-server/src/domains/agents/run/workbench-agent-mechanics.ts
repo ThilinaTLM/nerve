@@ -27,7 +27,7 @@ import {
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage/index.js";
-import type { RuntimeState } from "../../../runtime/runtime-state.js";
+import type { RuntimeState } from "../../../app/runtime/state.js";
 import type { AuthManager } from "../../auth/index.js";
 import type { ConversationService } from "../../conversations/conversation-service.js";
 import type { ConversationHarnessStorage } from "../../conversations/conversation-harness-storage.js";

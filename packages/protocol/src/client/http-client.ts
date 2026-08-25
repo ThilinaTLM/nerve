@@ -1,7 +1,5 @@
 import {
   nerveMessageSchema,
-  operationDefinition,
-  parseOperationParams,
   parseProtocolResponseData,
   protocolResponseMessageSchema,
   type NerveMessage,
@@ -12,7 +10,8 @@ import {
   type SnapshotCursor,
 } from "@nervekit/contracts";
 import { protocolClientId, protocolInstanceId } from "./browser-ids.js";
-import { createMessageFactory } from "../shared/messages.js";
+import { createMessageFactory } from "../core/messages.js";
+import { prepareOperationRequest } from "../rpc/operation-request.js";
 
 export const NERVE_PROTOCOL_V1_MEDIA_TYPE =
   "application/vnd.nerve.protocol.v1+json";
@@ -53,34 +52,22 @@ export async function protocolRequest<M extends OperationName>(
     ...options.source,
   };
   const target = options.target ?? { role: "workbench_server" };
-  const operation = operationDefinition(method);
-  if (!operation.allowedTargetRoles.includes(target.role)) {
-    throw new ProtocolRequestError(
-      undefined,
-      "AUTH_FORBIDDEN",
-      `Operation ${method} cannot target ${target.role}`,
-    );
-  }
-  if (operation.idempotency === "none" && options.idempotencyKey) {
-    throw new ProtocolRequestError(
-      undefined,
-      "VALIDATION_FAILED",
-      `Operation ${method} does not accept an idempotency key`,
-    );
-  }
-  if (operation.idempotency === "required" && !options.idempotencyKey) {
-    throw new ProtocolRequestError(
-      undefined,
-      "VALIDATION_FAILED",
-      `Operation ${method} requires an idempotency key`,
-    );
-  }
-  const request = createMessageFactory({ source, target })("request", {
-    method,
-    params: parseOperationParams(method, params),
+  const prepared = prepareOperationRequest(method, params, {
+    target,
     idempotencyKey: options.idempotencyKey,
     timeoutMs: options.timeoutMs,
   });
+  if (!prepared.ok) {
+    throw new ProtocolRequestError(
+      undefined,
+      prepared.error.code,
+      prepared.error.message,
+    );
+  }
+  const request = createMessageFactory({ source, target })(
+    "request",
+    prepared.data,
+  );
   const fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
   const response = await fetchImpl(
     normalizeApiPath(options.apiPath ?? "/api/protocol/v1"),

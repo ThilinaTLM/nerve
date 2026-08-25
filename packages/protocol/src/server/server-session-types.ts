@@ -12,13 +12,13 @@ import type {
   StreamCursor,
   StreamState,
 } from "@nervekit/contracts";
-import type { MessageFactory } from "../shared/messages.js";
+import type { MessageFactory } from "../core/messages.js";
 import type {
   ProtocolClock,
   ProtocolDiagnosticsPublisher,
   ProtocolTimers,
   StreamReader,
-} from "../shared/ports.js";
+} from "../core/ports.js";
 import type { RpcDispatcher } from "../rpc/rpc.js";
 
 export type ServerSessionState =

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AnyModel } from "../../../src/agent/types/index.js";
-import { AgentHarness } from "../../../src/harness/agent-harness.js";
-import { Conversation } from "../../../src/harness/conversation/conversation.js";
-import { InMemoryConversationStorage } from "../../../src/harness/conversation/memory-storage.js";
-import { AgentHarnessError } from "../../../src/harness/errors.js";
+import { AgentHarness } from "../../../src/runtime/agent-harness.js";
+import { Conversation } from "../../../src/runtime/conversation/conversation.js";
+import { InMemoryConversationStorage } from "../../../src/runtime/conversation/adapters/in-memory-storage.js";
+import { AgentHarnessError } from "../../../src/runtime/errors.js";
 
 const model = {
   id: "test-model",

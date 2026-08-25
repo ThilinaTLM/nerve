@@ -11,7 +11,7 @@ import {
   toolNameSchema,
 } from "@nervekit/contracts";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
-import type { RuntimeState } from "../../../runtime/runtime-state.js";
+import type { RuntimeState } from "../../../app/runtime/state.js";
 import { deriveConversationTitle } from "../../conversations/operations/index.js";
 
 export interface AppendEntryInput {

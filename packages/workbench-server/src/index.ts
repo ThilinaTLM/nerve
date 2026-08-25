@@ -1,8 +1,8 @@
 export {
-  createOrchestratorState,
+  createWorkbenchState,
   statusResponse,
   toDaemonFile,
-} from "./app/orchestrator-state.js";
+} from "./app/workbench-state.js";
 export { createApp } from "./app/server.js";
 export { version } from "./app/version.js";
 export * from "./infrastructure/network/index.js";

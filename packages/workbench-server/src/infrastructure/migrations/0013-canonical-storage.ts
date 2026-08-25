@@ -16,6 +16,10 @@ import { migration0015 as aggregateConversations } from "./v026-to-canonical/con
 import { migration0016 as normalizePermissions } from "./v026-to-canonical/permission-rules.js";
 import { migration0017 as createCanonicalStorage } from "./v026-to-canonical/canonical-sqlite.js";
 import { migration0019 as externalizeToolResults } from "./v026-to-canonical/tool-result-payloads.js";
+import {
+  applyCanonicalV3DataMigration,
+  canonicalMigration0003,
+} from "./canonical/0003-normalize-canonical-data.js";
 
 const markerPath = "migrations/.canonical-storage-v1";
 const sourcePhases = [
@@ -86,10 +90,14 @@ export const migration0013: StorageMigration = {
       );
       await externalizeToolResults.up(destination);
       await externalizeToolResults.verify(destination);
+      destination.transaction((database) => {
+        applyCanonicalV3DataMigration(database);
+      });
       dropRetiredProjectionTables(destination);
       await verifyFinalDatabase(destination);
       await removeSqliteSidecars(context.paths.sqlitePath);
       await retryRename(stagedPath, context.paths.sqlitePath);
+      await canonicalMigration0003.cleanup(context.paths.home);
       installed = true;
     } finally {
       if (!installed) await removeSqliteFiles(stagedPath);

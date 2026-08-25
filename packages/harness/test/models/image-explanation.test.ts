@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import { explainImageWithModel } from "../../src/models/image-explanation.js";
-import { registerManagedFauxProvider } from "../../src/models/provider-registry.js";
+import { registerManagedFauxProvider } from "../../src/models/model-registry.js";
 
 describe("explainImageWithModel", () => {
   it("streams thinking and text separately and returns only final text", async () => {

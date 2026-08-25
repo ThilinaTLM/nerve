@@ -10,13 +10,14 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
+import { CanonicalStore } from "../src/infrastructure/canonical-store/index.js";
 import { defaultSettings } from "@nervekit/contracts";
 import { EncryptedFileSecretProvider } from "../src/infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../src/infrastructure/storage/initialize.js";
 import {
   coordinateStorageStartup,
   StorageStartupError as LegacyHomeMigrationError,
-} from "../src/infrastructure/storage/startup-coordinator.js";
+} from "../src/infrastructure/migrations/import/startup-coordinator.js";
 import { inspectWorkbenchHome } from "../src/infrastructure/storage/state-layout.js";
 
 const roots: string[] = [];
@@ -171,19 +172,22 @@ describe("legacy workbench home migration", () => {
     );
     assert.equal(await exists(join(home, "logs", "app.jsonl")), false);
 
-    // Settings merge with defaults and survive validation.
-    const settings = JSON.parse(
-      await readFile(join(home, "config.json"), "utf8"),
-    ) as Record<string, unknown>;
-    assert.equal(settings.defaultThinkingLevel, "high");
-    assert.equal(settings.defaultMode, defaultSettings.defaultMode);
-
-    // The custom provider/model catalog is restored verbatim.
-    const catalog = JSON.parse(
-      await readFile(join(home, "providers.json"), "utf8"),
-    ) as typeof legacyCatalog;
-    assert.equal(catalog.providers[0]?.id, "my-proxy");
-    assert.equal(catalog.models[0]?.modelId, "proxy-large");
+    // Canonical state is authoritative; imported JSON compatibility files are removed.
+    assert.equal(await exists(join(home, "config.json")), false);
+    assert.equal(await exists(join(home, "providers.json")), false);
+    const canonical = new CanonicalStore(join(home, "state.sqlite"));
+    await canonical.initialize();
+    const settings = await canonical.readSettings<Record<string, unknown>>();
+    assert.equal(settings?.data.defaultThinkingLevel, "high");
+    assert.equal(settings?.data.defaultMode, defaultSettings.defaultMode);
+    const catalog = await canonical.readDocument<typeof legacyCatalog>(
+      "provider_catalog",
+      "global",
+      "catalog",
+    );
+    assert.equal(catalog?.data.providers[0]?.id, "my-proxy");
+    assert.equal(catalog?.data.models[0]?.modelId, "proxy-large");
+    await canonical.close();
 
     const targetSecrets = new EncryptedFileSecretProvider(home);
     const importedCredentials = new Map([

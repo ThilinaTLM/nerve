@@ -14,7 +14,7 @@ import type {
   CredentialKeyResponse,
   EncryptedSecretEnvelope,
 } from "@nervekit/contracts";
-import { createOrchestratorState } from "../src/app/orchestrator-state.js";
+import { createWorkbenchState } from "../src/app/workbench-state.js";
 import { createApp } from "../src/app/server.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 
@@ -70,7 +70,7 @@ function encryptApiKey(
 describe("server credential route auth", () => {
   it("lets an authenticated UI session manage credentials and rejects anonymous requests", async () => {
     const storage = await initializeStorage(await tempHome());
-    const state = createOrchestratorState(storage, "127.0.0.1", 0);
+    const state = createWorkbenchState(storage, "127.0.0.1", 0);
     const app = createApp(state);
     const cookie = `nerve_token=${storage.localToken}`;
 
@@ -152,7 +152,7 @@ describe("server credential route auth", () => {
       assert.equal(bearerMutation.status, 200);
       assert.equal(await state.auth.getApiKey("groq"), "sk-bearer");
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 });

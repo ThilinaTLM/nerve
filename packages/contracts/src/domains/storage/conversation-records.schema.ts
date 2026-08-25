@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { runRecordSchema } from "../runs/run-runtime.schema.js";
 import { toolCallRecordSchema } from "../tools/records.schema.js";
-import { conversationEntrySchema } from "../conversations/tree.schema.js";
+import { conversationEntrySchema } from "../conversations/conversation-state.schema.js";
 
 export const conversationRecordKindSchema = z.enum([
   "message",

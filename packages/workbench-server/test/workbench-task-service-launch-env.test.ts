@@ -99,7 +99,7 @@ describe("task manager launch env", () => {
       spawnedAt: "2026-01-02T03:05:05.000Z",
     });
     const { supervisor: firstSupervisor } = fakeSupervisor({ runtime });
-    const { manager, storage, index, launchConfigs } =
+    const { manager, storage, queryCache, launchConfigs } =
       await createManager(firstSupervisor);
     const task = await startFakeTask(manager, storage, env);
     const { supervisor, runtimeTerminateSignals, spawnCalls } = fakeSupervisor({
@@ -109,7 +109,7 @@ describe("task manager launch env", () => {
     const hydrated = new WorkbenchTaskService(
       storage,
       new StreamLogRegistry(storage.paths.home),
-      index,
+      queryCache,
       undefined,
       { supervisor, launchConfigs },
     );

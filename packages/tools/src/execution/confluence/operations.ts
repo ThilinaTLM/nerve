@@ -1,3 +1,4 @@
+import { optionalString } from "../atlassian/arguments.js";
 import { readFile } from "node:fs/promises";
 import type { ToolExecutionContext } from "../../types.js";
 import { ToolExecutionError } from "../common/tool-error.js";
@@ -19,7 +20,6 @@ import {
   type ConfluencePageRow,
   enumString,
   fetchPageCurrent,
-  optionalString,
   pageRowBody,
   pageRowVersionNumber,
   resolveSpaceId,

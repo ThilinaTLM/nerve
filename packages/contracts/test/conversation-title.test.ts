@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  deriveConversationTitle,
-  expandTruncatedConversationTitle,
-} from "../src/domains/conversations/title.js";
+import { deriveConversationTitle } from "../src/domains/conversations/conversation-title.js";
 
 describe("conversation titles", () => {
   it("prefers an actionable request over paths, logs, and execution details", () => {
@@ -111,21 +108,5 @@ describe("conversation titles", () => {
     );
     assert.equal(deriveConversationTitle("./screenshot.png"), "Image Review");
     assert.equal(deriveConversationTitle("  ?  "), "New Conversation");
-  });
-
-  it("expands only matching truncated legacy titles", () => {
-    const prompt = "Implement resilient protocol heartbeat validation.";
-    assert.equal(
-      expandTruncatedConversationTitle("Implement resilient protocol…", prompt),
-      "Implement resilient protocol heartbeat validation",
-    );
-    assert.equal(
-      expandTruncatedConversationTitle("Unrelated title…", prompt),
-      undefined,
-    );
-    assert.equal(
-      expandTruncatedConversationTitle("Complete title", prompt),
-      undefined,
-    );
   });
 });

@@ -5,9 +5,9 @@ The workbench server owns local runtime effects and authority boundaries: HTTP/W
 Root TypeScript files are entrypoints only: `index.ts` is the package API and `main.ts` is `@nervekit/workbench-server/main`.
 
 - `app/` composes the server, routes, protocol host, status, and version metadata.
-- `runtime/` composes server-owned host services and route-facing registries.
+- `app/runtime/` composes server-owned host services and route-facing registries.
 - `domains/<area>/` owns feature repositories/services for auth, agents, conversations, tools, tasks, projects, pinned commands, interactions, plans, Git, usage, providers, storage, and completions.
-- `infrastructure/` owns canonical SQLite storage, payload files, events, rebuildable projections, TLS, secrets, and diagnostics.
+- `infrastructure/` owns canonical SQLite storage, payload files, events, TLS, secrets, and diagnostics. `canonical-store/` is authoritative; `query-cache/` is a disposable, versioned read model rebuilt during hydration.
 - `http/` and `routes/` adapt authenticated HTTP/WebSocket requests to typed handlers.
 - `core/application-error.ts` defines transport-neutral domain failures; HTTP and protocol adapters map them at their boundaries.
 - `domains/filesystem/filesystem.service.ts` owns filesystem behavior shared by REST and protocol handlers.

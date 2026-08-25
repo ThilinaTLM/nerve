@@ -113,10 +113,7 @@ export async function executeWorkbenchHarness(
     });
     const conversation = this.deps.state.getConversation(agent.conversationId);
     const project = this.deps.state.getProject(agent.projectId);
-    const storage = await this.deps.harnessStorage.openStorage(
-      conversation,
-      project.dir,
-    );
+    const storage = await this.deps.harnessStorage.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
     const initialHarnessEntryIds = new Set(
       (await storage.getEntries()).map((entry) => entry.id),

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Type } from "typebox";
-import { AgentHarness } from "../../../src/harness/agent-harness.js";
-import { Conversation } from "../../../src/harness/conversation/conversation.js";
-import { InMemoryConversationStorage } from "../../../src/harness/conversation/memory-storage.js";
+import { AgentHarness } from "../../../src/runtime/agent-harness.js";
+import { Conversation } from "../../../src/runtime/conversation/conversation.js";
+import { InMemoryConversationStorage } from "../../../src/runtime/conversation/adapters/in-memory-storage.js";
 import { resolveAgentModel } from "../../../src/models/resolution.js";
 import { registerAgentScriptedProvider } from "../../../src/models/scripted-provider.js";
 import {

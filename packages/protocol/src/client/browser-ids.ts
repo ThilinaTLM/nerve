@@ -1,4 +1,4 @@
-import { createTransportId } from "../shared/ids.js";
+import { createTransportId } from "../core/ids.js";
 
 const CLIENT_ID_KEY = "nerve.protocol.clientId";
 const INSTANCE_ID_KEY = "nerve.protocol.instanceId";

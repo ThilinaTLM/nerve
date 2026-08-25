@@ -1,7 +1,7 @@
 import type { Api, ImageContent, Model } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "../agent/types/index.js";
 import { normalizeImagesForModel } from "./image-normalization.js";
-import { streamSimpleWithModel } from "./provider-registry.js";
+import { streamSimpleWithModel } from "./model-streaming.js";
 
 const IMAGE_EXPLANATION_PROMPT = `Explain this image comprehensively for another model that cannot see it.
 Be factual and precise. Include all visible text exactly, the layout and spatial relationships, objects and people, UI state, diagrams or charts, colors, and any details that may matter. Clearly distinguish direct observations from uncertain interpretations.`;

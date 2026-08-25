@@ -87,7 +87,7 @@ describe("RuntimeRegistry conversation branches", () => {
       assert.equal(exported.entries.length, 2);
       assert.equal(exported.entries[1]?.parentEntryId, exported.entries[0]?.id);
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 
@@ -154,7 +154,7 @@ describe("RuntimeRegistry conversation branches", () => {
         [],
       );
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 

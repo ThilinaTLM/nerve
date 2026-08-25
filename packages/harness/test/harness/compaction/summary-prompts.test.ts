@@ -5,7 +5,7 @@ import {
   SUMMARIZATION_PROMPT,
   SUMMARIZATION_SYSTEM_PROMPT,
   summarizationPrompts,
-} from "../../../src/harness/compaction/compaction.js";
+} from "../../../src/runtime/compaction/compaction.js";
 
 const requiredHeadings = [
   "Goal",

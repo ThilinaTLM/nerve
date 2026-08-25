@@ -13,10 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, it } from "node:test";
-import {
-  type DaemonStartupProgress,
-  defaultSettings,
-} from "@nervekit/contracts";
+import { defaultSettings } from "@nervekit/contracts";
 import { MIGRATION_0002_INDEX_SCHEMA_SQL } from "../src/infrastructure/migrations/released/0002-index-schema-snapshot.js";
 import {
   initializeStorage,
@@ -96,7 +93,7 @@ describe("settings migrations", () => {
 
     await assert.rejects(
       readCurrentSettingsForBootstrap(root),
-      /pending migration.*permission/i,
+      /settings.*unreadable/i,
     );
     const storage = await initializeStorage(root);
     stores.push(storage.canonicalStore);
@@ -181,25 +178,29 @@ describe("settings migrations", () => {
     }
   });
 
-  it("moves legacy server settings into application configuration", async () => {
+  it("normalizes a representative legacy settings document into canonical SQLite", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
     roots.push(root);
     const legacy = {
       ...defaultSettings,
       application: undefined,
       server: { host: "127.0.0.1", port: 4100, allowRemote: true },
+      ui: { theme: "dark", zoomLevel: 3, onboardingVersion: 4 },
+      notifications: {
+        systemEnabled: true,
+        soundsEnabled: true,
+        events: { question: "ping", completed: "kenney-switch-20" },
+      },
+      transcription: undefined,
+      tools: {
+        ...defaultSettings.tools,
+        disabled: ["python", "python", "explain_image"],
+        imageExplanation: undefined,
+      },
     };
     await writeFile(join(root, "config.json"), `${JSON.stringify(legacy)}\n`);
-    const progress: DaemonStartupProgress[] = [];
-    const storage = await initializeStorage(root, {
-      reportStartupProgress: (event) => progress.push(event),
-    });
+    const storage = await initializeStorage(root);
     stores.push(storage.canonicalStore);
-    assert.equal(progress[0]?.phase, "storage-check");
-    assert.equal(
-      progress.some((event) => event.phase === "storage-migration"),
-      true,
-    );
     assert.deepEqual(storage.settings.application.network, {
       host: "0.0.0.0",
       port: 4100,
@@ -207,113 +208,22 @@ describe("settings migrations", () => {
       mobileHttps: false,
       httpsPort: 3748,
     });
-    const persisted = JSON.parse(
-      await readFile(join(root, "config.json"), "utf8"),
-    ) as Record<string, unknown>;
-    assert.equal("server" in persisted, false);
-  });
-
-  for (const colorMode of ["system", "light", "dark"] as const) {
-    it(`migrates the legacy ${colorMode} appearance setting`, async () => {
-      const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
-      roots.push(root);
-      const configPath = join(root, "config.json");
-      await writeFile(
-        configPath,
-        `${JSON.stringify(
-          {
-            ...defaultSettings,
-            ui: { theme: colorMode, zoomLevel: 3, onboardingVersion: 4 },
-          },
-          null,
-          2,
-        )}\n`,
-        "utf8",
-      );
-
-      const storage = await initializeStorage(root);
-      stores.push(storage.canonicalStore);
-
-      assert.deepEqual(storage.settings.ui, {
-        theme: "nerve",
-        colorMode,
-        zoomLevel: 3,
-      });
-      const persisted = JSON.parse(await readFile(configPath, "utf8")) as {
-        ui: {
-          theme: string;
-          colorMode: string;
-          zoomLevel: number;
-        };
-      };
-      assert.deepEqual(persisted.ui, storage.settings.ui);
+    assert.deepEqual(storage.settings.ui, {
+      theme: "nerve",
+      colorMode: "dark",
+      zoomLevel: 3,
     });
-  }
-
-  it("backfills notification preferences for older settings files", async () => {
-    const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
-    roots.push(root);
-    const configPath = join(root, "config.json");
-    const legacySettings = {
-      ...defaultSettings,
-      notifications: { systemEnabled: true, soundsEnabled: true },
-    };
-    await writeFile(
-      configPath,
-      `${JSON.stringify(legacySettings, null, 2)}\n`,
-      "utf8",
-    );
-
-    const storage = await initializeStorage(root);
-    stores.push(storage.canonicalStore);
-
-    assert.deepEqual(storage.settings.notifications, {
-      systemEnabled: true,
-      soundsEnabled: true,
-      events: {
-        question: "bell",
-        planReview: "chime",
-        approval: "bell",
-        completed: "success",
-        failed: "alert",
-      },
-    });
-  });
-
-  it("replaces removed notification tones with event defaults", async () => {
-    const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
-    roots.push(root);
-    const configPath = join(root, "config.json");
-    await writeFile(
-      configPath,
-      `${JSON.stringify(
-        {
-          ...defaultSettings,
-          notifications: {
-            ...defaultSettings.notifications,
-            events: {
-              ...defaultSettings.notifications.events,
-              question: "ping",
-              completed: "kenney-switch-20",
-            },
-          },
-        },
-        null,
-        2,
-      )}\n`,
-      "utf8",
-    );
-
-    const storage = await initializeStorage(root);
-    stores.push(storage.canonicalStore);
-
     assert.equal(storage.settings.notifications.events.question, "ping");
     assert.equal(storage.settings.notifications.events.completed, "success");
-    const persisted = JSON.parse(await readFile(configPath, "utf8")) as {
-      notifications: { events: { question: string; completed: string } };
-    };
-    assert.equal(persisted.notifications.events.question, "ping");
-    assert.equal(persisted.notifications.events.completed, "success");
+    assert.deepEqual(
+      storage.settings.transcription,
+      defaultSettings.transcription,
+    );
+    assert.deepEqual(storage.settings.tools.disabled, [
+      "python_exec",
+      "explain_image",
+    ]);
+    await assert.rejects(readFile(join(root, "config.json")));
   });
 
   it("merges partial notification preference updates", async () => {
@@ -380,75 +290,5 @@ describe("settings migrations", () => {
       languages: ["en", "fr"],
       vocabulary: ["Nerve", "Codex CLI"],
     });
-  });
-
-  it("adds the image explanation tool as disabled to older settings", async () => {
-    const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
-    roots.push(root);
-    const configPath = join(root, "config.json");
-    const legacyTools: Partial<typeof defaultSettings.tools> = {
-      ...defaultSettings.tools,
-    };
-    delete legacyTools.imageExplanation;
-    await writeFile(
-      configPath,
-      `${JSON.stringify(
-        {
-          ...defaultSettings,
-          tools: { ...legacyTools, disabled: ["web_search"] },
-        },
-        null,
-        2,
-      )}\n`,
-      "utf8",
-    );
-
-    const storage = await initializeStorage(root);
-    stores.push(storage.canonicalStore);
-
-    assert.deepEqual(storage.settings.tools.disabled, [
-      "web_search",
-      "explain_image",
-    ]);
-    assert.deepEqual(storage.settings.tools.imageExplanation, {
-      thinkingLevel: "off",
-    });
-  });
-
-  it("migrates and deduplicates the legacy python disabled tool name", async () => {
-    const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
-    roots.push(root);
-    const configPath = join(root, "config.json");
-    await writeFile(
-      configPath,
-      `${JSON.stringify(
-        {
-          ...defaultSettings,
-          logging: { ...defaultSettings.logging, level: "debug" },
-          tools: {
-            ...defaultSettings.tools,
-            disabled: ["web_search", "python", "python_exec"],
-          },
-        },
-        null,
-        2,
-      )}\n`,
-      "utf8",
-    );
-
-    const storage = await initializeStorage(root);
-    stores.push(storage.canonicalStore);
-
-    assert.deepEqual(storage.settings.tools.disabled, [
-      "web_search",
-      "python_exec",
-    ]);
-    assert.equal(storage.settings.logging.level, "debug");
-    const persisted = JSON.parse(await readFile(configPath, "utf8")) as {
-      tools: { disabled: string[] };
-      logging: { level: string };
-    };
-    assert.deepEqual(persisted.tools.disabled, ["web_search", "python_exec"]);
-    assert.equal(persisted.logging.level, "debug");
   });
 });

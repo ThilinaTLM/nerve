@@ -21,16 +21,23 @@ import {
   publicEventDefinition,
   subscriptionStreamForNotification,
 } from "@nervekit/contracts";
-import { buildEventBatch, chunkEvents } from "../events/event-batch.js";
-import { PrioritizedMessageSender } from "../events/priority-sender.js";
+import { buildEventBatch, chunkEvents } from "../streams/event-batch.js";
+import { PrioritizedMessageSender } from "../streams/priority-sender.js";
 import { RpcClient, type RpcDispatcher } from "../rpc/rpc.js";
-import {
-  systemProtocolClock,
-  systemProtocolTimers,
-} from "../shared/runtime.js";
+import { systemProtocolClock, systemProtocolTimers } from "../core/runtime.js";
 import { ServerHeartbeat } from "./server-heartbeat.js";
-import { SessionStateError } from "../shared/session-errors.js";
-import { SessionEventBuffer } from "../events/session-event-buffer.js";
+import { SessionStateError } from "../core/session-errors.js";
+import { LiveEventBuffer } from "../streams/live-event-buffer.js";
+import {
+  NotificationBuffer,
+  type NotificationDefinition,
+} from "../streams/notification-buffer.js";
+import { OutgoingBufferBudget } from "../streams/outgoing-buffer-budget.js";
+import { matchesNegotiatedPeerBinding } from "../session/peer-binding.js";
+import {
+  dispatchInboundRpc,
+  handleInboundRpcResponse,
+} from "../session/inbound-rpc.js";
 import type {
   ServerSessionOptions,
   ServerSessionState,
@@ -48,7 +55,9 @@ export class ProtocolServerSession {
   readonly #timers: ReturnType<typeof resolveTimers>;
   readonly #sender: PrioritizedMessageSender;
   readonly #rpc: RpcClient;
-  readonly #eventBuffer: SessionEventBuffer;
+  readonly #liveEvents = new LiveEventBuffer();
+  readonly #notifications: NotificationBuffer;
+  readonly #bufferBudget: OutgoingBufferBudget;
   readonly #activeStreams = new Set<string>();
   readonly #streamStates = new Map<string, StreamState>();
   readonly #replaying = new Set<string>();
@@ -68,12 +77,14 @@ export class ProtocolServerSession {
     const clock = options.clock ?? systemProtocolClock;
     this.#timers = resolveTimers(options.timers);
     this.#sender = new PrioritizedMessageSender(options.send);
-    this.#eventBuffer = new SessionEventBuffer({
-      maxBufferedEvents: options.maxBufferedEvents ?? 10_000,
-      maxBufferedBytes: options.maxBufferedBytes ?? 16 * 1_024 * 1_024,
-      notifyQueueLimit: options.notifyQueueLimit ?? 256,
-      onOverflow: (message) => void this.#overflow(message),
-    });
+    this.#notifications = new NotificationBuffer(
+      options.notifyQueueLimit ?? 256,
+    );
+    this.#bufferBudget = new OutgoingBufferBudget(
+      options.maxBufferedEvents ?? 10_000,
+      options.maxBufferedBytes ?? 16 * 1_024 * 1_024,
+      (message) => void this.#overflow(message),
+    );
     this.#rpc = new RpcClient({
       createMessage: options.createMessage,
       send: options.send,
@@ -118,7 +129,7 @@ export class ProtocolServerSession {
     > &
       Partial<
         Pick<
-          import("../shared/messages.js").MessageFactoryOptions,
+          import("../core/messages.js").MessageFactoryOptions,
           "correlationId" | "causationId" | "traceId"
         >
       > = {},
@@ -175,7 +186,7 @@ export class ProtocolServerSession {
       this.#finalize(new Error("Protocol peer closed the session"));
       return;
     }
-    if (this.#rpc.handle(message)) return;
+    if (handleInboundRpcResponse(this.#rpc, message)) return;
     if (message.kind === "event.batch" && this.#options.onEventBatch) {
       await this.#options.onEventBatch(message);
       return;
@@ -215,37 +226,18 @@ export class ProtocolServerSession {
   async #dispatchRequest(
     message: ProtocolV1Message & { kind: "request" },
   ): Promise<void> {
-    const result = await this.#rpcDispatcher!.dispatch(message);
-    if (this.state !== "ready") return;
-    await this.#sendControl(
-      result.ok
-        ? this.#options.createMessage(
-            "response",
-            {
-              ok: true,
-              method: message.data.method,
-              result: result.result,
-            },
-            {
-              target: message.source,
-              replyTo: message.id,
-              correlationId: message.id,
-            },
-          )
-        : this.#options.createMessage("error", result.error, {
-            target: message.source,
-            replyTo: message.id,
-            correlationId: message.id,
-          }),
+    const response = await dispatchInboundRpc(
+      message,
+      this.#rpcDispatcher!,
+      this.#options.createMessage,
     );
+    if (this.state !== "ready") return;
+    await this.#sendControl(response);
   }
 
   async publish(stream: string, event: EventEnvelope): Promise<void> {
     if (this.state !== "ready" || !this.#activeStreams.has(stream)) return;
-    if (
-      !this.#eventBuffer.enqueueLive(stream, event, this.#replaying.has(stream))
-    )
-      return;
+    if (!this.#enqueueLive(stream, event)) return;
     this.#scheduleFlush();
   }
 
@@ -253,7 +245,7 @@ export class ProtocolServerSession {
     this.#activeStreams.delete(stream);
     this.#streamStates.delete(stream);
     this.#replaying.delete(stream);
-    this.#eventBuffer.removeStream(stream);
+    this.#liveEvents.remove(stream);
   }
 
   dispose(): void {
@@ -275,7 +267,7 @@ export class ProtocolServerSession {
       return;
     }
     if (
-      !this.#eventBuffer.enqueueNotification(event, definition, (data) =>
+      !this.#enqueueNotification(event, definition, (data) =>
         definition.payloadSchema.parse(data),
       )
     )
@@ -314,12 +306,12 @@ export class ProtocolServerSession {
       !this.#overflowed
     ) {
       this.#flushScheduled = false;
-      for (const [stream, events] of this.#eventBuffer.takePendingLive()) {
+      for (const [stream, events] of this.#liveEvents.takePending()) {
         if (!this.#activeStreams.has(stream) || this.#replaying.has(stream))
           continue;
         await this.#sendEvents(stream, events, "live", "live");
       }
-      const notifyEvents = this.#eventBuffer.takeNotifications();
+      const notifyEvents = this.#notifications.take();
       if (notifyEvents.length > 0) {
         await this.#sender.send(
           this.#options.createMessage(
@@ -510,7 +502,7 @@ export class ProtocolServerSession {
         this.#activeStreams.add(state.stream);
         this.#streamStates.set(state.stream, state);
       }
-      this.#eventBuffer.dropInactive(nextActive);
+      this.#liveEvents.dropInactive(nextActive);
       for (const cursor of acceptedCursors) {
         const mode = subscribed.find(
           (state) => state.stream === cursor.stream,
@@ -530,7 +522,7 @@ export class ProtocolServerSession {
           await this.#replayStream(cursor, state.latestSeq);
         }
         this.#replaying.delete(cursor.stream);
-        const buffered = this.#eventBuffer.takeReplayBuffered(cursor.stream);
+        const buffered = this.#liveEvents.takeReplay(cursor.stream);
         const fresh = buffered.filter((event) => event.seq > state.latestSeq);
         if (fresh.length > 0)
           await this.#sendEvents(cursor.stream, fresh, "live", "live");
@@ -636,16 +628,40 @@ export class ProtocolServerSession {
     await this.shutdown("resync_required", message);
   }
 
+  #enqueueLive(stream: string, event: EventEnvelope): boolean {
+    this.#liveEvents.enqueue(stream, event, this.#replaying.has(stream));
+    return this.#checkBufferBudget();
+  }
+
+  #enqueueNotification(
+    event: NotifyEvent,
+    definition: NotificationDefinition,
+    parseData: (data: unknown) => unknown,
+  ): boolean {
+    this.#notifications.enqueue(event, definition, parseData);
+    return this.#checkBufferBudget();
+  }
+
+  #checkBufferBudget(): boolean {
+    return this.#bufferBudget.check(
+      this.#liveEvents.all(),
+      this.#notifications.all(),
+    );
+  }
+
   #sendControl(message: NerveMessage): Promise<void> {
     return this.#sender.send(message, "control");
   }
 
   async #hasNegotiatedPeers(message: ProtocolV1Message): Promise<boolean> {
     if (!this.peer || !this.#negotiatedTarget) return false;
-    if (!samePeer(message.source, this.peer)) return false;
-    const negotiatedTargetAllowed =
-      samePeer(message.target, this.#options.acceptingPeer) &&
-      matchesAddressedPeer(this.#negotiatedTarget, message.target);
+    const negotiatedTargetAllowed = matchesNegotiatedPeerBinding(
+      message.source,
+      message.target,
+      this.peer,
+      this.#options.acceptingPeer,
+      this.#negotiatedTarget,
+    );
     if (!this.#options.authorizeTarget) return negotiatedTargetAllowed;
     return this.#options.authorizeTarget(message, {
       peer: this.peer,
@@ -661,7 +677,8 @@ export class ProtocolServerSession {
     this.#sender.close(error);
     this.#activeStreams.clear();
     this.#streamStates.clear();
-    this.#eventBuffer.clear();
+    this.#liveEvents.clear();
+    this.#notifications.clear();
   }
 }
 
@@ -673,20 +690,6 @@ function subscriptionMode(
   if (cursor.processedSeq + 1 < state.earliestAvailableSeq)
     return "snapshot_required";
   return cursor.processedSeq < state.latestSeq ? "replay" : "live";
-}
-
-function samePeer(left: PeerDescriptor, right: PeerDescriptor): boolean {
-  return left.role === right.role && left.id === right.id;
-}
-
-function matchesAddressedPeer(
-  addressed: PeerDescriptor,
-  actual: PeerDescriptor,
-): boolean {
-  return (
-    addressed.role === actual.role &&
-    (!addressed.id || addressed.id === actual.id)
-  );
 }
 
 function resolveTimers(timers: ServerSessionOptions["timers"]) {

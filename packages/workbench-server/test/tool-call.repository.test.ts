@@ -8,7 +8,7 @@ import {
   ToolCallRepository,
   ToolCallRevisionConflictError,
 } from "../src/domains/tools/tool-call.repository.js";
-import { RuntimeProjectionStore } from "../src/infrastructure/runtime-projection-store/index.js";
+import { RuntimeQueryCache } from "../src/infrastructure/query-cache/index.js";
 import { ToolResultPayloadStore } from "../src/domains/tools/tool-result-payload-store.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 
@@ -39,12 +39,12 @@ function toolCall(id: string): ToolCallRecord {
 
 async function repository(home: string) {
   const storage = await initializeStorage(home);
-  const index = new RuntimeProjectionStore(storage.paths.sqlitePath);
+  const queryCache = new RuntimeQueryCache(storage.paths.sqlitePath);
   const payloads = new ToolResultPayloadStore(home);
   return {
-    index,
+    queryCache,
     payloads,
-    repository: new ToolCallRepository(storage, index, payloads),
+    repository: new ToolCallRepository(storage, queryCache, payloads),
   };
 }
 
@@ -54,11 +54,11 @@ describe("canonical ToolCallRepository", () => {
     roots.push(home);
     const first = await repository(home);
     await first.repository.create(toolCall("tool_test"));
-    first.index.close();
+    first.queryCache.close();
     const second = await repository(home);
     await second.repository.hydrate();
     assert.equal(second.repository.get("tool_test").revision, 1);
-    second.index.close();
+    second.queryCache.close();
   });
 
   it("serializes CAS updates, rejects stale revisions, and freezes terminal records", async () => {
@@ -85,23 +85,23 @@ describe("canonical ToolCallRepository", () => {
       value.repository.replace("tool_test", 2, (current) => current),
       /immutable/,
     );
-    value.index.close();
+    value.queryCache.close();
   });
 
   it("hydrates terminal history into previews without retaining full records", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-repository-"));
     roots.push(home);
     const first = await repository(home);
-    for (let index = 0; index < 50; index += 1) {
+    for (let queryCache = 0; queryCache < 50; queryCache += 1) {
       await first.repository.create({
-        ...toolCall(`tool_terminal_${index}`),
+        ...toolCall(`tool_terminal_${queryCache}`),
         status: "completed",
         result: { content: "x".repeat(64 * 1024) },
         settledAt: "2026-07-25T00:00:00.000Z",
       });
     }
     await first.repository.create(toolCall("tool_active"));
-    first.index.close();
+    first.queryCache.close();
 
     const second = await repository(home);
     await second.repository.hydrate();
@@ -119,7 +119,7 @@ describe("canonical ToolCallRepository", () => {
       "completed",
     );
     assert.equal(second.repository.residentStats().cachedTerminalRecords, 1);
-    second.index.close();
+    second.queryCache.close();
   });
 
   it("loads complete details explicitly without hydrating transcript history", async () => {
@@ -147,16 +147,16 @@ describe("canonical ToolCallRepository", () => {
       value.repository.listPreviews({ limit: 10 })[0]?.resultPreview,
       { content: "bounded" },
     );
-    value.index.close();
+    value.queryCache.close();
   });
 
   it("pages previews stably by updated time and id", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-repository-"));
     roots.push(home);
     const value = await repository(home);
-    for (let index = 0; index < 5; index += 1) {
+    for (let queryCache = 0; queryCache < 5; queryCache += 1) {
       await value.repository.create({
-        ...toolCall(`tool_page_${index}`),
+        ...toolCall(`tool_page_${queryCache}`),
         status: "completed",
         result: "ok",
         settledAt: "2026-07-25T00:00:00.000Z",
@@ -182,6 +182,6 @@ describe("canonical ToolCallRepository", () => {
     });
     assert.equal(third.toolCalls.length, 1);
     assert.equal(third.nextCursor, undefined);
-    value.index.close();
+    value.queryCache.close();
   });
 });

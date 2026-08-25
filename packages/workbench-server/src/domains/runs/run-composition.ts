@@ -6,7 +6,7 @@ import {
 } from "./runtime/index.js";
 import type { DiagnosticPort } from "../../core/ports.js";
 import type { AgentRecord } from "@nervekit/contracts";
-import type { RuntimeState } from "../../runtime/runtime-state.js";
+import type { RuntimeState } from "../../app/runtime/state.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";

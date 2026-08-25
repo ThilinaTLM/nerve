@@ -12,7 +12,7 @@ import {
   getRegisteredModel,
   getRegisteredModels,
   isBuiltinProvider,
-} from "./provider-registry.js";
+} from "./model-registry.js";
 import { getScriptedProviderModel } from "./scripted-provider.js";
 import type {
   AgentCustomModel,

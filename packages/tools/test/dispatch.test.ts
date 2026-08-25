@@ -5,7 +5,8 @@ import { writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { describe, it } from "node:test";
 import { HTML_CONVERSION_MAX_INPUT_BYTES } from "../src/execution/common/isolated-html-to-markdown.js";
-import { executeTool, resolvePythonRuntime } from "../src/execution/index.js";
+import { executeTool } from "../src/execution/dispatch.js";
+import { resolvePythonRuntime } from "../src/execution/python/runtime.js";
 import { createTempProject } from "./helpers.js";
 
 describe("executeTool dispatch", () => {
