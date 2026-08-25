@@ -20,7 +20,7 @@ describe("daemon profile policy", () => {
     );
     assert.equal(
       defaults.localTokenPath,
-      join("/home/test", ".nerve", "auth", "local-token"),
+      join("/home/test", ".nerve", "secrets", "daemon-token"),
     );
 
     const explicit = resolveDaemonPaths(

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { defineOperation } from "../protocol/operation-definition.schema.js";
-import { promptImageSchema } from "./agent.schema.js";
+import { promptImageSchema } from "./prompt.schema.js";
 
 const agentIdSchema = z.string().startsWith("agent_");
 const conversationIdSchema = z.string().startsWith("conv_");

@@ -9,10 +9,6 @@ export function executeCanonicalCommand(
     case "initialize":
       database.initialize();
       return undefined;
-    case "read_settings":
-      return database.readSettings();
-    case "write_settings":
-      return database.writeSettings(command.data, command.expectedRevision);
     case "read_document":
       return database.readDocument(
         command.namespace,

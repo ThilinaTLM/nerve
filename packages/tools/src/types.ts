@@ -31,6 +31,8 @@ export type ToolExecutionContext = {
   cwd: string;
   signal?: AbortSignal;
   dataDir?: string;
+  /** Host-owned durable directory for files produced by this tool call. */
+  artifactDir?: string;
   shellPath?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
   getProviderConfig?: (provider: string) => Promise<unknown>;

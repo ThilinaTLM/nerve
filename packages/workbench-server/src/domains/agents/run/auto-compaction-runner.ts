@@ -10,6 +10,7 @@ import {
   shouldAutoCompact,
 } from "@nervekit/harness";
 import type { AgentRecord, ContextUsage } from "@nervekit/contracts";
+import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";
 import type { WorkbenchAgentMechanicsDeps } from "./workbench-agent-mechanics.js";
 
 const MAX_AUTO_CONTINUATIONS_PER_RUN = 3;
@@ -110,11 +111,17 @@ export class AutoCompactionRunner {
     conversation: Conversation;
     signal?: AbortSignal;
   }): Promise<boolean> {
-    const settings = this.deps.storage.settings.compaction;
-    if (!settings.auto) return false;
     const conversation = this.deps.state.getConversation(input.conversationId);
     const agent = this.resolveAgent(conversation.activeAgentId, input.agentId);
-    const contextWindow = getModelContextWindow(agent?.model);
+    const settings = agent
+      ? (await resolveProjectSettings(this.deps.storage, agent.projectDir))
+          .compaction
+      : this.deps.storage.settings.compaction;
+    if (!settings.auto) return false;
+    const contextWindow = getModelContextWindow(
+      agent?.model,
+      (await this.deps.customModels?.(agent?.projectDir)) ?? [],
+    );
     const policy = deriveAutoCompactionPolicy(contextWindow, settings);
     if (!policy.enabled || contextWindow <= 0) return false;
 

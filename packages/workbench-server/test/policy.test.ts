@@ -116,7 +116,7 @@ describe("Workbench tool permission", () => {
   });
 
   it("allows plan writes and edits only inside the plan or system temporary directories", () => {
-    const planPath = join(context.dataDir, "plans", "example.md");
+    const planPath = join(context.dataDir, "data", "plans", "example.md");
     const insidePlanDir = evaluateWorkbenchToolPermission(
       agent("supervised", "planning"),
       "write",
@@ -168,7 +168,7 @@ describe("Workbench tool permission", () => {
   });
 
   it("keeps explicit plan-write denials stronger than planning auto-allow", () => {
-    const planPath = join(context.dataDir, "plans", "blocked.md");
+    const planPath = join(context.dataDir, "data", "plans", "blocked.md");
     const rule: PermissionRule = {
       id: "rule_block_plan_write",
       scope: "project",

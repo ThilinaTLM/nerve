@@ -1,15 +1,27 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { CanonicalStore } from "../src/infrastructure/canonical-store/index.js";
+import {
+  CANONICAL_SCHEMA_CHECKSUM,
+  CANONICAL_SCHEMA_SQL,
+} from "../src/infrastructure/canonical-store/schema.js";
+
+test("canonical schema checksum matches the v1 SQL", () => {
+  assert.equal(
+    createHash("sha256").update(CANONICAL_SCHEMA_SQL).digest("hex"),
+    CANONICAL_SCHEMA_CHECKSUM,
+  );
+});
 
 test("canonical documents use revision compare-and-swap", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-store-"));
   t.after(() => rm(home, { recursive: true, force: true }));
-  const store = new CanonicalStore(join(home, "state.sqlite"));
+  const store = new CanonicalStore(join(home, "data", "nerve.sqlite"));
   await store.initialize();
   const first = await store.writeDocument({
     namespace: "test",
@@ -35,7 +47,7 @@ test("canonical documents use revision compare-and-swap", async (t) => {
 test("canonical events are dense per stream and idempotent by durable intent", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-events-"));
   t.after(() => rm(home, { recursive: true, force: true }));
-  const store = new CanonicalStore(join(home, "state.sqlite"));
+  const store = new CanonicalStore(join(home, "data", "nerve.sqlite"));
   await store.initialize();
   const input = {
     stream: "workspace",
@@ -106,7 +118,7 @@ test("canonical events are dense per stream and idempotent by durable intent", a
 test("newer and checksum-drifted SQLite schemas are refused", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-version-"));
   t.after(() => rm(home, { recursive: true, force: true }));
-  const path = join(home, "state.sqlite");
+  const path = join(home, "data", "nerve.sqlite");
   const store = new CanonicalStore(path);
   await store.initialize();
   await store.close();

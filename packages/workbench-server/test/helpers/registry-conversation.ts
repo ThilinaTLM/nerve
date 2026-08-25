@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after } from "node:test";
@@ -8,6 +8,7 @@ import {
   createId,
   type TaskRecord,
 } from "@nervekit/contracts";
+import { TaskRepository } from "../../src/domains/tasks/task.repository.js";
 import {
   createWorkbenchState,
   shutdownWorkbenchState,
@@ -85,8 +86,7 @@ export async function addTaskRecord(
   },
 ): Promise<TaskRecord> {
   const id = createId("task");
-  const dir = join(state.storage.paths.home, "tasks", id);
-  await mkdir(dir, { recursive: true });
+  const logsPath = join(state.storage.paths.tasksPath, `${id}.logs.jsonl`);
   const now = new Date().toISOString();
   const record: TaskRecord = {
     id,
@@ -97,15 +97,16 @@ export async function addTaskRecord(
     command: "echo test",
     status: input.status,
     readiness: { outcome: "none" },
-    stdoutPath: join(dir, "stdout.log"),
-    stderrPath: join(dir, "stderr.log"),
-    logsPath: join(dir, "logs.jsonl"),
+    stdoutPath: logsPath,
+    stderrPath: logsPath,
+    combinedPath: logsPath,
+    logsPath,
     startedAt: now,
     updatedAt: now,
   };
   state.registry.tasks.tasks.set(record.id, record);
   state.queryCache.upsertTask(record);
-  await writeFile(join(dir, "task.json"), `${JSON.stringify(record)}\n`);
+  await new TaskRepository(state.storage).write(record);
   return record;
 }
 

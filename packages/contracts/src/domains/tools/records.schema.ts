@@ -269,6 +269,11 @@ export const toolResultPayloadReferenceSchema = z
     kind: z.literal("tool_result"),
     conversationId: z.string().startsWith("conv_").max(256),
     toolCallId: z.string().startsWith("tool_").max(256),
+    logicalPath: z
+      .string()
+      .regex(
+        /^payloads\/conversations\/[^/]+\/tool-calls\/[^/]+\/result\.json$/,
+      ),
     digest: z.string().regex(/^[a-f0-9]{64}$/),
     byteLength: z.number().int().nonnegative().safe(),
     mediaType: z.literal("application/json"),

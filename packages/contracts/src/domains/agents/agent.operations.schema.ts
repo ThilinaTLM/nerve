@@ -6,9 +6,9 @@ import {
 import {
   agentRecordSchema,
   createAgentRequestSchema,
-  queuedPromptRecordSchema,
   updateAgentRequestSchema,
 } from "./agent.schema.js";
+import { queuedPromptRecordSchema } from "./prompt.schema.js";
 import { subagentTranscriptSnapshotSchema } from "./subagent-transcript.schema.js";
 import { z } from "zod";
 import { defineOperation } from "../protocol/operation-definition.schema.js";

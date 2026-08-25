@@ -13,7 +13,7 @@ import {
   permissionExceptionSchema,
   permissionLevelSchema,
 } from "../permissions/permissions.schema.js";
-import { userConfigurableToolNameSchema } from "../tools/records.schema.js";
+import { userConfigurableToolNameSchema } from "../tools/tool-name.schema.js";
 
 export const modeSchema = z.enum(["planning", "coding"]);
 export type Mode = z.infer<typeof modeSchema>;

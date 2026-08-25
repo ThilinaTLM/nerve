@@ -76,7 +76,9 @@ describe("LiveToolOutputPublisher", () => {
       offset += event.delta.length;
     }
     await assert.rejects(
-      readFile(join(home, "conversations", "conv_test", "events.jsonl")),
+      readFile(
+        join(home, "logs", "events", "conversations", "conv_test.jsonl"),
+      ),
       /ENOENT/,
     );
     await events.shutdown();

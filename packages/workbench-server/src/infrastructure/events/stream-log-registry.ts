@@ -393,8 +393,20 @@ function streamPaths(
   const conversationId = parseConversationStream(stream);
   if (conversationId) {
     return {
-      logPath: join(home, "conversations", conversationId, "events.jsonl"),
-      metaPath: join(home, "conversations", conversationId, "events.meta.json"),
+      logPath: join(
+        home,
+        "logs",
+        "events",
+        "conversations",
+        `${conversationId}.jsonl`,
+      ),
+      metaPath: join(
+        home,
+        "logs",
+        "events",
+        "conversations",
+        `${conversationId}.meta.json`,
+      ),
     };
   }
   const safeStream = stream.replaceAll(/[^a-zA-Z0-9._-]/g, "_");

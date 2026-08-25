@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, open, readFile, readdir, rm, truncate } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import { CanonicalStore } from "../../infrastructure/canonical-store/index.js";
+import { storagePaths } from "../../infrastructure/storage/paths.js";
 import {
   deserializeState,
   serializeState,
@@ -73,25 +72,20 @@ export class ConversationJournalRepository {
   private readonly states = new Map<string, ConversationJournalState>();
   private readonly locks = journalLocks;
 
-  private readonly canonical?: CanonicalStore;
+  private readonly canonical: CanonicalStore;
   private readonly ready: Promise<void>;
   constructor(
     private readonly storage: {
       paths: { home: string; sqlitePath?: string };
       canonicalStore?: CanonicalStore;
     },
-    private readonly options: { legacyFileMode?: boolean } = {},
   ) {
-    if (!options.legacyFileMode) {
-      this.canonical =
-        storage.canonicalStore ??
-        new CanonicalStore(
-          storage.paths.sqlitePath ?? join(storage.paths.home, "state.sqlite"),
-        );
-      this.ready = this.canonical.initialize();
-    } else {
-      this.ready = Promise.resolve();
-    }
+    this.canonical =
+      storage.canonicalStore ??
+      new CanonicalStore(
+        storage.paths.sqlitePath ?? storagePaths(storage.paths.home).sqlitePath,
+      );
+    this.ready = this.canonical.initialize();
   }
 
   homePath(): string {
@@ -102,35 +96,16 @@ export class ConversationJournalRepository {
     this.states.delete(conversationId);
   }
 
-  journalPath(conversationId: string): string {
-    return join(
-      this.storage.paths.home,
-      "conversations",
-      conversationId,
-      "journal.jsonl",
-    );
-  }
-
   async hydrateAll(
     options: { fresh?: boolean } = {},
   ): Promise<ConversationJournalState[]> {
-    const root = join(this.storage.paths.home, "conversations");
-    const directories = await readdir(root, { withFileTypes: true }).catch(
-      () => [],
-    );
     await this.ready;
     const states: ConversationJournalState[] = [];
     const conversationIds = new Set(
-      (this.canonical
-        ? await this.canonical.listDocumentKeys("conversation_state")
-        : []
-      ).map((document) => document.scopeId),
+      (await this.canonical.listDocumentKeys("conversation_state")).map(
+        (document) => document.scopeId,
+      ),
     );
-    for (const directory of directories) {
-      if (directory.isDirectory() && directory.name.startsWith("conv_")) {
-        conversationIds.add(directory.name);
-      }
-    }
     for (const conversationId of [...conversationIds].sort()) {
       const state = options.fresh
         ? await this.loadFresh(conversationId)
@@ -241,19 +216,7 @@ export class ConversationJournalRepository {
       });
       const next = cloneState(state);
       applyCommit(next, parsed);
-      if (this.options.legacyFileMode) {
-        const path = this.journalPath(conversationId);
-        await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-        const handle = await open(path, "a", 0o600);
-        try {
-          await handle.write(`${JSON.stringify(parsed)}\n`, undefined, "utf8");
-          await handle.sync();
-        } finally {
-          await handle.close();
-        }
-      } else {
-        await this.persistState(next, parsed);
-      }
+      await this.persistState(next, parsed);
       this.states.set(conversationId, next);
       return parsed;
     });
@@ -262,18 +225,14 @@ export class ConversationJournalRepository {
   async remove(conversationId: string): Promise<void> {
     await this.exclusive(conversationId, async () => {
       this.states.delete(conversationId);
-      await this.canonical?.deleteConversationState(conversationId);
-      await rm(dirname(this.journalPath(conversationId)), {
-        recursive: true,
-        force: true,
-      });
+      await this.canonical.deleteConversationState(conversationId);
     });
   }
 
   async loadFresh(conversationId: string): Promise<ConversationJournalState> {
     await this.ready;
     const stored =
-      await this.canonical?.readDocument<SerializedConversationState>(
+      await this.canonical.readDocument<SerializedConversationState>(
         "conversation_state",
         conversationId,
         "state",
@@ -283,55 +242,7 @@ export class ConversationJournalRepository {
       this.states.set(conversationId, restored);
       return restored;
     }
-    const path = this.journalPath(conversationId);
     const state = emptyState(conversationId);
-    let raw: string;
-    try {
-      raw = await readFile(path, "utf8");
-    } catch (error) {
-      if (errorCode(error) === "ENOENT") {
-        this.states.set(conversationId, state);
-        return state;
-      }
-      throw error;
-    }
-    // Every committed record is newline-terminated. A non-terminated suffix is
-    // an interrupted append even when its JSON happens to be parseable.
-    if (raw.length > 0 && !raw.endsWith("\n")) {
-      const completeBytes = raw.lastIndexOf("\n") + 1;
-      await truncate(path, Buffer.byteLength(raw.slice(0, completeBytes)));
-      raw = raw.slice(0, completeBytes);
-    }
-    const lines = raw.split("\n");
-    let consumedBytes = 0;
-    for (let index = 0; index < lines.length; index += 1) {
-      const line = lines[index] ?? "";
-      const bytes = Buffer.byteLength(`${line}\n`);
-      if (!line.trim()) {
-        consumedBytes += bytes;
-        continue;
-      }
-      let commit: ConversationJournalCommit;
-      try {
-        const decoded = JSON.parse(line) as unknown;
-        commit = conversationJournalCommitSchema.parse(decoded);
-      } catch (error) {
-        const isFinalRecord = index === lines.length - 1;
-        if (!isFinalRecord) {
-          throw new Error(
-            `Conversation journal '${conversationId}' is corrupt at line ${index + 1}.`,
-            { cause: error },
-          );
-        }
-        await truncate(path, consumedBytes);
-        break;
-      }
-      verifyCommit(state, commit);
-      applyCommit(state, commit);
-      consumedBytes += bytes;
-    }
-    if (state.revision > 0 && !this.options.legacyFileMode)
-      await this.persistState(state);
     this.states.set(conversationId, state);
     return state;
   }
@@ -341,7 +252,7 @@ export class ConversationJournalRepository {
     commit?: ConversationJournalCommit,
   ): Promise<void> {
     await this.ready;
-    await this.canonical!.persistConversationState(
+    await this.canonical.persistConversationState(
       serializeState(state),
       commit,
     );
@@ -369,28 +280,6 @@ export class ConversationJournalRepository {
 
 export function journalChecksum(value: unknown): string {
   return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
-}
-
-function verifyCommit(
-  state: ConversationJournalState,
-  commit: ConversationJournalCommit,
-): void {
-  if (commit.conversationId !== state.conversationId) {
-    throw new Error("Conversation journal commit identity mismatch.");
-  }
-  if (
-    commit.previousRevision !== state.revision ||
-    commit.revision !== state.revision + 1
-  ) {
-    throw new Error("Conversation journal revision chain is invalid.");
-  }
-  if (commit.previousChecksum !== state.checksum) {
-    throw new Error("Conversation journal checksum chain is invalid.");
-  }
-  const { checksum, ...base } = commit;
-  if (journalChecksum(base) !== checksum) {
-    throw new Error("Conversation journal commit checksum is invalid.");
-  }
 }
 
 function applyCommit(
@@ -631,10 +520,4 @@ function cloneState(state: ConversationJournalState): ConversationJournalState {
     idempotencyKeys: new Map(state.idempotencyKeys),
     intentConversationRevisions: new Map(state.intentConversationRevisions),
   };
-}
-
-function errorCode(error: unknown): string | undefined {
-  return error && typeof error === "object" && "code" in error
-    ? String((error as { code?: unknown }).code)
-    : undefined;
 }

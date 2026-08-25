@@ -24,7 +24,7 @@ import {
 import {
   type QueuedPromptRecord,
   queuedPromptRecordSchema,
-} from "../agents/agent.schema.js";
+} from "../agents/prompt.schema.js";
 import {
   type ContextUsage,
   contextUsageSchema,

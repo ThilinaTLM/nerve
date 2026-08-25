@@ -116,7 +116,7 @@ test("conversation commits materialize typed records and durable events", async 
       },
     ],
   });
-  const database = new DatabaseSync(join(home, "state.sqlite"));
+  const database = new DatabaseSync(join(home, "data", "nerve.sqlite"));
   t.after(() => database.close());
   const record = database
     .prepare(
@@ -159,7 +159,7 @@ test("hot journal commits update only affected materialized records", async (t) 
     ],
   });
 
-  const database = new DatabaseSync(join(home, "state.sqlite"));
+  const database = new DatabaseSync(join(home, "data", "nerve.sqlite"));
   t.after(() => database.close());
   database.exec(`
     CREATE TABLE record_delete_audit (id TEXT NOT NULL) STRICT;
@@ -224,7 +224,7 @@ test("conversation storage fails closed on malformed canonical state and bad ref
       },
     ],
   });
-  const database = new DatabaseSync(join(home, "state.sqlite"));
+  const database = new DatabaseSync(join(home, "data", "nerve.sqlite"));
   database
     .prepare(
       `UPDATE domain_documents SET data = ?

@@ -117,17 +117,6 @@ export class CanonicalStore {
     return this.writer.request<T>(command);
   }
 
-  readSettings<T>() {
-    return this.request<
-      { revision: number; data: T; updatedAt: string } | undefined
-    >({ kind: "read_settings" });
-  }
-  writeSettings<T>(data: T, expectedRevision?: number) {
-    return this.request<{ revision: number; data: T; updatedAt: string }>(
-      { kind: "write_settings", data, expectedRevision },
-      true,
-    );
-  }
   readDocument<T>(namespace: string, scopeId: string, documentId: string) {
     return this.request<CanonicalDocument<T> | undefined>(
       { kind: "read_document", namespace, scopeId, documentId },

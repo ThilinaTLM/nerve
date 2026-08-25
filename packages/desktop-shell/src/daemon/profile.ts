@@ -21,7 +21,7 @@ export function resolveDaemonPaths(
   return {
     home: resolved,
     daemonPath: join(resolved, "daemon.json"),
-    localTokenPath: join(resolved, "auth", "local-token"),
+    localTokenPath: join(resolved, "secrets", "daemon-token"),
   };
 }
 

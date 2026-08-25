@@ -127,6 +127,10 @@ export const permissionRuleSchema = z
     toolName: z.string().trim().min(1).max(128),
     matcherKind: permissionRuleMatcherKindSchema,
     pattern: z.string().trim().min(1).max(1_024),
+    sourceDigest: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     enabled: z.boolean(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),

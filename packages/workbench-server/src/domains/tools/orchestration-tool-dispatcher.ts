@@ -32,7 +32,11 @@ import {
   type HostToolFactory,
 } from "./host-tool-factory.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import { join } from "node:path";
+import {
+  storagePaths,
+  type InitializedStorage,
+} from "../../infrastructure/storage/index.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
 import { isActiveTaskStatus } from "../tasks/index.js";
@@ -245,6 +249,15 @@ export class OrchestrationToolDispatcher {
       cwd: toolCall.cwd,
       signal: options.signal,
       dataDir: this.deps.storage.paths.home,
+      artifactDir: join(
+        this.deps.storage.paths.payloadsPath ??
+          storagePaths(this.deps.storage.paths.home).payloadsPath,
+        "conversations",
+        toolCall.conversationId,
+        "tool-calls",
+        toolCall.id,
+        "files",
+      ),
       shellPath: this.deps.storage.settings.runtime.shellPath,
       getApiKey: async (provider) => {
         const credentialProvider = integrationCredentialProvider(

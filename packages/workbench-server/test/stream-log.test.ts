@@ -264,7 +264,7 @@ describe("StreamLogRegistry", () => {
           if (
             holdConversationRewrite &&
             !heldConversationRewrite &&
-            target.endsWith("events.jsonl")
+            target.endsWith("conv_slow_flush.jsonl")
           ) {
             heldConversationRewrite = true;
             renameStarted.resolve();
@@ -324,7 +324,7 @@ describe("StreamLogRegistry", () => {
           if (
             holdConversationRewrite &&
             !heldConversationRewrite &&
-            target.endsWith("events.jsonl")
+            target.endsWith("conv_retention_queue.jsonl")
           ) {
             heldConversationRewrite = true;
             renameStarted.resolve();
@@ -367,13 +367,12 @@ describe("StreamLogRegistry", () => {
         replay.events.map((event) => event.seq),
         [3, 4],
       );
-      const conversationDir = join(
-        home,
-        "conversations",
-        "conv_retention_queue",
-      );
+      const conversationDir = join(home, "logs", "events", "conversations");
       const persisted = (
-        await readFile(join(conversationDir, "events.jsonl"), "utf8")
+        await readFile(
+          join(conversationDir, "conv_retention_queue.jsonl"),
+          "utf8",
+        )
       )
         .trim()
         .split("\n")

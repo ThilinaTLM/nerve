@@ -11,6 +11,7 @@ import { ApplicationError } from "../../core/application-error.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import { resolveProjectSettings } from "../../infrastructure/configuration/index.js";
 import type { RuntimeState } from "../../app/runtime/state.js";
 import type { AgentStatus } from "../../app/runtime/types.js";
 import type { ConversationService } from "../conversations/conversation-service.js";
@@ -79,13 +80,17 @@ export class AgentLifecycleService {
     const now = new Date().toISOString();
     const id = createId("agent");
     const projectDir = resolve(request.projectDir ?? project.dir);
-    const defaultSelection = this.storage.settings.rememberLastAgentSelection
-      ? this.storage.settings.lastAgentSelection
+    const effectiveSettings = await resolveProjectSettings(
+      this.storage,
+      projectDir,
+    );
+    const defaultSelection = effectiveSettings.rememberLastAgentSelection
+      ? effectiveSettings.lastAgentSelection
       : {
-          mode: this.storage.settings.defaultMode,
-          permissionLevel: this.storage.settings.defaultPermissionLevel,
-          model: this.storage.settings.defaultModel,
-          thinkingLevel: this.storage.settings.defaultThinkingLevel,
+          mode: effectiveSettings.defaultMode,
+          permissionLevel: effectiveSettings.defaultPermissionLevel,
+          model: effectiveSettings.defaultModel,
+          thinkingLevel: effectiveSettings.defaultThinkingLevel,
         };
     const mode = request.mode ?? (parent ? parent.mode : conversation.mode);
     const permissionLevel =

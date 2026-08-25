@@ -30,6 +30,7 @@ import {
   filesystemProjectEntriesQuerySchema,
   filesystemProjectEntryCreateRequestSchema,
 } from "@nervekit/contracts";
+import { storagePaths } from "../../infrastructure/storage/paths.js";
 
 async function pathExists(path: string): Promise<boolean> {
   try {
@@ -124,15 +125,15 @@ function timestampSlug(date = new Date()): string {
     .replace(/\.\d{3}Z$/, "Z");
 }
 
-export async function saveClipboardImage(input: unknown) {
+export async function saveClipboardImage(input: unknown, storageHome: string) {
   const request = clipboardImageUploadRequestSchema.parse(input);
   const type = request.type.toLowerCase();
   const ext = imageExtensionByMime.get(type);
   if (!ext)
     throw new Error(`Unsupported clipboard image type: ${request.type}`);
 
-  const dir = join(tmpdir(), "nerve");
-  await mkdir(dir, { recursive: true });
+  const dir = storagePaths(storageHome).imagesPath;
+  await mkdir(dir, { recursive: true, mode: 0o700 });
   const filePath = join(
     dir,
     `${slugifyName(request.name)}-${timestampSlug()}.${ext}`,

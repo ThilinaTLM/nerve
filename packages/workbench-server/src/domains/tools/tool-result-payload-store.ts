@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { chmod, lstat, mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { atomicWriteFile } from "../../infrastructure/storage/file-mutations.js";
+import { storagePaths } from "../../infrastructure/storage/paths.js";
 
 const PAYLOAD_GRACE_MS = 24 * 60 * 60 * 1000;
 
@@ -24,7 +25,7 @@ export class ToolResultPayloadStore {
   readonly root: string;
 
   constructor(readonly home: string) {
-    this.root = join(home, "payloads");
+    this.root = storagePaths(home).payloadsPath;
   }
 
   async initialize(): Promise<void> {
@@ -54,6 +55,7 @@ export class ToolResultPayloadStore {
       kind: "tool_result",
       conversationId,
       toolCallId,
+      logicalPath: `payloads/conversations/${conversationId}/tool-calls/${toolCallId}/result.json`,
       digest,
       byteLength: bytes.byteLength,
       mediaType: "application/json",
@@ -61,7 +63,7 @@ export class ToolResultPayloadStore {
       completeness,
     };
     const path = this.path(reference);
-    await this.ensurePrivateDirectory(conversationId);
+    await this.ensurePrivateDirectory(conversationId, toolCallId);
     await atomicWriteFile(path, bytes, { mode: 0o600 });
     await chmod(path, 0o600).catch(() => undefined);
     await this.verify(reference);
@@ -81,7 +83,23 @@ export class ToolResultPayloadStore {
       "conversations",
       reference.conversationId,
       "tool-calls",
-      `${reference.toolCallId}.json`,
+      reference.toolCallId,
+      "result.json",
+    );
+    assertWithin(this.root, candidate);
+    return candidate;
+  }
+
+  filesPath(conversationId: string, toolCallId: string): string {
+    assertOwnerId(conversationId, "conv_");
+    assertOwnerId(toolCallId, "tool_");
+    const candidate = join(
+      this.root,
+      "conversations",
+      conversationId,
+      "tool-calls",
+      toolCallId,
+      "files",
     );
     assertWithin(this.root, candidate);
     return candidate;
@@ -131,34 +149,45 @@ export class ToolResultPayloadStore {
         conversation.name,
         "tool-calls",
       );
-      const files = await readdir(callsRoot, { withFileTypes: true }).catch(
+      const calls = await readdir(callsRoot, { withFileTypes: true }).catch(
         () => [],
       );
-      for (const file of files) {
-        if (!file.isFile() || file.isSymbolicLink()) {
+      for (const call of calls) {
+        if (!call.isDirectory() || call.isSymbolicLink()) {
           skipped += 1;
           continue;
         }
-        const path = join(callsRoot, file.name);
-        if (referenced.has(resolve(path))) continue;
-        const info = await lstat(path).catch(() => undefined);
+        const callPath = join(callsRoot, call.name);
+        const resultPath = join(callPath, "result.json");
+        if (referenced.has(resolve(resultPath))) continue;
+        const info = await lstat(resultPath).catch(() => undefined);
         if (!info || now - info.mtimeMs < PAYLOAD_GRACE_MS) {
           skipped += 1;
           continue;
         }
-        await rm(path, { force: true });
+        await rm(callPath, { recursive: true, force: true });
         removed += 1;
       }
     }
     return { removed, skipped };
   }
 
-  private async ensurePrivateDirectory(conversationId: string): Promise<void> {
+  private async ensurePrivateDirectory(
+    conversationId: string,
+    toolCallId: string,
+  ): Promise<void> {
     const directories = [
       this.root,
       join(this.root, "conversations"),
       join(this.root, "conversations", conversationId),
       join(this.root, "conversations", conversationId, "tool-calls"),
+      join(
+        this.root,
+        "conversations",
+        conversationId,
+        "tool-calls",
+        toolCallId,
+      ),
     ];
     for (const directory of directories) {
       await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -172,12 +201,22 @@ export class ToolResultPayloadStore {
     }
   }
 
-  private async assertDirectoryChain(conversationId: string): Promise<void> {
+  private async assertDirectoryChain(
+    conversationId: string,
+    toolCallId: string,
+  ): Promise<void> {
     const directories = [
       this.root,
       join(this.root, "conversations"),
       join(this.root, "conversations", conversationId),
       join(this.root, "conversations", conversationId, "tool-calls"),
+      join(
+        this.root,
+        "conversations",
+        conversationId,
+        "tool-calls",
+        toolCallId,
+      ),
     ];
     for (const directory of directories) {
       let info;
@@ -201,7 +240,10 @@ export class ToolResultPayloadStore {
     reference: ToolResultPayloadReference,
   ): Promise<Buffer> {
     const path = this.path(reference);
-    await this.assertDirectoryChain(reference.conversationId);
+    await this.assertDirectoryChain(
+      reference.conversationId,
+      reference.toolCallId,
+    );
     let info;
     try {
       info = await lstat(path);

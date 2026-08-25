@@ -123,7 +123,7 @@ describe("tool service lifecycle", () => {
     );
     assert.equal(payload.toolCall.contentIndex, 2);
 
-    const database = new DatabaseSync(join(home, "state.sqlite"));
+    const database = new DatabaseSync(join(home, "data", "nerve.sqlite"));
     const stored = database
       .prepare(`SELECT data FROM conversation_records WHERE id = ?`)
       .get(toolCall.id) as { data: Uint8Array };

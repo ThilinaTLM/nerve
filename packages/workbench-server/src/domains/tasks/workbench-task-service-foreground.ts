@@ -1,4 +1,3 @@
-import { open } from "node:fs/promises";
 import {
   buildProcessResult,
   buildProcessTextResult,
@@ -18,47 +17,21 @@ export async function buildForegroundBashResult(
 ): Promise<ToolExecutionResult> {
   const task = this.getTask(taskId);
   const retention = task.outputRetention;
-  const tailChunks = retention?.tailPath
-    ? await this.taskLogs.readTail(task)
-    : [];
-  const [stdoutHead, stderrHead, combinedHead] = await Promise.all([
-    readBoundedFile(task.stdoutPath),
-    readBoundedFile(task.stderrPath),
-    task.combinedPath
-      ? readBoundedFile(task.combinedPath)
-      : Promise.resolve(Buffer.alloc(0)),
-  ]);
-  const omission = retention?.truncated
-    ? Buffer.from(
-        `\n[${retention.omittedBytes} output bytes omitted by task retention]\n`,
-      )
-    : tailChunks.length > 0
-      ? Buffer.from(
-          "\n[output middle omitted from inline result; retained in task logs]\n",
-        )
-      : Buffer.alloc(0);
-  const stdout = combineSnapshot(
-    stdoutHead,
-    omission,
-    tailChunks
-      .filter((chunk) => chunk.stream === "stdout")
-      .map((chunk) => chunk.text)
+  const events = await this.taskLogs.readLogEvents(task.logsPath);
+  const stdout = Buffer.from(
+    events
+      .filter((event) => event.stream === "stdout")
+      .map((event) => `${event.line}\n`)
       .join(""),
   );
-  const stderr = combineSnapshot(
-    stderrHead,
-    omission,
-    tailChunks
-      .filter((chunk) => chunk.stream === "stderr")
-      .map((chunk) => chunk.text)
+  const stderr = Buffer.from(
+    events
+      .filter((event) => event.stream === "stderr")
+      .map((event) => `${event.line}\n`)
       .join(""),
   );
-  const combined = combineSnapshot(
-    combinedHead.length > 0
-      ? combinedHead
-      : Buffer.concat([stdoutHead, stderrHead]),
-    omission,
-    tailChunks.map((chunk) => chunk.text).join(""),
+  const combined = Buffer.from(
+    events.map((event) => `${event.line}\n`).join(""),
   );
   const timedOut = task.status === "timed_out";
   return buildProcessResult({
@@ -77,53 +50,7 @@ export async function buildForegroundBashResult(
       execution: { disposition: "completed" },
       ...(retention ? { outputRetention: retention } : {}),
     },
-    contentFooterLines:
-      retention && retention.totalBytes > combined.length
-        ? ["Output preview is bounded; use task_logs for retained diagnostics."]
-        : [],
   });
-}
-
-const RESULT_HEAD_MAX_BYTES = 16 * 1024;
-const RESULT_TAIL_MAX_BYTES = 16 * 1024;
-const RESULT_FILE_MAX_BYTES = RESULT_HEAD_MAX_BYTES + RESULT_TAIL_MAX_BYTES;
-
-async function readBoundedFile(path: string): Promise<Buffer> {
-  const handle = await open(path, "r").catch(() => undefined);
-  if (!handle) return Buffer.alloc(0);
-  try {
-    const stat = await handle.stat();
-    if (stat.size <= RESULT_FILE_MAX_BYTES) {
-      const buffer = Buffer.alloc(stat.size);
-      const { bytesRead } = await handle.read(buffer, 0, stat.size, 0);
-      return buffer.subarray(0, bytesRead);
-    }
-    const head = Buffer.alloc(RESULT_HEAD_MAX_BYTES);
-    const tail = Buffer.alloc(RESULT_TAIL_MAX_BYTES);
-    const [headRead, tailRead] = await Promise.all([
-      handle.read(head, 0, head.length, 0),
-      handle.read(tail, 0, tail.length, Math.max(0, stat.size - tail.length)),
-    ]);
-    return Buffer.concat([
-      head.subarray(0, headRead.bytesRead),
-      Buffer.from(
-        `\n[${stat.size - headRead.bytesRead - tailRead.bytesRead} bytes omitted from inline result; retained in task logs]\n`,
-      ),
-      tail.subarray(0, tailRead.bytesRead),
-    ]);
-  } finally {
-    await handle.close();
-  }
-}
-
-function combineSnapshot(head: Buffer, omission: Buffer, tail: string): Buffer {
-  if (omission.length === 0) return head;
-  const tailBuffer = Buffer.from(tail);
-  const boundedTail =
-    tailBuffer.length > RESULT_TAIL_MAX_BYTES
-      ? tailBuffer.subarray(tailBuffer.length - RESULT_TAIL_MAX_BYTES)
-      : tailBuffer;
-  return Buffer.concat([head, omission, boundedTail]);
 }
 
 function commandDisplayName(command: string): string {

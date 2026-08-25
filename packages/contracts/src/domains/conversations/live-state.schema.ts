@@ -4,7 +4,7 @@ import { boundedPublicObjectSchema } from "../events/bounded-public-data.schema.
 import {
   type QueuedPromptRecord,
   queuedPromptRecordSchema,
-} from "../agents/agent.schema.js";
+} from "../agents/prompt.schema.js";
 import {
   type ContextUsage,
   contextUsageSchema,

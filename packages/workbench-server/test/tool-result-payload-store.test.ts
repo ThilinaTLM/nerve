@@ -40,11 +40,13 @@ describe("ToolResultPayloadStore", () => {
     });
     const path = join(
       home,
+      "data",
       "payloads",
       "conversations",
       "conv_test",
       "tool-calls",
-      "tool_test.json",
+      "tool_test",
+      "result.json",
     );
     assert.match(await readFile(path, "utf8"), /^\{\n {2}"a": "first"/);
   });
@@ -72,7 +74,7 @@ describe("ToolResultPayloadStore", () => {
     await payloads.initialize();
     const target = join(home, "escape");
     await mkdir(target);
-    await symlink(target, join(home, "payloads", "conversations"));
+    await symlink(target, join(home, "data", "payloads", "conversations"));
     await assert.rejects(
       payloads.write("conv_test", "tool_test", "no escape"),
       ToolResultPayloadCorruptError,

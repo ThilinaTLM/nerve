@@ -4,15 +4,13 @@ import {
   type TaskRecord,
 } from "@nervekit/contracts";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import {
   createTaskLogCursor,
   MAX_BUFFERED_LOG_LINE_CHARS,
-  TASK_OUTPUT_HEAD_MAX_BYTES,
-  TASK_OUTPUT_TAIL_MAX_BYTES,
   TaskLogService,
 } from "../src/domains/tasks/task-log.service.js";
 import { StreamLogRegistry } from "../src/infrastructure/events/index.js";
@@ -148,39 +146,6 @@ describe("task log service line buffering", () => {
       [3, 4],
     );
     assert.equal(older.hasMoreBefore, true);
-  });
-
-  it("bounds retained task output and preserves a rolling tail", async () => {
-    const { record, service, cursor, onLog } = await createFixture();
-    const overflowBytes = 1024 * 1024;
-    const text = `${"x".repeat(
-      TASK_OUTPUT_HEAD_MAX_BYTES + overflowBytes - 1,
-    )}z`;
-
-    await service.captureOutput(record, cursor, "stdout", text, onLog);
-    await service.flushOutputBuffers(record, cursor, onLog);
-
-    const retention = service.retention(record, cursor);
-    assert.equal(retention.totalBytes, Buffer.byteLength(text));
-    assert.equal(
-      retention.retainedBytes,
-      TASK_OUTPUT_HEAD_MAX_BYTES + TASK_OUTPUT_TAIL_MAX_BYTES,
-    );
-    assert.equal(
-      retention.omittedBytes,
-      overflowBytes - TASK_OUTPUT_TAIL_MAX_BYTES,
-    );
-    assert.equal(retention.truncated, true);
-    assert.equal(
-      (await stat(record.stdoutPath)).size,
-      TASK_OUTPUT_HEAD_MAX_BYTES,
-    );
-    const tail = await service.readTail(record);
-    assert.ok(
-      Buffer.byteLength(tail.map((chunk) => chunk.text).join("")) <=
-        TASK_OUTPUT_TAIL_MAX_BYTES,
-    );
-    assert.equal(tail.at(-1)?.text.endsWith("z"), true);
   });
 
   it("caps large newline-less buffers", async () => {

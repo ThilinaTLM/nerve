@@ -137,6 +137,8 @@ describe("explain_image transcript preview", () => {
       resultPayload: {
         version: 1 as const,
         kind: "tool_result" as const,
+        logicalPath:
+          "payloads/conversations/conv_test/tool-calls/tool_test/result.json",
         conversationId: "conv_01H00000000000000000000000",
         toolCallId: "tool_01H00000000000000000000000",
         digest: "a".repeat(64),

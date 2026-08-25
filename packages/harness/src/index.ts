@@ -57,7 +57,6 @@ export {
   getModelContextWindow,
   listAvailableModels,
   resolveAgentModel,
-  setCustomModelProvider,
 } from "./models/resolution.js";
 export { registerAgentScriptedProvider } from "./models/scripted-provider.js";
 export {

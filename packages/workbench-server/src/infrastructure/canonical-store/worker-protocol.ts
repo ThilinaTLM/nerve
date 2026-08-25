@@ -4,8 +4,6 @@ import type { SerializedConversationState } from "../../domains/conversations/co
 
 export type CanonicalCommand =
   | { kind: "initialize" }
-  | { kind: "read_settings" }
-  | { kind: "write_settings"; data: unknown; expectedRevision?: number }
   | {
       kind: "read_document";
       namespace: string;
@@ -84,7 +82,6 @@ export type CanonicalWorkerResponse =
     };
 
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
-  "read_settings",
   "read_document",
   "list_documents",
   "list_permission_rules",

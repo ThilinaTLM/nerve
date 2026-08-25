@@ -1,6 +1,6 @@
-import { join } from "node:path";
 import { z } from "zod";
 import { CanonicalStore } from "../../infrastructure/canonical-store/index.js";
+import { storagePaths } from "../../infrastructure/storage/paths.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 
 const enablementRecordSchema = z.object({
@@ -22,7 +22,7 @@ export class PromptSuggestionEnablementRepository {
     this.store =
       storage.canonicalStore ??
       new CanonicalStore(
-        storage.paths.sqlitePath ?? join(storage.paths.home, "state.sqlite"),
+        storage.paths.sqlitePath ?? storagePaths(storage.paths.home).sqlitePath,
       );
     this.ready = storage.canonicalStore
       ? Promise.resolve()

@@ -1,18 +1,8 @@
-import { join } from "node:path";
 import { type ProjectRecord, projectRecordSchema } from "@nervekit/contracts";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 
 export class ProjectRepository {
   constructor(private readonly storage: InitializedStorage) {}
-
-  projectDir(projectId: string): string {
-    return join(this.storage.paths.home, "projects", projectId);
-  }
-
-  /** Retained only as a path helper for user-authored project sidecars. */
-  projectPath(projectId: string): string {
-    return join(this.projectDir(projectId), "project.json");
-  }
 
   async loadAll(): Promise<ProjectRecord[]> {
     return (

@@ -226,17 +226,11 @@ describe("task manager foreground bash auto-promotion", () => {
 
     assert.equal(result.kind, "completed_foreground");
     assert.match(result.result.content ?? "", /BEGIN-/);
-    assert.match(
-      result.result.content ?? "",
-      /bytes omitted from inline result/,
-    );
+    assert.match(result.result.content ?? "", /output exceeded inline limits/);
     const details = result.result.details as { fullOutputPath?: string };
     assert.ok(details.fullOutputPath);
     assert.match(await readFile(details.fullOutputPath, "utf8"), /-END/);
-    assert.match(
-      result.result.content ?? "",
-      /use task_logs for retained diagnostics/i,
-    );
+    assert.match(result.result.content ?? "", /use read with offset\/limit/i);
   });
 
   it("captures output before delayed runtime identity resolves", async () => {

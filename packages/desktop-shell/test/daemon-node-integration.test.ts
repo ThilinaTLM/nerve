@@ -95,7 +95,7 @@ describe("daemon Node health integration", () => {
         findHealthyDaemon({
           home: root,
           daemonPath,
-          localTokenPath: join(root, "auth", "local-token"),
+          localTokenPath: join(root, "secrets", "daemon-token"),
         }),
         /refusing to start a second daemon/,
       );

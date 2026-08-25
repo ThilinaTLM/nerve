@@ -1,9 +1,6 @@
 import { join } from "node:path";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
-import {
-  registerManagedProvider,
-  setCustomModelProvider,
-} from "@nervekit/harness";
+import { registerManagedProvider } from "@nervekit/harness";
 import {
   allOperationDefinitions,
   type ApplicationConfigurationSnapshot,
@@ -86,7 +83,7 @@ export function createWorkbenchState(
     resourceContainment?: ManagedResourceContainmentStatus;
   } = {},
 ): WorkbenchState {
-  // Rebuildable read model; canonical state.sqlite remains authoritative.
+  // Rebuildable read model; data/nerve.sqlite remains authoritative.
   const queryCache = new RuntimeQueryCache(
     join(storage.paths.home, "cache", "query-cache.sqlite"),
   );
@@ -178,7 +175,6 @@ export function createWorkbenchState(
     models: piModels,
   });
   const providerCatalog = new ProviderCatalogStore(storage);
-  setCustomModelProvider(() => providerCatalog.resolvedModels());
   const credentialKey = new CredentialKeyService();
   const oauthFlows = new OAuthFlowManager(auth, events);
   const subscriptionUsage = new SubscriptionUsageService({
@@ -208,7 +204,7 @@ export function createWorkbenchState(
   const storageCleanup = new StorageCleanupService({
     paths: storage.paths,
     repository: new StorageCleanupRepository(
-      join(storage.paths.home, "maintenance", "storage-cleanup.json"),
+      join(storage.paths.dataPath, "maintenance", "storage-cleanup.json"),
     ),
     usage: storageUsage,
     events,
