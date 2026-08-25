@@ -95,17 +95,8 @@ export const toolBatchRecordPayloadV1Schema = z.object({
   toolCallIds: z.array(z.string().startsWith("tool_")).min(2).max(64),
   state: z.unknown(),
 });
-
-export const conversationRecordPayloadV1Schema = z.union([
-  messageRecordPayloadV1Schema,
-  summaryRecordPayloadV1Schema,
-  runRecordPayloadV1Schema,
-  toolCallRecordPayloadV1Schema,
-  toolCallRecordPayloadV2Schema,
-  toolBatchRecordPayloadV1Schema,
-]);
-export type ConversationRecordPayloadV1 = z.infer<
-  typeof conversationRecordPayloadV1Schema
+export type ToolBatchRecordPayloadV1 = z.infer<
+  typeof toolBatchRecordPayloadV1Schema
 >;
 
 export const durableEventRecordSchema = z.object({

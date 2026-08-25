@@ -15,7 +15,7 @@ import type { WorkbenchExploreAdmission } from "../agents/run/workbench-explore-
 import type { WorkbenchSubagentExecutions } from "../agents/run/workbench-subagent-executions.js";
 import type { ToolService } from "../tools/tool-service.js";
 import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
-import { WorkbenchRunCancellation } from "./run-cancellation.js";
+import { WorkbenchRunCancellation } from "./adapters/workbench-run-cancellation.js";
 import {
   WorkbenchRunEventPublisher,
   WorkbenchRunNotifyPublisher,
@@ -23,13 +23,13 @@ import {
 import {
   WorkbenchRunExecutionFactory,
   type WorkbenchRunExecutionAdapter,
-} from "./run-execution.js";
-import { WorkbenchRunIntegrity } from "./run-integrity.js";
+} from "./adapters/workbench-run-execution.js";
+import { WorkbenchRunIntegrity } from "./adapters/workbench-run-integrity.js";
 import { WorkbenchLiveExecutions } from "./run-live-executions.js";
 import { WorkbenchRunReferences } from "./run-references.js";
 import { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
 import { WorkbenchRunProjector } from "./workbench-run-projector.js";
-import { WorkbenchRunTerminalization } from "./run-terminalization.js";
+import { WorkbenchRunTerminalization } from "./adapters/workbench-run-terminalization.js";
 
 export interface WorkbenchRunRuntime {
   coordinator: RunCoordinator;

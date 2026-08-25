@@ -1,25 +1,19 @@
 import { createHash } from "node:crypto";
 import type { StorageMigration } from "./migration.js";
 import { MigrationError } from "./migration.js";
-import { migration0001 } from "./migrations/0001-v2-storage-baseline.js";
-import { migration0002 } from "./migrations/0002-current-index-baseline.js";
-import { migration0003 } from "./migrations/0003-normalize-current-settings.js";
-import { migration0004 } from "./migrations/0004-dense-event-stream-layout.js";
-import { migration0005 } from "./migrations/0005-current-project-sidecars.js";
-import { migration0006 } from "./migrations/0006-unify-tool-call-lifecycle.js";
-import { migration0007 } from "./migrations/0007-transient-conversation-live-events.js";
-import { migration0008 } from "./migrations/0008-remove-legacy-storage.js";
-import { migration0009 } from "./migrations/0009-native-task-runtimes.js";
-import { migration0010 } from "./migrations/0010-integration-provider-profiles.js";
-import { migration0011 } from "./migrations/0011-import-legacy-portable-state.js";
-import { migration0012 } from "./migrations/0012-remove-workers.js";
-import { migration0013 } from "./migrations/0013-permission-settings.js";
-import { migration0014 } from "./migrations/0014-fixed-supervised-baseline.js";
-import { migration0015 } from "./migrations/0015-conversation-aggregate-journals.js";
-import { migration0016 } from "./migrations/0016-permission-rules.js";
-import { migration0017 } from "./migrations/0017-canonical-sqlite.js";
-import { migration0018 } from "./migrations/0018-dense-durable-event-stream-sequences.js";
-import { migration0019 } from "./migrations/0019-tool-result-payload-files.js";
+import { migration0001 } from "./released/0001-v2-storage-baseline.js";
+import { migration0002 } from "./released/0002-current-index-baseline.js";
+import { migration0003 } from "./released/0003-normalize-current-settings.js";
+import { migration0004 } from "./released/0004-dense-event-stream-layout.js";
+import { migration0005 } from "./released/0005-current-project-sidecars.js";
+import { migration0006 } from "./released/0006-unify-tool-call-lifecycle.js";
+import { migration0007 } from "./released/0007-transient-conversation-live-events.js";
+import { migration0008 } from "./released/0008-remove-legacy-storage.js";
+import { migration0009 } from "./released/0009-native-task-runtimes.js";
+import { migration0010 } from "./released/0010-integration-provider-profiles.js";
+import { migration0011 } from "./released/0011-import-legacy-portable-state.js";
+import { migration0012 } from "./released/0012-remove-workers.js";
+import { migration0013 } from "./0013-canonical-storage.js";
 
 export const storageMigrationRegistry: readonly StorageMigration[] =
   Object.freeze([
@@ -36,12 +30,6 @@ export const storageMigrationRegistry: readonly StorageMigration[] =
     migration0011,
     migration0012,
     migration0013,
-    migration0014,
-    migration0015,
-    migration0016,
-    migration0017,
-    migration0018,
-    migration0019,
   ]);
 
 export function validateMigrationRegistry(

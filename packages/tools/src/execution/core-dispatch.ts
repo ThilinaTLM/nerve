@@ -1,5 +1,6 @@
 import type { ToolName } from "@nervekit/contracts";
 import { toolDefinitionByName } from "../catalog/manifest.js";
+import { normalizeToolArguments } from "../catalog/normalize-arguments.js";
 import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
 import { ToolExecutionError } from "./common/tool-error.js";
 
@@ -22,8 +23,5 @@ export async function executeTool(
     );
   }
 
-  const prepared = definition.prepareArguments
-    ? definition.prepareArguments(args)
-    : args;
-  return definition.executor(prepared as Record<string, unknown>, context);
+  return definition.executor(normalizeToolArguments(definition, args), context);
 }

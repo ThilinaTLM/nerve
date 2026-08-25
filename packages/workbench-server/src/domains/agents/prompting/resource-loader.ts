@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { AvailableSkillsResponse } from "@nervekit/contracts";
-import { loadSkills, NodeExecutionEnv, type Skill } from "@nervekit/harness";
+import { loadSkills, type Skill } from "@nervekit/harness";
+import { NodeExecutionEnv } from "@nervekit/harness/node";
 import { resolveDataDir } from "../../../infrastructure/storage/paths.js";
 
 const CONTEXT_FILE_CANDIDATES = ["AGENTS.md", "AGENTS.MD"];

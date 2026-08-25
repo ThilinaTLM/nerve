@@ -10,11 +10,11 @@ import {
 } from "@nervekit/tools";
 import {
   loadSkills,
-  NodeExecutionEnv,
   type Skill,
   validateDescription,
   validateName,
 } from "@nervekit/harness";
+import { NodeExecutionEnv } from "@nervekit/harness/node";
 
 const commandTimeoutMs = 15_000;
 const commandMaxBuffer = 4 * 1024 * 1024;

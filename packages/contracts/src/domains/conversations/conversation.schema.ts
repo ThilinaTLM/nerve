@@ -66,10 +66,7 @@ export interface ConversationRunCancelledData {
   conversationId: string;
   agentId: string;
   runId: string;
-  /** Optional only so durable events from earlier builds remain replayable. */
-  projectId?: string;
-  /** Legacy redundant discriminator accepted at the event boundary. */
-  status?: "cancelled";
+  projectId: string;
   cancelledAt: string;
 }
 
@@ -704,8 +701,7 @@ const conversationRunCancelledDataSchema = z.object({
   conversationId: z.string().startsWith("conv_"),
   agentId: z.string().startsWith("agent_"),
   runId: runIdSchema,
-  projectId: z.string().startsWith("proj_").optional(),
-  status: z.literal("cancelled").optional(),
+  projectId: z.string().startsWith("proj_"),
   cancelledAt: z.string().datetime(),
 });
 

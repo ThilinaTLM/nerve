@@ -174,7 +174,7 @@ function parseArrayArgument<T>(value: T): T {
   }
 }
 
-function prepareEditArguments(input: unknown): EditParameters {
+function normalizeEditArguments(input: unknown): EditParameters {
   if (!input || typeof input !== "object") return input as EditParameters;
   const args = {
     ...(input as Record<string, unknown>),
@@ -330,7 +330,7 @@ export const filesystemToolDefinitions = [
     description:
       "Edit one existing file with replacements, insertions, line edits, or a single-file patch; fails on ambiguous edits.",
     parameters: editParameters,
-    prepareArguments: prepareEditArguments,
+    normalizeArguments: normalizeEditArguments,
     executionMode: "sequential",
   },
   {

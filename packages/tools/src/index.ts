@@ -62,11 +62,9 @@ export * from "./git/git-status.js";
 export * from "./runtime/index.js";
 export {
   hasDangerousCommandPattern,
-  hasShellControlOperator,
   isAllowedPlanModeBashCommand,
-  isKnownReadOnlyCommand,
   isLikelyLongRunningCommand,
-} from "./safety/command-policy.js";
+} from "./policy/shell/plan-mode.js";
 export * from "./types.js";
 export * from "./policy/index.js";
 

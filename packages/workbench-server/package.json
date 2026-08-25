@@ -31,7 +31,7 @@
     "check": "tsc -b --pretty false",
     "dev": "tsx src/main.ts",
     "test": "tsx --test test/*.test.ts",
-    "test:migrations": "tsx --test test/file-mutations.test.ts test/storage-migrations.test.ts test/storage-settings-migration.test.ts test/project-permissions.test.ts",
+    "test:migrations": "tsx --test test/canonical-storage-migration.test.ts test/file-mutations.test.ts test/storage-migrations.test.ts test/storage-settings-migration.test.ts test/project-permissions.test.ts",
     "test:native": "tsx --test test/file-mutations.test.ts test/process-runtime-driver.test.ts test/task-port-inspector.test.ts test/task-scope.test.ts test/task-supervisor.test.ts"
   },
   "dependencies": {

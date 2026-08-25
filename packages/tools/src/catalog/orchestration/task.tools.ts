@@ -1,6 +1,6 @@
 import type { ToolRisk } from "@nervekit/contracts";
 import { Type } from "typebox";
-import { hasDangerousCommandPattern } from "../../safety/command-policy.js";
+import { hasDangerousCommandPattern } from "../../policy/shell/plan-mode.js";
 import type { ToolDefinition } from "../types.js";
 
 const taskStartParameters = Type.Object(

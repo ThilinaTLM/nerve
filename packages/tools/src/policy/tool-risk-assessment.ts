@@ -1,6 +1,6 @@
 import type { ToolName } from "@nervekit/contracts";
 import { requireToolDefinition } from "../catalog/manifest.js";
-import { assessShellCommand } from "./shell-command-assessment.js";
+import { assessShellCommand } from "./shell/assessment.js";
 import type { ToolRiskAssessment } from "./types.js";
 
 export function assessToolRisk(
