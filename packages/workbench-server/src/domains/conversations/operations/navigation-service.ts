@@ -87,11 +87,7 @@ export class NavigationService {
     targetEntryId: string | undefined,
     instructions?: string,
   ): Promise<ConversationEntry | undefined> {
-    const project = this.getProject(conversation.projectId);
-    const storage = await this.harnessStorage.openStorage(
-      conversation,
-      project.dir,
-    );
+    const storage = await this.harnessStorage.openStorage(conversation);
     const oldLeafId = await storage.getLeafId();
     if (oldLeafId === (targetEntryId ?? null)) return undefined;
 

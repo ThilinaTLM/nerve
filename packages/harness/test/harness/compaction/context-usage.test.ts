@@ -5,9 +5,9 @@ import {
   computeContextUsage,
   estimateContextTokens,
   getCompactionDecisionTokens,
-} from "../../../src/harness/compaction/compaction.js";
-import { buildConversationContext } from "../../../src/harness/conversation/conversation.js";
-import type { ConversationTreeEntry } from "../../../src/harness/conversation/entries.js";
+} from "../../../src/runtime/compaction/compaction.js";
+import { buildConversationContext } from "../../../src/runtime/conversation/conversation.js";
+import type { ConversationTreeEntry } from "../../../src/runtime/conversation/entries.js";
 import type { AgentMessage } from "../../../src/agent/types/index.js";
 
 const contextWindow = 200_000;

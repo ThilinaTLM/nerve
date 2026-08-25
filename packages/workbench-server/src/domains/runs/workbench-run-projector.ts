@@ -9,7 +9,7 @@ import {
   type RunHydratedState,
   type RunTransitionObserverPort,
 } from "./runtime/index.js";
-import type { RuntimeState } from "../../runtime/runtime-state.js";
+import type { RuntimeState } from "../../app/runtime/state.js";
 
 export class WorkbenchRunProjector implements RunTransitionObserverPort {
   constructor(

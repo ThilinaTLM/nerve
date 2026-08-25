@@ -1,4 +1,10 @@
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import {
+  optionalBoolean,
+  optionalString,
+  optionalStringArray,
+  requiredString,
+} from "../atlassian/arguments.js";
 import { ToolExecutionError } from "../common/tool-error.js";
 import {
   confluenceRequest,
@@ -29,15 +35,11 @@ import {
   valuesFromConfluenceList,
   writeConfluenceArtifact,
 } from "./format.js";
+import { boundedNumber } from "../atlassian/arguments.js";
 import {
-  boundedNumber,
   enumString,
   fetchPageCurrent,
-  optionalBoolean,
-  optionalString,
-  optionalStringArray,
   readSinglePageRow,
-  requiredString,
   resolveSpaceId,
 } from "./helpers.js";
 import {

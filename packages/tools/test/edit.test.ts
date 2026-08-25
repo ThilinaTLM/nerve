@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { executeEdit, ToolExecutionError } from "../src/execution/index.js";
+import { executeEdit } from "../src/execution/filesystem/edit.js";
+import { ToolExecutionError } from "../src/execution/common/tool-error.js";
 import { createTempProject } from "./helpers.js";
 
 async function rejectsWithCode(

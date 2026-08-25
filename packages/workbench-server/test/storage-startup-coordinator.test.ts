@@ -6,7 +6,7 @@ import { afterEach, describe, it } from "node:test";
 import {
   coordinateStorageStartup,
   StorageStartupError,
-} from "../src/infrastructure/storage/startup-coordinator.js";
+} from "../src/infrastructure/migrations/import/startup-coordinator.js";
 
 const roots: string[] = [];
 

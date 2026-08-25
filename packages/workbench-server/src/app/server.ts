@@ -11,14 +11,14 @@ import {
 } from "../http/request-context.js";
 import { serveStatic } from "../http/static-files.js";
 import { mountApiRoutes } from "../routes/index.js";
-import type { OrchestratorState } from "./orchestrator-state.js";
+import type { WorkbenchState } from "./workbench-state.js";
 import { version } from "./version.js";
 
 export { isWebSocketAuthorized } from "../http/auth-middleware.js";
 
 function remoteUiAuthRedirect(
   request: Request,
-  state: OrchestratorState,
+  state: WorkbenchState,
 ): Response | undefined {
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
@@ -39,7 +39,7 @@ function remoteUiAuthRedirect(
 
 function mobileSetupPage(
   request: Request,
-  state: OrchestratorState,
+  state: WorkbenchState,
 ): Response | undefined {
   if (!state.mobileHttps) return undefined;
   const url = new URL(request.url);
@@ -63,7 +63,7 @@ function mobileSetupPage(
   );
 }
 
-function caCertificateResponse(state: OrchestratorState): Response | undefined {
+function caCertificateResponse(state: WorkbenchState): Response | undefined {
   if (!state.mobileHttps) return undefined;
   return new Response(state.mobileHttps.caCertPem, {
     headers: {
@@ -143,7 +143,7 @@ function escapeHtml(value: string): string {
   });
 }
 
-export function createApp(state: OrchestratorState): Hono {
+export function createApp(state: WorkbenchState): Hono {
   const app = new Hono();
 
   if (state.applicationLogsEnabled) {

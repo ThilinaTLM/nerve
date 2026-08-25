@@ -5,10 +5,10 @@ import {
   type WorkspaceSnapshotResponse,
   WORKSPACE_STREAM,
 } from "@nervekit/contracts";
-import type { OrchestratorState } from "../app/orchestrator-state.js";
+import type { WorkbenchState } from "../app/workbench-state.js";
 
 export async function getWorkspaceSnapshotResponse(
-  state: OrchestratorState,
+  state: WorkbenchState,
 ): Promise<WorkspaceSnapshotResponse> {
   const captured = await state.events.withCursor(WORKSPACE_STREAM, () => ({
     projects: state.registry.listProjects(),
@@ -30,7 +30,7 @@ export async function getWorkspaceSnapshotResponse(
 }
 
 export async function getConversationSnapshotResponse(
-  state: OrchestratorState,
+  state: WorkbenchState,
   conversationId: string,
 ): Promise<ConversationSnapshotResponse<ConversationSnapshot>> {
   const stream = conversationStream(conversationId);

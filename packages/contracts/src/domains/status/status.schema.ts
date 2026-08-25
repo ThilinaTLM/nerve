@@ -99,7 +99,6 @@ export type DaemonFile = z.infer<typeof daemonFileSchema>;
 export const storageInfoSchema = z.object({
   dataDir: z.string(),
   sqlitePath: z.string(),
-  configPath: z.string(),
   counts: z
     .object({
       projects: z.number().int().nonnegative(),

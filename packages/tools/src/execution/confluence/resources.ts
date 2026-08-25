@@ -1,3 +1,4 @@
+import { requiredString } from "../atlassian/arguments.js";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
@@ -18,7 +19,7 @@ import {
   summarizeConfluenceRestrictions,
   valuesFromConfluenceList,
 } from "./format.js";
-import { optionalString, requiredString } from "./helpers.js";
+import { optionalString } from "../atlassian/arguments.js";
 
 function actionOf(args: Record<string, unknown>) {
   return requiredString(args.action, "action");

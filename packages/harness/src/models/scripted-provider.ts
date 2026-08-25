@@ -3,7 +3,7 @@ import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import {
   type ManagedFauxProviderHandle,
   registerManagedFauxProvider,
-} from "./provider-registry.js";
+} from "./model-registry.js";
 import type {
   AgentModelSelection,
   AgentScriptedProviderStep,

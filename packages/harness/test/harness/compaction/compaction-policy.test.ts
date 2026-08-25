@@ -5,7 +5,7 @@ import {
   deriveAutoCompactionPolicy,
   isContextOverflowAssistantMessage,
   shouldAutoCompact,
-} from "../../../src/harness/compaction/compaction.js";
+} from "../../../src/runtime/compaction/compaction.js";
 
 function usage(overrides: Partial<Usage> = {}): Usage {
   return {

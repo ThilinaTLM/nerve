@@ -1,4 +1,4 @@
-import type { OrchestratorState } from "../../app/orchestrator-state.js";
+import type { WorkbenchState } from "../../app/workbench-state.js";
 import { defineWorkbenchMethodHandlers } from "../method-handler-registry.js";
 
 export const conversationAgentMethodHandlers = defineWorkbenchMethodHandlers({
@@ -113,7 +113,7 @@ type PromptRequest = {
 };
 
 async function dispatchPrompt(
-  state: OrchestratorState,
+  state: WorkbenchState,
   method: PromptMethod,
   request: PromptRequest,
 ) {

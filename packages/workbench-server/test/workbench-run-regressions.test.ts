@@ -8,7 +8,7 @@ import type {
 } from "@nervekit/contracts";
 import { AutoCompactionRunner } from "../src/domains/agents/run/auto-compaction-runner.js";
 import { HttpError } from "../src/http/errors.js";
-import { RuntimeState } from "../src/runtime/runtime-state.js";
+import { RuntimeState } from "../src/app/runtime/state.js";
 import { HumanInputResolutionService } from "../src/domains/human-input/human-input-resolution.service.js";
 import { WorkbenchRunQuery } from "../src/domains/runs/workbench-run-query.js";
 import {

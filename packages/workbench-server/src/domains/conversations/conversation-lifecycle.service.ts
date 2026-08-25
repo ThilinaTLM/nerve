@@ -5,17 +5,16 @@ import {
   type CreateConversationRequest,
   type UpdateConversationStateRequest,
   createId,
-  expandTruncatedConversationTitle,
 } from "@nervekit/contracts";
 import type { ConversationTreeEntry } from "@nervekit/harness";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeProjectionStore } from "../../infrastructure/runtime-projection-store/index.js";
+import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import type { RuntimeState } from "../../runtime/runtime-state.js";
+import type { RuntimeState } from "../../app/runtime/state.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
-} from "../../runtime/types.js";
+} from "../../app/runtime/types.js";
 import type { ConversationRepository } from "./conversation.repository.js";
 import type { EntryRepository } from "./entry.repository.js";
 import type { ConversationHarnessStorage } from "./conversation-harness-storage.js";
@@ -25,7 +24,7 @@ export class ConversationLifecycleService {
   constructor(
     private readonly storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
-    private readonly index: RuntimeProjectionStore,
+    private readonly queryCache: RuntimeQueryCache,
     private readonly state: RuntimeState,
     private readonly conversationRepository: ConversationRepository,
     private readonly entryRepository: EntryRepository,
@@ -56,10 +55,10 @@ export class ConversationLifecycleService {
       updatedAt: now,
     };
     this.state.conversations.set(conversation.id, conversation);
-    this.index.upsertConversation(conversation);
+    this.queryCache.upsertConversation(conversation);
     this.state.entries.set(conversation.id, []);
     await this.writeConversation(conversation);
-    await this.harnessStorage.createConversation(conversation, project.dir);
+    await this.harnessStorage.createConversation(conversation);
     await this.events.publish("conversation.created", { conversation });
     return conversation;
   }
@@ -81,7 +80,7 @@ export class ConversationLifecycleService {
     }
     this.state.conversations.delete(conversationId);
     this.state.entries.delete(conversationId);
-    this.index.removeConversation(conversationId);
+    this.queryCache.removeConversation(conversationId);
     await this.conversationRepository.remove(conversationId);
     await this.events.publish("conversation.deleted", {
       conversationId,
@@ -119,7 +118,7 @@ export class ConversationLifecycleService {
 
   async updateConversation(conversation: ConversationRecord): Promise<void> {
     this.state.conversations.set(conversation.id, conversation);
-    this.index.upsertConversation(conversation);
+    this.queryCache.upsertConversation(conversation);
     await this.writeConversation(conversation);
     await this.events.publish("conversation.updated", { conversation });
   }
@@ -235,7 +234,7 @@ export class ConversationLifecycleService {
     entries.push(entry);
     this.state.entries.set(input.conversationId, entries);
     this.state.conversations.set(input.conversationId, updatedConversation);
-    this.index.upsertConversation(updatedConversation);
+    this.queryCache.upsertConversation(updatedConversation);
     return entry;
   }
 
@@ -246,25 +245,9 @@ export class ConversationLifecycleService {
         const entries = await this.entryRepository.loadForConversation(
           storedConversation.id,
         );
-        const expandedTitle = expandTruncatedConversationTitle(
-          storedConversation.title,
-          entries.find((entry) => entry.role === "user")?.text ?? "",
-        );
-        const lastUserMessageAt = latestUserEntryCreatedAt(entries);
-        const conversation: ConversationRecord = {
-          ...storedConversation,
-          ...(expandedTitle ? { title: expandedTitle } : {}),
-          ...(lastUserMessageAt ? { lastUserMessageAt } : {}),
-        };
-        const shouldWrite =
-          Boolean(expandedTitle) ||
-          storedConversation.lastUserMessageAt !==
-            conversation.lastUserMessageAt;
-
-        this.state.conversations.set(conversation.id, conversation);
-        this.index.upsertConversation(conversation);
-        this.state.entries.set(conversation.id, entries);
-        if (shouldWrite) await this.writeConversation(conversation);
+        this.state.conversations.set(storedConversation.id, storedConversation);
+        this.queryCache.upsertConversation(storedConversation);
+        this.state.entries.set(storedConversation.id, entries);
       }),
     );
   }
@@ -272,16 +255,7 @@ export class ConversationLifecycleService {
   private async writeConversation(
     conversation: ConversationRecord,
   ): Promise<void> {
-    this.index.upsertConversation(conversation);
+    this.queryCache.upsertConversation(conversation);
     await this.conversationRepository.write(conversation);
   }
-}
-
-function latestUserEntryCreatedAt(
-  entries: ConversationEntry[],
-): string | undefined {
-  return entries
-    .filter((entry) => entry.role === "user")
-    .map((entry) => entry.createdAt)
-    .sort((a, b) => b.localeCompare(a))[0];
 }

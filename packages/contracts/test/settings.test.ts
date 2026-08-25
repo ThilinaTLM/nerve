@@ -7,76 +7,18 @@ import {
 } from "../src/index.js";
 
 describe("settings schema", () => {
-  it("backfills new defaults for older config files", () => {
-    const settings = settingsSchema.parse({
-      ...defaultSettings,
-      defaultThinkingLevel: undefined,
-      rememberLastAgentSelection: undefined,
-      lastAgentSelection: undefined,
-      notifications: undefined,
-      transcription: undefined,
-      ui: {
-        theme: undefined,
-        colorMode: undefined,
-        zoomLevel: undefined,
-        onboardingVersion: 4,
-      },
-      desktop: { closeToTray: true, headerType: undefined },
-      tools: undefined,
-      permissions: undefined,
-      skills: undefined,
-    });
+  it("round-trips canonical defaults", () => {
+    assert.deepEqual(settingsSchema.parse(defaultSettings), defaultSettings);
+  });
 
-    assert.equal(settings.defaultThinkingLevel, "off");
-    assert.equal(settings.rememberLastAgentSelection, false);
-    assert.equal(settings.lastAgentSelection.mode, "coding");
-    assert.equal(settings.lastAgentSelection.permissionLevel, "autonomous");
-    assert.equal(settings.lastAgentSelection.thinkingLevel, "off");
-    assert.deepEqual(settings.runtime, {});
-    assert.deepEqual(settings.permissions, { exceptions: [] });
-    assert.deepEqual(settings.ui, {
-      theme: "nerve",
-      colorMode: "system",
-      zoomLevel: 0,
-    });
-    assert.deepEqual(settings.desktop, {
-      closeToTray: true,
-      headerType: "auto",
-    });
-    assert.deepEqual(settings.application, defaultSettings.application);
-    assert.deepEqual(settings.notifications, {
-      systemEnabled: true,
-      soundsEnabled: true,
-      events: {
-        question: "bell",
-        planReview: "chime",
-        approval: "bell",
-        completed: "success",
-        failed: "alert",
-      },
-    });
-    assert.deepEqual(settings.transcription, {
-      model: "gpt-4o-transcribe",
-      languages: [],
-      vocabulary: [],
-    });
-    assert.deepEqual(settings.tools.disabled, ["explain_image"]);
-    assert.deepEqual(settings.skills.disabled, []);
-    assert.deepEqual(settings.skills.agentBrowser.enabled, []);
-    assert.deepEqual(settings.tools.bash.autoPromotion, {
-      enabled: true,
-      afterMs: 120_000,
-    });
-    assert.equal(settings.tools.jira.enabled, false);
-    assert.equal(settings.tools.confluence.enabled, false);
-    assert.deepEqual(settings.tools.web, {});
-    assert.deepEqual(settings.providers, {
-      atlassianProfiles: [],
-      tavilyProfiles: [],
-    });
-    assert.deepEqual(settings.tools.imageExplanation, {
-      thinkingLevel: "off",
-    });
+  it("rejects incomplete persisted settings", () => {
+    assert.equal(
+      settingsSchema.safeParse({
+        defaultMode: "coding",
+        defaultPermissionLevel: "autonomous",
+      }).success,
+      false,
+    );
   });
 
   it("validates bounded permission exceptions", () => {
@@ -113,53 +55,6 @@ describe("settings schema", () => {
         },
       }),
     );
-  });
-
-  it("backfills event tones for the previous notification settings shape", () => {
-    const settings = settingsSchema.parse({
-      ...defaultSettings,
-      notifications: { systemEnabled: false, soundsEnabled: true },
-    });
-
-    assert.deepEqual(settings.notifications.events, {
-      question: "bell",
-      planReview: "chime",
-      approval: "bell",
-      completed: "success",
-      failed: "alert",
-    });
-  });
-
-  it("strips legacy compaction token fields while backfilling defaults", () => {
-    const settings = settingsSchema.parse({
-      ...defaultSettings,
-      compaction: {
-        reserveTokens: 32_000,
-        keepRecentTokens: 64_000,
-      },
-    });
-
-    assert.deepEqual(settings.compaction, {
-      auto: true,
-      profile: "balanced",
-      customTriggerPercent: 80,
-      customKeepRecentPercent: 15,
-    });
-  });
-
-  it("backfills partial Bash auto-promotion settings", () => {
-    const settings = settingsSchema.parse({
-      ...defaultSettings,
-      tools: {
-        ...defaultSettings.tools,
-        bash: { autoPromotion: { enabled: false } },
-      },
-    });
-
-    assert.deepEqual(settings.tools.bash.autoPromotion, {
-      enabled: false,
-      afterMs: 120_000,
-    });
   });
 
   it("rejects duplicate profile ids", () => {

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import type { OrchestratorState } from "../app/orchestrator-state.js";
+import type { WorkbenchState } from "../app/workbench-state.js";
 
-export function createSettingsRoutes(state: OrchestratorState): Hono {
+export function createSettingsRoutes(state: WorkbenchState): Hono {
   const app = new Hono();
 
   app.get("/settings", (c) => c.json(state.storage.settings));

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { queuedPromptRecordSchema } from "../agents/agent.schema.js";
-import { conversationEntrySchema } from "../conversations/tree.schema.js";
+import { conversationEntrySchema } from "../conversations/conversation-state.schema.js";
 import { publicEventNameSchema } from "../events/public-event-catalog.schema.js";
 import { toolCallTranscriptRecordSchema } from "../tools/records.schema.js";
 

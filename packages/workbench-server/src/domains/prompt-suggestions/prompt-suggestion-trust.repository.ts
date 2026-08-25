@@ -3,9 +3,9 @@ import type { PromptSuggestionTrustStatus } from "@nervekit/contracts";
 import { z } from "zod";
 import { CanonicalStore } from "../../infrastructure/canonical-store/index.js";
 import type {
-  RuntimeProjectionStore,
-  PromptSuggestionTrustIndexRecord,
-} from "../../infrastructure/runtime-projection-store/index.js";
+  RuntimeQueryCache,
+  PromptSuggestionTrustCacheRecord,
+} from "../../infrastructure/query-cache/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 
 const trustRecordSchema = z.object({
@@ -28,9 +28,9 @@ export class PromptSuggestionTrustRepository {
 
   constructor(
     storage: InitializedStorage,
-    // Kept in the constructor until the remaining query-only RuntimeProjectionStore APIs
+    // Kept in the constructor until the remaining query-only RuntimeQueryCache APIs
     // are removed; canonical SQLite is authoritative.
-    private readonly index: RuntimeProjectionStore,
+    private readonly queryCache: RuntimeQueryCache,
   ) {
     this.store =
       storage.canonicalStore ??
@@ -43,7 +43,7 @@ export class PromptSuggestionTrustRepository {
   }
 
   async hydrateIndex(): Promise<void> {
-    this.index.replacePromptSuggestionTrust(await this.list());
+    this.queryCache.replacePromptSuggestionTrust(await this.list());
   }
 
   async list(): Promise<PromptSuggestionTrustRecord[]> {
@@ -100,7 +100,7 @@ export class PromptSuggestionTrustRepository {
       expectedRevision: current?.revision ?? 0,
       now,
     });
-    this.index.upsertPromptSuggestionTrust(next);
+    this.queryCache.upsertPromptSuggestionTrust(next);
     return next;
   }
 
@@ -110,10 +110,10 @@ export class PromptSuggestionTrustRepository {
       "global",
       trustId,
     );
-    this.index.deletePromptSuggestionTrust(trustId);
+    this.queryCache.deletePromptSuggestionTrust(trustId);
   }
 
-  async statusesFromIndex(): Promise<PromptSuggestionTrustIndexRecord[]> {
+  async statusesFromCache(): Promise<PromptSuggestionTrustCacheRecord[]> {
     return (await this.list()).map((record) => ({ ...record }));
   }
 }

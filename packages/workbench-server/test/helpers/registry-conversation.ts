@@ -9,17 +9,17 @@ import {
   type TaskRecord,
 } from "@nervekit/contracts";
 import {
-  createOrchestratorState,
-  shutdownOrchestratorState,
-  type OrchestratorState,
-} from "../../src/app/orchestrator-state.js";
+  createWorkbenchState,
+  shutdownWorkbenchState,
+  type WorkbenchState,
+} from "../../src/app/workbench-state.js";
 import { initializeStorage } from "../../src/infrastructure/storage/index.js";
 
 const roots: string[] = [];
-const states: OrchestratorState[] = [];
+const states: WorkbenchState[] = [];
 
 after(async () => {
-  await Promise.allSettled(states.map(shutdownOrchestratorState));
+  await Promise.allSettled(states.map(shutdownWorkbenchState));
   await Promise.all(
     roots.map((root) =>
       rm(root, {
@@ -40,7 +40,7 @@ export async function tempHome(prefix: string): Promise<string> {
 
 export async function createState(prefix = "nerve-registry-conversation-") {
   const storage = await initializeStorage(await tempHome(prefix));
-  const state = createOrchestratorState(storage, "127.0.0.1", 0);
+  const state = createWorkbenchState(storage, "127.0.0.1", 0);
   states.push(state);
   await state.registry.hydrate();
   return state;
@@ -53,7 +53,7 @@ export function ageConversation(
 ): ConversationRecord {
   const aged = { ...conversation, updatedAt };
   state.registry.conversations.set(conversation.id, aged);
-  state.index.upsertConversation(aged);
+  state.queryCache.upsertConversation(aged);
   return aged;
 }
 
@@ -104,7 +104,7 @@ export async function addTaskRecord(
     updatedAt: now,
   };
   state.registry.tasks.tasks.set(record.id, record);
-  state.index.upsertTask(record);
+  state.queryCache.upsertTask(record);
   await writeFile(join(dir, "task.json"), `${JSON.stringify(record)}\n`);
   return record;
 }

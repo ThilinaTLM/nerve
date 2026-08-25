@@ -27,7 +27,10 @@ import { transaction, withMigrationDatabase } from "./sqlite.js";
 import {
   CANONICAL_SCHEMA_CHECKSUM,
   CANONICAL_SCHEMA_VERSION,
+  CANONICAL_V2_SCHEMA_CHECKSUM,
+  CANONICAL_V2_SCHEMA_VERSION,
 } from "../canonical-store/schema.js";
+import { canonicalMigrationRegistry } from "./canonical/registry.js";
 
 export interface RunStorageMigrationsOptions {
   registry?: readonly StorageMigration[];
@@ -240,10 +243,66 @@ async function runCanonicalMigrations(
       );
     }
 
+    let backupBytes = 0;
+    const executions: MigrationReport["executions"] = [];
     if (newest.version < CANONICAL_SCHEMA_VERSION) {
-      throw new MigrationError(
-        `Storage schema ${newest.version} predates the supported canonical baseline ${CANONICAL_SCHEMA_VERSION}.`,
+      if (
+        newest.version !== CANONICAL_V2_SCHEMA_VERSION ||
+        newest.checksum !== CANONICAL_V2_SCHEMA_CHECKSUM
+      ) {
+        throw new MigrationError(
+          `Storage schema checksum drift at version ${newest.version}.`,
+        );
+      }
+      const pending = canonicalMigrationRegistry.filter(
+        (migration) => migration.version > newest.version,
       );
+      for (const migration of pending) {
+        const bundle = await createRollbackBundle({
+          home,
+          migrationsDir,
+          id: `canonical-${migration.version}-${Date.now()}`,
+          ledgerDigest: newest.checksum,
+          paths: [...migration.backupPaths],
+        });
+        backupBytes += bundle.bytes;
+        const migrationStartedAt = performance.now();
+        try {
+          withMigrationDatabase(paths.sqlitePath, (database) =>
+            transaction(database, () => {
+              migration.apply(database);
+              migration.verify(database);
+              database
+                .prepare(
+                  `INSERT INTO schema_migrations
+                   (version, name, checksum, applied_at_ms, duration_ms)
+                   VALUES (?, ?, ?, ?, ?)`,
+                )
+                .run(
+                  migration.version,
+                  migration.name,
+                  migration.checksum,
+                  Date.now(),
+                  Math.round(performance.now() - migrationStartedAt),
+                );
+            }),
+          );
+          await migration.cleanup(home);
+          await discardRollbackBundle(bundle);
+          executions.push({
+            id: `canonical-${migration.version}-${migration.name}`,
+            execution: "ran",
+            durationMs: Math.round(performance.now() - migrationStartedAt),
+          });
+        } catch (error) {
+          await recoverInterruptedBatch(home, migrationsDir, paths.sqlitePath);
+          throw new MigrationError(
+            `Canonical migration '${migration.name}' failed and was rolled back.`,
+            `canonical-${migration.version}`,
+            { cause: error },
+          );
+        }
+      }
     }
 
     withMigrationDatabase(paths.sqlitePath, (database) => {
@@ -266,8 +325,8 @@ async function runCanonicalMigrations(
     });
     return {
       durationMs: Math.round(performance.now() - startedAt),
-      executions: [],
-      backupBytes: 0,
+      executions,
+      backupBytes,
       archivePaths: [],
     };
   } finally {

@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import { EOL } from "node:os";
 import { join } from "node:path";
 import { describe, it, type TestContext } from "node:test";
-import { executePython, resolvePythonRuntime } from "../src/execution/index.js";
+import { executePython } from "../src/execution/python/python.js";
+import { resolvePythonRuntime } from "../src/execution/python/runtime.js";
 import type { PythonRuntime } from "../src/index.js";
 import { createTempProject } from "./helpers.js";
 

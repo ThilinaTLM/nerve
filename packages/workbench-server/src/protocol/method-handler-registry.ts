@@ -4,12 +4,12 @@ import {
   type OperationParams,
 } from "@nervekit/contracts";
 import type { OperationHandlerRegistry } from "@nervekit/protocol";
-import type { OrchestratorState } from "../app/orchestrator-state.js";
+import type { WorkbenchState } from "../app/workbench-state.js";
 
 type MaybePromise<T> = T | Promise<T>;
 
 type WorkbenchMethodHandler<M extends OperationName> = (
-  state: OrchestratorState,
+  state: WorkbenchState,
   params: OperationParams<M>,
 ) => MaybePromise<unknown>;
 
@@ -26,11 +26,11 @@ export function defineWorkbenchMethodHandlers<
 export interface WorkbenchMethodRegistry {
   readonly methods: readonly OperationName[];
   handle(
-    state: OrchestratorState,
+    state: WorkbenchState,
     method: OperationName,
     params: unknown,
   ): Promise<unknown>;
-  bind(state: OrchestratorState): Partial<OperationHandlerRegistry>;
+  bind(state: WorkbenchState): Partial<OperationHandlerRegistry>;
 }
 
 export function createWorkbenchMethodRegistry(
@@ -86,7 +86,7 @@ export function createWorkbenchMethodRegistry(
   }
 
   async function handle(
-    state: OrchestratorState,
+    state: WorkbenchState,
     method: OperationName,
     params: unknown,
   ): Promise<unknown> {
@@ -109,7 +109,7 @@ export function createWorkbenchMethodRegistry(
     }
   }
 
-  function bind(state: OrchestratorState): Partial<OperationHandlerRegistry> {
+  function bind(state: WorkbenchState): Partial<OperationHandlerRegistry> {
     return Object.fromEntries(
       expectedMethods.map((method) => [
         method,

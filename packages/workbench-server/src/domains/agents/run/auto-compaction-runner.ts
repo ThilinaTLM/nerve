@@ -25,11 +25,7 @@ export class AutoCompactionRunner {
   /** Compute compaction-aware context-window usage for a conversation. */
   async getContextUsage(conversationId: string): Promise<ContextUsage> {
     const conversation = this.deps.state.getConversation(conversationId);
-    const project = this.deps.state.getProject(conversation.projectId);
-    const storage = await this.deps.harnessStorage.openStorage(
-      conversation,
-      project.dir,
-    );
+    const storage = await this.deps.harnessStorage.openStorage(conversation);
     const branch = await storage.getPathToRoot(await storage.getLeafId());
     const messages = buildConversationContext(branch).messages;
     const agent = conversation.activeAgentId

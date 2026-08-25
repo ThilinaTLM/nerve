@@ -1,4 +1,11 @@
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import {
+  boundedNumber,
+  optionalBoolean,
+  optionalString,
+  optionalStringArray,
+  requiredString,
+} from "../atlassian/arguments.js";
 import { ToolExecutionError } from "../common/tool-error.js";
 import { adfFromEither } from "./adf.js";
 import {
@@ -29,15 +36,10 @@ import {
 } from "./format.js";
 import {
   applyCommonFields,
-  boundedNumber,
   matchTransition,
   maybeResolveAssignee,
-  optionalBoolean,
-  optionalString,
-  optionalStringArray,
   rawFields,
   rawOptionalRecord,
-  requiredString,
   summarizeTransitionFields,
   transitionSummary,
 } from "./helpers.js";

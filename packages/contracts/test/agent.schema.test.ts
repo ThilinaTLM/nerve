@@ -19,11 +19,6 @@ function baseAgent(): Record<string, unknown> {
 }
 
 describe("agent record schema", () => {
-  it("parses records without a task (legacy agents)", () => {
-    const agent = agentRecordSchema.parse(baseAgent());
-    assert.equal(agent.task, undefined);
-  });
-
   it("round-trips an optional subagent task", () => {
     const agent = agentRecordSchema.parse({
       ...baseAgent(),

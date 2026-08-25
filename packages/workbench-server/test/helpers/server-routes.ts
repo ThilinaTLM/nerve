@@ -3,18 +3,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after } from "node:test";
 import {
-  createOrchestratorState,
-  shutdownOrchestratorState,
-  type OrchestratorState,
-} from "../../src/app/orchestrator-state.js";
+  createWorkbenchState,
+  shutdownWorkbenchState,
+  type WorkbenchState,
+} from "../../src/app/workbench-state.js";
 import { createApp } from "../../src/app/server.js";
 import { initializeStorage } from "../../src/infrastructure/storage/index.js";
 
 const roots: string[] = [];
-const states: OrchestratorState[] = [];
+const states: WorkbenchState[] = [];
 
 after(async () => {
-  await Promise.allSettled(states.map(shutdownOrchestratorState));
+  await Promise.allSettled(states.map(shutdownWorkbenchState));
   await Promise.all(
     roots.map((root) =>
       rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }),
@@ -35,7 +35,7 @@ export async function createAuthenticatedApp(
   const storage = await initializeStorage(
     await tempHome("nerve-server-routes-"),
   );
-  const state = createOrchestratorState(storage, host, 0, options);
+  const state = createWorkbenchState(storage, host, 0, options);
   states.push(state);
   await state.logger.hydrate();
   await state.registry.hydrate();

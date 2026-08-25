@@ -2,7 +2,7 @@ import {
   slashCommandCompletionItems,
   type UpdateApplicationConfigurationRequest,
 } from "@nervekit/contracts";
-import type { OrchestratorState } from "../../app/orchestrator-state.js";
+import type { WorkbenchState } from "../../app/workbench-state.js";
 import {
   providerApiKeySecretName,
   providerOAuthSecretName,
@@ -88,12 +88,11 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMap =
     "storage.info": (state) => ({
       dataDir: state.storage.paths.home,
       sqlitePath: state.storage.paths.sqlitePath,
-      configPath: state.storage.paths.configPath,
-      counts: state.index.counts(),
+      counts: state.queryCache.counts(),
     }),
     "storage.rebuildIndex": async (state) => {
       await state.registry.rebuildIndex();
-      return { ok: true, counts: state.index.counts() };
+      return { ok: true, counts: state.queryCache.counts() };
     },
     "storage.usage.get": (state) => state.storageUsage.computeUsage(),
     "storage.cleanup": async (state, params) => ({
@@ -137,7 +136,7 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMap =
   });
 
 async function updateSettings(
-  state: OrchestratorState,
+  state: WorkbenchState,
   patch: Record<string, unknown>,
 ) {
   if (patch.application) {
@@ -159,7 +158,7 @@ async function updateSettings(
 }
 
 async function updateApplicationConfiguration(
-  state: OrchestratorState,
+  state: WorkbenchState,
   patch: UpdateApplicationConfigurationRequest,
 ) {
   assertApplicationConfigurationEditable(state.applicationConfiguration, patch);
@@ -181,7 +180,7 @@ async function updateApplicationConfiguration(
 }
 
 function normalizeRemoteAccessPatch(
-  state: OrchestratorState,
+  state: WorkbenchState,
   patch: UpdateApplicationConfigurationRequest,
 ): UpdateApplicationConfigurationRequest {
   const allowRemote = patch.application?.network?.allowRemote;
@@ -209,7 +208,7 @@ function normalizeRemoteAccessPatch(
 }
 
 async function publishProviderCatalogChanged(
-  state: OrchestratorState,
+  state: WorkbenchState,
   provider?: string,
 ): Promise<void> {
   await state.events.publish("providers.catalog_changed", { provider });

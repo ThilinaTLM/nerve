@@ -20,7 +20,7 @@ import type {
  * Stream function used by the agent loop.
  *
  * Contract:
- * - Must not throw or return a rejected promise for request/model/runtime failures.
+ * - Must not throw or return a rejected promise for request/model/harness failures.
  * - Must return an AssistantMessageEventStream.
  * - Failures must be encoded in the returned stream via protocol events and a
  *   final AssistantMessage with stopReason "error" or "aborted" and errorMessage.

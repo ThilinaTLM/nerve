@@ -1,4 +1,5 @@
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import { optionalString } from "../atlassian/arguments.js";
 import { ToolExecutionError } from "../common/tool-error.js";
 import { jiraRequest, pathSegment, requireJiraConnection } from "./client.js";
 import {
@@ -12,12 +13,11 @@ import {
   summarizeJiraProject,
   takeDisplayItems,
 } from "./format.js";
+import { boundedNumber } from "../atlassian/arguments.js";
 import {
-  boundedNumber,
   fetchJiraFields,
   fieldsFromProjectResult,
   issueTypeIdFromName,
-  optionalString,
   valuesFromJiraList,
 } from "./helpers.js";
 

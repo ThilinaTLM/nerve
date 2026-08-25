@@ -6,9 +6,9 @@ import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/harness";
 import { conversationStream } from "@nervekit/contracts";
 import {
-  createOrchestratorState,
-  shutdownOrchestratorState,
-} from "../src/app/orchestrator-state.js";
+  createWorkbenchState,
+  shutdownWorkbenchState,
+} from "../src/app/workbench-state.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 import { WorkbenchRunUnitOfWork } from "../src/domains/runs/run-transition.repository.js";
 import { ConversationJournalRepository } from "../src/domains/conversations/conversation-journal.repository.js";
@@ -37,7 +37,7 @@ describe("explore subagent transcript isolation", () => {
       ...storage.settings.exploreAgent,
       model: { provider, modelId: "scripted-fast" },
     };
-    const orchestrator = createOrchestratorState(storage, "127.0.0.1", 0);
+    const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
     try {
       await orchestrator.registry.hydrate();
       const project = await orchestrator.registry.createProject({ dir: root });
@@ -177,7 +177,7 @@ describe("explore subagent transcript isolation", () => {
       );
     } finally {
       registration.unregister();
-      await shutdownOrchestratorState(orchestrator);
+      await shutdownWorkbenchState(orchestrator);
       await rm(root, {
         recursive: true,
         force: true,
@@ -190,8 +190,8 @@ describe("explore subagent transcript isolation", () => {
   it("repairs a persisted child active-agent reference during hydration", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-explore-recovery-"));
     const storage = await initializeStorage(root);
-    const orchestrator = createOrchestratorState(storage, "127.0.0.1", 0);
-    let restarted: ReturnType<typeof createOrchestratorState> | undefined;
+    const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
+    let restarted: ReturnType<typeof createWorkbenchState> | undefined;
     try {
       await orchestrator.registry.hydrate();
       const project = await orchestrator.registry.createProject({ dir: root });
@@ -213,7 +213,7 @@ describe("explore subagent transcript isolation", () => {
         parent.id,
       );
 
-      await shutdownOrchestratorState(orchestrator);
+      await shutdownWorkbenchState(orchestrator);
       const journal = new ConversationJournalRepository(storage);
       const persistedBefore = (await journal.load(conversation.id))
         .conversation;
@@ -230,7 +230,7 @@ describe("explore subagent transcript isolation", () => {
       });
 
       const restartedStorage = await initializeStorage(root);
-      restarted = createOrchestratorState(restartedStorage, "127.0.0.1", 0);
+      restarted = createWorkbenchState(restartedStorage, "127.0.0.1", 0);
       await restarted.registry.hydrate();
       assert.equal(
         restarted.registry.getConversation(conversation.id).activeAgentId,
@@ -243,8 +243,8 @@ describe("explore subagent transcript isolation", () => {
       ).conversation;
       assert.equal(persisted?.activeAgentId, parent.id);
     } finally {
-      await shutdownOrchestratorState(orchestrator);
-      if (restarted) await shutdownOrchestratorState(restarted);
+      await shutdownWorkbenchState(orchestrator);
+      if (restarted) await shutdownWorkbenchState(restarted);
       await rm(root, {
         recursive: true,
         force: true,
@@ -283,7 +283,7 @@ describe("explore subagent transcript isolation", () => {
       ...storage.settings.exploreAgent,
       model: { provider, modelId: "scripted-fast" },
     };
-    const orchestrator = createOrchestratorState(storage, "127.0.0.1", 0);
+    const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
     try {
       await orchestrator.registry.hydrate();
       const project = await orchestrator.registry.createProject({ dir: root });
@@ -331,7 +331,7 @@ describe("explore subagent transcript isolation", () => {
       );
     } finally {
       registration.unregister();
-      await shutdownOrchestratorState(orchestrator);
+      await shutdownWorkbenchState(orchestrator);
       await rm(root, {
         recursive: true,
         force: true,

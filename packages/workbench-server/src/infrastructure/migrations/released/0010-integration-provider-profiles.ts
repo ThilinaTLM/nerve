@@ -1,3 +1,4 @@
+import { legacyConfigPath } from "../import/legacy-paths.js";
 import { join } from "node:path";
 import {
   atlassianProfileSchema,
@@ -205,8 +206,10 @@ export const migration0010: StorageMigration = {
     return { paths: backupPaths };
   },
   async up(context) {
-    const raw = (await pathExists(context.paths.configPath))
-      ? record(await readJsonFile<unknown>(context.paths.configPath))
+    const raw = (await pathExists(legacyConfigPath(context.paths.home)))
+      ? record(
+          await readJsonFile<unknown>(legacyConfigPath(context.paths.home)),
+        )
       : { ...defaultSettings };
     const tools = record(raw.tools);
     const profiles = existingProfiles(raw);
@@ -360,7 +363,11 @@ export const migration0010: StorageMigration = {
       },
     };
     const normalized = normalizeSettings(nextRaw).settings;
-    await atomicWriteJson(context.paths.configPath, normalized, 0o600);
+    await atomicWriteJson(
+      legacyConfigPath(context.paths.home),
+      normalized,
+      0o600,
+    );
     await atomicWriteJson(
       join(context.paths.home, markerPath),
       {
@@ -375,7 +382,9 @@ export const migration0010: StorageMigration = {
     const marker = await readJsonFile<MigrationMarker>(
       join(context.paths.home, markerPath),
     );
-    settingsSchema.parse(await readJsonFile<unknown>(context.paths.configPath));
+    settingsSchema.parse(
+      await readJsonFile<unknown>(legacyConfigPath(context.paths.home)),
+    );
     const secrets = new EncryptedFileSecretProvider(context.paths.home);
     for (const source of marker.migratedLegacyProviders) {
       if (await secrets.get(providerApiKeySecretName(source))) {

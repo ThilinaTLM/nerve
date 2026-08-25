@@ -1,8 +1,8 @@
 import { Hono } from "hono";
-import type { OrchestratorState } from "../app/orchestrator-state.js";
+import type { WorkbenchState } from "../app/workbench-state.js";
 import { ProtocolHttpDispatcher } from "../protocol/http-dispatcher.js";
 
-export function createProtocolRoutes(state: OrchestratorState): Hono {
+export function createProtocolRoutes(state: WorkbenchState): Hono {
   const app = new Hono();
   const dispatcher = new ProtocolHttpDispatcher(state);
 

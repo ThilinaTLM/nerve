@@ -143,11 +143,24 @@ export function normalizeSettings(value: unknown): {
     current = result.value;
     changed ||= result.changed;
   }
+  const merged = mergeLegacySettings(defaultSettings, current);
+  const settings = settingsSchema.parse(merged);
   return {
-    settings: settingsSchema.parse({
-      ...defaultSettings,
-      ...(current as object),
-    }),
-    changed,
+    settings,
+    changed: changed || JSON.stringify(settings) !== JSON.stringify(value),
   };
+}
+
+function mergeLegacySettings(defaults: unknown, legacy: unknown): unknown {
+  const defaultRecord = objectRecord(defaults);
+  const legacyRecord = objectRecord(legacy);
+  if (!defaultRecord || !legacyRecord) {
+    return legacy === undefined ? defaults : legacy;
+  }
+  const merged: Record<string, unknown> = { ...defaultRecord };
+  for (const [key, value] of Object.entries(legacyRecord)) {
+    if (value === undefined) continue;
+    merged[key] = mergeLegacySettings(merged[key], value);
+  }
+  return merged;
 }

@@ -1,3 +1,7 @@
+import {
+  legacyConfigPath,
+  legacyProvidersPath,
+} from "../import/legacy-paths.js";
 import { rm } from "node:fs/promises";
 import {
   type AtlassianProfile,
@@ -16,7 +20,7 @@ import {
   legacyImportMarkerPath,
   readLegacyImportEnvelope,
   type LegacyImportMarker,
-} from "../../storage/legacy-import-envelope.js";
+} from "../import/legacy-import-envelope.js";
 import {
   atomicWriteJson,
   pathExists,
@@ -74,7 +78,7 @@ export const migration0011: StorageMigration = {
         importedNames,
       );
       await atomicWriteJson(
-        context.paths.configPath,
+        legacyConfigPath(context.paths.home),
         settingsSchema.parse(integration),
         0o600,
       );
@@ -82,7 +86,7 @@ export const migration0011: StorageMigration = {
 
     if (envelope.providerCatalog) {
       await atomicWriteJson(
-        context.paths.providersPath,
+        legacyProvidersPath(context.paths.home),
         providerCatalogSchema.parse(envelope.providerCatalog),
         0o600,
       );
@@ -116,10 +120,12 @@ export const migration0011: StorageMigration = {
     const marker = await readJsonFile<ImportMarker>(
       legacyImportMarkerPath(context.paths.home),
     );
-    settingsSchema.parse(await readJsonFile<unknown>(context.paths.configPath));
+    settingsSchema.parse(
+      await readJsonFile<unknown>(legacyConfigPath(context.paths.home)),
+    );
     if (marker.providerCatalogStatus === "imported") {
       providerCatalogSchema.parse(
-        await readJsonFile<unknown>(context.paths.providersPath),
+        await readJsonFile<unknown>(legacyProvidersPath(context.paths.home)),
       );
     }
     const secrets = new EncryptedFileSecretProvider(context.paths.home);

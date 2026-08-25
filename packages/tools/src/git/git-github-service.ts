@@ -27,7 +27,7 @@ import {
   summarizeStatusCheckRollup,
 } from "./git-github-parsers.js";
 import type { GithubRepositoryRef } from "./git-github-parsers.js";
-import type { GitReadSnapshot } from "./git-read-backend.js";
+import type { GitReadSnapshot } from "./read/types.js";
 
 type ExecResult = { stdout: string; stderr: string };
 type RemoteState = {

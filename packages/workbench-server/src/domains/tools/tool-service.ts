@@ -33,7 +33,7 @@ import type {
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { PermissionExceptionService } from "../permissions/permission-exceptions.service.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeProjectionStore } from "../../infrastructure/runtime-projection-store/index.js";
+import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
@@ -187,7 +187,7 @@ export class ToolService {
   constructor(
     private readonly storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
-    index: RuntimeProjectionStore,
+    queryCache: RuntimeQueryCache,
     private readonly tasks: WorkbenchTaskService,
     private readonly pythonRuntime: PythonRuntimeService,
     private readonly startTask: TaskStarter,
@@ -217,7 +217,7 @@ export class ToolService {
       resultPayloads ?? new ToolResultPayloadStore(storage.paths.home);
     this.toolCallRepository = new ToolCallRepository(
       this.conversationJournal,
-      index,
+      queryCache,
       this.resultPayloads,
     );
     this.toolCalls = this.toolCallRepository.records;

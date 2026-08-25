@@ -1,5 +1,5 @@
 import type { OperationName } from "@nervekit/contracts";
-import type { OrchestratorState } from "../app/orchestrator-state.js";
+import type { WorkbenchState } from "../app/workbench-state.js";
 import {
   createWorkbenchMethodRegistry,
   type WorkbenchMethodRegistry,
@@ -21,7 +21,7 @@ const registry = createWorkbenchMethodRegistry([
 export const WORKBENCH_OPERATION_METHODS = registry.methods;
 
 export function handleProtocolMethod(
-  state: OrchestratorState,
+  state: WorkbenchState,
   method: OperationName,
   params: unknown,
 ): Promise<unknown> {
@@ -29,7 +29,7 @@ export function handleProtocolMethod(
 }
 
 export function bindWorkbenchOperationHandlers(
-  state: OrchestratorState,
+  state: WorkbenchState,
 ): ReturnType<WorkbenchMethodRegistry["bind"]> {
   return registry.bind(state);
 }

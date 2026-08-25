@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it, type TestContext } from "node:test";
-import { resolvePythonRuntime } from "../src/execution/index.js";
+import { resolvePythonRuntime } from "../src/execution/python/runtime.js";
 import { createTempProject, writeExecutable } from "./helpers.js";
 
 function requireExecutableFixtures(t: TestContext): boolean {

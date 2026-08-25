@@ -4,7 +4,7 @@ import {
   liveMessageIdSchema,
   runIdSchema,
   turnIdSchema,
-} from "../conversations/conversation.schema.js";
+} from "../conversations/live-state.schema.js";
 import { PUBLIC_EVENT_MAX_STRING_CHARS } from "../events/bounded-public-data.schema.js";
 import { definePublicEvent } from "../events/event-definition.schema.js";
 import { modeSchema } from "../settings/settings.schema.js";

@@ -11,7 +11,7 @@ import { Type } from "typebox";
 import {
   convertToLlm,
   createHarnessMessage,
-} from "../../../src/harness/messages.js";
+} from "../../../src/runtime/messages.js";
 import {
   runAgentLoop,
   runAgentLoopContinue,

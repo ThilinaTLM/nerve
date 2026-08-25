@@ -20,24 +20,29 @@ import {
   createClientEventStreamState,
   markProcessed,
   type ClientEventStreamState,
-} from "../events/event-stream.js";
+} from "../streams/event-stream.js";
 import type {
   MessageFactory,
   MessageFactoryOptions,
-} from "../shared/messages.js";
+} from "../core/messages.js";
 import type {
   ProtocolClock,
   ProtocolDiagnosticsPublisher,
   ProtocolIdSource,
   ProtocolTimers,
-} from "../shared/ports.js";
+} from "../core/ports.js";
 import { RpcClient } from "../rpc/rpc.js";
-import { SessionStateError } from "../shared/session-errors.js";
+import { SessionStateError } from "../core/session-errors.js";
+import {
+  dispatchInboundRpc,
+  handleInboundRpcResponse,
+} from "../session/inbound-rpc.js";
+import { matchesAddressedPeer, samePeer } from "../session/peer-binding.js";
 import {
   systemProtocolClock,
   systemProtocolIds,
   systemProtocolTimers,
-} from "../shared/runtime.js";
+} from "../core/runtime.js";
 
 export type ClientSessionState =
   | "idle"
@@ -167,29 +172,14 @@ export class ProtocolClientSession {
       );
     }
 
-    const rpcHandled = this.#rpc.handle(message);
+    const rpcHandled = handleInboundRpcResponse(this.#rpc, message);
     if (message.kind === "request" && this.#options.rpcDispatcher) {
-      const result = await this.#options.rpcDispatcher.dispatch(message);
       await this.#options.send(
-        result.ok
-          ? this.#options.createMessage(
-              "response",
-              {
-                ok: true,
-                method: message.data.method,
-                result: result.result,
-              },
-              {
-                target: message.source,
-                replyTo: message.id,
-                correlationId: message.id,
-              },
-            )
-          : this.#options.createMessage("error", result.error, {
-              target: message.source,
-              replyTo: message.id,
-              correlationId: message.id,
-            }),
+        await dispatchInboundRpc(
+          message,
+          this.#options.rpcDispatcher,
+          this.#options.createMessage,
+        ),
       );
       return;
     }
@@ -570,20 +560,6 @@ export class ProtocolClientSession {
     }
     this.#pendingSubscriptions.clear();
   }
-}
-
-function samePeer(left: PeerDescriptor, right: PeerDescriptor): boolean {
-  return left.role === right.role && left.id === right.id;
-}
-
-function matchesAddressedPeer(
-  addressed: PeerDescriptor,
-  actual: PeerDescriptor,
-): boolean {
-  return (
-    addressed.role === actual.role &&
-    (!addressed.id || addressed.id === actual.id)
-  );
 }
 
 function toError(error: unknown): Error {

@@ -77,7 +77,7 @@ describe("RuntimeRegistry conversation pruning", () => {
         false,
       );
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 
@@ -112,7 +112,7 @@ describe("RuntimeRegistry conversation pruning", () => {
         unfinished.id,
       );
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 
@@ -187,7 +187,7 @@ describe("RuntimeRegistry conversation pruning", () => {
         activeTask.id,
       );
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 
@@ -226,7 +226,7 @@ describe("RuntimeRegistry conversation pruning", () => {
       assert.throws(() => state.registry.getConversation(first.id));
       assert.throws(() => state.registry.getConversation(second.id));
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 
@@ -267,7 +267,7 @@ describe("RuntimeRegistry conversation pruning", () => {
       assert.throws(() => state.registry.getConversation(oldest.id));
       assert.throws(() => state.registry.getConversation(middle.id));
     } finally {
-      state.index.close();
+      state.queryCache.close();
     }
   });
 });

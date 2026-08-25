@@ -9,10 +9,10 @@ import {
 } from "@nervekit/contracts";
 import { ApplicationError } from "../../core/application-error.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeProjectionStore } from "../../infrastructure/runtime-projection-store/index.js";
+import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import type { RuntimeState } from "../../runtime/runtime-state.js";
-import type { AgentStatus } from "../../runtime/types.js";
+import type { RuntimeState } from "../../app/runtime/state.js";
+import type { AgentStatus } from "../../app/runtime/types.js";
 import type { ConversationService } from "../conversations/conversation-service.js";
 import type { AgentRepository } from "./agent.repository.js";
 import { assertChildAuthority } from "./agent-authority.js";
@@ -43,7 +43,7 @@ export class AgentLifecycleService {
   constructor(
     private readonly storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
-    private readonly index: RuntimeProjectionStore,
+    private readonly queryCache: RuntimeQueryCache,
     private readonly state: RuntimeState,
     private readonly agentRepository: AgentRepository,
     private readonly conversationService: ConversationService,
@@ -125,7 +125,7 @@ export class AgentLifecycleService {
       updatedAt: now,
     };
     this.state.agents.set(agent.id, agent);
-    this.index.upsertAgent(agent);
+    this.queryCache.upsertAgent(agent);
     await this.writeAgent(agent);
     if (!parent) {
       await this.updateConversation({
@@ -158,7 +158,7 @@ export class AgentLifecycleService {
     }
     this.state.agents.delete(agentId);
     this.conversationService.deleteAgent(agentId);
-    this.index.removeAgent(agentId);
+    this.queryCache.removeAgent(agentId);
     await this.agentRepository.remove(agentId);
   }
 
@@ -261,7 +261,7 @@ export class AgentLifecycleService {
 
   async updateAgent(agent: AgentRecord): Promise<void> {
     this.state.agents.set(agent.id, agent);
-    this.index.upsertAgent(agent);
+    this.queryCache.upsertAgent(agent);
     await this.writeAgent(agent);
   }
 
@@ -276,7 +276,7 @@ export class AgentLifecycleService {
           }
         : parsedAgent;
       this.state.agents.set(agent.id, agent);
-      this.index.upsertAgent(agent);
+      this.queryCache.upsertAgent(agent);
       if (needsStatusRecovery) await this.writeAgent(agent);
     }
     await this.repairActiveAgentReferences();
@@ -316,7 +316,7 @@ export class AgentLifecycleService {
   }
 
   private async writeAgent(agent: AgentRecord): Promise<void> {
-    this.index.upsertAgent(agent);
+    this.queryCache.upsertAgent(agent);
     await this.agentRepository.write(agent);
   }
 }

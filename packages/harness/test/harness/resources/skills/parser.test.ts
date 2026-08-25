@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseFrontmatter } from "../../../../src/harness/resources/skills/parser.js";
+import { parseFrontmatter } from "../../../../src/runtime/resources/skills/parser.js";
 
 describe("parseFrontmatter", () => {
   it("normalizes line endings and parses YAML metadata", () => {

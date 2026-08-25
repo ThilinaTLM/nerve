@@ -24,8 +24,9 @@ export class ProviderCatalogStore {
       "global",
       "catalog",
     );
-    const parsed = providerCatalogSchema.safeParse(document?.data ?? {});
-    this.#catalog = parsed.success ? parsed.data : defaultProviderCatalog;
+    this.#catalog = document
+      ? providerCatalogSchema.parse(document.data)
+      : defaultProviderCatalog;
     this.#loaded = true;
     return this.#catalog;
   }

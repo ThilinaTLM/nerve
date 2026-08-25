@@ -3,7 +3,7 @@ import type {
   ConversationRunRetrySnapshot,
 } from "@nervekit/contracts";
 import { ACTIVE_STATUSES, type RunHydratedState } from "./runtime/index.js";
-import type { RuntimeState } from "../../runtime/runtime-state.js";
+import type { RuntimeState } from "../../app/runtime/state.js";
 import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
 
 /** Canonical transition-backed workbench run projection for conversation UI. */

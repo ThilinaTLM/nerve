@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  conversationRecordSchema,
-  updateConversationStateRequestSchema,
-} from "../src/index.js";
+import { updateConversationStateRequestSchema } from "../src/index.js";
 import { conversationsOperationDefinitions } from "../src/domains/conversations/conversation.operations.schema.js";
 
 const conversation = {
@@ -17,13 +14,6 @@ const conversation = {
 };
 
 describe("conversation state schemas", () => {
-  it("accepts legacy conversation records without state metadata", () => {
-    const parsed = conversationRecordSchema.parse(conversation);
-    assert.equal(parsed.pinned, undefined);
-    assert.equal(parsed.completedAt, undefined);
-    assert.equal(parsed.runtimeStatusClearedAt, undefined);
-  });
-
   it("requires at least one state mutation", () => {
     assert.equal(
       updateConversationStateRequestSchema.safeParse({}).success,

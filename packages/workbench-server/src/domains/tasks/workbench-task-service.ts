@@ -16,7 +16,7 @@ import {
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeProjectionStore } from "../../infrastructure/runtime-projection-store/index.js";
+import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import {
   isActiveTaskStatus,
@@ -111,14 +111,14 @@ export class WorkbenchTaskService extends TaskService {
   constructor(
     readonly storage: InitializedStorage,
     readonly events: StreamLogRegistry,
-    readonly index: RuntimeProjectionStore,
+    readonly queryCache: RuntimeQueryCache,
     readonly logger?: ApplicationLogger,
     options: WorkbenchTaskServiceOptions = {},
   ) {
     const resources = createWorkbenchTaskResources(
       storage,
       events,
-      index,
+      queryCache,
       logger,
       options,
     );
@@ -233,9 +233,9 @@ export class WorkbenchTaskService extends TaskService {
       ),
     );
     await Promise.all(
-      outcomes.map(async (outcome, index) => {
+      outcomes.map(async (outcome, queryCache) => {
         if (outcome.status === "fulfilled") return;
-        const task = active[index];
+        const task = active[queryCache];
         await this.logger?.warn(
           "Task force termination failed during shutdown",
           {
@@ -555,7 +555,7 @@ export class WorkbenchTaskService extends TaskService {
 
   async upsertTask(record: TaskRecord): Promise<void> {
     this.tasks.set(record.id, record);
-    this.index.upsertTask(record);
+    this.queryCache.upsertTask(record);
     await this.writeTask(record);
   }
 

@@ -6,9 +6,9 @@ import {
   type ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
 import type {
-  RuntimeProjectionStore,
+  RuntimeQueryCache,
   ToolCallPreviewQuery,
-} from "../../infrastructure/runtime-projection-store/runtime-projection-store.js";
+} from "../../infrastructure/query-cache/index.js";
 import { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import {
@@ -58,20 +58,20 @@ export class ToolCallRepository {
   };
 
   private readonly journal: ConversationJournalRepository;
-  private readonly index: RuntimeProjectionStore;
+  private readonly queryCache: RuntimeQueryCache;
 
   constructor(
     journalOrStorage:
       | ConversationJournalRepository
       | { paths: { home: string } },
-    index: RuntimeProjectionStore,
+    queryCache: RuntimeQueryCache,
     private readonly payloads?: ToolResultPayloadStore,
   ) {
     this.journal =
       journalOrStorage instanceof ConversationJournalRepository
         ? journalOrStorage
         : new ConversationJournalRepository(journalOrStorage);
-    this.index = index;
+    this.queryCache = queryCache;
   }
 
   async hydrate(
@@ -82,7 +82,7 @@ export class ToolCallRepository {
     this.terminalCacheBytes = 0;
     const ids = new Set<string>();
     let rowCount = 0;
-    this.index.beginToolCallRebuild();
+    this.queryCache.beginToolCallRebuild();
     try {
       for (const state of await this.journal.hydrateAll()) {
         for (const record of [...state.toolCalls.values()].sort((left, right) =>
@@ -93,7 +93,7 @@ export class ToolCallRepository {
           }
           ids.add(record.id);
           rowCount += 1;
-          this.index.appendToolCallRebuild(
+          this.queryCache.appendToolCallRebuild(
             record,
             toToolCallTranscriptRecord(record),
           );
@@ -101,9 +101,9 @@ export class ToolCallRepository {
           onRecord?.(record);
         }
       }
-      this.index.finishToolCallRebuild();
+      this.queryCache.finishToolCallRebuild();
     } catch (error) {
-      this.index.rollbackToolCallRebuild();
+      this.queryCache.rollbackToolCallRebuild();
       throw error;
     }
     this.hydrationStats = {
@@ -137,7 +137,7 @@ export class ToolCallRepository {
   }
 
   count(): number {
-    return this.index.countToolCalls();
+    return this.queryCache.countToolCalls();
   }
 
   listActive(): ToolCallRecord[] {
@@ -145,11 +145,11 @@ export class ToolCallRepository {
   }
 
   listPreviews(query: ToolCallPreviewQuery = {}): ToolCallTranscriptRecord[] {
-    return this.index.listToolCallPreviews(query);
+    return this.queryCache.listToolCallPreviews(query);
   }
 
   queryPreviews(query: ToolCallPreviewQuery = {}) {
-    return this.index.queryToolCallPreviews(query);
+    return this.queryCache.queryToolCallPreviews(query);
   }
 
   get(toolCallId: string): ToolCallRecord {
@@ -168,7 +168,7 @@ export class ToolCallRepository {
     if (active) return active;
     const cached = this.terminalCache.get(toolCallId);
     if (cached) return cached.record;
-    const conversationId = this.index.toolCallConversationId(toolCallId);
+    const conversationId = this.queryCache.toolCallConversationId(toolCallId);
     if (!conversationId) throw new Error("Tool call not found.");
     const stored = (await this.journal.load(conversationId)).toolCalls.get(
       toolCallId,
@@ -324,13 +324,13 @@ export class ToolCallRepository {
     for (const [id, record] of [...this.records]) {
       if (!conversationIds.has(record.conversationId)) continue;
       this.records.delete(id);
-      this.index.deleteToolCall(id);
+      this.queryCache.deleteToolCall(id);
     }
     for (const [id, cached] of [...this.terminalCache]) {
       if (!conversationIds.has(cached.record.conversationId)) continue;
       this.terminalCache.delete(id);
       this.terminalCacheBytes -= cached.bytes;
-      this.index.deleteToolCall(id);
+      this.queryCache.deleteToolCall(id);
     }
   }
 
@@ -342,7 +342,10 @@ export class ToolCallRepository {
       this.records.set(record.id, record);
     }
     try {
-      this.index.upsertToolCall(record, toToolCallTranscriptRecord(record));
+      this.queryCache.upsertToolCall(
+        record,
+        toToolCallTranscriptRecord(record),
+      );
     } catch {
       // The journal remains authoritative; SQLite is disposable.
     }

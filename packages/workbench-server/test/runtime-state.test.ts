@@ -6,7 +6,7 @@ import type {
   ConversationRecord,
   ProjectRecord,
 } from "@nervekit/contracts";
-import { RuntimeState } from "../src/runtime/runtime-state.js";
+import { RuntimeState } from "../src/app/runtime/state.js";
 
 const now = "2026-01-01T00:00:00.000Z";
 const later = "2026-01-02T00:00:00.000Z";

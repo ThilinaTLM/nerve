@@ -1,6 +1,5 @@
 import {
   operationDefinition,
-  parseOperationParams,
   parseOperationResult,
   protocolRequestDataSchema,
   type NerveMessage,
@@ -14,9 +13,10 @@ import {
 import type {
   MessageFactory,
   MessageFactoryOptions,
-} from "../shared/messages.js";
-import type { ProtocolTimers } from "../shared/ports.js";
-import { systemProtocolTimers } from "../shared/runtime.js";
+} from "../core/messages.js";
+import type { ProtocolTimers } from "../core/ports.js";
+import { systemProtocolTimers } from "../core/runtime.js";
+import { prepareOperationRequest } from "./operation-request.js";
 
 export class RpcError extends Error {
   constructor(readonly data: ProtocolErrorData) {
@@ -65,27 +65,16 @@ export class RpcClient {
         >
       > = {},
   ): Promise<OperationResult<M>> {
-    const operation = operationDefinition(method);
-    const validatedParams = parseOperationParams(method, params);
-    if (operation.idempotency === "none" && options.idempotencyKey)
-      throw new RpcError({
-        code: "VALIDATION_FAILED",
-        message: `Operation ${method} does not accept an idempotency key`,
-        retryable: false,
-      });
-    if (operation.idempotency === "required" && !options.idempotencyKey)
-      throw new RpcError({
-        code: "VALIDATION_FAILED",
-        message: `Operation ${method} requires an idempotency key`,
-        retryable: false,
-      });
     const { correlationId, causationId, traceId, target, ...requestOptions } =
       options;
-    const data = protocolRequestDataSchema.parse({
-      method,
-      params: validatedParams,
+    const prepared = prepareOperationRequest(method, params, {
       ...requestOptions,
+      target,
     });
+    if (!prepared.ok) {
+      throw new RpcError({ ...prepared.error, retryable: false });
+    }
+    const data = prepared.data;
     const message = this.#options.createMessage("request", data, {
       correlationId,
       causationId,
@@ -108,8 +97,7 @@ export class RpcClient {
       this.#pending.set(message.id, {
         method,
         message,
-        retryable:
-          operation.idempotency !== "none" && Boolean(data.idempotencyKey),
+        retryable: prepared.retryable,
         resolve: resolve as (value: unknown) => void,
         reject,
         timeout,

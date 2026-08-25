@@ -10,7 +10,7 @@ import {
 import {
   conversationRecordSchema,
   conversationEntrySchema,
-} from "./tree.schema.js";
+} from "./conversation-state.schema.js";
 
 export const CONVERSATION_JOURNAL_EPOCH = 1 as const;
 

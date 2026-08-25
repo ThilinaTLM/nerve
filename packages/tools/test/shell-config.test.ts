@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolveBashShellConfig } from "../src/execution/index.js";
+import { resolveBashShellConfig } from "../src/execution/shell/shell-config.js";
 
 const noCommand = () => ({ stdout: "", status: 1 });
 

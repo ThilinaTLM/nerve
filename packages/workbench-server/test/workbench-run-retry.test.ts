@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/harness";
 import {
-  createOrchestratorState,
-  shutdownOrchestratorState,
-} from "../src/app/orchestrator-state.js";
+  createWorkbenchState,
+  shutdownWorkbenchState,
+} from "../src/app/workbench-state.js";
 import { WorkbenchRunUnitOfWork } from "../src/domains/runs/run-transition.repository.js";
 import {
   initializeStorage,
@@ -28,7 +28,7 @@ describe("workbench coordinator-owned provider retry", () => {
     });
     const root = await mkdtemp(join(tmpdir(), "nerve-workbench-retry-"));
     const storage = await initializeStorage(root);
-    const orchestrator = createOrchestratorState(storage, "127.0.0.1", 0);
+    const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
     try {
       await orchestrator.registry.hydrate();
       const project = await orchestrator.registry.createProject({ dir: root });
@@ -71,7 +71,7 @@ describe("workbench coordinator-owned provider retry", () => {
       assert.equal(orchestrator.registry.agents.get(agent.id)?.status, "idle");
     } finally {
       registration.unregister();
-      await shutdownOrchestratorState(orchestrator);
+      await shutdownWorkbenchState(orchestrator);
       await rm(root, {
         recursive: true,
         force: true,
@@ -97,7 +97,7 @@ describe("workbench coordinator-owned provider retry", () => {
     await writeSettings(storage, {
       retry: { enabled: true, maxRetries: 3, baseDelayMs: 1 },
     });
-    const orchestrator = createOrchestratorState(storage, "127.0.0.1", 0);
+    const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
     try {
       await orchestrator.registry.hydrate();
       const project = await orchestrator.registry.createProject({ dir: root });
@@ -139,7 +139,7 @@ describe("workbench coordinator-owned provider retry", () => {
       );
     } finally {
       registration.unregister();
-      await shutdownOrchestratorState(orchestrator);
+      await shutdownWorkbenchState(orchestrator);
       await rm(root, {
         recursive: true,
         force: true,
@@ -173,7 +173,7 @@ describe("workbench coordinator-owned provider retry", () => {
     });
     const root = await mkdtemp(join(tmpdir(), "nerve-workbench-continue-"));
     const storage = await initializeStorage(root);
-    const orchestrator = createOrchestratorState(storage, "127.0.0.1", 0);
+    const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
     try {
       await orchestrator.registry.hydrate();
       const project = await orchestrator.registry.createProject({ dir: root });
@@ -239,7 +239,7 @@ describe("workbench coordinator-owned provider retry", () => {
     } finally {
       failingProvider.unregister();
       recoveryProvider.unregister();
-      await shutdownOrchestratorState(orchestrator);
+      await shutdownWorkbenchState(orchestrator);
       await rm(root, {
         recursive: true,
         force: true,

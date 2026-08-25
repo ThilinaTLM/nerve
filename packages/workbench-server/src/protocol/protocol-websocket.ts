@@ -13,7 +13,7 @@ import {
 } from "@nervekit/contracts";
 import type WebSocket from "ws";
 import type { WebSocketServer } from "ws";
-import type { OrchestratorState } from "../app/orchestrator-state.js";
+import type { WorkbenchState } from "../app/workbench-state.js";
 import { isWebSocketAuthorized } from "../app/server.js";
 import {
   PROTOCOL_CAPABILITIES,
@@ -31,9 +31,9 @@ export interface LocalProtocolSession {
   shutdown(message?: string): Promise<void>;
 }
 
-const activeSessionCounts = new WeakMap<OrchestratorState, number>();
+const activeSessionCounts = new WeakMap<WorkbenchState, number>();
 
-function updateActiveSessions(state: OrchestratorState, delta: number): void {
+function updateActiveSessions(state: WorkbenchState, delta: number): void {
   if (!state.performanceDiagnostics.enabled) return;
   const count = Math.max(0, (activeSessionCounts.get(state) ?? 0) + delta);
   activeSessionCounts.set(state, count);
@@ -50,7 +50,7 @@ export interface ProtocolSocketServer {
 export function installProtocolWebSocketUpgrade(
   server: ProtocolSocketServer,
   webSockets: WebSocketServer,
-  state: OrchestratorState,
+  state: WorkbenchState,
   token: string,
 ): Set<LocalProtocolSession> {
   const sessions = new Set<LocalProtocolSession>();
@@ -82,7 +82,7 @@ export function installProtocolWebSocketUpgrade(
 
 export function createLocalProtocolSession(
   ws: WebSocket,
-  state: OrchestratorState,
+  state: WorkbenchState,
   onDispose: () => void = () => undefined,
 ): LocalProtocolSession {
   const diagnostics = state.performanceDiagnostics.enabled

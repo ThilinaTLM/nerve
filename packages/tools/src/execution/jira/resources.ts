@@ -1,3 +1,8 @@
+import {
+  optionalString,
+  optionalStringArray,
+  requiredString,
+} from "../atlassian/arguments.js";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -24,13 +29,8 @@ import {
   summarizeJiraWorklog,
   writeJiraArtifact,
 } from "./format.js";
-import {
-  boundedNumber,
-  optionalString,
-  optionalStringArray,
-  rawOptionalRecord,
-  requiredString,
-} from "./helpers.js";
+import { boundedNumber } from "../atlassian/arguments.js";
+import { rawOptionalRecord } from "./helpers.js";
 
 const DEFAULT_ISSUE_FIELDS = [
   "summary",

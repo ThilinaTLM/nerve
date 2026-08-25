@@ -19,7 +19,7 @@ import type {
 } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeProjectionStore } from "../../infrastructure/runtime-projection-store/index.js";
+import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import {
   type TaskLaunchConfigStore,
@@ -231,7 +231,7 @@ export type WorkbenchTaskAdapterOptions = {
 export function createWorkbenchTaskResources(
   storage: InitializedStorage,
   events: StreamLogRegistry,
-  index: RuntimeProjectionStore,
+  queryCache: RuntimeQueryCache,
   logger: ApplicationLogger | undefined,
   options: WorkbenchTaskAdapterOptions,
 ): WorkbenchTaskResources {
@@ -283,13 +283,13 @@ export function createWorkbenchTaskResources(
       list: async () => [...tasks.values()],
       save: async (task) => {
         tasks.set(task.id, task);
-        index.upsertTask(task);
+        queryCache.upsertTask(task);
         await repository.write(task);
       },
       remove: async (id) => {
         tasks.delete(id);
         managed.delete(id);
-        index.deleteTask(id);
+        queryCache.deleteTask(id);
         await repository.remove(id);
       },
     },

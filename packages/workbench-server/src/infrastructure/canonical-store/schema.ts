@@ -1,7 +1,10 @@
-export const CANONICAL_SCHEMA_VERSION = 2;
+export const CANONICAL_V2_SCHEMA_VERSION = 2;
+export const CANONICAL_V2_SCHEMA_CHECKSUM =
+  "531dd8310f8326ba9f21a5b2e3cfae67dfce5b620d3aca28e415ac882b30c3ad";
+export const CANONICAL_SCHEMA_VERSION = 3;
 export const CANONICAL_BASELINE_NAME = "canonical-storage-baseline";
 export const CANONICAL_SCHEMA_CHECKSUM =
-  "531dd8310f8326ba9f21a5b2e3cfae67dfce5b620d3aca28e415ac882b30c3ad";
+  "0c37fcedf26320bcbc4b7b966a39ccbaa9759fd8295fc3cdc8c850d0c8598367";
 export const CANONICAL_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,

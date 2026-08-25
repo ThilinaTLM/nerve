@@ -13,7 +13,7 @@ import {
   RpcDispatcher,
 } from "@nervekit/protocol";
 import { ZodError } from "zod";
-import type { OrchestratorState } from "../app/orchestrator-state.js";
+import type { WorkbenchState } from "../app/workbench-state.js";
 import { ApplicationError } from "../core/application-error.js";
 import { FileIdempotencyStore } from "./file-idempotency-store.js";
 import { createProtocolMessage, orchestratorSource } from "./messages.js";
@@ -26,9 +26,9 @@ import { protocolErrorData, redactProtocolValue } from "./protocol-errors.js";
 export const PROTOCOL_HTTP_CONTENT_TYPE =
   "application/vnd.nerve.protocol.v1+json";
 const MAX_PROTOCOL_HTTP_BODY_BYTES = 4 * 1024 * 1024;
-const workbenchDispatchers = new WeakMap<OrchestratorState, RpcDispatcher>();
+const workbenchDispatchers = new WeakMap<WorkbenchState, RpcDispatcher>();
 const workbenchIdempotencyStores = new WeakMap<
-  OrchestratorState,
+  WorkbenchState,
   FileIdempotencyStore
 >();
 const workbenchCapabilities = WORKBENCH_OPERATION_METHODS.map(
@@ -38,7 +38,7 @@ const workbenchCapabilities = WORKBENCH_OPERATION_METHODS.map(
 export class ProtocolHttpDispatcher {
   readonly #dispatcher: RpcDispatcher;
 
-  constructor(private readonly state: OrchestratorState) {
+  constructor(private readonly state: WorkbenchState) {
     this.#dispatcher = workbenchRpcDispatcher(state);
   }
 
@@ -154,14 +154,12 @@ export class ProtocolHttpDispatcher {
 }
 
 export function workbenchOperationHandlers(
-  state: OrchestratorState,
+  state: WorkbenchState,
 ): Partial<OperationHandlerRegistry> {
   return bindWorkbenchOperationHandlers(state);
 }
 
-export function workbenchRpcDispatcher(
-  state: OrchestratorState,
-): RpcDispatcher {
+export function workbenchRpcDispatcher(state: WorkbenchState): RpcDispatcher {
   const existing = workbenchDispatchers.get(state);
   if (existing) return existing;
   const dispatcher = new RpcDispatcher({
@@ -175,7 +173,7 @@ export function workbenchRpcDispatcher(
 }
 
 function workbenchIdempotencyStore(
-  state: OrchestratorState,
+  state: WorkbenchState,
 ): FileIdempotencyStore {
   const existing = workbenchIdempotencyStores.get(state);
   if (existing) return existing;
@@ -187,7 +185,7 @@ function workbenchIdempotencyStore(
 }
 
 export function workbenchWebSocketRpcDispatcher(
-  state: OrchestratorState,
+  state: WorkbenchState,
   acceptedCapabilities: readonly string[],
 ): RpcDispatcher {
   return new RpcDispatcher({

@@ -2,7 +2,7 @@ import type {
   GitBranchListResponse,
   GitBranchSummary,
 } from "@nervekit/contracts";
-import type { GitReadSnapshot } from "./git-read-backend.js";
+import type { GitReadSnapshot } from "./read/types.js";
 
 export interface GitBranchServicePort {
   resolveRepoDir(projectId: string, relativePath: string): string;

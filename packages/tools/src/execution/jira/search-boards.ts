@@ -1,4 +1,5 @@
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import { optionalString } from "../atlassian/arguments.js";
 import { jiraRequest, requireJiraConnection } from "./client.js";
 import {
   buildJiraTextResult,
@@ -8,7 +9,7 @@ import {
   summarizeJiraBoard,
   takeDisplayItems,
 } from "./format.js";
-import { boundedNumber, optionalString } from "./helpers.js";
+import { boundedNumber } from "../atlassian/arguments.js";
 
 export async function executeJiraSearchBoards(
   args: Record<string, unknown>,
