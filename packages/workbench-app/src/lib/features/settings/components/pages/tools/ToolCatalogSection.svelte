@@ -11,12 +11,10 @@ import type {
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import {
-  SettingsFieldRow,
   SettingsGroup,
   SettingsInlineMessage,
   SettingsList,
   SettingsSummaryRow,
-  SettingsToggleRow,
 } from "$lib/presentation/components/settings";
 import {
   modelDisplayName,
@@ -27,6 +25,7 @@ import {
 } from "$lib/presentation/utils/model";
 import SingleModelSelectionDialog from "../../shared/SingleModelSelectionDialog.svelte";
 import type { SettingsChange } from "../settings-change";
+import BashToolDialog from "./BashToolDialog.svelte";
 import PythonRuntimeDialog from "./PythonRuntimeDialog.svelte";
 import ToolConfigureButton from "./ToolConfigureButton.svelte";
 import ToolGroupItem from "./ToolGroupItem.svelte";
@@ -59,6 +58,7 @@ let {
   category = "core",
 }: Props = $props();
 
+let bashDialogOpen = $state(false);
 let pythonDialogOpen = $state(false);
 let visionModelDialogOpen = $state(false);
 let webDialogOpen = $state(false);
@@ -150,25 +150,6 @@ function setTavilyProfile(profileId?: string): void {
     setToolsEnabled(["web_search", "web_fetch"], false);
   }
 }
-
-function setBashAutoPromotionEnabled(enabled: boolean): void {
-  settingsDraft.tools.bash.autoPromotion.enabled = enabled;
-  onSettingsChange?.(
-    { tools: { bash: { autoPromotion: { enabled } } } },
-    { immediate: true },
-  );
-}
-
-function updateBashAutoPromotionSeconds(value: string): void {
-  const seconds = Number(value);
-  if (!Number.isInteger(seconds) || seconds < 1 || seconds > 86_400) return;
-  const afterMs = seconds * 1000;
-  settingsDraft.tools.bash.autoPromotion.afterMs = afterMs;
-  onSettingsChange?.(
-    { tools: { bash: { autoPromotion: { afterMs } } } },
-    { debounceMs: 650 },
-  );
-}
 </script>
 
 <SettingsGroup>
@@ -184,7 +165,12 @@ function updateBashAutoPromotionSeconds(value: string): void {
         tools={group.tools}
       >
         {#snippet actions()}
-          {#if group.id === "web"}
+          {#if group.id === "shell"}
+            <ToolConfigureButton
+              label="Configure Shell"
+              onclick={() => (bashDialogOpen = true)}
+            />
+          {:else if group.id === "web"}
             <ToolConfigureButton
               label="Configure Web access"
               onclick={() => (webDialogOpen = true)}
@@ -232,27 +218,17 @@ function updateBashAutoPromotionSeconds(value: string): void {
         {/snippet}
         {#snippet extra()}
           {#if group.id === "shell"}
-            <div class="grid gap-2 pt-1">
-              <SettingsToggleRow
-                label="Automatic backgrounding"
-                description="Promote Bash calls that are still running after the configured delay."
-                checked={bashAutoPromotion.enabled}
-                onCheckedChange={setBashAutoPromotionEnabled}
-              />
-              <SettingsFieldRow
-                id="tools-bash-auto-promotion-seconds"
-                label="Background after"
-                type="number"
-                min={1}
-                max={86_400}
-                step={1}
-                suffix="seconds"
-                disabled={!bashAutoPromotion.enabled}
-                class="max-w-xs"
-                value={String(bashAutoPromotion.afterMs / 1000)}
-                onValueChange={updateBashAutoPromotionSeconds}
-              />
-            </div>
+            <SettingsSummaryRow
+              class="mt-1"
+              title="Automatic backgrounding"
+              status={bashAutoPromotion.enabled ? "ok" : "muted"}
+            >
+              {#snippet meta()}
+                {bashAutoPromotion.enabled
+                  ? `After ${bashAutoPromotion.afterMs / 1000} seconds`
+                  : "Disabled"}
+              {/snippet}
+            </SettingsSummaryRow>
           {:else if group.id === "web"}
             <SettingsSummaryRow
               class="mt-1"
@@ -320,6 +296,8 @@ function updateBashAutoPromotionSeconds(value: string): void {
     {/each}
   </SettingsList>
 </SettingsGroup>
+
+<BashToolDialog bind:open={bashDialogOpen} {settingsDraft} {onSettingsChange} />
 
 <ToolProfileDialog
   bind:open={webDialogOpen}
