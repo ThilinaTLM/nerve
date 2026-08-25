@@ -76,9 +76,6 @@ const conversationSelectorsValue = {
       (agent) => agent.conversationId === selection.conversationId,
     );
   },
-  get pendingApprovalCount() {
-    return workspaceSelectors.approvals.length;
-  },
   get conversationActiveRun() {
     return activeView()?.activeRun;
   },
