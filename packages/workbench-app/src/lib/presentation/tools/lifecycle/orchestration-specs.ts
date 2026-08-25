@@ -292,12 +292,6 @@ export const orchestrationToolLifecycleSpecs = {
           ? { text: path.split(/[\\/]/).pop() || path, openPath: path }
           : textArg("Plan review"),
         secondary: path ? [{ text: path, mono: true, openPath: path }] : [],
-        body: source.string("summary")
-          ? {
-              kind: "text-summary",
-              text: boundedText(source.string("summary"))!,
-            }
-          : undefined,
       });
     },
   }),

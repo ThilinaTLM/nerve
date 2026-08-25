@@ -15,12 +15,6 @@ const planModePresentParameters = Type.Object(
     file_path: Type.String({
       description: "Path to the markdown plan file inside Nerve plan storage",
     }),
-    title: Type.Optional(
-      Type.String({ description: "Optional display title" }),
-    ),
-    summary: Type.Optional(
-      Type.String({ description: "Short summary for the review UI" }),
-    ),
   },
   { additionalProperties: false },
 );

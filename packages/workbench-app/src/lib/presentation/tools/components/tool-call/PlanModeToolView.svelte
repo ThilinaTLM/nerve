@@ -17,6 +17,7 @@ import {
   type ToolView,
 } from "../../views/tool-result-view";
 import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelte";
+import { planReviewContent, planReviewPreview } from "./plan-mode-preview";
 import ToolFooter from "./ToolFooter.svelte";
 
 type PlanAcceptTarget = "same" | "compact" | "new-chat";
@@ -88,11 +89,6 @@ function resultPayload(toolCall: ToolCallDisplayRecord): unknown {
   return payloads.resultPreview ?? payloads.result;
 }
 
-function firstLines(text: string, count: number): string {
-  const lines = text.split("\n");
-  return lines.length > count ? lines.slice(0, count).join("\n") : text;
-}
-
 const rawResult = $derived(resultPayload(toolCall));
 const resultReview = $derived(reviewFromResult(rawResult));
 const displayedReview = $derived(
@@ -100,7 +96,7 @@ const displayedReview = $derived(
     ? {
         ...resultReview,
         ...planReview,
-        content: resultReview?.content ?? planReview.content,
+        content: planReviewContent(resultReview?.content, planReview.content),
       }
     : resultReview,
 );
@@ -117,13 +113,8 @@ const acceptedInNewChat = $derived(reviewStatus === "accepted_in_new_chat");
 const rejected = $derived(
   reviewStatus === "changes_requested" || reviewStatus === "discarded",
 );
-const collapsedContent = $derived(
-  resultReview?.content ?? displayedReview?.content ?? "",
-);
 const preview = $derived(
-  expanded
-    ? (displayedReview?.content ?? "")
-    : firstLines(collapsedContent, COLLAPSED_LINES),
+  planReviewPreview(displayedReview?.content ?? "", expanded, COLLAPSED_LINES),
 );
 const showPlanCard = $derived(
   toolCall.toolName === "plan_mode_present" && Boolean(displayedReview),

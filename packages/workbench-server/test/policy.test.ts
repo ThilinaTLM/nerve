@@ -6,6 +6,7 @@ import type {
   AgentRecord,
   PermissionException,
   PermissionLevel,
+  PermissionRule,
 } from "@nervekit/contracts";
 import { evaluateWorkbenchToolPermission } from "../src/domains/tools/permission/index.js";
 
@@ -122,7 +123,7 @@ describe("Workbench tool permission", () => {
       { path: planPath, content: "# Plan" },
       context,
     );
-    assert.equal(insidePlanDir.decision, "approval");
+    assert.equal(insidePlanDir.decision, "allow");
     assert.equal(insidePlanDir.normalizedArgs.path, resolve(planPath));
 
     const temporaryPath = join(tmpdir(), "nerve-plan-mode", "notes.md");
@@ -140,6 +141,15 @@ describe("Workbench tool permission", () => {
       insideTemporaryDir.normalizedArgs.path,
       resolve(temporaryPath),
     );
+    assert.equal(
+      evaluateWorkbenchToolPermission(
+        agent("supervised", "planning"),
+        "write",
+        { path: temporaryPath, content: "notes" },
+        context,
+      ).decision,
+      "approval",
+    );
 
     const outsidePath = resolve(
       tmpdir(),
@@ -155,6 +165,29 @@ describe("Workbench tool permission", () => {
     );
     assert.equal(outside.decision, "deny");
     assert.match(outside.reason, /system temporary directory/);
+  });
+
+  it("keeps explicit plan-write denials stronger than planning auto-allow", () => {
+    const planPath = join(context.dataDir, "plans", "blocked.md");
+    const rule: PermissionRule = {
+      id: "rule_block_plan_write",
+      scope: "project",
+      projectId: "proj_test",
+      effect: "deny",
+      toolName: "write",
+      matcherKind: "whole_tool",
+      pattern: "*",
+      enabled: true,
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+    };
+    const result = evaluateWorkbenchToolPermission(
+      agent("supervised", "planning"),
+      "write",
+      { path: planPath, content: "# Blocked" },
+      { ...context, rules: [rule] },
+    );
+    assert.equal(result.decision, "deny");
   });
 
   it("cannot override planning denials with an exception", () => {

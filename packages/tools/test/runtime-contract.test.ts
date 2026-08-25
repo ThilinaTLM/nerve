@@ -185,6 +185,7 @@ describe("shared tool runtime contract", () => {
       },
       present: async (value, request) => {
         assert.equal(value, identity);
+        assert.deepEqual(request, { filePath: "plans/reuse.md" });
         calls.push(`plan.present:${request.filePath}`);
         return { content: "review" };
       },

@@ -35,6 +35,19 @@ describe("model-facing tool schema compatibility", () => {
     }
   });
 
+  it("keeps plan_mode_present limited to the plan file path", () => {
+    const schema = requireToolDefinition("plan_mode_present").parameters;
+    assert.equal(Check(schema, { file_path: "/tmp/plan.md" }), true);
+    assert.equal(
+      Check(schema, { file_path: "/tmp/plan.md", summary: "override" }),
+      false,
+    );
+    assert.equal(
+      Check(schema, { file_path: "/tmp/plan.md", title: "override" }),
+      false,
+    );
+  });
+
   it("does not expose top-level schema composition for action tools", () => {
     for (const definition of allToolDefinitions) {
       if (!flattenedActionTools.has(definition.name)) continue;
