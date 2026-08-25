@@ -41,8 +41,6 @@ export function parseQuestion(args: Record<string, unknown>) {
 export function parsePlanRequest(args: Record<string, unknown>) {
   return {
     filePath: requiredString(args.file_path, "file_path"),
-    title: optionalString(args.title),
-    summary: optionalString(args.summary),
   };
 }
 

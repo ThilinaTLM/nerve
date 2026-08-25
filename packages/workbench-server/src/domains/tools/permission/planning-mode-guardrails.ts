@@ -17,7 +17,11 @@ export function planningModeGuardrails(input: {
   normalizedArgs: Record<string, unknown>;
   cwd: string;
   dataDir: string;
-}): { normalizedArgs: Record<string, unknown>; denial?: string } {
+}): {
+  normalizedArgs: Record<string, unknown>;
+  denial?: string;
+  allowWithoutApproval?: boolean;
+} {
   const allowedInteractionTools = new Set<ToolName>([
     "ask_user",
     "todos_set",
@@ -55,10 +59,12 @@ export function planningModeGuardrails(input: {
       const targetPath = resolvePlanPath(input.cwd, input.args.path);
       const planDir = planDirForStorageHome(input.dataDir);
       const temporaryDir = tmpdir();
-      const allowed = [planDir, temporaryDir].some((directory) =>
-        isPathInsideDirectory(directory, targetPath),
+      const insidePlanDir = isPathInsideDirectory(planDir, targetPath);
+      const insideTemporaryDir = isPathInsideDirectory(
+        temporaryDir,
+        targetPath,
       );
-      if (!allowed) {
+      if (!insidePlanDir && !insideTemporaryDir) {
         return {
           normalizedArgs: input.normalizedArgs,
           denial: `Planning mode allows ${input.toolName} only inside the plan directory (${planDir}) or system temporary directory (${temporaryDir}). Attempted: ${targetPath}`,
@@ -66,6 +72,7 @@ export function planningModeGuardrails(input: {
       }
       return {
         normalizedArgs: { ...input.normalizedArgs, path: targetPath },
+        allowWithoutApproval: insidePlanDir,
       };
     } catch (error) {
       return {

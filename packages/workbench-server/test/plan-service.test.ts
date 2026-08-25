@@ -6,6 +6,7 @@ import { after, describe, it } from "node:test";
 import {
   type AgentRecord,
   PLAN_REVIEW_PREVIEW_CHARACTERS,
+  PLAN_REVIEW_SUMMARY_PREVIEW_CHARACTERS,
   type ToolCallRecord,
 } from "@nervekit/contracts";
 import {
@@ -71,6 +72,8 @@ describe("PlanService", () => {
     }
     assert.ok(review);
     assert.equal(review.slug, "accepted-plan");
+    assert.equal(review.title, "accepted-plan.md");
+    assert.equal(review.summary, "# Accepted");
     assert.equal(review.planPath, planPath);
     assert.equal(review.content, "# Accepted\n");
 
@@ -123,6 +126,11 @@ describe("PlanService", () => {
     }
     assert.ok(review);
     assert.equal(review.content, content);
+    assert.equal(review.summary?.startsWith("# Long plan"), true);
+    assert.equal(
+      review.summary?.length,
+      PLAN_REVIEW_SUMMARY_PREVIEW_CHARACTERS,
+    );
     assert.equal(
       planReviewPreview(review).content?.length,
       PLAN_REVIEW_PREVIEW_CHARACTERS,

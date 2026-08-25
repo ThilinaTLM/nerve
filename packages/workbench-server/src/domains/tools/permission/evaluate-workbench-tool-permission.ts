@@ -54,6 +54,7 @@ export function evaluateWorkbenchToolPermission(
   const request = toolRequestContext(agent, args);
   let normalizedArgs = request.normalizedArgs;
   let denial: string | undefined;
+  let allowWithoutApproval = false;
 
   if (agent.mode === "planning") {
     const guardrails = planningModeGuardrails({
@@ -65,6 +66,7 @@ export function evaluateWorkbenchToolPermission(
     });
     normalizedArgs = guardrails.normalizedArgs;
     denial = guardrails.denial;
+    allowWithoutApproval = guardrails.allowWithoutApproval ?? false;
   } else if (
     toolName === "plan_mode_present" ||
     toolName === "plan_mode_force_exit"
@@ -99,21 +101,33 @@ export function evaluateWorkbenchToolPermission(
     constraints: denial ? [{ decision: "deny", reason: denial }] : undefined,
     evaluatedAt,
   });
+  const autoAllowPlanWrite =
+    agent.mode === "planning" &&
+    allowWithoutApproval &&
+    evaluated.decision === "approval" &&
+    supervision.decision === "prompt";
   const planningDecision =
     agent.mode === "planning"
-      ? evaluated.decision === "approval"
-        ? "prompt"
-        : evaluated.decision
+      ? autoAllowPlanWrite
+        ? "allow"
+        : evaluated.decision === "approval"
+          ? "prompt"
+          : evaluated.decision
       : supervision.decision;
   const durableSupervision =
-    planningDecision === supervision.decision
+    supervision.decision === "deny" || planningDecision === supervision.decision
       ? supervision
       : {
           ...supervision,
           decision: planningDecision,
           effectiveRisk: evaluated.risk,
-          reason: evaluated.reason,
+          reason: autoAllowPlanWrite
+            ? "Planning mode allows plan files to be saved without separate approval."
+            : evaluated.reason,
           normalizedArgs: evaluated.normalizedArgs,
+          ...(autoAllowPlanWrite
+            ? { matchedRuleIds: [], suggestedRules: [] }
+            : {}),
         };
   return {
     decision:
@@ -124,7 +138,9 @@ export function evaluateWorkbenchToolPermission(
     reason: durableSupervision.reason,
     normalizedArgs: durableSupervision.normalizedArgs,
     cwd: request.cwd,
-    suggestedExceptions: evaluated.suggestedExceptions,
+    suggestedExceptions: autoAllowPlanWrite
+      ? []
+      : evaluated.suggestedExceptions,
     supervision: durableSupervision,
   };
 }

@@ -199,11 +199,7 @@ export class OrchestrationToolDispatcher {
           result(
             this.requestPlanReview(
               toolCall,
-              {
-                file_path: request.filePath,
-                title: request.title,
-                summary: request.summary,
-              },
+              { file_path: request.filePath },
               options,
             ),
           ),

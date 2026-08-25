@@ -5,6 +5,7 @@ import {
   createId,
   type Mode,
   type PlanReviewRecord,
+  PLAN_REVIEW_SUMMARY_PREVIEW_CHARACTERS,
   type PlanReviewStatus,
   toPlanReviewPreview,
   type ToolCallRecord,
@@ -27,6 +28,7 @@ export type PlanReviewResult = {
 };
 
 const UNRESOLVED_PLAN_MARKER = /\[!(QUESTION|DECISION)\]/i;
+const PLAN_FILE_PREVIEW_LINES = 6;
 
 export const planReviewPreview = toPlanReviewPreview;
 
@@ -155,8 +157,8 @@ export class PlanService {
     }
 
     const slug = planSlugFromPath(planPath);
-    const title = optionalStringArg(args.title) ?? basename(planPath);
-    const summary = optionalStringArg(args.summary);
+    const title = basename(planPath);
+    const summary = planFilePreview(content);
     const existingPending = this.listPlanReviews("pending").find(
       (review) => review.agentId === agent.id && review.planPath === planPath,
     );
@@ -382,6 +384,15 @@ export class PlanService {
     }
     return `Plan review status: ${review.status}.`;
   }
+}
+
+function planFilePreview(content: string): string {
+  return content
+    .split(/\r?\n/)
+    .slice(0, PLAN_FILE_PREVIEW_LINES)
+    .join("\n")
+    .trim()
+    .slice(0, PLAN_REVIEW_SUMMARY_PREVIEW_CHARACTERS);
 }
 
 function optionalStringArg(value: unknown): string | undefined {
