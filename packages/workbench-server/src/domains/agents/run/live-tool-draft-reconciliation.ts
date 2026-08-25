@@ -38,9 +38,22 @@ export class LiveToolDraftReconciler {
     message: AssistantMessage,
     drafts: LiveToolDraftState[],
   ): Promise<void> {
+    const ordered = [...drafts].sort((a, b) => a.contentIndex - b.contentIndex);
+    const terminalDiscardReason =
+      message.stopReason === "error"
+        ? "invalid"
+        : message.stopReason === "aborted"
+          ? "abandoned"
+          : undefined;
+    if (terminalDiscardReason) {
+      for (const draft of ordered) {
+        await this.discard(draft, terminalDiscardReason);
+      }
+      return;
+    }
+
     const finalToolCalls = assistantToolCallSnapshots(message);
     const consumedFinalIndexes = new Set<number>();
-    const ordered = [...drafts].sort((a, b) => a.contentIndex - b.contentIndex);
     for (const draft of ordered) {
       if (draft.ended) continue;
       const matchIndex = finalToolCalls.findIndex(
