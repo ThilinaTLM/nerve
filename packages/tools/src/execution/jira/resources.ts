@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
+/* eslint-disable max-lines -- Jira resource normalization and producer metadata share one action-focused module. */
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { ToolExecutionError } from "../common/tool-error.js";
 import { resolveToolPath } from "../filesystem/path.js";
@@ -236,9 +237,11 @@ export async function executeJiraDownloadAttachment(
   const filename = safeFilename(
     requested ?? remoteName ?? `attachment-${attachmentId}`,
   );
-  const baseDir = context.dataDir
-    ? join(context.dataDir, "tmp", "jira", "attachments")
-    : join(tmpdir(), "nerve-jira", "attachments");
+  const baseDir =
+    context.artifactDir ??
+    (context.dataDir
+      ? join(context.dataDir, "tmp", "jira", "attachments")
+      : join(tmpdir(), "nerve-jira", "attachments"));
   await mkdir(baseDir, { recursive: true, mode: 0o700 });
   const hash = createHash("sha256")
     .update(downloaded.bytes)
@@ -259,10 +262,34 @@ export async function executeJiraDownloadAttachment(
       outputLimits: {
         artifacts: [
           {
-            kind: "raw_result",
+            id: "jira_attachment",
+            role: "primary_result",
             path,
+            format: {
+              kind:
+                typeof (downloaded.contentType ?? metadata.mimeType) ===
+                  "string" &&
+                String(downloaded.contentType ?? metadata.mimeType).startsWith(
+                  "image/",
+                )
+                  ? "image"
+                  : "binary",
+              mediaType: String(
+                downloaded.contentType ??
+                  metadata.mimeType ??
+                  "application/octet-stream",
+              ),
+            },
             label: filename,
             bytes: downloaded.bytes.byteLength,
+            recommendedTools:
+              typeof (downloaded.contentType ?? metadata.mimeType) ===
+                "string" &&
+              String(downloaded.contentType ?? metadata.mimeType).startsWith(
+                "image/",
+              )
+                ? ["read"]
+                : [],
           },
         ],
       },

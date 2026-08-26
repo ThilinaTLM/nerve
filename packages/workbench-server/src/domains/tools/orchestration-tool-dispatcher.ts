@@ -299,6 +299,7 @@ export class OrchestrationToolDispatcher {
             ? autoPromotion.afterMs
             : undefined,
           signal: options.signal,
+          artifactDir: executionContext.artifactDir,
           onOutput: executionContext.onUpdate,
           origin: {
             kind: "agent_tool",

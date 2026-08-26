@@ -26,6 +26,18 @@ const validActionArguments: Record<string, Record<string, unknown>> = {
 const flattenedActionTools = new Set(Object.keys(validActionArguments));
 
 describe("model-facing tool schema compatibility", () => {
+  it("declares a reviewed agent-result policy for all 50 active tools", () => {
+    assert.equal(allToolDefinitions.length, 50);
+    assert.deepEqual(
+      allToolDefinitions.filter((definition) => !definition.agentResult),
+      [],
+    );
+    assert.equal(
+      new Set(allToolDefinitions.map((definition) => definition.name)).size,
+      50,
+    );
+  });
+
   it("uses a JSON object root for every tool definition", () => {
     for (const definition of allToolDefinitions) {
       const serialized = JSON.parse(JSON.stringify(definition.parameters)) as {

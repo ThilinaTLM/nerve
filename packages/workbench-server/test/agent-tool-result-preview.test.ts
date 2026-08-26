@@ -40,6 +40,24 @@ function terminalToolCall(
   };
 }
 
+function completePayload(path: string) {
+  return {
+    version: 1 as const,
+    id: "complete_payload",
+    role: "overflow_recovery" as const,
+    access: { kind: "agent_file" as const, path },
+    availability: "available" as const,
+    format: {
+      kind: "json" as const,
+      mediaType: "application/json",
+      encoding: "utf-8" as const,
+    },
+    size: { bytes: 100_000 },
+    recommendedTools: ["read" as const, "grep" as const],
+    label: "Complete tool result payload",
+  };
+}
+
 function text(result: ReturnType<typeof toolCallResultForModel>): string {
   return result.content
     .filter((block) => block.type === "text")
@@ -87,7 +105,7 @@ describe("agent tool-result preview", () => {
     );
   });
 
-  it("returns fitting output unchanged", () => {
+  it("returns fitting process output with status exactly once", () => {
     const value = "first\nsecond";
     assert.equal(
       text(
@@ -98,11 +116,11 @@ describe("agent tool-result preview", () => {
           }),
         ),
       ),
-      value,
+      `${value}\n\nProcess finished.`,
     );
   });
 
-  it("uses the exact notice and aggregate 200-line/24000-byte limits", () => {
+  it("uses the compact process diagnostic budget and trusted recovery", () => {
     const value = Array.from(
       { length: 300 },
       (_, index) => `${index} ${"🙂".repeat(80)}`,
@@ -115,15 +133,17 @@ describe("agent tool-result preview", () => {
           content: value,
           contentBlocks: [{ type: "text", text: value }],
         }),
-        path,
+        completePayload(path),
       ),
     );
 
-    assert.ok(Buffer.byteLength(output, "utf8") <= 24_000);
-    assert.ok(output.split("\n").length <= 200);
-    assert.ok(output.endsWith(`Output truncated. Full output: ${path}`));
-    assert.equal(output.includes("omitted"), false);
-    assert.equal(output.includes("Continue with"), false);
+    assert.ok(Buffer.byteLength(output, "utf8") <= 4_000);
+    assert.ok(output.split("\n").length <= 16);
+    assert.match(
+      output,
+      new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
+    assert.match(output, /do not rerun/i);
   });
 
   it("gives parallel siblings independent budgets", () => {
@@ -135,7 +155,7 @@ describe("agent tool-result preview", () => {
             { content: value, contentBlocks: [{ type: "text", text: value }] },
             id,
           ),
-          `/payloads/${id}.json`,
+          completePayload(`/payloads/${id}.json`),
         ),
       ),
     );
@@ -143,7 +163,9 @@ describe("agent tool-result preview", () => {
       outputs[0]?.split("\n").length,
       outputs[1]?.split("\n").length,
     );
-    assert.ok(outputs[0]?.endsWith("/payloads/tool_left.json"));
-    assert.ok(outputs[1]?.endsWith("/payloads/tool_right.json"));
+    assert.match(outputs[0] ?? "", /\/payloads\/tool_left\.json/);
+    assert.doesNotMatch(outputs[0] ?? "", /tool_right/);
+    assert.match(outputs[1] ?? "", /\/payloads\/tool_right\.json/);
+    assert.doesNotMatch(outputs[1] ?? "", /tool_left/);
   });
 });

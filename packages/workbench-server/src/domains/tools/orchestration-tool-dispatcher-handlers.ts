@@ -40,6 +40,10 @@ export async function taskLogsFromTool(
       min: 0,
       max: Number.MAX_SAFE_INTEGER,
     }),
+    beforeSeq: optionalBoundedIntegerArg(args.beforeSeq, "beforeSeq", {
+      min: 0,
+      max: Number.MAX_SAFE_INTEGER,
+    }),
     contains: optionalStringArg(args.contains),
     regex: optionalStringArg(args.regex),
     contextLines: optionalBoundedIntegerArg(args.contextLines, "contextLines", {
@@ -77,6 +81,67 @@ export async function taskLogsFromTool(
     previewPath: details?.fullOutputPath,
     truncated: details?.truncation?.truncated,
     contentBlocks: bounded.contentBlocks,
+    details: {
+      ...(bounded.details && typeof bounded.details === "object"
+        ? bounded.details
+        : {}),
+      outputLimits: {
+        artifacts: [
+          {
+            id: "task_stdout",
+            role: "overflow_recovery",
+            path: response.streamArtifacts?.stdoutPath ?? task.stdoutPath,
+            format: {
+              kind: "text",
+              mediaType: "text/plain",
+              encoding: "utf-8",
+            },
+            label: "Task stdout",
+            recommendedTools: ["read", "grep"],
+          },
+          {
+            id: "task_stderr",
+            role: "overflow_recovery",
+            path: response.streamArtifacts?.stderrPath ?? task.stderrPath,
+            format: {
+              kind: "text",
+              mediaType: "text/plain",
+              encoding: "utf-8",
+            },
+            label: "Task stderr",
+            recommendedTools: ["read", "grep"],
+          },
+          {
+            id: "task_events",
+            role: "supporting_data",
+            path: response.streamArtifacts?.eventsPath ?? task.logsPath,
+            format: {
+              kind: "jsonl",
+              mediaType: "application/x-ndjson",
+              encoding: "utf-8",
+            },
+            label: "Task event index",
+            recommendedTools: ["read", "grep"],
+          },
+          ...(response.streamArtifacts?.combinedPath
+            ? [
+                {
+                  id: "task_combined",
+                  role: "overflow_recovery" as const,
+                  path: response.streamArtifacts.combinedPath,
+                  format: {
+                    kind: "text" as const,
+                    mediaType: "text/plain",
+                    encoding: "utf-8" as const,
+                  },
+                  label: "Task combined output in observed callback order",
+                  recommendedTools: ["read", "grep"] as const,
+                },
+              ]
+            : []),
+        ],
+      },
+    },
   });
 }
 

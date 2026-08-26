@@ -80,6 +80,50 @@ function editToolCall(diff: string): ToolCallRecord {
   } satisfies ToolCallRecord;
 }
 
+describe("public transcript separation", () => {
+  it("keeps producer artifact claims out of the public preview", () => {
+    const base: ToolCallRecord = {
+      ...explainImageToolCall("unused"),
+      toolName: "todos_get",
+      risk: "read",
+      args: {},
+      result: {
+        contentBlocks: [{ type: "text", text: "1 todo" }],
+        details: { todos: [{ todo: "Verify result", done: false }] },
+      },
+    };
+    const withClaim: ToolCallRecord = {
+      ...base,
+      result: {
+        ...(base.result as Record<string, unknown>),
+        details: {
+          todos: [{ todo: "Verify result", done: false }],
+          outputLimits: {
+            artifacts: [
+              {
+                id: "private_claim",
+                role: "supporting_data",
+                path: "/tmp/private.json",
+                format: {
+                  kind: "json",
+                  mediaType: "application/json",
+                  encoding: "utf-8",
+                },
+                label: "Private producer claim",
+                recommendedTools: ["read"],
+              },
+            ],
+          },
+        },
+      },
+    };
+    assert.deepEqual(
+      toToolCallTranscriptRecord(withClaim),
+      toToolCallTranscriptRecord(base),
+    );
+  });
+});
+
 describe("explain_image transcript preview", () => {
   it("keeps a bounded explanation preview without duplicate content blocks", () => {
     const explanation = Array.from(

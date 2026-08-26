@@ -50,7 +50,7 @@ export interface TaskProcessExit {
 export interface TaskProcessCallbacks {
   readonly onOutput?: (
     stream: "stdout" | "stderr",
-    text: string,
+    chunk: Buffer | string,
   ) => void | Promise<void>;
   readonly onExit?: (exit: TaskProcessExit) => void | Promise<void>;
 }
@@ -80,7 +80,7 @@ export interface TaskLogPort {
   append?(
     task: TaskRecord,
     stream: "stdout" | "stderr",
-    text: string,
+    chunk: Buffer | string,
   ): Promise<void>;
   remove(task: TaskRecord): Promise<void>;
   retention?(task: TaskRecord): TaskOutputRetention | undefined;
@@ -632,9 +632,9 @@ export class TaskService {
       const task = await this.require(id);
       if (!isTerminalTaskStatus(task.status))
         throw new Error("Active tasks must be cancelled before deletion");
+      await this.ports.repository.remove(id);
       await this.ports.logs.remove(task);
       await this.ports.launchConfigs?.remove(task);
-      await this.ports.repository.remove(id);
       this.startCallbacks.delete(id);
       await this.ports.capabilities?.afterRemoved?.(task);
       await this.publish("task.removed", { taskId: id });

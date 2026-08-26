@@ -1,7 +1,4 @@
 import type { ChildProcess } from "node:child_process";
-import { mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
-import { StringDecoder } from "node:string_decoder";
 import type { TaskDefinitionPortGuard } from "./task-definition-launch.js";
 import type {
   TaskProcessExit,
@@ -295,15 +292,15 @@ export function createWorkbenchTaskResources(
     },
     logs: {
       paths: (id) => {
-        const logsPath = repository.logsPath(id);
+        const paths = repository.paths(id);
         return {
-          stdoutPath: logsPath,
-          stderrPath: logsPath,
-          combinedPath: logsPath,
-          logsPath,
+          stdoutPath: paths.stdoutPath,
+          stderrPath: paths.stderrPath,
+          combinedPath: paths.combinedPath,
+          logsPath: paths.eventsPath,
         };
       },
-      append: async (task, stream, text) => {
+      append: async (task, stream, chunk) => {
         let state = managed.get(task.id);
         if (!state) {
           state = {
@@ -313,12 +310,15 @@ export function createWorkbenchTaskResources(
           };
           managed.set(task.id, state);
         }
-        readiness.capture(task.id, text);
+        readiness.capture(
+          task.id,
+          Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk,
+        );
         await logs.captureOutput(
           task,
           state,
           stream,
-          text,
+          chunk,
           async () => undefined,
         );
       },
@@ -360,10 +360,7 @@ export function createWorkbenchTaskResources(
     },
     process: {
       spawn: async (input, callbacks = {}) => {
-        await mkdir(dirname(repository.logsPath(input.taskId)), {
-          recursive: true,
-          mode: 0o700,
-        });
+        await repository.bundles.initializeTask(input.taskId);
         const logCursor = createTaskLogCursor(
           await logs.latestLogSeq(repository.logsPath(input.taskId)),
         );
@@ -397,23 +394,19 @@ export function createWorkbenchTaskResources(
           onOutput: input.onOutput,
         };
         managed.set(input.taskId, state);
-        const decoders = {
-          stdout: new StringDecoder("utf8"),
-          stderr: new StringDecoder("utf8"),
-        };
-        const queueDecodedOutput = (
+        const queueOutput = (
           stream: "stdout" | "stderr",
-          text: string,
+          chunk: Buffer | string,
           source?: NodeJS.ReadableStream,
         ) => {
-          if (!text) return;
+          if (chunk.length === 0) return;
           const canPause = typeof source?.pause === "function";
           if (canPause) source.pause();
           state.outputPending = (state.outputPending ?? Promise.resolve())
             .catch(() => undefined)
             .then(async () => {
               try {
-                await callbacks.onOutput?.(stream, text);
+                await callbacks.onOutput?.(stream, chunk);
               } finally {
                 if (canPause && typeof source?.resume === "function") {
                   source.resume();
@@ -436,18 +429,10 @@ export function createWorkbenchTaskResources(
           });
         };
         child.stdout?.on("data", (chunk: Buffer) =>
-          queueDecodedOutput(
-            "stdout",
-            decoders.stdout.write(chunk),
-            child.stdout ?? undefined,
-          ),
+          queueOutput("stdout", chunk, child.stdout ?? undefined),
         );
         child.stderr?.on("data", (chunk: Buffer) =>
-          queueDecodedOutput(
-            "stderr",
-            decoders.stderr.write(chunk),
-            child.stderr ?? undefined,
-          ),
+          queueOutput("stderr", chunk, child.stderr ?? undefined),
         );
         const outputCompleted = Promise.all([
           streamCompletion(child.stdout),
@@ -458,8 +443,6 @@ export function createWorkbenchTaskResources(
           if (settled) return;
           settled = true;
           state.finalized = true;
-          queueDecodedOutput("stdout", decoders.stdout.end());
-          queueDecodedOutput("stderr", decoders.stderr.end());
           await state.outputPending?.catch(() => undefined);
           const current = tasks.get(input.taskId);
           if (current)
@@ -473,7 +456,7 @@ export function createWorkbenchTaskResources(
         };
         void closed.then((result) => {
           if (result.kind === "error")
-            queueDecodedOutput("stderr", result.error.message);
+            queueOutput("stderr", result.error.message);
         });
         state.finalizationPromise = Promise.all([closePromise, outputCompleted])
           .then(async ([{ exitCode, signal }]) => {

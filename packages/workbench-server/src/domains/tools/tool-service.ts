@@ -33,6 +33,7 @@ import type {
   ToolAnchor,
 } from "../runs/runtime/conversation-runtime.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import type { PermissionExceptionService } from "../permissions/permission-exceptions.service.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
@@ -111,6 +112,9 @@ export type ExploreRunResult = {
     status?: "completed" | "failed" | "aborted";
     report: string;
     reportPath?: string;
+    reportBytes?: number;
+    reportLines?: number;
+    artifactId?: string;
     summaryPreview?: string;
     usage?: {
       input: number;
@@ -136,9 +140,25 @@ export type ExploreRunResult = {
   details?: {
     outputLimits?: {
       artifacts?: Array<{
-        kind: "transcript";
+        id?: string;
+        role: "primary_result" | "supporting_data" | "overflow_recovery";
         path: string;
-        label?: string;
+        format: {
+          kind:
+            | "markdown"
+            | "text"
+            | "json"
+            | "jsonl"
+            | "image"
+            | "binary"
+            | "directory_manifest";
+          mediaType: string;
+          encoding?: "utf-8";
+        };
+        bytes?: number;
+        lines?: number;
+        label: string;
+        recommendedTools: Array<"read" | "grep" | "explain_image">;
       }>;
     };
   };
@@ -216,6 +236,7 @@ export class ToolService {
     private readonly permissionExceptions?: PermissionExceptionService,
     journal?: ConversationJournalRepository,
     resultPayloads?: ToolResultPayloadStore,
+    private readonly performanceDiagnostics?: PerformanceDiagnosticsPort,
   ) {
     this.conversationJournal =
       journal ?? new ConversationJournalRepository(storage);
@@ -267,6 +288,7 @@ export class ToolService {
 
       payloads: this.resultPayloads,
       logger: this.logger,
+      diagnostics: this.performanceDiagnostics,
     });
   }
 
@@ -1008,6 +1030,12 @@ export class ToolService {
 
   async getToolCallUiDetails(toolCallId: string): Promise<ToolCallDetails> {
     return await this.toolCallRepository.getDetails(toolCallId);
+  }
+
+  toolResultRecoveryArtifact(toolCall: ToolCallRecord) {
+    return toolCall.resultPayload
+      ? this.resultPayloads.recoveryArtifact(toolCall.resultPayload)
+      : undefined;
   }
 
   toolResultPayloadPath(toolCall: ToolCallRecord): string | undefined {

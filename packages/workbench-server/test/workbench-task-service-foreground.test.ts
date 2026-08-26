@@ -192,7 +192,10 @@ describe("task manager foreground bash auto-promotion", () => {
       );
       assert.equal(result.result.stdout, "out 1\nout 2");
       assert.equal(result.result.stderr, "err 1");
-      assert.equal(result.result.content, "out 1\nerr 1\nout 2\n");
+      assert.equal(
+        result.result.content,
+        "[stdout]\nout 1\n[stderr]\nerr 1\n[stdout]\nout 2\n",
+      );
       assert.throws(() => manager.getTask(started.id), /Task not found/);
     },
   );
@@ -271,7 +274,10 @@ describe("task manager foreground bash auto-promotion", () => {
     assert.equal(result.kind, "completed_foreground");
     assert.equal(result.result.stdout, "early out");
     assert.equal(result.result.stderr, "early err");
-    assert.equal(result.result.content, "early out\nearly err\n");
+    assert.equal(
+      result.result.content,
+      "[stdout]\nearly out\n[stderr]\nearly err\n",
+    );
   });
 
   it("waits for output streams to drain after process close", async () => {

@@ -234,7 +234,7 @@ describe("ToolExecutorService structured errors", () => {
     );
   });
 
-  it("recovers complete process output before applying the agent preview", async () => {
+  it("does not reread untrusted legacy process paths during live preparation", async () => {
     const storageHome = await mkdtemp(join(tmpdir(), "nerve-tool-result-"));
     const sourcePath = join(storageHome, "tmp", "process-output.txt");
     await mkdir(join(storageHome, "tmp"), { recursive: true });
@@ -268,22 +268,10 @@ describe("ToolExecutorService structured errors", () => {
     });
 
     const completed = await executor.executeAllowedTool(record.id);
-    assert.ok(completed.resultPayload);
-    assert.equal(JSON.stringify(completed.result).includes(sourcePath), false);
-    const complete = await readFile(
-      join(
-        storageHome,
-        "data",
-        "payloads",
-        "conversations",
-        completed.conversationId,
-        "tool-calls",
-        completed.id,
-        "result.json",
-      ),
-      "utf8",
-    );
-    assert.match(complete, /process line 299/);
+    assert.equal(completed.resultPayload, undefined);
+    assert.deepEqual(completed.validatedArtifacts, []);
+    assert.equal(completed.agentProjection?.fastPath, true);
+    assert.equal(await readFile(sourcePath, "utf8"), rawText);
   });
 
   it("uses the same payload contract even when continuation metadata exists", async () => {

@@ -32,9 +32,11 @@ export async function writeJiraArtifact(
   kind: string,
   payload: unknown,
 ): Promise<{ path: string; bytes: number; chars: number; lines: number }> {
-  const baseDir = context.dataDir
-    ? join(context.dataDir, "tmp", "jira")
-    : join(tmpdir(), "nerve-jira");
+  const baseDir =
+    context.artifactDir ??
+    (context.dataDir
+      ? join(context.dataDir, "tmp", "jira")
+      : join(tmpdir(), "nerve-jira"));
   await mkdir(baseDir, { recursive: true, mode: 0o700 });
   const text = JSON.stringify(payload, null, 2);
   const hash = createHash("sha256").update(text).digest("hex").slice(0, 10);
@@ -81,12 +83,18 @@ export async function buildJiraTextResult({
         artifacts: [
           ...(existingOutputLimits?.artifacts ?? []),
           {
-            kind: "raw_result" as const,
+            id: "jira_raw_json",
+            role: "supporting_data" as const,
             path: artifact.path,
+            format: {
+              kind: "json" as const,
+              mediaType: "application/json",
+              encoding: "utf-8" as const,
+            },
             label: "Raw Jira JSON",
             bytes: artifact.bytes,
-            chars: artifact.chars,
             lines: artifact.lines,
+            recommendedTools: ["read", "grep"] as ("read" | "grep")[],
           },
         ],
       }

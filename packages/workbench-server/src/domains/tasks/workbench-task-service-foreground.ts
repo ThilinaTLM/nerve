@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import {
   buildProcessResult,
   buildProcessTextResult,
@@ -14,35 +15,32 @@ import { foregroundPromotionDelayMs } from "./workbench-task-service-utils.js";
 export async function buildForegroundBashResult(
   this: WorkbenchTaskService,
   taskId: string,
+  artifactDir?: string,
 ): Promise<ToolExecutionResult> {
   const task = this.getTask(taskId);
   const retention = task.outputRetention;
-  const events = await this.taskLogs.readLogEvents(task.logsPath);
-  const stdout = Buffer.from(
-    events
-      .filter((event) => event.stream === "stdout")
-      .map((event) => `${event.line}\n`)
-      .join(""),
-  );
-  const stderr = Buffer.from(
-    events
-      .filter((event) => event.stream === "stderr")
-      .map((event) => `${event.line}\n`)
-      .join(""),
-  );
-  const combined = Buffer.from(
-    events.map((event) => `${event.line}\n`).join(""),
-  );
+  const stdout = await readFile(task.stdoutPath).catch(() => Buffer.alloc(0));
+  const stderr = await readFile(task.stderrPath).catch(() => Buffer.alloc(0));
+  const combined = task.combinedPath
+    ? await readFile(task.combinedPath).catch(() => Buffer.alloc(0))
+    : Buffer.alloc(0);
   const timedOut = task.status === "timed_out";
   return buildProcessResult({
     stdoutChunks: stdout.length > 0 ? [stdout] : [],
     stderrChunks: stderr.length > 0 ? [stderr] : [],
-    combinedChunks: combined.length > 0 ? [combined] : [],
+    combinedChunks:
+      combined.length > 0
+        ? [combined]
+        : [
+            ...(stdout.length > 0 ? [stdout] : []),
+            ...(stderr.length > 0 ? [stderr] : []),
+          ],
     code: task.exitCode ?? null,
     signal: (task.signal as NodeJS.Signals | null | undefined) ?? null,
     outputFilePrefix: "nerve-bash",
     exitMessagePrefix: "Command",
     dataDir: this.taskRepository.storageHome,
+    artifactDir,
     timedOut,
     timeoutKilled: timedOut,
     timeoutMessage: task.error,
@@ -146,14 +144,20 @@ export async function runForegroundBashWithPromotion(
   }
 
   if (outcome === "completed") {
-    const result = await this.buildForegroundBashResult(task.id);
+    const result = await this.buildForegroundBashResult(
+      task.id,
+      input.artifactDir,
+    );
     await this.removeTask(task.id).catch(() => undefined);
     return { kind: "completed_foreground", result };
   }
 
   const latest = this.getTask(task.id);
   if (!isActiveTaskStatus(latest.status)) {
-    const result = await this.buildForegroundBashResult(task.id);
+    const result = await this.buildForegroundBashResult(
+      task.id,
+      input.artifactDir,
+    );
     await this.removeTask(task.id).catch(() => undefined);
     return { kind: "completed_foreground", result };
   }
@@ -174,7 +178,10 @@ export async function runForegroundBashWithPromotion(
     },
   });
   if (!isActiveTaskStatus(promoted.status)) {
-    const result = await this.buildForegroundBashResult(promoted.id);
+    const result = await this.buildForegroundBashResult(
+      promoted.id,
+      input.artifactDir,
+    );
     await this.removeTask(promoted.id).catch(() => undefined);
     return { kind: "completed_foreground", result };
   }

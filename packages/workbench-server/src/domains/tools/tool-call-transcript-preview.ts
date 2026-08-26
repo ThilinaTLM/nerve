@@ -544,6 +544,33 @@ function truncateUtf8(value: string, maxBytes: number): string {
   return value.slice(0, low);
 }
 
+function withoutProducerArtifactClaims(value: unknown): unknown {
+  const result = record(value);
+  const details = record(result.details);
+  const outputLimits = record(details.outputLimits);
+  const declaredArtifacts = Array.isArray(outputLimits.artifacts)
+    ? outputLimits.artifacts
+    : undefined;
+  const artifacts = declaredArtifacts?.filter(
+    (artifact) => "kind" in record(artifact),
+  );
+  if (!artifacts || artifacts.length === declaredArtifacts?.length)
+    return value;
+  const nextOutputLimits = { ...outputLimits };
+  if (artifacts.length > 0) nextOutputLimits.artifacts = artifacts;
+  else delete nextOutputLimits.artifacts;
+  const nextDetails = { ...details };
+  if (Object.keys(nextOutputLimits).length > 0) {
+    nextDetails.outputLimits = nextOutputLimits;
+  } else {
+    delete nextDetails.outputLimits;
+  }
+  const nextResult = { ...result };
+  if (Object.keys(nextDetails).length > 0) nextResult.details = nextDetails;
+  else delete nextResult.details;
+  return nextResult;
+}
+
 /** Build a bounded, secret-safe public preview of provider arguments. */
 export function toPublicToolCallArgsPreview(
   args: Record<string, unknown>,
@@ -567,10 +594,11 @@ export function toToolCallTranscriptRecord(
   // so publishing supervision would duplicate unbounded (and potentially
   // sensitive) arguments across the public event boundary.
   delete base.supervision;
+  const publicResult = withoutProducerArtifactClaims(result);
   const argsRecord = record(args);
-  const resultRecord = record(result);
+  const resultRecord = record(publicResult);
   let argsPreview: unknown = args;
-  let resultPreview: unknown = result;
+  let resultPreview: unknown = publicResult;
   let hidden = 0;
   let noun = "lines";
   let direction: Overflow["direction"];
@@ -746,7 +774,10 @@ export function toToolCallTranscriptRecord(
     case "task_logs":
     case "task_control": {
       taskToolName = toolCall.toolName;
-      const preview = buildTaskToolTranscriptPreview(taskToolName, result);
+      const preview = buildTaskToolTranscriptPreview(
+        taskToolName,
+        publicResult,
+      );
       if (!preview.valid) return metadataOnlyToolCallPreview(toolCall);
       resultPreview = preview.resultPreview;
       if (preview.overflow) {
@@ -778,7 +809,7 @@ export function toToolCallTranscriptRecord(
     case "todos_set":
     case "todos_get": {
       const argsBound = previewUnknown(args);
-      const resultBound = previewUnknown(result);
+      const resultBound = previewUnknown(publicResult);
       argsPreview = argsBound.value;
       resultPreview = resultBound.value;
       ({ hidden, noun } = unknownOverflowStats([argsBound, resultBound]));
@@ -788,7 +819,7 @@ export function toToolCallTranscriptRecord(
 
     default: {
       const argsBound = previewUnknown(args);
-      const resultBound = previewUnknown(result);
+      const resultBound = previewUnknown(publicResult);
       argsPreview = argsBound.value;
       resultPreview = resultBound.value;
       ({ hidden, noun } = unknownOverflowStats([argsBound, resultBound]));
@@ -797,13 +828,15 @@ export function toToolCallTranscriptRecord(
   }
 
   if (storedResultPreview !== undefined) {
-    const currentEditDiff = editDiff(result);
+    const currentEditDiff = editDiff(publicResult);
     const storedEditDiff = editDiff(storedResultPreview);
     const shouldRebuildEditPreview =
       toolCall.toolName === "edit" &&
       currentEditDiff !== undefined &&
       storedEditDiff === undefined;
-    if (!shouldRebuildEditPreview) resultPreview = storedResultPreview;
+    if (!shouldRebuildEditPreview) {
+      resultPreview = withoutProducerArtifactClaims(storedResultPreview);
+    }
   }
 
   // Project schema-bearing semantic results before verbose arguments.

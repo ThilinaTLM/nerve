@@ -4,7 +4,7 @@ import {
   type TaskRecord,
 } from "@nervekit/contracts";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -146,6 +146,36 @@ describe("task log service line buffering", () => {
       [3, 4],
     );
     assert.equal(older.hasMoreBefore, true);
+  });
+
+  it("indexes exact raw UTF-8 byte ranges after durable stream capture", async () => {
+    const { record, service, cursor, onLog } = await createFixture();
+    const raw = Buffer.from("α\r\nβ🙂\n", "utf8");
+
+    await service.captureOutput(
+      record,
+      cursor,
+      "stdout",
+      raw.subarray(0, 7),
+      onLog,
+    );
+    await service.captureOutput(
+      record,
+      cursor,
+      "stdout",
+      raw.subarray(7),
+      onLog,
+    );
+
+    const events = await service.readLogEvents(record.logsPath);
+    assert.deepEqual(
+      events.map((event) => event.raw),
+      [
+        { start: 0, end: 4, terminatorBytes: 2, fidelity: "captured" },
+        { start: 4, end: 11, terminatorBytes: 1, fidelity: "captured" },
+      ],
+    );
+    assert.deepEqual(await readFile(record.stdoutPath), raw);
   });
 
   it("caps large newline-less buffers", async () => {

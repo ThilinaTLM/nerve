@@ -118,6 +118,12 @@ const taskLogsParameters = Type.Object(
         minimum: 0,
       }),
     ),
+    beforeSeq: Type.Optional(
+      Type.Number({
+        description: "Return older matching events before this sequence",
+        minimum: 0,
+      }),
+    ),
     contains: Type.Optional(Type.String({ description: "Substring filter" })),
     regex: Type.Optional(Type.String({ description: "Regex filter" })),
     contextLines: Type.Optional(

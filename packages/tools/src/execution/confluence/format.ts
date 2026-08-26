@@ -26,12 +26,17 @@ export type ConfluenceArtifact = {
   chars?: number;
   lines?: number;
   label?: string;
+  role?: "primary_result" | "supporting_data";
+  format?: "markdown" | "text" | "json" | "jsonl" | "directory_manifest";
 };
 
 export function confluenceTmpDir(context: ToolExecutionContext): string {
-  return context.dataDir
-    ? join(context.dataDir, "tmp", "confluence")
-    : join(tmpdir(), "nerve-confluence");
+  return (
+    context.artifactDir ??
+    (context.dataDir
+      ? join(context.dataDir, "tmp", "confluence")
+      : join(tmpdir(), "nerve-confluence"))
+  );
 }
 
 export async function writeConfluenceArtifact(
@@ -77,13 +82,26 @@ export async function buildConfluenceTextResult({
           ...(existingOutputLimits ?? {}),
           artifacts: [
             ...(existingOutputLimits?.artifacts ?? []),
-            ...allArtifacts.map((item) => ({
-              kind: "raw_result" as const,
+            ...allArtifacts.map((item, index) => ({
+              id: `confluence_artifact_${index + 1}`,
+              role: item.role ?? ("supporting_data" as const),
               path: item.path,
+              format: {
+                kind: item.format ?? ("json" as const),
+                mediaType:
+                  item.format === "markdown"
+                    ? "text/markdown"
+                    : item.format === "text"
+                      ? "text/plain"
+                      : item.format === "jsonl"
+                        ? "application/x-ndjson"
+                        : "application/json",
+                encoding: "utf-8" as const,
+              },
               label: item.label ?? "Raw Confluence JSON",
               bytes: item.bytes,
-              chars: item.chars,
               lines: item.lines,
+              recommendedTools: ["read", "grep"] as ("read" | "grep")[],
             })),
           ],
         }

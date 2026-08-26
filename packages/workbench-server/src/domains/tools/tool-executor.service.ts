@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import { isTerminalToolStatus, type ToolCallRecord } from "@nervekit/contracts";
 import { requireToolDefinition } from "@nervekit/tools";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import type { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { toolErrorDetails } from "./tool-errors.js";
 import { isToolExecutionSuspended } from "./tool-execution-suspension.js";
-import { prepareToolResult } from "./tool-result-bounds.js";
+import { prepareToolResult } from "./tool-result-preparation.js";
 import type { ToolRequestOptions } from "./tool-service.js";
 import { ToolResultPayloadStore } from "./tool-result-payload-store.js";
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
@@ -32,6 +33,7 @@ export interface ToolExecutorDeps {
   /** Test/legacy construction fallback; runtime composition injects payloads. */
   storageHome?: string;
   logger?: ApplicationLogger;
+  diagnostics?: PerformanceDiagnosticsPort;
 }
 
 export class ToolExecutorService {
@@ -97,7 +99,12 @@ export class ToolExecutorService {
         toolCallId: toolCall.id,
         conversationId: toolCall.conversationId,
         payloads: this.payloads,
+        toolName: toolCall.toolName,
+        args: toolCall.args,
+        status: "completed",
+        phase: "completed",
       });
+      this.observeProjection(prepared.agentProjection);
     } catch (error) {
       executionError = error;
       if (isToolExecutionSuspended(error)) {
@@ -106,13 +113,41 @@ export class ToolExecutorService {
       } else {
         const patch = options.signal?.aborted
           ? toolTerminationPatch(TOOL_CANCELLED_OUTCOME)
-          : (() => {
+          : await (async () => {
               const details = toolErrorDetails(error);
-              return {
+              const base = {
                 status: "failed" as const,
+                phase: "failed" as const,
                 error: details.message,
                 errorDetails: details,
               };
+              try {
+                const failure = await prepareToolResult(
+                  { error: details.message, errorDetails: details },
+                  {
+                    toolCallId: toolCall.id,
+                    conversationId: toolCall.conversationId,
+                    payloads: this.payloads,
+                    toolName: toolCall.toolName,
+                    args: toolCall.args,
+                    status: "failed",
+                    phase: "failed",
+                    error: details.message,
+                    errorDetails: details,
+                  },
+                );
+                this.observeProjection(failure.agentProjection);
+                return {
+                  ...base,
+                  ...(failure.resultPayload
+                    ? { resultPayload: failure.resultPayload }
+                    : {}),
+                  validatedArtifacts: failure.validatedArtifacts,
+                  agentProjection: failure.agentProjection,
+                };
+              } catch {
+                return base;
+              }
             })();
         const settlement = await this.settleToolCall(toolCall.id, patch);
         terminal = settlement.record;
@@ -132,6 +167,8 @@ export class ToolExecutorService {
               resultPayload: prepared.resultPayload,
             }).resultPreview,
             resultPayload: prepared.resultPayload,
+            validatedArtifacts: prepared.validatedArtifacts,
+            agentProjection: prepared.agentProjection,
             error: undefined,
             errorDetails: undefined,
           };
@@ -189,6 +226,33 @@ export class ToolExecutorService {
     }
     return terminal;
   }
+  private observeProjection(
+    snapshot: NonNullable<ToolCallRecord["agentProjection"]>,
+  ): void {
+    const diagnostics = this.deps.diagnostics;
+    if (!diagnostics?.enabled) return;
+    const operation = `${snapshot.profile}.${snapshot.strategy}`;
+    diagnostics.count("tool.projection", 1, operation);
+    diagnostics.count(
+      "tool.projectionInputBytes",
+      snapshot.originalTextBytes,
+      operation,
+    );
+    diagnostics.count(
+      "tool.projectionDisplayedBytes",
+      snapshot.displayedTextBytes,
+      operation,
+    );
+    if (!snapshot.fastPath)
+      diagnostics.count("tool.projectionTruncated", 1, operation);
+    if (snapshot.recovery === "artifact")
+      diagnostics.count("tool.projectionRecoveryArtifact", 1, operation);
+    if (snapshot.recovery === "complete_payload")
+      diagnostics.count("tool.projectionRecoveryPayload", 1, operation);
+    if (snapshot.profile === "conservative_fallback")
+      diagnostics.count("tool.projectionFallback", 1, operation);
+  }
+
   private async settleToolCall(
     toolCallId: string,
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,

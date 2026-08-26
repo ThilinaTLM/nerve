@@ -7,6 +7,8 @@ import type {
 } from "@nervekit/contracts";
 import { taskLogEventSchema } from "@nervekit/contracts";
 import { queryTaskLogEvents } from "./task-log-query.js";
+import { mkdir, open } from "node:fs/promises";
+import { dirname } from "node:path";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import {
@@ -28,6 +30,8 @@ export type TaskOutputTailChunk = {
 export interface TaskLogCursor {
   logSeq: number;
   lineBuffers: Record<TaskLogStream, string>;
+  rawBuffers: Record<TaskLogStream, Buffer>;
+  streamBytes: Record<TaskLogStream, number>;
   logQueue: Promise<void>;
   totalBytes: number;
   retainedBytes: number;
@@ -44,6 +48,8 @@ export function createTaskLogCursor(logSeq = 0): TaskLogCursor {
   return {
     logSeq,
     lineBuffers: { stdout: "", stderr: "" },
+    rawBuffers: { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) },
+    streamBytes: { stdout: 0, stderr: 0 },
     logQueue: Promise.resolve(),
     totalBytes: 0,
     retainedBytes: 0,
@@ -89,6 +95,17 @@ export class TaskLogService {
       task,
       ...queryTaskLogEvents(allEvents, query),
       outputRetention: task.outputRetention,
+      streamArtifacts: {
+        stdoutPath: task.stdoutPath,
+        stderrPath: task.stderrPath,
+        eventsPath: task.logsPath,
+        ...(task.combinedPath ? { combinedPath: task.combinedPath } : {}),
+        fidelity: allEvents.some(
+          (event) => event.raw?.fidelity === "reconstructed",
+        )
+          ? "reconstructed"
+          : "captured",
+      },
     };
   }
 
@@ -99,7 +116,10 @@ export class TaskLogService {
     chunk: Buffer | string,
     onLog: (event: TaskLogEvent) => Promise<void>,
   ): Promise<void> {
-    const text = Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk;
+    const bytes = Buffer.isBuffer(chunk)
+      ? Buffer.from(chunk)
+      : Buffer.from(chunk, "utf8");
+    const text = bytes.toString("utf8");
     const diagnostics = this.options.diagnostics;
     const startedAt = diagnostics?.enabled ? performance.now() : undefined;
     if (diagnostics?.enabled) {
@@ -107,7 +127,7 @@ export class TaskLogService {
       diagnostics.count("task.outputBytes", Buffer.byteLength(text));
     }
     return this.enqueue(cursor, () =>
-      this.captureBoundedOutputNow(record, cursor, stream, text, onLog),
+      this.captureBoundedOutputNow(record, cursor, stream, bytes, onLog),
     ).finally(() => {
       if (startedAt !== undefined)
         diagnostics?.duration(
@@ -219,40 +239,86 @@ export class TaskLogService {
     record: TaskRecord,
     cursor: TaskLogCursor,
     stream: TaskLogStream,
-    text: string,
+    bytes: Buffer,
     onLog: (event: TaskLogEvent) => Promise<void>,
   ): Promise<void> {
     ensureLogCursorState(cursor);
-    const bytes = Buffer.byteLength(text);
-    const lines = countOutputLines(text);
-    cursor.totalBytes += bytes;
-    cursor.totalLines += lines;
-    cursor.retainedBytes += bytes;
-    cursor.retainedLines += lines;
-    await this.captureOutputNow(record, cursor, stream, text, onLog);
+    cursor.totalBytes += bytes.byteLength;
+    cursor.totalLines += countOutputLines(bytes.toString("utf8"));
+    cursor.retainedBytes += bytes.byteLength;
+    cursor.retainedLines = cursor.totalLines;
+
+    await mkdir(dirname(record.logsPath), { recursive: true, mode: 0o700 });
+    const streamPath =
+      stream === "stdout" ? record.stdoutPath : record.stderrPath;
+    // Raw stream bytes are durable before the corresponding JSONL index rows.
+    await appendAndSync(streamPath, bytes);
+    if (record.combinedPath) {
+      await appendAndSync(
+        record.combinedPath,
+        Buffer.concat([
+          Buffer.from(`[${stream}]\n`, "utf8"),
+          bytes,
+          bytes.at(-1) === 0x0a ? Buffer.alloc(0) : Buffer.from("\n"),
+        ]),
+      );
+    }
+    await this.captureOutputNow(record, cursor, stream, bytes, onLog);
   }
 
   private async captureOutputNow(
     record: TaskRecord,
     cursor: TaskLogCursor,
     stream: TaskLogStream,
-    text: string,
+    chunk: Buffer,
     onLog: (event: TaskLogEvent) => Promise<void>,
   ): Promise<void> {
-    const { lines, remainder } = appendChunkAndTakeCompleteLines(
-      cursor.lineBuffers[stream],
-      text,
-    );
-    cursor.lineBuffers[stream] = remainder;
-
-    for (const line of lines) {
-      await this.emitLogLine(record, cursor, stream, line, onLog);
+    const previous = cursor.rawBuffers[stream];
+    const combined = Buffer.concat([previous, chunk]);
+    const combinedStart = cursor.streamBytes[stream] - previous.byteLength;
+    cursor.streamBytes[stream] += chunk.byteLength;
+    let position = 0;
+    for (;;) {
+      const newline = combined.indexOf(0x0a, position);
+      if (newline < 0) break;
+      const hasCr = newline > position && combined[newline - 1] === 0x0d;
+      const contentEnd = hasCr ? newline - 1 : newline;
+      const end = newline + 1;
+      await this.emitLogLine(
+        record,
+        cursor,
+        stream,
+        combined.subarray(position, contentEnd).toString("utf8"),
+        {
+          start: combinedStart + position,
+          end: combinedStart + end,
+          terminatorBytes: hasCr ? 2 : 1,
+          fidelity: "captured",
+        },
+        onLog,
+      );
+      position = end;
     }
-
+    cursor.rawBuffers[stream] = Buffer.from(combined.subarray(position));
+    cursor.lineBuffers[stream] = cursor.rawBuffers[stream].toString("utf8");
     if (cursor.lineBuffers[stream].length > MAX_BUFFERED_LOG_LINE_CHARS) {
-      const overlongLine = cursor.lineBuffers[stream];
+      const raw = cursor.rawBuffers[stream];
+      const start = cursor.streamBytes[stream] - raw.byteLength;
+      cursor.rawBuffers[stream] = Buffer.alloc(0);
       cursor.lineBuffers[stream] = "";
-      await this.emitLogLine(record, cursor, stream, overlongLine, onLog);
+      await this.emitLogLine(
+        record,
+        cursor,
+        stream,
+        raw.toString("utf8"),
+        {
+          start,
+          end: cursor.streamBytes[stream],
+          terminatorBytes: 0,
+          fidelity: "captured",
+        },
+        onLog,
+      );
     }
   }
 
@@ -262,10 +328,23 @@ export class TaskLogService {
     stream: TaskLogStream,
     onLog: (event: TaskLogEvent) => Promise<void>,
   ): Promise<void> {
-    const line = cursor.lineBuffers[stream];
+    const raw = cursor.rawBuffers[stream];
+    cursor.rawBuffers[stream] = Buffer.alloc(0);
     cursor.lineBuffers[stream] = "";
-    if (line.length === 0) return;
-    await this.emitLogLine(record, cursor, stream, line, onLog);
+    if (raw.byteLength === 0) return;
+    await this.emitLogLine(
+      record,
+      cursor,
+      stream,
+      raw.toString("utf8"),
+      {
+        start: cursor.streamBytes[stream] - raw.byteLength,
+        end: cursor.streamBytes[stream],
+        terminatorBytes: 0,
+        fidelity: "captured",
+      },
+      onLog,
+    );
   }
 
   private async persistTail(
@@ -281,6 +360,7 @@ export class TaskLogService {
     cursor: TaskLogCursor,
     stream: TaskLogStream,
     line: string,
+    raw: NonNullable<TaskLogEvent["raw"]>,
     onLog: (event: TaskLogEvent) => Promise<void>,
   ): Promise<void> {
     const cleaned = line.trimEnd();
@@ -293,6 +373,7 @@ export class TaskLogService {
       stream,
       level: classifyLogLevel(stream, cleaned),
       line: cleaned,
+      raw,
     };
     await appendJsonLine(record.logsPath, event, 0o600);
     this.options.diagnostics?.count("task.outputLine");
@@ -308,10 +389,26 @@ export class TaskLogService {
   }
 }
 
+async function appendAndSync(path: string, bytes: Buffer): Promise<void> {
+  const file = await open(path, "a", 0o600);
+  try {
+    await file.write(bytes);
+    await file.sync();
+  } finally {
+    await file.close();
+  }
+}
+
 function ensureLogCursorState(cursor: TaskLogCursor): void {
   cursor.lineBuffers ??= { stdout: "", stderr: "" };
   cursor.lineBuffers.stdout ??= "";
   cursor.lineBuffers.stderr ??= "";
+  cursor.rawBuffers ??= { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
+  cursor.rawBuffers.stdout ??= Buffer.alloc(0);
+  cursor.rawBuffers.stderr ??= Buffer.alloc(0);
+  cursor.streamBytes ??= { stdout: 0, stderr: 0 };
+  cursor.streamBytes.stdout ??= 0;
+  cursor.streamBytes.stderr ??= 0;
   cursor.logQueue ??= Promise.resolve();
   cursor.totalBytes ??= 0;
   cursor.retainedBytes ??= 0;
@@ -329,20 +426,6 @@ function countOutputLines(text: string): number {
   let lines = 0;
   for (const character of text) if (character === "\n") lines += 1;
   return lines;
-}
-
-function appendChunkAndTakeCompleteLines(
-  previous: string,
-  chunk: string,
-): { lines: string[]; remainder: string } {
-  const combined = previous + chunk;
-  if (combined.length === 0) return { lines: [], remainder: "" };
-
-  const parts = combined.split(/\r?\n/);
-  if (combined.endsWith("\n")) {
-    return { lines: parts.slice(0, -1), remainder: "" };
-  }
-  return { lines: parts.slice(0, -1), remainder: parts.at(-1) ?? "" };
 }
 
 const WORD_LEFT_BOUNDARY = "(?:^|[^A-Za-z0-9_-])";

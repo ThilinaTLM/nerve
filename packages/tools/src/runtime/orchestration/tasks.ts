@@ -32,6 +32,20 @@ function validateTaskArgs(
     if (args.groupId !== undefined || args.taskIds !== undefined) {
       throw new ToolValidationError(`${name} accepts only taskId.`);
     }
+    const mode = typeof args.mode === "string" ? args.mode : "recent";
+    if (mode === "since_cursor" && args.beforeSeq !== undefined) {
+      throw new ToolValidationError(
+        "task_logs since_cursor cannot use beforeSeq.",
+      );
+    }
+    if (mode !== "since_cursor" && args.sinceSeq !== undefined) {
+      throw new ToolValidationError(`task_logs ${mode} cannot use sinceSeq.`);
+    }
+    if (mode === "first_failure" && args.beforeSeq !== undefined) {
+      throw new ToolValidationError(
+        "task_logs first_failure cannot use beforeSeq.",
+      );
+    }
   } else if (name === "task_control") {
     requiredString(args.taskId, "taskId");
     if (args.groupId !== undefined || args.taskIds !== undefined) {
