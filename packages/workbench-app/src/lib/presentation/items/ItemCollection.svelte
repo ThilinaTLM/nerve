@@ -196,7 +196,7 @@ $effect(() => {
   <div
     bind:this={overlay}
     aria-hidden="true"
-    class="pointer-events-none absolute top-0 left-0 z-20 rounded-md border border-primary/60 opacity-0 transition-[opacity] duration-200 ease-out will-change-transform"
+    class="pointer-events-none absolute top-0 left-0 z-20 rounded-md opacity-0 ring-1 ring-primary/60 ring-inset transition-[opacity] duration-200 ease-out will-change-transform"
     class:opacity-100={visible}
     style:transform={`translate3d(${x}px, ${y}px, 0)`}
     style:width={`${width}px`}
