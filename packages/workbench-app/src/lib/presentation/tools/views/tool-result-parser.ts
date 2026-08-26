@@ -88,6 +88,12 @@ function editShorthandOperationCount(args: Record<string, unknown>): number {
   );
 }
 
+function nonnegativeIntegerField(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
 function previewOverflowHidden(
   toolCall: ToolCallDisplayRecord,
   noun: string,
@@ -362,13 +368,15 @@ export function parseToolView(
     case "edit": {
       const path = resolveToolPath(result?.path ?? stringField(args.path), cwd);
       const relPath = relativePath(path, cwd);
-      const details = editOperationResultDetailsSchema.safeParse(
-        result?.details,
-      );
-      const operations = details.success
+      const rawDetails = asRecord(result?.details);
+      const details = editOperationResultDetailsSchema.safeParse(rawDetails);
+      const operationCount = details.success
         ? details.data.operationCount
-        : editShorthandOperationCount(args);
-      const diff = details.success ? details.data.diff : undefined;
+        : (nonnegativeIntegerField(rawDetails.operationCount) ??
+          editShorthandOperationCount(args));
+      const diff = details.success
+        ? details.data.diff
+        : stringField(rawDetails.diff);
       const diffLineCount = actualPreviewCount(
         countLogicalLines(diff),
         toolCall,
@@ -380,12 +388,16 @@ export function parseToolView(
         kind: "edit",
         path,
         relPath,
-        operationCount: operations,
+        operationCount,
         additions,
         deletions,
         diff,
         diffLineCount,
-        dryRun: details.success ? details.data.dryRun : undefined,
+        dryRun: details.success
+          ? details.data.dryRun
+          : typeof rawDetails.dryRun === "boolean"
+            ? rawDetails.dryRun
+            : undefined,
       };
     }
 
