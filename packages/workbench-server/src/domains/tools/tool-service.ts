@@ -759,10 +759,10 @@ export class ToolService {
       );
     return await Promise.all(
       stale.map(async (toolCall) => {
-        const failed = await this.updateToolCall(
-          toolCall.id,
-          interruptedToolCallPatch(errorMessage),
-        );
+        const failed = await this.updateToolCall(toolCall.id, {
+          ...interruptedToolCallPatch(errorMessage),
+          interactions: cancelPendingInteractions(toolCall.interactions),
+        });
         await this.publishToolCallUpdated(failed);
         await this.logger?.warn("Tool call terminated after run ended", {
           toolCallId: failed.id,
@@ -1247,6 +1247,22 @@ function phaseForStatus(
     case "failed":
       return "failed";
   }
+}
+
+function cancelPendingInteractions(
+  interactions: ToolCallRecord["interactions"],
+): ToolCallRecord["interactions"] {
+  const cancelledAt = new Date().toISOString();
+  return interactions.map((interaction) =>
+    interaction.status === "pending"
+      ? {
+          ...interaction,
+          status: "cancelled" as const,
+          updatedAt: cancelledAt,
+          cancelledAt,
+        }
+      : interaction,
+  );
 }
 
 function interruptedToolCallPatch(errorMessage: string) {
