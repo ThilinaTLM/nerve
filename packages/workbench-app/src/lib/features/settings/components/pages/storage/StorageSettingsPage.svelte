@@ -72,9 +72,9 @@ const progressValue = $derived(operation ? cleanupProgress(operation) : 0);
 const completedWithIssues = $derived(
   operation?.results.some((result) => result.outcome === "failed") ?? false,
 );
-const indexBytes = $derived(
+const databaseBytes = $derived(
   usage
-    ? usage.sqlite.dbBytes + usage.sqlite.walBytes + usage.sqlite.shmBytes
+    ? usage.database.dbBytes + usage.database.walBytes + usage.database.shmBytes
     : 0,
 );
 
@@ -108,7 +108,7 @@ onMount(() => {
         <span class="text-2xl font-semibold">{formatBytes(totalBytes)}</span>
         <span
           class="truncate font-mono text-xs text-muted-foreground"
-          title={usage.dataDir}>{usage.dataDir}</span
+          title={usage.homeDir}>{usage.homeDir}</span
         >
         <span class="text-xs text-muted-foreground">
           Calculated {new Date(usage.generatedAt).toLocaleString()}
@@ -275,17 +275,18 @@ onMount(() => {
               <span class="font-mono">{category.bytes.toLocaleString()}</span>
               bytes
             </p>
-            {#if category.key === "sqliteIndex"}
+            {#if category.key === "database"}
               <p>
-                Search index total <span class="font-mono"
-                  >{formatBytes(indexBytes)}</span
-                > across the database, write-ahead log, and shared memory files. It
-                can be rebuilt into a fresh compact index.
+                Canonical database total <span class="font-mono"
+                  >{formatBytes(databaseBytes)}</span
+                > across the database, write-ahead log, and shared memory files. This
+                authoritative state is never removed by cleanup.
               </p>
             {/if}
-            {#if category.key === "conversations"}
+            {#if category.key === "payloads"}
               <p>
-                {usage.conversations.total.toLocaleString()} conversations stored.
+                Retained payload footprints for
+                {usage.conversations.total.toLocaleString()} conversations.
               </p>
               {#if usage.conversations.largest.length > 0}
                 <ul class="grid gap-1">

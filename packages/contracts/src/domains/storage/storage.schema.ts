@@ -9,20 +9,22 @@ export const daemonStartupProgressSchema = z.object({
 export type DaemonStartupProgress = z.infer<typeof daemonStartupProgressSchema>;
 
 export const storageCategoryKeySchema = z.enum([
-  "conversations",
+  "database",
   "payloads",
-  "logs",
-  "sqliteIndex",
-  "exploreReports",
-  "crashes",
+  "reports",
+  "images",
   "plans",
-  "agents",
   "tasks",
-  "workflowState",
-  "projects",
+  "agentResources",
+  "runtimeState",
+  "logs",
+  "crashReports",
+  "queryCache",
   "cache",
-  "tmp",
-  "protected",
+  "temporaryFiles",
+  "migrations",
+  "backups",
+  "configurationIdentity",
   "other",
 ]);
 export type StorageCategoryKey = z.infer<typeof storageCategoryKeySchema>;
@@ -70,12 +72,12 @@ export type LargestConversationUsage = z.infer<
 >;
 
 export const storageUsageResponseSchema = z.object({
-  dataDir: z.string(),
+  homeDir: z.string(),
   generatedAt: z.string().datetime(),
   totalBytes: z.number().int().nonnegative(),
   categories: z.array(storageCategoryUsageSchema),
   cleanupTargets: z.array(storageCleanupTargetUsageSchema),
-  sqlite: z.object({
+  database: z.object({
     dbBytes: z.number().int().nonnegative(),
     walBytes: z.number().int().nonnegative(),
     shmBytes: z.number().int().nonnegative(),

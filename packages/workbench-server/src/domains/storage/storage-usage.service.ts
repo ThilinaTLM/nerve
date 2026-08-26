@@ -1,5 +1,5 @@
 import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type {
   LargestConversationUsage,
   StorageCategoryKey,
@@ -8,7 +8,15 @@ import type {
   StorageUsageResponse,
 } from "@nervekit/contracts";
 import type { StoragePaths } from "../../infrastructure/storage/index.js";
-import { dirSize, fileSize, type SizeTally } from "./storage-files.js";
+import {
+  dirSize,
+  fileSize,
+  pathsSize,
+  queryCacheFileNames,
+  queryCacheFilePaths,
+  sqliteFilePaths,
+  type SizeTally,
+} from "./storage-files.js";
 
 export interface StorageUsageRegistryPort {
   listConversations(): Array<{ id: string; title: string | null }>;
@@ -27,43 +35,28 @@ interface CategoryMeta {
 }
 
 const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
-  conversations: {
-    label: "Conversations",
-    description: "Legacy conversation files pending migration.",
-    cleanable: true,
-    protected: false,
+  database: {
+    label: "Canonical database",
+    description: "Authoritative Nerve records. Never removed by cleanup.",
+    cleanable: false,
+    protected: true,
   },
   payloads: {
     label: "Payloads",
-    description:
-      "Complete tool results retained when agent output is truncated.",
+    description: "Retained tool results and other conversation payloads.",
     cleanable: true,
     protected: false,
   },
-  logs: {
-    label: "Logs & events",
-    description:
-      "Application logs, the global event log, and tool-call history.",
-    cleanable: true,
-    protected: false,
-  },
-  sqliteIndex: {
-    label: "Search index (SQLite)",
-    description:
-      "Rebuildable query cache for recent durable events and records.",
-    cleanable: true,
-    protected: false,
-  },
-  exploreReports: {
-    label: "Explore reports",
+  reports: {
+    label: "Reports",
     description: "Saved output from codebase explore sub-agents.",
     cleanable: true,
     protected: false,
   },
-  crashes: {
-    label: "Crash reports",
-    description: "Nerve crash reports and Node diagnostic reports.",
-    cleanable: true,
+  images: {
+    label: "Images",
+    description: "Durable images managed by Nerve.",
+    cleanable: false,
     protected: false,
   },
   plans: {
@@ -72,72 +65,100 @@ const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
     cleanable: false,
     protected: false,
   },
-  agents: {
-    label: "Agents",
-    description: "Per-agent runtime state.",
-    cleanable: false,
-    protected: false,
-  },
   tasks: {
     label: "Tasks",
-    description: "Background task state and logs.",
+    description: "Background task records, process metadata, and logs.",
     cleanable: false,
     protected: false,
   },
-  workflowState: {
-    label: "Workflow state",
-    description: "Approvals, user questions, and maintenance state.",
+  agentResources: {
+    label: "Agent resources",
+    description: "Nerve-managed resources used by agents.",
     cleanable: false,
     protected: false,
   },
-  projects: {
-    label: "Projects",
-    description: "Project metadata.",
+  runtimeState: {
+    label: "Runtime state",
+    description: "Idempotency and maintenance operation state.",
     cleanable: false,
+    protected: false,
+  },
+  logs: {
+    label: "Logs & events",
+    description: "Application, desktop, event, and tool-call logs.",
+    cleanable: true,
+    protected: false,
+  },
+  crashReports: {
+    label: "Crash reports",
+    description: "Nerve crash reports and Node diagnostic reports.",
+    cleanable: true,
+    protected: false,
+  },
+  queryCache: {
+    label: "Query cache",
+    description:
+      "A rebuildable SQLite read model sourced from canonical records.",
+    cleanable: true,
     protected: false,
   },
   cache: {
     label: "Cache",
-    description: "Disposable cached data.",
+    description: "Disposable cached data other than the query cache.",
     cleanable: true,
     protected: false,
   },
-  tmp: {
+  temporaryFiles: {
     label: "Temporary files",
     description: "Scratch files that can be safely removed.",
     cleanable: true,
     protected: false,
   },
-  protected: {
-    label: "Credentials & config",
-    description: "Auth tokens, keys, TLS, and configuration. Never deleted.",
+  migrations: {
+    label: "Migrations",
+    description: "Migration ledger and reports retained for storage integrity.",
+    cleanable: false,
+    protected: false,
+  },
+  backups: {
+    label: "Backups",
+    description: "Retained Nerve-home backups that require manual removal.",
+    cleanable: false,
+    protected: false,
+  },
+  configurationIdentity: {
+    label: "Configuration & identity",
+    description:
+      "Configuration, credentials, TLS identity, and daemon metadata.",
     cleanable: false,
     protected: true,
   },
   other: {
     label: "Other",
-    description: "Uncategorized data under the Nerve home directory.",
+    description: "Unrecognized readable files under the Nerve home.",
     cleanable: false,
     protected: false,
   },
 };
 
 const CATEGORY_ORDER: StorageCategoryKey[] = [
+  "database",
   "payloads",
-  "conversations",
-  "logs",
-  "sqliteIndex",
-  "exploreReports",
-  "crashes",
-  "cache",
-  "tmp",
+  "reports",
+  "images",
   "plans",
-  "agents",
   "tasks",
-  "workflowState",
-  "projects",
+  "agentResources",
+  "runtimeState",
+  "logs",
+  "crashReports",
+  "queryCache",
+  "cache",
+  "temporaryFiles",
+  "migrations",
+  "backups",
+  "configurationIdentity",
   "other",
-  "protected",
 ];
 const USAGE_CACHE_TTL_MS = 15_000;
 const LARGEST_CONVERSATION_LIMIT = 5;
@@ -161,9 +182,8 @@ export class StorageUsageService {
       return this.#cache.value;
     }
 
-    const home = this.deps.paths.home;
+    const { paths } = this.deps;
     const totals = new Map<StorageCategoryKey, SizeTally>();
-    const conversationSizes: Array<{ id: string; bytes: number }> = [];
     const add = (key: StorageCategoryKey, tally: SizeTally) => {
       const current = totals.get(key) ?? { bytes: 0, files: 0 };
       totals.set(key, {
@@ -172,67 +192,95 @@ export class StorageUsageService {
       });
     };
 
-    add("payloads", await dirSize(this.deps.paths.payloadsPath));
-    add("exploreReports", await dirSize(this.deps.paths.reportsPath));
-    add("plans", await dirSize(this.deps.paths.plansPath));
-    add("tasks", await dirSize(this.deps.paths.tasksPath));
-    add("logs", await dirSize(this.deps.paths.logsPath));
-    add("crashes", await dirSize(this.deps.paths.crashesPath));
-    add("cache", await dirSize(this.deps.paths.cachePath));
-    add("tmp", await dirSize(this.deps.paths.tmpPath));
-    add("agents", await dirSize(this.deps.paths.agentPath));
-    add("other", await dirSize(this.deps.paths.imagesPath));
-    add("other", await dirSize(this.deps.paths.migrationsPath));
-    add("other", await dirSize(this.deps.paths.backupsPath));
-    add("protected", await dirSize(this.deps.paths.configPath));
-    add("protected", await dirSize(this.deps.paths.secretsPath));
-    add("protected", await dirSize(this.deps.paths.tlsPath));
-    add("protected", {
-      bytes:
-        (await fileSize(this.deps.paths.manifestPath)) +
-        (await fileSize(this.deps.paths.daemonPath)),
-      files: 2,
-    });
-    add("sqliteIndex", {
-      bytes:
-        (await fileSize(this.deps.paths.sqlitePath)) +
-        (await fileSize(`${this.deps.paths.sqlitePath}-wal`)) +
-        (await fileSize(`${this.deps.paths.sqlitePath}-shm`)),
-      files: 3,
-    });
-    const conversationRoot = join(
-      this.deps.paths.payloadsPath,
-      "conversations",
+    const databaseTally = await pathsSize(sqliteFilePaths(paths.sqlitePath));
+    const queryCacheTally = await pathsSize(
+      queryCacheFilePaths(paths.queryCachePath),
     );
+    const queryCacheNames = queryCacheFileNames(paths.queryCachePath);
+    const conversationRoot = join(paths.payloadsPath, "conversations");
+    const conversationPayloadTally = await dirSize(conversationRoot);
+
+    add("database", databaseTally);
+    add("payloads", await dirSize(paths.payloadsPath));
+    add("reports", await dirSize(paths.reportsPath));
+    add("images", await dirSize(paths.imagesPath));
+    add("plans", await dirSize(paths.plansPath));
+    add("tasks", await dirSize(paths.tasksPath));
+    add("agentResources", await dirSize(paths.agentPath));
+    add("runtimeState", await dirSize(paths.idempotencyPath));
+    add("runtimeState", await dirSize(paths.maintenancePath));
+    add("logs", await dirSize(paths.logsPath));
+    add("crashReports", await dirSize(paths.crashesPath));
+    add("queryCache", queryCacheTally);
+    add("cache", await dirSize(paths.cachePath, queryCacheNames));
+    add("temporaryFiles", await dirSize(paths.tmpPath));
+    add("migrations", await dirSize(paths.migrationsPath));
+    add("backups", await dirSize(paths.backupsPath));
+    add("configurationIdentity", await dirSize(paths.configPath));
+    add("configurationIdentity", await dirSize(paths.secretsPath));
+    add("configurationIdentity", await dirSize(paths.tlsPath));
+    add(
+      "configurationIdentity",
+      await pathsSize([paths.manifestPath, paths.daemonPath]),
+    );
+
+    const knownDataNames = new Set([
+      ...sqliteFilePaths(paths.sqlitePath).map((path) => basename(path)),
+      basename(paths.payloadsPath),
+      basename(paths.reportsPath),
+      basename(paths.imagesPath),
+      basename(paths.plansPath),
+      basename(paths.idempotencyPath),
+      basename(paths.maintenancePath),
+    ]);
+    add("other", await dirSize(paths.dataPath, knownDataNames));
+
+    const knownRootNames = new Set([
+      basename(paths.dataPath),
+      basename(paths.configPath),
+      basename(paths.secretsPath),
+      basename(paths.tlsPath),
+      basename(paths.tmpPath),
+      basename(paths.cachePath),
+      basename(paths.logsPath),
+      basename(paths.crashesPath),
+      basename(paths.migrationsPath),
+      basename(paths.backupsPath),
+      basename(paths.tasksPath),
+      basename(paths.agentPath),
+      basename(paths.manifestPath),
+      basename(paths.daemonPath),
+    ]);
+    add("other", await dirSize(paths.home, knownRootNames));
+
+    const categories: StorageCategoryUsage[] = CATEGORY_ORDER.flatMap((key) => {
+      const tally = totals.get(key);
+      if (!tally || tally.bytes === 0) return [];
+      return [
+        {
+          key,
+          ...CATEGORY_META[key],
+          fileCount: tally.files,
+          bytes: tally.bytes,
+        },
+      ];
+    });
+    const totalBytes = categories.reduce(
+      (sum, category) => sum + category.bytes,
+      0,
+    );
+
+    const conversationSizes: Array<{ id: string; bytes: number }> = [];
     const children = await readdir(conversationRoot, {
       withFileTypes: true,
     }).catch(() => []);
     for (const child of children) {
       if (!child.isDirectory() || child.isSymbolicLink()) continue;
-      const tally = await dirSize(join(conversationRoot, child.name));
-      conversationSizes.push({ id: child.name, bytes: tally.bytes });
-    }
-
-    const categories: StorageCategoryUsage[] = [];
-    let totalBytes = 0;
-    for (const key of CATEGORY_ORDER) {
-      const tally = totals.get(key);
-      if (!tally || tally.bytes === 0) continue;
-      const meta = CATEGORY_META[key];
-      categories.push({
-        key,
-        ...meta,
-        fileCount: tally.files,
-        bytes: tally.bytes,
+      conversationSizes.push({
+        id: child.name,
+        bytes: (await dirSize(join(conversationRoot, child.name))).bytes,
       });
-      totalBytes += tally.bytes;
     }
-
-    const sqlite = {
-      dbBytes: await fileSize(this.deps.paths.sqlitePath),
-      walBytes: await fileSize(`${this.deps.paths.sqlitePath}-wal`),
-      shmBytes: await fileSize(`${this.deps.paths.sqlitePath}-shm`),
-    };
     const titleById = new Map(
       this.deps
         .getRegistry()
@@ -248,14 +296,23 @@ export class StorageUsageService {
         bytes: item.bytes,
       }));
 
-    const cleanupTargets = await this.cleanupTargetUsage(totals, sqlite);
+    const database = {
+      dbBytes: (await fileSize(paths.sqlitePath)) ?? 0,
+      walBytes: (await fileSize(`${paths.sqlitePath}-wal`)) ?? 0,
+      shmBytes: (await fileSize(`${paths.sqlitePath}-shm`)) ?? 0,
+    };
+    const cleanupTargets = await this.cleanupTargetUsage(
+      totals,
+      queryCacheTally,
+      conversationPayloadTally,
+    );
     const value: StorageUsageResponse = {
-      dataDir: home,
+      homeDir: paths.home,
       generatedAt: new Date().toISOString(),
       totalBytes,
       categories,
       cleanupTargets,
-      sqlite,
+      database,
       conversations: { total: conversationSizes.length, largest },
     };
     this.#cache = { at: Date.now(), value };
@@ -264,27 +321,28 @@ export class StorageUsageService {
 
   private async cleanupTargetUsage(
     totals: Map<StorageCategoryKey, SizeTally>,
-    sqlite: StorageUsageResponse["sqlite"],
+    queryCache: SizeTally,
+    conversationPayloads: SizeTally,
   ): Promise<StorageCleanupTargetUsage[]> {
-    const home = this.deps.paths.home;
-    const logsDir = join(home, "logs");
-    const logEntries = await readdir(logsDir, { withFileTypes: true }).catch(
-      () => [],
-    );
+    const logEntries = await readdir(this.deps.paths.logsPath, {
+      withFileTypes: true,
+    }).catch(() => []);
     let datedBytes = 0;
     let datedItems = 0;
     for (const entry of logEntries) {
       if (!entry.isFile() || !DATED_LOG.test(entry.name)) continue;
-      datedBytes += await fileSize(join(logsDir, entry.name));
+      datedBytes +=
+        (await fileSize(join(this.deps.paths.logsPath, entry.name))) ?? 0;
       datedItems += 1;
     }
     const category = (key: StorageCategoryKey): SizeTally =>
       totals.get(key) ?? { bytes: 0, files: 0 };
-    const rotatedBytes = await fileSize(join(logsDir, "events.jsonl.1"));
+    const rotatedBytes =
+      (await fileSize(join(this.deps.paths.logsPath, "events.jsonl.1"))) ?? 0;
     return [
       {
         target: "conversations",
-        bytes: category("payloads").bytes,
+        bytes: conversationPayloads.bytes,
         itemCount: this.deps.getRegistry().listConversations().length,
         estimate: "upTo",
       },
@@ -302,14 +360,14 @@ export class StorageUsageService {
       },
       {
         target: "exploreReports",
-        bytes: category("exploreReports").bytes,
-        itemCount: category("exploreReports").files,
+        bytes: category("reports").bytes,
+        itemCount: category("reports").files,
         estimate: "exact",
       },
       {
         target: "crashReports",
-        bytes: category("crashes").bytes,
-        itemCount: category("crashes").files,
+        bytes: category("crashReports").bytes,
+        itemCount: category("crashReports").files,
         estimate: "exact",
       },
       {
@@ -320,16 +378,14 @@ export class StorageUsageService {
       },
       {
         target: "tmp",
-        bytes: category("tmp").bytes,
-        itemCount: category("tmp").files,
+        bytes: category("temporaryFiles").bytes,
+        itemCount: category("temporaryFiles").files,
         estimate: "exact",
       },
       {
         target: "searchIndex",
-        bytes: sqlite.dbBytes + sqlite.walBytes + sqlite.shmBytes,
-        itemCount: [sqlite.dbBytes, sqlite.walBytes, sqlite.shmBytes].filter(
-          (bytes) => bytes > 0,
-        ).length,
+        bytes: queryCache.bytes,
+        itemCount: queryCache.files,
         estimate: "upTo",
       },
     ];

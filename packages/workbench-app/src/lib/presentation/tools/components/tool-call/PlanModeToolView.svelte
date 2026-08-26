@@ -117,11 +117,21 @@ const acceptedInNewChat = $derived(reviewStatus === "accepted_in_new_chat");
 const rejected = $derived(
   reviewStatus === "changes_requested" || reviewStatus === "discarded",
 );
+let retainedReviewContent = $state("");
+
+$effect(() => {
+  const content = planReviewContent(
+    displayedReview?.content,
+    planReview?.content,
+  );
+  if (content.trim()) retainedReviewContent = content;
+});
+
 const previewContent = $derived(
   planReviewContent(
     displayedReview?.content,
-    undefined,
-    displayedReview?.summary,
+    planReview?.content,
+    retainedReviewContent || displayedReview?.summary,
   ),
 );
 const preview = $derived(

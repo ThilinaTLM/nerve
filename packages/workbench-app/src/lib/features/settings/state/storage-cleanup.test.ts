@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  allCleanupSelection,
   buildCleanupRequest,
   EMPTY_CLEANUP_SELECTION,
   recommendedCleanupSelection,
@@ -31,6 +32,24 @@ describe("storage cleanup selection", () => {
         },
       ]),
       { bytes: 4_096, upTo: false },
+    );
+  });
+
+  it("adds non-overlapping cache and query-cache estimates", () => {
+    const selection = allCleanupSelection(EMPTY_CLEANUP_SELECTION);
+    assert.equal(recommendedCleanupSelection().searchIndex, false);
+    assert.equal(selection.searchIndex, true);
+    assert.deepEqual(
+      selectedFootprint(selection, [
+        { target: "cache", bytes: 200, itemCount: 2, estimate: "exact" },
+        {
+          target: "searchIndex",
+          bytes: 500,
+          itemCount: 3,
+          estimate: "upTo",
+        },
+      ]),
+      { bytes: 700, upTo: true },
     );
   });
 

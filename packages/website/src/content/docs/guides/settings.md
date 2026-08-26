@@ -32,7 +32,7 @@ Model availability depends on authentication and provider metadata. Changes to d
 
 ## Storage
 
-**Storage** shows local usage and provides cancellable cleanup. Depending on the selected targets, cleanup can remove old conversations and logs, Explore reports, crash and Node reports, cache and temporary data, and rebuild the search index. Cleanup is asynchronous and reports progress; it does not replace a backup or change authoritative project files unexpectedly.
+**Storage** shows an ownership and retention breakdown of readable files under `NERVE_HOME` and provides cancellable cleanup. It distinguishes the authoritative database at `data/nerve.sqlite`, the rebuildable query cache at `cache/query-cache.sqlite`, and other disposable cache data. Depending on the selected targets, cleanup can remove old conversations and logs, Explore reports, crash and Node reports, non-query cache and temporary data, or rebuild the query cache from canonical records. Cleanup is asynchronous and reports progress; it never treats the canonical database, migrations, or backups as cleanup targets.
 
 ## System
 

@@ -7,20 +7,26 @@ sidebar:
 
 All Nerve-home paths move with `NERVE_HOME`; default is `~/.nerve`.
 
-| Data                                       | Default location / format                                 |
-| ------------------------------------------ | --------------------------------------------------------- |
-| State marker                               | `<NERVE_HOME>`; `nerve-workbench-state` v2                |
-| Projects/conversations/settings/auth/tasks | Canonical domain storage under `<NERVE_HOME>`             |
-| Conversation records                       | Versioned SQLite payloads with parent lineage             |
-| Protocol event streams                     | Dense per-stream JSONL with bounded retention             |
-| Search/index cache                         | Rebuildable SQLite/cache                                  |
-| Desktop/daemon logs                        | `<NERVE_HOME>/logs`, JSONL                                |
-| Crash/Node reports                         | `<NERVE_HOME>/crashes`; age-retained diagnostics          |
-| TLS CA/leaf material                       | `<NERVE_HOME>/tls` when mobile HTTPS is enabled           |
-| Daemon metadata                            | `<NERVE_HOME>/daemon.json`                                |
-| Explore reports                            | Nerve-owned report storage under the active home          |
-| Python/large tool artifacts                | Nerve artifact paths returned by the tool                 |
-| Pasted clipboard images                    | OS temp directory under `nerve/`; not durable attachments |
+| Data                          | Default location / format                                    |
+| ----------------------------- | ------------------------------------------------------------ |
+| Nerve-home marker             | `<NERVE_HOME>/manifest.json`; `nerve-home` v1                |
+| Canonical domain records      | `<NERVE_HOME>/data/nerve.sqlite` plus SQLite WAL/SHM         |
+| Conversation/tool payloads    | `<NERVE_HOME>/data/payloads`                                 |
+| Durable images and plans      | `<NERVE_HOME>/data/images` and `<NERVE_HOME>/data/plans`     |
+| Explore reports               | `<NERVE_HOME>/data/reports`                                  |
+| RPC and maintenance state     | `<NERVE_HOME>/data/idempotency` and `data/maintenance`       |
+| Rebuildable query cache       | `<NERVE_HOME>/cache/query-cache.sqlite` plus SQLite sidecars |
+| Other disposable caches       | Other content under `<NERVE_HOME>/cache`                     |
+| Task records and logs         | `<NERVE_HOME>/tasks`                                         |
+| Agent resources               | `<NERVE_HOME>/agent`                                         |
+| Desktop/daemon/event logs     | `<NERVE_HOME>/logs`, JSONL                                   |
+| Crash/Node reports            | `<NERVE_HOME>/crashes`; age-retained diagnostics             |
+| Configuration and credentials | `<NERVE_HOME>/config` and encrypted `<NERVE_HOME>/secrets`   |
+| TLS CA/leaf material          | `<NERVE_HOME>/tls` when mobile HTTPS is enabled              |
+| Daemon discovery metadata     | `<NERVE_HOME>/daemon.json`                                   |
+| Migration history and backups | `<NERVE_HOME>/migrations` and `<NERVE_HOME>/backups`         |
+| Python/large tool artifacts   | Nerve artifact paths returned by the tool                    |
+| Pasted clipboard images       | OS temp directory under `nerve/`; not durable attachments    |
 
 ## Conversation exports
 

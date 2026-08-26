@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -30,8 +37,11 @@ async function seedHome(): Promise<string> {
   await write("logs/application-2020-01-01.jsonl", 300);
   await write("crashes/report.json", 500);
   await write("cache/value.json", 250);
+  await write("cache/query-cache.sqlite", 600);
+  await write("cache/query-cache.sqlite.cleanup-backup", 80);
+  await write("data/nerve.sqlite", 900);
   await write("tmp/scratch.txt", 60);
-  await write("auth/local-token", 40);
+  await write("secrets/daemon-token", 40);
   return home;
 }
 
@@ -42,6 +52,7 @@ function makeService(
       prunedConversationIds: string[];
       skippedCount: number;
     }>;
+    rebuild?: () => Promise<void>;
   } = {},
 ) {
   const paths = storagePaths(home);
@@ -50,7 +61,7 @@ function makeService(
     pruneConversationsAcrossProjects:
       overrides.prune ??
       (async () => ({ prunedConversationIds: [], skippedCount: 0 })),
-    async rebuildSearchIndex() {},
+    rebuildSearchIndex: overrides.rebuild ?? (async () => {}),
     tools: {
       async compactToolCallLog() {
         await writeFile(join(home, "logs", "tool-calls.jsonl"), "x".repeat(20));
@@ -105,7 +116,8 @@ describe("StorageCleanupService", () => {
     await service.hydrate();
     const before = await usage.computeUsage(true);
     assert.equal(
-      before.categories.find((category) => category.key === "crashes")?.bytes,
+      before.categories.find((category) => category.key === "crashReports")
+        ?.bytes,
       500,
     );
     assert.equal(
@@ -129,10 +141,60 @@ describe("StorageCleanupService", () => {
     assert.equal(result.results.length, 5);
     assert.ok(result.freedBytes >= 300 + 1_200 + 500 + 250 + 60);
     await assert.rejects(readdir(join(home, "crashes")), /ENOENT/);
-    await assert.rejects(readdir(join(home, "cache")), /ENOENT/);
+    assert.deepEqual(await readdir(join(home, "cache")), [
+      "query-cache.sqlite",
+      "query-cache.sqlite.cleanup-backup",
+    ]);
     await assert.rejects(readdir(join(home, "tmp")), /ENOENT/);
-    assert.deepEqual(await readdir(join(home, "auth")), ["local-token"]);
+    assert.deepEqual(await readdir(join(home, "secrets")), ["daemon-token"]);
     assert.equal((await repository.read())?.id, result.id);
+  });
+
+  it("keeps generic cache and query-cache rebuild disjoint", async () => {
+    const home = await seedHome();
+    const canonicalBefore = await readFile(join(home, "data", "nerve.sqlite"));
+    const { service, usage } = makeService(home, {
+      rebuild: async () => {
+        await writeFile(
+          join(home, "cache", "query-cache.sqlite"),
+          "x".repeat(100),
+        );
+        await rm(join(home, "cache", "query-cache.sqlite.cleanup-backup"), {
+          force: true,
+        });
+      },
+    });
+    await service.hydrate();
+
+    const before = await usage.computeUsage(true);
+    assert.equal(
+      before.cleanupTargets.find((target) => target.target === "cache")?.bytes,
+      250,
+    );
+    assert.equal(
+      before.cleanupTargets.find((target) => target.target === "searchIndex")
+        ?.bytes,
+      680,
+    );
+
+    await service.start({ clearCache: true, rebuildSearchIndex: true });
+    const result = await waitForTerminal(service);
+    assert.equal(result.status, "succeeded", result.error);
+    assert.equal(
+      result.results.find((item) => item.target === "cache")?.freedBytes,
+      250,
+    );
+    assert.equal(
+      result.results.find((item) => item.target === "searchIndex")?.freedBytes,
+      580,
+    );
+    assert.deepEqual(
+      await readFile(join(home, "data", "nerve.sqlite")),
+      canonicalBefore,
+    );
+    assert.deepEqual(await readdir(join(home, "cache")), [
+      "query-cache.sqlite",
+    ]);
   });
 
   it("cancels at a target boundary and leaves later targets untouched", async () => {
@@ -164,7 +226,11 @@ describe("StorageCleanupService", () => {
       result.results.find((item) => item.target === "cache")?.outcome,
       "cancelled",
     );
-    assert.deepEqual(await readdir(join(home, "cache")), ["value.json"]);
+    assert.deepEqual(await readdir(join(home, "cache")), [
+      "query-cache.sqlite",
+      "query-cache.sqlite.cleanup-backup",
+      "value.json",
+    ]);
   });
 
   it("marks an active persisted operation interrupted during hydrate", async () => {

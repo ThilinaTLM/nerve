@@ -38,3 +38,4 @@ assets/brand/*
 !assets/brand/nerve-mark-small.svg
 !assets/brand/nerve-app-icon.svg
 dogfood-output/
+.idea/

@@ -20,6 +20,9 @@ export interface StoragePaths {
   localTokenPath: string;
   dataPath: string;
   sqlitePath: string;
+  idempotencyPath: string;
+  maintenancePath: string;
+  storageCleanupOperationPath: string;
   payloadsPath: string;
   reportsPath: string;
   imagesPath: string;
@@ -30,6 +33,7 @@ export interface StoragePaths {
   tlsPath: string;
   tmpPath: string;
   cachePath: string;
+  queryCachePath: string;
   logsPath: string;
   crashesPath: string;
   migrationsPath: string;
@@ -48,7 +52,9 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
   const secretsPath = join(home, "secrets");
   const dataPath = join(home, "data");
   const agentPath = join(home, "agent");
+  const maintenancePath = join(dataPath, "maintenance");
   const migrationsPath = join(home, "migrations");
+  const cachePath = join(home, "cache");
   return {
     home,
     userHome: homedir(),
@@ -67,6 +73,9 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     localTokenPath: join(secretsPath, "daemon-token"),
     dataPath,
     sqlitePath: join(dataPath, "nerve.sqlite"),
+    idempotencyPath: join(dataPath, "idempotency"),
+    maintenancePath,
+    storageCleanupOperationPath: join(maintenancePath, "storage-cleanup.json"),
     payloadsPath: join(dataPath, "payloads"),
     reportsPath: join(dataPath, "reports"),
     imagesPath: join(dataPath, "images"),
@@ -76,7 +85,8 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     suggestionsPath: join(agentPath, "suggestions"),
     tlsPath: join(home, "tls"),
     tmpPath: join(home, "tmp"),
-    cachePath: join(home, "cache"),
+    cachePath,
+    queryCachePath: join(cachePath, "query-cache.sqlite"),
     logsPath: join(home, "logs"),
     crashesPath: join(home, "crashes"),
     migrationsPath,

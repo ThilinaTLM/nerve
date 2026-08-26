@@ -84,9 +84,7 @@ export function createWorkbenchState(
   } = {},
 ): WorkbenchState {
   // Rebuildable read model; data/nerve.sqlite remains authoritative.
-  const queryCache = new RuntimeQueryCache(
-    join(storage.paths.home, "cache", "query-cache.sqlite"),
-  );
+  const queryCache = new RuntimeQueryCache(storage.paths.queryCachePath);
   queryCache.initialize();
   const performanceDiagnostics = options.performanceDiagnosticsEnabled
     ? new PerformanceMetricsCollector(
@@ -204,7 +202,7 @@ export function createWorkbenchState(
   const storageCleanup = new StorageCleanupService({
     paths: storage.paths,
     repository: new StorageCleanupRepository(
-      join(storage.paths.dataPath, "maintenance", "storage-cleanup.json"),
+      storage.paths.storageCleanupOperationPath,
     ),
     usage: storageUsage,
     events,
