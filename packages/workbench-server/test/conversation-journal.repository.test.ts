@@ -469,6 +469,75 @@ test("failed delta persistence leaves the resident projection unchanged", async 
   assert.equal(state.conversation?.title, "Before failure");
 });
 
+test("legacy detached agent compactions hydrate as context roots", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-agent-compaction-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const repository = new ConversationJournalRepository({ paths: { home } });
+  const detachedCompaction = (id: string, parentId: string) => ({
+    type: "compaction" as const,
+    id,
+    parentId,
+    timestamp: now,
+    summary: `Summary ${id}`,
+    firstKeptEntryId: parentId,
+    tokensBefore: 100,
+  });
+
+  await repository.commit(conversationId, {
+    kind: "migration.agent_model_context",
+    events: [
+      detachedCompaction("entry_compaction_one", "entry_shared_one"),
+      detachedCompaction("entry_compaction_two", "entry_shared_two"),
+    ].map((entry) => ({
+      kind: "model_context.entry_appended" as const,
+      conversationId,
+      ownerAgentId: "agent_legacy",
+      entry: entry as never,
+    })),
+  });
+  await repository.checkpointLoaded();
+
+  const loaded = await new ConversationJournalRepository({
+    paths: { home },
+  }).load(conversationId);
+  assert.deepEqual(
+    loaded.agentModelEntries
+      .get("agent_legacy")
+      ?.map((entry) => entry.parentId),
+    [null, null],
+  );
+  assert.deepEqual(
+    loaded.agentModelTrees
+      .get("agent_legacy")
+      ?.getPathToRoot("entry_compaction_two")
+      .map((entry) => entry.id),
+    ["entry_compaction_two"],
+  );
+
+  await assert.rejects(
+    repository.commit(conversationId, {
+      kind: "model_context.entry_appended",
+      events: [
+        {
+          kind: "model_context.entry_appended",
+          conversationId,
+          ownerAgentId: "agent_legacy",
+          entry: {
+            type: "custom_message",
+            id: "entry_invalid_child",
+            parentId: "entry_missing",
+            timestamp: now,
+            customType: "test",
+            content: "invalid",
+            display: true,
+          } as never,
+        },
+      ],
+    }),
+    /Unknown model-context parent 'entry_missing'/,
+  );
+});
+
 test("conversation storage fails closed on malformed canonical state and bad references", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-journal-corrupt-"));
   t.after(() => rm(home, { recursive: true, force: true }));

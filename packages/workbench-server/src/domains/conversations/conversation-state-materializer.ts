@@ -64,8 +64,14 @@ export function deserializeState(
   const modelTree = new ConversationTreeState(state.modelEntries);
   modelTree.setLeafId(state.modelLeafId);
   const agentModelLeafIds = new Map(state.agentModelLeafIds);
+  const agentModelEntries = new Map(
+    state.agentModelEntries.map(([agentId, entries]) => [
+      agentId,
+      normalizeDetachedAgentCompactions(entries),
+    ]),
+  );
   const agentModelTrees = new Map(
-    state.agentModelEntries.map(([agentId, entries]) => {
+    [...agentModelEntries].map(([agentId, entries]) => {
       const tree = new ConversationTreeState(entries);
       tree.setLeafId(agentModelLeafIds.get(agentId) ?? null);
       return [agentId, tree] as const;
@@ -79,7 +85,7 @@ export function deserializeState(
     entries: state.entries,
     modelEntries: state.modelEntries,
     modelLeafId: state.modelLeafId,
-    agentModelEntries: new Map(state.agentModelEntries),
+    agentModelEntries,
     agentModelLeafIds,
     toolCalls: new Map(state.toolCalls),
     runProjections: new Map(state.runProjections),
@@ -92,7 +98,7 @@ export function deserializeState(
       state.modelEntries.map((entry) => [entry.id, entry]),
     ),
     agentModelEntryById: new Map(
-      state.agentModelEntries.map(([agentId, entries]) => [
+      [...agentModelEntries].map(([agentId, entries]) => [
         agentId,
         new Map(entries.map((entry) => [entry.id, entry])),
       ]),
@@ -104,6 +110,28 @@ export function deserializeState(
     modelTree,
     agentModelTrees,
   };
+}
+
+/**
+ * Legacy per-agent journals can contain standalone compaction snapshots whose
+ * parent belongs to the shared conversation journal. A compaction is a complete
+ * context boundary, so detaching that unavailable parent preserves its usable
+ * context while keeping all other tree-link failures strict.
+ */
+export function normalizeDetachedAgentCompactions(
+  entries: readonly ConversationTreeEntry[],
+): ConversationTreeEntry[] {
+  const knownIds = new Set<string>();
+  return entries.map((entry) => {
+    const normalized =
+      entry.type === "compaction" &&
+      entry.parentId !== null &&
+      !knownIds.has(entry.parentId)
+        ? { ...entry, parentId: null }
+        : entry;
+    knownIds.add(normalized.id);
+    return normalized;
+  });
 }
 
 function interactionOrdinalKey(toolCallId: string, ordinal: number): string {

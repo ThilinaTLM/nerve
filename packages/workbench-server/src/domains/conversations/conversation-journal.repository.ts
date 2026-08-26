@@ -367,7 +367,11 @@ function validateCommitEvents(
           const pendingParent = modelEntries.get(
             `${event.ownerAgentId ?? ""}:${entry.parentId}`,
           );
-          if (!parent && !pendingParent) {
+          if (
+            !parent &&
+            !pendingParent &&
+            !(event.ownerAgentId && entry.type === "compaction")
+          ) {
             throw new Error(
               `Unknown model-context parent '${entry.parentId}'.`,
             );
@@ -541,13 +545,20 @@ function applyEvent(
       return;
     }
     case "model_context.entry_appended": {
-      const entry = event.entry as unknown as ConversationTreeEntry;
+      const incoming = event.entry as unknown as ConversationTreeEntry;
       const entries = event.ownerAgentId
         ? (state.agentModelEntries.get(event.ownerAgentId) ?? [])
         : state.modelEntries;
       const indexed = event.ownerAgentId
         ? (state.agentModelEntryById.get(event.ownerAgentId) ?? new Map())
         : state.modelEntryById;
+      const entry =
+        event.ownerAgentId &&
+        incoming.type === "compaction" &&
+        incoming.parentId !== null &&
+        !indexed.has(incoming.parentId)
+          ? { ...incoming, parentId: null }
+          : incoming;
       const previous = indexed.get(entry.id);
       if (!previous) {
         entries.push(entry);
