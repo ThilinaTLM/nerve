@@ -27,14 +27,25 @@ let visible = $state(false);
 const MOVE_DURATION_MS = 200;
 let measureFrame: number | undefined;
 let showFrame: number | undefined;
+let animateMeasure = false;
+let requestedKey: string | undefined;
 let overlay = $state<HTMLDivElement>();
-/** Key the drawn outline currently reflects, to detect item switches. */
-let drawnKey: string | undefined;
+
+/** Cancel geometry animations before snapping to a layout measurement. */
+function cancelOverlayAnimation(): void {
+  if (!overlay) return;
+  for (const animation of overlay.getAnimations()) animation.cancel();
+}
 
 /** Re-measures from resize/scroll/layout must snap; only item moves glide. */
-function applyGeometry(geometry: RelativeItemRectangle, moving: boolean): void {
+function applyGeometry(
+  geometry: RelativeItemRectangle,
+  animate: boolean,
+): void {
+  if (!animate) cancelOverlayAnimation();
+
   if (
-    moving &&
+    animate &&
     overlay &&
     visible &&
     (geometry.x !== x ||
@@ -49,7 +60,7 @@ function applyGeometry(geometry: RelativeItemRectangle, moving: boolean): void {
       width: computed.width,
       height: computed.height,
     };
-    for (const animation of overlay.getAnimations()) animation.cancel();
+    cancelOverlayAnimation();
     overlay.animate([from, toKeyframe(geometry)], {
       duration: MOVE_DURATION_MS,
       easing: "ease-out",
@@ -90,8 +101,7 @@ function activeTarget(): HTMLElement | undefined {
   );
 }
 
-function measure(): void {
-  measureFrame = undefined;
+function measure(animate: boolean): void {
   if (!collection) return;
   const target = activeTarget();
   if (!target) {
@@ -104,9 +114,7 @@ function measure(): void {
     target.getBoundingClientRect(),
     window.devicePixelRatio || 1,
   );
-  const moving = drawnKey !== undefined && activeKey !== drawnKey;
-  drawnKey = activeKey;
-  applyGeometry(geometry, moving);
+  applyGeometry(geometry, animate);
 
   if (!visible) {
     if (showFrame !== undefined) cancelAnimationFrame(showFrame);
@@ -117,16 +125,27 @@ function measure(): void {
   }
 }
 
-function scheduleMeasure(): void {
+function scheduleMeasure(animate = false): void {
+  // DOM observer/event callbacks pass their event payload as the first
+  // argument; only the explicit boolean from the active-key effect animates.
+  if (animate === true) animateMeasure = true;
   if (measureFrame !== undefined) return;
-  measureFrame = requestAnimationFrame(measure);
+  measureFrame = requestAnimationFrame(() => {
+    measureFrame = undefined;
+    const shouldAnimate = animateMeasure;
+    animateMeasure = false;
+    measure(shouldAnimate);
+  });
 }
 
 $effect(() => {
   const key = activeKey;
   const host = collection;
+  const animate =
+    key !== undefined && requestedKey !== undefined && key !== requestedKey;
+  requestedKey = key;
   void tick().then(() => {
-    if (activeKey === key && collection === host) scheduleMeasure();
+    if (activeKey === key && collection === host) scheduleMeasure(animate);
   });
 });
 
@@ -134,7 +153,8 @@ $effect(() => {
   const host = collection;
   if (!host) return;
 
-  const resizeObserver = new ResizeObserver(scheduleMeasure);
+  const scheduleLayoutMeasure = () => scheduleMeasure();
+  const resizeObserver = new ResizeObserver(scheduleLayoutMeasure);
   const observeCandidates = () => {
     resizeObserver.disconnect();
     resizeObserver.observe(host);
@@ -148,19 +168,21 @@ $effect(() => {
   });
   mutationObserver.observe(host, { childList: true, subtree: true });
 
-  host.addEventListener("scroll", scheduleMeasure, true);
-  window.addEventListener("resize", scheduleMeasure);
+  host.addEventListener("scroll", scheduleLayoutMeasure, true);
+  window.addEventListener("resize", scheduleLayoutMeasure);
   scheduleMeasure();
 
   return () => {
     resizeObserver.disconnect();
     mutationObserver.disconnect();
-    host.removeEventListener("scroll", scheduleMeasure, true);
-    window.removeEventListener("resize", scheduleMeasure);
+    host.removeEventListener("scroll", scheduleLayoutMeasure, true);
+    window.removeEventListener("resize", scheduleLayoutMeasure);
     if (measureFrame !== undefined) cancelAnimationFrame(measureFrame);
     if (showFrame !== undefined) cancelAnimationFrame(showFrame);
+    cancelOverlayAnimation();
     measureFrame = undefined;
     showFrame = undefined;
+    animateMeasure = false;
   };
 });
 </script>
