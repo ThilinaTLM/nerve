@@ -42,3 +42,25 @@ test("relativeItemRectangle snaps to device pixels at fractional scale factors",
     { x: 64.5, y: 51.5, width: 180, height: 36.5 },
   );
 });
+test("relativeItemRectangle keeps edge-aligned outlines inside the collection", () => {
+  const collection = {
+    left: 8.796875,
+    top: 10.796875,
+    width: 346.828125,
+    height: 48.375,
+  };
+
+  assert.deepEqual(
+    relativeItemRectangle(
+      collection,
+      {
+        left: collection.left,
+        top: collection.top,
+        width: collection.width,
+        height: collection.height,
+      },
+      2,
+    ),
+    { x: 0, y: 0, width: collection.width, height: collection.height },
+  );
+});
