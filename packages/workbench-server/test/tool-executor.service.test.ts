@@ -44,17 +44,54 @@ function toolCall(overrides: Partial<ToolCallRecord> = {}): ToolCallRecord {
   };
 }
 
+function cancelledRecord(record: ToolCallRecord): ToolCallRecord {
+  const settledAt = "2026-01-02T03:04:07.000Z";
+  return {
+    ...record,
+    status: "cancelled",
+    phase: "cancelled",
+    revision: record.revision + 1,
+    error: "Tool execution was cancelled because the run was cancelled.",
+    errorDetails: {
+      code: "cancelled",
+      message: "Tool execution was cancelled because the run was cancelled.",
+    },
+    result: {
+      content: "Tool execution was cancelled because the run was cancelled.",
+      contentBlocks: [
+        {
+          type: "text",
+          text: "Tool execution was cancelled because the run was cancelled.",
+        },
+      ],
+    },
+    execution: record.execution
+      ? { ...record.execution, status: "cancelled", endedAt: settledAt }
+      : undefined,
+    settledAt,
+    updatedAt: settledAt,
+  };
+}
+
 function createExecutor(input: {
   record: ToolCallRecord;
   execute: () => Promise<unknown>;
   onUpdate?: (record: ToolCallRecord) => void;
   storageHome?: string;
   publish?: (record: ToolCallRecord) => Promise<void>;
+  terminalBeforeSettlement?: (record: ToolCallRecord) => ToolCallRecord;
 }): ToolExecutorService {
   let record = input.record;
   return new ToolExecutorService({
     getToolCall: () => record,
     updateToolCall: async (_id, patch) => {
+      if (input.terminalBeforeSettlement) {
+        const terminalize = input.terminalBeforeSettlement;
+        input.terminalBeforeSettlement = undefined;
+        record = terminalize(record);
+        input.onUpdate?.(record);
+        throw new Error(`Terminal tool call '${record.id}' is immutable.`);
+      }
       record = { ...record, ...patch, updatedAt: "2026-01-02T03:04:06.000Z" };
       input.onUpdate?.(record);
       return record;
@@ -330,6 +367,86 @@ describe("ToolExecutorService structured errors", () => {
       1,
     );
     assert.equal(executions, 1);
+  });
+
+  it("settles an aborted generic execution as cancelled", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const executor = createExecutor({
+      record: toolCall({ toolName: "python_exec" }),
+      execute: async () => {
+        throw new Error("Python execution aborted.");
+      },
+    });
+
+    const terminal = await executor.executeAllowedTool("tool_test", {
+      signal: controller.signal,
+    });
+
+    assert.equal(terminal.status, "cancelled");
+    assert.equal(terminal.errorDetails?.code, "cancelled");
+    assert.equal(terminal.error, "Tool execution was cancelled.");
+    assert.equal(
+      JSON.stringify(terminal).includes("Python execution aborted"),
+      false,
+    );
+  });
+
+  it("does not commit a successful result after its signal is cancelled", async () => {
+    const controller = new AbortController();
+    const executor = createExecutor({
+      record: toolCall(),
+      execute: async () => {
+        controller.abort();
+        return { content: "late success" };
+      },
+    });
+
+    const terminal = await executor.executeAllowedTool("tool_test", {
+      signal: controller.signal,
+    });
+
+    assert.equal(terminal.status, "cancelled");
+    assert.equal(JSON.stringify(terminal).includes("late success"), false);
+  });
+
+  it("adopts cancellation when it wins a late successful settlement", async () => {
+    const lifecycleStatuses: string[] = [];
+    const executor = createExecutor({
+      record: toolCall(),
+      execute: async () => ({ content: "late success" }),
+      terminalBeforeSettlement: cancelledRecord,
+    });
+
+    const terminal = await executor.executeAllowedTool("tool_test", {
+      onLifecycle: async (record) => {
+        lifecycleStatuses.push(record.status);
+      },
+    });
+
+    assert.equal(terminal.status, "cancelled");
+    assert.equal(terminal.errorDetails?.code, "cancelled");
+    assert.equal(JSON.stringify(terminal).includes("late success"), false);
+    assert.deepEqual(lifecycleStatuses, ["running"]);
+  });
+
+  it("adopts cancellation when it wins a late failed settlement", async () => {
+    const executor = createExecutor({
+      record: toolCall({ toolName: "python_exec" }),
+      execute: async () => {
+        throw new Error("Python execution aborted.");
+      },
+      terminalBeforeSettlement: cancelledRecord,
+    });
+
+    const terminal = await executor.executeAllowedTool("tool_test");
+
+    assert.equal(terminal.status, "cancelled");
+    assert.equal(
+      terminal.error,
+      "Tool execution was cancelled because the run was cancelled.",
+    );
+    assert.equal(JSON.stringify(terminal).includes("immutable"), false);
   });
 
   it("keeps the completed record when lifecycle publication fails", async () => {

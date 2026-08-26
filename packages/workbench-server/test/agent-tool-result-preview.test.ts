@@ -25,6 +25,21 @@ function toolCall(result: unknown, id = "tool_test"): ToolCallRecord {
   };
 }
 
+function terminalToolCall(
+  status: "cancelled" | "failed" | "denied",
+  error: string,
+  code?: string,
+): ToolCallRecord {
+  return {
+    ...toolCall(undefined),
+    status,
+    phase: status,
+    result: undefined,
+    error,
+    errorDetails: code ? { code, message: error } : undefined,
+  };
+}
+
 function text(result: ReturnType<typeof toolCallResultForModel>): string {
   return result.content
     .filter((block) => block.type === "text")
@@ -33,6 +48,45 @@ function text(result: ReturnType<typeof toolCallResultForModel>): string {
 }
 
 describe("agent tool-result preview", () => {
+  it("reports cancellation factually to the model", () => {
+    const output = text(
+      toolCallResultForModel(
+        terminalToolCall(
+          "cancelled",
+          "Tool execution was cancelled because the run was cancelled.",
+          "cancelled",
+        ),
+      ),
+    );
+
+    assert.match(output, /^Tool execution was cancelled/);
+    assert.match(output, /run was cancelled/);
+    assert.equal(output.includes("immutable"), false);
+  });
+
+  it("distinguishes interruption, failure, and denial", () => {
+    assert.match(
+      text(
+        toolCallResultForModel(
+          terminalToolCall("failed", "Host restarted.", "interrupted"),
+        ),
+      ),
+      /^Tool execution was interrupted\./,
+    );
+    assert.match(
+      text(
+        toolCallResultForModel(
+          terminalToolCall("failed", "Invalid input.", "INVALID_ARGUMENT"),
+        ),
+      ),
+      /^Tool execution failed\./,
+    );
+    assert.match(
+      text(toolCallResultForModel(terminalToolCall("denied", "Not approved."))),
+      /^User denied the requested tool call\./,
+    );
+  });
+
   it("returns fitting output unchanged", () => {
     const value = "first\nsecond";
     assert.equal(

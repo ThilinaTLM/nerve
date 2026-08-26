@@ -6,6 +6,7 @@ import type { WorkbenchTaskService } from "../../tasks/workbench-task-service.js
 import type { ToolService } from "../../tools/tool-service.js";
 import type { WorkbenchLiveExecutions } from "../run-live-executions.js";
 import type { WorkbenchRunUnitOfWork } from "../run-transition.repository.js";
+import { RUN_CANCELLED_TOOL_OUTCOME } from "../../tools/tool-termination.js";
 
 type Evidence = "confirmed" | "not_running";
 
@@ -40,7 +41,7 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
     if (active.length === 0) return "not_running";
     await this.tools.terminateNonTerminalToolCallsForRun(
       run.runId,
-      "Tool execution was interrupted because the run was cancelled.",
+      RUN_CANCELLED_TOOL_OUTCOME,
     );
     const remaining = this.tools
       .listToolCalls()

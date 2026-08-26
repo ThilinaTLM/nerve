@@ -196,12 +196,24 @@ describe("tool service lifecycle", () => {
 
     const [terminal] = await service.terminateNonTerminalToolCallsForRun(
       runId,
-      "Run was cancelled.",
+      {
+        status: "cancelled",
+        code: "cancelled",
+        message: "Run was cancelled.",
+      },
     );
 
-    assert.equal(terminal?.status, "failed");
+    assert.equal(terminal?.status, "cancelled");
+    assert.equal(terminal?.phase, "cancelled");
+    assert.equal(terminal?.error, "Run was cancelled.");
+    assert.equal(terminal?.errorDetails?.code, "cancelled");
+    assert.deepEqual(terminal?.result, {
+      content: "Run was cancelled.",
+      contentBlocks: [{ type: "text", text: "Run was cancelled." }],
+    });
     assert.equal(terminal?.interactions[0]?.status, "cancelled");
     assert.ok(terminal?.interactions[0]?.cancelledAt);
+    assert.ok(terminal?.settledAt);
   });
 });
 

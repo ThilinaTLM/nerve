@@ -54,7 +54,7 @@ const argsBody = $derived({
     <p class="m-0 text-xs text-muted-foreground">No output.</p>
   {/if}
 
-  {#if view.args.length > 0 && (toolCall.status === "failed" || toolCall.status === "denied")}
+  {#if view.args.length > 0 && (toolCall.status === "failed" || toolCall.status === "denied" || toolCall.status === "cancelled")}
     <div class="grid gap-1.5">
       <p class="m-0 text-xs font-medium text-muted-foreground">
         Recorded arguments

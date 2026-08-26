@@ -10,11 +10,12 @@ import {
   resolveToolAvailability,
   toolDefinitionsByGroup,
 } from "@nervekit/tools";
-import type {
-  AgentRecord,
-  ToolCallRecord,
-  ToolName,
-  UserConfigurableToolName,
+import {
+  INTERRUPTED_TOOL_ERROR_CODE,
+  type AgentRecord,
+  type ToolCallRecord,
+  type ToolName,
+  type UserConfigurableToolName,
 } from "@nervekit/contracts";
 import type { ToolAnchor } from "../runs/runtime/conversation-runtime.js";
 import type { ToolService } from "./tool-service.js";
@@ -64,7 +65,7 @@ export function createAgentToolsForAgent(
           reason: `Tool ${toolName} is awaiting user input.`,
         });
       }
-      throw new Error(toolCall.error ?? `Tool ${toolName} ${toolCall.status}.`);
+      throw new Error(formatToolResultForModel(toolCall));
     },
   );
 }
@@ -201,11 +202,26 @@ export function formatToolResultForModel(
         : "User denied the requested tool call.",
     );
   }
+  if (toolCall.status === "cancelled") {
+    const error = toolCall.error?.trim();
+    return boundModelText(
+      error?.startsWith("Tool execution was cancelled")
+        ? error
+        : error
+          ? `Tool execution was cancelled.\nReason: ${error}`
+          : "Tool execution was cancelled.",
+    );
+  }
   if (toolCall.status === "failed") {
+    const interrupted =
+      toolCall.errorDetails?.code === INTERRUPTED_TOOL_ERROR_CODE;
+    const label = interrupted
+      ? "Tool execution was interrupted."
+      : "Tool execution failed.";
     return boundModelText(
       toolCall.error?.trim()
-        ? `Tool execution failed.\nError: ${toolCall.error}`
-        : "Tool execution failed.",
+        ? `${label}\n${interrupted ? "Reason" : "Error"}: ${toolCall.error}`
+        : label,
     );
   }
   if (toolCall.status !== "completed") {

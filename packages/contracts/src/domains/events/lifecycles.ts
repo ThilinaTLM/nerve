@@ -75,9 +75,10 @@ export function isTerminalToolStatus(
 }
 
 /**
- * Recovery rule: before a run becomes terminal, its producer must transition
- * every non-terminal tool call to `failed` and use errorDetails.code
- * `interrupted`. Consumers may therefore treat terminal runs as having no live
- * tool-call lifecycles.
+ * Before a run becomes terminal, its producer must settle every live tool call.
+ * Explicit user/run cancellation uses `cancelled`; unexpected recovery or
+ * shutdown interruption uses `failed` with the `interrupted` error code.
+ * Consumers may therefore treat terminal runs as having no live tool calls.
  */
+export const CANCELLED_TOOL_ERROR_CODE = "cancelled";
 export const INTERRUPTED_TOOL_ERROR_CODE = "interrupted";

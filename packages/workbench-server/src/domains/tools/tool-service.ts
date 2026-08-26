@@ -12,6 +12,8 @@ import {
   assertTransition,
   createId,
   type ExploreReportSummaryPayload,
+  INTERRUPTED_TOOL_ERROR_CODE,
+  isTerminalToolStatus,
   type Mode,
   type ResolveToolInteractionRequest,
   type StartTaskRequest,
@@ -49,6 +51,10 @@ import { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js"
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
 import { ToolResultPayloadStore } from "./tool-result-payload-store.js";
+import {
+  toolTerminationPatch,
+  type ToolTerminationOutcome,
+} from "./tool-termination.js";
 
 const HOST_RESTART_TOOL_ERROR =
   "Tool execution was interrupted because the host restarted.";
@@ -749,7 +755,7 @@ export class ToolService {
   /** Terminalize every live tool call before its run becomes terminal. */
   async terminateNonTerminalToolCallsForRun(
     runId: string,
-    errorMessage: string,
+    outcome: ToolTerminationOutcome,
   ): Promise<ToolCallRecord[]> {
     if (!runId) return [];
     const stale = this.toolCallRepository
@@ -759,20 +765,25 @@ export class ToolService {
       );
     return await Promise.all(
       stale.map(async (toolCall) => {
-        const failed = await this.updateToolCall(toolCall.id, {
-          ...interruptedToolCallPatch(errorMessage),
+        const settlement = await this.settleToolCallTermination(toolCall.id, {
+          ...toolTerminationPatch(outcome),
           interactions: cancelPendingInteractions(toolCall.interactions),
         });
-        await this.publishToolCallUpdated(failed);
-        await this.logger?.warn("Tool call terminated after run ended", {
-          toolCallId: failed.id,
-          agentId: failed.agentId,
-          conversationId: failed.conversationId,
-          projectId: failed.projectId,
-          runId: failed.runId,
-          context: { toolName: failed.toolName },
-        });
-        return failed;
+        if (settlement.owned) {
+          await this.publishToolCallUpdated(settlement.record);
+          await this.logger?.warn("Tool call terminated after run ended", {
+            toolCallId: settlement.record.id,
+            agentId: settlement.record.agentId,
+            conversationId: settlement.record.conversationId,
+            projectId: settlement.record.projectId,
+            runId: settlement.record.runId,
+            context: {
+              toolName: settlement.record.toolName,
+              outcome: settlement.record.status,
+            },
+          });
+        }
+        return settlement.record;
       }),
     );
   }
@@ -787,7 +798,11 @@ export class ToolService {
     for (const toolCall of interrupted) {
       const failed = await this.updateToolCall(
         toolCall.id,
-        interruptedToolCallPatch(HOST_RESTART_TOOL_ERROR),
+        toolTerminationPatch({
+          status: "failed",
+          code: INTERRUPTED_TOOL_ERROR_CODE,
+          message: HOST_RESTART_TOOL_ERROR,
+        }),
       );
       await this.publishToolCallUpdated(failed);
     }
@@ -1063,6 +1078,24 @@ export class ToolService {
     }
   }
 
+  private async settleToolCallTermination(
+    toolCallId: string,
+    patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
+  ): Promise<{ record: ToolCallRecord; owned: boolean }> {
+    try {
+      return {
+        record: await this.updateToolCall(toolCallId, patch),
+        owned: true,
+      };
+    } catch (error) {
+      const current = this.getToolCall(toolCallId);
+      if (isTerminalToolStatus(current.status)) {
+        return { record: current, owned: false };
+      }
+      throw error;
+    }
+  }
+
   private async updateToolCall(
     toolCallId: string,
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
@@ -1265,25 +1298,6 @@ function cancelPendingInteractions(
   );
 }
 
-function interruptedToolCallPatch(errorMessage: string) {
-  return {
-    status: "failed" as const,
-    error: errorMessage,
-    errorDetails: {
-      code: "interrupted",
-      message: errorMessage,
-    },
-    result: {
-      content: errorMessage,
-      contentBlocks: [{ type: "text" as const, text: errorMessage }],
-    },
-  };
-}
-
 function isTerminalToolCall(toolCall: ToolCallRecord): boolean {
-  return (
-    toolCall.status === "completed" ||
-    toolCall.status === "denied" ||
-    toolCall.status === "failed"
-  );
+  return isTerminalToolStatus(toolCall.status);
 }

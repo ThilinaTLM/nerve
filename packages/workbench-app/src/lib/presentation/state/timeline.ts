@@ -1,7 +1,8 @@
-import type {
-  ConversationActiveRunSnapshot,
-  ConversationLiveToolOutputSnapshot,
-  ToolCallTranscriptRecord,
+import {
+  type ConversationActiveRunSnapshot,
+  type ConversationLiveToolOutputSnapshot,
+  isTerminalToolStatus,
+  type ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
 import { type ToolDraftViewModel } from "./active-run.js";
 import { buildActiveRunTimeline } from "./active-run-timeline.js";
@@ -345,11 +346,7 @@ export function buildCommittedTimeline(
 function isTerminalUnanchoredToolCall(
   toolCall: ToolCallTranscriptRecord,
 ): boolean {
-  return (
-    toolCall.status === "completed" ||
-    toolCall.status === "failed" ||
-    toolCall.status === "denied"
-  );
+  return isTerminalToolStatus(toolCall.status);
 }
 
 function timelineItemCreatedAt(item: TimelineItem): string | undefined {
