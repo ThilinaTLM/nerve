@@ -171,7 +171,7 @@ function gitStatusTitle(status: GitStatus): string {
           <Button
             variant="ghost"
             size="xs"
-            class="footer-item warn text-xs"
+            class="footer-item text-warning text-xs"
             ariaLabel={`Open ${pendingApprovals === 1 ? "pending approval" : "pending approvals"}`}
             title={`${pendingApprovals} ${pendingApprovals === 1 ? "pending approval" : "pending approvals"} · Open conversation`}
             onclick={() => onOpenPendingApproval?.()}
@@ -210,11 +210,6 @@ function gitStatusTitle(status: GitStatus): string {
 .footer-item :global(svg) {
   flex: none;
   color: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
-}
-
-.footer-item.warn,
-.footer-item.warn :global(svg) {
-  color: var(--warning);
 }
 
 .footer-project-path {

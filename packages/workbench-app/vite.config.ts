@@ -124,6 +124,9 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     build: {
+      // The eager workbench shell is intentionally shared by all lazy views;
+      // keep this measured threshold tight enough to catch bundle growth.
+      chunkSizeWarningLimit: 1400,
       rollupOptions: {
         onwarn(warning, warn) {
           // workspace-actions is dynamically imported by the five tab-state

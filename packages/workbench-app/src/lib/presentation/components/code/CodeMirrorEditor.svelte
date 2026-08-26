@@ -1,9 +1,8 @@
 <script lang="ts">
-import { json } from "@codemirror/lang-json";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, type ViewUpdate } from "@codemirror/view";
-import { onDestroy, onMount } from "svelte";
-import { editableCodeExtensions } from "./code-mirror-config";
+import { onMount } from "svelte";
+import { editableCodeExtensions, loadCodeLanguage } from "./code-mirror-config";
 
 type Props = {
   value: string;
@@ -33,23 +32,35 @@ function editableExtensions(isDisabled: boolean) {
 }
 
 onMount(() => {
-  view = new EditorView({
-    parent: host,
-    state: EditorState.create({
-      doc: value,
-      extensions: [
-        ...editableCodeExtensions(ariaLabel),
-        json(),
-        EditorView.lineWrapping,
-        editableCompartment.of(editableExtensions(disabled)),
-        EditorView.updateListener.of((update: ViewUpdate) => {
-          if (!update.docChanged) return;
-          const next = update.state.doc.toString();
-          if (next !== value) onChange?.(next);
-        }),
-      ],
-    }),
+  let active = true;
+
+  void loadCodeLanguage("json").then((jsonExtension) => {
+    if (!active) return;
+
+    view = new EditorView({
+      parent: host,
+      state: EditorState.create({
+        doc: value,
+        extensions: [
+          ...editableCodeExtensions(ariaLabel),
+          jsonExtension,
+          EditorView.lineWrapping,
+          editableCompartment.of(editableExtensions(disabled)),
+          EditorView.updateListener.of((update: ViewUpdate) => {
+            if (!update.docChanged) return;
+            const next = update.state.doc.toString();
+            if (next !== value) onChange?.(next);
+          }),
+        ],
+      }),
+    });
   });
+
+  return () => {
+    active = false;
+    view?.destroy();
+    view = undefined;
+  };
 });
 
 $effect(() => {
@@ -68,8 +79,6 @@ $effect(() => {
     effects: editableCompartment.reconfigure(editableExtensions(disabled)),
   });
 });
-
-onDestroy(() => view?.destroy());
 </script>
 
 <div
