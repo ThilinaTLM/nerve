@@ -28,6 +28,8 @@ const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["configPath", 0o755],
   ["secretsPath", 0o700],
   ["dataPath", 0o700],
+  ["idempotencyPath", 0o700],
+  ["maintenancePath", 0o700],
   ["payloadsPath", 0o700],
   ["reportsPath", 0o700],
   ["imagesPath", 0o700],

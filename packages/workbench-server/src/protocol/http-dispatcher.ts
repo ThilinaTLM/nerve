@@ -178,7 +178,7 @@ function workbenchIdempotencyStore(
   const existing = workbenchIdempotencyStores.get(state);
   if (existing) return existing;
   const store = new FileIdempotencyStore(
-    join(state.storage.paths.dataPath, "idempotency", "http-v1.json"),
+    join(state.storage.paths.idempotencyPath, "http-v1.json"),
   );
   workbenchIdempotencyStores.set(state, store);
   return store;

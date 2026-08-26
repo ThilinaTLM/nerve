@@ -210,7 +210,7 @@ function start(): void {
           id="cleanup-cache"
           bind:checked={selection.cache}
           title="Cache"
-          description={`Disposable cached data · ${targetFootprint("cache")}`}
+          description={`Disposable non-query cached data · ${targetFootprint("cache")}`}
         />
         <StorageCleanupChoice
           id="cleanup-tmp"
@@ -224,25 +224,19 @@ function start(): void {
     <Collapsible.Root bind:open={openGroups.index}>
       {@render groupHeader(
         "index",
-        "Search index",
-        "Rebuild the query cache instead of vacuuming the large database in place.",
+        "Query cache",
+        "Rebuild the disposable read model without changing canonical data.",
       )}
       <Collapsible.Content class="mt-0.5 rounded-md border border-border/60">
         <StorageCleanupChoice
           id="cleanup-index"
           bind:checked={selection.searchIndex}
-          title="Rebuild search index"
-          description={`Recreate from current records and retained event logs · ${targetFootprint("searchIndex")}`}
+          title="Rebuild query cache"
+          description={`Recreate from canonical records · ${targetFootprint("searchIndex")}`}
         />
       </Collapsible.Content>
     </Collapsible.Root>
 
-    {#if selection.searchIndex}
-      <SettingsInlineMessage
-        tone="warning"
-        text="Older searchable event history that exists only in the index will be dropped. Conversation files are not removed by this option."
-      />
-    {/if}
     {#if selection.conversations}
       <SettingsInlineMessage
         tone="error"

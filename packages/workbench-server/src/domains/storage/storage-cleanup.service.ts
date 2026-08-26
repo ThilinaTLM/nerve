@@ -11,7 +11,13 @@ import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.j
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { StoragePaths } from "../../infrastructure/storage/index.js";
 import type { StorageCleanupRepository } from "./storage-cleanup.repository.js";
-import { dirSize, fileSize } from "./storage-files.js";
+import {
+  dirSize,
+  fileSize,
+  pathsSize,
+  queryCacheFileNames,
+  queryCacheFilePaths,
+} from "./storage-files.js";
 import type { StorageUsageService } from "./storage-usage.service.js";
 
 export interface StorageCleanupRegistryPort {
@@ -312,7 +318,7 @@ export class StorageCleanupService {
         target: "rotatedEventLog",
         message: "Removing the rotated event log…",
         run: () =>
-          this.removeFile(join(this.deps.paths.home, "logs", "events.jsonl.1")),
+          this.removeFile(join(this.deps.paths.logsPath, "events.jsonl.1")),
       });
     }
     if (request.clearExploreReports)
@@ -325,19 +331,24 @@ export class StorageCleanupService {
       plans.push({
         target: "crashReports",
         message: "Clearing crash reports…",
-        run: () => this.clearDirContents(join(this.deps.paths.home, "crashes")),
+        run: () => this.clearDirContents(this.deps.paths.crashesPath),
       });
     if (request.clearCache)
       plans.push({
         target: "cache",
         message: "Clearing cached data…",
-        run: () => this.clearDirContents(join(this.deps.paths.home, "cache")),
+        run: () =>
+          this.clearDirContents(
+            this.deps.paths.cachePath,
+            queryCacheFileNames(this.deps.paths.queryCachePath),
+            true,
+          ),
       });
     if (request.clearTmp)
       plans.push({
         target: "tmp",
         message: "Clearing temporary files…",
-        run: () => this.clearDirContents(join(this.deps.paths.home, "tmp")),
+        run: () => this.clearDirContents(this.deps.paths.tmpPath),
       });
     if (request.rebuildSearchIndex) {
       plans.push({
@@ -351,7 +362,7 @@ export class StorageCleanupService {
             freedBytes: Math.max(0, before - after),
             removedItems: 0,
             skipped: 0,
-            note: "Rebuilt from current records and retained event logs.",
+            note: "Rebuilt from canonical records.",
           };
         },
       });
@@ -362,7 +373,7 @@ export class StorageCleanupService {
   private async pruneDatedLogs(
     olderThanDays: number,
   ): Promise<Omit<StorageCleanupResult, "target" | "outcome">> {
-    const logsDir = join(this.deps.paths.home, "logs");
+    const logsDir = this.deps.paths.logsPath;
     const cutoff = new Date(Date.now() - olderThanDays * 86_400_000)
       .toISOString()
       .slice(0, 10);
@@ -375,7 +386,7 @@ export class StorageCleanupService {
       const match = datedLog.exec(file);
       if (!match || (match[2] as string) >= cutoff) continue;
       const path = join(logsDir, file);
-      const bytes = await fileSize(path);
+      const bytes = (await fileSize(path)) ?? 0;
       try {
         await unlink(path);
         freedBytes += bytes;
@@ -391,13 +402,16 @@ export class StorageCleanupService {
     path: string,
   ): Promise<Omit<StorageCleanupResult, "target" | "outcome">> {
     const bytes = await fileSize(path);
-    if (bytes === 0) return { freedBytes: 0, removedItems: 0, skipped: 0 };
+    if (bytes === undefined)
+      return { freedBytes: 0, removedItems: 0, skipped: 0 };
     await unlink(path);
     return { freedBytes: bytes, removedItems: 1, skipped: 0 };
   }
 
   private async clearDirContents(
     path: string,
+    excludedNames: ReadonlySet<string> = new Set(),
+    preserveRoot = false,
   ): Promise<Omit<StorageCleanupResult, "target" | "outcome">> {
     const entries = await readdir(path, { withFileTypes: true }).catch(
       () => [],
@@ -406,6 +420,7 @@ export class StorageCleanupService {
     let removedItems = 0;
     let skipped = 0;
     for (const entry of entries) {
+      if (excludedNames.has(entry.name)) continue;
       if (entry.isSymbolicLink()) {
         skipped += 1;
         continue;
@@ -413,7 +428,7 @@ export class StorageCleanupService {
       const child = join(path, entry.name);
       const bytes = entry.isDirectory()
         ? (await dirSize(child)).bytes
-        : await fileSize(child);
+        : ((await fileSize(child)) ?? 0);
       try {
         await rm(child, { recursive: true, force: true });
         freedBytes += bytes;
@@ -422,6 +437,7 @@ export class StorageCleanupService {
         skipped += 1;
       }
     }
+    if (preserveRoot) return { freedBytes, removedItems, skipped };
     await rmdir(path).catch((error: unknown) => {
       const code =
         error && typeof error === "object" && "code" in error
@@ -435,10 +451,8 @@ export class StorageCleanupService {
 
   private async indexFootprint(): Promise<number> {
     return (
-      (await fileSize(this.deps.paths.sqlitePath)) +
-      (await fileSize(`${this.deps.paths.sqlitePath}-wal`)) +
-      (await fileSize(`${this.deps.paths.sqlitePath}-shm`))
-    );
+      await pathsSize(queryCacheFilePaths(this.deps.paths.queryCachePath))
+    ).bytes;
   }
 
   private async update(
