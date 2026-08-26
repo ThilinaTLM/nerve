@@ -177,13 +177,11 @@ function shellStyles(): string {
       --radius-lg: 0.625rem;
       --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      --text-xs: 0.75rem;
-      --text-sm: 0.875rem;
+      --text-xs: 0.8125rem;
+      --text-sm: 0.9375rem;
       --text-xl: 1.25rem;
       font-family: var(--font-sans);
       text-rendering: optimizeLegibility;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
       font-kerning: normal;
     }
     @media (prefers-color-scheme: dark) {

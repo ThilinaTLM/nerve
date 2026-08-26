@@ -294,6 +294,12 @@
 }
 
 @theme inline {
+  /* Nerve's compact readable scale keeps everyday use comfortable at 100% zoom. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.375rem;
+
   --font-sans:
     "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
