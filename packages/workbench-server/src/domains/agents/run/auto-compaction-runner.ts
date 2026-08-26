@@ -1,6 +1,5 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
 import {
-  buildConversationContext,
   computeContextUsage,
   type Conversation,
   deriveAutoCompactionPolicy,
@@ -27,8 +26,8 @@ export class AutoCompactionRunner {
   async getContextUsage(conversationId: string): Promise<ContextUsage> {
     const conversation = this.deps.state.getConversation(conversationId);
     const storage = await this.deps.harnessStorage.openStorage(conversation);
-    const branch = await storage.getPathToRoot(await storage.getLeafId());
-    const messages = buildConversationContext(branch).messages;
+    const branch = await storage.getContextPath();
+    const messages = (await storage.buildContext()).messages;
     const agent = conversation.activeAgentId
       ? this.deps.state.agents.get(conversation.activeAgentId)
       : undefined;
@@ -125,8 +124,8 @@ export class AutoCompactionRunner {
     const policy = deriveAutoCompactionPolicy(contextWindow, settings);
     if (!policy.enabled || contextWindow <= 0) return false;
 
-    const branch = await input.conversation.getBranch();
-    const messages = buildConversationContext(branch).messages;
+    const branch = await input.conversation.getContextBranch();
+    const messages = (await input.conversation.buildContext()).messages;
     const contextTokens =
       getCompactionDecisionTokens(messages, branch) + input.additionalTokens;
     if (!shouldAutoCompact(contextTokens, policy)) return false;

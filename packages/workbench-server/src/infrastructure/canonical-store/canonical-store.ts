@@ -237,6 +237,35 @@ export class CanonicalStore {
       true,
     );
   }
+  persistConversationCommit(
+    delta: import("../../domains/conversations/conversation-state-materializer.js").ConversationPersistenceDelta,
+  ) {
+    return this.request<void>(
+      { kind: "persist_conversation_commit", delta },
+      true,
+    );
+  }
+  listConversationJournalIds() {
+    return this.request<string[]>(
+      { kind: "list_conversation_journal_ids" },
+      true,
+    );
+  }
+  readConversationJournal(conversationId: string) {
+    return this.request<{
+      snapshot?: import("../../domains/conversations/conversation-state-materializer.js").SerializedConversationState;
+      commits: unknown[];
+      head?: { revision: number; checksum?: string };
+    }>({ kind: "read_conversation_journal", conversationId }, true);
+  }
+  checkpointConversationState(
+    state: import("../../domains/conversations/conversation-state-materializer.js").SerializedConversationState,
+  ) {
+    return this.request<void>(
+      { kind: "checkpoint_conversation_state", state },
+      true,
+    );
+  }
   deleteConversationState(conversationId: string) {
     return this.request<void>(
       { kind: "delete_conversation_state", conversationId },

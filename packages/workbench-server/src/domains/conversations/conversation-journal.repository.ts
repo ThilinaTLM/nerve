@@ -1,12 +1,18 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
+import { noopPerformanceDiagnostics } from "../../infrastructure/diagnostics/performance-metrics.js";
 import { CanonicalStore } from "../../infrastructure/canonical-store/index.js";
 import { storagePaths } from "../../infrastructure/storage/paths.js";
 import {
   deserializeState,
+  prepareConversationPersistenceDelta,
   serializeState,
-  type SerializedConversationState,
+  type ConversationPersistenceDelta,
 } from "./conversation-state-materializer.js";
-import type { ConversationTreeEntry } from "@nervekit/harness";
+import {
+  ConversationTreeState,
+  type ConversationTreeEntry,
+} from "@nervekit/harness";
 import {
   CONVERSATION_JOURNAL_EPOCH,
   conversationJournalCommitSchema,
@@ -41,6 +47,14 @@ export interface ConversationJournalState {
   suspensions: Map<string, ConversationSuspensionRecord>;
   idempotencyKeys: Map<string, ConversationJournalCommit>;
   intentConversationRevisions: Map<string, number>;
+  /** Non-serialized indexes maintained with the resident projection. */
+  entryById: Map<string, ConversationEntry>;
+  modelEntryById: Map<string, ConversationTreeEntry>;
+  agentModelEntryById: Map<string, Map<string, ConversationTreeEntry>>;
+  interactionIdsByToolCall: Map<string, Set<string>>;
+  interactionByToolCallOrdinal: Map<string, ConversationInteractionRecord>;
+  modelTree: ConversationTreeState;
+  agentModelTrees: Map<string, ConversationTreeState>;
 }
 
 export interface ConversationRunProjection {
@@ -79,6 +93,7 @@ export class ConversationJournalRepository {
       paths: { home: string; sqlitePath?: string };
       canonicalStore?: CanonicalStore;
     },
+    private readonly diagnostics: PerformanceDiagnosticsPort = noopPerformanceDiagnostics,
   ) {
     this.canonical =
       storage.canonicalStore ??
@@ -102,9 +117,7 @@ export class ConversationJournalRepository {
     await this.ready;
     const states: ConversationJournalState[] = [];
     const conversationIds = new Set(
-      (await this.canonical.listDocumentKeys("conversation_state")).map(
-        (document) => document.scopeId,
-      ),
+      await this.canonical.listConversationJournalIds(),
     );
     for (const conversationId of [...conversationIds].sort()) {
       const state = options.fresh
@@ -130,11 +143,8 @@ export class ConversationJournalRepository {
     if (!toolCall.runId) return true;
     const state = this.states.get(toolCall.conversationId);
     if (!state) return false;
-    const interaction = [...state.interactions.values()].find(
-      (candidate) =>
-        candidate.runId === toolCall.runId &&
-        candidate.toolCallId === toolCall.id &&
-        candidate.interaction.ordinal === ordinal,
+    const interaction = state.interactionByToolCallOrdinal.get(
+      interactionOrdinalKey(toolCall.id, ordinal),
     );
     if (!interaction) return false;
     const suspension = state.suspensions.get(interaction.suspensionId);
@@ -183,11 +193,8 @@ export class ConversationJournalRepository {
           state.revision,
         );
       }
-      const candidate = cloneState(state);
-      for (const event of input.events) {
-        validateEventReferences(candidate, event, conversationId);
-        applyEvent(candidate, event);
-      }
+      const prepareStartedAt = performance.now();
+      const preview = validateCommitEvents(state, input.events, conversationId);
       const base = {
         epoch: CONVERSATION_JOURNAL_EPOCH,
         conversationId,
@@ -214,10 +221,27 @@ export class ConversationJournalRepository {
         ...normalizedBase,
         checksum: journalChecksum(normalizedBase),
       });
-      const next = cloneState(state);
-      applyCommit(next, parsed);
-      await this.persistState(next, parsed);
-      this.states.set(conversationId, next);
+      const delta = prepareConversationPersistenceDelta(
+        state,
+        parsed,
+        preview.runProjections,
+      );
+      this.diagnostics.duration(
+        "conversation.commitPrepare",
+        performance.now() - prepareStartedAt,
+      );
+      this.diagnostics.count("conversation.commitEvents", parsed.events.length);
+      this.diagnostics.count(
+        "conversation.commitRecords",
+        delta.records.length,
+      );
+      const persistStartedAt = performance.now();
+      await this.persistCommit(delta);
+      this.diagnostics.duration(
+        "conversation.commitPersist",
+        performance.now() - persistStartedAt,
+      );
+      applyCommit(state, parsed);
       return parsed;
     });
   }
@@ -231,31 +255,46 @@ export class ConversationJournalRepository {
 
   async loadFresh(conversationId: string): Promise<ConversationJournalState> {
     await this.ready;
-    const stored =
-      await this.canonical.readDocument<SerializedConversationState>(
-        "conversation_state",
-        conversationId,
-        "state",
-      );
-    if (stored) {
-      const restored = deserializeState(stored.data);
-      this.states.set(conversationId, restored);
-      return restored;
+    const stored = await this.canonical.readConversationJournal(conversationId);
+    const state = stored.snapshot
+      ? deserializeState(stored.snapshot)
+      : emptyState(conversationId);
+    for (const value of stored.commits) {
+      const commit = conversationJournalCommitSchema.parse(value);
+      verifyCommit(state, commit);
+      applyCommit(state, commit);
     }
-    const state = emptyState(conversationId);
+    if (
+      stored.head &&
+      (stored.head.revision !== state.revision ||
+        stored.head.checksum !== state.checksum)
+    ) {
+      throw new Error(
+        `Conversation journal '${conversationId}' does not match its head.`,
+      );
+    }
     this.states.set(conversationId, state);
     return state;
   }
 
-  private async persistState(
-    state: ConversationJournalState,
-    commit?: ConversationJournalCommit,
+  async checkpointLoaded(): Promise<void> {
+    await this.ready;
+    for (const state of this.states.values()) {
+      if (state.revision === 0) continue;
+      const startedAt = performance.now();
+      await this.canonical.checkpointConversationState(serializeState(state));
+      this.diagnostics.duration(
+        "conversation.checkpoint",
+        performance.now() - startedAt,
+      );
+    }
+  }
+
+  private async persistCommit(
+    delta: ConversationPersistenceDelta,
   ): Promise<void> {
     await this.ready;
-    await this.canonical.persistConversationState(
-      serializeState(state),
-      commit,
-    );
+    await this.canonical.persistConversationCommit(delta);
   }
   private async exclusive<T>(
     conversationId: string,
@@ -282,6 +321,164 @@ export function journalChecksum(value: unknown): string {
   return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
 }
 
+interface CommitPreview {
+  runProjections: Map<string, ConversationRunProjection>;
+}
+
+function validateCommitEvents(
+  state: ConversationJournalState,
+  events: ConversationJournalEvent[],
+  conversationId: string,
+): CommitPreview {
+  const toolCalls = new Map<string, ToolCallRecord>();
+  const interactions = new Map<string, ConversationInteractionRecord>();
+  const runProjections = new Map<string, ConversationRunProjection>();
+  const modelEntries = new Map<string, ConversationTreeEntry>();
+
+  const toolCall = (id: string) => toolCalls.get(id) ?? state.toolCalls.get(id);
+  const interaction = (id: string) =>
+    interactions.get(id) ?? state.interactions.get(id);
+  const runProjection = (id: string) =>
+    runProjections.get(id) ?? state.runProjections.get(id);
+
+  for (const event of events) {
+    validateEventIdentity(event, conversationId);
+    switch (event.kind) {
+      case "model_context.entry_appended": {
+        const entry = event.entry as unknown as ConversationTreeEntry;
+        const current = event.ownerAgentId
+          ? state.agentModelEntryById.get(event.ownerAgentId)?.get(entry.id)
+          : state.modelEntryById.get(entry.id);
+        const previous = modelEntries.get(
+          `${event.ownerAgentId ?? ""}:${entry.id}`,
+        );
+        if (
+          (current && JSON.stringify(current) !== JSON.stringify(entry)) ||
+          (previous && JSON.stringify(previous) !== JSON.stringify(entry))
+        ) {
+          throw new Error(`Conflicting model-context entry '${entry.id}'.`);
+        }
+        if (!current && !previous && entry.parentId) {
+          const parent = event.ownerAgentId
+            ? state.agentModelEntryById
+                .get(event.ownerAgentId)
+                ?.get(entry.parentId)
+            : state.modelEntryById.get(entry.parentId);
+          const pendingParent = modelEntries.get(
+            `${event.ownerAgentId ?? ""}:${entry.parentId}`,
+          );
+          if (!parent && !pendingParent) {
+            throw new Error(
+              `Unknown model-context parent '${entry.parentId}'.`,
+            );
+          }
+        }
+        modelEntries.set(`${event.ownerAgentId ?? ""}:${entry.id}`, entry);
+        break;
+      }
+      case "tool_call.upserted": {
+        const previous = toolCall(event.toolCall.id);
+        if (previous && event.toolCall.revision < previous.revision) {
+          throw new Error(
+            `Tool-call revision moved backwards for '${event.toolCall.id}'.`,
+          );
+        }
+        toolCalls.set(event.toolCall.id, event.toolCall);
+        break;
+      }
+      case "interaction.upserted": {
+        const currentToolCall = toolCall(event.interaction.toolCallId);
+        if (
+          !currentToolCall ||
+          currentToolCall.revision !== event.interaction.toolCallRevision
+        ) {
+          throw new Error("Conversation interaction tool revision is stale.");
+        }
+        interactions.set(event.interaction.id, event.interaction);
+        break;
+      }
+      case "suspension.upserted":
+        for (const member of event.suspension.members) {
+          const currentInteraction = interaction(member.interactionId);
+          if (
+            !currentInteraction ||
+            currentInteraction.suspensionId !== event.suspension.id ||
+            currentInteraction.checkpointId !== event.suspension.checkpointId ||
+            currentInteraction.toolCallId !== member.toolCallId ||
+            currentInteraction.toolCallRevision !== member.toolCallRevision
+          ) {
+            throw new Error("Conversation suspension member is inconsistent.");
+          }
+        }
+        break;
+      case "run.transition_committed": {
+        const previous = runProjection(event.transition.runId);
+        if (
+          event.transition.previousRevision !== (previous?.run.revision ?? 0)
+        ) {
+          throw new Error(
+            `Run transition chain is invalid for '${event.transition.runId}'.`,
+          );
+        }
+        runProjections.set(
+          event.transition.runId,
+          applyRunProjectionTransition(previous, event.transition),
+        );
+        break;
+      }
+      case "run.event_delivered": {
+        const previous = runProjection(event.delivery.runId);
+        if (!previous) {
+          throw new Error(
+            `Run delivery '${event.delivery.intentId}' has no run projection.`,
+          );
+        }
+        const deliveries = previous.deliveries.some(
+          (delivery) => delivery.intentId === event.delivery.intentId,
+        )
+          ? previous.deliveries
+          : [...previous.deliveries, event.delivery];
+        runProjections.set(event.delivery.runId, {
+          ...previous,
+          deliveries,
+        });
+        break;
+      }
+    }
+  }
+  return { runProjections };
+}
+
+function verifyCommit(
+  state: ConversationJournalState,
+  commit: ConversationJournalCommit,
+): void {
+  if (
+    commit.epoch !== CONVERSATION_JOURNAL_EPOCH ||
+    commit.conversationId !== state.conversationId ||
+    commit.previousRevision !== state.revision ||
+    commit.revision !== state.revision + 1 ||
+    commit.previousChecksum !== state.checksum
+  ) {
+    throw new Error(
+      `Conversation journal '${state.conversationId}' has an invalid commit chain.`,
+    );
+  }
+  const base = Object.fromEntries(
+    Object.entries(commit).filter(([key]) => key !== "checksum"),
+  );
+  if (journalChecksum(base) !== commit.checksum) {
+    throw new Error(
+      `Conversation journal '${state.conversationId}' has a checksum mismatch.`,
+    );
+  }
+  validateCommitEvents(state, commit.events, state.conversationId);
+}
+
+function interactionOrdinalKey(toolCallId: string, ordinal: number): string {
+  return `${toolCallId}:${ordinal}`;
+}
+
 function applyCommit(
   state: ConversationJournalState,
   commit: ConversationJournalCommit,
@@ -300,8 +497,7 @@ function applyCommit(
   state.checksum = commit.checksum;
 }
 
-function validateEventReferences(
-  state: ConversationJournalState,
+function validateEventIdentity(
   event: ConversationJournalEvent,
   conversationId: string,
 ): void {
@@ -324,26 +520,6 @@ function validateEventReferences(
   ) {
     throw new Error("Conversation journal record identity mismatch.");
   }
-  if (event.kind === "interaction.upserted") {
-    const toolCall = state.toolCalls.get(event.interaction.toolCallId);
-    if (!toolCall || toolCall.revision !== event.interaction.toolCallRevision) {
-      throw new Error("Conversation interaction tool revision is stale.");
-    }
-  }
-  if (event.kind === "suspension.upserted") {
-    for (const member of event.suspension.members) {
-      const interaction = state.interactions.get(member.interactionId);
-      if (
-        !interaction ||
-        interaction.suspensionId !== event.suspension.id ||
-        interaction.checkpointId !== event.suspension.checkpointId ||
-        interaction.toolCallId !== member.toolCallId ||
-        interaction.toolCallRevision !== member.toolCallRevision
-      ) {
-        throw new Error("Conversation suspension member is inconsistent.");
-      }
-    }
-  }
 }
 
 function applyEvent(
@@ -355,10 +531,10 @@ function applyEvent(
       state.conversation = event.conversation;
       return;
     case "conversation.entry_appended": {
-      const index = state.entries.findIndex(
-        (entry) => entry.id === event.entry.id,
-      );
-      if (index === -1) state.entries.push(event.entry);
+      if (!state.entryById.has(event.entry.id)) {
+        state.entries.push(event.entry);
+        state.entryById.set(event.entry.id, event.entry);
+      }
       // Entry ids are the idempotency boundary for transcript materialization.
       // Concurrent writers can derive different presentation metadata for the
       // same durable message; the first committed representation wins.
@@ -369,14 +545,29 @@ function applyEvent(
       const entries = event.ownerAgentId
         ? (state.agentModelEntries.get(event.ownerAgentId) ?? [])
         : state.modelEntries;
-      const index = entries.findIndex((item) => item.id === entry.id);
-      if (index === -1) entries.push(entry);
-      else if (JSON.stringify(entries[index]) !== JSON.stringify(entry)) {
+      const indexed = event.ownerAgentId
+        ? (state.agentModelEntryById.get(event.ownerAgentId) ?? new Map())
+        : state.modelEntryById;
+      const previous = indexed.get(entry.id);
+      if (!previous) {
+        entries.push(entry);
+        indexed.set(entry.id, entry);
+        if (event.ownerAgentId) {
+          const tree =
+            state.agentModelTrees.get(event.ownerAgentId) ??
+            new ConversationTreeState();
+          tree.append(entry);
+          state.agentModelTrees.set(event.ownerAgentId, tree);
+        } else {
+          state.modelTree.append(entry);
+        }
+      } else if (JSON.stringify(previous) !== JSON.stringify(entry)) {
         throw new Error(`Conflicting model-context entry '${entry.id}'.`);
       }
       const leafId = entry.type === "leaf" ? entry.targetId : entry.id;
       if (event.ownerAgentId) {
         state.agentModelEntries.set(event.ownerAgentId, entries);
+        state.agentModelEntryById.set(event.ownerAgentId, indexed);
         state.agentModelLeafIds.set(event.ownerAgentId, leafId);
       } else {
         state.modelLeafId = leafId;
@@ -386,8 +577,14 @@ function applyEvent(
     case "model_context.leaf_changed":
       if (event.ownerAgentId) {
         state.agentModelLeafIds.set(event.ownerAgentId, event.entryId);
+        const tree =
+          state.agentModelTrees.get(event.ownerAgentId) ??
+          new ConversationTreeState();
+        tree.setLeafId(event.entryId);
+        state.agentModelTrees.set(event.ownerAgentId, tree);
       } else {
         state.modelLeafId = event.entryId;
+        state.modelTree.setLeafId(event.entryId);
       }
       return;
     case "tool_call.upserted": {
@@ -413,9 +610,34 @@ function applyEvent(
       );
       return;
     }
-    case "interaction.upserted":
+    case "interaction.upserted": {
+      const previous = state.interactions.get(event.interaction.id);
+      if (previous) {
+        state.interactionIdsByToolCall
+          .get(previous.toolCallId)
+          ?.delete(previous.id);
+        state.interactionByToolCallOrdinal.delete(
+          interactionOrdinalKey(
+            previous.toolCallId,
+            previous.interaction.ordinal,
+          ),
+        );
+      }
       state.interactions.set(event.interaction.id, event.interaction);
+      const ids =
+        state.interactionIdsByToolCall.get(event.interaction.toolCallId) ??
+        new Set<string>();
+      ids.add(event.interaction.id);
+      state.interactionIdsByToolCall.set(event.interaction.toolCallId, ids);
+      state.interactionByToolCallOrdinal.set(
+        interactionOrdinalKey(
+          event.interaction.toolCallId,
+          event.interaction.interaction.ordinal,
+        ),
+        event.interaction,
+      );
       return;
+    }
     case "suspension.upserted":
       state.suspensions.set(event.suspension.id, event.suspension);
       return;
@@ -486,38 +708,12 @@ function emptyState(conversationId: string): ConversationJournalState {
     suspensions: new Map(),
     idempotencyKeys: new Map(),
     intentConversationRevisions: new Map(),
-  };
-}
-
-function cloneState(state: ConversationJournalState): ConversationJournalState {
-  return {
-    ...state,
-    entries: [...state.entries],
-    modelEntries: [...state.modelEntries],
-    agentModelEntries: new Map(
-      [...state.agentModelEntries].map(([agentId, entries]) => [
-        agentId,
-        [...entries],
-      ]),
-    ),
-    agentModelLeafIds: new Map(state.agentModelLeafIds),
-    toolCalls: new Map(state.toolCalls),
-    runProjections: new Map(
-      [...state.runProjections].map(([runId, projection]) => [
-        runId,
-        {
-          ...projection,
-          prompts: [...projection.prompts],
-          interactions: [...projection.interactions],
-          checkpoints: [...projection.checkpoints],
-          transitions: [...projection.transitions],
-          deliveries: [...projection.deliveries],
-        },
-      ]),
-    ),
-    interactions: new Map(state.interactions),
-    suspensions: new Map(state.suspensions),
-    idempotencyKeys: new Map(state.idempotencyKeys),
-    intentConversationRevisions: new Map(state.intentConversationRevisions),
+    entryById: new Map(),
+    modelEntryById: new Map(),
+    agentModelEntryById: new Map(),
+    interactionIdsByToolCall: new Map(),
+    interactionByToolCallOrdinal: new Map(),
+    modelTree: new ConversationTreeState(),
+    agentModelTrees: new Map(),
   };
 }

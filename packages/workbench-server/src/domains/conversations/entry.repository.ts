@@ -28,9 +28,8 @@ export class EntryRepository {
       ],
     });
     return (
-      (await this.journal.load(entry.conversationId)).entries.find(
-        (candidate) => candidate.id === entry.id,
-      ) ?? entry
+      (await this.journal.load(entry.conversationId)).entryById.get(entry.id) ??
+      entry
     );
   }
 

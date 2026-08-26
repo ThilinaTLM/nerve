@@ -7,7 +7,10 @@ import type {
   ConversationSuspensionRecord,
   ToolCallRecord,
 } from "@nervekit/contracts";
-import type { ConversationTreeEntry } from "@nervekit/harness";
+import {
+  ConversationTreeState,
+  type ConversationTreeEntry,
+} from "@nervekit/harness";
 import { encode } from "../../infrastructure/canonical-store/payload-codecs.js";
 import type {
   ConversationJournalState,
@@ -57,6 +60,17 @@ export function serializeState(
 export function deserializeState(
   state: SerializedConversationState,
 ): ConversationJournalState {
+  const interactions = new Map(state.interactions);
+  const modelTree = new ConversationTreeState(state.modelEntries);
+  modelTree.setLeafId(state.modelLeafId);
+  const agentModelLeafIds = new Map(state.agentModelLeafIds);
+  const agentModelTrees = new Map(
+    state.agentModelEntries.map(([agentId, entries]) => {
+      const tree = new ConversationTreeState(entries);
+      tree.setLeafId(agentModelLeafIds.get(agentId) ?? null);
+      return [agentId, tree] as const;
+    }),
+  );
   return {
     conversationId: state.conversationId,
     revision: state.revision,
@@ -66,17 +80,63 @@ export function deserializeState(
     modelEntries: state.modelEntries,
     modelLeafId: state.modelLeafId,
     agentModelEntries: new Map(state.agentModelEntries),
-    agentModelLeafIds: new Map(state.agentModelLeafIds),
+    agentModelLeafIds,
     toolCalls: new Map(state.toolCalls),
     runProjections: new Map(state.runProjections),
-    interactions: new Map(state.interactions),
+    interactions,
     suspensions: new Map(state.suspensions),
     idempotencyKeys: new Map(state.idempotencyKeys),
     intentConversationRevisions: new Map(state.intentConversationRevisions),
+    entryById: new Map(state.entries.map((entry) => [entry.id, entry])),
+    modelEntryById: new Map(
+      state.modelEntries.map((entry) => [entry.id, entry]),
+    ),
+    agentModelEntryById: new Map(
+      state.agentModelEntries.map(([agentId, entries]) => [
+        agentId,
+        new Map(entries.map((entry) => [entry.id, entry])),
+      ]),
+    ),
+    interactionIdsByToolCall: indexInteractionIds(interactions.values()),
+    interactionByToolCallOrdinal: indexInteractionOrdinals(
+      interactions.values(),
+    ),
+    modelTree,
+    agentModelTrees,
   };
 }
 
-interface MaterializedRecord {
+function interactionOrdinalKey(toolCallId: string, ordinal: number): string {
+  return `${toolCallId}:${ordinal}`;
+}
+
+function indexInteractionIds(
+  interactions: Iterable<ConversationInteractionRecord>,
+): Map<string, Set<string>> {
+  const indexed = new Map<string, Set<string>>();
+  for (const interaction of interactions) {
+    const ids = indexed.get(interaction.toolCallId) ?? new Set<string>();
+    ids.add(interaction.id);
+    indexed.set(interaction.toolCallId, ids);
+  }
+  return indexed;
+}
+
+function indexInteractionOrdinals(
+  interactions: Iterable<ConversationInteractionRecord>,
+): Map<string, ConversationInteractionRecord> {
+  return new Map(
+    [...interactions].map((interaction) => [
+      interactionOrdinalKey(
+        interaction.toolCallId,
+        interaction.interaction.ordinal,
+      ),
+      interaction,
+    ]),
+  );
+}
+
+export interface MaterializedConversationRecord {
   id: string;
   agentId?: string;
   parentId?: string;
@@ -89,6 +149,208 @@ interface MaterializedRecord {
   data: unknown;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ConversationLeafDelta {
+  agentId: string;
+  activeRecordId: string | null;
+  revision: number;
+}
+
+export interface ConversationPersistenceDelta {
+  conversationId: string;
+  previousRevision: number;
+  previousChecksum?: string;
+  commit: ConversationJournalCommit;
+  conversation?: ConversationRecord;
+  records: MaterializedConversationRecord[];
+  leaves: ConversationLeafDelta[];
+}
+
+/** Builds only the relational records named by one journal commit. */
+export function prepareConversationPersistenceDelta(
+  state: ConversationJournalState,
+  commit: ConversationJournalCommit,
+  runProjections: ReadonlyMap<string, ConversationRunProjection> = new Map(),
+): ConversationPersistenceDelta {
+  const transcriptEntries = new Map<string, ConversationEntry>();
+  const modelEntries = new Map<
+    string,
+    { ownerAgentId?: string; entry: ConversationTreeEntry }
+  >();
+  const toolCalls = new Map<string, ToolCallRecord>();
+  const affectedIds = new Set<string>();
+  const leaves = new Map<string, ConversationLeafDelta>();
+  let conversation: ConversationRecord | undefined;
+
+  for (const event of commit.events) {
+    switch (event.kind) {
+      case "conversation.upserted":
+        conversation = event.conversation;
+        break;
+      case "conversation.entry_appended":
+        if (!state.entryById.has(event.entry.id)) {
+          transcriptEntries.set(event.entry.id, event.entry);
+          affectedIds.add(event.entry.id);
+        }
+        break;
+      case "model_context.entry_appended": {
+        const entry = event.entry as unknown as ConversationTreeEntry;
+        modelEntries.set(entry.id, {
+          ownerAgentId: event.ownerAgentId,
+          entry,
+        });
+        affectedIds.add(entry.id);
+        const activeRecordId =
+          entry.type === "leaf" ? entry.targetId : entry.id;
+        const agentId = event.ownerAgentId ?? "agent_conversation";
+        leaves.set(agentId, {
+          agentId,
+          activeRecordId,
+          revision: commit.revision,
+        });
+        break;
+      }
+      case "model_context.leaf_changed": {
+        const agentId = event.ownerAgentId ?? "agent_conversation";
+        leaves.set(agentId, {
+          agentId,
+          activeRecordId: event.entryId,
+          revision: commit.revision,
+        });
+        break;
+      }
+      case "tool_call.upserted":
+        toolCalls.set(event.toolCall.id, event.toolCall);
+        affectedIds.add(event.toolCall.id);
+        break;
+      case "run.transition_committed":
+        affectedIds.add(event.transition.runId);
+        break;
+      case "run.event_delivered":
+        affectedIds.add(event.delivery.runId);
+        break;
+    }
+  }
+
+  const records: MaterializedConversationRecord[] = [];
+  for (const id of affectedIds) {
+    const toolCall = toolCalls.get(id);
+    if (toolCall) {
+      records.push(materializedToolCall(toolCall));
+      continue;
+    }
+    const projection = runProjections.get(id);
+    if (projection) {
+      records.push(materializedRun(projection));
+      continue;
+    }
+    const transcript = transcriptEntries.get(id) ?? state.entryById.get(id);
+    const model = modelEntries.get(id) ?? existingModelEntry(state, id);
+    if (transcript || model) {
+      records.push(materializedEntry(transcript, model));
+    }
+  }
+
+  return {
+    conversationId: state.conversationId,
+    previousRevision: commit.previousRevision,
+    previousChecksum: commit.previousChecksum,
+    commit,
+    conversation,
+    records,
+    leaves: [...leaves.values()],
+  };
+}
+
+function existingModelEntry(
+  state: ConversationJournalState,
+  id: string,
+): { ownerAgentId?: string; entry: ConversationTreeEntry } | undefined {
+  const global = state.modelEntryById.get(id);
+  if (global) return { entry: global };
+  for (const [ownerAgentId, entries] of state.agentModelEntryById) {
+    const entry = entries.get(id);
+    if (entry) return { ownerAgentId, entry };
+  }
+  return undefined;
+}
+
+function materializedEntry(
+  transcript: ConversationEntry | undefined,
+  model: { ownerAgentId?: string; entry: ConversationTreeEntry } | undefined,
+): MaterializedConversationRecord {
+  const modelEntry = model?.entry;
+  const summary = transcript
+    ? transcript.kind === "compaction" || transcript.kind === "branch_summary"
+    : modelEntry?.type === "compaction" ||
+      modelEntry?.type === "branch_summary";
+  const createdAt = transcript?.createdAt ?? modelEntry?.timestamp;
+  if (!createdAt) throw new Error("Conversation record has no timestamp.");
+  const transcriptData = transcript
+    ? summary
+      ? {
+          version: 1,
+          entry: transcript,
+          firstRetainedRecordId: transcript.firstKeptEntryId,
+          tokensBefore: transcript.tokensBefore,
+        }
+      : { version: 1, entry: transcript }
+    : { version: 1 };
+  return {
+    id: transcript?.id ?? modelEntry!.id,
+    agentId: model?.ownerAgentId ?? transcript?.agentId,
+    parentId: modelEntry?.parentId ?? transcript?.parentEntryId,
+    runId: transcript?.runId,
+    kind: summary ? "summary" : "message",
+    status: "completed",
+    revision: 1,
+    data: modelEntry
+      ? {
+          ...transcriptData,
+          modelContext: {
+            visibility: transcript ? "model_and_history" : "model_only",
+            entry: modelEntry,
+          },
+        }
+      : transcriptData,
+    createdAt,
+    updatedAt: modelEntry?.timestamp ?? createdAt,
+  };
+}
+
+function materializedToolCall(
+  toolCall: ToolCallRecord,
+): MaterializedConversationRecord {
+  return {
+    id: toolCall.id,
+    agentId: toolCall.agentId,
+    runId: toolCall.runId,
+    groupId: toolCall.groupId,
+    kind: "tool_call",
+    status: toolCall.phase ?? toolCall.status,
+    revision: toolCall.revision,
+    payloadVersion: 2,
+    data: { version: 2, toolCall },
+    createdAt: toolCall.createdAt,
+    updatedAt: toolCall.updatedAt,
+  };
+}
+
+function materializedRun(
+  projection: ConversationRunProjection,
+): MaterializedConversationRecord {
+  return {
+    id: projection.run.runId,
+    agentId: projection.run.agentId,
+    runId: projection.run.runId,
+    kind: "run",
+    status: projection.run.status,
+    revision: projection.run.revision,
+    data: { version: 1, run: projection.run, state: projection },
+    createdAt: projection.run.createdAt,
+    updatedAt: projection.run.updatedAt,
+  };
 }
 
 export function materializeConversationRecords(
@@ -113,7 +375,7 @@ export function materializeConversationRecords(
     .prepare(`DELETE FROM agent_context_leaves WHERE conversation_id = ?`)
     .run(state.conversationId);
 
-  const records = new Map<string, MaterializedRecord>();
+  const records = new Map<string, MaterializedConversationRecord>();
   for (const entry of state.entries) {
     const summary =
       entry.kind === "compaction" || entry.kind === "branch_summary";
@@ -202,21 +464,8 @@ export function materializeConversationRecords(
   }
 
   const known = new Set(records.keys());
-  const pending = [...records.values()];
-  const ordered: MaterializedRecord[] = [];
-  const inserted = new Set<string>();
-  while (pending.length > 0) {
-    const index = pending.findIndex(
-      (record) =>
-        !record.parentId ||
-        !known.has(record.parentId) ||
-        inserted.has(record.parentId),
-    );
-    const [record] = pending.splice(index < 0 ? 0 : index, 1);
-    if (!record) break;
-    ordered.push(record);
-    inserted.add(record.id);
-  }
+  const ordered = orderMaterializedRecords(records.values());
+  const inserted = new Set(ordered.map((record) => record.id));
 
   const affectedRecordIds = commit ? recordIdsAffectedBy(commit) : undefined;
   const insert = database.prepare(
@@ -305,6 +554,27 @@ export function materializeConversationRecords(
       Math.max(1, state.revision),
     );
   }
+}
+
+function orderMaterializedRecords(
+  records: Iterable<MaterializedConversationRecord>,
+): MaterializedConversationRecord[] {
+  const remaining = new Map([...records].map((record) => [record.id, record]));
+  const ordered: MaterializedConversationRecord[] = [];
+  while (remaining.size > 0) {
+    let advanced = false;
+    for (const [id, record] of remaining) {
+      if (record.parentId && remaining.has(record.parentId)) continue;
+      ordered.push(record);
+      remaining.delete(id);
+      advanced = true;
+    }
+    if (!advanced) {
+      ordered.push(...remaining.values());
+      break;
+    }
+  }
+  return ordered;
 }
 
 function recordIdsAffectedBy(commit: ConversationJournalCommit): Set<string> {

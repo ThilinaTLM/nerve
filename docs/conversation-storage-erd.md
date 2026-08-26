@@ -6,6 +6,17 @@
 
 Use canonical SQLite conversation records. A conversation is a stable container; every durable lifecycle transition is a typed conversation record. Complete tool-result bytes that exceed the agent preview contract are stored as owner-scoped payload files, while SQLite remains canonical for their identity, projections, ownership, and integrity reference.
 
+## Journal persistence and performance
+
+The in-memory conversation aggregate is persisted as a checkpoint plus ordered canonical deltas:
+
+- `conversation_state` is a full checkpoint used only for cold hydration, import, and repair. Normal tool/message lifecycle commits do not rewrite it.
+- `conversation_journal_head` stores the current revision and checksum for SQLite-side compare-and-swap.
+- `conversation_journal_commit` stores one validated, revision-keyed commit. A hot transaction appends this delta, advances the head, updates only affected conversation records/context leaves, and appends its durable notification event atomically.
+- Graceful shutdown folds loaded deltas into a new checkpoint and deletes only commits covered by that checkpoint in the same transaction. If checkpointing is interrupted, the retained deltas remain the recovery source.
+
+Hot commit CPU, worker IPC, serialization, and SQLite writes must be proportional to the current commit and affected records, never to unrelated conversation history. Full-history work is permitted only during cold hydration, explicit export/repair, compaction generation, or shutdown checkpointing. Model-provider payload cost still scales with retained context until compaction; after compaction, local context projection traverses only the retained segment and post-compaction entries.
+
 This keeps the storage model small:
 
 - `CONVERSATION` stores stable metadata.

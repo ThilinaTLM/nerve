@@ -13,6 +13,10 @@ export class RuntimeState {
   readonly conversations = new Map<string, ConversationRecord>();
   readonly agents = new Map<string, AgentRecord>();
   readonly entries = new Map<string, ConversationEntry[]>();
+  private readonly entriesById = new Map<
+    string,
+    Map<string, ConversationEntry>
+  >();
   readonly conversationRuntime = new ConversationRuntime();
   agentConversationMessages = new Map<string, Message[]>();
 
@@ -63,6 +67,30 @@ export class RuntimeState {
     return agent;
   }
 
+  getConversationEntry(
+    conversationId: string,
+    entryId: string,
+  ): ConversationEntry | undefined {
+    return this.entriesById.get(conversationId)?.get(entryId);
+  }
+
+  appendConversationEntry(entry: ConversationEntry): boolean {
+    let entriesById = this.entriesById.get(entry.conversationId);
+    if (!entriesById) {
+      entriesById = new Map();
+      this.entriesById.set(entry.conversationId, entriesById);
+    }
+    if (entriesById.has(entry.id)) return false;
+    entriesById.set(entry.id, entry);
+    let entries = this.entries.get(entry.conversationId);
+    if (!entries) {
+      entries = [];
+      this.entries.set(entry.conversationId, entries);
+    }
+    entries.push(entry);
+    return true;
+  }
+
   getConversationEntries(conversationId: string): ConversationEntry[] {
     return this.entries.get(conversationId) ?? [];
   }
@@ -84,6 +112,10 @@ export class RuntimeState {
     entries: ConversationEntry[],
   ): void {
     this.entries.set(conversationId, entries);
+    this.entriesById.set(
+      conversationId,
+      new Map(entries.map((entry) => [entry.id, entry])),
+    );
   }
 
   removeProject(projectId: string): void {
@@ -93,6 +125,7 @@ export class RuntimeState {
   removeConversation(conversationId: string): void {
     this.conversations.delete(conversationId);
     this.entries.delete(conversationId);
+    this.entriesById.delete(conversationId);
   }
 
   removeAgent(agentId: string): void {

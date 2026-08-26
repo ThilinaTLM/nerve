@@ -1,5 +1,6 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "../../agent/types/index.js";
+import type { ConversationContext } from "./context.js";
 
 export interface ConversationTreeEntryBase {
   type: string;
@@ -115,5 +116,7 @@ export interface ConversationStorage<
   ): Promise<Array<Extract<ConversationTreeEntry, { type: TType }>>>;
   getLabel(id: string): Promise<string | undefined>;
   getPathToRoot(leafId: string | null): Promise<ConversationTreeEntry[]>;
+  getContextPath(leafId?: string | null): Promise<ConversationTreeEntry[]>;
+  buildContext(leafId?: string | null): Promise<ConversationContext>;
   getEntries(): Promise<ConversationTreeEntry[]>;
 }

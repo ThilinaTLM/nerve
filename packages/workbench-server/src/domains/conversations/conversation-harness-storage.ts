@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
+import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
+import { noopPerformanceDiagnostics } from "../../infrastructure/diagnostics/performance-metrics.js";
 import type { Message } from "@earendil-works/pi-ai";
 import {
   type AgentMessage,
   Conversation,
+  ConversationTreeState,
   type ConversationMetadata,
   type ConversationStorage,
   type ConversationTreeEntry,
@@ -20,6 +23,7 @@ export class ConversationHarnessStorage {
     private readonly getConversation: (
       conversationId: string,
     ) => ConversationRecord,
+    private readonly diagnostics: PerformanceDiagnosticsPort = noopPerformanceDiagnostics,
   ) {}
 
   async openStorage(
@@ -30,6 +34,8 @@ export class ConversationHarnessStorage {
       this.conversationRepository,
       conversation.id,
       conversation.createdAt,
+      undefined,
+      this.diagnostics,
     );
   }
 
@@ -43,6 +49,7 @@ export class ConversationHarnessStorage {
       conversation.id,
       conversation.createdAt,
       agent.id,
+      this.diagnostics,
     );
   }
 
@@ -169,6 +176,7 @@ class JournalConversationStorage implements ConversationStorage<ConversationMeta
     private readonly conversationId: string,
     private readonly createdAt: string,
     private readonly ownerAgentId?: string,
+    private readonly diagnostics: PerformanceDiagnosticsPort = noopPerformanceDiagnostics,
   ) {}
 
   async getMetadata(): Promise<ConversationMetadata> {
@@ -201,19 +209,11 @@ class JournalConversationStorage implements ConversationStorage<ConversationMeta
   }
 
   async appendEntry(entry: ConversationTreeEntry): Promise<void> {
-    const state = await this.conversations.journal.load(this.conversationId);
-    const entries = this.ownerAgentId
-      ? (state.agentModelEntries.get(this.ownerAgentId) ?? [])
-      : state.modelEntries;
-    if (entries.some((candidate) => candidate.id === entry.id)) {
+    const tree = await this.tree();
+    if (tree.getEntry(entry.id)) {
       throw new Error(`Duplicate model-context entry '${entry.id}'.`);
     }
-    if (
-      entry.parentId !== null &&
-      !entries.some((candidate) => candidate.id === entry.parentId)
-    ) {
-      throw new Error(`Unknown model-context parent '${entry.parentId}'.`);
-    }
+    tree.validateAppend(entry);
     await this.conversations.journal.commit(this.conversationId, {
       kind: "model_context.entry_appended",
       events: [
@@ -228,55 +228,52 @@ class JournalConversationStorage implements ConversationStorage<ConversationMeta
   }
 
   async getEntry(id: string): Promise<ConversationTreeEntry | undefined> {
-    return (await this.entries()).find((entry) => entry.id === id);
+    return (await this.tree()).getEntry(id);
   }
 
   async findEntries<TType extends ConversationTreeEntry["type"]>(
     type: TType,
   ): Promise<Array<Extract<ConversationTreeEntry, { type: TType }>>> {
-    return (await this.entries()).filter(
-      (entry): entry is Extract<ConversationTreeEntry, { type: TType }> =>
-        entry.type === type,
-    );
+    return (await this.tree()).findEntries(type);
   }
 
   async getLabel(id: string): Promise<string | undefined> {
-    const labels = (await this.entries()).filter(
-      (entry): entry is Extract<ConversationTreeEntry, { type: "label" }> =>
-        entry.type === "label" && entry.targetId === id,
-    );
-    return labels.at(-1)?.label;
+    return (await this.tree()).getLabel(id);
   }
 
   async getPathToRoot(leafId: string | null): Promise<ConversationTreeEntry[]> {
-    if (leafId === null) return [];
-    const entries = await this.entries();
-    const byId = new Map(entries.map((entry) => [entry.id, entry]));
-    const path: ConversationTreeEntry[] = [];
-    const visited = new Set<string>();
-    let cursor: string | null = leafId;
-    while (cursor) {
-      if (visited.has(cursor))
-        throw new Error("Model-context tree has a cycle.");
-      visited.add(cursor);
-      const entry = byId.get(cursor);
-      if (!entry) throw new Error(`Unknown model-context entry '${cursor}'.`);
-      path.push(entry);
-      cursor = entry.parentId;
-    }
-    return path.reverse();
+    return (await this.tree()).getPathToRoot(leafId);
+  }
+
+  async getContextPath(leafId?: string | null) {
+    const tree = await this.tree();
+    return tree.getContextPath(leafId === undefined ? tree.leafId : leafId);
+  }
+
+  async buildContext(leafId?: string | null) {
+    const startedAt = performance.now();
+    const tree = await this.tree();
+    const context = tree.buildContext(
+      leafId === undefined ? tree.leafId : leafId,
+    );
+    this.diagnostics.duration(
+      "conversation.contextBuild",
+      performance.now() - startedAt,
+    );
+    return context;
   }
 
   async getEntries(): Promise<ConversationTreeEntry[]> {
-    return this.entries();
+    return (await this.tree()).entries();
   }
 
-  private async entries(): Promise<ConversationTreeEntry[]> {
+  private async tree() {
     const state = await this.conversations.journal.load(this.conversationId);
-    return [
-      ...(this.ownerAgentId
-        ? (state.agentModelEntries.get(this.ownerAgentId) ?? [])
-        : state.modelEntries),
-    ];
+    if (!this.ownerAgentId) return state.modelTree;
+    const existing = state.agentModelTrees.get(this.ownerAgentId);
+    if (existing) return existing;
+    const tree = new ConversationTreeState();
+    state.agentModelTrees.set(this.ownerAgentId, tree);
+    return tree;
   }
 }

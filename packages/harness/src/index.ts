@@ -120,6 +120,7 @@ export {
   extractConversationState,
 } from "./runtime/conversation/context.js";
 export { Conversation } from "./runtime/conversation/conversation.js";
+export { ConversationTreeState } from "./runtime/conversation/conversation-tree-state.js";
 export {
   type ActiveToolsChangeEntry,
   type BranchSummaryEntry,

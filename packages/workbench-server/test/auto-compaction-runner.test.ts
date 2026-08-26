@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
+import { buildConversationContext } from "@nervekit/harness";
 import type { AgentRecord } from "@nervekit/contracts";
 import { AutoCompactionRunner } from "../src/domains/agents/run/auto-compaction-runner.js";
 
@@ -77,6 +78,8 @@ it("uses the selected model context window for threshold compaction", async () =
       openStorage: async () => ({
         getLeafId: async () => "entry_context_usage",
         getPathToRoot: async () => branch,
+        getContextPath: async () => branch,
+        buildContext: async () => buildConversationContext(branch as never),
       }),
     },
     compactionService: {
@@ -93,6 +96,8 @@ it("uses the selected model context window for threshold compaction", async () =
 
   const activeConversation = {
     getBranch: async () => branch,
+    getContextBranch: async () => branch,
+    buildContext: async () => buildConversationContext(branch as never),
   };
   await runner.maybeCompactAtIteration({
     conversationId: selected.conversationId,
@@ -167,6 +172,8 @@ it("compacts projected prompt usage before the first provider iteration", async 
       openStorage: async () => ({
         getLeafId: async () => "entry_preflight_usage",
         getPathToRoot: async () => branch,
+        getContextPath: async () => branch,
+        buildContext: async () => buildConversationContext(branch as never),
       }),
     },
     compactionService: {
@@ -187,7 +194,11 @@ it("compacts projected prompt usage before the first provider iteration", async 
       agentId: agent.id,
       runId: "run_preflight",
       text: "x".repeat(20_000),
-      conversation: { getBranch: async () => branch } as never,
+      conversation: {
+        getBranch: async () => branch,
+        getContextBranch: async () => branch,
+        buildContext: async () => buildConversationContext(branch as never),
+      } as never,
     }),
     true,
   );

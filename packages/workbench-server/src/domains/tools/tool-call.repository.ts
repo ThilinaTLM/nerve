@@ -49,6 +49,7 @@ export class ToolCallRepository {
     { record: ToolCallRecord; bytes: number }
   >();
   private terminalCacheBytes = 0;
+  private readonly providerToolCallIds = new Map<string, string>();
   private readonly mutations = new Map<string, Promise<void>>();
   private hydrationStats: ToolCallHydrationStats = {
     rowCount: 0,
@@ -82,6 +83,7 @@ export class ToolCallRepository {
     onRecord?: (record: ToolCallRecord) => void,
   ): Promise<ToolCallRecord[]> {
     this.records.clear();
+    this.providerToolCallIds.clear();
     this.terminalCache.clear();
     this.terminalCacheBytes = 0;
     const ids = new Set<string>();
@@ -101,7 +103,10 @@ export class ToolCallRepository {
             record,
             toToolCallTranscriptRecord(record),
           );
-          if (!isTerminal(record.status)) this.records.set(record.id, record);
+          if (!isTerminal(record.status)) {
+            this.records.set(record.id, record);
+            this.indexProviderIds(record);
+          }
           onRecord?.(record);
         }
       }
@@ -219,14 +224,9 @@ export class ToolCallRepository {
     providerToolCallId: string | undefined,
   ): ToolCallRecord | undefined {
     if (!providerToolCallId) return undefined;
-    return [
-      ...this.records.values(),
-      ...[...this.terminalCache.values()].map((cached) => cached.record),
-    ].find(
-      (toolCall) =>
-        toolCall.providerToolCallId === providerToolCallId ||
-        toolCall.sourceToolCallId === providerToolCallId,
-    );
+    const id = this.providerToolCallIds.get(providerToolCallId);
+    if (!id) return undefined;
+    return this.records.get(id) ?? this.terminalCache.get(id)?.record;
   }
 
   async create(toolCall: ToolCallRecord): Promise<ToolCallRecord> {
@@ -283,8 +283,11 @@ export class ToolCallRepository {
         },
       ];
       const suspensions = new Set<string>();
-      for (const normalized of journalState.interactions.values()) {
-        if (normalized.toolCallId !== next.id) continue;
+      const interactionIds =
+        journalState.interactionIdsByToolCall.get(next.id) ?? new Set<string>();
+      for (const interactionId of interactionIds) {
+        const normalized = journalState.interactions.get(interactionId);
+        if (!normalized) continue;
         const interaction = next.interactions[normalized.interaction.ordinal];
         if (!interaction) continue;
         events.push({
@@ -328,17 +331,20 @@ export class ToolCallRepository {
     for (const [id, record] of [...this.records]) {
       if (!conversationIds.has(record.conversationId)) continue;
       this.records.delete(id);
+      this.unindexProviderIds(record);
       this.queryCache.deleteToolCall(id);
     }
     for (const [id, cached] of [...this.terminalCache]) {
       if (!conversationIds.has(cached.record.conversationId)) continue;
       this.terminalCache.delete(id);
       this.terminalCacheBytes -= cached.bytes;
+      this.unindexProviderIds(cached.record);
       this.queryCache.deleteToolCall(id);
     }
   }
 
   private observe(record: ToolCallRecord): void {
+    this.indexProviderIds(record);
     if (isTerminal(record.status)) {
       this.records.delete(record.id);
       this.cacheTerminal(record, Buffer.byteLength(JSON.stringify(record)));
@@ -356,7 +362,12 @@ export class ToolCallRepository {
   }
 
   private cacheTerminal(record: ToolCallRecord, bytes: number): void {
-    if (!isTerminal(record.status) || bytes > TERMINAL_CACHE_MAX_BYTES) return;
+    if (!isTerminal(record.status)) return;
+    if (bytes > TERMINAL_CACHE_MAX_BYTES) {
+      this.unindexProviderIds(record);
+      return;
+    }
+    this.indexProviderIds(record);
     const existing = this.terminalCache.get(record.id);
     if (existing) {
       this.terminalCache.delete(record.id);
@@ -372,6 +383,21 @@ export class ToolCallRepository {
       const oldest = this.terminalCache.get(oldestId);
       this.terminalCache.delete(oldestId);
       this.terminalCacheBytes -= oldest?.bytes ?? 0;
+      if (oldest) this.unindexProviderIds(oldest.record);
+    }
+  }
+
+  private indexProviderIds(record: ToolCallRecord): void {
+    for (const id of [record.providerToolCallId, record.sourceToolCallId]) {
+      if (id) this.providerToolCallIds.set(id, record.id);
+    }
+  }
+
+  private unindexProviderIds(record: ToolCallRecord): void {
+    for (const id of [record.providerToolCallId, record.sourceToolCallId]) {
+      if (id && this.providerToolCallIds.get(id) === record.id) {
+        this.providerToolCallIds.delete(id);
+      }
     }
   }
 

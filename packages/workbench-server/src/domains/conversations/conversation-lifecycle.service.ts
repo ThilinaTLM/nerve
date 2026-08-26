@@ -61,7 +61,7 @@ export class ConversationLifecycleService {
     };
     this.state.conversations.set(conversation.id, conversation);
     this.queryCache.upsertConversation(conversation);
-    this.state.entries.set(conversation.id, []);
+    this.state.setConversationEntries(conversation.id, []);
     await this.writeConversation(conversation);
     await this.harnessStorage.createConversation(conversation);
     await this.events.publish("conversation.created", { conversation });
@@ -83,8 +83,7 @@ export class ConversationLifecycleService {
     )) {
       await this.removeAgent(agent.id);
     }
-    this.state.conversations.delete(conversationId);
-    this.state.entries.delete(conversationId);
+    this.state.removeConversation(conversationId);
     this.queryCache.removeConversation(conversationId);
     await this.conversationRepository.remove(conversationId);
     await this.events.publish("conversation.deleted", {
@@ -152,9 +151,8 @@ export class ConversationLifecycleService {
     options: AppendEntryOptions = {},
   ): Promise<ConversationEntry> {
     const conversation = this.getConversation(input.conversationId);
-    const entries = this.state.entries.get(input.conversationId) ?? [];
     const existing = input.id
-      ? entries.find((candidate) => candidate.id === input.id)
+      ? this.state.getConversationEntry(input.conversationId, input.id)
       : undefined;
     if (existing) return existing;
 
@@ -182,10 +180,12 @@ export class ConversationLifecycleService {
       createdAt: input.createdAt ?? new Date().toISOString(),
     };
     entry = await this.entryRepository.append(entry);
-    const committed = entries.find((candidate) => candidate.id === entry.id);
+    const committed = this.state.getConversationEntry(
+      input.conversationId,
+      entry.id,
+    );
     if (committed) return committed;
-    entries.push(entry);
-    this.state.entries.set(input.conversationId, entries);
+    this.state.appendConversationEntry(entry);
     const lastUserMessageAt =
       entry.role === "user" &&
       (!conversation.lastUserMessageAt ||
@@ -235,9 +235,7 @@ export class ConversationLifecycleService {
       modelEntry,
       conversation: updatedConversation,
     });
-    const entries = this.state.entries.get(input.conversationId) ?? [];
-    entries.push(entry);
-    this.state.entries.set(input.conversationId, entries);
+    this.state.appendConversationEntry(entry);
     this.state.conversations.set(input.conversationId, updatedConversation);
     this.queryCache.upsertConversation(updatedConversation);
     return entry;
@@ -252,7 +250,7 @@ export class ConversationLifecycleService {
         );
         this.state.conversations.set(storedConversation.id, storedConversation);
         this.queryCache.upsertConversation(storedConversation);
-        this.state.entries.set(storedConversation.id, entries);
+        this.state.setConversationEntries(storedConversation.id, entries);
       }),
     );
   }

@@ -2,7 +2,6 @@ import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "../../agent/types/index.js";
 import { ConversationError } from "../errors.js";
 import type { ConversationContext } from "./context.js";
-import { buildConversationContext } from "./context.js";
 import type {
   ActiveToolsChangeEntry,
   BranchSummaryEntry,
@@ -55,8 +54,13 @@ export class Conversation<
     return this.storage.getPathToRoot(leafId);
   }
 
+  async getContextBranch(fromId?: string): Promise<ConversationTreeEntry[]> {
+    const leafId = fromId ?? (await this.storage.getLeafId());
+    return this.storage.getContextPath(leafId);
+  }
+
   async buildContext(): Promise<ConversationContext> {
-    return buildConversationContext(await this.getBranch());
+    return this.storage.buildContext();
   }
 
   getLabel(id: string): Promise<string | undefined> {

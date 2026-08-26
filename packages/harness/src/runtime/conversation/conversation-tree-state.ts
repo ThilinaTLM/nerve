@@ -1,4 +1,10 @@
 import { ConversationError } from "../errors.js";
+import {
+  buildContextMessages,
+  buildConversationContext,
+  type ConversationContext,
+  type ConversationState,
+} from "./context.js";
 import type { ConversationTreeEntry, LeafEntry } from "./entries.js";
 import {
   entryLinkError,
@@ -9,10 +15,45 @@ import {
 } from "./storage-utils.js";
 
 /** Backend-neutral owner of conversation-tree invariants and projections. */
+const initialState = (): ConversationState => ({
+  thinkingLevel: "off",
+  model: null,
+  activeToolNames: null,
+  compaction: null,
+});
+
+function deriveState(
+  previous: ConversationState | undefined,
+  entry: ConversationTreeEntry,
+): ConversationState {
+  const state = previous ?? initialState();
+  if (entry.type === "thinking_level_change") {
+    return { ...state, thinkingLevel: entry.thinkingLevel };
+  }
+  if (entry.type === "model_change") {
+    return {
+      ...state,
+      model: { provider: entry.provider, modelId: entry.modelId },
+    };
+  }
+  if (entry.type === "message" && entry.message.role === "assistant") {
+    return {
+      ...state,
+      model: { provider: entry.message.provider, modelId: entry.message.model },
+    };
+  }
+  if (entry.type === "active_tools_change") {
+    return { ...state, activeToolNames: [...entry.activeToolNames] };
+  }
+  if (entry.type === "compaction") return { ...state, compaction: entry };
+  return state;
+}
+
 export class ConversationTreeState {
   readonly #entries: ConversationTreeEntry[];
   readonly #byId = new Map<string, ConversationTreeEntry>();
   readonly #labelsById = new Map<string, string>();
+  readonly #stateById = new Map<string, ConversationState>();
   #leafId: string | null = null;
 
   constructor(entries: readonly ConversationTreeEntry[] = []) {
@@ -59,6 +100,10 @@ export class ConversationTreeState {
     this.#entries.push(entry);
     this.#byId.set(entry.id, entry);
     updateLabelCache(this.#labelsById, entry);
+    this.#stateById.set(
+      entry.id,
+      deriveState(this.#stateById.get(entry.parentId ?? ""), entry),
+    );
     this.#leafId = leafIdAfterEntry(entry);
   }
 
@@ -94,7 +139,7 @@ export class ConversationTreeState {
         );
       }
       visited.add(current.id);
-      path.unshift(current);
+      path.push(current);
       if (!current.parentId) break;
       const parent = this.#byId.get(current.parentId);
       if (!parent) {
@@ -105,7 +150,56 @@ export class ConversationTreeState {
       }
       current = parent;
     }
-    return path;
+    return path.reverse();
+  }
+
+  setLeafId(leafId: string | null): void {
+    if (leafId !== null && !this.#byId.has(leafId)) {
+      throw new ConversationError("not_found", `Entry ${leafId} not found`);
+    }
+    this.#leafId = leafId;
+  }
+
+  buildContext(leafId: string | null = this.leafId): ConversationContext {
+    if (leafId === null) return buildConversationContext([]);
+    const state = this.#stateById.get(leafId);
+    if (!state?.compaction) {
+      return buildConversationContext(this.getPathToRoot(leafId));
+    }
+    const path = this.getContextPath(leafId);
+    return {
+      messages: buildContextMessages(path, state),
+      thinkingLevel: state.thinkingLevel,
+      model: state.model,
+      activeToolNames: state.activeToolNames,
+    };
+  }
+
+  getContextPath(leafId: string | null = this.leafId): ConversationTreeEntry[] {
+    if (leafId === null) return [];
+    const compaction = this.#stateById.get(leafId)?.compaction;
+    if (!compaction) return this.getPathToRoot(leafId);
+    const retained: ConversationTreeEntry[] = [];
+    let cursor = compaction.parentId
+      ? this.#byId.get(compaction.parentId)
+      : undefined;
+    while (cursor) {
+      retained.push(cursor);
+      if (cursor.id === compaction.firstKeptEntryId) break;
+      cursor = cursor.parentId ? this.#byId.get(cursor.parentId) : undefined;
+    }
+    if (retained.at(-1)?.id !== compaction.firstKeptEntryId)
+      retained.length = 0;
+    retained.reverse();
+
+    const trailing: ConversationTreeEntry[] = [];
+    cursor = this.#byId.get(leafId);
+    while (cursor && cursor.id !== compaction.id) {
+      trailing.push(cursor);
+      cursor = cursor.parentId ? this.#byId.get(cursor.parentId) : undefined;
+    }
+    trailing.reverse();
+    return [...retained, compaction, ...trailing];
   }
 
   entries(): ConversationTreeEntry[] {

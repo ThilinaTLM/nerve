@@ -6,9 +6,17 @@ import type { ConversationJournalCommit } from "@nervekit/contracts";
 import {
   deserializeState,
   materializeConversationRecords,
+  type ConversationPersistenceDelta,
   type SerializedConversationState,
 } from "../../domains/conversations/conversation-state-materializer.js";
 import { permissionRuleSchema } from "@nervekit/contracts";
+import {
+  checkpointConversationStateInTransaction,
+  listConversationJournalIds,
+  persistConversationCommitInTransaction,
+  readConversationCommits,
+  readConversationJournalHead,
+} from "./conversation-journal-database.js";
 import { decode, encode } from "./payload-codecs.js";
 import {
   CANONICAL_SCHEMA_CHECKSUM,
@@ -410,6 +418,53 @@ export class CanonicalDatabase {
       .run(stream);
   }
 
+  listConversationJournalIds(): string[] {
+    return listConversationJournalIds(this.database);
+  }
+
+  readConversationJournal(conversationId: string): {
+    snapshot?: SerializedConversationState;
+    commits: unknown[];
+    head?: { revision: number; checksum?: string };
+  } {
+    this.database.exec("BEGIN");
+    try {
+      const snapshot = this.readDocument<SerializedConversationState>(
+        "conversation_state",
+        conversationId,
+        "state",
+      )?.data;
+      const commits = readConversationCommits(
+        this.database,
+        conversationId,
+        snapshot?.revision ?? 0,
+      );
+      const head = readConversationJournalHead(this.database, conversationId);
+      this.database.exec("COMMIT");
+      return {
+        ...(snapshot ? { snapshot } : {}),
+        commits,
+        ...(head ? { head } : {}),
+      };
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  persistConversationCommit(delta: ConversationPersistenceDelta): void {
+    this.transaction((database) =>
+      persistConversationCommitInTransaction(database, delta, (input) => {
+        appendDurableEventInTransaction(database, input);
+      }),
+    );
+  }
+
+  checkpointConversationState(serialized: SerializedConversationState): void {
+    this.transaction((database) =>
+      checkpointConversationStateInTransaction(database, serialized),
+    );
+  }
   persistConversationState(
     serialized: SerializedConversationState,
     commit?: ConversationJournalCommit,
@@ -485,8 +540,12 @@ export class CanonicalDatabase {
       database
         .prepare(
           `DELETE FROM domain_documents
-         WHERE (namespace = 'conversation_state' AND scope_id = ?)
-            OR (namespace = 'conversation' AND document_id = ?)`,
+           WHERE (namespace IN (
+                    'conversation_state',
+                    'conversation_journal_head',
+                    'conversation_journal_commit'
+                  ) AND scope_id = ?)
+              OR (namespace = 'conversation' AND document_id = ?)`,
         )
         .run(conversationId, conversationId);
     });

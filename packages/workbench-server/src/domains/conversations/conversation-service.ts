@@ -1,5 +1,5 @@
 import type { Message } from "@earendil-works/pi-ai";
-import { buildConversationContext, convertToLlm } from "@nervekit/harness";
+import { convertToLlm } from "@nervekit/harness";
 import type {
   AgentRecord,
   ConversationEntry,
@@ -71,8 +71,7 @@ export class ConversationService {
   ): Promise<Message[]> {
     try {
       const storage = await this.harnessStorage.openStorage(conversation);
-      const branch = await storage.getPathToRoot(await storage.getLeafId());
-      return convertToLlm(buildConversationContext(branch).messages);
+      return convertToLlm((await storage.buildContext()).messages);
     } catch (error) {
       this.harnessStorage.warnMirror(error);
       return this.entryRepository
