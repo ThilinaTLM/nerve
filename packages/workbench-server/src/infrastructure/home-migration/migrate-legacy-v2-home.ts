@@ -48,6 +48,8 @@ const IMPORTED_DOCUMENT_NAMESPACES = new Set([
   "agent",
   "conversation",
   "conversation_state",
+  "conversation_journal_head",
+  "conversation_journal_commit",
   "project",
   "scratch_notes",
   "task_definitions",
@@ -387,7 +389,12 @@ function countMigratedState(targetPath: string): HomeMigrationReport["counts"] {
       Number((database.prepare(sql).get() as { count: number }).count);
     return {
       conversations: count(
-        "SELECT COUNT(*) AS count FROM domain_documents WHERE namespace = 'conversation_state'",
+        `SELECT COUNT(DISTINCT scope_id) AS count FROM domain_documents
+         WHERE namespace IN (
+           'conversation_state',
+           'conversation_journal_head',
+           'conversation_journal_commit'
+         )`,
       ),
       conversationRecords: count(
         "SELECT COUNT(*) AS count FROM conversation_records",
@@ -465,7 +472,12 @@ function importCanonicalState(
       Number((target.prepare(sql).get() as { count: number }).count);
     return {
       conversations: count(
-        "SELECT COUNT(*) AS count FROM domain_documents WHERE namespace = 'conversation_state'",
+        `SELECT COUNT(DISTINCT scope_id) AS count FROM domain_documents
+         WHERE namespace IN (
+           'conversation_state',
+           'conversation_journal_head',
+           'conversation_journal_commit'
+         )`,
       ),
       conversationRecords: count(
         "SELECT COUNT(*) AS count FROM conversation_records",
@@ -600,8 +612,12 @@ async function validateMigratedHome(
     const row = database
       .prepare(
         `SELECT
-           (SELECT COUNT(*) FROM domain_documents
-             WHERE namespace = 'conversation_state') AS conversations,
+           (SELECT COUNT(DISTINCT scope_id) FROM domain_documents
+             WHERE namespace IN (
+               'conversation_state',
+               'conversation_journal_head',
+               'conversation_journal_commit'
+             )) AS conversations,
            (SELECT COUNT(*) FROM conversation_records) AS records,
            (SELECT COUNT(*) FROM durable_events) AS events,
            (SELECT COUNT(*) FROM conversation_records

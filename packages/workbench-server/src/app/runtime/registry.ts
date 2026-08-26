@@ -226,6 +226,16 @@ export class RuntimeRegistry {
     await this.services.runRuntime.coordinator.settled();
     await this.services.runRuntime.delivery.settled();
     await this.events.settled();
+    await this.services.conversationJournal
+      .checkpointLoaded()
+      .catch(async (error: unknown) => {
+        await this.logger.warn(
+          "Conversation checkpoint failed during shutdown",
+          {
+            error,
+          },
+        );
+      });
   }
 
   /** Current subscription usage snapshots (Anthropic / Codex). */

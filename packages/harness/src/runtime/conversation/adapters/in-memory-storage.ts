@@ -61,6 +61,18 @@ export class InMemoryConversationStorage<
     return this.#tree.getPathToRoot(leafId);
   }
 
+  async getContextPath(leafId?: string | null) {
+    return this.#tree.getContextPath(
+      leafId === undefined ? this.#tree.leafId : leafId,
+    );
+  }
+
+  async buildContext(leafId?: string | null) {
+    return this.#tree.buildContext(
+      leafId === undefined ? this.#tree.leafId : leafId,
+    );
+  }
+
   async getEntries(): Promise<ConversationTreeEntry[]> {
     return this.#tree.entries();
   }

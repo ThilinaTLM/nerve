@@ -142,6 +142,7 @@ export interface RuntimeServices {
   subagentTranscripts: SubagentTranscriptService;
   humanInput: HumanInputResolutionService;
   pruneConversations: PruneProjectConversationsService;
+  conversationJournal: ConversationJournalRepository;
 }
 
 export function composeRuntime(
@@ -231,7 +232,11 @@ export function composeRuntime(
     scratchNoteRepository,
     getProject,
   );
-  const conversationJournal = new ConversationJournalRepository(storage);
+  const conversationJournal = new ConversationJournalRepository(
+    storage,
+    performanceDiagnostics,
+  );
+  services.conversationJournal = conversationJournal;
   const resultPayloads = new ToolResultPayloadStore(storage.paths.home);
   events.setConversationRevisionResolver(
     (conversationId) => conversationJournal.state(conversationId)?.revision,
@@ -244,6 +249,7 @@ export function composeRuntime(
   services.harnessStorage = new ConversationHarnessStorage(
     conversationRepository,
     getConversation,
+    performanceDiagnostics,
   );
   services.conversationService = new ConversationService(
     services.harnessStorage,

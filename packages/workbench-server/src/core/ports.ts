@@ -52,7 +52,13 @@ export type PerformanceMetricName =
   | "git.watcherEvicted"
   | "git.filesystemEvent"
   | "git.invalidation"
-  | "git.metadataInvalidation";
+  | "git.metadataInvalidation"
+  | "conversation.commitPrepare"
+  | "conversation.commitPersist"
+  | "conversation.commitEvents"
+  | "conversation.commitRecords"
+  | "conversation.checkpoint"
+  | "conversation.contextBuild";
 
 export interface PerformanceMetricAggregate {
   readonly count: number;

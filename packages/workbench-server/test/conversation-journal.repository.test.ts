@@ -8,6 +8,7 @@ import type {
   ConversationEntry,
   ConversationRecord,
 } from "@nervekit/contracts";
+import { PerformanceMetricsCollector } from "../src/infrastructure/diagnostics/performance-metrics.js";
 import { ConversationJournalRepository } from "../src/domains/conversations/conversation-journal.repository.js";
 
 const conversationId = "conv_journal_test";
@@ -24,6 +25,32 @@ function conversation(title: string): ConversationRecord {
     updatedAt: now,
   };
 }
+
+test("conversation journal records bounded commit diagnostics", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-metrics-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const metrics = new PerformanceMetricsCollector();
+  const repository = new ConversationJournalRepository(
+    { paths: { home } },
+    metrics,
+  );
+  await repository.commit(conversationId, {
+    kind: "conversation.created",
+    committedAt: now,
+    events: [
+      {
+        kind: "conversation.upserted",
+        conversationId,
+        conversation: conversation("Measured"),
+      },
+    ],
+  });
+  const snapshot = metrics.snapshotAndReset();
+  assert.equal(snapshot.metrics["conversation.commitEvents"]?.count, 1);
+  assert.equal(snapshot.metrics["conversation.commitRecords"]?.count, 0);
+  assert.equal(snapshot.metrics["conversation.commitPrepare"]?.count, 1);
+  assert.equal(snapshot.metrics["conversation.commitPersist"]?.count, 1);
+});
 
 test("conversation journal commits are chained and idempotent", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-journal-idempotent-"));
@@ -196,6 +223,321 @@ test("hot journal commits update only affected materialized records", async (t) 
   );
 });
 
+test("hot commits append bounded deltas without rewriting the checkpoint", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-delta-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const repository = new ConversationJournalRepository({ paths: { home } });
+  const entry = (id: string): ConversationEntry => ({
+    id,
+    conversationId,
+    role: "user",
+    text: id,
+    createdAt: now,
+  });
+  for (let index = 0; index < 100; index += 1) {
+    await repository.commit(conversationId, {
+      kind: "conversation.entry_appended",
+      events: [
+        {
+          kind: "conversation.entry_appended",
+          conversationId,
+          entry: entry(`entry_history_${index}`),
+        },
+      ],
+    });
+  }
+  await repository.checkpointLoaded();
+  const database = new DatabaseSync(join(home, "data", "nerve.sqlite"));
+  t.after(() => database.close());
+  const checkpointBefore = database
+    .prepare(
+      `SELECT data FROM domain_documents
+       WHERE namespace = 'conversation_state' AND scope_id = ?`,
+    )
+    .get(conversationId) as { data: Uint8Array };
+
+  await repository.commit(conversationId, {
+    kind: "conversation.entry_appended",
+    events: [
+      {
+        kind: "conversation.entry_appended",
+        conversationId,
+        entry: entry("entry_delta"),
+      },
+    ],
+  });
+
+  const checkpointAfter = database
+    .prepare(
+      `SELECT data FROM domain_documents
+       WHERE namespace = 'conversation_state' AND scope_id = ?`,
+    )
+    .get(conversationId) as { data: Uint8Array };
+  assert.deepEqual(checkpointAfter.data, checkpointBefore.data);
+  const deltas = database
+    .prepare(
+      `SELECT COUNT(*) AS count FROM domain_documents
+       WHERE namespace = 'conversation_journal_commit' AND scope_id = ?`,
+    )
+    .get(conversationId) as { count: number };
+  assert.equal(deltas.count, 1);
+
+  const loaded = await new ConversationJournalRepository({
+    paths: { home },
+  }).load(conversationId);
+  assert.equal(loaded.entries.length, 101);
+  assert.equal(loaded.entries.at(-1)?.id, "entry_delta");
+});
+
+test("checkpointing atomically folds replay deltas", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-checkpoint-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const repository = new ConversationJournalRepository({ paths: { home } });
+  await repository.commit(conversationId, {
+    kind: "conversation.created",
+    committedAt: now,
+    events: [
+      {
+        kind: "conversation.upserted",
+        conversationId,
+        conversation: conversation("Checkpointed"),
+      },
+    ],
+  });
+  await repository.checkpointLoaded();
+
+  const database = new DatabaseSync(join(home, "data", "nerve.sqlite"));
+  t.after(() => database.close());
+  const deltaCount = database
+    .prepare(
+      `SELECT COUNT(*) AS count FROM domain_documents
+       WHERE namespace = 'conversation_journal_commit' AND scope_id = ?`,
+    )
+    .get(conversationId) as { count: number };
+  assert.equal(deltaCount.count, 0);
+  const loaded = await new ConversationJournalRepository({
+    paths: { home },
+  }).load(conversationId);
+  assert.equal(loaded.revision, 1);
+  assert.equal(loaded.conversation?.title, "Checkpointed");
+});
+
+test("SQLite journal head rejects a stale repository without mutating it", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-head-cas-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const first = new ConversationJournalRepository({ paths: { home } });
+  await first.commit(conversationId, {
+    kind: "conversation.created",
+    committedAt: now,
+    events: [
+      {
+        kind: "conversation.upserted",
+        conversationId,
+        conversation: conversation("Initial"),
+      },
+    ],
+  });
+  const stale = new ConversationJournalRepository({ paths: { home } });
+  const staleState = await stale.load(conversationId);
+  await first.commit(conversationId, {
+    kind: "conversation.upserted",
+    events: [
+      {
+        kind: "conversation.upserted",
+        conversationId,
+        conversation: conversation("Current"),
+      },
+    ],
+  });
+
+  await assert.rejects(
+    stale.commit(conversationId, {
+      kind: "conversation.upserted",
+      events: [
+        {
+          kind: "conversation.upserted",
+          conversationId,
+          conversation: conversation("Stale"),
+        },
+      ],
+    }),
+    /[Cc]onflict/,
+  );
+  assert.equal(staleState.revision, 1);
+  assert.equal(staleState.conversation?.title, "Initial");
+});
+
+test("hot leaf commits update only the affected context owner", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-leaf-delta-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const repository = new ConversationJournalRepository({ paths: { home } });
+  await repository.commit(conversationId, {
+    kind: "model_context.entry_appended",
+    committedAt: now,
+    events: ["agent_a", "agent_b"].map((ownerAgentId) => ({
+      kind: "model_context.entry_appended" as const,
+      conversationId,
+      ownerAgentId,
+      entry: {
+        type: "custom_message",
+        id: `entry_model_${ownerAgentId}`,
+        parentId: null,
+        timestamp: now,
+        customType: "test",
+        content: ownerAgentId,
+        display: true,
+      } as never,
+    })),
+  });
+  await repository.checkpointLoaded();
+  const database = new DatabaseSync(join(home, "data", "nerve.sqlite"));
+  t.after(() => database.close());
+  database.exec(`
+    CREATE TABLE leaf_audit (operation TEXT NOT NULL, agent_id TEXT NOT NULL) STRICT;
+    CREATE TRIGGER audit_leaf_update AFTER UPDATE ON agent_context_leaves
+    BEGIN
+      INSERT INTO leaf_audit VALUES ('update', NEW.agent_id);
+    END;
+    CREATE TRIGGER audit_leaf_delete AFTER DELETE ON agent_context_leaves
+    BEGIN
+      INSERT INTO leaf_audit VALUES ('delete', OLD.agent_id);
+    END;
+  `);
+
+  await repository.commit(conversationId, {
+    kind: "model_context.leaf_changed",
+    events: [
+      {
+        kind: "model_context.leaf_changed",
+        conversationId,
+        ownerAgentId: "agent_a",
+        entryId: "entry_model_agent_a",
+      },
+    ],
+  });
+
+  const audit = database
+    .prepare(`SELECT operation, agent_id FROM leaf_audit ORDER BY rowid`)
+    .all() as Array<{ operation: string; agent_id: string }>;
+  assert.deepEqual(
+    audit.map((row) => ({ ...row })),
+    [{ operation: "update", agent_id: "agent_a" }],
+  );
+});
+
+test("failed delta persistence leaves the resident projection unchanged", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-rollback-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const repository = new ConversationJournalRepository({ paths: { home } });
+  await repository.commit(conversationId, {
+    kind: "conversation.created",
+    committedAt: now,
+    events: [
+      {
+        kind: "conversation.upserted",
+        conversationId,
+        conversation: conversation("Before failure"),
+      },
+    ],
+  });
+  const state = await repository.load(conversationId);
+  const database = new DatabaseSync(join(home, "data", "nerve.sqlite"));
+  t.after(() => database.close());
+  database.exec(`
+    CREATE TRIGGER reject_conversation_delta
+    BEFORE INSERT ON domain_documents
+    WHEN NEW.namespace = 'conversation_journal_commit'
+    BEGIN
+      SELECT RAISE(ABORT, 'forced delta failure');
+    END;
+  `);
+
+  await assert.rejects(
+    repository.commit(conversationId, {
+      kind: "conversation.upserted",
+      events: [
+        {
+          kind: "conversation.upserted",
+          conversationId,
+          conversation: conversation("Must not apply"),
+        },
+      ],
+    }),
+    /forced delta failure/,
+  );
+  assert.equal(state.revision, 1);
+  assert.equal(state.conversation?.title, "Before failure");
+});
+
+test("legacy detached agent compactions hydrate as context roots", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-agent-compaction-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const repository = new ConversationJournalRepository({ paths: { home } });
+  const detachedCompaction = (id: string, parentId: string) => ({
+    type: "compaction" as const,
+    id,
+    parentId,
+    timestamp: now,
+    summary: `Summary ${id}`,
+    firstKeptEntryId: parentId,
+    tokensBefore: 100,
+  });
+
+  await repository.commit(conversationId, {
+    kind: "migration.agent_model_context",
+    events: [
+      detachedCompaction("entry_compaction_one", "entry_shared_one"),
+      detachedCompaction("entry_compaction_two", "entry_shared_two"),
+    ].map((entry) => ({
+      kind: "model_context.entry_appended" as const,
+      conversationId,
+      ownerAgentId: "agent_legacy",
+      entry: entry as never,
+    })),
+  });
+  await repository.checkpointLoaded();
+
+  const loaded = await new ConversationJournalRepository({
+    paths: { home },
+  }).load(conversationId);
+  assert.deepEqual(
+    loaded.agentModelEntries
+      .get("agent_legacy")
+      ?.map((entry) => entry.parentId),
+    [null, null],
+  );
+  assert.deepEqual(
+    loaded.agentModelTrees
+      .get("agent_legacy")
+      ?.getPathToRoot("entry_compaction_two")
+      .map((entry) => entry.id),
+    ["entry_compaction_two"],
+  );
+
+  await assert.rejects(
+    repository.commit(conversationId, {
+      kind: "model_context.entry_appended",
+      events: [
+        {
+          kind: "model_context.entry_appended",
+          conversationId,
+          ownerAgentId: "agent_legacy",
+          entry: {
+            type: "custom_message",
+            id: "entry_invalid_child",
+            parentId: "entry_missing",
+            timestamp: now,
+            customType: "test",
+            content: "invalid",
+            display: true,
+          } as never,
+        },
+      ],
+    }),
+    /Unknown model-context parent 'entry_missing'/,
+  );
+});
+
 test("conversation storage fails closed on malformed canonical state and bad references", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-journal-corrupt-"));
   t.after(() => rm(home, { recursive: true, force: true }));
@@ -228,7 +570,7 @@ test("conversation storage fails closed on malformed canonical state and bad ref
   database
     .prepare(
       `UPDATE domain_documents SET data = ?
-       WHERE namespace = 'conversation_state' AND scope_id = ?`,
+       WHERE namespace = 'conversation_journal_commit' AND scope_id = ?`,
     )
     .run(Buffer.from("{bad-json"), conversationId);
   database.close();

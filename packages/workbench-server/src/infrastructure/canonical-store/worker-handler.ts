@@ -55,6 +55,16 @@ export function executeCanonicalCommand(
     case "persist_conversation_state":
       database.persistConversationState(command.state, command.commit);
       return undefined;
+    case "persist_conversation_commit":
+      database.persistConversationCommit(command.delta);
+      return undefined;
+    case "list_conversation_journal_ids":
+      return database.listConversationJournalIds();
+    case "read_conversation_journal":
+      return database.readConversationJournal(command.conversationId);
+    case "checkpoint_conversation_state":
+      database.checkpointConversationState(command.state);
+      return undefined;
     case "delete_conversation_state":
       database.deleteConversationState(command.conversationId);
       return undefined;

@@ -1,7 +1,6 @@
 import {
   AgentHarness,
   type AnyModel,
-  buildConversationContext,
   Conversation,
   convertToLlm,
   isAgentToolSuspension,
@@ -707,8 +706,7 @@ export async function executeWorkbenchHarness(
         agent,
         signal: runAbortController.signal,
       });
-      const branch = await storage.getPathToRoot(await storage.getLeafId());
-      const messages = convertToLlm(buildConversationContext(branch).messages);
+      const messages = convertToLlm((await storage.buildContext()).messages);
       this.deps.conversationService.setForAgent(agent.id, messages);
       if (forcePushGeneration > handledForcePushGeneration) {
         handledForcePushGeneration = forcePushGeneration;

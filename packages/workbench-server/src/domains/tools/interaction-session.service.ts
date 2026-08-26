@@ -20,6 +20,11 @@ export class InteractionSessionService {
     string,
     Set<(question: UserQuestionRecord) => void>
   >();
+  private readonly questions = new Map<
+    string,
+    { toolCallId: string; ordinal: number }
+  >();
+  private questionsHydrated = false;
   constructor(private readonly deps: InteractionSessionDeps) {}
 
   async requestUserQuestion(
@@ -58,6 +63,10 @@ export class InteractionSessionService {
       ],
     });
     const question = projectQuestion(waitingToolCall, ordinal);
+    this.questions.set(question.id, {
+      toolCallId: waitingToolCall.id,
+      ordinal,
+    });
     await this.deps.publishToolCallUpdated(waitingToolCall);
     if (options.durableSuspend) throw new ToolExecutionSuspended();
     return this.userQuestionResult(
@@ -140,6 +149,7 @@ export class InteractionSessionService {
       status: "running",
     });
     const question = projectQuestion(updatedToolCall, found.ordinal);
+    this.questions.delete(questionId);
     await this.deps.publishToolCallUpdated(updatedToolCall);
     this.notify(question);
     return question;
@@ -164,15 +174,39 @@ export class InteractionSessionService {
         question: UserQuestionRecord;
       }
     | undefined {
+    if (!this.questionsHydrated) this.hydrateQuestionIndex();
+    const indexed = this.questions.get(questionId);
+    if (!indexed) return undefined;
+    const toolCall = this.deps.getToolCall(indexed.toolCallId);
+    const interaction = toolCall.interactions[indexed.ordinal];
+    if (!interaction || interaction.kind !== "user_input") {
+      this.questions.delete(questionId);
+      return undefined;
+    }
+    return {
+      toolCall,
+      ordinal: indexed.ordinal,
+      question: projectQuestion(toolCall, indexed.ordinal),
+    };
+  }
+
+  private hydrateQuestionIndex(): void {
+    this.questionsHydrated = true;
     for (const toolCall of this.deps.listToolCalls()) {
       for (const interaction of toolCall.interactions) {
-        if (interaction.kind !== "user_input") continue;
+        if (
+          interaction.kind !== "user_input" ||
+          interaction.status !== "pending"
+        ) {
+          continue;
+        }
         const question = projectQuestion(toolCall, interaction.ordinal);
-        if (question.id === questionId)
-          return { toolCall, ordinal: interaction.ordinal, question };
+        this.questions.set(question.id, {
+          toolCallId: toolCall.id,
+          ordinal: interaction.ordinal,
+        });
       }
     }
-    return undefined;
   }
 
   private wait(

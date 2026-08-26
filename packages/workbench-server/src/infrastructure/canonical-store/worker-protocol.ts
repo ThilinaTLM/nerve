@@ -1,6 +1,9 @@
 import type { PermissionRule } from "@nervekit/contracts";
 import type { ConversationJournalCommit } from "@nervekit/contracts";
-import type { SerializedConversationState } from "../../domains/conversations/conversation-state-materializer.js";
+import type {
+  ConversationPersistenceDelta,
+  SerializedConversationState,
+} from "../../domains/conversations/conversation-state-materializer.js";
 
 export type CanonicalCommand =
   | { kind: "initialize" }
@@ -63,6 +66,16 @@ export type CanonicalCommand =
       state: SerializedConversationState;
       commit?: ConversationJournalCommit;
     }
+  | {
+      kind: "persist_conversation_commit";
+      delta: ConversationPersistenceDelta;
+    }
+  | { kind: "list_conversation_journal_ids" }
+  | { kind: "read_conversation_journal"; conversationId: string }
+  | {
+      kind: "checkpoint_conversation_state";
+      state: SerializedConversationState;
+    }
   | { kind: "delete_conversation_state"; conversationId: string }
   | { kind: "integrity_check" }
   | { kind: "checkpoint" }
@@ -84,6 +97,8 @@ export type CanonicalWorkerResponse =
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "read_document",
   "list_documents",
+  "list_conversation_journal_ids",
+  "read_conversation_journal",
   "list_permission_rules",
   "durable_event_for_intent",
   "read_durable_events",

@@ -143,13 +143,16 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
     const runState = await this.loadFresh(runId);
     if (!runState || runState.run.status !== "waiting") return false;
     const journalState = await this.journal.load(runState.run.conversationId);
-    const interaction = [...journalState.interactions.values()].find(
-      (candidate) =>
-        candidate.runId === runId &&
-        candidate.executionId === runState.run.executionId &&
-        candidate.toolCallId === toolCallId &&
-        candidate.interaction.status !== "cancelled",
-    );
+    const interaction = [
+      ...(journalState.interactionIdsByToolCall.get(toolCallId) ?? []),
+    ]
+      .map((id) => journalState.interactions.get(id))
+      .find(
+        (candidate) =>
+          candidate?.runId === runId &&
+          candidate.executionId === runState.run.executionId &&
+          candidate.interaction.status !== "cancelled",
+      );
     if (!interaction) return false;
     const suspension = journalState.suspensions.get(interaction.suspensionId);
     const toolCall = journalState.toolCalls.get(toolCallId);
