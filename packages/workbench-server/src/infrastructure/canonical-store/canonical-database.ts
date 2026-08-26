@@ -123,59 +123,6 @@ export class CanonicalDatabase {
     }
   }
 
-  readSettings<T>():
-    | { revision: number; data: T; updatedAt: string }
-    | undefined {
-    const row = this.database
-      .prepare(
-        `SELECT revision, data, updated_at_ms FROM settings_store WHERE id = 'settings'`,
-      )
-      .get() as
-      | { revision: number; data: Uint8Array | string; updated_at_ms: number }
-      | undefined;
-    return row
-      ? {
-          revision: row.revision,
-          data: decode(row.data) as T,
-          updatedAt: new Date(row.updated_at_ms).toISOString(),
-        }
-      : undefined;
-  }
-
-  writeSettings<T>(
-    data: T,
-    expectedRevision?: number,
-  ): { revision: number; data: T; updatedAt: string } {
-    return this.transaction((database) => {
-      const current = database
-        .prepare(`SELECT revision FROM settings_store WHERE id = 'settings'`)
-        .get() as { revision: number } | undefined;
-      const actual = current?.revision ?? 0;
-      if (expectedRevision !== undefined && expectedRevision !== actual) {
-        throw new CanonicalRevisionConflictError(
-          "settings",
-          expectedRevision,
-          actual,
-        );
-      }
-      const revision = actual + 1;
-      const updatedAt = new Date().toISOString();
-      database
-        .prepare(
-          `INSERT INTO settings_store (
-             id, revision, payload_version, data, updated_at_ms
-           ) VALUES ('settings', ?, 1, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-             revision = excluded.revision,
-             payload_version = excluded.payload_version,
-             data = excluded.data,
-             updated_at_ms = excluded.updated_at_ms`,
-        )
-        .run(revision, encode(data), Date.parse(updatedAt));
-      return { revision, data, updatedAt };
-    });
-  }
-
   readDocument<T>(
     namespace: string,
     scopeId: string,
@@ -367,8 +314,8 @@ export class CanonicalDatabase {
       const insert = database.prepare(
         `INSERT INTO permission_rules (
            id, scope, project_id, effect, tool_name, matcher_kind, pattern,
-           enabled, created_at_ms, updated_at_ms
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           source_digest, enabled, created_at_ms, updated_at_ms
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       for (const rule of rules) {
         if (rule.scope !== scope || rule.projectId !== projectId) {
@@ -384,6 +331,7 @@ export class CanonicalDatabase {
           rule.toolName,
           rule.matcherKind,
           rule.pattern,
+          rule.sourceDigest ?? null,
           rule.enabled ? 1 : 0,
           Date.parse(rule.createdAt),
           Date.parse(rule.updatedAt),
@@ -665,6 +613,7 @@ interface PermissionRuleRow {
   tool_name: string;
   matcher_kind: PermissionRule["matcherKind"];
   pattern: string;
+  source_digest: string | null;
   enabled: number;
   created_at_ms: number;
   updated_at_ms: number;
@@ -708,6 +657,7 @@ function decodePermissionRule(row: PermissionRuleRow): PermissionRule {
     toolName: row.tool_name,
     matcherKind: row.matcher_kind,
     pattern: row.pattern,
+    sourceDigest: row.source_digest ?? undefined,
     enabled: row.enabled === 1,
     createdAt: new Date(row.created_at_ms).toISOString(),
     updatedAt: new Date(row.updated_at_ms).toISOString(),

@@ -13,6 +13,7 @@ import type {
 } from "@nervekit/contracts";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import { storagePaths } from "../../infrastructure/storage/index.js";
 import { builtinPromptSuggestionDefinitions } from "./prompt-suggestion-builtins.js";
 import type { PromptSuggestionEnablementRepository } from "./prompt-suggestion-enablement.repository.js";
 import { evaluatePromptSuggestions } from "./prompt-suggestion-evaluator.js";
@@ -262,7 +263,10 @@ export class PromptSuggestionService {
   }
 
   private userSuggestionsDir(): string {
-    return join(this.deps.storage.paths.home, "suggestions");
+    return (
+      this.deps.storage.paths.suggestionsPath ??
+      storagePaths(this.deps.storage.paths.home).suggestionsPath
+    );
   }
 
   private async gitContext(projectId: string) {

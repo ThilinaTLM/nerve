@@ -183,11 +183,13 @@ describe("ToolExecutorService structured errors", () => {
       await readFile(
         join(
           storageHome,
+          "data",
           "payloads",
           "conversations",
           completed.conversationId,
           "tool-calls",
-          `${completed.id}.json`,
+          completed.id,
+          "result.json",
         ),
         "utf8",
       ),
@@ -234,11 +236,13 @@ describe("ToolExecutorService structured errors", () => {
     const complete = await readFile(
       join(
         storageHome,
+        "data",
         "payloads",
         "conversations",
         completed.conversationId,
         "tool-calls",
-        `${completed.id}.json`,
+        completed.id,
+        "result.json",
       ),
       "utf8",
     );
@@ -295,11 +299,13 @@ describe("ToolExecutorService structured errors", () => {
     const raw = await readFile(
       join(
         storageHome,
+        "data",
         "payloads",
         "conversations",
         completed.conversationId,
         "tool-calls",
-        `${completed.id}.json`,
+        completed.id,
+        "result.json",
       ),
       "utf8",
     );

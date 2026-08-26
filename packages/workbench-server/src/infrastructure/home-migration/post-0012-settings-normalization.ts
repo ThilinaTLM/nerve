@@ -4,11 +4,11 @@ import {
   type Settings,
   settingsSchema,
 } from "@nervekit/contracts";
-import { migrateLegacyPermissionValue } from "./permission-rules.js";
+import { migrateLegacyPermissionValue } from "./post-0012-permission-normalization.js";
 import {
   migrateApplicationConfiguration,
   migrateLegacyAppearanceSettings,
-} from "./settings-migrations.js";
+} from "./post-0012-settings-migrations.js";
 
 function objectRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)

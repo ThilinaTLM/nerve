@@ -1,7 +1,7 @@
-import { join } from "node:path";
 import type { PromptSuggestionTrustStatus } from "@nervekit/contracts";
 import { z } from "zod";
 import { CanonicalStore } from "../../infrastructure/canonical-store/index.js";
+import { storagePaths } from "../../infrastructure/storage/paths.js";
 import type {
   RuntimeQueryCache,
   PromptSuggestionTrustCacheRecord,
@@ -35,7 +35,7 @@ export class PromptSuggestionTrustRepository {
     this.store =
       storage.canonicalStore ??
       new CanonicalStore(
-        storage.paths.sqlitePath ?? join(storage.paths.home, "state.sqlite"),
+        storage.paths.sqlitePath ?? storagePaths(storage.paths.home).sqlitePath,
       );
     this.ready = storage.canonicalStore
       ? Promise.resolve()

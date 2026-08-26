@@ -137,7 +137,7 @@ test("run state and deliveries replay from the conversation journal", async (t) 
     "event settlement must not discard transcript evidence needed by checkpoints",
   );
 
-  const database = new DatabaseSync(join(home, "state.sqlite"));
+  const database = new DatabaseSync(join(home, "data", "nerve.sqlite"));
   const count = database
     .prepare(
       `SELECT COUNT(*) AS count FROM durable_events WHERE conversation_id = ?`,

@@ -1,26 +1,26 @@
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import {
+  nerveHomeManifestSchema,
+  type NerveHomeManifest,
+} from "@nervekit/contracts";
 import { pathExists } from "./json.js";
 
-export const WORKBENCH_STATE_FORMAT = "nerve-workbench-state";
-export const WORKBENCH_STATE_VERSION = 2;
+export const NERVE_HOME_FORMAT = "nerve-home";
+export const NERVE_HOME_VERSION = 1;
 
-const desktopBootstrapDirectories = new Set([
-  "crashes",
-  "desktop",
-  "logs",
-  // The startup migration lock/ledger is bootstrapped before VERSION exists.
-  "migrations",
-]);
-
-export type WorkbenchHomeInspection =
-  | { kind: "missing" | "empty" | "desktop-bootstrap" | "current" }
-  | { kind: "legacy"; reason: string }
+export type NerveHomeInspection =
+  | { kind: "missing" | "empty" }
+  | { kind: "current"; manifest: NerveHomeManifest }
   | { kind: "unsupported"; reason: string };
 
-export async function inspectWorkbenchHome(
+/**
+ * Inspect only the root directory and manifest. No other in-home file is opened
+ * before the manifest has identified the layout.
+ */
+export async function inspectNerveHome(
   home: string,
-): Promise<WorkbenchHomeInspection> {
+): Promise<NerveHomeInspection> {
   let entries;
   try {
     entries = await readdir(home, { withFileTypes: true });
@@ -29,61 +29,33 @@ export async function inspectWorkbenchHome(
     throw error;
   }
 
-  const markerPath = join(home, "VERSION");
-  if (await pathExists(markerPath)) {
-    let marker: { format?: unknown; version?: unknown };
-    try {
-      marker = JSON.parse(await readFile(markerPath, "utf8")) as {
-        format?: unknown;
-        version?: unknown;
-      };
-    } catch {
-      return {
-        kind: "unsupported",
-        reason: "The workbench state VERSION marker is unreadable or invalid.",
-      };
-    }
-
-    if (
-      marker.format !== WORKBENCH_STATE_FORMAT ||
-      marker.version !== WORKBENCH_STATE_VERSION
-    ) {
-      return {
-        kind: "unsupported",
-        reason: `The workbench state VERSION marker is not ${WORKBENCH_STATE_FORMAT} version ${WORKBENCH_STATE_VERSION}.`,
-      };
-    }
-
-    const retiredProcesses = join(home, "proc");
-    if (await pathExists(retiredProcesses)) {
-      try {
-        if ((await readdir(retiredProcesses)).length > 0) {
-          return {
-            kind: "unsupported",
-            reason: "The workbench state contains retired process state.",
-          };
-        }
-      } catch {
-        return {
-          kind: "unsupported",
-          reason: "The retired process-state path is not a readable directory.",
-        };
-      }
-    }
-    return { kind: "current" };
+  const manifestPath = join(home, "manifest.json");
+  if (!(await pathExists(manifestPath))) {
+    if (entries.length === 0) return { kind: "empty" };
+    return {
+      kind: "unsupported",
+      reason:
+        "NERVE_HOME is non-empty and has no nerve-home manifest.json. This version does not import older storage layouts; preserve the directory and use an empty NERVE_HOME.",
+    };
   }
 
-  if (entries.length === 0) return { kind: "empty" };
-  const containsOnlyDesktopBootstrapData = entries.every(
-    (entry) =>
-      entry.isDirectory() && desktopBootstrapDirectories.has(entry.name),
-  );
-  if (containsOnlyDesktopBootstrapData) return { kind: "desktop-bootstrap" };
-
-  return {
-    kind: "legacy",
-    reason: "The workbench home contains unversioned legacy state.",
-  };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(manifestPath, "utf8"));
+  } catch {
+    return {
+      kind: "unsupported",
+      reason: "The Nerve home manifest.json is unreadable or invalid JSON.",
+    };
+  }
+  const parsed = nerveHomeManifestSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      kind: "unsupported",
+      reason: `The Nerve home manifest is not ${NERVE_HOME_FORMAT} version ${NERVE_HOME_VERSION}.`,
+    };
+  }
+  return { kind: "current", manifest: parsed.data };
 }
 
 function errorCode(error: unknown): string | undefined {

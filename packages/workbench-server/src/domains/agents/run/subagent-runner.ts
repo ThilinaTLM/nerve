@@ -1,7 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { storagePaths } from "../../../infrastructure/storage/paths.js";
+import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";
 import { join } from "node:path";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
+  type AgentCustomModel,
   AgentHarness,
   Conversation,
   resolveAgentModel,
@@ -155,6 +158,7 @@ export interface SubagentRunnerDeps {
   exploreAdmission: WorkbenchExploreAdmission;
   agentBrowserSkills: AgentBrowserSkillCatalog;
   transcriptLive: SubagentTranscriptLiveService;
+  customModels?: (projectDir?: string) => Promise<AgentCustomModel[]>;
 }
 
 export class SubagentRunner {
@@ -197,6 +201,10 @@ export class SubagentRunner {
           ? "Starting 1 explore agent."
           : `Starting ${tasks.length} parallel explore agents.`,
     });
+    const settings = await resolveProjectSettings(
+      this.deps.storage,
+      parent.projectDir,
+    );
     let settledReports: PromiseSettledResult<ExploreReport>[];
     try {
       settledReports = await Promise.allSettled(
@@ -230,9 +238,8 @@ export class SubagentRunner {
               prompt: exploreUserPrompt(task, plan),
               systemPrompt: exploreSystemPrompt(parent.projectDir),
               historyMode: "fresh",
-              model: this.deps.storage.settings.exploreAgent.model,
-              thinkingLevel:
-                this.deps.storage.settings.exploreAgent.thinkingLevel,
+              model: settings.exploreAgent.model,
+              thinkingLevel: settings.exploreAgent.thinkingLevel,
               workspaceScope: parent.workspaceScope,
               task: task.task,
               label: task.label,
@@ -396,17 +403,23 @@ export class SubagentRunner {
       await this.deps.setAgentStatus(child, "running");
       const storage = await this.openChildStorage(child, spec.historyMode);
       const conversation = new Conversation(storage);
-      const model = resolveAgentModel(child.model);
+      const settings = await resolveProjectSettings(
+        this.deps.storage,
+        child.projectDir,
+      );
+      const model = resolveAgentModel(
+        child.model,
+        (await this.deps.customModels?.(child.projectDir)) ?? [],
+      );
       this.deps.subscriptionUsage.touchProvider(model.provider);
       const env = new NodeExecutionEnv({
         cwd: child.projectDir,
-        shellPath: this.deps.storage.settings.runtime.shellPath,
+        shellPath: settings.runtime.shellPath,
       });
       const resources = await loadHarnessResources(child.projectDir, {
         storageHome: this.deps.storage.paths.home,
-        disabledSkillNames: this.deps.storage.settings.skills.disabled,
-        enabledAgentBrowserSkillNames:
-          this.deps.storage.settings.skills.agentBrowser.enabled,
+        disabledSkillNames: settings.skills.disabled,
+        enabledAgentBrowserSkillNames: settings.skills.agentBrowser.enabled,
         agentBrowserSkills: this.deps.agentBrowserSkills.skills,
       });
       const activeToolNames = activeToolNamesForExploreAgent();
@@ -577,8 +590,8 @@ export class SubagentRunner {
     output: SubagentRunOutput;
   }): Promise<string> {
     const dir = join(
-      this.deps.storage.paths.home,
-      "explore-reports",
+      storagePaths(this.deps.storage.paths.home).reportsPath,
+      "conversations",
       input.output.agent.conversationId,
       input.batchId,
     );

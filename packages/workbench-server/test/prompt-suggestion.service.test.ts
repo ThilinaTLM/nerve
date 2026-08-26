@@ -111,7 +111,7 @@ describe("PromptSuggestionService", () => {
     const status = (await service.listStatuses(project.id)).find(
       (candidate) => candidate.definitionKey === "builtin:commit-changes",
     );
-    const database = new DatabaseSync(join(home, "state.sqlite"));
+    const database = new DatabaseSync(join(home, "data", "nerve.sqlite"));
     const enabled = database
       .prepare(
         `SELECT data FROM domain_documents
@@ -130,9 +130,9 @@ describe("PromptSuggestionService", () => {
 
   it("reports malformed user suggestion YAML without hiding built-ins", async () => {
     const { service, home, project } = await fixture();
-    await mkdir(join(home, "suggestions"), { recursive: true });
+    await mkdir(join(home, "agent", "suggestions"), { recursive: true });
     await writeFile(
-      join(home, "suggestions", "broken.md"),
+      join(home, "agent", "suggestions", "broken.md"),
       "---\nname: [\n---\nPrompt body\n",
     );
 
@@ -163,7 +163,10 @@ describe("PromptSuggestionService", () => {
     const created = await service.create(request);
     assert.equal(created.definitionKey, "user:commit-changes");
     assert.match(
-      await readFile(join(home, "suggestions", "commit-changes.md"), "utf8"),
+      await readFile(
+        join(home, "agent", "suggestions", "commit-changes.md"),
+        "utf8",
+      ),
       /Review the changes, then commit them\./,
     );
     await assert.rejects(() => service.create(request), /already exists/);

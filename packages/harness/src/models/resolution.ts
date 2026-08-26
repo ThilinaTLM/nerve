@@ -64,26 +64,6 @@ function toPiModel(model: AgentCustomModel): Model<string> | undefined {
   return resolved;
 }
 
-let customModelProvider: (() => AgentCustomModel[]) | undefined;
-
-/**
- * Register a source of user-defined models (custom providers / manual models).
- * When set, resolution and listing functions consult it unless an explicit
- * `customModels` argument is passed. The orchestrator wires this to its
- * persisted provider catalog so unknown providers resolve correctly.
- */
-export function setCustomModelProvider(
-  provider: (() => AgentCustomModel[]) | undefined,
-): void {
-  customModelProvider = provider;
-}
-
-function activeCustomModels(
-  explicit?: AgentCustomModel[],
-): AgentCustomModel[] | undefined {
-  return explicit ?? customModelProvider?.();
-}
-
 function findCustomModel(
   customModels: AgentCustomModel[] | undefined,
   selection: AgentModelSelection | undefined,
@@ -142,7 +122,7 @@ function resolveAgentModelInternal(
   appendFauxResponse: boolean,
   customModels?: AgentCustomModel[],
 ): Model<string> {
-  const custom = findCustomModel(activeCustomModels(customModels), selection);
+  const custom = findCustomModel(customModels, selection);
   const customResolved = custom ? toPiModel(custom) : undefined;
   if (customResolved) return customResolved;
   const scriptedModel = getScriptedProviderModel(selection);
@@ -211,7 +191,7 @@ export function listAvailableModels(
       getAgentModelInfo(model as Model<string>),
     ),
   );
-  const custom = (activeCustomModels(customModels) ?? [])
+  const custom = (customModels ?? [])
     .map((model) => customModelInfo(model))
     .filter((model): model is AgentModelInfo => Boolean(model));
   return [...faux, ...configured, ...custom];

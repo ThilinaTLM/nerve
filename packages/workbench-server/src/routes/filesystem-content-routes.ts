@@ -26,7 +26,9 @@ export function createFilesystemContentRoutes(state: WorkbenchState): Hono {
   app.post(
     "/filesystem/clipboard-image",
     routeHandler(async (c) =>
-      c.json(await saveClipboardImage(await c.req.json())),
+      c.json(
+        await saveClipboardImage(await c.req.json(), state.storage.paths.home),
+      ),
     ),
   );
   return app;

@@ -10,6 +10,7 @@ import type { ConversationTreeEntry } from "@nervekit/harness";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import { resolveProjectSettings } from "../../infrastructure/configuration/index.js";
 import type { RuntimeState } from "../../app/runtime/state.js";
 import type {
   AppendEntryInput,
@@ -38,11 +39,15 @@ export class ConversationLifecycleService {
   ): Promise<ConversationRecord> {
     const project = this.state.getProject(request.projectId);
     const now = new Date().toISOString();
-    const defaultSelection = this.storage.settings.rememberLastAgentSelection
-      ? this.storage.settings.lastAgentSelection
+    const effectiveSettings = await resolveProjectSettings(
+      this.storage,
+      project.dir,
+    );
+    const defaultSelection = effectiveSettings.rememberLastAgentSelection
+      ? effectiveSettings.lastAgentSelection
       : {
-          mode: this.storage.settings.defaultMode,
-          permissionLevel: this.storage.settings.defaultPermissionLevel,
+          mode: effectiveSettings.defaultMode,
+          permissionLevel: effectiveSettings.defaultPermissionLevel,
         };
     const conversation: ConversationRecord = {
       id: createId("conv"),

@@ -8,6 +8,8 @@ import {
 const reference = {
   version: 1 as const,
   kind: "tool_result" as const,
+  logicalPath:
+    "payloads/conversations/conv_test/tool-calls/tool_test/result.json",
   conversationId: "conv_test",
   toolCallId: "tool_test",
   digest: "a".repeat(64),

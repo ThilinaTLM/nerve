@@ -1,17 +1,8 @@
-import { join } from "node:path";
 import { type AgentRecord, agentRecordSchema } from "@nervekit/contracts";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 
 export class AgentRepository {
   constructor(private readonly storage: InitializedStorage) {}
-
-  agentDir(agentId: string): string {
-    return join(this.storage.paths.home, "agents", agentId);
-  }
-
-  agentPath(agentId: string): string {
-    return join(this.agentDir(agentId), "agent.json");
-  }
 
   async loadAll(): Promise<AgentRecord[]> {
     return (

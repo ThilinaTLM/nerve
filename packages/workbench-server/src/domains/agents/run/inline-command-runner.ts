@@ -8,6 +8,7 @@ import {
   createId,
   type ToolCallRecord,
 } from "@nervekit/contracts";
+import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";
 import type { WorkbenchAgentMechanicsDeps } from "./workbench-agent-mechanics.js";
 import { toToolCallTranscriptRecord } from "../../tools/tool-call-transcript-preview.js";
 import {
@@ -49,13 +50,17 @@ export class InlineCommandRunner {
     command: string,
     options: { signal?: AbortSignal },
   ): Promise<ToolExecutionResult> {
+    const settings = await resolveProjectSettings(
+      this.deps.storage,
+      agent.projectDir,
+    );
     return executeBash(
       { command },
       {
         cwd: agent.projectDir,
         signal: options.signal,
         dataDir: this.deps.storage.paths.home,
-        shellPath: this.deps.storage.settings.runtime.shellPath,
+        shellPath: settings.runtime.shellPath,
       },
     );
   }

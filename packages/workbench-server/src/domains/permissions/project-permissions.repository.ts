@@ -1,7 +1,8 @@
 import { join } from "node:path";
 import {
+  type PermissionRuleConfig,
+  permissionsConfigSchema,
   type ProjectPermissions,
-  projectPermissionsSchema,
 } from "@nervekit/contracts";
 import {
   atomicWriteJson,
@@ -17,36 +18,69 @@ const emptyPermissions = (): ProjectPermissions => ({
 export class ProjectPermissionsRepository {
   constructor(private readonly storage: InitializedStorage) {}
 
-  file(projectId: string): string {
-    if (!/^proj_[A-Za-z0-9_-]+$/.test(projectId)) {
-      throw new Error("Invalid project ID.");
-    }
-    return join(
-      this.storage.paths.home,
-      "projects",
+  async file(projectId: string): Promise<string> {
+    const document = await this.storage.canonicalStore.readDocument<unknown>(
+      "project",
+      "global",
       projectId,
-      "permissions.json",
     );
+    const data = document?.data as { dir?: unknown } | undefined;
+    if (typeof data?.dir !== "string") throw new Error("Project not found.");
+    return join(data.dir, ".nerve", "config", "permissions.json");
   }
 
   async get(projectId: string): Promise<ProjectPermissions> {
-    const raw = await readJsonFile<unknown>(this.file(projectId)).catch(
+    const path = await this.file(projectId);
+    const raw = await readJsonFile<unknown>(path).catch(
       (error: NodeJS.ErrnoException) => {
         if (error.code === "ENOENT") return undefined;
         throw error;
       },
     );
-    return raw === undefined
-      ? emptyPermissions()
-      : projectPermissionsSchema.parse(raw);
+    if (raw === undefined) return emptyPermissions();
+    const config = permissionsConfigSchema.parse(raw);
+    return {
+      version: 2,
+      exceptions: config.rules
+        .filter((rule) => rule.enabled)
+        .map((rule) => ({
+          id: `exception_${rule.id.replace(/^exception_/, "")}`.slice(0, 128),
+          tool: rule.tool as never,
+          effect: rule.effect,
+          rule: rule.matcher.pattern,
+        })),
+    };
   }
 
   async replace(
     projectId: string,
     permissions: ProjectPermissions,
   ): Promise<ProjectPermissions> {
-    const parsed = projectPermissionsSchema.parse(permissions);
-    await atomicWriteJson(this.file(projectId), parsed, 0o600);
-    return parsed;
+    const rules: PermissionRuleConfig[] = permissions.exceptions.map(
+      (exception) => ({
+        id: exception.id.replace(/^exception_/, "") || exception.id,
+        effect: exception.effect,
+        tool: exception.tool,
+        matcher: {
+          kind: matcherKind(exception.tool),
+          pattern: exception.rule,
+        },
+        enabled: true,
+      }),
+    );
+    await atomicWriteJson(
+      await this.file(projectId),
+      permissionsConfigSchema.parse({ version: 1, rules }),
+      0o600,
+    );
+    return { version: 2, exceptions: permissions.exceptions };
   }
+}
+
+function matcherKind(tool: string): PermissionRuleConfig["matcher"]["kind"] {
+  if (["read", "edit", "write", "grep", "find", "ls"].includes(tool))
+    return "path_glob";
+  if (tool === "bash") return "command_glob";
+  if (tool === "web_fetch") return "url_glob";
+  return "whole_tool";
 }

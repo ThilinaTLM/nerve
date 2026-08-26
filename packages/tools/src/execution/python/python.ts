@@ -280,7 +280,10 @@ export async function executePython(
   };
 
   const tempDir = await mkdtemp(join(tmpdir(), "nerve-python-"));
-  const artifactDir = await createArtifactDir(context.dataDir);
+  const artifactDir = await createArtifactDir(
+    context.dataDir,
+    context.artifactDir,
+  );
   let keepArtifactDir = false;
   const runnerPath = join(tempDir, "runner.py");
   const userPath =
@@ -596,7 +599,14 @@ function envOverridesArg(value: unknown): Record<string, string> {
   return output;
 }
 
-async function createArtifactDir(dataDir: string | undefined): Promise<string> {
+async function createArtifactDir(
+  dataDir: string | undefined,
+  preferredDir: string | undefined,
+): Promise<string> {
+  if (preferredDir) {
+    await mkdir(preferredDir, { recursive: true, mode: 0o700 });
+    return preferredDir;
+  }
   const baseDir = dataDir
     ? join(dataDir, "tmp", "python-artifacts")
     : join(tmpdir(), "nerve-python-artifacts");

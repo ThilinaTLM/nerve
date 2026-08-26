@@ -53,7 +53,7 @@ export default defineConfig(({ mode }) => {
   const nerveApiTarget =
     env.NERVE_API_TARGET ?? readDaemonUrl(home) ?? "http://127.0.0.1:3747";
   const localToken = isLoopbackTarget(nerveApiTarget)
-    ? readText(path.join(home, "auth", "local-token"))
+    ? readText(path.join(home, "secrets", "daemon-token"))
     : undefined;
   const authHeaders = localToken
     ? { authorization: `Bearer ${localToken}` }

@@ -87,6 +87,7 @@ import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.j
 import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
+import type { ProviderCatalogStore } from "../../domains/providers/provider-catalog.store.js";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { RuntimeState } from "./state.js";
@@ -98,6 +99,7 @@ export interface RuntimeDeps {
   queryCache: RuntimeQueryCache;
   auth: AuthManager;
   secrets: SecretProvider;
+  providerCatalog: ProviderCatalogStore;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
   agentBrowserSkills: AgentBrowserSkillCatalog;
@@ -152,6 +154,7 @@ export function composeRuntime(
     queryCache,
     auth,
     secrets,
+    providerCatalog,
     subscriptionUsage,
     logger,
     performanceDiagnostics,
@@ -266,7 +269,13 @@ export function composeRuntime(
       ? state.agents.get(resolvedAgentId)
       : undefined;
     if (!agent) return undefined;
-    const model = resolveAgentModel(agent.model);
+    const model = resolveAgentModel(
+      agent.model,
+      await providerCatalog.resolvedModelsWithCredentials(
+        (name) => secrets.get(name),
+        agent.projectDir,
+      ),
+    );
     if (model.provider === "nerve-faux") return undefined;
     const requestAuth = await auth.requestAuthForPiModel(model);
     if (!requestAuth) return undefined;
@@ -512,7 +521,10 @@ export function composeRuntime(
           "Image explanation is not configured. Choose a vision model in Settings → Tools.",
         );
       }
-      const model = resolveAgentModel(selection);
+      const customModels = await providerCatalog.resolvedModelsWithCredentials(
+        (name) => secrets.get(name),
+      );
+      const model = resolveAgentModel(selection, customModels);
       if (
         model.provider !== selection.provider ||
         model.id !== selection.modelId
@@ -544,6 +556,7 @@ export function composeRuntime(
         thinkingLevel: clampAgentThinkingLevel(
           selection,
           storage.settings.tools.imageExplanation.thinkingLevel,
+          customModels,
         ),
         auth: requestAuth,
         signal: request.signal,
@@ -600,6 +613,11 @@ export function composeRuntime(
     subagentTranscriptLive: services.subagentTranscriptLive,
     exploreAdmission,
     subagentExecutions,
+    customModels: (projectDir) =>
+      providerCatalog.resolvedModelsWithCredentials(
+        (name) => secrets.get(name),
+        projectDir,
+      ),
   });
   services.runRuntime = createWorkbenchRunRuntime({
     home: storage.paths.home,

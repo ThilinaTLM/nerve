@@ -179,16 +179,7 @@ async function main() {
       host,
       port,
       storageDurationMs,
-      migrationDurationMs: storage.migrationReport.durationMs,
       loggerHydrateDurationMs,
-    },
-  });
-  await state.logger.info("Storage migrations completed", {
-    durationMs: storage.migrationReport.durationMs,
-    context: {
-      executions: storage.migrationReport.executions,
-      backupBytes: storage.migrationReport.backupBytes,
-      archivePaths: storage.migrationReport.archivePaths,
     },
   });
   const agentSkillsStartedAt = performance.now();

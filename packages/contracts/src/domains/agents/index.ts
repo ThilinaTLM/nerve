@@ -1,4 +1,5 @@
 export * from "./agent.schema.js";
+export * from "./prompt.schema.js";
 export * from "./subagent-transcript.schema.js";
 export * from "./explore-policy.js";
 export * from "./agent.events.schema.js";

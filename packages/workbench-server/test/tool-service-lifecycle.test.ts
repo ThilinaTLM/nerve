@@ -123,7 +123,7 @@ describe("tool service lifecycle", () => {
     );
     assert.equal(payload.toolCall.contentIndex, 2);
 
-    const database = new DatabaseSync(join(home, "state.sqlite"));
+    const database = new DatabaseSync(join(home, "data", "nerve.sqlite"));
     const stored = database
       .prepare(`SELECT data FROM conversation_records WHERE id = ?`)
       .get(toolCall.id) as { data: Uint8Array };
@@ -177,6 +177,31 @@ describe("tool service lifecycle", () => {
       ).decision,
       "approval",
     );
+  });
+
+  it("cancels pending interactions when terminalizing a run", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-terminalize-"));
+    const testAgent = agent("autonomous");
+    const { service } = buildToolService(home, testAgent);
+    const runId = "run_01H00000000000000000000000";
+
+    const response = await service.requestTool(
+      testAgent,
+      "todos_set",
+      { todos: [{ todo: "stage me", done: false }] },
+      { forceApproval: true, durableSuspend: true, runId },
+    );
+    assert.equal(response.toolCall.status, "waiting");
+    assert.equal(response.toolCall.interactions[0]?.status, "pending");
+
+    const [terminal] = await service.terminateNonTerminalToolCallsForRun(
+      runId,
+      "Run was cancelled.",
+    );
+
+    assert.equal(terminal?.status, "failed");
+    assert.equal(terminal?.interactions[0]?.status, "cancelled");
+    assert.ok(terminal?.interactions[0]?.cancelledAt);
   });
 });
 

@@ -1,5 +1,6 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
+  type AgentCustomModel,
   type AgentHarness,
   Conversation,
   calculateContextTokens,
@@ -27,6 +28,7 @@ import {
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage/index.js";
+import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";
 import type { RuntimeState } from "../../../app/runtime/state.js";
 import type { AuthManager } from "../../auth/index.js";
 import type { ConversationService } from "../../conversations/conversation-service.js";
@@ -81,6 +83,7 @@ export interface WorkbenchAgentMechanicsDeps {
   exploreAdmission: WorkbenchExploreAdmission;
   agentBrowserSkills: AgentBrowserSkillCatalog;
   subagentTranscriptLive: SubagentTranscriptLiveService;
+  customModels?: (projectDir?: string) => Promise<AgentCustomModel[]>;
 }
 
 export class WorkbenchAgentMechanics {
@@ -103,20 +106,33 @@ export class WorkbenchAgentMechanics {
       exploreAdmission: deps.exploreAdmission,
       agentBrowserSkills: deps.agentBrowserSkills,
       transcriptLive: deps.subagentTranscriptLive,
+      customModels: deps.customModels,
     });
     this.inlineCommands = new InlineCommandRunner(deps);
     this.autoCompaction = new AutoCompactionRunner(deps);
+  }
+
+  async customModels(projectDir?: string): Promise<AgentCustomModel[]> {
+    return (await this.deps.customModels?.(projectDir)) ?? [];
+  }
+
+  effectiveSettings(projectDir: string) {
+    return resolveProjectSettings(this.deps.storage, projectDir);
   }
 
   async activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]> {
     const pythonAvailable = await this.deps.pythonRuntime.isAvailableForProject(
       agent.projectDir,
     );
-    const primaryModel = resolveAgentModel(agent.model);
-    const imageExplanationSelection =
-      this.deps.storage.settings.tools.imageExplanation.model;
+    const settings = await resolveProjectSettings(
+      this.deps.storage,
+      agent.projectDir,
+    );
+    const customModels = await this.customModels(agent.projectDir);
+    const primaryModel = resolveAgentModel(agent.model, customModels);
+    const imageExplanationSelection = settings.tools.imageExplanation.model;
     const imageExplanationModel = imageExplanationSelection
-      ? resolveAgentModel(imageExplanationSelection)
+      ? resolveAgentModel(imageExplanationSelection, customModels)
       : undefined;
     const imageExplanationModelValid = Boolean(
       imageExplanationSelection &&
@@ -133,9 +149,9 @@ export class WorkbenchAgentMechanics {
     );
     return activeToolNamesForAgent(agent, {
       pythonAvailable,
-      disabledToolNames: this.deps.storage.settings.tools.disabled,
-      jiraEnabled: this.deps.storage.settings.tools.jira.enabled,
-      confluenceEnabled: this.deps.storage.settings.tools.confluence.enabled,
+      disabledToolNames: settings.tools.disabled,
+      jiraEnabled: settings.tools.jira.enabled,
+      confluenceEnabled: settings.tools.confluence.enabled,
       imageExplanationAvailable,
       primaryModelSupportsImages: (primaryModel.input ?? ["text"]).includes(
         "image",
@@ -248,9 +264,16 @@ export class WorkbenchAgentMechanics {
       : await input.harness.prompt(input.request.text, {
           images: input.request.images,
         });
-    const contextWindow = getModelContextWindow(latestAgent().model);
+    const contextWindow = getModelContextWindow(
+      latestAgent().model,
+      await this.customModels(input.agent.projectDir),
+    );
+    const settings = await resolveProjectSettings(
+      this.deps.storage,
+      input.agent.projectDir,
+    );
     if (
-      this.deps.storage.settings.compaction.auto &&
+      settings.compaction.auto &&
       isContextOverflowAssistantMessage(assistant, contextWindow)
     ) {
       const recovered = await this.tryOverflowCompactionRecovery(
@@ -282,7 +305,8 @@ export class WorkbenchAgentMechanics {
     const failedParentId = leaf.parentId;
     const policy = deriveAutoCompactionPolicy(
       contextWindow,
-      this.deps.storage.settings.compaction,
+      (await resolveProjectSettings(this.deps.storage, input.agent.projectDir))
+        .compaction,
     );
     try {
       await input.conversation.moveTo(failedParentId);

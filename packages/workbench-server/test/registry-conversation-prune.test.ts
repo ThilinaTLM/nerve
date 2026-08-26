@@ -60,13 +60,18 @@ describe("RuntimeRegistry conversation pruning", () => {
       );
       assert.equal(
         await pathExists(
-          join(state.storage.paths.home, "conversations", oldConversation.id),
+          join(
+            state.storage.paths.logsPath,
+            "events",
+            "conversations",
+            `${oldConversation.id}.jsonl`,
+          ),
         ),
         false,
       );
       assert.equal(
         await pathExists(
-          join(state.storage.paths.home, "tasks", inactiveTask.id),
+          join(state.storage.paths.tasksPath, `${inactiveTask.id}.logs.jsonl`),
         ),
         false,
       );

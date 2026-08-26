@@ -1,14 +1,9 @@
-import { dirname } from "node:path";
 import type { ConversationRecord } from "@nervekit/contracts";
 import type { ConversationJournalRepository } from "./conversation-journal.repository.js";
 
 /** Journal-backed conversation metadata repository. */
 export class ConversationRepository {
   constructor(readonly journal: ConversationJournalRepository) {}
-
-  conversationDir(conversationId: string): string {
-    return dirname(this.journal.journalPath(conversationId));
-  }
 
   async loadAll(): Promise<ConversationRecord[]> {
     return (await this.journal.hydrateAll())

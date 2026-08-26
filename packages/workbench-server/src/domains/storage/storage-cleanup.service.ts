@@ -279,7 +279,7 @@ export class StorageCleanupService {
         target: "conversations",
         message: "Removing old inactive conversations…",
         run: async () => {
-          const dir = join(this.deps.paths.home, "payloads", "conversations");
+          const dir = join(this.deps.paths.payloadsPath, "conversations");
           const before = (await dirSize(dir)).bytes;
           const result = await this.deps
             .getRegistry()
@@ -319,8 +319,7 @@ export class StorageCleanupService {
       plans.push({
         target: "exploreReports",
         message: "Clearing explore reports…",
-        run: () =>
-          this.clearDirContents(join(this.deps.paths.home, "explore-reports")),
+        run: () => this.clearDirContents(this.deps.paths.reportsPath),
       });
     if (request.clearCrashReports)
       plans.push({

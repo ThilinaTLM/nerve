@@ -1,6 +1,6 @@
 import type { ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import type { TaskDefinitionPortGuard } from "./task-definition-launch.js";
 import type {
@@ -295,12 +295,12 @@ export function createWorkbenchTaskResources(
     },
     logs: {
       paths: (id) => {
-        const dir = repository.taskDir(id);
+        const logsPath = repository.logsPath(id);
         return {
-          stdoutPath: join(dir, "stdout.log"),
-          stderrPath: join(dir, "stderr.log"),
-          combinedPath: join(dir, "combined.log"),
-          logsPath: join(dir, "logs.jsonl"),
+          stdoutPath: logsPath,
+          stderrPath: logsPath,
+          combinedPath: logsPath,
+          logsPath,
         };
       },
       append: async (task, stream, text) => {
@@ -360,14 +360,12 @@ export function createWorkbenchTaskResources(
     },
     process: {
       spawn: async (input, callbacks = {}) => {
-        await mkdir(repository.taskDir(input.taskId), {
+        await mkdir(dirname(repository.logsPath(input.taskId)), {
           recursive: true,
-          mode: 0o755,
+          mode: 0o700,
         });
         const logCursor = createTaskLogCursor(
-          await logs.latestLogSeq(
-            join(repository.taskDir(input.taskId), "logs.jsonl"),
-          ),
+          await logs.latestLogSeq(repository.logsPath(input.taskId)),
         );
         const spawned = supervisor.spawn(input.command, {
           cwd: input.cwd,

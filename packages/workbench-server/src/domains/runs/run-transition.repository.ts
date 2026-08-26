@@ -8,6 +8,7 @@ import {
   runEventDeliveryRecordSchema,
   runTransitionRecordSchema,
 } from "@nervekit/contracts";
+import { storagePaths } from "../../infrastructure/storage/paths.js";
 import { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
 import {
   ACTIVE_STATUSES,
@@ -55,7 +56,7 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
     if (typeof journalOrHome === "string") {
       this.refreshJournalReads = true;
       this.journal = new ConversationJournalRepository({
-        paths: { home: journalOrHome },
+        paths: storagePaths(journalOrHome),
       });
     } else {
       this.refreshJournalReads = false;

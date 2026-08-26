@@ -1,4 +1,3 @@
-import { appendFile, readFile } from "node:fs/promises";
 import type {
   TaskLogEvent,
   TaskLogQuery,
@@ -12,7 +11,6 @@ import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import {
   appendJsonLine,
-  atomicWriteJson,
   readJsonLines,
 } from "../../infrastructure/storage/index.js";
 
@@ -21,7 +19,6 @@ export type TaskLogStream = "stdout" | "stderr";
 export const MAX_BUFFERED_LOG_LINE_CHARS = 256 * 1024;
 export const TASK_OUTPUT_HEAD_MAX_BYTES = 32 * 1024 * 1024;
 export const TASK_OUTPUT_TAIL_MAX_BYTES = 512 * 1024;
-const TAIL_PERSIST_INTERVAL_BYTES = 64 * 1024;
 
 export type TaskOutputTailChunk = {
   stream: TaskLogStream;
@@ -152,31 +149,23 @@ export class TaskLogService {
 
   retention(record: TaskRecord, cursor: TaskLogCursor): TaskOutputRetention {
     ensureLogCursorState(cursor);
-    const retainedTailBytes = cursor.tailBytes;
-    const omittedBytes = Math.max(
-      0,
-      cursor.totalBytes - cursor.retainedBytes - retainedTailBytes,
-    );
+    void record;
     return {
       totalBytes: cursor.totalBytes,
-      retainedBytes: cursor.retainedBytes + retainedTailBytes,
-      omittedBytes,
+      retainedBytes: cursor.totalBytes,
+      omittedBytes: 0,
       totalLines: cursor.totalLines,
-      retainedLines: cursor.retainedLines,
-      omittedLines: omittedBytes > 0 ? cursor.omittedLines : 0,
+      retainedLines: cursor.totalLines,
+      omittedLines: 0,
       headMaxBytes: TASK_OUTPUT_HEAD_MAX_BYTES,
       tailMaxBytes: TASK_OUTPUT_TAIL_MAX_BYTES,
-      truncated: omittedBytes > 0,
-      tailPath: cursor.tailBytes > 0 ? this.tailPath(record) : undefined,
+      truncated: false,
     };
   }
 
   async readTail(record: TaskRecord): Promise<TaskOutputTailChunk[]> {
-    const parsed = await readFile(this.tailPath(record), "utf8")
-      .then((raw) => JSON.parse(raw) as unknown)
-      .catch(() => []);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isTailChunk);
+    void record;
+    return [];
   }
 
   private async tailLogEvents(
@@ -238,29 +227,9 @@ export class TaskLogService {
     const lines = countOutputLines(text);
     cursor.totalBytes += bytes;
     cursor.totalLines += lines;
-    const available = Math.max(
-      0,
-      TASK_OUTPUT_HEAD_MAX_BYTES - cursor.retainedBytes,
-    );
-    const retained = truncateUtf8Head(text, available);
-    if (retained.length > 0) {
-      const retainedBytes = Buffer.byteLength(retained);
-      const retainedLines = countOutputLines(retained);
-      cursor.retainedBytes += retainedBytes;
-      cursor.retainedLines += retainedLines;
-      await this.captureOutputNow(record, cursor, stream, retained, onLog);
-    }
-
-    const omittedText = text.slice(retained.length);
-    const omittedBytes = bytes - Buffer.byteLength(retained);
-    if (omittedBytes > 0) {
-      appendRollingTail(cursor, stream, omittedText);
-      cursor.omittedBytes += omittedBytes;
-      cursor.omittedLines += countOutputLines(omittedText);
-      if (cursor.tailDirtyBytes >= TAIL_PERSIST_INTERVAL_BYTES) {
-        await this.persistTail(record, cursor);
-      }
-    }
+    cursor.retainedBytes += bytes;
+    cursor.retainedLines += lines;
+    await this.captureOutputNow(record, cursor, stream, text, onLog);
   }
 
   private async captureOutputNow(
@@ -270,14 +239,6 @@ export class TaskLogService {
     text: string,
     onLog: (event: TaskLogEvent) => Promise<void>,
   ): Promise<void> {
-    const path = stream === "stdout" ? record.stdoutPath : record.stderrPath;
-    await Promise.all([
-      appendFile(path, text, "utf8"),
-      record.combinedPath
-        ? appendFile(record.combinedPath, text, "utf8")
-        : Promise.resolve(),
-    ]);
-
     const { lines, remainder } = appendChunkAndTakeCompleteLines(
       cursor.lineBuffers[stream],
       text,
@@ -307,16 +268,11 @@ export class TaskLogService {
     await this.emitLogLine(record, cursor, stream, line, onLog);
   }
 
-  private tailPath(record: TaskRecord): string {
-    return `${record.logsPath}.tail.json`;
-  }
-
   private async persistTail(
     record: TaskRecord,
     cursor: TaskLogCursor,
   ): Promise<void> {
-    if (cursor.omittedBytes === 0 || cursor.tailDirtyBytes === 0) return;
-    await atomicWriteJson(this.tailPath(record), cursor.tailChunks, 0o600);
+    void record;
     cursor.tailDirtyBytes = 0;
   }
 
@@ -368,69 +324,11 @@ function ensureLogCursorState(cursor: TaskLogCursor): void {
   cursor.tailDirtyBytes ??= 0;
 }
 
-function appendRollingTail(
-  cursor: TaskLogCursor,
-  stream: TaskLogStream,
-  text: string,
-): void {
-  if (text.length === 0) return;
-  const bounded = truncateUtf8Tail(text, TASK_OUTPUT_TAIL_MAX_BYTES);
-  const bytes = Buffer.byteLength(bounded);
-  cursor.tailChunks.push({ stream, text: bounded });
-  cursor.tailBytes += bytes;
-  cursor.tailDirtyBytes += bytes;
-
-  while (
-    cursor.tailBytes > TASK_OUTPUT_TAIL_MAX_BYTES &&
-    cursor.tailChunks.length > 0
-  ) {
-    const first = cursor.tailChunks[0];
-    if (!first) break;
-    const excess = cursor.tailBytes - TASK_OUTPUT_TAIL_MAX_BYTES;
-    const firstBytes = Buffer.byteLength(first.text);
-    if (firstBytes <= excess) {
-      cursor.tailChunks.shift();
-      cursor.tailBytes -= firstBytes;
-      continue;
-    }
-    const kept = truncateUtf8Tail(first.text, firstBytes - excess);
-    cursor.tailBytes -= firstBytes - Buffer.byteLength(kept);
-    first.text = kept;
-  }
-}
-
-function truncateUtf8Head(text: string, maxBytes: number): string {
-  if (maxBytes <= 0) return "";
-  if (Buffer.byteLength(text) <= maxBytes) return text;
-  const buffer = Buffer.from(text);
-  let end = Math.min(maxBytes, buffer.length);
-  while (end > 0 && (buffer[end] & 0xc0) === 0x80) end -= 1;
-  return buffer.subarray(0, end).toString("utf8");
-}
-
-function truncateUtf8Tail(text: string, maxBytes: number): string {
-  if (maxBytes <= 0) return "";
-  if (Buffer.byteLength(text) <= maxBytes) return text;
-  const buffer = Buffer.from(text);
-  let start = Math.max(0, buffer.length - maxBytes);
-  while (start < buffer.length && (buffer[start] & 0xc0) === 0x80) start += 1;
-  return buffer.subarray(start).toString("utf8");
-}
-
 function countOutputLines(text: string): number {
   if (text.length === 0) return 0;
   let lines = 0;
   for (const character of text) if (character === "\n") lines += 1;
   return lines;
-}
-
-function isTailChunk(value: unknown): value is TaskOutputTailChunk {
-  if (!value || typeof value !== "object") return false;
-  const record = value as Record<string, unknown>;
-  return (
-    (record.stream === "stdout" || record.stream === "stderr") &&
-    typeof record.text === "string"
-  );
 }
 
 function appendChunkAndTakeCompleteLines(

@@ -144,6 +144,7 @@ export class RuntimeRegistry {
       queryCache,
       auth,
       secrets,
+      providerCatalog,
       subscriptionUsage,
       logger,
       agentBrowserSkills,

@@ -1,88 +1,69 @@
 import { chmod, mkdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname } from "node:path";
 import {
   type DaemonFile,
   type DaemonStartupProgress,
   defaultSettings,
-  type PermissionException,
-  type PermissionRule,
+  NERVE_HOME_MANIFEST,
   type Settings,
   settingsSchema,
   type UpdateSettingsRequest,
+  type UserConfiguration,
 } from "@nervekit/contracts";
 import { atomicWriteJson, pathExists, writeTextFileIfMissing } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
-import type { MigrationReport } from "../migrations/index.js";
 import { CanonicalStore } from "../canonical-store/index.js";
-import { CanonicalDatabase } from "../canonical-store/canonical-database.js";
-import { coordinateStorageStartup } from "../migrations/import/startup-coordinator.js";
-import { inspectWorkbenchHome } from "./state-layout.js";
+import {
+  configurationWithSettings,
+  initializeHomeConfiguration,
+  readHomeConfiguration,
+  settingsFromConfiguration,
+  writeHomeConfiguration,
+} from "../configuration/home-configuration.js";
+import { inspectNerveHome } from "./state-layout.js";
+import { acquireStorageStartupLock } from "./startup-lock.js";
+import { EncryptedFileSecretProvider } from "../secrets/index.js";
 
-const dataSubdirs = [
-  "auth",
-  "keys",
-  "projects",
-  "payloads",
-  "agents",
-  "plans",
-  "logs",
-] as const;
+const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
+  ["configPath", 0o755],
+  ["secretsPath", 0o700],
+  ["dataPath", 0o700],
+  ["payloadsPath", 0o700],
+  ["reportsPath", 0o700],
+  ["imagesPath", 0o700],
+  ["plansPath", 0o755],
+  ["tasksPath", 0o700],
+  ["agentPath", 0o755],
+  ["suggestionsPath", 0o755],
+  ["tlsPath", 0o700],
+  ["tmpPath", 0o700],
+  ["cachePath", 0o700],
+  ["logsPath", 0o700],
+  ["crashesPath", 0o700],
+  ["migrationsPath", 0o700],
+  ["backupsPath", 0o700],
+];
 
 export interface InitializedStorage {
   paths: StoragePaths;
+  configuration: UserConfiguration;
+  /** Runtime projection used by the existing application feature APIs. */
   settings: Settings;
   localToken: string;
-  migrationReport: MigrationReport;
   canonicalStore: CanonicalStore;
 }
 
 export async function readCurrentSettingsForBootstrap(
   home = resolveDataDir(),
 ): Promise<Settings> {
-  const inspection = await inspectWorkbenchHome(home);
-  if (
-    inspection.kind === "missing" ||
-    inspection.kind === "empty" ||
-    inspection.kind === "desktop-bootstrap"
-  ) {
-    return defaultSettings;
-  }
-  if (inspection.kind !== "current") {
-    throw new Error(
-      `Nerve settings are unavailable until storage is prepared: ${"reason" in inspection ? inspection.reason : inspection.kind}`,
+  const inspection = await inspectNerveHome(home);
+  if (inspection.kind === "current") {
+    return settingsFromConfiguration(
+      await readHomeConfiguration(storagePaths(home)),
     );
   }
-
-  const paths = storagePaths(home);
-  const path = paths.sqlitePath;
-  let raw: unknown;
-  try {
-    const canonical = new CanonicalDatabase(path);
-    try {
-      raw = canonical.readSettings<unknown>()?.data;
-    } finally {
-      canonical.close();
-    }
-    if (raw === undefined) throw new Error("Canonical settings are missing.");
-  } catch (cause) {
-    throw new Error(`Current Nerve settings at ${path} are unreadable.`, {
-      cause,
-    });
-  }
-  const parsed = settingsSchema.safeParse(raw);
-  if (!parsed.success) {
-    const issues = parsed.error.issues
-      .slice(0, 8)
-      .map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
-      .join("; ");
-    throw new Error(
-      `Current Nerve settings at ${path} are invalid: ${issues}`,
-      {
-        cause: parsed.error,
-      },
-    );
-  }
-  return parsed.data;
+  if (inspection.kind === "unsupported") throw new Error(inspection.reason);
+  return defaultSettings;
 }
 
 export async function initializeStorage(
@@ -92,95 +73,94 @@ export async function initializeStorage(
   } = {},
 ): Promise<InitializedStorage> {
   const paths = storagePaths(home);
-  let currentProgress: DaemonStartupProgress = {
+  options.reportStartupProgress?.({
     type: "nerve.startup.progress",
     phase: "storage-check",
-    message: "Checking workspace storage",
-  };
-  const reportProgress = (progress: DaemonStartupProgress) => {
-    currentProgress = progress;
-    options.reportStartupProgress?.(progress);
-  };
-  reportProgress(currentProgress);
-  const heartbeat = options.reportStartupProgress
-    ? setInterval(() => reportProgress(currentProgress), 5_000)
-    : undefined;
-  heartbeat?.unref();
-  let migrationReport: MigrationReport;
+    message: "Checking Nerve home storage",
+  });
+
+  const startupLock = await acquireStorageStartupLock(home);
   try {
-    migrationReport = (
-      await coordinateStorageStartup(paths.home, {
-        reportStartupProgress: reportProgress,
-      })
-    ).migrationReport;
+    const inspection = await inspectNerveHome(home);
+    if (inspection.kind === "unsupported") throw new Error(inspection.reason);
+    const fresh = inspection.kind === "missing" || inspection.kind === "empty";
+    await mkdir(paths.home, { recursive: true, mode: 0o700 });
+    await chmod(paths.home, 0o700).catch(() => undefined);
+    if (fresh) {
+      await atomicWriteJson(paths.manifestPath, NERVE_HOME_MANIFEST, 0o600);
+    }
+    for (const [key, mode] of HOME_DIRECTORIES) {
+      const directory = paths[key];
+      await mkdir(directory, { recursive: true, mode });
+      await chmod(directory, mode).catch(() => undefined);
+    }
+
+    const configuration = fresh
+      ? await initializeHomeConfiguration(paths)
+      : await readHomeConfiguration(paths);
+    const secretProvider = new EncryptedFileSecretProvider(paths.home);
+    if (fresh) {
+      await secretProvider.initialize();
+    } else {
+      await secretProvider.validate();
+    }
+    if (!fresh && !(await pathExists(paths.sqlitePath))) {
+      throw new Error("Nerve SQLite state at data/nerve.sqlite is missing.");
+    }
+    const canonicalStore = new CanonicalStore(paths.sqlitePath);
+    await canonicalStore.initialize();
+    if (fresh) {
+      await atomicWriteJson(
+        paths.migrationLedgerPath,
+        {
+          format: "nerve-home-migrations",
+          version: 1,
+          entries: [
+            {
+              id: "nerve-home-v1",
+              appliedAt: new Date().toISOString(),
+            },
+          ],
+        },
+        0o600,
+      );
+    } else if (!(await pathExists(paths.migrationLedgerPath))) {
+      await canonicalStore.close();
+      throw new Error("Nerve migration ledger is missing.");
+    }
+    const settings = settingsFromConfiguration(configuration);
+
+    if (!(await pathExists(paths.localTokenPath))) {
+      if (!fresh) {
+        await canonicalStore.close();
+        throw new Error("Nerve daemon token is missing.");
+      }
+      const token = `nt_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;
+      await mkdir(dirname(paths.localTokenPath), {
+        recursive: true,
+        mode: 0o700,
+      });
+      await writeTextFileIfMissing(paths.localTokenPath, `${token}\n`, 0o600);
+    }
+    await chmod(paths.localTokenPath, 0o600).catch(() => undefined);
+    const localToken = (await readFile(paths.localTokenPath, "utf8")).trim();
+    if (!localToken) {
+      await canonicalStore.close();
+      throw new Error(
+        `The local authentication token at ${paths.localTokenPath} is empty.`,
+      );
+    }
+
+    return {
+      paths,
+      configuration,
+      settings,
+      localToken,
+      canonicalStore,
+    };
   } finally {
-    if (heartbeat) clearInterval(heartbeat);
+    await startupLock.release();
   }
-  await chmod(paths.home, 0o700);
-  for (const subdir of dataSubdirs) {
-    const mode =
-      subdir === "auth" || subdir === "keys" || subdir === "payloads"
-        ? 0o700
-        : 0o755;
-    const dir = join(paths.home, subdir);
-    await mkdir(dir, { recursive: true, mode });
-    await chmod(dir, mode).catch(() => undefined);
-  }
-
-  if (!(await pathExists(paths.sqlitePath))) {
-    throw new Error(
-      `Storage migrations completed without the required SQLite index at ${paths.sqlitePath}.`,
-    );
-  }
-
-  const canonicalStore = new CanonicalStore(paths.sqlitePath);
-  await canonicalStore.initialize();
-  const storedSettings = await canonicalStore.readSettings<unknown>();
-  if (!storedSettings) {
-    await canonicalStore.close();
-    throw new Error("Canonical settings are missing after storage migration.");
-  }
-  const settings = settingsSchema.parse(storedSettings.data);
-
-  if (!(await pathExists(paths.localTokenPath))) {
-    const token = `nt_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;
-    await writeTextFileIfMissing(paths.localTokenPath, `${token}\n`, 0o600);
-  }
-  await chmod(paths.localTokenPath, 0o600).catch(() => undefined);
-  const localToken = (await readFile(paths.localTokenPath, "utf8")).trim();
-  if (!localToken) {
-    throw new Error(
-      `The local authentication token at ${paths.localTokenPath} is empty.`,
-    );
-  }
-
-  return { paths, settings, localToken, migrationReport, canonicalStore };
-}
-
-function userRule(
-  exception: PermissionException,
-  timestamp: string,
-): PermissionRule {
-  const matcherKind = ["read", "edit", "write", "grep", "find", "ls"].includes(
-    exception.tool,
-  )
-    ? ("path_glob" as const)
-    : exception.tool === "bash"
-      ? ("command_glob" as const)
-      : exception.tool === "web_fetch"
-        ? ("url_glob" as const)
-        : ("whole_tool" as const);
-  return {
-    id: `rule_user_${exception.id.replace(/^exception_/, "")}`.slice(0, 128),
-    scope: "user",
-    effect: exception.effect,
-    toolName: exception.tool,
-    matcherKind,
-    pattern: exception.rule,
-    enabled: true,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
 }
 
 export async function writeSettings(
@@ -368,20 +348,12 @@ export async function writeSettings(
     tools: { ...storage.settings.tools, ...(toolsPatch ?? {}) },
     skills: { ...storage.settings.skills, ...(skillsPatch ?? {}) },
   });
-  const current = await storage.canonicalStore.readSettings<Settings>();
-  await storage.canonicalStore.writeSettings(next, current?.revision ?? 0);
-  if (patch.permissions?.exceptions) {
-    const timestamp = new Date().toISOString();
-    await storage.canonicalStore.replacePermissionRules(
-      "user",
-      undefined,
-      patch.permissions.exceptions.map((exception) =>
-        userRule(exception, timestamp),
-      ),
-    );
-  }
-  storage.settings = next;
-  return next;
+  storage.configuration = await writeHomeConfiguration(
+    storage.paths,
+    configurationWithSettings(storage.configuration, next),
+  );
+  storage.settings = settingsFromConfiguration(storage.configuration);
+  return storage.settings;
 }
 
 export async function writeDaemonFile(

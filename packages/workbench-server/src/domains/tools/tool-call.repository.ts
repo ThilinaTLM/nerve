@@ -9,6 +9,7 @@ import type {
   RuntimeQueryCache,
   ToolCallPreviewQuery,
 } from "../../infrastructure/query-cache/index.js";
+import { storagePaths } from "../../infrastructure/storage/paths.js";
 import { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import {
@@ -70,7 +71,10 @@ export class ToolCallRepository {
     this.journal =
       journalOrStorage instanceof ConversationJournalRepository
         ? journalOrStorage
-        : new ConversationJournalRepository(journalOrStorage);
+        : new ConversationJournalRepository({
+            ...journalOrStorage,
+            paths: storagePaths(journalOrStorage.paths.home),
+          });
     this.queryCache = queryCache;
   }
 

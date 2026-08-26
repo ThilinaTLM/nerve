@@ -172,34 +172,45 @@ export class StorageUsageService {
       });
     };
 
-    const entries = await readdir(home, { withFileTypes: true }).catch(
-      () => [],
+    add("payloads", await dirSize(this.deps.paths.payloadsPath));
+    add("exploreReports", await dirSize(this.deps.paths.reportsPath));
+    add("plans", await dirSize(this.deps.paths.plansPath));
+    add("tasks", await dirSize(this.deps.paths.tasksPath));
+    add("logs", await dirSize(this.deps.paths.logsPath));
+    add("crashes", await dirSize(this.deps.paths.crashesPath));
+    add("cache", await dirSize(this.deps.paths.cachePath));
+    add("tmp", await dirSize(this.deps.paths.tmpPath));
+    add("agents", await dirSize(this.deps.paths.agentPath));
+    add("other", await dirSize(this.deps.paths.imagesPath));
+    add("other", await dirSize(this.deps.paths.migrationsPath));
+    add("other", await dirSize(this.deps.paths.backupsPath));
+    add("protected", await dirSize(this.deps.paths.configPath));
+    add("protected", await dirSize(this.deps.paths.secretsPath));
+    add("protected", await dirSize(this.deps.paths.tlsPath));
+    add("protected", {
+      bytes:
+        (await fileSize(this.deps.paths.manifestPath)) +
+        (await fileSize(this.deps.paths.daemonPath)),
+      files: 2,
+    });
+    add("sqliteIndex", {
+      bytes:
+        (await fileSize(this.deps.paths.sqlitePath)) +
+        (await fileSize(`${this.deps.paths.sqlitePath}-wal`)) +
+        (await fileSize(`${this.deps.paths.sqlitePath}-shm`)),
+      files: 3,
+    });
+    const conversationRoot = join(
+      this.deps.paths.payloadsPath,
+      "conversations",
     );
-    for (const entry of entries) {
-      if (entry.isSymbolicLink()) continue;
-      const key = categoryForEntry(entry.name);
-      const path = join(home, entry.name);
-      if (entry.isDirectory() && key === "payloads") {
-        add(key, await dirSize(path));
-        const conversationRoot = join(path, "conversations");
-        const children = await readdir(conversationRoot, {
-          withFileTypes: true,
-        }).catch(() => []);
-        for (const child of children) {
-          if (!child.isDirectory() || child.isSymbolicLink()) continue;
-          const tally = await dirSize(join(conversationRoot, child.name));
-          conversationSizes.push({ id: child.name, bytes: tally.bytes });
-        }
-      } else if (entry.isDirectory() && key === "conversations") {
-        add(key, await dirSize(path));
-      } else {
-        add(
-          key,
-          entry.isDirectory()
-            ? await dirSize(path)
-            : { bytes: await fileSize(path), files: 1 },
-        );
-      }
+    const children = await readdir(conversationRoot, {
+      withFileTypes: true,
+    }).catch(() => []);
+    for (const child of children) {
+      if (!child.isDirectory() || child.isSymbolicLink()) continue;
+      const tally = await dirSize(join(conversationRoot, child.name));
+      conversationSizes.push({ id: child.name, bytes: tally.bytes });
     }
 
     const categories: StorageCategoryUsage[] = [];
@@ -322,49 +333,5 @@ export class StorageUsageService {
         estimate: "upTo",
       },
     ];
-  }
-}
-
-function categoryForEntry(name: string): StorageCategoryKey {
-  switch (name) {
-    case "conversations":
-      return "conversations";
-    case "payloads":
-      return "payloads";
-    case "logs":
-      return "logs";
-    case "state.sqlite":
-    case "state.sqlite-wal":
-    case "state.sqlite-shm":
-      return "sqliteIndex";
-    case "explore-reports":
-      return "exploreReports";
-    case "crashes":
-      return "crashes";
-    case "plans":
-      return "plans";
-    case "agents":
-      return "agents";
-    case "tasks":
-      return "tasks";
-    case "approvals":
-    case "user-questions":
-    case "maintenance":
-      return "workflowState";
-    case "projects":
-      return "projects";
-    case "cache":
-      return "cache";
-    case "tmp":
-      return "tmp";
-    case "auth":
-    case "keys":
-    case "tls":
-    case "config.json":
-    case "providers.json":
-    case "daemon.json":
-      return "protected";
-    default:
-      return "other";
   }
 }

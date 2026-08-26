@@ -9,7 +9,10 @@ import {
   createWorkbenchState,
   shutdownWorkbenchState,
 } from "../src/app/workbench-state.js";
-import { initializeStorage } from "../src/infrastructure/storage/index.js";
+import {
+  initializeStorage,
+  writeSettings,
+} from "../src/infrastructure/storage/index.js";
 import { WorkbenchRunUnitOfWork } from "../src/domains/runs/run-transition.repository.js";
 import { ConversationJournalRepository } from "../src/domains/conversations/conversation-journal.repository.js";
 
@@ -33,10 +36,11 @@ describe("explore subagent transcript isolation", () => {
     });
     const root = await mkdtemp(join(tmpdir(), "nerve-explore-isolation-"));
     const storage = await initializeStorage(root);
-    storage.settings.exploreAgent = {
-      ...storage.settings.exploreAgent,
-      model: { provider, modelId: "scripted-fast" },
-    };
+    await writeSettings(storage, {
+      exploreAgent: {
+        model: { provider, modelId: "scripted-fast" },
+      },
+    });
     const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
     try {
       await orchestrator.registry.hydrate();
@@ -279,10 +283,11 @@ describe("explore subagent transcript isolation", () => {
     });
     const root = await mkdtemp(join(tmpdir(), "nerve-explore-cancellation-"));
     const storage = await initializeStorage(root);
-    storage.settings.exploreAgent = {
-      ...storage.settings.exploreAgent,
-      model: { provider, modelId: "scripted-fast" },
-    };
+    await writeSettings(storage, {
+      exploreAgent: {
+        model: { provider, modelId: "scripted-fast" },
+      },
+    });
     const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
     try {
       await orchestrator.registry.hydrate();

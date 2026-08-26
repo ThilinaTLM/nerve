@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { applicationLogLevelSchema } from "../logs/index.js";
+import { applicationLogLevelSchema } from "../logs/logs.schema.js";
 
 export const electronOzonePlatformSchema = z.enum(["auto", "x11", "wayland"]);
 export type ElectronOzonePlatform = z.infer<typeof electronOzonePlatformSchema>;

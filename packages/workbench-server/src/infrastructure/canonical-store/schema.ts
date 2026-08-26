@@ -1,10 +1,7 @@
-export const CANONICAL_V2_SCHEMA_VERSION = 2;
-export const CANONICAL_V2_SCHEMA_CHECKSUM =
-  "531dd8310f8326ba9f21a5b2e3cfae67dfce5b620d3aca28e415ac882b30c3ad";
-export const CANONICAL_SCHEMA_VERSION = 3;
-export const CANONICAL_BASELINE_NAME = "canonical-storage-baseline";
+export const CANONICAL_SCHEMA_VERSION = 1;
+export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_SCHEMA_CHECKSUM =
-  "0c37fcedf26320bcbc4b7b966a39ccbaa9759fd8295fc3cdc8c850d0c8598367";
+  "c6bfbb3901f4a51992de7baf11d11fa797ecc8063fa883d1fb6fb7d2e07d8433";
 export const CANONICAL_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,
@@ -17,14 +14,6 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 CREATE TABLE IF NOT EXISTS canonical_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
-) STRICT;
-
-CREATE TABLE IF NOT EXISTS settings_store (
-  id TEXT PRIMARY KEY CHECK(id = 'settings'),
-  revision INTEGER NOT NULL CHECK(revision > 0),
-  payload_version INTEGER NOT NULL CHECK(payload_version > 0),
-  data BLOB NOT NULL,
-  updated_at_ms INTEGER NOT NULL
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS conversation_records (
@@ -96,6 +85,7 @@ CREATE TABLE IF NOT EXISTS permission_rules (
   tool_name TEXT NOT NULL,
   matcher_kind TEXT NOT NULL CHECK(matcher_kind IN ('whole_tool','path_glob','command_glob','url_glob')),
   pattern TEXT NOT NULL,
+  source_digest TEXT CHECK(source_digest IS NULL OR length(source_digest) = 64),
   enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
   created_at_ms INTEGER NOT NULL,
   updated_at_ms INTEGER NOT NULL,
@@ -103,6 +93,22 @@ CREATE TABLE IF NOT EXISTS permission_rules (
 ) STRICT;
 CREATE INDEX IF NOT EXISTS permission_rules_scope_tool
   ON permission_rules(scope, project_id, tool_name, enabled);
+
+CREATE TABLE IF NOT EXISTS file_assets (
+  id TEXT PRIMARY KEY,
+  category TEXT NOT NULL CHECK(category IN ('payload','report','image','plan','task_log')),
+  logical_path TEXT NOT NULL UNIQUE,
+  conversation_id TEXT,
+  tool_call_id TEXT,
+  task_id TEXT,
+  digest TEXT CHECK(digest IS NULL OR length(digest) = 64),
+  byte_length INTEGER NOT NULL CHECK(byte_length >= 0),
+  media_type TEXT,
+  created_at_ms INTEGER NOT NULL,
+  updated_at_ms INTEGER NOT NULL
+) STRICT;
+CREATE INDEX IF NOT EXISTS file_assets_owner
+  ON file_assets(conversation_id, tool_call_id, task_id, category);
 
 CREATE TABLE IF NOT EXISTS domain_documents (
   namespace TEXT NOT NULL,

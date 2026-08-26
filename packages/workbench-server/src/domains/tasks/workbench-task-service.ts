@@ -563,8 +563,8 @@ export class WorkbenchTaskService extends TaskService {
     await this.taskRepository.write(record);
   }
 
-  taskDir(taskId: string): string {
-    return this.taskRepository.taskDir(taskId);
+  logsPath(taskId: string): string {
+    return this.taskRepository.logsPath(taskId);
   }
 }
 

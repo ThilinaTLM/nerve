@@ -112,6 +112,7 @@ export async function executeWorkbenchHarness(
       context: { behavior: request.behavior, continue: options.continue },
     });
     const conversation = this.deps.state.getConversation(agent.conversationId);
+    const settings = await this.effectiveSettings(agent.projectDir);
     const project = this.deps.state.getProject(agent.projectId);
     const storage = await this.deps.harnessStorage.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
@@ -119,15 +120,17 @@ export async function executeWorkbenchHarness(
       (await storage.getEntries()).map((entry) => entry.id),
     );
     let activeToolNames = await this.activeToolNamesFor(agent);
-    const model = resolveAgentModel(agent.model);
+    const model = resolveAgentModel(
+      agent.model,
+      await this.customModels(agent.projectDir),
+    );
     this.deps.subscriptionUsage.touchProvider(model.provider);
-    const shellPath = this.deps.storage.settings.runtime.shellPath;
+    const shellPath = settings.runtime.shellPath;
     const env = new NodeExecutionEnv({ cwd: agent.projectDir, shellPath });
     const resources = await loadHarnessResources(agent.projectDir, {
       storageHome: this.deps.storage.paths.home,
-      disabledSkillNames: this.deps.storage.settings.skills.disabled,
-      enabledAgentBrowserSkillNames:
-        this.deps.storage.settings.skills.agentBrowser.enabled,
+      disabledSkillNames: settings.skills.disabled,
+      enabledAgentBrowserSkillNames: settings.skills.agentBrowser.enabled,
       agentBrowserSkills: this.deps.agentBrowserSkills.skills,
     });
     const latestAgent = () => this.deps.state.agents.get(agent.id) ?? agent;
@@ -633,7 +636,10 @@ export async function executeWorkbenchHarness(
         activeToolNames = nextActiveToolNames;
         await harness.setActiveTools(nextActiveToolNames);
       }
-      const nextModel = resolveAgentModel(updatedAgent.model);
+      const nextModel = resolveAgentModel(
+        updatedAgent.model,
+        await this.customModels(updatedAgent.projectDir),
+      );
       const currentModel = harness.getModel();
       if (
         currentModel.provider !== nextModel.provider ||

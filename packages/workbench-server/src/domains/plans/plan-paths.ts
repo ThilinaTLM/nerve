@@ -1,9 +1,10 @@
 import { mkdir } from "node:fs/promises";
-import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { resolveToolPath } from "@nervekit/tools";
+import { storagePaths } from "../../infrastructure/storage/paths.js";
 
 export function planDirForStorageHome(storageHome: string): string {
-  return resolve(join(storageHome, "plans"));
+  return resolve(storagePaths(storageHome).plansPath);
 }
 
 export async function ensurePlanDir(storageHome: string): Promise<string> {

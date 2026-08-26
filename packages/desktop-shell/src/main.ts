@@ -1,5 +1,5 @@
 import { appendFile, mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { defaultSettings, type Settings } from "@nervekit/contracts";
 import {
   readCurrentSettingsForBootstrap,
@@ -14,7 +14,7 @@ import {
   resolveElectronFontRenderHinting,
 } from "./app/cli-options.js";
 import { prepareDesktopDataDirectory } from "./app/data-directory-migration.js";
-import { startWithRunRuntimeRecovery } from "./app/run-runtime-recovery.js";
+import { startRunRuntime } from "./app/run-runtime-recovery.js";
 import {
   runStartupSequence,
   type StartupProgressPhase,
@@ -68,6 +68,18 @@ import {
 
 const desktopOptions = parseDesktopOptions(process.argv.slice(1));
 const desktopDataDir = resolveDataDir();
+const electronProfileDir = resolve(app.getPath("userData"));
+const profileRelativeToHome = relative(
+  resolve(desktopDataDir),
+  electronProfileDir,
+);
+if (
+  profileRelativeToHome === "" ||
+  (!profileRelativeToHome.startsWith("..") &&
+    !isAbsolute(profileRelativeToHome))
+) {
+  throw new Error("Electron userData must remain outside NERVE_HOME.");
+}
 const bootstrapSettings = defaultSettings;
 const performanceEnvironmentWasExplicit =
   process.env.NERVE_PERFORMANCE_DIAGNOSTICS !== undefined;
@@ -127,9 +139,7 @@ function applyDesktopRuntimeSettings(
   });
   configureApplicationLogging(configuration.values.loggingEnabled);
 
-  // Electron command-line switches must be selected before app readiness. A
-  // setting restored by a legacy-home migration takes effect on the next
-  // launch instead of being read from the legacy file before migration.
+  // Electron command-line switches must be selected before app readiness.
   if (preReady) {
     applyElectronOzonePlatform(
       parseElectronOzonePlatform(configuration.values.ozonePlatform),
@@ -243,7 +253,9 @@ if (!gotSingleInstanceLock) {
       }
 
       const currentSettings =
-        await readCurrentSettingsForBootstrap(desktopDataDir);
+        desktopOptions.mode === "remote"
+          ? defaultSettings
+          : await readCurrentSettingsForBootstrap(desktopDataDir);
       desktopConfiguration = resolveDesktopConfiguration(currentSettings);
       applyDesktopRuntimeSettings(currentSettings, desktopConfiguration, false);
 
@@ -255,28 +267,6 @@ if (!gotSingleInstanceLock) {
           chrome: process.versions.chrome,
         },
       });
-      if (preparation.migration) {
-        void desktopLog(
-          "info",
-          "storage",
-          "Legacy data directory backed up and replaced",
-          {
-            context: {
-              backupPath: preparation.migration.backupPath,
-              settingsStatus: preparation.migration.settingsStatus,
-              providerCatalogStatus:
-                preparation.migration.providerCatalogStatus,
-              importedCustomProviderCount:
-                preparation.migration.importedCustomProviderCount,
-              importedCustomModelCount:
-                preparation.migration.importedCustomModelCount,
-              credentialStatus: preparation.migration.credentialStatus,
-              importedCredentialCount:
-                preparation.migration.importedCredentialCount,
-            },
-          },
-        );
-      }
       desktopNetworkReady = configureDesktopNetworkSession();
       trayController.ensureTray();
       nativeTheme.on("updated", trayController.updateTrayIcon);
@@ -432,32 +422,18 @@ async function openMainWindow(): Promise<void> {
         window.loadURL(shellPageUrls.create(loadingHtml())),
       connectDaemon: async () => {
         if (!managedDaemon) {
-          const startup = await startWithRunRuntimeRecovery(
-            {
-              home: desktopDataDir,
-              start: () =>
-                ensureDaemon({
-                  webDistPath: resolvePackagedWebDistPath(),
-                  startupTimeoutMs:
-                    desktopConfiguration.values.startupTimeoutMs,
-                  maxOldSpaceMb: desktopConfiguration.values.maxOldSpaceMb,
-                  ...desktopOptions,
-                  onStartupProgress: (progress) => {
-                    void updateLoadingStatus(window, progress.message);
-                  },
-                }),
-            },
-            { showMessageBox: (options) => dialog.showMessageBox(options) },
+          const startup = await startRunRuntime(() =>
+            ensureDaemon({
+              webDistPath: resolvePackagedWebDistPath(),
+              startupTimeoutMs: desktopConfiguration.values.startupTimeoutMs,
+              maxOldSpaceMb: desktopConfiguration.values.maxOldSpaceMb,
+              ...desktopOptions,
+              onStartupProgress: (progress) => {
+                void updateLoadingStatus(window, progress.message);
+              },
+            }),
           );
           managedDaemon = startup.value;
-          if (startup.recovery) {
-            void desktopLog(
-              "warn",
-              "storage",
-              "Inconsistent run data backed up before daemon retry",
-              { context: { backupPath: startup.recovery.backupPath } },
-            );
-          }
         }
         return managedDaemon;
       },
@@ -507,7 +483,9 @@ async function openMainWindow(): Promise<void> {
       navigated: result.navigated,
     });
     desktopPerformanceMonitor ??= installDesktopPerformanceMonitor({
-      enabled: process.env.NERVE_PERFORMANCE_DIAGNOSTICS === "1",
+      enabled:
+        desktopOptions.mode !== "remote" &&
+        process.env.NERVE_PERFORMANCE_DIAGNOSTICS === "1",
       dataDir: desktopDataDir,
       sessionId: process.env.NERVE_PERFORMANCE_SESSION_ID,
       getMetrics: () => app.getAppMetrics(),

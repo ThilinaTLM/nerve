@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +15,7 @@ import {
   type TaskRuntime,
 } from "@nervekit/contracts";
 import type { TaskLaunchConfigStore } from "../../src/domains/tasks/task-launch-config.store.js";
+import { TaskRepository } from "../../src/domains/tasks/task.repository.js";
 import { WorkbenchTaskService } from "../../src/domains/tasks/workbench-task-service.js";
 import type {
   SpawnManagedTaskOptions,
@@ -24,7 +25,6 @@ import type {
 import { StreamLogRegistry } from "../../src/infrastructure/events/index.js";
 import { RuntimeQueryCache } from "../../src/infrastructure/query-cache/index.js";
 import {
-  atomicWriteJson,
   type InitializedStorage,
   initializeStorage,
 } from "../../src/infrastructure/storage/index.js";
@@ -315,8 +315,7 @@ export async function seedTaskRecord(
   patch: Partial<TaskRecord>,
 ): Promise<TaskRecord> {
   const id = patch.id ?? createId("task");
-  const dir = join(storage.paths.home, "tasks", id);
-  await mkdir(dir, { recursive: true });
+  const logsPath = join(storage.paths.tasksPath, `${id}.logs.jsonl`);
   const now = new Date().toISOString();
   const record: TaskRecord = {
     id,
@@ -324,13 +323,14 @@ export async function seedTaskRecord(
     command: "fake orphaned command",
     status: "orphaned",
     readiness: { outcome: "pending" },
-    stdoutPath: join(dir, "stdout.log"),
-    stderrPath: join(dir, "stderr.log"),
-    logsPath: join(dir, "logs.jsonl"),
+    stdoutPath: logsPath,
+    stderrPath: logsPath,
+    combinedPath: logsPath,
+    logsPath,
     startedAt: now,
     updatedAt: now,
     ...patch,
   };
-  await atomicWriteJson(join(dir, "task.json"), record, 0o600);
+  await new TaskRepository(storage).write(record);
   return record;
 }
