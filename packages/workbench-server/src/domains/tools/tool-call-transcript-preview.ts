@@ -156,6 +156,31 @@ function arrayField<T = unknown>(value: unknown): T[] | undefined {
   return Array.isArray(value) ? (value as T[]) : undefined;
 }
 
+function nonnegativeIntegerField(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+function editDetailsPreview(
+  value: unknown,
+  diff: string | undefined,
+): Record<string, unknown> {
+  const details = record(value);
+  const operationCount = nonnegativeIntegerField(details.operationCount);
+  const dryRun =
+    typeof details.dryRun === "boolean" ? details.dryRun : undefined;
+  return {
+    ...(diff === undefined ? {} : { diff }),
+    ...(operationCount === undefined ? {} : { operationCount }),
+    ...(dryRun === undefined ? {} : { dryRun }),
+  };
+}
+
+function editDiff(value: unknown): string | undefined {
+  return stringField(record(record(value).details).diff);
+}
+
 function outputText(result: Record<string, unknown>): string | undefined {
   const content = stringField(result.content);
   if (content !== undefined) return content;
@@ -663,15 +688,12 @@ export function toToolCallTranscriptRecord(
     }
 
     case "edit": {
-      const diff = lastLines(stringField(record(resultRecord.details).diff));
+      const diff = lastLines(editDiff(resultRecord));
       const output = lastLines(outputText(resultRecord));
       const textResult = withTextContent(resultRecord, output.value);
       resultPreview = {
         ...textResult,
-        details:
-          diff.value === undefined
-            ? resultRecord.details
-            : { ...record(resultRecord.details), diff: diff.value },
+        details: editDetailsPreview(resultRecord.details, diff.value),
       };
       ({ hidden, noun } = textOverflowStats([diff, output]));
       direction = "tail";
@@ -774,7 +796,15 @@ export function toToolCallTranscriptRecord(
     }
   }
 
-  if (storedResultPreview !== undefined) resultPreview = storedResultPreview;
+  if (storedResultPreview !== undefined) {
+    const currentEditDiff = editDiff(result);
+    const storedEditDiff = editDiff(storedResultPreview);
+    const shouldRebuildEditPreview =
+      toolCall.toolName === "edit" &&
+      currentEditDiff !== undefined &&
+      storedEditDiff === undefined;
+    if (!shouldRebuildEditPreview) resultPreview = storedResultPreview;
+  }
 
   // Project schema-bearing semantic results before verbose arguments.
   const resultFirst =

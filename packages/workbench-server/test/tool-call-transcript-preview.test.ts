@@ -34,6 +34,52 @@ function explainImageToolCall(explanation: string): ToolCallRecord {
   };
 }
 
+function editToolCall(diff: string): ToolCallRecord {
+  return {
+    ...explainImageToolCall("unused"),
+    toolName: "edit",
+    risk: "workspace_write",
+    args: {
+      path: "src/example.ts",
+      replacements: [
+        {
+          oldText: "const value = 1;",
+          newText: "const value = 2;",
+          matchMode: "exact",
+        },
+      ],
+      dryRun: false,
+    },
+    result: {
+      path: "/tmp/project/src/example.ts",
+      content: "Applied 1 edit operation.",
+      contentBlocks: [{ type: "text", text: "Applied 1 edit operation." }],
+      details: {
+        diff,
+        firstChangedLine: 1,
+        lineEnding: "\n",
+        bom: false,
+        dryRun: false,
+        operationCount: 1,
+        operations: [
+          {
+            index: 0,
+            type: "replace_text",
+            source: "replacements",
+            sourceIndex: 0,
+            matchMode: "exact",
+            occurrence: 1,
+            matchCount: 1,
+            startLine: 1,
+            endLine: 1,
+            matchedBy: "unique",
+          },
+        ],
+      },
+    },
+  } satisfies ToolCallRecord;
+}
+
 describe("explain_image transcript preview", () => {
   it("keeps a bounded explanation preview without duplicate content blocks", () => {
     const explanation = Array.from(
@@ -80,6 +126,60 @@ describe("explain_image transcript preview", () => {
       noun: "lines",
       direction: "tail",
     });
+  });
+
+  it("keeps semantic edit display data stable across persisted projection", () => {
+    const diff = Array.from(
+      { length: 10 },
+      (_, index) => `diff line ${index + 1}`,
+    ).join("\n");
+    const toolCall = editToolCall(diff);
+
+    const initial = toToolCallTranscriptRecord(toolCall);
+    const initialResult = initial.resultPreview as {
+      details?: Record<string, unknown>;
+    };
+    assert.deepEqual(initialResult.details, {
+      diff: "diff line 5\ndiff line 6\ndiff line 7\ndiff line 8\ndiff line 9\ndiff line 10",
+      operationCount: 1,
+      dryRun: false,
+    });
+    assert.deepEqual(initial.previewOverflow, {
+      hidden: 4,
+      noun: "lines",
+      direction: "tail",
+    });
+
+    const persisted = toToolCallTranscriptRecord({
+      ...toolCall,
+      resultPreview: initial.resultPreview,
+    });
+    assert.deepEqual(persisted.resultPreview, initial.resultPreview);
+    assert.deepEqual(persisted.previewOverflow, initial.previewOverflow);
+  });
+
+  it("rebuilds a stored edit preview that lost a current diff", () => {
+    const diff = Array.from(
+      { length: 10 },
+      (_, index) => `diff line ${index + 1}`,
+    ).join("\n");
+    const preview = toToolCallTranscriptRecord({
+      ...editToolCall(diff),
+      resultPreview: {
+        path: "/tmp/project/src/example.ts",
+        details: { operationCount: 99, dryRun: true },
+      },
+    });
+    const details = (preview.resultPreview as { details?: unknown }).details as
+      | Record<string, unknown>
+      | undefined;
+
+    assert.equal(
+      details?.diff,
+      "diff line 5\ndiff line 6\ndiff line 7\ndiff line 8\ndiff line 9\ndiff line 10",
+    );
+    assert.equal(details?.operationCount, 1);
+    assert.equal(details?.dryRun, false);
   });
 
   it("keeps a bounded plan body in the durable transcript preview", () => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { parseToolView } from "./tool-result-view";
-import { CWD, toolCall } from "./tool-result-view.fixtures";
+import { CWD, toolCall, transcriptToolCall } from "./tool-result-view.fixtures";
 
 describe("parseToolView filesystem read/write/edit", () => {
   it("resolves relative read paths against Windows cwd", () => {
@@ -55,6 +55,60 @@ describe("parseToolView filesystem read/write/edit", () => {
     assert.equal(view.kind, "read");
     if (view.kind !== "read") return;
     assert.equal(view.image?.dataUrl, "data:image/png;base64,QUJD");
+  });
+
+  it("parses display fields from bounded edit transcript details", () => {
+    const view = parseToolView(
+      transcriptToolCall(
+        "edit",
+        { path: "src/x.ts", replacements: [] },
+        {
+          path: `${CWD}/src/x.ts`,
+          details: {
+            diff: "@@ -1 +1 @@\n-a\n+b",
+            operationCount: 2,
+            dryRun: true,
+          },
+        },
+        {
+          previewOverflow: {
+            hidden: 4,
+            noun: "lines",
+            direction: "tail",
+          },
+        },
+      ),
+    );
+
+    assert.equal(view.kind, "edit");
+    if (view.kind !== "edit") return;
+    assert.equal(view.diff, "@@ -1 +1 @@\n-a\n+b");
+    assert.equal(view.operationCount, 2);
+    assert.equal(view.dryRun, true);
+    assert.equal(view.additions, 1);
+    assert.equal(view.deletions, 1);
+    assert.equal(view.diffLineCount, 7);
+  });
+
+  it("keeps malformed edit diffs absent", () => {
+    const view = parseToolView(
+      transcriptToolCall(
+        "edit",
+        { path: "src/x.ts", replacements: [{ oldText: "a", newText: "b" }] },
+        {
+          path: `${CWD}/src/x.ts`,
+          details: { diff: 42, operationCount: 3, dryRun: false },
+        },
+      ),
+    );
+
+    assert.equal(view.kind, "edit");
+    if (view.kind !== "edit") return;
+    assert.equal(view.diff, undefined);
+    assert.equal(view.operationCount, 3);
+    assert.equal(view.additions, 0);
+    assert.equal(view.deletions, 0);
+    assert.equal(view.diffLineCount, 0);
   });
 
   it("parses edit diff, operation count, dry-run flag, and +/- stats", () => {
