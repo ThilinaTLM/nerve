@@ -10,8 +10,10 @@ Install Node.js 24+, pnpm 11.20.0, and rustup. The repository pins its Rust tool
 pnpm install
 pnpm fix
 pnpm check
-pnpm test
+pnpm run test:affected
 ```
+
+Use `pnpm run test:full` when changing root, workspace, or test infrastructure, and before release validation.
 
 ## Guidelines
 

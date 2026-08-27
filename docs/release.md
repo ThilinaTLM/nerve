@@ -23,7 +23,7 @@ pnpm install --frozen-lockfile
 node scripts/verify-release-tag.mjs v0.13.0
 pnpm fix
 pnpm check
-pnpm test
+pnpm run test:full
 pnpm build
 node scripts/pack-npm.mjs
 ```

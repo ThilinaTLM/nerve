@@ -4,6 +4,6 @@
 - Use official shadcn-svelte components from `packages/ui-kit/src/lib/components/ui` and `@lucide/svelte` icons. Style with theme-token Tailwind utilities, including `success`/`warning`/`info`; use `destructive` for readable red text/tints and `destructive-solid` with `destructive-solid-foreground` for opaque destructive fills. Use monospace only for code, logs, and paths.
 - Shared CSS and tokens live in `packages/ui-kit/src/styles/`, with `app.css` as the entrypoint. Global classes must be deliberate cross-component contracts used by at least two components; `scripts/lib/style-policy.mjs` is the authoritative partial allowlist. Follow `packages/workbench-app/AGENTS.md` for its full styling model.
 - Add automated tests for important behavior, not static exports, pass-through adapters, cosmetic details, or behavior already covered at its owning layer.
-- Before completing code changes, run `pnpm fix && pnpm check && pnpm test` in one Bash invocation. Fix failures, then rerun the full chain.
+- Before completing package-scoped code changes, run `pnpm fix && pnpm check && pnpm run test:affected` in one Bash invocation. Use `pnpm run test:full` instead when changing root, workspace, or test infrastructure, or when broad validation is required. Fix failures, then rerun the same chain.
 - Run the UI against an existing daemon with `NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui`.
 - Use the `gh` CLI for GitHub operations.

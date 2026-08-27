@@ -24,7 +24,8 @@ pnpm build                  # TypeScript packages and staged Workbench assets
 pnpm build:native           # host Rust addon in packages/native/prebuilds/local
 pnpm fix                    # Rust, TypeScript, Svelte, and ESLint fixes
 pnpm check                  # formatting, lint, boundaries, package and Rust checks
-pnpm test                   # build the host addon, then run package and Rust tests
+pnpm run test:affected      # test changed packages and their dependents
+pnpm run test:full          # run the complete package and Rust test suite
 ```
 
 `pnpm dev` and `pnpm desktop` build the host native addon automatically. Release prebuilds are separate architecture-specific files and are produced by GitHub Actions.
@@ -49,7 +50,7 @@ pnpm --filter @nervekit/website build
 
 Use explicit `NERVE_HOME`, ports, and Electron profile overrides for tests that can migrate or mutate state. The normal profile intentionally sits outside `NERVE_HOME`; changing only one does not fully isolate a desktop test.
 
-Before completing code changes, repository policy requires `pnpm fix && pnpm check && pnpm test`, then a rerun after fixes.
+Before completing package-scoped code changes, repository policy requires `pnpm fix && pnpm check && pnpm run test:affected`. Use `pnpm run test:full` for root, workspace, or test-infrastructure changes and for broad validation. Rerun the same chain after fixes.
 
 ## Next steps
 

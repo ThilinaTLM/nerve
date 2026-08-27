@@ -123,7 +123,7 @@ jobs:
 
       - name: Run complete test suite
         if: github.event_name != 'pull_request' || needs.paths.outputs.testable == 'true'
-        run: pnpm test
+        run: pnpm run test:full
 
       - name: Build workbench runtime
         if: github.event_name != 'pull_request' || needs.paths.outputs.workbench == 'true'

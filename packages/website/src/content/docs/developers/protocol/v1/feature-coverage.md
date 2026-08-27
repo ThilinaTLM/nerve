@@ -19,4 +19,4 @@ sidebar:
 | HTTP/WebSocket parity                   | workbench dispatcher and release smoke tests                     |
 | Cross-platform host semantics           | shared real-host parity matrix                                   |
 
-Run `pnpm fix && pnpm check && pnpm test` for the complete repository gate.
+Run `pnpm fix && pnpm check && pnpm run test:full` for the complete repository gate.
