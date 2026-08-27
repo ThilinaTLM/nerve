@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   createTaskDefinitionRequestSchema,
+  taskDefinitionFileSchema,
   taskDefinitionSchema,
 } from "../src/index.js";
 
@@ -18,6 +19,33 @@ test("task definitions default to a single active run", () => {
     updatedAt: new Date().toISOString(),
   });
   assert.equal(definition.runPolicy, "single");
+});
+
+test("project task definition files derive scope from their location", () => {
+  const portable = taskDefinitionFileSchema.parse({
+    version: 1,
+    definitions: [
+      {
+        id: "taskdef_portable",
+        scope: { kind: "project" },
+        command: "pnpm check",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  });
+  assert.deepEqual(portable.definitions[0]?.scope, { kind: "project" });
+
+  const projected = taskDefinitionFileSchema.parse({
+    version: 1,
+    definitions: [
+      {
+        ...portable.definitions[0],
+        scope: { kind: "project", projectId: "proj_foreign" },
+      },
+    ],
+  });
+  assert.deepEqual(projected.definitions[0]?.scope, { kind: "project" });
 });
 
 test("task definitions accept an optional guarded TCP port", () => {

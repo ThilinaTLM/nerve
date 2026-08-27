@@ -26,6 +26,26 @@ export const taskDefinitionSchema = z.object({
 });
 export type TaskDefinition = z.infer<typeof taskDefinitionSchema>;
 
+/**
+ * Project-resident definitions derive their project identity from the enclosing
+ * directory. The non-strict scope intentionally projects legacy runtime-shaped
+ * files by discarding their obsolete projectId.
+ */
+export const persistedTaskDefinitionSchema = taskDefinitionSchema.extend({
+  scope: z.object({ kind: z.literal("project") }),
+});
+export type PersistedTaskDefinition = z.infer<
+  typeof persistedTaskDefinitionSchema
+>;
+
+export const taskDefinitionFileSchema = z
+  .object({
+    version: z.literal(1),
+    definitions: z.array(persistedTaskDefinitionSchema),
+  })
+  .strict();
+export type TaskDefinitionFile = z.infer<typeof taskDefinitionFileSchema>;
+
 export const createTaskDefinitionRequestSchema = z.object({
   label: z.string().min(1).optional(),
   command: z.string().min(1),

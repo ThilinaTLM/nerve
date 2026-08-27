@@ -760,12 +760,15 @@ type IntegrationsConfig = {
     ├── APPEND_SYSTEM.md
     ├── skills/                     # Nerve-specific project skills
     ├── tasks/
+    │   └── definitions.json        # Portable saved task definitions
     └── suggestions/
 ```
 
 Nerve supports context from project and ancestor `AGENTS.md` files. It discovers project skills from `.nerve/skills/` and applicable project/ancestor `.agents/skills/` directories.
 
 Project configuration contains only project-portable values. Credentials, daemon settings, runtime state, conversation history, and machine identity never belong in a project directory. Project provider definitions may reference user-owned credential names but cannot contain credential values.
+
+Every file inside `<project>/.nerve/` derives its project scope from its enclosing project directory. It must not persist, require, compare, or trust a Nerve `projectId`, because project IDs belong to one local installation. Storage boundaries inject the active local project ID when constructing runtime or API objects and remove it before writing project-resident files. Project-scoped relational and runtime state under `NERVE_HOME` remains ID-based because it is installation-owned rather than repository-portable.
 
 ### Project permission safety
 
