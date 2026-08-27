@@ -20,7 +20,7 @@ The server evaluates mode, permission, risk, tool availability, and request deta
 - Read only allows local inspection and interaction, but denies commands, network access, mutations, and child spawning;
 - Supervised automatically allows safe local reads and audited read-only integrations, then requests approval for other risks unless an exact-risk allow exception covers the complete request;
 - Autonomous permits allowed risks without normal approval, but explicit block exceptions still apply;
-- effective exceptions are the deduplicated union of global settings and host-side project permissions under `~/.nerve/projects/<project-id>/permissions.json`; workspace `.nerve` files are never authoritative permission sources;
+- effective exceptions are the deduplicated union of user permissions under `~/.nerve/config/permissions.json` and project permissions under `<project>/.nerve/config/permissions.json`;
 - planning adds path-constrained writes, tool omissions, and shell guardrails before generic permission evaluation.
 
 The permission engine combines manifest and argument-sensitive risk, normalized request targets, permission level, hard host constraints, and typed user exceptions to produce `allow`, `approval`, or `deny`. Block exceptions win across scopes. Allow exceptions cannot expand Read only or bypass planning restrictions. Compound Bash calls are parsed into segments, and every mutating segment must match an exact-risk command-prefix exception before the call can run without approval. Python execution remains opaque and never receives a durable allow suggestion.

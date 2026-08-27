@@ -1,7 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { PermissionRule } from "@nervekit/contracts";
 import type { ConversationJournalCommit } from "@nervekit/contracts";
 import {
   deserializeState,
@@ -9,7 +8,6 @@ import {
   type ConversationPersistenceDelta,
   type SerializedConversationState,
 } from "../../domains/conversations/conversation-state-materializer.js";
-import { permissionRuleSchema } from "@nervekit/contracts";
 import {
   checkpointConversationStateInTransaction,
   listConversationJournalIds,
@@ -19,9 +17,13 @@ import {
 } from "./conversation-journal-database.js";
 import { decode, encode } from "./payload-codecs.js";
 import {
+  CANONICAL_BASELINE_NAME,
   CANONICAL_SCHEMA_CHECKSUM,
   CANONICAL_SCHEMA_SQL,
+  CANONICAL_SCHEMA_V1_CHECKSUM,
   CANONICAL_SCHEMA_VERSION,
+  CANONICAL_V1_TO_V2_MIGRATION_NAME,
+  CANONICAL_V1_TO_V2_MIGRATION_SQL,
 } from "./schema.js";
 
 export interface CanonicalDocument<T = unknown> {
@@ -67,47 +69,89 @@ export class CanonicalDatabase {
          WHERE type = 'table' AND name = 'schema_migrations'`,
       )
       .get() as { present?: number } | undefined;
-    if (hasLedger?.present === 1) this.assertSchemaCompatible();
-    this.database.exec(CANONICAL_SCHEMA_SQL);
-    const applied = this.database
-      .prepare(`SELECT version FROM schema_migrations WHERE version = ?`)
-      .get(CANONICAL_SCHEMA_VERSION) as { version: number } | undefined;
-    if (!applied) {
+    if (hasLedger?.present !== 1) {
+      this.database.exec(CANONICAL_SCHEMA_SQL);
       this.database
         .prepare(
           `INSERT INTO schema_migrations (
              version, name, checksum, applied_at_ms, duration_ms
-           ) VALUES (?, 'canonical-baseline', ?, ?, 0)`,
+           ) VALUES (?, ?, ?, ?, 0)`,
         )
-        .run(CANONICAL_SCHEMA_VERSION, CANONICAL_SCHEMA_CHECKSUM, Date.now());
+        .run(
+          CANONICAL_SCHEMA_VERSION,
+          CANONICAL_BASELINE_NAME,
+          CANONICAL_SCHEMA_CHECKSUM,
+          Date.now(),
+        );
+      return;
     }
+
+    const rows = this.schemaMigrationRows();
+    this.assertSchemaCompatible(rows);
+    if (rows.at(-1)?.version === 1) this.migrateV1ToV2();
   }
 
-  assertSchemaCompatible(): void {
-    const rows = this.database
-      .prepare(
-        `SELECT version, checksum FROM schema_migrations ORDER BY version`,
-      )
-      .all() as unknown as Array<{ version: number; checksum: string }>;
+  assertSchemaCompatible(
+    rows: Array<{
+      version: number;
+      checksum: string;
+    }> = this.schemaMigrationRows(),
+  ): void {
     const newest = rows.at(-1);
-    if (newest && newest.version > CANONICAL_SCHEMA_VERSION) {
+    if (!newest) throw new Error("Storage schema migration ledger is empty.");
+    if (newest.version > CANONICAL_SCHEMA_VERSION) {
       throw new Error(
         `Storage schema ${newest.version} is newer than supported schema ${CANONICAL_SCHEMA_VERSION}.`,
       );
     }
-    const current = rows.find(
-      (row) => row.version === CANONICAL_SCHEMA_VERSION,
-    );
-    if (!current && newest) {
-      throw new Error(
-        `Storage schema ${newest.version} requires migration to ${CANONICAL_SCHEMA_VERSION}.`,
-      );
+    const checksums = new Map([
+      [1, CANONICAL_SCHEMA_V1_CHECKSUM],
+      [CANONICAL_SCHEMA_VERSION, CANONICAL_SCHEMA_CHECKSUM],
+    ]);
+    for (const row of rows) {
+      const expected = checksums.get(row.version);
+      if (!expected) {
+        throw new Error(
+          `Storage schema version ${row.version} is unsupported.`,
+        );
+      }
+      if (row.checksum !== expected) {
+        throw new Error(
+          `Storage schema checksum drift at version ${row.version}.`,
+        );
+      }
     }
-    if (current && current.checksum !== CANONICAL_SCHEMA_CHECKSUM) {
-      throw new Error(
-        `Storage schema checksum drift at version ${CANONICAL_SCHEMA_VERSION}.`,
-      );
-    }
+  }
+
+  private schemaMigrationRows(): Array<{
+    version: number;
+    checksum: string;
+  }> {
+    return this.database
+      .prepare(
+        `SELECT version, checksum FROM schema_migrations ORDER BY version`,
+      )
+      .all() as unknown as Array<{ version: number; checksum: string }>;
+  }
+
+  private migrateV1ToV2(): void {
+    const startedAt = Date.now();
+    this.transaction((database) => {
+      database.exec(CANONICAL_V1_TO_V2_MIGRATION_SQL);
+      database
+        .prepare(
+          `INSERT INTO schema_migrations (
+             version, name, checksum, applied_at_ms, duration_ms
+           ) VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(
+          CANONICAL_SCHEMA_VERSION,
+          CANONICAL_V1_TO_V2_MIGRATION_NAME,
+          CANONICAL_SCHEMA_CHECKSUM,
+          Date.now(),
+          Date.now() - startedAt,
+        );
+    });
   }
 
   close(checkpoint = true): void {
@@ -288,64 +332,6 @@ export class CanonicalDatabase {
          WHERE namespace = ? AND scope_id = ? AND document_id = ?`,
       )
       .run(namespace, scopeId, documentId);
-  }
-
-  listPermissionRules(projectId?: string): PermissionRule[] {
-    const rows = this.database
-      .prepare(
-        `SELECT * FROM permission_rules
-         WHERE enabled = 1 AND (scope = 'user' OR project_id = ?)
-         ORDER BY CASE scope WHEN 'user' THEN 0 ELSE 1 END, id`,
-      )
-      .all(projectId ?? null) as unknown as PermissionRuleRow[];
-    return rows.map(decodePermissionRule);
-  }
-
-  replacePermissionRules(
-    scope: "user" | "project",
-    projectId: string | undefined,
-    rules: readonly PermissionRule[],
-  ): void {
-    for (const rule of rules) permissionRuleSchema.parse(rule);
-    this.transaction((database) => {
-      if (scope === "user") {
-        database
-          .prepare(`DELETE FROM permission_rules WHERE scope = 'user'`)
-          .run();
-      } else {
-        database
-          .prepare(
-            `DELETE FROM permission_rules WHERE scope = 'project' AND project_id = ?`,
-          )
-          .run(projectId ?? null);
-      }
-      const insert = database.prepare(
-        `INSERT INTO permission_rules (
-           id, scope, project_id, effect, tool_name, matcher_kind, pattern,
-           source_digest, enabled, created_at_ms, updated_at_ms
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      );
-      for (const rule of rules) {
-        if (rule.scope !== scope || rule.projectId !== projectId) {
-          throw new Error(
-            "Permission rule scope does not match replacement scope.",
-          );
-        }
-        insert.run(
-          rule.id,
-          rule.scope,
-          rule.projectId ?? null,
-          rule.effect,
-          rule.toolName,
-          rule.matcherKind,
-          rule.pattern,
-          rule.sourceDigest ?? null,
-          rule.enabled ? 1 : 0,
-          Date.parse(rule.createdAt),
-          Date.parse(rule.updatedAt),
-        );
-      }
-    });
   }
 
   appendDurableEvent(input: {
@@ -664,20 +650,6 @@ interface DurableEventRow {
   occurred_at_ms: number;
 }
 
-interface PermissionRuleRow {
-  id: string;
-  scope: "user" | "project";
-  project_id: string | null;
-  effect: "allow" | "deny";
-  tool_name: string;
-  matcher_kind: PermissionRule["matcherKind"];
-  pattern: string;
-  source_digest: string | null;
-  enabled: number;
-  created_at_ms: number;
-  updated_at_ms: number;
-}
-
 function decodeDocument<T>(
   namespace: string,
   scopeId: string,
@@ -707,19 +679,4 @@ function decodeDurableEvent(row: DurableEventRow) {
   };
 }
 
-function decodePermissionRule(row: PermissionRuleRow): PermissionRule {
-  return permissionRuleSchema.parse({
-    id: row.id,
-    scope: row.scope,
-    projectId: row.project_id ?? undefined,
-    effect: row.effect,
-    toolName: row.tool_name,
-    matcherKind: row.matcher_kind,
-    pattern: row.pattern,
-    sourceDigest: row.source_digest ?? undefined,
-    enabled: row.enabled === 1,
-    createdAt: new Date(row.created_at_ms).toISOString(),
-    updatedAt: new Date(row.updated_at_ms).toISOString(),
-  });
-}
 export { decode, encode } from "./payload-codecs.js";

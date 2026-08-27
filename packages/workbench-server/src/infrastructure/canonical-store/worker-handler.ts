@@ -28,15 +28,6 @@ export function executeCanonicalCommand(
         command.documentId,
       );
       return undefined;
-    case "list_permission_rules":
-      return database.listPermissionRules(command.projectId);
-    case "replace_permission_rules":
-      database.replacePermissionRules(
-        command.scope,
-        command.projectId,
-        command.rules,
-      );
-      return undefined;
     case "append_durable_event":
       return database.appendDurableEvent(command.input);
     case "durable_event_for_intent":

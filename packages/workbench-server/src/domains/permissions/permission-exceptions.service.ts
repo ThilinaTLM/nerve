@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type {
   PermissionException,
   PermissionRule,
@@ -41,19 +40,6 @@ function toRule(
     toolName: exception.tool,
     matcherKind: matcherKind(exception),
     pattern: exception.rule,
-    ...(scope === "project"
-      ? {
-          sourceDigest: createHash("sha256")
-            .update(
-              JSON.stringify({
-                effect: exception.effect,
-                tool: exception.tool,
-                rule: exception.rule,
-              }),
-            )
-            .digest("hex"),
-        }
-      : {}),
     enabled: true,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -70,18 +56,6 @@ function toException(rule: PermissionRule): PermissionException {
     effect: rule.effect,
     rule: rule.pattern,
   };
-}
-
-function sameRule(left: PermissionRule, right: PermissionRule): boolean {
-  return (
-    left.id === right.id &&
-    left.effect === right.effect &&
-    left.toolName === right.toolName &&
-    left.matcherKind === right.matcherKind &&
-    left.pattern === right.pattern &&
-    left.sourceDigest === right.sourceDigest &&
-    left.enabled === right.enabled
-  );
 }
 
 export type DurableExceptionScope = "project" | "user";
@@ -108,16 +82,6 @@ export class PermissionExceptionService {
     this.getProject(projectId);
     return this.exclusive(`project:${projectId}`, async () => {
       const saved = await this.projects.replace(projectId, permissions);
-      const timestamp = new Date().toISOString();
-      // This protocol mutation is an explicit trust decision. The canonical
-      // copy is a hash-equivalent trust record; later file edits stop matching.
-      await this.storage.canonicalStore.replacePermissionRules(
-        "project",
-        projectId,
-        saved.exceptions.map((exception) =>
-          toRule(exception, "project", projectId, timestamp),
-        ),
-      );
       await this.events.publish("project.permissions.updated", {
         projectId,
         permissions: saved,
@@ -132,20 +96,11 @@ export class PermissionExceptionService {
     const userRules = this.storage.settings.permissions.exceptions.map(
       (exception) => toRule(exception, "user", undefined, now),
     );
-    const requested = (await this.projects.get(projectId)).exceptions.map(
+    const projectRules = (await this.projects.get(projectId)).exceptions.map(
       (exception) => toRule(exception, "project", projectId, now),
     );
-    const trusted = (
-      await this.storage.canonicalStore.listPermissionRules(projectId)
-    ).filter((rule) => rule.scope === "project");
-    const effectiveProject = requested.filter(
-      (rule) =>
-        rule.effect === "deny" ||
-        trusted.some((candidate) => sameRule(rule, candidate)),
-    );
-    // User deny rules are evaluated first by the policy layer and cannot be
-    // displaced by project allows.
-    return [...userRules, ...effectiveProject];
+    // Deny precedence and hard constraints remain enforced by the policy layer.
+    return [...userRules, ...projectRules];
   }
 
   async effective(projectId: string): Promise<PermissionException[]> {

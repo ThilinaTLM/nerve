@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 describe("project permission exceptions", () => {
-  it("stores scoped canonical rules and unions user exceptions", async () => {
+  it("uses user and project permission files as authoritative sources", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-project-permissions-"));
     roots.push(root);
     const storage = await initializeStorage(root);
@@ -91,17 +91,47 @@ describe("project permission exceptions", () => {
       projectException,
     ]);
     assert.deepEqual(await service.effective("proj_two"), [userException]);
+    const projectPermissionsPath = await repository.file("proj_one");
     assert.deepEqual(
-      (await storage.canonicalStore.listPermissionRules("proj_one"))
-        .filter((rule) => rule.scope === "project")
-        .map((rule) => ({
-          id: `exception_${rule.id.replace(/^rule_project_?/, "")}`,
-          tool: rule.toolName,
-          effect: rule.effect,
-          rule: rule.pattern,
-        })),
-      [projectException],
+      JSON.parse(await readFile(projectPermissionsPath, "utf8")),
+      {
+        version: 1,
+        rules: [
+          {
+            id: "project",
+            effect: "allow",
+            tool: "bash",
+            matcher: { kind: "command_glob", pattern: "gh pr view*" },
+            enabled: true,
+          },
+        ],
+      },
     );
+
+    await writeFile(
+      projectPermissionsPath,
+      JSON.stringify({
+        version: 1,
+        rules: [
+          {
+            id: "manual",
+            effect: "allow",
+            tool: "bash",
+            matcher: { kind: "command_glob", pattern: "gh issue view*" },
+            enabled: true,
+          },
+        ],
+      }),
+    );
+    assert.deepEqual(await service.effective("proj_one"), [
+      userException,
+      {
+        id: "exception_manual",
+        tool: "bash",
+        effect: "allow",
+        rule: "gh issue view*",
+      },
+    ]);
     assert.equal(published.includes("project.permissions.updated"), true);
     assert.equal(published.includes("settings.updated"), true);
   });
