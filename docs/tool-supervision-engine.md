@@ -1,6 +1,6 @@
 # Tool supervision engine
 
-> **Status:** Non-normative design brainstorm for deciding whether a drafted tool call is approved automatically, requires user approval, or is denied.
+> **Status:** Superseded, non-normative design brainstorm retained for historical context. The authoritative target requirements are in [`permission-rule-sets.md`](./permission-rule-sets.md).
 
 ## Principle
 
