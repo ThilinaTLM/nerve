@@ -5,7 +5,7 @@ import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import {
   fileViewerPreferences,
   setWrapLongLines,
-} from "$lib/features/filesystem/state/file-viewer-preferences.svelte";
+} from "$lib/application/workspace/file-viewer-preferences.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   addCenterTab,

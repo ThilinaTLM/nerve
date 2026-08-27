@@ -53,6 +53,7 @@ export type DiffViewState = {
   renamedFrom?: string;
   area: GitDiffArea;
   data?: GitFileDiffResponse;
+  wrapLines: boolean;
   loading: boolean;
   refreshing: boolean;
   error?: string;

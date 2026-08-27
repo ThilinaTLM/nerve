@@ -2,6 +2,10 @@ import type { GitDiffArea } from "@nervekit/contracts";
 import { diffViewKey } from "$lib/kernel/navigation/view-keys";
 import { getGitFileDiff } from "$lib/features/git/api/git.api";
 import {
+  fileViewerPreferences,
+  setWrapLongLines,
+} from "$lib/application/workspace/file-viewer-preferences.svelte";
+import {
   gitState,
   type DiffViewState,
 } from "$lib/features/git/state/git-state.svelte";
@@ -72,6 +76,7 @@ export async function openDiffPane(input: {
   gitState.diffViews[key] ??= {
     id,
     ...input,
+    wrapLines: fileViewerPreferences.wrapLongLines,
     loading: false,
     refreshing: false,
   };
@@ -91,6 +96,14 @@ export async function selectCenterDiffTab(id: string): Promise<void> {
 export async function refreshDiffPane(id: string): Promise<void> {
   const view = gitState.diffViews[diffViewKey(id)];
   if (view && !view.loading && !view.refreshing) await loadDiffView(view, true);
+}
+
+export function toggleDiffLineWrap(id: string): void {
+  const view = gitState.diffViews[diffViewKey(id)];
+  if (!view) return;
+  const next = !view.wrapLines;
+  view.wrapLines = next;
+  setWrapLongLines(next);
 }
 
 export function closeDiffTab(id: string): void {

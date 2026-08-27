@@ -1,7 +1,7 @@
 import {
   loadFileViewerPreferences,
   persistFileViewerPreferences,
-} from "./file-viewer-preferences";
+} from "./file-viewer-preferences.js";
 
 export const fileViewerPreferences = $state(loadFileViewerPreferences());
 
