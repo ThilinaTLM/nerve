@@ -729,16 +729,6 @@ export class GitService {
     }
 
     if ((repo.behind ?? 0) > 0) {
-      const { files } = parsePorcelainV2(
-        (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
-      );
-      if (files.length > 0) {
-        throw new GitWorkflowError(
-          409,
-          "GIT_DIRTY_WORKTREE",
-          "Working tree has uncommitted changes. Commit or stash them before syncing.",
-        );
-      }
       await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
       repo = await this.summarizeRepo(repoDir, relativePath, repoName);
     }
@@ -762,13 +752,6 @@ export class GitService {
       relativePath,
       this.repoName(projectId, relativePath),
     );
-    if (repo.dirty) {
-      throw new GitWorkflowError(
-        409,
-        "GIT_DIRTY_WORKTREE",
-        "Working tree has uncommitted changes. Commit or stash them before switching branches.",
-      );
-    }
     if (!repo.hasRemote) {
       throw new GitWorkflowError(
         409,
@@ -861,16 +844,6 @@ export class GitService {
         409,
         "GIT_NO_UPSTREAM",
         "Current branch has no upstream to pull from.",
-      );
-    }
-    const { files } = parsePorcelainV2(
-      (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
-    );
-    if (files.length > 0) {
-      throw new GitWorkflowError(
-        409,
-        "GIT_DIRTY_WORKTREE",
-        "Working tree has uncommitted changes. Commit or stash them before pulling.",
       );
     }
     await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));

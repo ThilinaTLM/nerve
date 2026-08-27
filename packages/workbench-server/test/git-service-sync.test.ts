@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { promisify } from "node:util";
 import type { ProjectRecord } from "@nervekit/contracts";
-import { GitService, GitWorkflowError } from "@nervekit/tools";
+import { GitService } from "@nervekit/tools";
 
 const execFileAsync = promisify(execFile);
 
@@ -134,19 +134,22 @@ describe("GitService.syncBranch", () => {
     });
   });
 
-  it("rejects behind sync on a dirty worktree", async () => {
+  it("pulls a behind branch while preserving a dirty worktree", async () => {
     await withRemoteFixture(async ({ root, remoteDir, localDir, service }) => {
       await pushRemoteOnlyCommit(root, remoteDir, "behind.txt");
       await writeFile(join(localDir, "dirty.txt"), "dirty\n");
 
-      await assert.rejects(
-        () => service.syncBranch("project", "."),
-        (error) =>
-          error instanceof GitWorkflowError &&
-          error.code === "GIT_DIRTY_WORKTREE",
-      );
+      const result = await service.syncBranch("project", ".");
 
-      await assert.rejects(() => git(localDir, ["show", "HEAD:behind.txt"]));
+      assert.equal(result.repo.dirty, true);
+      assert.equal(
+        await git(localDir, ["show", "HEAD:behind.txt"]),
+        "remote change\n",
+      );
+      assert.match(
+        await git(localDir, ["status", "--short"]),
+        /\?\? dirty\.txt/,
+      );
     });
   });
 });

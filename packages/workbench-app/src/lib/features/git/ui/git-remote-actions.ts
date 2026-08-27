@@ -14,8 +14,7 @@ export function pullDisabled(
   return (
     remoteActionDisabled(repo, remoteActionInProgress) ||
     repo.detached ||
-    !repo.hasUpstream ||
-    repo.dirty
+    !repo.hasUpstream
   );
 }
 
@@ -41,7 +40,7 @@ export function basePullDisabled(
   repo: GitRepoSummary,
   remoteActionInProgress: boolean,
 ): boolean {
-  return remoteActionDisabled(repo, remoteActionInProgress) || repo.dirty;
+  return remoteActionDisabled(repo, remoteActionInProgress);
 }
 
 export function showPull(repo: GitRepoSummary): boolean {

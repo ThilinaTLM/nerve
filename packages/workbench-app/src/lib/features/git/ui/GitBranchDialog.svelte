@@ -1,6 +1,7 @@
 <script lang="ts">
 import Check from "@lucide/svelte/icons/check";
 import GitBranch from "@lucide/svelte/icons/git-branch";
+import Info from "@lucide/svelte/icons/info";
 import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
@@ -85,6 +86,18 @@ const dialogDescription = $derived(
 >
   {#if view === "switch"}
     <div class="grid gap-4">
+      {#if repoSummary.dirty}
+        <div
+          class="flex items-start gap-2 rounded-md border border-info/40 bg-info/10 px-3 py-2 text-xs text-muted-foreground"
+        >
+          <Info class="mt-0.5 size-3.5 shrink-0 text-info" />
+          <p>
+            Local changes move with a compatible switch. Git will stop if the
+            target branch would overwrite them.
+          </p>
+        </div>
+      {/if}
+
       {#if showBaseQuickSwitch}
         <div
           class="flex items-center gap-2 rounded-md border border-info/40 bg-info/10 px-3 py-2"

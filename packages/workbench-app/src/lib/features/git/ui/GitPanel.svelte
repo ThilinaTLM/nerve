@@ -194,7 +194,7 @@ function openBranchDialog(): void {
             variant="outline"
             showLabel
             title={repo.dirty
-              ? "Commit or stash changes before pulling"
+              ? "Pull with local changes; Git stops if files would be overwritten"
               : "Pull current branch with fast-forward only"}
             loading={model.operations.pulling}
             disabled={!model.capabilities.remote.pull.enabled ||
@@ -226,7 +226,9 @@ function openBranchDialog(): void {
             ? "Add a remote before syncing"
             : repo.detached
               ? "Check out a branch before syncing"
-              : "Fetch, then pull and push the current branch when needed"}
+              : repo.dirty
+                ? "Sync with local changes; Git stops if files would be overwritten"
+                : "Fetch, then pull and push the current branch when needed"}
           loading={model.operations.syncing}
           disabled={!model.capabilities.remote.sync.enabled ||
             syncDisabled(repo, remoteBusy)}
@@ -240,7 +242,7 @@ function openBranchDialog(): void {
             variant="outline"
             showLabel
             title={repo.dirty
-              ? "Commit or stash changes before switching branches"
+              ? `Switch to ${repo.baseBranch} and pull with local changes; Git stops if files would be overwritten`
               : `Switch to ${repo.baseBranch} and pull with fast-forward only`}
             loading={model.operations.switchingBaseAndPulling}
             disabled={!model.capabilities.remote["switch-base-and-pull"]
