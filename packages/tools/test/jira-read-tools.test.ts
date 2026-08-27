@@ -41,7 +41,7 @@ describe("Jira read request contracts", () => {
       });
     try {
       const result = await executeJiraSearchBoards(
-        { project_key: "NER", save_to_file: false },
+        { project_key: "NER" },
         context,
       );
       assert.match(
@@ -94,8 +94,7 @@ describe("Jira read request contracts", () => {
       const discovery = await executeJiraGetProject(
         {
           project_key: "NER",
-          include_issue_types: true,
-          save_to_file: false,
+          include: ["issue_types"],
         },
         context,
       );
@@ -112,9 +111,8 @@ describe("Jira read request contracts", () => {
       const createMeta = await executeJiraGetProject(
         {
           project_key: "NER",
-          include_create_meta: true,
-          issue_type_name: "Bug",
-          save_to_file: false,
+          include: ["create_meta"],
+          issue_type: "Bug",
         },
         context,
       );
@@ -172,7 +170,7 @@ describe("Jira read request contracts", () => {
     }
   });
 
-  it("serializes enhanced-search expansions as one comma-delimited value", async () => {
+  it("does not send Jira search expansions", async () => {
     const originalFetch = globalThis.fetch;
     let requestBody: Record<string, unknown> | undefined;
     globalThis.fetch = async (_input, init) => {
@@ -183,13 +181,11 @@ describe("Jira read request contracts", () => {
       await executeJiraSearchIssues(
         {
           jql: "project = NER",
-          expand: [" names ", "schema", "names"],
           next_page_token: "next-1",
-          save_to_file: false,
         },
         context,
       );
-      assert.equal(requestBody?.expand, "names,schema");
+      assert.equal(requestBody?.expand, undefined);
       assert.equal(requestBody?.nextPageToken, "next-1");
     } finally {
       globalThis.fetch = originalFetch;
@@ -198,8 +194,15 @@ describe("Jira read request contracts", () => {
 
   it("returns bounded readable issue previews with follow-up identities", async () => {
     const originalFetch = globalThis.fetch;
+    const relatedLimits: string[] = [];
     globalThis.fetch = async (input) => {
       const url = new URL(String(input));
+      if (
+        /\/(?:comment|worklog|changelog)$/.test(url.pathname) &&
+        url.searchParams.has("maxResults")
+      ) {
+        relatedLimits.push(url.searchParams.get("maxResults") ?? "");
+      }
       if (url.pathname.endsWith("/issue/NER-14/comment")) {
         return Response.json({
           comments: Array.from({ length: 4 }, (_, index) => ({
@@ -280,18 +283,21 @@ describe("Jira read request contracts", () => {
       const result = await executeJiraGetIssue(
         {
           issue_key: "NER-14",
-          include_comments: true,
-          include_worklogs: true,
-          include_changelog: true,
-          include_remote_links: true,
-          include_issue_links: true,
-          include_attachments: true,
-          save_to_file: false,
+          related_limit: 7,
+          include: [
+            "comments",
+            "worklogs",
+            "changelog",
+            "remote_links",
+            "issue_links",
+            "attachments",
+          ],
         },
         context,
       );
       assert.match(result.content ?? "", /Description: Investigate deployment/);
       assert.match(result.content ?? "", /Showing first 3 of 4/);
+      assert.match(result.content ?? "", /Raw JSON saved to:/);
       assert.match(result.content ?? "", /a1 · trace.txt/);
       assert.match(result.content ?? "", /NER-15/);
       assert.match(result.content ?? "", /https:\/\/ci\.example\/1/);
@@ -300,6 +306,7 @@ describe("Jira read request contracts", () => {
         3,
       );
       assert.equal(result.details?.includedCounts?.comments, 4);
+      assert.deepEqual(relatedLimits, ["7", "7", "7"]);
     } finally {
       globalThis.fetch = originalFetch;
     }

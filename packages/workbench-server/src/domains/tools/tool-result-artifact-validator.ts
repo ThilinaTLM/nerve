@@ -74,7 +74,8 @@ export class ToolResultArtifactValidator {
     const info = await lstat(path).catch(() => undefined);
     if (!info) return unavailable(base, path, "missing");
 
-    if (!formatMatchesMedia(claim.format.kind, claim.format.mediaType)) {
+    const mediaType = baseMediaType(claim.format.mediaType);
+    if (!formatMatchesMedia(claim.format.kind, mediaType)) {
       return unavailable(base, path, "unsupported_format");
     }
     const text = [
@@ -104,7 +105,7 @@ export class ToolResultArtifactValidator {
     if (tools.length !== claim.recommendedTools.length) {
       return unavailable(base, path, "unsupported_format");
     }
-    if (image && !(await hasImageSignature(path, claim.format.mediaType))) {
+    if (image && !(await hasImageSignature(path, mediaType))) {
       return unavailable(base, path, "unsupported_format");
     }
     return {
@@ -177,11 +178,14 @@ async function inspectPathChain(
   return "ok";
 }
 
+function baseMediaType(mediaType: string): string {
+  return mediaType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+}
+
 function formatMatchesMedia(
   kind: ToolArtifactClaim["format"]["kind"],
-  mediaType: string,
+  media: string,
 ): boolean {
-  const media = mediaType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
   if (kind === "image")
     return [
       "image/png",

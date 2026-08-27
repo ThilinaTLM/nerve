@@ -389,6 +389,7 @@ export function mutationCandidate(
   const details = record(result.details);
   const summary = record(details.mutationSummary);
   const lines: string[] = [];
+  const transitions = array(details.transitions) ?? [];
   if (Object.keys(summary).length > 0) {
     lines.push(
       `Operation: ${string(summary.operation) || context.toolName}`,
@@ -415,7 +416,7 @@ export function mutationCandidate(
       ?.filter((block) => block.type === "text")
       .map((block) => block.text)
       .join("\n");
-    if (content) lines.push(content);
+    if (content && transitions.length === 0) lines.push(content);
     const safe = pickSemantic({ ...result, ...details }, [
       "operation",
       "action",
@@ -446,7 +447,6 @@ export function mutationCandidate(
     ]);
     if (Object.keys(safe).length > 0) lines.push(formatFlat(safe));
   }
-  const transitions = array(details.transitions) ?? [];
   const items = transitions.slice(0, 10).map((value, index) => ({
     id: String(index),
     countsAs: "item" as const,
@@ -542,25 +542,29 @@ export function resourceCandidate(
   const result = record(context.result);
   const details = record(result.details);
   if (Object.keys(details).length === 0) return textCandidate(context);
-  const core = pickSemantic(details, [
-    "action",
-    "issueKey",
-    "projectKey",
-    "boardId",
-    "sprintId",
-    "pageId",
-    "spaceId",
-    "spaceKey",
-    "issue",
-    "project",
-    "board",
-    "sprint",
-    "page",
-    "space",
-    "bodyPreview",
-    "webUrl",
-    "bodyFormat",
-  ]);
+  const validated = artifacts(context);
+  const core = stripArtifactLocations(
+    pickSemantic(details, [
+      "action",
+      "issueKey",
+      "projectKey",
+      "boardId",
+      "sprintId",
+      "pageId",
+      "spaceId",
+      "spaceKey",
+      "issue",
+      "project",
+      "board",
+      "sprint",
+      "page",
+      "space",
+      "bodyPreview",
+      "webUrl",
+      "bodyFormat",
+    ]),
+    validated,
+  );
   const collections = [
     "comments",
     "transitions",
@@ -634,10 +638,7 @@ export function resourceCandidate(
         `Continue related collection with ${continuation.cursorName}=${String(continuation.value)}.`,
       );
   }
-  const supportingLines = artifactNoticeLines(
-    artifacts(context),
-    "supporting_data",
-  );
+  const supportingLines = artifactNoticeLines(validated, "supporting_data");
   statusLines.push(...supportingLines);
   if (!coreText && items.length === 0 && supportingLines.length === 0)
     return textCandidate(context);
@@ -657,7 +658,7 @@ export function resourceCandidate(
     overflow: { noun: "related section" },
     counts: [count("item", originalSections, items.length)],
     continuation: [...continuations(details), ...relatedContinuation],
-    artifacts: artifacts(context),
+    artifacts: validated,
   };
 }
 
@@ -739,42 +740,56 @@ export function taskLogsCandidate(
     array(result.events) ?? array(details.events) ?? array(response.events);
   if (!events) return textCandidate(context);
   const validated = artifacts(context);
+  const streamPaths = new Map<string, string>();
+  for (const stream of ["stdout", "stderr"] as const) {
+    const artifact = validated.find(
+      (item) =>
+        item.id === `task_${stream}` &&
+        item.availability === "available" &&
+        item.access.kind === "agent_file",
+    );
+    if (artifact?.access.kind === "agent_file") {
+      streamPaths.set(stream, artifact.access.path);
+    }
+  }
+  const shortenedStreams = new Set<string>();
   const items: SemanticItem[] = events.map((event, index) => {
     const value = record(event);
     const seq = number(value.seq) ?? index;
     const stream = string(value.stream) || "log";
     const raw = record(value.raw);
-    const streamArtifact = validated.find(
-      (artifact) =>
-        artifact.id === (stream === "stdout" ? "task_stdout" : "task_stderr") &&
-        artifact.availability === "available" &&
-        artifact.access.kind === "agent_file",
-    );
-    const path =
-      streamArtifact?.access.kind === "agent_file"
-        ? streamArtifact.access.path
-        : "";
-    const range =
-      number(raw.start) !== undefined && number(raw.end) !== undefined
-        ? ` [${path ? `${path} ` : ""}bytes ${String(raw.start)}-${String(raw.end)}]`
-        : "";
+    const path = streamPaths.get(stream);
+    const start = number(raw.start);
+    const end = number(raw.end);
     const prefix = `${seq} [${stream}] `;
-    const suffix = range;
+    const recoverySuffix =
+      path && start !== undefined && end !== undefined
+        ? ` [${stream} bytes ${String(start)}-${String(end)}]`
+        : "";
+    const originalLine = string(value.line);
+    const maxPlainBytes = Math.max(0, 512 - Buffer.byteLength(prefix, "utf8"));
+    const needsShortening =
+      recoverySuffix.length > 0 &&
+      Buffer.byteLength(originalLine, "utf8") > maxPlainBytes;
     const maxPayloadBytes = Math.max(
       0,
-      512 - Buffer.byteLength(prefix + suffix, "utf8"),
+      512 - Buffer.byteLength(prefix + recoverySuffix, "utf8"),
     );
-    const originalLine = string(value.line);
-    const displayedLine =
-      path && Buffer.byteLength(originalLine, "utf8") > maxPayloadBytes
-        ? maxPayloadBytes >= 3
-          ? `${textHead(originalLine, maxPayloadBytes - 3, 1)}…`
-          : ""
-        : originalLine;
+    const displayedLine = needsShortening
+      ? maxPayloadBytes >= 3
+        ? `${textHead(originalLine, maxPayloadBytes - 3, 1)}…`
+        : ""
+      : originalLine;
+    if (needsShortening) shortenedStreams.add(stream);
     return {
       id: String(seq),
       countsAs: "event",
-      blocks: [{ type: "text", text: `${prefix}${displayedLine}${suffix}` }],
+      blocks: [
+        {
+          type: "text",
+          text: `${prefix}${displayedLine}${needsShortening ? recoverySuffix : ""}`,
+        },
+      ],
     };
   });
   const originalEventCount =
@@ -788,6 +803,11 @@ export function taskLogsCandidate(
     Object.keys(task).length > 0
       ? taskSummary(task, 1).replace(/^1\. /, "")
       : undefined,
+    ...[...shortenedStreams].map((stream) =>
+      streamPaths.has(stream)
+        ? `${stream} recovery: ${streamPaths.get(stream)}`
+        : undefined,
+    ),
   ]
     .filter((value): value is string => Boolean(value))
     .join("\n");
@@ -800,10 +820,10 @@ export function taskLogsCandidate(
       ? `Showing ${events.length} of ${originalEventCount} events (seq ${firstSeq}-${lastSeq}); ${Math.max(0, originalEventCount - events.length)} omitted.`
       : `Showing ${events.length} of ${originalEventCount} events.`,
     response.hasMoreBefore === true && firstSeq !== undefined
-      ? `For older events, call task_logs with beforeSeq=${firstSeq}.`
+      ? `For older events, call task_logs in ${mode} mode with cursor=${firstSeq}.`
       : undefined,
     lastSeq !== undefined
-      ? `For future incremental events, use mode=since_cursor with sinceSeq=${lastSeq}.`
+      ? `For future events, use mode=since_cursor with cursor=${lastSeq}.`
       : undefined,
   ]
     .filter((value): value is string => Boolean(value))
@@ -980,7 +1000,8 @@ function taskSummary(value: unknown, index: number): string {
     typeof task.restartedFromTaskId === "string"
       ? `restarted from: ${task.restartedFromTaskId}`
       : undefined,
-    typeof task.restartRootTaskId === "string"
+    typeof task.restartRootTaskId === "string" &&
+    task.restartRootTaskId !== task.id
       ? `restart root: ${task.restartRootTaskId}`
       : undefined,
   ].filter((part): part is string => Boolean(part));
@@ -1056,7 +1077,7 @@ function continuations(value: Record<string, unknown>): ExactContinuation[] {
   if (older !== undefined)
     output.push({
       kind: "cursor",
-      cursorName: "beforeSeq",
+      cursorName: "cursor",
       value: older,
       direction: "before",
     });
@@ -1109,6 +1130,33 @@ function relatedCollectionContinuations(
       },
     ];
   });
+}
+
+function stripArtifactLocations(
+  value: unknown,
+  artifacts: readonly ValidatedToolArtifact[],
+): Record<string, unknown> {
+  const locations = new Set(
+    artifacts.flatMap((artifact) => {
+      if (artifact.access.kind === "agent_file") return [artifact.access.path];
+      if (artifact.access.kind === "metadata_only" && artifact.access.location)
+        return [artifact.access.location];
+      return [];
+    }),
+  );
+  const visit = (input: unknown): unknown => {
+    if (typeof input === "string")
+      return locations.has(input) ? undefined : input;
+    if (Array.isArray(input))
+      return input.map(visit).filter((item) => item !== undefined);
+    if (!input || typeof input !== "object") return input;
+    return Object.fromEntries(
+      Object.entries(input as Record<string, unknown>)
+        .map(([key, nested]) => [key, visit(nested)] as const)
+        .filter((entry) => entry[1] !== undefined),
+    );
+  };
+  return record(visit(value));
 }
 
 function artifactNoticeLines(

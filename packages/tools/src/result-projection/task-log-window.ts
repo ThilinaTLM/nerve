@@ -50,7 +50,13 @@ export function taskLogWindow(
     if (ledger.commit(entry.item.blocks, true)) selected.push(entry);
   }
   selected.sort((left, right) => left.index - right.index);
-  const selectedItems = selected.map(({ item }) => item);
+  let selectedItems = selected.map(({ item }) => item);
+  while (!taskLogOutputFits(candidate, prefix, selectedItems, budget)) {
+    if (selectedItems.length === 0) break;
+    selectedItems = ["recent", "errors", "warnings"].includes(state.mode)
+      ? selectedItems.slice(1)
+      : selectedItems.slice(0, -1);
+  }
   return {
     blocks: combineAdjacentText([
       ...prefix,
@@ -64,6 +70,20 @@ export function taskLogWindow(
     ),
     continuation: taskLogContinuation(candidate, selectedItems),
   };
+}
+
+function taskLogOutputFits(
+  candidate: ProjectionCandidate,
+  prefix: readonly ProjectableBlock[],
+  selected: readonly SemanticItem[],
+  budget: ReturnType<typeof profileBudget>,
+): boolean {
+  const ledger = new ProjectionBudgetLedger(budget);
+  if (!ledger.commit(prefix)) return false;
+  for (const item of selected) {
+    if (!ledger.commit(item.blocks, true)) return false;
+  }
+  return ledger.commit(taskLogNotice(candidate, selected, false));
 }
 
 function taskLogNotice(
@@ -84,22 +104,24 @@ function taskLogNotice(
   ];
   if (reserve) {
     lines.push(
-      `For older events, call task_logs with beforeSeq=${first}.`,
-      `Continue incremental output with mode=since_cursor and sinceSeq=${last}.`,
+      `For older events, call task_logs in ${state.mode} mode with cursor=${first}.`,
+      `Continue incremental output with mode=since_cursor and cursor=${last}.`,
     );
     const path = eventIndexPath(candidate);
     if (path) lines.push(`Full event index: ${path} (use grep or read).`);
   }
   if (!reserve && displayed > 0) {
     if (["recent", "errors", "warnings"].includes(state.mode) && omitted > 0)
-      lines.push(`For older events, call task_logs with beforeSeq=${first}.`);
+      lines.push(
+        `For older events, call task_logs in ${state.mode} mode with cursor=${first}.`,
+      );
     if (state.mode === "since_cursor" && (omitted > 0 || state.hasMoreAfter))
       lines.push(
-        `Continue incremental output with mode=since_cursor and sinceSeq=${last}.`,
+        `Continue incremental output with mode=since_cursor and cursor=${last}.`,
       );
     else
       lines.push(
-        `For future incremental events, use mode=since_cursor with sinceSeq=${last}.`,
+        `For future events, use mode=since_cursor with cursor=${last}.`,
       );
   }
   if (!reserve && state.mode === "first_failure" && omitted > 0) {
@@ -137,14 +159,14 @@ function taskLogContinuation(
   )
     output.push({
       kind: "cursor",
-      cursorName: "beforeSeq",
+      cursorName: "cursor",
       value: first,
       direction: "before",
     });
   if (state.mode !== "first_failure")
     output.push({
       kind: "cursor",
-      cursorName: "sinceSeq",
+      cursorName: "cursor",
       value: last,
       direction: "after",
     });

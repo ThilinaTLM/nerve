@@ -26,7 +26,7 @@ export function formatWebFetchCandidateText(
     details.size !== undefined ? `Bytes: ${String(details.size)}` : undefined,
     details.converted === true ? "Converted: markdown" : "Converted: no",
   ].filter((line): line is string => Boolean(line));
-  return [...metadata, body].join("\n\n");
+  return body ? `${metadata.join("\n")}\n\n${body}` : metadata.join("\n");
 }
 
 export function webFetchCandidateFitsInline(

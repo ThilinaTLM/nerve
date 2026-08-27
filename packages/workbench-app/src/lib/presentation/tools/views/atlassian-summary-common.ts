@@ -135,11 +135,6 @@ export function appendMutationOptions(
     addLine(lines, "Mode", `will ${verb}`);
   }
 }
-export function appendSavePreference(lines: string[], source: ArgSource): void {
-  const save = sourceBoolean(source, "save_to_file");
-  if (save === false) addLine(lines, "Raw JSON", "not saved");
-}
-
 export function appendLimitLines(
   lines: string[],
   source: ArgSource,

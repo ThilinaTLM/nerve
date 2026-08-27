@@ -32,7 +32,7 @@ describe("orchestration task tools", () => {
     await assert.rejects(
       () =>
         dispatcher.execute(toolCall("task_status"), {
-          taskId: outOfScope.id,
+          tasks: [outOfScope.id],
         }),
       (error) => {
         assert.ok(error instanceof CodedToolError);
@@ -42,6 +42,50 @@ describe("orchestration task tools", () => {
         return true;
       },
     );
+  });
+
+  it("accepts project-relative task cwd and rejects absolute or traversing cwd", async () => {
+    let startInput: Record<string, unknown> | undefined;
+    const dispatcher = await createDispatcher([], {
+      startTask: async (input) => {
+        startInput = input as Record<string, unknown>;
+        return task({ id: "task_started", cwd: String(startInput.cwd) });
+      },
+    });
+
+    await dispatcher.execute(toolCall("task_start"), {
+      command: "pnpm dev",
+      cwd: "packages/app",
+      ready: { kind: "pattern", pattern: "ready", timeoutMs: 1_500 },
+    });
+    assert.equal(startInput?.cwd, "/tmp/project/packages/app");
+    assert.equal(startInput?.readyPattern, "ready");
+    assert.equal(startInput?.readyTimeoutMs, 1_500);
+    assert.equal(startInput?.notify, true);
+    await assert.rejects(
+      dispatcher.execute(toolCall("task_start"), {
+        command: "pnpm dev",
+        cwd: "/tmp/project/packages/app",
+      }),
+      /relative to the project/,
+    );
+    await assert.rejects(
+      dispatcher.execute(toolCall("task_start"), {
+        command: "pnpm dev",
+        cwd: "../other-project",
+      }),
+      /inside the project/,
+    );
+  });
+
+  it("keeps sibling project directories in one task scope", async () => {
+    const sibling = task({ cwd: "/tmp/project/packages/server" });
+    const dispatcher = await createDispatcher([sibling]);
+    const result = (await dispatcher.execute(
+      { ...toolCall("task_status"), cwd: "/tmp/project/packages/app" },
+      { tasks: [sibling.id] },
+    )) as { tasks: TaskRecord[] };
+    assert.equal(result.tasks[0]?.id, sibling.id);
   });
 
   it("scopes Windows task paths independently of the server host OS", async () => {
@@ -54,11 +98,10 @@ describe("orchestration task tools", () => {
       id: "task_windows_sibling",
       cwd: "C:\\repo-other",
     });
-    const dispatcher = await createDispatcher([
-      rootTask,
-      nestedTask,
-      siblingTask,
-    ]);
+    const dispatcher = await createDispatcher(
+      [rootTask, nestedTask, siblingTask],
+      { projectDir: "C:\\repo" },
+    );
 
     const result = (await dispatcher.execute(
       { ...toolCall("task_status"), cwd: "C:\\repo" },
@@ -90,7 +133,7 @@ describe("orchestration task tools", () => {
     const dispatcher = await createDispatcher([rootTask, restarted]);
 
     const result = (await dispatcher.execute(toolCall("task_status"), {
-      taskId: "dev",
+      tasks: ["dev"],
     })) as { tasks: TaskRecord[] };
 
     assert.equal(result.tasks[0]?.id, restarted.id);
@@ -106,7 +149,7 @@ describe("orchestration task tools", () => {
     const dispatcher = await createDispatcher([first, second]);
 
     await assert.rejects(
-      () => dispatcher.execute(toolCall("task_status"), { taskId: "dev" }),
+      () => dispatcher.execute(toolCall("task_status"), { tasks: ["dev"] }),
       (error) => {
         assert.ok(error instanceof CodedToolError);
         assert.equal(error.code, "TASK_NAME_AMBIGUOUS");
@@ -185,6 +228,47 @@ describe("orchestration task tools", () => {
     );
   });
 
+  it("maps the compact task log cursor by mode", async () => {
+    const running = task({ id: "task_running", status: "running" });
+    const queries: TaskLogQuery[] = [];
+    const dispatcher = await createDispatcher([running], {
+      queryLogs: async (_taskId, query) => {
+        queries.push(query);
+        return {
+          task: running,
+          events: [],
+          nextCursor: 0,
+          hasMoreBefore: false,
+          hasMoreAfter: false,
+          mode: query.mode ?? "recent",
+        };
+      },
+    });
+
+    await dispatcher.execute(toolCall("task_logs"), {
+      task: running.id,
+      mode: "since_cursor",
+      cursor: 7,
+    });
+    await dispatcher.execute(toolCall("task_logs"), {
+      task: running.id,
+      mode: "recent",
+      cursor: 5,
+    });
+    assert.equal(queries[0]?.sinceSeq, 7);
+    assert.equal(queries[0]?.beforeSeq, undefined);
+    assert.equal(queries[1]?.beforeSeq, 5);
+    assert.equal(queries[1]?.sinceSeq, undefined);
+    await assert.rejects(
+      dispatcher.execute(toolCall("task_logs"), {
+        task: running.id,
+        mode: "first_failure",
+        cursor: 1,
+      }),
+      /does not accept cursor/,
+    );
+  });
+
   it("stops one selected task through task_control", async () => {
     const running = task({ id: "task_running", status: "running" });
     const calls: string[] = [];
@@ -200,7 +284,7 @@ describe("orchestration task tools", () => {
     });
 
     const result = (await dispatcher.execute(toolCall("task_control"), {
-      taskId: running.id,
+      task: running.id,
       action: "stop",
     })) as { action: string; task: TaskRecord };
 
@@ -215,7 +299,7 @@ describe("orchestration task tools", () => {
     const dispatcher = await createDispatcher([running]);
 
     const result = (await dispatcher.execute(toolCall("task_control"), {
-      taskId: running.id,
+      task: running.id,
       action: "restart",
     })) as {
       action: string;
@@ -289,7 +373,9 @@ async function createDispatcher(
     cancelTask: (taskId: string) => Promise<TaskRecord>;
     startTask: (input: unknown) => Promise<TaskRecord>;
     runForegroundBashWithPromotion: (input: unknown) => Promise<unknown>;
+    queryLogs: (taskId: string, query: TaskLogQuery) => Promise<unknown>;
     settings: Settings;
+    projectDir: string;
   }> = {},
 ): Promise<OrchestrationToolDispatcher> {
   const root = await mkdtemp(join(tmpdir(), "nerve-task-dispatcher-"));
@@ -302,12 +388,14 @@ async function createDispatcher(
       if (!record) throw new Error("Task not found.");
       return record;
     },
-    queryLogs: async (taskId: string, query: TaskLogQuery = {}) => ({
-      task: tasks.getTask(taskId),
-      events: [],
-      nextCursor: 0,
-      mode: query.mode ?? "recent",
-    }),
+    queryLogs:
+      overrides.queryLogs ??
+      (async (taskId: string, query: TaskLogQuery = {}) => ({
+        task: tasks.getTask(taskId),
+        events: [],
+        nextCursor: 0,
+        mode: query.mode ?? "recent",
+      })),
     restartTask:
       overrides.restartTask ??
       (async (taskId: string) => {
@@ -352,7 +440,7 @@ async function createDispatcher(
     },
     getAgent: () => ({
       id: "agent_test",
-      projectDir: root,
+      projectDir: overrides.projectDir ?? "/tmp/project",
       mode: "coding",
     }),
     runExplore: async () => ({ reports: [] }),
@@ -360,7 +448,7 @@ async function createDispatcher(
     plans: {},
     setAgentMode: async () => ({
       id: "agent_test",
-      projectDir: root,
+      projectDir: overrides.projectDir ?? "/tmp/project",
       mode: "coding",
     }),
     conversationRuntime: {

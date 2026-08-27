@@ -265,6 +265,7 @@ export const editOperationResultSchema = z
         "lineReplacements",
         "lineInsertions",
         "patch",
+        "edits",
       ])
       .optional(),
     sourceIndex: z.number().int().nonnegative().optional(),
@@ -286,7 +287,7 @@ export type EditOperationResult = z.infer<typeof editOperationResultSchema>;
 
 export const editOperationResultDetailsSchema =
   baseEditResultDetailsSchema.extend({
-    dryRun: z.boolean(),
+    dryRun: z.boolean().optional(),
     operationCount: z.number().int().nonnegative(),
     operations: z.array(editOperationResultSchema),
   });

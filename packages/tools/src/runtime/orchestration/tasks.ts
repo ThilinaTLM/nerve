@@ -1,7 +1,7 @@
 import type { ToolName } from "@nervekit/contracts";
 import type { ToolExecutionResult } from "../../types.js";
 import { type ToolHandlerRegistry, ToolValidationError } from "../types.js";
-import { parseTaskSelector, requiredString } from "./args.js";
+import { requiredString } from "./args.js";
 
 export type TaskToolName = Extract<ToolName, `task_${string}`>;
 
@@ -24,54 +24,33 @@ function validateTaskArgs(
 ): Record<string, unknown> {
   if (name === "task_start") {
     requiredString(args.command, "command");
-    if (args.tasks !== undefined) {
-      throw new ToolValidationError("task_start does not accept tasks[].");
-    }
   } else if (name === "task_logs") {
-    requiredString(args.taskId, "taskId");
-    if (args.groupId !== undefined || args.taskIds !== undefined) {
-      throw new ToolValidationError(`${name} accepts only taskId.`);
-    }
+    requiredString(args.task, "task");
     const mode = typeof args.mode === "string" ? args.mode : "recent";
-    if (mode === "since_cursor" && args.beforeSeq !== undefined) {
+    if (mode === "first_failure" && args.cursor !== undefined) {
       throw new ToolValidationError(
-        "task_logs since_cursor cannot use beforeSeq.",
-      );
-    }
-    if (mode !== "since_cursor" && args.sinceSeq !== undefined) {
-      throw new ToolValidationError(`task_logs ${mode} cannot use sinceSeq.`);
-    }
-    if (mode === "first_failure" && args.beforeSeq !== undefined) {
-      throw new ToolValidationError(
-        "task_logs first_failure cannot use beforeSeq.",
+        "task_logs first_failure does not accept cursor.",
       );
     }
   } else if (name === "task_control") {
-    requiredString(args.taskId, "taskId");
-    if (args.groupId !== undefined || args.taskIds !== undefined) {
-      throw new ToolValidationError("task_control accepts only taskId.");
-    }
+    requiredString(args.task, "task");
     if (args.action !== "stop" && args.action !== "restart") {
       throw new ToolValidationError(
         "task_control action must be stop or restart.",
       );
     }
-    if (
-      args.action === "restart" &&
-      (args.signal !== undefined ||
-        args.timeoutMs !== undefined ||
-        args.reason !== undefined)
-    ) {
-      throw new ToolValidationError(
-        "task_control restart does not accept stop-only arguments.",
+  } else if (name === "task_status") {
+    if (args.tasks !== undefined) {
+      if (!Array.isArray(args.tasks) || args.tasks.length === 0) {
+        throw new ToolValidationError("task_status tasks must not be empty.");
+      }
+      if (args.tasks.length > 20) {
+        throw new ToolValidationError("task_status supports at most 20 tasks.");
+      }
+      args.tasks.forEach((value, index) =>
+        requiredString(value, `tasks[${index}]`),
       );
     }
-  } else if (name === "task_status") {
-    parseTaskSelector(args, {
-      required: false,
-      allowTaskIds: true,
-      maxTaskIds: 20,
-    });
     const statuses = new Set([
       "active",
       "all",

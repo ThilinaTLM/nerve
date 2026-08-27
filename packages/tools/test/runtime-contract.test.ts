@@ -225,10 +225,10 @@ describe("shared tool runtime contract", () => {
     await assert.rejects(
       tasks.task_logs?.({}, { ...context, toolName: "task_logs" }) ??
         Promise.resolve(),
-      /taskId/,
+      /task/,
     );
     await tasks.task_control?.(
-      { taskId: "task_one", action: "stop" },
+      { task: "task_one", action: "stop" },
       { ...context, toolName: "task_control" },
     );
     await assert.rejects(
@@ -236,14 +236,11 @@ describe("shared tool runtime contract", () => {
         { action: "stop" },
         { ...context, toolName: "task_control" },
       ) ?? Promise.resolve(),
-      /taskId/,
+      /task/,
     );
-    await assert.rejects(
-      tasks.task_control?.(
-        { taskId: "task_one", action: "restart", reason: "replace" },
-        { ...context, toolName: "task_control" },
-      ) ?? Promise.resolve(),
-      /stop-only/,
+    await tasks.task_control?.(
+      { task: "task_one", action: "restart" },
+      { ...context, toolName: "task_control" },
     );
 
     const explore = createExploreHandlers({

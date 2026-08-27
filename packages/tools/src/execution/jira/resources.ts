@@ -1,4 +1,5 @@
 import {
+  enumSet,
   optionalString,
   optionalStringArray,
   requiredString,
@@ -7,7 +8,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
-/* eslint-disable max-lines -- Jira resource normalization and producer metadata share one action-focused module. */
+
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { ToolExecutionError } from "../common/tool-error.js";
 import { resolveToolPath } from "../filesystem/path.js";
@@ -58,28 +59,20 @@ function dryResult(
   });
 }
 
-async function maybeArtifact(
-  context: ToolExecutionContext,
-  kind: string,
-  data: unknown,
-  save: unknown,
-) {
-  return save === false ? undefined : writeJiraArtifact(context, kind, data);
-}
-
 export async function executeJiraGetBoard(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const boardId = requiredString(args.board_id, "board_id");
+  const include = enumSet(args.include, ["sprints", "backlog"] as const);
   const board = await jiraRequest<Record<string, unknown>>(connection, {
     api: "agile",
     path: `/board/${pathSegment(boardId)}`,
     signal: context.signal,
   });
   const result: Record<string, unknown> = { board };
-  if (args.include_sprints === true) {
+  if (include.has("sprints")) {
     result.sprints = await jiraRequest(connection, {
       api: "agile",
       path: `/board/${pathSegment(boardId)}/sprint`,
@@ -91,7 +84,7 @@ export async function executeJiraGetBoard(
       signal: context.signal,
     });
   }
-  if (args.include_backlog === true) {
+  if (include.has("backlog")) {
     result.backlog = await jiraRequest(connection, {
       api: "agile",
       path: `/board/${pathSegment(boardId)}/backlog`,
@@ -103,12 +96,7 @@ export async function executeJiraGetBoard(
       signal: context.signal,
     });
   }
-  const artifact = await maybeArtifact(
-    context,
-    "get-board",
-    result,
-    args.save_to_file,
-  );
+  const artifact = await writeJiraArtifact(context, "get-board", result);
   const sprintCount = Array.isArray(
     (result.sprints as { values?: unknown[] } | undefined)?.values,
   )
@@ -130,7 +118,7 @@ export async function executeJiraGetBoard(
     ? (result.backlog as { issues: unknown[] }).issues
     : [];
   return buildJiraTextResult({
-    text: `Fetched Jira board ${boardId}.${sprintCount ? ` Sprints: ${sprintCount}.` : ""}${backlogCount ? ` Backlog issues: ${backlogCount}.` : ""}${artifact ? `\nRaw JSON saved to: ${artifact.path}` : ""}`,
+    text: `Fetched Jira board ${boardId}.${sprintCount ? ` Sprints: ${sprintCount}.` : ""}${backlogCount ? ` Backlog issues: ${backlogCount}.` : ""}\nRaw JSON saved to: ${artifact.path}`,
     context,
     artifact,
     details: {
@@ -179,12 +167,7 @@ export async function executeJiraGetSprint(
       signal: context.signal,
     });
   }
-  const artifact = await maybeArtifact(
-    context,
-    "get-sprint",
-    result,
-    args.save_to_file,
-  );
+  const artifact = await writeJiraArtifact(context, "get-sprint", result);
   const issueCount = Array.isArray(
     (result.issues as { issues?: unknown[] } | undefined)?.issues,
   )
@@ -196,7 +179,7 @@ export async function executeJiraGetSprint(
     ? (result.issues as { issues: unknown[] }).issues
     : [];
   return buildJiraTextResult({
-    text: `Fetched Jira sprint ${sprintId}.${args.include_issues === true ? ` Issues: ${issueCount}.` : ""}${artifact ? `\nRaw JSON saved to: ${artifact.path}` : ""}`,
+    text: `Fetched Jira sprint ${sprintId}.${args.include_issues === true ? ` Issues: ${issueCount}.` : ""}\nRaw JSON saved to: ${artifact.path}`,
     context,
     artifact,
     details: {

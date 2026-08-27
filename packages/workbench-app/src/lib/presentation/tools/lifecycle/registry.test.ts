@@ -72,7 +72,7 @@ describe("tool lifecycle registry", () => {
       {
         args: {
           path: "src/app.ts",
-          replacements: [{ oldText: "old", newText: "new" }],
+          edits: [{ oldText: "old", newText: "new" }],
         },
       },
       "failed",
@@ -107,7 +107,7 @@ describe("tool lifecycle registry", () => {
           name: "dev",
           command: "pnpm dev",
           env: { API_TOKEN: "super-secret-value", NODE_ENV: "development" },
-          readyOnUrl: true,
+          ready: { kind: "detected_url" },
         },
       },
       "approval",

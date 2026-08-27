@@ -137,8 +137,6 @@ export const jiraToolLifecycleSpecs = {
         secondary.push({ text: `max ${source.number("max_results")}` });
       if (source.string("next_page_token"))
         secondary.push({ text: "next page" });
-      if (source.boolean("save_to_file") === false)
-        secondary.push({ text: "not saved" });
       return argumentPresentation({
         primaryArg: textArg(source.string("jql"), "JQL"),
         secondary,
@@ -155,14 +153,9 @@ export const jiraToolLifecycleSpecs = {
     resultPlaceholder: { variant: "list", rows: 3 },
     completedView: "jira",
     present: (source, stage) => {
-      const includes = [
-        ["include_comments", "comments"],
-        ["include_transitions", "transitions"],
-        ["include_editmeta", "edit metadata"],
-        ["include_worklogs", "worklogs"],
-        ["include_changelog", "changelog"],
-        ["include_remote_links", "remote links"],
-      ].flatMap(([key, label]) => (source.boolean(key) ? [label] : []));
+      const includes = (source.strings("include") ?? []).map((value) =>
+        value.replaceAll("_", " "),
+      );
       return argumentPresentation({
         primaryArg: textArg(source.string("issue_key"), "Issue"),
         secondary: includes.map((text) => ({ text })),
@@ -180,14 +173,9 @@ export const jiraToolLifecycleSpecs = {
     completedView: "jira",
     present: (source, stage) => {
       const project = source.string("project_key") ?? "default project";
-      const includes = [
-        ["include_statuses", "statuses"],
-        ["include_components", "components"],
-        ["include_versions", "versions"],
-        ["include_issue_types", "issue types"],
-        ["include_create_meta", "create metadata"],
-        ["include_fields", "fields"],
-      ].flatMap(([key, label]) => (source.boolean(key) ? [label] : []));
+      const includes = (source.strings("include") ?? []).map((value) =>
+        value.replaceAll("_", " "),
+      );
       return argumentPresentation({
         primaryArg: textArg(project),
         secondary: includes.map((text) => ({ text })),
@@ -219,6 +207,7 @@ export const jiraToolLifecycleSpecs = {
     present: (source) =>
       argumentPresentation({
         primaryArg: textArg(source.string("board_id"), "Board"),
+        secondary: (source.strings("include") ?? []).map((text) => ({ text })),
       }),
   }),
   jira_get_sprint: spec({

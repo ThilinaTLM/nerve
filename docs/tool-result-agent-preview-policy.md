@@ -302,15 +302,16 @@ Terminal outcome handling is selected before the normal result-shape profile whe
 Background-process output has two complementary durable representations:
 
 - `logsPath` is structured JSONL with exactly one event per physical line. Each event carries sequence, timestamp, stream, level, text, and zero-based raw-stream byte boundaries `[start, end)`. The range identifies the exact event bytes in its stream file, including a line terminator when one was captured. JSON escaping must prevent event text from creating additional physical JSONL lines.
+- Complete short event lines carry no path or byte suffix. When an event line is shortened, use a compact stream alias plus its exact byte range, and map each used alias to its validated stream path once in the result header.
 - `stdoutPath` and `stderrPath` are ordinary UTF-8 text files containing exact per-stream output. `combinedPath` may additionally preserve observed, stream-labeled arrival order when the runtime can do so reliably; it does not claim stronger operating-system ordering. Omit `combinedPath` rather than synthesizing misleading interleaving. These paths must not alias the JSONL path.
 - Retention and omission metadata must describe both representations consistently. Retention may remove a whole task-log bundle or atomically update the event index, stream files, byte boundaries, and availability metadata. It must never leave an advertised byte range pointing at removed or shifted content. A path is advertised as recovery only while its content is available.
 
 Task-log projection preserves the query's direction so truncation cannot skip events.
 
-- `recent`, `errors`, and `warnings` retain the newest fitting events. Preserve `firstSeq`, `lastSeq`, `hasMoreBefore`, and an older-page boundary such as `beforeSeq`.
+- `recent`, `errors`, and `warnings` retain the newest fitting events. Preserve `firstSeq`, `lastSeq`, `hasMoreBefore`, and the exact older-page boundary; the model-facing adapter expresses that boundary as `cursor`.
 - `since_cursor` retains the earliest fitting events after the requested cursor and advances the cursor only to the last displayed event. It must not tail-select a burst and skip undisplayed events.
 - `first_failure` preserves the failure and its requested context as one diagnostic window.
-- The public `task_logs` contract must expose optional `beforeSeq` in addition to `sinceSeq`, the tool adapter must forward it to the task-log query, and the result must expose the boundaries needed to call it correctly. A forward `sinceSeq` cursor is not a substitute for recovering omitted history.
+- The internal task-log query retains independent `beforeSeq` and `sinceSeq` fields. The public `task_logs` contract exposes one `cursor`: it maps to `beforeSeq` for recent/error/warning modes and to `sinceSeq` for `since_cursor`. The result must expose the exact boundary and direction needed for the next call.
 - An individual displayed event line may be shortened to 512 UTF-8 bytes only when its stream path and exact raw byte boundaries remain visible, allowing `read` byte pagination to recover the omitted suffix. Sequence cursors recover other events; they do not recover bytes omitted within one event.
 - The notice distinguishes recovery of older omitted events, retrieval of future incremental events, and byte recovery for an individually shortened event.
 
@@ -319,7 +320,7 @@ The 60-event allowance is an item maximum, not a guarantee: the hard 10,000-B ag
 Example:
 
 ```text
-Showing task-log events 441–500; 440 older events omitted. For older events, call task_logs with beforeSeq=441. For future events, use since_cursor with sinceSeq=500.
+Showing task-log events 441–500; 440 older events omitted. For older events, call task_logs in recent mode with cursor=441. For future events, use since_cursor with cursor=500.
 ```
 
 ### Image blocks and provider safeguards
@@ -400,7 +401,7 @@ Threshold tuning should use aggregate counters and focused tests, not captured u
 22. Explore report files are UTF-8, line-oriented, and agent-ready: prose is wrapped to a 120-character target, avoidably wide tables or minified payloads are absent, and exact overlong content retains byte recovery.
 23. Image bytes are excluded from the aggregate text budget, while every accompanying text block remains subject to it. Existing format, file-size, provider-count, and provider-dimension safeguards still apply.
 24. An unknown historical tool receives the conservative 200-line/24,000-byte fallback and advertises exact recovery only when preserved content actually exists.
-25. `task_logs` accepts and forwards `beforeSeq`; JSONL event records and exact stdout/stderr files remain distinct, and retention never leaves an advertised raw byte range stale.
+25. `task_logs` maps its public mode-specific `cursor` to the correct internal boundary; JSONL event records and exact stdout/stderr files remain distinct, and retention never leaves an advertised raw byte range stale.
 
 ## Resolved policy decisions
 
@@ -418,6 +419,6 @@ The current architecture already preserves complete overflow payloads, records e
 
 The physical payload layout and its storage lifecycle remain unchanged by this implementation. Existing complete-result payloads and successful artifacts may live in different managed locations; adaptive projection relies on validated artifact descriptors rather than prescribing a storage migration.
 
-Background task logs now use one-event-per-line JSONL alongside distinct exact stdout and stderr streams, truthful optional combined output, stable byte recovery, and bidirectional `beforeSeq`/`sinceSeq` pagination.
+Background task logs now use one-event-per-line JSONL alongside distinct exact stdout and stderr streams, truthful optional combined output, stable byte recovery, and bidirectional pagination through a compact public cursor over distinct internal before/after boundaries.
 
 The implemented change replaces one generic model projection with adaptive semantic policy while preserving those existing durability and safety boundaries.

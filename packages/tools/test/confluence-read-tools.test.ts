@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  executeConfluenceDownloadPage,
   executeConfluenceGetPage,
   executeConfluenceSearchSpaces,
 } from "../src/execution/confluence/confluence.js";
@@ -34,7 +35,6 @@ describe("Confluence read request contracts", () => {
           limit: 1,
           cursor: "next-1",
           query: "must-not-be-sent",
-          save_to_file: false,
         },
         context,
       );
@@ -48,6 +48,74 @@ describe("Confluence read request contracts", () => {
       assert.equal(
         (result.details as Record<string, unknown> | undefined)?.streams,
         undefined,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("maps compact download attachment modes", async () => {
+    const originalFetch = globalThis.fetch;
+    const paths: string[] = [];
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      paths.push(url.pathname);
+      if (url.pathname.endsWith("/attachments")) {
+        return Response.json({
+          results: [
+            {
+              id: "att-1",
+              title: "guide.txt",
+              downloadLink: "/download/attachments/20/guide.txt",
+            },
+          ],
+        });
+      }
+      if (url.pathname.includes("/download/attachments/")) {
+        return new Response("guide");
+      }
+      return Response.json({
+        id: "20",
+        title: "Runbook",
+        body: { storage: { value: "<p>Deploy</p>" } },
+      });
+    };
+    try {
+      await executeConfluenceDownloadPage(
+        { page_id: "20", attachments: "none" },
+        context,
+      );
+      assert.equal(
+        paths.some((path) => path.endsWith("/attachments")),
+        false,
+      );
+
+      paths.length = 0;
+      await executeConfluenceDownloadPage(
+        { page_id: "20", attachments: "metadata" },
+        context,
+      );
+      assert.equal(
+        paths.some((path) => path.endsWith("/attachments")),
+        true,
+      );
+      assert.equal(
+        paths.some((path) => path.includes("/download/attachments/")),
+        false,
+      );
+
+      paths.length = 0;
+      const downloaded = await executeConfluenceDownloadPage(
+        { page_id: "20", attachments: "download" },
+        context,
+      );
+      assert.equal(
+        paths.some((path) => path.includes("/download/attachments/")),
+        true,
+      );
+      assert.equal(
+        downloaded.details?.includedCounts?.downloadedAttachments,
+        1,
       );
     } finally {
       globalThis.fetch = originalFetch;
@@ -105,14 +173,15 @@ describe("Confluence read request contracts", () => {
       const result = await executeConfluenceGetPage(
         {
           page_id: "20",
-          include_direct_children: true,
-          include_attachments: true,
-          include_footer_comments: true,
-          include_inline_comments: true,
-          include_properties: true,
-          include_labels: true,
-          include_restrictions: true,
-          save_to_file: false,
+          include: [
+            "children",
+            "attachments",
+            "footer_comments",
+            "inline_comments",
+            "properties",
+            "labels",
+            "restrictions",
+          ],
         },
         context,
       );
@@ -122,6 +191,7 @@ describe("Confluence read request contracts", () => {
         /https:\/\/example\.atlassian\.net\/wiki\/spaces\/SD\/pages\/20/,
       );
       assert.match(result.content ?? "", /Showing first 3 of 4/);
+      assert.match(result.content ?? "", /Raw JSON saved to:/);
       assert.match(result.content ?? "", /30 · guide\.pdf/);
       assert.match(result.content ?? "", /40 — Looks good/);
       assert.equal(

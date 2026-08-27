@@ -43,7 +43,7 @@ Every active catalog tool declares one semantic result policy. The projector fir
 
 Only the host artifact validator can issue an agent-readable descriptor. It accepts managed regular files, rejects symlink chains and unsafe roots, and never opens artifact content during projection. When no exact artifact or continuation exists, preparation writes the complete result before bounding at `payloads/conversations/<conversationId>/tool-calls/<toolCallId>/result.json`. The payload reference remains owner/digest verified and version 1.
 
-Task output uses a per-task bundle with `events.jsonl`, distinct `stdout.txt` and `stderr.txt`, and an optional labeled `combined.txt`. Events carry stream byte ranges, and `task_logs` supports both `beforeSeq` historical paging and `sinceSeq` forward paging.
+Task output uses a per-task bundle with `events.jsonl`, distinct `stdout.txt` and `stderr.txt`, and an optional labeled `combined.txt`. Events carry stream byte ranges. Internally, task queries preserve separate `beforeSeq` and `sinceSeq` boundaries; the model-facing `task_logs` adapter exposes one mode-specific `cursor` without weakening exact backward or forward recovery.
 
 The UI contract is independent: transcript events contain at most six lines/items with existing tool-specific head/tail semantics and omit validated artifacts and projection snapshots. Each call has its own model budget; Explore applies one budget per child report and no additional call-level ceiling.
 

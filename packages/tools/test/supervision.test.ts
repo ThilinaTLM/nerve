@@ -46,7 +46,7 @@ test("filesystem tools may target paths outside the project", () => {
       toolName: "edit",
       args: {
         path: "/tmp/outside.txt",
-        replacements: [{ oldText: "old", newText: "new" }],
+        edits: [{ oldText: "old", newText: "new" }],
       },
     },
     { toolName: "write", args: { path: "/tmp/outside.txt", content: "x" } },

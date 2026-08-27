@@ -51,18 +51,6 @@ export async function writeJiraArtifact(
   };
 }
 
-export async function maybeWriteJiraArtifact(
-  context: ToolExecutionContext,
-  kind: string,
-  payload: unknown,
-  saveToFile: unknown,
-): Promise<
-  { path: string; bytes: number; chars: number; lines: number } | undefined
-> {
-  if (saveToFile === false) return undefined;
-  return writeJiraArtifact(context, kind, payload);
-}
-
 export async function buildJiraTextResult({
   text,
   context: _context,

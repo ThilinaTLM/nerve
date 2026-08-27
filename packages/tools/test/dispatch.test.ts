@@ -22,7 +22,7 @@ describe("executeTool dispatch", () => {
         "edit",
         {
           path: "input.txt",
-          replacements: [{ oldText: "beta", newText: "delta" }],
+          edits: [{ oldText: "beta", newText: "delta" }],
         },
       ],
       ["ls", { path: "." }],

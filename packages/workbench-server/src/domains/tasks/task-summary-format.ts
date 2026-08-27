@@ -94,10 +94,10 @@ export function formatTaskStartSummary(input: {
 
   const lines = [bits.join("; ")];
   if (otherActiveTaskCount === 0) {
-    lines.push("No other active tasks are in this workspace scope.");
+    lines.push("No other active tasks are in this project scope.");
   } else {
     lines.push(
-      `${otherActiveTaskCount} other active ${otherActiveTaskCount === 1 ? "task" : "tasks"} in this workspace scope:`,
+      `${otherActiveTaskCount} other active ${otherActiveTaskCount === 1 ? "task" : "tasks"} in this project scope:`,
       ...otherActiveTasks.map(
         (other) =>
           `- ${oneLineTaskSummary(other)}; cwd=${truncateTaskText(other.cwd)}; cmd=${taskCommandPreview(other)}`,
@@ -141,7 +141,7 @@ export function formatTaskLogsSummary(input: {
     lines.push(...input.events.map(formatLogEvent));
   }
   lines.push(
-    `Use task_logs({ taskId: "${input.task.name ?? input.task.id}", mode: "since_cursor", sinceSeq: ${input.nextCursor} }) later for more output if needed.`,
+    `Use task_logs({ task: "${input.task.name ?? input.task.id}", mode: "since_cursor", cursor: ${input.nextCursor} }) later for more output if needed.`,
   );
   return lines.join("\n");
 }
@@ -171,7 +171,7 @@ export function formatTaskEventSummary(input: {
   }
   if (input.nextCursor !== undefined) {
     lines.push(
-      `Use task_logs({ taskId: "${input.task.name ?? input.task.id}", mode: "since_cursor", sinceSeq: ${input.nextCursor} }) later for more output if needed.`,
+      `Use task_logs({ task: "${input.task.name ?? input.task.id}", mode: "since_cursor", cursor: ${input.nextCursor} }) later for more output if needed.`,
     );
   }
   return lines.join("\n");

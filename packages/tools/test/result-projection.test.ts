@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ValidatedToolArtifact } from "@nervekit/contracts";
 import type { CandidateContext } from "../src/index.js";
+import { formatWebFetchCandidateText } from "../src/result-projection/candidates/web.js";
 import {
   agentResultPolicyForTool,
   measureBlocks,
@@ -280,6 +281,67 @@ describe("adaptive agent tool-result projection", () => {
     assert.match(output, /probe failed/);
   });
 
+  it("pluralizes omitted grep matches correctly", () => {
+    const matches = Array.from({ length: 80 }, (_, index) => ({
+      path: "src/file.ts",
+      line: index + 1,
+      text: `match ${index + 1} ${"x".repeat(200)}`,
+    }));
+    const projected = projectAgentResult(
+      context("grep", {
+        path: ".",
+        matches,
+        details: { totalMatches: matches.length },
+      }),
+      agentResultPolicyForTool("grep"),
+    );
+    const output = text(projected.blocks);
+    assert.match(output, /matches/);
+    assert.doesNotMatch(output, /matchs/);
+  });
+
+  it("omits a redundant task restart root", () => {
+    const projected = projectAgentResult(
+      context("task_start", {
+        task: {
+          id: "task_test",
+          name: "dev",
+          status: "running",
+          restartRootTaskId: "task_test",
+        },
+      }),
+      agentResultPolicyForTool("task_start"),
+    );
+    assert.doesNotMatch(text(projected.blocks), /restart root/);
+  });
+
+  it("omits stream recovery metadata for complete short task-log lines", () => {
+    const projected = projectAgentResult(
+      context(
+        "task_logs",
+        {
+          task: { id: "task_test", status: "running" },
+          events: [
+            {
+              seq: 1,
+              stream: "stdout",
+              level: "info",
+              line: "ready",
+              raw: { start: 0, end: 6 },
+            },
+          ],
+          mode: "recent",
+          originalEventCount: 1,
+        },
+        [artifact("/tmp/stdout.txt", "task_stdout")],
+      ),
+      agentResultPolicyForTool("task_logs"),
+    );
+    const output = text(projected.blocks);
+    assert.match(output, /1 \[stdout\] ready/);
+    assert.doesNotMatch(output, /\/tmp\/stdout\.txt|bytes 0-6/);
+  });
+
   it("keeps incremental task logs at the earliest fitting events", () => {
     const events = Array.from({ length: 100 }, (_, index) => ({
       seq: index + 1,
@@ -318,11 +380,11 @@ describe("adaptive agent tool-result projection", () => {
     assert.match(output, /\n1 \[stdout\]/);
     assert.doesNotMatch(output, /\n100 \[stdout\]/);
     const cursor = projected.snapshot.continuation?.find(
-      (item) => item.kind === "cursor" && item.cursorName === "sinceSeq",
+      (item) => item.kind === "cursor" && item.cursorName === "cursor",
     );
     assert.ok(cursor?.kind === "cursor");
     assert.ok(Number(cursor.value) < 100);
-    assert.match(output, new RegExp(`sinceSeq=${String(cursor.value)}`));
+    assert.match(output, new RegExp(`cursor=${String(cursor.value)}`));
     assert.ok(measureBlocks(projected.blocks).bytes <= 10_000);
   });
 
@@ -404,8 +466,12 @@ describe("adaptive agent tool-result projection", () => {
     const output = text(projected.blocks);
     assert.match(output, /\n100 \[stdout\]/);
     assert.doesNotMatch(output, /\n1 \[stdout\]/);
-    assert.match(output, /beforeSeq=/);
+    assert.match(output, /cursor=/);
     assert.match(output, /exit: 0/);
+    assert.equal(output.match(/\/tmp\/stdout\.txt/g)?.length, 1);
+    const measured = measureBlocks(projected.blocks);
+    assert.ok(measured.lines <= 60);
+    assert.ok(measured.bytes <= 10_000);
   });
 
   it("preserves search totals, continuation, and validated supporting data", () => {
@@ -497,6 +563,39 @@ describe("adaptive agent tool-result projection", () => {
     assert.match(output, /downloadedAttachments: 1/);
   });
 
+  it("does not duplicate validated Confluence sidecar paths", () => {
+    const projected = projectAgentResult(
+      context(
+        "confluence_get_page",
+        {
+          details: {
+            action: "get_page",
+            pageId: "20",
+            page: {
+              id: "20",
+              title: "Runbook",
+              storagePath: "/tmp/page.storage.xml",
+              markdownPath: "/tmp/page.md",
+            },
+          },
+        },
+        [
+          artifact(
+            "/tmp/page.storage.xml",
+            "storage",
+            "supporting_data",
+            "xml",
+          ),
+          artifact("/tmp/page.md", "markdown", "supporting_data", "markdown"),
+        ],
+      ),
+      agentResultPolicyForTool("confluence_get_page"),
+    );
+    const output = text(projected.blocks);
+    assert.equal(output.match(/\/tmp\/page\.storage\.xml/g)?.length, 1);
+    assert.equal(output.match(/\/tmp\/page\.md/g)?.length, 1);
+  });
+
   it("keeps resource summaries semantic and caps related previews at three", () => {
     const projected = projectAgentResult(
       context("jira_get_board", {
@@ -545,6 +644,45 @@ describe("adaptive agent tool-result projection", () => {
     assert.match(output, /Available transitions/);
     assert.match(output, /Start Progress/);
     assert.match(output, /Done/);
+    assert.equal(output.match(/Available transitions/g)?.length, 1);
+  });
+
+  it("formats web metadata compactly before the body", () => {
+    const output = formatWebFetchCandidateText(
+      {
+        url: "https://example.com/page",
+        status: 200,
+        contentType: "text/html",
+        size: 42,
+        converted: true,
+      },
+      "Body text",
+    );
+    assert.equal(
+      output,
+      "URL: https://example.com/page\nHTTP status: 200\nContent-Type: text/html\nBytes: 42\nConverted: markdown\n\nBody text",
+    );
+  });
+
+  it("preserves user review feedback as a human response", () => {
+    const feedback =
+      "Keep the exact cursor boundary and rename the final section.";
+    const projected = projectAgentResult(
+      context("plan_mode_present", {
+        content: feedback,
+        details: {
+          reviewId: "review_1",
+          planPath: "/tmp/plan.md",
+          decision: "changes_requested",
+          feedback,
+        },
+      }),
+      agentResultPolicyForTool("plan_mode_present"),
+    );
+    const output = text(projected.blocks);
+    assert.match(output, /review_1/);
+    assert.match(output, /changes_requested/);
+    assert.match(output, new RegExp(feedback));
   });
 
   it("projects Explore tasks independently without a call-level ceiling", () => {

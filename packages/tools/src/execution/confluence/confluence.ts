@@ -1,6 +1,6 @@
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import {
-  optionalBoolean,
+  enumSet,
   optionalString,
   optionalStringArray,
   requiredString,
@@ -18,7 +18,6 @@ import {
 } from "./files.js";
 import {
   buildConfluenceTextResult,
-  type ConfluenceArtifact,
   displayLimitNotice,
   formatPageSummaryLine,
   formatSpaceSummaryLine,
@@ -84,11 +83,10 @@ export async function executeConfluenceSearchSpaces(
     },
     signal: context.signal,
   });
-  const artifact = await maybeArtifact(
+  const artifact = await writeConfluenceArtifact(
     context,
     "search-spaces",
     data,
-    args.save_to_file,
   );
   const spaces = valuesFromConfluenceList(data).flatMap((space) => {
     const summary = summarizeConfluenceSpace(space);
@@ -107,7 +105,7 @@ export async function executeConfluenceSearchSpaces(
     artifactPath: artifact?.path,
   });
   if (notice) lines.push(notice);
-  if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
+  lines.push(`Raw JSON saved to: ${artifact.path}`);
   if (displayed.items.length > 0) {
     lines.push("", ...displayed.items.map(formatSpaceSummaryLine));
   }
@@ -168,12 +166,7 @@ export async function executeConfluenceSearchPages(
     });
   }
 
-  const artifact = await maybeArtifact(
-    context,
-    "search-pages",
-    data,
-    args.save_to_file,
-  );
+  const artifact = await writeConfluenceArtifact(context, "search-pages", data);
   const pages = valuesFromConfluenceList(data).flatMap((page) => {
     const summary = summarizeConfluencePage(page);
     if (!summary) return [];
@@ -197,7 +190,7 @@ export async function executeConfluenceSearchPages(
     artifactPath: artifact?.path,
   });
   if (notice) lines.push(notice);
-  if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
+  lines.push(`Raw JSON saved to: ${artifact.path}`);
   if (displayed.items.length > 0) {
     lines.push("", ...displayed.items.map(formatPageSummaryLine));
   }
@@ -227,20 +220,32 @@ export async function executeConfluenceGetPage(
   const connection = await requireConfluenceConnection(context);
   const pageId = requiredString(args.page_id, "page_id");
   const bodyFormat = enumString(args.body_format, PAGE_BODY_FORMATS, "storage");
+  const include = enumSet(args.include, [
+    "labels",
+    "properties",
+    "operations",
+    "version",
+    "versions",
+    "children",
+    "attachments",
+    "footer_comments",
+    "inline_comments",
+    "restrictions",
+  ] as const);
   const page = await confluenceRequest<Record<string, unknown>>(connection, {
     path: `/pages/${pathSegment(pageId)}`,
     query: {
       "body-format": bodyFormat,
-      "include-labels": optionalBoolean(args.include_labels),
-      "include-properties": optionalBoolean(args.include_properties),
-      "include-operations": optionalBoolean(args.include_operations),
-      "include-versions": optionalBoolean(args.include_versions),
-      "include-version": optionalBoolean(args.include_version),
+      "include-labels": include.has("labels") || undefined,
+      "include-properties": include.has("properties") || undefined,
+      "include-operations": include.has("operations") || undefined,
+      "include-versions": include.has("versions") || undefined,
+      "include-version": include.has("version") || undefined,
     },
     signal: context.signal,
   });
   const result: Record<string, unknown> = { page };
-  if (args.include_direct_children === true) {
+  if (include.has("children")) {
     result.directChildren = await confluenceRequest(connection, {
       path: `/pages/${pathSegment(pageId)}/direct-children`,
       query: { limit: 100 },
@@ -253,14 +258,14 @@ export async function executeConfluenceGetPage(
       }),
     );
   }
-  if (args.include_attachments === true) {
+  if (include.has("attachments")) {
     result.attachments = await fetchAttachments(
       connection,
       pageId,
       context.signal,
     );
   }
-  if (args.include_footer_comments === true) {
+  if (include.has("footer_comments")) {
     result.footerComments = await confluenceRequest(connection, {
       path: `/pages/${pathSegment(pageId)}/footer-comments`,
       query: {
@@ -271,7 +276,7 @@ export async function executeConfluenceGetPage(
       signal: context.signal,
     });
   }
-  if (args.include_inline_comments === true) {
+  if (include.has("inline_comments")) {
     result.inlineComments = await confluenceRequest(connection, {
       path: `/pages/${pathSegment(pageId)}/inline-comments`,
       query: {
@@ -282,14 +287,14 @@ export async function executeConfluenceGetPage(
       signal: context.signal,
     });
   }
-  if (args.include_restrictions === true) {
+  if (include.has("restrictions")) {
     result.restrictions = await confluenceRequest(connection, {
       api: "v1",
       path: `/content/${pathSegment(pageId)}/restriction/byOperation`,
       signal: context.signal,
     });
   }
-  if (args.include_versions === true) {
+  if (include.has("versions")) {
     result.versions = await confluenceRequest(connection, {
       path: `/pages/${pathSegment(pageId)}/versions`,
       query: { limit: 50 },
@@ -297,12 +302,7 @@ export async function executeConfluenceGetPage(
     }).catch(() => result.versions);
   }
 
-  const artifact = await maybeArtifact(
-    context,
-    "get-page",
-    result,
-    args.save_to_file,
-  );
+  const artifact = await writeConfluenceArtifact(context, "get-page", result);
   const sidecars =
     args.markdown === true
       ? await writePageSidecars(context, page, { bodyFormat, markdown: true })
@@ -338,7 +338,7 @@ export async function executeConfluenceGetPage(
           }
         : undefined,
   );
-  if (args.include_direct_children === true) {
+  if (include.has("children")) {
     includedCounts.directChildren = childPages.total;
     appendConfluencePreview(
       lines,
@@ -355,7 +355,7 @@ export async function executeConfluenceGetPage(
     valuesFromConfluenceList(result.attachments),
     summarizeConfluenceAttachment,
   );
-  if (args.include_attachments === true) {
+  if (include.has("attachments")) {
     includedCounts.attachments = attachmentSummaries.total;
     appendConfluencePreview(
       lines,
@@ -369,7 +369,7 @@ export async function executeConfluenceGetPage(
   }
 
   const versions = valuesFromConfluenceList(result.versions);
-  if (args.include_versions === true) {
+  if (include.has("versions")) {
     includedCounts.versions = versions.length;
     lines.push(`Versions: ${versions.length}`);
   }
@@ -378,7 +378,7 @@ export async function executeConfluenceGetPage(
     valuesFromConfluenceList(result.footerComments),
     (item) => summarizeConfluenceComment(item, "footer"),
   );
-  if (args.include_footer_comments === true) {
+  if (include.has("footer_comments")) {
     includedCounts.footerComments = footerComments.total;
     appendConfluencePreview(
       lines,
@@ -393,7 +393,7 @@ export async function executeConfluenceGetPage(
     valuesFromConfluenceList(result.inlineComments),
     (item) => summarizeConfluenceComment(item, "inline"),
   );
-  if (args.include_inline_comments === true) {
+  if (include.has("inline_comments")) {
     includedCounts.inlineComments = inlineComments.total;
     appendConfluencePreview(
       lines,
@@ -409,7 +409,7 @@ export async function executeConfluenceGetPage(
     valuesFromConfluenceList(page.properties),
     summarizeConfluenceProperty,
   );
-  if (args.include_properties === true) {
+  if (include.has("properties")) {
     includedCounts.properties = properties.total;
     appendConfluencePreview(
       lines,
@@ -425,7 +425,7 @@ export async function executeConfluenceGetPage(
     valuesFromConfluenceList(page.labels),
     summarizeConfluenceLabel,
   );
-  if (args.include_labels === true) {
+  if (include.has("labels")) {
     includedCounts.labels = labels.total;
     appendConfluencePreview(
       lines,
@@ -440,7 +440,7 @@ export async function executeConfluenceGetPage(
     summarizeConfluenceRestrictions(result.restrictions),
     (item) => item,
   );
-  if (args.include_restrictions === true) {
+  if (include.has("restrictions")) {
     includedCounts.restrictions = restrictions.total;
     lines.push(`Restrictions: ${restrictions.total}`);
   }
@@ -449,7 +449,7 @@ export async function executeConfluenceGetPage(
   if (sidecars?.markdownPath) {
     lines.push(`Markdown sidecar saved to: ${sidecars.markdownPath}`);
   }
-  if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
+  lines.push(`Raw JSON saved to: ${artifact.path}`);
   return buildConfluenceTextResult({
     text: lines.join("\n"),
     context,
@@ -512,7 +512,7 @@ function appendConfluencePreview<T>(
   lines.push(
     artifactPath
       ? `Showing first ${items.length} of ${total}; full data is saved to ${artifactPath}.`
-      : `Showing first ${items.length} of ${total}; rerun with save_to_file: true for full data.`,
+      : `Showing first ${items.length} of ${total}; complete data is unavailable.`,
   );
 }
 
@@ -542,14 +542,19 @@ export async function executeConfluenceDownloadPage(
       "CONFLUENCE_PAGE_NOT_FOUND",
       `Confluence page ${pageId} could not be summarized.`,
     );
+  const attachmentMode = enumString(
+    args.attachments,
+    ["none", "metadata", "download"] as const,
+    "none",
+  );
   const attachments =
-    args.include_attachments === true || args.download_attachments === true
-      ? valuesFromConfluenceList(
+    attachmentMode === "none"
+      ? []
+      : valuesFromConfluenceList(
           await fetchAttachments(connection, pageId, context.signal),
-        )
-      : [];
+        );
   const downloadedAttachments =
-    args.download_attachments === true
+    attachmentMode === "download"
       ? await downloadAttachments(connection, attachments, context.signal)
       : undefined;
   const bundlePages: DownloadBundlePage[] = [
@@ -645,12 +650,10 @@ export async function executeConfluenceCreatePage(
         )
       : undefined;
   const pageSummary = summarizeConfluencePage(returnedPage ?? data);
-  const artifact = await maybeArtifact(
-    context,
-    "create-page",
-    { response: data, returnedPage },
-    args.save_to_file,
-  );
+  const artifact = await writeConfluenceArtifact(context, "create-page", {
+    response: data,
+    returnedPage,
+  });
   const id = optionalString(data.id) ?? pageSummary?.id ?? "(unknown)";
   return buildConfluenceTextResult({
     text: `Created Confluence page ${id}.`,
@@ -701,12 +704,10 @@ export async function executeConfluenceUpdatePage(
       ? await fetchPageCurrent(connection, payload.id, context.signal)
       : undefined;
   const pageSummary = summarizeConfluencePage(returnedPage ?? data);
-  const artifact = await maybeArtifact(
-    context,
-    "update-page",
-    { response: data, returnedPage },
-    args.save_to_file,
-  );
+  const artifact = await writeConfluenceArtifact(context, "update-page", {
+    response: data,
+    returnedPage,
+  });
   return buildConfluenceTextResult({
     text: `Updated Confluence page ${payload.id} to version ${payload.version.number}.`,
     context,
@@ -732,14 +733,4 @@ function buildTextSearchCql(
 
 function escapeCql(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
-}
-
-async function maybeArtifact(
-  context: ToolExecutionContext,
-  kind: string,
-  payload: unknown,
-  saveToFile: unknown,
-): Promise<ConfluenceArtifact | undefined> {
-  if (saveToFile === false) return undefined;
-  return writeConfluenceArtifact(context, kind, payload);
 }

@@ -73,12 +73,7 @@ export type WriteToolArgs = ToolPathArgs & {
 };
 
 export type EditToolArgs = ToolPathArgs & {
-  dryRun?: unknown;
-  replacements?: unknown;
-  insertions?: unknown;
-  lineReplacements?: unknown;
-  lineInsertions?: unknown;
-  patch?: unknown;
+  edits?: unknown;
 };
 
 export type BashToolArgs = {

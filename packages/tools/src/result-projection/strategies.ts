@@ -427,6 +427,7 @@ function unitNoun(kind: ProjectionCount["kind"]): string {
 function pluralNoun(noun: string): string {
   if (noun.endsWith("y")) return `${noun.slice(0, -1)}ies`;
   if (noun.endsWith("s")) return noun;
+  if (/(?:ch|sh|x|z)$/.test(noun)) return `${noun}es`;
   return `${noun}s`;
 }
 

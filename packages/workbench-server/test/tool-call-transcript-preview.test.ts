@@ -41,14 +41,12 @@ function editToolCall(diff: string): ToolCallRecord {
     risk: "workspace_write",
     args: {
       path: "src/example.ts",
-      replacements: [
+      edits: [
         {
           oldText: "const value = 1;",
           newText: "const value = 2;",
-          matchMode: "exact",
         },
       ],
-      dryRun: false,
     },
     result: {
       path: "/tmp/project/src/example.ts",
@@ -59,16 +57,13 @@ function editToolCall(diff: string): ToolCallRecord {
         firstChangedLine: 1,
         lineEnding: "\n",
         bom: false,
-        dryRun: false,
         operationCount: 1,
         operations: [
           {
             index: 0,
             type: "replace_text",
-            source: "replacements",
+            source: "edits",
             sourceIndex: 0,
-            matchMode: "exact",
-            occurrence: 1,
             matchCount: 1,
             startLine: 1,
             endLine: 1,
@@ -186,7 +181,6 @@ describe("explain_image transcript preview", () => {
     assert.deepEqual(initialResult.details, {
       diff: "diff line 5\ndiff line 6\ndiff line 7\ndiff line 8\ndiff line 9\ndiff line 10",
       operationCount: 1,
-      dryRun: false,
     });
     assert.deepEqual(initial.previewOverflow, {
       hidden: 4,
@@ -223,7 +217,7 @@ describe("explain_image transcript preview", () => {
       "diff line 5\ndiff line 6\ndiff line 7\ndiff line 8\ndiff line 9\ndiff line 10",
     );
     assert.equal(details?.operationCount, 1);
-    assert.equal(details?.dryRun, false);
+    assert.equal(details?.dryRun, undefined);
   });
 
   it("keeps a bounded plan body in the durable transcript preview", () => {

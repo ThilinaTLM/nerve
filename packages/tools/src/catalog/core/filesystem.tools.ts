@@ -1,4 +1,4 @@
-import { type Static, Type } from "typebox";
+import { Type } from "typebox";
 import { executeEdit } from "../../execution/filesystem/edit.js";
 import { executeFind } from "../../execution/filesystem/find.js";
 import { executeLs } from "../../execution/filesystem/list.js";
@@ -36,164 +36,27 @@ const readParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const matchModeParameters = Type.Optional(
-  Type.Union(
-    [
-      Type.Literal("exact"),
-      Type.Literal("trimmed"),
-      Type.Literal("whitespace"),
-    ],
-    {
-      description:
-        "Default exact. trimmed tolerates trailing whitespace and smart punctuation; whitespace collapses whitespace runs.",
-    },
-  ),
-);
-
-const occurrenceParameters = Type.Optional(
-  Type.Number({
-    description:
-      "Optional 1-based match occurrence. If omitted, the match must be unique.",
-  }),
-);
-
-const replacementParameters = Type.Object(
+const editItemParameters = Type.Object(
   {
     oldText: Type.String({
-      description:
-        "Text to find and replace. Must be non-empty and unique unless occurrence is provided.",
+      minLength: 1,
+      description: "Exact unique text to replace",
     }),
-    newText: Type.String({ description: "Replacement text." }),
-    matchMode: matchModeParameters,
-    occurrence: occurrenceParameters,
-  },
-  { additionalProperties: false },
-);
-
-const insertionParameters = Type.Object(
-  {
-    anchor: Type.String({
-      description:
-        "Text anchor to insert around. Must be non-empty and unique unless occurrence is provided.",
-    }),
-    position: Type.Union([Type.Literal("before"), Type.Literal("after")], {
-      description: "Insert before or after the anchor.",
-    }),
-    text: Type.String({ description: "Text to insert." }),
-    matchMode: matchModeParameters,
-    occurrence: occurrenceParameters,
-  },
-  { additionalProperties: false },
-);
-
-const lineReplacementParameters = Type.Object(
-  {
-    startLine: Type.Number({
-      description: "1-based inclusive start line.",
-    }),
-    endLine: Type.Number({
-      description: "1-based inclusive end line.",
-    }),
-    newText: Type.String({ description: "Replacement text for the range." }),
-  },
-  { additionalProperties: false },
-);
-
-const lineInsertionParameters = Type.Object(
-  {
-    line: Type.Number({ description: "1-based target line." }),
-    position: Type.Union([Type.Literal("before"), Type.Literal("after")], {
-      description: "Insert before or after the target line.",
-    }),
-    text: Type.String({ description: "Text to insert." }),
+    newText: Type.String({ description: "Replacement text" }),
   },
   { additionalProperties: false },
 );
 
 const editParameters = Type.Object(
   {
-    path: Type.String({
-      description: "Path to the existing file to edit (relative or absolute).",
+    path: Type.String({ description: "Existing file path" }),
+    edits: Type.Array(editItemParameters, {
+      minItems: 1,
+      description: "Exact replacements resolved against the original file",
     }),
-    dryRun: Type.Optional(
-      Type.Boolean({
-        description: "Preview the diff without writing (default false).",
-      }),
-    ),
-    replacements: Type.Optional(
-      Type.Array(replacementParameters, {
-        minItems: 1,
-        description:
-          "Exact text replacements resolved against the original file.",
-      }),
-    ),
-    insertions: Type.Optional(
-      Type.Array(insertionParameters, {
-        minItems: 1,
-        description: "Anchor-based text insertions against the original file.",
-      }),
-    ),
-    lineReplacements: Type.Optional(
-      Type.Array(lineReplacementParameters, {
-        minItems: 1,
-        description: "1-based line range replacements.",
-      }),
-    ),
-    lineInsertions: Type.Optional(
-      Type.Array(lineInsertionParameters, {
-        minItems: 1,
-        description: "1-based line insertions.",
-      }),
-    ),
-    patch: Type.Optional(
-      Type.String({
-        description:
-          "Single-file unified diff; cannot combine with edit arrays.",
-      }),
-    ),
   },
   { additionalProperties: false },
 );
-
-type EditParameters = Static<typeof editParameters>;
-
-type EditConvenienceParameters = EditParameters & {
-  replacements?: unknown;
-  insertions?: unknown;
-  lineReplacements?: unknown;
-  lineInsertions?: unknown;
-};
-
-function parseArrayArgument<T>(value: T): T {
-  if (typeof value !== "string") return value;
-  try {
-    const parsed = JSON.parse(value);
-    return (Array.isArray(parsed) ? parsed : value) as T;
-  } catch {
-    return value;
-  }
-}
-
-function normalizeEditArguments(input: unknown): EditParameters {
-  if (!input || typeof input !== "object") return input as EditParameters;
-  const args = {
-    ...(input as Record<string, unknown>),
-  } as EditConvenienceParameters;
-
-  const record = args as Record<string, unknown>;
-  for (const key of [
-    "replacements",
-    "insertions",
-    "lineReplacements",
-    "lineInsertions",
-  ]) {
-    const parsed = parseArrayArgument(record[key]);
-    if (parsed === undefined) delete record[key];
-    else record[key] = parsed;
-  }
-
-  return args as EditParameters;
-}
 
 const writeParameters = Type.Object(
   {
@@ -328,9 +191,8 @@ export const filesystemToolDefinitions = [
     executor: executeEdit,
     label: "edit",
     description:
-      "Edit one existing file with replacements, insertions, line edits, or a single-file patch; fails on ambiguous edits.",
+      "Replace exact unique text in one existing file; all edits resolve against the original content.",
     parameters: editParameters,
-    normalizeArguments: normalizeEditArguments,
     executionMode: "sequential",
   },
   {

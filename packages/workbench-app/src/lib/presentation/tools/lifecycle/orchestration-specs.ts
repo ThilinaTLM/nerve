@@ -31,21 +31,15 @@ function taskSelector(source: ToolArgumentSource): {
   primary: string;
   count: number;
 } {
-  const taskId = source.string("taskId");
-  const groupId = source.string("groupId");
-  const taskIds = source.strings("taskIds") ?? [];
-  const count = taskIds.length || (taskId || groupId ? 1 : 0);
+  const tasks = source.strings("tasks") ?? [];
   return {
     primary:
-      taskId ??
-      (taskIds.length === 1
-        ? taskIds[0]
-        : taskIds.length > 1
-          ? `${taskIds.length} tasks`
-          : groupId
-            ? `group ${groupId}`
-            : "active tasks"),
-    count,
+      tasks.length === 1
+        ? tasks[0]!
+        : tasks.length > 1
+          ? `${tasks.length} tasks`
+          : "active tasks",
+    count: tasks.length,
   };
 }
 
@@ -57,10 +51,19 @@ function taskStartPresentation(
   const name = source.string("name");
   const cwd = source.string("cwd");
   const envKeys = source.objectKeys("env");
+  const ready = source.record("ready");
   const readiness =
-    source.string("readyUrl") ??
-    source.string("readyPattern") ??
-    (source.boolean("readyOnUrl") ? "first detected URL" : undefined);
+    ready?.kind === "url" && typeof ready.url === "string"
+      ? ready.url
+      : ready?.kind === "pattern" && typeof ready.pattern === "string"
+        ? ready.pattern
+        : ready?.kind === "detected_url"
+          ? "first detected URL"
+          : undefined;
+  const readinessTimeout =
+    ready && typeof ready.timeoutMs === "number"
+      ? durationMs(ready.timeoutMs)
+      : undefined;
   const secondary: MetaItem[] = [];
   if (cwd) secondary.push({ text: `cwd ${cwd}`, mono: true });
   if (readiness) secondary.push({ text: `ready: ${readiness}` });
@@ -70,8 +73,6 @@ function taskStartPresentation(
     });
   if (envKeys.length > 0)
     secondary.push({ text: plural(envKeys.length, "env key") });
-  if (source.boolean("notify") === false)
-    secondary.push({ text: "notifications off" });
   const commandLines = lineCount(command) ?? 0;
   // Stage-independent so the block never appears/disappears mid-lifecycle.
   let body: ToolArgumentBody = codeBody(command, "bash", {
@@ -82,10 +83,9 @@ function taskStartPresentation(
     body = keyValues([
       ["Working directory", cwd ?? "project root", true],
       ["Readiness", readiness],
-      ["Readiness timeout", durationMs(source.number("readyTimeoutMs"))],
+      ["Readiness timeout", readinessTimeout],
       ["Runtime timeout", durationMs(source.number("timeoutMs"))],
       ["Environment keys", envKeys.join(", ")],
-      ["Notifications", source.boolean("notify") === false ? "off" : "on"],
     ]);
   }
   return argumentPresentation({
@@ -144,25 +144,24 @@ export const orchestrationToolLifecycleSpecs = {
       const secondary: MetaItem[] = [];
       if (source.string("mode"))
         secondary.push({ text: source.string("mode")! });
-      if (source.number("sinceSeq") !== undefined)
-        secondary.push({ text: `after ${source.number("sinceSeq")}` });
+      if (source.number("cursor") !== undefined)
+        secondary.push({ text: `cursor ${source.number("cursor")}` });
       if (source.string("contains"))
         secondary.push({ text: "substring filter" });
-      if (source.string("regex")) secondary.push({ text: "regex filter" });
       if (source.number("contextLines") !== undefined)
         secondary.push({ text: `context ${source.number("contextLines")}` });
       if (source.number("limit") !== undefined)
         secondary.push({ text: `max ${source.number("limit")}` });
       return argumentPresentation({
-        primaryArg: textArg(source.string("taskId"), "Task logs"),
+        primaryArg: textArg(source.string("task"), "Task logs"),
         secondary,
         body:
           stage === "approval"
             ? keyValues([
-                ["Task", source.string("taskId")],
+                ["Task", source.string("task")],
                 ["Mode", source.string("mode") ?? "recent"],
+                ["Cursor", source.number("cursor")],
                 ["Contains", source.string("contains")],
-                ["Regular expression", source.string("regex")],
               ])
             : undefined,
       });
@@ -176,7 +175,7 @@ export const orchestrationToolLifecycleSpecs = {
       const action = source.string("action") ?? "stop";
       if (action === "restart") {
         return argumentPresentation({
-          primaryArg: textArg(source.string("taskId"), "Task"),
+          primaryArg: textArg(source.string("task"), "Task"),
           secondary: [{ text: "restart", tone: "warning" }],
           body:
             stage === "approval"
@@ -191,25 +190,13 @@ export const orchestrationToolLifecycleSpecs = {
         });
       }
 
-      const signal = source.string("signal") ?? "SIGTERM";
-      const secondary: MetaItem[] = [
-        { text: signal, tone: signal === "SIGKILL" ? "error" : "warning" },
-      ];
-      if (source.number("timeoutMs") !== undefined)
-        secondary.push({
-          text: `escalate after ${durationMs(source.number("timeoutMs"))}`,
-        });
+      const secondary: MetaItem[] = [{ text: "stop", tone: "warning" }];
       return argumentPresentation({
-        primaryArg: textArg(source.string("taskId"), "Task"),
+        primaryArg: textArg(source.string("task"), "Task"),
         secondary,
         body:
           stage === "approval"
-            ? keyValues([
-                ["Task", source.string("taskId")],
-                ["Signal", signal],
-                ["Escalation timeout", durationMs(source.number("timeoutMs"))],
-                ["Reason", source.string("reason")],
-              ])
+            ? keyValues([["Task", source.string("task")]])
             : undefined,
         safetyNotes: [
           "Requests cancellation of the selected supervised task process.",

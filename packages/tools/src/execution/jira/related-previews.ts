@@ -29,7 +29,7 @@ export function appendRelatedPreview<T>(
   lines.push(
     artifactPath
       ? `Showing first ${items.length} of ${total}; full data is saved to ${artifactPath}.`
-      : `Showing first ${items.length} of ${total}; rerun with save_to_file: true for full data.`,
+      : `Showing first ${items.length} of ${total}; complete data is unavailable.`,
   );
 }
 

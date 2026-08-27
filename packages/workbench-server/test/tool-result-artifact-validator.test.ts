@@ -46,6 +46,62 @@ describe("ToolResultArtifactValidator", () => {
     assert.deepEqual(descriptor?.access, { kind: "agent_file", path });
   });
 
+  it("accepts parameterized image media types after signature validation", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-artifacts-"));
+    homes.push(home);
+    const payloads = new ToolResultPayloadStore(home);
+    await payloads.initialize();
+    const files = payloads.filesPath("conv_test", "tool_test");
+    await mkdir(files, { recursive: true });
+    const cases = [
+      {
+        extension: "png",
+        mediaType: "image/png;charset=UTF-8",
+        bytes: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      },
+      {
+        extension: "jpg",
+        mediaType: "image/jpeg; charset=binary",
+        bytes: Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+      },
+      {
+        extension: "gif",
+        mediaType: "image/gif;version=89a",
+        bytes: Buffer.from("GIF89a", "ascii"),
+      },
+      {
+        extension: "webp",
+        mediaType: "image/webp;charset=binary",
+        bytes: Buffer.from("RIFF0000WEBP", "ascii"),
+      },
+    ];
+    const claims = [];
+    for (const item of cases) {
+      const path = join(files, `image.${item.extension}`);
+      await writeFile(path, item.bytes);
+      claims.push({
+        id: `image_${item.extension}`,
+        role: "primary_result" as const,
+        path,
+        format: {
+          kind: "image" as const,
+          mediaType: item.mediaType,
+        },
+        label: `${item.extension} image`,
+        recommendedTools: ["explain_image" as const],
+      });
+    }
+    const validator = new ToolResultArtifactValidator(home, payloads);
+    const descriptors = await validator.validateClaims(
+      { conversationId: "conv_test", toolCallId: "tool_test" },
+      claims,
+    );
+    assert.deepEqual(
+      descriptors.map((item) => item.availability),
+      ["available", "available", "available", "available"],
+    );
+  });
+
   it("rejects symlink targets and paths outside managed roots without throwing", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-artifacts-"));
     homes.push(home);

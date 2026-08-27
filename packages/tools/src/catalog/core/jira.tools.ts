@@ -61,18 +61,16 @@ const searchUsersParameters = Type.Object(
           "Include inactive users for directory search; assignable searches ignore this option",
       }),
     ),
-    save_to_file: Type.Optional(
-      Type.Boolean({
-        description: "Save the raw JSON response (default: true)",
-      }),
-    ),
   },
   { additionalProperties: false },
 );
 
 const searchIssuesParameters = Type.Object(
   {
-    jql: Type.String({ description: "JQL query to execute" }),
+    jql: Type.String({
+      description:
+        "Bounded JQL query with a field restriction; ORDER-BY-only queries are rejected",
+    }),
     fields: Type.Optional(
       stringArray("Issue fields to return. Defaults to a narrow summary set."),
     ),
@@ -89,19 +87,6 @@ const searchIssuesParameters = Type.Object(
           "Opaque Jira next-page token returned by the preceding issue search",
       }),
     ),
-    expand: Type.Optional(
-      stringArray(
-        "Jira enhanced-search expansions such as renderedFields, names, or schema; serialized as one comma-delimited API value",
-      ),
-    ),
-    validate_query: Type.Optional(
-      Type.Boolean({ description: "Best-effort JQL validation before search" }),
-    ),
-    save_to_file: Type.Optional(
-      Type.Boolean({
-        description: "Whether to save the raw JSON response (default: true)",
-      }),
-    ),
   },
   { additionalProperties: false },
 );
@@ -109,57 +94,28 @@ const searchIssuesParameters = Type.Object(
 const getIssueParameters = Type.Object(
   {
     issue_key: Type.String({ description: "Jira issue key or ID" }),
-    fields: Type.Optional(stringArray("Issue fields to return")),
-    expand: Type.Optional(stringArray("Jira expand values")),
-    include_comments: Type.Optional(
-      Type.Boolean({ description: "Fetch comments for the issue" }),
+    fields: Type.Optional(stringArray("Issue fields")),
+    include: Type.Optional(
+      Type.Array(
+        Type.Union([
+          Type.Literal("comments"),
+          Type.Literal("transitions"),
+          Type.Literal("editmeta"),
+          Type.Literal("worklogs"),
+          Type.Literal("changelog"),
+          Type.Literal("remote_links"),
+          Type.Literal("issue_links"),
+          Type.Literal("attachments"),
+        ]),
+        { uniqueItems: true, description: "Related data to fetch" },
+      ),
     ),
-    include_transitions: Type.Optional(
-      Type.Boolean({ description: "Fetch available workflow transitions" }),
-    ),
-    include_editmeta: Type.Optional(
-      Type.Boolean({ description: "Fetch edit metadata for the issue" }),
-    ),
-    include_worklogs: Type.Optional(
-      Type.Boolean({ description: "Fetch issue worklogs" }),
-    ),
-    include_changelog: Type.Optional(
-      Type.Boolean({ description: "Fetch issue changelog entries" }),
-    ),
-    include_remote_links: Type.Optional(
-      Type.Boolean({ description: "Fetch remote links for the issue" }),
-    ),
-    include_issue_links: Type.Optional(
-      Type.Boolean({ description: "Fetch issue links for the issue" }),
-    ),
-    include_attachments: Type.Optional(
-      Type.Boolean({
-        description: "Include attachment metadata from issue fields",
-      }),
-    ),
-    comment_limit: Type.Optional(
-      positiveInteger("Maximum comments to fetch", 100),
-    ),
-    comment_start_at: Type.Optional(
-      positiveInteger("Comment pagination start", 100000),
-    ),
-    worklog_limit: Type.Optional(
-      positiveInteger("Maximum worklogs to fetch", 100),
-    ),
-    worklog_start_at: Type.Optional(
-      positiveInteger("Worklog pagination start", 100000),
-    ),
-    changelog_limit: Type.Optional(
-      positiveInteger("Maximum changelog entries to fetch", 100),
-    ),
+    comment_start_at: Type.Optional(positiveInteger("Comment offset", 100000)),
+    worklog_start_at: Type.Optional(positiveInteger("Worklog offset", 100000)),
     changelog_start_at: Type.Optional(
-      positiveInteger("Changelog pagination start", 100000),
+      positiveInteger("Changelog offset", 100000),
     ),
-    save_to_file: Type.Optional(
-      Type.Boolean({
-        description: "Save the raw JSON response (default: true)",
-      }),
-    ),
+    related_limit: Type.Optional(positiveInteger("Related page size", 100)),
   },
   { additionalProperties: false },
 );
@@ -167,56 +123,31 @@ const getIssueParameters = Type.Object(
 const getProjectParameters = Type.Object(
   {
     project_key: Type.Optional(
+      Type.String({ description: "Project key or ID; defaults from settings" }),
+    ),
+    include: Type.Optional(
+      Type.Array(
+        Type.Union([
+          Type.Literal("statuses"),
+          Type.Literal("components"),
+          Type.Literal("versions"),
+          Type.Literal("issue_types"),
+          Type.Literal("create_meta"),
+          Type.Literal("fields"),
+          Type.Literal("priorities"),
+          Type.Literal("resolutions"),
+          Type.Literal("issue_link_types"),
+        ]),
+        { uniqueItems: true, description: "Project metadata to fetch" },
+      ),
+    ),
+    issue_type: Type.Optional(
       Type.String({
-        description: "Jira project key or ID; defaults from settings",
+        description: "Issue type ID or exact name for create metadata",
       }),
     ),
-    include_statuses: Type.Optional(
-      Type.Boolean({ description: "Include project status metadata" }),
-    ),
-    include_components: Type.Optional(
-      Type.Boolean({ description: "Include project components" }),
-    ),
-    include_versions: Type.Optional(
-      Type.Boolean({ description: "Include project versions" }),
-    ),
-    include_issue_types: Type.Optional(
-      Type.Boolean({ description: "Include project issue types" }),
-    ),
-    include_create_meta: Type.Optional(
-      Type.Boolean({
-        description: "Include create metadata and required fields",
-      }),
-    ),
-    issue_type_id: Type.Optional(
-      Type.String({ description: "Issue type id for create metadata" }),
-    ),
-    issue_type_name: Type.Optional(
-      Type.String({ description: "Issue type name for create metadata" }),
-    ),
-    include_fields: Type.Optional(
-      Type.Boolean({ description: "Include Jira field metadata" }),
-    ),
-    field_query: Type.Optional(
-      Type.String({ description: "Filter field metadata by query" }),
-    ),
-    field_limit: Type.Optional(
-      positiveInteger("Maximum fields to return", 100),
-    ),
-    include_priorities: Type.Optional(
-      Type.Boolean({ description: "Include Jira priorities" }),
-    ),
-    include_resolutions: Type.Optional(
-      Type.Boolean({ description: "Include Jira resolutions" }),
-    ),
-    include_issue_link_types: Type.Optional(
-      Type.Boolean({ description: "Include Jira issue link types" }),
-    ),
-    save_to_file: Type.Optional(
-      Type.Boolean({
-        description: "Save the raw JSON response (default: true)",
-      }),
-    ),
+    field_query: Type.Optional(Type.String({ description: "Field filter" })),
+    field_limit: Type.Optional(positiveInteger("Field limit", 100)),
   },
   { additionalProperties: false },
 );
@@ -341,7 +272,6 @@ const manageCommentParameters = Type.Object(
 const agilePageFields = {
   start_at: Type.Optional(Type.Number({ minimum: 0, maximum: 100000 })),
   limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
-  save_to_file: Type.Optional(Type.Boolean()),
 };
 const searchBoardsParameters = Type.Object(
   {
@@ -361,19 +291,22 @@ const searchBoardsParameters = Type.Object(
 const getBoardParameters = Type.Object(
   {
     board_id: Type.String(),
-    include_sprints: Type.Optional(Type.Boolean()),
+    include: Type.Optional(
+      Type.Array(
+        Type.Union([Type.Literal("sprints"), Type.Literal("backlog")]),
+        { uniqueItems: true, description: "Board data to fetch" },
+      ),
+    ),
     sprint_states: Type.Optional(stringArray("Sprint states")),
     sprint_start_at: Type.Optional(
       Type.Number({ minimum: 0, maximum: 100000 }),
     ),
     sprint_limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
-    include_backlog: Type.Optional(Type.Boolean()),
     backlog_start_at: Type.Optional(
       Type.Number({ minimum: 0, maximum: 100000 }),
     ),
     backlog_limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
     fields: Type.Optional(stringArray("Issue fields")),
-    save_to_file: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

@@ -15,12 +15,10 @@ import {
   appendPreviewHint,
   appendRecordKeys,
   appendResolvedAssignee,
-  appendSavePreference,
   asRecord,
   compactLines,
   countLabel,
   draftArgSource,
-  enabledFlags,
   formatJiraBoard,
   formatJiraField,
   formatJiraIssue,
@@ -155,7 +153,6 @@ function appendJiraRequestLines(
         "Include inactive",
         yesNo(sourceBoolean(source, "include_inactive")),
       );
-      appendSavePreference(lines, source);
       break;
     }
     case "search_issues": {
@@ -166,19 +163,12 @@ function appendJiraRequestLines(
         budget,
       );
       addListLine(lines, "Fields", sourceStringArray(source, "fields"), budget);
-      addListLine(lines, "Expand", sourceStringArray(source, "expand"), budget);
       addLine(lines, "Limit", sourceNumber(source, "max_results"));
       addLine(
         lines,
         "Next page token",
         sourceString(source, "next_page_token"),
       );
-      addLine(
-        lines,
-        "Validate query",
-        yesNo(sourceBoolean(source, "validate_query")),
-      );
-      appendSavePreference(lines, source);
       break;
     }
     case "get_issue": {
@@ -188,28 +178,18 @@ function appendJiraRequestLines(
         view?.issueKey ?? sourceString(source, "issue_key"),
       );
       addListLine(lines, "Fields", sourceStringArray(source, "fields"), budget);
-      addListLine(lines, "Expand", sourceStringArray(source, "expand"), budget);
       addListLine(
         lines,
         "Includes",
-        enabledFlags(source, {
-          include_comments: "comments",
-          include_transitions: "transitions",
-          include_editmeta: "edit metadata",
-          include_worklogs: "worklogs",
-          include_changelog: "changelog",
-          include_remote_links: "remote links",
-          include_attachments: "attachments",
-        }),
+        sourceStringArray(source, "include"),
         budget,
       );
       appendLimitLines(lines, source, [
-        ["Comment limit", "comment_limit"],
+        ["Related limit", "related_limit"],
         ["Comment start", "comment_start_at"],
-        ["Worklog limit", "worklog_limit"],
-        ["Changelog limit", "changelog_limit"],
+        ["Worklog start", "worklog_start_at"],
+        ["Changelog start", "changelog_start_at"],
       ]);
-      appendSavePreference(lines, source);
       break;
     }
     case "get_project": {
@@ -223,23 +203,12 @@ function appendJiraRequestLines(
       addListLine(
         lines,
         "Includes",
-        enabledFlags(source, {
-          include_statuses: "statuses",
-          include_components: "components",
-          include_versions: "versions",
-          include_issue_types: "issue types",
-          include_create_meta: "create metadata",
-          include_fields: "fields",
-          include_priorities: "priorities",
-          include_resolutions: "resolutions",
-        }),
+        sourceStringArray(source, "include"),
         budget,
       );
-      addLine(lines, "Issue type id", sourceString(source, "issue_type_id"));
-      addLine(lines, "Issue type", sourceString(source, "issue_type_name"));
+      addLine(lines, "Issue type", sourceString(source, "issue_type"));
       addLine(lines, "Field query", sourceString(source, "field_query"));
       addLine(lines, "Field limit", sourceNumber(source, "field_limit"));
-      appendSavePreference(lines, source);
       break;
     }
     case "create_issue": {

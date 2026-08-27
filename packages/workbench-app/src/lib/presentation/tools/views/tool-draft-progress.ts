@@ -387,19 +387,6 @@ type EditDraftStats = {
   estimated: boolean;
 };
 
-function patchLineStats(patch: string): {
-  additions: number;
-  deletions: number;
-} {
-  let additions = 0;
-  let deletions = 0;
-  for (const line of patch.split(/\r?\n/)) {
-    if (line.startsWith("+") && !line.startsWith("+++")) additions += 1;
-    else if (line.startsWith("-") && !line.startsWith("---")) deletions += 1;
-  }
-  return { additions, deletions };
-}
-
 function arrayField(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
@@ -407,52 +394,16 @@ function arrayField(value: unknown): unknown[] {
 function finalEditStats(
   args: Record<string, unknown>,
 ): EditDraftStats | undefined {
-  if (
-    !Array.isArray(args.replacements) &&
-    !Array.isArray(args.insertions) &&
-    !Array.isArray(args.lineReplacements) &&
-    !Array.isArray(args.lineInsertions) &&
-    typeof args.patch !== "string"
-  ) {
-    return undefined;
-  }
+  if (!Array.isArray(args.edits)) return undefined;
 
-  let operations = 0;
   let additions = 0;
   let deletions = 0;
-
-  const replacements = arrayField(args.replacements);
-  operations += replacements.length;
-  for (const replacement of replacements) {
-    const record = asRecord(replacement);
+  const edits = arrayField(args.edits);
+  const operations = edits.length;
+  for (const edit of edits) {
+    const record = asRecord(edit);
     additions += lineCount(stringField(record.newText)) ?? 0;
     deletions += lineCount(stringField(record.oldText)) ?? 0;
-  }
-
-  const insertions = arrayField(args.insertions);
-  operations += insertions.length;
-  for (const insertion of insertions) {
-    additions += lineCount(stringField(asRecord(insertion).text)) ?? 0;
-  }
-
-  const lineReplacements = arrayField(args.lineReplacements);
-  operations += lineReplacements.length;
-  for (const replacement of lineReplacements) {
-    additions += lineCount(stringField(asRecord(replacement).newText)) ?? 0;
-  }
-
-  const lineInsertions = arrayField(args.lineInsertions);
-  operations += lineInsertions.length;
-  for (const insertion of lineInsertions) {
-    additions += lineCount(stringField(asRecord(insertion).text)) ?? 0;
-  }
-
-  const patch = stringField(args.patch);
-  if (patch) {
-    operations += 1;
-    const patchStats = patchLineStats(patch);
-    additions += patchStats.additions;
-    deletions += patchStats.deletions;
   }
 
   return {
@@ -470,8 +421,8 @@ function finalEditPreview(args: Record<string, unknown>): {
 } {
   const parts: DiffPreviewPart[] = [];
 
-  for (const replacement of arrayField(args.replacements)) {
-    const record = asRecord(replacement);
+  for (const edit of arrayField(args.edits)) {
+    const record = asRecord(edit);
     const oldText = stringField(record.oldText);
     const newText = stringField(record.newText);
     if (oldText !== undefined) {
@@ -481,21 +432,6 @@ function finalEditPreview(args: Record<string, unknown>): {
       parts.push({ text: newText, kind: "added", complete: true });
     }
   }
-  for (const insertion of arrayField(args.insertions)) {
-    const text = stringField(asRecord(insertion).text);
-    if (text !== undefined) parts.push({ text, kind: "added", complete: true });
-  }
-  for (const replacement of arrayField(args.lineReplacements)) {
-    const text = stringField(asRecord(replacement).newText);
-    if (text !== undefined) parts.push({ text, kind: "added", complete: true });
-  }
-  for (const insertion of arrayField(args.lineInsertions)) {
-    const text = stringField(asRecord(insertion).text);
-    if (text !== undefined) parts.push({ text, kind: "added", complete: true });
-  }
-  const patch = stringField(args.patch);
-  if (patch !== undefined)
-    parts.push({ text: patch, kind: "patch", complete: true });
 
   const preview = diffPreviewFromParts(parts, true);
   return { preview, previewLanguage: preview ? "diff" : undefined };
@@ -508,18 +444,11 @@ function partialEditPreview(
   const entries = extractJsonStringEntries(argsText, [
     "oldText",
     "newText",
-    "text",
-    "patch",
   ] as const);
   const preview = diffPreviewFromParts(
     entries.map((entry) => ({
       text: entry.value,
-      kind:
-        entry.property === "oldText"
-          ? "removed"
-          : entry.property === "patch"
-            ? "patch"
-            : "added",
+      kind: entry.property === "oldText" ? "removed" : "added",
       complete: entry.complete,
     })),
     done,
@@ -542,32 +471,10 @@ function progressEditStats(draft: ToolDraftBlock): EditDraftStats | undefined {
 function partialEditStats(argsText: string): EditDraftStats {
   const oldTextLines = lineCountsForJsonStringValues(argsText, "oldText");
   const newTextLines = lineCountsForJsonStringValues(argsText, "newText");
-  const insertedTextLines = lineCountsForJsonStringValues(argsText, "text");
-  const patches = extractJsonStringValues(argsText, "patch", {
-    maxChars: 24_000,
-  });
-  const patchStats = patches.reduce(
-    (total, patch) => {
-      const stats = patchLineStats(patch);
-      return {
-        additions: total.additions + stats.additions,
-        deletions: total.deletions + stats.deletions,
-      };
-    },
-    { additions: 0, deletions: 0 },
-  );
-  const additions =
-    newTextLines.reduce((total, count) => total + count, 0) +
-    insertedTextLines.reduce((total, count) => total + count, 0) +
-    patchStats.additions;
-  const deletions =
-    oldTextLines.reduce((total, count) => total + count, 0) +
-    patchStats.deletions;
+  const additions = newTextLines.reduce((total, count) => total + count, 0);
+  const deletions = oldTextLines.reduce((total, count) => total + count, 0);
   return {
-    operations:
-      Math.max(oldTextLines.length, newTextLines.length) +
-      insertedTextLines.length +
-      patches.length,
+    operations: Math.max(oldTextLines.length, newTextLines.length),
     generatedLines: additions,
     estimatedAdditions: additions,
     estimatedDeletions: deletions,

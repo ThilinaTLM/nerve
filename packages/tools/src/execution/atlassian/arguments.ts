@@ -22,6 +22,26 @@ export function optionalStringArray(value: unknown): string[] | undefined {
     .map((item) => item.trim());
 }
 
+export function enumSet<const T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  name = "include",
+): ReadonlySet<T> {
+  if (value === undefined) return new Set<T>();
+  if (!Array.isArray(value)) throw new Error(`${name} must be an array.`);
+  const allowedSet = new Set<string>(allowed);
+  const output = new Set<T>();
+  for (const [index, item] of value.entries()) {
+    if (typeof item !== "string" || !allowedSet.has(item)) {
+      throw new Error(
+        `${name}[${index}] must be one of: ${allowed.join(", ")}.`,
+      );
+    }
+    output.add(item as T);
+  }
+  return output;
+}
+
 export function optionalBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }

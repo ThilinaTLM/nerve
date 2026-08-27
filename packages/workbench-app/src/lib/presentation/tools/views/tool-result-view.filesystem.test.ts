@@ -61,7 +61,7 @@ describe("parseToolView filesystem read/write/edit", () => {
     const view = parseToolView(
       transcriptToolCall(
         "edit",
-        { path: "src/x.ts", replacements: [] },
+        { path: "src/x.ts", edits: [] },
         {
           path: `${CWD}/src/x.ts`,
           details: {
@@ -94,7 +94,7 @@ describe("parseToolView filesystem read/write/edit", () => {
     const view = parseToolView(
       transcriptToolCall(
         "edit",
-        { path: "src/x.ts", replacements: [{ oldText: "a", newText: "b" }] },
+        { path: "src/x.ts", edits: [{ oldText: "a", newText: "b" }] },
         {
           path: `${CWD}/src/x.ts`,
           details: { diff: 42, operationCount: 3, dryRun: false },
@@ -111,14 +111,13 @@ describe("parseToolView filesystem read/write/edit", () => {
     assert.equal(view.diffLineCount, 0);
   });
 
-  it("parses edit diff, operation count, dry-run flag, and +/- stats", () => {
+  it("parses edit diff, operation count, and +/- stats", () => {
     const view = parseToolView(
       toolCall(
         "edit",
         {
           path: "src/x.ts",
-          replacements: [{ oldText: "a", newText: "b" }],
-          dryRun: true,
+          edits: [{ oldText: "a", newText: "b" }],
         },
         {
           path: `${CWD}/src/x.ts`,
@@ -126,10 +125,18 @@ describe("parseToolView filesystem read/write/edit", () => {
             diff: "@@ -1 +1 @@\n-a\n+b",
             lineEnding: "\n",
             bom: false,
-            dryRun: true,
             operationCount: 1,
             operations: [
-              { index: 0, type: "replace_text", matchedBy: "unique" },
+              {
+                index: 0,
+                type: "replace_text",
+                source: "edits",
+                sourceIndex: 0,
+                matchCount: 1,
+                startLine: 1,
+                endLine: 1,
+                matchedBy: "unique",
+              },
             ],
           },
         },
@@ -138,7 +145,6 @@ describe("parseToolView filesystem read/write/edit", () => {
     assert.equal(view.kind, "edit");
     if (view.kind !== "edit") return;
     assert.equal(view.operationCount, 1);
-    assert.equal(view.dryRun, true);
     assert.equal(view.additions, 1);
     assert.equal(view.deletions, 1);
   });

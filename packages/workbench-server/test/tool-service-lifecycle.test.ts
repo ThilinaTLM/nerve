@@ -58,7 +58,7 @@ describe("tool service lifecycle", () => {
       "edit",
       {
         path: "src/file.ts",
-        replacements: [{ oldText: "a", newText: "b", note: "bad" }],
+        edits: [{ oldText: "a", newText: "b", note: "bad" }],
       },
       "Validation failed for tool edit.",
       {
@@ -84,7 +84,7 @@ describe("tool service lifecycle", () => {
     });
     assert.deepEqual(toolCall.args, {
       path: "src/file.ts",
-      replacements: [{ oldText: "a", newText: "b", note: "bad" }],
+      edits: [{ oldText: "a", newText: "b", note: "bad" }],
     });
     // The resolved anchor must survive on the stored record: the transcript
     // renderer keys the tool's row by (liveMessageId, contentIndex).

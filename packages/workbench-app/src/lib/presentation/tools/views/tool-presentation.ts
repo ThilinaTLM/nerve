@@ -278,7 +278,7 @@ export function toolPresentation(
       const meta: MetaItem[] = [
         { text: plural(view.operationCount, "operation") },
       ];
-      if (view.dryRun) meta.push({ text: "preview", tone: "info" });
+      if (view.dryRun) meta.push({ text: "historical preview", tone: "info" });
       if (view.additions > 0)
         meta.push({ text: `+${view.additions}`, tone: "success" });
       if (view.deletions > 0)

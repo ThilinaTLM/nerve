@@ -220,7 +220,7 @@ describe("agent tool-result preview", () => {
     const output = text(toolCallResultForModel(call));
     assert.match(output, /\n1 \[stdout\]/);
     assert.doesNotMatch(output, /\n100 \[stdout\]/);
-    assert.match(output, /sinceSeq=/);
+    assert.match(output, /cursor=/);
   });
 
   it("gives parallel siblings independent budgets", () => {

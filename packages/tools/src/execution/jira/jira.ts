@@ -1,6 +1,7 @@
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import {
   boundedNumber,
+  enumSet,
   optionalBoolean,
   optionalString,
   optionalStringArray,
@@ -22,7 +23,7 @@ import {
   formatTransitionSummaryLine,
   issueLine,
   JIRA_FIELD_DISPLAY_LIMIT,
-  maybeWriteJiraArtifact,
+  writeJiraArtifact,
   summarizeJiraAttachment,
   summarizeJiraChangelog,
   summarizeJiraComment,
@@ -93,64 +94,74 @@ export async function executeJiraGetIssue(
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const issueKey = requiredString(args.issue_key, "issue_key");
+  const include = enumSet(args.include, [
+    "comments",
+    "transitions",
+    "editmeta",
+    "worklogs",
+    "changelog",
+    "remote_links",
+    "issue_links",
+    "attachments",
+  ] as const);
+  const relatedLimit = boundedNumber(args.related_limit, 50, 1, 100);
   const fields = optionalStringArray(args.fields) ?? DEFAULT_GET_ISSUE_FIELDS;
   const issueFields =
-    args.include_attachments === true && !fields.includes("attachment")
+    include.has("attachments") && !fields.includes("attachment")
       ? [...fields, "attachment"]
       : fields;
-  const expand = optionalStringArray(args.expand);
   const issue = await jiraRequest<JiraIssueResponse>(connection, {
     path: `/issue/${pathSegment(issueKey)}`,
-    query: { fields: issueFields, expand },
+    query: { fields: issueFields },
     signal: context.signal,
   });
   const result: Record<string, unknown> = { issue };
-  if (args.include_comments === true) {
+  if (include.has("comments")) {
     result.comments = await jiraRequest(connection, {
       path: `/issue/${pathSegment(issueKey)}/comment`,
       query: {
         startAt: boundedNumber(args.comment_start_at, 0, 0, 100000),
-        maxResults: boundedNumber(args.comment_limit, 50, 1, 100),
+        maxResults: relatedLimit,
       },
       signal: context.signal,
     });
   }
-  if (args.include_transitions === true) {
+  if (include.has("transitions")) {
     result.transitions = await getTransitions(connection, issueKey, context);
   }
-  if (args.include_editmeta === true) {
+  if (include.has("editmeta")) {
     result.editmeta = await jiraRequest(connection, {
       path: `/issue/${pathSegment(issueKey)}/editmeta`,
       signal: context.signal,
     });
   }
-  if (args.include_worklogs === true) {
+  if (include.has("worklogs")) {
     result.worklogs = await jiraRequest(connection, {
       path: `/issue/${pathSegment(issueKey)}/worklog`,
       query: {
         startAt: boundedNumber(args.worklog_start_at, 0, 0, 100000),
-        maxResults: boundedNumber(args.worklog_limit, 50, 1, 100),
+        maxResults: relatedLimit,
       },
       signal: context.signal,
     });
   }
-  if (args.include_changelog === true) {
+  if (include.has("changelog")) {
     result.changelog = await jiraRequest(connection, {
       path: `/issue/${pathSegment(issueKey)}/changelog`,
       query: {
         startAt: boundedNumber(args.changelog_start_at, 0, 0, 100000),
-        maxResults: boundedNumber(args.changelog_limit, 50, 1, 100),
+        maxResults: relatedLimit,
       },
       signal: context.signal,
     });
   }
-  if (args.include_remote_links === true) {
+  if (include.has("remote_links")) {
     result.remoteLinks = await jiraRequest(connection, {
       path: `/issue/${pathSegment(issueKey)}/remotelink`,
       signal: context.signal,
     });
   }
-  if (args.include_issue_links === true) {
+  if (include.has("issue_links")) {
     if (issueFields.includes("issuelinks")) {
       result.issueLinks =
         (issue.fields as { issuelinks?: unknown[] } | undefined)?.issuelinks ??
@@ -166,12 +177,7 @@ export async function executeJiraGetIssue(
           ?.issuelinks ?? [];
     }
   }
-  const artifact = await maybeWriteJiraArtifact(
-    context,
-    "get-issue",
-    result,
-    args.save_to_file,
-  );
+  const artifact = await writeJiraArtifact(context, "get-issue", result);
   const issueSummary = summarizeJiraIssue(issue);
   const lines = [
     issueSummary ? formatIssueSummaryLine(issueSummary) : issueLine(issue),
@@ -199,7 +205,7 @@ export async function executeJiraGetIssue(
     (issue.fields as { attachment?: unknown[] } | undefined)?.attachment,
     summarizeJiraAttachment,
   );
-  if (args.include_attachments === true) {
+  if (include.has("attachments")) {
     includedCounts.attachments = attachmentSummaries.total;
     appendRelatedPreview(
       lines,
@@ -260,7 +266,7 @@ export async function executeJiraGetIssue(
     result.remoteLinks,
     summarizeJiraRemoteLink,
   );
-  if (args.include_remote_links === true) {
+  if (include.has("remote_links")) {
     includedCounts.remoteLinks = remoteLinks.total;
     appendRelatedPreview(
       lines,
@@ -276,7 +282,7 @@ export async function executeJiraGetIssue(
     result.issueLinks,
     summarizeJiraIssueLink,
   );
-  if (args.include_issue_links === true) {
+  if (include.has("issue_links")) {
     includedCounts.issueLinks = issueLinks.total;
     appendRelatedPreview(
       lines,
@@ -324,7 +330,7 @@ export async function executeJiraGetIssue(
     relatedPage("worklogs", result.worklogs, "worklogs", "worklog_start_at"),
     relatedPage("changelog", result.changelog, "values", "changelog_start_at"),
   ].filter((value) => value !== undefined);
-  if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
+  lines.push(`Raw JSON saved to: ${artifact.path}`);
   return buildJiraTextResult({
     text: lines.join("\n"),
     context,

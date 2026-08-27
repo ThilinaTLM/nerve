@@ -32,10 +32,7 @@ export async function executeJiraSearchUsers(
     includeInactive,
     signal: context.signal,
   });
-  const artifact =
-    args.save_to_file === false
-      ? undefined
-      : await writeJiraArtifact(context, "search-users", data);
+  const artifact = await writeJiraArtifact(context, "search-users", data);
   const rawUsers = jiraUsersFromResponse(data);
   const users = rawUsers.flatMap((user) => {
     const summary = summarizeJiraUser(user);
