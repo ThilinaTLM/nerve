@@ -418,7 +418,7 @@ During implementation, validate incrementally with focused package commands, the
    - no request to localhost/runtime APIs from the static site.
 4. Review command snippets on Linux syntax and retain separate PowerShell blocks where needed.
 5. Grep for stale/high-risk phrases: wire “ACK,” “scratch notes in tabs,” generic “file upload,” “all pi-ai providers,” “sandboxed,” “safe public Internet,” and old migration exclusions.
-6. Run in one Bash invocation: `pnpm fix && pnpm check && pnpm test`. Fix failures and rerun the complete chain.
+6. Run in one Bash invocation: `pnpm fix && pnpm check && pnpm run test:full`. Fix failures and rerun the complete chain.
 7. Run `pnpm build` to verify the website composes with all workspace builds and the existing workbench asset staging step.
 8. After repository merge and external Pages/DNS setup, verify `https://nerve.tlmtech.dev`, HTTPS certificate issuance, redirect/canonical behavior, sitemap/search assets, and a clean browser load.
 

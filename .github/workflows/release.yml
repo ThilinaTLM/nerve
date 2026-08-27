@@ -147,7 +147,7 @@ jobs:
         run: pnpm check
 
       - name: Run complete test suite
-        run: pnpm test
+        run: pnpm run test:full
 
       - name: Remove developer native prebuild
         run: rm -rf packages/native/prebuilds/local
