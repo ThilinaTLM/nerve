@@ -7,7 +7,7 @@ import {
 import {
   fileViewerPreferences,
   setHighlightSelectionMatches,
-} from "$lib/features/filesystem/state/file-viewer-preferences.svelte";
+} from "$lib/application/workspace/file-viewer-preferences.svelte";
 import { openMarkdownMermaidPane } from "$lib/features/filesystem/state/mermaid-tabs.svelte";
 import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/core/components/mermaid-blocks";
 import { fileSelectors } from "$lib/features/filesystem/state/file-selectors.svelte";

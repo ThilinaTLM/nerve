@@ -9,10 +9,23 @@ import type { GitDiffPaneModel } from "./git-diff-types";
 
 type Props = {
   view?: GitDiffPaneModel;
+  wrap?: boolean;
+  highlightSelectionMatches?: boolean;
   onRefresh: () => void;
+  onCopy?: (ok: boolean) => void;
+  onToggleSelectionMatches?: () => void;
+  onToggleWrap?: () => void;
 };
 
-let { view, onRefresh }: Props = $props();
+let {
+  view,
+  wrap = false,
+  highlightSelectionMatches = false,
+  onRefresh,
+  onCopy,
+  onToggleSelectionMatches,
+  onToggleWrap,
+}: Props = $props();
 const textDiff = $derived(view?.data?.binary === false ? view.data : undefined);
 const hasChanges = $derived(
   Boolean(textDiff && textDiff.original !== textDiff.modified),
@@ -26,6 +39,11 @@ const hasChanges = $derived(
         original={textDiff.original}
         modified={textDiff.modified}
         path={textDiff.path}
+        {wrap}
+        {highlightSelectionMatches}
+        {onCopy}
+        {onToggleSelectionMatches}
+        {onToggleWrap}
       />
     </div>
   {:else}

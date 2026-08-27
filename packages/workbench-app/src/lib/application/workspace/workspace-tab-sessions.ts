@@ -9,6 +9,7 @@ import {
   prViewKey,
 } from "$lib/kernel/navigation/view-keys";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
+import { fileViewerPreferences } from "$lib/application/workspace/file-viewer-preferences.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { syncCenterTabMirrors } from "./center-tab-mirrors.svelte";
 import type {
@@ -347,6 +348,7 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
         path: stored.path,
         renamedFrom: stored.renamedFrom,
         area: stored.area,
+        wrapLines: fileViewerPreferences.wrapLongLines,
         loading: false,
         refreshing: false,
       };
