@@ -99,6 +99,12 @@ export async function executeEdit(
         dryRun: normalized.dryRun,
         operationCount: normalized.operations.length,
         operations: operationDetails,
+        mutationSummary: {
+          operation: "edit",
+          outcome: normalized.dryRun ? "dry_run" : "succeeded",
+          resources: [{ kind: "file", path }],
+          warnings: [],
+        },
       },
     };
   });

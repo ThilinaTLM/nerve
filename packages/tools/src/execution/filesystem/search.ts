@@ -91,7 +91,13 @@ export async function executeGrepWithBackend(
     matches: bounded.result.matches,
     content: formatted.content,
     contentBlocks: [{ type: "text", text: formatted.content }],
-    details: formatted.details,
+    details: {
+      ...(formatted.details && typeof formatted.details === "object"
+        ? formatted.details
+        : {}),
+      returnedMatches: bounded.result.matches.length,
+      producerLimitReached: bounded.result.matches.length >= limit,
+    },
   };
 }
 

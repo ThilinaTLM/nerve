@@ -3,14 +3,18 @@ import { describe, it } from "node:test";
 import type { ToolCallRecord } from "@nervekit/contracts";
 import { toolCallResultForModel } from "../src/domains/tools/agent-tool-adapter.js";
 
-function toolCall(result: unknown, id = "tool_test"): ToolCallRecord {
+function toolCall(
+  result: unknown,
+  id = "tool_test",
+  toolName: ToolCallRecord["toolName"] = "bash",
+): ToolCallRecord {
   const now = "2026-08-25T00:00:00.000Z";
   return {
     id,
     agentId: "agent_test",
     conversationId: "conv_test",
     projectId: "proj_test",
-    toolName: "bash",
+    toolName,
     risk: "command",
     args: { command: "test" },
     cwd: "/tmp/project",
@@ -55,6 +59,28 @@ function completePayload(path: string) {
     size: { bytes: 100_000 },
     recommendedTools: ["read" as const, "grep" as const],
     label: "Complete tool result payload",
+  };
+}
+
+function textArtifact(
+  id: string,
+  path: string,
+  role: "overflow_recovery" | "supporting_data" = "overflow_recovery",
+) {
+  return {
+    version: 1 as const,
+    id,
+    role,
+    access: { kind: "agent_file" as const, path },
+    availability: "available" as const,
+    format: {
+      kind: id === "task_events" ? ("jsonl" as const) : ("text" as const),
+      mediaType: id === "task_events" ? "application/x-ndjson" : "text/plain",
+      encoding: "utf-8" as const,
+    },
+    size: { bytes: 100_000 },
+    recommendedTools: ["read" as const, "grep" as const],
+    label: id,
   };
 }
 
@@ -144,6 +170,57 @@ describe("agent tool-result preview", () => {
       new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
     );
     assert.match(output, /do not rerun/i);
+  });
+
+  it("does not skip incremental task-log events during projection", () => {
+    const events = Array.from({ length: 100 }, (_, index) => ({
+      seq: index + 1,
+      timestamp: "2026-08-25T00:00:00.000Z",
+      stream: "stdout" as const,
+      level: "info" as const,
+      line: `event-${index + 1} ${"x".repeat(600)}`,
+      raw: { start: index * 610, end: (index + 1) * 610 },
+    }));
+    const call = {
+      ...toolCall(
+        {
+          task: {
+            id: "task_test",
+            name: "probe",
+            projectId: "proj_test",
+            conversationId: "conv_test",
+            agentId: "agent_test",
+            cwd: "/tmp/project",
+            command: "probe",
+            status: "running",
+            readiness: { outcome: "none" },
+            stdoutPath: "/tmp/stdout.txt",
+            stderrPath: "/tmp/stderr.txt",
+            logsPath: "/tmp/events.jsonl",
+            startedAt: "2026-08-25T00:00:00.000Z",
+            updatedAt: "2026-08-25T00:00:00.000Z",
+          },
+          events,
+          mode: "since_cursor",
+          nextCursor: 100,
+          hasMoreBefore: false,
+          hasMoreAfter: false,
+          originalEventCount: 100,
+          displayedEventCount: 100,
+          omittedEventCount: 0,
+        },
+        "tool_logs",
+        "task_logs",
+      ),
+      validatedArtifacts: [
+        textArtifact("task_stdout", "/tmp/stdout.txt"),
+        textArtifact("task_events", "/tmp/events.jsonl", "supporting_data"),
+      ],
+    } satisfies ToolCallRecord;
+    const output = text(toolCallResultForModel(call));
+    assert.match(output, /\n1 \[stdout\]/);
+    assert.doesNotMatch(output, /\n100 \[stdout\]/);
+    assert.match(output, /sinceSeq=/);
   });
 
   it("gives parallel siblings independent budgets", () => {

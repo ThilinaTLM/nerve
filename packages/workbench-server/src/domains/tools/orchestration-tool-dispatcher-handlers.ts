@@ -1,7 +1,4 @@
-import {
-  buildProcessTextResult,
-  type ToolExecutionOutputUpdate,
-} from "@nervekit/tools";
+import type { ToolExecutionOutputUpdate } from "@nervekit/tools";
 import {
   type TaskCancelResultPayload,
   taskLogsToolResultSchema,
@@ -62,29 +59,13 @@ export async function taskLogsFromTool(
     nextCursor: response.nextCursor,
     mode: response.mode,
   });
-  const bounded = await buildProcessTextResult({
-    text,
-    outputFilePrefix: "nerve-task-logs",
-    exitMessagePrefix: "Task logs",
-    dataDir: this.deps.storage.paths.home,
+  return taskLogsToolResultSchema.parse({
+    ...response,
+    contentBlocks: [{ type: "text", text }],
     details: {
       taskId: task.id,
       mode: response.mode,
       nextCursor: response.nextCursor,
-    },
-  });
-  const details = bounded.details as
-    | { fullOutputPath?: string; truncation?: { truncated?: boolean } }
-    | undefined;
-  return taskLogsToolResultSchema.parse({
-    ...response,
-    previewPath: details?.fullOutputPath,
-    truncated: details?.truncation?.truncated,
-    contentBlocks: bounded.contentBlocks,
-    details: {
-      ...(bounded.details && typeof bounded.details === "object"
-        ? bounded.details
-        : {}),
       outputLimits: {
         artifacts: [
           {

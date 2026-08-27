@@ -44,6 +44,11 @@ describe("Confluence read request contracts", () => {
       assert.equal(requestUrl?.searchParams.get("cursor"), "next-1");
       assert.equal(requestUrl?.searchParams.has("query"), false);
       assert.equal(result.details?.nextCursor, "next-2");
+      assert.equal(result.exitCode, undefined);
+      assert.equal(
+        (result.details as Record<string, unknown> | undefined)?.streams,
+        undefined,
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }

@@ -260,6 +260,7 @@ export async function buildProcessResult({
       durationMs,
       timedOut,
       timeoutKilled,
+      processStatusIncluded: timedOut || exitCode !== 0,
       truncation: outputTruncation,
       outputLimits: processOutputLimits({
         existing: (details as { outputLimits?: ToolOutputLimitsPayload })

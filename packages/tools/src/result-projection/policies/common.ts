@@ -8,6 +8,7 @@ import type {
 } from "@nervekit/contracts";
 import { fallbackText, validContentBlocks } from "../fallback.js";
 import { textHead } from "../measure.js";
+import { formatWebFetchCandidateText } from "../candidates/web.js";
 import type {
   AgentResultPolicy,
   CandidateContext,
@@ -148,44 +149,55 @@ export function processCandidate(
   const stdout = string(result.stdout);
   const stderr = string(result.stderr);
   const details = record(result.details);
-  const truncation = record(details.truncation);
-  const omitted =
-    truncation.truncated === true
-      ? `Retention: omitted ${String(truncation.omittedLines ?? "?")} lines / ${String(truncation.omittedBytes ?? "?")} bytes from the inline execution view.`
-      : undefined;
-  const statusLines = [
-    `Process ${result.exitCode === undefined ? "finished" : `exit code ${String(result.exitCode)}`}.`,
+  const streams = record(details.streams);
+  const combined = record(streams.combined);
+  const timedOut = details.timedOut === true || result.timedOut === true;
+  const exitCode = number(result.exitCode) ?? number(details.exitCode);
+  const basicStatus = [
+    `Process ${exitCode === undefined ? "finished" : `exit code ${String(exitCode)}`}.`,
     typeof result.signal === "string"
       ? `Signal: ${result.signal}`
       : typeof details.signal === "string"
         ? `Signal: ${details.signal}`
         : undefined,
-    details.timedOut === true || result.timedOut === true
-      ? "Timed out: yes"
-      : undefined,
+    timedOut ? "Timed out: yes" : undefined,
     number(details.durationMs) !== undefined
       ? `Duration: ${String(details.durationMs)} ms`
       : undefined,
-    omitted,
   ].filter((line): line is string => Boolean(line));
-  const groups: string[] = [];
-  if (stdout) groups.push(`stdout:\n${stdout}`);
-  if (stderr) groups.push(`stderr:\n${stderr}`);
-  if (groups.length === 0 && typeof result.content === "string")
-    groups.push(result.content);
-  const fullText = [...groups, statusLines.join("\n")]
-    .filter(Boolean)
+  const outputFacts = [
+    number(combined.lines) !== undefined
+      ? `Output lines: ${String(combined.lines)}`
+      : undefined,
+    number(combined.bytes) !== undefined
+      ? `Output bytes: ${String(combined.bytes)}`
+      : undefined,
+  ].filter((line): line is string => Boolean(line));
+  const producerStatusIncluded = details.processStatusIncluded === true;
+  const body =
+    typeof result.content === "string"
+      ? result.content
+      : [stdout ? `stdout:\n${stdout}` : "", stderr ? `stderr:\n${stderr}` : ""]
+          .filter(Boolean)
+          .join("\n\n");
+  const fullText = [
+    body,
+    producerStatusIncluded ? undefined : basicStatus.join("\n"),
+  ]
+    .filter((value): value is string => Boolean(value))
     .join("\n\n");
-  const diagnosticLines = diagnosticItems(
-    stdout,
-    stderr,
-    result.exitCode,
-    result.timedOut === true || details.timedOut === true,
-  );
+  const diagnosticLines = diagnosticItems(stdout, stderr, exitCode, timedOut);
   return {
     blocks: [{ type: "text", text: fullText }],
-    status: [{ type: "text", text: statusLines.join("\n") }],
+    status: [
+      { type: "text", text: [...basicStatus, ...outputFacts].join("\n") },
+    ],
     items: diagnosticLines,
+    overflow: { noun: "diagnostic line" },
+    counts:
+      number(combined.lines) !== undefined
+        ? [count("event", number(combined.lines)!, diagnosticLines.length)]
+        : undefined,
     artifacts: artifacts(context),
   };
 }
@@ -208,25 +220,37 @@ export function listingCandidate(
       blocks: [{ type: "text", text: `${path}${kind}` }],
     };
   });
+  const original =
+    number(details.totalEntries) ??
+    number(details.total) ??
+    number(result.total) ??
+    items.length;
+  const footer =
+    original > items.length
+      ? `Showing ${items.length} of ${original} entries; ${original - items.length} omitted by the requested limit.`
+      : undefined;
   const blocks: ProjectableBlock[] = [
     {
       type: "text",
-      text: [`Root: ${root}`, ...items.map((item) => textOf(item.blocks))].join(
-        "\n",
-      ),
+      text: [
+        `Root: ${root}`,
+        ...items.map((item) => textOf(item.blocks)),
+        footer,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join("\n"),
     },
   ];
   return {
     blocks,
     status: [{ type: "text", text: `Root: ${root}` }],
     items,
-    counts: [
-      count(
-        "item",
-        number(details.total) ?? number(result.total) ?? items.length,
-        items.length,
-      ),
-    ],
+    overflow: {
+      noun: "entry",
+      guidance:
+        "Refine the requested path/pattern or inspect the complete result payload.",
+    },
+    counts: [count("item", original, items.length)],
     artifacts: artifacts(context),
   };
 }
@@ -254,6 +278,10 @@ export function grepCandidate(
       ],
     };
   });
+  const producerNotice =
+    details.producerLimitReached === true
+      ? "Producer match limit reached; increase limit or refine the pattern for additional matches."
+      : undefined;
   return {
     blocks: [
       {
@@ -261,15 +289,26 @@ export function grepCandidate(
         text: [
           `Root: ${root}`,
           ...items.map((item) => textOf(item.blocks)),
-        ].join("\n"),
+          producerNotice,
+        ]
+          .filter((value): value is string => Boolean(value))
+          .join("\n"),
       },
     ],
     status: [{ type: "text", text: `Root: ${root}` }],
     items,
+    overflow: {
+      noun: "match",
+      guidance:
+        "Refine the pattern or inspect the complete result payload for omitted matches.",
+    },
     counts: [
       count(
         "item",
-        number(details.total) ?? number(result.total) ?? items.length,
+        number(details.totalMatches) ??
+          number(details.total) ??
+          number(result.total) ??
+          items.length,
         items.length,
       ),
     ],
@@ -298,31 +337,47 @@ export function searchCandidate(
     result.query,
   );
   const answer = firstString(details.answer, result.answer);
-  const header = [query ? `Query: ${query}` : undefined, answer].filter(
-    (value): value is string => Boolean(value),
-  );
+  const header = [
+    query ? `Query: ${query}` : undefined,
+    answer,
+    ...artifactNoticeLines(artifacts(context), "supporting_data"),
+  ].filter((value): value is string => Boolean(value));
   const items: SemanticItem[] = values.slice(0, 10).map((value, index) => ({
     id: String(index),
     countsAs: "item",
     blocks: [{ type: "text", text: semanticSummary(value, index + 1) }],
   }));
   const continuation = continuations(details);
+  const original =
+    firstNumber(
+      details.total,
+      details.issueCount,
+      details.userCount,
+      details.boardCount,
+      details.pageCount,
+      details.spaceCount,
+    ) ?? values.length;
+  const footer = [
+    `Showing ${items.length} of ${original} results; ${Math.max(0, original - items.length)} omitted.`,
+    ...continuation.map(continuationText),
+  ];
   return {
     blocks: [
       {
         type: "text",
-        text: [...header, ...items.map((item) => textOf(item.blocks))].join(
-          "\n\n",
-        ),
+        text: [
+          ...header,
+          ...items.map((item) => textOf(item.blocks)),
+          ...footer,
+        ].join("\n\n"),
       },
     ],
     status:
       header.length > 0 ? [{ type: "text", text: header.join("\n") }] : [],
     items,
+    overflow: { noun: "result" },
     continuation,
-    counts: [
-      count("item", number(details.total) ?? values.length, items.length),
-    ],
+    counts: [count("item", original, items.length)],
     artifacts: artifacts(context),
   };
 }
@@ -332,41 +387,86 @@ export function mutationCandidate(
 ): ProjectionCandidate {
   const result = record(context.result);
   const details = record(result.details);
-  const safe = pickSemantic({ ...result, ...details }, [
-    "operation",
-    "action",
-    "outcome",
-    "success",
-    "dryRun",
-    "path",
-    "bytes",
-    "bytesWritten",
-    "id",
-    "key",
-    "issueKey",
-    "pageId",
-    "attachmentId",
-    "status",
-    "state",
-    "version",
-    "url",
-    "warning",
-    "warnings",
-    "error",
-    "message",
-    "mode",
-    "planPath",
-    "reviewId",
-  ]);
-  const content = validContentBlocks(result)
-    ?.filter((block) => block.type === "text")
-    .map((block) => block.text)
-    .join("\n");
-  const text =
-    Object.keys(safe).length > 0
-      ? formatFlat(safe)
-      : content || "Operation completed.";
-  return { blocks: [{ type: "text", text }], artifacts: artifacts(context) };
+  const summary = record(details.mutationSummary);
+  const lines: string[] = [];
+  if (Object.keys(summary).length > 0) {
+    lines.push(
+      `Operation: ${string(summary.operation) || context.toolName}`,
+      `Outcome: ${mutationOutcomeText(string(summary.outcome))}`,
+    );
+    for (const resource of array(summary.resources) ?? []) {
+      const value = record(resource);
+      const identity = firstString(value.key, value.id, value.path, value.url);
+      if (identity)
+        lines.push(`${string(value.kind) || "resource"}: ${identity}`);
+    }
+    for (const warning of array(summary.warnings) ?? [])
+      lines.push(`Warning: ${String(warning)}`);
+    if (typeof summary.nextAction === "string")
+      lines.push(`Next action: ${summary.nextAction}`);
+    if (number(details.bytesWritten) !== undefined)
+      lines.push(`Bytes written: ${String(details.bytesWritten)}`);
+    if (number(details.operationCount) !== undefined)
+      lines.push(`Operations: ${String(details.operationCount)}`);
+    if (number(details.firstChangedLine) !== undefined)
+      lines.push(`First changed line: ${String(details.firstChangedLine)}`);
+  } else {
+    const content = validContentBlocks(result)
+      ?.filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("\n");
+    if (content) lines.push(content);
+    const safe = pickSemantic({ ...result, ...details }, [
+      "operation",
+      "action",
+      "outcome",
+      "success",
+      "dryRun",
+      "path",
+      "bytes",
+      "bytesWritten",
+      "id",
+      "key",
+      "issueKey",
+      "pageId",
+      "attachmentId",
+      "status",
+      "state",
+      "version",
+      "url",
+      "warning",
+      "warnings",
+      "error",
+      "message",
+      "mode",
+      "planPath",
+      "reviewId",
+      "operationCount",
+      "firstChangedLine",
+    ]);
+    if (Object.keys(safe).length > 0) lines.push(formatFlat(safe));
+  }
+  const transitions = array(details.transitions) ?? [];
+  const items = transitions.slice(0, 10).map((value, index) => ({
+    id: String(index),
+    countsAs: "item" as const,
+    blocks: [
+      { type: "text" as const, text: semanticSummary(value, index + 1) },
+    ],
+  }));
+  if (items.length > 0) {
+    lines.push(
+      "Available transitions:",
+      ...items.map((item) => textOf(item.blocks)),
+    );
+  }
+  const text = lines.filter(Boolean).join("\n") || "Operation completed.";
+  return {
+    blocks: [{ type: "text", text }],
+    status: [{ type: "text", text: lines.slice(0, 6).join("\n") }],
+    ...(items.length > 0 ? { items, overflow: { noun: "transition" } } : {}),
+    artifacts: artifacts(context),
+  };
 }
 
 export function lifecycleCandidate(
@@ -374,32 +474,53 @@ export function lifecycleCandidate(
 ): ProjectionCandidate {
   const result = record(context.result);
   const details = record(result.details);
+  const todos = array(result.todos) ?? array(details.todos);
+  if (todos) {
+    const items: SemanticItem[] = todos.map((value, index) => ({
+      id: String(index),
+      countsAs: "item",
+      blocks: [
+        {
+          type: "text",
+          text: `${index + 1}. ${record(value).done === true ? "[x]" : "[ ]"} ${string(record(value).todo)}`,
+        },
+      ],
+    }));
+    const title = `Todos: ${items.length}`;
+    return {
+      blocks: [
+        {
+          type: "text",
+          text: [title, ...items.map((item) => textOf(item.blocks))].join("\n"),
+        },
+      ],
+      status: [{ type: "text", text: title }],
+      items,
+      overflow: { noun: "todo" },
+      counts: [count("item", items.length, items.length)],
+      artifacts: artifacts(context),
+    };
+  }
+
   const values =
     array(result.tasks) ??
     array(details.tasks) ??
-    array(result.todos) ??
-    array(details.todos) ??
     (result.task && typeof result.task === "object"
       ? [result.task, ...(array(result.otherActiveTasks) ?? [])]
       : undefined);
   if (!values) return mutationCandidate(context);
-  const items: SemanticItem[] = values.map((value, index) => ({
-    id: String(index),
-    countsAs: "item",
-    blocks: [
-      {
-        type: "text",
-        text: semanticSummary(value, index + 1, [
-          "command",
-          "env",
-          "content",
-          "body",
-        ]),
-      },
-    ],
-  }));
+  const control = record(result.result);
   const title =
-    firstString(result.content, details.message) ?? `${values.length} items`;
+    result.action === "stop"
+      ? `Task control: stop — ${string(control.outcome) || "completed"}${string(control.message) ? ` — ${string(control.message)}` : ""}`
+      : result.action === "restart"
+        ? `Task control: restart — ${string(result.restartedFromTaskId)} → ${string(result.newTaskId)}`
+        : `${values.length} task${values.length === 1 ? "" : "s"}`;
+  const items: SemanticItem[] = values.map((value, index) => ({
+    id: string(record(value).id) || String(index),
+    countsAs: "task",
+    blocks: [{ type: "text", text: taskSummary(value, index + 1) }],
+  }));
   return {
     blocks: [
       {
@@ -407,9 +528,10 @@ export function lifecycleCandidate(
         text: [title, ...items.map((item) => textOf(item.blocks))].join("\n"),
       },
     ],
-    status: [{ type: "text", text: title.split("\n", 1)[0] ?? title }],
+    status: [{ type: "text", text: title }],
     items,
-    counts: [count("item", values.length, values.length)],
+    overflow: { noun: "task" },
+    counts: [count("task", values.length, values.length)],
     artifacts: artifacts(context),
   };
 }
@@ -419,10 +541,122 @@ export function resourceCandidate(
 ): ProjectionCandidate {
   const result = record(context.result);
   const details = record(result.details);
-  const semantic = Object.keys(details).length > 0 ? details : result;
-  const text = semanticObjectText(semantic, 0);
+  if (Object.keys(details).length === 0) return textCandidate(context);
+  const core = pickSemantic(details, [
+    "action",
+    "issueKey",
+    "projectKey",
+    "boardId",
+    "sprintId",
+    "pageId",
+    "spaceId",
+    "spaceKey",
+    "issue",
+    "project",
+    "board",
+    "sprint",
+    "page",
+    "space",
+    "bodyPreview",
+    "webUrl",
+    "bodyFormat",
+  ]);
+  const collections = [
+    "comments",
+    "transitions",
+    "worklogs",
+    "changelogEntries",
+    "remoteLinks",
+    "issueLinks",
+    "attachments",
+    "issueTypes",
+    "fields",
+    "sprints",
+    "backlogIssues",
+    "childPages",
+    "footerComments",
+    "inlineComments",
+    "properties",
+    "labels",
+    "restrictions",
+    "versions",
+  ];
+  const included = record(details.includedCounts);
+  const relatedPages = new Map(
+    (array(details.relatedCollections) ?? []).map((value) => [
+      string(record(value).id),
+      record(value),
+    ]),
+  );
+  const coreText = semanticObjectText(core, 0);
+  const statusLines = [coreText];
+  const items: SemanticItem[] = [];
+  let originalSections = 0;
+  for (const name of collections) {
+    const values = array(details[name]);
+    const countKey = collectionCountKey(name);
+    const original =
+      number(relatedPages.get(collectionCountKey(name))?.original) ??
+      number(included[countKey]) ??
+      number(details[collectionDetailCountKey(name)]) ??
+      number(details[`${singularName(name)}Count`]) ??
+      number(details[`${name}Count`]) ??
+      values?.length ??
+      0;
+    if (!values && original === 0) continue;
+    const preview = (values ?? []).slice(0, 3);
+    originalSections += 1;
+    statusLines.push(
+      `${name}: showing ${preview.length} of ${original}; ${Math.max(0, original - preview.length)} omitted.`,
+    );
+    if (preview.length > 0) {
+      items.push({
+        id: name,
+        countsAs: "item",
+        blocks: [
+          {
+            type: "text",
+            text: [
+              `${name}:`,
+              ...preview.map((value, index) =>
+                semanticSummary(value, index + 1),
+              ),
+            ].join("\n"),
+          },
+        ],
+      });
+    }
+  }
+  const relatedContinuation = relatedCollectionContinuations(details);
+  for (const continuation of relatedContinuation) {
+    if (continuation.kind === "cursor")
+      statusLines.push(
+        `Continue related collection with ${continuation.cursorName}=${String(continuation.value)}.`,
+      );
+  }
+  const supportingLines = artifactNoticeLines(
+    artifacts(context),
+    "supporting_data",
+  );
+  statusLines.push(...supportingLines);
+  if (!coreText && items.length === 0 && supportingLines.length === 0)
+    return textCandidate(context);
+  const statusText = statusLines.filter(Boolean).join("\n");
+  const blocks = [
+    {
+      type: "text" as const,
+      text: [statusText, ...items.map((item) => textOf(item.blocks))]
+        .filter(Boolean)
+        .join("\n"),
+    },
+  ];
   return {
-    blocks: [{ type: "text", text: text || fallbackText(context.result) }],
+    blocks,
+    status: [{ type: "text", text: statusText }],
+    items,
+    overflow: { noun: "related section" },
+    counts: [count("item", originalSections, items.length)],
+    continuation: [...continuations(details), ...relatedContinuation],
     artifacts: artifacts(context),
   };
 }
@@ -432,26 +666,30 @@ export function webFetchCandidate(
 ): ProjectionCandidate {
   const result = record(context.result);
   const details = record(result.details);
-  const metadata = [
-    typeof details.url === "string"
-      ? `URL: ${sanitizeUrl(details.url)}`
-      : undefined,
-    details.status !== undefined
-      ? `HTTP status: ${String(details.status)}`
-      : undefined,
-    typeof details.contentType === "string"
-      ? `Content-Type: ${details.contentType}`
-      : undefined,
-    details.size !== undefined ? `Bytes: ${String(details.size)}` : undefined,
-    details.converted === true ? "Converted: markdown" : undefined,
-  ].filter((line): line is string => Boolean(line));
+  const validated = artifacts(context);
+  const primaryLines = artifactNoticeLines(validated, "primary_result");
   const body =
-    typeof result.content === "string" ? result.content : fallbackText(result);
+    primaryLines.length > 0
+      ? primaryLines.join("\n")
+      : typeof details.savedTo === "string"
+        ? "Saved response artifact is unavailable for agent inspection."
+        : typeof result.content === "string"
+          ? result.content
+          : fallbackText(result);
+  const canonical = formatWebFetchCandidateText(details, body);
+  const metadata = formatWebFetchCandidateText(details, "")
+    .trimEnd()
+    .split("\n\n")
+    .filter(Boolean);
   return {
-    blocks: [{ type: "text", text: [...metadata, body].join("\n\n") }],
-    status:
-      metadata.length > 0 ? [{ type: "text", text: metadata.join("\n") }] : [],
-    artifacts: artifacts(context),
+    blocks: [{ type: "text", text: canonical }],
+    status: [
+      {
+        type: "text",
+        text: [...metadata, ...primaryLines].join("\n"),
+      },
+    ],
+    artifacts: validated,
   };
 }
 
@@ -500,16 +738,22 @@ export function taskLogsCandidate(
   const events =
     array(result.events) ?? array(details.events) ?? array(response.events);
   if (!events) return textCandidate(context);
+  const validated = artifacts(context);
   const items: SemanticItem[] = events.map((event, index) => {
     const value = record(event);
     const seq = number(value.seq) ?? index;
     const stream = string(value.stream) || "log";
     const raw = record(value.raw);
-    const streamArtifacts = record(result.streamArtifacts);
+    const streamArtifact = validated.find(
+      (artifact) =>
+        artifact.id === (stream === "stdout" ? "task_stdout" : "task_stderr") &&
+        artifact.availability === "available" &&
+        artifact.access.kind === "agent_file",
+    );
     const path =
-      stream === "stdout"
-        ? string(streamArtifacts.stdoutPath)
-        : string(streamArtifacts.stderrPath);
+      streamArtifact?.access.kind === "agent_file"
+        ? streamArtifact.access.path
+        : "";
     const range =
       number(raw.start) !== undefined && number(raw.end) !== undefined
         ? ` [${path ? `${path} ` : ""}bytes ${String(raw.start)}-${String(raw.end)}]`
@@ -533,26 +777,62 @@ export function taskLogsCandidate(
       blocks: [{ type: "text", text: `${prefix}${displayedLine}${suffix}` }],
     };
   });
+  const originalEventCount =
+    number(response.originalEventCount) ??
+    number(response.total) ??
+    events.length;
+  const task = record(response.task);
+  const mode = string(response.mode) || "recent";
+  const statusText = [
+    `Task logs: ${mode}`,
+    Object.keys(task).length > 0
+      ? taskSummary(task, 1).replace(/^1\. /, "")
+      : undefined,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join("\n");
+  const eventText = items.map((item) => textOf(item.blocks)).join("\n");
+  const firstSeq = number(response.firstSeq) ?? number(record(events[0]).seq);
+  const lastSeq =
+    number(response.lastSeq) ?? number(record(events.at(-1)).seq) ?? firstSeq;
+  const canonicalNotice = [
+    firstSeq !== undefined && lastSeq !== undefined
+      ? `Showing ${events.length} of ${originalEventCount} events (seq ${firstSeq}-${lastSeq}); ${Math.max(0, originalEventCount - events.length)} omitted.`
+      : `Showing ${events.length} of ${originalEventCount} events.`,
+    response.hasMoreBefore === true && firstSeq !== undefined
+      ? `For older events, call task_logs with beforeSeq=${firstSeq}.`
+      : undefined,
+    lastSeq !== undefined
+      ? `For future incremental events, use mode=since_cursor with sinceSeq=${lastSeq}.`
+      : undefined,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join("\n");
+  const failure = events.find((event) => record(event).level === "error");
+  const failureSeq = failure ? number(record(failure).seq) : undefined;
   return {
     blocks: [
       {
         type: "text",
-        text: items.map((item) => textOf(item.blocks)).join("\n"),
+        text: [statusText, eventText, canonicalNotice]
+          .filter(Boolean)
+          .join("\n"),
       },
     ],
-    status: [],
+    status: [{ type: "text", text: statusText }],
     items,
-    continuation: continuations({ ...details, ...response }),
-    counts: [
-      count(
-        "event",
-        number(response.originalEventCount) ??
-          number(response.total) ??
-          events.length,
-        events.length,
-      ),
-    ],
-    artifacts: artifacts(context),
+    overflow: { noun: "event" },
+    continuation: continuations(response),
+    taskLog: {
+      mode,
+      ...(failureSeq !== undefined ? { failureSeq } : {}),
+      originalEventCount,
+      hasMoreBefore: response.hasMoreBefore === true,
+      hasMoreAfter: response.hasMoreAfter === true,
+      eventsArtifactId: "task_events",
+    },
+    counts: [count("event", originalEventCount, events.length)],
+    artifacts: validated,
   };
 }
 
@@ -614,8 +894,36 @@ export function exploreCandidate(
 export function primaryFileCandidate(
   context: CandidateContext,
 ): ProjectionCandidate {
-  const candidate = mutationCandidate(context);
-  return { ...candidate, status: candidate.blocks };
+  const result = record(context.result);
+  const details = record(result.details);
+  const metadata = pickSemantic(details, [
+    "action",
+    "attachmentId",
+    "filename",
+    "mediaType",
+    "bytes",
+    "bodyFormat",
+    "pageCount",
+    "displayedPageCount",
+    "attachmentCount",
+    "downloadDir",
+  ]);
+  const included = record(details.includedCounts);
+  const extra =
+    number(included.downloadedAttachments) !== undefined
+      ? `downloadedAttachments: ${String(included.downloadedAttachments)}`
+      : "";
+  const lines = [
+    formatFlat(metadata),
+    extra,
+    ...artifactNoticeLines(artifacts(context), "primary_result"),
+  ].filter(Boolean);
+  const text = lines.join("\n") || fallbackText(context.result);
+  return {
+    blocks: [{ type: "text", text }],
+    status: [{ type: "text", text }],
+    artifacts: artifacts(context),
+  };
 }
 
 export function safeTerminalResource(
@@ -649,6 +957,41 @@ export function safeTerminalResource(
       details.state,
     ),
   };
+}
+
+function taskSummary(value: unknown, index: number): string {
+  const task = record(value);
+  const readiness = record(task.readiness);
+  const parts = [
+    `${index}. name: ${string(task.name) || "task"}`,
+    `id: ${string(task.id) || "unknown"}`,
+    `status: ${string(task.status) || "unknown"}`,
+    typeof readiness.outcome === "string"
+      ? `readiness: ${readiness.outcome}`
+      : undefined,
+    number(task.exitCode) !== undefined
+      ? `exit: ${String(task.exitCode)}`
+      : undefined,
+    typeof task.signal === "string" ? `signal: ${task.signal}` : undefined,
+    typeof task.finishedAt === "string"
+      ? `finished: ${task.finishedAt}`
+      : undefined,
+    typeof task.error === "string" ? `error: ${task.error}` : undefined,
+    typeof task.restartedFromTaskId === "string"
+      ? `restarted from: ${task.restartedFromTaskId}`
+      : undefined,
+    typeof task.restartRootTaskId === "string"
+      ? `restart root: ${task.restartRootTaskId}`
+      : undefined,
+  ].filter((part): part is string => Boolean(part));
+  return parts.join(" · ");
+}
+
+function mutationOutcomeText(outcome: string): string {
+  if (outcome === "dry_run") return "dry run; operation not performed";
+  if (outcome === "partial") return "partially succeeded";
+  if (outcome === "succeeded") return "succeeded";
+  return outcome || "completed";
 }
 
 function diagnosticItems(
@@ -728,6 +1071,96 @@ function continuations(value: Record<string, unknown>): ExactContinuation[] {
   return output;
 }
 
+function continuationText(continuation: ExactContinuation): string {
+  switch (continuation.kind) {
+    case "line":
+      return `Continue with offset=${continuation.nextOffset}.`;
+    case "byte":
+      return `Continue with byteOffset=${continuation.nextByteOffset}.`;
+    case "cursor":
+      return `Continue with ${continuation.cursorName}=${String(continuation.value)}.`;
+    case "page_token":
+      return `Continue with ${continuation.parameter}=${continuation.value}.`;
+  }
+}
+
+function relatedCollectionContinuations(
+  details: Record<string, unknown>,
+): ExactContinuation[] {
+  const pages = array(details.relatedCollections) ?? [];
+  return pages.flatMap((value) => {
+    const page = record(value);
+    const continuation = record(page.continuation);
+    if (
+      typeof continuation.parameter !== "string" ||
+      (typeof continuation.value !== "string" &&
+        typeof continuation.value !== "number")
+    )
+      return [];
+    return [
+      {
+        kind: "cursor" as const,
+        cursorName: continuation.parameter,
+        value: continuation.value,
+        direction:
+          continuation.direction === "before"
+            ? ("before" as const)
+            : ("after" as const),
+      },
+    ];
+  });
+}
+
+function artifactNoticeLines(
+  values: readonly ValidatedToolArtifact[],
+  role?: ValidatedToolArtifact["role"],
+): string[] {
+  return values
+    .filter(
+      (artifact) =>
+        artifact.availability === "available" &&
+        (!role || artifact.role === role),
+    )
+    .map((artifact) => {
+      if (artifact.access.kind === "agent_file") {
+        const tool = artifact.recommendedTools[0];
+        return `${artifact.label}: ${artifact.access.path}${tool ? ` (use ${tool})` : ""}`;
+      }
+      if (
+        role === "primary_result" &&
+        artifact.access.kind === "metadata_only" &&
+        artifact.access.location
+      )
+        return `${artifact.label}: ${artifact.access.location} (metadata only)`;
+      return "";
+    })
+    .filter(Boolean);
+}
+
+function collectionCountKey(name: string): string {
+  const aliases: Record<string, string> = {
+    changelogEntries: "changelog",
+    childPages: "directChildren",
+    backlogIssues: "backlogIssues",
+  };
+  return aliases[name] ?? name;
+}
+
+function collectionDetailCountKey(name: string): string {
+  const aliases: Record<string, string> = {
+    changelogEntries: "displayedChangelogCount",
+    childPages: "displayedChildPageCount",
+    backlogIssues: "backlogCount",
+  };
+  return aliases[name] ?? `${singularName(name)}Count`;
+}
+
+function singularName(name: string): string {
+  if (name.endsWith("ies")) return `${name.slice(0, -3)}y`;
+  if (name.endsWith("s")) return name.slice(0, -1);
+  return name;
+}
+
 function semanticSummary(
   value: unknown,
   index: number,
@@ -750,6 +1183,7 @@ function semanticSummary(
       "email",
       "displayName",
       "snippet",
+      "content",
       "summary",
       "todo",
       "done",
@@ -845,6 +1279,13 @@ function number(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? value
     : undefined;
+}
+function firstNumber(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    const parsed = number(value);
+    if (parsed !== undefined) return parsed;
+  }
+  return undefined;
 }
 function firstString(...values: unknown[]): string | undefined {
   return values.find(

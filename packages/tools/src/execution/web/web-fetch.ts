@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import { webFetchCandidateFitsInline } from "../../result-projection/candidates/web.js";
 import {
   HTML_CONVERSION_MAX_INPUT_BYTES,
   HTML_CONVERSION_TIMEOUT_MS,
@@ -16,7 +17,6 @@ import {
 import { ToolExecutionError } from "../common/tool-error.js";
 import { formatByteSize } from "../common/truncate.js";
 
-const MAX_INLINE_BYTES = 512 * 1024;
 const MAX_RESPONSE_BYTES = HTML_CONVERSION_MAX_INPUT_BYTES;
 const MAX_REDIRECTS = 5;
 
@@ -352,7 +352,7 @@ export async function executeWebFetch(
     details.converted = true;
   }
 
-  if (Buffer.byteLength(text) <= MAX_INLINE_BYTES) {
+  if (webFetchCandidateFitsInline(details, text)) {
     return {
       content: text,
       contentBlocks: [{ type: "text", text }],

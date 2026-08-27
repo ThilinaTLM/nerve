@@ -6,6 +6,6 @@ export const taskLifecycleAgentResultPolicy = policy(
 );
 export const taskLogsAgentResultPolicy = policy(
   "task_logs",
-  "item_aware",
+  "task_log_window",
   taskLogsCandidate,
 );

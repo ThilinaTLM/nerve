@@ -55,6 +55,11 @@ describe("Jira read request contracts", () => {
         "34",
       );
       assert.equal(result.details?.displayedBoardCount, 20);
+      assert.equal(result.exitCode, undefined);
+      assert.equal(
+        (result.details as Record<string, unknown> | undefined)?.streams,
+        undefined,
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }

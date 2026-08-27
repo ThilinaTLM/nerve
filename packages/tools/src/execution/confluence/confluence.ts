@@ -622,6 +622,7 @@ export async function executeConfluenceCreatePage(
       context,
       details: {
         action: "create_page",
+        operation: "create_page",
         dryRun: true,
         spaceId: payload.spaceId,
         title: payload.title,
@@ -657,6 +658,7 @@ export async function executeConfluenceCreatePage(
     artifact,
     details: {
       action: "create_page",
+      operation: "create_page",
       pageId: id,
       spaceId: payload.spaceId,
       title: payload.title,
@@ -680,6 +682,7 @@ export async function executeConfluenceUpdatePage(
       context,
       details: {
         action: "update_page",
+        operation: "update_page",
         dryRun: true,
         pageId: payload.id,
         title: payload.title,
@@ -710,6 +713,7 @@ export async function executeConfluenceUpdatePage(
     artifact,
     details: {
       action: "update_page",
+      operation: "update_page",
       pageId: payload.id,
       title: payload.title,
       page: pageSummary,

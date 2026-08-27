@@ -1,5 +1,6 @@
 import type {
   AgentResultProfileId,
+  ExactContinuation,
   ProjectionCount,
 } from "@nervekit/contracts";
 import { ProjectionBudgetLedger } from "./budget-ledger.js";
@@ -14,6 +15,7 @@ import type {
 export type StrategyProjection = {
   blocks: ProjectableBlock[];
   counts: ProjectionCount[];
+  continuation?: ExactContinuation[];
 };
 
 export function unchangedIfFits(
@@ -94,9 +96,15 @@ export function itemAwareHead(
   const original =
     candidate.counts?.find((count) => count.kind === kind)?.original ??
     items.length;
-  const notice = overflowNotice(candidate, itemNotice(original));
+  const noun = candidate.overflow?.noun ?? unitNoun(kind);
+  const reservedNotice = itemSelectionNotice(
+    candidate,
+    noun,
+    original,
+    original,
+  );
   const ledger = new ProjectionBudgetLedger(budget);
-  ledger.commit(notice);
+  ledger.commit(reservedNotice);
   const prefix = candidate.status ?? [];
   ledger.commit(prefix);
   const ordered = options.fromTail ? [...items].reverse() : items;
@@ -106,12 +114,17 @@ export function itemAwareHead(
     selected.push(item);
   }
   if (options.fromTail) selected.reverse();
-  // Re-render in semantic order because a tail selection was tentatively committed in reverse.
-  const blocks = [
+  const notice = itemSelectionNotice(
+    candidate,
+    noun,
+    original,
+    selected.length,
+  );
+  const blocks = combineAdjacentText([
     ...prefix,
     ...selected.flatMap((item) => item.blocks),
     ...notice,
-  ];
+  ]);
   const measured = measureBlocks(blocks);
   if (measured.bytes > budget.maxBytes || measured.lines > budget.maxLines) {
     return boundTextCandidate({ ...candidate, blocks }, budget, "head");
@@ -119,6 +132,7 @@ export function itemAwareHead(
   return {
     blocks,
     counts: mergeUnitCount(candidate.counts, kind, original, selected.length),
+    continuation: candidate.continuation,
   };
 }
 
@@ -181,6 +195,8 @@ export function compactDiagnosticIndex(
 ): StrategyProjection {
   return itemAwareHead(candidate, profile);
 }
+
+export { taskLogWindow } from "./task-log-window.js";
 
 export function artifactIndex(
   candidate: ProjectionCandidate,
@@ -307,12 +323,31 @@ function overflowNotice(
 }
 
 function recoveryText(candidate: ProjectionCandidate): string | undefined {
-  const artifact = candidate.artifacts.find(
+  const recoverable = candidate.artifacts.filter(
     (item) =>
       item.availability === "available" &&
       (item.role === "primary_result" || item.role === "overflow_recovery") &&
       item.access.kind === "agent_file",
   );
+  const combined = recoverable.find(
+    (item) =>
+      item.id.includes("combined") ||
+      item.label.toLowerCase().includes("combined"),
+  );
+  if (combined?.access.kind === "agent_file") {
+    const tool = combined.recommendedTools[0] ?? "read";
+    return `Complete result: ${combined.access.path} (use ${tool}; do not rerun merely to recover output).`;
+  }
+  if (recoverable.length > 1) {
+    const paths = recoverable.flatMap((item) =>
+      item.access.kind === "agent_file"
+        ? [`${item.label}: ${item.access.path}`]
+        : [],
+    );
+    if (paths.length > 0)
+      return `Recovery files:\n${paths.join("\n")}\nInspect with read or grep; do not rerun merely to recover output.`;
+  }
+  const artifact = recoverable[0];
   if (!artifact || artifact.access.kind !== "agent_file") return;
   const tool = artifact.recommendedTools[0] ?? "read";
   return `Complete result: ${artifact.access.path} (use ${tool}; do not rerun merely to recover output).`;
@@ -346,10 +381,53 @@ function continuationNotice(
   ];
 }
 
-function itemNotice(total: number): string {
-  return total > 0
-    ? `Showing a bounded selection from ${total} result items.`
-    : "Output shortened to fit the result budget.";
+function itemSelectionNotice(
+  candidate: ProjectionCandidate,
+  noun: string,
+  original: number,
+  displayed: number,
+): ProjectableBlock[] {
+  const omitted = Math.max(0, original - displayed);
+  const label = displayed === 1 ? noun : pluralNoun(noun);
+  const lines = [
+    `Showing ${displayed} of ${original} ${label}; ${omitted} omitted.`,
+  ];
+  if (candidate.overflow?.guidance) lines.push(candidate.overflow.guidance);
+  for (const continuation of candidate.continuation ?? []) {
+    switch (continuation.kind) {
+      case "line":
+        lines.push(`Continue with offset=${continuation.nextOffset}.`);
+        break;
+      case "byte":
+        lines.push(`Continue with byteOffset=${continuation.nextByteOffset}.`);
+        break;
+      case "cursor":
+        lines.push(
+          `Continue with ${continuation.cursorName}=${String(continuation.value)}.`,
+        );
+        break;
+      case "page_token":
+        lines.push(
+          `Continue with ${continuation.parameter}=${continuation.value}.`,
+        );
+        break;
+    }
+  }
+  const recovery = recoveryText(candidate);
+  if (recovery) lines.push(recovery);
+  return [{ type: "text", text: lines.join("\n") }];
+}
+
+function unitNoun(kind: ProjectionCount["kind"]): string {
+  if (kind === "event") return "event";
+  if (kind === "task") return "task";
+  return "item";
+}
+
+function pluralNoun(noun: string): string {
+  if (noun.endsWith("y")) return `${noun.slice(0, -1)}ies`;
+  if (noun.endsWith("s")) return noun;
+  return `${noun}s`;
 }
 
 function unitKind(items: readonly SemanticItem[]): ProjectionCount["kind"] {
@@ -367,6 +445,21 @@ function mergeUnitCount(
     ...(counts ?? []).filter((count) => count.kind !== kind),
     { kind, original, displayed, omitted: Math.max(0, original - displayed) },
   ];
+}
+
+function combineAdjacentText(
+  blocks: readonly ProjectableBlock[],
+): ProjectableBlock[] {
+  const output: ProjectableBlock[] = [];
+  for (const block of blocks) {
+    const previous = output.at(-1);
+    if (block.type === "text" && previous?.type === "text") {
+      previous.text = `${previous.text}\n${block.text}`;
+    } else {
+      output.push({ ...block });
+    }
+  }
+  return output;
 }
 
 function withLineCount(

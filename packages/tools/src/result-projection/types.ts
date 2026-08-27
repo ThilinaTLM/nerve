@@ -26,6 +26,18 @@ export type ProjectionCandidate = {
   blocks: ProjectableBlock[];
   status?: ProjectableBlock[];
   items?: SemanticItem[];
+  overflow?: {
+    noun: string;
+    guidance?: string;
+  };
+  taskLog?: {
+    mode: string;
+    failureSeq?: number;
+    originalEventCount: number;
+    hasMoreBefore: boolean;
+    hasMoreAfter: boolean;
+    eventsArtifactId?: string;
+  };
   sections?: Array<{
     id: string;
     priority: number;

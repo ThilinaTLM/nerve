@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  agentProjectionSnapshotSchema,
+  relatedCollectionPageSchema,
   toolCallRecordSchema,
   toolCallTranscriptRecordSchema,
+  toolMutationSummarySchema,
   validatedToolArtifactSchema,
 } from "../src/index.js";
 
@@ -39,6 +42,48 @@ describe("agent projection contracts", () => {
         access: { kind: "metadata_only" },
       }).success,
       false,
+    );
+  });
+
+  it("accepts normalized mutation, related-page, and task-log strategy metadata", () => {
+    assert.equal(
+      toolMutationSummarySchema.safeParse({
+        operation: "edit",
+        outcome: "dry_run",
+        resources: [{ kind: "file", path: "/tmp/file.txt" }],
+        warnings: [],
+      }).success,
+      true,
+    );
+    assert.equal(
+      relatedCollectionPageSchema.safeParse({
+        id: "comments",
+        original: 10,
+        returned: 3,
+        continuation: {
+          parameter: "comment_start_at",
+          value: 3,
+          direction: "after",
+        },
+      }).success,
+      true,
+    );
+    assert.equal(
+      agentProjectionSnapshotSchema.safeParse({
+        version: 1,
+        profile: "task_logs",
+        strategy: "task_log_window",
+        terminalOutcomePrecedence: false,
+        fastPath: false,
+        recovery: "artifact",
+        artifactRoles: ["supporting_data"],
+        counts: [],
+        originalTextBytes: 10,
+        displayedTextBytes: 10,
+        originalTextLines: 1,
+        displayedTextLines: 1,
+      }).success,
+      true,
     );
   });
 

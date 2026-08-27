@@ -29,6 +29,7 @@ export const agentResultStrategyIdSchema = z.enum([
   "item_aware",
   "continuation_aware",
   "artifact_index",
+  "task_log_window",
   "compound_per_task",
   "terminal_outcome",
 ]);

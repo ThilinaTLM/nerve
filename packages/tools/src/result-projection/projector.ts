@@ -13,6 +13,7 @@ import {
   headText,
   itemAwareHead,
   tailText,
+  taskLogWindow,
   terminalOutcome,
   unchangedIfFits,
   type StrategyProjection,
@@ -130,8 +131,8 @@ export function projectAgentResult(
       originalTextLines: original.lines,
       displayedTextLines: displayed.lines,
       ...(perTask ? { perTask } : {}),
-      ...(candidate.continuation && candidate.continuation.length > 0
-        ? { continuation: candidate.continuation }
+      ...((projection.continuation ?? candidate.continuation)?.length
+        ? { continuation: projection.continuation ?? candidate.continuation }
         : {}),
     },
   };
@@ -160,15 +161,15 @@ function applyStrategy(
     case "head_tail":
       return headTailText(candidate, profile);
     case "item_aware":
-      return itemAwareHead(candidate, profile, {
-        fromTail: profile === "task_logs",
-      });
+      return itemAwareHead(candidate, profile);
     case "continuation_aware":
       return continuationAwareHead(candidate, profile);
     case "compact_diagnostic":
       return compactDiagnosticIndex(candidate, profile);
     case "artifact_index":
       return artifactIndex(candidate, profile);
+    case "task_log_window":
+      return taskLogWindow(candidate);
     case "terminal_outcome":
       return terminalOutcome(candidate);
     case "unchanged":

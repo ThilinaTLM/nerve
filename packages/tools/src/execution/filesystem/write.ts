@@ -15,11 +15,21 @@ export async function executeWrite(
   return withFileMutationQueue(path, async () => {
     await mkdir(dirname(path), { recursive: true });
     await writeTextFileAtomically(path, args.content as string);
-    const content = `Wrote ${Buffer.byteLength(args.content as string, "utf8")} bytes.`;
+    const bytesWritten = Buffer.byteLength(args.content as string, "utf8");
+    const content = `Wrote ${bytesWritten} bytes.`;
     return {
       path,
       content,
       contentBlocks: [{ type: "text", text: content }],
+      details: {
+        bytesWritten,
+        mutationSummary: {
+          operation: "write",
+          outcome: "succeeded",
+          resources: [{ kind: "file", path }],
+          warnings: [],
+        },
+      },
     };
   });
 }

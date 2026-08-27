@@ -8,18 +8,11 @@ export const webSearchAgentResultPolicy = policy(
 );
 export const webFetchAgentResultPolicy = policy(
   (context: CandidateContext) => {
-    const result =
-      context.result && typeof context.result === "object"
-        ? (context.result as Record<string, unknown>)
-        : {};
-    const details =
-      result.details && typeof result.details === "object"
-        ? (result.details as Record<string, unknown>)
-        : {};
-    return details.savedTo ||
-      context.validatedArtifacts.some(
-        (artifact) => artifact.role === "primary_result",
-      )
+    return context.validatedArtifacts.some(
+      (artifact) =>
+        artifact.role === "primary_result" &&
+        artifact.availability === "available",
+    )
       ? "primary_file_result"
       : "network_prose";
   },

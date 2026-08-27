@@ -319,6 +319,11 @@ export async function executeJiraGetIssue(
       transitionSummaries = displayed.items;
     }
   }
+  const relatedCollections = [
+    relatedPage("comments", result.comments, "comments", "comment_start_at"),
+    relatedPage("worklogs", result.worklogs, "worklogs", "worklog_start_at"),
+    relatedPage("changelog", result.changelog, "values", "changelog_start_at"),
+  ].filter((value) => value !== undefined);
   if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
   return buildJiraTextResult({
     text: lines.join("\n"),
@@ -329,6 +334,8 @@ export async function executeJiraGetIssue(
       issue: issueSummary,
       includedCounts,
       comments: comments.items.length > 0 ? comments.items : undefined,
+      relatedCollections:
+        relatedCollections.length > 0 ? relatedCollections : undefined,
       displayedCommentCount: comments.items.length || undefined,
       attachments:
         attachmentSummaries.items.length > 0
@@ -392,6 +399,7 @@ export async function executeJiraCreateIssue(
       text: `Dry run: Jira issue would be created in ${projectKey}.`,
       context,
       details: {
+        operation: "create_issue",
         dryRun: true,
         projectKey,
         issueType,
@@ -422,6 +430,7 @@ export async function executeJiraCreateIssue(
     text: `Created Jira issue ${key}.`,
     context,
     details: {
+      operation: "create_issue",
       issueKey: data.key,
       id: data.id,
       self: data.self,
@@ -471,7 +480,13 @@ export async function executeJiraUpdateIssue(
     return buildJiraTextResult({
       text: `Dry run: Jira issue ${issueKey} would be updated.`,
       context,
-      details: { dryRun: true, issueKey, payload, resolvedAssignee },
+      details: {
+        operation: "update_issue",
+        dryRun: true,
+        issueKey,
+        payload,
+        resolvedAssignee,
+      },
     });
   }
   await jiraRequest(connection, {
@@ -499,6 +514,7 @@ export async function executeJiraUpdateIssue(
     text: `Updated Jira issue ${issueKey}.${fieldNotice}`,
     context,
     details: {
+      operation: "update_issue",
       issueKey,
       updatedFields: displayedFields,
       updatedFieldCount: updatedFields.length,
@@ -605,6 +621,7 @@ export async function executeJiraTransitionIssue(
       text: `Dry run: Jira issue ${issueKey} would transition via ${transitionSummaryDetails ? formatTransitionSummaryLine(transitionSummaryDetails) : transitionLine(transition)}.`,
       context,
       details: {
+        operation: "transition_issue",
         dryRun: true,
         issueKey,
         transition: transitionSummaryDetails,
@@ -624,12 +641,41 @@ export async function executeJiraTransitionIssue(
     text: `Transitioned Jira issue ${issueKey} via ${transitionSummaryDetails ? formatTransitionSummaryLine(transitionSummaryDetails) : transitionLine(transition)}.`,
     context,
     details: {
+      operation: "transition_issue",
       issueKey,
       transition: transitionSummaryDetails,
       fields: transitionFields,
       fieldCount: transitionFields.length || undefined,
     },
   });
+}
+
+function relatedPage(
+  id: string,
+  value: unknown,
+  itemsKey: string,
+  parameter: string,
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+  const page = value as Record<string, unknown>;
+  const items = Array.isArray(page[itemsKey]) ? page[itemsKey] : [];
+  const start = typeof page.startAt === "number" ? page.startAt : 0;
+  const total = typeof page.total === "number" ? page.total : items.length;
+  const next = start + items.length;
+  return {
+    id,
+    original: total,
+    returned: items.length,
+    ...(next < total
+      ? {
+          continuation: {
+            parameter,
+            value: next,
+            direction: "after" as const,
+          },
+        }
+      : {}),
+  };
 }
 
 async function getTransitions(

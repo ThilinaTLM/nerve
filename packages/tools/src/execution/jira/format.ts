@@ -21,7 +21,7 @@ import type {
 } from "@nervekit/contracts";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { atlassianPlainTextPreview } from "../common/atlassian-rich-text.js";
-import { buildProcessTextResult } from "../common/process-result.js";
+import { buildSemanticTextResult } from "../common/semantic-text-result.js";
 
 export const JIRA_DISPLAY_ITEM_LIMIT = 20;
 export const JIRA_FIELD_DISPLAY_LIMIT = 20;
@@ -65,7 +65,7 @@ export async function maybeWriteJiraArtifact(
 
 export async function buildJiraTextResult({
   text,
-  context,
+  context: _context,
   details = {},
   artifact,
 }: {
@@ -74,6 +74,7 @@ export async function buildJiraTextResult({
   details?: Record<string, unknown>;
   artifact?: { path: string; bytes: number; chars: number; lines: number };
 }): Promise<ToolExecutionResult> {
+  void _context;
   const existingOutputLimits = details.outputLimits as
     | ToolOutputLimitsPayload
     | undefined;
@@ -99,13 +100,38 @@ export async function buildJiraTextResult({
         ],
       }
     : existingOutputLimits;
-  return buildProcessTextResult({
-    text,
-    outputFilePrefix: "nerve-jira",
-    exitMessagePrefix: "Jira",
-    dataDir: context.dataDir,
-    details: { ...details, ...(outputLimits ? { outputLimits } : {}) },
+  const normalizedDetails = withJiraMutationSummary(details);
+  return buildSemanticTextResult(text, {
+    ...normalizedDetails,
+    ...(outputLimits ? { outputLimits } : {}),
   });
+}
+
+function withJiraMutationSummary(
+  details: Record<string, unknown>,
+): Record<string, unknown> {
+  if (details.mutationSummary || typeof details.operation !== "string")
+    return details;
+  const resource = [
+    typeof details.issueKey === "string"
+      ? { kind: "issue", key: details.issueKey }
+      : undefined,
+    typeof details.attachmentId === "string"
+      ? { kind: "attachment", id: details.attachmentId }
+      : undefined,
+    typeof details.sprintId === "string"
+      ? { kind: "sprint", id: details.sprintId }
+      : undefined,
+  ].find(Boolean);
+  return {
+    ...details,
+    mutationSummary: {
+      operation: details.operation,
+      outcome: details.dryRun === true ? "dry_run" : "succeeded",
+      resources: resource ? [resource] : [],
+      warnings: [],
+    },
+  };
 }
 
 export function takeDisplayItems<T>(

@@ -167,6 +167,13 @@ describe("filesystem executors", () => {
     );
     assert.equal(first.path, join(project.root, "nested/out.txt"));
     assert.equal(first.content, "Wrote 11 bytes.");
+    assert.equal(first.details?.bytesWritten, 11);
+    assert.deepEqual(first.details?.mutationSummary, {
+      operation: "write",
+      outcome: "succeeded",
+      resources: [{ kind: "file", path: first.path }],
+      warnings: [],
+    });
     assert.equal(await readFile(first.path ?? "", "utf8"), "snowman ☃");
 
     const second = await executeWrite(
@@ -213,6 +220,9 @@ describe("filesystem executors", () => {
       { path: "A.txt", kind: "file" },
       { path: "b.txt", kind: "file" },
     ]);
+    assert.equal(limited.details?.totalEntries, 3);
+    assert.equal(limited.details?.returnedEntries, 2);
+    assert.equal(limited.details?.producerLimitReached, true);
 
     const full = await executeLs({ path: "." }, { cwd: project.root });
     assert.deepEqual(full.entries, [

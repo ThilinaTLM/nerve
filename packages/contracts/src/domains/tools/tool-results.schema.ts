@@ -406,6 +406,51 @@ export const webFetchResultDetailsSchema = z.object({
 });
 export type WebFetchResultDetails = z.infer<typeof webFetchResultDetailsSchema>;
 
+export const toolMutationResourceSchema = z
+  .object({
+    kind: z.string().min(1),
+    id: z.string().min(1).optional(),
+    key: z.string().min(1).optional(),
+    path: z.string().min(1).optional(),
+    url: z.string().min(1).optional(),
+  })
+  .strict();
+export type ToolMutationResourcePayload = z.infer<
+  typeof toolMutationResourceSchema
+>;
+
+export const toolMutationSummarySchema = z
+  .object({
+    operation: z.string().min(1),
+    outcome: z.enum(["succeeded", "dry_run", "partial"]),
+    resources: z.array(toolMutationResourceSchema).max(20).default([]),
+    warnings: z.array(z.string()).max(20).default([]),
+    nextAction: z.string().min(1).optional(),
+  })
+  .strict();
+export type ToolMutationSummaryPayload = z.infer<
+  typeof toolMutationSummarySchema
+>;
+
+export const relatedCollectionPageSchema = z
+  .object({
+    id: z.string().min(1),
+    original: z.number().int().nonnegative(),
+    returned: z.number().int().nonnegative(),
+    continuation: z
+      .object({
+        parameter: z.string().min(1),
+        value: z.union([z.string(), z.number()]),
+        direction: z.enum(["before", "after"]),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type RelatedCollectionPagePayload = z.infer<
+  typeof relatedCollectionPageSchema
+>;
+
 export const jiraIncludedCountsSchema = z
   .object({
     comments: z.number().int().nonnegative().optional(),
@@ -446,6 +491,8 @@ export const jiraResultDetailsSchema = z
     projectKey: z.string().optional(),
     project: jiraProjectSummarySchema.optional(),
     includedCounts: jiraIncludedCountsSchema.optional(),
+    relatedCollections: z.array(relatedCollectionPageSchema).optional(),
+    mutationSummary: toolMutationSummarySchema.optional(),
     issueType: jiraTextDisplaySchema.optional(),
     summary: jiraTextDisplaySchema.optional(),
     id: z.string().optional(),
@@ -584,6 +631,8 @@ export const confluenceResultDetailsSchema = z
     attachmentCount: z.number().int().nonnegative().optional(),
     displayedAttachmentCount: z.number().int().nonnegative().optional(),
     includedCounts: confluenceIncludedCountsSchema.optional(),
+    relatedCollections: z.array(relatedCollectionPageSchema).optional(),
+    mutationSummary: toolMutationSummarySchema.optional(),
     downloadDir: z.string().optional(),
     manifestPath: z.string().optional(),
     pagesJsonlPath: z.string().optional(),
