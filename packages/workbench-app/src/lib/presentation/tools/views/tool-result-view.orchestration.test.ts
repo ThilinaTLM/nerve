@@ -35,6 +35,56 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(view.kind === "ask_user" && view.dismissed, true);
   });
 
+  it("restores a resolved plan preview from the durable interaction", () => {
+    const planPreview = [
+      "# Implementation plan",
+      "",
+      "## Goal",
+      "",
+      "Keep the plan visible after revisiting the conversation.",
+      "Validate the resolved transcript path.",
+    ].join("\n");
+    const view = parseToolView(
+      transcriptToolCall(
+        "plan_mode_present",
+        { file_path: "/tmp/plans/example.md" },
+        {
+          review: {
+            id: "plan_review_01H0000000000000000000000",
+            status: "accepted",
+          },
+          outcome: "accepted",
+          feedback: "Looks good.",
+        },
+        {
+          interactions: [
+            {
+              ordinal: 0,
+              kind: "plan_review",
+              status: "resolved",
+              requestedAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:01:00.000Z",
+              resolvedAt: "2026-01-01T00:01:00.000Z",
+              request: {
+                planPath: "/tmp/plans/example.md",
+                slug: "example",
+                title: "example.md",
+                summary: planPreview,
+                allowNewConversation: true,
+              },
+              resolution: { action: "accept" },
+            },
+          ],
+        },
+      ),
+    );
+
+    assert.equal(view.kind, "plan_mode");
+    if (view.kind !== "plan_mode") return;
+    assert.equal(view.planPreview, planPreview);
+    assert.equal(view.summary, "Looks good.");
+  });
+
   it("parses a task_start action while keeping tool completion separate from process state", () => {
     const tc = toolCall(
       "task_start",

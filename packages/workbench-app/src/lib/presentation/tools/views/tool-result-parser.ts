@@ -592,6 +592,9 @@ export function parseToolView(
     case "plan_mode_present": {
       const resultRecord = asRecord(rawResult);
       const review = asRecord(resultRecord.review);
+      const interactionSummary = toolCall.interactions.find(
+        (interaction) => interaction.kind === "plan_review",
+      )?.request.summary;
       const planPath =
         stringField(review.planPath) ?? stringField(args.file_path);
       const outcome =
@@ -601,6 +604,10 @@ export function parseToolView(
         action: "present",
         summary:
           stringField(resultRecord.feedback) ?? firstTextBlock(rawResult),
+        planPreview:
+          stringField(review.content) ??
+          stringField(review.summary) ??
+          interactionSummary,
         planPath,
         outcome,
       };
