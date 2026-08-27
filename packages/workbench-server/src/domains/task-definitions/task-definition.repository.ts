@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import {
   projectRecordSchema,
+  taskDefinitionFileSchema,
   taskDefinitionSchema,
   type TaskDefinition,
 } from "@nervekit/contracts";
@@ -21,12 +22,17 @@ export class TaskDefinitionRepository {
         throw error;
       },
     );
-    const record = raw as { version?: unknown; definitions?: unknown };
-    if (record.version !== 1 || !Array.isArray(record.definitions)) {
-      throw new Error(`Invalid project task definitions at ${path}.`);
+    const parsed = taskDefinitionFileSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new Error(`Invalid project task definitions at ${path}.`, {
+        cause: parsed.error,
+      });
     }
-    return record.definitions.map((definition) =>
-      taskDefinitionSchema.parse(definition),
+    return parsed.data.definitions.map((definition) =>
+      taskDefinitionSchema.parse({
+        ...definition,
+        scope: { kind: "project", projectId },
+      }),
     );
   }
 
@@ -36,12 +42,7 @@ export class TaskDefinitionRepository {
   ): Promise<void> {
     await atomicWriteJson(
       await this.path(projectId),
-      {
-        version: 1,
-        definitions: definitions.map((definition) =>
-          taskDefinitionSchema.parse(definition),
-        ),
-      },
+      taskDefinitionFileSchema.parse({ version: 1, definitions }),
       0o600,
     );
   }
