@@ -1,4 +1,5 @@
 import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
+import { VIEW_TOOL_DETAILS_LABEL } from "./tool-details-label";
 import type { DetailsActionInfo, MetaTone } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import { countLogicalLines } from "./tool-view-helpers";
@@ -51,13 +52,11 @@ export function detailsActionFromHidden(
   direction: "head" | "tail" | "mixed" = "head",
 ): DetailsActionInfo | undefined {
   if (!hidden || hidden <= 0) return undefined;
-  const verb = direction === "tail" ? "earlier" : "more";
+  void noun;
+  void direction;
   return {
     hidden,
-    label:
-      direction === "mixed"
-        ? `Show complete tool call (${hidden} more ${noun})`
-        : `Show ${hidden} ${verb} ${noun}`,
+    label: VIEW_TOOL_DETAILS_LABEL,
   };
 }
 

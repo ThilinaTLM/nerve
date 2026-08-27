@@ -102,6 +102,10 @@ describe("agent projection contracts", () => {
       attempt: 1,
       interactions: [],
       validatedArtifacts: [artifact],
+      agentPreview: {
+        version: 1,
+        blocks: [{ type: "text", text: "ok" }],
+      },
       agentProjection: {
         version: 1,
         profile: "source_text",
@@ -123,5 +127,6 @@ describe("agent projection contracts", () => {
     const transcript = toolCallTranscriptRecordSchema.parse(record);
     assert.equal("validatedArtifacts" in transcript, false);
     assert.equal("agentProjection" in transcript, false);
+    assert.equal("agentPreview" in transcript, false);
   });
 });

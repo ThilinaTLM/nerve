@@ -4,7 +4,11 @@ import type { MetaItem } from "../../views/tool-presentation";
 
 type Props = {
   meta?: MetaItem[];
-  detailsAction?: { label: string; onClick: () => void };
+  detailsAction?: {
+    label: string;
+    ariaLabel?: string;
+    onClick: () => void;
+  };
   onOpenFile?: (path: string, line?: number) => void;
   /** Right-aligned action buttons (e.g. HIL accept/reject, reply/dismiss). */
   actions?: Snippet;
@@ -43,7 +47,12 @@ const show = $derived(meta.length > 0 || Boolean(detailsAction) || hasActions);
       </div>
     {/if}
     {#if detailsAction}
-      <button class="more" type="button" onclick={detailsAction.onClick}>
+      <button
+        class="more"
+        type="button"
+        aria-label={detailsAction.ariaLabel}
+        onclick={detailsAction.onClick}
+      >
         {detailsAction.label}
       </button>
     {/if}

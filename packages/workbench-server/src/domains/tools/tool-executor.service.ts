@@ -144,6 +144,7 @@ export class ToolExecutorService {
                     : {}),
                   validatedArtifacts: failure.validatedArtifacts,
                   agentProjection: failure.agentProjection,
+                  agentPreview: failure.agentPreview,
                 };
               } catch {
                 return base;
@@ -169,6 +170,7 @@ export class ToolExecutorService {
             resultPayload: prepared.resultPayload,
             validatedArtifacts: prepared.validatedArtifacts,
             agentProjection: prepared.agentProjection,
+            agentPreview: prepared.agentPreview,
             error: undefined,
             errorDetails: undefined,
           };

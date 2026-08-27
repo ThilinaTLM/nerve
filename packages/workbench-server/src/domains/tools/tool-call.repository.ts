@@ -3,8 +3,10 @@ import {
   type ConversationJournalEvent,
   type ToolCallDetails,
   type ToolCallRecord,
+  type ToolCallResultChunk,
   type ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
+import { createHash } from "node:crypto";
 import type {
   RuntimeQueryCache,
   ToolCallPreviewQuery,
@@ -13,9 +15,11 @@ import { storagePaths } from "../../infrastructure/storage/paths.js";
 import { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import {
+  serializeToolResult,
   ToolResultPayloadCorruptError,
   type ToolResultPayloadStore,
   ToolResultPayloadUnavailableError,
+  utf8TextRange,
 } from "./tool-result-payload-store.js";
 
 const TERMINAL_CACHE_MAX_BYTES = 16 * 1024 * 1024;
@@ -190,31 +194,103 @@ export class ToolCallRepository {
   async getDetails(toolCallId: string): Promise<ToolCallDetails> {
     const toolCall = await this.getCanonical(toolCallId);
     if (!toolCall.resultPayload) {
+      const serialized = serializedInlineResult(toolCall.result);
       return {
         toolCall,
-        completeResult: toolCall.result,
-        completeResultStatus: "inline",
+        completeResult: {
+          status: "inline",
+          hasResult: toolCall.result !== undefined,
+          byteLength: serialized.byteLength,
+          mediaType: "application/json",
+          encoding: "utf-8",
+          digest: createHash("sha256").update(serialized).digest("hex"),
+        },
+      };
+    }
+    const reference = toolCall.resultPayload;
+    return {
+      toolCall,
+      completeResult: {
+        status: this.payloads
+          ? reference.completeness === "legacy_bounded"
+            ? "legacy_bounded"
+            : "payload"
+          : "unavailable",
+        hasResult: true,
+        byteLength: reference.byteLength,
+        mediaType: reference.mediaType,
+        encoding: reference.encoding,
+        digest: reference.digest,
+      },
+    };
+  }
+
+  async readResult(
+    toolCallId: string,
+    byteOffset: number,
+    byteLimit: number,
+  ): Promise<ToolCallResultChunk> {
+    const toolCall = await this.getCanonical(toolCallId);
+    const reference = toolCall.resultPayload;
+    if (!reference) {
+      const serialized = serializedInlineResult(toolCall.result);
+      const offset = Math.min(byteOffset, serialized.byteLength);
+      const bounded = utf8TextRange(
+        serialized.subarray(
+          offset,
+          Math.min(serialized.byteLength, offset + byteLimit + 6),
+        ),
+        byteLimit,
+      );
+      const actualOffset = offset + bounded.start;
+      const nextByteOffset = offset + bounded.end;
+      return {
+        status: "inline",
+        totalBytes: serialized.byteLength,
+        byteOffset: actualOffset,
+        nextByteOffset,
+        text: bounded.text,
+        done: nextByteOffset >= serialized.byteLength,
       };
     }
     if (!this.payloads) {
-      return { toolCall, completeResultStatus: "unavailable" };
+      return unavailableResultChunk(
+        "unavailable",
+        reference.byteLength,
+        byteOffset,
+      );
     }
     try {
-      const completeResult = await this.payloads.read(toolCall.resultPayload);
+      const range = await this.payloads.readTextRange(
+        reference,
+        byteOffset,
+        byteLimit,
+      );
       return {
-        toolCall,
-        completeResult,
-        completeResultStatus:
-          toolCall.resultPayload.completeness === "legacy_bounded"
+        status:
+          reference.completeness === "legacy_bounded"
             ? "legacy_bounded"
             : "payload",
+        totalBytes: range.totalBytes,
+        byteOffset: range.byteOffset,
+        nextByteOffset: range.nextByteOffset,
+        text: range.text,
+        done: range.nextByteOffset >= range.totalBytes,
       };
     } catch (error) {
       if (error instanceof ToolResultPayloadCorruptError) {
-        return { toolCall, completeResultStatus: "corrupt" };
+        return unavailableResultChunk(
+          "corrupt",
+          reference.byteLength,
+          byteOffset,
+        );
       }
       if (error instanceof ToolResultPayloadUnavailableError) {
-        return { toolCall, completeResultStatus: "unavailable" };
+        return unavailableResultChunk(
+          "unavailable",
+          reference.byteLength,
+          byteOffset,
+        );
       }
       throw error;
     }
@@ -447,6 +523,29 @@ function assertImmutableIdentity(
       throw new Error(`Tool-call identity field '${key}' is immutable.`);
     }
   }
+}
+
+function serializedInlineResult(result: unknown): Buffer {
+  return Buffer.from(
+    result === undefined ? "" : serializeToolResult(result),
+    "utf8",
+  );
+}
+
+function unavailableResultChunk(
+  status: "unavailable" | "corrupt",
+  totalBytes: number,
+  byteOffset: number,
+): ToolCallResultChunk {
+  const offset = Math.min(byteOffset, totalBytes);
+  return {
+    status,
+    totalBytes,
+    byteOffset: offset,
+    nextByteOffset: offset,
+    text: "",
+    done: true,
+  };
 }
 
 function isTerminal(status: ToolCallRecord["status"]): boolean {

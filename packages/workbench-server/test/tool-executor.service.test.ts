@@ -271,6 +271,12 @@ describe("ToolExecutorService structured errors", () => {
     assert.equal(completed.resultPayload, undefined);
     assert.deepEqual(completed.validatedArtifacts, []);
     assert.equal(completed.agentProjection?.fastPath, true);
+    assert.deepEqual(completed.agentPreview?.blocks, [
+      {
+        type: "text",
+        text: "legacy head/tail preview with verbose metadata",
+      },
+    ]);
     assert.equal(await readFile(sourcePath, "utf8"), rawText);
   });
 

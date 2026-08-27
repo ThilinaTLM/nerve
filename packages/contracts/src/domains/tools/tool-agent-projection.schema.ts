@@ -216,3 +216,27 @@ export const agentProjectionSnapshotSchema = z
 export type AgentProjectionSnapshot = z.infer<
   typeof agentProjectionSnapshotSchema
 >;
+
+export const agentPreviewBlockSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("text"),
+    text: z.string(),
+  }),
+  z.object({
+    type: z.literal("image"),
+    mimeType: z.string().min(1),
+    byteLength: z.number().int().nonnegative().safe(),
+    digest: z.string().regex(/^[a-f0-9]{64}$/),
+    resultContentBlockIndex: z.number().int().nonnegative().safe(),
+  }),
+]);
+export type AgentPreviewBlock = z.infer<typeof agentPreviewBlockSchema>;
+
+/** Exact blocks delivered to the model, with large image bytes referenced. */
+export const agentPreviewSnapshotSchema = z
+  .object({
+    version: z.literal(1),
+    blocks: z.array(agentPreviewBlockSchema).max(256),
+  })
+  .strict();
+export type AgentPreviewSnapshot = z.infer<typeof agentPreviewSnapshotSchema>;
