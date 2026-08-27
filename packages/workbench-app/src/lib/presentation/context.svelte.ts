@@ -3,6 +3,7 @@ import type {
   EventEnvelope,
   SubagentTranscriptSnapshot,
   ToolCallDetails,
+  ToolCallResultChunk,
 } from "@nervekit/contracts";
 import type { Component } from "svelte";
 import { getContext, setContext } from "svelte";
@@ -87,8 +88,14 @@ export interface AskReplyComposerCapability {
 }
 
 export interface ConversationUiCapabilities {
-  /** Fetch the canonical tool call and its on-demand complete result. */
+  /** Fetch canonical bounded details without loading the complete result. */
   fetchToolCall?: (toolCallId: string) => Promise<ToolCallDetails>;
+  /** Read one bounded UTF-8 chunk of the complete result. */
+  readToolCallResult?: (
+    toolCallId: string,
+    byteOffset: number,
+    byteLimit?: number,
+  ) => Promise<ToolCallResultChunk>;
   /** Observe one bounded, read-only child transcript while its dialog is open. */
   watchSubagentTranscript?: (
     parentAgentId: string,

@@ -1,9 +1,11 @@
 import {
   boundText,
   projectAgentResult,
+  snapshotAgentPreview,
   toolDefinitionByName,
 } from "@nervekit/tools";
 import type {
+  AgentPreviewSnapshot,
   AgentProjectionSnapshot,
   ToolCallErrorDetails,
   ToolCallStatus,
@@ -50,6 +52,7 @@ export async function prepareToolResult(
   resultPayload?: ToolResultPayloadReference;
   validatedArtifacts: ValidatedToolArtifact[];
   agentProjection: AgentProjectionSnapshot;
+  agentPreview: AgentPreviewSnapshot;
 }> {
   const claims = artifactClaims(result);
   const validator = new ToolResultArtifactValidator(
@@ -97,18 +100,20 @@ export async function prepareToolResult(
     );
     completePayload = input.payloads.recoveryArtifact(resultPayload);
   }
+  const storedResult = bounded.summary.truncated ? bounded.value : result;
   const projection = completePayload
     ? projectAgentResult(
-        { ...context, completePayload },
+        { ...context, result: storedResult, completePayload },
         definition?.agentResult,
       )
     : firstProjection;
 
   return {
-    result: bounded.summary.truncated ? bounded.value : result,
+    result: storedResult,
     ...(resultPayload ? { resultPayload } : {}),
     validatedArtifacts,
     agentProjection: projection.snapshot,
+    agentPreview: snapshotAgentPreview(projection.blocks, result),
   };
 }
 

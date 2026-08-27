@@ -36,18 +36,61 @@ const toolCallGetParamsSchema = z.object({
   runId: z.string().startsWith("run_").optional(),
 });
 
+export const completeToolResultStatusSchema = z.enum([
+  "inline",
+  "payload",
+  "legacy_bounded",
+  "unavailable",
+  "corrupt",
+]);
+export type CompleteToolResultStatus = z.infer<
+  typeof completeToolResultStatusSchema
+>;
+
+export const completeToolResultDescriptorSchema = z.object({
+  status: completeToolResultStatusSchema,
+  hasResult: z.boolean(),
+  byteLength: z.number().int().nonnegative().safe(),
+  mediaType: z.literal("application/json"),
+  encoding: z.literal("utf-8"),
+  digest: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
+});
+export type CompleteToolResultDescriptor = z.infer<
+  typeof completeToolResultDescriptorSchema
+>;
+
 export const toolCallDetailsSchema = z.object({
   toolCall: toolCallRecordSchema,
-  completeResult: z.unknown().optional(),
-  completeResultStatus: z.enum([
-    "inline",
-    "payload",
-    "legacy_bounded",
-    "unavailable",
-    "corrupt",
-  ]),
+  completeResult: completeToolResultDescriptorSchema,
 });
 export type ToolCallDetails = z.infer<typeof toolCallDetailsSchema>;
+
+export const toolCallResultReadParamsSchema = z.object({
+  toolCallId: toolCallIdSchema,
+  byteOffset: z.number().int().nonnegative().safe().default(0),
+  byteLimit: z
+    .number()
+    .int()
+    .min(4)
+    .max(64 * 1024)
+    .default(64 * 1024),
+});
+export type ToolCallResultReadParams = z.infer<
+  typeof toolCallResultReadParamsSchema
+>;
+
+export const toolCallResultChunkSchema = z.object({
+  status: completeToolResultStatusSchema,
+  totalBytes: z.number().int().nonnegative().safe(),
+  byteOffset: z.number().int().nonnegative().safe(),
+  nextByteOffset: z.number().int().nonnegative().safe(),
+  text: z.string(),
+  done: z.boolean(),
+});
+export type ToolCallResultChunk = z.infer<typeof toolCallResultChunkSchema>;
 
 export const toolInteractionResolutionSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -142,6 +185,15 @@ export const toolsOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.toolCall.get",
+  ),
+  defineOperation(
+    "toolCall.result.read",
+    toolCallResultReadParamsSchema,
+    toolCallResultChunkSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.toolCall.result.read",
   ),
   defineOperation(
     "toolCall.interaction.resolve",

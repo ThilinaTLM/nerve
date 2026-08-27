@@ -1032,6 +1032,18 @@ export class ToolService {
     return await this.toolCallRepository.getDetails(toolCallId);
   }
 
+  async readToolCallResult(
+    toolCallId: string,
+    byteOffset: number,
+    byteLimit: number,
+  ) {
+    return await this.toolCallRepository.readResult(
+      toolCallId,
+      byteOffset,
+      byteLimit,
+    );
+  }
+
   toolResultRecoveryArtifact(toolCall: ToolCallRecord) {
     return toolCall.resultPayload
       ? this.resultPayloads.recoveryArtifact(toolCall.resultPayload)

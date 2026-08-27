@@ -1,11 +1,13 @@
 import {
   toolCallDetailsSchema,
   toolCallRecordSchema,
+  toolCallResultChunkSchema,
   toolDescriptorSchema,
   type AgentRecord,
   type ConversationRecord,
   type ToolCallDetails,
   type ToolCallRecord,
+  type ToolCallResultChunk,
   type ToolDescriptor,
   type ToolInteractionResolution,
 } from "@nervekit/contracts";
@@ -29,6 +31,21 @@ export async function getToolCallDetails(
 ): Promise<ToolCallDetails> {
   const result = (await protocolRequest("toolCall.get", { toolCallId })).result;
   return toolCallDetailsSchema.parse(result);
+}
+
+export async function readToolCallResult(
+  toolCallId: string,
+  byteOffset: number,
+  byteLimit = 64 * 1024,
+): Promise<ToolCallResultChunk> {
+  const result = (
+    await protocolRequest("toolCall.result.read", {
+      toolCallId,
+      byteOffset,
+      byteLimit,
+    })
+  ).result;
+  return toolCallResultChunkSchema.parse(result);
 }
 
 export async function resolveToolInteraction(

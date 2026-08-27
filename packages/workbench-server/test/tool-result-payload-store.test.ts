@@ -51,6 +51,24 @@ describe("ToolResultPayloadStore", () => {
     assert.match(await readFile(path, "utf8"), /^\{\n {2}"a": "first"/);
   });
 
+  it("reads UTF-8-safe bounded ranges", async () => {
+    const { payloads } = await store();
+    const reference = await payloads.write(
+      "conv_test",
+      "tool_range",
+      "🙂 alpha\n🙂 beta",
+    );
+    const chunks: string[] = [];
+    let offset = 0;
+    while (offset < reference.byteLength) {
+      const chunk = await payloads.readTextRange(reference, offset, 7);
+      assert.ok(chunk.nextByteOffset > offset);
+      chunks.push(chunk.text);
+      offset = chunk.nextByteOffset;
+    }
+    assert.equal(chunks.join(""), '"🙂 alpha\\n🙂 beta"\n');
+  });
+
   it("rejects owner traversal and detects modified bytes", async () => {
     const { payloads } = await store();
     await assert.rejects(

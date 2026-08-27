@@ -39,6 +39,7 @@ import { getConversationUiCapabilities } from "../../context.svelte";
 import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
 import { LatestPresentationScheduler } from "@nervekit/ui-kit/core/utils/latest-presentation-scheduler";
 import { toolCardLayoutRevision } from "../views/tool-card-layout";
+import { VIEW_TOOL_DETAILS_LABEL } from "../views/tool-details-label";
 import CardShell from "./tool-call/CardShell.svelte";
 import ToolExecutingSkeleton from "./tool-call/ToolExecutingSkeleton.svelte";
 import ToolArgumentBody from "./tool-call/ToolArgumentBody.svelte";
@@ -353,15 +354,12 @@ const meta = $derived(activityMeta);
 const detailsAction = $derived(
   toolCall && detailsEnabled
     ? {
-        label: presentation?.detailsAction?.label ?? "Details",
+        label: VIEW_TOOL_DETAILS_LABEL,
+        ariaLabel: `View ${toolCall.toolName} details`,
         onClick: openDetails,
       }
     : undefined,
 );
-const bodyDetailsAction = $derived({
-  label: presentation?.detailsAction?.label ?? "Details",
-  onClick: openDetails,
-});
 const errorPreview = $derived(
   toolCall?.error
     ? trimTextPreview(toolCall.error, {
@@ -452,7 +450,6 @@ async function openDetails() {
       toolName={toolCall.toolName}
       presentation={approvalPresentation}
       includeBody={!activitySections.argumentVisible}
-      detailsAction={bodyDetailsAction}
       {onGrantApproval}
       {onDenyApproval}
     />
@@ -469,7 +466,6 @@ async function openDetails() {
       {view}
       expanded={false}
       {onOpenFile}
-      detailsAction={hilInteractive ? bodyDetailsAction : undefined}
       questionRecord={toolQuestion}
       planReview={toolPlanReview}
       {onAnswerUserQuestion}
@@ -488,22 +484,10 @@ async function openDetails() {
   <ToolCallDetailsDialog
     open={detailsOpen}
     previewToolCall={toolCall}
-    toolCall={fullToolCall?.toolCall}
-    completeResult={fullToolCall?.completeResult}
-    completeResultStatus={fullToolCall?.completeResultStatus}
+    details={fullToolCall}
     loading={detailsLoading}
     error={detailsError}
-    {pendingUserQuestion}
-    {pendingPlanReview}
     {onOpenFile}
-    {planReviewModels}
-    {planReviewModelKey}
-    {planReviewThinkingLevel}
-    {onAnswerUserQuestion}
-    {onDismissUserQuestion}
-    {onAcceptPlanReview}
-    {onAcceptPlanReviewInNewChat}
-    {onRejectPlanReview}
     onRetry={openDetails}
     onOpenChange={(open) => (detailsOpen = open)}
   />

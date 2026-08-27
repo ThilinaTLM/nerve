@@ -12,7 +12,7 @@ import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
 import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
 import type { GrepMatchView, GroupedMatches } from "./tool-view-types";
 
-/** Lines/items shown before the footer "Show more" toggle expands a body. */
+/** Lines/items shown in the bounded transcript preview. */
 export const COLLAPSED_LINES = 6;
 /** Rich Atlassian result rows shown in a collapsed body. */
 export const ATLASSIAN_COLLAPSED_ITEMS = 3;

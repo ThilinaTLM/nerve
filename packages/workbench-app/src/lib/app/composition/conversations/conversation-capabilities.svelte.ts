@@ -14,7 +14,10 @@ import {
   chatGptAudioAuth,
 } from "$lib/features/audio";
 import { watchSubagentTranscript } from "$lib/features/agents/subagent-transcript-watcher";
-import { getToolCallDetails } from "$lib/features/tools/api/tools.api";
+import {
+  getToolCallDetails,
+  readToolCallResult,
+} from "$lib/features/tools/api/tools.api";
 import {
   confluenceSiteUrl,
   jiraSiteUrl,
@@ -35,6 +38,8 @@ import { completeFiles } from "$lib/application/workspace/workspace-actions.svel
 export function workbenchConversationUiCapabilities(): ConversationUiCapabilities {
   return {
     fetchToolCall: (toolCallId) => getToolCallDetails(toolCallId),
+    readToolCallResult: (toolCallId, byteOffset, byteLimit) =>
+      readToolCallResult(toolCallId, byteOffset, byteLimit),
     watchSubagentTranscript,
     atlassian: { jiraSiteUrl, confluenceSiteUrl },
     voice: {

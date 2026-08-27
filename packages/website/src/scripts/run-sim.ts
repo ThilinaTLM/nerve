@@ -289,7 +289,7 @@ function toolItem(tool: ToolCall, state: "running" | "done"): HTMLLIElement {
     <div class="run-tool-out"><pre></pre></div>
     <div class="run-tool-foot">
       <span class="run-tool-lines"></span>
-      <span class="run-tool-more">Show 7 more items</span>
+      <span class="run-tool-more">View details</span>
     </div>`;
 
   const name = item.querySelector(".run-tool-name");

@@ -141,8 +141,16 @@ describe("canonical ToolCallRepository", () => {
     });
 
     const details = await value.repository.getDetails("tool_payload");
-    assert.equal(details.completeResultStatus, "payload");
-    assert.deepEqual(details.completeResult, { content: "complete output" });
+    assert.equal(details.completeResult.status, "payload");
+    assert.equal(details.completeResult.byteLength, resultPayload.byteLength);
+    const chunk = await value.repository.readResult(
+      "tool_payload",
+      0,
+      64 * 1024,
+    );
+    assert.equal(chunk.status, "payload");
+    assert.match(chunk.text, /complete output/);
+    assert.equal(chunk.done, true);
     assert.deepEqual(
       value.repository.listPreviews({ limit: 10 })[0]?.resultPreview,
       { content: "bounded" },

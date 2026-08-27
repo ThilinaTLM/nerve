@@ -3,7 +3,16 @@ import type {
   ValidatedToolArtifact,
 } from "@nervekit/contracts";
 import { createHash } from "node:crypto";
-import { chmod, lstat, mkdir, readFile, readdir, rm } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import {
+  chmod,
+  lstat,
+  mkdir,
+  open,
+  readFile,
+  readdir,
+  rm,
+} from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { atomicWriteFile } from "../../infrastructure/storage/file-mutations.js";
 import { storagePaths } from "../../infrastructure/storage/paths.js";
@@ -26,6 +35,10 @@ export class ToolResultPayloadCorruptError extends Error {
 
 export class ToolResultPayloadStore {
   readonly root: string;
+  private readonly verified = new Map<
+    string,
+    { byteLength: number; mtimeMs: number }
+  >();
 
   constructor(readonly home: string) {
     this.root = storagePaths(home).payloadsPath;
@@ -141,7 +154,44 @@ export class ToolResultPayloadStore {
   }
 
   async verify(reference: ToolResultPayloadReference): Promise<void> {
-    await this.readVerifiedBytes(reference);
+    await this.verifyStreaming(reference);
+  }
+
+  async readTextRange(
+    reference: ToolResultPayloadReference,
+    byteOffset: number,
+    byteLimit: number,
+  ): Promise<{
+    text: string;
+    byteOffset: number;
+    nextByteOffset: number;
+    totalBytes: number;
+  }> {
+    await this.verifyStreaming(reference);
+    const totalBytes = reference.byteLength;
+    if (byteOffset >= totalBytes) {
+      return {
+        text: "",
+        byteOffset: totalBytes,
+        nextByteOffset: totalBytes,
+        totalBytes,
+      };
+    }
+    const handle = await open(this.path(reference), "r");
+    try {
+      const requested = Math.min(byteLimit + 6, totalBytes - byteOffset);
+      const buffer = Buffer.allocUnsafe(requested);
+      const { bytesRead } = await handle.read(buffer, 0, requested, byteOffset);
+      const bounded = utf8TextRange(buffer.subarray(0, bytesRead), byteLimit);
+      return {
+        text: bounded.text,
+        byteOffset: byteOffset + bounded.start,
+        nextByteOffset: byteOffset + bounded.end,
+        totalBytes,
+      };
+    } finally {
+      await handle.close();
+    }
   }
 
   async removeConversation(conversationId: string): Promise<void> {
@@ -259,9 +309,7 @@ export class ToolResultPayloadStore {
     }
   }
 
-  private async readVerifiedBytes(
-    reference: ToolResultPayloadReference,
-  ): Promise<Buffer> {
+  private async payloadInfo(reference: ToolResultPayloadReference) {
     const path = this.path(reference);
     await this.assertDirectoryChain(
       reference.conversationId,
@@ -281,18 +329,79 @@ export class ToolResultPayloadStore {
         `Tool-result payload '${reference.toolCallId}' is not a regular file.`,
       );
     }
-    const bytes = await readFile(path);
-    const digest = createHash("sha256").update(bytes).digest("hex");
+    return { path, info };
+  }
+
+  private async verifyStreaming(
+    reference: ToolResultPayloadReference,
+  ): Promise<void> {
+    const { path, info } = await this.payloadInfo(reference);
+    const cached = this.verified.get(reference.digest);
     if (
-      bytes.byteLength !== reference.byteLength ||
-      digest !== reference.digest
+      cached?.byteLength === info.size &&
+      cached.mtimeMs === info.mtimeMs &&
+      info.size === reference.byteLength
+    ) {
+      return;
+    }
+    const hash = createHash("sha256");
+    let byteLength = 0;
+    try {
+      for await (const chunk of createReadStream(path)) {
+        const bytes = chunk as Buffer;
+        byteLength += bytes.byteLength;
+        hash.update(bytes);
+      }
+    } catch (cause) {
+      throw new ToolResultPayloadUnavailableError(
+        `Tool-result payload '${reference.toolCallId}' is unavailable.`,
+        { cause },
+      );
+    }
+    if (
+      byteLength !== reference.byteLength ||
+      hash.digest("hex") !== reference.digest
     ) {
       throw new ToolResultPayloadCorruptError(
         `Tool-result payload '${reference.toolCallId}' failed verification.`,
       );
     }
-    return bytes;
+    this.verified.set(reference.digest, {
+      byteLength: info.size,
+      mtimeMs: info.mtimeMs,
+    });
   }
+
+  private async readVerifiedBytes(
+    reference: ToolResultPayloadReference,
+  ): Promise<Buffer> {
+    await this.verifyStreaming(reference);
+    return await readFile(this.path(reference));
+  }
+}
+
+export function utf8TextRange(
+  bytes: Buffer,
+  byteLimit: number,
+): { text: string; start: number; end: number } {
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  for (let start = 0; start <= Math.min(3, bytes.byteLength); start += 1) {
+    const maximumEnd = Math.min(bytes.byteLength, start + byteLimit);
+    for (
+      let end = maximumEnd;
+      end >= Math.max(start, maximumEnd - 3);
+      end -= 1
+    ) {
+      try {
+        return { text: decoder.decode(bytes.subarray(start, end)), start, end };
+      } catch {
+        // Try the adjacent UTF-8 boundary.
+      }
+    }
+  }
+  throw new ToolResultPayloadCorruptError(
+    "Tool-result payload range is not valid UTF-8.",
+  );
 }
 
 export function serializeToolResult(result: unknown): string {

@@ -15,7 +15,11 @@ type Props = {
   arg?: PrimaryArg;
   error?: string;
   meta?: MetaItem[];
-  detailsAction?: { label: string; onClick: () => void };
+  detailsAction?: {
+    label: string;
+    ariaLabel?: string;
+    onClick: () => void;
+  };
   footer?: boolean;
   bodyVisible?: boolean;
   layoutRevision?: string;

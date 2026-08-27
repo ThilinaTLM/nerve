@@ -8,6 +8,7 @@ import {
 } from "../permissions/permissions.schema.js";
 import { recordedToolNameSchema, toolNameSchema } from "./tool-name.schema.js";
 import {
+  agentPreviewSnapshotSchema,
   agentProjectionSnapshotSchema,
   validatedToolArtifactSchema,
 } from "./tool-agent-projection.schema.js";
@@ -319,6 +320,7 @@ const toolCallRecordBaseSchema = z.object({
   resultPayload: toolResultPayloadReferenceSchema.optional(),
   validatedArtifacts: z.array(validatedToolArtifactSchema).max(100).optional(),
   agentProjection: agentProjectionSnapshotSchema.optional(),
+  agentPreview: agentPreviewSnapshotSchema.optional(),
   error: z.string().optional(),
   errorDetails: toolCallErrorDetailsSchema.optional(),
   createdAt: z.string().datetime(),
@@ -398,6 +400,7 @@ export const toolCallTranscriptRecordSchema = toolCallRecordBaseSchema
     resultPayload: true,
     validatedArtifacts: true,
     agentProjection: true,
+    agentPreview: true,
     error: true,
     errorDetails: true,
   })

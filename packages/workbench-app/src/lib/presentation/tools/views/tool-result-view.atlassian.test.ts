@@ -35,8 +35,7 @@ describe("normalized Atlassian tool views", () => {
 
     const presentation = toolPresentation(view, call);
     assert.equal(presentation.primaryArg?.text, "project NER · scrum");
-    assert.equal(presentation.detailsAction?.label, "Show 2 more boards");
-    assert.equal(presentation.detailsAction?.label.includes("lines"), false);
+    assert.equal(presentation.detailsAction?.label, "View details");
 
     const summary = jiraToolSummaryBody(call, view);
     assert.match(summary, /Returned: 5 boards/);
