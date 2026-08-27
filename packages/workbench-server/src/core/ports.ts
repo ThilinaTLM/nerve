@@ -58,7 +58,14 @@ export type PerformanceMetricName =
   | "conversation.commitEvents"
   | "conversation.commitRecords"
   | "conversation.checkpoint"
-  | "conversation.contextBuild";
+  | "conversation.contextBuild"
+  | "tool.projection"
+  | "tool.projectionTruncated"
+  | "tool.projectionInputBytes"
+  | "tool.projectionDisplayedBytes"
+  | "tool.projectionRecoveryArtifact"
+  | "tool.projectionRecoveryPayload"
+  | "tool.projectionFallback";
 
 export interface PerformanceMetricAggregate {
   readonly count: number;

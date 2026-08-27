@@ -61,11 +61,16 @@ export async function executeLs(
     entries,
     content,
     contentBlocks: [{ type: "text", text: content }],
-    details: bounded.truncated
-      ? {
-          truncation: textBoundaryDetails(bounded),
-          outputLimits: { execution: textLimitSnapshot(bounded) },
-        }
-      : undefined,
+    details: {
+      totalEntries: dirEntries.length,
+      returnedEntries: entries.length,
+      producerLimitReached: dirEntries.length > entries.length,
+      ...(bounded.truncated
+        ? {
+            truncation: textBoundaryDetails(bounded),
+            outputLimits: { execution: textLimitSnapshot(bounded) },
+          }
+        : {}),
+    },
   };
 }

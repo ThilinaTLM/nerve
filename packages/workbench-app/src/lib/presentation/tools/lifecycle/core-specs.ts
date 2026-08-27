@@ -111,18 +111,10 @@ function editDiffLines(source: ToolArgumentSource): string[] {
     for (const line of value.replace(/\r\n/g, "\n").split("\n"))
       lines.push(`${marker}${line}`);
   };
-  for (const replacement of source.recordsArray("replacements") ?? []) {
-    prefix(replacement.oldText, "-");
-    prefix(replacement.newText, "+");
+  for (const edit of source.recordsArray("edits") ?? []) {
+    prefix(edit.oldText, "-");
+    prefix(edit.newText, "+");
   }
-  for (const insertion of source.recordsArray("insertions") ?? [])
-    prefix(insertion.text, "+");
-  for (const replacement of source.recordsArray("lineReplacements") ?? [])
-    prefix(replacement.newText, "+");
-  for (const insertion of source.recordsArray("lineInsertions") ?? [])
-    prefix(insertion.text, "+");
-  const patch = source.string("patch");
-  if (patch) lines.push(...patch.replace(/\r\n/g, "\n").split("\n"));
   if (lines.length === 0) {
     const oldText = source.nestedStrings("oldText");
     const newText = source.nestedStrings("newText");
@@ -141,12 +133,7 @@ function editStats(source: ToolArgumentSource): {
   additions: number;
   deletions: number;
 } {
-  const operations =
-    (source.count("replacements") ?? 0) +
-    (source.count("insertions") ?? 0) +
-    (source.count("lineReplacements") ?? 0) +
-    (source.count("lineInsertions") ?? 0) +
-    (source.string("patch") ? 1 : 0);
+  const operations = source.count("edits") ?? 0;
   let additions = 0;
   let deletions = 0;
   for (const line of editDiffLines(source)) {

@@ -7,6 +7,10 @@ import {
   toolRiskSchema,
 } from "../permissions/permissions.schema.js";
 import { recordedToolNameSchema, toolNameSchema } from "./tool-name.schema.js";
+import {
+  agentProjectionSnapshotSchema,
+  validatedToolArtifactSchema,
+} from "./tool-agent-projection.schema.js";
 export type {
   CoreToolName,
   OrchestrationToolName,
@@ -313,6 +317,8 @@ const toolCallRecordBaseSchema = z.object({
   result: z.unknown().optional(),
   resultPreview: toolCallTranscriptPreviewSchema.optional(),
   resultPayload: toolResultPayloadReferenceSchema.optional(),
+  validatedArtifacts: z.array(validatedToolArtifactSchema).max(100).optional(),
+  agentProjection: agentProjectionSnapshotSchema.optional(),
   error: z.string().optional(),
   errorDetails: toolCallErrorDetailsSchema.optional(),
   createdAt: z.string().datetime(),
@@ -390,6 +396,8 @@ export const toolCallTranscriptRecordSchema = toolCallRecordBaseSchema
     result: true,
     resultPreview: true,
     resultPayload: true,
+    validatedArtifacts: true,
+    agentProjection: true,
     error: true,
     errorDetails: true,
   })

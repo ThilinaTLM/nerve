@@ -75,7 +75,13 @@ export async function executeFindWithBackend(
     entries,
     content: formatted.content,
     contentBlocks: [{ type: "text", text: formatted.content }],
-    details: formatted.details,
+    details: {
+      ...(formatted.details && typeof formatted.details === "object"
+        ? formatted.details
+        : {}),
+      returnedEntries: entries.length,
+      producerLimitReached: paths.length >= limit,
+    },
   };
 }
 

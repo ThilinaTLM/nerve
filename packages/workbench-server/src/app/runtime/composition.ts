@@ -585,6 +585,7 @@ export function composeRuntime(
     services.permissionExceptions,
     conversationJournal,
     resultPayloads,
+    performanceDiagnostics.enabled ? performanceDiagnostics : undefined,
   );
   services.subagentTranscriptLive = new SubagentTranscriptLiveService(events);
   services.subagentTranscripts = new SubagentTranscriptService({

@@ -1,4 +1,3 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { storagePaths } from "../../../infrastructure/storage/paths.js";
 import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";
 import { join } from "node:path";
@@ -19,6 +18,7 @@ import type {
   ModelSelection,
   PermissionLevel,
   ThinkingLevel,
+  ToolArtifactClaim,
   WorkspaceScope,
 } from "@nervekit/contracts";
 import { createId } from "@nervekit/contracts";
@@ -68,6 +68,11 @@ import {
   throwIfAborted,
   toolNameFromHarnessEvent,
 } from "./explore-helpers.js";
+import {
+  formatAgentReadyExploreReport,
+  persistExploreReport,
+  type PersistedExploreReport,
+} from "./explore-report-format.js";
 
 export type SubagentHistoryMode = "fresh" | "copy_parent";
 
@@ -129,6 +134,9 @@ export interface ExploreReport {
   status: ExploreStatus;
   report: string;
   reportPath?: string;
+  reportBytes?: number;
+  reportLines?: number;
+  artifactId?: string;
   summaryPreview?: string;
   usage?: ExploreUsageStatsPayload;
   model?: string;
@@ -177,11 +185,7 @@ export class SubagentRunner {
     contentBlocks: [{ type: "text"; text: string }];
     details: {
       outputLimits: {
-        artifacts: Array<{
-          kind: "transcript";
-          path: string;
-          label: string;
-        }>;
+        artifacts: ToolArtifactClaim[];
       };
     };
   }> {
@@ -252,26 +256,47 @@ export class SubagentRunner {
           } finally {
             release();
           }
-          const reportPath = await this.writeExploreReport({
-            batchId,
-            task,
-            index,
-            plan,
-            output,
-          });
+          const completeReport = formatAgentReadyExploreReport(
+            formatExploreReportFile(task, plan, output),
+          );
+          let persisted: PersistedExploreReport | undefined;
+          let persistenceError: string | undefined;
+          try {
+            persisted = await this.writeExploreReport({
+              batchId,
+              task,
+              index,
+              plan,
+              output,
+              report: completeReport,
+            });
+          } catch (error) {
+            persistenceError = `Explore report persistence failed: ${error instanceof Error ? error.message : String(error)}`;
+          }
+          const reportText = persistenceError
+            ? formatExploreFailureReport(persistenceError)
+            : completeReport;
+          const artifactId = persisted
+            ? `explore_report_${index + 1}`
+            : undefined;
           const report: ExploreReport = {
             agentId: output.agent.id,
             task: task.task,
             label: task.label,
-            status: output.status,
-            report: output.report,
-            reportPath,
-            summaryPreview: summaryPreview(output.report),
+            status: persistenceError ? "failed" : output.status,
+            report: reportText,
+            reportPath: persisted?.path,
+            reportBytes: persisted?.bytes,
+            reportLines: persisted?.lines,
+            artifactId,
+            summaryPreview: summaryPreview(
+              persistenceError ? reportText : output.report,
+            ),
             usage: output.usage,
             model: output.model,
             thinkingLevel: output.thinkingLevel,
             stopReason: output.stopReason,
-            errorMessage: output.errorMessage,
+            errorMessage: persistenceError ?? output.errorMessage,
             steps: output.steps,
           };
           publishExploreProgress(options.onProgress, {
@@ -281,11 +306,12 @@ export class SubagentRunner {
             label: task.label,
             model: output.model,
             thinkingLevel: output.thinkingLevel,
-            phase: output.status === "completed" ? "completed" : "failed",
-            message:
-              output.status === "completed"
-                ? `Report written: ${reportPath}`
-                : `Failure report written: ${reportPath}`,
+            phase: report.status === "completed" ? "completed" : "failed",
+            message: persisted
+              ? report.status === "completed"
+                ? `Report written: ${persisted.path}`
+                : `Failure report written: ${persisted.path}`
+              : (persistenceError ?? "Explore report was not persisted."),
             report: exploreReportEventSummary(report),
           });
           return report;
@@ -318,9 +344,18 @@ export class SubagentRunner {
             report.reportPath
               ? [
                   {
-                    kind: "transcript" as const,
+                    id: report.artifactId ?? `explore_report_${index + 1}`,
+                    role: "primary_result" as const,
                     path: report.reportPath,
+                    format: {
+                      kind: "markdown" as const,
+                      mediaType: "text/markdown",
+                      encoding: "utf-8" as const,
+                    },
+                    bytes: report.reportBytes,
+                    lines: report.reportLines,
                     label: `Explore report ${index + 1}: ${report.label ?? report.task}`,
+                    recommendedTools: ["read", "grep"] as ("read" | "grep")[],
                   },
                 ]
               : [],
@@ -588,28 +623,20 @@ export class SubagentRunner {
     plan: ExploreRunPlan;
     index: number;
     output: SubagentRunOutput;
-  }): Promise<string> {
+    report: string;
+  }): Promise<PersistedExploreReport> {
     const dir = join(
       storagePaths(this.deps.storage.paths.home).reportsPath,
       "conversations",
       input.output.agent.conversationId,
       input.batchId,
     );
-    await mkdir(dir, { recursive: true, mode: 0o700 });
     const fileName = safeReportFileName(
       input.task.label ?? input.task.task,
       input.index,
       input.output.agent.id,
     );
     const reportPath = join(dir, fileName);
-    await writeFile(
-      reportPath,
-      formatExploreReportFile(input.task, input.plan, input.output),
-      {
-        encoding: "utf8",
-        mode: 0o600,
-      },
-    );
-    return reportPath;
+    return await persistExploreReport(reportPath, input.report);
   }
 }

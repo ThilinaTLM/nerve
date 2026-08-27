@@ -1,3 +1,4 @@
+export * from "./tool-agent-projection.schema.js";
 export * from "./records.schema.js";
 export * from "./tool.events.schema.js";
 export * from "./tool.operations.schema.js";

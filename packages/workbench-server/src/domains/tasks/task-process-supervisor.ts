@@ -19,7 +19,7 @@ export interface TaskProcessSupervisorOptions {
     append?(
       task: TaskRecord,
       stream: "stdout" | "stderr",
-      text: string,
+      chunk: Buffer | string,
     ): Promise<void>;
   };
   readonly readiness?: TaskReadinessPort;
@@ -94,8 +94,12 @@ export class TaskProcessSupervisor {
     return this.runRuntimeTimeout(id, timeoutMs);
   }
 
-  output(id: string, stream: "stdout" | "stderr", text: string): Promise<void> {
-    return this.recordOutput(id, stream, text);
+  output(
+    id: string,
+    stream: "stdout" | "stderr",
+    chunk: Buffer | string,
+  ): Promise<void> {
+    return this.recordOutput(id, stream, chunk);
   }
 
   exit(id: string, exit: TaskProcessExit): Promise<void> {
@@ -176,11 +180,14 @@ export class TaskProcessSupervisor {
   private async recordOutput(
     id: string,
     stream: "stdout" | "stderr",
-    text: string,
+    rawChunk: Buffer | string,
   ): Promise<void> {
     const task = await this.options.get(id);
     if (!task) return;
-    await this.options.logs.append?.(task, stream, text);
+    await this.options.logs.append?.(task, stream, rawChunk);
+    const text = Buffer.isBuffer(rawChunk)
+      ? rawChunk.toString("utf8")
+      : rawChunk;
     for (const chunk of splitLiveOutputChunks(text)) {
       try {
         await this.options.publish(

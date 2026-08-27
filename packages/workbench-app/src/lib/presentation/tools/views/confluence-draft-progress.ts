@@ -61,8 +61,16 @@ export function confluenceDraftMeta(
   const spaceKey = firstKnownString(draft, "space_key");
   if (spaceKey) meta.push({ text: `space ${spaceKey}`, mono: true });
   if (args.markdown === true) meta.push({ text: "markdown" });
-  if (args.include_attachments === true) meta.push({ text: "attachments" });
-  if (args.download_attachments === true) meta.push({ text: "download files" });
+  if (toolName === "confluence_get_page" && Array.isArray(args.include)) {
+    for (const value of args.include) {
+      if (typeof value === "string")
+        meta.push({ text: value.replaceAll("_", " ") });
+    }
+  }
+  if (toolName === "confluence_download_page") {
+    if (args.attachments === "metadata") meta.push({ text: "attachments" });
+    if (args.attachments === "download") meta.push({ text: "download files" });
+  }
   if (args.recurse === true) meta.push({ text: "subtree" });
   if (args.dry_run === true) meta.push({ text: "dry run", tone: "info" });
   if (toolName === "confluence_update_page" && args.allow_stale === true) {

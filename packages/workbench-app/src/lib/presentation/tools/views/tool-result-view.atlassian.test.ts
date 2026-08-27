@@ -46,7 +46,7 @@ describe("normalized Atlassian tool views", () => {
   it("parses a Jira board with promoted sprint and backlog summaries", () => {
     const call = toolCall(
       "jira_get_board",
-      { board_id: "34", include_sprints: true, include_backlog: true },
+      { board_id: "34", include: ["sprints", "backlog"] },
       result({
         action: "get_board",
         boardId: "34",
@@ -75,7 +75,7 @@ describe("normalized Atlassian tool views", () => {
   it("keeps rich agent previews out of compact Atlassian presentation metadata", () => {
     const jiraCall = toolCall(
       "jira_get_issue",
-      { issue_key: "NER-14", include_comments: true },
+      { issue_key: "NER-14", include: ["comments"] },
       result({
         issue: {
           key: "NER-14",

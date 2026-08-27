@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolOutputLimitsPayload } from "@nervekit/contracts";
 import type { ToolExecutionResult } from "../../types.js";
+import type { ProcessOutputChunk } from "./bounded-process-output.js";
 import {
   appendBoundedTextNotice,
   type BoundedTextResult,
@@ -44,6 +45,7 @@ export type ProcessResultOptions = {
   stdoutChunks: Buffer[];
   stderrChunks: Buffer[];
   combinedChunks: Buffer[];
+  orderedChunks?: ProcessOutputChunk[];
   code: number | null;
   signal: NodeJS.Signals | null;
   outputFilePrefix: string;
@@ -51,11 +53,13 @@ export type ProcessResultOptions = {
   noOutputText?: string;
   details?: Record<string, unknown>;
   dataDir?: string;
+  artifactDir?: string;
   durationMs?: number;
   timedOut?: boolean;
   timeoutKilled?: boolean;
   timeoutMessage?: string;
   contentFooterLines?: string[];
+  recoveryFiles?: ProcessRecoveryFiles;
 };
 
 export type ProcessTextResultOptions = {
@@ -65,6 +69,7 @@ export type ProcessTextResultOptions = {
   noOutputText?: string;
   details?: Record<string, unknown>;
   dataDir?: string;
+  artifactDir?: string;
   contentFooterLines?: string[];
 };
 
@@ -88,6 +93,15 @@ type BuiltStreamResult = ProcessStreamResultDetails & {
   text: string;
 };
 
+export type ProcessRecoveryFiles = {
+  stdoutPath: string;
+  stderrPath: string;
+  combinedPath?: string;
+  stdoutBytes: number;
+  stderrBytes: number;
+  combinedBytes?: number;
+};
+
 export async function buildProcessTextResult({
   text,
   outputFilePrefix,
@@ -95,6 +109,7 @@ export async function buildProcessTextResult({
   noOutputText,
   details,
   dataDir,
+  artifactDir,
   contentFooterLines,
 }: ProcessTextResultOptions): Promise<ToolExecutionResult> {
   const buffer = Buffer.from(text, "utf8");
@@ -102,6 +117,7 @@ export async function buildProcessTextResult({
     stdoutChunks: text.length > 0 ? [buffer] : [],
     stderrChunks: [],
     combinedChunks: text.length > 0 ? [buffer] : [],
+    orderedChunks: text.length > 0 ? [{ stream: "stdout", data: buffer }] : [],
     code: 0,
     signal: null,
     outputFilePrefix,
@@ -109,6 +125,7 @@ export async function buildProcessTextResult({
     noOutputText,
     details,
     dataDir,
+    artifactDir,
     contentFooterLines,
   });
 }
@@ -117,6 +134,7 @@ export async function buildProcessResult({
   stdoutChunks,
   stderrChunks,
   combinedChunks,
+  orderedChunks,
   code,
   signal,
   outputFilePrefix,
@@ -124,11 +142,13 @@ export async function buildProcessResult({
   noOutputText = "(no output)",
   details = {},
   dataDir,
+  artifactDir,
   durationMs,
   timedOut = false,
   timeoutKilled = false,
   timeoutMessage,
   contentFooterLines = [],
+  recoveryFiles,
 }: ProcessResultOptions): Promise<ToolExecutionResult> {
   const stdout = Buffer.concat(stdoutChunks).toString("utf8");
   const stderr = Buffer.concat(stderrChunks).toString("utf8");
@@ -140,12 +160,32 @@ export async function buildProcessResult({
   const boundedCombined = boundProcessInlineText(combined);
   const boundedOutput = hasOutput && boundedCombined.truncated;
 
-  const fullOutputPath = boundedOutput
-    ? await writeTranscriptFile({ outputFilePrefix, text: combined, dataDir })
-    : undefined;
+  const recovery =
+    recoveryFiles ??
+    (artifactDir && hasOutput
+      ? await writeRecoveryFiles(
+          artifactDir,
+          orderedChunks,
+          stdoutChunks,
+          stderrChunks,
+        )
+      : undefined);
+  const fullOutputPath =
+    recovery?.combinedPath ??
+    (boundedOutput
+      ? await writeTranscriptFile({ outputFilePrefix, text: combined, dataDir })
+      : undefined);
 
-  const stdoutStream = buildStreamResult({ label: "stdout", text: stdout });
-  const stderrStream = buildStreamResult({ label: "stderr", text: stderr });
+  const stdoutStream = buildStreamResult({
+    label: "stdout",
+    text: stdout,
+    savedTo: recovery?.stdoutPath,
+  });
+  const stderrStream = buildStreamResult({
+    label: "stderr",
+    text: stderr,
+    savedTo: recovery?.stderrPath,
+  });
   const combinedStream = buildStreamResult({
     label: "output",
     text: combined,
@@ -220,6 +260,7 @@ export async function buildProcessResult({
       durationMs,
       timedOut,
       timeoutKilled,
+      processStatusIncluded: timedOut || exitCode !== 0,
       truncation: outputTruncation,
       outputLimits: processOutputLimits({
         existing: (details as { outputLimits?: ToolOutputLimitsPayload })
@@ -229,6 +270,7 @@ export async function buildProcessResult({
         boundedCombined,
         outputPreview,
         fullOutputPath,
+        recovery,
       }),
       streams: {
         stdout: streamDetails(stdoutStream),
@@ -248,6 +290,7 @@ function processOutputLimits({
   boundedCombined,
   outputPreview,
   fullOutputPath,
+  recovery,
 }: {
   existing?: ToolOutputLimitsPayload;
   combined: string;
@@ -255,6 +298,7 @@ function processOutputLimits({
   boundedCombined: BoundedTextResult;
   outputPreview?: PreviewResult;
   fullOutputPath?: string;
+  recovery?: ProcessRecoveryFiles;
 }): ToolOutputLimitsPayload | undefined {
   const execution = outputPreview
     ? {
@@ -279,18 +323,64 @@ function processOutputLimits({
       : undefined;
   const artifacts = [
     ...(existing?.artifacts ?? []),
-    ...(fullOutputPath
+    ...(recovery
       ? [
           {
-            kind: "full_output" as const,
-            path: fullOutputPath,
-            label: "Full output",
-            bytes: combinedStats.bytes,
-            chars: combined.length,
-            lines: combinedStats.lines,
+            id: "stdout",
+            role: "overflow_recovery" as const,
+            path: recovery.stdoutPath,
+            format: {
+              kind: "text" as const,
+              mediaType: "text/plain",
+              encoding: "utf-8" as const,
+            },
+            bytes: recovery.stdoutBytes,
+            label: "Retained stdout",
+            recommendedTools: ["read", "grep"] as ("read" | "grep")[],
           },
+          {
+            id: "stderr",
+            role: "overflow_recovery" as const,
+            path: recovery.stderrPath,
+            format: {
+              kind: "text" as const,
+              mediaType: "text/plain",
+              encoding: "utf-8" as const,
+            },
+            bytes: recovery.stderrBytes,
+            label: "Retained stderr",
+            recommendedTools: ["read", "grep"] as ("read" | "grep")[],
+          },
+          ...(recovery.combinedPath
+            ? [
+                {
+                  id: "combined",
+                  role: "overflow_recovery" as const,
+                  path: recovery.combinedPath,
+                  format: {
+                    kind: "text" as const,
+                    mediaType: "text/plain",
+                    encoding: "utf-8" as const,
+                  },
+                  bytes: recovery.combinedBytes,
+                  label: "Retained combined output in observed callback order",
+                  recommendedTools: ["read", "grep"] as ("read" | "grep")[],
+                },
+              ]
+            : []),
         ]
-      : []),
+      : fullOutputPath
+        ? [
+            {
+              kind: "full_output" as const,
+              path: fullOutputPath,
+              label: "Full output",
+              bytes: combinedStats.bytes,
+              chars: combined.length,
+              lines: combinedStats.lines,
+            },
+          ]
+        : []),
   ];
   if (!execution && artifacts.length === 0 && !existing) return undefined;
   return {
@@ -538,6 +628,56 @@ function formatBoundedOutputContent({
     "Use read with byteOffset/byteLimit, offset/limit, or grep on the saved transcript to inspect omitted content.",
   ];
   return lines.join("\n");
+}
+
+async function writeRecoveryFiles(
+  artifactDir: string,
+  orderedChunks: ProcessOutputChunk[] | undefined,
+  stdoutChunks: Buffer[],
+  stderrChunks: Buffer[],
+): Promise<ProcessRecoveryFiles> {
+  await mkdir(artifactDir, { recursive: true, mode: 0o700 });
+  const stdoutBytes = Buffer.concat(
+    orderedChunks
+      ? orderedChunks
+          .filter((chunk) => chunk.stream === "stdout")
+          .map((chunk) => chunk.data)
+      : stdoutChunks,
+  );
+  const stderrBytes = Buffer.concat(
+    orderedChunks
+      ? orderedChunks
+          .filter((chunk) => chunk.stream === "stderr")
+          .map((chunk) => chunk.data)
+      : stderrChunks,
+  );
+  const stdoutPath = join(artifactDir, "stdout.txt");
+  const stderrPath = join(artifactDir, "stderr.txt");
+  await Promise.all([
+    writeFile(stdoutPath, stdoutBytes, { mode: 0o600 }),
+    writeFile(stderrPath, stderrBytes, { mode: 0o600 }),
+  ]);
+  let combinedPath: string | undefined;
+  let combinedBytes: Buffer | undefined;
+  if (orderedChunks) {
+    combinedBytes = Buffer.concat(
+      orderedChunks.flatMap((chunk) => [
+        Buffer.from(`[${chunk.stream}]\n`, "utf8"),
+        chunk.data,
+        chunk.data.at(-1) === 0x0a ? Buffer.alloc(0) : Buffer.from("\n"),
+      ]),
+    );
+    combinedPath = join(artifactDir, "combined.txt");
+    await writeFile(combinedPath, combinedBytes, { mode: 0o600 });
+  }
+  return {
+    stdoutPath,
+    stderrPath,
+    ...(combinedPath ? { combinedPath } : {}),
+    stdoutBytes: stdoutBytes.byteLength,
+    stderrBytes: stderrBytes.byteLength,
+    ...(combinedBytes ? { combinedBytes: combinedBytes.byteLength } : {}),
+  };
 }
 
 async function writeTranscriptFile({

@@ -189,16 +189,24 @@ export async function writeDownloadBundle(
     pagesJsonlPath,
     pages: manifestPages,
     artifacts: [
-      await artifactForText(
-        manifestPath,
-        manifestText,
-        "Confluence download manifest",
-      ),
-      await artifactForText(
-        pagesJsonlPath,
-        pagesJsonlText,
-        "Confluence pages JSONL",
-      ),
+      {
+        ...(await artifactForText(
+          manifestPath,
+          manifestText,
+          "Confluence download manifest",
+        )),
+        role: "primary_result",
+        format: "directory_manifest",
+      },
+      {
+        ...(await artifactForText(
+          pagesJsonlPath,
+          pagesJsonlText,
+          "Confluence pages JSONL",
+        )),
+        role: "primary_result",
+        format: "jsonl",
+      },
     ],
     downloadedAttachmentCount,
   };
@@ -237,6 +245,13 @@ async function artifactForText(
   return {
     path,
     label,
+    format: path.endsWith(".md")
+      ? "markdown"
+      : path.endsWith(".jsonl")
+        ? "jsonl"
+        : path.endsWith(".json")
+          ? "json"
+          : "text",
     bytes: Buffer.byteLength(text, "utf8"),
     chars: text.length,
     lines: text.length === 0 ? 0 : text.split("\n").length,

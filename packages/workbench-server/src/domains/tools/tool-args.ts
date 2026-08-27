@@ -25,14 +25,6 @@ export function stringRecordArg(
   return output;
 }
 
-export function signalArg(
-  value: unknown,
-): "SIGTERM" | "SIGINT" | "SIGKILL" | undefined {
-  return value === "SIGINT" || value === "SIGKILL" || value === "SIGTERM"
-    ? value
-    : undefined;
-}
-
 export function optionalFiniteNumberArg(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? value

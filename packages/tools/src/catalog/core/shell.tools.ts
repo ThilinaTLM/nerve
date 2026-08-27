@@ -42,7 +42,7 @@ export const shellToolDefinitions = [
     classifyRisk: classifyCommandRisk,
     label: "bash",
     description:
-      "Run a finite Bash-compatible command; long commands may become supervised tasks.",
+      "Run one finite synchronous command; use task_start for servers and watchers.",
     parameters: bashParameters,
     executionMode: "sequential",
   },

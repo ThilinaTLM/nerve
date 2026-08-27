@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- transport-neutral tool result schemas remain co-located for cross-family validation. */
 import { z } from "zod";
 import {
   confluenceAttachmentSummarySchema,
@@ -109,6 +110,37 @@ export type ToolOutputArtifactPayload = z.infer<
   typeof toolOutputArtifactSchema
 >;
 
+export const toolArtifactClaimSchema = z
+  .object({
+    id: z.string().min(1).optional(),
+    role: z.enum(["primary_result", "supporting_data", "overflow_recovery"]),
+    path: z.string().min(1).optional(),
+    logicalPath: z.string().min(1).optional(),
+    format: z.object({
+      kind: z.enum([
+        "markdown",
+        "text",
+        "json",
+        "jsonl",
+        "image",
+        "binary",
+        "directory_manifest",
+      ]),
+      mediaType: z.string().min(1),
+      encoding: z.literal("utf-8").optional(),
+    }),
+    bytes: z.number().int().nonnegative().optional(),
+    lines: z.number().int().nonnegative().optional(),
+    items: z.number().int().nonnegative().optional(),
+    itemKind: z.string().min(1).optional(),
+    label: z.string().min(1).max(256),
+    recommendedTools: z.array(z.enum(["read", "grep", "explain_image"])).max(3),
+  })
+  .refine((claim) => Boolean(claim.path || claim.logicalPath), {
+    message: "Artifact claims require a path or logicalPath.",
+  });
+export type ToolArtifactClaim = z.infer<typeof toolArtifactClaimSchema>;
+
 export const liveOutputLimitSchema = z
   .object({
     capped: z.boolean(),
@@ -137,7 +169,9 @@ export const toolOutputLimitsSchema = z
       })
       .optional(),
     live: liveOutputLimitSchema.optional(),
-    artifacts: z.array(toolOutputArtifactSchema).optional(),
+    artifacts: z
+      .array(z.union([toolArtifactClaimSchema, toolOutputArtifactSchema]))
+      .optional(),
     continuation: z
       .object({
         nextOffset: z.number().optional(),
@@ -231,6 +265,7 @@ export const editOperationResultSchema = z
         "lineReplacements",
         "lineInsertions",
         "patch",
+        "edits",
       ])
       .optional(),
     sourceIndex: z.number().int().nonnegative().optional(),
@@ -252,7 +287,7 @@ export type EditOperationResult = z.infer<typeof editOperationResultSchema>;
 
 export const editOperationResultDetailsSchema =
   baseEditResultDetailsSchema.extend({
-    dryRun: z.boolean(),
+    dryRun: z.boolean().optional(),
     operationCount: z.number().int().nonnegative(),
     operations: z.array(editOperationResultSchema),
   });
@@ -372,6 +407,51 @@ export const webFetchResultDetailsSchema = z.object({
 });
 export type WebFetchResultDetails = z.infer<typeof webFetchResultDetailsSchema>;
 
+export const toolMutationResourceSchema = z
+  .object({
+    kind: z.string().min(1),
+    id: z.string().min(1).optional(),
+    key: z.string().min(1).optional(),
+    path: z.string().min(1).optional(),
+    url: z.string().min(1).optional(),
+  })
+  .strict();
+export type ToolMutationResourcePayload = z.infer<
+  typeof toolMutationResourceSchema
+>;
+
+export const toolMutationSummarySchema = z
+  .object({
+    operation: z.string().min(1),
+    outcome: z.enum(["succeeded", "dry_run", "partial"]),
+    resources: z.array(toolMutationResourceSchema).max(20).default([]),
+    warnings: z.array(z.string()).max(20).default([]),
+    nextAction: z.string().min(1).optional(),
+  })
+  .strict();
+export type ToolMutationSummaryPayload = z.infer<
+  typeof toolMutationSummarySchema
+>;
+
+export const relatedCollectionPageSchema = z
+  .object({
+    id: z.string().min(1),
+    original: z.number().int().nonnegative(),
+    returned: z.number().int().nonnegative(),
+    continuation: z
+      .object({
+        parameter: z.string().min(1),
+        value: z.union([z.string(), z.number()]),
+        direction: z.enum(["before", "after"]),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type RelatedCollectionPagePayload = z.infer<
+  typeof relatedCollectionPageSchema
+>;
+
 export const jiraIncludedCountsSchema = z
   .object({
     comments: z.number().int().nonnegative().optional(),
@@ -412,6 +492,8 @@ export const jiraResultDetailsSchema = z
     projectKey: z.string().optional(),
     project: jiraProjectSummarySchema.optional(),
     includedCounts: jiraIncludedCountsSchema.optional(),
+    relatedCollections: z.array(relatedCollectionPageSchema).optional(),
+    mutationSummary: toolMutationSummarySchema.optional(),
     issueType: jiraTextDisplaySchema.optional(),
     summary: jiraTextDisplaySchema.optional(),
     id: z.string().optional(),
@@ -550,6 +632,8 @@ export const confluenceResultDetailsSchema = z
     attachmentCount: z.number().int().nonnegative().optional(),
     displayedAttachmentCount: z.number().int().nonnegative().optional(),
     includedCounts: confluenceIncludedCountsSchema.optional(),
+    relatedCollections: z.array(relatedCollectionPageSchema).optional(),
+    mutationSummary: toolMutationSummarySchema.optional(),
     downloadDir: z.string().optional(),
     manifestPath: z.string().optional(),
     pagesJsonlPath: z.string().optional(),
@@ -584,6 +668,33 @@ export const confluenceResultDetailsSchema = z
 export type ConfluenceResultDetailsPayload = z.infer<
   typeof confluenceResultDetailsSchema
 >;
+
+export const readRangeSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("lines"),
+    requestedStartLine: z.number().int().positive(),
+    requestedLimit: z.number().int().positive(),
+    sourceTotalLines: z.number().int().nonnegative(),
+    returnedStartLine: z.number().int().positive(),
+    returnedEndLine: z.number().int().nonnegative(),
+    returnedContentLines: z.number().int().nonnegative(),
+    sourceEndsWithNewline: z.boolean(),
+    nextOffset: z.number().int().positive().optional(),
+    nextByteOffset: z.number().int().nonnegative().optional(),
+  }),
+  z.object({
+    mode: z.literal("bytes"),
+    requestedByteOffset: z.number().int().nonnegative(),
+    requestedByteLimit: z.number().int().positive(),
+    sourceBytes: z.number().int().nonnegative(),
+    returnedByteStart: z.number().int().nonnegative(),
+    returnedByteEnd: z.number().int().nonnegative(),
+    utf8AdjustedStart: z.number().int().nonnegative(),
+    utf8AdjustedEnd: z.number().int().nonnegative(),
+    nextByteOffset: z.number().int().nonnegative().optional(),
+  }),
+]);
+export type ReadRange = z.infer<typeof readRangeSchema>;
 
 /** File-tool result envelope (read/write/edit/grep/find/ls/bash/python/web_fetch/web_search). */
 export const toolExecutionResultSchema = z.object({
@@ -658,6 +769,7 @@ export type TaskControlToolResult = z.infer<typeof taskControlToolResultSchema>;
 export const taskLogsToolResultSchema = taskLogQueryResponseSchema
   .extend({
     contentBlocks: z.array(toolContentBlockSchema).optional(),
+    details: z.unknown().optional(),
   })
   .strict();
 export type TaskLogsToolResult = z.infer<typeof taskLogsToolResultSchema>;
@@ -689,6 +801,9 @@ export const exploreReportSchema = z.object({
   status: z.enum(["completed", "failed", "aborted"]).default("completed"),
   report: z.string(),
   reportPath: z.string().min(1).optional(),
+  reportBytes: z.number().int().nonnegative().optional(),
+  reportLines: z.number().int().nonnegative().optional(),
+  artifactId: z.string().min(1).optional(),
   summaryPreview: z.string().optional(),
   usage: exploreUsageStatsSchema.optional(),
   model: z.string().optional(),
@@ -706,6 +821,9 @@ export const exploreReportSummarySchema = z.object({
   label: z.string().max(256).optional(),
   status: z.enum(["completed", "failed", "aborted"]).default("completed"),
   reportPath: z.string().min(1).max(4_096).optional(),
+  reportBytes: z.number().int().nonnegative().optional(),
+  reportLines: z.number().int().nonnegative().optional(),
+  artifactId: z.string().min(1).max(256).optional(),
   summaryPreview: z.string().max(1_024).optional(),
   usage: exploreUsageStatsSchema.optional(),
   model: z.string().max(256).optional(),
@@ -737,6 +855,8 @@ export type ExploreResultPreviewPayload = z.infer<
 
 /** Result of ask_user (resolved question). */
 export const askUserResultSchema = z.object({
+  questionId: z.string().startsWith("question_").optional(),
+  interactionOrdinal: z.number().int().nonnegative().optional(),
   question: z.string(),
   context: z.string().optional(),
   recommendation: z.string().optional(),

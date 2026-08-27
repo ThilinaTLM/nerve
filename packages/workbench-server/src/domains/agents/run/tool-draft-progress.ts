@@ -2,14 +2,7 @@ import type { ConversationLiveToolDraftProgressSnapshot } from "@nervekit/contra
 
 export type ToolDraftProgressToolName = "write" | "edit";
 
-type TargetProperty =
-  | "path"
-  | "content"
-  | "oldText"
-  | "newText"
-  | "text"
-  | "patch"
-  | "operationType";
+type TargetProperty = "path" | "content" | "oldText" | "newText";
 
 const PATH_MAX_CHARS = 240;
 const PROPERTY_MAX_CHARS = 48;
@@ -31,34 +24,6 @@ class LineMetric {
 
   get count(): number {
     return Math.max(this.lines, this.sawContent ? 1 : 0);
-  }
-}
-
-class PatchMetric {
-  private line = "";
-  additions = 0;
-  deletions = 0;
-
-  add(char: string): void {
-    if (char === "\r") return;
-    if (char === "\n") {
-      this.finishLine();
-      return;
-    }
-    this.line += char;
-  }
-
-  finish(): void {
-    if (this.line.length > 0) this.finishLine();
-  }
-
-  private finishLine(): void {
-    if (this.line.startsWith("+") && !this.line.startsWith("+++")) {
-      this.additions += 1;
-    } else if (this.line.startsWith("-") && !this.line.startsWith("---")) {
-      this.deletions += 1;
-    }
-    this.line = "";
   }
 }
 
@@ -110,15 +75,13 @@ type DiffPreviewPrefix = "+" | "-";
 
 type ActiveValue =
   | { property: "path"; text: string; escaping: boolean }
-  | { property: "operationType"; text: string; escaping: boolean }
   | {
-      property: "content" | "oldText" | "newText" | "text";
+      property: "content" | "oldText" | "newText";
       metric: LineMetric;
       escaping: boolean;
       previewPrefix?: DiffPreviewPrefix;
       previewLineStart: boolean;
-    }
-  | { property: "patch"; metric: PatchMetric; escaping: boolean };
+    };
 
 function isWhitespace(char: string): boolean {
   return char === " " || char === "\n" || char === "\r" || char === "\t";
@@ -132,11 +95,6 @@ function targetFor(
   if (toolName === "write" && property === "content") return "content";
   if (toolName === "edit" && property === "oldText") return "oldText";
   if (toolName === "edit" && property === "newText") return "newText";
-  if (toolName === "edit" && property === "text") return "text";
-  if (toolName === "edit" && property === "patch") return "patch";
-  if (toolName === "edit" && property === "type") {
-    return "operationType";
-  }
   return undefined;
 }
 
@@ -198,17 +156,10 @@ export class ToolDraftProgressAccumulator {
   private activeContentMetric: LineMetric | undefined;
   private oldTextCount = 0;
   private newTextCount = 0;
-  private insertedTextCount = 0;
-  private patchCount = 0;
   private closedOldTextLines = 0;
   private closedNewTextLines = 0;
-  private closedInsertedTextLines = 0;
-  private closedPatchAdditions = 0;
-  private closedPatchDeletions = 0;
   private activeOldTextMetric: LineMetric | undefined;
   private activeNewTextMetric: LineMetric | undefined;
-  private activeInsertedTextMetric: LineMetric | undefined;
-  private activePatchMetric: PatchMetric | undefined;
   private readonly generatedPreview = new GeneratedPreviewTail();
   private generatedPreviewSegmentCount = 0;
   private lastSignature: string | undefined;
@@ -243,27 +194,15 @@ export class ToolDraftProgressAccumulator {
       };
     }
 
-    const activePatchAdditions = this.activePatchMetric?.additions ?? 0;
-    const activePatchDeletions = this.activePatchMetric?.deletions ?? 0;
     const generatedLineCount =
-      this.closedNewTextLines +
-      (this.activeNewTextMetric?.count ?? 0) +
-      this.closedInsertedTextLines +
-      (this.activeInsertedTextMetric?.count ?? 0) +
-      this.closedPatchAdditions +
-      activePatchAdditions;
+      this.closedNewTextLines + (this.activeNewTextMetric?.count ?? 0);
     const deletedLineCount =
-      this.closedOldTextLines +
-      (this.activeOldTextMetric?.count ?? 0) +
-      this.closedPatchDeletions +
-      activePatchDeletions;
+      this.closedOldTextLines + (this.activeOldTextMetric?.count ?? 0);
     return {
       path,
       operationCount:
         this.toolName === "edit"
-          ? Math.max(this.oldTextCount, this.newTextCount) +
-            this.insertedTextCount +
-            this.patchCount
+          ? Math.max(this.oldTextCount, this.newTextCount)
           : undefined,
       generatedLineCount,
       estimatedAdditions: generatedLineCount,
@@ -385,31 +324,6 @@ export class ToolDraftProgressAccumulator {
         };
         break;
       }
-      case "text": {
-        const metric = new LineMetric();
-        this.insertedTextCount += 1;
-        this.beginGeneratedPreviewSegment();
-        this.activeInsertedTextMetric = metric;
-        this.activeValue = {
-          property,
-          metric,
-          escaping: false,
-          previewPrefix: "+",
-          previewLineStart: true,
-        };
-        break;
-      }
-      case "patch": {
-        const metric = new PatchMetric();
-        this.patchCount += 1;
-        this.beginGeneratedPreviewSegment();
-        this.activePatchMetric = metric;
-        this.activeValue = { property, metric, escaping: false };
-        break;
-      }
-      case "operationType":
-        this.activeValue = { property, text: "", escaping: false };
-        break;
     }
   }
 
@@ -440,22 +354,14 @@ export class ToolDraftProgressAccumulator {
       }
       return;
     }
-    if (active.property === "operationType") {
-      if (active.text.length < PROPERTY_MAX_CHARS) active.text += char;
-      return;
-    }
     active.metric.add(char);
-    if (active.property === "patch") {
-      this.generatedPreview.append(char);
-      return;
-    }
     this.appendTextPreviewChar(active, char);
   }
 
   private appendTextPreviewChar(
     active: Extract<
       ActiveValue,
-      { property: "content" | "oldText" | "newText" | "text" }
+      { property: "content" | "oldText" | "newText" }
     >,
     char: string,
   ): void {
@@ -483,18 +389,6 @@ export class ToolDraftProgressAccumulator {
       case "newText":
         this.closedNewTextLines += active.metric.count;
         this.activeNewTextMetric = undefined;
-        break;
-      case "text":
-        this.closedInsertedTextLines += active.metric.count;
-        this.activeInsertedTextMetric = undefined;
-        break;
-      case "patch":
-        active.metric.finish();
-        this.closedPatchAdditions += active.metric.additions;
-        this.closedPatchDeletions += active.metric.deletions;
-        this.activePatchMetric = undefined;
-        break;
-      case "operationType":
         break;
     }
     this.activeValue = undefined;
@@ -535,27 +429,13 @@ function finalEditGeneratedPreview(args: Record<string, unknown>): {
 } {
   const parts: string[] = [];
 
-  for (const replacement of arrayField(args.replacements)) {
-    const record = asRecord(replacement);
+  for (const edit of arrayField(args.edits)) {
+    const record = asRecord(edit);
     const oldText = stringField(record.oldText);
     if (oldText !== undefined) parts.push(prefixDiffPreviewLines(oldText, "-"));
     const newText = stringField(record.newText);
     if (newText !== undefined) parts.push(prefixDiffPreviewLines(newText, "+"));
   }
-  for (const insertion of arrayField(args.insertions)) {
-    const text = stringField(asRecord(insertion).text);
-    if (text !== undefined) parts.push(prefixDiffPreviewLines(text, "+"));
-  }
-  for (const replacement of arrayField(args.lineReplacements)) {
-    const text = stringField(asRecord(replacement).newText);
-    if (text !== undefined) parts.push(prefixDiffPreviewLines(text, "+"));
-  }
-  for (const insertion of arrayField(args.lineInsertions)) {
-    const text = stringField(asRecord(insertion).text);
-    if (text !== undefined) parts.push(prefixDiffPreviewLines(text, "+"));
-  }
-  const patch = stringField(args.patch);
-  if (patch !== undefined) parts.push(patch);
 
   const generatedPreview = tailGeneratedPreview(parts);
   return {
@@ -609,56 +489,16 @@ function editShorthandStats(args: Record<string, unknown>): {
   additions: number;
   deletions: number;
 } {
-  let operations = 0;
   let additions = 0;
   let deletions = 0;
 
-  const replacements = arrayField(args.replacements);
-  operations += replacements.length;
-  for (const replacement of replacements) {
-    const record = asRecord(replacement);
+  const edits = arrayField(args.edits);
+  const operations = edits.length;
+  for (const edit of edits) {
+    const record = asRecord(edit);
     additions += lineCount(stringField(record.newText)) ?? 0;
     deletions += lineCount(stringField(record.oldText)) ?? 0;
   }
 
-  const insertions = arrayField(args.insertions);
-  operations += insertions.length;
-  for (const insertion of insertions) {
-    additions += lineCount(stringField(asRecord(insertion).text)) ?? 0;
-  }
-
-  const lineReplacements = arrayField(args.lineReplacements);
-  operations += lineReplacements.length;
-  for (const replacement of lineReplacements) {
-    additions += lineCount(stringField(asRecord(replacement).newText)) ?? 0;
-  }
-
-  const lineInsertions = arrayField(args.lineInsertions);
-  operations += lineInsertions.length;
-  for (const insertion of lineInsertions) {
-    additions += lineCount(stringField(asRecord(insertion).text)) ?? 0;
-  }
-
-  const patch = stringField(args.patch);
-  if (patch) {
-    operations += 1;
-    const patchStats = patchLineStats(patch);
-    additions += patchStats.additions;
-    deletions += patchStats.deletions;
-  }
-
   return { operations, additions, deletions };
-}
-
-function patchLineStats(patch: string): {
-  additions: number;
-  deletions: number;
-} {
-  let additions = 0;
-  let deletions = 0;
-  for (const line of patch.split(/\r?\n/)) {
-    if (line.startsWith("+") && !line.startsWith("+++")) additions += 1;
-    else if (line.startsWith("-") && !line.startsWith("---")) deletions += 1;
-  }
-  return { additions, deletions };
 }

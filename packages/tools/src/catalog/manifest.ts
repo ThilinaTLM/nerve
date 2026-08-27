@@ -16,6 +16,7 @@ import { visionToolDefinitions } from "./core/vision.tools.js";
 import { exploreToolDefinitions } from "./orchestration/explore.tools.js";
 import { planModeToolDefinitions } from "./orchestration/plan-mode.tools.js";
 import { taskToolDefinitions } from "./orchestration/task.tools.js";
+import { agentResultPolicyForTool } from "../result-projection/policies/index.js";
 import {
   type HostToolDefinition,
   isHostToolDefinition,
@@ -27,7 +28,7 @@ import {
 const [readToolDefinition, ...remainingFilesystemToolDefinitions] =
   filesystemToolDefinitions;
 
-export const coreToolDefinitions: readonly ToolDefinition[] = Object.freeze([
+const rawCoreToolDefinitions: readonly ToolDefinition[] = [
   ...(readToolDefinition ? [readToolDefinition] : []),
   ...shellToolDefinitions,
   ...pythonToolDefinitions,
@@ -37,14 +38,20 @@ export const coreToolDefinitions: readonly ToolDefinition[] = Object.freeze([
   ...visionToolDefinitions,
   ...jiraToolDefinitions,
   ...confluenceToolDefinitions,
-]);
+];
+
+export const coreToolDefinitions: readonly ToolDefinition[] = Object.freeze(
+  rawCoreToolDefinitions.map(withAgentResultPolicy),
+);
 
 export const orchestrationToolDefinitions: readonly ToolDefinition[] =
-  Object.freeze([
-    ...taskToolDefinitions,
-    ...exploreToolDefinitions,
-    ...planModeToolDefinitions,
-  ]);
+  Object.freeze(
+    [
+      ...taskToolDefinitions,
+      ...exploreToolDefinitions,
+      ...planModeToolDefinitions,
+    ].map(withAgentResultPolicy),
+  );
 
 export const toolManifest: readonly ToolDefinition[] = Object.freeze([
   ...coreToolDefinitions,
@@ -53,6 +60,18 @@ export const toolManifest: readonly ToolDefinition[] = Object.freeze([
 
 /** Existing public name retained for callers that consume the complete catalog. */
 export const allToolDefinitions = toolManifest;
+
+function withAgentResultPolicy(definition: ToolDefinition): ToolDefinition {
+  const agentResult =
+    definition.agentResult ?? agentResultPolicyForTool(definition.name);
+  if (!agentResult)
+    throw new Error(`Missing agent result policy: ${definition.name}`);
+  return Object.freeze({
+    ...definition,
+    traits: Object.freeze([...definition.traits]),
+    agentResult: Object.freeze({ ...agentResult }),
+  }) as ToolDefinition;
+}
 
 const definitionByName = new Map<ToolName, ToolDefinition>();
 for (const definition of toolManifest) {

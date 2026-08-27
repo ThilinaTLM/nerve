@@ -113,6 +113,8 @@ export class InteractionSessionService {
   userQuestionResult(question: UserQuestionRecord): Record<string, unknown> {
     return {
       question: question.question,
+      questionId: question.id,
+      interactionOrdinal: this.questions.get(question.id)?.ordinal,
       context: question.context,
       recommendation: question.recommendation,
       response: question.answer,

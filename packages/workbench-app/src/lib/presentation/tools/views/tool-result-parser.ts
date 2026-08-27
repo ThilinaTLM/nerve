@@ -78,14 +78,8 @@ function arrayField(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function editShorthandOperationCount(args: Record<string, unknown>): number {
-  return (
-    arrayField(args.replacements).length +
-    arrayField(args.insertions).length +
-    arrayField(args.lineReplacements).length +
-    arrayField(args.lineInsertions).length +
-    (typeof args.patch === "string" && args.patch.length > 0 ? 1 : 0)
-  );
+function editOperationCount(args: Record<string, unknown>): number {
+  return arrayField(args.edits).length;
 }
 
 function nonnegativeIntegerField(value: unknown): number | undefined {
@@ -373,7 +367,7 @@ export function parseToolView(
       const operationCount = details.success
         ? details.data.operationCount
         : (nonnegativeIntegerField(rawDetails.operationCount) ??
-          editShorthandOperationCount(args));
+          editOperationCount(args));
       const diff = details.success
         ? details.data.diff
         : stringField(rawDetails.diff);

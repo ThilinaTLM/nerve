@@ -39,7 +39,7 @@ import {
 } from "../../infrastructure/storage/index.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
-import { isActiveTaskStatus } from "../tasks/index.js";
+import { isActiveTaskStatus, isPathInDirectoryTree } from "../tasks/index.js";
 import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import {
   formatTaskCancelSummary,
@@ -69,7 +69,6 @@ import type { TodoStateService } from "./todo-state.service.js";
 import {
   optionalBoundedIntegerArg,
   optionalStringArg,
-  signalArg,
   stringArg,
   stringRecordArg,
 } from "./tool-args.js";
@@ -115,6 +114,52 @@ type WorkbenchToolExecution = {
   options: ToolRequestOptions;
   identity: ToolCallRecord;
 };
+
+function taskReadinessArgs(value: unknown): {
+  readyUrl?: string;
+  readyOnUrl?: boolean;
+  readyPattern?: string;
+  readyTimeoutMs?: number;
+} {
+  if (value === undefined) return {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new CodedToolError(
+      "TASK_ARGUMENT_INVALID",
+      "task_start ready must be an object.",
+    );
+  }
+  const ready = value as Record<string, unknown>;
+  const timeout = optionalBoundedIntegerArg(
+    ready.timeoutMs,
+    "ready.timeoutMs",
+    {
+      min: 0,
+      max: 60_000,
+    },
+  );
+  if (ready.kind === "url") {
+    return {
+      readyUrl: stringArg(ready, "url"),
+      ...(timeout === undefined ? {} : { readyTimeoutMs: timeout }),
+    };
+  }
+  if (ready.kind === "detected_url") {
+    return {
+      readyOnUrl: true,
+      ...(timeout === undefined ? {} : { readyTimeoutMs: timeout }),
+    };
+  }
+  if (ready.kind === "pattern") {
+    return {
+      readyPattern: stringArg(ready, "pattern"),
+      ...(timeout === undefined ? {} : { readyTimeoutMs: timeout }),
+    };
+  }
+  throw new CodedToolError(
+    "TASK_ARGUMENT_INVALID",
+    "task_start ready.kind must be url, detected_url, or pattern.",
+  );
+}
 
 export class OrchestrationToolDispatcher {
   private readonly hostTools: HostToolFactory<WorkbenchToolExecution>;
@@ -299,6 +344,7 @@ export class OrchestrationToolDispatcher {
             ? autoPromotion.afterMs
             : undefined,
           signal: options.signal,
+          artifactDir: executionContext.artifactDir,
           onOutput: executionContext.onUpdate,
           origin: {
             kind: "agent_tool",
@@ -345,20 +391,23 @@ export class OrchestrationToolDispatcher {
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
   ): Promise<unknown> {
-    if (args.tasks !== undefined) {
-      throw new CodedToolError(
-        "TASK_ARGUMENT_INVALID",
-        "task_start starts exactly one task and does not accept 'tasks'.",
-      );
-    }
     const command = stringArg(args, "command");
     const agent = this.deps.getAgent(toolCall.agentId);
     const rawCwd = optionalStringArg(args.cwd);
-    const cwd = rawCwd
-      ? isAbsolute(rawCwd)
-        ? rawCwd
-        : resolve(agent.projectDir, rawCwd)
-      : toolCall.cwd;
+    if (rawCwd && isAbsolute(rawCwd)) {
+      throw new CodedToolError(
+        "TASK_ARGUMENT_INVALID",
+        "task_start cwd must be relative to the project.",
+      );
+    }
+    const cwd = rawCwd ? resolve(agent.projectDir, rawCwd) : toolCall.cwd;
+    if (!isPathInDirectoryTree(agent.projectDir, cwd)) {
+      throw new CodedToolError(
+        "TASK_ARGUMENT_INVALID",
+        "task_start cwd must remain inside the project.",
+      );
+    }
+    const ready = taskReadinessArgs(args.ready);
     const task = await this.deps.startTask({
       name: optionalStringArg(args.name),
       projectId: toolCall.projectId,
@@ -367,19 +416,15 @@ export class OrchestrationToolDispatcher {
       cwd,
       command,
       env: stringRecordArg(args.env),
-      readyUrl: optionalStringArg(args.readyUrl),
-      readyOnUrl: Boolean(args.readyOnUrl),
-      readyPattern: optionalStringArg(args.readyPattern),
-      readyTimeoutMs: optionalBoundedIntegerArg(
-        args.readyTimeoutMs,
-        "readyTimeoutMs",
-        { min: 0, max: 60_000 },
-      ),
+      readyUrl: ready.readyUrl,
+      readyOnUrl: ready.readyOnUrl,
+      readyPattern: ready.readyPattern,
+      readyTimeoutMs: ready.readyTimeoutMs,
       timeoutMs: optionalBoundedIntegerArg(args.timeoutMs, "timeoutMs", {
         min: 1,
         max: 86_400_000,
       }),
-      notify: typeof args.notify === "boolean" ? args.notify : true,
+      notify: true,
       origin: {
         kind: "agent_tool",
         toolCallId: toolCall.id,
@@ -418,30 +463,21 @@ export class OrchestrationToolDispatcher {
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
   ): Promise<unknown> {
-    const taskId = optionalStringArg(args.taskId);
-    const taskIds = Array.isArray(args.taskIds)
-      ? args.taskIds.map((value) => {
+    const taskRefs = Array.isArray(args.tasks)
+      ? args.tasks.map((value) => {
           if (typeof value !== "string" || !value.trim()) {
             throw new CodedToolError(
               "TASK_ARGUMENT_INVALID",
-              "Every taskIds entry must be a non-empty string.",
+              "Every tasks entry must be a non-empty string.",
             );
           }
           return value.trim();
         })
       : undefined;
-    const groupId = optionalStringArg(args.groupId);
-    const selectorCount = [taskId, taskIds, groupId].filter(Boolean).length;
-    if (selectorCount > 1 || (taskIds && taskIds.length === 0)) {
+    if (taskRefs && (taskRefs.length === 0 || taskRefs.length > 20)) {
       throw new CodedToolError(
         "TASK_ARGUMENT_INVALID",
-        "Provide at most one non-empty selector: taskId, taskIds, or groupId.",
-      );
-    }
-    if (taskIds && taskIds.length > 20) {
-      throw new CodedToolError(
-        "TASK_ARGUMENT_INVALID",
-        "task_status supports at most 20 task IDs.",
+        "task_status tasks must contain between 1 and 20 entries.",
       );
     }
     const limit =
@@ -451,17 +487,11 @@ export class OrchestrationToolDispatcher {
       | "active"
       | "all"
       | undefined;
-    let tasks = taskId
-      ? [this.resolveTaskReference(taskId, toolCall)]
-      : taskIds
-        ? taskIds.map((ref) => this.resolveTaskReference(ref, toolCall))
-        : groupId
-          ? this.tasksInScope(toolCall).filter(
-              (task) => task.groupId === groupId,
-            )
-          : this.tasksInScope(toolCall);
+    let tasks = taskRefs
+      ? taskRefs.map((ref) => this.resolveTaskReference(ref, toolCall))
+      : this.tasksInScope(toolCall);
 
-    if (status === "active" || (!status && selectorCount === 0)) {
+    if (status === "active" || (!status && !taskRefs)) {
       tasks = tasks.filter((task) => isActiveTaskStatus(task.status));
     } else if (status && status !== "all") {
       tasks = tasks.filter((task) => task.status === status);
@@ -483,10 +513,7 @@ export class OrchestrationToolDispatcher {
     args: Record<string, unknown>,
   ): Promise<unknown> {
     const action = stringArg(args, "action");
-    const before = this.resolveTaskReference(
-      stringArg(args, "taskId"),
-      toolCall,
-    );
+    const before = this.resolveTaskReference(stringArg(args, "task"), toolCall);
 
     if (action === "restart") {
       const restartedFromTaskId = before.id;
@@ -502,7 +529,7 @@ export class OrchestrationToolDispatcher {
         contentBlocks: [
           {
             type: "text",
-            text: `Restarted ${restartedFromTaskId} as ${label}. Use task_status/task_logs with taskId "${task.id}".`,
+            text: `Restarted ${restartedFromTaskId} as ${label}. Use task_status with tasks ["${task.id}"] or task_logs with task "${task.id}".`,
           },
         ],
       });
@@ -514,15 +541,8 @@ export class OrchestrationToolDispatcher {
         "task_control action must be stop or restart.",
       );
     }
-    const request = {
-      signal: signalArg(args.signal),
-      timeoutMs: optionalBoundedIntegerArg(args.timeoutMs, "timeoutMs", {
-        min: 1,
-        max: 30_000,
-      }),
-      reason: optionalStringArg(args.reason),
-    };
-    const requestedSignal = request.signal ?? "SIGTERM";
+    const request = {};
+    const requestedSignal = "SIGTERM";
     const task = await this.deps.tasks.cancelTask(before.id, request);
     const result = classifyCancelResult(before, task, requestedSignal);
     const bounded = await buildProcessTextResult({

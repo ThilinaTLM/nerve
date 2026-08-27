@@ -23,6 +23,23 @@ describe("buildConversationTimeline committed transcript", () => {
     assert.equal(child.items[0]?.kind, "tool");
   });
 
+  it("includes unanchored cancelled tools in explicit child transcripts", () => {
+    const cancelled = toolCall(
+      "tool_cancelled",
+      "2026-01-01T00:00:01.000Z",
+      "python_exec",
+      undefined,
+      { status: "cancelled", runId: "run_cancelled" },
+    );
+
+    const child = buildCommittedTimeline([], [cancelled], {
+      includeUnanchoredTerminalToolCalls: true,
+    });
+
+    assert.equal(child.items.length, 1);
+    assert.equal(child.items[0]?.kind, "tool");
+  });
+
   it("does not append unmatched terminal tools to a primary conversation", () => {
     const terminal = toolCall(
       "tool_orphaned",

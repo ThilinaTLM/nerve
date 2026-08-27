@@ -118,7 +118,9 @@ export function deriveToolActivitySections(
       : "drafting";
 
   const terminalFailure =
-    input.toolCall?.status === "failed" || input.toolCall?.status === "denied";
+    input.toolCall?.status === "failed" ||
+    input.toolCall?.status === "denied" ||
+    input.toolCall?.status === "cancelled";
   const inFlight = Boolean(
     input.toolCall &&
     (input.toolCall.status === "committed" ||

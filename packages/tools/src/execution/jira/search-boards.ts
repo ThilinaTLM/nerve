@@ -5,7 +5,7 @@ import {
   buildJiraTextResult,
   displayLimitNotice,
   formatBoardSummaryLine,
-  maybeWriteJiraArtifact,
+  writeJiraArtifact,
   summarizeJiraBoard,
   takeDisplayItems,
 } from "./format.js";
@@ -33,12 +33,7 @@ export async function executeJiraSearchBoards(
     const summary = summarizeJiraBoard(value);
     return summary ? [summary] : [];
   });
-  const artifact = await maybeWriteJiraArtifact(
-    context,
-    "search-boards",
-    data,
-    args.save_to_file,
-  );
+  const artifact = await writeJiraArtifact(context, "search-boards", data);
   const displayedBoards = takeDisplayItems(boardSummaries);
   const lines = [
     `Jira board search returned ${boards.length} board${boards.length === 1 ? "" : "s"}.`,
@@ -50,7 +45,7 @@ export async function executeJiraSearchBoards(
     artifactPath: artifact?.path,
   });
   if (notice) lines.push(notice);
-  if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
+  lines.push(`Raw JSON saved to: ${artifact.path}`);
   if (displayedBoards.items.length > 0) {
     lines.push("", ...displayedBoards.items.map(formatBoardSummaryLine));
   }

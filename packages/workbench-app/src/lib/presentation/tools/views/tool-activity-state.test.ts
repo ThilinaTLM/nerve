@@ -68,7 +68,7 @@ describe("deriveToolLifecycleVisualStage", () => {
       deriveToolLifecycleVisualStage({ toolCall: toolCall("completed") }),
       "completed",
     );
-    for (const status of ["failed", "denied"] as const) {
+    for (const status of ["failed", "denied", "cancelled"] as const) {
       assert.equal(
         deriveToolLifecycleVisualStage({ toolCall: toolCall(status) }),
         "failed",
@@ -87,6 +87,18 @@ describe("deriveToolActivitySections", () => {
     assert.equal(failed.argumentVisible, true);
     assert.equal(failed.resultMode, "none");
     assert.equal(failed.errorVisible, true);
+  });
+
+  it("shows cancellation as a terminal outcome with its reason", () => {
+    const cancelled = deriveToolActivitySections({
+      toolCall: toolCall("cancelled", "Run was cancelled."),
+      argumentRegion: "persistent",
+      hasArgumentBody: true,
+      bodyHydrated: true,
+    });
+    assert.equal(cancelled.argumentVisible, true);
+    assert.equal(cancelled.resultMode, "none");
+    assert.equal(cancelled.errorVisible, true);
   });
 
   it("retains arguments during the tool-to-approval record handoff", () => {

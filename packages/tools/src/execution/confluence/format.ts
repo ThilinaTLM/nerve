@@ -15,7 +15,7 @@ import type {
 } from "@nervekit/contracts";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { atlassianPlainTextPreview } from "../common/atlassian-rich-text.js";
-import { buildProcessTextResult } from "../common/process-result.js";
+import { buildSemanticTextResult } from "../common/semantic-text-result.js";
 
 export const CONFLUENCE_DISPLAY_ITEM_LIMIT = 20;
 export const CONFLUENCE_TEXT_FIELD_MAX_CHARS = 300;
@@ -26,12 +26,17 @@ export type ConfluenceArtifact = {
   chars?: number;
   lines?: number;
   label?: string;
+  role?: "primary_result" | "supporting_data";
+  format?: "markdown" | "text" | "json" | "jsonl" | "directory_manifest";
 };
 
 export function confluenceTmpDir(context: ToolExecutionContext): string {
-  return context.dataDir
-    ? join(context.dataDir, "tmp", "confluence")
-    : join(tmpdir(), "nerve-confluence");
+  return (
+    context.artifactDir ??
+    (context.dataDir
+      ? join(context.dataDir, "tmp", "confluence")
+      : join(tmpdir(), "nerve-confluence"))
+  );
 }
 
 export async function writeConfluenceArtifact(
@@ -56,7 +61,7 @@ export async function writeConfluenceArtifact(
 
 export async function buildConfluenceTextResult({
   text,
-  context,
+  context: _context,
   details = {},
   artifact,
   artifacts,
@@ -67,6 +72,7 @@ export async function buildConfluenceTextResult({
   artifact?: ConfluenceArtifact;
   artifacts?: ConfluenceArtifact[];
 }): Promise<ToolExecutionResult> {
+  void _context;
   const allArtifacts = [...(artifact ? [artifact] : []), ...(artifacts ?? [])];
   const existingOutputLimits = details.outputLimits as
     | ToolOutputLimitsPayload
@@ -77,24 +83,62 @@ export async function buildConfluenceTextResult({
           ...(existingOutputLimits ?? {}),
           artifacts: [
             ...(existingOutputLimits?.artifacts ?? []),
-            ...allArtifacts.map((item) => ({
-              kind: "raw_result" as const,
+            ...allArtifacts.map((item, index) => ({
+              id: `confluence_artifact_${index + 1}`,
+              role: item.role ?? ("supporting_data" as const),
               path: item.path,
+              format: {
+                kind: item.format ?? ("json" as const),
+                mediaType:
+                  item.format === "markdown"
+                    ? "text/markdown"
+                    : item.format === "text"
+                      ? "text/plain"
+                      : item.format === "jsonl"
+                        ? "application/x-ndjson"
+                        : "application/json",
+                encoding: "utf-8" as const,
+              },
               label: item.label ?? "Raw Confluence JSON",
               bytes: item.bytes,
-              chars: item.chars,
               lines: item.lines,
+              recommendedTools: ["read", "grep"] as ("read" | "grep")[],
             })),
           ],
         }
       : existingOutputLimits;
-  return buildProcessTextResult({
-    text,
-    outputFilePrefix: "nerve-confluence",
-    exitMessagePrefix: "Confluence",
-    dataDir: context.dataDir,
-    details: { ...details, ...(outputLimits ? { outputLimits } : {}) },
+  const normalizedDetails = withConfluenceMutationSummary(details);
+  return buildSemanticTextResult(text, {
+    ...normalizedDetails,
+    ...(outputLimits ? { outputLimits } : {}),
   });
+}
+
+function withConfluenceMutationSummary(
+  details: Record<string, unknown>,
+): Record<string, unknown> {
+  if (details.mutationSummary || typeof details.operation !== "string")
+    return details;
+  const resource = [
+    typeof details.pageId === "string"
+      ? { kind: "page", id: details.pageId }
+      : undefined,
+    typeof details.commentId === "string"
+      ? { kind: "comment", id: details.commentId }
+      : undefined,
+    typeof details.attachmentId === "string"
+      ? { kind: "attachment", id: details.attachmentId }
+      : undefined,
+  ].find(Boolean);
+  return {
+    ...details,
+    mutationSummary: {
+      operation: details.operation,
+      outcome: details.dryRun === true ? "dry_run" : "succeeded",
+      resources: resource ? [resource] : [],
+      warnings: [],
+    },
+  };
 }
 
 export function takeDisplayItems<T>(

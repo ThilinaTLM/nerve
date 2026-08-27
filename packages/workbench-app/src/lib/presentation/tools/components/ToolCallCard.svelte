@@ -226,7 +226,11 @@ const argumentInput = $derived({
 });
 function argumentLifecycleStage(): ToolLifecycleStage {
   if (!toolCall) return "drafting";
-  if (toolCall.status === "failed" || toolCall.status === "denied")
+  if (
+    toolCall.status === "failed" ||
+    toolCall.status === "denied" ||
+    toolCall.status === "cancelled"
+  )
     return "failed";
   if (toolCall.status === "completed") return "completed";
   // Approval-only details belong to ApprovalPrompt. The persistent argument

@@ -10,6 +10,8 @@ export type BoundedProcessOutputSnapshot = {
   stdoutChunks: Buffer[];
   stderrChunks: Buffer[];
   combinedChunks: Buffer[];
+  /** Retained callback-order chunks with stream identity (no synthetic markers). */
+  orderedChunks: ProcessOutputChunk[];
   totalBytes: number;
   retainedBytes: number;
   omittedBytes: number;
@@ -100,6 +102,10 @@ export class BoundedProcessOutput {
       stdoutChunks,
       stderrChunks,
       combinedChunks,
+      orderedChunks: selected.map((chunk) => ({
+        stream: chunk.stream,
+        data: Buffer.from(chunk.data),
+      })),
       totalBytes: this.#totalBytes,
       retainedBytes,
       omittedBytes,

@@ -10,18 +10,16 @@ import {
   resolveToolAvailability,
   toolDefinitionsByGroup,
 } from "@nervekit/tools";
-import type {
-  AgentRecord,
-  ToolCallRecord,
-  ToolName,
-  UserConfigurableToolName,
+import {
+  type AgentRecord,
+  type ToolCallRecord,
+  type ToolName,
+  type UserConfigurableToolName,
+  type ValidatedToolArtifact,
 } from "@nervekit/contracts";
 import type { ToolAnchor } from "../runs/runtime/conversation-runtime.js";
 import type { ToolService } from "./tool-service.js";
-import {
-  boundModelContentBlocks,
-  boundModelText,
-} from "./tool-result-model-limits.js";
+import { projectToolCallResult } from "./tool-result-projector.js";
 
 export function createAgentToolsForAgent(
   agent: AgentRecord,
@@ -55,7 +53,7 @@ export function createAgentToolsForAgent(
       if (toolCall.status === "completed")
         return toolCallResultForModel(
           toolCall,
-          tools.toolResultPayloadPath(toolCall),
+          tools.toolResultRecoveryArtifact(toolCall),
         );
       if (toolCall.status === "waiting") {
         throw new AgentToolSuspension({
@@ -64,7 +62,7 @@ export function createAgentToolsForAgent(
           reason: `Tool ${toolName} is awaiting user input.`,
         });
       }
-      throw new Error(toolCall.error ?? `Tool ${toolName} ${toolCall.status}.`);
+      throw new Error(formatToolResultForModel(toolCall));
     },
   );
 }
@@ -131,144 +129,30 @@ export function activeToolNamesForAgent(
 
 export function toolCallResultForModel(
   toolCall: ToolCallRecord,
-  fullOutputPath?: string,
+  completePayload?: ValidatedToolArtifact | string,
 ): AgentToolResult<unknown> {
-  const content =
-    toolCall.status === "completed"
-      ? (contentBlocksFromResult(toolCall.result, fullOutputPath) ?? [
-          {
-            type: "text" as const,
-            text: formatToolResultForModel(toolCall, fullOutputPath),
-          },
-        ])
-      : [
-          {
-            type: "text" as const,
-            text: formatToolResultForModel(toolCall),
-          },
-        ];
+  // Bare paths from historical callers are deliberately ignored: only a
+  // host-issued descriptor can advertise recoverability.
+  const trustedPayload =
+    completePayload && typeof completePayload !== "string"
+      ? completePayload
+      : undefined;
+  const projected = projectToolCallResult(toolCall, trustedPayload);
+  const content: Array<TextContent | ImageContent> = projected.blocks.map(
+    (block) =>
+      block.type === "text"
+        ? { type: "text", text: block.text }
+        : { type: "image", data: block.data, mimeType: block.mimeType },
+  );
   return {
     content,
-    details: {
-      toolCall: { id: toolCall.id },
-    },
+    details: { toolCall: { id: toolCall.id } },
   };
 }
 
-export function contentBlocksFromResult(
-  result: unknown,
-  fullOutputPath?: string,
-): Array<TextContent | ImageContent> | undefined {
-  if (!result || typeof result !== "object") return undefined;
-  const contentBlocks = (result as Record<string, unknown>).contentBlocks;
-  if (!Array.isArray(contentBlocks) || contentBlocks.length === 0) {
-    return undefined;
-  }
-
-  const blocks: Array<TextContent | ImageContent> = [];
-  for (const block of contentBlocks) {
-    if (!block || typeof block !== "object") return undefined;
-    const record = block as Record<string, unknown>;
-    if (record.type === "text" && typeof record.text === "string") {
-      blocks.push({ type: "text", text: record.text });
-      continue;
-    }
-    if (
-      record.type === "image" &&
-      typeof record.data === "string" &&
-      typeof record.mimeType === "string"
-    ) {
-      blocks.push({
-        type: "image",
-        data: record.data,
-        mimeType: record.mimeType,
-      });
-      continue;
-    }
-    return undefined;
-  }
-  return boundModelContentBlocks(blocks, result, fullOutputPath);
-}
-
-export function formatToolResultForModel(
-  toolCall: ToolCallRecord,
-  fullOutputPath?: string,
-): string {
-  if (toolCall.status === "denied") {
-    return boundModelText(
-      toolCall.error?.trim()
-        ? `User denied the requested tool call.\nReason: ${toolCall.error}`
-        : "User denied the requested tool call.",
-    );
-  }
-  if (toolCall.status === "failed") {
-    return boundModelText(
-      toolCall.error?.trim()
-        ? `Tool execution failed.\nError: ${toolCall.error}`
-        : "Tool execution failed.",
-    );
-  }
-  if (toolCall.status !== "completed") {
-    return boundModelText(
-      toolCall.error?.trim()
-        ? `Tool ${toolCall.toolName} ${toolCall.status}.\nReason: ${toolCall.error}`
-        : `Tool ${toolCall.toolName} ${toolCall.status}.`,
-    );
-  }
-
-  const result = toolCall.result;
-  if (result === undefined) return "Tool completed.";
-  if (
-    toolCall.toolName === "ask_user" &&
-    result &&
-    typeof result === "object"
-  ) {
-    const record = result as Record<string, unknown>;
-    if (record.dismissed === true) {
-      return `User dismissed the question.${
-        typeof record.dismissedReason === "string"
-          ? `\nReason: ${record.dismissedReason}`
-          : ""
-      }`;
-    }
-    if (typeof record.response === "string") {
-      return `User replied:\n${record.response}`;
-    }
-  }
-  if (typeof result === "string")
-    return boundModelText(result, result, fullOutputPath);
-  if (result && typeof result === "object") {
-    const record = result as Record<string, unknown>;
-    const parts: string[] = [];
-    if (typeof record.content === "string") parts.push(record.content);
-    if (typeof record.stdout === "string" && record.stdout.length > 0) {
-      parts.push(`stdout:\n${record.stdout}`);
-    }
-    if (typeof record.stderr === "string" && record.stderr.length > 0) {
-      parts.push(`stderr:\n${record.stderr}`);
-    }
-    if (typeof record.exitCode === "number")
-      parts.push(`exitCode: ${record.exitCode}`);
-    if (Array.isArray(record.entries)) {
-      parts.push(
-        `entries:\n${record.entries
-          .map((entry) => JSON.stringify(entry))
-          .join("\n")}`,
-      );
-    }
-    if (Array.isArray(record.matches)) {
-      parts.push(
-        `matches:\n${record.matches
-          .map((entry) => JSON.stringify(entry))
-          .join("\n")}`,
-      );
-    }
-    if (parts.length > 0)
-      return boundModelText(parts.join("\n\n"), result, fullOutputPath);
-  }
-  return boundModelText(
-    JSON.stringify(result, null, 2),
-    result,
-    fullOutputPath,
-  );
+export function formatToolResultForModel(toolCall: ToolCallRecord): string {
+  return projectToolCallResult(toolCall)
+    .blocks.filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
 }

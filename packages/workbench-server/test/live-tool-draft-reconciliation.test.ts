@@ -142,7 +142,7 @@ describe("LiveToolDraftReconciler", () => {
             type: "toolCall",
             id: "call_ended",
             name: "edit",
-            arguments: { path: "plan.md", replacements: [] },
+            arguments: { path: "plan.md", edits: [] },
           },
         ],
         { stopReason: "error", errorMessage: "terminated" },

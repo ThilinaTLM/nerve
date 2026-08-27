@@ -70,26 +70,18 @@ export function jiraDraftMeta(
     if (maxResults !== undefined) meta.push({ text: `max ${maxResults}` });
     const fields = arrayFieldLength(args.fields);
     if (fields !== undefined) meta.push({ text: plural(fields, "field") });
-    if (args.validate_query === true)
-      meta.push({ text: "validate", tone: "info" });
   }
   if (toolName === "jira_get_issue") {
-    if (args.include_comments === true) meta.push({ text: "comments" });
-    if (args.include_transitions === true) meta.push({ text: "transitions" });
-    if (args.include_editmeta === true) meta.push({ text: "editmeta" });
-    if (args.include_worklogs === true) meta.push({ text: "worklogs" });
-    if (args.include_changelog === true) meta.push({ text: "changelog" });
-    if (args.include_remote_links === true) meta.push({ text: "remote links" });
+    for (const value of stringArray(args.include)) {
+      meta.push({ text: value.replaceAll("_", " ") });
+    }
   }
   if (toolName === "jira_get_project") {
     const project = firstKnownString(draft, "project_key");
     if (project) meta.push({ text: `project ${project}`, mono: true });
-    if (args.include_statuses === true) meta.push({ text: "statuses" });
-    if (args.include_components === true) meta.push({ text: "components" });
-    if (args.include_versions === true) meta.push({ text: "versions" });
-    if (args.include_issue_types === true) meta.push({ text: "issue types" });
-    if (args.include_create_meta === true) meta.push({ text: "create meta" });
-    if (args.include_fields === true) meta.push({ text: "fields" });
+    for (const value of stringArray(args.include)) {
+      meta.push({ text: value.replaceAll("_", " ") });
+    }
   }
   if (toolName === "jira_create_issue") {
     const project = firstKnownString(draft, "project_key");
@@ -139,6 +131,12 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 function arrayFieldLength(value: unknown): number | undefined {

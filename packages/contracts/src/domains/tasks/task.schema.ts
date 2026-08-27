@@ -242,28 +242,77 @@ export const taskLogEventSchema = z.object({
   stream: z.enum(["stdout", "stderr"]),
   level: z.enum(["info", "warn", "error"]),
   line: z.string(),
+  raw: z
+    .object({
+      start: z.number().int().nonnegative(),
+      end: z.number().int().nonnegative(),
+      terminatorBytes: z.number().int().nonnegative().max(2),
+      fidelity: z.enum(["captured", "reconstructed"]),
+    })
+    .optional(),
 });
 export type TaskLogEvent = z.infer<typeof taskLogEventSchema>;
 
-export const taskLogQuerySchema = z.object({
-  mode: z
-    .enum(["recent", "errors", "warnings", "since_cursor", "first_failure"])
-    .optional(),
-  sinceSeq: z.number().int().nonnegative().optional(),
-  beforeSeq: z.number().int().nonnegative().optional(),
-  contains: z.string().optional(),
-  regex: z.string().optional(),
-  contextLines: z.number().int().nonnegative().max(20).optional(),
-  limit: z.number().int().positive().max(500).optional(),
-});
+export const taskLogQuerySchema = z
+  .object({
+    mode: z
+      .enum(["recent", "errors", "warnings", "since_cursor", "first_failure"])
+      .optional(),
+    sinceSeq: z.number().int().nonnegative().optional(),
+    beforeSeq: z.number().int().nonnegative().optional(),
+    contains: z.string().optional(),
+    regex: z.string().optional(),
+    contextLines: z.number().int().nonnegative().max(20).optional(),
+    limit: z.number().int().positive().max(500).optional(),
+  })
+  .superRefine((query, context) => {
+    const mode = query.mode ?? "recent";
+    if (mode === "since_cursor" && query.beforeSeq !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["beforeSeq"],
+        message: "since_cursor cannot use beforeSeq.",
+      });
+    }
+    if (mode !== "since_cursor" && query.sinceSeq !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["sinceSeq"],
+        message: `${mode} cannot use sinceSeq.`,
+      });
+    }
+    if (mode === "first_failure" && query.beforeSeq !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["beforeSeq"],
+        message: "first_failure cannot use a directional cursor.",
+      });
+    }
+  });
 export type TaskLogQuery = z.infer<typeof taskLogQuerySchema>;
 
 export const taskLogQueryResponseSchema = z.object({
   task: taskRecordSchema,
   events: z.array(taskLogEventSchema),
   nextCursor: z.number().int().nonnegative(),
+  firstSeq: z.number().int().positive().optional(),
+  lastSeq: z.number().int().positive().optional(),
   hasMoreBefore: z.boolean(),
   hasMoreAfter: z.boolean(),
+  olderBeforeSeq: z.number().int().positive().optional(),
+  futureSinceSeq: z.number().int().nonnegative().optional(),
+  originalEventCount: z.number().int().nonnegative().optional(),
+  displayedEventCount: z.number().int().nonnegative().optional(),
+  omittedEventCount: z.number().int().nonnegative().optional(),
+  streamArtifacts: z
+    .object({
+      stdoutPath: z.string().min(1),
+      stderrPath: z.string().min(1),
+      eventsPath: z.string().min(1),
+      combinedPath: z.string().min(1).optional(),
+      fidelity: z.enum(["captured", "reconstructed"]),
+    })
+    .optional(),
   mode: z.string(),
   previewPath: z.string().min(1).optional(),
   truncated: z.boolean().optional(),

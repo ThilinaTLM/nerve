@@ -3,8 +3,15 @@ import type { TaskLogEvent, TaskLogQuery } from "@nervekit/contracts";
 export type TaskLogPage = {
   events: TaskLogEvent[];
   nextCursor: number;
+  firstSeq?: number;
+  lastSeq?: number;
   hasMoreBefore: boolean;
   hasMoreAfter: boolean;
+  olderBeforeSeq?: number;
+  futureSinceSeq?: number;
+  originalEventCount: number;
+  displayedEventCount: number;
+  omittedEventCount: number;
   mode: string;
 };
 
@@ -17,23 +24,22 @@ export function queryTaskLogEvents(
   const ordered = [...source].sort((a, b) => a.seq - b.seq);
   const latestCursor = ordered.at(-1)?.seq ?? 0;
 
-  let candidates = eventsForMode(ordered, query);
-
+  let matching = eventsForMode(ordered, query);
   if (query.contains) {
     const contains = query.contains.toLowerCase();
-    candidates = candidates.filter((event) =>
+    matching = matching.filter((event) =>
       event.line.toLowerCase().includes(contains),
     );
   }
   if (query.regex) {
     const matcher = new RegExp(query.regex, "i");
-    candidates = candidates.filter((event) => matcher.test(event.line));
+    matching = matching.filter((event) => matcher.test(event.line));
   }
 
-  if (query.beforeSeq !== undefined) {
-    candidates = candidates.filter((event) => event.seq < query.beforeSeq!);
-  }
-
+  const candidates =
+    query.beforeSeq === undefined
+      ? matching
+      : matching.filter((event) => event.seq < query.beforeSeq!);
   const page =
     mode === "since_cursor"
       ? candidates.slice(0, limit)
@@ -42,18 +48,29 @@ export function queryTaskLogEvents(
         : candidates.slice(-limit);
   const firstSeq = page[0]?.seq;
   const lastSeq = page.at(-1)?.seq;
+  const hasMoreBefore =
+    firstSeq !== undefined && matching.some((event) => event.seq < firstSeq);
+  const hasMoreAfter =
+    lastSeq !== undefined && matching.some((event) => event.seq > lastSeq);
+  const nextCursor =
+    mode === "since_cursor"
+      ? (lastSeq ?? query.sinceSeq ?? latestCursor)
+      : latestCursor;
 
   return {
     events: page,
-    nextCursor:
-      mode === "since_cursor"
-        ? (lastSeq ?? query.sinceSeq ?? latestCursor)
-        : latestCursor,
-    hasMoreBefore:
-      firstSeq !== undefined &&
-      candidates.some((event) => event.seq < firstSeq),
-    hasMoreAfter:
-      lastSeq !== undefined && candidates.some((event) => event.seq > lastSeq),
+    nextCursor,
+    ...(firstSeq !== undefined ? { firstSeq } : {}),
+    ...(lastSeq !== undefined ? { lastSeq } : {}),
+    hasMoreBefore,
+    hasMoreAfter,
+    ...(hasMoreBefore && firstSeq !== undefined
+      ? { olderBeforeSeq: firstSeq }
+      : {}),
+    ...(lastSeq !== undefined ? { futureSinceSeq: lastSeq } : {}),
+    originalEventCount: matching.length,
+    displayedEventCount: page.length,
+    omittedEventCount: Math.max(0, matching.length - page.length),
     mode,
   };
 }
@@ -63,15 +80,12 @@ function eventsForMode(
   query: TaskLogQuery,
 ): TaskLogEvent[] {
   const mode = query.mode ?? "recent";
-  if (mode === "since_cursor") {
+  if (mode === "since_cursor")
     return ordered.filter((event) => event.seq > (query.sinceSeq ?? 0));
-  }
-  if (mode === "errors") {
+  if (mode === "errors")
     return ordered.filter((event) => event.level === "error");
-  }
-  if (mode === "warnings") {
+  if (mode === "warnings")
     return ordered.filter((event) => event.level === "warn");
-  }
   if (mode === "first_failure") {
     const index = ordered.findIndex((event) => event.level === "error");
     if (index < 0) return [];

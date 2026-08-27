@@ -21,7 +21,7 @@ import type {
 } from "@nervekit/contracts";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { atlassianPlainTextPreview } from "../common/atlassian-rich-text.js";
-import { buildProcessTextResult } from "../common/process-result.js";
+import { buildSemanticTextResult } from "../common/semantic-text-result.js";
 
 export const JIRA_DISPLAY_ITEM_LIMIT = 20;
 export const JIRA_FIELD_DISPLAY_LIMIT = 20;
@@ -32,9 +32,11 @@ export async function writeJiraArtifact(
   kind: string,
   payload: unknown,
 ): Promise<{ path: string; bytes: number; chars: number; lines: number }> {
-  const baseDir = context.dataDir
-    ? join(context.dataDir, "tmp", "jira")
-    : join(tmpdir(), "nerve-jira");
+  const baseDir =
+    context.artifactDir ??
+    (context.dataDir
+      ? join(context.dataDir, "tmp", "jira")
+      : join(tmpdir(), "nerve-jira"));
   await mkdir(baseDir, { recursive: true, mode: 0o700 });
   const text = JSON.stringify(payload, null, 2);
   const hash = createHash("sha256").update(text).digest("hex").slice(0, 10);
@@ -49,21 +51,9 @@ export async function writeJiraArtifact(
   };
 }
 
-export async function maybeWriteJiraArtifact(
-  context: ToolExecutionContext,
-  kind: string,
-  payload: unknown,
-  saveToFile: unknown,
-): Promise<
-  { path: string; bytes: number; chars: number; lines: number } | undefined
-> {
-  if (saveToFile === false) return undefined;
-  return writeJiraArtifact(context, kind, payload);
-}
-
 export async function buildJiraTextResult({
   text,
-  context,
+  context: _context,
   details = {},
   artifact,
 }: {
@@ -72,6 +62,7 @@ export async function buildJiraTextResult({
   details?: Record<string, unknown>;
   artifact?: { path: string; bytes: number; chars: number; lines: number };
 }): Promise<ToolExecutionResult> {
+  void _context;
   const existingOutputLimits = details.outputLimits as
     | ToolOutputLimitsPayload
     | undefined;
@@ -81,23 +72,54 @@ export async function buildJiraTextResult({
         artifacts: [
           ...(existingOutputLimits?.artifacts ?? []),
           {
-            kind: "raw_result" as const,
+            id: "jira_raw_json",
+            role: "supporting_data" as const,
             path: artifact.path,
+            format: {
+              kind: "json" as const,
+              mediaType: "application/json",
+              encoding: "utf-8" as const,
+            },
             label: "Raw Jira JSON",
             bytes: artifact.bytes,
-            chars: artifact.chars,
             lines: artifact.lines,
+            recommendedTools: ["read", "grep"] as ("read" | "grep")[],
           },
         ],
       }
     : existingOutputLimits;
-  return buildProcessTextResult({
-    text,
-    outputFilePrefix: "nerve-jira",
-    exitMessagePrefix: "Jira",
-    dataDir: context.dataDir,
-    details: { ...details, ...(outputLimits ? { outputLimits } : {}) },
+  const normalizedDetails = withJiraMutationSummary(details);
+  return buildSemanticTextResult(text, {
+    ...normalizedDetails,
+    ...(outputLimits ? { outputLimits } : {}),
   });
+}
+
+function withJiraMutationSummary(
+  details: Record<string, unknown>,
+): Record<string, unknown> {
+  if (details.mutationSummary || typeof details.operation !== "string")
+    return details;
+  const resource = [
+    typeof details.issueKey === "string"
+      ? { kind: "issue", key: details.issueKey }
+      : undefined,
+    typeof details.attachmentId === "string"
+      ? { kind: "attachment", id: details.attachmentId }
+      : undefined,
+    typeof details.sprintId === "string"
+      ? { kind: "sprint", id: details.sprintId }
+      : undefined,
+  ].find(Boolean);
+  return {
+    ...details,
+    mutationSummary: {
+      operation: details.operation,
+      outcome: details.dryRun === true ? "dry_run" : "succeeded",
+      resources: resource ? [resource] : [],
+      warnings: [],
+    },
+  };
 }
 
 export function takeDisplayItems<T>(

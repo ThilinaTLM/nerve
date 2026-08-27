@@ -1,4 +1,7 @@
-import type { ToolResultPayloadReference } from "@nervekit/contracts";
+import type {
+  ToolResultPayloadReference,
+  ValidatedToolArtifact,
+} from "@nervekit/contracts";
 import { createHash } from "node:crypto";
 import { chmod, lstat, mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
@@ -88,6 +91,26 @@ export class ToolResultPayloadStore {
     );
     assertWithin(this.root, candidate);
     return candidate;
+  }
+
+  recoveryArtifact(
+    reference: ToolResultPayloadReference,
+  ): ValidatedToolArtifact {
+    return {
+      version: 1,
+      id: "complete_payload",
+      role: "overflow_recovery",
+      access: { kind: "agent_file", path: this.path(reference) },
+      availability: "available",
+      format: {
+        kind: "json",
+        mediaType: reference.mediaType,
+        encoding: "utf-8",
+      },
+      size: { bytes: reference.byteLength },
+      recommendedTools: ["read", "grep"],
+      label: "Complete tool result payload",
+    };
   }
 
   filesPath(conversationId: string, toolCallId: string): string {

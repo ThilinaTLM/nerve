@@ -7,6 +7,7 @@ import type {
 } from "@nervekit/contracts";
 import type { Static, TObject } from "typebox";
 import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
+import type { AgentResultPolicy } from "../result-projection/types.js";
 
 export type CoreToolExecutionMode = "sequential" | "parallel";
 export type ToolArgumentRiskClassifier = (
@@ -43,6 +44,8 @@ interface ToolDefinitionBase<TParams extends TObject = TObject> {
     durableAllow: "never" | "tool" | "target";
     targets?: readonly ToolPermissionTargetDescriptor[];
   };
+  /** Host/model-only semantic result projection policy; never exposed publicly. */
+  agentResult?: AgentResultPolicy;
 }
 
 export interface LocalToolDefinition<
@@ -79,6 +82,9 @@ export function defineTool<const T extends ToolDefinition>(definition: T): T {
   return Object.freeze({
     ...definition,
     traits: Object.freeze([...definition.traits]),
+    ...(definition.agentResult
+      ? { agentResult: Object.freeze({ ...definition.agentResult }) }
+      : {}),
   }) as unknown as T;
 }
 

@@ -95,7 +95,10 @@ export async function executeRead(
   if (hasByteRange) return readByteRange(path, buffer, args);
 
   const content = buffer.toString("utf8");
-  const lines = content.split(/\r?\n/);
+  const sourceEndsWithNewline = /(?:\r?\n)$/.test(content);
+  const lines = content.length === 0 ? [] : content.split(/\r?\n/);
+  if (sourceEndsWithNewline) lines.pop();
+  const sourceTotalLines = lines.length;
   const offset = numberArg(args.offset, 1);
 
   if (hasExplicitLimit || hasExplicitOffset) {
@@ -119,34 +122,54 @@ export async function executeRead(
       .filter((part) => part.length > 0)
       .join("\n\n");
     const wasTruncated = bounded.truncated || remaining > 0;
+    const returnedContentLines = countLines(bounded.text);
+    const safeNextOffset =
+      !bounded.partialLine &&
+      bounded.truncatedLines === 0 &&
+      offset - 1 + returnedContentLines < sourceTotalLines
+        ? offset + returnedContentLines
+        : undefined;
     return {
       path,
       content: output,
       contentBlocks: [{ type: "text", text: output }],
-      details: wasTruncated
-        ? {
-            truncation: {
-              ...textBoundaryDetails(bounded),
-              truncated: true,
-              omittedLines: bounded.omittedLines + remaining,
-              nextOffset:
-                !bounded.truncated && remaining > 0
-                  ? offset + limit
-                  : undefined,
-            },
-            outputLimits: {
-              execution: {
-                ...textLimitSnapshot(bounded),
+      details: {
+        range: {
+          mode: "lines",
+          requestedStartLine: offset,
+          requestedLimit: limit,
+          sourceTotalLines,
+          returnedStartLine: offset,
+          returnedEndLine:
+            returnedContentLines > 0
+              ? offset + returnedContentLines - 1
+              : offset - 1,
+          returnedContentLines,
+          sourceEndsWithNewline,
+          nextOffset: safeNextOffset,
+        },
+        ...(wasTruncated
+          ? {
+              truncation: {
+                ...textBoundaryDetails(bounded),
                 truncated: true,
                 omittedLines: bounded.omittedLines + remaining,
+                nextOffset: safeNextOffset,
               },
-              continuation:
-                !bounded.truncated && remaining > 0
-                  ? { nextOffset: offset + limit }
-                  : undefined,
-            },
-          }
-        : undefined,
+              outputLimits: {
+                execution: {
+                  ...textLimitSnapshot(bounded),
+                  truncated: true,
+                  omittedLines: bounded.omittedLines + remaining,
+                },
+                continuation:
+                  safeNextOffset !== undefined
+                    ? { nextOffset: safeNextOffset }
+                    : undefined,
+              },
+            }
+          : {}),
+      },
     };
   }
 
@@ -155,16 +178,43 @@ export async function executeRead(
   if (bounded.truncated) {
     output += `\n\n[...output truncated to ${DEFAULT_MAX_LINES} lines, ${formatByteSize(DEFAULT_MAX_BYTES)}, or ${FILE_OUTPUT_MAX_LINE_CHARS} characters per line.${formatContinuationGuidance(bounded)}]`;
   }
+  const returnedContentLines = countLines(bounded.text);
+  const safeNextOffset =
+    bounded.truncated && !bounded.partialLine && bounded.truncatedLines === 0
+      ? returnedContentLines + 1
+      : undefined;
   return {
     path,
     content: output,
     contentBlocks: [{ type: "text", text: output }],
-    details: bounded.truncated
-      ? {
-          truncation: textBoundaryDetails(bounded),
-          outputLimits: { execution: textLimitSnapshot(bounded) },
-        }
-      : undefined,
+    details: {
+      range: {
+        mode: "lines",
+        requestedStartLine: 1,
+        requestedLimit: DEFAULT_MAX_LINES,
+        sourceTotalLines,
+        returnedStartLine: 1,
+        returnedEndLine: returnedContentLines,
+        returnedContentLines,
+        sourceEndsWithNewline,
+        nextOffset: safeNextOffset,
+      },
+      ...(bounded.truncated
+        ? {
+            truncation: {
+              ...textBoundaryDetails(bounded),
+              nextOffset: safeNextOffset,
+            },
+            outputLimits: {
+              execution: textLimitSnapshot(bounded),
+              continuation:
+                safeNextOffset !== undefined
+                  ? { nextOffset: safeNextOffset }
+                  : undefined,
+            },
+          }
+        : {}),
+    },
   };
 }
 
@@ -212,6 +262,17 @@ function readByteRange(
     contentBlocks: [{ type: "text", text: output }],
     details: {
       byteOffset: requestedOffset,
+      range: {
+        mode: "bytes",
+        requestedByteOffset: requestedOffset,
+        requestedByteLimit: requestedLimit,
+        sourceBytes: buffer.length,
+        returnedByteStart: requestedOffset,
+        returnedByteEnd: requestedEnd,
+        utf8AdjustedStart: slice.start,
+        utf8AdjustedEnd: slice.end,
+        nextByteOffset,
+      },
       byteLimit: requestedLimit,
       actualByteOffset: slice.start,
       actualByteEnd: slice.end,

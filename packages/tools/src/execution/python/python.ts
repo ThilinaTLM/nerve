@@ -4,7 +4,7 @@ import {
 } from "@nervekit/native";
 import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import { resolveCommandCwd } from "../common/command-cwd.js";
@@ -313,7 +313,8 @@ export async function executePython(
       signal: context.signal,
       onUpdate: context.onUpdate,
     });
-    keepArtifactDir = artifactCount(result) > 0;
+    keepArtifactDir =
+      context.artifactDir !== undefined || artifactCount(result) > 0;
     return result;
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
@@ -490,11 +491,13 @@ async function runPythonProcess({
             stdoutChunks: snapshot.stdoutChunks,
             stderrChunks: snapshot.stderrChunks,
             combinedChunks: snapshot.combinedChunks,
+            orderedChunks: snapshot.orderedChunks,
             code,
             signal: closeSignal,
             outputFilePrefix: "nerve-python",
             exitMessagePrefix: "Python",
             dataDir,
+            artifactDir,
             durationMs,
             timedOut,
             timeoutKilled,
@@ -511,6 +514,11 @@ async function runPythonProcess({
               scriptPath,
               artifactDir: artifacts.length > 0 ? artifactDir : undefined,
               artifacts,
+              outputLimits: {
+                artifacts: artifacts.map((artifact, index) =>
+                  pythonArtifactClaim(artifact, index),
+                ),
+              },
             },
           });
         })
@@ -651,6 +659,56 @@ function artifactFooterLines(artifacts: PythonArtifact[]): string[] {
     lines.push(`- ... artifact list capped at ${MAX_ARTIFACTS} files`);
   }
   return lines;
+}
+
+function pythonArtifactClaim(artifact: PythonArtifact, index: number) {
+  const extension = extname(artifact.path).toLowerCase();
+  const kind =
+    extension === ".md" || extension === ".markdown"
+      ? ("markdown" as const)
+      : extension === ".json"
+        ? ("json" as const)
+        : extension === ".jsonl"
+          ? ("jsonl" as const)
+          : [".txt", ".log", ".csv", ".tsv", ".py", ".js", ".ts"].includes(
+                extension,
+              )
+            ? ("text" as const)
+            : [".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(extension)
+              ? ("image" as const)
+              : ("binary" as const);
+  const mediaType =
+    kind === "markdown"
+      ? "text/markdown"
+      : kind === "json"
+        ? "application/json"
+        : kind === "jsonl"
+          ? "application/x-ndjson"
+          : kind === "image"
+            ? `image/${extension.replace(/^\.(jpg)$/, "jpeg").slice(1)}`
+            : kind === "text"
+              ? "text/plain"
+              : "application/octet-stream";
+  return {
+    id: `python_artifact_${index + 1}`,
+    role: "primary_result" as const,
+    path: artifact.path,
+    format: {
+      kind,
+      mediaType,
+      ...(["markdown", "json", "jsonl", "text"].includes(kind)
+        ? { encoding: "utf-8" as const }
+        : {}),
+    },
+    bytes: artifact.size,
+    label: `Python artifact ${index + 1}`,
+    recommendedTools:
+      kind === "image"
+        ? ["read" as const]
+        : ["markdown", "json", "jsonl", "text"].includes(kind)
+          ? ["read" as const, "grep" as const]
+          : [],
+  };
 }
 
 function artifactCount(result: ToolExecutionResult): number {

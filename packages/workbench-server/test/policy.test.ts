@@ -132,7 +132,7 @@ describe("Workbench tool permission", () => {
       "edit",
       {
         path: temporaryPath,
-        replacements: [{ oldText: "old", newText: "new" }],
+        edits: [{ oldText: "old", newText: "new" }],
       },
       context,
     );

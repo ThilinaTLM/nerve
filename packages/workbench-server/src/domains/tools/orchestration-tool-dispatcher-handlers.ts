@@ -1,7 +1,4 @@
-import {
-  buildProcessTextResult,
-  type ToolExecutionOutputUpdate,
-} from "@nervekit/tools";
+import type { ToolExecutionOutputUpdate } from "@nervekit/tools";
 import {
   type TaskCancelResultPayload,
   taskLogsToolResultSchema,
@@ -26,22 +23,33 @@ export async function taskLogsFromTool(
   toolCall: ToolCallRecord,
   args: Record<string, unknown>,
 ): Promise<unknown> {
-  const taskRef = optionalStringArg(args.taskId);
-  if (!taskRef || args.groupId !== undefined || args.taskIds !== undefined) {
+  const taskRef = optionalStringArg(args.task);
+  if (!taskRef) {
     throw new CodedToolError(
       "TASK_ARGUMENT_INVALID",
-      "task_logs requires exactly one taskId or stable name.",
+      "task_logs requires one task ID or stable name.",
     );
   }
   const task = this.resolveTaskReference(taskRef, toolCall);
+  const mode = this.logModeArg(args.mode) ?? "recent";
+  const cursor = optionalBoundedIntegerArg(args.cursor, "cursor", {
+    min: 0,
+    max: Number.MAX_SAFE_INTEGER,
+  });
+  if (mode === "first_failure" && cursor !== undefined) {
+    throw new CodedToolError(
+      "TASK_ARGUMENT_INVALID",
+      "task_logs first_failure does not accept cursor.",
+    );
+  }
   const response = await this.deps.tasks.queryLogs(task.id, {
-    mode: this.logModeArg(args.mode),
-    sinceSeq: optionalBoundedIntegerArg(args.sinceSeq, "sinceSeq", {
-      min: 0,
-      max: Number.MAX_SAFE_INTEGER,
-    }),
+    mode,
+    sinceSeq: mode === "since_cursor" ? cursor : undefined,
+    beforeSeq:
+      mode === "recent" || mode === "errors" || mode === "warnings"
+        ? cursor
+        : undefined,
     contains: optionalStringArg(args.contains),
-    regex: optionalStringArg(args.regex),
     contextLines: optionalBoundedIntegerArg(args.contextLines, "contextLines", {
       min: 0,
       max: 20,
@@ -58,25 +66,70 @@ export async function taskLogsFromTool(
     nextCursor: response.nextCursor,
     mode: response.mode,
   });
-  const bounded = await buildProcessTextResult({
-    text,
-    outputFilePrefix: "nerve-task-logs",
-    exitMessagePrefix: "Task logs",
-    dataDir: this.deps.storage.paths.home,
+  return taskLogsToolResultSchema.parse({
+    ...response,
+    contentBlocks: [{ type: "text", text }],
     details: {
       taskId: task.id,
       mode: response.mode,
       nextCursor: response.nextCursor,
+      outputLimits: {
+        artifacts: [
+          {
+            id: "task_stdout",
+            role: "overflow_recovery",
+            path: response.streamArtifacts?.stdoutPath ?? task.stdoutPath,
+            format: {
+              kind: "text",
+              mediaType: "text/plain",
+              encoding: "utf-8",
+            },
+            label: "Task stdout",
+            recommendedTools: ["read", "grep"],
+          },
+          {
+            id: "task_stderr",
+            role: "overflow_recovery",
+            path: response.streamArtifacts?.stderrPath ?? task.stderrPath,
+            format: {
+              kind: "text",
+              mediaType: "text/plain",
+              encoding: "utf-8",
+            },
+            label: "Task stderr",
+            recommendedTools: ["read", "grep"],
+          },
+          {
+            id: "task_events",
+            role: "supporting_data",
+            path: response.streamArtifacts?.eventsPath ?? task.logsPath,
+            format: {
+              kind: "jsonl",
+              mediaType: "application/x-ndjson",
+              encoding: "utf-8",
+            },
+            label: "Task event index",
+            recommendedTools: ["read", "grep"],
+          },
+          ...(response.streamArtifacts?.combinedPath
+            ? [
+                {
+                  id: "task_combined",
+                  role: "overflow_recovery" as const,
+                  path: response.streamArtifacts.combinedPath,
+                  format: {
+                    kind: "text" as const,
+                    mediaType: "text/plain",
+                    encoding: "utf-8" as const,
+                  },
+                  label: "Task combined output in observed callback order",
+                  recommendedTools: ["read", "grep"] as const,
+                },
+              ]
+            : []),
+        ],
+      },
     },
-  });
-  const details = bounded.details as
-    | { fullOutputPath?: string; truncation?: { truncated?: boolean } }
-    | undefined;
-  return taskLogsToolResultSchema.parse({
-    ...response,
-    previewPath: details?.fullOutputPath,
-    truncated: details?.truncation?.truncated,
-    contentBlocks: bounded.contentBlocks,
   });
 }
 
@@ -84,9 +137,10 @@ export function tasksInScope(
   this: OrchestrationToolDispatcher,
   toolCall: ToolCallRecord,
 ): TaskRecord[] {
+  const projectRoot = this.deps.getAgent(toolCall.agentId).projectDir;
   return this.deps.tasks
     .listTasks()
-    .filter((task) => isPathInDirectoryTree(toolCall.cwd, task.cwd));
+    .filter((task) => isPathInDirectoryTree(projectRoot, task.cwd));
 }
 
 export function resolveTaskReference(
@@ -95,6 +149,7 @@ export function resolveTaskReference(
   toolCall: ToolCallRecord,
 ): TaskRecord {
   const trimmed = ref.trim();
+  const projectRoot = this.deps.getAgent(toolCall.agentId).projectDir;
   if (trimmed.startsWith("task_")) {
     let task: TaskRecord;
     try {
@@ -106,7 +161,7 @@ export function resolveTaskReference(
         { ref: trimmed, taskId: trimmed },
       );
     }
-    if (!isPathInDirectoryTree(toolCall.cwd, task.cwd)) {
+    if (!isPathInDirectoryTree(projectRoot, task.cwd)) {
       throw new CodedToolError(
         "TASK_OUT_OF_SCOPE",
         "Task is outside this agent's working-directory scope.",
@@ -114,7 +169,7 @@ export function resolveTaskReference(
           ref: trimmed,
           taskId: task.id,
           taskCwd: task.cwd,
-          scopeCwd: toolCall.cwd,
+          scopeCwd: projectRoot,
         },
       );
     }
@@ -131,7 +186,7 @@ export function resolveTaskReference(
   if (matches.length === 0) {
     throw new CodedToolError("TASK_NOT_FOUND", `Task '${trimmed}' not found.`, {
       ref: trimmed,
-      scopeCwd: toolCall.cwd,
+      scopeCwd: projectRoot,
       conversationId: toolCall.conversationId,
     });
   }
@@ -139,7 +194,7 @@ export function resolveTaskReference(
   if (resolved) return resolved;
   const details = {
     ref: trimmed,
-    scopeCwd: toolCall.cwd,
+    scopeCwd: projectRoot,
     conversationId: toolCall.conversationId,
     matches: matches.slice(0, 20).map(taskReferenceDetails),
   };
@@ -149,7 +204,7 @@ export function resolveTaskReference(
     .join(", ");
   throw new CodedToolError(
     "TASK_NAME_AMBIGUOUS",
-    `Task name '${trimmed}' is ambiguous: ${listed}. Use a task ID or groupId.`,
+    `Task name '${trimmed}' is ambiguous: ${listed}. Use a task ID.`,
     details,
   );
 }

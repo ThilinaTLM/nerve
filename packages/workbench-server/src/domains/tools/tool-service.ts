@@ -12,6 +12,8 @@ import {
   assertTransition,
   createId,
   type ExploreReportSummaryPayload,
+  INTERRUPTED_TOOL_ERROR_CODE,
+  isTerminalToolStatus,
   type Mode,
   type ResolveToolInteractionRequest,
   type StartTaskRequest,
@@ -31,6 +33,7 @@ import type {
   ToolAnchor,
 } from "../runs/runtime/conversation-runtime.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import type { PermissionExceptionService } from "../permissions/permission-exceptions.service.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
@@ -49,6 +52,10 @@ import { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js"
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
 import { ToolResultPayloadStore } from "./tool-result-payload-store.js";
+import {
+  toolTerminationPatch,
+  type ToolTerminationOutcome,
+} from "./tool-termination.js";
 
 const HOST_RESTART_TOOL_ERROR =
   "Tool execution was interrupted because the host restarted.";
@@ -105,6 +112,9 @@ export type ExploreRunResult = {
     status?: "completed" | "failed" | "aborted";
     report: string;
     reportPath?: string;
+    reportBytes?: number;
+    reportLines?: number;
+    artifactId?: string;
     summaryPreview?: string;
     usage?: {
       input: number;
@@ -130,9 +140,25 @@ export type ExploreRunResult = {
   details?: {
     outputLimits?: {
       artifacts?: Array<{
-        kind: "transcript";
+        id?: string;
+        role: "primary_result" | "supporting_data" | "overflow_recovery";
         path: string;
-        label?: string;
+        format: {
+          kind:
+            | "markdown"
+            | "text"
+            | "json"
+            | "jsonl"
+            | "image"
+            | "binary"
+            | "directory_manifest";
+          mediaType: string;
+          encoding?: "utf-8";
+        };
+        bytes?: number;
+        lines?: number;
+        label: string;
+        recommendedTools: Array<"read" | "grep" | "explain_image">;
       }>;
     };
   };
@@ -210,6 +236,7 @@ export class ToolService {
     private readonly permissionExceptions?: PermissionExceptionService,
     journal?: ConversationJournalRepository,
     resultPayloads?: ToolResultPayloadStore,
+    private readonly performanceDiagnostics?: PerformanceDiagnosticsPort,
   ) {
     this.conversationJournal =
       journal ?? new ConversationJournalRepository(storage);
@@ -261,6 +288,7 @@ export class ToolService {
 
       payloads: this.resultPayloads,
       logger: this.logger,
+      diagnostics: this.performanceDiagnostics,
     });
   }
 
@@ -749,7 +777,7 @@ export class ToolService {
   /** Terminalize every live tool call before its run becomes terminal. */
   async terminateNonTerminalToolCallsForRun(
     runId: string,
-    errorMessage: string,
+    outcome: ToolTerminationOutcome,
   ): Promise<ToolCallRecord[]> {
     if (!runId) return [];
     const stale = this.toolCallRepository
@@ -759,20 +787,25 @@ export class ToolService {
       );
     return await Promise.all(
       stale.map(async (toolCall) => {
-        const failed = await this.updateToolCall(toolCall.id, {
-          ...interruptedToolCallPatch(errorMessage),
+        const settlement = await this.settleToolCallTermination(toolCall.id, {
+          ...toolTerminationPatch(outcome),
           interactions: cancelPendingInteractions(toolCall.interactions),
         });
-        await this.publishToolCallUpdated(failed);
-        await this.logger?.warn("Tool call terminated after run ended", {
-          toolCallId: failed.id,
-          agentId: failed.agentId,
-          conversationId: failed.conversationId,
-          projectId: failed.projectId,
-          runId: failed.runId,
-          context: { toolName: failed.toolName },
-        });
-        return failed;
+        if (settlement.owned) {
+          await this.publishToolCallUpdated(settlement.record);
+          await this.logger?.warn("Tool call terminated after run ended", {
+            toolCallId: settlement.record.id,
+            agentId: settlement.record.agentId,
+            conversationId: settlement.record.conversationId,
+            projectId: settlement.record.projectId,
+            runId: settlement.record.runId,
+            context: {
+              toolName: settlement.record.toolName,
+              outcome: settlement.record.status,
+            },
+          });
+        }
+        return settlement.record;
       }),
     );
   }
@@ -787,7 +820,11 @@ export class ToolService {
     for (const toolCall of interrupted) {
       const failed = await this.updateToolCall(
         toolCall.id,
-        interruptedToolCallPatch(HOST_RESTART_TOOL_ERROR),
+        toolTerminationPatch({
+          status: "failed",
+          code: INTERRUPTED_TOOL_ERROR_CODE,
+          message: HOST_RESTART_TOOL_ERROR,
+        }),
       );
       await this.publishToolCallUpdated(failed);
     }
@@ -995,6 +1032,12 @@ export class ToolService {
     return await this.toolCallRepository.getDetails(toolCallId);
   }
 
+  toolResultRecoveryArtifact(toolCall: ToolCallRecord) {
+    return toolCall.resultPayload
+      ? this.resultPayloads.recoveryArtifact(toolCall.resultPayload)
+      : undefined;
+  }
+
   toolResultPayloadPath(toolCall: ToolCallRecord): string | undefined {
     return toolCall.resultPayload
       ? this.resultPayloads.path(toolCall.resultPayload)
@@ -1060,6 +1103,24 @@ export class ToolService {
       throw new Error(
         "Tool approval is stale or its execution target no longer satisfies policy.",
       );
+    }
+  }
+
+  private async settleToolCallTermination(
+    toolCallId: string,
+    patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
+  ): Promise<{ record: ToolCallRecord; owned: boolean }> {
+    try {
+      return {
+        record: await this.updateToolCall(toolCallId, patch),
+        owned: true,
+      };
+    } catch (error) {
+      const current = this.getToolCall(toolCallId);
+      if (isTerminalToolStatus(current.status)) {
+        return { record: current, owned: false };
+      }
+      throw error;
     }
   }
 
@@ -1265,25 +1326,6 @@ function cancelPendingInteractions(
   );
 }
 
-function interruptedToolCallPatch(errorMessage: string) {
-  return {
-    status: "failed" as const,
-    error: errorMessage,
-    errorDetails: {
-      code: "interrupted",
-      message: errorMessage,
-    },
-    result: {
-      content: errorMessage,
-      contentBlocks: [{ type: "text" as const, text: errorMessage }],
-    },
-  };
-}
-
 function isTerminalToolCall(toolCall: ToolCallRecord): boolean {
-  return (
-    toolCall.status === "completed" ||
-    toolCall.status === "denied" ||
-    toolCall.status === "failed"
-  );
+  return isTerminalToolStatus(toolCall.status);
 }

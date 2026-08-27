@@ -135,16 +135,17 @@ test("persists logical managed-file references and materializes absolute paths",
   t.after(() => storage.canonicalStore.close());
   const tasks = new TaskRepository(storage);
   const now = new Date().toISOString();
-  const logsPath = tasks.logsPath("task_reference");
+  const paths = tasks.paths("task_reference");
+  const logsPath = paths.eventsPath;
   await tasks.write({
     id: "task_reference",
     cwd: "/tmp/project",
     command: "printf test",
     status: "completed",
     readiness: { outcome: "pending" },
-    stdoutPath: logsPath,
-    stderrPath: logsPath,
-    combinedPath: logsPath,
+    stdoutPath: paths.stdoutPath,
+    stderrPath: paths.stderrPath,
+    combinedPath: paths.combinedPath,
     logsPath,
     startedAt: now,
     updatedAt: now,
@@ -152,8 +153,12 @@ test("persists logical managed-file references and materializes absolute paths",
   const persisted = await storage.canonicalStore.readDocument<
     Record<string, unknown>
   >("task", "global", "task_reference");
-  assert.equal(persisted?.data.logsPath, "tasks/task_reference.logs.jsonl");
-  assert.equal((await tasks.hydrate())[0]?.logsPath, logsPath);
+  assert.equal(persisted?.data.logsPath, "tasks/task_reference/events.jsonl");
+  const hydrated = (await tasks.hydrate())[0];
+  assert.equal(hydrated?.logsPath, logsPath);
+  assert.equal(hydrated?.stdoutPath, paths.stdoutPath);
+  assert.equal(hydrated?.stderrPath, paths.stderrPath);
+  assert.equal(hydrated?.combinedPath, paths.combinedPath);
 
   const payloads = new ToolResultPayloadStore(home);
   const reference = await payloads.write("conv_reference", "tool_reference", {

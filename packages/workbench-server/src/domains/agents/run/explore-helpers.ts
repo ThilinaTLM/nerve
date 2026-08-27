@@ -442,15 +442,46 @@ export function formatExploreFailureReport(errorMessage: string): string {
 }
 
 export function summaryPreview(report: string): string {
-  return truncateInline(
-    report
-      .split(/\r?\n/)
-      .map((line) => line.replace(/^#+\s*/, "").trim())
-      .filter((line) => line && !line.startsWith("- `"))
-      .slice(0, 4)
-      .join(" "),
-    280,
+  const lines = report.split(/\r?\n/);
+  const summaryIndex = lines.findIndex((line) =>
+    /^#{1,6}\s+summary\s*$/i.test(line.trim()),
   );
+  const afterSummary =
+    summaryIndex >= 0 ? lines.slice(summaryIndex + 1) : lines;
+  const nextHeading = afterSummary.findIndex((line) =>
+    /^#{1,6}\s/.test(line.trim()),
+  );
+  const summaryLines =
+    nextHeading >= 0 ? afterSummary.slice(0, nextHeading) : afterSummary;
+  const selected = summaryLines
+    .map((line) => line.trim())
+    .filter((line) => {
+      if (
+        !line ||
+        /^#{1,6}\s/.test(line) ||
+        line.startsWith("```") ||
+        line.startsWith("- `")
+      )
+        return false;
+      if (
+        /^(?:https?:\/\/|\/|[A-Za-z]:\\)\S+$/.test(line.replace(/^[-*]\s+/, ""))
+      )
+        return false;
+      return true;
+    })
+    .slice(0, 6)
+    .join(" ");
+  return utf8Head(selected || "No summary was provided.", 512);
+}
+
+function utf8Head(text: string, maxBytes: number): string {
+  if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
+  let output = "";
+  for (const character of text) {
+    if (Buffer.byteLength(`${output}${character}…`, "utf8") > maxBytes) break;
+    output += character;
+  }
+  return `${output}…`;
 }
 
 function truncateInline(text: string, maxChars: number): string {
@@ -520,6 +551,11 @@ export function exploreReportEventSummary(report: ExploreReport) {
     status: report.status,
     reportPath: report.reportPath
       ? truncateInline(report.reportPath, 4_096)
+      : undefined,
+    reportBytes: report.reportBytes,
+    reportLines: report.reportLines,
+    artifactId: report.artifactId
+      ? truncateInline(report.artifactId, 256)
       : undefined,
     summaryPreview: report.summaryPreview
       ? truncateInline(report.summaryPreview, 1_024)

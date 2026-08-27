@@ -13,7 +13,7 @@ Nerve exposes 50 tool names. Availability also depends on mode, permission, runt
 - Editing: `edit`, `write`
 - Execution: `bash`, `python_exec`
 
-Reads are bounded and parallel-capable. `edit`/`write` are serialized mutations. Bash is finite/noninteractive and process-tree cancellable. Python accepts exactly one code/file source, has no stdin, and is capped at 600 seconds.
+Reads are bounded and parallel-capable. `edit` accepts only `path` plus exact, unique `edits: [{ oldText, newText }]`; every match resolves against the original file and the write is atomic. Use `write` to replace an entire file. Bash is finite/noninteractive and process-tree cancellable; use `task_start` for servers and watchers. Python accepts exactly one code/file source, has no stdin, and is capped at 600 seconds.
 
 ## Web and Atlassian
 
@@ -23,7 +23,7 @@ Reads are bounded and parallel-capable. `edit`/`write` are serialized mutations.
 - Confluence reads: `confluence_search_spaces`, `confluence_search_pages`, `confluence_get_page`, `confluence_download_page`
 - Confluence writes: `confluence_create_page`, `confluence_update_page`, `confluence_manage_comment`, `confluence_manage_page`, `confluence_manage_label`, `confluence_manage_restriction`, `confluence_manage_attachment`
 
-Web search/fetch, image explanation, and Python are individual global tool toggles. Search requires Tavily. Jira/Confluence require enabled modules and credentials.
+Web search/fetch, image explanation, and Python are individual global tool toggles. Search requires Tavily. Jira/Confluence require enabled modules and credentials. Atlassian responses and mutation reports are always saved as managed raw artifacts while the agent receives a bounded semantic preview. Related Jira/Confluence data is selected with each read tool's compact `include` array.
 
 ## Image explanation
 
@@ -44,7 +44,7 @@ Questions suspend a run. To-dos are structured current-work state, not backgroun
 
 - `task_start`, `task_status`, `task_logs`, `task_control`
 
-Task start supports readiness URL/pattern, encrypted-at-rest env values, and runtime up to 24 hours. Its result also reports other active tasks in the workspace scope. Use `task_control` with `action: "stop"` or `action: "restart"` for one selected task. Status/log tools are bounded and agents receive asynchronous updates rather than polling.
+Task start accepts a project-relative `cwd`, an optional discriminated `ready` object (`url`, `detected_url`, or `pattern`), encrypted-at-rest env values, and runtime up to 24 hours. Its result also reports other active tasks in the project scope. `task_status` selects IDs/names with `tasks`; `task_logs` selects one `task` and uses one mode-specific `cursor`; `task_control` selects one `task` for stop or restart. Logs are bounded and agents receive asynchronous updates rather than polling.
 
 ## Explore and planning
 

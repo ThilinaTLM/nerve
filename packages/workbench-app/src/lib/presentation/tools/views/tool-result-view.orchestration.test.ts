@@ -92,7 +92,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     const stopped = parseToolView(
       transcriptToolCall(
         "task_control",
-        { taskId: "task_old", action: "stop" },
+        { task: "task_old", action: "stop" },
         {
           action: "stop",
           outcome: {
@@ -115,7 +115,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     const restarted = parseToolView(
       transcriptToolCall(
         "task_control",
-        { taskId: "task_old", action: "restart" },
+        { task: "task_old", action: "restart" },
         {
           action: "restart",
           task: {

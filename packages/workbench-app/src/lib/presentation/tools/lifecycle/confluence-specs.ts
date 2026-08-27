@@ -157,14 +157,9 @@ export const confluenceToolLifecycleSpecs = {
     completedView: "confluence",
     present: (source, stage) => {
       const page = source.string("page_id") ?? source.string("page_file");
-      const includes = [
-        ["include_labels", "labels"],
-        ["include_properties", "properties"],
-        ["include_operations", "operations"],
-        ["include_versions", "versions"],
-        ["include_direct_children", "children"],
-        ["include_attachments", "attachments"],
-      ].flatMap(([key, label]) => (source.boolean(key) ? [label] : []));
+      const includes = (source.strings("include") ?? []).map((value) =>
+        value.replaceAll("_", " "),
+      );
       return argumentPresentation({
         primaryArg: textArg(page, "Page"),
         secondary: [
@@ -187,32 +182,25 @@ export const confluenceToolLifecycleSpecs = {
     completedView: "confluence",
     emptyResult: "No pages downloaded",
     present: (source, stage) => {
-      const scope =
-        source.string("page_id") ??
-        source.string("space_key") ??
-        source.string("space_id") ??
-        source.string("cql");
-      const output =
-        source.string("output_dir") ?? source.string("download_dir");
+      const scope = source.string("page_id");
       const secondary: MetaItem[] = [];
-      if (source.boolean("recurse")) secondary.push({ text: "subtree" });
-      if (source.number("depth") !== undefined)
-        secondary.push({ text: `depth ${source.number("depth")}` });
       if (source.string("body_format"))
         secondary.push({ text: source.string("body_format")! });
-      if (output)
-        secondary.push({ text: output, mono: true, openPath: output });
+      if (source.boolean("markdown")) secondary.push({ text: "markdown" });
+      if (source.string("attachments"))
+        secondary.push({ text: `attachments ${source.string("attachments")}` });
       return argumentPresentation({
         primaryArg: textArg(scope, "Page download"),
         secondary,
         body: readOnlyBody(stage, [
-          `Scope: ${scope ?? ""}`,
-          ...(output ? [`Destination: ${output}`] : []),
-          ...(source.boolean("download_attachments")
-            ? ["Attachments: download"]
+          `Page: ${scope ?? ""}`,
+          ...(source.string("attachments")
+            ? [`Attachments: ${source.string("attachments")}`]
             : []),
         ]),
-        safetyNotes: output ? [`Writes downloaded files under ${output}.`] : [],
+        safetyNotes: [
+          "Writes the editable page bundle under managed artifacts.",
+        ],
       });
     },
   }),

@@ -1,5 +1,5 @@
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { optionalString } from "../atlassian/arguments.js";
+import { enumSet, optionalString } from "../atlassian/arguments.js";
 import { ToolExecutionError } from "../common/tool-error.js";
 import { jiraRequest, pathSegment, requireJiraConnection } from "./client.js";
 import {
@@ -7,7 +7,7 @@ import {
   displayLimitNotice,
   formatFieldSummaryLine,
   formatIssueTypeSummaryLine,
-  maybeWriteJiraArtifact,
+  writeJiraArtifact,
   summarizeJiraField,
   summarizeJiraIssueType,
   summarizeJiraProject,
@@ -34,30 +34,41 @@ export async function executeJiraGetProject(
       "project_key is required because no default Jira project key is configured.",
     );
   }
+  const include = enumSet(args.include, [
+    "statuses",
+    "components",
+    "versions",
+    "issue_types",
+    "create_meta",
+    "fields",
+    "priorities",
+    "resolutions",
+    "issue_link_types",
+  ] as const);
   const project = await jiraRequest<Record<string, unknown>>(connection, {
     path: `/project/${pathSegment(projectKey)}`,
     signal: context.signal,
   });
   const result: Record<string, unknown> = { project };
-  if (args.include_statuses === true) {
+  if (include.has("statuses")) {
     result.statuses = await jiraRequest(connection, {
       path: `/project/${pathSegment(projectKey)}/statuses`,
       signal: context.signal,
     });
   }
-  if (args.include_components === true) {
+  if (include.has("components")) {
     result.components = await jiraRequest(connection, {
       path: `/project/${pathSegment(projectKey)}/components`,
       signal: context.signal,
     });
   }
-  if (args.include_versions === true) {
+  if (include.has("versions")) {
     result.versions = await jiraRequest(connection, {
       path: `/project/${pathSegment(projectKey)}/versions`,
       signal: context.signal,
     });
   }
-  if (args.include_issue_types === true || args.include_create_meta === true) {
+  if (include.has("issue_types") || include.has("create_meta")) {
     result.issueTypes = Array.isArray(project.issueTypes)
       ? project.issueTypes
       : await jiraRequest(connection, {
@@ -65,13 +76,12 @@ export async function executeJiraGetProject(
           signal: context.signal,
         }).catch(() => undefined);
   }
-  if (args.include_create_meta === true) {
+  if (include.has("create_meta")) {
+    const issueType = optionalString(args.issue_type);
     const issueTypeId =
-      optionalString(args.issue_type_id) ??
-      issueTypeIdFromName(
-        result.issueTypes,
-        optionalString(args.issue_type_name),
-      );
+      issueType && /^\d+$/.test(issueType)
+        ? issueType
+        : issueTypeIdFromName(result.issueTypes, issueType);
     result.createMeta = issueTypeId
       ? await jiraRequest(connection, {
           path: `/issue/createmeta/${pathSegment(projectKey)}/issuetypes/${pathSegment(issueTypeId)}`,
@@ -79,37 +89,32 @@ export async function executeJiraGetProject(
         })
       : result.issueTypes;
   }
-  if (args.include_fields === true) {
+  if (include.has("fields")) {
     result.fields = await fetchJiraFields(connection, {
       query: optionalString(args.field_query),
       maxResults: boundedNumber(args.field_limit, 50, 1, 100),
       signal: context.signal,
     });
   }
-  if (args.include_priorities === true) {
+  if (include.has("priorities")) {
     result.priorities = await jiraRequest(connection, {
       path: "/priority",
       signal: context.signal,
     });
   }
-  if (args.include_resolutions === true) {
+  if (include.has("resolutions")) {
     result.resolutions = await jiraRequest(connection, {
       path: "/resolution",
       signal: context.signal,
     });
   }
-  if (args.include_issue_link_types === true) {
+  if (include.has("issue_link_types")) {
     result.issueLinkTypes = await jiraRequest(connection, {
       path: "/issueLinkType",
       signal: context.signal,
     });
   }
-  const artifact = await maybeWriteJiraArtifact(
-    context,
-    "get-project",
-    result,
-    args.save_to_file,
-  );
+  const artifact = await writeJiraArtifact(context, "get-project", result);
   const projectSummary = summarizeJiraProject(project, projectKey);
   const name = projectSummary?.name ?? projectKey;
   const lines = [`Jira project ${projectKey}: ${name}`];
@@ -165,7 +170,7 @@ export async function executeJiraGetProject(
       lines.push(`${label}: ${value.length}`);
     }
   }
-  if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
+  lines.push(`Raw JSON saved to: ${artifact.path}`);
   return buildJiraTextResult({
     text: lines.join("\n"),
     context,

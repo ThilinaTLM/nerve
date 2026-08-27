@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { executeEdit } from "../src/execution/filesystem/edit.js";
 import { ToolExecutionError } from "../src/execution/common/tool-error.js";
+import { executeEdit } from "../src/execution/filesystem/edit.js";
 import { createTempProject } from "./helpers.js";
 
 async function rejectsWithCode(
@@ -21,225 +21,165 @@ async function rejectsWithCode(
 }
 
 describe("edit executor", () => {
-  it("requires unique matches unless occurrence is supplied", async () => {
+  it("applies multiple unique exact edits against original content", async () => {
     const project = await createTempProject();
-    await project.write("dupe.txt", "one\ntwo\none\n");
+    await project.write("sample.txt", "alpha\nbeta\ngamma\n");
 
-    const ambiguous = await rejectsWithCode(
-      executeEdit(
-        {
-          path: "dupe.txt",
-          replacements: [{ oldText: "one", newText: "ONE" }],
-        },
-        { cwd: project.root },
-      ),
-      "EDIT_MATCH_AMBIGUOUS",
+    const result = await executeEdit(
+      {
+        path: "sample.txt",
+        edits: [
+          { oldText: "alpha", newText: "ALPHA" },
+          { oldText: "gamma", newText: "GAMMA" },
+        ],
+      },
+      { cwd: project.root },
     );
-    assert.match(ambiguous.message, /replacements\[0\]\.oldText/);
-    assert.match(ambiguous.message, /matched 2 times/);
-    assert.match(ambiguous.message, /occurrence to 1\.\.2/);
 
+    assert.equal(
+      await readFile(join(project.root, "sample.txt"), "utf8"),
+      "ALPHA\nbeta\nGAMMA\n",
+    );
+    assert.equal(result.details?.operationCount, 2);
+    assert.equal(result.details?.firstChangedLine, 1);
+    assert.match(String(result.details?.diff), /-alpha/);
+    assert.equal(result.details?.dryRun, undefined);
+    assert.deepEqual(
+      (result.details?.operations as Array<Record<string, unknown>>).map(
+        ({ source, type, matchedBy }) => ({ source, type, matchedBy }),
+      ),
+      [
+        { source: "edits", type: "replace_text", matchedBy: "unique" },
+        { source: "edits", type: "replace_text", matchedBy: "unique" },
+      ],
+    );
+  });
+
+  it("supports insertion and deletion through exact replacements", async () => {
+    const project = await createTempProject();
+    await project.write("sample.txt", "first\nremove\nlast\n");
     await executeEdit(
       {
-        path: "dupe.txt",
-        replacements: [{ oldText: "one", newText: "ONE", occurrence: 2 }],
+        path: "sample.txt",
+        edits: [
+          { oldText: "first\n", newText: "first\ninserted\n" },
+          { oldText: "remove\n", newText: "" },
+        ],
       },
       { cwd: project.root },
     );
     assert.equal(
-      await readFile(join(project.root, "dupe.txt"), "utf8"),
-      "one\ntwo\nONE\n",
+      await readFile(join(project.root, "sample.txt"), "utf8"),
+      "first\ninserted\nlast\n",
     );
   });
 
-  it("supports trimmed and whitespace match modes explicitly", async () => {
+  it("rejects missing and ambiguous exact text with actionable errors", async () => {
     const project = await createTempProject();
-    const path = await project.write(
-      "modes.txt",
-      "const    value = “hello”;   \nnext();\n",
-    );
-
-    await rejectsWithCode(
+    await project.write("sample.txt", "same\nother\nsame\n");
+    const missing = await rejectsWithCode(
       executeEdit(
         {
-          path: "modes.txt",
-          replacements: [
-            {
-              oldText: 'const value = "hello";',
-              newText: 'const value = "hi";',
-            },
-          ],
+          path: "sample.txt",
+          edits: [{ oldText: "missing", newText: "value" }],
         },
         { cwd: project.root },
       ),
       "EDIT_MATCH_NOT_FOUND",
     );
+    assert.match(missing.message, /Reread the file/);
 
-    await executeEdit(
-      {
-        path: "modes.txt",
-        replacements: [
-          {
-            oldText: 'const value = "hello";',
-            newText: 'const value = "hi";',
-            matchMode: "whitespace",
-          },
-        ],
-      },
-      { cwd: project.root },
+    const ambiguous = await rejectsWithCode(
+      executeEdit(
+        {
+          path: "sample.txt",
+          edits: [{ oldText: "same", newText: "value" }],
+        },
+        { cwd: project.root },
+      ),
+      "EDIT_MATCH_AMBIGUOUS",
     );
-    assert.equal(
-      await readFile(path, "utf8"),
-      'const value = "hi";   \nnext();\n',
-    );
-
-    await executeEdit(
-      {
-        path: "modes.txt",
-        replacements: [
-          {
-            oldText: 'const value = "hi";   ',
-            newText: 'const value = "done";',
-            matchMode: "trimmed",
-          },
-        ],
-      },
-      { cwd: project.root },
-    );
-    assert.equal(
-      await readFile(path, "utf8"),
-      'const value = "done";\nnext();\n',
-    );
+    assert.match(ambiguous.message, /surrounding context/);
   });
 
-  it("rejects overlapping operations and same-offset inserts", async () => {
+  it("rejects overlapping edits before writing", async () => {
     const project = await createTempProject();
-    await project.write("overlap.txt", "abcdef\n");
-
+    const path = await project.write("sample.txt", "abcdef\n");
     await rejectsWithCode(
       executeEdit(
         {
-          path: "overlap.txt",
-          replacements: [
-            { oldText: "abc", newText: "ABC" },
-            { oldText: "bcd", newText: "BCD" },
+          path: "sample.txt",
+          edits: [
+            { oldText: "abcd", newText: "one" },
+            { oldText: "cdef", newText: "two" },
           ],
         },
         { cwd: project.root },
       ),
       "EDIT_OVERLAP",
     );
-
-    await rejectsWithCode(
-      executeEdit(
-        {
-          path: "overlap.txt",
-          lineInsertions: [
-            { line: 1, position: "before", text: "x\n" },
-            { line: 1, position: "before", text: "y\n" },
-          ],
-        },
-        { cwd: project.root },
-      ),
-      "EDIT_OVERLAP",
-    );
+    assert.equal(await readFile(path, "utf8"), "abcdef\n");
   });
 
-  it("applies single-file unified patches", async () => {
+  it("rejects no-op edits", async () => {
     const project = await createTempProject();
-    const path = await project.write("patch.txt", "alpha\ngamma\n");
-
-    await executeEdit(
-      {
-        path: "patch.txt",
-        patch: "@@ -1,2 +1,3 @@\n alpha\n+beta\n gamma\n",
-      },
-      { cwd: project.root },
-    );
-
-    assert.equal(await readFile(path, "utf8"), "alpha\nbeta\ngamma\n");
-  });
-
-  it("rejects invalid patches and mixed patch edits", async () => {
-    const project = await createTempProject();
-    await project.write("patch-errors.txt", "alpha\n");
-
+    await project.write("sample.txt", "same\n");
     await rejectsWithCode(
       executeEdit(
         {
-          path: "patch-errors.txt",
-          patch: "@@ -1 +1 @@\n-alpha\n+beta\n",
-          lineInsertions: [{ line: 1, position: "after", text: "x\n" }],
-        },
-        { cwd: project.root },
-      ),
-      "EDIT_ARGUMENT_INVALID",
-    );
-
-    await rejectsWithCode(
-      executeEdit(
-        {
-          path: "patch-errors.txt",
-          patch:
-            "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-alpha\n+beta\n--- a/b.txt\n+++ b/b.txt\n@@ -1 +1 @@\n-x\n+y\n",
-        },
-        { cwd: project.root },
-      ),
-      "EDIT_PATCH_INVALID",
-    );
-
-    await rejectsWithCode(
-      executeEdit(
-        {
-          path: "patch-errors.txt",
-          patch: "@@ -1 +1 @@\n-missing\n+beta\n",
-        },
-        { cwd: project.root },
-      ),
-      "EDIT_PATCH_APPLY_FAILED",
-    );
-  });
-
-  it("preserves CRLF line endings and UTF-8 BOM", async () => {
-    const project = await createTempProject();
-    const path = await project.write("crlf.txt", "\uFEFFalpha\r\nbeta\r\n");
-
-    await executeEdit(
-      {
-        path: "crlf.txt",
-        replacements: [{ oldText: "beta", newText: "BETA" }],
-      },
-      { cwd: project.root },
-    );
-
-    assert.equal(await readFile(path, "utf8"), "\uFEFFalpha\r\nBETA\r\n");
-  });
-
-  it("rejects no-op and binary-looking files", async () => {
-    const project = await createTempProject();
-    await project.write("noop.txt", "same\n");
-    await project.write("binary.bin", "a\0b");
-
-    await rejectsWithCode(
-      executeEdit(
-        {
-          path: "noop.txt",
-          replacements: [{ oldText: "same", newText: "same" }],
+          path: "sample.txt",
+          edits: [{ oldText: "same", newText: "same" }],
         },
         { cwd: project.root },
       ),
       "EDIT_NO_CHANGE",
     );
+  });
 
+  it("rejects empty arrays and legacy fields", async () => {
+    const project = await createTempProject();
+    await project.write("sample.txt", "value\n");
+    await rejectsWithCode(
+      executeEdit({ path: "sample.txt", edits: [] }, { cwd: project.root }),
+      "EDIT_ARGUMENT_INVALID",
+    );
     await rejectsWithCode(
       executeEdit(
         {
-          path: "binary.bin",
-          replacements: [{ oldText: "a", newText: "A" }],
+          path: "sample.txt",
+          replacements: [{ oldText: "value", newText: "VALUE" }],
+        },
+        { cwd: project.root },
+      ),
+      "EDIT_ARGUMENT_INVALID",
+    );
+  });
+
+  it("rejects binary files", async () => {
+    const project = await createTempProject();
+    await project.write("sample.bin", "abc\0def");
+    await rejectsWithCode(
+      executeEdit(
+        {
+          path: "sample.bin",
+          edits: [{ oldText: "abc", newText: "ABC" }],
         },
         { cwd: project.root },
       ),
       "EDIT_BINARY_FILE",
     );
+  });
+
+  it("preserves UTF-8 BOM and CRLF endings", async () => {
+    const project = await createTempProject();
+    const path = await project.write("sample.txt", "\uFEFFone\r\ntwo\r\n");
+    await executeEdit(
+      {
+        path: "sample.txt",
+        edits: [{ oldText: "one\ntwo", newText: "ONE\nTWO" }],
+      },
+      { cwd: project.root },
+    );
+    assert.equal(await readFile(path, "utf8"), "\uFEFFONE\r\nTWO\r\n");
   });
 });

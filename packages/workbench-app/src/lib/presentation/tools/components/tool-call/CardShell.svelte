@@ -51,6 +51,8 @@ const lifecycle = $derived.by<"running" | "complete" | "error" | "idle">(() => {
     case "failed":
     case "denied":
       return "error";
+    case "cancelled":
+      return "idle";
     default:
       return "idle";
   }
@@ -68,9 +70,11 @@ const statusLabel = $derived(
             ? "Tool call completed"
             : status === "denied"
               ? "Tool call denied"
-              : status === "error"
+              : status === "failed"
                 ? "Tool call failed"
-                : "Tool call status",
+                : status === "cancelled"
+                  ? "Tool call cancelled"
+                  : "Tool call status",
 );
 const footerVisible = $derived(
   footer && (meta.length > 0 || Boolean(detailsAction)),

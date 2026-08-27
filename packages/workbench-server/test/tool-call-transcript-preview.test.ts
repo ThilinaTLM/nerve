@@ -41,14 +41,12 @@ function editToolCall(diff: string): ToolCallRecord {
     risk: "workspace_write",
     args: {
       path: "src/example.ts",
-      replacements: [
+      edits: [
         {
           oldText: "const value = 1;",
           newText: "const value = 2;",
-          matchMode: "exact",
         },
       ],
-      dryRun: false,
     },
     result: {
       path: "/tmp/project/src/example.ts",
@@ -59,16 +57,13 @@ function editToolCall(diff: string): ToolCallRecord {
         firstChangedLine: 1,
         lineEnding: "\n",
         bom: false,
-        dryRun: false,
         operationCount: 1,
         operations: [
           {
             index: 0,
             type: "replace_text",
-            source: "replacements",
+            source: "edits",
             sourceIndex: 0,
-            matchMode: "exact",
-            occurrence: 1,
             matchCount: 1,
             startLine: 1,
             endLine: 1,
@@ -79,6 +74,50 @@ function editToolCall(diff: string): ToolCallRecord {
     },
   } satisfies ToolCallRecord;
 }
+
+describe("public transcript separation", () => {
+  it("keeps producer artifact claims out of the public preview", () => {
+    const base: ToolCallRecord = {
+      ...explainImageToolCall("unused"),
+      toolName: "todos_get",
+      risk: "read",
+      args: {},
+      result: {
+        contentBlocks: [{ type: "text", text: "1 todo" }],
+        details: { todos: [{ todo: "Verify result", done: false }] },
+      },
+    };
+    const withClaim: ToolCallRecord = {
+      ...base,
+      result: {
+        ...(base.result as Record<string, unknown>),
+        details: {
+          todos: [{ todo: "Verify result", done: false }],
+          outputLimits: {
+            artifacts: [
+              {
+                id: "private_claim",
+                role: "supporting_data",
+                path: "/tmp/private.json",
+                format: {
+                  kind: "json",
+                  mediaType: "application/json",
+                  encoding: "utf-8",
+                },
+                label: "Private producer claim",
+                recommendedTools: ["read"],
+              },
+            ],
+          },
+        },
+      },
+    };
+    assert.deepEqual(
+      toToolCallTranscriptRecord(withClaim),
+      toToolCallTranscriptRecord(base),
+    );
+  });
+});
 
 describe("explain_image transcript preview", () => {
   it("keeps a bounded explanation preview without duplicate content blocks", () => {
@@ -142,7 +181,6 @@ describe("explain_image transcript preview", () => {
     assert.deepEqual(initialResult.details, {
       diff: "diff line 5\ndiff line 6\ndiff line 7\ndiff line 8\ndiff line 9\ndiff line 10",
       operationCount: 1,
-      dryRun: false,
     });
     assert.deepEqual(initial.previewOverflow, {
       hidden: 4,
@@ -179,7 +217,7 @@ describe("explain_image transcript preview", () => {
       "diff line 5\ndiff line 6\ndiff line 7\ndiff line 8\ndiff line 9\ndiff line 10",
     );
     assert.equal(details?.operationCount, 1);
-    assert.equal(details?.dryRun, false);
+    assert.equal(details?.dryRun, undefined);
   });
 
   it("keeps a bounded plan body in the durable transcript preview", () => {

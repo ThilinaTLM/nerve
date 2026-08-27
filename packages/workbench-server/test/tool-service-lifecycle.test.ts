@@ -58,7 +58,7 @@ describe("tool service lifecycle", () => {
       "edit",
       {
         path: "src/file.ts",
-        replacements: [{ oldText: "a", newText: "b", note: "bad" }],
+        edits: [{ oldText: "a", newText: "b", note: "bad" }],
       },
       "Validation failed for tool edit.",
       {
@@ -84,7 +84,7 @@ describe("tool service lifecycle", () => {
     });
     assert.deepEqual(toolCall.args, {
       path: "src/file.ts",
-      replacements: [{ oldText: "a", newText: "b", note: "bad" }],
+      edits: [{ oldText: "a", newText: "b", note: "bad" }],
     });
     // The resolved anchor must survive on the stored record: the transcript
     // renderer keys the tool's row by (liveMessageId, contentIndex).
@@ -196,12 +196,24 @@ describe("tool service lifecycle", () => {
 
     const [terminal] = await service.terminateNonTerminalToolCallsForRun(
       runId,
-      "Run was cancelled.",
+      {
+        status: "cancelled",
+        code: "cancelled",
+        message: "Run was cancelled.",
+      },
     );
 
-    assert.equal(terminal?.status, "failed");
+    assert.equal(terminal?.status, "cancelled");
+    assert.equal(terminal?.phase, "cancelled");
+    assert.equal(terminal?.error, "Run was cancelled.");
+    assert.equal(terminal?.errorDetails?.code, "cancelled");
+    assert.deepEqual(terminal?.result, {
+      content: "Run was cancelled.",
+      contentBlocks: [{ type: "text", text: "Run was cancelled." }],
+    });
     assert.equal(terminal?.interactions[0]?.status, "cancelled");
     assert.ok(terminal?.interactions[0]?.cancelledAt);
+    assert.ok(terminal?.settledAt);
   });
 });
 

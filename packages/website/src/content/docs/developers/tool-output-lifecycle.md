@@ -9,7 +9,7 @@ Tool output crosses several boundaries with different responsibilities. A limit 
 
 ## Execution lifecycle
 
-`ToolExecutorService` updates the persisted tool-call record to `running`, emits the lifecycle update, and delegates execution to `OrchestrationToolDispatcher`. It prepares the result with the tool-result bounds before recording `completed`. Execution errors become `failed`; an approval or interaction suspension leaves the current interaction state for the run to resume.
+`ToolExecutorService` updates the persisted tool-call record to `running`, emits the lifecycle update, and delegates execution to `OrchestrationToolDispatcher`. It validates producer artifact claims and prepares the complete result before recording `completed`. Execution errors become `failed`; an approval or interaction suspension leaves the current interaction state for the run to resume.
 
 Run-owned tool calls send lifecycle updates to the run execution sink so the run coordinator commits and publishes the durable event. Tool calls outside a run publish their lifecycle update directly. Policy denials happen before this execution path and remain distinct from execution failures.
 
@@ -25,8 +25,8 @@ The source process result remains complete in its durable log or artifact. The l
 | Live framing             | `splitLiveOutputChunks`            | Split output into UTF-8-safe events before publication.                                              |
 | Task output              | `TaskService`                      | Append durable output first, then publish bounded live updates and observers.                        |
 | Conversation live output | `LiveToolOutputPublisher`          | Serialize each tool call's output queue, publish offsets, and update the rolling runtime projection. |
-| Complete result          | Tool-result preparation            | Keep unchanged inline when it fits; otherwise write complete JSON under `NERVE_HOME/payloads`.       |
-| Agent projection         | Model result bounds                | Keep 200 logical lines or 24,000 UTF-8 bytes and emit one exact payload-path notice when truncated.  |
+| Complete result          | Tool-result preparation            | Preserve exact JSON before storage bounding whenever projection needs payload recovery.              |
+| Agent projection         | Adaptive result projector          | Select one semantic representation, then apply the catalog profile's byte/line/item strategy.        |
 | Transcript projection    | Tool-call transcript projection    | Keep six tool-appropriate lines/items and load complete details only on demand.                      |
 
 The shared live-output budgets are defined by the contracts package:
@@ -39,15 +39,13 @@ These values come from [`conversation.schema.ts`](https://github.com/ThilinaTLM/
 
 ## Final-result contract
 
-Agent output is bounded line-first at 200 logical lines and then at 24,000 UTF-8 bytes. There is no separate model per-line character cap. The final text, including the notice, remains within both budgets and preserves valid UTF-8. Output that fits is returned unchanged and creates no payload. Truncated output ends with exactly:
+Every active catalog tool declares one semantic result policy. The projector first builds a canonical candidate, preserving status, continuation, media, and validated artifact facts. A fitting candidate is returned unchanged. Overflow then uses the profile strategy—for example continuation-aware source heads, compact process diagnostics, whole-item listings/searches, artifact indexes, or independent per-task Explore reports. Profile budgets are centralized in `packages/tools/src/result-projection/profiles.ts`; the conservative unknown-tool fallback remains 200 lines and 24,000 UTF-8 bytes.
 
-```text
-Output truncated. Full output: /resolved/path/to/full-output
-```
+Only the host artifact validator can issue an agent-readable descriptor. It accepts managed regular files, rejects symlink chains and unsafe roots, and never opens artifact content during projection. When no exact artifact or continuation exists, preparation writes the complete result before bounding at `payloads/conversations/<conversationId>/tool-calls/<toolCallId>/result.json`. The payload reference remains owner/digest verified and version 1.
 
-The resolved path is added only to the runtime model result; canonical storage keeps a validated owner/digest descriptor rather than an absolute path. The complete result is written before bounding under `payloads/conversations/<conversationId>/tool-calls/<toolCallId>.json`.
+Task output uses a per-task bundle with `events.jsonl`, distinct `stdout.txt` and `stderr.txt`, and an optional labeled `combined.txt`. Events carry stream byte ranges. Internally, task queries preserve separate `beforeSeq` and `sinceSeq` boundaries; the model-facing `task_logs` adapter exposes one mode-specific `cursor` without weakening exact backward or forward recovery.
 
-The UI contract is independent: transcript events contain at most six lines/items with existing tool-specific head/tail semantics. Opening details requests the complete canonical result from inline storage or the verified payload. Each call has its own limits even when calls execute sequentially, in parallel, or as a batch; there is no batch-level output budget.
+The UI contract is independent: transcript events contain at most six lines/items with existing tool-specific head/tail semantics and omit validated artifacts and projection snapshots. Each call has its own model budget; Explore applies one budget per child report and no additional call-level ceiling.
 
 ## Durable and live publication
 

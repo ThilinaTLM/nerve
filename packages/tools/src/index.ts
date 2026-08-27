@@ -1,3 +1,4 @@
+export * from "./result-projection/index.js";
 import type { ToolDescriptor, ToolName, ToolRisk } from "@nervekit/contracts";
 import {
   allToolDescriptorsFromDefinitions,
@@ -94,7 +95,6 @@ export {
   runExecutable,
   spawnExecutable,
 } from "./execution/executable/executable.js";
-export { normalizeEditArgs } from "./execution/filesystem/edit-args.js";
 export { executeEdit } from "./execution/filesystem/edit.js";
 export { resolveToolPath } from "./execution/filesystem/path.js";
 export {
@@ -228,7 +228,6 @@ export {
   parseExploreRequest,
   parsePlanRequest,
   parseQuestion,
-  parseTaskSelector,
   parseTodos,
   requiredString,
 } from "./runtime/orchestration/args.js";

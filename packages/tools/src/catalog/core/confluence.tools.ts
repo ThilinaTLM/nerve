@@ -53,11 +53,6 @@ const searchSpacesParameters = Type.Object(
           "Opaque Confluence continuation cursor returned by the previous page",
       }),
     ),
-    save_to_file: Type.Optional(
-      Type.Boolean({
-        description: "Save the raw JSON response (default: true)",
-      }),
-    ),
   },
   { additionalProperties: false },
 );
@@ -86,11 +81,6 @@ const searchPagesParameters = Type.Object(
           "Opaque Confluence continuation cursor returned by the previous page",
       }),
     ),
-    save_to_file: Type.Optional(
-      Type.Boolean({
-        description: "Save the raw JSON response (default: true)",
-      }),
-    ),
   },
   { additionalProperties: false },
 );
@@ -99,47 +89,27 @@ const getPageParameters = Type.Object(
   {
     page_id: Type.String({ description: "Confluence page id" }),
     body_format: Type.Optional(pageBodyFormat),
-    include_labels: Type.Optional(
-      Type.Boolean({ description: "Fetch page labels" }),
-    ),
-    include_properties: Type.Optional(
-      Type.Boolean({ description: "Fetch page properties" }),
-    ),
-    include_operations: Type.Optional(
-      Type.Boolean({ description: "Fetch available operations" }),
-    ),
-    include_versions: Type.Optional(
-      Type.Boolean({ description: "Fetch page versions" }),
-    ),
-    include_version: Type.Optional(
-      Type.Boolean({ description: "Include version metadata" }),
-    ),
-    include_direct_children: Type.Optional(
-      Type.Boolean({ description: "Fetch direct child pages" }),
-    ),
-    include_attachments: Type.Optional(
-      Type.Boolean({ description: "Fetch attachment metadata" }),
-    ),
-    include_footer_comments: Type.Optional(
-      Type.Boolean({ description: "Fetch footer comments" }),
-    ),
-    include_inline_comments: Type.Optional(
-      Type.Boolean({ description: "Fetch inline comments" }),
-    ),
-    include_restrictions: Type.Optional(
-      Type.Boolean({ description: "Fetch page restrictions" }),
+    include: Type.Optional(
+      Type.Array(
+        Type.Union([
+          Type.Literal("labels"),
+          Type.Literal("properties"),
+          Type.Literal("operations"),
+          Type.Literal("version"),
+          Type.Literal("versions"),
+          Type.Literal("children"),
+          Type.Literal("attachments"),
+          Type.Literal("footer_comments"),
+          Type.Literal("inline_comments"),
+          Type.Literal("restrictions"),
+        ]),
+        { uniqueItems: true, description: "Related page data to fetch" },
+      ),
     ),
     comment_limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
     comment_cursor: Type.Optional(Type.String()),
     markdown: Type.Optional(
-      Type.Boolean({
-        description: "Write a best-effort read-only markdown sidecar",
-      }),
-    ),
-    save_to_file: Type.Optional(
-      Type.Boolean({
-        description: "Save the raw JSON response (default: true)",
-      }),
+      Type.Boolean({ description: "Write a read-only markdown sidecar" }),
     ),
   },
   { additionalProperties: false },
@@ -150,15 +120,14 @@ const downloadPageParameters = Type.Object(
     page_id: Type.String({ description: "Page id" }),
     body_format: Type.Optional(bodyFormatRead),
     markdown: Type.Optional(
-      Type.Boolean({
-        description: "Write a best-effort read-only markdown sidecar",
-      }),
+      Type.Boolean({ description: "Write a read-only markdown sidecar" }),
     ),
-    include_attachments: Type.Optional(
-      Type.Boolean({ description: "Include attachment metadata" }),
-    ),
-    download_attachments: Type.Optional(
-      Type.Boolean({ description: "Download attachment bytes for this page" }),
+    attachments: Type.Optional(
+      Type.Union([
+        Type.Literal("none"),
+        Type.Literal("metadata"),
+        Type.Literal("download"),
+      ]),
     ),
   },
   { additionalProperties: false },
@@ -190,11 +159,6 @@ const createPageParameters = Type.Object(
     ),
     return_page: Type.Optional(
       Type.Boolean({ description: "Fetch and summarize the created page" }),
-    ),
-    save_to_file: Type.Optional(
-      Type.Boolean({
-        description: "Save raw JSON/report artifacts (default: true)",
-      }),
     ),
   },
   { additionalProperties: false },
@@ -232,11 +196,6 @@ const updatePageParameters = Type.Object(
     return_page: Type.Optional(
       Type.Boolean({
         description: "Fetch and summarize the page after updating",
-      }),
-    ),
-    save_to_file: Type.Optional(
-      Type.Boolean({
-        description: "Save raw JSON/report artifacts (default: true)",
       }),
     ),
   },
@@ -352,7 +311,6 @@ const manageAttachmentParameters = Type.Object(
     update_existing: Type.Optional(Type.Boolean()),
     status: Type.Optional(pageStatus),
     dry_run: dryRun,
-    save_to_file: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

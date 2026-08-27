@@ -13,11 +13,9 @@ import {
   appendMutationOptions,
   appendPayloadSummary,
   appendPreviewHint,
-  appendSavePreference,
   compactLines,
   countLabel,
   draftArgSource,
-  enabledFlags,
   formatConfluenceAttachment,
   formatConfluencePage,
   formatConfluenceSpace,
@@ -124,7 +122,6 @@ function appendConfluenceRequestLines(
       addListLine(lines, "Ids", sourceStringArray(source, "ids"), budget);
       addLine(lines, "Limit", sourceNumber(source, "limit"));
       addLine(lines, "Cursor", sourceString(source, "cursor"));
-      appendSavePreference(lines, source);
       break;
     }
     case "search_pages": {
@@ -152,7 +149,6 @@ function appendConfluenceRequestLines(
       );
       addLine(lines, "Limit", sourceNumber(source, "limit"));
       addLine(lines, "Cursor", sourceString(source, "cursor"));
-      appendSavePreference(lines, source);
       break;
     }
     case "get_page": {
@@ -165,19 +161,14 @@ function appendConfluenceRequestLines(
       addListLine(
         lines,
         "Includes",
-        enabledFlags(source, {
-          include_labels: "labels",
-          include_properties: "properties",
-          include_operations: "operations",
-          include_versions: "versions",
-          include_version: "version metadata",
-          include_direct_children: "direct children",
-          include_attachments: "attachments",
-          markdown: "markdown sidecar",
-        }),
+        sourceStringArray(source, "include"),
         budget,
       );
-      appendSavePreference(lines, source);
+      addLine(
+        lines,
+        "Markdown sidecar",
+        yesNo(sourceBoolean(source, "markdown")),
+      );
       break;
     }
     case "download_page": {
@@ -188,37 +179,15 @@ function appendConfluenceRequestLines(
       );
       addLine(
         lines,
-        "Space",
-        view?.spaceKey ??
-          sourceString(source, "space_key") ??
-          view?.spaceId ??
-          sourceString(source, "space_id"),
-      );
-      addTextBlock(
-        lines,
-        "CQL",
-        view?.cql ?? sourceString(source, "cql"),
-        budget,
-      );
-      addLine(lines, "Recurse", yesNo(sourceBoolean(source, "recurse")));
-      addLine(lines, "Depth", sourceNumber(source, "depth"));
-      addLine(lines, "Limit", sourceNumber(source, "limit"));
-      addLine(
-        lines,
         "Body format",
         view?.bodyFormat ?? sourceString(source, "body_format"),
       );
-      addListLine(
+      addLine(
         lines,
-        "Outputs",
-        enabledFlags(source, {
-          markdown: "markdown sidecars",
-          include_attachments: "attachment metadata",
-          download_attachments: "download attachments",
-        }),
-        budget,
+        "Markdown sidecar",
+        yesNo(sourceBoolean(source, "markdown")),
       );
-      appendSavePreference(lines, source);
+      addLine(lines, "Attachments", sourceString(source, "attachments"));
       break;
     }
     case "create_page": {
@@ -246,7 +215,6 @@ function appendConfluenceRequestLines(
         "Return page",
         yesNo(sourceBoolean(source, "return_page")),
       );
-      appendSavePreference(lines, source);
       break;
     }
     case "update_page": {
@@ -283,7 +251,6 @@ function appendConfluenceRequestLines(
         "Return page",
         yesNo(sourceBoolean(source, "return_page")),
       );
-      appendSavePreference(lines, source);
       break;
     }
     case "manage_attachment": {
@@ -302,7 +269,6 @@ function appendConfluenceRequestLines(
         yesNo(sourceBoolean(source, "update_existing")),
       );
       addLine(lines, "Status", view?.status ?? sourceString(source, "status"));
-      appendSavePreference(lines, source);
       break;
     }
   }

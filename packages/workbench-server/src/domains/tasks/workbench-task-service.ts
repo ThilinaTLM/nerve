@@ -66,6 +66,7 @@ export type ForegroundBashPromotionInput = {
   signal?: AbortSignal;
   onOutput?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
   continueAfterPromotion?: boolean;
+  artifactDir?: string;
 };
 
 export type ForegroundBashPromotionResult =
@@ -326,8 +327,9 @@ export class WorkbenchTaskService extends TaskService {
 
   async buildForegroundBashResult(
     taskId: string,
+    artifactDir?: string,
   ): Promise<ToolExecutionResult> {
-    return await buildForegroundBashResultImpl.call(this, taskId);
+    return await buildForegroundBashResultImpl.call(this, taskId, artifactDir);
   }
   async runForegroundBashWithPromotion(
     input: ForegroundBashPromotionInput,

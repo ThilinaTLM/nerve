@@ -14,6 +14,12 @@ Use finite Bash for commands that should finish. Use a task for a known server o
 
 Before starting a server or watcher, the agent checks active tasks once unless it already knows the current task state. A successful start reports the new task and any other active tasks in the workspace scope, allowing the agent to notice possible overlap without heuristic duplicate detection.
 
+## Agent tool contract
+
+`task_start` accepts one command and an optional project-relative `cwd`; absolute paths and traversal outside the project are rejected. Readiness is one `ready` object with `kind: "url"`, `"detected_url"`, or `"pattern"`. Agent-started tasks always publish asynchronous updates.
+
+Use `task_status({ tasks: [idOrName] })` for selected tasks, or omit `tasks` to list active tasks. Use `task_logs({ task, mode, cursor })`; `cursor` pages backward in recent/error/warning modes and forward in `since_cursor` mode. Use `task_control({ task, action })` to stop or restart through Nerve's safe process-tree policy.
+
 ## Supervision
 
 A task can define readiness by URL, first detected URL, or output pattern. The agent receives asynchronous status rather than polling. Dedicated views provide status and bounded streaming logs with cursor, error, warning, and first-failure modes. Runtime can be capped at up to 24 hours.

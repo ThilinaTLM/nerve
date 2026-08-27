@@ -247,7 +247,9 @@ export function outputLimitsFromDetails(details: unknown) {
 }
 
 export function outputArtifactsFromDetails(details: unknown) {
-  return outputLimitsFromDetails(details)?.artifacts ?? [];
+  return (outputLimitsFromDetails(details)?.artifacts ?? []).filter(
+    (artifact) => "kind" in artifact,
+  );
 }
 
 export function detailsTruncated(details: unknown): boolean {

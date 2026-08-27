@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import { webFetchCandidateFitsInline } from "../../result-projection/candidates/web.js";
 import {
   HTML_CONVERSION_MAX_INPUT_BYTES,
   HTML_CONVERSION_TIMEOUT_MS,
@@ -16,7 +17,6 @@ import {
 import { ToolExecutionError } from "../common/tool-error.js";
 import { formatByteSize } from "../common/truncate.js";
 
-const MAX_INLINE_BYTES = 512 * 1024;
 const MAX_RESPONSE_BYTES = HTML_CONVERSION_MAX_INPUT_BYTES;
 const MAX_REDIRECTS = 5;
 
@@ -61,14 +61,33 @@ function isTextType(contentType: string): boolean {
   );
 }
 
+function formatKindForContent(
+  contentType: string,
+): "text" | "json" | "image" | "binary" {
+  const base = baseContentType(contentType);
+  if (base === "application/json") return "json";
+  if (
+    base.startsWith("text/") ||
+    base.includes("xml") ||
+    base.includes("javascript")
+  )
+    return "text";
+  if (["image/jpeg", "image/png", "image/gif", "image/webp"].includes(base))
+    return "image";
+  return "binary";
+}
+
 function isHtml(contentType: string): boolean {
   return baseContentType(contentType) === "text/html";
 }
 
 function saveDir(context: ToolExecutionContext): string {
-  return context.dataDir
-    ? join(context.dataDir, "tmp", "web-fetch")
-    : join(tmpdir(), "nerve-web-fetch");
+  return (
+    context.artifactDir ??
+    (context.dataDir
+      ? join(context.dataDir, "tmp", "web-fetch")
+      : join(tmpdir(), "nerve-web-fetch"))
+  );
 }
 
 function tmpPath(
@@ -86,9 +105,12 @@ function lineCount(text: string): number {
 }
 
 function savedContentLimits(
-  kind: "fetched_content",
   path: string,
   content: Buffer | string,
+  contentType: string,
+  formatKind: "markdown" | "text" | "json" | "image" | "binary",
+  role: "primary_result" | "supporting_data" = "primary_result",
+  label = "Fetched content",
 ) {
   const text = typeof content === "string" ? content : undefined;
   const bytes =
@@ -111,12 +133,25 @@ function savedContentLimits(
     },
     artifacts: [
       {
-        kind,
+        id: "fetched_content",
+        role,
         path,
-        label: "Fetched content",
+        format: {
+          kind: formatKind,
+          mediaType: contentType,
+          ...(["markdown", "text", "json"].includes(formatKind)
+            ? { encoding: "utf-8" as const }
+            : {}),
+        },
+        label,
         bytes,
-        chars: text?.length,
         lines: text ? lineCount(text) : undefined,
+        recommendedTools:
+          formatKind === "image"
+            ? (["read"] as const)
+            : ["markdown", "text", "json"].includes(formatKind)
+              ? (["read", "grep"] as const)
+              : ([] as const),
       },
     ],
   };
@@ -268,9 +303,10 @@ export async function executeWebFetch(
   if (raw) {
     details.savedTo = await saveContent(context, url, ext, buffer);
     details.outputLimits = savedContentLimits(
-      "fetched_content",
       details.savedTo,
       buffer,
+      contentType,
+      formatKindForContent(contentType),
     );
     const content = `Raw content saved to: ${details.savedTo}\nSize: ${formatByteSize(size)}\nContent-Type: ${contentType}`;
     return {
@@ -283,9 +319,10 @@ export async function executeWebFetch(
   if (!isTextType(contentType)) {
     details.savedTo = await saveContent(context, url, ext, buffer);
     details.outputLimits = savedContentLimits(
-      "fetched_content",
       details.savedTo,
       buffer,
+      contentType,
+      formatKindForContent(contentType),
     );
     const content = `Binary content saved to: ${details.savedTo}\nSize: ${formatByteSize(size)}\nContent-Type: ${contentType}\nUse the read tool to inspect it.`;
     return {
@@ -295,13 +332,27 @@ export async function executeWebFetch(
     };
   }
 
-  let text = buffer.toString("utf8");
+  const rawText = buffer.toString("utf8");
+  let text = rawText;
+  let prettyJson = false;
+  if (baseContentType(contentType) === "application/json") {
+    try {
+      const formatted = JSON.stringify(JSON.parse(rawText) as unknown, null, 2);
+      if (formatted !== rawText) {
+        text = formatted;
+        prettyJson = true;
+        details.converted = true;
+      }
+    } catch {
+      // Invalid JSON remains exact text and is handled as ordinary prose.
+    }
+  }
   if (isHtml(contentType)) {
     text = await isolatedHtmlToMarkdown(text, { signal });
     details.converted = true;
   }
 
-  if (Buffer.byteLength(text) <= MAX_INLINE_BYTES) {
+  if (webFetchCandidateFitsInline(details, text)) {
     return {
       content: text,
       contentBlocks: [{ type: "text", text }],
@@ -311,11 +362,34 @@ export async function executeWebFetch(
 
   const saveExt = details.converted ? ".md" : ext;
   details.savedTo = await saveContent(context, url, saveExt, text);
-  details.outputLimits = savedContentLimits(
-    "fetched_content",
+  const primaryLimits = savedContentLimits(
     details.savedTo,
     text,
+    details.converted && !prettyJson ? "text/markdown" : contentType,
+    details.converted && !prettyJson
+      ? "markdown"
+      : formatKindForContent(contentType),
   );
+  details.outputLimits = primaryLimits;
+  if (prettyJson) {
+    const rawPath = await saveContent(context, url, ".raw.json", buffer);
+    const rawLimits = savedContentLimits(
+      rawPath,
+      buffer,
+      contentType,
+      "json",
+      "supporting_data",
+      "Exact raw JSON response",
+    );
+    details.rawSavedTo = rawPath;
+    details.outputLimits = {
+      ...primaryLimits,
+      artifacts: [
+        ...(primaryLimits.artifacts ?? []),
+        ...(rawLimits.artifacts ?? []),
+      ],
+    };
+  }
   const content = `Response saved to: ${details.savedTo}\nSize: ${formatByteSize(Buffer.byteLength(text))}${details.converted ? " (converted to markdown)" : ""}\nThe content is large — use grep or read to inspect it.`;
   return { content, contentBlocks: [{ type: "text", text: content }], details };
 }
