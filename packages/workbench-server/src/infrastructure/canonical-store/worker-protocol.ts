@@ -1,4 +1,3 @@
-import type { PermissionRule } from "@nervekit/contracts";
 import type { ConversationJournalCommit } from "@nervekit/contracts";
 import type {
   ConversationPersistenceDelta,
@@ -33,13 +32,6 @@ export type CanonicalCommand =
       scopeId: string;
       documentId: string;
       expectedRevision?: number;
-    }
-  | { kind: "list_permission_rules"; projectId?: string }
-  | {
-      kind: "replace_permission_rules";
-      scope: "user" | "project";
-      projectId?: string;
-      rules: PermissionRule[];
     }
   | {
       kind: "append_durable_event";
@@ -99,7 +91,6 @@ export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "list_documents",
   "list_conversation_journal_ids",
   "read_conversation_journal",
-  "list_permission_rules",
   "durable_event_for_intent",
   "read_durable_events",
   "durable_event_bounds",

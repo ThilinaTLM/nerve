@@ -1,5 +1,4 @@
 import { Worker } from "node:worker_threads";
-import type { PermissionRule } from "@nervekit/contracts";
 import type { CanonicalDocument } from "./canonical-database.js";
 import type {
   CanonicalCommand,
@@ -165,22 +164,6 @@ export class CanonicalStore {
         documentId,
         expectedRevision,
       },
-      true,
-    );
-  }
-  listPermissionRules(projectId?: string) {
-    return this.request<PermissionRule[]>({
-      kind: "list_permission_rules",
-      projectId,
-    });
-  }
-  replacePermissionRules(
-    scope: "user" | "project",
-    projectId: string | undefined,
-    rules: PermissionRule[],
-  ) {
-    return this.request<void>(
-      { kind: "replace_permission_rules", scope, projectId, rules },
       true,
     );
   }

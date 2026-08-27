@@ -1,7 +1,16 @@
-export const CANONICAL_SCHEMA_VERSION = 1;
-export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
-export const CANONICAL_SCHEMA_CHECKSUM =
+export const CANONICAL_SCHEMA_VERSION = 2;
+export const CANONICAL_BASELINE_NAME = "nerve-home-v2";
+export const CANONICAL_SCHEMA_V1_CHECKSUM =
   "c6bfbb3901f4a51992de7baf11d11fa797ecc8063fa883d1fb6fb7d2e07d8433";
+export const CANONICAL_SCHEMA_CHECKSUM =
+  "368532728f350a7ac8d76ef5a91b7b76f902024c2096be65e37eef121e4402b0";
+export const CANONICAL_V1_TO_V2_MIGRATION_NAME =
+  "drop-redundant-canonical-tables";
+export const CANONICAL_V1_TO_V2_MIGRATION_SQL = `
+DROP INDEX IF EXISTS permission_rules_scope_tool;
+DROP TABLE IF EXISTS permission_rules;
+DROP TABLE IF EXISTS canonical_meta;
+`;
 export const CANONICAL_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,
@@ -9,11 +18,6 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   checksum TEXT NOT NULL CHECK(length(checksum) = 64),
   applied_at_ms INTEGER NOT NULL,
   duration_ms INTEGER NOT NULL CHECK(duration_ms >= 0)
-) STRICT;
-
-CREATE TABLE IF NOT EXISTS canonical_meta (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS conversation_records (
@@ -76,23 +80,6 @@ CREATE INDEX IF NOT EXISTS durable_events_stream_sequence
   ON durable_events(stream, stream_sequence);
 CREATE INDEX IF NOT EXISTS durable_events_conversation_sequence
   ON durable_events(conversation_id, stream_sequence);
-
-CREATE TABLE IF NOT EXISTS permission_rules (
-  id TEXT PRIMARY KEY,
-  scope TEXT NOT NULL CHECK(scope IN ('user','project')),
-  project_id TEXT,
-  effect TEXT NOT NULL CHECK(effect IN ('allow','deny')),
-  tool_name TEXT NOT NULL,
-  matcher_kind TEXT NOT NULL CHECK(matcher_kind IN ('whole_tool','path_glob','command_glob','url_glob')),
-  pattern TEXT NOT NULL,
-  source_digest TEXT CHECK(source_digest IS NULL OR length(source_digest) = 64),
-  enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
-  created_at_ms INTEGER NOT NULL,
-  updated_at_ms INTEGER NOT NULL,
-  CHECK((scope = 'project' AND project_id IS NOT NULL) OR (scope = 'user' AND project_id IS NULL))
-) STRICT;
-CREATE INDEX IF NOT EXISTS permission_rules_scope_tool
-  ON permission_rules(scope, project_id, tool_name, enabled);
 
 CREATE TABLE IF NOT EXISTS file_assets (
   id TEXT PRIMARY KEY,

@@ -770,17 +770,14 @@ Project configuration contains only project-portable values. Credentials, daemon
 
 Every file inside `<project>/.nerve/` derives its project scope from its enclosing project directory. It must not persist, require, compare, or trust a Nerve `projectId`, because project IDs belong to one local installation. Storage boundaries inject the active local project ID when constructing runtime or API objects and remove it before writing project-resident files. Project-scoped relational and runtime state under `NERVE_HOME` remains ID-based because it is installation-owned rather than repository-portable.
 
-### Project permission safety
+### Project permissions
 
-Project configuration is repository-controlled input and cannot silently grant itself authority merely because a repository was cloned or opened.
+Permission configuration has two authoritative file-backed sources:
 
-Nerve distinguishes:
+- project rules from `<project>/.nerve/config/permissions.json`;
+- user rules from `<NERVE_HOME>/config/permissions.json`.
 
-- project-requested rules from `<project>/.nerve/config/permissions.json`;
-- user-owned rules from `<NERVE_HOME>/config/permissions.json`;
-- hard application constraints that neither source can override.
-
-Project deny rules may take effect directly. Project allow rules require an explicit trust decision or user approval before they expand authority. User denies and hard constraints always win.
+Enabled rules from both sources participate directly in policy evaluation. Project configuration is repository-controlled input, so opening a project also accepts its enabled permission rules. User denies, deny precedence, and hard application constraints still apply and cannot be displaced by project allows.
 
 ## Configuration precedence
 

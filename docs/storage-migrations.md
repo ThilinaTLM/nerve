@@ -10,7 +10,7 @@ The framework covers all Nerve-owned durable data, but not all data belongs phys
 | -------------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
 | Settings and UI preferences                                                            | Canonical SQLite                       | Schema or versioned payload migration                                  |
 | Projects, conversations, agents, records, and durable events                           | Canonical SQLite                       | Schema or versioned record migration                                   |
-| Permission rules                                                                       | Canonical SQLite                       | Schema or versioned payload migration                                  |
+| User and project permission rules                                                      | `config/permissions.json` files        | Versioned configuration migration                                      |
 | Task definitions/state, scratch notes, provider profiles, and other queryable metadata | Canonical SQLite                       | Schema or versioned payload migration                                  |
 | API keys, OAuth tokens, and integration credentials                                    | `SecretProvider`, not plaintext SQLite | Explicit secret-name/format migration                                  |
 | Secret encryption key and local daemon authentication token                            | Restricted secret/bootstrap storage    | Explicit security migration; never copied into ordinary tables         |

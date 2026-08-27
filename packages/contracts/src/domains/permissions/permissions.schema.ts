@@ -100,7 +100,7 @@ export const permissionExceptionSchema = z
   });
 export type PermissionException = z.infer<typeof permissionExceptionSchema>;
 
-/** Canonical scoped permission rule persisted independently of settings. */
+/** Scoped permission rule normalized for policy evaluation. */
 export const permissionRuleScopeSchema = z.enum(["user", "project"]);
 export type PermissionRuleScope = z.infer<typeof permissionRuleScopeSchema>;
 
@@ -127,10 +127,6 @@ export const permissionRuleSchema = z
     toolName: z.string().trim().min(1).max(128),
     matcherKind: permissionRuleMatcherKindSchema,
     pattern: z.string().trim().min(1).max(1_024),
-    sourceDigest: z
-      .string()
-      .regex(/^[a-f0-9]{64}$/)
-      .optional(),
     enabled: z.boolean(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),

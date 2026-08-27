@@ -115,6 +115,22 @@ async function createCanonicalV3Home(home: string): Promise<void> {
       data BLOB NOT NULL,
       updated_at_ms INTEGER NOT NULL
     ) STRICT;
+    CREATE TABLE permission_rules (
+      id TEXT PRIMARY KEY,
+      scope TEXT NOT NULL CHECK(scope IN ('user','project')),
+      project_id TEXT,
+      effect TEXT NOT NULL CHECK(effect IN ('allow','deny')),
+      tool_name TEXT NOT NULL,
+      matcher_kind TEXT NOT NULL CHECK(matcher_kind IN ('whole_tool','path_glob','command_glob','url_glob')),
+      pattern TEXT NOT NULL,
+      source_digest TEXT CHECK(source_digest IS NULL OR length(source_digest) = 64),
+      enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
+      created_at_ms INTEGER NOT NULL,
+      updated_at_ms INTEGER NOT NULL,
+      CHECK((scope = 'project' AND project_id IS NOT NULL) OR (scope = 'user' AND project_id IS NULL))
+    ) STRICT;
+    CREATE INDEX permission_rules_scope_tool
+      ON permission_rules(scope, project_id, tool_name, enabled);
     DELETE FROM schema_migrations;
   `);
   database
