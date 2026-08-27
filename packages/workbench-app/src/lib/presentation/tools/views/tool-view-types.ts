@@ -307,6 +307,7 @@ export type ToolView =
       kind: "plan_mode";
       action: "enter" | "present" | "force_exit";
       summary?: string;
+      planPreview?: string;
       planPath?: string;
       outcome?: string;
     }

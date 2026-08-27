@@ -123,6 +123,7 @@ $effect(() => {
   const content = planReviewContent(
     displayedReview?.content,
     planReview?.content,
+    displayedReview?.summary ?? view.planPreview,
   );
   if (content.trim()) retainedReviewContent = content;
 });
@@ -131,7 +132,7 @@ const previewContent = $derived(
   planReviewContent(
     displayedReview?.content,
     planReview?.content,
-    retainedReviewContent || displayedReview?.summary,
+    retainedReviewContent || displayedReview?.summary || view.planPreview,
   ),
 );
 const preview = $derived(
