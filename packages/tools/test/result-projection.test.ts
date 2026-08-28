@@ -685,6 +685,27 @@ describe("adaptive agent tool-result projection", () => {
     assert.match(output, new RegExp(feedback));
   });
 
+  it("distinguishes denial sources and preserves cancellation outcomes", () => {
+    const terminal = (
+      status: CandidateContext["status"],
+      denialSource?: CandidateContext["denialSource"],
+    ) =>
+      text(
+        projectAgentResult({
+          ...context("bash", undefined),
+          status,
+          phase: status === "cancelled" ? "cancelled" : "denied",
+          error: "Terminal reason.",
+          denialSource,
+        }).blocks,
+      );
+
+    assert.match(terminal("denied", "user"), /^User denied/);
+    assert.match(terminal("denied", "policy"), /^Permission policy denied/);
+    assert.match(terminal("denied"), /^The requested tool call was denied/);
+    assert.match(terminal("cancelled"), /^Tool execution was cancelled/);
+  });
+
   it("projects Explore tasks independently without a call-level ceiling", () => {
     const reports = Array.from({ length: 8 }, (_, index) => ({
       agentId: `agent_${index}`,

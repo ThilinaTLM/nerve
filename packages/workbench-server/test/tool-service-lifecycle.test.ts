@@ -4,7 +4,11 @@ import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import type { AgentRecord } from "@nervekit/contracts";
+import type {
+  AgentRecord,
+  ToolCallRecord,
+  ToolCallTranscriptRecord,
+} from "@nervekit/contracts";
 import { defaultSettings } from "@nervekit/contracts";
 import { ToolService } from "../src/domains/tools/tool-service.js";
 import { storagePaths } from "../src/infrastructure/storage/index.js";
@@ -179,6 +183,71 @@ describe("tool service lifecycle", () => {
     );
   });
 
+  it("retains agent previews for policy and user denials", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-denials-"));
+    const readOnlyAgent = agent("read_only");
+    const { service } = buildToolService(home, readOnlyAgent);
+
+    const policy = await service.requestTool(readOnlyAgent, "bash", {
+      command: "printf x > file.txt",
+    });
+    assert.equal(policy.toolCall.status, "denied");
+    assert.equal(policy.toolCall.phase, "denied");
+    assert.match(
+      previewText(policy.toolCall),
+      /^Permission policy denied the requested tool call\./,
+    );
+    assert.equal(policy.toolCall.agentProjection?.profile, "terminal_outcome");
+    assert.equal(policy.toolCall.resultPayload, undefined);
+
+    const supervisedAgent = agent("autonomous");
+    const { service: approvalService } = buildToolService(
+      await mkdtemp(join(tmpdir(), "nerve-tool-user-denial-")),
+      supervisedAgent,
+    );
+    const pending = await approvalService.requestTool(
+      supervisedAgent,
+      "todos_set",
+      { todos: [{ todo: "do not apply", done: false }] },
+      { forceApproval: true, durableSuspend: true },
+    );
+    const denied = await approvalService.denyApproval(
+      pending.approval!.id,
+      "Not now.",
+    );
+    assert.equal(denied.status, "denied");
+    assert.equal(denied.supervision?.source, "user");
+    assert.match(previewText(denied), /^User denied the requested tool call\./);
+    assert.equal(denied.resultPayload, undefined);
+  });
+
+  it("retains an agent preview when resolving an approval denial", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-resolution-denial-"));
+    const testAgent = agent("autonomous");
+    const { service } = buildToolService(home, testAgent);
+    const pending = await service.requestTool(
+      testAgent,
+      "todos_set",
+      { todos: [{ todo: "do not apply", done: false }] },
+      { forceApproval: true, durableSuspend: true },
+    );
+
+    const denied = await service.resolveInteraction({
+      toolCallId: pending.toolCall.id,
+      interactionOrdinal: 0,
+      expectedRevision: pending.toolCall.revision,
+      resolutionRequestId: "deny-resolution-1",
+      resolution: { kind: "approval", action: "deny", note: "No." },
+    });
+
+    assert.equal(denied.status, "denied");
+    assert.equal(denied.interactions[0]?.status, "resolved");
+    assert.equal(denied.supervision?.status, "denied");
+    assert.equal(denied.supervision?.source, "user");
+    assert.match(previewText(denied), /^User denied the requested tool call\./);
+    assert.equal(denied.resultPayload, undefined);
+  });
+
   it("cancels pending interactions when terminalizing a run", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-terminalize-"));
     const testAgent = agent("autonomous");
@@ -214,8 +283,20 @@ describe("tool service lifecycle", () => {
     assert.equal(terminal?.interactions[0]?.status, "cancelled");
     assert.ok(terminal?.interactions[0]?.cancelledAt);
     assert.ok(terminal?.settledAt);
+    assert.match(previewText(terminal), /^Tool execution was cancelled\./);
+    assert.equal(terminal?.agentProjection?.profile, "terminal_outcome");
+    assert.equal(terminal?.resultPayload, undefined);
   });
 });
+
+function previewText(toolCall: ToolCallRecord | undefined): string {
+  return (
+    toolCall?.agentPreview?.blocks
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("\n") ?? ""
+  );
+}
 
 function buildToolService(
   home: string,
@@ -226,6 +307,7 @@ function buildToolService(
   },
 ) {
   const events: Array<{ type: string; data: unknown }> = [];
+  const previews = new Map<string, ToolCallTranscriptRecord>();
   const service = new ToolService(
     {
       paths: storagePaths(home),
@@ -237,7 +319,11 @@ function buildToolService(
         events.push({ type, data }),
     }) as never,
     {
-      upsertToolCall: () => undefined,
+      upsertToolCall: (
+        record: ToolCallRecord,
+        preview: ToolCallTranscriptRecord,
+      ) => previews.set(record.id, preview),
+      listToolCallPreviews: () => [...previews.values()],
       upsertApproval: () => undefined,
       writeToolCallSnapshot: () => undefined,
       isToolCallSnapshotValid: () => ({ valid: false, reason: "no-meta" }),
