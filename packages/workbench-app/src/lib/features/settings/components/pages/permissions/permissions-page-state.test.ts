@@ -79,6 +79,23 @@ describe("PermissionsPageState", () => {
     };
     assert.equal(await state.add("user", rule), true);
     assert.equal(saved.rules[0]?.id, "allow-write");
+    const replacement = {
+      ...saved.rules[0]!,
+      when: {
+        toolNames: ["write"],
+        arguments: [
+          {
+            path: "args.path" as const,
+            operator: "glob" as const,
+            value: "docs/**",
+          },
+        ],
+      },
+      decision: "prompt" as const,
+    };
+    assert.equal(await state.update("user", "allow-write", replacement), true);
+    assert.deepEqual(saved.rules[0]?.when, replacement.when);
+    assert.equal(saved.rules[0]?.decision, "prompt");
     await state.remove("user", "allow-write");
     assert.deepEqual(saved.rules, []);
   });

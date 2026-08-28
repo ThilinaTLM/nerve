@@ -31,6 +31,8 @@ export function openPendingConversation(
         selectedThinkingLevel: conversationState.selectedThinkingLevel,
         selectedMode: conversationState.selectedMode,
         selectedPermissionLevel: conversationState.selectedPermissionLevel,
+        selectedPermissionRuleSetId:
+          conversationState.selectedPermissionRuleSetId,
       };
   conversationState.pendingConversations[pendingConversationKey(id)] = {
     id,
@@ -42,6 +44,7 @@ export function openPendingConversation(
     thinkingLevel: defaults.selectedThinkingLevel,
     mode: initialMode ?? defaults.selectedMode,
     permissionLevel: defaults.selectedPermissionLevel,
+    permissionRuleSetId: defaults.selectedPermissionRuleSetId,
     sending: false,
     createdAt: new Date().toISOString(),
   };
@@ -62,6 +65,7 @@ export function selectPendingConversation(pendingId: string) {
   conversationState.selectedThinkingLevel = pending.thinkingLevel;
   conversationState.selectedMode = pending.mode;
   conversationState.selectedPermissionLevel = pending.permissionLevel;
+  conversationState.selectedPermissionRuleSetId = pending.permissionRuleSetId;
   clearTranscriptState();
   workspaceState.error = pending.error;
 }

@@ -60,7 +60,10 @@ let {
   micShortcutToken = 0,
   thinkingLevel = "off",
   mode = "coding",
-  permissionLevel = "autonomous",
+  permissionRuleSetId = "autonomous",
+  permissionRuleSets = [],
+  permissionRuleSetsLoading = false,
+  permissionRuleSetsError,
   slashCompletions = [],
   fileCompletions,
   composerSuggestions = [],
@@ -77,7 +80,8 @@ let {
   onModelChange,
   onThinkingLevelChange,
   onModeChange,
-  onPermissionChange,
+  onPermissionRuleSetChange,
+  onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
   onGrantApproval,
   onDenyApproval,
@@ -261,7 +265,10 @@ function menuForTranscript(
       selectedModelKey,
       thinkingLevel,
       mode,
-      permissionLevel,
+      permissionRuleSetId,
+      permissionRuleSets,
+      permissionRuleSetsLoading,
+      permissionRuleSetsError,
       contextUsage,
       conversationUsage,
       contextWindow,
@@ -319,7 +326,10 @@ function menuForTranscript(
       {micShortcutToken}
       {thinkingLevel}
       {mode}
-      {permissionLevel}
+      {permissionRuleSetId}
+      {permissionRuleSets}
+      {permissionRuleSetsLoading}
+      {permissionRuleSetsError}
       {slashCompletions}
       {fileCompletions}
       {composerSuggestions}
@@ -332,7 +342,8 @@ function menuForTranscript(
       {onModelChange}
       {onThinkingLevelChange}
       {onModeChange}
-      {onPermissionChange}
+      {onPermissionRuleSetChange}
+      {onRefreshPermissionRuleSets}
       {onOpenPermissionSettings}
     />
   {/snippet}

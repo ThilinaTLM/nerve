@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "planning",
   "name": "Planning",
-  "description": "Allow reads, interaction, and writes wholly within the plans directory.",
+  "description": "Allow reads, interaction, Explore, and writes wholly within the plans directory.",
   "source": "builtin",
   "enabled": true,
   "compatibleModes": ["planning"],
@@ -34,6 +34,14 @@
           }
         }
       },
+      "decision": "allow"
+    },
+    {
+      "id": "allow-explore",
+      "enabled": true,
+      "priority": 150,
+      "enforcement": "overridable",
+      "when": { "toolNames": ["explore"] },
       "decision": "allow"
     },
     {

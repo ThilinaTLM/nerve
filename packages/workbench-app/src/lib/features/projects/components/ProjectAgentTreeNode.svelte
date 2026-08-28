@@ -5,6 +5,7 @@ import type { ConversationActivityState } from "$lib/kernel/conversations/activi
 import { conversationActivityForRecord } from "$lib/kernel/conversations/activity";
 import type { ConversationRow } from "$lib/kernel/utils/project-tree";
 import { shortAgentModel } from "$lib/kernel/utils/project-tree";
+import { permissionRuleSetDisplayName } from "$lib/kernel/permissions/permission-rule-set-options";
 import ConversationStatusIndicator from "./ConversationStatusIndicator.svelte";
 
 type Props = {
@@ -40,13 +41,15 @@ const dotActivity = $derived(
 );
 const mode = $derived(row.agent?.mode ?? row.conversation.mode);
 const permission = $derived(
-  row.agent?.permissionLevel ?? row.conversation.permissionLevel,
+  row.agent?.permissionRuleSetId ??
+    row.agent?.permissionLevel ??
+    row.conversation.permissionLevel,
 );
 const tooltip = $derived(
   [
     row.conversation.title,
     `status: ${dotActivity.label ?? status}`,
-    `mode: ${mode} · ${permission}`,
+    `mode: ${mode} · rule set: ${permissionRuleSetDisplayName(permission)}`,
     `model: ${shortAgentModel(row.agent)}`,
     row.conversation.id,
   ].join("\n"),

@@ -67,7 +67,7 @@ export const tourSteps: readonly TourStep[] = [
   {
     id: "permission",
     introducedIn: 1,
-    title: "Choose a permission level",
+    title: "Choose a permission rule set",
     description:
       "Permission controls whether the agent can only read, asks before tool calls, or works autonomously. You can change it before sending a prompt.",
     targetId: "composer-permission",

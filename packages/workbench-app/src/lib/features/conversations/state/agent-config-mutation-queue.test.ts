@@ -77,6 +77,7 @@ describe("agent config mutation queue", () => {
     queue.enqueue("agent_1", {
       mode: "planning",
       permissionLevel: "read_only",
+      permissionRuleSetId: "read_only",
     });
     await settle();
     assert.equal(pending.length, 1);
@@ -84,9 +85,16 @@ describe("agent config mutation queue", () => {
     pending[0]?.resolve(agentRecord({ mode: "planning" }));
     await settle();
     assert.equal(pending.length, 2);
-    assert.deepEqual(pending[1]?.patch, { permissionLevel: "read_only" });
+    assert.deepEqual(pending[1]?.patch, {
+      permissionLevel: "read_only",
+      permissionRuleSetId: "read_only",
+    });
     pending[1]?.resolve(
-      agentRecord({ mode: "planning", permissionLevel: "read_only" }),
+      agentRecord({
+        mode: "planning",
+        permissionLevel: "read_only",
+        permissionRuleSetId: "read_only",
+      }),
     );
     await settle();
     assert.equal(installed.length, 2);

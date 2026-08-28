@@ -15,6 +15,10 @@ type Dependencies = {
     overlay: PermissionOverlay,
   ): Promise<PermissionOverlay>;
   updateTrust(projectId: string, trusted: boolean): Promise<void>;
+  onConfigurationLoaded?(
+    projectId: string,
+    configuration: PermissionPolicyConfiguration,
+  ): void;
 };
 
 export class PermissionsPageState {
@@ -39,6 +43,10 @@ export class PermissionsPageState {
   retry(): void {
     if (!this.project) return;
     void this.load(this.project.id, ++this.generation);
+  }
+
+  refresh(): void {
+    this.retry();
   }
 
   rules(scope: PermissionScope): PermissionRule[] {
@@ -81,6 +89,33 @@ export class PermissionsPageState {
       [...current, { ...input, priority }],
       `${scope}:${input.id}`,
     );
+  }
+
+  async update(
+    scope: PermissionScope,
+    originalId: string,
+    replacement: PermissionRule,
+  ): Promise<boolean> {
+    const current = this.rules(scope);
+    const index = current.findIndex((rule) => rule.id === originalId);
+    if (index === -1) {
+      this.errorMessage = "The permission rule no longer exists.";
+      return false;
+    }
+    if (
+      current.some(
+        (candidate, candidateIndex) =>
+          candidateIndex !== index &&
+          candidate.enforcement === replacement.enforcement &&
+          JSON.stringify(candidate.when) === JSON.stringify(replacement.when),
+      )
+    ) {
+      this.errorMessage = "An identical matcher already exists in this scope.";
+      return false;
+    }
+    const rules = [...current];
+    rules[index] = replacement;
+    return this.save(scope, rules, `${scope}:${originalId}`);
   }
 
   async setTrusted(trusted: boolean): Promise<void> {
@@ -144,6 +179,7 @@ export class PermissionsPageState {
       if (generation !== this.generation || this.project?.id !== projectId)
         return;
       this.configuration = configuration;
+      this.dependencies.onConfigurationLoaded?.(projectId, configuration);
       this.errorMessage = undefined;
     } catch (error) {
       if (generation !== this.generation || this.project?.id !== projectId)

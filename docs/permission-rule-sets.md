@@ -449,13 +449,13 @@ Built-in permission rule sets are versioned, immutable JSON resources. They use 
 
 The built-in behavior is:
 
-| Rule set   | Stable ID    | Availability  | `interaction` | `read` | Plan-directory `write` or `edit` | Other base risk |
-| ---------- | ------------ | ------------- | ------------- | ------ | -------------------------------- | --------------- |
-| Baseline   | `baseline`   | Always active | Allow         | Prompt | Prompt                           | Prompt          |
-| Read only  | `read_only`  | Coding        | Allow         | Allow  | Deny                             | Deny            |
-| Supervised | `supervised` | Coding        | Allow         | Allow  | Prompt                           | Prompt          |
-| Autonomous | `autonomous` | Coding        | Allow         | Allow  | Allow                            | Allow           |
-| Planning   | `planning`   | Planning      | Allow         | Allow  | Allow                            | Deny            |
+| Rule set   | Stable ID    | Availability  | `interaction` | `read` | Explore | Plan-directory `write` or `edit` | Other base risk |
+| ---------- | ------------ | ------------- | ------------- | ------ | ------- | -------------------------------- | --------------- |
+| Baseline   | `baseline`   | Always active | Allow         | Prompt | Prompt  | Prompt                           | Prompt          |
+| Read only  | `read_only`  | Coding        | Allow         | Allow  | Allow   | Deny                             | Deny            |
+| Supervised | `supervised` | Coding        | Allow         | Allow  | Prompt  | Prompt                           | Prompt          |
+| Autonomous | `autonomous` | Coding        | Allow         | Allow  | Allow   | Allow                            | Allow           |
+| Planning   | `planning`   | Planning      | Allow         | Allow  | Allow   | Allow                            | Deny            |
 
 User-question and interaction tools are automatically allowed because their execution is itself a human-interaction boundary. Remote reads retain the static `network` base risk and therefore follow the non-read column.
 
@@ -488,7 +488,7 @@ Baseline is distinct from every selectable rule set.
 
 ### Read only
 
-Read only never prompts from its own rules. It automatically allows interaction and `read` tools, then denies every other base risk, including `write`, `network`, and `unknown`:
+Read only never prompts from its own rules. It automatically allows interaction tools, `read` tools, and the Explore tool, then denies every other request, including `write`, `network`, and opaque execution. Explore remains statically classified as `agent_spawn`; this is an explicit tool-name allowance rather than a risk reclassification:
 
 ```json
 [
@@ -498,6 +498,14 @@ Read only never prompts from its own rules. It automatically allows interaction 
     "priority": 200,
     "enforcement": "overridable",
     "when": { "baseRisks": ["interaction"] },
+    "decision": "allow"
+  },
+  {
+    "id": "allow-explore",
+    "enabled": true,
+    "priority": 150,
+    "enforcement": "overridable",
+    "when": { "toolNames": ["explore"] },
     "decision": "allow"
   },
   {
@@ -571,7 +579,7 @@ Autonomous does not make malformed, invalid, or unavailable tool calls executabl
 
 ### Planning
 
-Planning automatically allows interaction and `read` tools. It also allows the `write` and `edit` tools when at least one write target exists and every affected write target is under the global plans directory. It denies every other request without prompting, including writes outside the plans directory and `unknown` risk:
+Planning automatically allows interaction tools, `read` tools, and the Explore tool. It also allows the `write` and `edit` tools when at least one write target exists and every affected write target is under the global plans directory. It denies every other request without prompting, including writes outside the plans directory and opaque execution. Explore remains statically classified as `agent_spawn`; this is an explicit tool-name allowance:
 
 ```json
 [
@@ -605,6 +613,14 @@ Planning automatically allows interaction and `read` tools. It also allows the `
     "decision": "allow"
   },
   {
+    "id": "allow-explore",
+    "enabled": true,
+    "priority": 150,
+    "enforcement": "overridable",
+    "when": { "toolNames": ["explore"] },
+    "decision": "allow"
+  },
+  {
     "id": "allow-read",
     "enabled": true,
     "priority": 100,
@@ -623,7 +639,7 @@ Planning automatically allows interaction and `read` tools. It also allows the `
 ]
 ```
 
-The existing product term “permission level” may be presented in UI, but each level maps directly to one built-in permission rule-set ID. It does not represent a separate policy data type.
+Legacy persisted `permissionLevel` fields map directly to built-in permission rule-set IDs and remain compatibility data only. User interfaces present permission rule sets rather than a separate permission-level concept.
 
 ## Effective-policy composition
 
@@ -774,7 +790,7 @@ Coding mode may expose the built-in Read only, Supervised, and Autonomous rule s
 
 ### Planning mode
 
-Planning mode selects the built-in Planning rule set. It automatically allows interaction and `read` tools plus `write` or `edit` requests wholly contained by the plans directory, then denies every other request without prompting.
+Planning mode selects the built-in Planning rule set. It automatically allows interaction tools, `read` tools, Explore, and `write` or `edit` requests wholly contained by the plans directory, then denies every other request without prompting.
 
 Planning behavior is represented entirely by its selected Planning rule set. The generic evaluator receives that rule set without importing planning-mode logic. Because Planning contains only overridable rules, user, project, and conversation overlays may replace its decisions according to normal precedence. A user who needs a non-overridable restriction defines a guardrail in the user overlay.
 
@@ -875,7 +891,8 @@ For the existing Explore tool:
 - the parent requests the Explore tool normally;
 - rules may allow, prompt, or deny that tool by name, group, `agent_spawn` risk, primary target, or arguments;
 - Explore always creates its child with the fixed Read only rule set;
-- the parent does not select or modify the Explore child's rule set.
+- the parent does not select or modify the Explore child's rule set;
+- Explore children retain their restricted read-tool catalog, which does not expose Explore recursively even though the Read only policy permits a parent-thread Explore call.
 
 Future sub-agent tools follow the same model. A sub-agent definition may have a fixed rule set or a user-configured rule set. That choice belongs to persistent sub-agent configuration, not agent-controlled tool arguments unless a future tool explicitly exposes and secures such selection.
 
@@ -979,7 +996,7 @@ This feature has not shipped to external users. Implementation does not migrate,
 
 The target system must support at least the following behaviors:
 
-1. **Read-only coding:** interaction and `read` tools are automatic; `write`, `network`, `unknown`, and every other base risk are denied without prompting.
+1. **Read-only coding:** interaction tools, `read` tools, and Explore are automatic; `write`, `network`, `unknown`, and every other request are denied without prompting.
 2. **Supervised coding:** interaction and `read` tools are automatic; every other base risk prompts.
 3. **Autonomous coding:** every valid request is automatic unless a higher-precedence overlay or user guardrail replaces the built-in decision.
 4. **Network read:** Web fetch retains `network` risk, so Read only denies it and Supervised prompts unless an overlay allows it.
@@ -989,9 +1006,9 @@ The target system must support at least the following behaviors:
 8. **Conversation approval:** a prompted decision saved to conversation scope updates the conversation `permissions.json`, survives restarts, and does not modify project or user files.
 9. **Opaque execution:** Bash and Python retain `unknown` risk; an automatically generated permission matches the exact complete argument unless the user explicitly broadens it.
 10. **Structured targets:** a Planning write allow requires at least one write target and every write target under `${plansDir}`.
-11. **Planning:** Planning allows interaction, local reads, and plan-file `write` or `edit`, while denying other requests by default.
+11. **Planning:** Planning allows interaction, local reads, Explore, and plan-file `write` or `edit`, while denying other requests by default.
 12. **Portable policy:** moving `NERVE_HOME` does not require rewriting persisted symbolic path rules.
-13. **Explore:** the parent tool call is policy-controlled and every Explore child uses only the fixed Read only rule set, with no parent overlays.
+13. **Explore:** Read only and Planning explicitly allow the parent Explore call; every Explore child uses only the fixed Read only rule set, with no parent overlays.
 14. **Future implementation agent:** a read-only parent may invoke an allowed sub-agent whose persistent configuration selects a writing-capable rule set; the child receives no parent overlays.
 15. **Project trust:** cloning or externally modifying a repository overlay does not activate it without trusting its complete content digest.
 16. **Missing selection:** a missing or invalid selected custom rule set falls back to Baseline with a visible notification.

@@ -52,6 +52,7 @@ export type PendingConversationState = {
   thinkingLevel: AgentRecord["thinkingLevel"];
   mode: AgentRecord["mode"];
   permissionLevel: AgentRecord["permissionLevel"];
+  permissionRuleSetId: NonNullable<AgentRecord["permissionRuleSetId"]>;
   sending: boolean;
   error?: string;
   createdAt: string;
@@ -67,4 +68,7 @@ export const conversationState = $state({
   selectedThinkingLevel: "off" as AgentRecord["thinkingLevel"],
   selectedMode: "coding" as AgentRecord["mode"],
   selectedPermissionLevel: "autonomous" as AgentRecord["permissionLevel"],
+  selectedPermissionRuleSetId: "autonomous" as NonNullable<
+    AgentRecord["permissionRuleSetId"]
+  >,
 });

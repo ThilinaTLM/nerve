@@ -23,7 +23,7 @@ import {
   conversationSelectors,
   escapeComposer,
   setComposerMode,
-  setComposerPermission,
+  setComposerPermissionRuleSet,
   setComposerThinkingLevel,
   toggleComposerMic,
 } from "$lib/features/conversations";
@@ -54,6 +54,11 @@ import {
   workspaceState,
 } from "$lib/application/workspace";
 import { refreshCenterTab } from "$lib/app/shell/refresh-center-tab.svelte";
+import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
+import {
+  effectivePermissionRuleSetId,
+  selectablePermissionRuleSets,
+} from "$lib/kernel/permissions/permission-rule-set-options";
 
 type Props = {
   children?: Snippet;
@@ -70,8 +75,17 @@ const pendingConversationActive = $derived(
 );
 const selectedMode = $derived(conversationSelectors.selectedMode);
 const selectedModelKey = $derived(conversationSelectors.selectedModelKey);
-const selectedPermissionLevel = $derived(
-  conversationSelectors.selectedPermissionLevel,
+const selectedPermissionRuleSetId = $derived(
+  effectivePermissionRuleSetId(
+    conversationSelectors.selectedPermissionRuleSetId,
+    selectedMode,
+  ),
+);
+const permissionRuleSetIds = $derived(
+  selectablePermissionRuleSets(
+    permissionRuleSetCatalog.summaries(activeProject?.id),
+    selectedMode,
+  ).map((ruleSet) => ruleSet.id),
 );
 const selectedThinkingLevel = $derived(
   conversationSelectors.selectedThinkingLevel,
@@ -116,8 +130,9 @@ const appShortcuts = createAppShortcuts({
     compacting ? cancelActiveCompaction() : abortActiveRun(),
   composerEscape: escapeComposer,
   toggleMic: toggleComposerMic,
-  selectedPermissionLevel: () => selectedPermissionLevel,
-  setComposerPermission,
+  selectedPermissionRuleSetId: () => selectedPermissionRuleSetId,
+  permissionRuleSetIds: () => permissionRuleSetIds,
+  setComposerPermissionRuleSet,
   usableModels: () => usableModels,
   selectedModelKey: () => selectedModelKey,
   selectedThinkingLevel: () => selectedThinkingLevel,

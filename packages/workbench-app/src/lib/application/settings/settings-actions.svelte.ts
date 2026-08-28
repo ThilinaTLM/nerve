@@ -197,6 +197,8 @@ export function reconcileComposerSelectionFromSettings(): void {
   if (activeAgent) {
     conversationState.selectedMode = activeAgent.mode;
     conversationState.selectedPermissionLevel = activeAgent.permissionLevel;
+    conversationState.selectedPermissionRuleSetId =
+      activeAgent.permissionRuleSetId ?? activeAgent.permissionLevel;
     const activeModel = activeAgent.model;
     if (
       activeModel &&
@@ -213,6 +215,8 @@ export function reconcileComposerSelectionFromSettings(): void {
     conversationState.selectedMode = defaultSelection.selectedMode;
     conversationState.selectedPermissionLevel =
       defaultSelection.selectedPermissionLevel;
+    conversationState.selectedPermissionRuleSetId =
+      defaultSelection.selectedPermissionRuleSetId;
     conversationState.selectedModelKey = defaultSelection.selectedModelKey;
     conversationState.selectedThinkingLevel =
       defaultSelection.selectedThinkingLevel;

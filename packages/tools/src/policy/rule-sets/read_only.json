@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "read_only",
   "name": "Read only",
-  "description": "Allow interaction and local inspection; deny all other capabilities.",
+  "description": "Allow interaction, local inspection, and Explore; deny all other capabilities.",
   "source": "builtin",
   "enabled": true,
   "compatibleModes": ["coding"],
@@ -13,6 +13,14 @@
       "priority": 200,
       "enforcement": "overridable",
       "when": { "baseRisks": ["interaction"] },
+      "decision": "allow"
+    },
+    {
+      "id": "allow-explore",
+      "enabled": true,
+      "priority": 150,
+      "enforcement": "overridable",
+      "when": { "toolNames": ["explore"] },
       "decision": "allow"
     },
     {

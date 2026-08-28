@@ -28,6 +28,7 @@ import { ModelsPageState } from "$lib/features/settings/components/pages/models/
 import NotificationsSettingsPage from "$lib/features/settings/components/pages/notifications/NotificationsSettingsPage.svelte";
 import PermissionsSettingsPage from "$lib/features/settings/components/pages/permissions/PermissionsSettingsPage.svelte";
 import { PermissionsPageState } from "$lib/features/settings/components/pages/permissions/permissions-page-state.svelte";
+import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
 import {
   getPermissionPolicyConfiguration,
   updatePermissionOverlay,
@@ -117,6 +118,9 @@ const permissionsPageState = new PermissionsPageState({
   updateOverlay: updatePermissionOverlay,
   updateTrust: async (projectId, trusted) => {
     await updateProjectPermissionTrust(projectId, trusted);
+  },
+  onConfigurationLoaded: (projectId, configuration) => {
+    permissionRuleSetCatalog.install(projectId, configuration.ruleSets);
   },
 });
 
