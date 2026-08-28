@@ -6,7 +6,7 @@ import type {
   AgentRecord,
   PermissionException,
   PermissionLevel,
-  PermissionRule,
+  LegacyPermissionRule,
 } from "@nervekit/contracts";
 import { evaluateWorkbenchToolPermission } from "../src/domains/tools/permission/index.js";
 
@@ -169,7 +169,7 @@ describe("Workbench tool permission", () => {
 
   it("keeps explicit plan-write denials stronger than planning auto-allow", () => {
     const planPath = join(context.dataDir, "data", "plans", "blocked.md");
-    const rule: PermissionRule = {
+    const rule: LegacyPermissionRule = {
       id: "rule_block_plan_write",
       scope: "project",
       projectId: "proj_test",

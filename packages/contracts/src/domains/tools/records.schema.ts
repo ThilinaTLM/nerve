@@ -6,6 +6,13 @@ import {
   supervisionDecisionSchema,
   toolRiskSchema,
 } from "../permissions/permissions.schema.js";
+import {
+  permissionEvaluationResultSchema,
+  permissionRuleSchema,
+  permissionTargetKindSchema,
+  staticToolRiskSchema,
+  toolKindSchema,
+} from "../permissions/permission-rule-sets.schema.js";
 import { recordedToolNameSchema, toolNameSchema } from "./tool-name.schema.js";
 import {
   agentPreviewSnapshotSchema,
@@ -70,6 +77,12 @@ export type ToolTrait = z.infer<typeof toolTraitSchema>;
 
 export const toolDescriptorSchema = z.object({
   name: toolNameSchema,
+  kind: toolKindSchema,
+  groups: z.array(z.string().trim().min(1).max(128)).min(1),
+  baseRisk: staticToolRiskSchema,
+  primaryArguments: z.array(z.string().trim().min(1).max(128)),
+  targetKinds: z.array(permissionTargetKindSchema).min(1),
+  /** @deprecated Use baseRisk. */
   risk: toolRiskSchema,
   argumentSensitive: z.boolean().default(false),
   description: z.string(),
@@ -175,12 +188,14 @@ export const approvalToolInteractionSchema = interactionBaseSchema.extend({
           "same_tool_same_args",
           "run",
           "always",
+          "always_conversation",
           "always_project",
           "always_user",
         ]),
       )
-      .max(6),
+      .max(7),
     suggestedExceptions: z.array(permissionExceptionSchema).max(16).default([]),
+    suggestedRules: z.array(permissionRuleSchema).max(16).default([]),
   }),
   resolution: z
     .object({
@@ -192,6 +207,7 @@ export const approvalToolInteractionSchema = interactionBaseSchema.extend({
           "same_tool_same_args",
           "run",
           "always",
+          "always_conversation",
           "always_project",
           "always_user",
         ])
@@ -310,6 +326,8 @@ const toolCallRecordBaseSchema = z.object({
   /** Canonical lifecycle. `status` remains the bounded transcript projection. */
   phase: toolPhaseSchema.optional(),
   supervision: durableToolSupervisionSchema.optional(),
+  /** Immutable generic permission evidence captured when the call was drafted. */
+  permissionEvaluation: permissionEvaluationResultSchema.optional(),
   execution: durableToolExecutionSchema.optional(),
   revision: z.number().int().positive().safe(),
   attempt: z.number().int().nonnegative().safe(),
@@ -424,6 +442,7 @@ export type ToolCallTranscriptRecord = z.infer<
 
 export const approvalGrantScopeSchema = z.enum([
   "single_call",
+  "always_conversation",
   "always_project",
   "always_user",
 ]);
@@ -446,9 +465,10 @@ export const approvalRecordSchema = z.object({
   resolutionNote: z.string().max(4_096).optional(),
   offeredScopes: z
     .array(approvalGrantScopeSchema)
-    .max(3)
+    .max(4)
     .default(["single_call"]),
   suggestedExceptions: z.array(permissionExceptionSchema).max(16).default([]),
+  suggestedRules: z.array(permissionRuleSchema).max(16).default([]),
 });
 export type ApprovalRecord = z.infer<typeof approvalRecordSchema>;
 

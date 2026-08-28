@@ -5,6 +5,10 @@ import {
   modelSelectionSchema,
   thinkingLevelSchema,
 } from "../models/models.schema.js";
+import {
+  permissionOverlaySchema,
+  permissionRuleSetIdSchema,
+} from "../permissions/permission-rule-sets.schema.js";
 import { permissionLevelSchema } from "../permissions/permissions.schema.js";
 import {
   modelCostSchema,
@@ -44,6 +48,7 @@ const agentSelectionConfigSchema = z
   .object({
     mode: modeSchema,
     permissionLevel: permissionLevelSchema,
+    permissionRuleSetId: permissionRuleSetIdSchema.optional(),
     model: modelSelectionSchema.optional(),
     thinkingLevel: thinkingLevelSchema,
   })
@@ -177,12 +182,14 @@ export const defaultHarnessConfig: HarnessConfig = {
   defaults: {
     mode: "coding",
     permissionLevel: "autonomous",
+    permissionRuleSetId: "autonomous",
     thinkingLevel: "off",
   },
   rememberLastSelection: false,
   lastSelection: {
     mode: "coding",
     permissionLevel: "autonomous",
+    permissionRuleSetId: "autonomous",
     thinkingLevel: "off",
   },
   exploreAgent: { thinkingLevel: "off" },
@@ -283,15 +290,20 @@ export const permissionRuleConfigSchema = z
   .strict();
 export type PermissionRuleConfig = z.infer<typeof permissionRuleConfigSchema>;
 
-export const permissionsConfigSchema = z
+export const legacyPermissionsConfigSchema = z
   .object({
     version: z.literal(1),
     rules: z.array(permissionRuleConfigSchema).max(256),
   })
   .strict();
+export type LegacyPermissionsConfig = z.infer<
+  typeof legacyPermissionsConfigSchema
+>;
+
+export const permissionsConfigSchema = permissionOverlaySchema;
 export type PermissionsConfig = z.infer<typeof permissionsConfigSchema>;
 export const defaultPermissionsConfig: PermissionsConfig = {
-  version: 1,
+  schemaVersion: 1,
   rules: [],
 };
 

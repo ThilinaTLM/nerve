@@ -9,6 +9,7 @@ import {
   applicationSettingsSchema,
   defaultApplicationSettings,
 } from "./application-configuration.schema.js";
+import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.schema.js";
 import {
   permissionExceptionSchema,
   permissionLevelSchema,
@@ -30,6 +31,7 @@ export type HeaderType = z.infer<typeof headerTypeSchema>;
 export const agentSelectionSettingsSchema = z.object({
   mode: modeSchema,
   permissionLevel: permissionLevelSchema,
+  permissionRuleSetId: permissionRuleSetIdSchema.optional(),
   model: modelSelectionSchema.optional(),
   thinkingLevel: thinkingLevelSchema,
 });
@@ -225,6 +227,7 @@ export type TranscriptionSettings = z.infer<typeof transcriptionSettingsSchema>;
 export const settingsSchema = z.object({
   defaultMode: modeSchema,
   defaultPermissionLevel: permissionLevelSchema,
+  defaultPermissionRuleSetId: permissionRuleSetIdSchema.optional(),
   defaultModel: modelSelectionSchema.optional(),
   defaultThinkingLevel: thinkingLevelSchema,
   rememberLastAgentSelection: z.boolean(),
@@ -275,11 +278,13 @@ export type Settings = z.infer<typeof settingsSchema>;
 export const defaultSettings: Settings = {
   defaultMode: "coding",
   defaultPermissionLevel: "autonomous",
+  defaultPermissionRuleSetId: "autonomous",
   defaultThinkingLevel: "off",
   rememberLastAgentSelection: false,
   lastAgentSelection: {
     mode: "coding",
     permissionLevel: "autonomous",
+    permissionRuleSetId: "autonomous",
     thinkingLevel: "off",
   },
   exploreAgent: {
@@ -339,6 +344,7 @@ export const defaultSettings: Settings = {
 export const updateSettingsRequestSchema = z.object({
   defaultMode: modeSchema.optional(),
   defaultPermissionLevel: permissionLevelSchema.optional(),
+  defaultPermissionRuleSetId: permissionRuleSetIdSchema.optional(),
   defaultModel: modelSelectionSchema.nullable().optional(),
   defaultThinkingLevel: thinkingLevelSchema.optional(),
   rememberLastAgentSelection: z.boolean().optional(),
@@ -346,6 +352,7 @@ export const updateSettingsRequestSchema = z.object({
     .object({
       mode: modeSchema.optional(),
       permissionLevel: permissionLevelSchema.optional(),
+      permissionRuleSetId: permissionRuleSetIdSchema.optional(),
       model: modelSelectionSchema.nullable().optional(),
       thinkingLevel: thinkingLevelSchema.optional(),
     })

@@ -3,8 +3,8 @@ import type {
   Mode,
   NormalizedPermissionTarget,
   PermissionLevel,
-  PermissionRule,
-  PermissionRuleMatcherKind,
+  LegacyPermissionRule,
+  LegacyPermissionRuleMatcherKind,
   SupervisionDecision,
   ToolName,
   ToolRisk,
@@ -28,7 +28,7 @@ export interface ToolSupervisionInput {
   projectId: string;
   projectDir: string;
   cwd?: string;
-  rules: readonly PermissionRule[];
+  rules: readonly LegacyPermissionRule[];
   constraints?: readonly ToolPolicyConstraint[];
   evaluatedAt: string;
 }
@@ -90,7 +90,7 @@ export function evaluateToolSupervision(
       targets: definition.permission?.targets ?? [],
     },
     rules: applicableRules.map((rule) => {
-      const snapshot = { ...rule } as Partial<PermissionRule>;
+      const snapshot = { ...rule } as Partial<LegacyPermissionRule>;
       delete snapshot.createdAt;
       delete snapshot.updatedAt;
       return snapshot;
@@ -227,11 +227,11 @@ function validationFailure(
 }
 
 function coveringAllowRules(
-  rules: readonly PermissionRule[],
+  rules: readonly LegacyPermissionRule[],
   targets: readonly PermissionTarget[],
   durableAllow: "never" | "tool" | "target",
   risk: ToolRisk,
-): PermissionRule[] {
+): LegacyPermissionRule[] {
   if (durableAllow === "never" || NEVER_DURABLE_RISKS.has(risk)) return [];
   const allows = rules.filter((rule) => rule.effect === "allow");
   if (durableAllow === "tool") {
@@ -243,7 +243,7 @@ function coveringAllowRules(
     (target) => target.kind !== "command_segment" || target.risk !== "read",
   );
   if (required.length === 0) return [];
-  const matched = new Map<string, PermissionRule>();
+  const matched = new Map<string, LegacyPermissionRule>();
   for (const target of required) {
     const covering = allows.filter((rule) => ruleMatchesTarget(rule, target));
     if (covering.length === 0) return [];
@@ -253,7 +253,7 @@ function coveringAllowRules(
 }
 
 function ruleMatchesRequest(
-  rule: PermissionRule,
+  rule: LegacyPermissionRule,
   targets: readonly PermissionTarget[],
 ): boolean {
   if (rule.matcherKind === "whole_tool") return rule.pattern === "*";
@@ -261,7 +261,7 @@ function ruleMatchesRequest(
 }
 
 function ruleMatchesTarget(
-  rule: PermissionRule,
+  rule: LegacyPermissionRule,
   target: PermissionTarget,
 ): boolean {
   if (rule.matcherKind === "command_glob") {
@@ -293,7 +293,7 @@ function suggestedRules(
   input: ToolSupervisionInput,
   targets: readonly PermissionTarget[],
   risk: ToolRisk,
-): PermissionRule[] {
+): LegacyPermissionRule[] {
   const definition = requireToolDefinition(input.toolName);
   const durableAllow = definition.permission?.durableAllow ?? "tool";
   if (durableAllow === "never" || NEVER_DURABLE_RISKS.has(risk)) return [];
@@ -305,7 +305,7 @@ function suggestedRules(
     return [];
   }
   const drafts: Array<{
-    matcherKind: PermissionRuleMatcherKind;
+    matcherKind: LegacyPermissionRuleMatcherKind;
     pattern: string;
   }> = [];
   if (durableAllow === "tool") {
@@ -330,7 +330,7 @@ function suggestedRules(
       }
     }
   }
-  const unique = new Map<string, PermissionRule>();
+  const unique = new Map<string, LegacyPermissionRule>();
   for (const draft of drafts) {
     const identity = `${input.toolName}\0${draft.matcherKind}\0${draft.pattern}`;
     const id = `rule_${createHash("sha256").update(identity).digest("hex").slice(0, 24)}`;

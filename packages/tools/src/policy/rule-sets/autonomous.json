@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "autonomous",
+  "name": "Autonomous",
+  "description": "Allow every valid request unless an overlay replaces the decision.",
+  "source": "builtin",
+  "enabled": true,
+  "compatibleModes": ["coding"],
+  "rules": [
+    {
+      "id": "allow-all",
+      "enabled": true,
+      "priority": 0,
+      "enforcement": "overridable",
+      "when": {},
+      "decision": "allow"
+    }
+  ]
+}

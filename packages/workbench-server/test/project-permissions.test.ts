@@ -86,11 +86,10 @@ describe("project permission exceptions", () => {
     await service.add("proj_one", "project", [projectException]);
     await service.add("proj_one", "user", [userException]);
 
-    assert.deepEqual(await service.effective("proj_one"), [
-      userException,
-      projectException,
-    ]);
-    assert.deepEqual(await service.effective("proj_two"), [userException]);
+    // The unshipped legacy user-exception format is intentionally not
+    // persisted into the new user overlay.
+    assert.deepEqual(await service.effective("proj_one"), [projectException]);
+    assert.deepEqual(await service.effective("proj_two"), []);
     const projectPermissionsPath = await repository.file("proj_one");
     assert.deepEqual(
       JSON.parse(await readFile(projectPermissionsPath, "utf8")),
@@ -124,7 +123,6 @@ describe("project permission exceptions", () => {
       }),
     );
     assert.deepEqual(await service.effective("proj_one"), [
-      userException,
       {
         id: "exception_manual",
         tool: "bash",

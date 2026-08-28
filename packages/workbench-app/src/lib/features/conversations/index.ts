@@ -4,7 +4,7 @@ export { default as ConversationHistoryDialog } from "./components/ConversationH
 export type { ConversationActivityState } from "$lib/kernel/conversations/activity";
 export {
   setComposerMode,
-  setComposerPermission,
+  setComposerPermissionRuleSet,
   setComposerThinkingLevel,
 } from "./state/composer-config.svelte";
 export {

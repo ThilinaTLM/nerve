@@ -25,6 +25,7 @@ import {
 } from "$lib/presentation/panel";
 import type { AgentRecord } from "$lib/api";
 import { shortAgentModel } from "$lib/kernel/utils/project-tree";
+import { permissionRuleSetLabel } from "./context-session-fields";
 
 let {
   conversationAgents = [],
@@ -97,11 +98,11 @@ const PERMISSION_INDICATORS: Record<string, AgentIndicator["icon"]> = {
   read_only: Eye,
 };
 
-const PERMISSION_LABELS: Record<string, string> = {
-  autonomous: "Autonomous",
-  supervised: "Supervised",
-  read_only: "Read only",
-};
+function agentRuleSetId(agent: AgentRecord): string {
+  return agent.mode === "planning"
+    ? "planning"
+    : (agent.permissionRuleSetId ?? agent.permissionLevel);
+}
 
 function agentIndicators(agent: AgentRecord): AgentIndicator[] {
   const indicators: AgentIndicator[] = [
@@ -120,9 +121,10 @@ function agentIndicators(agent: AgentRecord): AgentIndicator[] {
     icon: agent.mode === "planning" ? ClipboardList : Code,
     label: agent.mode === "planning" ? "Planning mode" : "Coding mode",
   });
+  const ruleSetId = agentRuleSetId(agent);
   indicators.push({
-    icon: PERMISSION_INDICATORS[agent.permissionLevel] ?? Shield,
-    label: PERMISSION_LABELS[agent.permissionLevel] ?? agent.permissionLevel,
+    icon: PERMISSION_INDICATORS[ruleSetId] ?? Shield,
+    label: `Rule set: ${permissionRuleSetLabel(ruleSetId)}`,
   });
   return indicators;
 }
@@ -138,7 +140,7 @@ function agentTooltip(agent: AgentRecord): string {
   return [
     agent.id,
     `status: ${agent.status}`,
-    `mode: ${agent.mode} · ${PERMISSION_LABELS[agent.permissionLevel] ?? agent.permissionLevel}`,
+    `mode: ${agent.mode} · rule set: ${permissionRuleSetLabel(agentRuleSetId(agent))}`,
     `model: ${model}`,
     thinking,
     agent.task?.trim(),
@@ -150,7 +152,7 @@ function agentTooltip(agent: AgentRecord): string {
 /** Leading status indicator: a role icon tinted by the activity tone. */
 function agentStatusIcon(agent: AgentRecord): typeof HatGlasses {
   if (!agent.parentAgentId) return HatGlasses;
-  if (agent.permissionLevel === "supervised") return Glasses;
+  if (agentRuleSetId(agent) === "supervised") return Glasses;
   return Telescope;
 }
 

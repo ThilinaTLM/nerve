@@ -26,6 +26,7 @@ function isModeOnlyUpdate(
   return (
     request.mode !== undefined &&
     request.permissionLevel === undefined &&
+    request.permissionRuleSetId === undefined &&
     request.model === undefined &&
     request.thinkingLevel === undefined
   );
@@ -35,6 +36,7 @@ function isRuntimeConfigUpdate(request: UpdateAgentRequest): boolean {
   return (
     request.mode === undefined &&
     (request.permissionLevel !== undefined ||
+      request.permissionRuleSetId !== undefined ||
       request.model !== undefined ||
       request.thinkingLevel !== undefined)
   );
@@ -89,6 +91,9 @@ export class AgentLifecycleService {
       : {
           mode: effectiveSettings.defaultMode,
           permissionLevel: effectiveSettings.defaultPermissionLevel,
+          permissionRuleSetId:
+            effectiveSettings.defaultPermissionRuleSetId ??
+            effectiveSettings.defaultPermissionLevel,
           model: effectiveSettings.defaultModel,
           thinkingLevel: effectiveSettings.defaultThinkingLevel,
         };
@@ -119,6 +124,11 @@ export class AgentLifecycleService {
       rootAgentId: parent?.rootAgentId ?? id,
       mode,
       permissionLevel,
+      permissionRuleSetId:
+        request.permissionRuleSetId ??
+        (parent
+          ? "read_only"
+          : (defaultSelection.permissionRuleSetId ?? permissionLevel)),
       workspaceScope: request.workspaceScope ?? { roots: [projectDir] },
       systemPrompt: request.systemPrompt,
       task: request.task,
@@ -195,6 +205,10 @@ export class AgentLifecycleService {
         const updated: AgentRecord = {
           ...agent,
           permissionLevel: request.permissionLevel ?? agent.permissionLevel,
+          permissionRuleSetId:
+            request.permissionRuleSetId ??
+            request.permissionLevel ??
+            agent.permissionRuleSetId,
           model,
           thinkingLevel: clampAgentThinkingLevel(
             model,
@@ -220,6 +234,10 @@ export class AgentLifecycleService {
       ...agent,
       mode: request.mode ?? agent.mode,
       permissionLevel: request.permissionLevel ?? agent.permissionLevel,
+      permissionRuleSetId:
+        request.permissionRuleSetId ??
+        request.permissionLevel ??
+        agent.permissionRuleSetId,
       model,
       thinkingLevel: clampAgentThinkingLevel(
         model,

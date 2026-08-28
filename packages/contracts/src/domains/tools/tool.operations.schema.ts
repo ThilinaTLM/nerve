@@ -103,6 +103,7 @@ export const toolInteractionResolutionSchema = z.discriminatedUnion("kind", [
         "same_tool_same_args",
         "run",
         "always",
+        "always_conversation",
         "always_project",
         "always_user",
       ])

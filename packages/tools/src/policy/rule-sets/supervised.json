@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "supervised",
+  "name": "Supervised",
+  "description": "Allow interaction and local inspection; prompt for other capabilities.",
+  "source": "builtin",
+  "enabled": true,
+  "compatibleModes": ["coding"],
+  "rules": [
+    {
+      "id": "allow-interaction",
+      "enabled": true,
+      "priority": 200,
+      "enforcement": "overridable",
+      "when": { "baseRisks": ["interaction"] },
+      "decision": "allow"
+    },
+    {
+      "id": "allow-read",
+      "enabled": true,
+      "priority": 100,
+      "enforcement": "overridable",
+      "when": { "baseRisks": ["read"] },
+      "decision": "allow"
+    },
+    {
+      "id": "prompt-everything-else",
+      "enabled": true,
+      "priority": 0,
+      "enforcement": "overridable",
+      "when": {},
+      "decision": "prompt"
+    }
+  ]
+}

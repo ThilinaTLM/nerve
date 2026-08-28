@@ -342,6 +342,7 @@ export class HumanInputResolutionService {
       | "same_tool_same_args"
       | "run"
       | "always"
+      | "always_conversation"
       | "always_project"
       | "always_user",
   ): Promise<ToolCallRecord> {

@@ -67,7 +67,11 @@ type Props = {
   onDismissUserQuestion?: (questionId: string) => void;
   onGrantApproval?: (
     id: string,
-    scope?: "single_call" | "always_project" | "always_user",
+    scope?:
+      | "single_call"
+      | "always_conversation"
+      | "always_project"
+      | "always_user",
   ) => void | Promise<void>;
   onDenyApproval?: (id: string) => void;
   onAcceptPlanReview?: (

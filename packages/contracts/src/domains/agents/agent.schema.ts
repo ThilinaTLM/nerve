@@ -3,6 +3,7 @@ import {
   modelSelectionSchema,
   thinkingLevelSchema,
 } from "../models/models.schema.js";
+import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.schema.js";
 import { permissionLevelSchema } from "../permissions/permissions.schema.js";
 import { modeSchema } from "../settings/settings.schema.js";
 
@@ -15,6 +16,7 @@ export type WorkspaceScope = z.infer<typeof workspaceScopeSchema>;
 export const updateAgentRequestSchema = z.object({
   mode: modeSchema.optional(),
   permissionLevel: permissionLevelSchema.optional(),
+  permissionRuleSetId: permissionRuleSetIdSchema.optional(),
   model: modelSelectionSchema.nullable().optional(),
   thinkingLevel: thinkingLevelSchema.optional(),
 });
@@ -49,6 +51,7 @@ export const agentRecordSchema = z.object({
   rootAgentId: z.string().startsWith("agent_"),
   mode: modeSchema,
   permissionLevel: permissionLevelSchema,
+  permissionRuleSetId: permissionRuleSetIdSchema.optional(),
   workspaceScope: workspaceScopeSchema,
   systemPrompt: z.string().min(1).optional(),
   /** Subagent work description; present on child agents spawned by orchestration tools. */
@@ -73,6 +76,7 @@ export const createAgentRequestSchema = z.object({
   task: z.string().optional(),
   mode: modeSchema.optional(),
   permissionLevel: permissionLevelSchema.optional(),
+  permissionRuleSetId: permissionRuleSetIdSchema.optional(),
   workspaceScope: workspaceScopeSchema.optional(),
   systemPrompt: z.string().min(1).optional(),
   budget: createAgentBudgetRequestSchema.optional(),

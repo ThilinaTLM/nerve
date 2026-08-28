@@ -1,10 +1,12 @@
 /* eslint-disable max-lines -- Tool lifecycle orchestration remains centralized pending a follow-up service split. */
-import { resolve } from "node:path";
+import { realpath } from "node:fs/promises";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import {
   allToolDescriptors,
   type ExplainImageRequest,
   type ExplainImageResponse,
   toolRiskForName,
+  type PermissionRootPaths,
 } from "@nervekit/tools";
 import {
   type AgentRecord,
@@ -15,6 +17,7 @@ import {
   INTERRUPTED_TOOL_ERROR_CODE,
   isTerminalToolStatus,
   type Mode,
+  type PermissionTarget,
   type ResolveToolInteractionRequest,
   type StartTaskRequest,
   type TaskRecord,
@@ -35,6 +38,7 @@ import type {
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import type { PermissionExceptionService } from "../permissions/permission-exceptions.service.js";
+import type { PermissionPolicyService } from "../permissions/permission-policy.service.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
@@ -182,15 +186,53 @@ export type TaskStarter = (
   },
 ) => Promise<TaskRecord>;
 
+async function assertWriteTargetBoundaries(
+  targets: readonly PermissionTarget[],
+  roots: PermissionRootPaths,
+): Promise<void> {
+  for (const target of targets) {
+    if (target.kind !== "path" || target.access !== "write") continue;
+    const root = await realpath(roots[target.root]);
+    const candidate = resolve(root, target.relativePath);
+    let existing = candidate;
+    for (;;) {
+      try {
+        existing = await realpath(existing);
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        const parent = dirname(existing);
+        if (parent === existing) throw error;
+        existing = parent;
+      }
+    }
+    const child = relative(root, existing);
+    if (child === ".." || child.startsWith(`..${sep}`) || isAbsolute(child)) {
+      throw new Error(
+        `Write target escapes the authorized ${target.root} root through a symbolic link.`,
+      );
+    }
+  }
+}
+
 function durableApprovalScopes(
   scopes: readonly string[],
-): Array<"single_call" | "always_project" | "always_user"> {
+): Array<
+  "single_call" | "always_conversation" | "always_project" | "always_user"
+> {
   const mapped = scopes.map((scope) =>
     scope === "always" ? "always_user" : scope,
   );
   return [...new Set(mapped)].filter(
-    (scope): scope is "single_call" | "always_project" | "always_user" =>
+    (
+      scope,
+    ): scope is
+      | "single_call"
+      | "always_conversation"
+      | "always_project"
+      | "always_user" =>
       scope === "single_call" ||
+      scope === "always_conversation" ||
       scope === "always_project" ||
       scope === "always_user",
   );
@@ -237,6 +279,7 @@ export class ToolService {
     journal?: ConversationJournalRepository,
     resultPayloads?: ToolResultPayloadStore,
     private readonly performanceDiagnostics?: PerformanceDiagnosticsPort,
+    private readonly permissionPolicy?: PermissionPolicyService,
   ) {
     this.conversationJournal =
       journal ?? new ConversationJournalRepository(storage);
@@ -401,6 +444,7 @@ export class ToolService {
       resolutionNote: interaction.resolution?.note,
       offeredScopes: durableApprovalScopes(interaction.request.offeredScopes),
       suggestedExceptions: interaction.request.suggestedExceptions,
+      suggestedRules: interaction.request.suggestedRules,
     };
   }
 
@@ -479,12 +523,17 @@ export class ToolService {
   ): Promise<ToolExecutionResponse> {
     const now = new Date().toISOString();
     const latestAgent = this.getAgent(agent.id);
-    const exceptions = this.permissionExceptions
-      ? await this.permissionExceptions.effective(latestAgent.projectId)
-      : this.storage.settings.permissions.exceptions;
-    const rules = this.permissionExceptions
-      ? await this.permissionExceptions.effectiveRules(latestAgent.projectId)
-      : undefined;
+    const resolvedPolicy = await this.permissionPolicy?.resolve(latestAgent);
+    const exceptions = resolvedPolicy
+      ? []
+      : this.permissionExceptions
+        ? await this.permissionExceptions.effective(latestAgent.projectId)
+        : this.storage.settings.permissions.exceptions;
+    const rules = resolvedPolicy
+      ? undefined
+      : this.permissionExceptions
+        ? await this.permissionExceptions.effectiveRules(latestAgent.projectId)
+        : undefined;
     const evaluation = evaluateWorkbenchToolPermission(
       latestAgent,
       toolName,
@@ -493,6 +542,9 @@ export class ToolService {
         dataDir: this.storage.paths.home,
         exceptions,
         rules,
+        policy: resolvedPolicy?.policy,
+        roots: resolvedPolicy?.roots,
+        policyDiagnostic: resolvedPolicy?.diagnostics.at(-1),
       },
     );
     const decision =
@@ -531,6 +583,7 @@ export class ToolService {
       cwd: evaluation.cwd,
       status: "committed",
       phase: "drafted",
+      permissionEvaluation: evaluation.permissionEvaluation,
       supervision: supervisionDecision
         ? {
             status:
@@ -613,10 +666,20 @@ export class ToolService {
             request: {
               risk: evaluation.risk,
               reason: evaluation.reason,
-              offeredScopes: evaluation.suggestedExceptions?.length
-                ? ["single_call", "always_project", "always_user"]
-                : ["single_call"],
+              offeredScopes: evaluation.permissionEvaluation?.suggestedRules
+                .length
+                ? [
+                    "single_call",
+                    "always_conversation",
+                    "always_project",
+                    "always_user",
+                  ]
+                : evaluation.suggestedExceptions?.length
+                  ? ["single_call", "always_project", "always_user"]
+                  : ["single_call"],
               suggestedExceptions: evaluation.suggestedExceptions ?? [],
+              suggestedRules:
+                evaluation.permissionEvaluation?.suggestedRules ?? [],
             },
           },
         ],
@@ -840,6 +903,7 @@ export class ToolService {
       | "same_tool_same_args"
       | "run"
       | "always"
+      | "always_conversation"
       | "always_project"
       | "always_user",
   ): Promise<ApprovalRecord> {
@@ -1092,23 +1156,42 @@ export class ToolService {
     toolCall: ToolCallRecord,
   ): Promise<void> {
     const agent = this.getAgent(toolCall.agentId);
-    const exceptions = this.permissionExceptions
-      ? await this.permissionExceptions.effective(agent.projectId)
-      : this.storage.settings.permissions.exceptions;
-    const rules = this.permissionExceptions
-      ? await this.permissionExceptions.effectiveRules(agent.projectId)
-      : undefined;
+    const resolvedPolicy = await this.permissionPolicy?.resolve(agent);
+    const exceptions = resolvedPolicy
+      ? []
+      : this.permissionExceptions
+        ? await this.permissionExceptions.effective(agent.projectId)
+        : this.storage.settings.permissions.exceptions;
+    const rules = resolvedPolicy
+      ? undefined
+      : this.permissionExceptions
+        ? await this.permissionExceptions.effectiveRules(agent.projectId)
+        : undefined;
     const evaluation = evaluateWorkbenchToolPermission(
       agent,
       toolCall.toolName as ToolName,
       toolCall.args as Record<string, unknown>,
-      { dataDir: this.storage.paths.home, exceptions, rules },
+      {
+        dataDir: this.storage.paths.home,
+        exceptions,
+        rules,
+        policy: resolvedPolicy?.policy,
+        roots: resolvedPolicy?.roots,
+        policyDiagnostic: resolvedPolicy?.diagnostics.at(-1),
+      },
     );
+    if (evaluation.permissionEvaluation && resolvedPolicy) {
+      await assertWriteTargetBoundaries(
+        evaluation.permissionEvaluation.normalizedTargets,
+        resolvedPolicy.roots,
+      );
+    }
     if (
       evaluation.decision === "deny" ||
       !evaluation.supervision ||
-      evaluation.supervision.policySnapshotHash !==
-        toolCall.supervision?.decision.policySnapshotHash ||
+      (toolCall.supervision?.source !== "user" &&
+        evaluation.supervision.policySnapshotHash !==
+          toolCall.supervision?.decision.policySnapshotHash) ||
       JSON.stringify(evaluation.normalizedArgs) !==
         JSON.stringify(toolCall.args)
     ) {

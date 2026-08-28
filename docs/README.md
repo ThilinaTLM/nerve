@@ -3,7 +3,8 @@
 Root `docs/` contains maintainer and development workflow material that is not part of the public product documentation:
 
 - `conversation-storage-erd.md` defines the canonical SQLite conversation model and file-backed complete tool-result payload contract.
-- `tool-supervision-engine.md` records the non-normative tool-policy and supervision-engine brainstorm.
+- `permission-rule-sets.md` is the authoritative functional requirements specification for the proposed permission-rule and rule-set system.
+- `tool-supervision-engine.md` is the superseded, non-normative supervision-engine brainstorm retained for historical context.
 - `tool-result-agent-preview-policy.md` records the non-normative adaptive agent-preview requirements proposal.
 - `performance-profiling.md` documents automatic source-desktop performance diagnostics and the local summary tool.
 - `storage-migrations.md` records the non-normative canonical-storage migration framework brainstorm.

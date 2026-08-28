@@ -144,7 +144,7 @@ export const DEFAULT_SHORTCUTS: ShortcutCommand[] = [
   },
   {
     id: "composer.cyclePermission",
-    label: "Cycle permission level",
+    label: "Cycle permission rule set",
     category: "Composer",
     defaultBinding: { key: "p", alt: true },
     allowInEditable: true,

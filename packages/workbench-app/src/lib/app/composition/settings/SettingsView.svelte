@@ -12,7 +12,6 @@ import type {
   UpdateApplicationConfigurationRequest,
   UpdateSettingsRequest,
 } from "$lib/api";
-import { updateSettings } from "$lib/api";
 import {
   SettingsShell,
   SettingsSidebarStatus,
@@ -29,10 +28,11 @@ import { ModelsPageState } from "$lib/features/settings/components/pages/models/
 import NotificationsSettingsPage from "$lib/features/settings/components/pages/notifications/NotificationsSettingsPage.svelte";
 import PermissionsSettingsPage from "$lib/features/settings/components/pages/permissions/PermissionsSettingsPage.svelte";
 import { PermissionsPageState } from "$lib/features/settings/components/pages/permissions/permissions-page-state.svelte";
-import { listTools } from "$lib/features/tools/api/tools.api";
+import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
 import {
-  getProjectPermissions,
-  updateProjectPermissions,
+  getPermissionPolicyConfiguration,
+  updatePermissionOverlay,
+  updateProjectPermissionTrust,
 } from "$lib/features/projects/api/projects.api";
 import ProvidersSettingsPage from "$lib/features/settings/components/pages/providers/ProvidersSettingsPage.svelte";
 import ShortcutsSettingsPage from "$lib/features/settings/components/pages/shortcuts/ShortcutsSettingsPage.svelte";
@@ -114,15 +114,14 @@ let {
 }: Props = $props();
 
 const permissionsPageState = new PermissionsPageState({
-  getProject: getProjectPermissions,
-  updateProject: updateProjectPermissions,
-  updateUser: async (exceptions) => {
-    const saved = await updateSettings({ permissions: { exceptions } });
-    if (settingsDraft) {
-      settingsDraft.permissions.exceptions = saved.permissions.exceptions;
-    }
+  getConfiguration: getPermissionPolicyConfiguration,
+  updateOverlay: updatePermissionOverlay,
+  updateTrust: async (projectId, trusted) => {
+    await updateProjectPermissionTrust(projectId, trusted);
   },
-  listTools,
+  onConfigurationLoaded: (projectId, configuration) => {
+    permissionRuleSetCatalog.install(projectId, configuration.ruleSets);
+  },
 });
 
 /** Skills sections mirror the sources that actually have skills. */

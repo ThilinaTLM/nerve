@@ -119,6 +119,9 @@ const conversationSelectorsValue = {
   get selectedPermissionLevel() {
     return conversationState.selectedPermissionLevel;
   },
+  get selectedPermissionRuleSetId() {
+    return conversationState.selectedPermissionRuleSetId;
+  },
   get activeContextUsage() {
     return activeView()?.contextUsage;
   },

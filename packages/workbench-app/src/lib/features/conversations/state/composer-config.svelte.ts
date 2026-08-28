@@ -8,6 +8,7 @@ import { settingsReadModel } from "$lib/application/preferences/settings-read-mo
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { mainAgentForConversation } from "./main-agent";
+import { legacyPermissionLevelForRuleSet } from "$lib/kernel/permissions/permission-rule-set-options";
 import {
   clampThinkingLevelForModel,
   supportedThinkingLevelsForModel,
@@ -109,16 +110,29 @@ export function setComposerMode(mode: AgentRecord["mode"]) {
   queueAgentConfigChange(agentId, { mode });
 }
 
-export function setComposerPermission(
-  permissionLevel: AgentRecord["permissionLevel"],
+export function setComposerPermissionRuleSet(
+  permissionRuleSetId: NonNullable<AgentRecord["permissionRuleSetId"]>,
 ) {
-  conversationState.selectedPermissionLevel = permissionLevel;
+  conversationState.selectedPermissionRuleSetId = permissionRuleSetId;
+  const permissionLevel = legacyPermissionLevelForRuleSet(permissionRuleSetId);
+  if (permissionLevel) {
+    conversationState.selectedPermissionLevel = permissionLevel;
+  }
   const pending = activePendingComposerConversation();
-  if (pending) pending.permissionLevel = permissionLevel;
-  rememberLastAgentSelection({ permissionLevel });
+  if (pending) {
+    pending.permissionRuleSetId = permissionRuleSetId;
+    if (permissionLevel) pending.permissionLevel = permissionLevel;
+  }
+  rememberLastAgentSelection({
+    permissionRuleSetId,
+    ...(permissionLevel ? { permissionLevel } : {}),
+  });
   const agentId = currentActiveAgent()?.id;
   if (pending || !agentId) return;
-  queueAgentConfigChange(agentId, { permissionLevel });
+  queueAgentConfigChange(agentId, {
+    permissionRuleSetId,
+    ...(permissionLevel ? { permissionLevel } : {}),
+  });
 }
 
 export function agentNeedsComposerUpdate(agent: AgentRecord | undefined) {
@@ -129,14 +143,26 @@ export function agentNeedsComposerUpdate(agent: AgentRecord | undefined) {
     modelKey(agent?.model ?? { provider: "", modelId: "" }) !==
       modelKey(desired);
   const needsMode = agent?.mode !== conversationState.selectedMode;
+  const desiredPermissionRuleSetId =
+    conversationState.selectedPermissionRuleSetId;
+  const legacyPermissionLevel = legacyPermissionLevelForRuleSet(
+    desiredPermissionRuleSetId,
+  );
+  const needsPermissionRuleSet =
+    (agent?.permissionRuleSetId ?? agent?.permissionLevel) !==
+    desiredPermissionRuleSetId;
   const needsPermission =
-    agent?.permissionLevel !== conversationState.selectedPermissionLevel;
+    legacyPermissionLevel !== undefined &&
+    agent?.permissionLevel !== legacyPermissionLevel;
   const needsThinking = agent?.thinkingLevel !== thinkingLevel;
   return {
     desired,
     thinkingLevel,
     needsModel,
     needsMode,
+    desiredPermissionRuleSetId,
+    legacyPermissionLevel,
+    needsPermissionRuleSet,
     needsPermission,
     needsThinking,
   };

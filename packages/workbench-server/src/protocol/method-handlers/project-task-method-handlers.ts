@@ -18,6 +18,26 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
       params.permissions,
     ),
   }),
+  "project.permissionPolicy.get": async (state, params) => ({
+    configuration: await state.registry.permissionPolicyConfiguration(
+      params.projectId,
+      params.conversationId,
+    ),
+  }),
+  "project.permissionOverlay.update": async (state, params) => ({
+    overlay: await state.registry.updatePermissionOverlay(
+      params.projectId,
+      params.origin,
+      params.overlay,
+      params.conversationId,
+    ),
+  }),
+  "project.permissionTrust.update": async (state, params) => ({
+    trust: await state.registry.updateProjectPermissionTrust(
+      params.projectId,
+      params.trusted,
+    ),
+  }),
   "project.openEditor": (state, params) =>
     state.registry.openProjectInEditor(params.projectId, params),
   "project.openTerminal": (state, params) =>

@@ -9,12 +9,14 @@ import type {
   ConversationTreeNode,
   ModelInfo,
   PlanReviewRecord,
+  PermissionRuleSetSummary,
   PlanReviewResolveOptions,
   ProjectRecord,
   QueuedPromptRecord,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "$lib/api";
+import type { PermissionRuleSetId } from "@nervekit/contracts";
 import type {
   ConversationTransientState,
   PendingConversationState,
@@ -57,7 +59,10 @@ export type WorkbenchConversationAdapterProps = {
   micShortcutToken?: number;
   thinkingLevel?: AgentRecord["thinkingLevel"];
   mode?: AgentRecord["mode"];
-  permissionLevel?: AgentRecord["permissionLevel"];
+  permissionRuleSetId?: PermissionRuleSetId;
+  permissionRuleSets?: PermissionRuleSetSummary[];
+  permissionRuleSetsLoading?: boolean;
+  permissionRuleSetsError?: string;
   slashCompletions?: CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   composerSuggestions?: ComposerSuggestion[];
@@ -80,11 +85,16 @@ export type WorkbenchConversationAdapterProps = {
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: AgentRecord["thinkingLevel"]) => void;
   onModeChange?: (value: AgentRecord["mode"]) => void;
-  onPermissionChange?: (value: AgentRecord["permissionLevel"]) => void;
+  onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
+  onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
   onGrantApproval?: (
     id: string,
-    scope?: "single_call" | "always_project" | "always_user",
+    scope?:
+      | "single_call"
+      | "always_conversation"
+      | "always_project"
+      | "always_user",
   ) => void | Promise<void>;
   onDenyApproval?: (id: string) => void | Promise<void>;
   onAcceptPlanReview?: (

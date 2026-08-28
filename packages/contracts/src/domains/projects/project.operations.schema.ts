@@ -10,6 +10,12 @@ import {
   pruneProjectConversationsResponseSchema,
 } from "./index.js";
 import { z } from "zod";
+import {
+  permissionOverlayOriginSchema,
+  permissionOverlaySchema,
+  permissionPolicyConfigurationSchema,
+  projectPermissionTrustSchema,
+} from "../permissions/index.js";
 import { defineOperation } from "../protocol/operation-definition.schema.js";
 
 const emptyParamsSchema = z.object({}).optional();
@@ -74,6 +80,39 @@ export const projectsOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.project.permissions.update",
+  ),
+  defineOperation(
+    "project.permissionPolicy.get",
+    projectIdParamsSchema.extend({
+      conversationId: z.string().startsWith("conv_").optional(),
+    }),
+    z.object({ configuration: permissionPolicyConfigurationSchema }),
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.project.permissionPolicy.get",
+  ),
+  defineOperation(
+    "project.permissionOverlay.update",
+    projectIdParamsSchema.extend({
+      conversationId: z.string().startsWith("conv_").optional(),
+      origin: permissionOverlayOriginSchema,
+      overlay: permissionOverlaySchema,
+    }),
+    z.object({ overlay: permissionOverlaySchema }),
+    "mutation",
+    "required",
+    ["workbench_server"] as const,
+    "operation.project.permissionOverlay.update",
+  ),
+  defineOperation(
+    "project.permissionTrust.update",
+    projectIdParamsSchema.extend({ trusted: z.boolean() }),
+    z.object({ trust: projectPermissionTrustSchema }),
+    "mutation",
+    "required",
+    ["workbench_server"] as const,
+    "operation.project.permissionTrust.update",
   ),
   defineOperation(
     "project.openEditor",

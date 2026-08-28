@@ -27,7 +27,8 @@ Unless explicitly overridden by `NERVE_HOME`, the user-level root is `~/.nerve`.
 │   ├── daemon.json
 │   ├── harness.json
 │   ├── ui.json
-│   ├── permissions.json
+│   ├── permissions.json              # User permission overlay
+│   ├── rule-sets/                    # User-selectable permission rule sets
 │   ├── providers.json
 │   └── integrations.json
 │
@@ -507,47 +508,22 @@ type UiConfig = {
 
 Per-client state such as tabs, panel dimensions, expanded trees, scroll positions, Git filters, and temporary selections remains in browser storage rather than this portable file.
 
+## `config/rule-sets/`
+
+User-authored permission policies are stored as one versioned JSON document per permission rule set:
+
+```text
+config/
+└── rule-sets/
+    ├── <rule-set-id>.json
+    └── ...
+```
+
+The storage location supplies and validates user scope; files do not persist internal project IDs. Rule-set data structures, composition, guardrails, and matching behavior are defined by [`permission-rule-sets.md`](./permission-rule-sets.md).
+
 ## `config/permissions.json`
 
-The file location supplies the scope. User files contain user rules; project files contain project-requested rules. They do not persist internal project IDs.
-
-```ts
-type PermissionRuleConfig = {
-  id: string;
-  effect: "allow" | "deny";
-  tool: string;
-  matcher: {
-    kind: "whole_tool" | "path_glob" | "command_glob" | "url_glob";
-    pattern: string;
-  };
-  enabled: boolean;
-};
-
-type PermissionsConfig = {
-  version: 1;
-  rules: PermissionRuleConfig[];
-};
-```
-
-```json
-{
-  "version": 1,
-  "rules": [
-    {
-      "id": "allow-project-reads",
-      "effect": "allow",
-      "tool": "read",
-      "matcher": {
-        "kind": "path_glob",
-        "pattern": "Projects/**"
-      },
-      "enabled": true
-    }
-  ]
-}
-```
-
-Hard security constraints cannot be weakened by this file.
+This single versioned file contains the user permission overlay applied above the selected rule set. It may contain both overridable rules and non-overridable guardrails. It is not a selectable rule set. Its contract and precedence are defined by [`permission-rule-sets.md`](./permission-rule-sets.md).
 
 ## `config/providers.json`
 
@@ -753,7 +729,7 @@ type IntegrationsConfig = {
 └── .nerve/
     ├── config/
     │   ├── harness.json
-    │   ├── permissions.json
+    │   ├── permissions.json          # Project permission overlay
     │   ├── ui.json
     │   └── providers.json
     ├── SYSTEM.md
@@ -772,12 +748,9 @@ Every file inside `<project>/.nerve/` derives its project scope from its enclosi
 
 ### Project permissions
 
-Permission configuration has two authoritative file-backed sources:
+Projects have one permission overlay at `<project>/.nerve/config/permissions.json`. It may contain only overridable rules. Projects cannot define guardrails or selectable permission rule sets. User-selectable custom rule sets remain under `<NERVE_HOME>/config/rule-sets/*.json`, and the user overlay remains at `<NERVE_HOME>/config/permissions.json`.
 
-- project rules from `<project>/.nerve/config/permissions.json`;
-- user rules from `<NERVE_HOME>/config/permissions.json`.
-
-Enabled rules from both sources participate directly in policy evaluation. Project configuration is repository-controlled input, so opening a project also accepts its enabled permission rules. User denies, deny precedence, and hard application constraints still apply and cannot be displaced by project allows.
+Project configuration is repository-controlled input. The complete project permission overlay remains inactive until the user trusts its content digest; external changes invalidate that trust. The project overlay cannot claim user scope, and no project or conversation rule can displace a user guardrail. The authoritative composition and activation requirements are defined by [`permission-rule-sets.md`](./permission-rule-sets.md).
 
 ## Configuration precedence
 
@@ -820,10 +793,12 @@ Project configuration is already portable with the project and is not duplicated
 | Daemon settings                      | User                | `config/daemon.json`                                                                                                   | Yes                     | Yes                           |
 | Harness defaults                     | User                | `config/harness.json`                                                                                                  | Yes                     | Yes                           |
 | UI preferences                       | User                | `config/ui.json`                                                                                                       | Yes                     | Yes                           |
-| User permission rules                | User                | `config/permissions.json`                                                                                              | Yes                     | Yes                           |
+| User permission overlay              | User                | `config/permissions.json`                                                                                              | Yes                     | Yes                           |
+| User permission rule sets            | User                | `config/rule-sets/*.json`                                                                                              | Yes                     | Yes                           |
 | Provider/integration metadata        | User                | `config/providers.json`, `config/integrations.json`                                                                    | Yes                     | Yes                           |
 | Credentials                          | User secret         | `secrets/`                                                                                                             | No                      | Only through encrypted export |
 | Conversation and execution history   | Nerve               | `data/nerve.sqlite`                                                                                                    | No                      | Through Nerve backup/export   |
+| Conversation permission overlays     | User/Nerve workflow | `data/payloads/conversations/<conversation-id>/permissions.json`                                                       | Yes, Nerve-managed      | With owning data/export       |
 | Complete and file-backed tool output | Nerve               | `data/payloads/`                                                                                                       | No                      | With owning data/export       |
 | Agent reports                        | Nerve workflow      | `data/reports/`                                                                                                        | Yes, Nerve-managed      | With owning data/export       |
 | Pasted images                        | Nerve workflow      | `data/images/`                                                                                                         | No                      | With owning data/export       |
