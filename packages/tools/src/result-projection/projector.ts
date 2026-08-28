@@ -191,9 +191,15 @@ function terminalCandidate(
   const interrupted =
     context.phase === "interrupted" ||
     context.errorDetails?.code === "interrupted";
+  const denialHeadline =
+    context.denialSource === "user"
+      ? "User denied the requested tool call. The operation was not performed."
+      : context.denialSource === "policy"
+        ? "Permission policy denied the requested tool call. The operation was not performed."
+        : "The requested tool call was denied. The operation was not performed.";
   const headline =
     context.status === "denied"
-      ? "User denied the requested tool call. The operation was not performed."
+      ? denialHeadline
       : interrupted
         ? "Tool execution was interrupted. No rollback is implied."
         : context.status === "cancelled"

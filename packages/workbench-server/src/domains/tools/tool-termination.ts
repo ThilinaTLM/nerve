@@ -3,6 +3,7 @@ import {
   INTERRUPTED_TOOL_ERROR_CODE,
   type ToolCallRecord,
 } from "@nervekit/contracts";
+import { prepareTerminalProjection } from "./tool-result-preparation.js";
 
 export type ToolTerminationOutcome = {
   status: "cancelled" | "failed";
@@ -22,18 +23,30 @@ export const RUN_CANCELLED_TOOL_OUTCOME = {
 } as const satisfies ToolTerminationOutcome;
 
 export function toolTerminationPatch(
+  toolCall: ToolCallRecord,
   outcome: ToolTerminationOutcome,
 ): Partial<Omit<ToolCallRecord, "id" | "createdAt">> {
+  const errorDetails = {
+    code: outcome.code,
+    message: outcome.message,
+  };
+  const result = {
+    content: outcome.message,
+    contentBlocks: [{ type: "text" as const, text: outcome.message }],
+  };
+  const projection = prepareTerminalProjection(result, {
+    toolName: toolCall.toolName,
+    args: toolCall.args,
+    status: outcome.status,
+    phase: outcome.status,
+    error: outcome.message,
+    errorDetails,
+  });
   return {
     status: outcome.status,
     error: outcome.message,
-    errorDetails: {
-      code: outcome.code,
-      message: outcome.message,
-    },
-    result: {
-      content: outcome.message,
-      contentBlocks: [{ type: "text", text: outcome.message }],
-    },
+    errorDetails,
+    result,
+    ...projection,
   };
 }

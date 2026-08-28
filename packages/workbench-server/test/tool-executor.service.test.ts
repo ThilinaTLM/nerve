@@ -6,6 +6,10 @@ import { describe, it } from "node:test";
 import type { ToolCallRecord } from "@nervekit/contracts";
 import { CodedToolError } from "../src/domains/tools/tool-errors.js";
 import { ToolExecutorService } from "../src/domains/tools/tool-executor.service.js";
+import {
+  RUN_CANCELLED_TOOL_OUTCOME,
+  toolTerminationPatch,
+} from "../src/domains/tools/tool-termination.js";
 
 function toolCall(overrides: Partial<ToolCallRecord> = {}): ToolCallRecord {
   return {
@@ -48,29 +52,24 @@ function cancelledRecord(record: ToolCallRecord): ToolCallRecord {
   const settledAt = "2026-01-02T03:04:07.000Z";
   return {
     ...record,
-    status: "cancelled",
+    ...toolTerminationPatch(record, RUN_CANCELLED_TOOL_OUTCOME),
     phase: "cancelled",
     revision: record.revision + 1,
-    error: "Tool execution was cancelled because the run was cancelled.",
-    errorDetails: {
-      code: "cancelled",
-      message: "Tool execution was cancelled because the run was cancelled.",
-    },
-    result: {
-      content: "Tool execution was cancelled because the run was cancelled.",
-      contentBlocks: [
-        {
-          type: "text",
-          text: "Tool execution was cancelled because the run was cancelled.",
-        },
-      ],
-    },
     execution: record.execution
       ? { ...record.execution, status: "cancelled", endedAt: settledAt }
       : undefined,
     settledAt,
     updatedAt: settledAt,
   };
+}
+
+function cancelledPreview(record: ToolCallRecord): string {
+  return (
+    record.agentPreview?.blocks
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("\n") ?? ""
+  );
 }
 
 function createExecutor(input: {
@@ -380,6 +379,8 @@ describe("ToolExecutorService structured errors", () => {
     assert.equal(terminal.status, "cancelled");
     assert.equal(terminal.errorDetails?.code, "cancelled");
     assert.equal(terminal.error, "Tool execution was cancelled.");
+    assert.match(cancelledPreview(terminal), /^Tool execution was cancelled\./);
+    assert.equal(terminal.agentProjection?.profile, "terminal_outcome");
     assert.equal(
       JSON.stringify(terminal).includes("Python execution aborted"),
       false,
@@ -401,6 +402,7 @@ describe("ToolExecutorService structured errors", () => {
     });
 
     assert.equal(terminal.status, "cancelled");
+    assert.match(cancelledPreview(terminal), /^Tool execution was cancelled\./);
     assert.equal(JSON.stringify(terminal).includes("late success"), false);
   });
 
@@ -420,6 +422,7 @@ describe("ToolExecutorService structured errors", () => {
 
     assert.equal(terminal.status, "cancelled");
     assert.equal(terminal.errorDetails?.code, "cancelled");
+    assert.match(cancelledPreview(terminal), /^Tool execution was cancelled\./);
     assert.equal(JSON.stringify(terminal).includes("late success"), false);
     assert.deepEqual(lifecycleStatuses, ["running"]);
   });

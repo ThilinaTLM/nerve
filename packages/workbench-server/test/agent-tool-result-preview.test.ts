@@ -33,6 +33,7 @@ function terminalToolCall(
   status: "cancelled" | "failed" | "denied",
   error: string,
   code?: string,
+  denialSource?: "user" | "policy",
 ): ToolCallRecord {
   return {
     ...toolCall(undefined),
@@ -41,6 +42,14 @@ function terminalToolCall(
     result: undefined,
     error,
     errorDetails: code ? { code, message: error } : undefined,
+    ...(status === "denied" && denialSource
+      ? {
+          supervision: {
+            status: "denied",
+            source: denialSource,
+          } as ToolCallRecord["supervision"],
+        }
+      : {}),
   };
 }
 
@@ -126,8 +135,20 @@ describe("agent tool-result preview", () => {
       /^Tool execution failed\./,
     );
     assert.match(
-      text(toolCallResultForModel(terminalToolCall("denied", "Not approved."))),
+      text(
+        toolCallResultForModel(
+          terminalToolCall("denied", "Not approved.", undefined, "user"),
+        ),
+      ),
       /^User denied the requested tool call\./,
+    );
+    assert.match(
+      text(
+        toolCallResultForModel(
+          terminalToolCall("denied", "Blocked by rules.", undefined, "policy"),
+        ),
+      ),
+      /^Permission policy denied the requested tool call\./,
     );
   });
 

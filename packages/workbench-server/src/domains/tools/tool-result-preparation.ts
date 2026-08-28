@@ -1,4 +1,5 @@
 import {
+  type AgentDenialSource,
   boundText,
   projectAgentResult,
   snapshotAgentPreview,
@@ -46,6 +47,7 @@ export async function prepareToolResult(
     phase?: ToolPhase;
     error?: string;
     errorDetails?: ToolCallErrorDetails;
+    denialSource?: AgentDenialSource;
   },
 ): Promise<{
   result: unknown;
@@ -71,6 +73,7 @@ export async function prepareToolResult(
     phase: input.phase,
     error: input.error,
     errorDetails: input.errorDetails,
+    denialSource: input.denialSource,
     validatedArtifacts,
   };
   const firstProjection = projectAgentResult(context, definition?.agentResult);
@@ -112,6 +115,44 @@ export async function prepareToolResult(
     result: storedResult,
     ...(resultPayload ? { resultPayload } : {}),
     validatedArtifacts,
+    agentProjection: projection.snapshot,
+    agentPreview: snapshotAgentPreview(projection.blocks, result),
+  };
+}
+
+export function prepareTerminalProjection(
+  result: unknown,
+  input: {
+    toolName?: string;
+    args?: unknown;
+    status: ToolCallStatus;
+    phase?: ToolPhase;
+    error?: string;
+    errorDetails?: ToolCallErrorDetails;
+    denialSource?: AgentDenialSource;
+  },
+): {
+  agentProjection: AgentProjectionSnapshot;
+  agentPreview: AgentPreviewSnapshot;
+} {
+  const definition = input.toolName
+    ? toolDefinitionByName(input.toolName)
+    : undefined;
+  const projection = projectAgentResult(
+    {
+      toolName: input.toolName ?? "unknown",
+      args: input.args,
+      result,
+      status: input.status,
+      phase: input.phase,
+      error: input.error,
+      errorDetails: input.errorDetails,
+      denialSource: input.denialSource,
+      validatedArtifacts: [],
+    },
+    definition?.agentResult,
+  );
+  return {
     agentProjection: projection.snapshot,
     agentPreview: snapshotAgentPreview(projection.blocks, result),
   };

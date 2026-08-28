@@ -55,6 +55,7 @@ import { ConversationJournalRepository } from "../conversations/conversation-jou
 import { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
+import { prepareTerminalProjection } from "./tool-result-preparation.js";
 import { ToolResultPayloadStore } from "./tool-result-payload-store.js";
 import {
   toolTerminationPatch,
@@ -639,6 +640,7 @@ export class ToolService {
       const denied = await this.updateToolCall(toolCall.id, {
         status: "denied",
         error: evaluation.reason,
+        ...denialProjection(toolCall, evaluation.reason, "policy"),
       });
       await this.emitToolCallLifecycle(denied, options);
       await this.logger?.warn("Tool denied by policy", {
@@ -851,7 +853,7 @@ export class ToolService {
     return await Promise.all(
       stale.map(async (toolCall) => {
         const settlement = await this.settleToolCallTermination(toolCall.id, {
-          ...toolTerminationPatch(outcome),
+          ...toolTerminationPatch(toolCall, outcome),
           interactions: cancelPendingInteractions(toolCall.interactions),
         });
         if (settlement.owned) {
@@ -883,7 +885,7 @@ export class ToolService {
     for (const toolCall of interrupted) {
       const failed = await this.updateToolCall(
         toolCall.id,
-        toolTerminationPatch({
+        toolTerminationPatch(toolCall, {
           status: "failed",
           code: INTERRUPTED_TOOL_ERROR_CODE,
           message: HOST_RESTART_TOOL_ERROR,
@@ -938,7 +940,12 @@ export class ToolService {
             decidedAt: resolvedAt,
           }
         : undefined,
-      ...(decision === "deny" ? { error: note ?? "Denied by user." } : {}),
+      ...(decision === "deny"
+        ? {
+            error: note ?? "Denied by user.",
+            ...denialProjection(current, note ?? "Denied by user.", "user"),
+          }
+        : {}),
     });
     const decided = this.projectApproval(updated, ordinal);
     return decided;
@@ -1015,7 +1022,24 @@ export class ToolService {
     const next = await this.updateToolCall(current.id, {
       interactions,
       status: denied ? "denied" : "running",
-      ...(denied ? { error: denialNote ?? "Denied by user." } : {}),
+      ...(denied
+        ? {
+            error: denialNote ?? "Denied by user.",
+            supervision: current.supervision
+              ? {
+                  ...current.supervision,
+                  status: "denied" as const,
+                  source: "user" as const,
+                  decidedAt: now,
+                }
+              : undefined,
+            ...denialProjection(
+              current,
+              denialNote ?? "Denied by user.",
+              "user",
+            ),
+          }
+        : {}),
     });
     await this.publishToolCallUpdated(next);
     return next;
@@ -1383,6 +1407,21 @@ function resolvePendingForResume(
     resolvedAt: now,
     resolution: { action, feedback: review?.feedback },
   };
+}
+
+function denialProjection(
+  toolCall: ToolCallRecord,
+  error: string,
+  denialSource: "user" | "policy",
+) {
+  return prepareTerminalProjection(undefined, {
+    toolName: toolCall.toolName,
+    args: toolCall.args,
+    status: "denied",
+    phase: "denied",
+    error,
+    denialSource,
+  });
 }
 
 function phaseForStatus(

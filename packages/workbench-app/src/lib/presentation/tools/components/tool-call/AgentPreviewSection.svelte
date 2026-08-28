@@ -70,7 +70,7 @@ function supportedImageMime(mimeType: string): boolean {
       {/if}
     {:else}
       <p class="m-0 text-sm text-muted-foreground">
-        The exact agent preview was not retained for this historical tool call.
+        No retained agent preview is available for this tool call.
       </p>
     {/if}
     {#if projection}
