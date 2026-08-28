@@ -38,7 +38,6 @@ import {
   loadCodeLanguage,
   localLineNumber,
   readOnlyCodeExtensions,
-  shouldShowCodeMinimap,
 } from "./code-mirror-config";
 
 type Props = {
@@ -297,7 +296,6 @@ function baseExtensions(): Extension[] {
   return readOnlyCodeExtensions({
     lineStart,
     ariaLabel,
-    minimap: shouldShowCodeMinimap(text, wrap),
     highlightSelectionMatches,
     foldMarkerDOM: codeFoldMarker,
   });

@@ -39,7 +39,6 @@ import {
 import {
   loadCodeLanguage,
   readOnlyCodeExtensions,
-  shouldShowCodeMinimap,
 } from "$lib/presentation/components/code/code-mirror-config";
 
 type Props = {
@@ -292,7 +291,6 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
 function baseExtensions(): Extension[] {
   return readOnlyCodeExtensions({
     ariaLabel: `Diff for ${path}`,
-    minimap: shouldShowCodeMinimap(modified, wrap),
     highlightSelectionMatches,
     foldMarkerDOM: codeFoldMarker,
   });
