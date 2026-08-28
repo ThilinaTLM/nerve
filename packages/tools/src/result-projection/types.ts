@@ -49,6 +49,8 @@ export type ProjectionCandidate = {
   artifacts: ValidatedToolArtifact[];
 };
 
+export type AgentDenialSource = "user" | "policy";
+
 export type CandidateContext = {
   toolName: string;
   args: unknown;
@@ -57,6 +59,7 @@ export type CandidateContext = {
   phase?: ToolPhase;
   error?: string;
   errorDetails?: ToolCallErrorDetails;
+  denialSource?: AgentDenialSource;
   validatedArtifacts: readonly ValidatedToolArtifact[];
   completePayload?: ValidatedToolArtifact;
 };

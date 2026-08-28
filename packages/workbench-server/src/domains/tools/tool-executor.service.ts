@@ -112,7 +112,7 @@ export class ToolExecutorService {
         terminal = this.deps.getToolCall(toolCall.id);
       } else {
         const patch = options.signal?.aborted
-          ? toolTerminationPatch(TOOL_CANCELLED_OUTCOME)
+          ? toolTerminationPatch(toolCall, TOOL_CANCELLED_OUTCOME)
           : await (async () => {
               const details = toolErrorDetails(error);
               const base = {
@@ -158,7 +158,7 @@ export class ToolExecutorService {
 
     if (prepared) {
       const completionPatch = options.signal?.aborted
-        ? toolTerminationPatch(TOOL_CANCELLED_OUTCOME)
+        ? toolTerminationPatch(toolCall, TOOL_CANCELLED_OUTCOME)
         : {
             status: "completed" as const,
             result: prepared.result,
