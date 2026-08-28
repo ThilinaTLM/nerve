@@ -2,7 +2,14 @@
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import type { ApplicationLogRecord } from "@nervekit/contracts";
 import { timeLabel } from "@nervekit/ui-kit/core/utils/time";
-import { hasLogDetail, logContextEntries, logReferences } from "./log-entry";
+import {
+  formatApplicationLog,
+  hasLogDetail,
+  logContextEntries,
+  logErrorEntries,
+  logReferences,
+  logSummaryAttributes,
+} from "./log-entry";
 
 type Props = {
   log: ApplicationLogRecord;
@@ -13,8 +20,10 @@ type Props = {
 let { log, open, onToggle }: Props = $props();
 
 const detail = $derived(hasLogDetail(log));
+const summaryAttributes = $derived(logSummaryAttributes(log));
 const references = $derived(open ? logReferences(log) : []);
 const contextEntries = $derived(open ? logContextEntries(log) : []);
+const errorEntries = $derived(open ? logErrorEntries(log) : []);
 const levelClass = $derived(
   log.level === "warn"
     ? "text-warning"
@@ -24,9 +33,7 @@ const levelClass = $derived(
         ? "text-foreground"
         : "text-muted-foreground",
 );
-const summaryTitle = $derived(
-  `${timeLabel(log.ts)} ${log.level.toUpperCase()} ${log.source}/${log.component} ${log.message}${log.durationMs === undefined ? "" : ` ${log.durationMs}ms`}`,
-);
+const summaryTitle = $derived(formatApplicationLog(log));
 </script>
 
 {#snippet summary()}
@@ -38,6 +45,11 @@ const summaryTitle = $derived(
     {log.source}/{log.component}
   </span>
   <span class="text-foreground">{log.message}</span>
+  {#each summaryAttributes as attribute (attribute.key)}
+    <span class="ml-2 text-muted-foreground">
+      {attribute.label}=<span class="text-foreground">{attribute.value}</span>
+    </span>
+  {/each}
   {#if log.durationMs !== undefined}
     <span class="ml-2 tabular-nums text-muted-foreground">
       {log.durationMs}ms
@@ -72,26 +84,33 @@ const summaryTitle = $derived(
 
   {#if detail && open}
     <div class="flex select-text flex-col gap-1 px-2 pb-1.5 pl-7 text-xs">
-      {#if references.length > 0}
-        <div class="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
-          {#each references as reference (reference)}
-            <span>{reference}</span>
-          {/each}
-        </div>
-      {/if}
-      {#if contextEntries.length > 0}
+      {#if references.length > 0 || contextEntries.length > 0}
         <dl
           class="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-0.5"
         >
-          {#each contextEntries as [key, value] (key)}
-            <dt class="text-muted-foreground">{key}</dt>
-            <dd class="m-0 break-words text-foreground">{value}</dd>
+          {#each references as entry (entry.key)}
+            <dt class="text-muted-foreground">{entry.label}</dt>
+            <dd class="m-0 whitespace-pre-wrap break-words text-foreground">
+              {entry.value}
+            </dd>
+          {/each}
+          {#each contextEntries as entry (entry.key)}
+            <dt class="text-muted-foreground">{entry.label}</dt>
+            <dd class="m-0 whitespace-pre-wrap break-words text-foreground">
+              {entry.value}
+            </dd>
           {/each}
         </dl>
       {/if}
-      {#if log.error}
-        <pre class="m-0 whitespace-pre-wrap text-xs text-destructive">{log.error
-            .stack ?? log.error.message}</pre>
+      {#if errorEntries.length > 0}
+        <dl
+          class="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-destructive"
+        >
+          {#each errorEntries as entry (entry.key)}
+            <dt>{entry.label}</dt>
+            <dd class="m-0 whitespace-pre-wrap break-words">{entry.value}</dd>
+          {/each}
+        </dl>
       {/if}
     </div>
   {/if}

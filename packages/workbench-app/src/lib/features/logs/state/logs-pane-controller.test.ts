@@ -12,9 +12,12 @@ import {
   type LogsPaneDependencies,
 } from "./logs-pane-controller";
 import {
+  formatApplicationLog,
   hasLogDetail,
   logContextEntries,
+  logErrorEntries,
   logReferences,
+  logSummaryAttributes,
 } from "$lib/presentation/logs/log-entry";
 
 function log(
@@ -219,18 +222,88 @@ describe("logs pane controller", () => {
 });
 
 describe("log entry helpers", () => {
-  it("projects references, context, and detail state", () => {
+  it("projects labeled references, context, and detail state", () => {
     const entry = log("3", {
       requestId: "request",
-      context: { count: 2, label: "ok" },
+      toolCallId: "tool_test",
+      context: { count: 2, displayLabel: "ok" },
     });
 
-    assert.deepEqual(logReferences(entry), ["request"]);
+    assert.deepEqual(logReferences(entry), [
+      { key: "requestId", label: "request", value: "request" },
+      { key: "toolCallId", label: "tool call", value: "tool_test" },
+    ]);
     assert.deepEqual(logContextEntries(entry), [
-      ["count", "2"],
-      ["label", "ok"],
+      { key: "count", label: "count", value: "2" },
+      { key: "displayLabel", label: "display label", value: "ok" },
     ]);
     assert.equal(hasLogDetail(entry), true);
     assert.equal(hasLogDetail(log("4")), false);
+  });
+
+  it("prioritizes identifying scalar attributes and skips message duplicates", () => {
+    const entry = log("5", {
+      message: "Slow GitHub request: github-status",
+      context: {
+        status: 200,
+        outcome: "slow",
+        operation: "github-status",
+        repository: "nervekit/nerve",
+        ignoredObject: { count: 1 },
+      },
+    });
+
+    assert.deepEqual(logSummaryAttributes(entry), [
+      {
+        key: "repository",
+        label: "repository",
+        value: "nervekit/nerve",
+      },
+      { key: "status", label: "status", value: "200" },
+    ]);
+  });
+
+  it("safely bounds nested context and preserves complete error details", () => {
+    const circular: Record<string, unknown> = { label: "root" };
+    circular.self = circular;
+    const entry = log("6", {
+      context: { circular, long: "x".repeat(4_100) },
+      error: {
+        name: "TypeError",
+        message: "kaput",
+        cause: "upstream",
+        stack: "TypeError: kaput\n at test",
+      },
+    });
+
+    assert.match(logContextEntries(entry)[0]?.value ?? "", /\[Circular\]/);
+    assert.equal(logContextEntries(entry)[1]?.value.endsWith("…"), true);
+    assert.deepEqual(logErrorEntries(entry), [
+      { key: "error", label: "error", value: "TypeError: kaput" },
+      { key: "cause", label: "cause", value: "upstream" },
+      {
+        key: "stack",
+        label: "stack",
+        value: "TypeError: kaput\n at test",
+      },
+    ]);
+  });
+
+  it("serializes rich records in readable visible order", () => {
+    const first = log("7", {
+      requestId: "request_7",
+      durationMs: 42,
+      context: { method: "GET", status: 200 },
+      error: { message: "problem" },
+    });
+    const second = log("8");
+
+    assert.equal(
+      serializeApplicationLogs([first, second]),
+      `${formatApplicationLog(first)}\n\n${formatApplicationLog(second)}`,
+    );
+    assert.match(formatApplicationLog(first), / 42ms\n {2}request: request_7/);
+    assert.match(formatApplicationLog(first), /\n {2}method: GET/);
+    assert.match(formatApplicationLog(first), /\n {2}error: problem$/);
   });
 });

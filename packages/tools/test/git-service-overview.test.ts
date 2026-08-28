@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import type { GitOverviewObservation } from "../src/git/git-observability.js";
 import { GitService } from "../src/git/git-service.js";
 
 describe("GitService overview snapshots", () => {
@@ -7,10 +8,7 @@ describe("GitService overview snapshots", () => {
     const calls: string[][] = [];
     let now = 1_000;
     let snapshotCalls = 0;
-    const overviewObservations: Array<{
-      durationMs: number;
-      succeeded: boolean;
-    }> = [];
+    const overviewObservations: GitOverviewObservation[] = [];
     const service = new GitService(() => ({ dir: "/repo", name: "repo" }), {
       now: () => now,
       stableMetadataTtlMs: 30_000,
@@ -104,7 +102,11 @@ describe("GitService overview snapshots", () => {
     assert.equal(overviewObservations.length, 4);
     assert.equal(
       overviewObservations.every(
-        (observation) => observation.succeeded && observation.durationMs >= 0,
+        (observation) =>
+          observation.succeeded &&
+          observation.durationMs >= 0 &&
+          observation.projectId === "proj_test" &&
+          observation.relativePath === ".",
       ),
       true,
     );
@@ -126,7 +128,8 @@ describe("GitService overview snapshots", () => {
     assert.match(result.stdout, /^git version /);
     assert.deepEqual(
       observations.map((observation) => Object.keys(observation as object)),
-      [["bin", "command", "durationMs", "succeeded"]],
+      [["bin", "command", "cwd", "durationMs", "succeeded"]],
     );
+    assert.equal((observations[0] as { cwd: string }).cwd, process.cwd());
   });
 });
