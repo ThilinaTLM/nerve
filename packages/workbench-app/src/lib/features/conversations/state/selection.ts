@@ -69,6 +69,11 @@ export async function applyActiveConversationSelection(
     override?.permissionLevel ??
     conversationAgent?.permissionLevel ??
     conversation.permissionLevel;
+  conversationState.selectedPermissionRuleSetId =
+    override?.permissionRuleSetId ??
+    conversationAgent?.permissionRuleSetId ??
+    conversationAgent?.permissionLevel ??
+    conversation.permissionLevel;
 }
 
 const conversationSnapshotRefreshes = new KeyedSingleFlight<string, void>();

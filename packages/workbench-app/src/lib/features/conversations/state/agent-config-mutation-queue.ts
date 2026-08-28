@@ -9,6 +9,7 @@ export interface AgentConfigPatch {
   thinkingLevel?: AgentRecord["thinkingLevel"];
   mode?: AgentRecord["mode"];
   permissionLevel?: AgentRecord["permissionLevel"];
+  permissionRuleSetId?: NonNullable<AgentRecord["permissionRuleSetId"]>;
 }
 
 export interface AgentConfigMutationQueueDeps {
@@ -38,6 +39,7 @@ const PATCH_FIELDS = [
   "thinkingLevel",
   "mode",
   "permissionLevel",
+  "permissionRuleSetId",
 ] as const;
 
 /**
@@ -155,6 +157,9 @@ function runtimeConfigFields(
   }
   if (patch.permissionLevel !== undefined) {
     runtime.permissionLevel = patch.permissionLevel;
+  }
+  if (patch.permissionRuleSetId !== undefined) {
+    runtime.permissionRuleSetId = patch.permissionRuleSetId;
   }
   return hasFields(runtime) ? runtime : undefined;
 }

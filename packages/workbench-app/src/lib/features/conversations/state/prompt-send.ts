@@ -86,14 +86,20 @@ export async function ensureAgent(): Promise<string> {
       needsModel,
       needsMode,
       needsPermission,
+      needsPermissionRuleSet,
+      desiredPermissionRuleSetId,
+      legacyPermissionLevel,
       needsThinking,
     } = agentNeedsComposerUpdate(agent);
     const patch: AgentConfigPatch = {
       ...(needsModel && desired ? { model: desired } : {}),
       ...(needsThinking ? { thinkingLevel } : {}),
       ...(needsMode ? { mode: conversationState.selectedMode } : {}),
-      ...(needsPermission
-        ? { permissionLevel: conversationState.selectedPermissionLevel }
+      ...(needsPermission && legacyPermissionLevel
+        ? { permissionLevel: legacyPermissionLevel }
+        : {}),
+      ...(needsPermissionRuleSet
+        ? { permissionRuleSetId: desiredPermissionRuleSetId }
         : {}),
     };
     // Route any remaining delta through the shared per-agent mutation queue
@@ -112,6 +118,7 @@ export async function ensureAgent(): Promise<string> {
         thinkingLevel: selectedThinkingLevel(),
         mode: conversationState.selectedMode,
         permissionLevel: conversationState.selectedPermissionLevel,
+        permissionRuleSetId: conversationState.selectedPermissionRuleSetId,
       })
     ).result;
     selection.agentId = agent.id;
@@ -162,6 +169,7 @@ async function sendPendingPrompt(
   pending.thinkingLevel = selectedThinkingLevel();
   pending.mode = conversationState.selectedMode;
   pending.permissionLevel = conversationState.selectedPermissionLevel;
+  pending.permissionRuleSetId = conversationState.selectedPermissionRuleSetId;
   pending.sending = true;
   pending.error = undefined;
   workspaceState.error = undefined;
@@ -186,6 +194,7 @@ async function sendPendingPrompt(
         thinkingLevel: pending.thinkingLevel,
         mode: pending.mode,
         permissionLevel: pending.permissionLevel,
+        permissionRuleSetId: pending.permissionRuleSetId,
       })
     ).result;
 

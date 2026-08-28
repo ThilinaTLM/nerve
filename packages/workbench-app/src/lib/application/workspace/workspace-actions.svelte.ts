@@ -183,6 +183,10 @@ function syncSelectedAgentConfig(
     conversationState.selectedMode = override?.mode ?? activeAgent.mode;
     conversationState.selectedPermissionLevel =
       override?.permissionLevel ?? activeAgent.permissionLevel;
+    conversationState.selectedPermissionRuleSetId =
+      override?.permissionRuleSetId ??
+      activeAgent.permissionRuleSetId ??
+      activeAgent.permissionLevel;
     return;
   }
 
@@ -194,6 +198,8 @@ function syncSelectedAgentConfig(
   if (!activeConversation) return;
   conversationState.selectedMode = activeConversation.mode;
   conversationState.selectedPermissionLevel =
+    activeConversation.permissionLevel;
+  conversationState.selectedPermissionRuleSetId =
     activeConversation.permissionLevel;
 }
 

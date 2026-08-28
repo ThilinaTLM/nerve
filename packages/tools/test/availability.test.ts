@@ -23,6 +23,7 @@ describe("read-only tool availability and permissions", () => {
       "plan_mode_force_exit",
       "task_status",
       "task_logs",
+      "explore",
     ] as const;
     for (const name of expectedActive) {
       assert.ok(activeToolNames.includes(name), `expected active: ${name}`);
@@ -35,7 +36,6 @@ describe("read-only tool availability and permissions", () => {
       "web_search",
       "web_fetch",
       "explain_image",
-      "explore",
       "task_start",
       "task_control",
     ] as const;
@@ -50,6 +50,21 @@ describe("read-only tool availability and permissions", () => {
     }
   });
 
+  it("allows read-only agents to execute Explore", () => {
+    assert.equal(
+      evaluateRuntimeToolPermission(
+        "explore",
+        {
+          tasks: [{ task: "Inspect the codebase" }],
+          context:
+            "Inspect the relevant code paths and report how the implementation currently behaves.",
+        },
+        { permissionLevel: "read_only" },
+      ).decision,
+      "allow",
+    );
+  });
+
   it("allows read-only agents to execute session-state tools", () => {
     for (const name of [
       "todos_set",
@@ -59,7 +74,7 @@ describe("read-only tool availability and permissions", () => {
       assert.equal(
         evaluateRuntimeToolPermission(
           name,
-          {},
+          name === "todos_set" ? { todos: [] } : {},
           {
             permissionLevel: "read_only",
           },

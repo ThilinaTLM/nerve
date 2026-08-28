@@ -6,5 +6,5 @@
     "outDir": "dist"
   },
   "references": [{ "path": "../contracts" }, { "path": "../native" }],
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.json"]
 }

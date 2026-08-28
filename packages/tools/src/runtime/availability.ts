@@ -47,6 +47,7 @@ export function resolveToolAvailability(
       if (unavailable.has(definition.name)) return false;
       if (
         input.permissionLevel === "read_only" &&
+        definition.name !== "explore" &&
         (definition.traits.includes("write_capable") ||
           [
             "command",

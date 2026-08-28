@@ -1,13 +1,20 @@
+import { createHash } from "node:crypto";
+import { resolve } from "node:path";
 import type {
   AgentRecord,
   PermissionException,
-  PermissionRule,
-  PermissionRuleMatcherKind,
+  LegacyPermissionRule,
+  LegacyPermissionRuleMatcherKind,
+  StaticToolRisk,
   ToolName,
+  ToolRisk,
 } from "@nervekit/contracts";
 import {
+  evaluatePermissionRequest,
   evaluateToolPermission,
   evaluateToolSupervision,
+  normalizePermissionRequest,
+  permissionMetadataForTool,
 } from "@nervekit/tools";
 import { planningModeGuardrails } from "./planning-mode-guardrails.js";
 import { toolRequestContext } from "./tool-request-context.js";
@@ -20,7 +27,7 @@ function legacyRule(
   exception: PermissionException,
   projectId: string,
   timestamp: string,
-): PermissionRule {
+): LegacyPermissionRule {
   return {
     id: `rule_${exception.id.replace(/^exception_/, "").slice(0, 96)}`,
     scope: "project",
@@ -37,7 +44,7 @@ function legacyRule(
 
 function legacyMatcherKind(
   exception: PermissionException,
-): PermissionRuleMatcherKind {
+): LegacyPermissionRuleMatcherKind {
   if (["read", "edit", "write", "grep", "find", "ls"].includes(exception.tool))
     return "path_glob";
   if (exception.tool === "bash") return "command_glob";
@@ -52,6 +59,97 @@ export function evaluateWorkbenchToolPermission(
   context: WorkbenchPermissionContext,
 ): WorkbenchPermissionEvaluation {
   const request = toolRequestContext(agent, args);
+  if (context.policy && context.roots) {
+    try {
+      const normalizedRequest = normalizePermissionRequest({
+        toolName,
+        args,
+        normalizedArgs: request.normalizedArgs,
+        roots: context.roots,
+        cwd: request.cwd,
+        projectId: agent.projectId,
+        conversationId: agent.conversationId,
+      });
+      const evaluatedPermission = evaluatePermissionRequest({
+        request: normalizedRequest,
+        policy: context.policy,
+      });
+      const permissionEvaluation = context.policyDiagnostic
+        ? {
+            ...evaluatedPermission,
+            reason: `${context.policyDiagnostic} ${evaluatedPermission.reason}`,
+          }
+        : evaluatedPermission;
+      const risk = legacyRisk(permissionEvaluation.baseRisk);
+      return {
+        decision:
+          permissionEvaluation.decision === "prompt"
+            ? "approval"
+            : permissionEvaluation.decision,
+        risk,
+        reason: permissionEvaluation.reason,
+        normalizedArgs: normalizedRequest.args,
+        cwd: request.cwd,
+        suggestedExceptions: [],
+        permissionEvaluation,
+        supervision: {
+          version: 1,
+          decision: permissionEvaluation.decision,
+          effectiveRisk: risk,
+          reason: permissionEvaluation.reason,
+          normalizedArgs: normalizedRequest.args,
+          normalizedTargets: permissionEvaluation.normalizedTargets.map(
+            (target) =>
+              target.kind === "path"
+                ? {
+                    kind: "path" as const,
+                    access: target.access,
+                    scope: target.scope,
+                    absolutePath: resolve(
+                      context.roots![target.root],
+                      target.relativePath,
+                    ),
+                    ...(target.root === "project"
+                      ? { projectRelativePath: target.relativePath }
+                      : {}),
+                  }
+                : target.kind === "url"
+                  ? { kind: "url" as const, url: target.normalizedUrl }
+                  : { kind: "whole_tool" as const },
+          ),
+          matchedRuleIds: [`rule_${permissionEvaluation.winningRuleId}`],
+          policySnapshotHash: permissionEvaluation.policySnapshotHash,
+          suggestedRules: [],
+        },
+      };
+    } catch (error) {
+      const reason = `Permission request validation failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`;
+      const risk = legacyRisk(permissionMetadataForTool(toolName).baseRisk);
+      return {
+        decision: "deny",
+        risk,
+        reason,
+        normalizedArgs: request.normalizedArgs,
+        cwd: request.cwd,
+        suggestedExceptions: [],
+        supervision: {
+          version: 1,
+          decision: "deny",
+          effectiveRisk: risk,
+          reason,
+          normalizedArgs: request.normalizedArgs,
+          normalizedTargets: [],
+          matchedRuleIds: [],
+          policySnapshotHash: `sha256:${createHash("sha256")
+            .update(reason)
+            .digest("hex")}`,
+          suggestedRules: [],
+        },
+      };
+    }
+  }
   let normalizedArgs = request.normalizedArgs;
   let denial: string | undefined;
   let allowWithoutApproval = false;
@@ -143,4 +241,10 @@ export function evaluateWorkbenchToolPermission(
       : evaluated.suggestedExceptions,
     supervision: durableSupervision,
   };
+}
+
+function legacyRisk(risk: StaticToolRisk): ToolRisk {
+  if (risk === "write") return "workspace_write";
+  if (risk === "unknown") return "command";
+  return risk;
 }

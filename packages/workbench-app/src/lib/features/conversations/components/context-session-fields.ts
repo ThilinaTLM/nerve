@@ -12,15 +12,16 @@ export type SessionFieldsInput = {
   activeConversation?: ConversationRecord;
 };
 
-const PERMISSION_LABELS: Record<string, string> = {
-  read_only: "read only",
-  supervised: "supervised",
-  autonomous: "autonomous",
+const PERMISSION_RULE_SET_LABELS: Record<string, string> = {
+  baseline: "Baseline",
+  read_only: "Read only",
+  supervised: "Supervised",
+  autonomous: "Autonomous",
+  planning: "Planning",
 };
 
-/** Agent-facing permission wording; agent rows render it inline, lower case. */
-export function permissionLabel(permissionLevel: string): string {
-  return PERMISSION_LABELS[permissionLevel] ?? permissionLevel;
+export function permissionRuleSetLabel(ruleSetId: string): string {
+  return PERMISSION_RULE_SET_LABELS[ruleSetId] ?? ruleSetId;
 }
 
 export function shortAgentId(id: string): string {

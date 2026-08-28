@@ -1,4 +1,8 @@
-import type { TodoItem } from "@nervekit/contracts";
+import type {
+  PermissionRuleSetId,
+  PermissionRuleSetSummary,
+  TodoItem,
+} from "@nervekit/contracts";
 import type {
   AgentRecord,
   ApprovalWithToolCall,
@@ -15,7 +19,6 @@ import type { ComposerSuggestion } from "./composer-suggestion";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 
 export type Mode = AgentRecord["mode"];
-export type PermissionLevel = AgentRecord["permissionLevel"];
 export type ThinkingLevel = AgentRecord["thinkingLevel"];
 
 export type PromptComposerProps = {
@@ -42,7 +45,10 @@ export type PromptComposerProps = {
   micShortcutToken?: number;
   thinkingLevel?: ThinkingLevel;
   mode?: Mode;
-  permissionLevel?: PermissionLevel;
+  permissionRuleSetId?: PermissionRuleSetId;
+  permissionRuleSets?: PermissionRuleSetSummary[];
+  permissionRuleSetsLoading?: boolean;
+  permissionRuleSetsError?: string;
   slashCompletions?: CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   composerSuggestions?: ComposerSuggestion[];
@@ -55,6 +61,7 @@ export type PromptComposerProps = {
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onModeChange?: (value: Mode) => void;
-  onPermissionChange?: (value: PermissionLevel) => void;
+  onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
+  onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
 };

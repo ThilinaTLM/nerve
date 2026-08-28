@@ -316,8 +316,7 @@ export const setupGuideSteps: Record<
       title: "Choose default permissions",
       description: "Set the approval level new agents use by default.",
       targetId: "setup-agent-default-permission",
-      fallback:
-        "Open Settings → Agents → Defaults to choose a permission level.",
+      fallback: "Open Settings → Permissions to choose a permission rule set.",
       preparation: {
         kind: "settings",
         pageId: "agents",

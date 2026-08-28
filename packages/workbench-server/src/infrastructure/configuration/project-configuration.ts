@@ -2,7 +2,6 @@ import { join } from "node:path";
 import {
   harnessConfigSchema,
   integrationsConfigSchema,
-  permissionsConfigSchema,
   providersConfigSchema,
   uiConfigSchema,
   type Settings,
@@ -25,14 +24,12 @@ export async function resolveProjectConfiguration(
   input: ConfigurationResolutionInput = {},
 ): Promise<UserConfiguration> {
   const root = join(projectDir, ".nerve", "config");
-  const [harnessRaw, uiRaw, permissionsRaw, providersRaw, integrationsRaw] =
-    await Promise.all([
-      optionalJson(join(root, "harness.json")),
-      optionalJson(join(root, "ui.json")),
-      optionalJson(join(root, "permissions.json")),
-      optionalJson(join(root, "providers.json")),
-      optionalJson(join(root, "integrations.json")),
-    ]);
+  const [harnessRaw, uiRaw, providersRaw, integrationsRaw] = await Promise.all([
+    optionalJson(join(root, "harness.json")),
+    optionalJson(join(root, "ui.json")),
+    optionalJson(join(root, "providers.json")),
+    optionalJson(join(root, "integrations.json")),
+  ]);
   const user = storage.configuration;
   let harness = harnessConfigSchema.parse(deepMerge(user.harness, harnessRaw));
   harness = applyHarnessEnvironment(harness, input.env ?? process.env);
@@ -41,11 +38,7 @@ export async function resolveProjectConfiguration(
     daemon: user.daemon,
     harness,
     ui: uiConfigSchema.parse(deepMerge(user.ui, uiRaw)),
-    permissions: permissionsConfigSchema.parse(
-      mergeKeyedDocument(user.permissions, permissionsRaw, "rules", (rule) =>
-        stringKey(rule, "id"),
-      ),
-    ),
+    permissions: user.permissions,
     providers: providersConfigSchema.parse(
       mergeProviders(user.providers, providersRaw),
     ),

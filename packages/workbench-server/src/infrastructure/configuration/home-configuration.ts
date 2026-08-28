@@ -1,8 +1,8 @@
 import { chmod, mkdir } from "node:fs/promises";
 import {
+  defaultPermissionsConfig,
   defaultUserConfiguration,
   type IntegrationsConfig,
-  type PermissionRuleConfig,
   type Settings,
   settingsSchema,
   type UserConfiguration,
@@ -41,7 +41,7 @@ export async function readHomeConfiguration(
       readConfig(paths.daemonConfigPath, daemonConfigSchema),
       readConfig(paths.harnessConfigPath, harnessConfigSchema),
       readConfig(paths.uiConfigPath, uiConfigSchema),
-      readConfig(paths.permissionsConfigPath, permissionsConfigSchema),
+      readPermissionConfig(paths.permissionsConfigPath),
       readConfig(paths.providersConfigPath, providersConfigSchema),
       readConfig(paths.integrationsConfigPath, integrationsConfigSchema),
     ]);
@@ -61,6 +61,7 @@ export async function writeHomeConfiguration(
 ): Promise<UserConfiguration> {
   const parsed = userConfigurationSchema.parse(configuration);
   for (const document of configDocuments(paths, parsed)) {
+    if (document.path === paths.permissionsConfigPath) continue;
     await atomicWriteJson(document.path, document.value, CONFIG_MODE);
     await chmod(document.path, CONFIG_MODE).catch(() => undefined);
   }
@@ -100,6 +101,7 @@ export function settingsFromConfiguration(
   return settingsSchema.parse({
     defaultMode: harness.defaults.mode,
     defaultPermissionLevel: harness.defaults.permissionLevel,
+    defaultPermissionRuleSetId: harness.defaults.permissionRuleSetId,
     defaultModel: harness.defaults.model,
     defaultThinkingLevel: harness.defaults.thinkingLevel,
     rememberLastAgentSelection: harness.rememberLastSelection,
@@ -119,9 +121,7 @@ export function settingsFromConfiguration(
     logging: daemon.logging,
     retry: harness.retry,
     runtime: harness.execution,
-    permissions: {
-      exceptions: configuration.permissions.rules.map(ruleToException),
-    },
+    permissions: { exceptions: [] },
     providers: {
       atlassianProfiles: integrations.profiles.atlassian.map((profile) => ({
         id: profile.id,
@@ -174,6 +174,7 @@ export function configurationWithSettings(
       defaults: {
         mode: parsed.defaultMode,
         permissionLevel: parsed.defaultPermissionLevel,
+        permissionRuleSetId: parsed.defaultPermissionRuleSetId,
         model: parsed.defaultModel,
         thinkingLevel: parsed.defaultThinkingLevel,
       },
@@ -198,10 +199,7 @@ export function configurationWithSettings(
       notifications: parsed.notifications,
       transcription: parsed.transcription,
     },
-    permissions: {
-      version: 1,
-      rules: parsed.permissions.exceptions.map(exceptionToRule),
-    },
+    permissions: current.permissions,
     integrations,
   });
 }
@@ -240,32 +238,12 @@ function integrationsFromSettings(
   });
 }
 
-function ruleToException(rule: PermissionRuleConfig) {
-  return {
-    id: `exception_${rule.id.replace(/^exception_/, "")}`.slice(0, 128),
-    tool: rule.tool as never,
-    effect: rule.effect,
-    rule: rule.matcher.pattern,
-  };
-}
-
-function exceptionToRule(
-  exception: Settings["permissions"]["exceptions"][number],
-): PermissionRuleConfig {
-  const kind = ["read", "edit", "write", "grep", "find", "ls"].includes(
-    exception.tool,
-  )
-    ? ("path_glob" as const)
-    : exception.tool === "bash"
-      ? ("command_glob" as const)
-      : exception.tool === "web_fetch"
-        ? ("url_glob" as const)
-        : ("whole_tool" as const);
-  return {
-    id: exception.id.replace(/^exception_/, "") || exception.id,
-    effect: exception.effect,
-    tool: exception.tool,
-    matcher: { kind, pattern: exception.rule },
-    enabled: true,
-  };
+async function readPermissionConfig(path: string) {
+  try {
+    return permissionsConfigSchema.parse(await readJsonFile<unknown>(path));
+  } catch {
+    // Permission sources are validated and diagnosed by PermissionPolicyService.
+    // An invalid overlay must not prevent Nerve from starting.
+    return defaultPermissionsConfig;
+  }
 }

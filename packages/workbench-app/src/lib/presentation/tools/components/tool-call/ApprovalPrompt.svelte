@@ -18,7 +18,11 @@ type Props = {
   detailsAction?: { label: string; onClick: () => void };
   onGrantApproval?: (
     id: string,
-    scope?: "single_call" | "always_project" | "always_user",
+    scope?:
+      | "single_call"
+      | "always_conversation"
+      | "always_project"
+      | "always_user",
   ) => void | Promise<void>;
   onDenyApproval?: (id: string) => void | Promise<void>;
 };
@@ -31,12 +35,22 @@ let {
 }: Props = $props();
 
 let decision = $state<
-  "approve" | "always_project" | "always_user" | "deny" | undefined
+  | "approve"
+  | "always_conversation"
+  | "always_project"
+  | "always_user"
+  | "deny"
+  | undefined
 >();
 let actionError = $state<string | undefined>();
 
 async function decide(
-  kind: "approve" | "always_project" | "always_user" | "deny",
+  kind:
+    | "approve"
+    | "always_conversation"
+    | "always_project"
+    | "always_user"
+    | "deny",
 ) {
   if (decision) return;
   const callback = kind === "deny" ? onDenyApproval : onGrantApproval;
@@ -65,28 +79,39 @@ function riskTone(risk: string | undefined): MetaTone {
   return "default";
 }
 
-function exceptionLabel(
-  exception: ApprovalWithToolCall["suggestedExceptions"][number],
-): string {
-  return `${exception.tool}: ${exception.rule}`;
+function reviewedRuleLabel(): string {
+  const rule = approval.suggestedRules[0];
+  if (rule) {
+    const tool = rule.when.toolNames?.join(", ") ?? "matching tools";
+    const primary = rule.when.primaryArgument;
+    return primary?.operator === "equals"
+      ? `${tool}: exact ${String(primary.value)}`
+      : tool;
+  }
+  const exception = approval.suggestedExceptions[0];
+  return exception ? `${exception.tool}: ${exception.rule}` : "this request";
 }
 
 const meta = $derived<MetaItem[]>([
   ...presentation.secondary,
   { text: approval.risk, tone: riskTone(approval.risk) },
 ]);
+const hasSuggestion = $derived(
+  approval.suggestedRules.length > 0 || approval.suggestedExceptions.length > 0,
+);
+const canPersistConversation = $derived(
+  approval.offeredScopes.includes("always_conversation") && hasSuggestion,
+);
 const canPersistProject = $derived(
-  approval.offeredScopes.includes("always_project") &&
-    approval.suggestedExceptions.length > 0,
+  approval.offeredScopes.includes("always_project") && hasSuggestion,
 );
 const canPersistUser = $derived(
-  approval.offeredScopes.includes("always_user") &&
-    approval.suggestedExceptions.length > 0,
+  approval.offeredScopes.includes("always_user") && hasSuggestion,
 );
-const hasPersistentChoice = $derived(canPersistProject || canPersistUser);
-const reviewedTarget = $derived(
-  approval.suggestedExceptions.map(exceptionLabel).join(", "),
+const hasPersistentChoice = $derived(
+  canPersistConversation || canPersistProject || canPersistUser,
 );
+const reviewedTarget = $derived(reviewedRuleLabel());
 </script>
 
 <div class="grid gap-2" aria-label="Tool approval">
@@ -113,6 +138,15 @@ const reviewedTarget = $derived(
             >
               Approve once
             </DropdownMenu.Item>
+            {#if canPersistConversation}
+              <DropdownMenu.Item
+                disabled={Boolean(decision)}
+                title={`Allow ${reviewedTarget} in this conversation`}
+                onSelect={() => void decide("always_conversation")}
+              >
+                Allow in this conversation
+              </DropdownMenu.Item>
+            {/if}
             {#if canPersistProject}
               <DropdownMenu.Item
                 disabled={Boolean(decision)}

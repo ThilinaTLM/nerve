@@ -73,6 +73,7 @@ import { ToolService } from "../../domains/tools/tool-service.js";
 import { ToolResultPayloadStore } from "../../domains/tools/tool-result-payload-store.js";
 import {
   PermissionExceptionService,
+  PermissionPolicyService,
   ProjectPermissionsRepository,
 } from "../../domains/permissions/index.js";
 import {
@@ -113,6 +114,7 @@ export interface RuntimeServices {
   plans: PlanService;
   tools: ToolService;
   permissionExceptions: PermissionExceptionService;
+  permissionPolicy: PermissionPolicyService;
   git: GitService;
   gitRepositoryWatcher: GitRepositoryWatcher;
   projectFilesystemWatcher: ProjectFilesystemWatcher;
@@ -220,6 +222,7 @@ export function composeRuntime(
     getProject,
     events,
   );
+  services.permissionPolicy = new PermissionPolicyService(storage, getProject);
   services.taskDefinitions = new TaskDefinitionService(
     new TaskDefinitionRepository(storage),
     getProject,
@@ -586,6 +589,7 @@ export function composeRuntime(
     conversationJournal,
     resultPayloads,
     performanceDiagnostics.enabled ? performanceDiagnostics : undefined,
+    services.permissionPolicy,
   );
   services.subagentTranscriptLive = new SubagentTranscriptLiveService(events);
   services.subagentTranscripts = new SubagentTranscriptService({

@@ -40,6 +40,11 @@ export { planModeToolDefinitions } from "./catalog/orchestration/plan-mode.tools
 export { taskToolDefinitions } from "./catalog/orchestration/task.tools.js";
 export { promptGuidelinesForTools } from "./catalog/prompt-guidelines.js";
 export {
+  permissionMetadataForTool,
+  toolPermissionMetadata,
+  type ToolPermissionMetadata,
+} from "./catalog/permission-metadata.js";
+export {
   coreToolRiskForName,
   isReadOnlyNetworkToolForApproval,
 } from "./catalog/risk.js";
@@ -171,6 +176,20 @@ export {
   parsePorcelainV2,
   parseShortstat,
 } from "./git/git-status.js";
+
+export {
+  builtInPermissionRuleSet,
+  builtInPermissionRuleSets,
+  composeEffectivePermissionPolicy,
+  evaluatePermissionRequest,
+  normalizePermissionRequest,
+  type ComposePermissionPolicyInput,
+  type EffectivePermissionPolicy,
+  type EffectivePermissionRule,
+  type EvaluatePermissionInput,
+  type NormalizedPermissionRequest,
+  type PermissionRootPaths,
+} from "./policy/permission-policy.js";
 
 export { evaluateToolPermission } from "./policy/evaluate-tool-permission.js";
 export {

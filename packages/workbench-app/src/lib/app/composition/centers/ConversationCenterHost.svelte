@@ -50,7 +50,7 @@ import { agentConfigOverride } from "$lib/features/conversations/state/agent-con
 import {
   setComposerMode,
   setComposerModel,
-  setComposerPermission,
+  setComposerPermissionRuleSet,
   setComposerThinkingLevel,
 } from "$lib/features/conversations/state/composer-config.svelte";
 import { ensureConversationView } from "$lib/features/conversations/state/state";
@@ -67,6 +67,11 @@ import { refreshPromptSuggestions } from "$lib/features/prompt-suggestions/state
 import { notify } from "$lib/application/notifications/notify.svelte";
 import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/components/PromptSuggestionTrustDialog.svelte";
 import type { ComposerSuggestion } from "$lib/features/conversations/components/composer-suggestion";
+import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
+import {
+  effectivePermissionRuleSetId,
+  selectablePermissionRuleSets,
+} from "$lib/kernel/permissions/permission-rule-set-options";
 import {
   completeFiles,
   newConversationInProject,
@@ -188,12 +193,28 @@ const selectedMode = $derived(
     activeConversation?.mode ??
     conversationState.selectedMode,
 );
-const selectedPermissionLevel = $derived(
-  activePendingConversation?.permissionLevel ??
-    activeAgentConfigOverride?.permissionLevel ??
+const selectedCodingPermissionRuleSetId = $derived(
+  activePendingConversation?.permissionRuleSetId ??
+    activeAgentConfigOverride?.permissionRuleSetId ??
+    activeAgent?.permissionRuleSetId ??
     activeAgent?.permissionLevel ??
     activeConversation?.permissionLevel ??
-    conversationState.selectedPermissionLevel,
+    conversationState.selectedPermissionRuleSetId,
+);
+const permissionRuleSets = $derived(
+  selectablePermissionRuleSets(
+    permissionRuleSetCatalog.summaries(activeProject?.id),
+    selectedMode,
+  ),
+);
+const selectedPermissionRuleSetId = $derived(
+  effectivePermissionRuleSetId(selectedCodingPermissionRuleSetId, selectedMode),
+);
+const permissionRuleSetsLoading = $derived(
+  permissionRuleSetCatalog.loading(activeProject?.id),
+);
+const permissionRuleSetsError = $derived(
+  permissionRuleSetCatalog.error(activeProject?.id),
 );
 const activeComposerText = $derived(
   activePendingConversation?.composerText ?? view?.composerText ?? "",
@@ -309,6 +330,12 @@ function openToolFile(path: string, line?: number) {
   if (!activeProject) return;
   void openFilePane({ projectId: activeProject.id, path, line });
 }
+
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive || !active || !activeProject?.id)
+    return;
+  void permissionRuleSetCatalog.ensure(activeProject.id);
+});
 
 $effect(() => {
   if (!workbenchStartupState.progressiveActive || !active || !activeProject?.id)
@@ -435,7 +462,10 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   {planReviewModelKey}
   {planReviewThinkingLevel}
   mode={selectedMode}
-  permissionLevel={selectedPermissionLevel}
+  permissionRuleSetId={selectedPermissionRuleSetId}
+  {permissionRuleSets}
+  {permissionRuleSetsLoading}
+  {permissionRuleSetsError}
   {slashCompletions}
   contextUsage={view?.contextUsage}
   {conversationUsage}
@@ -471,8 +501,13 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   onModeChange={(value) => {
     void runActivePaneAction(() => setComposerMode(value));
   }}
-  onPermissionChange={(value) => {
-    void runActivePaneAction(() => setComposerPermission(value));
+  onPermissionRuleSetChange={(value) => {
+    void runActivePaneAction(() => setComposerPermissionRuleSet(value));
+  }}
+  onRefreshPermissionRuleSets={() => {
+    if (activeProject?.id) {
+      void permissionRuleSetCatalog.refresh(activeProject.id);
+    }
   }}
   onOpenPermissionSettings={() =>
     void openSettingsPane("permissions", "default-permission")}

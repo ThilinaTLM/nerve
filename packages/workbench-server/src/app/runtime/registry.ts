@@ -24,6 +24,8 @@ import type {
   OpenProjectInTerminalResponse,
   PlanImplementationSelection,
   PlanReviewStatus,
+  PermissionOverlay,
+  PermissionOverlayOrigin,
   ProjectRecord,
   ProjectPermissions,
   PromptRequest,
@@ -325,6 +327,39 @@ export class RuntimeRegistry {
     );
   }
 
+  permissionPolicyConfiguration(projectId: string, conversationId?: string) {
+    this.getProject(projectId);
+    return this.services.permissionPolicy.configuration(
+      projectId,
+      conversationId,
+    );
+  }
+
+  updatePermissionOverlay(
+    projectId: string,
+    origin: PermissionOverlayOrigin,
+    overlay: PermissionOverlay,
+    conversationId?: string,
+  ) {
+    this.getProject(projectId);
+    return this.services.permissionPolicy.replaceOverlay(
+      origin,
+      overlay,
+      origin === "project"
+        ? projectId
+        : origin === "conversation"
+          ? conversationId
+          : undefined,
+    );
+  }
+
+  async updateProjectPermissionTrust(projectId: string, trusted: boolean) {
+    this.getProject(projectId);
+    if (trusted) return this.services.permissionPolicy.trustProject(projectId);
+    await this.services.permissionPolicy.revokeProjectTrust(projectId);
+    return this.services.permissionPolicy.projectTrust(projectId);
+  }
+
   watchProjectFilesystem(projectId: string): void {
     const project = this.getProject(projectId);
     this.services.projectFilesystemWatcher.watch(project.id, project.dir);
@@ -589,12 +624,14 @@ export class RuntimeRegistry {
     }
     if (request.resolution.kind === "approval") {
       const durableScope =
-        request.resolution.scope === "always_project"
-          ? "project"
-          : request.resolution.scope === "always_user" ||
-              request.resolution.scope === "always"
-            ? "user"
-            : undefined;
+        request.resolution.scope === "always_conversation"
+          ? "conversation"
+          : request.resolution.scope === "always_project"
+            ? "project"
+            : request.resolution.scope === "always_user" ||
+                request.resolution.scope === "always"
+              ? "user"
+              : undefined;
       if (request.resolution.action === "allow" && durableScope) {
         if (
           interaction.kind !== "approval" ||
@@ -605,7 +642,8 @@ export class RuntimeRegistry {
             (request.resolution.scope === "always_user" &&
               interaction.request.offeredScopes.includes("always"))
           ) ||
-          interaction.request.suggestedExceptions.length === 0
+          (interaction.request.suggestedExceptions.length === 0 &&
+            interaction.request.suggestedRules.length === 0)
         ) {
           throw new ApplicationError(
             400,
@@ -613,11 +651,23 @@ export class RuntimeRegistry {
             "This approval does not offer the requested durable grant scope.",
           );
         }
-        await this.services.permissionExceptions.add(
-          current.projectId,
-          durableScope,
-          interaction.request.suggestedExceptions,
-        );
+        if (interaction.request.suggestedRules[0]) {
+          await this.services.permissionPolicy.saveRule(
+            durableScope,
+            interaction.request.suggestedRules[0],
+            durableScope === "project"
+              ? current.projectId
+              : durableScope === "conversation"
+                ? current.conversationId
+                : undefined,
+          );
+        } else if (durableScope !== "conversation") {
+          await this.services.permissionExceptions.add(
+            current.projectId,
+            durableScope,
+            interaction.request.suggestedExceptions,
+          );
+        }
       }
       const id = `approval_${current.id}_${interaction.ordinal}`;
       const toolCall = await this.services.humanInput.resolveApproval(

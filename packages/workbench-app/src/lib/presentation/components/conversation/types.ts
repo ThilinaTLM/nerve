@@ -3,7 +3,8 @@ import type {
   ContextUsage,
   Mode,
   ModelInfo,
-  PermissionLevel,
+  PermissionRuleSetId,
+  PermissionRuleSetSummary,
   PlanReviewRecord,
   ProjectRecord,
   QueuedPromptRecord,
@@ -55,7 +56,10 @@ export type ConversationComposerModel = {
   selectedModelKey: string;
   thinkingLevel: ThinkingLevel;
   mode: Mode;
-  permissionLevel: PermissionLevel;
+  permissionRuleSetId: PermissionRuleSetId;
+  permissionRuleSets: PermissionRuleSetSummary[];
+  permissionRuleSetsLoading?: boolean;
+  permissionRuleSetsError?: string;
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
   contextWindow?: number;
@@ -121,7 +125,8 @@ export type ConversationPaneActions = {
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onModeChange?: (value: Mode) => void;
-  onPermissionChange?: (value: PermissionLevel) => void;
+  onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
+  onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
   onPasteImage?: (file: File) => Promise<string>;
   onDropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
@@ -131,7 +136,11 @@ export type ConversationPaneActions = {
   onDismissUserQuestion?: (id: string) => void | Promise<void>;
   onGrantApproval?: (
     id: string,
-    scope?: "single_call" | "always_project" | "always_user",
+    scope?:
+      | "single_call"
+      | "always_conversation"
+      | "always_project"
+      | "always_user",
   ) => void | Promise<void>;
   onDenyApproval?: (id: string) => void | Promise<void>;
   onAcceptPlanReview?: (

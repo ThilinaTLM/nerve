@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "baseline",
+  "name": "Baseline",
+  "description": "Prompt by default while allowing interaction boundaries.",
+  "source": "builtin",
+  "enabled": true,
+  "rules": [
+    {
+      "id": "allow-interaction",
+      "enabled": true,
+      "priority": 100,
+      "enforcement": "overridable",
+      "when": { "baseRisks": ["interaction"] },
+      "decision": "allow"
+    },
+    {
+      "id": "prompt-everything-else",
+      "enabled": true,
+      "priority": 0,
+      "enforcement": "overridable",
+      "when": {},
+      "decision": "prompt"
+    }
+  ]
+}

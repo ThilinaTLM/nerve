@@ -1,4 +1,5 @@
 import type { AgentRecord, ModelInfo } from "$lib/api";
+import type { PermissionRuleSetId } from "@nervekit/contracts";
 import {
   isEditableTarget,
   matchesShortcut,
@@ -32,9 +33,10 @@ type AppShortcutsOptions = {
   abortActiveRun: () => void | Promise<void>;
   composerEscape: () => void;
   toggleMic: () => void;
-  selectedPermissionLevel: () => AgentRecord["permissionLevel"];
-  setComposerPermission: (
-    value: AgentRecord["permissionLevel"],
+  selectedPermissionRuleSetId: () => PermissionRuleSetId;
+  permissionRuleSetIds: () => PermissionRuleSetId[];
+  setComposerPermissionRuleSet: (
+    value: PermissionRuleSetId,
   ) => void | Promise<void>;
   usableModels: () => ModelInfo[];
   selectedModelKey: () => string;
@@ -106,16 +108,14 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
     return true;
   }
 
-  function cyclePermissionLevel(): boolean {
+  function cyclePermissionRuleSet(): boolean {
     if (!options.hasConversationComposer()) return false;
-    const order: NonNullable<AgentRecord["permissionLevel"]>[] = [
-      "read_only",
-      "supervised",
-      "autonomous",
-    ];
-    const currentIndex = order.indexOf(options.selectedPermissionLevel());
+    const order = options.permissionRuleSetIds();
+    if (order.length <= 1) return false;
+    const currentIndex = order.indexOf(options.selectedPermissionRuleSetId());
     const next = order[(currentIndex + 1) % order.length] ?? order[0];
-    void options.setComposerPermission(next);
+    if (!next) return false;
+    void options.setComposerPermissionRuleSet(next);
     return true;
   }
 
@@ -196,7 +196,7 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
       case "composer.toggleMode":
         return toggleComposerModeShortcut();
       case "composer.cyclePermission":
-        return cyclePermissionLevel();
+        return cyclePermissionRuleSet();
       case "composer.cycleThinking":
         return cycleThinkingLevel();
       case "view.toggleLeftDock":
@@ -243,7 +243,7 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
   return {
     activeCenterTabIndex,
     centerTabIdentity,
-    cyclePermissionLevel,
+    cyclePermissionRuleSet,
     cycleThinkingLevel,
     handleWorkbenchShortcut,
     handleZoomShortcut,

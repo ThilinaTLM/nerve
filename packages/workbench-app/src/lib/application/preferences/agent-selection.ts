@@ -25,6 +25,7 @@ export type NewAgentComposerSelection = {
   selectedThinkingLevel: AgentRecord["thinkingLevel"];
   selectedMode: AgentRecord["mode"];
   selectedPermissionLevel: AgentRecord["permissionLevel"];
+  selectedPermissionRuleSetId: NonNullable<AgentRecord["permissionRuleSetId"]>;
 };
 
 export function effectiveNewAgentDefaults(settings: Settings) {
@@ -33,6 +34,9 @@ export function effectiveNewAgentDefaults(settings: Settings) {
     : {
         mode: settings.defaultMode,
         permissionLevel: settings.defaultPermissionLevel,
+        permissionRuleSetId:
+          settings.defaultPermissionRuleSetId ??
+          settings.defaultPermissionLevel,
         model: settings.defaultModel,
         thinkingLevel: settings.defaultThinkingLevel,
       };
@@ -63,5 +67,7 @@ export function resolveNewAgentComposerSelection(
     ),
     selectedMode: defaults.mode,
     selectedPermissionLevel: defaults.permissionLevel,
+    selectedPermissionRuleSetId:
+      defaults.permissionRuleSetId ?? defaults.permissionLevel,
   };
 }

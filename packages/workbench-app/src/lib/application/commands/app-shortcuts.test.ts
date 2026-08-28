@@ -63,8 +63,9 @@ function shortcutOptions(
     abortActiveRun: () => undefined,
     composerEscape: () => undefined,
     toggleMic: () => undefined,
-    selectedPermissionLevel: () => "supervised",
-    setComposerPermission: () => undefined,
+    selectedPermissionRuleSetId: () => "supervised",
+    permissionRuleSetIds: () => ["read_only", "supervised", "autonomous"],
+    setComposerPermissionRuleSet: () => undefined,
     usableModels: () => [],
     selectedModelKey: () => "",
     selectedThinkingLevel: () => "off",
@@ -74,6 +75,33 @@ function shortcutOptions(
     togglePanelDock: () => undefined,
   };
 }
+
+test("cycles through the available permission rule sets", () => {
+  let selected = "supervised";
+  const shortcuts = createAppShortcuts({
+    ...shortcutOptions(undefined, () => undefined),
+    hasConversationComposer: () => true,
+    selectedPermissionRuleSetId: () => selected,
+    permissionRuleSetIds: () => ["read_only", "supervised", "custom"],
+    setComposerPermissionRuleSet: (value) => {
+      selected = value;
+    },
+  });
+
+  assert.equal(shortcuts.cyclePermissionRuleSet(), true);
+  assert.equal(selected, "custom");
+});
+
+test("does not cycle the fixed Planning rule set", () => {
+  const shortcuts = createAppShortcuts({
+    ...shortcutOptions(undefined, () => undefined),
+    hasConversationComposer: () => true,
+    selectedPermissionRuleSetId: () => "planning",
+    permissionRuleSetIds: () => ["planning"],
+  });
+
+  assert.equal(shortcuts.cyclePermissionRuleSet(), false);
+});
 
 test("Ctrl+W closes the active pane from an editable target", () => {
   const activeTab: CenterTabIdentity = { kind: "settings", id: "settings" };

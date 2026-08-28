@@ -2,34 +2,28 @@
 import ClipboardList from "@lucide/svelte/icons/clipboard-list";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Lock from "@lucide/svelte/icons/lock";
+import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Settings from "@lucide/svelte/icons/settings";
 import Shield from "@lucide/svelte/icons/shield";
 import Zap from "@lucide/svelte/icons/zap";
 import type {
   ContextUsage,
   ModelInfo,
-  PermissionLevel,
+  PermissionRuleSetId,
+  PermissionRuleSetSummary,
   ThinkingLevel,
   TodoItem,
 } from "@nervekit/contracts";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Popover, {
   PopoverBody,
   PopoverRow,
   PopoverSection,
 } from "@nervekit/ui-kit/components/ui/popover-panel";
-import type { Component } from "svelte";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
 import type { ConversationUsageSummary } from "../../usage/conversation-usage.js";
 import TodoProgressChip from "./TodoProgressChip.svelte";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-
-type PermissionOption = {
-  value: PermissionLevel;
-  label: string;
-  /** Drives the composer tab trigger icon only; popover rows are icon-less. */
-  icon: Component;
-};
 
 type Props = {
   controlsDisabled: boolean;
@@ -40,7 +34,10 @@ type Props = {
   /** Selects the planning vs coding icon; mode semantics stay with the caller. */
   modePlanning: boolean;
   onToggleMode?: () => void;
-  permissionLevel: PermissionLevel;
+  permissionRuleSetId: PermissionRuleSetId;
+  permissionRuleSets: PermissionRuleSetSummary[];
+  permissionRuleSetsLoading?: boolean;
+  permissionRuleSetsError?: string;
   permissionShortcut?: string;
   permissionShortcutAria?: string;
   modeShortcut?: string;
@@ -60,7 +57,8 @@ type Props = {
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onCompact?: () => void;
-  onPermissionChange?: (value: PermissionLevel) => void;
+  onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
+  onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
 };
 
@@ -71,7 +69,10 @@ let {
   modeLabel,
   modePlanning,
   onToggleMode,
-  permissionLevel,
+  permissionRuleSetId,
+  permissionRuleSets,
+  permissionRuleSetsLoading = false,
+  permissionRuleSetsError,
   permissionShortcut,
   permissionShortcutAria,
   modeShortcut,
@@ -91,37 +92,37 @@ let {
   onModelChange,
   onThinkingLevelChange,
   onCompact,
-  onPermissionChange,
+  onPermissionRuleSetChange,
+  onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
 }: Props = $props();
 
-const permissionOptions = $derived<PermissionOption[]>([
-  {
-    value: "read_only",
-    label: "Read only",
-    icon: Lock,
-  },
-  {
-    value: "supervised",
-    label: "Supervised",
-    icon: Shield,
-  },
-  {
-    value: "autonomous",
-    label: "Autonomous",
-    icon: Zap,
-  },
-]);
-
 const activePermission = $derived(
-  permissionOptions.find((option) => option.value === permissionLevel) ??
-    permissionOptions[2],
+  permissionRuleSets.find((option) => option.id === permissionRuleSetId) ?? {
+    id: permissionRuleSetId,
+    name: permissionRuleSetId,
+    description: "This rule set is unavailable.",
+    source: "user" as const,
+    enabled: false,
+    available: false,
+  },
 );
 
 let permissionOpen = $state(false);
+let refreshedForCurrentOpen = false;
 
-function selectPermission(value: PermissionLevel) {
-  if (value !== permissionLevel) onPermissionChange?.(value);
+$effect(() => {
+  if (!permissionOpen) {
+    refreshedForCurrentOpen = false;
+    return;
+  }
+  if (refreshedForCurrentOpen) return;
+  refreshedForCurrentOpen = true;
+  onRefreshPermissionRuleSets?.();
+});
+
+function selectPermission(value: PermissionRuleSetId) {
+  if (value !== permissionRuleSetId) onPermissionRuleSetChange?.(value);
   permissionOpen = false;
 }
 
@@ -129,62 +130,20 @@ function openPermissionSettings(): void {
   permissionOpen = false;
   onOpenPermissionSettings?.();
 }
+
+function permissionDetail(option: PermissionRuleSetSummary): string {
+  const source = option.source === "builtin" ? "Built-in" : "User";
+  return option.description ? `${source} · ${option.description}` : source;
+}
 </script>
 
-<div class="composer-tabs" data-tour-id="composer-controls">
-  <Popover
-    bind:open={permissionOpen}
-    size="sm"
-    triggerClass="composer-tab w-7 p-0 max-sm:w-7.5"
-    ariaLabel="Permission level"
-    triggerTitle={permissionShortcut
-      ? `Permission: ${activePermission.label} (${permissionShortcut})`
-      : `Permission: ${activePermission.label}`}
-    triggerAriaKeyShortcuts={permissionShortcutAria}
-    side="top"
-    align="start"
-    sideOffset={9}
-  >
-    {#snippet trigger()}
-      {@const Icon = activePermission.icon}
-      <span
-        class="permission-tab-inner"
-        class:disabled={controlsDisabled}
-        data-tour-id="composer-permission"
-      >
-        <Icon size={13} strokeWidth={2.2} />
-      </span>
-    {/snippet}
-    <PopoverBody>
-      <PopoverSection label="Permission level">
-        {#snippet action()}
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            class="self-center"
-            ariaLabel="Open permission settings"
-            title="Open permission settings"
-            onclick={openPermissionSettings}
-          >
-            <Settings class="size-3.5" aria-hidden="true" />
-          </Button>
-        {/snippet}
-        <div class="grid gap-2">
-          {#each permissionOptions as option (option.value)}
-            <PopoverRow
-              label={option.label}
-              selected={option.value === permissionLevel}
-              onclick={() => selectPermission(option.value)}
-            />
-          {/each}
-        </div>
-      </PopoverSection>
-    </PopoverBody>
-  </Popover>
-
+<div
+  class="pointer-events-none absolute inset-x-2.5 top-0 z-4 flex -translate-y-1/2 items-center gap-1 [&>*]:pointer-events-auto"
+  data-tour-id="composer-controls"
+>
   <button
     type="button"
-    class="composer-tab mode-tab"
+    class="composer-tab mode-tab max-sm:w-7.5 max-sm:p-0"
     disabled={modeDisabled}
     title={modeShortcut
       ? `Mode: ${modeLabel} (${modeShortcut})`
@@ -193,100 +152,122 @@ function openPermissionSettings(): void {
     data-tour-id="composer-mode"
     onclick={() => onToggleMode?.()}
   >
-    <span class="mode-tab-icon" aria-hidden="true">
+    <span
+      class="hidden items-center justify-center max-sm:inline-flex"
+      aria-hidden="true"
+    >
       {#if modePlanning}
         <ClipboardList size={13} strokeWidth={2.2} />
       {:else}
         <Code2 size={13} strokeWidth={2.2} />
       {/if}
     </span>
-    <span class="mode-tab-label">{modeLabel}</span>
+    <span class="max-sm:hidden">{modeLabel}</span>
   </button>
 
-  <TodoProgressChip {todos} />
+  <Popover
+    bind:open={permissionOpen}
+    size="sm"
+    triggerClass="composer-tab w-7 p-0 max-sm:w-7.5"
+    ariaLabel="Permission rule set"
+    triggerTitle={permissionShortcut
+      ? `Permission rule set: ${activePermission.name} (${permissionShortcut})`
+      : `Permission rule set: ${activePermission.name}`}
+    triggerAriaKeyShortcuts={permissionShortcutAria}
+    side="top"
+    align="start"
+    sideOffset={9}
+  >
+    {#snippet trigger()}
+      <span
+        class={`inline-flex items-center justify-center ${controlsDisabled ? "opacity-60" : ""}`}
+        data-tour-id="composer-permission"
+      >
+        {#if activePermission.id === "read_only"}
+          <Lock size={13} strokeWidth={2.2} />
+        {:else if activePermission.id === "autonomous"}
+          <Zap size={13} strokeWidth={2.2} />
+        {:else}
+          <Shield size={13} strokeWidth={2.2} />
+        {/if}
+      </span>
+    {/snippet}
+    <PopoverBody>
+      <PopoverSection label="Permission rule set">
+        {#snippet action()}
+          <div class="flex items-center gap-0.5 self-center">
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              disabled={permissionRuleSetsLoading}
+              ariaLabel="Refresh permission rule sets"
+              title="Refresh permission rule sets"
+              onclick={() => onRefreshPermissionRuleSets?.()}
+            >
+              <RefreshCw
+                class={`size-3.5 ${permissionRuleSetsLoading ? "animate-spin" : ""}`}
+                aria-hidden="true"
+              />
+            </Button>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              ariaLabel="Open permission settings"
+              title="Open permission settings"
+              onclick={openPermissionSettings}
+            >
+              <Settings class="size-3.5" aria-hidden="true" />
+            </Button>
+          </div>
+        {/snippet}
+        <div class="grid gap-2">
+          {#if permissionRuleSetsError}
+            <p class="text-xs text-warning">{permissionRuleSetsError}</p>
+          {/if}
+          {#if !activePermission.available}
+            <PopoverRow
+              label={activePermission.name}
+              detail={activePermission.description}
+              selected
+              disabled
+            />
+          {/if}
+          {#each permissionRuleSets as option (option.id)}
+            <PopoverRow
+              label={option.name}
+              detail={permissionDetail(option)}
+              selected={option.id === permissionRuleSetId}
+              disabled={controlsDisabled || modePlanning}
+              onclick={() => selectPermission(option.id)}
+            />
+          {/each}
+        </div>
+      </PopoverSection>
+    </PopoverBody>
+  </Popover>
 
-  <ContextProgressBadge
-    {contextUsage}
-    {conversationUsage}
-    {contextWindow}
-    {compacting}
-    {compactDisabled}
-    {onCompact}
-  />
+  <div class="ml-auto flex items-center gap-1">
+    <TodoProgressChip {todos} />
 
-  <ComposerModelPicker
-    {models}
-    {selectedModelKey}
-    {thinkingLevel}
-    disabled={modelDisabled}
-    {onModelChange}
-    {onThinkingLevelChange}
-    {runtimeChangeHint}
-    emptyMessage={modelEmptyMessage}
-    shortcutLabel={thinkingShortcut}
-  />
+    <ContextProgressBadge
+      {contextUsage}
+      {conversationUsage}
+      {contextWindow}
+      {compacting}
+      {compactDisabled}
+      {onCompact}
+    />
+
+    <ComposerModelPicker
+      {models}
+      {selectedModelKey}
+      {thinkingLevel}
+      disabled={modelDisabled}
+      {onModelChange}
+      {onThinkingLevelChange}
+      {runtimeChangeHint}
+      emptyMessage={modelEmptyMessage}
+      shortcutLabel={thinkingShortcut}
+    />
+  </div>
 </div>
-
-<style>
-.composer-tabs {
-  position: absolute;
-  z-index: 4;
-  top: 0;
-  left: 0.65rem;
-  right: 0.65rem;
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
-.composer-tabs > :global(*) {
-  pointer-events: auto;
-}
-
-.composer-tabs :global(.context-usage-tab) {
-  margin-left: auto;
-}
-
-/* When the todo chip is present it owns the auto margin so the two chips
-     group together at the left edge of the right-aligned cluster. */
-.composer-tabs :global(.todo-progress-tab) {
-  margin-left: auto;
-}
-
-.composer-tabs :global(.todo-progress-tab) + :global(.context-usage-tab) {
-  margin-left: 0;
-}
-
-.permission-tab-inner {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.permission-tab-inner.disabled {
-  opacity: 0.6;
-}
-
-.mode-tab-icon {
-  display: none;
-  align-items: center;
-  justify-content: center;
-}
-
-@media (max-width: 639px) {
-  .mode-tab {
-    width: 1.9rem;
-    padding: 0;
-  }
-
-  .mode-tab-icon {
-    display: inline-flex;
-  }
-
-  .mode-tab-label {
-    display: none;
-  }
-}
-</style>

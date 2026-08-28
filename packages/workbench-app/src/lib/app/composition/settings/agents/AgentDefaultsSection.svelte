@@ -18,6 +18,7 @@ import {
 } from "$lib/presentation/utils/model";
 import type { SettingsChange } from "$lib/features/settings/components/pages/settings-change";
 import { modeItems } from "./agent-options";
+import { permissionRuleSetDisplayName } from "$lib/kernel/permissions/permission-rule-set-options";
 import ModelPickerRow from "./ModelPickerRow.svelte";
 
 type Props = {
@@ -46,10 +47,12 @@ const savedDefaultModelInfo = $derived.by(() => {
     : undefined;
 });
 const defaultModelInfo = $derived(savedDefaultModelInfo ?? availableModels[0]);
-const effectivePermissionLevel = $derived(
+const effectivePermissionRuleSetId = $derived(
   settingsDraft.rememberLastAgentSelection
-    ? settingsDraft.lastAgentSelection.permissionLevel
-    : settingsDraft.defaultPermissionLevel,
+    ? (settingsDraft.lastAgentSelection.permissionRuleSetId ??
+        settingsDraft.lastAgentSelection.permissionLevel)
+    : (settingsDraft.defaultPermissionRuleSetId ??
+        settingsDraft.defaultPermissionLevel),
 );
 const fallbackThinkingLevels = $derived<Settings["defaultThinkingLevel"][]>(
   defaultModelInfo?.supportedThinkingLevels?.length
@@ -62,15 +65,6 @@ const defaultThinkingLevel = $derived(
     defaultModelInfo,
   ),
 );
-
-function permissionPolicy(
-  permission: Settings["defaultPermissionLevel"] | undefined,
-): string {
-  if (permission === "read_only") return "Denied";
-  if (permission === "supervised") return "Approval required";
-  if (permission === "autonomous") return "Allowed";
-  return "Policy-managed";
-}
 
 function saveDefaultModel(selection: {
   model?: Settings["defaultModel"];
@@ -106,6 +100,7 @@ function onRememberLastSelectionChange(checked: boolean): void {
   const lastAgentSelection = {
     mode: conversationState.selectedMode,
     permissionLevel: conversationState.selectedPermissionLevel,
+    permissionRuleSetId: conversationState.selectedPermissionRuleSetId,
     ...(model ? { model } : {}),
     thinkingLevel: conversationState.selectedThinkingLevel,
   } satisfies Settings["lastAgentSelection"];
@@ -171,16 +166,11 @@ function setDefaultMode(value: string): void {
       {/if}
     {/snippet}
     {#snippet policy()}
-      <SettingsKeyValueRow label="File system read" value="Allowed" />
       <SettingsKeyValueRow
-        label="File system write"
-        value={permissionPolicy(effectivePermissionLevel)}
+        label="Permission rule set"
+        value={permissionRuleSetDisplayName(effectivePermissionRuleSetId)}
       />
-      <SettingsKeyValueRow
-        label="Terminal commands"
-        value={permissionPolicy(effectivePermissionLevel)}
-      />
-      <SettingsKeyValueRow label="Network access" value="Tool-dependent" />
+      <SettingsKeyValueRow label="Planning mode" value="Planning rule set" />
     {/snippet}
   </ModelPickerRow>
 

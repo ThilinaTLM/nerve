@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { PermissionRule } from "@nervekit/contracts";
+import type { LegacyPermissionRule } from "@nervekit/contracts";
 import { evaluateToolSupervision } from "../src/policy/evaluate-tool-supervision.js";
 
 const timestamp = "2026-08-24T00:00:00.000Z";
 
 function rule(
-  input: Partial<PermissionRule> & Pick<PermissionRule, "id">,
-): PermissionRule {
+  input: Partial<LegacyPermissionRule> & Pick<LegacyPermissionRule, "id">,
+): LegacyPermissionRule {
   return {
     id: input.id,
     scope: input.scope ?? "user",
@@ -22,7 +22,7 @@ function rule(
   };
 }
 
-function evaluate(rules: PermissionRule[]) {
+function evaluate(rules: LegacyPermissionRule[]) {
   return evaluateToolSupervision({
     toolName: "web_fetch",
     args: { url: "https://evil.example/path" },

@@ -103,7 +103,10 @@ function submit(): void {
       {modePlanning}
       onToggleMode={() =>
         actions.onModeChange?.(modePlanning ? "coding" : "planning")}
-      permissionLevel={model.permissionLevel}
+      permissionRuleSetId={model.permissionRuleSetId}
+      permissionRuleSets={model.permissionRuleSets}
+      permissionRuleSetsLoading={model.permissionRuleSetsLoading}
+      permissionRuleSetsError={model.permissionRuleSetsError}
       permissionShortcut={model.permissionShortcut}
       permissionShortcutAria={model.permissionShortcutAria}
       modeShortcut={model.modeShortcut}
@@ -124,7 +127,8 @@ function submit(): void {
         "No models available. Configure a provider in this host."}
       onModelChange={actions.onModelChange}
       onThinkingLevelChange={actions.onThinkingLevelChange}
-      onPermissionChange={actions.onPermissionChange}
+      onPermissionRuleSetChange={actions.onPermissionRuleSetChange}
+      onRefreshPermissionRuleSets={actions.onRefreshPermissionRuleSets}
       onOpenPermissionSettings={actions.onOpenPermissionSettings}
     />
   {/snippet}

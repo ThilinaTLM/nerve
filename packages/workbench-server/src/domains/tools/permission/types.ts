@@ -1,14 +1,22 @@
 import type {
+  PermissionEvaluationResult,
   PermissionException,
-  PermissionRule,
+  LegacyPermissionRule,
   SupervisionDecision,
   ToolRisk,
 } from "@nervekit/contracts";
+import type {
+  EffectivePermissionPolicy,
+  PermissionRootPaths,
+} from "@nervekit/tools";
 
 export interface WorkbenchPermissionContext {
   dataDir: string;
   exceptions?: readonly PermissionException[];
-  rules?: readonly PermissionRule[];
+  rules?: readonly LegacyPermissionRule[];
+  policy?: EffectivePermissionPolicy;
+  roots?: PermissionRootPaths;
+  policyDiagnostic?: string;
 }
 
 export interface WorkbenchPermissionEvaluation {
@@ -19,4 +27,5 @@ export interface WorkbenchPermissionEvaluation {
   cwd: string;
   suggestedExceptions?: PermissionException[];
   supervision?: SupervisionDecision;
+  permissionEvaluation?: PermissionEvaluationResult;
 }

@@ -3,6 +3,7 @@ import type {
   ConversationRecord,
   ProjectRecord,
 } from "@nervekit/contracts";
+import { permissionRuleSetDisplayName } from "$lib/kernel/permissions/permission-rule-set-options";
 
 function shortModelLabel(modelId: string): string {
   return modelId.replace(/^claude-/, "claude ").replace(/^gpt-/, "gpt ");
@@ -79,8 +80,10 @@ export function shortAgentModel(agent: AgentRecord | undefined): string {
 export function conversationMeta(row: ConversationRow): string {
   const mode = row.agent?.mode ?? row.conversation.mode;
   const permission =
-    row.agent?.permissionLevel ?? row.conversation.permissionLevel;
-  return `${mode} · ${permission} · ${shortAgentModel(row.agent)}`;
+    row.agent?.permissionRuleSetId ??
+    row.agent?.permissionLevel ??
+    row.conversation.permissionLevel;
+  return `${mode} · ${permissionRuleSetDisplayName(permission)} · ${shortAgentModel(row.agent)}`;
 }
 
 export function groupIsActive(
