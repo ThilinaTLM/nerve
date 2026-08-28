@@ -302,11 +302,13 @@ function stringPathTargets(
   cwd: string,
 ): PermissionTarget[] {
   const values = Array.isArray(value) ? value : [value];
-  return values.flatMap((entry) => {
+  return values.flatMap((entry): PermissionTarget[] => {
     if (typeof entry !== "string" || entry.trim().length === 0) return [];
-    const absolutePath = resolve(cwd, entry);
+    const absolutePath = existingRealpath(resolve(cwd, entry));
     const rooted = symbolicPath(absolutePath, roots);
-    return rooted ? [{ kind: "path" as const, access, scope, ...rooted }] : [];
+    return rooted
+      ? [{ kind: "path" as const, access, scope, ...rooted }]
+      : [{ kind: "path" as const, access, scope, absolutePath }];
   });
 }
 
@@ -314,12 +316,11 @@ function symbolicPath(
   absolutePath: string,
   roots: PermissionRootPaths,
 ): { root: PathRoot; relativePath: string } | undefined {
-  const canonicalPath = existingRealpath(absolutePath);
   const candidates = (Object.entries(roots) as [PathRoot, string][])
     .map(([root, path]) => ({ root, path: existingRealpath(resolve(path)) }))
     .sort((left, right) => right.path.length - left.path.length);
   for (const candidate of candidates) {
-    const child = relative(candidate.path, canonicalPath);
+    const child = relative(candidate.path, absolutePath);
     if (
       child === "" ||
       (child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child))
@@ -483,19 +484,23 @@ function targetMatches(
     return false;
   if (
     matcher.root !== undefined &&
-    (target.kind !== "path" || target.root !== matcher.root)
+    (target.kind !== "path" ||
+      !("root" in target) ||
+      target.root !== matcher.root)
   )
     return false;
   if (matcher.pattern === undefined) return true;
   const value =
     target.kind === "path"
-      ? target.relativePath
+      ? "relativePath" in target
+        ? target.relativePath
+        : undefined
       : target.kind === "url"
         ? target.normalizedUrl
         : target.kind === "agent"
           ? target.agentId
           : "*";
-  return patternMatches(value, matcher.pattern);
+  return value !== undefined && patternMatches(value, matcher.pattern);
 }
 
 function allowCoversRequest(
@@ -536,7 +541,7 @@ function suggestPermissionRules(
     return [];
   const when: PermissionRule["when"] = { toolNames: [request.toolName] };
   const target = onlyTarget;
-  if (target?.kind === "path") {
+  if (target?.kind === "path" && "root" in target) {
     when.targets = {
       quantifier: "all",
       matcher: {

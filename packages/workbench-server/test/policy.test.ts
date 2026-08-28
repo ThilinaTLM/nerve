@@ -8,6 +8,10 @@ import type {
   PermissionLevel,
   LegacyPermissionRule,
 } from "@nervekit/contracts";
+import {
+  builtInPermissionRuleSet,
+  composeEffectivePermissionPolicy,
+} from "@nervekit/tools";
 import { evaluateWorkbenchToolPermission } from "../src/domains/tools/permission/index.js";
 
 function agent(
@@ -32,6 +36,22 @@ function agent(
 }
 
 const context = { dataDir: "/home/test/.nerve" };
+const roots = {
+  project: "/workspace",
+  nerve_home: "/home/test/.nerve",
+  nerve_data: "/home/test/.nerve/data",
+  plans: "/home/test/.nerve/data/plans",
+};
+
+function ruleSetContext(id: "supervised" | "autonomous") {
+  return {
+    ...context,
+    roots,
+    policy: composeEffectivePermissionPolicy({
+      selectedRuleSet: builtInPermissionRuleSet(id),
+    }),
+  };
+}
 
 describe("Workbench tool permission", () => {
   it("delegates coding decisions to the canonical evaluator", () => {
@@ -83,6 +103,48 @@ describe("Workbench tool permission", () => {
       ).decision,
       "allow",
     );
+  });
+
+  it("projects external targets through the permission rule-set evaluator", () => {
+    const read = evaluateWorkbenchToolPermission(
+      agent("supervised"),
+      "read",
+      { path: "/tmp/outside.txt" },
+      ruleSetContext("supervised"),
+    );
+    assert.equal(read.decision, "allow");
+    assert.deepEqual(read.permissionEvaluation?.normalizedTargets, [
+      {
+        kind: "path",
+        access: "read",
+        scope: "exact",
+        absolutePath: "/tmp/outside.txt",
+      },
+    ]);
+    assert.deepEqual(read.supervision?.normalizedTargets, [
+      {
+        kind: "path",
+        access: "read",
+        scope: "exact",
+        absolutePath: "/tmp/outside.txt",
+      },
+    ]);
+
+    const supervisedWrite = evaluateWorkbenchToolPermission(
+      agent("supervised"),
+      "write",
+      { path: "/tmp/outside.txt", content: "x" },
+      ruleSetContext("supervised"),
+    );
+    assert.equal(supervisedWrite.decision, "approval");
+
+    const autonomousWrite = evaluateWorkbenchToolPermission(
+      agent("autonomous"),
+      "write",
+      { path: "/tmp/outside.txt", content: "x" },
+      ruleSetContext("autonomous"),
+    );
+    assert.equal(autonomousWrite.decision, "allow");
   });
 
   it("keeps plan-only tools unavailable in coding mode", () => {

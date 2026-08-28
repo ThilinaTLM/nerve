@@ -81,16 +81,46 @@ const relativePathSchema = z
     }
   });
 
-export const permissionTargetSchema = z.discriminatedUnion("kind", [
-  z
-    .object({
-      kind: z.literal("path"),
-      access: z.enum(["read", "write"]),
-      scope: z.enum(["exact", "tree"]),
-      root: pathRootSchema,
-      relativePath: relativePathSchema,
-    })
-    .strict(),
+const rootedPermissionPathTargetSchema = z
+  .object({
+    kind: z.literal("path"),
+    access: z.enum(["read", "write"]),
+    scope: z.enum(["exact", "tree"]),
+    root: pathRootSchema,
+    relativePath: relativePathSchema,
+  })
+  .strict();
+
+const absolutePathSchema = z
+  .string()
+  .min(1)
+  .max(32_768)
+  .superRefine((value, context) => {
+    if (
+      value.includes("\0") ||
+      (!value.startsWith("/") &&
+        !/^[A-Za-z]:[\\/]/.test(value) &&
+        !value.startsWith("\\\\"))
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "External path targets must use absolute platform paths.",
+      });
+    }
+  });
+
+const externalPermissionPathTargetSchema = z
+  .object({
+    kind: z.literal("path"),
+    access: z.enum(["read", "write"]),
+    scope: z.enum(["exact", "tree"]),
+    absolutePath: absolutePathSchema,
+  })
+  .strict();
+
+export const permissionTargetSchema = z.union([
+  rootedPermissionPathTargetSchema,
+  externalPermissionPathTargetSchema,
   z
     .object({
       kind: z.literal("url"),

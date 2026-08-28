@@ -5,6 +5,7 @@ import {
   permissionOverlaySchema,
   permissionRuleSchema,
   permissionRuleSetSchema,
+  permissionTargetSchema,
 } from "../src/index.js";
 
 const rule = {
@@ -87,6 +88,57 @@ test("project and conversation sources reject forbidden authority", () => {
           },
         },
       ],
+    }),
+  );
+});
+
+test("permission targets distinguish portable rooted and external paths", () => {
+  assert.deepEqual(
+    permissionTargetSchema.parse({
+      kind: "path",
+      access: "read",
+      scope: "exact",
+      root: "project",
+      relativePath: "src/index.ts",
+    }),
+    {
+      kind: "path",
+      access: "read",
+      scope: "exact",
+      root: "project",
+      relativePath: "src/index.ts",
+    },
+  );
+  assert.deepEqual(
+    permissionTargetSchema.parse({
+      kind: "path",
+      access: "read",
+      scope: "tree",
+      absolutePath: "/tmp/external",
+    }),
+    {
+      kind: "path",
+      access: "read",
+      scope: "tree",
+      absolutePath: "/tmp/external",
+    },
+  );
+  assert.throws(() =>
+    permissionTargetSchema.parse({
+      kind: "path",
+      access: "read",
+      scope: "exact",
+      root: "project",
+      relativePath: "src/index.ts",
+      absolutePath: "/tmp/external",
+    }),
+  );
+  assert.throws(() =>
+    permissionTargetSchema.parse({
+      kind: "path",
+      access: "read",
+      scope: "tree",
+      absolutePath: "relative/path",
     }),
   );
 });

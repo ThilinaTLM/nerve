@@ -133,6 +133,47 @@ test("built-in coding rule sets implement their complete behavior", () => {
   );
 });
 
+test("all built-in rule sets allow core reads outside managed roots", () => {
+  const requests = [
+    ["read", { path: "/tmp/outside.txt" }],
+    ["grep", { pattern: "needle", path: "/tmp" }],
+    ["find", { pattern: "*.txt", path: "/tmp" }],
+    ["ls", { path: "/tmp" }],
+  ] as const;
+  for (const ruleSet of [
+    "baseline",
+    "read_only",
+    "supervised",
+    "autonomous",
+    "planning",
+  ]) {
+    for (const [toolName, args] of requests) {
+      assert.equal(
+        decision(ruleSet, toolName, args).decision,
+        "allow",
+        `${ruleSet}:${toolName}`,
+      );
+    }
+  }
+});
+
+test("external writes follow each built-in rule set's normal capability", () => {
+  const writeArgs = { path: "/tmp/outside.txt", content: "x" };
+  const editArgs = {
+    path: "/tmp/outside.txt",
+    edits: [{ oldText: "old", newText: "new" }],
+  };
+  for (const [toolName, args] of [
+    ["write", writeArgs],
+    ["edit", editArgs],
+  ] as const) {
+    assert.equal(decision("autonomous", toolName, args).decision, "allow");
+    assert.equal(decision("supervised", toolName, args).decision, "prompt");
+    assert.equal(decision("read_only", toolName, args).decision, "deny");
+    assert.equal(decision("planning", toolName, args).decision, "deny");
+  }
+});
+
 test("planning allows reads, interaction, Explore, and exact plan writes", () => {
   assert.equal(
     decision("planning", "read", { path: "README.md" }).decision,
@@ -279,6 +320,18 @@ test("path suggestions use portable canonical targets", () => {
   });
 });
 
+test("external path suggestions use exact arguments instead of host-specific matchers", () => {
+  const result = decision("supervised", "write", {
+    path: "/tmp/outside.txt",
+    content: "x",
+  });
+  assert.deepEqual(result.suggestedRules[0]?.when.primaryArgument, {
+    operator: "equals",
+    value: "/tmp/outside.txt",
+  });
+  assert.equal(result.suggestedRules[0]?.when.targets, undefined);
+});
+
 test("policy hash is deterministic and changes with effective policy", () => {
   const first = decision("supervised", "write", { path: "a" });
   const second = decision("supervised", "write", { path: "a" });
@@ -294,7 +347,64 @@ test("policy hash is deterministic and changes with effective policy", () => {
   assert.notEqual(first.policySnapshotHash, changed.policySnapshotHash);
 });
 
-test("existing symlinks are canonicalized before path authorization", async () => {
+test("external and mixed grep paths remain distinct permission targets", () => {
+  const request = normalizePermissionRequest({
+    toolName: "grep",
+    args: {
+      pattern: "needle",
+      paths: ["/tmp/first", "/tmp/second", "/workspace/src"],
+    },
+    roots,
+    conversationId: "conv_test",
+  });
+  assert.deepEqual(request.targets, [
+    {
+      kind: "path",
+      access: "read",
+      scope: "tree",
+      absolutePath: "/tmp/first",
+    },
+    {
+      kind: "path",
+      access: "read",
+      scope: "tree",
+      absolutePath: "/tmp/second",
+    },
+    {
+      kind: "path",
+      access: "read",
+      scope: "tree",
+      root: "project",
+      relativePath: "src",
+    },
+  ]);
+
+  const projectOnly = overlay({
+    id: "allow-project-grep",
+    enabled: true,
+    priority: 1,
+    enforcement: "overridable",
+    when: {
+      toolNames: ["grep"],
+      targets: {
+        quantifier: "all",
+        matcher: { kind: "path", root: "project", pattern: "**" },
+      },
+    },
+    decision: "allow",
+  });
+  assert.equal(
+    decision(
+      "supervised",
+      "grep",
+      { paths: ["/tmp/first", "/workspace/src"] },
+      { projectOverlay: projectOnly },
+    ).winningRuleId,
+    "allow-read",
+  );
+});
+
+test("existing symlinks are canonicalized to external targets", async () => {
   const root = await mkdtemp(join(tmpdir(), "nerve-policy-symlink-"));
   try {
     const project = join(root, "project");
@@ -305,19 +415,25 @@ test("existing symlinks are canonicalized before path authorization", async () =
     await writeFile(outside, "secret");
     const link = join(project, "linked.txt");
     await symlink(outside, link);
-    assert.throws(() =>
-      normalizePermissionRequest({
-        toolName: "read",
-        args: { path: link },
-        roots: {
-          project,
-          nerve_home: nerveHome,
-          nerve_data: join(nerveHome, "data"),
-          plans: join(nerveHome, "data", "plans"),
-        },
-        conversationId: "conv_test",
-      }),
-    );
+    const request = normalizePermissionRequest({
+      toolName: "read",
+      args: { path: link },
+      roots: {
+        project,
+        nerve_home: nerveHome,
+        nerve_data: join(nerveHome, "data"),
+        plans: join(nerveHome, "data", "plans"),
+      },
+      conversationId: "conv_test",
+    });
+    assert.deepEqual(request.targets, [
+      {
+        kind: "path",
+        access: "read",
+        scope: "exact",
+        absolutePath: outside,
+      },
+    ]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

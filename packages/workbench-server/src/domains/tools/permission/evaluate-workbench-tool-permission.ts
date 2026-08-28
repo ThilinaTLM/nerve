@@ -105,11 +105,14 @@ export function evaluateWorkbenchToolPermission(
                     kind: "path" as const,
                     access: target.access,
                     scope: target.scope,
-                    absolutePath: resolve(
-                      context.roots![target.root],
-                      target.relativePath,
-                    ),
-                    ...(target.root === "project"
+                    absolutePath:
+                      "root" in target
+                        ? resolve(
+                            context.roots![target.root],
+                            target.relativePath,
+                          )
+                        : target.absolutePath,
+                    ...("root" in target && target.root === "project"
                       ? { projectRelativePath: target.relativePath }
                       : {}),
                   }
