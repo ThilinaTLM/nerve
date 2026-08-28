@@ -181,9 +181,11 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
     <div
       class="flex min-w-0 flex-col overflow-y-auto"
       class:flex-1={!model.definitionsLoading &&
-        projected.definitions.length === 0}
+        projected.definitions.length === 0 &&
+        projected.runs.length === 0}
       class:shrink={model.definitionsLoading ||
-        projected.definitions.length > 0}
+        projected.definitions.length > 0 ||
+        projected.runs.length > 0}
     >
       {#if model.definitionsLoading && model.definitions.length === 0}
         <p class="py-1 text-xs text-muted-foreground">Loading tasks…</p>
