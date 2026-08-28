@@ -9,6 +9,7 @@ import {
 } from "$lib/app/composition/center-views";
 import LazyViewPending from "$lib/app/shell/LazyViewPending.svelte";
 import {
+  centerTabKey,
   centerTabsExcept,
   centerTabsToLeftOf,
   centerTabsToRightOf,
@@ -35,6 +36,8 @@ import {
   type ConversationPaneTab,
 } from "./keep-mounted-conversation-panes";
 import { refreshCenterTab } from "./refresh-center-tab.svelte";
+import CenterTabScrollLayer from "./CenterTabScrollLayer.svelte";
+import { scheduleCenterTabScrollSnapshotPrune } from "./center-tab-scroll-restoration";
 
 const status = $derived(workspaceSelectors.status);
 const centerTabs = $derived(workspaceSelectors.centerTabs);
@@ -52,6 +55,12 @@ const renderedConversationPaneTabs = $derived(
     activeConversationPaneTab,
   ),
 );
+
+$effect(() => {
+  scheduleCenterTabScrollSnapshotPrune(
+    new Set(openCenterTabs.map((tab) => centerTabKey(tab))),
+  );
+});
 
 $effect(() => {
   const nextMountedConversationPaneTabs = updateMountedConversationPaneTabs(
@@ -112,62 +121,68 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
   {/snippet}
   {#snippet content()}
     <div class="center-workspace-content h-full">
-      {#if activeCenterTab?.kind === "task"}
-        {#await loadedCenterViews.task}
-          <LazyViewPending />
-        {:then module}
-          {@const Component = module?.default}
-          {#if Component}<Component />{/if}
-        {/await}
-      {:else if activeCenterTab?.kind === "file"}
-        {#await loadedCenterViews.file}
-          <LazyViewPending />
-        {:then module}
-          {@const Component = module?.default}
-          {#if Component}<Component />{/if}
-        {/await}
-      {:else if activeCenterTab?.kind === "mermaid"}
-        {#await loadedCenterViews.mermaid}
-          <LazyViewPending />
-        {:then module}
-          {@const Component = module?.default}
-          {#if Component}<Component />{/if}
-        {/await}
-      {:else if activeCenterTab?.kind === "pr"}
-        {#await loadedCenterViews.pr}
-          <LazyViewPending />
-        {:then module}
-          {@const Component = module?.default}
-          {#if Component}<Component />{/if}
-        {/await}
-      {:else if activeCenterTab?.kind === "diff"}
-        {#await loadedCenterViews.diff}
-          <LazyViewPending />
-        {:then module}
-          {@const Component = module?.default}
-          {#if Component}<Component />{/if}
-        {/await}
-      {:else if activeCenterTab?.kind === "settings"}
-        {#await loadedCenterViews.settings}
-          <LazyViewPending />
-        {:then module}
-          {@const Component = module?.default}
-          {#if Component}<Component />{/if}
-        {/await}
-      {:else if activeCenterTab?.kind === "logs"}
-        {#await loadedCenterViews.logs}
-          <LazyViewPending />
-        {:then module}
-          {@const Component = module?.default}
-          {#if Component}<Component />{/if}
-        {/await}
-      {:else if activeCenterTab?.kind === "discover"}
-        {#await loadedCenterViews.discover}
-          <LazyViewPending />
-        {:then module}
-          {@const Component = module?.default}
-          {#if Component}<Component />{/if}
-        {/await}
+      {#if activeCenterTab && !isConversationPaneTab(activeCenterTab)}
+        {#key centerTabKey(activeCenterTab)}
+          <CenterTabScrollLayer tabKey={centerTabKey(activeCenterTab)}>
+            {#if activeCenterTab.kind === "task"}
+              {#await loadedCenterViews.task}
+                <LazyViewPending />
+              {:then module}
+                {@const Component = module?.default}
+                {#if Component}<Component />{/if}
+              {/await}
+            {:else if activeCenterTab.kind === "file"}
+              {#await loadedCenterViews.file}
+                <LazyViewPending />
+              {:then module}
+                {@const Component = module?.default}
+                {#if Component}<Component />{/if}
+              {/await}
+            {:else if activeCenterTab.kind === "mermaid"}
+              {#await loadedCenterViews.mermaid}
+                <LazyViewPending />
+              {:then module}
+                {@const Component = module?.default}
+                {#if Component}<Component />{/if}
+              {/await}
+            {:else if activeCenterTab.kind === "pr"}
+              {#await loadedCenterViews.pr}
+                <LazyViewPending />
+              {:then module}
+                {@const Component = module?.default}
+                {#if Component}<Component />{/if}
+              {/await}
+            {:else if activeCenterTab.kind === "diff"}
+              {#await loadedCenterViews.diff}
+                <LazyViewPending />
+              {:then module}
+                {@const Component = module?.default}
+                {#if Component}<Component />{/if}
+              {/await}
+            {:else if activeCenterTab.kind === "settings"}
+              {#await loadedCenterViews.settings}
+                <LazyViewPending />
+              {:then module}
+                {@const Component = module?.default}
+                {#if Component}<Component />{/if}
+              {/await}
+            {:else if activeCenterTab.kind === "logs"}
+              {#await loadedCenterViews.logs}
+                <LazyViewPending />
+              {:then module}
+                {@const Component = module?.default}
+                {#if Component}<Component />{/if}
+              {/await}
+            {:else if activeCenterTab.kind === "discover"}
+              {#await loadedCenterViews.discover}
+                <LazyViewPending />
+              {:then module}
+                {@const Component = module?.default}
+                {#if Component}<Component />{/if}
+              {/await}
+            {/if}
+          </CenterTabScrollLayer>
+        {/key}
       {/if}
 
       {#if renderedConversationPaneTabs.length > 0}
@@ -176,9 +191,12 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
             activeConversationPaneTab,
             tab,
           )}
-          <div class="conversation-pane-layer" hidden={!tabActive}>
+          <CenterTabScrollLayer
+            tabKey={conversationPaneTabKey(tab)}
+            hidden={!tabActive}
+          >
             <ConversationCenterHost {tab} active={tabActive} />
-          </div>
+          </CenterTabScrollLayer>
         {/each}
       {:else if !activeCenterTab}
         <ConversationCenterHost active />
@@ -198,14 +216,5 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
 .center-workspace-content > :global(*) {
   min-height: 0;
   min-width: 0;
-}
-
-.conversation-pane-layer {
-  min-height: 0;
-  min-width: 0;
-}
-
-.conversation-pane-layer[hidden] {
-  display: none;
 }
 </style>
