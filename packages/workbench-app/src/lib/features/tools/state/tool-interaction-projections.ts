@@ -7,14 +7,23 @@ import type { ApprovalWithToolCall } from "$lib/presentation/state/tool-types";
 
 function approvalScopes(
   scopes: readonly string[],
-): Array<"single_call" | "always_project" | "always_user"> {
+): Array<
+  "single_call" | "always_conversation" | "always_project" | "always_user"
+> {
   return [
     ...new Set(
       scopes.map((scope) => (scope === "always" ? "always_user" : scope)),
     ),
   ].filter(
-    (scope): scope is "single_call" | "always_project" | "always_user" =>
+    (
+      scope,
+    ): scope is
+      | "single_call"
+      | "always_conversation"
+      | "always_project"
+      | "always_user" =>
       scope === "single_call" ||
+      scope === "always_conversation" ||
       scope === "always_project" ||
       scope === "always_user",
   );
@@ -39,6 +48,7 @@ export function pendingApprovals(
               requestedAt: interaction.requestedAt,
               offeredScopes: approvalScopes(interaction.request.offeredScopes),
               suggestedExceptions: interaction.request.suggestedExceptions,
+              suggestedRules: interaction.request.suggestedRules,
               toolCall,
             },
           ]

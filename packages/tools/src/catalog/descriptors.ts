@@ -1,5 +1,6 @@
 import type { ToolDescriptor } from "@nervekit/contracts";
 import { coreToolDefinitions, toolManifest } from "./manifest.js";
+import { permissionMetadataForTool } from "./permission-metadata.js";
 import type {
   ToolDefinition,
   ToolPermissionTargetDescriptor,
@@ -15,8 +16,14 @@ function ruleKind(
 }
 
 function descriptor(definition: ToolDefinition): ToolDescriptor {
+  const metadata = permissionMetadataForTool(definition.name);
   return {
     name: definition.name,
+    kind: metadata.kind,
+    groups: [...metadata.groups],
+    baseRisk: metadata.baseRisk,
+    primaryArguments: [...metadata.primaryArguments],
+    targetKinds: [...metadata.targetKinds],
     risk: definition.baseRisk,
     argumentSensitive: Boolean(definition.classifyRisk),
     description: definition.description,

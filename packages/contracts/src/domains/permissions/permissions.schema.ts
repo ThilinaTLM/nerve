@@ -100,32 +100,36 @@ export const permissionExceptionSchema = z
   });
 export type PermissionException = z.infer<typeof permissionExceptionSchema>;
 
-/** Scoped permission rule normalized for policy evaluation. */
-export const permissionRuleScopeSchema = z.enum(["user", "project"]);
-export type PermissionRuleScope = z.infer<typeof permissionRuleScopeSchema>;
+/** @deprecated Unshipped legacy rule shape retained only during the rule-set cutover. */
+export const legacyPermissionRuleScopeSchema = z.enum(["user", "project"]);
+export type LegacyPermissionRuleScope = z.infer<
+  typeof legacyPermissionRuleScopeSchema
+>;
 
-export const permissionRuleEffectSchema = permissionExceptionEffectSchema;
-export type PermissionRuleEffect = z.infer<typeof permissionRuleEffectSchema>;
+export const legacyPermissionRuleEffectSchema = permissionExceptionEffectSchema;
+export type LegacyPermissionRuleEffect = z.infer<
+  typeof legacyPermissionRuleEffectSchema
+>;
 
-export const permissionRuleMatcherKindSchema = z.enum([
+export const legacyPermissionRuleMatcherKindSchema = z.enum([
   "whole_tool",
   "path_glob",
   "command_glob",
   "url_glob",
 ]);
-export type PermissionRuleMatcherKind = z.infer<
-  typeof permissionRuleMatcherKindSchema
+export type LegacyPermissionRuleMatcherKind = z.infer<
+  typeof legacyPermissionRuleMatcherKindSchema
 >;
 
-export const permissionRuleSchema = z
+export const legacyPermissionRuleSchema = z
   .object({
     id: z.string().startsWith("rule_").max(128),
-    scope: permissionRuleScopeSchema,
+    scope: legacyPermissionRuleScopeSchema,
     projectId: z.string().startsWith("proj_").optional(),
-    effect: permissionRuleEffectSchema,
+    effect: legacyPermissionRuleEffectSchema,
     /** Open so historical rules remain readable after catalog changes. */
     toolName: z.string().trim().min(1).max(128),
-    matcherKind: permissionRuleMatcherKindSchema,
+    matcherKind: legacyPermissionRuleMatcherKindSchema,
     pattern: z.string().trim().min(1).max(1_024),
     enabled: z.boolean(),
     createdAt: z.string().datetime(),
@@ -168,7 +172,7 @@ export const permissionRuleSchema = z
       });
     }
   });
-export type PermissionRule = z.infer<typeof permissionRuleSchema>;
+export type LegacyPermissionRule = z.infer<typeof legacyPermissionRuleSchema>;
 
 export const supervisionDecisionKindSchema = z.enum([
   "allow",
@@ -208,6 +212,6 @@ export const supervisionDecisionSchema = z.object({
   normalizedTargets: z.array(normalizedPermissionTargetSchema).max(64),
   matchedRuleIds: z.array(z.string().startsWith("rule_")).max(256),
   policySnapshotHash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
-  suggestedRules: z.array(permissionRuleSchema).max(16),
+  suggestedRules: z.array(legacyPermissionRuleSchema).max(16),
 });
 export type SupervisionDecision = z.infer<typeof supervisionDecisionSchema>;

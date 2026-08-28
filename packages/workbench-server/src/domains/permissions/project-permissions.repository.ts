@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import {
   type PermissionRuleConfig,
-  permissionsConfigSchema,
+  legacyPermissionsConfigSchema,
   type ProjectPermissions,
 } from "@nervekit/contracts";
 import {
@@ -38,7 +38,7 @@ export class ProjectPermissionsRepository {
       },
     );
     if (raw === undefined) return emptyPermissions();
-    const config = permissionsConfigSchema.parse(raw);
+    const config = legacyPermissionsConfigSchema.parse(raw);
     return {
       version: 2,
       exceptions: config.rules
@@ -70,7 +70,7 @@ export class ProjectPermissionsRepository {
     );
     await atomicWriteJson(
       await this.file(projectId),
-      permissionsConfigSchema.parse({ version: 1, rules }),
+      legacyPermissionsConfigSchema.parse({ version: 1, rules }),
       0o600,
     );
     return { version: 2, exceptions: permissions.exceptions };

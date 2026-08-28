@@ -3,7 +3,11 @@ import type {
   CreateTaskDefinitionRequest,
   OpenProjectInEditorResponse,
   OpenProjectInTerminalResponse,
+  PermissionOverlay,
+  PermissionOverlayOrigin,
+  PermissionPolicyConfiguration,
   ProjectEditor,
+  ProjectPermissionTrust,
   TaskDefinition,
   ProjectRecord,
   ProjectPermissions,
@@ -42,6 +46,46 @@ export async function updateProjectPermissions(
       permissions,
     })
   ).result.permissions;
+}
+
+export async function getPermissionPolicyConfiguration(
+  projectId: string,
+  conversationId?: string,
+): Promise<PermissionPolicyConfiguration> {
+  return (
+    await protocolRequest("project.permissionPolicy.get", {
+      projectId,
+      conversationId,
+    })
+  ).result.configuration;
+}
+
+export async function updatePermissionOverlay(
+  projectId: string,
+  origin: PermissionOverlayOrigin,
+  overlay: PermissionOverlay,
+  conversationId?: string,
+): Promise<PermissionOverlay> {
+  return (
+    await protocolRequest("project.permissionOverlay.update", {
+      projectId,
+      conversationId,
+      origin,
+      overlay,
+    })
+  ).result.overlay;
+}
+
+export async function updateProjectPermissionTrust(
+  projectId: string,
+  trusted: boolean,
+): Promise<ProjectPermissionTrust> {
+  return (
+    await protocolRequest("project.permissionTrust.update", {
+      projectId,
+      trusted,
+    })
+  ).result.trust;
 }
 
 export async function deleteProject(projectId: string): Promise<void> {

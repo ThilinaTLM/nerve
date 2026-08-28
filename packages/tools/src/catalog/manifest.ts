@@ -17,6 +17,7 @@ import { exploreToolDefinitions } from "./orchestration/explore.tools.js";
 import { planModeToolDefinitions } from "./orchestration/plan-mode.tools.js";
 import { taskToolDefinitions } from "./orchestration/task.tools.js";
 import { agentResultPolicyForTool } from "../result-projection/policies/index.js";
+import { permissionMetadataForTool } from "./permission-metadata.js";
 import {
   type HostToolDefinition,
   isHostToolDefinition,
@@ -77,6 +78,14 @@ const definitionByName = new Map<ToolName, ToolDefinition>();
 for (const definition of toolManifest) {
   if (definitionByName.has(definition.name)) {
     throw new Error(`Duplicate tool definition: ${definition.name}`);
+  }
+  const permissionMetadata = permissionMetadataForTool(definition.name);
+  if (
+    !permissionMetadata.kind ||
+    permissionMetadata.groups.length === 0 ||
+    permissionMetadata.targetKinds.length === 0
+  ) {
+    throw new Error(`Incomplete permission metadata: ${definition.name}`);
   }
   if (!definition.group || !definition.baseRisk || !definition.executionKind) {
     throw new Error(`Incomplete tool metadata: ${definition.name}`);

@@ -1,7 +1,7 @@
 import type {
   PermissionException,
-  PermissionRule,
-  PermissionRuleMatcherKind,
+  LegacyPermissionRule,
+  LegacyPermissionRuleMatcherKind,
   ProjectPermissions,
   ProjectRecord,
 } from "@nervekit/contracts";
@@ -15,7 +15,7 @@ import type { ProjectPermissionsRepository } from "./project-permissions.reposit
 
 function matcherKind(
   exception: PermissionException,
-): PermissionRuleMatcherKind {
+): LegacyPermissionRuleMatcherKind {
   if (["read", "edit", "write", "grep", "find", "ls"].includes(exception.tool))
     return "path_glob";
   if (exception.tool === "bash") return "command_glob";
@@ -28,7 +28,7 @@ function toRule(
   scope: "user" | "project",
   projectId: string | undefined,
   timestamp: string,
-): PermissionRule {
+): LegacyPermissionRule {
   return {
     id: `rule_${scope}_${exception.id.replace(/^exception_/, "")}`.slice(
       0,
@@ -46,7 +46,7 @@ function toRule(
   };
 }
 
-function toException(rule: PermissionRule): PermissionException {
+function toException(rule: LegacyPermissionRule): PermissionException {
   return {
     id: `exception_${rule.id.replace(/^rule_(?:user|project)_?/, "")}`.slice(
       0,
@@ -90,7 +90,7 @@ export class PermissionExceptionService {
     });
   }
 
-  async effectiveRules(projectId: string): Promise<PermissionRule[]> {
+  async effectiveRules(projectId: string): Promise<LegacyPermissionRule[]> {
     this.getProject(projectId);
     const now = new Date().toISOString();
     const userRules = this.storage.settings.permissions.exceptions.map(

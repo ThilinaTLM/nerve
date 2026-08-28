@@ -45,19 +45,10 @@ export function migrateLegacyConfiguration(
     })
     .filter((value) => value !== undefined)
     .sort((left, right) => left.provider.localeCompare(right.provider));
-  const rules = new Map(base.permissions.rules.map((rule) => [rule.id, rule]));
-  for (const rule of source.userRules) {
-    rules.set(rule.id, {
-      id: rule.id,
-      effect: rule.effect,
-      tool: rule.tool_name,
-      matcher: { kind: rule.matcher_kind, pattern: rule.pattern },
-      enabled: rule.enabled === 1,
-    });
-  }
   return {
     ...base,
-    permissions: { version: 1, rules: [...rules.values()] },
+    // The unshipped legacy permission format is intentionally not imported.
+    permissions: base.permissions,
     providers: providersConfigSchema.parse({
       version: 1,
       providers: catalog.providers.map(({ headers, ...provider }) => ({

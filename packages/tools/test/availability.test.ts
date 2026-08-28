@@ -59,7 +59,7 @@ describe("read-only tool availability and permissions", () => {
       assert.equal(
         evaluateRuntimeToolPermission(
           name,
-          {},
+          name === "todos_set" ? { todos: [] } : {},
           {
             permissionLevel: "read_only",
           },

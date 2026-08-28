@@ -3,7 +3,6 @@ import {
   harnessConfigSchema,
   integrationsConfigSchema,
   nerveHomeManifestSchema,
-  permissionsConfigSchema,
   providersConfigSchema,
   uiConfigSchema,
 } from "@nervekit/contracts";
@@ -22,9 +21,6 @@ export async function assertCurrentStorage(paths: StoragePaths): Promise<void> {
     ),
     readJsonFile(paths.uiConfigPath).then((value) =>
       uiConfigSchema.parse(value),
-    ),
-    readJsonFile(paths.permissionsConfigPath).then((value) =>
-      permissionsConfigSchema.parse(value),
     ),
     readJsonFile(paths.providersConfigPath).then((value) =>
       providersConfigSchema.parse(value),

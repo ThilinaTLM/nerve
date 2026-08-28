@@ -65,6 +65,11 @@ export type ToolLifecycleHooks = {
 
 export type RuntimeToolPermissionInput = {
   permissionLevel: PermissionLevel;
+  permissionRuleSetId?: string;
+  projectDir?: string;
+  nerveHome?: string;
+  cwd?: string;
+  conversationId?: string;
   groupRequireApproval?: "never" | "risky" | "always";
 };
 
