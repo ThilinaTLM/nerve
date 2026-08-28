@@ -6,6 +6,7 @@ import type {
   ApplicationLogRecord,
   ApplicationLogSource,
 } from "@nervekit/contracts";
+import { formatApplicationLog } from "$lib/presentation/logs/log-entry";
 
 export type LogLevelFilter = ApplicationLogLevel | "all";
 export type LogSourceFilter = ApplicationLogSource | "all";
@@ -35,12 +36,7 @@ export function logsFilterRequest(input: {
 }
 
 export function serializeApplicationLogs(logs: ApplicationLogRecord[]): string {
-  return logs
-    .map(
-      (log) =>
-        `${log.ts} ${log.level.toUpperCase()} ${log.source}/${log.component} ${log.message}`,
-    )
-    .join("\n");
+  return logs.map(formatApplicationLog).join("\n\n");
 }
 
 export class LogsPaneController {

@@ -9,13 +9,15 @@ export function routeHandler(
     try {
       return await handler(c);
     } catch (error) {
-      await requestContextFor(c)?.logger.error("Route handler failed", {
-        error,
-        context: {
-          method: c.req.method,
-          path: new URL(c.req.url).pathname,
+      const method = c.req.method;
+      const path = new URL(c.req.url).pathname;
+      await requestContextFor(c)?.logger.error(
+        `${method} ${path} handler failed`,
+        {
+          error,
+          context: { method, path },
         },
-      });
+      );
       return errorResponse(error);
     }
   };

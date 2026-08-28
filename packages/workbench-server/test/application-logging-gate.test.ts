@@ -30,6 +30,39 @@ describe("application logging gate", () => {
     const logsResponse = await app.request("/api/logs", { headers });
     assert.equal(logsResponse.status, 200);
     const logs = (await logsResponse.json()) as ApplicationLogQueryResponse;
-    assert.ok(logs.logs.length >= 1);
+    const configLog = logs.logs.find(
+      (log) => log.message === "GET /api/client-config completed (200)",
+    );
+    assert.ok(configLog);
+    assert.equal(configLog.component, "http");
+    assert.match(configLog.requestId ?? "", /^log_/);
+    assert.ok((configLog.durationMs ?? -1) >= 0);
+    assert.deepEqual(configLog.context, {
+      method: "GET",
+      path: "/api/client-config",
+      status: 200,
+    });
+  });
+
+  it("identifies authorization failures by method and path", async () => {
+    const { app, state } = await createAuthenticatedApp("127.0.0.1", {
+      applicationLogsEnabled: true,
+    });
+
+    const response = await app.request("/api/client-config");
+    assert.equal(response.status, 401);
+    const logs = await state.logger.query({ component: "http", limit: 10 });
+    const authorization = logs.logs.find((log) =>
+      log.message.includes("authorization failed"),
+    );
+    assert.equal(
+      authorization?.message,
+      "GET /api/client-config authorization failed",
+    );
+    assert.deepEqual(authorization?.context, {
+      method: "GET",
+      path: "/api/client-config",
+      mode: "none",
+    });
   });
 });

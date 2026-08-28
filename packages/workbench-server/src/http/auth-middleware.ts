@@ -33,13 +33,18 @@ export function unauthorized() {
 export function createApiAuthMiddleware(token: string): MiddlewareHandler {
   return async (c, next) => {
     if (!isAuthorized(c.req.raw, token)) {
-      await requestContextFor(c)?.logger.warn("API authorization failed", {
-        context: {
-          method: c.req.method,
-          path: new URL(c.req.url).pathname,
-          mode: clientAuthMode(c.req.raw, token),
+      const method = c.req.method;
+      const path = new URL(c.req.url).pathname;
+      await requestContextFor(c)?.logger.warn(
+        `${method} ${path} authorization failed`,
+        {
+          context: {
+            method,
+            path,
+            mode: clientAuthMode(c.req.raw, token),
+          },
         },
-      });
+      );
       return c.body(await unauthorized().text(), 401, {
         "content-type": "application/json",
       });
