@@ -316,7 +316,7 @@ export const codeMirrorTheme = EditorView.theme({
     padding: "0 calc(var(--spacing) * 4) 0 calc(var(--spacing) * 2)",
   },
   ".cm-gutters": {
-    backgroundColor: "color-mix(in oklab, var(--background) 72%, var(--card))",
+    backgroundColor: "var(--background)",
     color: "var(--muted-foreground)",
     borderRight:
       "1px solid color-mix(in oklab, var(--background) 55%, var(--border))",
@@ -383,18 +383,6 @@ export const codeMirrorTheme = EditorView.theme({
   },
 });
 
-const CODE_MINIMAP_LINE_THRESHOLD = 100;
-
-export function shouldShowCodeMinimap(text: string, wrap: boolean): boolean {
-  if (wrap) return false;
-  let lines = 1;
-  for (let index = 0; index < text.length; index += 1) {
-    if (text.charCodeAt(index) === 10) lines += 1;
-    if (lines > CODE_MINIMAP_LINE_THRESHOLD) return true;
-  }
-  return false;
-}
-
 function codeMinimapExtension(): Extension {
   return showMinimap.of({
     create: () => {
@@ -425,7 +413,6 @@ export function editableCodeExtensions(ariaLabel: string): Extension[] {
 export function readOnlyCodeExtensions(input: {
   lineStart?: number;
   ariaLabel: string;
-  minimap?: boolean;
   highlightSelectionMatches?: boolean;
   foldMarkerDOM?: (open: boolean) => HTMLElement;
 }): Extension[] {
@@ -447,7 +434,7 @@ export function readOnlyCodeExtensions(input: {
     input.highlightSelectionMatches ? highlightSelectionMatches() : [],
     syntaxHighlighting(codeHighlightStyle),
     keymap.of(foldKeymap),
-    input.minimap ? codeMinimapExtension() : [],
+    codeMinimapExtension(),
     codeMirrorTheme,
   ];
 }

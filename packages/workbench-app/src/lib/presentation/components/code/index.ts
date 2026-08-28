@@ -7,5 +7,4 @@ export {
   loadCodeLanguage,
   localLineNumber,
   readOnlyCodeExtensions,
-  shouldShowCodeMinimap,
 } from "./code-mirror-config.js";
