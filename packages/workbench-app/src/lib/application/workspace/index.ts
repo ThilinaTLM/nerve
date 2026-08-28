@@ -6,6 +6,7 @@ export {
   closeCenterTabs,
 } from "./center-tab-actions.svelte";
 export {
+  centerTabKey,
   closeCenterTab,
   reorderCenterTab,
   selectCenterTab,
