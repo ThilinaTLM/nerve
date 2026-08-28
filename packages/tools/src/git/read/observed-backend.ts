@@ -14,8 +14,10 @@ export class ObservedGitReadBackend implements GitReadBackend {
 
   async isRepository(repoDir: string): Promise<boolean> {
     try {
-      return await this.run("repository-info", () =>
-        this.backend.isRepository(repoDir),
+      return await this.run(
+        "repository-info",
+        () => this.backend.isRepository(repoDir),
+        repoDir,
       );
     } catch (error) {
       if (
@@ -30,8 +32,10 @@ export class ObservedGitReadBackend implements GitReadBackend {
     repoDir: string,
     includeIgnored?: boolean,
   ): Promise<GitReadSnapshot> {
-    return this.run("snapshot", () =>
-      this.backend.snapshot(repoDir, includeIgnored),
+    return this.run(
+      "snapshot",
+      () => this.backend.snapshot(repoDir, includeIgnored),
+      repoDir,
     );
   }
   isAncestor(
@@ -39,13 +43,17 @@ export class ObservedGitReadBackend implements GitReadBackend {
     ancestor: string,
     descendant: string,
   ): Promise<boolean> {
-    return this.run("ancestry", () =>
-      this.backend.isAncestor(repoDir, ancestor, descendant),
+    return this.run(
+      "ancestry",
+      () => this.backend.isAncestor(repoDir, ancestor, descendant),
+      repoDir,
     );
   }
   resolveRevision(repoDir: string, revision: string): Promise<string> {
-    return this.run("resolve-revision", () =>
-      this.backend.resolveRevision(repoDir, revision),
+    return this.run(
+      "resolve-revision",
+      () => this.backend.resolveRevision(repoDir, revision),
+      repoDir,
     );
   }
   validateBranchName(name: string): Promise<boolean> {
@@ -58,14 +66,17 @@ export class ObservedGitReadBackend implements GitReadBackend {
     original: NativeGitDocumentSource,
     modified: NativeGitDocumentSource,
   ): Promise<NativeGitFileDiff> {
-    return this.run("file-diff", () =>
-      this.backend.fileDiff(repoDir, original, modified),
+    return this.run(
+      "file-diff",
+      () => this.backend.fileDiff(repoDir, original, modified),
+      repoDir,
     );
   }
 
   private async run<T>(
     operation: string,
     invoke: () => Promise<T>,
+    repoDir?: string,
   ): Promise<T> {
     const startedAt = performance.now();
     try {
@@ -73,6 +84,7 @@ export class ObservedGitReadBackend implements GitReadBackend {
       this.report({
         backend: "native",
         operation,
+        repoDir,
         durationMs: performance.now() - startedAt,
         succeeded: true,
       });
@@ -81,6 +93,7 @@ export class ObservedGitReadBackend implements GitReadBackend {
       this.report({
         backend: "native",
         operation,
+        repoDir,
         durationMs: performance.now() - startedAt,
         succeeded: false,
       });

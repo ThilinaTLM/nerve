@@ -146,6 +146,7 @@ export class GitService {
       this.observeCommand({
         bin,
         command: observedCommand(args),
+        cwd,
         durationMs: performance.now() - startedAt,
         succeeded: true,
       });
@@ -154,6 +155,7 @@ export class GitService {
       this.observeCommand({
         bin,
         command: observedCommand(args),
+        cwd,
         durationMs: performance.now() - startedAt,
         succeeded: false,
       });
@@ -396,6 +398,8 @@ export class GitService {
       return result;
     } finally {
       this.observeOverview({
+        projectId,
+        relativePath,
         durationMs: performance.now() - startedAt,
         succeeded,
       });

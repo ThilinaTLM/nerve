@@ -49,7 +49,7 @@ export class GithubApiClient {
     variables: Readonly<Record<string, unknown>>,
   ): Promise<T> {
     const envelope = await this.#request<GraphqlEnvelope<T>>(
-      repository.hostname,
+      repository,
       "https://api.github.com/graphql",
       {
         method: "POST",
@@ -87,7 +87,7 @@ export class GithubApiClient {
     options: RestOptions,
   ): Promise<T> {
     return this.#request<T>(
-      repository.hostname,
+      repository,
       `https://api.github.com${path}`,
       options,
     );
@@ -134,17 +134,18 @@ export class GithubApiClient {
   }
 
   async #request<T>(
-    hostname: string,
+    repository: GithubRepositoryRef,
     url: string,
     options: RestOptions,
   ): Promise<T> {
+    const method = options.method ?? "GET";
     let lastStatus: number | undefined;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const startedAt = performance.now();
       try {
-        const token = await this.token(hostname);
+        const token = await this.token(repository.hostname);
         const response = await this.#fetch(url, {
-          method: options.method ?? "GET",
+          method,
           headers: {
             Accept: "application/vnd.github+json",
             Authorization: `Bearer ${token}`,
@@ -159,20 +160,48 @@ export class GithubApiClient {
         });
         lastStatus = response.status;
         if (response.status === 401 && attempt === 0) {
-          this.#tokens.delete(hostname);
-          this.#observe(options.operation, startedAt, false, response.status);
+          this.#tokens.delete(repository.hostname);
+          this.#observe(
+            repository,
+            options.operation,
+            method,
+            startedAt,
+            false,
+            response.status,
+          );
           continue;
         }
         if (!response.ok) throw apiError(response.status, response.headers);
         const value = (await response.json()) as T;
-        this.#observe(options.operation, startedAt, true, response.status);
+        this.#observe(
+          repository,
+          options.operation,
+          method,
+          startedAt,
+          true,
+          response.status,
+        );
         return value;
       } catch (error) {
         if (error instanceof GitWorkflowError) {
-          this.#observe(options.operation, startedAt, false, lastStatus);
+          this.#observe(
+            repository,
+            options.operation,
+            method,
+            startedAt,
+            false,
+            lastStatus,
+          );
           throw error;
         }
-        this.#observe(options.operation, startedAt, false, lastStatus);
+        this.#observe(
+          repository,
+          options.operation,
+          method,
+          startedAt,
+          false,
+          lastStatus,
+        );
         throw new GitWorkflowError(
           503,
           "GH_API_UNAVAILABLE",
@@ -190,7 +219,9 @@ export class GithubApiClient {
   }
 
   #observe(
+    repository: GithubRepositoryRef,
     operation: string,
+    method: "GET" | "POST" | "PUT",
     startedAt: number,
     succeeded: boolean,
     status?: number,
@@ -198,6 +229,10 @@ export class GithubApiClient {
     try {
       this.options.onRequestCompleted?.({
         operation,
+        method,
+        hostname: repository.hostname,
+        owner: repository.owner,
+        repository: repository.repo,
         durationMs: performance.now() - startedAt,
         succeeded,
         status,

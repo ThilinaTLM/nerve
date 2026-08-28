@@ -91,6 +91,12 @@ import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.j
 import type { ProviderCatalogStore } from "../../domains/providers/provider-catalog.store.js";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import {
+  gitCommandDiagnostic,
+  githubRequestDiagnostic,
+  gitOverviewDiagnostic,
+  gitReadDiagnostic,
+} from "./git-logging.js";
 import type { RuntimeState } from "./state.js";
 import type { AppendEntryInput, AppendEntryOptions } from "./types.js";
 
@@ -434,52 +440,21 @@ export function composeRuntime(
     services.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
   );
   const gitLogger = logger.child({ component: "git" });
+  const writeGitDiagnostic = (
+    diagnostic: ReturnType<typeof gitCommandDiagnostic>,
+  ) => {
+    if (!diagnostic) return;
+    void gitLogger[diagnostic.level](diagnostic.message, diagnostic.details);
+  };
   const gitService = new GitService(getProject, {
-    onCommandCompleted: (observation) => {
-      if (observation.durationMs < 250) return;
-      void gitLogger.warn("Slow Git command", {
-        durationMs: Math.round(observation.durationMs),
-        context: {
-          bin: observation.bin,
-          command: observation.command,
-          succeeded: observation.succeeded,
-        },
-      });
-    },
-    onReadCompleted: (observation) => {
-      if (observation.succeeded && observation.durationMs < 250) return;
-      void gitLogger.warn(
-        observation.succeeded
-          ? "Slow native Git read"
-          : "Native Git read failed",
-        {
-          durationMs: Math.round(observation.durationMs),
-          context: {
-            backend: observation.backend,
-            operation: observation.operation,
-            succeeded: observation.succeeded,
-          },
-        },
-      );
-    },
-    onGithubRequestCompleted: (observation) => {
-      if (observation.durationMs < 250) return;
-      void gitLogger.warn("Slow GitHub API request", {
-        durationMs: Math.round(observation.durationMs),
-        context: {
-          operation: observation.operation,
-          status: observation.status,
-          succeeded: observation.succeeded,
-        },
-      });
-    },
-    onOverviewCompleted: (observation) => {
-      if (observation.durationMs < 500) return;
-      void gitLogger.warn("Slow Git overview", {
-        durationMs: Math.round(observation.durationMs),
-        context: { succeeded: observation.succeeded },
-      });
-    },
+    onCommandCompleted: (observation) =>
+      writeGitDiagnostic(gitCommandDiagnostic(observation)),
+    onReadCompleted: (observation) =>
+      writeGitDiagnostic(gitReadDiagnostic(observation)),
+    onGithubRequestCompleted: (observation) =>
+      writeGitDiagnostic(githubRequestDiagnostic(observation)),
+    onOverviewCompleted: (observation) =>
+      writeGitDiagnostic(gitOverviewDiagnostic(observation)),
   });
   services.gitRepositoryWatcher = new GitRepositoryWatcher(events, {
     diagnostics: performanceDiagnostics.enabled

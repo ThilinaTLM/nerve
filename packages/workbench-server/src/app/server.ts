@@ -166,12 +166,14 @@ export function createApp(state: WorkbenchState): Hono {
         const status = c.res.status;
         const durationMs = Math.round(performance.now() - started);
         const level = status >= 500 ? "error" : status >= 400 ? "warn" : "info";
-        await logger[level]("HTTP request completed", {
+        const method = c.req.method;
+        const path = new URL(c.req.url).pathname;
+        await logger[level](`${method} ${path} completed (${status})`, {
           durationMs,
           context: {
             status,
-            method: c.req.method,
-            path: new URL(c.req.url).pathname,
+            method,
+            path,
           },
         }).catch(() => undefined);
         clearRequestContext(c.req.raw);
