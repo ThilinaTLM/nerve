@@ -1,4 +1,4 @@
-import type { RunRecord } from "@nervekit/contracts";
+import type { RunRecord } from "@nervekit/contracts/runs";
 import type {
   RunExecution,
   RunExecutionFactoryPort,

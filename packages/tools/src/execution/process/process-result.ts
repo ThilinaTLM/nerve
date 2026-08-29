@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ToolOutputLimitsPayload } from "@nervekit/contracts";
+import type { ToolOutputLimitsPayload } from "@nervekit/contracts/tools";
 import type { ToolExecutionResult } from "../execution-context.js";
 import type { ProcessOutputChunk } from "../output/bounded-process-output.js";
 import {

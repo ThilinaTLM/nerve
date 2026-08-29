@@ -1,4 +1,4 @@
-import { type Settings, settingsSchema } from "@nervekit/contracts";
+import { type Settings, settingsSchema } from "@nervekit/contracts/settings";
 import type { ManagedDaemon } from "../daemon/composition.js";
 import { session } from "../platform/electron/electron-api.js";
 import { desktopLog } from "../logging.js";

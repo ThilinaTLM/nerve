@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type {
-  ApprovalRecord,
-  ConversationEntry,
-  ToolCallRecord,
-} from "@nervekit/contracts";
+import type { ApprovalRecord, ToolCallRecord } from "@nervekit/contracts/tools";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import { ApprovalBatchResolutionService } from "../../../src/domains/human-input/approval-batch-resolution.js";
 import type {
   ApprovalInteractionBatch,

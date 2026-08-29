@@ -1,11 +1,9 @@
 /* eslint-disable max-lines -- Run regression scenarios share deterministic lifecycle fixtures. */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type {
-  AgentRecord,
-  PlanReviewRecord,
-  RunRecord,
-} from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
+import type { PlanReviewRecord } from "@nervekit/contracts/plans";
+import type { RunRecord } from "@nervekit/contracts/runs";
 import { AutoCompactionRunner } from "../../../src/domains/agents/execution/auto-compaction-runner.js";
 import { HttpError } from "../../../src/adapters/http/errors.js";
 import { RuntimeState } from "../../../src/app/runtime/runtime-projections.js";

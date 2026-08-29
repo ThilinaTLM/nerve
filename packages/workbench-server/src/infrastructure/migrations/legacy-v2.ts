@@ -1,11 +1,8 @@
 import { createDecipheriv } from "node:crypto";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  legacyV2HomeMarkerSchema,
-  settingsSchema,
-  type Settings,
-} from "@nervekit/contracts";
+import { legacyV2HomeMarkerSchema } from "@nervekit/contracts/storage";
+import { settingsSchema, type Settings } from "@nervekit/contracts/settings";
 import { DatabaseSync } from "node:sqlite";
 
 export type LegacyV2Layout = "released-post-0012" | "canonical-v3";

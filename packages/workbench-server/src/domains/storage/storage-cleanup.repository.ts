@@ -1,7 +1,7 @@
 import {
   type StorageCleanupOperation,
   storageCleanupOperationSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/storage";
 import {
   atomicWriteJson,
   pathExists,

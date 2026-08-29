@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import type { ToolName } from "@nervekit/contracts";
+import type { ToolName } from "@nervekit/contracts/tools";
 import { requireToolDefinition } from "../catalog/manifest.js";
 import type { ToolPermissionTargetDescriptor } from "../catalog/contracts.js";
 import type { PermissionTarget, ShellCommandAssessment } from "./types.js";

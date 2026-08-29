@@ -1,7 +1,5 @@
-import type {
-  EventEnvelope,
-  SubagentTranscriptSnapshot,
-} from "@nervekit/contracts";
+import type { EventEnvelope } from "@nervekit/contracts/events";
+import type { SubagentTranscriptSnapshot } from "@nervekit/contracts/agents";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { WorkbenchEventHandler } from "$lib/application/events/event-bus";

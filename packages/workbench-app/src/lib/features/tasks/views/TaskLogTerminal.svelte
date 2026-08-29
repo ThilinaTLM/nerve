@@ -1,6 +1,9 @@
 <script lang="ts">
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
-import type { TaskLogEvent, TaskLogQueryResponse } from "@nervekit/contracts";
+import type {
+  TaskLogEvent,
+  TaskLogQueryResponse,
+} from "@nervekit/contracts/tasks";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   VirtualScroller,

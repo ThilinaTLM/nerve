@@ -2,7 +2,7 @@ import {
   DAEMON_STARTUP_PROGRESS_PREFIX,
   daemonStartupProgressSchema,
   type DaemonStartupProgress,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/storage";
 
 /** Decodes newline-delimited startup progress emitted by the daemon process. */
 export class DaemonStartupProgressDecoder {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { GitFileChange } from "@nervekit/contracts";
+import type { GitFileChange } from "@nervekit/contracts/git";
 import { buildPanelTree } from "$lib/presentation/panels/panel-tree";
 import {
   gitChangeTreeFolderKey,

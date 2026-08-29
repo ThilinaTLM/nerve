@@ -2,17 +2,19 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   taskControlToolResultSchema,
+  taskStartToolResultSchema,
+  taskStatusToolResultSchema,
+  toolCallRecordSchema,
+  toolNameSchema,
+} from "../../src/domains/tools/index.js";
+import {
   taskEnvInfoSchema,
   taskLaunchConfigSchema,
   taskLogQueryResponseSchema,
   taskLogQuerySchema,
   taskRecordSchema,
-  taskStartToolResultSchema,
-  taskStatusToolResultSchema,
-  toolCallRecordSchema,
-  toolNameSchema,
   type TaskRecord,
-} from "../../src/index.js";
+} from "../../src/domains/tasks/index.js";
 
 function record(overrides: Partial<TaskRecord> = {}): TaskRecord {
   return {

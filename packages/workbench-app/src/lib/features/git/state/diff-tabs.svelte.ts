@@ -1,4 +1,4 @@
-import type { GitDiffArea } from "@nervekit/contracts";
+import type { GitDiffArea } from "@nervekit/contracts/git";
 import { diffViewKey } from "$lib/domain/navigation/view-keys";
 import { getGitFileDiff } from "$lib/features/git/api/git.api";
 import {

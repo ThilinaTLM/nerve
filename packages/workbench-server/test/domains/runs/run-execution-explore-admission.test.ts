@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { RunRecord } from "@nervekit/contracts";
+import type { RunRecord } from "@nervekit/contracts/runs";
 import { WorkbenchExploreAdmission } from "../../../src/domains/agents/execution/workbench-explore-admission.js";
 import {
   WorkbenchRunExecutionFactory,

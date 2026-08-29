@@ -1,13 +1,13 @@
+import type { ConversationJournalEvent } from "@nervekit/contracts/conversations";
 import type {
-  ConversationJournalEvent,
   RunEventDeliveryRecord,
   RunRecord,
   RunTransitionRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
 import {
   runEventDeliveryRecordSchema,
   runTransitionRecordSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
 import { storagePaths } from "../../../infrastructure/storage-bootstrap/paths.js";
 import { ConversationJournalRepository } from "../../conversations/conversation-journal.repository.js";
 import {

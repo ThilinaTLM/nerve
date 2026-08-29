@@ -1,4 +1,4 @@
-import type { ToolRisk } from "@nervekit/contracts";
+import type { ToolRisk } from "@nervekit/contracts/permissions";
 import { Type } from "typebox";
 import { executeBash } from "../../../execution/shell/bash.js";
 import { assessShellCommand } from "../../../policy/shell/assessment.js";

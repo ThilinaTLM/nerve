@@ -1,4 +1,4 @@
-import type { ToolName } from "@nervekit/contracts";
+import type { ToolName } from "@nervekit/contracts/tools";
 import type { ToolExecutionResult } from "../../execution/execution-context.js";
 import { type ToolHandlerRegistry, ToolValidationError } from "../types.js";
 import { requiredString } from "./args.js";

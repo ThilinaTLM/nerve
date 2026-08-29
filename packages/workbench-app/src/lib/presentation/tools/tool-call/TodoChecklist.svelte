@@ -1,7 +1,7 @@
 <script lang="ts">
 import Circle from "@lucide/svelte/icons/circle";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
-import type { TodoItem } from "@nervekit/contracts";
+import type { TodoItem } from "@nervekit/contracts/tools";
 
 type Props = {
   items: TodoItem[];

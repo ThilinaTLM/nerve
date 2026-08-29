@@ -4,16 +4,22 @@ import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "@nervekit/harness";
 import type {
   AgentRecord,
+  CreateAgentRequest,
+  UpdateAgentRequest,
+} from "@nervekit/contracts/agents";
+import type {
   ConversationEntry,
   ConversationRecord,
-  CreateAgentRequest,
   CreateConversationRequest,
+} from "@nervekit/contracts/conversations";
+import type {
   PlanImplementationSelection,
   PlanReviewRecord,
+} from "@nervekit/contracts/plans";
+import type {
   ToolCallRecord,
-  UpdateAgentRequest,
   UserQuestionRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import { ApplicationError } from "../../core/application-error.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging.js";
 import type {

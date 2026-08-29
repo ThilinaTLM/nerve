@@ -1,8 +1,8 @@
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
-  AgentRecord,
   ConversationEntry,
   ConversationEntryUsage,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
 
 export type AppendEntryInput = {
   id?: string;

@@ -20,7 +20,7 @@ import {
   placeholder as placeholderExtension,
   type ViewUpdate,
 } from "@codemirror/view";
-import type { CompletionItem } from "@nervekit/contracts";
+import type { CompletionItem } from "@nervekit/contracts/completions";
 import {
   formatProjectEntryReferences,
   hasProjectEntryDragType,

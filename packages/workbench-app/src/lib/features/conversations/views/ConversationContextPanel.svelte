@@ -9,7 +9,7 @@ import {
   PanelToolbarButton,
   PanelView,
 } from "$lib/presentation/panels";
-import type { ContextUsage } from "@nervekit/contracts";
+import type { ContextUsage } from "@nervekit/contracts/models";
 import type {
   AgentRecord,
   ConversationRecord,

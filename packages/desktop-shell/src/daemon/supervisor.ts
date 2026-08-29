@@ -1,7 +1,5 @@
-import type {
-  DaemonCrashReportKind,
-  DaemonStartupProgress,
-} from "@nervekit/contracts";
+import type { DaemonCrashReportKind } from "@nervekit/contracts/logs";
+import type { DaemonStartupProgress } from "@nervekit/contracts/storage";
 import { daemonStartupError, formatExit, OutputBuffer } from "./diagnostics.js";
 import { DaemonStartupProgressDecoder } from "./startup-progress.js";
 import {

@@ -1,4 +1,4 @@
-import type { DaemonCrashReportKind } from "@nervekit/contracts";
+import type { DaemonCrashReportKind } from "@nervekit/contracts/logs";
 import type { ChildExit, DaemonPaths, HealthyDaemon } from "./contracts.js";
 import type { NetworkInterfacesSnapshot } from "./urls.js";
 

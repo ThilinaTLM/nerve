@@ -6,7 +6,7 @@ import {
   permissionRuleSchema,
   permissionRuleSetSchema,
   permissionTargetSchema,
-} from "../../src/index.js";
+} from "../../src/domains/permissions/index.js";
 
 const rule = {
   id: "allow-read",

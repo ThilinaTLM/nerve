@@ -7,7 +7,7 @@ import type {
   GitRepoSummary,
   GitStashArea,
   GitStashEntry,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 
 export type { FeatureCapability } from "$lib/domain/capabilities/feature-capability";
 import type { FeatureCapability } from "$lib/domain/capabilities/feature-capability";

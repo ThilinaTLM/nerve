@@ -1,7 +1,7 @@
 <script lang="ts">
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import GitBranch from "@lucide/svelte/icons/git-branch";
-import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts";
+import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts/git";
 import { cn } from "@nervekit/ui-kit/utils";
 import type { GitPanelCapabilities } from "./git-panel-types";
 import GitBranchDialog from "./GitBranchDialog.svelte";

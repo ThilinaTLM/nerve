@@ -1,6 +1,6 @@
 <script lang="ts">
 import User from "@lucide/svelte/icons/user";
-import type { JiraProjectSummaryPayload } from "@nervekit/contracts";
+import type { JiraProjectSummaryPayload } from "@nervekit/contracts/tools";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 
 type Props = { project: JiraProjectSummaryPayload };

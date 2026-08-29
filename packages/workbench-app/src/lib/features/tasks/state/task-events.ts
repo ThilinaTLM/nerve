@@ -1,4 +1,4 @@
-import type { TaskRecord } from "@nervekit/contracts";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 import { refreshTaskLogWindow } from "./task-logs.svelte";
 import { onEvent } from "$lib/application/events/event-bus";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";

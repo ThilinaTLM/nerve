@@ -2,7 +2,7 @@ import {
   respondOAuthFlowRequestSchema,
   setProviderApiKeyRequestSchema,
   startOAuthFlowRequestSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/auth";
 import { Hono } from "hono";
 import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
 import { routeHandler } from "../responses.js";

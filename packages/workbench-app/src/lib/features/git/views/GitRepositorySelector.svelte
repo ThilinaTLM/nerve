@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { GitRepoSummary } from "@nervekit/contracts";
+import type { GitRepoSummary } from "@nervekit/contracts/git";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { ItemCollection, ItemSurface } from "$lib/presentation";
 import { repoButtonLabel, repoPathLabel } from "./git-change-format";

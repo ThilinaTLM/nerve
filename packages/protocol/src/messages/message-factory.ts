@@ -2,7 +2,7 @@ import type {
   NerveMessage,
   PeerDescriptor,
   SafeMetadata,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
 import { createTransportId, type IdFactory } from "../runtime/ids.js";
 
 export interface MessageFactoryOptions {

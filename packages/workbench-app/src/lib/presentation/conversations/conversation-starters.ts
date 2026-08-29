@@ -1,6 +1,6 @@
 import Code2 from "@lucide/svelte/icons/code-2";
 import ListChecks from "@lucide/svelte/icons/list-checks";
-import type { Mode } from "@nervekit/contracts";
+import type { Mode } from "@nervekit/contracts/settings";
 import type { Component } from "svelte";
 
 export type ConversationStarter = {

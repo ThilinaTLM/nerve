@@ -2,7 +2,7 @@
 import Clock from "@lucide/svelte/icons/clock";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import User from "@lucide/svelte/icons/user";
-import type { JiraIssueSummaryPayload } from "@nervekit/contracts";
+import type { JiraIssueSummaryPayload } from "@nervekit/contracts/tools";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
 import {

@@ -6,7 +6,7 @@ import type {
   RunInteractionRecord,
   RunPromptRecord,
   RunTransitionRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
 import {
   applyRunEventDelivery,
   applyRunTransition,

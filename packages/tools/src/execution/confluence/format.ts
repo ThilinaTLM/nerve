@@ -12,7 +12,7 @@ import type {
   ConfluenceRestrictionSummaryPayload,
   ConfluenceSpaceSummaryPayload,
   ToolOutputLimitsPayload,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import type {
   IntegrationExecutionContext,
   ToolExecutionResult,

@@ -1,8 +1,6 @@
 <script lang="ts">
-import type {
-  SubagentTranscriptSnapshot,
-  EventEnvelope,
-} from "@nervekit/contracts";
+import type { SubagentTranscriptSnapshot } from "@nervekit/contracts/agents";
+import type { EventEnvelope } from "@nervekit/contracts/events";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import { Button } from "@nervekit/ui-kit/components/ui/button";

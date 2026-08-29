@@ -1,10 +1,10 @@
 import {
   type CreateTaskDefinitionRequest,
-  createId,
-  type ProjectRecord,
   type TaskDefinition,
   type UpdateTaskDefinitionRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/task-definitions";
+import { createId } from "@nervekit/contracts";
+import { type ProjectRecord } from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../core/application-error.js";
 import type { TaskDefinitionRepository } from "./task-definition.repository.js";
 

@@ -13,7 +13,7 @@ import {
   permissionsConfigSchema,
   providersConfigSchema,
   uiConfigSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/settings";
 import type { StoragePaths } from "../storage-bootstrap/paths.js";
 import {
   atomicWriteJson,

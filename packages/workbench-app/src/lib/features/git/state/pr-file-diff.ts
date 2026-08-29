@@ -1,4 +1,4 @@
-import type { GithubPrFile } from "@nervekit/contracts";
+import type { GithubPrFile } from "@nervekit/contracts/git";
 
 export function prFileDiffStateKey(
   baseOid: string,

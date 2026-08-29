@@ -1,4 +1,4 @@
-import type { EventEnvelope, NotifyEvent } from "@nervekit/contracts";
+import type { EventEnvelope, NotifyEvent } from "@nervekit/contracts/events";
 
 export type SequencedWorkbenchEvent = EventEnvelope<Record<string, unknown>>;
 export type WorkbenchNotifyEvent = NotifyEvent<Record<string, unknown>>;

@@ -12,7 +12,7 @@ import {
   type TaskLogQueryResponse,
   type TaskRecord,
   type TaskRuntime,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../../../core/ports.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";

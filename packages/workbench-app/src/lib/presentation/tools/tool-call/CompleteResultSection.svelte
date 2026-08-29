@@ -2,7 +2,7 @@
 import type {
   CompleteToolResultDescriptor,
   ToolCallResultChunk,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 import LargeResultViewer from "./LargeResultViewer.svelte";

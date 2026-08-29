@@ -1,7 +1,5 @@
-import type {
-  ConversationEntry,
-  ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import type { TranscriptItem } from "./transcript-types.js";
 import { buildCommittedTimeline, type CommittedTimeline } from "./timeline.js";
 import { entriesToTranscript } from "./transcript.js";

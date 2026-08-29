@@ -1,4 +1,4 @@
-import type { StreamCursor } from "@nervekit/contracts";
+import type { StreamCursor } from "@nervekit/contracts/wire";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 
 /**

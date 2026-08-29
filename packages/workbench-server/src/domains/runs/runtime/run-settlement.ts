@@ -1,4 +1,4 @@
-import type { RunRecord } from "@nervekit/contracts";
+import type { RunRecord } from "@nervekit/contracts/runs";
 import { InvalidRunStateError } from "./run-errors.js";
 import type { RunEventFactory } from "./run-events.js";
 import {

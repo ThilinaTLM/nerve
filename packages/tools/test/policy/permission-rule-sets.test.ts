@@ -7,7 +7,7 @@ import {
   permissionOverlayForOriginSchema,
   type PermissionOverlay,
   type PermissionRule,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
 import {
   builtInPermissionRuleSet,
   composeEffectivePermissionPolicy,

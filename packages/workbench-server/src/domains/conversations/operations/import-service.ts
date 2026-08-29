@@ -1,15 +1,19 @@
 import {
   type AgentRecord,
   agentRecordSchema,
+  type CreateAgentRequest,
+} from "@nervekit/contracts/agents";
+import {
   type ConversationEntry,
   type ConversationRecord,
-  type CreateAgentRequest,
   type CreateConversationRequest,
-  type CreateProjectRequest,
   conversationEntrySchema,
   type ImportConversationRequest,
+} from "@nervekit/contracts/conversations";
+import {
+  type CreateProjectRequest,
   type ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/projects";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { AppendConversationEntry } from "./compaction-service.js";
 

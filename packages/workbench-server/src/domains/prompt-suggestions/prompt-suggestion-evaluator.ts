@@ -3,7 +3,7 @@ import type {
   PromptSuggestion,
   PromptSuggestionStatus,
   PromptSuggestionTrustRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/prompt-suggestions";
 import type { PromptSuggestionTrustRecord } from "./prompt-suggestion-trust.repository.js";
 import {
   activeMode,

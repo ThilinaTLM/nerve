@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
+import type { Mode } from "@nervekit/contracts/settings";
 import type {
-  Mode,
   NormalizedPermissionTarget,
   PermissionLevel,
   LegacyPermissionRule,
   LegacyPermissionRuleMatcherKind,
   SupervisionDecision,
-  ToolName,
   ToolRisk,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
+import type { ToolName } from "@nervekit/contracts/tools";
 import { requireToolDefinition } from "../catalog/manifest.js";
 import {
   escapeGlobLiteral,

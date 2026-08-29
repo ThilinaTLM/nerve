@@ -1,6 +1,9 @@
 <script lang="ts">
 import Terminal from "@lucide/svelte/icons/terminal";
-import type { TaskLogQueryResponse, TaskRecord } from "@nervekit/contracts";
+import type {
+  TaskLogQueryResponse,
+  TaskRecord,
+} from "@nervekit/contracts/tasks";
 import TaskLogTerminal from "./TaskLogTerminal.svelte";
 import TaskRunSwitcher from "./TaskRunSwitcher.svelte";
 

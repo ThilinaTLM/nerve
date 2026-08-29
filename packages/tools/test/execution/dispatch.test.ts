@@ -1,4 +1,4 @@
-import type { ToolName } from "@nervekit/contracts";
+import type { ToolName } from "@nervekit/contracts/tools";
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { writeFile } from "node:fs/promises";

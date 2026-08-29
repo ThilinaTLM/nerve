@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type {
   SubscriptionUsage,
   SubscriptionWindow,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/usage";
 
 const API_HOST = "api.anthropic.com";
 const API_PATH = "/api/oauth/usage";

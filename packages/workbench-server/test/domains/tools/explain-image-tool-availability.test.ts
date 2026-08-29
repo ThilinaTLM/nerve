@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { AgentRecord } from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import { activeToolNamesForAgent } from "../../../src/domains/tools/orchestration/agent-tool-adapter.js";
 
 function agent(): AgentRecord {

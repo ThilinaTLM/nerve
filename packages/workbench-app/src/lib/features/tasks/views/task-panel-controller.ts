@@ -1,4 +1,5 @@
-import type { TaskDefinition, TaskRecord } from "@nervekit/contracts";
+import type { TaskDefinition } from "@nervekit/contracts/task-definitions";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 import type {
   TaskDefinitionEntry,
   TaskPanelActions,

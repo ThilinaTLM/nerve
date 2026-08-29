@@ -2,9 +2,9 @@ import type {
   ToolExecutionKind,
   ToolGroupName,
   ToolName,
-  ToolRisk,
   ToolTrait,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import type { ToolRisk } from "@nervekit/contracts/permissions";
 import type { Static, TObject } from "typebox";
 import type {
   ToolExecutionContext,

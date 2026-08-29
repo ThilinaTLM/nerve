@@ -4,9 +4,9 @@ import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type {
   CreateTaskDefinitionRequest,
-  TaskRecord,
   UpdateTaskDefinitionRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/task-definitions";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import {

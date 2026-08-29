@@ -5,7 +5,7 @@ import type {
   ApplicationLogQuery,
   ApplicationLogQueryResponse,
   ApplicationLogSource,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/logs";
 import { apiGet } from "$lib/platform/http/api-client";
 import { protocolRequest } from "@nervekit/protocol";
 

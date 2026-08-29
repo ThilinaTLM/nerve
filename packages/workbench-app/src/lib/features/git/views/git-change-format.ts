@@ -2,7 +2,7 @@ import type {
   GitFileChange,
   GithubChecksSummary,
   GitRepoSummary,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
 
 const REPO_LABEL_SHORTENING = [

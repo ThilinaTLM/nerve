@@ -2,16 +2,18 @@ import {
   taskCancelResultSchema,
   taskControlToolResultPreviewSchema,
   taskLogsToolResultPreviewSchema,
-  taskLogEventSchema,
-  taskRecordSchema,
   taskStartToolResultPreviewSchema,
   taskStatusToolResultPreviewSchema,
   type TaskCancelOutcomePreviewPayload,
-  type TaskLogEvent,
-  type TaskRecord,
   type TaskToolSummaryPayload,
   type ToolName,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import {
+  taskLogEventSchema,
+  taskRecordSchema,
+  type TaskLogEvent,
+  type TaskRecord,
+} from "@nervekit/contracts/tasks";
 
 const TASK_STATUS_PREVIEW_COUNT = 5;
 const TASK_LOG_PREVIEW_COUNT = 10;

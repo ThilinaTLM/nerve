@@ -1,8 +1,5 @@
-import type {
-  EventEnvelope,
-  ProtocolErrorData,
-  StreamState,
-} from "@nervekit/contracts";
+import type { EventEnvelope } from "@nervekit/contracts/events";
+import type { ProtocolErrorData, StreamState } from "@nervekit/contracts/wire";
 import type { TransportFactory } from "../transports/transport.js";
 
 export interface StreamReadResult extends StreamState {

@@ -1,4 +1,4 @@
-import type { NerveMessage, ProtocolV1Message } from "@nervekit/contracts";
+import type { NerveMessage, ProtocolV1Message } from "@nervekit/contracts/wire";
 import type { MessageFactory } from "../messages/message-factory.js";
 import type { RpcClient } from "../rpc/rpc-client.js";
 import type { RpcDispatcher } from "../rpc/rpc-server.js";

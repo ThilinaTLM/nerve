@@ -1,4 +1,4 @@
-import type { AtlassianProfile, Settings } from "@nervekit/contracts";
+import type { AtlassianProfile, Settings } from "@nervekit/contracts/settings";
 
 export type AtlassianToolProvider = "jira" | "confluence";
 

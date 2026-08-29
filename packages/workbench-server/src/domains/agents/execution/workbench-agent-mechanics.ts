@@ -16,15 +16,14 @@ import type {
 } from "../../runs/runtime/index.js";
 import {
   type AgentRecord,
-  type ContextUsage,
-  type ConversationRecord,
   type CreateAgentRequest,
   type PromptRequest,
-  type RunRecord,
-  parseInlineCommandPrompt,
-  type ToolCallRecord,
-  type ToolName,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/agents";
+import { type ContextUsage } from "@nervekit/contracts/models";
+import { type ConversationRecord } from "@nervekit/contracts/conversations";
+import { type RunRecord } from "@nervekit/contracts/runs";
+import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
+import { type ToolCallRecord, type ToolName } from "@nervekit/contracts/tools";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";

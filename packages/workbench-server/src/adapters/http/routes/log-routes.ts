@@ -1,7 +1,7 @@
 import {
   applicationLogQuerySchema,
   clientApplicationLogRequestSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/logs";
 import { Hono } from "hono";
 import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
 import { numberQuery } from "../query.js";

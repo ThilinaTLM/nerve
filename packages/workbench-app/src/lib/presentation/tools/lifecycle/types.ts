@@ -1,4 +1,4 @@
-import type { ToolName } from "@nervekit/contracts";
+import type { ToolName } from "@nervekit/contracts/tools";
 import type { MetaItem, PrimaryArg } from "../views/tool-presentation-types";
 import type { ToolArgumentSource } from "./argument-source";
 

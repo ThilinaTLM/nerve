@@ -1,9 +1,9 @@
+import { STREAM_SUBSCRIPTION_CAPABILITY } from "@nervekit/contracts/wire";
 import {
-  STREAM_SUBSCRIPTION_CAPABILITY,
   WORKSPACE_STREAM,
-  allOperationDefinitions,
   conversationStream,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/events";
+import { allOperationDefinitions } from "@nervekit/contracts/operations";
 
 const WORKBENCH_OPERATION_CAPABILITIES = allOperationDefinitions()
   .filter((definition) =>

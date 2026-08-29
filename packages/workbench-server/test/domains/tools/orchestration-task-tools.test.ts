@@ -1,10 +1,6 @@
-import {
-  defaultSettings,
-  type Settings,
-  type TaskLogQuery,
-  type TaskRecord,
-  type ToolCallRecord,
-} from "@nervekit/contracts";
+import { defaultSettings, type Settings } from "@nervekit/contracts/settings";
+import { type TaskLogQuery, type TaskRecord } from "@nervekit/contracts/tasks";
+import { type ToolCallRecord } from "@nervekit/contracts/tools";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

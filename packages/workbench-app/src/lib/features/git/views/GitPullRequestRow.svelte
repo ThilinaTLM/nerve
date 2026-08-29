@@ -2,7 +2,7 @@
 import Check from "@lucide/svelte/icons/check";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import X from "@lucide/svelte/icons/x";
-import type { GithubPr } from "@nervekit/contracts";
+import type { GithubPr } from "@nervekit/contracts/git";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { ItemSurface } from "$lib/presentation/items";

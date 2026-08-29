@@ -3,7 +3,7 @@ import type {
   TaskListeningPort,
   TaskRuntime,
   TaskRuntimeIdentity,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
 import {
   inspectManagedTarget,
   managedProcessForChild,
@@ -69,9 +69,9 @@ export interface TaskSupervisor {
   ): Promise<TaskListeningPort[]>;
   inspectConfiguredPort(
     port: number,
-  ): Promise<import("@nervekit/contracts").TaskPortConflictListener[]>;
+  ): Promise<import("@nervekit/contracts/tasks").TaskPortConflictListener[]>;
   terminateConfiguredPortListener(
-    listener: import("@nervekit/contracts").TaskPortConflictListener,
+    listener: import("@nervekit/contracts/tasks").TaskPortConflictListener,
     signal: "SIGTERM" | "SIGKILL",
   ): Promise<TerminateTaskResult>;
 }

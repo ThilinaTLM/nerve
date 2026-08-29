@@ -1,4 +1,5 @@
-import { parseSlashCommand, type Mode } from "@nervekit/contracts";
+import { parseSlashCommand } from "@nervekit/contracts/completions";
+import { type Mode } from "@nervekit/contracts/settings";
 
 export type ComposerSlashCommandActions = {
   clearComposer: () => void;

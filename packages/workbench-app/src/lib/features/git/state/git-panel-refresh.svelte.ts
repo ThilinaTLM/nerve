@@ -1,6 +1,6 @@
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { ProjectRecord } from "$lib/api";
-import type { GithubPrListFilters } from "@nervekit/contracts";
+import type { GithubPrListFilters } from "@nervekit/contracts/git";
 import {
   discoverGitRepos,
   getGithubStatus,

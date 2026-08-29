@@ -1,11 +1,7 @@
+import type { EventEnvelope, NotifyEvent } from "@nervekit/contracts/events";
 import type {
-  EventEnvelope,
   EventNotifyData,
   NerveMessage,
-  NotifyEvent,
-  OperationName,
-  OperationParams,
-  OperationResult,
   PeerDescriptor,
   ProtocolRequestData,
   ProtocolV1Message,
@@ -13,8 +9,13 @@ import type {
   StreamCursor,
   StreamSubscriptionUpdatedData,
   WelcomeData,
-} from "@nervekit/contracts";
-import { STREAM_SUBSCRIPTION_CAPABILITY } from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
+import type {
+  OperationName,
+  OperationParams,
+  OperationResult,
+} from "@nervekit/contracts/operations";
+import { STREAM_SUBSCRIPTION_CAPABILITY } from "@nervekit/contracts/wire";
 import {
   applyEventBatch,
   createClientEventStreamState,

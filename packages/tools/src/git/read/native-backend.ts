@@ -1,4 +1,4 @@
-import type { GitFileChange } from "@nervekit/contracts";
+import type { GitFileChange } from "@nervekit/contracts/git";
 import {
   checkGitAncestry,
   type NativeGitDocumentSource,

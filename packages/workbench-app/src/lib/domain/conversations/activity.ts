@@ -2,14 +2,14 @@ import {
   agentRunningTone,
   type StatusTone,
 } from "@nervekit/ui-kit/display/status";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
-  AgentRecord,
   ApprovalRecord,
-  ConversationRecord,
-  PlanReviewRecord,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import type { ConversationRecord } from "@nervekit/contracts/conversations";
+import type { PlanReviewRecord } from "@nervekit/contracts/plans";
 import { conversationViewKey } from "$lib/domain/navigation/view-keys";
 
 type ApprovalWithToolCall = ApprovalRecord & {

@@ -1,4 +1,4 @@
-import type { OrchestrationToolName } from "@nervekit/contracts";
+import type { OrchestrationToolName } from "@nervekit/contracts/tools";
 import type { MetaItem } from "../views/tool-presentation-types";
 import type { ToolArgumentSource } from "./argument-source";
 import {

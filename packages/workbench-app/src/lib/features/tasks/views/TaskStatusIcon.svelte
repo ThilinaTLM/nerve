@@ -10,7 +10,7 @@ import Radio from "@lucide/svelte/icons/radio";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import TimerOff from "@lucide/svelte/icons/timer-off";
 import Unplug from "@lucide/svelte/icons/unplug";
-import type { TaskStatus } from "@nervekit/contracts";
+import type { TaskStatus } from "@nervekit/contracts/tasks";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { cn } from "@nervekit/ui-kit/utils";
 

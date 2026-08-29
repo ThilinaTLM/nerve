@@ -3,7 +3,7 @@ import type {
   TaskListeningPort,
   TaskRecord,
   TaskRuntime,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
 import type { WorkbenchTaskService } from "./workbench-task-service.js";
 import {
   dedupeListeningPorts,

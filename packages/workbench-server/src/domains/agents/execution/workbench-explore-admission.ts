@@ -1,7 +1,7 @@
 import {
   EXPLORE_MAX_ACTIVE_CHILDREN_PER_RUN,
   EXPLORE_MAX_CHILDREN_PER_RUN,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/agents";
 
 export interface ExploreAdmissionBatch {
   acquire(signal?: AbortSignal, onQueued?: () => void): Promise<() => void>;

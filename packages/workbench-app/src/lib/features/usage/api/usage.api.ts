@@ -1,4 +1,4 @@
-import type { SubscriptionUsage } from "@nervekit/contracts";
+import type { SubscriptionUsage } from "@nervekit/contracts/usage";
 import { protocolRequest } from "@nervekit/protocol";
 
 export async function getSubscriptionUsage(): Promise<SubscriptionUsage[]> {

@@ -2,7 +2,10 @@
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import MessageSquare from "@lucide/svelte/icons/message-square";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
-import type { GithubPrConversation, GithubPrCore } from "@nervekit/contracts";
+import type {
+  GithubPrConversation,
+  GithubPrCore,
+} from "@nervekit/contracts/git";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";

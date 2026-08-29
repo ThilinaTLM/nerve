@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ConversationRecord } from "@nervekit/contracts";
+import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
 import {
   appendRegistryEntry,

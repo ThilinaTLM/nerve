@@ -1,9 +1,9 @@
 import {
   type EventBatchData,
   type EventBatchReason,
-  type EventEnvelope,
   eventBatchDataSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
+import { type EventEnvelope } from "@nervekit/contracts/events";
 
 export interface BuildEventBatchOptions {
   stream: string;

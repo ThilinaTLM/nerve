@@ -1,4 +1,4 @@
-import type { ConversationEntry } from "@nervekit/contracts";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type {
   CompactionNotice,
   RunStatusNotice,

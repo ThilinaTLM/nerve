@@ -2,10 +2,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   type ApplicationLogError,
-  createId,
   type DaemonCrashReport,
   daemonCrashReportSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/logs";
+import { createId } from "@nervekit/contracts";
 
 export type CrashReportInput = Omit<
   DaemonCrashReport,

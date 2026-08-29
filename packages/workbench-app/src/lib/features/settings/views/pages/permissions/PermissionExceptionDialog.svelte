@@ -1,5 +1,5 @@
 <script lang="ts">
-import { permissionOverlayForOriginSchema } from "@nervekit/contracts";
+import { permissionOverlayForOriginSchema } from "@nervekit/contracts/permissions";
 import type { PermissionRule } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";

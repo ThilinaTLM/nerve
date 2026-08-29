@@ -5,7 +5,7 @@ import {
   ViewPlugin,
   type ViewUpdate,
 } from "@codemirror/view";
-import { findExecutableCommandBlocks } from "@nervekit/contracts";
+import { findExecutableCommandBlocks } from "@nervekit/contracts/completions";
 
 export function executableCommandBlockDecorations(
   state: EditorState,

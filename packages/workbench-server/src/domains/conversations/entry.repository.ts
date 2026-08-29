@@ -3,7 +3,7 @@ import type {
   ConversationEntry,
   ConversationRecord,
   ConversationTree,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
 import type { ConversationJournalRepository } from "./conversation-journal.repository.js";
 
 export class EntryRepository {

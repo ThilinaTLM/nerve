@@ -1,6 +1,6 @@
 import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
 import { protocolRequest } from "@nervekit/protocol";
-import { conversationStream } from "@nervekit/contracts";
+import { conversationStream } from "@nervekit/contracts/events";
 import { removeEventStream } from "$lib/application/event-routing/stream-cursors.svelte";
 import {
   conversationViewKey,

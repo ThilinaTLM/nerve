@@ -8,7 +8,7 @@ import Skull from "@lucide/svelte/icons/skull";
 import Square from "@lucide/svelte/icons/square";
 import Terminal from "@lucide/svelte/icons/terminal";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import type { TaskRecord } from "@nervekit/contracts";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import {
   PanelRow,

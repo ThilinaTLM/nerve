@@ -4,8 +4,8 @@ import type {
   ConversationLiveMessageSnapshot,
   ConversationLiveToolDraftBlockSnapshot,
   ConversationLiveTurnSnapshot,
-  ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import type { buildConversationTimeline } from "./timeline";
 
 export function toolCall(

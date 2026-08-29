@@ -3,7 +3,7 @@ import type { Snippet } from "svelte";
 import {
   hasExecutableCommandBlocks,
   isInlineCommandPrompt,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/completions";
 import ComposerEditor from "../composer/ComposerEditor.svelte";
 import ComposerShell from "../composer/ComposerShell.svelte";
 import ComposerToolbar from "../composer/ComposerToolbar.svelte";

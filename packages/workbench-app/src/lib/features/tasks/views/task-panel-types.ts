@@ -1,13 +1,15 @@
 import type {
   CancelTaskRequest,
-  CreateTaskDefinitionRequest,
   StartTaskRequest,
   TaskLogQuery,
   TaskLogQueryResponse,
   TaskPortConflictListener,
   TaskRecord,
+} from "@nervekit/contracts/tasks";
+import type {
+  CreateTaskDefinitionRequest,
   UpdateTaskDefinitionRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/task-definitions";
 import type { FeatureCapability } from "$lib/domain/capabilities/feature-capability";
 
 export interface TaskPanelDefinition {

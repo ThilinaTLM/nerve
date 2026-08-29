@@ -1,4 +1,7 @@
-import type { ExactContinuation, ProjectionCount } from "@nervekit/contracts";
+import type {
+  ExactContinuation,
+  ProjectionCount,
+} from "@nervekit/contracts/tools";
 import { ProjectionBudgetLedger } from "./budget-ledger.js";
 import { profileBudget } from "./profiles.js";
 import type {

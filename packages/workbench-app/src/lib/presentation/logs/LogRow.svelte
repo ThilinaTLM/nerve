@@ -1,6 +1,6 @@
 <script lang="ts">
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
-import type { ApplicationLogRecord } from "@nervekit/contracts";
+import type { ApplicationLogRecord } from "@nervekit/contracts/logs";
 import { timeLabel } from "@nervekit/ui-kit/display/time";
 import {
   formatApplicationLog,

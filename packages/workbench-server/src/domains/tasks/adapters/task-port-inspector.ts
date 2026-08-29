@@ -2,7 +2,7 @@ import type {
   TaskListeningPort,
   TaskPortConflictListener,
   TaskRuntime,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
 import {
   inspectTcpListeners,
   terminateTcpListener,

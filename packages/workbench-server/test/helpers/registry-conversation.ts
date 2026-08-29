@@ -5,9 +5,9 @@ import { after } from "node:test";
 import {
   type ConversationEntry,
   type ConversationRecord,
-  createId,
-  type TaskRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import { createId } from "@nervekit/contracts";
+import { type TaskRecord } from "@nervekit/contracts/tasks";
 import { TaskRepository } from "../../src/domains/tasks/persistence/task.repository.js";
 import {
   createWorkbenchState,

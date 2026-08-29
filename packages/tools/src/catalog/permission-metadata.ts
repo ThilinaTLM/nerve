@@ -2,8 +2,8 @@ import type {
   PermissionTargetKind,
   StaticToolRisk,
   ToolKind,
-  ToolName,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
+import type { ToolName } from "@nervekit/contracts/tools";
 
 export interface ToolPermissionMetadata {
   kind: ToolKind;

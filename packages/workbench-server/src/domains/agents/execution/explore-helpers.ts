@@ -2,13 +2,13 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   EXPLORE_MAX_CHILDREN_PER_RUN,
   EXPLORE_MAX_TASKS_PER_CALL,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/agents";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
-  AgentRecord,
   ExploreStepPayload,
   ExploreUsageStatsPayload,
-  ModelSelection,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import type { ModelSelection } from "@nervekit/contracts/models";
 import type { ExploreProgressUpdate } from "../../tools/execution/tool-service.js";
 import { promptText } from "../prompting/prompt-text.js";
 import { summarizeExploreToolCall } from "./explore-tool-summary.js";

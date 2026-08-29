@@ -3,11 +3,11 @@ import { GitWorkflowError } from "@nervekit/tools";
 import {
   type NerveErrorCode,
   type NerveMessage,
-  operationDefinition,
   type ProtocolErrorData,
   type ProtocolRequestData,
   protocolRequestMessageSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
+import { operationDefinition } from "@nervekit/contracts/operations";
 import {
   type OperationHandlerRegistry,
   RpcDispatcher,

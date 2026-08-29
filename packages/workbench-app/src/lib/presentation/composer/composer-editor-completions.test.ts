@@ -5,7 +5,7 @@ import { EditorState } from "@codemirror/state";
 import {
   FILE_COMPLETION_RESULT_LIMIT,
   type CompletionItem,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/completions";
 import {
   composerCompletionBoost,
   createComposerCompletionSource,

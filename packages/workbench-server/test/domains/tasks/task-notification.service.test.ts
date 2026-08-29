@@ -2,13 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import type { AgentMessage } from "@nervekit/harness";
-import type {
-  AgentRecord,
-  ConversationEntry,
-  EventEnvelope,
-  TaskLogEvent,
-  TaskRecord,
-} from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { EventEnvelope } from "@nervekit/contracts/events";
+import type { TaskLogEvent, TaskRecord } from "@nervekit/contracts/tasks";
 import {
   TaskNotificationService,
   type TaskNotificationServiceDeps,

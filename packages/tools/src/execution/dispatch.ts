@@ -1,4 +1,4 @@
-import type { ToolName } from "@nervekit/contracts";
+import type { ToolName } from "@nervekit/contracts/tools";
 import { toolDefinitionByName } from "../catalog/manifest.js";
 import { normalizeToolArguments } from "../catalog/argument-normalization.js";
 import type {

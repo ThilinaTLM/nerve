@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { Mode } from "@nervekit/contracts";
+import type { Mode } from "@nervekit/contracts/settings";
 import {
   ConversationSignal,
   conversationStarters,

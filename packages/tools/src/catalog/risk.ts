@@ -1,4 +1,5 @@
-import type { ToolName, ToolRisk } from "@nervekit/contracts";
+import type { ToolName } from "@nervekit/contracts/tools";
+import type { ToolRisk } from "@nervekit/contracts/permissions";
 import { classifyToolRisk, requireToolDefinition } from "./manifest.js";
 
 export function coreToolRiskForName(name: ToolName): ToolRisk {

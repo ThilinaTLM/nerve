@@ -1,10 +1,10 @@
 import { join } from "node:path";
+import { projectRecordSchema } from "@nervekit/contracts/projects";
 import {
-  projectRecordSchema,
   taskDefinitionFileSchema,
   taskDefinitionSchema,
   type TaskDefinition,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/task-definitions";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import {
   atomicWriteJson,

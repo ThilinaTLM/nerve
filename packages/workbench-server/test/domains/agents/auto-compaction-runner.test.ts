@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import { buildConversationContext } from "@nervekit/harness";
-import type { AgentRecord } from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import { AutoCompactionRunner } from "../../../src/domains/agents/execution/auto-compaction-runner.js";
 
 it("uses the selected model context window for threshold compaction", async () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { updateConversationStateRequestSchema } from "../../src/index.js";
+import { updateConversationStateRequestSchema } from "../../src/domains/conversations/index.js";
 import { conversationsOperationDefinitions } from "../../src/domains/conversations/operations.js";
 
 const conversation = {

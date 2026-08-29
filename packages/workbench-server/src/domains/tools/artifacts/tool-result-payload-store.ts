@@ -1,7 +1,7 @@
 import type {
   ToolResultPayloadReference,
   ValidatedToolArtifact,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {

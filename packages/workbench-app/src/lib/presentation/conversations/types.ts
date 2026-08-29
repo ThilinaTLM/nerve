@@ -1,18 +1,22 @@
+import type { CompletionItem } from "@nervekit/contracts/completions";
 import type {
-  CompletionItem,
   ContextUsage,
-  Mode,
   ModelInfo,
+  ThinkingLevel,
+} from "@nervekit/contracts/models";
+import type { Mode } from "@nervekit/contracts/settings";
+import type {
   PermissionRuleSetId,
   PermissionRuleSetSummary,
-  PlanReviewRecord,
-  ProjectRecord,
-  QueuedPromptRecord,
-  ThinkingLevel,
+} from "@nervekit/contracts/permissions";
+import type { PlanReviewRecord } from "@nervekit/contracts/plans";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { QueuedPromptRecord } from "@nervekit/contracts/agents";
+import type {
   TodoItem,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import type { TimelineItem } from "../state/timeline.js";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import type {

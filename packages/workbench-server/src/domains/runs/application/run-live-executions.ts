@@ -1,4 +1,4 @@
-import type { AgentRecord } from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { AgentMessage } from "@nervekit/harness";
 import type { RunExecutionControl } from "../runtime/index.js";
 

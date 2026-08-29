@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { TaskLogEvent } from "@nervekit/contracts";
+import type { TaskLogEvent } from "@nervekit/contracts/tasks";
 import { queryTaskLogEvents } from "../../../src/domains/tasks/application/task-log-query.js";
 
 function events(count: number): TaskLogEvent[] {

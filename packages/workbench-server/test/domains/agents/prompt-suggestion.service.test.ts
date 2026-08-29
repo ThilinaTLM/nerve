@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
-import type { ProjectRecord } from "@nervekit/contracts";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { PromptSuggestionEnablementRepository } from "../../../src/domains/prompt-suggestions/prompt-suggestion-enablement.repository.js";
 import { PromptSuggestionService } from "../../../src/domains/prompt-suggestions/prompt-suggestion.service.js";
 import type { InitializedStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";

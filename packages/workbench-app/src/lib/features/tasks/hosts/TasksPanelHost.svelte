@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { ProjectRecord, TaskRecord } from "$lib/api";
-import type { CancelTaskRequest } from "@nervekit/contracts";
+import type { CancelTaskRequest } from "@nervekit/contracts/tasks";
 import { createWorkbenchTaskPanelAdapter } from "$lib/features/tasks/state/workbench-task-panel-adapter.svelte";
 import { TasksPanel } from "$lib/features/tasks";
 

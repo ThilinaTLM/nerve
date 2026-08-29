@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   toolCallRecordSchema,
   toolResultPayloadReferenceSchema,
-} from "../../src/index.js";
+} from "../../src/domains/tools/index.js";
 
 const reference = {
   version: 1 as const,

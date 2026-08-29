@@ -1,4 +1,4 @@
-import type { GithubPrListFilters } from "@nervekit/contracts";
+import type { GithubPrListFilters } from "@nervekit/contracts/git";
 import { defineWorkbenchMethodHandlers } from "../method-handler-registry.js";
 
 export const gitMethodHandlers = defineWorkbenchMethodHandlers({

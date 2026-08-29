@@ -3,7 +3,7 @@ import {
   defaultSettings,
   type Settings,
   settingsSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/settings";
 import { migrateLegacyPermissionValue } from "./post-0012-permission-normalization.js";
 import {
   migrateApplicationConfiguration,

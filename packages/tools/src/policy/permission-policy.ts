@@ -16,10 +16,10 @@ import type {
   RulePrecedence,
   StaticToolRisk,
   TargetMatcher,
-  ToolName,
   ValueMatcher,
-} from "@nervekit/contracts";
-import { permissionRuleSetSchema } from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
+import type { ToolName } from "@nervekit/contracts/tools";
+import { permissionRuleSetSchema } from "@nervekit/contracts/permissions";
 import autonomousJson from "./rule-sets/autonomous.json" with { type: "json" };
 import baselineJson from "./rule-sets/baseline.json" with { type: "json" };
 import planningJson from "./rule-sets/planning.json" with { type: "json" };

@@ -13,7 +13,7 @@ import type {
   ToolPhase,
   ToolResultPayloadReference,
   ValidatedToolArtifact,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import { ToolResultArtifactValidator } from "./tool-result-artifact-validator.js";
 import type { ToolResultPayloadStore } from "./tool-result-payload-store.js";
 

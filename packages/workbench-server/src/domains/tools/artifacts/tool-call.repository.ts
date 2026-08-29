@@ -1,11 +1,11 @@
 import {
   toolCallRecordSchema,
-  type ConversationJournalEvent,
   type ToolCallDetails,
   type ToolCallRecord,
   type ToolCallResultChunk,
   type ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import { type ConversationJournalEvent } from "@nervekit/contracts/conversations";
 import { createHash } from "node:crypto";
 import type {
   RuntimeQueryCache,

@@ -1,12 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type {
-  AudioTranscriptionResponse,
-  TranscriptionSettings,
-} from "@nervekit/contracts";
+import type { AudioTranscriptionResponse } from "@nervekit/contracts/transcription";
+import type { TranscriptionSettings } from "@nervekit/contracts/settings";
 import {
   AUDIO_TRANSCRIPTION_MAX_DURATION_MS,
   audioTranscriptionResponseSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/transcription";
 import { ApplicationError } from "../../core/application-error.js";
 import type { AuthManager } from "../auth/index.js";
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { JiraUserSummaryPayload } from "@nervekit/contracts";
+import type { JiraUserSummaryPayload } from "@nervekit/contracts/tools";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { jiraInitials } from "../views/jira-display";
 

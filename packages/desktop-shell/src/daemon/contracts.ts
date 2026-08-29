@@ -1,4 +1,5 @@
-import type { DaemonFile, DaemonStartupProgress } from "@nervekit/contracts";
+import type { DaemonFile } from "@nervekit/contracts/status";
+import type { DaemonStartupProgress } from "@nervekit/contracts/storage";
 
 export type DaemonMode = "local" | "remote";
 

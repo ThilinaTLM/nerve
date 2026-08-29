@@ -1,4 +1,4 @@
-import type { WorkspaceSnapshotResponse } from "@nervekit/contracts";
+import type { WorkspaceSnapshotResponse } from "@nervekit/contracts/snapshots";
 import { protocolRequest } from "@nervekit/protocol";
 
 export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshotResponse> {

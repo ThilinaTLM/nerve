@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
-import type { ProjectRecord } from "@nervekit/contracts";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { TaskDefinitionRepository } from "../../../src/domains/task-definitions/task-definition.repository.js";
 import { ProjectRepository } from "../../../src/domains/projects/project.repository.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";

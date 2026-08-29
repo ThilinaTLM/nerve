@@ -6,7 +6,7 @@ import type {
   StorageCategoryUsage,
   StorageCleanupTargetUsage,
   StorageUsageResponse,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/storage";
 import type { StoragePaths } from "../../infrastructure/storage-bootstrap/index.js";
 import {
   dirSize,

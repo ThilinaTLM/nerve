@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { validatePublicEvent } from "@nervekit/contracts";
+import { validatePublicEvent } from "@nervekit/contracts/events";
 import { NavigationService } from "../../../src/domains/conversations/operations/navigation-service.js";
 
 const timestamp = "2026-07-26T00:00:00.000Z";

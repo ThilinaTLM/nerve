@@ -1,4 +1,4 @@
-import { toolNameSchema } from "@nervekit/contracts";
+import { toolNameSchema } from "@nervekit/contracts/tools";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {

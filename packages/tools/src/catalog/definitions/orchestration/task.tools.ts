@@ -1,4 +1,4 @@
-import type { ToolRisk } from "@nervekit/contracts";
+import type { ToolRisk } from "@nervekit/contracts/permissions";
 import { Type } from "typebox";
 import { hasDangerousCommandPattern } from "../../../policy/shell/plan-mode.js";
 import type { ToolDefinition } from "../../contracts.js";

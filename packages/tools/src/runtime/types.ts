@@ -1,9 +1,8 @@
 import type {
   PermissionLevel,
-  ToolGroupName,
-  ToolName,
   ToolRisk,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
+import type { ToolGroupName, ToolName } from "@nervekit/contracts/tools";
 import type {
   ToolExecutionContext,
   ToolExecutionOutputUpdate,

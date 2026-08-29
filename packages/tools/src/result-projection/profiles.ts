@@ -1,4 +1,4 @@
-import type { AgentResultProfileId } from "@nervekit/contracts";
+import type { AgentResultProfileId } from "@nervekit/contracts/tools";
 
 export type ProjectionBudget = Readonly<{
   maxBytes: number;

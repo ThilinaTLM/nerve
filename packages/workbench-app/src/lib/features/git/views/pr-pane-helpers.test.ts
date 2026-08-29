@@ -5,7 +5,7 @@ import type {
   GithubPrConversation,
   GithubPrCore,
   GithubPrOverview,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import {
   defaultMergeMethod,
   divergenceLabel,

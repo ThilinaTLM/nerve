@@ -7,7 +7,7 @@ import type {
   GithubPrMergeMethod,
   GithubPrOverview,
   GithubPrReviewSummary,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
 import { githubCheckRunOutcome } from "./github-pr-checks";
 

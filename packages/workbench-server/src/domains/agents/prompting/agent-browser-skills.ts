@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AvailableSkill } from "@nervekit/contracts";
+import type { AvailableSkill } from "@nervekit/contracts/skills";
 import {
   type ExecutableRunResult,
   locateExecutable,

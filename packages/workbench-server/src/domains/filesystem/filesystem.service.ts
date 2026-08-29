@@ -29,7 +29,7 @@ import {
   filesystemFileQuerySchema,
   filesystemProjectEntriesQuerySchema,
   filesystemProjectEntryCreateRequestSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/filesystem";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
 
 async function pathExists(path: string): Promise<boolean> {

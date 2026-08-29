@@ -2,7 +2,7 @@
 import { untrack } from "svelte";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
-import { isInlineCommandPrompt } from "@nervekit/contracts";
+import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { uploadClipboardImage } from "$lib/api";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";

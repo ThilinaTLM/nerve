@@ -1,4 +1,4 @@
-import type { ModelInfo } from "@nervekit/contracts";
+import type { ModelInfo } from "@nervekit/contracts/models";
 import {
   modelDisplayName,
   modelKey,

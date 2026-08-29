@@ -1,7 +1,7 @@
 import {
   findExecutableCommandBlocks,
   findInlineCommandResultBlocks,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/completions";
 
 export type UserMessageSegment =
   | { kind: "text"; text: string }

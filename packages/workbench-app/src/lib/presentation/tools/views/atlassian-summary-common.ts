@@ -1,4 +1,4 @@
-import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
+import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts/conversations";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import type { ToolView } from "./tool-view-types";
 

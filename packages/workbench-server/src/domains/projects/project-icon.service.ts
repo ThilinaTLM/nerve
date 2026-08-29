@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { realpath, readdir, readFile, stat } from "node:fs/promises";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
-import type { ProjectRecord } from "@nervekit/contracts";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { resizeImage, type ResizedImage } from "@nervekit/harness/node";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1_000;

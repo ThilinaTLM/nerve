@@ -2,7 +2,7 @@ import {
   allOperationDefinitions,
   type OperationName,
   type OperationParams,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/operations";
 import type { OperationHandlerRegistry } from "@nervekit/protocol";
 import type { WorkbenchState } from "../../app/runtime/server-runtime.js";
 

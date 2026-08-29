@@ -13,7 +13,7 @@ import { after, describe, it } from "node:test";
 import type {
   CredentialKeyResponse,
   EncryptedSecretEnvelope,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/auth";
 import { createWorkbenchState } from "../../../src/app/runtime/server-runtime.js";
 import { createApp } from "../../../src/app/server.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";

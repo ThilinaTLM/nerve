@@ -2,7 +2,7 @@ import type {
   ConversationActiveRunSnapshot,
   ConversationLiveMessageSnapshot,
   ConversationLiveTurnSnapshot,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
 import type { ConversationRenderState } from "./types.js";
 
 /**

@@ -1,9 +1,9 @@
+import type { TaskCancelResultPayload } from "@nervekit/contracts/tools";
 import type {
-  TaskCancelResultPayload,
   TaskLogEvent,
   TaskLogQueryResponse,
   TaskRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
 import { formatListeningPort } from "../adapters/task-port-inspector.js";
 import { isActiveTaskStatus } from "./task-status.js";
 

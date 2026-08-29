@@ -3,13 +3,13 @@ import type {
   ConversationStorage,
   ConversationTreeEntry,
 } from "@nervekit/harness";
+import { type AgentRecord } from "@nervekit/contracts/agents";
 import {
-  type AgentRecord,
   type ConversationEntry,
   type ConversationEntryUsage,
   type ConversationRecord,
-  toolNameSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import { toolNameSchema } from "@nervekit/contracts/tools";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
 import { deriveConversationTitle } from "../../conversations/operations/index.js";

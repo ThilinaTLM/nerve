@@ -7,7 +7,7 @@ import {
   taskStatusToolResultPreviewSchema,
   taskToolSummarySchema,
   type TaskToolSummaryPayload,
-} from "../../src/index.js";
+} from "../../src/domains/tools/index.js";
 
 function summary(
   overrides: Partial<TaskToolSummaryPayload> = {},

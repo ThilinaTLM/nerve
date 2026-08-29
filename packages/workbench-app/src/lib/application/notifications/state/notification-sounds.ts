@@ -1,4 +1,4 @@
-import type { NotificationTone } from "@nervekit/contracts";
+import type { NotificationTone } from "@nervekit/contracts/settings";
 
 export type PlayableNotificationTone = Exclude<NotificationTone, "none">;
 

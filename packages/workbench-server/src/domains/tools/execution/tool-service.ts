@@ -8,29 +8,33 @@ import {
   toolRiskForName,
   type PermissionRootPaths,
 } from "@nervekit/tools";
+import { type AgentRecord } from "@nervekit/contracts/agents";
 import {
-  type AgentRecord,
   type ApprovalRecord,
-  assertTransition,
-  createId,
   type ExploreReportSummaryPayload,
-  INTERRUPTED_TOOL_ERROR_CODE,
-  isTerminalToolStatus,
-  type Mode,
-  type PermissionTarget,
   type ResolveToolInteractionRequest,
-  type StartTaskRequest,
-  type TaskRecord,
-  type ThinkingLevel,
   type ToolCallDetails,
   type ToolCallRecord,
   type ToolCallTranscriptRecord,
   type ToolInteraction,
   type ToolName,
-  toolCallTransitions,
   type UserQuestionRecord,
   type UserQuestionStatus,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import {
+  assertTransition,
+  INTERRUPTED_TOOL_ERROR_CODE,
+  isTerminalToolStatus,
+  toolCallTransitions,
+} from "@nervekit/contracts/events";
+import { createId } from "@nervekit/contracts";
+import { type Mode } from "@nervekit/contracts/settings";
+import { type PermissionTarget } from "@nervekit/contracts/permissions";
+import {
+  type StartTaskRequest,
+  type TaskRecord,
+} from "@nervekit/contracts/tasks";
+import { type ThinkingLevel } from "@nervekit/contracts/models";
 import type {
   ConversationRuntime,
   ToolAnchor,

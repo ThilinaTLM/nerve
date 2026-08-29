@@ -1,15 +1,15 @@
 import { join } from "node:path";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { registerManagedProvider } from "@nervekit/harness";
+import { allOperationDefinitions } from "@nervekit/contracts/operations";
+import { type ApplicationConfigurationSnapshot } from "@nervekit/contracts/settings";
+import { createId } from "@nervekit/contracts";
 import {
-  allOperationDefinitions,
-  type ApplicationConfigurationSnapshot,
-  createId,
   type DaemonFile,
   type ManagedResourceContainmentStatus,
   type MobileHttpsInfo,
   type StatusResponse,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/status";
 import {
   AuthManager,
   CredentialKeyService,

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/harness";
-import { conversationStream } from "@nervekit/contracts";
+import { conversationStream } from "@nervekit/contracts/events";
 import {
   createWorkbenchState,
   shutdownWorkbenchState,

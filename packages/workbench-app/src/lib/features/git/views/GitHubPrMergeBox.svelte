@@ -7,7 +7,7 @@ import type {
   GithubPrCore,
   GithubPrMergeMethod,
   GithubPrOverview,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";

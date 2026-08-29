@@ -1,4 +1,4 @@
-import type { NotificationTone } from "@nervekit/contracts";
+import type { NotificationTone } from "@nervekit/contracts/settings";
 import { toast as sonnerToast } from "svelte-sonner";
 import {
   type DesktopNotificationPayload,

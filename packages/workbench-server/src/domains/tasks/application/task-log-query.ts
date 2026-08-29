@@ -1,4 +1,4 @@
-import type { TaskLogEvent, TaskLogQuery } from "@nervekit/contracts";
+import type { TaskLogEvent, TaskLogQuery } from "@nervekit/contracts/tasks";
 
 export type TaskLogPage = {
   events: TaskLogEvent[];

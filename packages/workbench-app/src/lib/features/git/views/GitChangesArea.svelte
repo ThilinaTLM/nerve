@@ -11,7 +11,7 @@ import type {
   GitDiffArea,
   GitFileChange,
   GitStashArea,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { cn } from "@nervekit/ui-kit/utils";

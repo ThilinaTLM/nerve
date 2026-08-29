@@ -2,35 +2,39 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   allOperationDefinitions,
+  operationDefinition,
+  parseOperationParams,
+  parseOperationResult,
+} from "../../src/operations/index.js";
+import {
   allPublicEventDefinitions,
   assertTransition,
   boundedPublicJsonSchema,
   boundedPublicObjectSchema,
   canTransition,
-  conversationLiveToolOutputStreamSchema,
   conversationStream,
-  eventBatchDataSchema,
-  eventBatchMessageSchema,
   liveMessageTransitions,
-  operationDefinition,
   parseConversationStream,
-  parseOperationParams,
-  parseOperationResult,
-  parseProtocolRequestData,
-  parseProtocolResponseData,
   parsePublicEventBatch,
   parsePublicEventEnvelope,
   streamForEvent,
-  streamSubscriptionSetMessageSchema,
-  streamSubscriptionUpdatedMessageSchema,
   TERMINAL_TOOL_STATUSES,
   toolCallTransitions,
   turnTransitions,
   validatePublicEvent,
   WORKSPACE_STREAM,
-  type EventBatchData,
   type EventEnvelope,
-} from "../../src/index.js";
+} from "../../src/events/index.js";
+import { conversationLiveToolOutputStreamSchema } from "../../src/domains/conversations/index.js";
+import {
+  eventBatchDataSchema,
+  eventBatchMessageSchema,
+  parseProtocolRequestData,
+  parseProtocolResponseData,
+  streamSubscriptionSetMessageSchema,
+  streamSubscriptionUpdatedMessageSchema,
+  type EventBatchData,
+} from "../../src/wire/index.js";
 
 const ts = "2026-06-26T12:00:00.000Z";
 

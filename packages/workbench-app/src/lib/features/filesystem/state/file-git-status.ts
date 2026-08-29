@@ -1,4 +1,4 @@
-import type { GitProjectFileStatus } from "@nervekit/contracts";
+import type { GitProjectFileStatus } from "@nervekit/contracts/git";
 
 export type FileGitTone =
   | "destructive"

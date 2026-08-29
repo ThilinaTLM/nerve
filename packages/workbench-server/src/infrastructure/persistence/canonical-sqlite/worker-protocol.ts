@@ -1,4 +1,4 @@
-import type { ConversationJournalCommit } from "@nervekit/contracts";
+import type { ConversationJournalCommit } from "@nervekit/contracts/conversations";
 import type {
   ConversationPersistenceDelta,
   SerializedConversationState,

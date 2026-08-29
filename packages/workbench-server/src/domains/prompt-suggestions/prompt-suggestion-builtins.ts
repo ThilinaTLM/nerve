@@ -1,4 +1,4 @@
-import type { GitRepoSummary } from "@nervekit/contracts";
+import type { GitRepoSummary } from "@nervekit/contracts/git";
 import type {
   PromptSuggestionDefinition,
   PromptSuggestionEvaluationInput,

@@ -1,4 +1,5 @@
-import type { PromptImage, RunPromptRecord } from "@nervekit/contracts";
+import type { PromptImage } from "@nervekit/contracts/agents";
+import type { RunPromptRecord } from "@nervekit/contracts/runs";
 import type { IdPort } from "../../../core/ports.js";
 import { InvalidRunStateError } from "./run-errors.js";
 import type { RunEventFactory } from "./run-events.js";

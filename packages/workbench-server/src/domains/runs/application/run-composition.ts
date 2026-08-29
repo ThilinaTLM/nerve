@@ -5,7 +5,7 @@ import {
   type RunEventDeliveryService,
 } from "../runtime/index.js";
 import type { DiagnosticPort } from "../../../core/ports.js";
-import type { AgentRecord } from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";

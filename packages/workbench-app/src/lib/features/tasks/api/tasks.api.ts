@@ -5,7 +5,7 @@ import type {
   TaskLogQueryResponse,
   TaskPortConflictListener,
   TaskRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
 import { apiGet, apiPathSegment } from "$lib/platform/http/api-client";
 import { protocolRequest } from "@nervekit/protocol";
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 import FileIcon from "@lucide/svelte/icons/file";
 import Folder from "@lucide/svelte/icons/folder";
-import type { FileEntry } from "@nervekit/contracts";
+import type { FileEntry } from "@nervekit/contracts/tools";
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import { COLLAPSED_LINES, type ToolView } from "../views/tool-result-view";
 

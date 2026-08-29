@@ -1,7 +1,5 @@
-import {
-  INTERRUPTED_TOOL_ERROR_CODE,
-  type RunRecord,
-} from "@nervekit/contracts";
+import { INTERRUPTED_TOOL_ERROR_CODE } from "@nervekit/contracts/events";
+import { type RunRecord } from "@nervekit/contracts/runs";
 import { isTerminalRunStatus } from "../runtime/run-transitions.js";
 import type { RunTerminalizationPort } from "../runtime/run-execution.js";
 import type { ToolService } from "../../tools/execution/tool-service.js";

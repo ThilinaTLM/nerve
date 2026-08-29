@@ -1,11 +1,11 @@
+import type { ContextUsage } from "@nervekit/contracts/models";
 import type {
-  ContextUsage,
   ConversationActiveRunSnapshot,
   ConversationEntry,
   ConversationSnapshot,
-  QueuedPromptRecord,
-  ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import type { QueuedPromptRecord } from "@nervekit/contracts/agents";
+import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import type { ConversationTransientState } from "./transcript-types.js";
 
 export interface ConversationRenderState {

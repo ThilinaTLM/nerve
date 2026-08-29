@@ -4,7 +4,7 @@ import {
   defaultSettings,
   settingsSchema,
   updateSettingsRequestSchema,
-} from "../../src/index.js";
+} from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
   it("round-trips canonical defaults", () => {

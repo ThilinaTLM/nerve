@@ -1,4 +1,4 @@
-import type { GithubPr, GithubPrListFilters } from "@nervekit/contracts";
+import type { GithubPr, GithubPrListFilters } from "@nervekit/contracts/git";
 
 export const GIT_STALE_MS = 30_000;
 export const GIT_OVERVIEW_AUTO_REFRESH_COOLDOWN_MS = 3_000;

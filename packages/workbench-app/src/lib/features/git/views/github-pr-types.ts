@@ -8,7 +8,7 @@ import type {
   GithubPrFilesResponse,
   GithubPrMergeMethod,
   GithubPrOverview,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 
 export type GithubPrTab = "conversation" | "commits" | "checks" | "files";
 

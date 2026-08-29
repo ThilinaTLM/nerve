@@ -1,13 +1,15 @@
 import {
   operationDefinition,
-  protocolRequestDataSchema,
-  type NerveMessage,
   type OperationName,
   type OperationParams,
   type OperationResult,
+} from "@nervekit/contracts/operations";
+import {
+  protocolRequestDataSchema,
+  type NerveMessage,
   type ProtocolErrorData,
   type ProtocolRequestData,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
 export type OperationHandler<M extends OperationName> = (
   params: OperationParams<M>,
   request: NerveMessage<ProtocolRequestData>,

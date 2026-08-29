@@ -1,7 +1,7 @@
 <script lang="ts">
 import ArchiveRestore from "@lucide/svelte/icons/archive-restore";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import type { GitStashEntry } from "@nervekit/contracts";
+import type { GitStashEntry } from "@nervekit/contracts/git";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { ItemSurface } from "$lib/presentation/items";

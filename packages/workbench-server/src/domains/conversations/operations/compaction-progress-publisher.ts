@@ -2,7 +2,7 @@ import {
   COMPACTION_PROGRESS_PREVIEW_LINES,
   COMPACTION_PROGRESS_PREVIEW_MAX_CHARS,
   type ConversationCompactionReason,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 
 export interface CompactionProgressContext {

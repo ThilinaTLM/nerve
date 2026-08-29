@@ -4,7 +4,7 @@ import {
   serializeConversation,
 } from "@nervekit/harness";
 
-export { deriveConversationTitle } from "@nervekit/contracts";
+export { deriveConversationTitle } from "@nervekit/contracts/conversations";
 
 export interface ExtractiveSummaryInput {
   title: string;

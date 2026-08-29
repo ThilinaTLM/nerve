@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { EXPLORE_MAX_TASKS_PER_CALL } from "@nervekit/contracts";
+import { EXPLORE_MAX_TASKS_PER_CALL } from "@nervekit/contracts/agents";
 import type { ToolDefinition } from "../../contracts.js";
 
 const exploreTaskParameters = Type.Object(

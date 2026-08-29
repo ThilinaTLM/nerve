@@ -4,7 +4,7 @@ import type {
   TaskLogEvent,
   TaskLogQueryResponse,
   TaskRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
 import {
   appendTaskLogPage,
   MAX_TASK_LOG_WINDOW_EVENTS,

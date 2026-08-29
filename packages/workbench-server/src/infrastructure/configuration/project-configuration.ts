@@ -7,7 +7,7 @@ import {
   type Settings,
   type UserConfiguration,
   userConfigurationSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/settings";
 import type { InitializedStorage } from "../storage-bootstrap/initialize.js";
 import { readJsonFile } from "../storage-bootstrap/json.js";
 import { settingsFromConfiguration } from "./home-configuration.js";

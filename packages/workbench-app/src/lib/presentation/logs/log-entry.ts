@@ -1,4 +1,4 @@
-import type { ApplicationLogRecord } from "@nervekit/contracts";
+import type { ApplicationLogRecord } from "@nervekit/contracts/logs";
 
 export type LogDisplayEntry = {
   key: string;

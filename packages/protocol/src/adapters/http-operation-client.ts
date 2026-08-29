@@ -4,11 +4,13 @@ import {
   protocolResponseMessageSchema,
   type NerveMessage,
   type PeerDescriptor,
+} from "@nervekit/contracts/wire";
+import {
   type OperationName,
   type OperationParams,
   type OperationResult,
-  type SnapshotCursor,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/operations";
+import { type SnapshotCursor } from "@nervekit/contracts/snapshots";
 import { protocolClientId, protocolInstanceId } from "./browser-id-store.js";
 import { createMessageFactory } from "../messages/message-factory.js";
 import { prepareOperationRequest } from "../rpc/operation-request.js";

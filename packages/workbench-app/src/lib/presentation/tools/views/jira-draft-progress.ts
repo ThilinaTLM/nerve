@@ -1,4 +1,4 @@
-import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
+import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts/conversations";
 import type { DraftMetaItem } from "./tool-draft-progress";
 
 type FirstKnownString = (

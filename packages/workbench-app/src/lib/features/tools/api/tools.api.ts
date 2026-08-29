@@ -3,14 +3,14 @@ import {
   toolCallRecordSchema,
   toolCallResultChunkSchema,
   toolDescriptorSchema,
-  type AgentRecord,
-  type ConversationRecord,
   type ToolCallDetails,
   type ToolCallRecord,
   type ToolCallResultChunk,
   type ToolDescriptor,
   type ToolInteractionResolution,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import { type AgentRecord } from "@nervekit/contracts/agents";
+import { type ConversationRecord } from "@nervekit/contracts/conversations";
 import { protocolRequest } from "@nervekit/protocol";
 import { interactionAddress } from "../state/tool-interaction-projections";
 import type { PlanReviewResolveOptions } from "../../../presentation/state/tool-types.js";

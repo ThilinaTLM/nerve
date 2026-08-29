@@ -8,8 +8,8 @@ import {
   type ApplicationLogRecord,
   type ApplicationLogSource,
   applicationLogRecordSchema,
-  createId,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/logs";
+import { createId } from "@nervekit/contracts";
 import {
   appendJsonLine,
   forEachJsonLineReverse,

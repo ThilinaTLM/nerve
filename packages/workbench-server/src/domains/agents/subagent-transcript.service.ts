@@ -1,6 +1,6 @@
 import { type ConversationTreeEntry } from "@nervekit/harness";
+import { conversationStream } from "@nervekit/contracts/events";
 import {
-  conversationStream,
   SUBAGENT_TRANSCRIPT_MAX_ENTRIES,
   SUBAGENT_TRANSCRIPT_MAX_TEXT_CHARS,
   SUBAGENT_TRANSCRIPT_MAX_THINKING_BLOCKS,
@@ -8,7 +8,7 @@ import {
   type AgentRecord,
   type SubagentTranscriptEntry,
   type SubagentTranscriptSnapshot,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/agents";
 import { ApplicationError } from "../../core/application-error.js";
 import { type InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";

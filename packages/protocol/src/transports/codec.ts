@@ -4,7 +4,7 @@ import {
   protocolV1MessageSchema,
   type NerveMessage,
   type ProtocolV1Message,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
 
 export type DecodeFailureCode =
   | "INVALID_JSON"

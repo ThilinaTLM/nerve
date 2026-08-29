@@ -6,7 +6,7 @@ import type {
   RunPublicEventIntent,
   RunRecord,
   RunTransitionRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
 
 export interface RunHydratedState {
   readonly run: RunRecord;

@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { TaskRecord } from "@nervekit/contracts";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";

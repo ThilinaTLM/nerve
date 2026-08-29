@@ -1,8 +1,5 @@
-import {
-  createId,
-  type TaskLogEvent,
-  type TaskRecord,
-} from "@nervekit/contracts";
+import { createId } from "@nervekit/contracts";
+import { type TaskLogEvent, type TaskRecord } from "@nervekit/contracts/tasks";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

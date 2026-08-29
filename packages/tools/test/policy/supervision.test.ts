@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { LegacyPermissionRule } from "@nervekit/contracts";
+import type { LegacyPermissionRule } from "@nervekit/contracts/permissions";
 import { evaluateToolSupervision } from "../../src/policy/evaluate-tool-supervision.js";
 
 const timestamp = "2026-08-24T00:00:00.000Z";

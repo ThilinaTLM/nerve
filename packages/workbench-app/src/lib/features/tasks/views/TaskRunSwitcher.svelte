@@ -6,7 +6,7 @@ import RotateCw from "@lucide/svelte/icons/rotate-cw";
 import Skull from "@lucide/svelte/icons/skull";
 import Square from "@lucide/svelte/icons/square";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import type { TaskRecord } from "@nervekit/contracts";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { slide } from "svelte/transition";

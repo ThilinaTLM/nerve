@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { GitStashEntry } from "@nervekit/contracts";
+import type { GitStashEntry } from "@nervekit/contracts/git";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { ItemScrollRegion } from "$lib/presentation/items";

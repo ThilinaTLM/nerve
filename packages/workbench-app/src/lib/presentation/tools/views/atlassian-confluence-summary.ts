@@ -1,4 +1,4 @@
-import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
+import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts/conversations";
 import {
   type ArgSource,
   type AtlassianSummaryOptions,

@@ -4,7 +4,7 @@ import type {
   LegacyPermissionRule,
   SupervisionDecision,
   ToolRisk,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
 import type {
   EffectivePermissionPolicy,
   PermissionRootPaths,

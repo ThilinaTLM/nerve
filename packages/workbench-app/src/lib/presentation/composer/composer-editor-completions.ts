@@ -14,7 +14,7 @@ import { ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import {
   FILE_COMPLETION_RESULT_LIMIT,
   type CompletionItem,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/completions";
 
 export type ComposerCompletion = Completion & {
   matchRanges?: readonly number[];

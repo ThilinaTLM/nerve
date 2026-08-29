@@ -8,7 +8,7 @@ import {
   todosResultSchema,
   webFetchResultDetailsSchema,
   webSearchResultDetailsSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import type {
   ToolCallRecord,
   ToolCallTranscriptRecord,
@@ -16,7 +16,7 @@ import type {
 export type ToolCallDisplayRecord = ToolCallRecord | ToolCallTranscriptRecord;
 
 import { LruCache } from "@nervekit/ui-kit/collections/lru-cache";
-import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
+import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts/conversations";
 import {
   redactStructuredValue,
   toolArgumentSource,

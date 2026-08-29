@@ -7,20 +7,17 @@ import {
   resolveAgentModel,
 } from "@nervekit/harness";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
-import type {
-  AgentRecord,
-  ConversationEntry,
-  PromptRequest,
-  RunRecord,
-  ToolName,
-} from "@nervekit/contracts";
+import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { RunRecord } from "@nervekit/contracts/runs";
+import type { ToolName } from "@nervekit/contracts/tools";
 import { HostHarnessFactory } from "./harness-factory.js";
 import type {
   CheckpointCommand,
   RunExecutionOutcome,
   RunExecutionSink,
 } from "../../runs/runtime/index.js";
-import { toolNameSchema } from "@nervekit/contracts";
+import { toolNameSchema } from "@nervekit/contracts/tools";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import { createAgentToolsForAgent } from "../../tools/orchestration/agent-tool-adapter.js";
 import {

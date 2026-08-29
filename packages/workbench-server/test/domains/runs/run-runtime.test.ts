@@ -2,7 +2,7 @@ import type {
   RunEventDeliveryRecord,
   RunPublicEventIntent,
   RunTransitionRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

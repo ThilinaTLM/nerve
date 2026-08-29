@@ -1,4 +1,7 @@
-import { type ProjectRecord, projectRecordSchema } from "@nervekit/contracts";
+import {
+  type ProjectRecord,
+  projectRecordSchema,
+} from "@nervekit/contracts/projects";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 
 export class ProjectRepository {

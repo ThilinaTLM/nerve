@@ -1,7 +1,7 @@
 import type {
   CreateScratchNoteRequest,
   UpdateScratchNoteRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/scratch-notes";
 import type { WorkbenchState } from "../../app/runtime/server-runtime.js";
 
 type ScratchNoteMethod =

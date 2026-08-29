@@ -1,11 +1,13 @@
 import type {
   NerveMessage,
+  ProtocolRequestData,
+  ProtocolV1Message,
+} from "@nervekit/contracts/wire";
+import type {
   OperationName,
   OperationParams,
   OperationResult,
-  ProtocolRequestData,
-  ProtocolV1Message,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/operations";
 import { ProtocolConnection } from "./protocol-connection.js";
 import type {
   ProtocolDiagnosticsPublisher,

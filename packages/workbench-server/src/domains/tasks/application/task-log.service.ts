@@ -4,8 +4,8 @@ import type {
   TaskLogQueryResponse,
   TaskOutputRetention,
   TaskRecord,
-} from "@nervekit/contracts";
-import { taskLogEventSchema } from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
+import { taskLogEventSchema } from "@nervekit/contracts/tasks";
 import { queryTaskLogEvents } from "./task-log-query.js";
 import { mkdir, open } from "node:fs/promises";
 import { dirname } from "node:path";

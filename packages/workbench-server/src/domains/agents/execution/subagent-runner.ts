@@ -12,15 +12,16 @@ import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type {
   AgentRecord,
   CreateAgentRequest,
+  WorkspaceScope,
+} from "@nervekit/contracts/agents";
+import type {
   ExploreStepPayload,
   ExploreUsageStatsPayload,
-  Mode,
-  ModelSelection,
-  PermissionLevel,
-  ThinkingLevel,
   ToolArtifactClaim,
-  WorkspaceScope,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import type { Mode } from "@nervekit/contracts/settings";
+import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
+import type { PermissionLevel } from "@nervekit/contracts/permissions";
 import { createId } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";

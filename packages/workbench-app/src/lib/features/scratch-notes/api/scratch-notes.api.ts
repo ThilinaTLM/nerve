@@ -4,7 +4,7 @@ import {
   scratchNoteSchema,
   scratchNotesResponseSchema,
   type UpdateScratchNoteRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/scratch-notes";
 import { protocolRequest } from "@nervekit/protocol";
 
 export async function listScratchNotes(

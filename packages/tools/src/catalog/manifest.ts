@@ -1,10 +1,10 @@
 import {
   type ToolGroupName,
   type ToolName,
-  type ToolRisk,
   type ToolTrait,
   toolGroupNameSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import { type ToolRisk } from "@nervekit/contracts/permissions";
 import { confluenceToolDefinitions } from "./definitions/core/confluence.tools.js";
 import { filesystemToolDefinitions } from "./definitions/core/filesystem.tools.js";
 import { interactionToolDefinitions } from "./definitions/core/interaction.tools.js";

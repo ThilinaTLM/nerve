@@ -1,7 +1,5 @@
-import type {
-  EventEnvelope,
-  ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
+import type { EventEnvelope } from "@nervekit/contracts/events";
+import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {

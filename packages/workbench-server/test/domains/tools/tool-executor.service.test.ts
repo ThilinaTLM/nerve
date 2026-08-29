@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import type { ToolCallRecord } from "@nervekit/contracts";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { CodedToolError } from "../../../src/domains/tools/execution/tool-errors.js";
 import { ToolExecutorService } from "../../../src/domains/tools/execution/tool-executor.service.js";
 import {

@@ -6,7 +6,7 @@ import type {
   GithubPrCore,
   GithubPrFileDiffResponse,
   GithubPrFilesResponse,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";

@@ -4,7 +4,7 @@ import {
   type GrepMatch,
   type ToolCallRecord,
   type ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import {
   boundedToolError,
   metadataOnlyToolCallPreview,

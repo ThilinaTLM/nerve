@@ -6,7 +6,7 @@ import test from "node:test";
 import type {
   ConversationEntry,
   ConversationRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
 import {
   buildConversationContext,
   type ConversationTreeEntry,

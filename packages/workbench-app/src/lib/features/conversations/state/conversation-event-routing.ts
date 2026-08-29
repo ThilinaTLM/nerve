@@ -1,4 +1,4 @@
-import { conversationStream, streamForEvent } from "@nervekit/contracts";
+import { conversationStream, streamForEvent } from "@nervekit/contracts/events";
 import type { EventEnvelope } from "$lib/api";
 import type { WorkbenchEvent } from "$lib/application/events/event-bus";
 

@@ -1,10 +1,10 @@
 import type { Message } from "@earendil-works/pi-ai";
+import { type AgentRecord } from "@nervekit/contracts/agents";
 import {
-  type AgentRecord,
   type ConversationEntry,
   type ConversationRecord,
-  type ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import { type ProjectRecord } from "@nervekit/contracts/projects";
 import { ConversationRuntime } from "../../domains/runs/runtime/conversation-runtime.js";
 import { ApplicationError } from "../../core/application-error.js";
 

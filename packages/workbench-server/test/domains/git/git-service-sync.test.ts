@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { promisify } from "node:util";
-import type { ProjectRecord } from "@nervekit/contracts";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { GitService } from "@nervekit/tools";
 
 const execFileAsync = promisify(execFile);

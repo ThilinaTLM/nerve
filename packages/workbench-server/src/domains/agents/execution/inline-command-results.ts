@@ -1,9 +1,7 @@
 import type { BashExecutionMessage } from "@nervekit/harness";
 import type { ToolExecutionResult } from "@nervekit/tools";
-import {
-  formatInlineCommandResultText,
-  type ToolCallRecord,
-} from "@nervekit/contracts";
+import { formatInlineCommandResultText } from "@nervekit/contracts/completions";
+import { type ToolCallRecord } from "@nervekit/contracts/tools";
 import { formatToolResultForModel } from "../../tools/orchestration/agent-tool-adapter.js";
 
 export function inlineCommandEntryDetails(

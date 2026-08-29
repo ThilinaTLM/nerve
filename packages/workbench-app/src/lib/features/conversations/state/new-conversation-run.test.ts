@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { conversationStream, type StreamCursor } from "@nervekit/contracts";
+import { conversationStream } from "@nervekit/contracts/events";
+import { type StreamCursor } from "@nervekit/contracts/wire";
 import { optimisticUserMessage } from "./conversation-optimistic";
 import {
   startNewConversationRun,

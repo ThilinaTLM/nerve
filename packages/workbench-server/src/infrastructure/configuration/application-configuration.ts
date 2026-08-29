@@ -4,7 +4,7 @@ import type {
   ConfigurationSource,
   Settings,
   UpdateApplicationConfigurationRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/settings";
 
 export interface ResolvedApplicationStartup {
   snapshot: ApplicationConfigurationSnapshot;

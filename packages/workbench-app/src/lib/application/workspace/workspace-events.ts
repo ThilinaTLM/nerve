@@ -1,4 +1,4 @@
-import { conversationStream } from "@nervekit/contracts";
+import { conversationStream } from "@nervekit/contracts/events";
 import type { AgentRecord } from "$lib/api";
 import {
   isSequencedEvent,

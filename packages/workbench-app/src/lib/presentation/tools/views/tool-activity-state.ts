@@ -1,8 +1,8 @@
+import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts/conversations";
 import type {
-  ConversationLiveToolDraftBlockSnapshot,
   ToolCallStatus,
   ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import type {
   ToolArgumentRegion,
   ToolResultPlaceholder,

@@ -4,7 +4,7 @@ import {
   createTaskDefinitionRequestSchema,
   taskDefinitionFileSchema,
   taskDefinitionSchema,
-} from "../../src/index.js";
+} from "../../src/domains/task-definitions/index.js";
 
 test("task definitions default to a single active run", () => {
   const request = createTaskDefinitionRequestSchema.parse({

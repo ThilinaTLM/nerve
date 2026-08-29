@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { isTerminalToolStatus, type ToolCallRecord } from "@nervekit/contracts";
+import { isTerminalToolStatus } from "@nervekit/contracts/events";
+import { type ToolCallRecord } from "@nervekit/contracts/tools";
 import { requireToolDefinition } from "@nervekit/tools";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../../../core/ports.js";

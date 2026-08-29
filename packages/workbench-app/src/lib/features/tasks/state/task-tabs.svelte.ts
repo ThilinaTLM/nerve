@@ -8,7 +8,7 @@ import {
   setActiveCenterTab,
 } from "$lib/application/workspace/center-tabs.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
-import type { TaskRecord } from "@nervekit/contracts";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 
 export function taskEntryId(task: TaskRecord): string {
   return task.definitionId ?? task.restartRootTaskId ?? task.id;

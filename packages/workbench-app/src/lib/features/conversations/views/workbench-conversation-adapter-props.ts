@@ -16,7 +16,7 @@ import type {
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "$lib/api";
-import type { PermissionRuleSetId } from "@nervekit/contracts";
+import type { PermissionRuleSetId } from "@nervekit/contracts/permissions";
 import type {
   ConversationTransientState,
   PendingConversationState,

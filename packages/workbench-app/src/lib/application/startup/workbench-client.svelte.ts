@@ -8,11 +8,11 @@ import {
   protocolInstanceId,
   type ProtocolClientConnectionState,
 } from "@nervekit/protocol";
+import { parseConversationStream } from "@nervekit/contracts/events";
 import {
-  parseConversationStream,
   STREAM_SUBSCRIPTION_CAPABILITY,
   type PeerDescriptor,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
 import { getClientConfig } from "$lib/api";
 import {
   applyAppearance,

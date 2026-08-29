@@ -1,10 +1,10 @@
+import type { ConversationLiveToolOutputStream } from "@nervekit/contracts/conversations";
 import type {
-  ConversationLiveToolOutputStream,
   ToolContentBlockPayload,
   ToolExecutionResultPayload,
   ToolImageContentPayload,
   ToolTextContentPayload,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import type { PythonRuntime } from "./python/runtime.js";
 
 export type ToolExecutionOutputUpdate = {

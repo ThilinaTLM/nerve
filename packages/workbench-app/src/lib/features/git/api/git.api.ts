@@ -22,7 +22,7 @@ import type {
   GitOverviewResponse,
   GitProjectFileStatusResponse,
   GitStashArea,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import { protocolRequest } from "@nervekit/protocol";
 
 export async function discoverGitRepos(

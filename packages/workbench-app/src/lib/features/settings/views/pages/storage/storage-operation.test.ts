@@ -1,4 +1,4 @@
-import type { StorageCleanupOperation } from "@nervekit/contracts";
+import type { StorageCleanupOperation } from "@nervekit/contracts/storage";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {

@@ -1,11 +1,7 @@
+import type { EventEnvelope, NotifyEvent } from "@nervekit/contracts/events";
 import type {
-  EventEnvelope,
   GoodbyeData,
   NerveMessage,
-  NotifyEvent,
-  OperationName,
-  OperationParams,
-  OperationResult,
   PeerDescriptor,
   ProtocolErrorData,
   ProtocolRequestData,
@@ -13,14 +9,21 @@ import type {
   StreamCursor,
   StreamState,
   SubscribedStreamState,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
+import type {
+  OperationName,
+  OperationParams,
+  OperationResult,
+} from "@nervekit/contracts/operations";
 import {
   RESYNC_REQUIRED_CLOSE_REASON,
   STREAM_SUBSCRIPTION_CAPABILITY,
-  operationDefinition,
+} from "@nervekit/contracts/wire";
+import { operationDefinition } from "@nervekit/contracts/operations";
+import {
   publicEventDefinition,
   subscriptionStreamForNotification,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/events";
 import { buildEventBatch, chunkEvents } from "../streams/event-batch.js";
 import { PrioritizedMessageSender } from "../streams/priority-sender.js";
 import { RpcClient } from "../rpc/rpc-client.js";

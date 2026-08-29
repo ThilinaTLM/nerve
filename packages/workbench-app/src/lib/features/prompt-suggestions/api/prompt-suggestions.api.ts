@@ -5,7 +5,7 @@ import type {
   PromptSuggestionStatus,
   UpdatePromptSuggestionEnabledRequest,
   UpdatePromptSuggestionTrustRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/prompt-suggestions";
 import { protocolRequest } from "@nervekit/protocol";
 
 export async function getPromptSuggestions(
@@ -56,4 +56,4 @@ export type {
   PromptSuggestionTrustRequest,
   UpdatePromptSuggestionEnabledRequest,
   UpdatePromptSuggestionTrustRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/prompt-suggestions";

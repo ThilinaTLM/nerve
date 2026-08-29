@@ -2,9 +2,9 @@ import type { ToolExecutionOutputUpdate } from "@nervekit/tools";
 import {
   type TaskCancelResultPayload,
   taskLogsToolResultSchema,
-  type TaskRecord,
   type ToolCallRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import { type TaskRecord } from "@nervekit/contracts/tasks";
 import { ensurePlanDir } from "../../plans/plan-paths.js";
 import {
   isActiveTaskStatus,

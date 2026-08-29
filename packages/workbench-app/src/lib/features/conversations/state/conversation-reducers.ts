@@ -1,9 +1,9 @@
 import {
   conversationStream,
   LifecycleTransitionError,
-  toolCallTranscriptRecordSchema,
   type NotifyEvent,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/events";
+import { toolCallTranscriptRecordSchema } from "@nervekit/contracts/tools";
 import {
   applyConversationEvent,
   applyConversationNotification,

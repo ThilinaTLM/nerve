@@ -2,15 +2,15 @@
 import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { AgentRecord } from "@nervekit/contracts/agents";
+import type { ConversationRecord } from "@nervekit/contracts/conversations";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 import type {
-  AgentRecord,
-  ConversationRecord,
-  ProjectRecord,
-  TaskRecord,
   ToolCallRecord,
   ToolCallStatus,
   ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import { QUERY_CACHE_SCHEMA_SQL } from "./schema.js";
 
 export interface QueryCacheCounts {

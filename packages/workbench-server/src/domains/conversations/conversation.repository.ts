@@ -1,4 +1,4 @@
-import type { ConversationRecord } from "@nervekit/contracts";
+import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import type { ConversationJournalRepository } from "./conversation-journal.repository.js";
 
 /** Journal-backed conversation metadata repository. */

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { operationDefinition } from "../../src/operations/index.js";
 import {
-  operationDefinition,
   storageCleanupOperationSchema,
   storageCleanupRequestSchema,
   storageUsageResponseSchema,
-} from "../../src/index.js";
+} from "../../src/domains/storage/index.js";
 
 describe("storage cleanup contracts", () => {
   it("validates the v1 home usage taxonomy", () => {

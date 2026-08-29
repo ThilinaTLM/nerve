@@ -1,4 +1,4 @@
-import type { PlanReviewRecord } from "@nervekit/contracts";
+import type { PlanReviewRecord } from "@nervekit/contracts/plans";
 
 export function acceptedPlanFollowUp(planPath: string): string {
   return `The user accepted the plan at ${planPath}. Proceed with the implementation using that plan as the source of truth.`;

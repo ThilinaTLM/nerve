@@ -6,7 +6,7 @@ import type {
   ProjectRecord,
   TaskRecord,
 } from "$lib/api";
-import type { GitDiffArea } from "@nervekit/contracts";
+import type { GitDiffArea } from "@nervekit/contracts/git";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import type {
   FileDisplayMode,

@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { defaultSettings } from "@nervekit/contracts";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/index.js";
 import {

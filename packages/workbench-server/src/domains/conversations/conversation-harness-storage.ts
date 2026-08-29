@@ -10,11 +10,11 @@ import {
   type ConversationStorage,
   type ConversationTreeEntry,
 } from "@nervekit/harness";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
-  AgentRecord,
   ConversationEntry,
   ConversationRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
 import type { ConversationRepository } from "./index.js";
 
 export class ConversationHarnessStorage {

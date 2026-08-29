@@ -4,8 +4,8 @@ import {
   SUBAGENT_TRANSCRIPT_MAX_ENTRIES,
   subagentTranscriptEntrySchema,
   subagentTranscriptSnapshotSchema,
-  validatePublicEvent,
-} from "../../src/index.js";
+} from "../../src/domains/agents/index.js";
+import { validatePublicEvent } from "../../src/events/index.js";
 
 const entry = {
   id: "entry_child_1",

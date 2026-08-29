@@ -1,4 +1,4 @@
-import type { PermissionRuleSetSummary } from "@nervekit/contracts";
+import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
 import { getPermissionPolicyConfiguration } from "$lib/api";
 import { BUILT_IN_PERMISSION_RULE_SET_SUMMARIES } from "$lib/domain/permissions/rule-set-options";
 

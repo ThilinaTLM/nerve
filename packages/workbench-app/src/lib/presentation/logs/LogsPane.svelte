@@ -8,7 +8,7 @@ import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Search from "@lucide/svelte/icons/search";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { SvelteSet } from "svelte/reactivity";
-import type { ApplicationLogRecord } from "@nervekit/contracts";
+import type { ApplicationLogRecord } from "@nervekit/contracts/logs";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import * as ContextMenu from "@nervekit/ui-kit/components/ui/context-menu";

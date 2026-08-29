@@ -1,4 +1,4 @@
-import type { ProtocolV1Message } from "@nervekit/contracts";
+import type { ProtocolV1Message } from "@nervekit/contracts/wire";
 import { ProtocolCodec, ProtocolDecodeError } from "../transports/codec.js";
 import type { TransportConnection } from "../transports/transport.js";
 

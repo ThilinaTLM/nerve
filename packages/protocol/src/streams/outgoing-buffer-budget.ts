@@ -1,4 +1,4 @@
-import type { EventEnvelope, NotifyEvent } from "@nervekit/contracts";
+import type { EventEnvelope, NotifyEvent } from "@nervekit/contracts/events";
 import { estimateProtocolMessageBytes } from "./event-batch.js";
 
 export class OutgoingBufferBudget {

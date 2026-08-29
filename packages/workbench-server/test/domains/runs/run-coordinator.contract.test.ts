@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   RUN_FAILURE_MESSAGE_MAX_LENGTH,
-  type PeerRole,
   type RunEventDeliveryRecord,
   type RunPublicEventIntent,
   type RunRecord,
   type RunTransitionRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
+import { type PeerRole } from "@nervekit/contracts/wire";
 import {
   RunConflictError,
   RunCoordinator,
@@ -140,7 +140,8 @@ function fixture(
   const published = new Map<string, { eventId: string; sequence: number }>();
   const publicationAttempts: RunPublicEventIntent[] = [];
   const controls: Array<{ behavior: string; text: string }> = [];
-  const controlPrompts: import("@nervekit/contracts").RunPromptRecord[] = [];
+  const controlPrompts: import("@nervekit/contracts/runs").RunPromptRecord[] =
+    [];
   const controlContinues: number[] = [];
   const controlCancels: Array<string | undefined> = [];
   const forcePushAttempts: number[] = [];

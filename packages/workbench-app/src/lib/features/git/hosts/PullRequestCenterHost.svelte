@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { GithubPrMergeMethod } from "@nervekit/contracts";
+import type { GithubPrMergeMethod } from "@nervekit/contracts/git";
 import { checkoutGithubPr, mergeGithubPr } from "$lib/api";
 import { GitHubPrPane } from "$lib/features/git/views";
 import { invalidateGit } from "$lib/features/git/state/git-context.svelte";

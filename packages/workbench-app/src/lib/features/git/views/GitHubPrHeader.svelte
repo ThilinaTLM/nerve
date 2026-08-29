@@ -9,7 +9,7 @@ import GitMerge from "@lucide/svelte/icons/git-merge";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import GitPullRequestDraft from "@lucide/svelte/icons/git-pull-request-draft";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
-import type { GithubPr, GithubPrCore } from "@nervekit/contracts";
+import type { GithubPr, GithubPrCore } from "@nervekit/contracts/git";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";

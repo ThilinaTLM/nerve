@@ -6,7 +6,7 @@ import type {
   FilesystemProjectEntriesResponse,
   FilesystemProjectEntryCreateRequest,
   FilesystemProjectEntryCreateResponse,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/filesystem";
 import { apiGet, apiPost, fileToBase64 } from "$lib/platform/http/api-client";
 import { protocolRequest } from "@nervekit/protocol";
 

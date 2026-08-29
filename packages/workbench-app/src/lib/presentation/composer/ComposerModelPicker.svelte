@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { ModelInfo, ThinkingLevel } from "@nervekit/contracts";
+import type { ModelInfo, ThinkingLevel } from "@nervekit/contracts/models";
 import Popover, {
   PopoverBody,
   PopoverRow,

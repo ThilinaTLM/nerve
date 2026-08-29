@@ -4,7 +4,7 @@ import {
   STREAM_SUBSCRIPTION_CAPABILITY,
   type NerveMessage,
   type ProtocolV1Message,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
 import {
   ProtocolServerSession,
   createMessageFactory,

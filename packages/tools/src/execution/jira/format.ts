@@ -18,7 +18,7 @@ import type {
   JiraUserSummaryPayload,
   JiraWorklogSummaryPayload,
   ToolOutputLimitsPayload,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import type {
   IntegrationExecutionContext,
   ToolExecutionResult,

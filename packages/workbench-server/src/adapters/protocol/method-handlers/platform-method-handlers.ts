@@ -1,7 +1,5 @@
-import {
-  slashCommandCompletionItems,
-  type UpdateApplicationConfigurationRequest,
-} from "@nervekit/contracts";
+import { slashCommandCompletionItems } from "@nervekit/contracts/completions";
+import { type UpdateApplicationConfigurationRequest } from "@nervekit/contracts/settings";
 import type { WorkbenchOperationContext } from "../method-handler-registry.js";
 import {
   providerApiKeySecretName,

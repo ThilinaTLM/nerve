@@ -1,13 +1,15 @@
 import {
   parseOperationResult,
-  type NerveMessage,
   type OperationName,
   type OperationParams,
   type OperationResult,
+} from "@nervekit/contracts/operations";
+import {
+  type NerveMessage,
   type ProtocolErrorData,
   type ProtocolRequestData,
   type ProtocolResponseData,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
 import type {
   MessageFactory,
   MessageFactoryOptions,

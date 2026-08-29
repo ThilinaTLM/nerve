@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
-  AgentRecord,
   IgnoredPermissionSource,
   PermissionOverlay,
   PermissionOverlayOrigin,
@@ -10,13 +10,13 @@ import type {
   PermissionRule,
   PermissionRuleSet,
   ProjectPermissionTrust,
-  ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import {
   permissionOverlayForOriginSchema,
   permissionRuleSetSchema,
   projectPermissionTrustSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
 import {
   builtInPermissionRuleSet,
   builtInPermissionRuleSets,

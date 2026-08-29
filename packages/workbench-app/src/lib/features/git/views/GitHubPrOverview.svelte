@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { GithubPrOverview } from "@nervekit/contracts";
+import type { GithubPrOverview } from "@nervekit/contracts/git";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import GitHubPrSection from "./GitHubPrSection.svelte";
 import { divergenceLabel, divergenceTone, reviewTone } from "./pr-pane-helpers";

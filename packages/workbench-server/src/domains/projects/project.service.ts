@@ -2,9 +2,9 @@ import { realpath } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import {
   type CreateProjectRequest,
-  createId,
   type ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/projects";
+import { createId } from "@nervekit/contracts";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
 import type { RuntimeState } from "../../app/runtime/runtime-projections.js";

@@ -1,10 +1,12 @@
 import {
   conversationStream,
-  type ConversationSnapshot,
+  WORKSPACE_STREAM,
+} from "@nervekit/contracts/events";
+import { type ConversationSnapshot } from "@nervekit/contracts/conversations";
+import {
   type ConversationSnapshotResponse,
   type WorkspaceSnapshotResponse,
-  WORKSPACE_STREAM,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/snapshots";
 import type { WorkbenchState } from "../../app/runtime/server-runtime.js";
 
 type SnapshotContext = Pick<WorkbenchState, "events" | "registry">;

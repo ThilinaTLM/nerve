@@ -5,11 +5,11 @@ import type {
   TaskDefinition,
   TaskRecord,
 } from "$lib/api";
+import type { CancelTaskRequest } from "@nervekit/contracts/tasks";
 import type {
-  CancelTaskRequest,
   CreateTaskDefinitionRequest,
   UpdateTaskDefinitionRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/task-definitions";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { onEvent } from "$lib/application/events/event-bus";
 import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
@@ -142,7 +142,7 @@ export function createWorkbenchTaskPanelAdapter(
 
   async function launchDefinition(
     definition: TaskPanelDefinition,
-    terminateListeners?: import("@nervekit/contracts").TaskPortConflictListener[],
+    terminateListeners?: import("@nervekit/contracts/tasks").TaskPortConflictListener[],
   ): Promise<void> {
     const project = activeProject();
     if (!project) return;

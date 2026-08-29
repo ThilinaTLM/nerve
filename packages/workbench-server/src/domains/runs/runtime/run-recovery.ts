@@ -1,4 +1,4 @@
-import type { RunRecord } from "@nervekit/contracts";
+import type { RunRecord } from "@nervekit/contracts/runs";
 import { assertCheckpoint } from "./run-checkpoints.js";
 import type { RunIntegrityPort } from "./run-execution.js";
 import { revise, TERMINAL_STATUSES } from "./run-transitions.js";

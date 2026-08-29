@@ -1,4 +1,7 @@
-import { taskLogEventSchema, type TaskLogEvent } from "@nervekit/contracts";
+import {
+  taskLogEventSchema,
+  type TaskLogEvent,
+} from "@nervekit/contracts/tasks";
 import {
   access,
   mkdir,

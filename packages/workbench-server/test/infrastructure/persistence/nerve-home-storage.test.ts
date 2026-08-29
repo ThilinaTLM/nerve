@@ -12,7 +12,7 @@ import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { defaultSettings } from "@nervekit/contracts";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import { TaskRepository } from "../../../src/domains/tasks/persistence/task.repository.js";
 import { ToolResultPayloadStore } from "../../../src/domains/tools/artifacts/tool-result-payload-store.js";
 import { resolveProjectSettings } from "../../../src/infrastructure/configuration/index.js";

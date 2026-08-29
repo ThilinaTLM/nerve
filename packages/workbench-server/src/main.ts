@@ -7,7 +7,7 @@ import { serve } from "@hono/node-server";
 import {
   DAEMON_STARTUP_PROGRESS_PREFIX,
   type DaemonStartupProgress,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/storage";
 import {
   configureManagedProcessRuntime,
   initializeManagedProcessHost,

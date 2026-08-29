@@ -1,8 +1,8 @@
+import { conversationEventTypes } from "@nervekit/contracts/conversations";
 import {
-  conversationEventTypes,
   publicEventDefinition,
   type EventEnvelope,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/events";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { isConversationStreamEvent } from "./conversation-event-routing";

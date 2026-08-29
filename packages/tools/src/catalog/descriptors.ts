@@ -1,4 +1,4 @@
-import type { ToolDescriptor } from "@nervekit/contracts";
+import type { ToolDescriptor } from "@nervekit/contracts/tools";
 import { coreToolDefinitions, toolManifest } from "./manifest.js";
 import { permissionMetadataForTool } from "./permission-metadata.js";
 import type {

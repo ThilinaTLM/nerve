@@ -1,4 +1,4 @@
-import type { AgentRecord } from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 
 export async function setAgentStatus(

@@ -6,8 +6,8 @@ import { describe, it } from "node:test";
 import {
   LIVE_TOOL_OUTPUT_EVENT_MAX_BYTES,
   type ConversationLiveToolOutputDeltaData,
-  type ToolCallRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import { type ToolCallRecord } from "@nervekit/contracts/tools";
 import { ConversationRuntime } from "../../../src/domains/runs/runtime/conversation-runtime.js";
 import { LiveToolOutputPublisher } from "../../../src/domains/tools/execution/live-tool-output-publisher.js";
 import { StreamLogRegistry } from "../../../src/infrastructure/events/stream-log-registry.js";

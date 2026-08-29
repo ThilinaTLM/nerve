@@ -3,7 +3,7 @@ import {
   validatedToolArtifactSchema,
   type ToolArtifactClaim,
   type ValidatedToolArtifact,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import { lstat, open } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { storagePaths } from "../../../infrastructure/storage-bootstrap/paths.js";

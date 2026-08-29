@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { defaultSettings } from "@nervekit/contracts";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import {
   assertApplicationConfigurationEditable,
   resolveApplicationConfiguration,

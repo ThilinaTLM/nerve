@@ -1,4 +1,4 @@
-import type { ConversationEntry } from "@nervekit/contracts";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type { TranscriptItem } from "$lib/presentation/state";
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {

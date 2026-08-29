@@ -1,4 +1,4 @@
-import type { GitDiffArea, GitFileDiffResponse } from "@nervekit/contracts";
+import type { GitDiffArea, GitFileDiffResponse } from "@nervekit/contracts/git";
 
 export type GitDiffPaneModel = {
   path: string;

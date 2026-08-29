@@ -4,7 +4,7 @@ import type {
   Settings,
   UpdateApplicationConfigurationRequest,
   UpdateSettingsRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/settings";
 import { protocolRequest } from "@nervekit/protocol";
 
 export type SettingsResponse = Settings;

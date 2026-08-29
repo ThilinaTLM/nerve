@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ToolCallRecord } from "@nervekit/contracts";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { toolCallResultForModel } from "../../../src/domains/tools/orchestration/agent-tool-adapter.js";
 
 function toolCall(

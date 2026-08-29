@@ -2,8 +2,8 @@ import { resolve } from "node:path";
 import {
   FILE_COMPLETION_RESULT_LIMIT,
   type CompletionItem,
-  type ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/completions";
+import { type ProjectRecord } from "@nervekit/contracts/projects";
 import {
   directDirectoryCompletionItems,
   discoverCandidates,

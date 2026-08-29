@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   confluenceResultDetailsSchema,
   jiraResultDetailsSchema,
-} from "../../src/index.js";
+} from "../../src/domains/tools/index.js";
 
 describe("Atlassian normalized result summaries", () => {
   it("accepts board, sprint, and attachment display resources", () => {

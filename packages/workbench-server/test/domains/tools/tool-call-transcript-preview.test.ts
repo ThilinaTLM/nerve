@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { type ToolCallRecord, validatePublicEvent } from "@nervekit/contracts";
+import { type ToolCallRecord } from "@nervekit/contracts/tools";
+import { validatePublicEvent } from "@nervekit/contracts/events";
 import { toToolCallTranscriptRecord } from "../../../src/domains/tools/artifacts/tool-call-transcript-preview.js";
 
 function explainImageToolCall(explanation: string): ToolCallRecord {

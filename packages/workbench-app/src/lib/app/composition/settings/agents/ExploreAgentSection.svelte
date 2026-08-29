@@ -1,5 +1,5 @@
 <script lang="ts">
-import { thinkingLevels } from "@nervekit/contracts";
+import { thinkingLevels } from "@nervekit/contracts/models";
 import type {
   AuthProviderMetadata,
   ModelInfo,

@@ -25,13 +25,12 @@ import type {
   ProcessStreamResultDetails,
   PythonArtifactResultDetails,
   TaskCancelOutcomePreviewPayload,
-  TaskLogEvent,
-  TaskRecord,
   TaskToolSummaryPayload,
   TodoItem,
   ToolOutputArtifactPayload,
   ToolOutputLimitsPayload,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import type { TaskLogEvent, TaskRecord } from "@nervekit/contracts/tasks";
 import type { RedactedStructuredEntry } from "../lifecycle/argument-source";
 
 export type ToolOutputInfo = {

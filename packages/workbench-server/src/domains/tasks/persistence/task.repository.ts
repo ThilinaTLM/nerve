@@ -1,4 +1,4 @@
-import { type TaskRecord, taskRecordSchema } from "@nervekit/contracts";
+import { type TaskRecord, taskRecordSchema } from "@nervekit/contracts/tasks";
 import type { InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";
 import { TaskLogBundleStore } from "./task-log-bundle.store.js";
 

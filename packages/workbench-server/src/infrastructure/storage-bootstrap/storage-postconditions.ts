@@ -5,7 +5,7 @@ import {
   nerveHomeManifestSchema,
   providersConfigSchema,
   uiConfigSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/settings";
 import { CanonicalDatabase } from "../persistence/canonical-sqlite/canonical-database.js";
 import { readJsonFile } from "./json.js";
 import type { StoragePaths } from "./paths.js";

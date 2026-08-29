@@ -3,10 +3,10 @@ import { clampAgentThinkingLevel } from "@nervekit/harness";
 import {
   type AgentRecord,
   type CreateAgentRequest,
-  createId,
-  type Mode,
   type UpdateAgentRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/agents";
+import { createId } from "@nervekit/contracts";
+import { type Mode } from "@nervekit/contracts/settings";
 import { ApplicationError } from "../../core/application-error.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";

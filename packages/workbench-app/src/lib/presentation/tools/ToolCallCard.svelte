@@ -9,10 +9,8 @@ import type {
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "../state/tool-types";
-import type {
-  ConversationLiveToolOutputSnapshot,
-  ToolCallDetails,
-} from "@nervekit/contracts";
+import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts/conversations";
+import type { ToolCallDetails } from "@nervekit/contracts/tools";
 import type { ToolDraftViewModel } from "../state/active-run";
 import type { MetaItem, PrimaryArg } from "./views/tool-presentation";
 import { toolPresentationCached } from "./views/tool-presentation";

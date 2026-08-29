@@ -3,8 +3,8 @@ import { dirname } from "node:path";
 import {
   eventEnvelopeSchema,
   type EventEnvelope,
-  type StreamState,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/events";
+import { type StreamState } from "@nervekit/contracts/wire";
 import {
   atomicWriteFile,
   readJsonLines,

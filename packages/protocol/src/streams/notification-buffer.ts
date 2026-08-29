@@ -1,4 +1,4 @@
-import type { NotifyEvent } from "@nervekit/contracts";
+import type { NotifyEvent } from "@nervekit/contracts/events";
 
 export interface NotificationDefinition {
   readonly scope: readonly string[];

@@ -1,5 +1,5 @@
 import type { AgentRecord, ModelInfo } from "$lib/api";
-import type { PermissionRuleSetId } from "@nervekit/contracts";
+import type { PermissionRuleSetId } from "@nervekit/contracts/permissions";
 import {
   isEditableTarget,
   matchesShortcut,

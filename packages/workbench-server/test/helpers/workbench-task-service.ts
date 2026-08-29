@@ -6,14 +6,14 @@ import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after } from "node:test";
+import { createId } from "@nervekit/contracts";
 import {
-  createId,
   type StartTaskRequest,
   type TaskLaunchConfig,
   type TaskListeningPort,
   type TaskRecord,
   type TaskRuntime,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
 import type { TaskLaunchConfigStore } from "../../src/domains/tasks/persistence/task-launch-config.store.js";
 import { TaskRepository } from "../../src/domains/tasks/persistence/task.repository.js";
 import { WorkbenchTaskService } from "../../src/domains/tasks/adapters/workbench-task-service.js";

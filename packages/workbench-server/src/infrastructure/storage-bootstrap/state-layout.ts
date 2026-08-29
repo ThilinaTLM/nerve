@@ -3,7 +3,7 @@ import { join } from "node:path";
 import {
   nerveHomeManifestSchema,
   type NerveHomeManifest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/settings";
 import { pathExists } from "./json.js";
 
 export const NERVE_HOME_FORMAT = "nerve-home";

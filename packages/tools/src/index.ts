@@ -1,5 +1,6 @@
 export * from "./result-projection/index.js";
-import type { ToolDescriptor, ToolName, ToolRisk } from "@nervekit/contracts";
+import type { ToolDescriptor, ToolName } from "@nervekit/contracts/tools";
+import type { ToolRisk } from "@nervekit/contracts/permissions";
 import {
   allToolDescriptorsFromDefinitions,
   coreToolDescriptorsFromDefinitions,

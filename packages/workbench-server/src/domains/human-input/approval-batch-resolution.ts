@@ -1,9 +1,6 @@
 import { createHash } from "node:crypto";
-import type {
-  ApprovalRecord,
-  ConversationEntry,
-  ToolCallRecord,
-} from "@nervekit/contracts";
+import type { ApprovalRecord, ToolCallRecord } from "@nervekit/contracts/tools";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import { ApplicationError } from "../../core/application-error.js";
 import type {
   ApprovalInteractionBatch,

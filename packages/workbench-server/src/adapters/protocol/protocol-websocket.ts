@@ -7,10 +7,8 @@ import {
   websocketTransport,
   type WebSocketLike,
 } from "@nervekit/protocol";
-import {
-  parseConversationStream,
-  type ProtocolV1Message,
-} from "@nervekit/contracts";
+import { parseConversationStream } from "@nervekit/contracts/events";
+import { type ProtocolV1Message } from "@nervekit/contracts/wire";
 import type WebSocket from "ws";
 import type { WebSocketServer } from "ws";
 import type { WorkbenchState } from "../../app/runtime/server-runtime.js";

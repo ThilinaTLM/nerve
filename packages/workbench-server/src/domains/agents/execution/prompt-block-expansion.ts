@@ -1,9 +1,9 @@
 import type { ToolExecutionResult } from "@nervekit/tools";
 import {
   findExecutableCommandBlocks,
-  type PromptRequest,
   replaceExecutableCommandBlocks,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/completions";
+import { type PromptRequest } from "@nervekit/contracts/agents";
 import { inlineCommandExecutionResultText } from "./inline-command-results.js";
 
 export type PromptBlockCommandExecutor = (

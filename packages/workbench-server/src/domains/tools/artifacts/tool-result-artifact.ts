@@ -1,4 +1,4 @@
-import type { ToolCallRecord } from "@nervekit/contracts";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";

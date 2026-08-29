@@ -1,10 +1,10 @@
 import {
   defaultUserConfiguration,
-  providerCatalogSchema,
   providersConfigSchema,
   type Settings,
   type UserConfiguration,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/settings";
+import { providerCatalogSchema } from "@nervekit/contracts/providers";
 import { configurationWithSettings } from "../configuration/home-configuration.js";
 
 export interface LegacyConfigurationSource {

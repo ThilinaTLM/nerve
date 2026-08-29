@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { TodoItem } from "@nervekit/contracts";
+import type { TodoItem } from "@nervekit/contracts/tools";
 import Popover, {
   PopoverBody,
   PopoverHeader,

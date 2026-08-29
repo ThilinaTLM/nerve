@@ -1,4 +1,7 @@
-import type { ToolCallRecord, UserQuestionRecord } from "@nervekit/contracts";
+import type {
+  ToolCallRecord,
+  UserQuestionRecord,
+} from "@nervekit/contracts/tools";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import { optionalStringArg, stringArg } from "../execution/tool-arguments.js";
 import { ToolExecutionSuspended } from "../execution/tool-execution-suspension.js";

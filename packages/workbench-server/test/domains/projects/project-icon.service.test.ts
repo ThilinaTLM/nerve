@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
-import type { ProjectRecord } from "@nervekit/contracts";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import {
   ProjectIconService,
   type ProjectIcon,

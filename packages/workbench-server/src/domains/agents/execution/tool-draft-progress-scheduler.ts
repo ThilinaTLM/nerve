@@ -1,4 +1,4 @@
-import type { ConversationLiveToolDraftProgressSnapshot } from "@nervekit/contracts";
+import type { ConversationLiveToolDraftProgressSnapshot } from "@nervekit/contracts/conversations";
 import type { ToolDraftProgressAccumulator } from "./tool-draft-progress.js";
 
 const PUBLISH_INTERVAL_MS = 100;

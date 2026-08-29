@@ -1,8 +1,8 @@
 import {
   CANCELLED_TOOL_ERROR_CODE,
   INTERRUPTED_TOOL_ERROR_CODE,
-  type ToolCallRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/events";
+import { type ToolCallRecord } from "@nervekit/contracts/tools";
 import { prepareTerminalProjection } from "../artifacts/tool-result-preparation.js";
 
 export type ToolTerminationOutcome = {

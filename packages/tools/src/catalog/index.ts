@@ -1,4 +1,4 @@
-import type { CoreToolName } from "@nervekit/contracts";
+import type { CoreToolName } from "@nervekit/contracts/tools";
 import { coreToolDefinitions } from "./manifest.js";
 import type { ToolDefinition } from "./contracts.js";
 

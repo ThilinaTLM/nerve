@@ -2,7 +2,7 @@ import type {
   NerveMessage,
   PeerDescriptor,
   SafeMetadata,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
 import { createMessageFactory } from "@nervekit/protocol";
 
 export interface ProtocolMessageOptions {

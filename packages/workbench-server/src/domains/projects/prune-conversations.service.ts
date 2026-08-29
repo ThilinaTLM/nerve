@@ -1,11 +1,11 @@
+import type { AgentRecord } from "@nervekit/contracts/agents";
+import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import type {
-  AgentRecord,
-  ConversationRecord,
   ProjectRecord,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
-  TaskRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/projects";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationRepository } from "../conversations/index.js";

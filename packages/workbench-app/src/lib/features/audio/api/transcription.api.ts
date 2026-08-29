@@ -1,4 +1,4 @@
-import type { AudioTranscriptionResponse } from "@nervekit/contracts";
+import type { AudioTranscriptionResponse } from "@nervekit/contracts/transcription";
 import {
   ApiRequestError,
   parseApiErrorBody,

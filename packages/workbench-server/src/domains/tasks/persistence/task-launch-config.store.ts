@@ -1,7 +1,7 @@
 import {
   type TaskLaunchConfig,
   taskLaunchConfigSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
 import type { SecretProvider } from "../../../infrastructure/secrets/index.js";
 
 export interface TaskLaunchConfigStore {

@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   PUBLIC_EVENT_MAX_STRING_CHARS,
   validatePublicEvent,
-} from "../../src/index.js";
+} from "../../src/events/index.js";
 
 /**
  * Content-sized events (conversation.entry.appended) must accept authoritative

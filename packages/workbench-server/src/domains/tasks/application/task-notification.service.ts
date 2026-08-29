@@ -4,13 +4,10 @@ import {
   type HarnessTaskEvent,
   type HarnessTaskEventDetails,
 } from "@nervekit/harness";
-import type {
-  AgentRecord,
-  ConversationEntry,
-  EventEnvelope,
-  TaskLogEvent,
-  TaskRecord,
-} from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { EventEnvelope } from "@nervekit/contracts/events";
+import type { TaskLogEvent, TaskRecord } from "@nervekit/contracts/tasks";
 import { createId } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";

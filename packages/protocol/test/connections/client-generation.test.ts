@@ -1,4 +1,4 @@
-import type { ProtocolV1Message } from "@nervekit/contracts";
+import type { ProtocolV1Message } from "@nervekit/contracts/wire";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

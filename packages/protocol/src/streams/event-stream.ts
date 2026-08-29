@@ -1,9 +1,11 @@
 import {
   type EventBatchData,
+  eventBatchDataSchema,
+} from "@nervekit/contracts/wire";
+import {
   type EventEnvelope,
   WORKSPACE_STREAM,
-  eventBatchDataSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/events";
 
 export interface ClientEventStreamState {
   processedSeq: number;

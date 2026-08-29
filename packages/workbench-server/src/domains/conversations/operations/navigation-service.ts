@@ -4,8 +4,8 @@ import type {
   ConversationEntry,
   ConversationRecord,
   NavigateConversationRequest,
-  ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../../core/application-error.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversation-harness-storage.js";

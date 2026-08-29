@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolvePlanReviewRequestSchema } from "../../src/index.js";
+import { resolvePlanReviewRequestSchema } from "../../src/domains/plans/index.js";
 
 describe("plan review resolve request schema", () => {
   it("accepts implementation model and thinking selection", () => {

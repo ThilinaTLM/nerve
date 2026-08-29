@@ -1,13 +1,12 @@
+import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
+import type { ContextUsage } from "@nervekit/contracts/models";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { RunInteractionRecord } from "@nervekit/contracts/runs";
 import type {
-  AgentRecord,
-  ContextUsage,
-  ConversationEntry,
-  PromptRequest,
-  RunInteractionRecord,
   ToolCallTranscriptRecord,
   ToolName,
-} from "@nervekit/contracts";
-import { parseInlineCommandPrompt } from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { TERMINAL_STATUSES, type RunCoordinator } from "../runtime/index.js";
 import { ApplicationError } from "../../../core/application-error.js";
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";

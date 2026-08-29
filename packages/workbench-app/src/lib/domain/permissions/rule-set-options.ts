@@ -1,9 +1,9 @@
+import type { Mode } from "@nervekit/contracts/settings";
 import type {
-  Mode,
   PermissionLevel,
   PermissionRuleSetId,
   PermissionRuleSetSummary,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
 
 export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetSummary[] =
   [

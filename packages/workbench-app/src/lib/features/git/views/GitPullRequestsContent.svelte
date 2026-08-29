@@ -7,7 +7,7 @@ import type {
   GithubPr,
   GithubStatusResponse,
   GitRepoSummary,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import {
   PanelBanner,
   PanelHeader,

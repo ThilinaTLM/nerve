@@ -1,8 +1,6 @@
-import type {
-  AgentRecord,
-  ConversationRecord,
-  ProjectRecord,
-} from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
+import type { ConversationRecord } from "@nervekit/contracts/conversations";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
 
 function shortModelLabel(modelId: string): string {

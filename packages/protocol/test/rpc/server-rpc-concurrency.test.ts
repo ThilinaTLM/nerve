@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { NerveMessage, ProtocolV1Message } from "@nervekit/contracts";
+import type { NerveMessage, ProtocolV1Message } from "@nervekit/contracts/wire";
 import {
   ProtocolConnection,
   ProtocolServerSession,

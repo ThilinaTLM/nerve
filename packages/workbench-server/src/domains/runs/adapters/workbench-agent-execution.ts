@@ -1,4 +1,4 @@
-import type { RunPromptRecord, RunRecord } from "@nervekit/contracts";
+import type { RunPromptRecord, RunRecord } from "@nervekit/contracts/runs";
 import type {
   CheckpointCommand,
   RunExecution,

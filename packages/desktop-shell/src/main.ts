@@ -1,6 +1,6 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { defaultSettings, type Settings } from "@nervekit/contracts";
+import { defaultSettings, type Settings } from "@nervekit/contracts/settings";
 import {
   readCurrentSettingsForBootstrap,
   resolveApplicationConfiguration,

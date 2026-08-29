@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { validatePublicEvent } from "@nervekit/contracts";
+import { validatePublicEvent } from "@nervekit/contracts/events";
 import { CompactionService } from "../../../src/domains/conversations/operations/compaction-service.js";
 import { buildPlanImplementationSummary } from "../../../src/domains/conversations/operations/summary.js";
 

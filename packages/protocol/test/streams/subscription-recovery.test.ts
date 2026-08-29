@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   STREAM_SUBSCRIPTION_CAPABILITY,
-  type EventEnvelope,
   type NerveMessage,
-  type NotifyEvent,
   type ProtocolV1Message,
   type StreamState,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
+import {
+  type EventEnvelope,
+  type NotifyEvent,
+} from "@nervekit/contracts/events";
 import {
   ProtocolClientSession,
   ProtocolServerSession,

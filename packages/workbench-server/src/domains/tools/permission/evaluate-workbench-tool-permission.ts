@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
-  AgentRecord,
   PermissionException,
   LegacyPermissionRule,
   LegacyPermissionRuleMatcherKind,
   StaticToolRisk,
-  ToolName,
   ToolRisk,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
+import type { ToolName } from "@nervekit/contracts/tools";
 import {
   evaluatePermissionRequest,
   evaluateToolPermission,

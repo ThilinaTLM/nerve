@@ -1,7 +1,7 @@
 import type {
   ConversationActiveRunSnapshot,
   ConversationLiveTurnSnapshot,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
 import { orderedTurns } from "./active-run.js";
 import type { TimelineItem } from "./timeline.js";
 

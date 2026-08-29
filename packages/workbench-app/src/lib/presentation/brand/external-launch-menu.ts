@@ -2,8 +2,8 @@ import SquareTerminal from "@lucide/svelte/icons/square-terminal";
 import type {
   ExternalEditorStatuses,
   ExternalTerminalStatus,
-  ProjectEditor,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/status";
+import type { ProjectEditor } from "@nervekit/contracts/projects";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import VsCodeIcon from "./VsCodeIcon.svelte";
 import ZedIcon from "./ZedIcon.svelte";

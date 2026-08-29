@@ -7,9 +7,9 @@ import {
 } from "node:crypto";
 import {
   type CredentialKeyResponse,
-  createId,
   type EncryptedSecretEnvelope,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/auth";
+import { createId } from "@nervekit/contracts";
 import { ApplicationError } from "../../core/application-error.js";
 
 const GCM_TAG_BYTES = 16;

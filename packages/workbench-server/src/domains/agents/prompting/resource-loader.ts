@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import type { AvailableSkillsResponse } from "@nervekit/contracts";
+import type { AvailableSkillsResponse } from "@nervekit/contracts/skills";
 import { loadSkills, type Skill } from "@nervekit/harness";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import { resolveDataDir } from "../../../infrastructure/storage-bootstrap/paths.js";

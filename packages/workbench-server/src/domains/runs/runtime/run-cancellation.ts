@@ -1,4 +1,4 @@
-import type { RunRecord } from "@nervekit/contracts";
+import type { RunRecord } from "@nervekit/contracts/runs";
 import type { RunCancellationPort, RunExecution } from "./run-execution.js";
 import { revise, type TransitionChanges } from "./run-transitions.js";
 import type { RunHydratedState } from "./run-unit-of-work.js";

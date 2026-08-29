@@ -4,7 +4,7 @@ import type {
   RunEventDeliveryRecord,
   RunPublicEventIntent,
   RunTransitionRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
 import {
   RunEventDeliveryService,
   type RunHydratedState,

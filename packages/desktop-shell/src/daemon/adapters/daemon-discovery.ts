@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { type DaemonFile, daemonFileSchema } from "@nervekit/contracts";
+import { type DaemonFile, daemonFileSchema } from "@nervekit/contracts/status";
 import type { DaemonPaths, HealthyDaemon } from "../contracts.js";
 import { localConnectUrl } from "../urls.js";
 import { checkHealth } from "./daemon-health.js";

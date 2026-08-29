@@ -1,4 +1,4 @@
-import type { TextLimitSnapshotPayload } from "@nervekit/contracts";
+import type { TextLimitSnapshotPayload } from "@nervekit/contracts/tools";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,

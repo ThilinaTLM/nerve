@@ -4,7 +4,7 @@ import type {
   GitReadObservation,
   GithubRequestObservation,
 } from "@nervekit/tools";
-import type { ApplicationLogLevel } from "@nervekit/contracts";
+import type { ApplicationLogLevel } from "@nervekit/contracts/logs";
 import type { ApplicationLogContext } from "../../infrastructure/diagnostics/index.js";
 
 export const GIT_COMMAND_SLOW_MS = 1_000;

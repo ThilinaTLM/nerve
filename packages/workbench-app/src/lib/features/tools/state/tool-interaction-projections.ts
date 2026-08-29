@@ -1,8 +1,8 @@
+import type { PlanReviewRecord } from "@nervekit/contracts/plans";
 import type {
-  PlanReviewRecord,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import type { ApprovalWithToolCall } from "$lib/presentation/state/tool-types";
 
 function approvalScopes(

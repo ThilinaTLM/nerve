@@ -2,9 +2,11 @@ import type {
   PermissionException,
   LegacyPermissionRule,
   LegacyPermissionRuleMatcherKind,
+} from "@nervekit/contracts/permissions";
+import type {
   ProjectPermissions,
   ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/projects";
 import { deduplicatePermissionExceptions } from "@nervekit/tools";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import {

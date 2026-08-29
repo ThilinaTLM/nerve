@@ -125,7 +125,7 @@ function checkSourceImports() {
         );
       if (
         file === "packages/workbench-server/src/core/ports.ts" &&
-        specifier !== "@nervekit/contracts"
+        !specifier.startsWith("@nervekit/contracts")
       )
         fail(file, `server core ports may not import ${specifier}`);
       if (
@@ -527,7 +527,7 @@ function nervePackageName(specifier) {
 }
 
 function forbiddenRunRuntimeImport(file, specifier) {
-  if (specifier === "@nervekit/contracts") return false;
+  if (specifier.startsWith("@nervekit/contracts")) return false;
   if (specifier === "../../../core/ports.js") return false;
   if (!specifier.startsWith(".")) return true;
   return !resolvedImportPath(file, specifier).startsWith(

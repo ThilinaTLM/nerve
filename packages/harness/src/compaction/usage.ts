@@ -1,5 +1,5 @@
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
-import type { ContextUsage } from "@nervekit/contracts";
+import type { ContextUsage } from "@nervekit/contracts/models";
 import type { AgentMessage } from "../agent/contracts/index.js";
 import { buildConversationContext } from "../conversation/conversation.js";
 import type {

@@ -1,12 +1,12 @@
 import { readdir, rmdir, rm, unlink } from "node:fs/promises";
 import { join } from "node:path";
+import { createId } from "@nervekit/contracts";
 import {
-  createId,
   type StorageCleanupOperation,
   type StorageCleanupRequest,
   type StorageCleanupResult,
   type StorageCleanupTarget,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/storage";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { StoragePaths } from "../../infrastructure/storage-bootstrap/index.js";

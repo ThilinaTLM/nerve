@@ -10,7 +10,8 @@ import {
   type Provider,
 } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
-import type { AuthProviderMetadata, ModelSelection } from "@nervekit/contracts";
+import type { AuthProviderMetadata } from "@nervekit/contracts/auth";
+import type { ModelSelection } from "@nervekit/contracts/models";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import {
   PiAiCredentialStore,

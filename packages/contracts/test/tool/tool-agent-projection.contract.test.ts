@@ -7,7 +7,7 @@ import {
   toolCallTranscriptRecordSchema,
   toolMutationSummarySchema,
   validatedToolArtifactSchema,
-} from "../../src/index.js";
+} from "../../src/domains/tools/index.js";
 
 const now = "2026-08-27T00:00:00.000Z";
 const artifact = {

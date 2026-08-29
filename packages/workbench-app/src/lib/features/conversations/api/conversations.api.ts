@@ -1,11 +1,11 @@
+import type { ContextUsage } from "@nervekit/contracts/models";
 import type {
-  ContextUsage,
   ConversationEntry,
   ConversationRecord,
   ConversationSnapshot,
-  SnapshotCursor,
   UpdateConversationStateRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import type { SnapshotCursor } from "@nervekit/contracts/snapshots";
 import { protocolRequest } from "@nervekit/protocol";
 
 export type ConversationSnapshotWithCursor = {

@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type {
-  ApplicationLogQueryResponse,
-  StatusResponse,
-} from "@nervekit/contracts";
+import type { ApplicationLogQueryResponse } from "@nervekit/contracts/logs";
+import type { StatusResponse } from "@nervekit/contracts/status";
 import { createAuthenticatedApp } from "../../helpers/server-routes.js";
 
 describe("application logging gate", () => {

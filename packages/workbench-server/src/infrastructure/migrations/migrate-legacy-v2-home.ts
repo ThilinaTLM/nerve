@@ -14,8 +14,8 @@ import {
   homeMigrationReportSchema,
   type HomeMigrationProgress,
   type HomeMigrationReport,
-  type ToolResultPayloadReference,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/storage";
+import { type ToolResultPayloadReference } from "@nervekit/contracts/tools";
 import { backup, DatabaseSync } from "node:sqlite";
 import { ToolResultPayloadStore } from "../../domains/tools/artifacts/tool-result-payload-store.js";
 import {

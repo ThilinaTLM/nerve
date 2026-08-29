@@ -1,9 +1,9 @@
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
-  AgentRecord,
   ConversationEntry,
   ConversationRecord,
-  ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { escapeHtml } from "../../../adapters/http/html.js";
 
 export interface ExportedConversationBundle {

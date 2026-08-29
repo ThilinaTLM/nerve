@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { LatestRelease } from "@nervekit/contracts";
+import type { LatestRelease } from "@nervekit/contracts/status";
 import Check from "@lucide/svelte/icons/check";
 import Copy from "@lucide/svelte/icons/copy";
 import { Button } from "@nervekit/ui-kit/components/ui/button";

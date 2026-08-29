@@ -2,7 +2,7 @@ import {
   piModelConfigSchema,
   supportedThinkingLevelsForPiModel,
   type PiModelConfig,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/providers";
 import type { ModelDefinition } from "$lib/api";
 
 export const DEFAULT_MODEL_JSON = JSON.stringify(

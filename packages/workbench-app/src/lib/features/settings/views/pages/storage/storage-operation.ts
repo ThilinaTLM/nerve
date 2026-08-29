@@ -1,4 +1,4 @@
-import type { StorageCleanupOperation } from "@nervekit/contracts";
+import type { StorageCleanupOperation } from "@nervekit/contracts/storage";
 
 /**
  * Cleanup updates arrive from both polling and events, so an out-of-order

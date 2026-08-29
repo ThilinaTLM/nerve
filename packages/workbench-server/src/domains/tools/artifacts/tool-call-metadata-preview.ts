@@ -1,7 +1,7 @@
 import type {
   ToolCallRecord,
   ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 
 const CREDENTIAL_URL = /^[a-z][a-z0-9+.-]*:\/\/[^/\s]*@/i;
 

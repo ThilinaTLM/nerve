@@ -2,7 +2,7 @@ import {
   relativePathForDisplay,
   resolveDisplayPath,
 } from "@nervekit/ui-kit/display/path-links";
-import type { CoreToolName } from "@nervekit/contracts";
+import type { CoreToolName } from "@nervekit/contracts/tools";
 import type { MetaItem, PrimaryArg } from "../views/tool-presentation-types";
 import type { ToolArgumentSource } from "./argument-source";
 import { COLLAPSED_LINES } from "../views/tool-view-helpers";

@@ -2,7 +2,7 @@ import { isAbsolute } from "node:path";
 import {
   FILE_COMPLETION_RESULT_LIMIT,
   type CompletionItem,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/completions";
 import type { FileCompletionCandidate } from "./file-completion-candidates.js";
 
 export const defaultCompletionLimit = FILE_COMPLETION_RESULT_LIMIT;

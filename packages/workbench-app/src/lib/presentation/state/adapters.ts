@@ -1,6 +1,11 @@
 /* eslint-disable max-lines -- Shared reducer covers the full live conversation event surface. */
 import {
   assertTransition,
+  EventEnvelope,
+  type NotifyEvent,
+  toolCallTransitions,
+} from "@nervekit/contracts/events";
+import {
   conversationEventTypes,
   conversationLiveEventTypes,
   type ConversationActiveRunSnapshot,
@@ -34,14 +39,11 @@ import {
   ConversationRunSuspendedData,
   ConversationSnapshot,
   ConversationToolCallUpdatedData,
-  EventEnvelope,
-  type NotifyEvent,
   LIVE_TOOL_OUTPUT_MAX_CHARS,
   LIVE_TOOL_OUTPUT_MAX_CHUNKS,
-  QueuedPromptRecord,
-  ToolCallTranscriptRecord,
-  toolCallTransitions,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import { QueuedPromptRecord } from "@nervekit/contracts/agents";
+import { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import {
   drainMaterializedActiveRunMessages,
   materializedLiveMessagesFromEntries,

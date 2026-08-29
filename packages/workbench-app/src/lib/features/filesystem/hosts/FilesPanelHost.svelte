@@ -13,10 +13,8 @@ import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { ProjectEditor, ProjectRecord, StatusResponse } from "$lib/api";
-import type {
-  FilesystemProjectEntry,
-  GitProjectFileStatus,
-} from "@nervekit/contracts";
+import type { FilesystemProjectEntry } from "@nervekit/contracts/filesystem";
+import type { GitProjectFileStatus } from "@nervekit/contracts/git";
 import ContextMenuList, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/composites/context-menu-list";

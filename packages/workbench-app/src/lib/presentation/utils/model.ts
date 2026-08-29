@@ -1,8 +1,5 @@
-import type {
-  AuthProviderMetadata,
-  ModelInfo,
-  ModelSelection,
-} from "@nervekit/contracts";
+import type { AuthProviderMetadata } from "@nervekit/contracts/auth";
+import type { ModelInfo, ModelSelection } from "@nervekit/contracts/models";
 
 export function modelKey(model: { provider: string; modelId: string }): string {
   return `${model.provider}:${model.modelId}`;

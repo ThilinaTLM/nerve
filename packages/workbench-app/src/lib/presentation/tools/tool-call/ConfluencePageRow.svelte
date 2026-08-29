@@ -1,7 +1,7 @@
 <script lang="ts">
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import FileText from "@lucide/svelte/icons/file-text";
-import type { ConfluencePageSummaryPayload } from "@nervekit/contracts";
+import type { ConfluencePageSummaryPayload } from "@nervekit/contracts/tools";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import {
   confluencePageUrl,

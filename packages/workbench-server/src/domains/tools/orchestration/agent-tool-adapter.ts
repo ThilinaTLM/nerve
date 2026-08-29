@@ -10,13 +10,13 @@ import {
   resolveToolAvailability,
   toolDefinitionsByGroup,
 } from "@nervekit/tools";
+import { type AgentRecord } from "@nervekit/contracts/agents";
 import {
-  type AgentRecord,
   type ToolCallRecord,
   type ToolName,
   type UserConfigurableToolName,
   type ValidatedToolArtifact,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import type { ToolAnchor } from "../../runs/runtime/conversation-runtime.js";
 import type { ToolService } from "../execution/tool-service.js";
 import { projectToolCallResult } from "../artifacts/tool-result-projector.js";

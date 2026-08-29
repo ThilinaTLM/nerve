@@ -1,6 +1,6 @@
 <script lang="ts">
 import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
-import type { GithubPrCommitsResponse } from "@nervekit/contracts";
+import type { GithubPrCommitsResponse } from "@nervekit/contracts/git";
 import GitHubPrSection from "./GitHubPrSection.svelte";
 import { formatPrDate } from "./pr-pane-helpers";
 

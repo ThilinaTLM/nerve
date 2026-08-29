@@ -1,4 +1,7 @@
-import { type ScratchNote, scratchNoteSchema } from "@nervekit/contracts";
+import {
+  type ScratchNote,
+  scratchNoteSchema,
+} from "@nervekit/contracts/scratch-notes";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 
 export class ScratchNoteRepository {

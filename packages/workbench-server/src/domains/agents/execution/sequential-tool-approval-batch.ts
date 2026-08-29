@@ -4,11 +4,8 @@ import type {
   RunExecutionSink,
   WaitCommand,
 } from "../../runs/runtime/index.js";
-import {
-  toolNameSchema,
-  type AgentRecord,
-  type ToolCallRecord,
-} from "@nervekit/contracts";
+import { toolNameSchema, type ToolCallRecord } from "@nervekit/contracts/tools";
+import { type AgentRecord } from "@nervekit/contracts/agents";
 import { toToolCallTranscriptRecord } from "../../tools/artifacts/tool-call-transcript-preview.js";
 import type { WorkbenchAgentMechanics } from "./workbench-agent-mechanics.js";
 import { recordFromUnknown } from "./harness-execution-shared.js";

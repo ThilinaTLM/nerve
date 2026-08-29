@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
-import type { ProjectRecord } from "@nervekit/contracts";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { ProjectPermissionsRepository } from "../../../src/domains/permissions/project-permissions.repository.js";
 import { ProjectRepository } from "../../../src/domains/projects/project.repository.js";
 import { PermissionExceptionService } from "../../../src/domains/permissions/permission-exceptions.service.js";

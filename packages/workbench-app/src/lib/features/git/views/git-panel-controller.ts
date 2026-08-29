@@ -3,7 +3,7 @@ import type {
   GitFileChange,
   GithubPr,
   GitStashArea,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import type {
   GitPanelActions,
   GitPanelModel,

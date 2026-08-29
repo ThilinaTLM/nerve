@@ -1,4 +1,4 @@
-import type { GitMutationResponse } from "@nervekit/contracts";
+import type { GitMutationResponse } from "@nervekit/contracts/git";
 import { GitService } from "@nervekit/tools";
 
 const mutationReasons = {

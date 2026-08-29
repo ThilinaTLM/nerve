@@ -1,4 +1,4 @@
-import type { TaskRecord } from "@nervekit/contracts";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 
 const terminalStatuses = new Set<TaskRecord["status"]>([
   "completed",

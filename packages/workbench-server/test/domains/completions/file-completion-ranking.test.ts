@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { FILE_COMPLETION_RESULT_LIMIT } from "@nervekit/contracts";
+import { FILE_COMPLETION_RESULT_LIMIT } from "@nervekit/contracts/completions";
 import { candidateFromPath } from "../../../src/domains/completions/file-completion-candidates.js";
 import {
   completeFileCandidates,

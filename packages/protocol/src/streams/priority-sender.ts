@@ -1,4 +1,4 @@
-import type { NerveMessage } from "@nervekit/contracts";
+import type { NerveMessage } from "@nervekit/contracts/wire";
 
 export type OutboundPriority = "control" | "replay" | "live";
 

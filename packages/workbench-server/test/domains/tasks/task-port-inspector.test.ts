@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import { describe, it } from "node:test";
-import type { TaskRuntime } from "@nervekit/contracts";
+import type { TaskRuntime } from "@nervekit/contracts/tasks";
 import {
   inspectConfiguredPort,
   inspectRuntimeListeningPorts,

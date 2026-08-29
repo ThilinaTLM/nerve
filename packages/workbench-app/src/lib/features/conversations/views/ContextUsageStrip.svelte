@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import type { ContextUsage } from "@nervekit/contracts";
+import type { ContextUsage } from "@nervekit/contracts/models";
 import { cn } from "@nervekit/ui-kit/utils";
 import { formatTokens, usageTone } from "@nervekit/ui-kit/display/usage";
 

@@ -1,4 +1,4 @@
-import type { ApplicationLogLevel } from "@nervekit/contracts";
+import type { ApplicationLogLevel } from "@nervekit/contracts/logs";
 
 type ClientLog = {
   level: ApplicationLogLevel;

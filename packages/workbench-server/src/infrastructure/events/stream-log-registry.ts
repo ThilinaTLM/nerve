@@ -1,15 +1,15 @@
 import { join } from "node:path";
+import { createId } from "@nervekit/contracts";
 import {
-  createId,
   type EventEnvelope,
   type NotifyEvent,
-  type StreamState,
   WORKSPACE_STREAM,
   parseConversationStream,
   publicEventDefinition,
   streamForEvent,
   validatePublicEvent,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/events";
+import { type StreamState } from "@nervekit/contracts/wire";
 import type { RenameDependencies } from "../storage-bootstrap/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import type { CanonicalStore } from "../persistence/canonical-sqlite/index.js";

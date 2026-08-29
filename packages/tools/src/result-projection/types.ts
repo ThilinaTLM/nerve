@@ -8,7 +8,7 @@ import type {
   ToolCallStatus,
   ToolPhase,
   ValidatedToolArtifact,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 
 export type ProjectableBlock =
   | { type: "text"; text: string }

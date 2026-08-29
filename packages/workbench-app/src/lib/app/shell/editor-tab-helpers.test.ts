@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { TaskRecord } from "@nervekit/contracts";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 import type { CenterTabModel } from "$lib/application/workspace";
 import { statusLabel, tabLabel, tabTitle } from "./editor-tab-helpers.js";
 

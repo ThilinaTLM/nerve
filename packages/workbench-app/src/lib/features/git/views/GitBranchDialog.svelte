@@ -3,7 +3,7 @@ import Check from "@lucide/svelte/icons/check";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Info from "@lucide/svelte/icons/info";
 import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
-import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts";
+import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts/git";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Button } from "@nervekit/ui-kit/components/ui/button";

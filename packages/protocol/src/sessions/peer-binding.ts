@@ -1,4 +1,4 @@
-import type { PeerDescriptor } from "@nervekit/contracts";
+import type { PeerDescriptor } from "@nervekit/contracts/wire";
 
 export function samePeer(left: PeerDescriptor, right: PeerDescriptor): boolean {
   return left.role === right.role && left.id === right.id;

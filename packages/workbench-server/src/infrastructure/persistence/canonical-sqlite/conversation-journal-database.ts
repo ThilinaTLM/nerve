@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { ConversationRecord } from "@nervekit/contracts";
+import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import type {
   ConversationPersistenceDelta,
   MaterializedConversationRecord,

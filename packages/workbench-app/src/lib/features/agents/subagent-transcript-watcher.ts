@@ -1,4 +1,4 @@
-import type { EventEnvelope } from "@nervekit/contracts";
+import type { EventEnvelope } from "@nervekit/contracts/events";
 import {
   isSequencedEvent,
   onAnyEvent,
@@ -6,7 +6,7 @@ import {
 import type { SubagentTranscriptObserver } from "$lib/presentation/context.svelte";
 import { getSubagentTranscript } from "./api/subagent-transcripts.api";
 import type { WorkbenchEventHandler } from "$lib/application/events/event-bus";
-import type { SubagentTranscriptSnapshot } from "@nervekit/contracts";
+import type { SubagentTranscriptSnapshot } from "@nervekit/contracts/agents";
 
 const TRANSCRIPT_PREFIX = "agent.subagent_transcript.";
 const TERMINAL_EVENT = "agent.subagent_transcript.run.completed";

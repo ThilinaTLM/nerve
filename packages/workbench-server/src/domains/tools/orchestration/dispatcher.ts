@@ -15,17 +15,16 @@ import {
   type ToolHandlerRegistry,
   toolDefinitionByName,
 } from "@nervekit/tools";
+import { type AgentRecord } from "@nervekit/contracts/agents";
+import { type Mode } from "@nervekit/contracts/settings";
 import {
-  type AgentRecord,
-  type Mode,
   taskControlToolResultSchema,
   taskStartToolResultSchema,
   taskStatusToolResultSchema,
-  type TaskRecord,
-  type TaskStatus,
   type ToolCallRecord,
   type ToolName,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import { type TaskRecord, type TaskStatus } from "@nervekit/contracts/tasks";
 import type { ConversationRuntime } from "../../runs/runtime/conversation-runtime.js";
 import {
   createHostToolFactory,

@@ -7,7 +7,7 @@ import test from "node:test";
 import type {
   ConversationEntry,
   ConversationRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
 import { PerformanceMetricsCollector } from "../../../src/infrastructure/diagnostics/performance-metrics.js";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
 

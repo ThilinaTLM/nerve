@@ -1,6 +1,6 @@
 <script lang="ts">
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
-import type { ContextUsage } from "@nervekit/contracts";
+import type { ContextUsage } from "@nervekit/contracts/models";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import Popover, {

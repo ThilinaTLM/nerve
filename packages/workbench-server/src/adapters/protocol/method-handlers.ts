@@ -1,4 +1,4 @@
-import type { OperationName } from "@nervekit/contracts";
+import type { OperationName } from "@nervekit/contracts/operations";
 import type { WorkbenchState } from "../../app/runtime/server-runtime.js";
 import {
   createWorkbenchMethodRegistry,

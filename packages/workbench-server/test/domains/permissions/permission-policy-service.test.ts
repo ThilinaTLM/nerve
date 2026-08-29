@@ -3,7 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
-import type { AgentRecord, ProjectRecord } from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { PermissionPolicyService } from "../../../src/domains/permissions/permission-policy.service.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 

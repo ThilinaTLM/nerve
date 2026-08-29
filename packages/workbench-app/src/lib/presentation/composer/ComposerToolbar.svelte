@@ -9,11 +9,13 @@ import Zap from "@lucide/svelte/icons/zap";
 import type {
   ContextUsage,
   ModelInfo,
+  ThinkingLevel,
+} from "@nervekit/contracts/models";
+import type {
   PermissionRuleSetId,
   PermissionRuleSetSummary,
-  ThinkingLevel,
-  TodoItem,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
+import type { TodoItem } from "@nervekit/contracts/tools";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Popover, {
   PopoverBody,

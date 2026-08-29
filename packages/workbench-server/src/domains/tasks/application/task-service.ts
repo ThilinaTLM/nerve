@@ -6,7 +6,7 @@ import type {
   TaskLogQueryResponse,
   TaskOutputRetention,
   TaskRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
 import type { ToolExecutionOutputUpdate } from "@nervekit/tools";
 import type {
   ClockPort,

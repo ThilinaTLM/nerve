@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { FilesystemProjectEntry } from "@nervekit/contracts";
+import type { FilesystemProjectEntry } from "@nervekit/contracts/filesystem";
 import {
   absoluteProjectPath,
   buildFileExplorerMenu,

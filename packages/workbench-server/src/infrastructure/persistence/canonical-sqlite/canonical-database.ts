@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { ConversationJournalCommit } from "@nervekit/contracts";
+import type { ConversationJournalCommit } from "@nervekit/contracts/conversations";
 import {
   deserializeState,
   materializeConversationRecords,

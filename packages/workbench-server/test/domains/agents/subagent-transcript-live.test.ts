@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { AgentHarnessEvent } from "@nervekit/harness";
-import type { AgentRecord } from "@nervekit/contracts";
-import { conversationStream } from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
+import { conversationStream } from "@nervekit/contracts/events";
 import { SubagentTranscriptLiveService } from "../../../src/domains/agents/subagent-transcript-live.service.js";
 import { StreamLogRegistry } from "../../../src/infrastructure/events/index.js";
 

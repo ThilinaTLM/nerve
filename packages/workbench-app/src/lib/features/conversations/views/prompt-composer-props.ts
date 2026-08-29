@@ -1,8 +1,8 @@
 import type {
   PermissionRuleSetId,
   PermissionRuleSetSummary,
-  TodoItem,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
+import type { TodoItem } from "@nervekit/contracts/tools";
 import type {
   AgentRecord,
   ApprovalWithToolCall,

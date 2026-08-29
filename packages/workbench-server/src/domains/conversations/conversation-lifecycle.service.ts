@@ -4,8 +4,8 @@ import {
   type ConversationTree,
   type CreateConversationRequest,
   type UpdateConversationStateRequest,
-  createId,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import { createId } from "@nervekit/contracts";
 import type { ConversationTreeEntry } from "@nervekit/harness";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";

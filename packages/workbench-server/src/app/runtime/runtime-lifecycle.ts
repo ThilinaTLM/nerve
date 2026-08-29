@@ -3,45 +3,60 @@ import type { Message } from "@earendil-works/pi-ai";
 import { listAvailableModels } from "@nervekit/harness";
 import type {
   AgentRecord,
+  CreateAgentRequest,
+  PromptRequest,
+  UpdateAgentRequest,
+} from "@nervekit/contracts/agents";
+import type {
   CancelTaskRequest,
+  StartTaskRequest,
+  TaskLogQuery,
+} from "@nervekit/contracts/tasks";
+import type {
   CompactConversationRequest,
-  ContextUsage,
   ConversationEntry,
   ConversationRecord,
   ConversationSnapshot,
   ConversationTree,
-  CreateAgentRequest,
   CreateConversationRequest,
-  CreateProjectRequest,
-  CreateTaskDefinitionRequest,
-  CreateScratchNoteRequest,
   ImportConversationRequest,
-  ModelInfo,
   NavigateConversationRequest,
+  UpdateConversationStateRequest,
+} from "@nervekit/contracts/conversations";
+import type { ContextUsage, ModelInfo } from "@nervekit/contracts/models";
+import type {
+  CreateProjectRequest,
   OpenProjectInEditorRequest,
   OpenProjectInEditorResponse,
   OpenProjectInTerminalRequest,
   OpenProjectInTerminalResponse,
-  PlanImplementationSelection,
-  PlanReviewStatus,
-  PermissionOverlay,
-  PermissionOverlayOrigin,
   ProjectRecord,
   ProjectPermissions,
-  PromptRequest,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
+} from "@nervekit/contracts/projects";
+import type {
+  CreateTaskDefinitionRequest,
+  UpdateTaskDefinitionRequest,
+} from "@nervekit/contracts/task-definitions";
+import type {
+  CreateScratchNoteRequest,
+  UpdateScratchNoteRequest,
+} from "@nervekit/contracts/scratch-notes";
+import type {
+  PlanImplementationSelection,
+  PlanReviewStatus,
+} from "@nervekit/contracts/plans";
+import type {
+  PermissionOverlay,
+  PermissionOverlayOrigin,
+} from "@nervekit/contracts/permissions";
+import type {
   ResolveToolInteractionRequest,
-  StartTaskRequest,
-  TaskLogQuery,
   ToolName,
   ToolCallRecord,
-  UpdateAgentRequest,
-  UpdateConversationStateRequest,
-  UpdateScratchNoteRequest,
-  UpdateTaskDefinitionRequest,
   UserQuestionStatus,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import type { AuthManager } from "../../domains/auth/index.js";
 import type { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/agent-browser-skills.js";
 import type { ProviderCatalogStore } from "../../domains/providers/index.js";
@@ -930,7 +945,7 @@ export class RuntimeRegistry {
 
   async launchTaskDefinition(
     definitionId: string,
-    terminateListeners?: import("@nervekit/contracts").TaskPortConflictListener[],
+    terminateListeners?: import("@nervekit/contracts/tasks").TaskPortConflictListener[],
   ) {
     for (const project of this.listProjects()) {
       const definition = (

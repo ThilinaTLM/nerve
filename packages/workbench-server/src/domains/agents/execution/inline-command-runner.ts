@@ -3,11 +3,9 @@ import type {
   RunExecutionOutcome,
   RunExecutionSink,
 } from "../../runs/runtime/index.js";
-import {
-  type AgentRecord,
-  createId,
-  type ToolCallRecord,
-} from "@nervekit/contracts";
+import { type AgentRecord } from "@nervekit/contracts/agents";
+import { createId } from "@nervekit/contracts";
+import { type ToolCallRecord } from "@nervekit/contracts/tools";
 import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";
 import type { WorkbenchAgentMechanicsDeps } from "./workbench-agent-mechanics.js";
 import { toToolCallTranscriptRecord } from "../../tools/artifacts/tool-call-transcript-preview.js";

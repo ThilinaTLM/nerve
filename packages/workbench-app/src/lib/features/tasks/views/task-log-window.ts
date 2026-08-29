@@ -1,4 +1,7 @@
-import type { TaskLogEvent, TaskLogQueryResponse } from "@nervekit/contracts";
+import type {
+  TaskLogEvent,
+  TaskLogQueryResponse,
+} from "@nervekit/contracts/tasks";
 
 /**
  * Upper bound for the in-memory log window. Older events stay reachable through

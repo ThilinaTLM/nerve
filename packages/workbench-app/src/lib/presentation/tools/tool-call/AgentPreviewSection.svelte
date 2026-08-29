@@ -2,7 +2,7 @@
 import type {
   AgentPreviewSnapshot,
   AgentProjectionSnapshot,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 
 type Props = {

@@ -3,7 +3,7 @@ import Check from "@lucide/svelte/icons/check";
 import CircleDot from "@lucide/svelte/icons/circle-dot";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import X from "@lucide/svelte/icons/x";
-import type { GithubChecksSummary } from "@nervekit/contracts";
+import type { GithubChecksSummary } from "@nervekit/contracts/git";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { githubCheckRunOutcome } from "./github-pr-checks";

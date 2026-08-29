@@ -1,4 +1,4 @@
-import type { DaemonFile } from "@nervekit/contracts";
+import type { DaemonFile } from "@nervekit/contracts/status";
 import {
   isLoopbackHost,
   isPrivateIpv4,

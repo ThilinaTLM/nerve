@@ -1,4 +1,7 @@
-import type { TaskPortConflictListener, TaskRecord } from "@nervekit/contracts";
+import type {
+  TaskPortConflictListener,
+  TaskRecord,
+} from "@nervekit/contracts/tasks";
 
 export type TaskDefinitionLaunchOutcome =
   | {

@@ -213,7 +213,7 @@ export class CanonicalStore {
   }
   persistConversationState(
     state: import("../../../domains/conversations/conversation-state-materializer.js").SerializedConversationState,
-    commit?: import("@nervekit/contracts").ConversationJournalCommit,
+    commit?: import("@nervekit/contracts/conversations").ConversationJournalCommit,
   ) {
     return this.request<void>(
       { kind: "persist_conversation_state", state, commit },

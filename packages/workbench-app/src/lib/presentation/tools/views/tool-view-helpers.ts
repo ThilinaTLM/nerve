@@ -3,13 +3,13 @@ import {
   toolExecutionResultSchema,
   toolOutputLimitsSchema,
   truncationDetailsSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import {
   relativePathForDisplay,
   resolveDisplayPath,
 } from "@nervekit/ui-kit/display/path-links";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
-import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
+import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts/conversations";
 import type { GrepMatchView, GroupedMatches } from "./tool-view-types";
 
 /** Lines/items shown in the bounded transcript preview. */

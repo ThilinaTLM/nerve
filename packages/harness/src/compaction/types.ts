@@ -1,7 +1,7 @@
 import type {
   AutoCompactionSettings,
   CompactionProfile,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/settings";
 import type { AgentMessage } from "../agent/contracts/index.js";
 import type { FileOperations } from "./file-operations.js";
 

@@ -22,14 +22,16 @@ import {
   type ConversationJournalEvent,
   type ConversationRecord,
   type ConversationSuspensionRecord,
+} from "@nervekit/contracts/conversations";
+import {
   type RunCheckpointRecord,
   type RunEventDeliveryRecord,
   type RunInteractionRecord,
   type RunPromptRecord,
   type RunRecord,
   type RunTransitionRecord,
-  type ToolCallRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
+import { type ToolCallRecord } from "@nervekit/contracts/tools";
 
 export interface ConversationJournalState {
   conversationId: string;

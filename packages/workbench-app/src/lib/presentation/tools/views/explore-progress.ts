@@ -1,4 +1,4 @@
-import { exploreReportSummarySchema } from "@nervekit/contracts";
+import { exploreReportSummarySchema } from "@nervekit/contracts/tools";
 import { asRecord, stringField } from "./tool-view-helpers";
 import type {
   ExploreProgressView,

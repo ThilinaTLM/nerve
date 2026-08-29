@@ -1,9 +1,5 @@
 import type {
   NerveMessage,
-  NotifyEvent,
-  OperationName,
-  OperationParams,
-  OperationResult,
   PeerDescriptor,
   PeerRole,
   ProtocolLimits,
@@ -11,7 +7,13 @@ import type {
   ProtocolV1Message,
   StreamCursor,
   StreamState,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
+import type { NotifyEvent } from "@nervekit/contracts/events";
+import type {
+  OperationName,
+  OperationParams,
+  OperationResult,
+} from "@nervekit/contracts/operations";
 import type { MessageFactory } from "../messages/message-factory.js";
 import type {
   ProtocolClock,

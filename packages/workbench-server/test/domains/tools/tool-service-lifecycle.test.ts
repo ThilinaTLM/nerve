@@ -4,12 +4,12 @@ import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
-  AgentRecord,
   ToolCallRecord,
   ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
-import { defaultSettings } from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import { ToolService } from "../../../src/domains/tools/execution/tool-service.js";
 import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/index.js";
 

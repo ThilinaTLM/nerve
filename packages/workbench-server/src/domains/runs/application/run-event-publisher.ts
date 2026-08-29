@@ -1,4 +1,4 @@
-import type { RunPublicEventIntent } from "@nervekit/contracts";
+import type { RunPublicEventIntent } from "@nervekit/contracts/runs";
 import type {
   IdempotentRunEventPublisherPort,
   RunProgressEvent,

@@ -7,7 +7,7 @@ import {
   type ToolHandlerRegistry,
   type ToolLifecycleHooks,
 } from "@nervekit/tools";
-import type { ToolName } from "@nervekit/contracts";
+import type { ToolName } from "@nervekit/contracts/tools";
 
 /** Identity and scope carried by a single host tool execution. */
 export interface HostToolExecutionIdentity {

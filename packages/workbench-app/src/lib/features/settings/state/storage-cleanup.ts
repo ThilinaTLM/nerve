@@ -4,7 +4,7 @@ import {
   type StorageCleanupTarget,
   type StorageCleanupTargetUsage,
   storageCleanupUpdatedEventSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/storage";
 
 export interface StorageCleanupSelection {
   conversations: boolean;

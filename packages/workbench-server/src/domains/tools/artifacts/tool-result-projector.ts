@@ -1,7 +1,7 @@
 import type {
   ToolCallRecord,
   ValidatedToolArtifact,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import {
   projectAgentResult,
   toolDefinitionByName,

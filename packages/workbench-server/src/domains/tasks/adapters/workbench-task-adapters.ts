@@ -13,7 +13,7 @@ import type {
   StartTaskRequest,
   TaskPortConflictListener,
   TaskRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../../infrastructure/persistence/query-cache/index.js";

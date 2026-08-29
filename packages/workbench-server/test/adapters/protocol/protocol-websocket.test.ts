@@ -1,5 +1,5 @@
 import { serve } from "@hono/node-server";
-import type { ProtocolV1Message } from "@nervekit/contracts";
+import type { ProtocolV1Message } from "@nervekit/contracts/wire";
 import { ProtocolCodec, createMessageFactory } from "@nervekit/protocol";
 import assert from "node:assert/strict";
 import type { Server } from "node:http";

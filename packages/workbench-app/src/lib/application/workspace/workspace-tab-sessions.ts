@@ -1,4 +1,4 @@
-import type { GitDiffArea } from "@nervekit/contracts";
+import type { GitDiffArea } from "@nervekit/contracts/git";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import type { ConversationRecord, ProjectRecord, TaskRecord } from "$lib/api";
 import { projectKey } from "$lib/domain/projects/project-tree";

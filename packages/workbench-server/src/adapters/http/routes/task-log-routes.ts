@@ -1,4 +1,4 @@
-import { taskLogQuerySchema } from "@nervekit/contracts";
+import { taskLogQuerySchema } from "@nervekit/contracts/tasks";
 import { Hono } from "hono";
 import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
 import { HttpError } from "../errors.js";

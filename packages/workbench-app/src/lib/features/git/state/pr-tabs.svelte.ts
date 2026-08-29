@@ -1,4 +1,4 @@
-import type { GithubPr, GithubPrMergeMethod } from "@nervekit/contracts";
+import type { GithubPr, GithubPrMergeMethod } from "@nervekit/contracts/git";
 import { prViewKey } from "$lib/domain/navigation/view-keys";
 import {
   demandPrTab,

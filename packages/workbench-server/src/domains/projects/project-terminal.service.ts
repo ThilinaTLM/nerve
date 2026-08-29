@@ -4,12 +4,12 @@ import {
   type ResolvedExecutable,
   spawnExecutable,
 } from "@nervekit/tools";
+import type { ExternalTerminalStatus } from "@nervekit/contracts/status";
 import type {
-  ExternalTerminalStatus,
   OpenProjectInTerminalRequest,
   OpenProjectInTerminalResponse,
   ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../core/application-error.js";
 import { resolveProjectLaunchTarget } from "./project-launch-target.js";
 

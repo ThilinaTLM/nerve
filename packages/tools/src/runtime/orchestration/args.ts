@@ -2,7 +2,7 @@ import { ToolValidationError } from "../types.js";
 import {
   EXPLORE_MAX_CHILDREN_PER_RUN,
   EXPLORE_MAX_TASKS_PER_CALL,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/agents";
 
 export type TodoItem = { todo: string; done: boolean };
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ValidatedToolArtifact } from "@nervekit/contracts";
+import type { ValidatedToolArtifact } from "@nervekit/contracts/tools";
 import type { CandidateContext } from "../../src/index.js";
 import { formatWebFetchCandidateText } from "../../src/result-projection/candidates/web.js";
 import {

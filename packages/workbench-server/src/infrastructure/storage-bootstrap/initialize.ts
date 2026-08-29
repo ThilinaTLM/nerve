@@ -1,15 +1,15 @@
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { type DaemonFile } from "@nervekit/contracts/status";
+import { type DaemonStartupProgress } from "@nervekit/contracts/storage";
 import {
-  type DaemonFile,
-  type DaemonStartupProgress,
   defaultSettings,
   NERVE_HOME_MANIFEST,
   type Settings,
   settingsSchema,
   type UpdateSettingsRequest,
   type UserConfiguration,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/settings";
 import { atomicWriteJson, pathExists, writeTextFileIfMissing } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
 import { CanonicalStore } from "../persistence/canonical-sqlite/index.js";

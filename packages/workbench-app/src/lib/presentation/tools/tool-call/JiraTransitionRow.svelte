@@ -1,6 +1,6 @@
 <script lang="ts">
 import ArrowRight from "@lucide/svelte/icons/arrow-right";
-import type { JiraTransitionSummaryPayload } from "@nervekit/contracts";
+import type { JiraTransitionSummaryPayload } from "@nervekit/contracts/tools";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { jiraStatusTone } from "../views/jira-display";
 

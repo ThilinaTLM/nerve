@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { RunRecord } from "@nervekit/contracts";
+import type { RunRecord } from "@nervekit/contracts/runs";
 import type { ToolTerminationOutcome } from "../../../src/domains/tools/execution/tool-termination.js";
 import { WorkbenchRunTerminalization } from "../../../src/domains/runs/adapters/workbench-run-terminalization.js";
 

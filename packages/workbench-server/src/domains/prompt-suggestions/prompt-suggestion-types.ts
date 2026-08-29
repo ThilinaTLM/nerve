@@ -1,15 +1,17 @@
+import type { AgentRecord } from "@nervekit/contracts/agents";
+import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import type {
-  AgentRecord,
-  ConversationRecord,
   GitDiscoveryResponse,
   GithubStatusResponse,
   GitRepoSummary,
-  Mode,
-  PermissionLevel,
-  ProjectRecord,
+} from "@nervekit/contracts/git";
+import type { Mode } from "@nervekit/contracts/settings";
+import type { PermissionLevel } from "@nervekit/contracts/permissions";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type {
   PromptSuggestionSourceKind,
   PromptSuggestionWhen,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/prompt-suggestions";
 
 export type PromptSuggestionDiagnosticCode =
   | "list_failed"

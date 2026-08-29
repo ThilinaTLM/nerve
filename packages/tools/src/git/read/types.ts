@@ -2,7 +2,7 @@ import type {
   GitFileChange,
   GitRecentCommit,
   GitStashEntry,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import type {
   NativeGitDocumentSource,
   NativeGitFileDiff,

@@ -1,9 +1,6 @@
-import type {
-  AgentRecord,
-  ConversationRunRetrySnapshot,
-  RunRecord,
-  RunTransitionRecord,
-} from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
+import type { ConversationRunRetrySnapshot } from "@nervekit/contracts/conversations";
+import type { RunRecord, RunTransitionRecord } from "@nervekit/contracts/runs";
 import {
   isTerminalRunStatus,
   type RunHydratedState,

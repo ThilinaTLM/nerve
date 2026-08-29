@@ -1,4 +1,4 @@
-import type { PromptSuggestionTrustStatus } from "@nervekit/contracts";
+import type { PromptSuggestionTrustStatus } from "@nervekit/contracts/prompt-suggestions";
 import { z } from "zod";
 import { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/index.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";

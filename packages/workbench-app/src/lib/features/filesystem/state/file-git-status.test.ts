@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { GitProjectFileStatus } from "@nervekit/contracts";
+import type { GitProjectFileStatus } from "@nervekit/contracts/git";
 import {
   fileGitDecoration,
   fileTreeGitDecoration,

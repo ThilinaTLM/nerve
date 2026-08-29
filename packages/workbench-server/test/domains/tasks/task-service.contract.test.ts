@@ -6,7 +6,7 @@ import {
   type TaskProcessCallbacks,
   type TaskServicePorts,
 } from "../../../src/domains/tasks/application/task-service.js";
-import type { TaskRecord } from "@nervekit/contracts";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 
 function fixture(
   options: {

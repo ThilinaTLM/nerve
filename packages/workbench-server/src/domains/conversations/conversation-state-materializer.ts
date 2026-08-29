@@ -5,8 +5,8 @@ import type {
   ConversationJournalCommit,
   ConversationRecord,
   ConversationSuspensionRecord,
-  ToolCallRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import {
   ConversationTreeState,
   type ConversationTreeEntry,

@@ -4,12 +4,12 @@ import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type {
-  ConversationEntry,
   RunEventDeliveryRecord,
   RunPromptRecord,
   RunRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
 import {
   buildTransition,
   RunRevisionConflictError,
