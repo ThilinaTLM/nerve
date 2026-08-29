@@ -1,4 +1,4 @@
-import { GitService } from "@nervekit/tools";
+import { GitService } from "@nervekit/tools/git";
 import type { GitRepositoryWatcher } from "./git-repository-watcher.js";
 
 /** Registers repositories for native invalidation before reading an overview. */

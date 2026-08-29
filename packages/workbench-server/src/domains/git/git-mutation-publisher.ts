@@ -1,5 +1,5 @@
 import type { GitMutationResponse } from "@nervekit/contracts/git";
-import { GitService } from "@nervekit/tools";
+import { GitService } from "@nervekit/tools/git";
 
 const mutationReasons = {
   createBranch: "branch.created",

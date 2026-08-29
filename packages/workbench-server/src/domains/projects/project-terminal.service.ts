@@ -3,7 +3,7 @@ import {
   locateExecutable,
   type ResolvedExecutable,
   spawnExecutable,
-} from "@nervekit/tools";
+} from "@nervekit/tools/execution";
 import type { ExternalTerminalStatus } from "@nervekit/contracts/status";
 import type {
   OpenProjectInTerminalRequest,

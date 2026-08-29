@@ -11,7 +11,7 @@ import {
   resolveToolAvailability,
   type TodoItem,
   ToolRuntimeError,
-} from "../../src/index.js";
+} from "../../src/runtime/index.js";
 
 describe("shared tool runtime contract", () => {
   it("dispatches local and host tools with preparation, output, and lifecycle", async () => {

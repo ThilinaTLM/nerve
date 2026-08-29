@@ -1,13 +1,15 @@
 import { SvelteURL } from "svelte/reactivity";
+import { createMessageFactory } from "@nervekit/protocol";
 import {
-  browserWebSocketTransportFactory,
-  createMessageFactory,
   ProtocolClientConnection,
   ProtocolClientSession,
+  type ProtocolClientConnectionState,
+} from "@nervekit/protocol/client";
+import {
+  browserWebSocketTransportFactory,
   protocolClientId,
   protocolInstanceId,
-  type ProtocolClientConnectionState,
-} from "@nervekit/protocol";
+} from "@nervekit/protocol/adapters";
 import { parseConversationStream } from "@nervekit/contracts/events";
 import {
   STREAM_SUBSCRIPTION_CAPABILITY,

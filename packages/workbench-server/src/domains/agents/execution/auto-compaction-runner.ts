@@ -1,13 +1,13 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
 import {
   computeContextUsage,
-  type Conversation,
   deriveAutoCompactionPolicy,
   estimateTokens,
   getCompactionDecisionTokens,
-  getModelContextWindow,
   shouldAutoCompact,
-} from "@nervekit/harness";
+} from "@nervekit/harness/compaction";
+import { type Conversation } from "@nervekit/harness/conversation";
+import { getModelContextWindow } from "@nervekit/harness/models";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ContextUsage } from "@nervekit/contracts/models";
 import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";

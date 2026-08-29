@@ -1,4 +1,4 @@
-import type { AgentCustomModel } from "@nervekit/harness";
+import type { AgentCustomModel } from "@nervekit/harness/models";
 import {
   type CustomProvider,
   type ModelDefinition,

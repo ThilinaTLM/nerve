@@ -10,7 +10,7 @@ import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import {
   ConversationTreeState,
   type ConversationTreeEntry,
-} from "@nervekit/harness";
+} from "@nervekit/harness/conversation";
 import { encode } from "../../infrastructure/persistence/canonical-sqlite/payload-codecs.js";
 import type {
   ConversationJournalState,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { evaluateToolPermission } from "../../src/index.js";
+import { evaluateToolPermission } from "../../src/policy/index.js";
 
 const supervised = { permissionLevel: "supervised" as const };
 

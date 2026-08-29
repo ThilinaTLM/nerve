@@ -6,7 +6,7 @@ import {
   type UpdateConversationStateRequest,
 } from "@nervekit/contracts/conversations";
 import { createId } from "@nervekit/contracts";
-import type { ConversationTreeEntry } from "@nervekit/harness";
+import type { ConversationTreeEntry } from "@nervekit/harness/conversation";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";

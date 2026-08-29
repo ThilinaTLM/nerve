@@ -1,15 +1,17 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   type AgentCustomModel,
-  type AgentHarness,
-  Conversation,
+  getModelContextWindow,
+  resolveAgentModel,
+} from "@nervekit/harness/models";
+import { type AgentHarness } from "@nervekit/harness";
+import { Conversation } from "@nervekit/harness/conversation";
+import {
   calculateContextTokens,
   deriveAutoCompactionPolicy,
-  getModelContextWindow,
   isContextOverflowAssistantMessage,
-  resolveAgentModel,
-} from "@nervekit/harness";
-import type { ToolExecutionResult } from "@nervekit/tools";
+} from "@nervekit/harness/compaction";
+import type { ToolExecutionResult } from "@nervekit/tools/execution";
 import type {
   RunExecutionOutcome,
   RunExecutionSink,

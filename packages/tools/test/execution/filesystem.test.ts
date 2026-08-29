@@ -6,7 +6,7 @@ import { DEFAULT_MAX_BYTES } from "../../src/execution/output/truncate.js";
 import { executeLs } from "../../src/execution/filesystem/list.js";
 import { executeRead } from "../../src/execution/filesystem/read.js";
 import { executeWrite } from "../../src/execution/filesystem/write.js";
-import { createTempProject } from "../helpers.js";
+import { createTempProject } from "../support/project-fixtures.js";
 
 describe("filesystem executors", () => {
   it("reads full files and line windows with continuation markers", async () => {

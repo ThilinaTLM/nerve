@@ -6,7 +6,11 @@ import { executeFind } from "../../src/execution/filesystem/find.js";
 import { executeGrep } from "../../src/execution/filesystem/search.js";
 import { executeFindWithBackend } from "../../src/execution/filesystem/find.js";
 import { executeGrepWithBackend } from "../../src/execution/filesystem/search.js";
-import { createTempProject, withPath, writeExecutable } from "../helpers.js";
+import {
+  createTempProject,
+  withPath,
+  writeExecutable,
+} from "../support/project-fixtures.js";
 import { createSearchFindFixture } from "../search-find-fixtures.js";
 
 function requireExecutableFixtures(t: TestContext): boolean {

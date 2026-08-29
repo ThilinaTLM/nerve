@@ -3,7 +3,7 @@ import {
   type OperationName,
   type OperationParams,
 } from "@nervekit/contracts/operations";
-import type { OperationHandlerRegistry } from "@nervekit/protocol";
+import type { OperationHandlerRegistry } from "@nervekit/protocol/server";
 import type { WorkbenchState } from "../../app/runtime/server-runtime.js";
 
 type MaybePromise<T> = T | Promise<T>;

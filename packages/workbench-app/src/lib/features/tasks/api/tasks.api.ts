@@ -7,7 +7,7 @@ import type {
   TaskRecord,
 } from "@nervekit/contracts/tasks";
 import { apiGet, apiPathSegment } from "$lib/platform/http/api-client";
-import { protocolRequest } from "@nervekit/protocol";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export async function getTaskLogs(
   taskId: string,

@@ -10,7 +10,7 @@ import type {
 import {
   buildConversationContext,
   type ConversationTreeEntry,
-} from "@nervekit/harness";
+} from "@nervekit/harness/conversation";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
 import { EntryRepository } from "../../../src/domains/conversations/entry.repository.js";
 

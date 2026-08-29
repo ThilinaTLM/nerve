@@ -35,7 +35,7 @@ import {
   writeJiraArtifact,
 } from "./format.js";
 import { boundedNumber } from "../atlassian/arguments.js";
-import { rawOptionalRecord } from "./helpers.js";
+import { rawOptionalRecord } from "./issue-fields.js";
 import { estimateQuery, past, safeFilename } from "./resource-arguments.js";
 
 const DEFAULT_ISSUE_FIELDS = [

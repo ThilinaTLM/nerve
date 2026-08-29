@@ -8,7 +8,7 @@ import type {
 import type {
   EffectivePermissionPolicy,
   PermissionRootPaths,
-} from "@nervekit/tools";
+} from "@nervekit/tools/policy";
 
 export interface WorkbenchPermissionContext {
   dataDir: string;

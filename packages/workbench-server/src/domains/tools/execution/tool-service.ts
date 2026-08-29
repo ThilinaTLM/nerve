@@ -1,13 +1,12 @@
 /* eslint-disable max-lines -- Tool lifecycle orchestration remains centralized pending a follow-up service split. */
 import { realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { allToolDescriptors, toolRiskForName } from "@nervekit/tools/catalog";
 import {
-  allToolDescriptors,
   type ExplainImageRequest,
   type ExplainImageResponse,
-  toolRiskForName,
-  type PermissionRootPaths,
-} from "@nervekit/tools";
+} from "@nervekit/tools/execution";
+import { type PermissionRootPaths } from "@nervekit/tools/policy";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import {
   type ApprovalRecord,

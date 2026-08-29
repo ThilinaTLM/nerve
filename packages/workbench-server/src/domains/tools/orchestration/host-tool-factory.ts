@@ -2,11 +2,13 @@ import {
   createToolDispatcher,
   type ToolDecision,
   type ToolDispatcher,
-  type ToolExecutionContext,
-  type ToolExecutionResult,
   type ToolHandlerRegistry,
   type ToolLifecycleHooks,
-} from "@nervekit/tools";
+} from "@nervekit/tools/runtime";
+import {
+  type ToolExecutionContext,
+  type ToolExecutionResult,
+} from "@nervekit/tools/execution";
 import type { ToolName } from "@nervekit/contracts/tools";
 
 /** Identity and scope carried by a single host tool execution. */

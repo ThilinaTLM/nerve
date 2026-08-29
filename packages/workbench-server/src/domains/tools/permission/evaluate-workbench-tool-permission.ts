@@ -14,8 +14,8 @@ import {
   evaluateToolPermission,
   evaluateToolSupervision,
   normalizePermissionRequest,
-  permissionMetadataForTool,
-} from "@nervekit/tools";
+} from "@nervekit/tools/policy";
+import { permissionMetadataForTool } from "@nervekit/tools/catalog";
 import { planningModeGuardrails } from "./planning-mode-guardrails.js";
 import { toolRequestContext } from "./tool-request-context.js";
 import type {

@@ -4,8 +4,8 @@ import type {
   IdempotencyExecution,
   IdempotencyOutcome,
   IdempotencyStorePort,
-} from "@nervekit/protocol";
-import { hashParams } from "@nervekit/protocol";
+} from "@nervekit/protocol/rpc";
+import { hashParams } from "@nervekit/protocol/rpc";
 import { z } from "zod";
 import { retryRename } from "../../infrastructure/storage-bootstrap/file-mutations.js";
 import { atomicWriteJson } from "../../infrastructure/storage-bootstrap/json.js";

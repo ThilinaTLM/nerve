@@ -5,11 +5,8 @@ import {
   type NerveMessage,
   type ProtocolV1Message,
 } from "@nervekit/contracts/wire";
-import {
-  ProtocolServerSession,
-  createMessageFactory,
-  type ProtocolTimers,
-} from "../../src/index.js";
+import { createMessageFactory, type ProtocolTimers } from "../../src/index.js";
+import { ProtocolServerSession } from "../../src/server.js";
 
 class FakeTimers implements ProtocolTimers {
   readonly intervals: Array<() => void> = [];

@@ -1,5 +1,5 @@
 import type { SubagentTranscriptSnapshot } from "@nervekit/contracts/agents";
-import { protocolRequest } from "@nervekit/protocol";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export async function getSubagentTranscript(
   parentAgentId: string,

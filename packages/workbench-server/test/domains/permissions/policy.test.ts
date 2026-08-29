@@ -11,7 +11,7 @@ import type {
 import {
   builtInPermissionRuleSet,
   composeEffectivePermissionPolicy,
-} from "@nervekit/tools";
+} from "@nervekit/tools/policy";
 import { evaluateWorkbenchToolPermission } from "../../../src/domains/tools/permission/index.js";
 
 function agent(

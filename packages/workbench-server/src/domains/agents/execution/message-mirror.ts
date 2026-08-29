@@ -1,8 +1,8 @@
+import type { AgentMessage } from "@nervekit/harness/agent";
 import type {
-  AgentMessage,
   ConversationStorage,
   ConversationTreeEntry,
-} from "@nervekit/harness";
+} from "@nervekit/harness/conversation";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import {
   type ConversationEntry,

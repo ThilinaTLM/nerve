@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 import { HTML_CONVERSION_MAX_INPUT_BYTES } from "../../src/execution/atlassian/isolated-html-to-markdown.js";
 import { executeTool } from "../../src/execution/dispatch.js";
 import { resolvePythonRuntime } from "../../src/execution/python/runtime.js";
-import { createTempProject } from "../helpers.js";
+import { createTempProject } from "../support/project-fixtures.js";
 
 describe("executeTool dispatch", () => {
   it("dispatches core local tool names", async () => {

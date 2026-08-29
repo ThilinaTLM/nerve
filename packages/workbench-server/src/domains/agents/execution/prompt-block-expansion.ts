@@ -1,4 +1,4 @@
-import type { ToolExecutionResult } from "@nervekit/tools";
+import type { ToolExecutionResult } from "@nervekit/tools/execution";
 import {
   findExecutableCommandBlocks,
   replaceExecutableCommandBlocks,

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { GitWorkflowError } from "@nervekit/tools";
+import { GitWorkflowError } from "@nervekit/tools/git";
 import {
   type NerveErrorCode,
   type NerveMessage,
@@ -11,7 +11,7 @@ import { operationDefinition } from "@nervekit/contracts/operations";
 import {
   type OperationHandlerRegistry,
   RpcDispatcher,
-} from "@nervekit/protocol";
+} from "@nervekit/protocol/rpc";
 import { ZodError } from "zod";
 import type { WorkbenchState } from "../../app/runtime/server-runtime.js";
 import { ApplicationError } from "../../core/application-error.js";

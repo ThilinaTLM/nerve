@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { JiraConnection } from "../../src/execution/jira/client.js";
-import { searchJiraUsers } from "../../src/execution/jira/helpers.js";
+import { searchJiraUsers } from "../../src/execution/jira/users.js";
 import {
   executeJiraGetIssue,
   executeJiraGetProject,

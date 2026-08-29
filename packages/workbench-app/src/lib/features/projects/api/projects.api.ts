@@ -19,7 +19,7 @@ import type {
   PermissionPolicyConfiguration,
   ProjectPermissionTrust,
 } from "@nervekit/contracts/permissions";
-import { protocolRequest } from "@nervekit/protocol";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export async function createProject(dir: string): Promise<ProjectRecord> {
   return (await protocolRequest("project.create", { dir })).result.project;

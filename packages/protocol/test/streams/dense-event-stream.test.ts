@@ -7,7 +7,7 @@ import {
   chunkEvents,
   createClientEventStreamState,
   markProcessed,
-} from "../../src/index.js";
+} from "../../src/streams/index.js";
 
 const ts = "2026-07-18T00:00:00.000Z";
 const event = (seq: number): EventEnvelope => ({

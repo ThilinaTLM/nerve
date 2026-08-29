@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { snapshotAgentPreview } from "../../src/index.js";
+import { snapshotAgentPreview } from "../../src/result-projection/index.js";
 
 describe("agent preview snapshots", () => {
   it("keeps exact text and references image bytes in the result", () => {

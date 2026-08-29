@@ -10,7 +10,7 @@ import {
   promptSuggestionWhenSchema,
   type CreatePromptSuggestionRequest,
 } from "@nervekit/contracts/prompt-suggestions";
-import { parseFrontmatter } from "@nervekit/harness";
+import { parseFrontmatter } from "@nervekit/harness/resources";
 import { stringify } from "yaml";
 import { pathExists } from "../../infrastructure/storage-bootstrap/json.js";
 import type {

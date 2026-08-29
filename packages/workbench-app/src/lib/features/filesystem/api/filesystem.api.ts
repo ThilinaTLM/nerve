@@ -8,7 +8,7 @@ import type {
   FilesystemProjectEntryCreateResponse,
 } from "@nervekit/contracts/filesystem";
 import { apiGet, apiPost, fileToBase64 } from "$lib/platform/http/api-client";
-import { protocolRequest } from "@nervekit/protocol";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export async function uploadClipboardImage(file: File): Promise<string> {
   const response = await apiPost<ClipboardImageUploadResponse>(

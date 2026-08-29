@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
-import { registerManagedProvider } from "@nervekit/harness";
+import { registerManagedProvider } from "@nervekit/harness/models";
 import { allOperationDefinitions } from "@nervekit/contracts/operations";
 import { type ApplicationConfigurationSnapshot } from "@nervekit/contracts/settings";
 import { createId } from "@nervekit/contracts";

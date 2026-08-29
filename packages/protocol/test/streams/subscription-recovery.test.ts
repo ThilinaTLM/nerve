@@ -10,11 +10,9 @@ import {
   type EventEnvelope,
   type NotifyEvent,
 } from "@nervekit/contracts/events";
-import {
-  ProtocolClientSession,
-  ProtocolServerSession,
-  createMessageFactory,
-} from "../../src/index.js";
+import { createMessageFactory } from "../../src/index.js";
+import { ProtocolClientSession } from "../../src/client.js";
+import { ProtocolServerSession } from "../../src/server.js";
 
 const ts = "2026-07-18T00:00:00.000Z";
 const capabilities = [

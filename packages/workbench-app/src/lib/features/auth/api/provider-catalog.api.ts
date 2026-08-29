@@ -3,7 +3,7 @@ import type {
   ModelDefinition,
   ProviderCatalog,
 } from "@nervekit/contracts/providers";
-import { protocolRequest } from "@nervekit/protocol";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export async function getProviderCatalog(): Promise<ProviderCatalog> {
   return (await protocolRequest("providerCatalog.get", {})).result;

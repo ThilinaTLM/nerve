@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AgentToolSuspensionData } from "@nervekit/harness";
+import type { AgentToolSuspensionData } from "@nervekit/harness/agent";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { waitForSequentialToolInteractionBatch } from "../../../src/domains/agents/execution/sequential-tool-approval-batch.js";

@@ -7,7 +7,10 @@ import {
   locateExecutable,
   runExecutable,
 } from "../../src/execution/executable/executable.js";
-import { createTempProject, writeExecutable } from "../helpers.js";
+import {
+  createTempProject,
+  writeExecutable,
+} from "../support/project-fixtures.js";
 
 describe("executable resolution", () => {
   it(

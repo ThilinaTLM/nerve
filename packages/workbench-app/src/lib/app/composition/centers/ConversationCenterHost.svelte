@@ -1,7 +1,7 @@
 <script lang="ts">
 import { type QueuedPromptRecord } from "$lib/api";
 import { SvelteSet } from "svelte/reactivity";
-import { protocolRequest } from "@nervekit/protocol";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { composerDraft } from "$lib/application/workspace/selection.svelte";

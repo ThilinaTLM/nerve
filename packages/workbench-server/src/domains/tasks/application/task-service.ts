@@ -7,7 +7,7 @@ import type {
   TaskOutputRetention,
   TaskRecord,
 } from "@nervekit/contracts/tasks";
-import type { ToolExecutionOutputUpdate } from "@nervekit/tools";
+import type { ToolExecutionOutputUpdate } from "@nervekit/tools/execution";
 import type {
   ClockPort,
   DiagnosticPort,

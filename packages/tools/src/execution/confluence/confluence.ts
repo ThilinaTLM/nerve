@@ -38,12 +38,9 @@ import {
   writeConfluenceArtifact,
 } from "./format.js";
 import { boundedNumber } from "../atlassian/arguments.js";
-import {
-  enumString,
-  fetchPageCurrent,
-  readSinglePageRow,
-  resolveSpaceId,
-} from "./helpers.js";
+import { readSinglePageRow } from "./page-file.js";
+import { enumString, fetchPageCurrent } from "./page-resolution.js";
+import { resolveSpaceId } from "./space-resolution.js";
 import {
   buildCreatePayload,
   buildUpdatePayload,

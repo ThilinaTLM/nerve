@@ -41,13 +41,17 @@
     "./git": {
       "types": "./dist/git/index.d.ts",
       "import": "./dist/git/index.js"
+    },
+    "./execution": {
+      "types": "./dist/execution/index.d.ts",
+      "import": "./dist/execution/index.js"
     }
   },
   "scripts": {
     "build": "tsc -b",
     "check": "tsc -b --pretty false",
-    "test": "tsx --test test/*.test.ts",
-    "test:native": "tsx --test test/bash.test.ts test/process-tree.test.ts"
+    "test": "tsx --test \"test/**/*.test.ts\"",
+    "test:native": "tsx --test test/execution/bash.test.ts test/execution/process-tree.test.ts"
   },
   "dependencies": {
     "@nervekit/contracts": "workspace:*",

@@ -4,10 +4,10 @@ import { join } from "node:path";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   type AgentCustomModel,
-  AgentHarness,
-  Conversation,
   resolveAgentModel,
-} from "@nervekit/harness";
+} from "@nervekit/harness/models";
+import { AgentHarness } from "@nervekit/harness";
+import { Conversation } from "@nervekit/harness/conversation";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type {
   AgentRecord,

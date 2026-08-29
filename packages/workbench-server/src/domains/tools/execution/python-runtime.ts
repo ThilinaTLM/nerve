@@ -2,7 +2,7 @@ import {
   type PythonRuntime,
   type PythonRuntimeStatus,
   resolvePythonRuntime,
-} from "@nervekit/tools";
+} from "@nervekit/tools/execution";
 import type { PythonRuntimeStatus as SharedPythonRuntimeStatus } from "@nervekit/contracts/status";
 import type { InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";
 

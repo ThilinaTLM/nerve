@@ -23,7 +23,7 @@ import {
   composeEffectivePermissionPolicy,
   type EffectivePermissionPolicy,
   type PermissionRootPaths,
-} from "@nervekit/tools";
+} from "@nervekit/tools/policy";
 import {
   atomicWriteJson,
   type InitializedStorage,

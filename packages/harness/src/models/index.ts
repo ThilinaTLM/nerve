@@ -4,3 +4,4 @@ export * from "./provider-errors.js";
 export * from "./resolution.js";
 export * from "./scripted-provider.js";
 export * from "./model-contracts.js";
+export * from "./image/explanation.js";

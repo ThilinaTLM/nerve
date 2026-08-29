@@ -3,7 +3,7 @@ import type {
   GitOverviewObservation,
   GitReadObservation,
   GithubRequestObservation,
-} from "@nervekit/tools";
+} from "@nervekit/tools/git";
 import type { ApplicationLogLevel } from "@nervekit/contracts/logs";
 import type { ApplicationLogContext } from "../../infrastructure/diagnostics/index.js";
 

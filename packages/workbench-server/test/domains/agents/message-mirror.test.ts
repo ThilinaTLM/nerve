@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import { type ConversationEntry } from "@nervekit/contracts/conversations";
 import { validatePublicEvent } from "@nervekit/contracts/events";
-import type { ConversationStorage } from "@nervekit/harness";
+import type { ConversationStorage } from "@nervekit/harness/conversation";
 import type { StreamLogRegistry } from "../../../src/infrastructure/events/index.js";
 import type { RuntimeState } from "../../../src/app/runtime/runtime-projections.js";
 import {

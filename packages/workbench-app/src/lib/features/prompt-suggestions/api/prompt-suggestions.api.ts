@@ -6,7 +6,7 @@ import type {
   UpdatePromptSuggestionEnabledRequest,
   UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/contracts/prompt-suggestions";
-import { protocolRequest } from "@nervekit/protocol";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export async function getPromptSuggestions(
   projectId: string,

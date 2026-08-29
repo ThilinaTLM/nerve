@@ -22,7 +22,7 @@ import {
   fieldsFromProjectResult,
   issueTypeIdFromName,
   valuesFromJiraList,
-} from "./helpers.js";
+} from "./field-resolution.js";
 
 export async function executeJiraGetProject(
   args: Record<string, unknown>,

@@ -16,6 +16,7 @@ import {
   isDynamicClass,
 } from "./lib/style-policy.mjs";
 import { allowedNerveDependencies } from "./lib/workspace-architecture.mjs";
+import { validatePackageExportSurfaces } from "./lib/package-export-surfaces.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const failures = [];
@@ -31,6 +32,8 @@ for (const [name] of allowedNerveDependencies) {
 
 const trackedFiles = trackedRepositoryFiles();
 checkManifestGraph();
+for (const failure of validatePackageExportSurfaces(repoRoot))
+  fail("package exports", failure);
 checkSourceImports();
 checkRetiredSurface();
 checkWorkbenchFeatureBoundaries();

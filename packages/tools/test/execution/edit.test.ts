@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { ToolExecutionError } from "../../src/execution/errors/tool-error.js";
 import { executeEdit } from "../../src/execution/filesystem/edit.js";
-import { createTempProject } from "../helpers.js";
+import { createTempProject } from "../support/project-fixtures.js";
 
 async function rejectsWithCode(
   promise: Promise<unknown>,

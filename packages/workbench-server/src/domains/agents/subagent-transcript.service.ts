@@ -1,4 +1,4 @@
-import { type ConversationTreeEntry } from "@nervekit/harness";
+import { type ConversationTreeEntry } from "@nervekit/harness/conversation";
 import { conversationStream } from "@nervekit/contracts/events";
 import {
   SUBAGENT_TRANSCRIPT_MAX_ENTRIES,

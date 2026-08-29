@@ -4,7 +4,7 @@ import {
   buildConversationContext,
   ConversationTreeState,
   type ConversationTreeEntry,
-} from "../../src/index.js";
+} from "../../src/conversation/index.js";
 
 const now = "2026-08-26T00:00:00.000Z";
 

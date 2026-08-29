@@ -14,7 +14,7 @@ import {
   type ManagedTarget,
   type TerminationMethod,
 } from "@nervekit/native";
-import { resolveBashShellConfig } from "@nervekit/tools";
+import { resolveBashShellConfig } from "@nervekit/tools/execution";
 import { taskProcessPolicy } from "../model/task-process-policy.js";
 import {
   defaultTaskPortInspector,

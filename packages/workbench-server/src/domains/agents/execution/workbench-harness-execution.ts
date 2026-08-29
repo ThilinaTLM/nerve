@@ -1,11 +1,8 @@
-import {
-  AgentHarness,
-  type AnyModel,
-  Conversation,
-  convertToLlm,
-  isAgentToolSuspension,
-  resolveAgentModel,
-} from "@nervekit/harness";
+import { AgentHarness } from "@nervekit/harness";
+import { type AnyModel, isAgentToolSuspension } from "@nervekit/harness/agent";
+import { Conversation } from "@nervekit/harness/conversation";
+import { convertToLlm } from "@nervekit/harness/messages";
+import { resolveAgentModel } from "@nervekit/harness/models";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";

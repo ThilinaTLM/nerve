@@ -12,7 +12,7 @@ import {
 import {
   ConversationTreeState,
   type ConversationTreeEntry,
-} from "@nervekit/harness";
+} from "@nervekit/harness/conversation";
 import {
   CONVERSATION_JOURNAL_EPOCH,
   conversationJournalCommitSchema,

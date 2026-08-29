@@ -1,20 +1,22 @@
 import { isAbsolute, resolve } from "node:path";
 import {
   buildProcessTextResult,
-  createExploreHandlers,
-  createInteractionHandlers,
-  createPlanHandlers,
   resolveCommandCwd,
-  createTaskHandlers,
-  createTodoHandlers,
   type ExplainImageRequest,
   type ExplainImageResponse,
   type ToolExecutionContext,
   type ToolExecutionOutputUpdate,
   type ToolExecutionResult,
+} from "@nervekit/tools/execution";
+import {
+  createExploreHandlers,
+  createInteractionHandlers,
+  createPlanHandlers,
+  createTaskHandlers,
+  createTodoHandlers,
   type ToolHandlerRegistry,
-  toolDefinitionByName,
-} from "@nervekit/tools";
+} from "@nervekit/tools/runtime";
+import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import { type Mode } from "@nervekit/contracts/settings";
 import {

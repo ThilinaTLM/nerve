@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { buildConversationContext } from "@nervekit/harness";
+import { buildConversationContext } from "@nervekit/harness/conversation";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import { AutoCompactionRunner } from "../../../src/domains/agents/execution/auto-compaction-runner.js";
 

@@ -3,7 +3,7 @@ import {
   type HarnessMessage,
   type HarnessTaskEvent,
   type HarnessTaskEventDetails,
-} from "@nervekit/harness";
+} from "@nervekit/harness/messages";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type { EventEnvelope } from "@nervekit/contracts/events";

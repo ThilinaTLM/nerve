@@ -1,7 +1,7 @@
 import {
   splitLiveOutputChunks,
   type ToolExecutionOutputUpdate,
-} from "@nervekit/tools";
+} from "@nervekit/tools/execution";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import type { ConversationRuntime } from "../../runs/runtime/conversation-runtime.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";

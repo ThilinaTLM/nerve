@@ -1,13 +1,13 @@
 import {
   clampAgentThinkingLevel,
   explainImageWithModel,
-  generateSummary,
   resolveAgentModel,
-} from "@nervekit/harness";
+} from "@nervekit/harness/models";
+import { generateSummary } from "@nervekit/harness/compaction";
 import { withGitMutationEvents } from "../../domains/git/git-mutation-publisher.js";
 import { GitRepositoryWatcher } from "../../domains/git/git-repository-watcher.js";
 import { withGitRepositoryWatching } from "../../domains/git/git-repository-watching.js";
-import { GitService } from "@nervekit/tools";
+import { GitService } from "@nervekit/tools/git";
 import {
   AgentLifecycleService,
   AgentRepository,

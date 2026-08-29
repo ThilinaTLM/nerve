@@ -1,18 +1,9 @@
-import { optionalString } from "../atlassian/arguments.js";
 import { readFile, stat } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
+import { optionalString } from "../atlassian/arguments.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
 import { resolveToolPath } from "../filesystem/path.js";
-import {
-  type ConfluenceConnection,
-  confluenceRequest,
-  pathSegment,
-} from "./client.js";
-import {
-  asRecord,
-  summarizeConfluenceSpace,
-  valuesFromConfluenceList,
-} from "./format.js";
+import { asRecord } from "./format.js";
 
 export type ConfluencePageRow = Record<string, unknown> & {
   id?: string;
@@ -25,66 +16,21 @@ export type ConfluencePageRow = Record<string, unknown> & {
   body?: { representation?: string; value?: string };
 };
 
-export function enumString<T extends string>(
-  value: unknown,
-  allowed: readonly T[],
-  fallback: T,
-): T {
-  return typeof value === "string" && allowed.includes(value as T)
-    ? (value as T)
-    : fallback;
-}
-
-export async function resolveSpaceId(
-  connection: ConfluenceConnection,
-  options: { spaceId?: string; spaceKey?: string; signal?: AbortSignal },
-): Promise<{ spaceId: string; spaceKey?: string }> {
-  if (options.spaceId) {
-    return { spaceId: options.spaceId, spaceKey: options.spaceKey };
-  }
-  const spaceKey = options.spaceKey ?? connection.defaultSpaceKey;
-  if (!spaceKey) {
-    throw new ToolExecutionError(
-      "CONFLUENCE_SPACE_REQUIRED",
-      "space_id or space_key is required because no default Confluence space key is configured.",
-    );
-  }
-  const response = await confluenceRequest(connection, {
-    path: "/spaces",
-    query: { keys: [spaceKey], limit: 1 },
-    signal: options.signal,
-  });
-  const spaces = valuesFromConfluenceList(response).flatMap((space) => {
-    const summary = summarizeConfluenceSpace(space);
-    return summary ? [summary] : [];
-  });
-  const match = spaces.find((space) => space.key === spaceKey) ?? spaces[0];
-  if (!match) {
-    throw new ToolExecutionError(
-      "CONFLUENCE_SPACE_NOT_FOUND",
-      `No Confluence space matched key "${spaceKey}".`,
-    );
-  }
-  return { spaceId: match.id, spaceKey: match.key ?? spaceKey };
-}
-
 export async function readSinglePageRow(
   cwd: string,
   pageFile: unknown,
 ): Promise<{ row: ConfluencePageRow; path: string }> {
   const { rows, path } = await readPageRowsFromPath(cwd, pageFile);
-  if (rows.length === 0) {
+  if (rows.length === 0)
     throw new ToolExecutionError(
       "CONFLUENCE_PAGE_FILE_EMPTY",
       `No page rows found in ${path}.`,
     );
-  }
-  if (rows.length > 1) {
+  if (rows.length > 1)
     throw new ToolExecutionError(
       "CONFLUENCE_PAGE_FILE_AMBIGUOUS",
       `Expected exactly one page row in ${path}, found ${rows.length}. Bulk page publishing is not supported.`,
     );
-  }
   return { row: rows[0], path };
 }
 
@@ -94,30 +40,28 @@ export async function readPageRowsFromPath(
 ): Promise<{ rows: ConfluencePageRow[]; path: string }> {
   const path = resolveToolPath(cwd, input);
   const stats = await stat(path);
-  if (stats.isDirectory()) {
-    return readPageRowsFromResolvedPath(join(path, "manifest.json"));
-  }
-  return readPageRowsFromResolvedPath(path);
+  return readPageRowsFromResolvedPath(
+    stats.isDirectory() ? join(path, "manifest.json") : path,
+  );
 }
 
 async function readPageRowsFromResolvedPath(
   path: string,
 ): Promise<{ rows: ConfluencePageRow[]; path: string }> {
-  const name = basename(path);
-  if (name === "manifest.json") {
-    const text = await readFile(path, "utf8");
-    const manifest = parseJsonRecord(text, path);
-    const pagesJsonlPath = optionalString(manifest.pagesJsonlPath);
-    const jsonlPath = pagesJsonlPath ?? join(dirname(path), "pages.jsonl");
-    return readJsonlRows(jsonlPath);
+  if (basename(path) === "manifest.json") {
+    const manifest = parseJsonRecord(await readFile(path, "utf8"), path);
+    return readJsonlRows(
+      optionalString(manifest.pagesJsonlPath) ??
+        join(dirname(path), "pages.jsonl"),
+    );
   }
   if (extname(path).toLowerCase() === ".jsonl") return readJsonlRows(path);
-  const text = await readFile(path, "utf8");
-  const record = parseJsonRecord(text, path);
-  if (record.schemaVersion === "nerve.confluence.download.v1") {
-    const pagesJsonlPath = optionalString(record.pagesJsonlPath);
-    return readJsonlRows(pagesJsonlPath ?? join(dirname(path), "pages.jsonl"));
-  }
+  const record = parseJsonRecord(await readFile(path, "utf8"), path);
+  if (record.schemaVersion === "nerve.confluence.download.v1")
+    return readJsonlRows(
+      optionalString(record.pagesJsonlPath) ??
+        join(dirname(path), "pages.jsonl"),
+    );
   return { rows: [record as ConfluencePageRow], path };
 }
 
@@ -147,12 +91,11 @@ function parseJsonRecord(text: string, label: string): Record<string, unknown> {
     );
   }
   const record = asRecord(parsed);
-  if (!record) {
+  if (!record)
     throw new ToolExecutionError(
       "CONFLUENCE_PAGE_FILE_INVALID",
       `${label} must contain a JSON object.`,
     );
-  }
   return record;
 }
 
@@ -171,21 +114,8 @@ export function pageRowBody(
 export function pageRowVersionNumber(
   row: ConfluencePageRow,
 ): number | undefined {
-  const version = asRecord(row.version);
-  const value = version?.number;
+  const value = asRecord(row.version)?.number;
   return typeof value === "number" && Number.isFinite(value)
     ? Math.floor(value)
     : undefined;
-}
-
-export async function fetchPageCurrent(
-  connection: ConfluenceConnection,
-  pageId: string,
-  signal?: AbortSignal,
-): Promise<Record<string, unknown>> {
-  return confluenceRequest<Record<string, unknown>>(connection, {
-    path: `/pages/${pathSegment(pageId)}`,
-    query: { "body-format": "storage" },
-    signal,
-  });
 }

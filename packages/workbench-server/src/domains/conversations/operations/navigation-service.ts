@@ -1,4 +1,4 @@
-import type { ConversationTreeEntry } from "@nervekit/harness";
+import type { ConversationTreeEntry } from "@nervekit/harness/conversation";
 import type {
   ConversationActiveRunSnapshot,
   ConversationEntry,

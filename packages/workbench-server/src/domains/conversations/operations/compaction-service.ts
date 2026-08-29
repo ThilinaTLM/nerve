@@ -1,14 +1,16 @@
+import { type AgentMessage } from "@nervekit/harness/agent";
+import { createCompactionSummaryMessage } from "@nervekit/harness/messages";
 import {
-  type AgentMessage,
   buildConversationContext,
-  type CompactionSummaryProfile,
   type Conversation,
   type ConversationTreeEntry,
-  createCompactionSummaryMessage,
+} from "@nervekit/harness/conversation";
+import {
+  type CompactionSummaryProfile,
   DEFAULT_COMPACTION_SETTINGS,
   estimateTokens,
   prepareCompaction,
-} from "@nervekit/harness";
+} from "@nervekit/harness/compaction";
 import { createId } from "@nervekit/contracts";
 import type {
   CompactConversationRequest,

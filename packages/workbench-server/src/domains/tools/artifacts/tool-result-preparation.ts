@@ -1,10 +1,10 @@
 import {
   type AgentDenialSource,
-  boundText,
   projectAgentResult,
   snapshotAgentPreview,
-  toolDefinitionByName,
-} from "@nervekit/tools";
+} from "@nervekit/tools/result-projection";
+import { boundText } from "@nervekit/tools/execution";
+import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import type {
   AgentPreviewSnapshot,
   AgentProjectionSnapshot,

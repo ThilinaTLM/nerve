@@ -1,7 +1,7 @@
 import {
   splitLiveOutputChunks,
   type ToolExecutionOutputUpdate,
-} from "@nervekit/tools";
+} from "@nervekit/tools/execution";
 import type { StartTaskRequest, TaskRecord } from "@nervekit/contracts/tasks";
 import type {
   TaskProcessEvidence,

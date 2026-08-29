@@ -11,7 +11,7 @@ import {
 } from "@nervekit/contracts/tools";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import { type ConversationRecord } from "@nervekit/contracts/conversations";
-import { protocolRequest } from "@nervekit/protocol";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 import { interactionAddress } from "../state/tool-interaction-projections";
 import type { PlanReviewResolveOptions } from "../../../presentation/state/tool-types.js";
 export type { PlanReviewResolveOptions } from "../../../presentation/state/tool-types.js";

@@ -7,13 +7,13 @@ import {
   locateExecutable,
   type ResolvedExecutable,
   runExecutable,
-} from "@nervekit/tools";
+} from "@nervekit/tools/execution";
 import {
   loadSkills,
   type Skill,
   validateDescription,
   validateName,
-} from "@nervekit/harness";
+} from "@nervekit/harness/resources";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 
 const commandTimeoutMs = 15_000;

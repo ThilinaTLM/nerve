@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
-import type { ResolvedExecutable } from "@nervekit/tools";
+import type { ResolvedExecutable } from "@nervekit/tools/execution";
 import { ProjectTerminalService } from "../../../src/domains/projects/project-terminal.service.js";
 
 function childProcessStub(): ChildProcess {

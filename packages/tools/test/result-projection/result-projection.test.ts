@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ValidatedToolArtifact } from "@nervekit/contracts/tools";
-import type { CandidateContext } from "../../src/index.js";
+import type { CandidateContext } from "../../src/result-projection/index.js";
 import { formatWebFetchCandidateText } from "../../src/result-projection/candidates/web.js";
 import {
   agentResultPolicyForTool,
   measureBlocks,
   projectAgentResult,
   webFetchCandidateFitsInline,
-} from "../../src/index.js";
+} from "../../src/result-projection/index.js";
 
 const artifact = (
   path: string,

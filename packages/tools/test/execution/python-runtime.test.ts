@@ -3,7 +3,10 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it, type TestContext } from "node:test";
 import { resolvePythonRuntime } from "../../src/execution/python/runtime.js";
-import { createTempProject, writeExecutable } from "../helpers.js";
+import {
+  createTempProject,
+  writeExecutable,
+} from "../support/project-fixtures.js";
 
 function requireExecutableFixtures(t: TestContext): boolean {
   if (process.platform !== "win32") return true;

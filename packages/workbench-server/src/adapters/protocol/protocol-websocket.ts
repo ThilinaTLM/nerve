@@ -1,12 +1,11 @@
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
+import { createMessageFactory, ProtocolConnection } from "@nervekit/protocol";
+import { ProtocolServerSession } from "@nervekit/protocol/server";
 import {
-  createMessageFactory,
-  ProtocolConnection,
-  ProtocolServerSession,
   websocketTransport,
   type WebSocketLike,
-} from "@nervekit/protocol";
+} from "@nervekit/protocol/adapters";
 import { parseConversationStream } from "@nervekit/contracts/events";
 import { type ProtocolV1Message } from "@nervekit/contracts/wire";
 import type WebSocket from "ws";

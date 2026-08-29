@@ -6,7 +6,7 @@ import type {
   UpdateConversationStateRequest,
 } from "@nervekit/contracts/conversations";
 import type { SnapshotCursor } from "@nervekit/contracts/snapshots";
-import { protocolRequest } from "@nervekit/protocol";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export type ConversationSnapshotWithCursor = {
   snapshot: ConversationSnapshot;

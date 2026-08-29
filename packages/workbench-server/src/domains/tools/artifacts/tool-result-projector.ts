@@ -4,9 +4,9 @@ import type {
 } from "@nervekit/contracts/tools";
 import {
   projectAgentResult,
-  toolDefinitionByName,
   type ProjectedToolResult,
-} from "@nervekit/tools";
+} from "@nervekit/tools/result-projection";
+import { toolDefinitionByName } from "@nervekit/tools/catalog";
 
 export function projectToolCallResult(
   toolCall: ToolCallRecord,

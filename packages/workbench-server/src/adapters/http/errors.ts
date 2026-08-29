@@ -1,4 +1,4 @@
-import { GitWorkflowError } from "@nervekit/tools";
+import { GitWorkflowError } from "@nervekit/tools/git";
 import { ApplicationError } from "../../core/application-error.js";
 
 /** HTTP-edge validation error. Domain services use ApplicationError directly. */

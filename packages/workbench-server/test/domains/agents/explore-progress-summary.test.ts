@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { allToolDescriptors } from "@nervekit/tools";
+import { allToolDescriptors } from "@nervekit/tools/catalog";
 import { summarizeExploreToolCall } from "../../../src/domains/agents/execution/explore-tool-summary.js";
 
 describe("Explore progress tool summaries", () => {

@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   evaluateRuntimeToolPermission,
   resolveToolAvailability,
-} from "../../src/index.js";
+} from "../../src/runtime/index.js";
 
 describe("read-only tool availability and permissions", () => {
   it("grants read-only agents the full read/interaction toolset", () => {

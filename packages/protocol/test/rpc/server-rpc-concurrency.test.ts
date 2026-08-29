@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { NerveMessage, ProtocolV1Message } from "@nervekit/contracts/wire";
-import {
-  ProtocolConnection,
-  ProtocolServerSession,
-  RpcDispatcher,
-  createMessageFactory,
-} from "../../src/index.js";
+import { ProtocolConnection, createMessageFactory } from "../../src/index.js";
+import { ProtocolServerSession } from "../../src/server.js";
+import { RpcDispatcher } from "../../src/rpc/index.js";
 import { ManualTransport } from "../test-runtime.js";
 
 const capabilities = [

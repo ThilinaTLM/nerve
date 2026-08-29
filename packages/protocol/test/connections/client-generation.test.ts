@@ -1,12 +1,12 @@
 import type { ProtocolV1Message } from "@nervekit/contracts/wire";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createMessageFactory } from "../../src/index.js";
 import {
   ProtocolClientConnection,
   type ProtocolClientSession,
   ReconnectPolicy,
-  createMessageFactory,
-} from "../../src/index.js";
+} from "../../src/client.js";
 import { ManualRuntime, ManualTransport } from "../test-runtime.js";
 
 const messages = createMessageFactory({

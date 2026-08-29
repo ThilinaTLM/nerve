@@ -13,9 +13,11 @@ import {
   composeEffectivePermissionPolicy,
   evaluatePermissionRequest,
   normalizePermissionRequest,
+} from "../../src/policy/index.js";
+import {
   permissionMetadataForTool,
   toolManifest,
-} from "../../src/index.js";
+} from "../../src/catalog/index.js";
 
 const roots = {
   project: "/workspace",

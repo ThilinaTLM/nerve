@@ -18,12 +18,11 @@ import {
 } from "./format.js";
 import {
   type ConfluencePageRow,
-  enumString,
-  fetchPageCurrent,
   pageRowBody,
   pageRowVersionNumber,
-  resolveSpaceId,
-} from "./helpers.js";
+} from "./page-file.js";
+import { enumString, fetchPageCurrent } from "./page-resolution.js";
+import { resolveSpaceId } from "./space-resolution.js";
 
 const WRITE_BODY_REPRESENTATIONS = [
   "storage",

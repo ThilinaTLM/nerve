@@ -1,5 +1,5 @@
 import { cancelConversationCompaction, compactConversation } from "$lib/api";
-import { protocolRequest } from "@nervekit/protocol";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { conversationViewKey } from "$lib/domain/navigation/view-keys";
 import type { CompactionNotice } from "$lib/features/conversations/state/conversation-state.svelte";

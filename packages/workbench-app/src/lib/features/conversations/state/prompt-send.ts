@@ -2,7 +2,7 @@ import { deriveConversationTitle } from "@nervekit/contracts/conversations";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { scopedUsableModelOptions } from "$lib/presentation/utils/model";
 import { deleteConversation } from "$lib/api";
-import { protocolRequest } from "@nervekit/protocol";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { pendingConversationKey } from "$lib/domain/navigation/view-keys";
 import type {

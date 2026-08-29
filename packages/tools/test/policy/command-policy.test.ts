@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isAllowedPlanModeBashCommand } from "../../src/index.js";
+import { isAllowedPlanModeBashCommand } from "../../src/policy/index.js";
 import { normalizeCommandName } from "../../src/policy/shell/wrappers.js";
 
 function expectAllowed(commands: string[]): void {

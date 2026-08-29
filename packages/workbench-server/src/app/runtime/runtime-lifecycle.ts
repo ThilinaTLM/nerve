@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- RuntimeRegistry centralizes the hydration/startup use case incl. per-phase timing. */
 import type { Message } from "@earendil-works/pi-ai";
-import { listAvailableModels } from "@nervekit/harness";
+import { listAvailableModels } from "@nervekit/harness/models";
 import type {
   AgentRecord,
   CreateAgentRequest,

@@ -7,7 +7,7 @@ import {
   locateExecutable,
   type ResolvedExecutable,
   spawnExecutable,
-} from "@nervekit/tools";
+} from "@nervekit/tools/execution";
 import type {
   ExternalEditorStatus,
   ExternalEditorStatuses,

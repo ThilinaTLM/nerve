@@ -40,13 +40,15 @@ import {
 } from "./format.js";
 import {
   applyCommonFields,
-  matchTransition,
-  maybeResolveAssignee,
   rawFields,
   rawOptionalRecord,
+} from "./issue-fields.js";
+import {
+  matchTransition,
   summarizeTransitionFields,
   transitionSummary,
-} from "./helpers.js";
+} from "./transitions.js";
+import { maybeResolveAssignee } from "./users.js";
 import {
   appendRelatedPreview,
   formatJiraCommentPreview,

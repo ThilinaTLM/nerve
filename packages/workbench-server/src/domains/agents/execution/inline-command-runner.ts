@@ -1,4 +1,7 @@
-import { executeBash, type ToolExecutionResult } from "@nervekit/tools";
+import {
+  executeBash,
+  type ToolExecutionResult,
+} from "@nervekit/tools/execution";
 import type {
   RunExecutionOutcome,
   RunExecutionSink,

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { promisify } from "node:util";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
-import { GitService } from "@nervekit/tools";
+import { GitService } from "@nervekit/tools/git";
 
 const execFileAsync = promisify(execFile);
 

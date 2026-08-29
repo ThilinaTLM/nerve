@@ -6,7 +6,7 @@ import {
   validateCommandGlob,
   validatePathGlob,
   validateUrlGlob,
-} from "../../src/index.js";
+} from "../../src/policy/index.js";
 
 describe("permission exception patterns", () => {
   it("accepts project-relative POSIX globs and rejects traversal or platform-specific absolute paths", () => {

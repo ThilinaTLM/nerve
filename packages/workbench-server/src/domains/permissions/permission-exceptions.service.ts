@@ -7,7 +7,7 @@ import type {
   ProjectPermissions,
   ProjectRecord,
 } from "@nervekit/contracts/projects";
-import { deduplicatePermissionExceptions } from "@nervekit/tools";
+import { deduplicatePermissionExceptions } from "@nervekit/tools/policy";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import {
   type InitializedStorage,

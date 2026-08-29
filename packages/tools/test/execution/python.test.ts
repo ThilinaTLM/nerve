@@ -6,7 +6,7 @@ import { describe, it, type TestContext } from "node:test";
 import { executePython } from "../../src/execution/python/python.js";
 import { resolvePythonRuntime } from "../../src/execution/python/runtime.js";
 import type { PythonRuntime } from "../../src/index.js";
-import { createTempProject } from "../helpers.js";
+import { createTempProject } from "../support/project-fixtures.js";
 
 async function runtimeOrSkip(
   t: TestContext,

@@ -1,7 +1,7 @@
-import type { Skill } from "@nervekit/harness";
+import type { Skill } from "@nervekit/harness/resources";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { UserConfigurableToolName } from "@nervekit/contracts/tools";
-import { promptGuidelinesForTools } from "@nervekit/tools";
+import { promptGuidelinesForTools } from "@nervekit/tools/catalog";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import { activeToolNamesForAgent } from "../../tools/orchestration/agent-tool-adapter.js";
 import { buildNerveSystemPrompt } from "../prompting/nerve-system-prompt.js";

@@ -1,4 +1,4 @@
-import type { AgentToolSuspensionData } from "@nervekit/harness";
+import type { AgentToolSuspensionData } from "@nervekit/harness/agent";
 import type {
   CheckpointCommand,
   RunExecutionSink,

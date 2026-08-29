@@ -37,6 +37,18 @@
     "./conversation": {
       "types": "./dist/conversation/index.d.ts",
       "import": "./dist/conversation/index.js"
+    },
+    "./compaction": {
+      "types": "./dist/compaction/index.d.ts",
+      "import": "./dist/compaction/index.js"
+    },
+    "./resources": {
+      "types": "./dist/resources/index.d.ts",
+      "import": "./dist/resources/index.js"
+    },
+    "./messages": {
+      "types": "./dist/messages/index.d.ts",
+      "import": "./dist/messages/index.js"
     }
   },
   "scripts": {

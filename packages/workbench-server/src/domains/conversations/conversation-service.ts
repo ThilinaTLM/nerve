@@ -1,5 +1,5 @@
 import type { Message } from "@earendil-works/pi-ai";
-import { convertToLlm } from "@nervekit/harness";
+import { convertToLlm } from "@nervekit/harness/messages";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
   ConversationEntry,

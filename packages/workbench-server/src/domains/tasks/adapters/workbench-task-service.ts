@@ -3,7 +3,7 @@ import { TaskService } from "../application/task-service.js";
 import type {
   ToolExecutionOutputUpdate,
   ToolExecutionResult,
-} from "@nervekit/tools";
+} from "@nervekit/tools/execution";
 import {
   type CancelTaskRequest,
   type StartTaskRequest,

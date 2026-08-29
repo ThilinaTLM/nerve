@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- Human-input resolution centralizes the approval/plan-review suspension lifecycle in one auditable use case. */
 import { createHash } from "node:crypto";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
-import type { AgentMessage } from "@nervekit/harness";
+import type { AgentMessage } from "@nervekit/harness/agent";
 import type {
   AgentRecord,
   CreateAgentRequest,
