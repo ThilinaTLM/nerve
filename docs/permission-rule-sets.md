@@ -209,6 +209,12 @@ type PermissionTarget =
       relativePath: string;
     }
   | {
+      kind: "path";
+      access: "read" | "write";
+      scope: "exact" | "tree";
+      absolutePath: string;
+    }
+  | {
       kind: "url";
       normalizedUrl: string;
       access: "read" | "write";
@@ -232,7 +238,7 @@ interface PermissionRequest {
 }
 ```
 
-Tools with structured resources must expose every security-relevant path, URL, or agent target. An `all` target matcher requires at least one extracted target and every relevant target must match; an empty target collection never satisfies `all`.
+Tools with structured resources must expose every security-relevant path, URL, or agent target. Paths inside an application-owned symbolic root use the portable rooted form. Paths elsewhere use the canonical absolute runtime form and remain valid permission targets; they are not discarded merely because they are outside the project or Nerve home. Persisted rooted path patterns never contain these machine-specific absolute values. An `all` target matcher requires at least one extracted target and every relevant target must match; an empty target collection never satisfies `all`.
 
 Bash and Python remain opaque. Nerve does not extract command segments or infer script effects. Rules for these tools match the complete validated argument value, such as `args.command` or `args.code`. String equality and glob operators are anchored to the complete value. Automatically suggested rules use exact equality by default; broad globs require an explicit user choice and are presented without any claim that the matched command or program is safe.
 
@@ -451,7 +457,7 @@ The built-in behavior is:
 
 | Rule set   | Stable ID    | Availability  | `interaction` | `read` | Explore | Plan-directory `write` or `edit` | Other base risk |
 | ---------- | ------------ | ------------- | ------------- | ------ | ------- | -------------------------------- | --------------- |
-| Baseline   | `baseline`   | Always active | Allow         | Prompt | Prompt  | Prompt                           | Prompt          |
+| Baseline   | `baseline`   | Always active | Allow         | Allow  | Prompt  | Prompt                           | Prompt          |
 | Read only  | `read_only`  | Coding        | Allow         | Allow  | Allow   | Deny                             | Deny            |
 | Supervised | `supervised` | Coding        | Allow         | Allow  | Prompt  | Prompt                           | Prompt          |
 | Autonomous | `autonomous` | Coding        | Allow         | Allow  | Allow   | Allow                            | Allow           |
@@ -461,16 +467,24 @@ User-question and interaction tools are automatically allowed because their exec
 
 ### Baseline
 
-Baseline is always active at the lowest scope rank and guarantees a total result. It allows interaction tools and prompts for everything else:
+Baseline is always active at the lowest scope rank and guarantees a total result. It allows interaction and read-risk tools, including filesystem reads outside managed roots, and prompts for everything else:
 
 ```json
 [
   {
     "id": "allow-interaction",
     "enabled": true,
-    "priority": 100,
+    "priority": 200,
     "enforcement": "overridable",
     "when": { "baseRisks": ["interaction"] },
+    "decision": "allow"
+  },
+  {
+    "id": "allow-read",
+    "enabled": true,
+    "priority": 100,
+    "enforcement": "overridable",
+    "when": { "baseRisks": ["read"] },
     "decision": "allow"
   },
   {
@@ -575,7 +589,7 @@ Autonomous automatically allows every valid tool request:
 }
 ```
 
-Autonomous does not make malformed, invalid, or unavailable tool calls executable.
+Autonomous includes valid filesystem requests outside the project and Nerve home, so its filesystem tools may read, edit, and write arbitrary host paths. It does not make malformed, invalid, or unavailable tool calls executable.
 
 ### Planning
 
@@ -800,7 +814,7 @@ Future modes follow the same contract.
 
 ## Symbolic path roots
 
-Persisted rules must use portable symbolic roots rather than machine-specific absolute paths.
+Persisted rooted path rules must use portable symbolic roots rather than machine-specific absolute paths. Normalized runtime requests may also contain canonical absolute path targets for filesystem locations outside every registered symbolic root; those targets are evaluated by risk, tool, argument, or generic path rules rather than persisted rooted path patterns.
 
 Required roots are:
 
@@ -1006,7 +1020,7 @@ The target system must support at least the following behaviors:
 8. **Conversation approval:** a prompted decision saved to conversation scope updates the conversation `permissions.json`, survives restarts, and does not modify project or user files.
 9. **Opaque execution:** Bash and Python retain `unknown` risk; an automatically generated permission matches the exact complete argument unless the user explicitly broadens it.
 10. **Structured targets:** a Planning write allow requires at least one write target and every write target under `${plansDir}`.
-11. **Planning:** Planning allows interaction, local reads, Explore, and plan-file `write` or `edit`, while denying other requests by default.
+11. **Planning:** Planning allows interaction, filesystem reads anywhere, Explore, and plan-file `write` or `edit`, while denying other requests by default.
 12. **Portable policy:** moving `NERVE_HOME` does not require rewriting persisted symbolic path rules.
 13. **Explore:** Read only and Planning explicitly allow the parent Explore call; every Explore child uses only the fixed Read only rule set, with no parent overlays.
 14. **Future implementation agent:** a read-only parent may invoke an allowed sub-agent whose persistent configuration selects a writing-capable rule set; the child receives no parent overlays.
@@ -1014,3 +1028,4 @@ The target system must support at least the following behaviors:
 16. **Missing selection:** a missing or invalid selected custom rule set falls back to Baseline with a visible notification.
 17. **Invalid overlay:** one invalid rule causes the complete owning overlay to be ignored and a notification to identify the file and validation error.
 18. **Historical audit:** changing a rule-set or overlay file does not alter the recorded explanation of an earlier tool-call decision.
+19. **External filesystem targets:** every built-in rule set allows `read`, `grep`, `find`, and `ls` against paths outside registered symbolic roots; Autonomous also allows external filesystem writes, while other rule sets retain their normal write decisions.

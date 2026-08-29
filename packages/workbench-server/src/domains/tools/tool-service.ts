@@ -192,7 +192,12 @@ async function assertWriteTargetBoundaries(
   roots: PermissionRootPaths,
 ): Promise<void> {
   for (const target of targets) {
-    if (target.kind !== "path" || target.access !== "write") continue;
+    if (
+      target.kind !== "path" ||
+      target.access !== "write" ||
+      !("root" in target)
+    )
+      continue;
     const root = await realpath(roots[target.root]);
     const candidate = resolve(root, target.relativePath);
     let existing = candidate;
