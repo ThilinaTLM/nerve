@@ -1,6 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
 import type {
-  ToolExecutionContext,
+  FilesystemExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { numberArg } from "../process/arguments.js";
@@ -18,7 +18,7 @@ import {
 
 export async function executeLs(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: FilesystemExecutionContext,
 ): Promise<ToolExecutionResult> {
   const input =
     typeof args.path === "string" && args.path.trim().length === 0

@@ -11,14 +11,14 @@ type ScratchNoteMethod =
   | "scratchNote.delete";
 
 export async function handleScratchNoteMethod(
-  state: WorkbenchState,
+  state: Pick<WorkbenchState, "services">,
   method: ScratchNoteMethod,
   params: unknown,
 ): Promise<unknown> {
   switch (method) {
     case "scratchNote.list":
       return {
-        notes: await state.registry.listScratchNotes(
+        notes: await state.services.scratchNotes.list(
           (params as { projectId: string }).projectId,
         ),
       };
@@ -27,7 +27,7 @@ export async function handleScratchNoteMethod(
         projectId: string;
       };
       return {
-        note: await state.registry.createScratchNote(
+        note: await state.services.scratchNotes.create(
           request.projectId,
           request,
         ),
@@ -39,7 +39,7 @@ export async function handleScratchNoteMethod(
         noteId: string;
       };
       return {
-        note: await state.registry.updateScratchNote(
+        note: await state.services.scratchNotes.update(
           request.projectId,
           request.noteId,
           request,
@@ -48,7 +48,10 @@ export async function handleScratchNoteMethod(
     }
     case "scratchNote.delete": {
       const request = params as { projectId: string; noteId: string };
-      await state.registry.removeScratchNote(request.projectId, request.noteId);
+      await state.services.scratchNotes.remove(
+        request.projectId,
+        request.noteId,
+      );
       return { ok: true };
     }
   }

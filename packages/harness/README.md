@@ -19,10 +19,10 @@ src/
     configuration/               options, tools, turn snapshots, mutations
     lifecycle/                   event contracts, hooks, persistence processing
     queue/                       steering/follow-up queues and coalescing
-    run/                         turn execution, continuation, and run state
+    run/                         turn execution, continuation, and mutable run state
     maintenance/                 conversation-tree maintenance
   conversation/                  conversation facade and storage-neutral port
-  compaction/                    context usage, policy, and summarization
+  compaction/                    policy, serialization, file tracking, and summaries
   resources/                     skills and prompt templates
   environment/                   execution environment abstraction and Node adapter
 ```

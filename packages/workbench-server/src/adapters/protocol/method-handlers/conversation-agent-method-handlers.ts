@@ -1,36 +1,48 @@
-import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
-import { defineWorkbenchMethodHandlers } from "../method-handler-registry.js";
+import {
+  defineWorkbenchMethodHandlers,
+  type WorkbenchOperationContext,
+} from "../method-handler-registry.js";
 
 export const conversationAgentMethodHandlers = defineWorkbenchMethodHandlers({
   "conversation.create": async (state, params) => ({
-    conversation: await state.registry.createConversation(params),
+    conversation:
+      await state.services.conversationLifecycle.createConversation(params),
   }),
   "conversation.import": (state, params) =>
     state.registry.importConversation(params as never),
   "conversation.list": (state) => ({
-    conversations: state.registry.listConversations(),
+    conversations: state.services.conversationLifecycle.listConversations(),
   }),
   "conversation.get": (state, params) => ({
-    conversation: state.registry.getConversation(params.conversationId),
+    conversation: state.services.conversationLifecycle.getConversation(
+      params.conversationId,
+    ),
   }),
   "conversation.delete": async (state, params) => {
-    await state.registry.removeConversation(params.conversationId);
+    await state.services.conversationLifecycle.removeConversation(
+      params.conversationId,
+    );
     return { ok: true };
   },
   "conversation.state.update": async (state, params) => ({
-    conversation: await state.registry.updateConversationState(
-      params.conversationId,
-      params,
-    ),
+    conversation:
+      await state.services.conversationLifecycle.updateConversationState(
+        params.conversationId,
+        params,
+      ),
   }),
   "conversation.entries.list": (state, params) => ({
-    entries: state.registry.getConversationEntries(params.conversationId),
+    entries: state.services.conversationLifecycle.getConversationEntries(
+      params.conversationId,
+    ),
   }),
   "conversation.contextUsage.get": async (state, params) => ({
     contextUsage: await state.registry.getContextUsage(params.conversationId),
   }),
   "conversation.tree.get": (state, params) => ({
-    tree: state.registry.getConversationTree(params.conversationId),
+    tree: state.services.conversationLifecycle.getConversationTree(
+      params.conversationId,
+    ),
   }),
   "conversation.navigate": async (state, params) => ({
     conversation: await state.registry.navigateConversation(
@@ -43,20 +55,25 @@ export const conversationAgentMethodHandlers = defineWorkbenchMethodHandlers({
   "conversation.compaction.cancel": (state, params) =>
     state.registry.cancelConversationCompaction(params.conversationId),
   "agent.create": async (state, params) => ({
-    agent: await state.registry.createAgent(params),
+    agent: await state.services.agentLifecycle.createAgent(params),
   }),
-  "agent.list": (state) => ({ agents: state.registry.listAgents() }),
+  "agent.list": (state) => ({
+    agents: state.services.agentLifecycle.listAgents(),
+  }),
   "agent.get": (state, params) => ({
-    agent: state.registry.getAgent(params.agentId),
+    agent: state.services.agentLifecycle.getAgent(params.agentId),
   }),
   "agent.subagentTranscript.get": async (state, params) => ({
-    transcript: await state.registry.subagentTranscripts.get(
+    transcript: await state.services.subagentTranscripts.get(
       params.parentAgentId,
       params.childAgentId,
     ),
   }),
   "agent.configure": async (state, params) => ({
-    agent: await state.registry.configureAgent(params.agentId, params),
+    agent: await state.services.agentLifecycle.configureAgent(
+      params.agentId,
+      params,
+    ),
   }),
   "run.start": (state, params) => dispatchPrompt(state, "run.start", params),
   "run.steer": (state, params) => dispatchPrompt(state, "run.steer", params),
@@ -113,7 +130,7 @@ type PromptRequest = {
 };
 
 async function dispatchPrompt(
-  state: WorkbenchState,
+  state: WorkbenchOperationContext,
   method: PromptMethod,
   request: PromptRequest,
 ) {

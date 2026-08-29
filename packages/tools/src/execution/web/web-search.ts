@@ -1,5 +1,5 @@
 import type {
-  ToolExecutionContext,
+  WebExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { withTimeoutSignal } from "../process/abort.js";
@@ -44,7 +44,7 @@ function snippet(value: unknown): string | undefined {
 
 export async function executeWebSearch(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: WebExecutionContext,
 ): Promise<ToolExecutionResult> {
   const query = stringArg(args.query, "query");
   const maxResults = maxResultsArg(args.max_results);

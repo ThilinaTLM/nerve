@@ -27,29 +27,52 @@ export type ExplainImageResponse = {
   model: { provider: string; modelId: string };
 };
 
-export type ToolExecutionContext = {
+export interface BaseExecutionContext {
   cwd: string;
   signal?: AbortSignal;
+  onUpdate?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
+}
+export interface FilesystemExecutionContext extends BaseExecutionContext {
   dataDir?: string;
-  /** Host-owned durable directory for files produced by this tool call. */
   artifactDir?: string;
+}
+export interface ShellExecutionContext extends BaseExecutionContext {
   shellPath?: string;
+  dataDir?: string;
+  artifactDir?: string;
+}
+export interface PythonExecutionContext extends BaseExecutionContext {
+  dataDir?: string;
+  artifactDir?: string;
+  pythonRuntime?: PythonRuntime;
+  pythonPolicy?: { allowNetwork: boolean; allowFileWrite: boolean };
+}
+export interface WebExecutionContext extends BaseExecutionContext {
+  dataDir?: string;
+  artifactDir?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
-  getProviderConfig?: (provider: string) => Promise<unknown>;
+  webFetchPolicy?: { allowPrivateNetwork?: boolean };
+}
+export interface VisionExecutionContext extends BaseExecutionContext {
+  dataDir?: string;
   explainImage?: (
     request: ExplainImageRequest,
   ) => Promise<ExplainImageResponse>;
-  pythonRuntime?: PythonRuntime;
-  pythonPolicy?: {
-    allowNetwork: boolean;
-    allowFileWrite: boolean;
-  };
-  webFetchPolicy?: {
-    /** Trusted host opt-in for deliberate localhost/LAN development access. */
-    allowPrivateNetwork?: boolean;
-  };
-  onUpdate?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
-};
+}
+export interface IntegrationExecutionContext extends BaseExecutionContext {
+  dataDir?: string;
+  artifactDir?: string;
+  getApiKey?: (provider: string) => Promise<string | undefined>;
+  getProviderConfig?: (provider: string) => Promise<unknown>;
+}
+
+/** Complete host context accepted by catalog dispatch. Executors use narrower contexts. */
+export type ToolExecutionContext = FilesystemExecutionContext &
+  ShellExecutionContext &
+  PythonExecutionContext &
+  WebExecutionContext &
+  VisionExecutionContext &
+  IntegrationExecutionContext;
 
 // Result contracts live in `@nervekit/contracts` (single source of truth shared with the web UI).
 export type ToolTextContent = ToolTextContentPayload;

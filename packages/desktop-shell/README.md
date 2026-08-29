@@ -4,8 +4,8 @@ Private implementation package used to assemble the published `@nervekit/desktop
 
 - `bin.ts`, `main.ts`, `preload.cjs`: explicit launcher, Electron main, and isolated preload entrypoints.
 - `app/`: CLI/startup/recovery/migration orchestration.
-- `daemon/`: connection and supervision policy; `adapters/` owns Node process integration.
-- `ipc/`: renderer capability channels.
+- `daemon/`: connection and supervision policy; `adapters/` separates launch/diagnostics, health, discovery, and Node port composition.
+- `ipc/`: capability-grouped window, daemon, settings, notification, clipboard, and file channels.
 - `platform/electron` and `platform/chromium`: Electron/Chromium-specific boundaries.
 - `window`, `tray`, `settings`, `performance`: focused desktop capabilities.
 

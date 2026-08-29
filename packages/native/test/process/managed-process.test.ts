@@ -79,7 +79,9 @@ describe("native managed process facade", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-native-missing-"));
     const isolatedModule = join(root, "index.ts");
     try {
-      await cp(new URL("../../src", import.meta.url), root, { recursive: true });
+      await cp(new URL("../../src", import.meta.url), root, {
+        recursive: true,
+      });
       const result = spawnSync(
         node,
         [

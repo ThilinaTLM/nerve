@@ -89,6 +89,7 @@ import {
   type AgentHarnessTurnState,
   createTurnState as createAgentHarnessTurnState,
 } from "./configuration/turn-state.js";
+import { HarnessRunState } from "./run/run-state.js";
 import { HarnessTurnController } from "./run/turn-controller.js";
 export class AgentHarness<
   TSkill extends Skill = Skill,
@@ -97,10 +98,7 @@ export class AgentHarness<
 > {
   readonly env: ExecutionEnv;
   private conversation: Conversation;
-  private phase: AgentHarnessPhase = "idle";
-  runAbortController?: AbortController;
-  private runPromise?: Promise<void>;
-  private pendingConversationWrites: PendingConversationWrite[] = [];
+  private readonly runState: HarnessRunState;
   private model: AnyModel;
   private thinkingLevel: ThinkingLevel;
   private systemPrompt: AgentHarnessOptions<
@@ -113,16 +111,6 @@ export class AgentHarness<
   private resources: AgentHarnessResources<TSkill, TPromptTemplate>;
   private tools = new Map<string, TTool>();
   private activeToolNames: string[];
-  private steerQueue: InboundQueuedMessage[] = [];
-  private steeringQueueMode: QueueMode;
-  private followUpQueue: InboundQueuedMessage[] = [];
-  private followUpQueueMode: QueueMode;
-  private forceDrainAll = false;
-  private nextTurnQueue: AgentMessage[] = [];
-  private readonly queuedMessageWrites = new WeakMap<
-    AgentMessage,
-    { id?: string; timestamp?: string }
-  >();
   private events = new AgentHarnessEventHub<TSkill, TPromptTemplate>();
   private readonly turnController: HarnessTurnController<
     TSkill,
@@ -143,8 +131,10 @@ export class AgentHarness<
       ? [...options.activeToolNames]
       : [...this.tools.keys()];
     this.validateToolNames(this.activeToolNames);
-    this.steeringQueueMode = options.steeringMode ?? "one-at-a-time";
-    this.followUpQueueMode = options.followUpMode ?? "one-at-a-time";
+    this.runState = new HarnessRunState(
+      options.steeringMode ?? "one-at-a-time",
+      options.followUpMode ?? "one-at-a-time",
+    );
     this.turnController = new HarnessTurnController({
       getPhase: () => this.phase,
       setPhase: (phase) => {
@@ -156,6 +146,68 @@ export class AgentHarness<
         this.executeTurn(turnState, text, turnOptions),
     });
   }
+
+  private get phase(): AgentHarnessPhase {
+    return this.runState.phase;
+  }
+  private set phase(phase: AgentHarnessPhase) {
+    this.runState.phase = phase;
+  }
+  get runAbortController(): AbortController | undefined {
+    return this.runState.abortController;
+  }
+  set runAbortController(controller: AbortController | undefined) {
+    this.runState.abortController = controller;
+  }
+  private get runPromise(): Promise<void> | undefined {
+    return this.runState.promise;
+  }
+  private set runPromise(promise: Promise<void> | undefined) {
+    this.runState.promise = promise;
+  }
+  private get pendingConversationWrites(): PendingConversationWrite[] {
+    return this.runState.pendingConversationWrites;
+  }
+  private get steerQueue(): InboundQueuedMessage[] {
+    return this.runState.steerQueue;
+  }
+  private set steerQueue(queue: InboundQueuedMessage[]) {
+    this.runState.steerQueue = queue;
+  }
+  private get followUpQueue(): InboundQueuedMessage[] {
+    return this.runState.followUpQueue;
+  }
+  private set followUpQueue(queue: InboundQueuedMessage[]) {
+    this.runState.followUpQueue = queue;
+  }
+  private get nextTurnQueue(): AgentMessage[] {
+    return this.runState.nextTurnQueue;
+  }
+  private get queuedMessageWrites(): WeakMap<
+    AgentMessage,
+    { id?: string; timestamp?: string }
+  > {
+    return this.runState.queuedMessageWrites;
+  }
+  private get steeringQueueMode(): QueueMode {
+    return this.runState.steeringQueueMode;
+  }
+  private set steeringQueueMode(mode: QueueMode) {
+    this.runState.steeringQueueMode = mode;
+  }
+  private get followUpQueueMode(): QueueMode {
+    return this.runState.followUpQueueMode;
+  }
+  private set followUpQueueMode(mode: QueueMode) {
+    this.runState.followUpQueueMode = mode;
+  }
+  private get forceDrainAll(): boolean {
+    return this.runState.forceDrainAll;
+  }
+  private set forceDrainAll(value: boolean) {
+    this.runState.forceDrainAll = value;
+  }
+
   private async emitOwn(
     event: AgentHarnessOwnEvent<TSkill, TPromptTemplate>,
     signal?: AbortSignal,

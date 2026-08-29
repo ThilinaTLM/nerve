@@ -1,5 +1,18 @@
-import { Notification } from "../platform/electron/electron-api.js";
-import type { DesktopNotificationPayload } from "../types.js";
+import { ipcMain, Notification } from "../platform/electron/electron-api.js";
+
+export interface DesktopNotificationPayload {
+  title: string;
+  body?: string;
+  urgency?: "normal" | "attention";
+}
+
+export function registerNotificationsIpc(
+  showNotification: (payload: unknown) => { shown: boolean },
+): void {
+  ipcMain.handle("desktop.notifications.show", (_event, payload) =>
+    showNotification(payload),
+  );
+}
 
 export function showDesktopNotification(
   payload: unknown,

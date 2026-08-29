@@ -4,7 +4,5 @@ export * from "./event-stream.js";
 export * from "./rpc.js";
 export * from "./message.js";
 export * from "./notifications.js";
-export * from "../operations/catalog.js";
 export * from "./session.js";
-export * from "../snapshots/runtime-snapshot.js";
 export * from "./subscriptions.js";

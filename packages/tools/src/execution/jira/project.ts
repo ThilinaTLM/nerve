@@ -1,5 +1,5 @@
 import type {
-  ToolExecutionContext,
+  IntegrationExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { enumSet, optionalString } from "../atlassian/arguments.js";
@@ -26,7 +26,7 @@ import {
 
 export async function executeJiraGetProject(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const projectKey =

@@ -14,7 +14,7 @@ import type {
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts";
 import type {
-  ToolExecutionContext,
+  IntegrationExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { atlassianPlainTextPreview } from "../atlassian/rich-text.js";
@@ -33,7 +33,7 @@ export type ConfluenceArtifact = {
   format?: "markdown" | "text" | "json" | "jsonl" | "directory_manifest";
 };
 
-export function confluenceTmpDir(context: ToolExecutionContext): string {
+export function confluenceTmpDir(context: IntegrationExecutionContext): string {
   return (
     context.artifactDir ??
     (context.dataDir
@@ -43,7 +43,7 @@ export function confluenceTmpDir(context: ToolExecutionContext): string {
 }
 
 export async function writeConfluenceArtifact(
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
   kind: string,
   payload: unknown,
 ): Promise<{ path: string; bytes: number; chars: number; lines: number }> {
@@ -70,7 +70,7 @@ export async function buildConfluenceTextResult({
   artifacts,
 }: {
   text: string;
-  context: ToolExecutionContext;
+  context: IntegrationExecutionContext;
   details?: Record<string, unknown>;
   artifact?: ConfluenceArtifact;
   artifacts?: ConfluenceArtifact[];

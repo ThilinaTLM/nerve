@@ -1,6 +1,6 @@
 import { optionalString } from "../atlassian/arguments.js";
 import { readFile } from "node:fs/promises";
-import type { ToolExecutionContext } from "../execution-context.js";
+import type { IntegrationExecutionContext } from "../execution-context.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
 import { resolveToolPath } from "../filesystem/path.js";
 import {
@@ -79,7 +79,7 @@ export async function buildCreatePayload(
   connection: ConfluenceConnection,
   args: Record<string, unknown>,
   row: ConfluencePageRow | undefined,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<PagePayload> {
   const title = optionalString(args.title) ?? optionalString(row?.title);
   if (!title) throw new Error("title is required.");
@@ -105,7 +105,7 @@ export async function buildUpdatePayload(
   connection: ConfluenceConnection,
   args: Record<string, unknown>,
   row: ConfluencePageRow | undefined,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<UpdatePayload> {
   const pageId = optionalString(args.page_id) ?? optionalString(row?.id);
   if (!pageId) throw new Error("page_id is required.");
@@ -164,7 +164,7 @@ export async function buildUpdatePayload(
 async function resolveBody(
   args: Record<string, unknown>,
   row: ConfluencePageRow | undefined,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
   options: { fallback?: string; fallbackRepresentation?: string } = {},
 ): Promise<{ representation: string; value: string }> {
   const inlineBody = optionalString(args.body);

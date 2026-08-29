@@ -3,7 +3,7 @@
 Canonical agent tool definitions, local execution, permission policy, host runtime contracts, result projection, and Git services.
 
 - `catalog/definitions/`: core and orchestration tool definitions.
-- `execution/`: provider executors plus named process/output/network/Atlassian/error infrastructure.
+- `execution/`: provider executors plus named process/output/network/Atlassian/error infrastructure. `execution-context.ts` defines capability-specific filesystem, shell, Python, web, vision, and integration contexts.
 - `policy/`: permission, supervision, risk, path, and shell policy.
 - `runtime/`: availability, host dispatch, and runtime permission checks.
 - `result-projection/`: bounded agent-facing results.

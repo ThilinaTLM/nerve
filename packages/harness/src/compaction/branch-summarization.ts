@@ -18,8 +18,8 @@ import {
   extractFileOpsFromMessage,
   type FileOperations,
   formatFileOperations,
-  serializeConversation,
-} from "./utils.js";
+} from "./file-operations.js";
+import { serializeConversation } from "./serialization.js";
 
 /** File-operation details stored on generated branch summary entries. */
 export interface BranchSummaryDetails {
@@ -29,7 +29,7 @@ export interface BranchSummaryDetails {
   modifiedFiles: string[];
 }
 
-export type { FileOperations } from "./utils.js";
+export type { FileOperations } from "./file-operations.js";
 
 /** Prepared branch content for summarization. */
 export interface BranchPreparation {

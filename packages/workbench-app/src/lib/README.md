@@ -20,7 +20,7 @@ flowchart TD
 
 ## Directories
 
-- `app/`: executable composition, providers, shell, onboarding, and concrete registrations. `composition/registries` owns lazy center/panel descriptors; `composition/hosts` owns cross-feature hosts.
+- `app/`: executable composition, providers, shell, onboarding, and concrete registrations. `composition/registries` owns lazy center/panel descriptors, `composition/hosts` renders descriptors generically, and `composition/panels` owns each panel's feature wiring.
 - `application/`: startup, workspace, commands, notifications, event routing, and other cross-feature workflows.
 - `domain/`: pure conversations, filesystem, navigation, permissions, and project concepts. It may depend only on itself and external contract packages.
 - `features/<feature>/`: vertical product capabilities. Large slices use `api`, `model`, `state`, `views`, `hosts`, and translation-only `adapters`; small slices stay flat. A feature never imports another feature.

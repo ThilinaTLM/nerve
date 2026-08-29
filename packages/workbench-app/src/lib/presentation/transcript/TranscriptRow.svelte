@@ -9,8 +9,8 @@ import type {
   UserQuestionRecord,
 } from "../state/tool-types";
 import type { ConversationMenuBuilders } from "../conversations/types.js";
-import ToolCallCard from "../tools/components/ToolCallCard.svelte";
-import ToolResultErrorCard from "../tools/components/tool-call/ToolResultErrorCard.svelte";
+import ToolCallCard from "../tools/ToolCallCard.svelte";
+import ToolResultErrorCard from "../tools/tool-call/ToolResultErrorCard.svelte";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";

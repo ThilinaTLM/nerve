@@ -1,5 +1,5 @@
 import type {
-  ToolExecutionContext,
+  IntegrationExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import {
@@ -93,7 +93,7 @@ type JiraTransitionsResponse = { transitions?: unknown[] } & Record<
 
 export async function executeJiraGetIssue(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const issueKey = requiredString(args.issue_key, "issue_key");
@@ -369,7 +369,7 @@ export async function executeJiraGetIssue(
 
 export async function executeJiraCreateIssue(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const projectKey =
@@ -454,7 +454,7 @@ export async function executeJiraCreateIssue(
 
 export async function executeJiraUpdateIssue(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const issueKey = requiredString(args.issue_key, "issue_key");
@@ -535,7 +535,7 @@ export async function executeJiraUpdateIssue(
 
 export async function executeJiraTransitionIssue(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const issueKey = requiredString(args.issue_key, "issue_key");
@@ -690,7 +690,7 @@ function relatedPage(
 async function getTransitions(
   connection: JiraConnection,
   issueKey: string,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<JiraTransitionsResponse> {
   return jiraRequest<JiraTransitionsResponse>(connection, {
     path: `/issue/${pathSegment(issueKey)}/transitions`,

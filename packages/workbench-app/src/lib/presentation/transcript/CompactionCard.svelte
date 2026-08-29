@@ -2,8 +2,8 @@
 import { type StatusTone } from "@nervekit/ui-kit/components/composites/status-dot";
 import type { CompactionNotice } from "../state/transcript-types";
 import { formatTokens } from "@nervekit/ui-kit/display/usage";
-import CardShell from "../tools/components/tool-call/CardShell.svelte";
-import ResultCodeBlock from "../tools/components/tool-call/ResultCodeBlock.svelte";
+import CardShell from "../tools/tool-call/CardShell.svelte";
+import ResultCodeBlock from "../tools/tool-call/ResultCodeBlock.svelte";
 import type { MetaItem } from "../tools/views/tool-presentation";
 import {
   COLLAPSED_LINES,

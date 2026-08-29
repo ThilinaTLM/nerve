@@ -36,7 +36,8 @@ import {
 } from "./platform/electron/electron-api.js";
 import { chromiumLoopbackProxyBypassRules } from "./platform/electron/download-environment.js";
 import { showDesktopNotification } from "./ipc/notifications-ipc.js";
-import { registerDesktopIpc, windowState } from "./ipc/window-ipc.js";
+import { registerDesktopIpc } from "./ipc/register-desktop-ipc.js";
+import { windowState } from "./ipc/window-ipc.js";
 import { configureApplicationLogging, desktopLog } from "./logging.js";
 import {
   installDesktopPerformanceMonitor,
@@ -48,7 +49,7 @@ import {
   refreshDesktopSettingsFromDaemon,
 } from "./settings/desktop-settings.js";
 import { createTrayController } from "./tray/tray.js";
-import type { QuitOptions, QuitSource } from "./types.js";
+import type { QuitOptions, QuitSource } from "./app/quit-contracts.js";
 import {
   errorHtml,
   type LoadingStage,

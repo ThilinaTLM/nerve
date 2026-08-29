@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 import type {
-  ToolExecutionContext,
+  PythonExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { numberArg } from "../process/arguments.js";
@@ -268,7 +268,7 @@ runpy.run_path(user_path, run_name="__main__")
 
 export async function executePython(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: PythonExecutionContext,
 ): Promise<ToolExecutionResult> {
   const cwd = await resolveCommandCwd(context.cwd, args.cwd);
   const source = await pythonSourceArg(args, cwd);
@@ -330,8 +330,8 @@ export async function executePython(
 }
 
 type RunPythonProcessOptions = {
-  runtime: NonNullable<ToolExecutionContext["pythonRuntime"]>;
-  policy: NonNullable<ToolExecutionContext["pythonPolicy"]>;
+  runtime: NonNullable<PythonExecutionContext["pythonRuntime"]>;
+  policy: NonNullable<PythonExecutionContext["pythonPolicy"]>;
   timeoutSeconds: number;
   cwd: string;
   runnerPath: string;
@@ -342,7 +342,7 @@ type RunPythonProcessOptions = {
   scriptPath?: string;
   dataDir?: string;
   signal?: AbortSignal;
-  onUpdate?: ToolExecutionContext["onUpdate"];
+  onUpdate?: PythonExecutionContext["onUpdate"];
 };
 
 type PythonArtifact = {

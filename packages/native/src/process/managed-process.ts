@@ -3,7 +3,7 @@ import { binding } from "../binding/loader.js";
 import type {
   NativeOutputEvent,
   NativeProcessHandle,
-} from "./native-contract.js";
+} from "../binding/contract.js";
 import type {
   InspectionResult,
   ManagedProcess,

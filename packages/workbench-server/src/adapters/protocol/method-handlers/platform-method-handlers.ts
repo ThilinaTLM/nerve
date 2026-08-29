@@ -2,7 +2,7 @@ import {
   slashCommandCompletionItems,
   type UpdateApplicationConfigurationRequest,
 } from "@nervekit/contracts";
-import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
+import type { WorkbenchOperationContext } from "../method-handler-registry.js";
 import {
   providerApiKeySecretName,
   providerOAuthSecretName,
@@ -136,7 +136,7 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMap =
   });
 
 async function updateSettings(
-  state: WorkbenchState,
+  state: WorkbenchOperationContext,
   patch: Record<string, unknown>,
 ) {
   if (patch.application) {
@@ -158,7 +158,7 @@ async function updateSettings(
 }
 
 async function updateApplicationConfiguration(
-  state: WorkbenchState,
+  state: WorkbenchOperationContext,
   patch: UpdateApplicationConfigurationRequest,
 ) {
   assertApplicationConfigurationEditable(state.applicationConfiguration, patch);
@@ -180,7 +180,7 @@ async function updateApplicationConfiguration(
 }
 
 function normalizeRemoteAccessPatch(
-  state: WorkbenchState,
+  state: WorkbenchOperationContext,
   patch: UpdateApplicationConfigurationRequest,
 ): UpdateApplicationConfigurationRequest {
   const allowRemote = patch.application?.network?.allowRemote;
@@ -208,7 +208,7 @@ function normalizeRemoteAccessPatch(
 }
 
 async function publishProviderCatalogChanged(
-  state: WorkbenchState,
+  state: WorkbenchOperationContext,
   provider?: string,
 ): Promise<void> {
   await state.events.publish("providers.catalog_changed", { provider });

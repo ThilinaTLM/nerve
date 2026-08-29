@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type {
-  ToolExecutionContext,
+  FilesystemExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { numberArg } from "../process/arguments.js";
@@ -60,7 +60,7 @@ export function detectSupportedImageMimeType(
 
 export async function executeRead(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: FilesystemExecutionContext,
 ): Promise<ToolExecutionResult> {
   const path = await resolveReadPath(context.cwd, args.path);
   const buffer = await readFile(path).catch((error: unknown) => {

@@ -1,6 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import type {
-  ToolExecutionContext,
+  VisionExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { buildProcessTextResult } from "../process/process-result.js";
@@ -23,7 +23,7 @@ function optionalPrompt(value: unknown): string | undefined {
 
 export async function executeExplainImage(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: VisionExecutionContext,
 ): Promise<ToolExecutionResult> {
   if (!context.explainImage) {
     throw new Error(

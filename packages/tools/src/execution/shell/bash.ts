@@ -3,7 +3,7 @@ import {
   terminateManagedChildProcess,
 } from "@nervekit/native";
 import type {
-  ToolExecutionContext,
+  ShellExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { numberArg } from "../process/arguments.js";
@@ -29,7 +29,7 @@ function nonInteractiveShellEnv(): NodeJS.ProcessEnv {
 
 export async function executeBash(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: ShellExecutionContext,
 ): Promise<ToolExecutionResult> {
   if (typeof args.command !== "string" || args.command.trim().length === 0) {
     throw new Error("Tool argument 'command' must be a non-empty string.");

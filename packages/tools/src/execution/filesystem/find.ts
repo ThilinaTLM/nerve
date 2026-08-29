@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import { relative } from "node:path";
 import { promisify } from "node:util";
 import type {
-  ToolExecutionContext,
+  FilesystemExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { numberArg } from "../process/arguments.js";
@@ -26,7 +26,7 @@ type FindBackendMode = "auto" | "fd" | "node";
 
 export async function executeFind(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: FilesystemExecutionContext,
 ): Promise<ToolExecutionResult> {
   return executeFindWithBackend(args, context, "auto");
 }
@@ -34,7 +34,7 @@ export async function executeFind(
 /** Internal deterministic seam for semantic tests and development benchmarks. */
 export async function executeFindWithBackend(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: FilesystemExecutionContext,
   backendMode: FindBackendMode,
 ): Promise<ToolExecutionResult> {
   if (typeof args.pattern !== "string" || args.pattern.length === 0) {

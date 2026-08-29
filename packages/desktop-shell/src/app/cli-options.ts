@@ -9,7 +9,16 @@ import {
   type ElectronOzonePlatform,
   parseElectronOzonePlatform,
 } from "../platform/chromium/ozone-platform.js";
-import type { DesktopCliOptions } from "../types.js";
+export interface DesktopCliOptions {
+  mode?: "local" | "remote";
+  remoteUrl?: string;
+  token?: string;
+  host?: string;
+  port?: number;
+  httpsPort?: number;
+  allowRemote?: boolean;
+  mobileHttps?: boolean;
+}
 
 export type { ElectronFontRenderHinting, ElectronOzonePlatform };
 export {

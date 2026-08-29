@@ -3,7 +3,7 @@ import type {
   CompactionProfile,
 } from "@nervekit/contracts";
 import type { AgentMessage } from "../agent/contracts/index.js";
-import type { FileOperations } from "./utils.js";
+import type { FileOperations } from "./file-operations.js";
 
 /** File-operation details stored on generated compaction entries. */
 export interface CompactionDetails {

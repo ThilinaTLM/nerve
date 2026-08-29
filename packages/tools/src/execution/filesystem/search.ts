@@ -7,7 +7,7 @@ import { isAbsolute, relative } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable } from "node:stream";
 import type {
-  ToolExecutionContext,
+  FilesystemExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { numberArg } from "../process/arguments.js";
@@ -44,7 +44,7 @@ type GrepBackendMode = "auto" | "rg" | "node";
 
 export async function executeGrep(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: FilesystemExecutionContext,
 ): Promise<ToolExecutionResult> {
   return executeGrepWithBackend(args, context, "auto");
 }
@@ -52,7 +52,7 @@ export async function executeGrep(
 /** Internal deterministic seam for semantic tests and development benchmarks. */
 export async function executeGrepWithBackend(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: FilesystemExecutionContext,
   backendMode: GrepBackendMode,
 ): Promise<ToolExecutionResult> {
   if (typeof args.pattern !== "string" || args.pattern.length === 0) {

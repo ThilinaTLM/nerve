@@ -8,8 +8,27 @@ import type { WorkbenchState } from "../../app/runtime/server-runtime.js";
 
 type MaybePromise<T> = T | Promise<T>;
 
+export type WorkbenchOperationContext = Pick<
+  WorkbenchState,
+  | "agentBrowserSkills"
+  | "applicationConfiguration"
+  | "auth"
+  | "events"
+  | "latestRelease"
+  | "logger"
+  | "performanceDiagnostics"
+  | "providerCatalog"
+  | "queryCache"
+  | "registry"
+  | "secrets"
+  | "services"
+  | "storage"
+  | "storageCleanup"
+  | "storageUsage"
+>;
+
 type WorkbenchMethodHandler<M extends OperationName> = (
-  state: WorkbenchState,
+  state: WorkbenchOperationContext,
   params: OperationParams<M>,
 ) => MaybePromise<unknown>;
 
@@ -26,11 +45,11 @@ export function defineWorkbenchMethodHandlers<
 export interface WorkbenchMethodRegistry {
   readonly methods: readonly OperationName[];
   handle(
-    state: WorkbenchState,
+    state: WorkbenchOperationContext,
     method: OperationName,
     params: unknown,
   ): Promise<unknown>;
-  bind(state: WorkbenchState): Partial<OperationHandlerRegistry>;
+  bind(state: WorkbenchOperationContext): Partial<OperationHandlerRegistry>;
 }
 
 export function createWorkbenchMethodRegistry(
@@ -86,7 +105,7 @@ export function createWorkbenchMethodRegistry(
   }
 
   async function handle(
-    state: WorkbenchState,
+    state: WorkbenchOperationContext,
     method: OperationName,
     params: unknown,
   ): Promise<unknown> {
@@ -109,7 +128,9 @@ export function createWorkbenchMethodRegistry(
     }
   }
 
-  function bind(state: WorkbenchState): Partial<OperationHandlerRegistry> {
+  function bind(
+    state: WorkbenchOperationContext,
+  ): Partial<OperationHandlerRegistry> {
     return Object.fromEntries(
       expectedMethods.map((method) => [
         method,

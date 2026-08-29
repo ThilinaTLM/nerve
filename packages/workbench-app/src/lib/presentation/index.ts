@@ -25,4 +25,4 @@ export type {
 } from "@nervekit/ui-kit/utils";
 export { cn } from "@nervekit/ui-kit/utils";
 export * from "./state/index.js";
-export { default as ToolCallCard } from "./tools/components/ToolCallCard.svelte";
+export { default as ToolCallCard } from "./tools/ToolCallCard.svelte";

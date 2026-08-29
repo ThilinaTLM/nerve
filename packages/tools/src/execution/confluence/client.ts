@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import type { ToolExecutionContext } from "../execution-context.js";
+import type { IntegrationExecutionContext } from "../execution-context.js";
 import { withTimeoutSignal } from "../process/abort.js";
 import { safeAtlassianError } from "../atlassian/atlassian-error.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
@@ -40,7 +40,7 @@ type MultipartAttachmentOptions = {
 };
 
 export async function requireConfluenceConnection(
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ConfluenceConnection> {
   const token = await context.getApiKey?.("confluence");
   const rawConfig = (await context.getProviderConfig?.("confluence")) as

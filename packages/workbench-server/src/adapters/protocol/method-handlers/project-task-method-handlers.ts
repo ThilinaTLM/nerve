@@ -80,29 +80,29 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
   "scratchNote.delete": (state, params) =>
     handleScratchNoteMethod(state, "scratchNote.delete", params),
   "promptSuggestion.listForProject": (state, params) =>
-    state.registry.promptSuggestions.listForProject(params.projectId, {
+    state.services.promptSuggestions.listForProject(params.projectId, {
       conversationId: params.conversationId,
       agentId: params.agentId,
     }),
   "promptSuggestion.statuses.list": async (state, params) => ({
-    statuses: await state.registry.promptSuggestions.listStatuses(
+    statuses: await state.services.promptSuggestions.listStatuses(
       params?.projectId,
     ),
   }),
   "promptSuggestion.trust.update": async (state, params) => {
-    await state.registry.promptSuggestions.updateTrust(params);
+    await state.services.promptSuggestions.updateTrust(params);
     return { ok: true };
   },
   "promptSuggestion.enabled.update": async (state, params) => {
-    await state.registry.promptSuggestions.updateEnabled(params);
+    await state.services.promptSuggestions.updateEnabled(params);
     return { ok: true };
   },
   "promptSuggestion.create": async (state, params) => ({
-    suggestion: await state.registry.promptSuggestions.create(params),
+    suggestion: await state.services.promptSuggestions.create(params),
   }),
-  "task.list": (state) => ({ tasks: state.registry.listTasks() }),
+  "task.list": (state) => ({ tasks: state.services.tasks.listTasks() }),
   "task.start": async (state, params) => ({
-    task: await state.registry.startTask(params),
+    task: await state.services.tasks.startTask(params),
   }),
   "task.launchDefinition": (state, params) =>
     state.registry.launchTaskDefinition(
@@ -110,16 +110,16 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
       params.terminateListeners,
     ),
   "task.get": (state, params) => ({
-    task: state.registry.getTask(params.taskId),
+    task: state.services.tasks.getTask(params.taskId),
   }),
   "task.cancel": async (state, params) => {
-    state.registry.getTask(params.taskId);
+    state.services.tasks.getTask(params.taskId);
     return {
-      task: await state.registry.cancelTask(params.taskId, params),
+      task: await state.services.tasks.cancelTask(params.taskId, params),
     };
   },
   "task.restart": async (state, params) => {
-    state.registry.getTask(params.taskId);
+    state.services.tasks.getTask(params.taskId);
     return {
       task: await state.registry.restartTask(
         params.taskId,
@@ -128,16 +128,16 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
     };
   },
   "task.prune": async (state) => ({
-    removed: await state.registry.pruneTasks(),
+    removed: await state.services.tasks.pruneTasks(),
   }),
   "task.delete": async (state, params) => {
-    state.registry.getTask(params.taskId);
-    await state.registry.removeTask(params.taskId);
+    state.services.tasks.getTask(params.taskId);
+    await state.services.tasks.removeTask(params.taskId);
     return { removed: true };
   },
   "task.logs": (state, params) => {
     const { taskId, ...query } = params;
-    return state.registry.queryTaskLogs(taskId, query);
+    return state.services.tasks.queryLogs(taskId, query);
   },
 });
 

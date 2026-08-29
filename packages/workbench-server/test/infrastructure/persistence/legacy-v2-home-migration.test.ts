@@ -192,7 +192,9 @@ async function createCanonicalV3Home(home: string): Promise<void> {
 
 async function createPost0012Home(home: string): Promise<void> {
   await cp(
-    fileURLToPath(new URL("./fixtures/storage/post-0012/", import.meta.url)),
+    fileURLToPath(
+      new URL("../../fixtures/storage/post-0012/", import.meta.url),
+    ),
     home,
     { recursive: true },
   );
@@ -457,7 +459,9 @@ test("refuses a legacy home while its daemon is running", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-legacy-running-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   await cp(
-    fileURLToPath(new URL("./fixtures/storage/post-0012/", import.meta.url)),
+    fileURLToPath(
+      new URL("../../fixtures/storage/post-0012/", import.meta.url),
+    ),
     home,
     { recursive: true },
   );
@@ -478,7 +482,9 @@ test("rejects modified and incomplete post-0012 ledgers", async (t) => {
     const home = await mkdtemp(join(tmpdir(), `nerve-legacy-${mutation}-`));
     t.after(() => rm(home, { recursive: true, force: true }));
     await cp(
-      fileURLToPath(new URL("./fixtures/storage/post-0012/", import.meta.url)),
+      fileURLToPath(
+        new URL("../../fixtures/storage/post-0012/", import.meta.url),
+      ),
       home,
       { recursive: true },
     );

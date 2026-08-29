@@ -7,8 +7,10 @@ import {
 } from "@nervekit/contracts";
 import type { WorkbenchState } from "../../app/runtime/server-runtime.js";
 
+type SnapshotContext = Pick<WorkbenchState, "events" | "registry">;
+
 export async function getWorkspaceSnapshotResponse(
-  state: WorkbenchState,
+  state: SnapshotContext,
 ): Promise<WorkspaceSnapshotResponse> {
   const captured = await state.events.withCursor(WORKSPACE_STREAM, () => ({
     projects: state.registry.listProjects(),
@@ -30,7 +32,7 @@ export async function getWorkspaceSnapshotResponse(
 }
 
 export async function getConversationSnapshotResponse(
-  state: WorkbenchState,
+  state: SnapshotContext,
   conversationId: string,
 ): Promise<ConversationSnapshotResponse<ConversationSnapshot>> {
   const stream = conversationStream(conversationId);

@@ -5,7 +5,7 @@ import Popover, {
   PopoverHeader,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import { ProgressRing } from "@nervekit/ui-kit/components/composites/progress-ring";
-import TodoChecklist from "../tools/components/tool-call/TodoChecklist.svelte";
+import TodoChecklist from "../tools/tool-call/TodoChecklist.svelte";
 
 type Props = { todos: TodoItem[] };
 let { todos }: Props = $props();

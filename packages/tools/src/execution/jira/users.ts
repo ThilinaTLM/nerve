@@ -1,5 +1,5 @@
 import type {
-  ToolExecutionContext,
+  IntegrationExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { optionalString, requiredString } from "../atlassian/arguments.js";
@@ -17,7 +17,7 @@ import { jiraUsersFromResponse, searchJiraUsers } from "./helpers.js";
 
 export async function executeJiraSearchUsers(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const query = requiredString(args.query, "query");

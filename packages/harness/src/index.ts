@@ -102,7 +102,7 @@ export {
   getLastAssistantUsage,
   getLatestCompactionEntry,
 } from "./compaction/usage.js";
-export { serializeConversation } from "./compaction/utils.js";
+export { serializeConversation } from "./compaction/serialization.js";
 export {
   type AgentHarnessOptions,
   type AgentHarnessPromptOptions,

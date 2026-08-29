@@ -1,5 +1,5 @@
 import { optionalString, optionalStringArray } from "../atlassian/arguments.js";
-import type { ToolExecutionContext } from "../execution-context.js";
+import type { IntegrationExecutionContext } from "../execution-context.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
 import { type JiraConnection, jiraRequest } from "./client.js";
 import { nameOf, summarizeJiraField, summarizeJiraUser } from "./format.js";
@@ -77,7 +77,7 @@ export function transitionSummary(
 export async function validateJql(
   connection: JiraConnection,
   jql: string,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<unknown> {
   return jiraRequest(connection, {
     method: "POST",

@@ -1,5 +1,5 @@
 import type {
-  ToolExecutionContext,
+  IntegrationExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import {
@@ -39,7 +39,7 @@ type JiraSearchResponse = Record<string, unknown> & {
 
 export async function executeJiraSearchIssues(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const jql = requiredString(args.jql, "jql");

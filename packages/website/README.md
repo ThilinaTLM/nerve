@@ -17,7 +17,7 @@ pnpm --filter @nervekit/website build
 The site uses Tailwind v4 (`@tailwindcss/vite`) plus `@astrojs/starlight-tailwind`. Styles are layered under `src/styles/` and loaded once through Starlight's `customCss`:
 
 - `app.css` — the only entry: Tailwind, the Starlight bridge, fonts, then the partials below.
-- `tokens.css` — brand tokens for both themes, the Myelin marketing layer, semantic radius/depth/rhythm values, the `@theme inline` mapping, and the `--sl-*` bridge. Palette values mirror `packages/ui-kit/src/styles/theme.css`, which stays the source of truth; re-sync manually when the app rebrands.
+- `tokens.css` — brand tokens for both themes, the Myelin marketing layer, semantic radius/depth/rhythm values, the `@theme inline` mapping, and the `--sl-*` bridge. The shared Nerve light/dark semantic palette mirrors `packages/ui-kit/src/styles/theme.css`, which stays the source of truth; marketing-only roles extend it without overriding shared values.
 - `base.css` — element defaults, focus rings, and native view transitions.
 - `motion.css` — every `@keyframes` in this package, progressive reveals, and the `prefers-reduced-motion` guard.
 - `neural.css` — reusable neural/depth primitives such as membranes, axons, event layers, labels, and 3D stages.

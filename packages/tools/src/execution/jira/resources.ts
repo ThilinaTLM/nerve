@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
 
 import type {
-  ToolExecutionContext,
+  IntegrationExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
@@ -36,6 +36,7 @@ import {
 } from "./format.js";
 import { boundedNumber } from "../atlassian/arguments.js";
 import { rawOptionalRecord } from "./helpers.js";
+import { estimateQuery, past, safeFilename } from "./resource-arguments.js";
 
 const DEFAULT_ISSUE_FIELDS = [
   "summary",
@@ -47,7 +48,7 @@ const DEFAULT_ISSUE_FIELDS = [
 ];
 
 function dryResult(
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
   text: string,
   details: Record<string, unknown>,
 ) {
@@ -64,7 +65,7 @@ function dryResult(
 
 export async function executeJiraGetBoard(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const boardId = requiredString(args.board_id, "board_id");
@@ -148,7 +149,7 @@ export async function executeJiraGetBoard(
 
 export async function executeJiraGetSprint(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const sprintId = requiredString(args.sprint_id, "sprint_id");
@@ -202,7 +203,7 @@ export async function executeJiraGetSprint(
 
 export async function executeJiraDownloadAttachment(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const attachmentId = requiredString(args.attachment_id, "attachment_id");
@@ -285,7 +286,7 @@ export async function executeJiraDownloadAttachment(
 
 export async function executeJiraManageAttachment(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const action = requiredString(args.action, "action");
   if (action !== "upload" && action !== "delete")
@@ -364,7 +365,7 @@ export async function executeJiraManageAttachment(
 
 export async function executeJiraManageComment(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const action = requiredString(args.action, "action");
@@ -423,7 +424,7 @@ export async function executeJiraManageComment(
 
 export async function executeJiraManageWorklog(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const action = requiredString(args.action, "action");
@@ -499,7 +500,7 @@ export async function executeJiraManageWorklog(
 
 export async function executeJiraManageIssueLink(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const action = requiredString(args.action, "action");
@@ -599,7 +600,7 @@ export async function executeJiraManageIssueLink(
 
 export async function executeJiraManageSprint(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const action = requiredString(args.action, "action");
@@ -698,7 +699,7 @@ export async function executeJiraManageSprint(
 
 export async function executeJiraManageBacklog(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const action = requiredString(args.action, "action");
@@ -755,46 +756,12 @@ export async function executeJiraManageBacklog(
   });
 }
 
-export async function fetchJiraIssueLinkTypes(context: ToolExecutionContext) {
+export async function fetchJiraIssueLinkTypes(
+  context: IntegrationExecutionContext,
+) {
   const connection = await requireJiraConnection(context);
   return jiraRequest(connection, {
     path: "/issueLinkType",
     signal: context.signal,
   });
-}
-
-function estimateQuery(
-  args: Record<string, unknown>,
-): Record<string, string | undefined> {
-  return {
-    adjustEstimate: optionalString(args.adjust_estimate),
-    newEstimate: optionalString(args.new_estimate),
-    increaseBy: optionalString(args.increase_by),
-  };
-}
-
-function safeFilename(value: string): string {
-  const name = [...basename(value)]
-    .map((character) =>
-      character.charCodeAt(0) < 32 || '<>:"/\\|?*'.includes(character)
-        ? "_"
-        : character,
-    )
-    .join("")
-    .trim();
-  if (!name || name === "." || name === "..")
-    throw new ToolExecutionError(
-      "JIRA_INVALID_FILENAME",
-      "Attachment filename is invalid.",
-    );
-  return name.slice(0, 240);
-}
-
-function past(action: string): string {
-  if (action === "create") return "Created";
-  if (action === "update") return "Updated";
-  if (action === "delete") return "Deleted";
-  if (action === "start") return "Started";
-  if (action === "close") return "Closed";
-  return `${action}d`;
 }

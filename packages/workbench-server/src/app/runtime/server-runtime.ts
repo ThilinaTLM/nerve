@@ -41,6 +41,7 @@ import {
   type SecretProvider,
 } from "../../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
+import type { RuntimeServices } from "../bootstrap/create-runtime-services.js";
 import { RuntimeRegistry } from "./runtime-lifecycle.js";
 import { version } from "../version.js";
 
@@ -55,6 +56,7 @@ export interface WorkbenchState {
   logger: ApplicationLogger;
   applicationLogsEnabled: boolean;
   registry: RuntimeRegistry;
+  services: RuntimeServices;
   queryCache: RuntimeQueryCache;
   canonicalStore: CanonicalStore;
   storageUsage: StorageUsageService;
@@ -219,6 +221,7 @@ export function createWorkbenchState(
     logger,
     applicationLogsEnabled: options.applicationLogsEnabled ?? false,
     registry,
+    services: registry.services,
     queryCache,
     canonicalStore: storage.canonicalStore,
     storageUsage,

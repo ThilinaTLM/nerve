@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type {
-  ToolExecutionContext,
+  FilesystemExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { writeTextFileAtomically } from "./atomic-write.js";
@@ -31,7 +31,7 @@ type ResolvedEdit = {
 
 export async function executeEdit(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: FilesystemExecutionContext,
 ): Promise<ToolExecutionResult> {
   const path = resolveToolPath(context.cwd, args.path);
   const edits = parseEdits(args);

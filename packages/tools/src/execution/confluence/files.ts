@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { ToolExecutionContext } from "../execution-context.js";
+import type { IntegrationExecutionContext } from "../execution-context.js";
 import {
   type ConfluenceArtifact,
   confluenceTmpDir,
@@ -28,7 +28,7 @@ export type DownloadBundleResult = {
 };
 
 export async function writePageSidecars(
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
   page: Record<string, unknown>,
   options: { bodyFormat: string; markdown?: boolean },
 ): Promise<{
@@ -75,7 +75,7 @@ export async function writePageSidecars(
 }
 
 export async function writeDownloadBundle(
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
   options: {
     siteUrl: string;
     root: Record<string, unknown>;

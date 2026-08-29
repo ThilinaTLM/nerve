@@ -39,8 +39,8 @@ import {
   extractFileOpsFromMessage,
   type FileOperations,
   formatFileOperations,
-  serializeConversation,
-} from "./utils.js";
+} from "./file-operations.js";
+import { serializeConversation } from "./serialization.js";
 
 function extractFileOperations(
   messages: AgentMessage[],
@@ -545,7 +545,7 @@ Use this exact format:
 
 Clearly distinguish completed work from remaining work. Do not omit unfinished steps, do not mark work complete without evidence, and do not continue the task.`;
 
-export { serializeConversation } from "./utils.js";
+export { serializeConversation } from "./serialization.js";
 
 /** Generate compaction summary data from prepared conversation history. */
 export async function compact(

@@ -3,12 +3,12 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { findHealthyDaemon } from "../src/daemon/adapters/daemon-discovery.ts";
+import { checkHealth } from "../src/daemon/adapters/daemon-health.ts";
 import {
   captureDiagnosticReport,
-  checkHealth,
-  findHealthyDaemon,
   resolveDaemonLaunch,
-} from "../src/daemon/adapters/node-process.ts";
+} from "../src/daemon/adapters/node-launcher.ts";
 
 describe("daemon Node health integration", () => {
   it("wraps Linux desktop daemons in a delegated systemd scope", () => {

@@ -2,35 +2,24 @@ import type {
   BrowserWindowType,
   IpcMainInvokeEvent,
 } from "../platform/electron/electron-api.js";
-import {
-  BrowserWindow,
-  clipboard,
-  ipcMain,
-  shell,
-} from "../platform/electron/electron-api.js";
+import { BrowserWindow, ipcMain } from "../platform/electron/electron-api.js";
 import { desktopLog } from "../logging.js";
-import type { DesktopWindowState, QuitSource } from "../types.js";
-import { resolveProjectEntryPath } from "./project-entry-path.js";
+import type { QuitSource } from "../app/quit-contracts.js";
 
-interface RegisterDesktopIpcOptions {
+export interface DesktopWindowState {
+  maximized: boolean;
+  focused: boolean;
+}
+
+export function registerWindowIpc(options: {
   getCloseToTray: () => boolean;
   setCloseToTray: (value: boolean) => void;
   closeWindowOrQuit: (window: BrowserWindowType, source?: QuitSource) => void;
   sendWindowState: (window: BrowserWindowType) => void;
-  showDesktopNotification: (payload: unknown) => { shown: boolean };
-  getDaemonCapability: () => {
-    mode?: "local" | "remote";
-    owned: boolean;
-    canRestart: boolean;
-  };
-  restartDaemon: () => Promise<void>;
-}
-
-export function registerDesktopIpc(options: RegisterDesktopIpcOptions): void {
-  ipcMain.handle("desktop.window.minimize", (event) => {
-    windowFromEvent(event)?.minimize();
-  });
-
+}): void {
+  ipcMain.handle("desktop.window.minimize", (event) =>
+    windowFromEvent(event)?.minimize(),
+  );
   ipcMain.handle("desktop.window.toggleMaximize", (event) => {
     const window = windowFromEvent(event);
     if (!window) return;
@@ -38,7 +27,6 @@ export function registerDesktopIpc(options: RegisterDesktopIpcOptions): void {
     else window.maximize();
     options.sendWindowState(window);
   });
-
   ipcMain.handle("desktop.window.close", (event, closeOptions) => {
     const startedAt = Date.now();
     const window = windowFromEvent(event);
@@ -50,28 +38,6 @@ export function registerDesktopIpc(options: RegisterDesktopIpcOptions): void {
     });
     options.closeWindowOrQuit(window, "titlebar-close");
   });
-
-  ipcMain.handle("desktop.daemon.getCapability", () =>
-    options.getDaemonCapability(),
-  );
-
-  ipcMain.handle("desktop.daemon.restart", async () => {
-    const capability = options.getDaemonCapability();
-    if (!capability.canRestart) {
-      throw new Error("The current daemon is not owned by this desktop app.");
-    }
-    await options.restartDaemon();
-    return { ok: true };
-  });
-
-  ipcMain.handle("desktop.settings.setCloseToTray", (_event, value) => {
-    if (typeof value !== "boolean") {
-      throw new Error("desktop.settings.setCloseToTray expects a boolean.");
-    }
-    options.setCloseToTray(value);
-    return { closeToTray: options.getCloseToTray() };
-  });
-
   ipcMain.handle("desktop.window.getState", (event): DesktopWindowState => {
     const window = windowFromEvent(event);
     return window
@@ -81,41 +47,10 @@ export function registerDesktopIpc(options: RegisterDesktopIpcOptions): void {
           focused: BrowserWindow.getFocusedWindow() !== null,
         };
   });
-
-  ipcMain.handle("desktop.notifications.show", (_event, payload) =>
-    options.showDesktopNotification(payload),
-  );
-
-  ipcMain.handle("desktop.clipboard.writeText", (_event, text) => {
-    if (typeof text !== "string") {
-      throw new Error("desktop.clipboard.writeText expects a string.");
-    }
-    clipboard.writeText(text);
-    return { ok: true };
-  });
-
-  ipcMain.handle("desktop.files.openProjectEntry", async (_event, target) => {
-    const error = await shell.openPath(resolveProjectEntryPath(target));
-    if (error) throw new Error(error);
-    return { ok: true };
-  });
-
-  ipcMain.handle("desktop.files.revealProjectEntry", (_event, target) => {
-    shell.showItemInFolder(resolveProjectEntryPath(target));
-    return { ok: true };
-  });
-
-  ipcMain.handle("desktop.files.trashProjectEntry", async (_event, target) => {
-    await shell.trashItem(resolveProjectEntryPath(target));
-    return { ok: true };
-  });
 }
 
 export function windowState(window: BrowserWindowType): DesktopWindowState {
-  return {
-    maximized: window.isMaximized(),
-    focused: window.isFocused(),
-  };
+  return { maximized: window.isMaximized(), focused: window.isFocused() };
 }
 
 function windowFromEvent(
@@ -126,10 +61,10 @@ function windowFromEvent(
 }
 
 function updateCloseToTrayOption(
-  options: unknown,
+  value: unknown,
   setCloseToTray: (value: boolean) => void,
 ): void {
-  if (!options || typeof options !== "object") return;
-  const value = (options as { closeToTray?: unknown }).closeToTray;
-  if (typeof value === "boolean") setCloseToTray(value);
+  if (!value || typeof value !== "object") return;
+  const closeToTray = (value as { closeToTray?: unknown }).closeToTray;
+  if (typeof closeToTray === "boolean") setCloseToTray(closeToTray);
 }

@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
-  ToolExecutionContext,
+  WebExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { webFetchCandidateFitsInline } from "../../result-projection/candidates/web.js";
@@ -84,7 +84,7 @@ function isHtml(contentType: string): boolean {
   return baseContentType(contentType) === "text/html";
 }
 
-function saveDir(context: ToolExecutionContext): string {
+function saveDir(context: WebExecutionContext): string {
   return (
     context.artifactDir ??
     (context.dataDir
@@ -94,7 +94,7 @@ function saveDir(context: ToolExecutionContext): string {
 }
 
 function tmpPath(
-  context: ToolExecutionContext,
+  context: WebExecutionContext,
   url: string,
   ext: string,
 ): string {
@@ -206,7 +206,7 @@ async function readBoundedResponse(
 }
 
 async function saveContent(
-  context: ToolExecutionContext,
+  context: WebExecutionContext,
   url: string,
   ext: string,
   content: Buffer | string,
@@ -260,7 +260,7 @@ export async function fetchWithPolicy(
 
 export async function executeWebFetch(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: WebExecutionContext,
 ): Promise<ToolExecutionResult> {
   const requestedUrl = stringArg(args.url, "url");
   const raw = args.raw === true;

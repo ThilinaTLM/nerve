@@ -38,9 +38,109 @@
       "types": "./dist/snapshots/index.d.ts",
       "import": "./dist/snapshots/index.js"
     },
-    "./*": {
-      "types": "./dist/domains/*/index.d.ts",
-      "import": "./dist/domains/*/index.js"
+    "./agents": {
+      "types": "./dist/domains/agents/index.d.ts",
+      "import": "./dist/domains/agents/index.js"
+    },
+    "./auth": {
+      "types": "./dist/domains/auth/index.d.ts",
+      "import": "./dist/domains/auth/index.js"
+    },
+    "./completions": {
+      "types": "./dist/domains/completions/index.d.ts",
+      "import": "./dist/domains/completions/index.js"
+    },
+    "./conversations": {
+      "types": "./dist/domains/conversations/index.d.ts",
+      "import": "./dist/domains/conversations/index.js"
+    },
+    "./filesystem": {
+      "types": "./dist/domains/filesystem/index.d.ts",
+      "import": "./dist/domains/filesystem/index.js"
+    },
+    "./git": {
+      "types": "./dist/domains/git/index.d.ts",
+      "import": "./dist/domains/git/index.js"
+    },
+    "./logs": {
+      "types": "./dist/domains/logs/index.d.ts",
+      "import": "./dist/domains/logs/index.js"
+    },
+    "./models": {
+      "types": "./dist/domains/models/index.d.ts",
+      "import": "./dist/domains/models/index.js"
+    },
+    "./permissions": {
+      "types": "./dist/domains/permissions/index.d.ts",
+      "import": "./dist/domains/permissions/index.js"
+    },
+    "./pinned-commands": {
+      "types": "./dist/domains/pinned-commands/index.d.ts",
+      "import": "./dist/domains/pinned-commands/index.js"
+    },
+    "./plans": {
+      "types": "./dist/domains/plans/index.d.ts",
+      "import": "./dist/domains/plans/index.js"
+    },
+    "./projects": {
+      "types": "./dist/domains/projects/index.d.ts",
+      "import": "./dist/domains/projects/index.js"
+    },
+    "./prompt-suggestions": {
+      "types": "./dist/domains/prompt-suggestions/index.d.ts",
+      "import": "./dist/domains/prompt-suggestions/index.js"
+    },
+    "./providers": {
+      "types": "./dist/domains/providers/index.d.ts",
+      "import": "./dist/domains/providers/index.js"
+    },
+    "./runs": {
+      "types": "./dist/domains/runs/index.d.ts",
+      "import": "./dist/domains/runs/index.js"
+    },
+    "./scratch-notes": {
+      "types": "./dist/domains/scratch-notes/index.d.ts",
+      "import": "./dist/domains/scratch-notes/index.js"
+    },
+    "./settings": {
+      "types": "./dist/domains/settings/index.d.ts",
+      "import": "./dist/domains/settings/index.js"
+    },
+    "./skills": {
+      "types": "./dist/domains/skills/index.d.ts",
+      "import": "./dist/domains/skills/index.js"
+    },
+    "./status": {
+      "types": "./dist/domains/status/index.d.ts",
+      "import": "./dist/domains/status/index.js"
+    },
+    "./storage": {
+      "types": "./dist/domains/storage/index.d.ts",
+      "import": "./dist/domains/storage/index.js"
+    },
+    "./suspensions": {
+      "types": "./dist/domains/suspensions/index.d.ts",
+      "import": "./dist/domains/suspensions/index.js"
+    },
+    "./task-definitions": {
+      "types": "./dist/domains/task-definitions/index.d.ts",
+      "import": "./dist/domains/task-definitions/index.js"
+    },
+    "./tasks": {
+      "types": "./dist/domains/tasks/index.d.ts",
+      "import": "./dist/domains/tasks/index.js"
+    },
+    "./tools": {
+      "types": "./dist/domains/tools/index.d.ts",
+      "import": "./dist/domains/tools/index.js"
+    },
+    "./transcription": {
+      "types": "./dist/domains/transcription/index.d.ts",
+      "import": "./dist/domains/transcription/index.js"
+    },
+    "./usage": {
+      "types": "./dist/domains/usage/index.d.ts",
+      "import": "./dist/domains/usage/index.js"
     }
   },
   "scripts": {

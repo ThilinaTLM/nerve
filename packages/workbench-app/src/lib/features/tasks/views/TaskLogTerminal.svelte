@@ -6,7 +6,7 @@ import {
   VirtualScroller,
   type VirtualScrollerController,
 } from "@nervekit/ui-kit/components/composites/virtual-list";
-import TerminalText from "$lib/presentation/tools/components/tool-call/TerminalText.svelte";
+import TerminalText from "$lib/presentation/tools/tool-call/TerminalText.svelte";
 
 type LogRow =
   | { kind: "history"; key: string }

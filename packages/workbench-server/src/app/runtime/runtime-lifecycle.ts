@@ -83,7 +83,7 @@ export class RuntimeRegistry {
   get agentConversationMessages(): Map<string, Message[]> {
     return this.state.agentConversationMessages;
   }
-  private readonly services: RuntimeServices;
+  readonly services: RuntimeServices;
   private readonly backgroundOperations = new Set<Promise<void>>();
   private shuttingDown = false;
 

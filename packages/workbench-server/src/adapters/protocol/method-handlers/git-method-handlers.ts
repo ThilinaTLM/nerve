@@ -3,101 +3,101 @@ import { defineWorkbenchMethodHandlers } from "../method-handler-registry.js";
 
 export const gitMethodHandlers = defineWorkbenchMethodHandlers({
   "git.repos.discover": (state, params) =>
-    state.registry.git.discoverRepos(params.projectId),
+    state.services.git.discoverRepos(params.projectId),
   "git.overview.get": (state, params) =>
-    state.registry.git.overview(params.projectId, repo(params)),
+    state.services.git.overview(params.projectId, repo(params)),
   "git.project.files.status.get": (state, params) =>
-    state.registry.git.projectFileStatus(params.projectId),
+    state.services.git.projectFileStatus(params.projectId),
   "git.branches.list": (state, params) =>
-    state.registry.git.listBranches(params.projectId, repo(params)),
+    state.services.git.listBranches(params.projectId, repo(params)),
   "git.branch.create": (state, params) =>
-    state.registry.git.createBranch(
+    state.services.git.createBranch(
       params.projectId,
       repo(params),
       params.name,
     ),
   "git.branch.switch": (state, params) =>
-    state.registry.git.switchBranch(
+    state.services.git.switchBranch(
       params.projectId,
       repo(params),
       params.name,
     ),
   "git.file.diff.get": (state, params) =>
-    state.registry.git.fileDiff(
+    state.services.git.fileDiff(
       params.projectId,
       repo(params),
       params.path,
       params.area,
     ),
   "git.file.stage": (state, params) =>
-    state.registry.git.stageFile(params.projectId, repo(params), params.path),
+    state.services.git.stageFile(params.projectId, repo(params), params.path),
   "git.file.unstage": (state, params) =>
-    state.registry.git.unstageFile(params.projectId, repo(params), params.path),
+    state.services.git.unstageFile(params.projectId, repo(params), params.path),
   "git.file.discard": (state, params) =>
-    state.registry.git.discardFile(params.projectId, repo(params), params.path),
+    state.services.git.discardFile(params.projectId, repo(params), params.path),
   "git.sync": (state, params) =>
-    state.registry.git.syncBranch(params.projectId, repo(params)),
+    state.services.git.syncBranch(params.projectId, repo(params)),
   "git.push": (state, params) =>
-    state.registry.git.push(params.projectId, repo(params)),
+    state.services.git.push(params.projectId, repo(params)),
   "git.pull": (state, params) =>
-    state.registry.git.pull(params.projectId, repo(params)),
+    state.services.git.pull(params.projectId, repo(params)),
   "git.fetch": (state, params) =>
-    state.registry.git.fetch(params.projectId, repo(params)),
+    state.services.git.fetch(params.projectId, repo(params)),
   "git.switchBaseAndPull": (state, params) =>
-    state.registry.git.switchBaseAndPull(params.projectId, repo(params)),
+    state.services.git.switchBaseAndPull(params.projectId, repo(params)),
   "git.stash.create": (state, params) =>
-    state.registry.git.createStash(
+    state.services.git.createStash(
       params.projectId,
       repo(params),
       params.area,
       params.paths,
     ),
   "git.stash.apply": (state, params) =>
-    state.registry.git.applyStash(
+    state.services.git.applyStash(
       params.projectId,
       repo(params),
       params.index,
       params.expectedHash,
     ),
   "git.stash.drop": (state, params) =>
-    state.registry.git.dropStash(
+    state.services.git.dropStash(
       params.projectId,
       repo(params),
       params.index,
       params.expectedHash,
     ),
   "github.status.get": (state, params) =>
-    state.registry.git.githubStatus(params.projectId, repo(params)),
+    state.services.git.githubStatus(params.projectId, repo(params)),
   "github.pr.list": (state, params) =>
-    state.registry.git.listOpenPrs(
+    state.services.git.listOpenPrs(
       params.projectId,
       repo(params),
       params.filters as GithubPrListFilters,
     ),
   "github.pr.initial.get": (state, params) =>
-    state.registry.git.prInitial(params.projectId, repo(params), params.number),
+    state.services.git.prInitial(params.projectId, repo(params), params.number),
   "github.pr.core.get": (state, params) =>
-    state.registry.git.prCore(params.projectId, repo(params), params.number),
+    state.services.git.prCore(params.projectId, repo(params), params.number),
   "github.pr.conversation.get": (state, params) =>
-    state.registry.git.prConversation(
+    state.services.git.prConversation(
       params.projectId,
       repo(params),
       params.number,
     ),
   "github.pr.overview.get": (state, params) =>
-    state.registry.git.prOverview(
+    state.services.git.prOverview(
       params.projectId,
       repo(params),
       params.number,
     ),
   "github.pr.commits.get": (state, params) =>
-    state.registry.git.prCommits(params.projectId, repo(params), params.number),
+    state.services.git.prCommits(params.projectId, repo(params), params.number),
   "github.pr.checks.get": (state, params) =>
-    state.registry.git.prChecks(params.projectId, repo(params), params.number),
+    state.services.git.prChecks(params.projectId, repo(params), params.number),
   "github.pr.files.get": (state, params) =>
-    state.registry.git.prFiles(params.projectId, repo(params), params.number),
+    state.services.git.prFiles(params.projectId, repo(params), params.number),
   "github.pr.file.diff.get": (state, params) =>
-    state.registry.git.prFileDiff(
+    state.services.git.prFileDiff(
       params.projectId,
       repo(params),
       params.number,
@@ -113,13 +113,13 @@ export const gitMethodHandlers = defineWorkbenchMethodHandlers({
       },
     ),
   "github.pr.checkout": (state, params) =>
-    state.registry.git.checkoutPr(
+    state.services.git.checkoutPr(
       params.projectId,
       repo(params),
       params.number,
     ),
   "github.pr.merge": (state, params) =>
-    state.registry.git.mergePr(
+    state.services.git.mergePr(
       params.projectId,
       repo(params),
       params.number,

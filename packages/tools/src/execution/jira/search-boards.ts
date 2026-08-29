@@ -1,5 +1,5 @@
 import type {
-  ToolExecutionContext,
+  IntegrationExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { optionalString } from "../atlassian/arguments.js";
@@ -16,7 +16,7 @@ import { boundedNumber } from "../atlassian/arguments.js";
 
 export async function executeJiraSearchBoards(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const data = await jiraRequest<Record<string, unknown>>(connection, {

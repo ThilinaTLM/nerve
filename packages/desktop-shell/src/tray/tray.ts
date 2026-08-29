@@ -12,7 +12,7 @@ import {
   shell,
   Tray,
 } from "../platform/electron/electron-api.js";
-import type { QuitOptions } from "../types.js";
+import type { QuitOptions } from "../app/quit-contracts.js";
 import { resolveTrayIconPath } from "../window/preload-paths.js";
 
 interface TrayControllerDependencies {

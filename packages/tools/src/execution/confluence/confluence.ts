@@ -1,5 +1,5 @@
 import type {
-  ToolExecutionContext,
+  IntegrationExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import {
@@ -72,7 +72,7 @@ const PAGE_BODY_FORMATS = [
 ] as const;
 export async function executeConfluenceSearchSpaces(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireConfluenceConnection(context);
   const limit = boundedNumber(args.limit, 25, 1, 100);
@@ -128,7 +128,7 @@ export async function executeConfluenceSearchSpaces(
 
 export async function executeConfluenceSearchPages(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireConfluenceConnection(context);
   const limit = boundedNumber(args.limit, 25, 1, 100);
@@ -218,7 +218,7 @@ export async function executeConfluenceSearchPages(
 
 export async function executeConfluenceGetPage(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireConfluenceConnection(context);
   const pageId = requiredString(args.page_id, "page_id");
@@ -529,7 +529,7 @@ function formatConfluenceCommentPreview(item: {
 
 export async function executeConfluenceDownloadPage(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireConfluenceConnection(context);
   const pageId = requiredString(args.page_id, "page_id");
@@ -617,7 +617,7 @@ export async function executeConfluenceDownloadPage(
 
 export async function executeConfluenceCreatePage(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireConfluenceConnection(context);
   const row = args.page_file
@@ -675,7 +675,7 @@ export async function executeConfluenceCreatePage(
 
 export async function executeConfluenceUpdatePage(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireConfluenceConnection(context);
   const row = args.page_file

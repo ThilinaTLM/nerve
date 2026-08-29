@@ -20,7 +20,7 @@ import type {
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts";
 import type {
-  ToolExecutionContext,
+  IntegrationExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { atlassianPlainTextPreview } from "../atlassian/rich-text.js";
@@ -31,7 +31,7 @@ export const JIRA_FIELD_DISPLAY_LIMIT = 20;
 export const JIRA_TEXT_FIELD_MAX_CHARS = 300;
 
 export async function writeJiraArtifact(
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
   kind: string,
   payload: unknown,
 ): Promise<{ path: string; bytes: number; chars: number; lines: number }> {
@@ -61,7 +61,7 @@ export async function buildJiraTextResult({
   artifact,
 }: {
   text: string;
-  context: ToolExecutionContext;
+  context: IntegrationExecutionContext;
   details?: Record<string, unknown>;
   artifact?: { path: string; bytes: number; chars: number; lines: number };
 }): Promise<ToolExecutionResult> {
