@@ -27,19 +27,22 @@ export type WorkbenchOperationContext = Pick<
   | "storageUsage"
 >;
 
-type WorkbenchMethodHandler<M extends OperationName> = (
-  state: WorkbenchOperationContext,
-  params: OperationParams<M>,
-) => MaybePromise<unknown>;
+type WorkbenchMethodHandler<
+  M extends OperationName,
+  Context extends object = WorkbenchOperationContext,
+> = (state: Context, params: OperationParams<M>) => MaybePromise<unknown>;
 
-export type WorkbenchMethodHandlerMap = {
-  readonly [M in OperationName]?: WorkbenchMethodHandler<M>;
+export type WorkbenchMethodHandlerMapFor<Context extends object> = {
+  readonly [M in OperationName]?: WorkbenchMethodHandler<M, Context>;
 };
 
-export function defineWorkbenchMethodHandlers<
-  const Handlers extends WorkbenchMethodHandlerMap,
->(handlers: Handlers): Handlers {
-  return handlers;
+export type WorkbenchMethodHandlerMap =
+  WorkbenchMethodHandlerMapFor<WorkbenchOperationContext>;
+
+export function defineWorkbenchMethodHandlersFor<Context extends object>() {
+  return <const Handlers extends WorkbenchMethodHandlerMapFor<Context>>(
+    handlers: Handlers,
+  ): Handlers => handlers;
 }
 
 export interface WorkbenchMethodRegistry {

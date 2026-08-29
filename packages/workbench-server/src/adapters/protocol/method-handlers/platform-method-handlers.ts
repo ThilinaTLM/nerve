@@ -1,6 +1,5 @@
 import { slashCommandCompletionItems } from "@nervekit/contracts/completions";
 import { type UpdateApplicationConfigurationRequest } from "@nervekit/contracts/settings";
-import type { WorkbenchOperationContext } from "../method-handler-registry.js";
 import {
   providerApiKeySecretName,
   providerOAuthSecretName,
@@ -21,12 +20,32 @@ import {
   getWorkspaceSnapshotResponse,
 } from "../snapshots.js";
 import {
-  defineWorkbenchMethodHandlers,
-  type WorkbenchMethodHandlerMap,
+  defineWorkbenchMethodHandlersFor,
+  type WorkbenchMethodHandlerMapFor,
+  type WorkbenchOperationContext,
 } from "../method-handler-registry.js";
 
-export const platformMethodHandlers: WorkbenchMethodHandlerMap =
-  defineWorkbenchMethodHandlers({
+type PlatformMethodContext = Pick<
+  WorkbenchOperationContext,
+  | "agentBrowserSkills"
+  | "applicationConfiguration"
+  | "auth"
+  | "events"
+  | "latestRelease"
+  | "logger"
+  | "providerCatalog"
+  | "queryCache"
+  | "registry"
+  | "secrets"
+  | "storage"
+  | "storageCleanup"
+  | "storageUsage"
+>;
+const definePlatformMethodHandlers =
+  defineWorkbenchMethodHandlersFor<PlatformMethodContext>();
+
+export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethodContext> =
+  definePlatformMethodHandlers({
     "status.latestRelease.get": (state) =>
       state.latestRelease.getLatestRelease(),
     "snapshot.workspace.get": (state) => getWorkspaceSnapshotResponse(state),
@@ -134,7 +153,7 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMap =
   });
 
 async function updateSettings(
-  state: WorkbenchOperationContext,
+  state: PlatformMethodContext,
   patch: Record<string, unknown>,
 ) {
   if (patch.application) {
@@ -156,7 +175,7 @@ async function updateSettings(
 }
 
 async function updateApplicationConfiguration(
-  state: WorkbenchOperationContext,
+  state: PlatformMethodContext,
   patch: UpdateApplicationConfigurationRequest,
 ) {
   assertApplicationConfigurationEditable(state.applicationConfiguration, patch);
@@ -178,7 +197,7 @@ async function updateApplicationConfiguration(
 }
 
 function normalizeRemoteAccessPatch(
-  state: WorkbenchOperationContext,
+  state: PlatformMethodContext,
   patch: UpdateApplicationConfigurationRequest,
 ): UpdateApplicationConfigurationRequest {
   const allowRemote = patch.application?.network?.allowRemote;
@@ -206,7 +225,7 @@ function normalizeRemoteAccessPatch(
 }
 
 async function publishProviderCatalogChanged(
-  state: WorkbenchOperationContext,
+  state: PlatformMethodContext,
   provider?: string,
 ): Promise<void> {
   await state.events.publish("providers.catalog_changed", { provider });

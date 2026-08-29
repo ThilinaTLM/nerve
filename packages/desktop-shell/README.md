@@ -2,7 +2,7 @@
 
 Private implementation package used to assemble the published `@nervekit/desktop` artifact.
 
-- `bin.ts`, `main.ts`, `preload.cjs`: explicit launcher, Electron main, and isolated preload entrypoints.
+- `bin.ts`, `main.ts`, `preload.cjs`: explicit launcher, Electron main, and isolated preload entrypoints. `preload-api.cjs` owns the testable renderer capability factory.
 - `app/`: CLI, desktop configuration, startup/recovery, migration, and quit orchestration.
 - `daemon/`: connection and supervision policy; `adapters/` separates launch/diagnostics, health, discovery, and Node port composition.
 - `ipc/`: capability-grouped window, daemon, settings, notification, clipboard, and file channels.

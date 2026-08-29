@@ -5,7 +5,7 @@ The server owns local authority and runtime effects: HTTP/WebSocket adapters, lo
 - Root `index.ts` and `main.ts` are package entrypoints only.
 - `app/bootstrap/` constructs and hydrates services. `app/runtime/` owns process-lifetime resources, lifecycle, and mutable runtime projections.
 - `adapters/http/` owns middleware, routes, request/response translation, cookies, HTML, and static files.
-- `adapters/protocol/` owns WebSocket dispatch, snapshots, idempotency, the verified operation registry, and thin domain-grouped handlers. Handlers use composed `RuntimeServices` directly where no lifecycle coordination is required.
+- `adapters/protocol/` owns WebSocket dispatch, snapshots, idempotency, the verified operation registry, and thin domain-grouped handlers. Each handler group declares a narrow compile-time context and uses composed `RuntimeServices` directly where no lifecycle coordination is required.
 - `domains/<area>/` owns business behavior. Large task/tool/run slices use explicit `model`, `application`, `persistence`, `artifacts`, `orchestration`, `execution`, or `adapters` areas.
 - `domains/agents/execution/` owns prompts, harness integration, subagents/explore, approvals, and streaming. It is distinct from durable run lifecycle.
 - `domains/runs/runtime/` owns the port-driven run state machine and may not depend on transports, persistence implementations, UI, or process drivers.

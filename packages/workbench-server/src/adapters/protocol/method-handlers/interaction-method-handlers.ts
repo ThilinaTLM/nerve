@@ -1,13 +1,21 @@
 import {
-  defineWorkbenchMethodHandlers,
-  type WorkbenchMethodHandlerMap,
+  defineWorkbenchMethodHandlersFor,
+  type WorkbenchMethodHandlerMapFor,
+  type WorkbenchOperationContext,
 } from "../method-handler-registry.js";
 
-export const interactionMethodHandlers: WorkbenchMethodHandlerMap =
-  defineWorkbenchMethodHandlers({
-    "tool.list": (state) => ({ tools: state.registry.tools.listTools() }),
+type InteractionMethodContext = Pick<
+  WorkbenchOperationContext,
+  "registry" | "services"
+>;
+const defineInteractionMethodHandlers =
+  defineWorkbenchMethodHandlersFor<InteractionMethodContext>();
+
+export const interactionMethodHandlers: WorkbenchMethodHandlerMapFor<InteractionMethodContext> =
+  defineInteractionMethodHandlers({
+    "tool.list": (state) => ({ tools: state.services.tools.listTools() }),
     "toolCall.list": (state, params) =>
-      state.registry.tools.queryToolCallPreviews({
+      state.services.tools.queryToolCallPreviews({
         status: params?.status,
         pendingInteractionKind: params?.pendingInteractionKind,
         conversationId: params?.conversationId,
@@ -17,9 +25,9 @@ export const interactionMethodHandlers: WorkbenchMethodHandlerMap =
         cursor: params?.cursor,
       }),
     "toolCall.get": async (state, params) =>
-      await state.registry.tools.getToolCallUiDetails(params.toolCallId),
+      await state.services.tools.getToolCallUiDetails(params.toolCallId),
     "toolCall.result.read": async (state, params) =>
-      await state.registry.tools.readToolCallResult(
+      await state.services.tools.readToolCallResult(
         params.toolCallId,
         params.byteOffset ?? 0,
         params.byteLimit ?? 64 * 1024,
