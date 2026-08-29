@@ -1,5 +1,13 @@
-import type { BrowserWindowType, IpcMainInvokeEvent } from "../electron.js";
-import { BrowserWindow, clipboard, ipcMain, shell } from "../electron.js";
+import type {
+  BrowserWindowType,
+  IpcMainInvokeEvent,
+} from "../platform/electron/electron-api.js";
+import {
+  BrowserWindow,
+  clipboard,
+  ipcMain,
+  shell,
+} from "../platform/electron/electron-api.js";
 import { desktopLog } from "../logging.js";
 import type { DesktopWindowState, QuitSource } from "../types.js";
 import { resolveProjectEntryPath } from "./project-entry-path.js";

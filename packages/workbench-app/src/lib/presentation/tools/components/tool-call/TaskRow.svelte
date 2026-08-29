@@ -2,10 +2,10 @@
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import type { TaskToolSummaryPayload } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
+import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
-import { taskPulse, taskTone } from "@nervekit/ui-kit/core/utils/status";
-import { dateTimeLabel } from "@nervekit/ui-kit/core/utils/time";
+import { taskPulse, taskTone } from "@nervekit/ui-kit/display/status";
+import { dateTimeLabel } from "@nervekit/ui-kit/display/time";
 import { taskUrl } from "../../views/task";
 
 type Props = { task: TaskToolSummaryPayload; dense?: boolean };

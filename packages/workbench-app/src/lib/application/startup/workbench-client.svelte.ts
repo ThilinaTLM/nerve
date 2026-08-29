@@ -24,7 +24,7 @@ import {
   flushNotifyEvents,
   pendingNotifyCount,
   type WorkbenchNotifyEvent,
-} from "$lib/kernel/events/event-bus";
+} from "$lib/application/events/event-bus";
 import {
   advanceEventCursor,
   bindSubscriptionSync,

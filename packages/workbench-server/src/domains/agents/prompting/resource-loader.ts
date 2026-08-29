@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import type { AvailableSkillsResponse } from "@nervekit/contracts";
 import { loadSkills, type Skill } from "@nervekit/harness";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
-import { resolveDataDir } from "../../../infrastructure/storage/paths.js";
+import { resolveDataDir } from "../../../infrastructure/storage-bootstrap/paths.js";
 
 const CONTEXT_FILE_CANDIDATES = ["AGENTS.md", "AGENTS.MD"];
 const NERVE_DIR_NAME = ".nerve";

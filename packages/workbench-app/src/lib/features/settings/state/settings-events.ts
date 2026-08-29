@@ -1,4 +1,7 @@
-import { onAnyEvent, type WorkbenchEvent } from "$lib/kernel/events/event-bus";
+import {
+  onAnyEvent,
+  type WorkbenchEvent,
+} from "$lib/application/events/event-bus";
 import { shouldRefreshSettings } from "$lib/application/workspace/workspace-event-policy";
 import {
   hasPendingSettingsSave,

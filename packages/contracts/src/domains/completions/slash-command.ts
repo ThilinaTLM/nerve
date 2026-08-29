@@ -1,4 +1,4 @@
-import type { CompletionItem } from "./completion.schema.js";
+import type { CompletionItem } from "./completion.js";
 
 export const slashCommandNames = ["plan", "code", "compact", "abort"] as const;
 

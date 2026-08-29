@@ -13,9 +13,12 @@ import type {
   ConfluenceSpaceSummaryPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { atlassianPlainTextPreview } from "../common/atlassian-rich-text.js";
-import { buildSemanticTextResult } from "../common/semantic-text-result.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { atlassianPlainTextPreview } from "../atlassian/rich-text.js";
+import { buildSemanticTextResult } from "../output/semantic-text-result.js";
 
 export const CONFLUENCE_DISPLAY_ITEM_LIMIT = 20;
 export const CONFLUENCE_TEXT_FIELD_MAX_CHARS = 300;

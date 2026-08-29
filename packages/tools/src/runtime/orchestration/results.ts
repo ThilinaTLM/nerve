@@ -1,4 +1,4 @@
-import type { ToolExecutionResult } from "../../types.js";
+import type { ToolExecutionResult } from "../../execution/execution-context.js";
 
 export function contentResult(
   content: string,

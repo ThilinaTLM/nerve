@@ -16,13 +16,16 @@ export {
   type AgentToolHostExecute,
   createAgentToolsFromDefinitions,
 } from "./agent/tool-adapter.js";
-export { type AgentEvent, type AgentState } from "./agent/types/agent.js";
+export {
+  type AgentEvent,
+  type AgentState,
+} from "./agent/contracts/agent-state.js";
 export {
   type AnyModel,
   type QueueMode,
   type ThinkingLevel,
   type ToolExecutionMode,
-} from "./agent/types/common.js";
+} from "./agent/contracts/agent-common.js";
 export {
   type AfterToolCallContext,
   type AgentContext,
@@ -32,11 +35,11 @@ export {
   type PrepareNextTurnContext,
   type ShouldStopAfterTurnContext,
   type StreamFn,
-} from "./agent/types/loop.js";
+} from "./agent/contracts/agent-loop.js";
 export {
   type AgentMessage,
   type CustomAgentMessages,
-} from "./agent/types/messages.js";
+} from "./agent/contracts/agent-messages.js";
 export {
   type AfterToolCallResult,
   type AgentTool,
@@ -44,13 +47,13 @@ export {
   type AgentToolResult,
   type AgentToolUpdateCallback,
   type BeforeToolCallResult,
-} from "./agent/types/tools.js";
+} from "./agent/contracts/agent-tools.js";
 export {
   type ImageExplanationAuth,
   explainImageWithModel,
-} from "./models/image-explanation.js";
+} from "./models/image/explanation.js";
 export { registerManagedProvider } from "./models/model-registry.js";
-export { isRetryableProviderError } from "./models/provider-error-classification.js";
+export { isRetryableProviderError } from "./models/provider-errors.js";
 export {
   clampAgentThinkingLevel,
   getAgentModelInfo,
@@ -64,8 +67,8 @@ export {
   type AgentModelInfo,
   type AgentModelSelection,
   type AgentScriptedProviderStep,
-} from "./models/types.js";
-export { AgentHarness } from "./runtime/agent-harness.js";
+} from "./models/model-contracts.js";
+export { AgentHarness } from "./harness/agent-harness.js";
 export {
   type CompactionSummaryProfile,
   type GenerateSummaryInput,
@@ -73,12 +76,9 @@ export {
   compact,
   generateSummary,
   prepareCompaction,
-} from "./runtime/compaction/compaction.js";
-export {
-  findCutPoint,
-  findTurnStartIndex,
-} from "./runtime/compaction/cut-points.js";
-export { isContextOverflowAssistantMessage } from "./runtime/compaction/overflow.js";
+} from "./compaction/compaction.js";
+export { findCutPoint, findTurnStartIndex } from "./compaction/cut-points.js";
+export { isContextOverflowAssistantMessage } from "./compaction/overflow.js";
 export {
   AUTO_COMPACTION_PROFILES,
   DEFAULT_AUTO_COMPACTION_SETTINGS,
@@ -87,12 +87,12 @@ export {
   resolveAutoCompactionPercentages,
   shouldAutoCompact,
   shouldCompact,
-} from "./runtime/compaction/policy.js";
+} from "./compaction/policy.js";
 export {
   type AutoCompactionConfiguration,
   type AutoCompactionPolicy,
   type AutoCompactionReason,
-} from "./runtime/compaction/types.js";
+} from "./compaction/types.js";
 export {
   calculateContextTokens,
   computeContextUsage,
@@ -101,8 +101,8 @@ export {
   getCompactionDecisionTokens,
   getLastAssistantUsage,
   getLatestCompactionEntry,
-} from "./runtime/compaction/usage.js";
-export { serializeConversation } from "./runtime/compaction/utils.js";
+} from "./compaction/usage.js";
+export { serializeConversation } from "./compaction/utils.js";
 export {
   type AgentHarnessOptions,
   type AgentHarnessPromptOptions,
@@ -111,16 +111,16 @@ export {
   type AgentHarnessStreamOptionsPatch,
   type PromptTemplate,
   type Skill,
-} from "./runtime/configuration/options.js";
+} from "./harness/configuration/options.js";
 export {
   type ConversationContext,
   type ConversationState,
   buildContextMessages,
   buildConversationContext,
   extractConversationState,
-} from "./runtime/conversation/context.js";
-export { Conversation } from "./runtime/conversation/conversation.js";
-export { ConversationTreeState } from "./runtime/conversation/conversation-tree-state.js";
+} from "./conversation/context.js";
+export { Conversation } from "./conversation/conversation.js";
+export { ConversationTreeState } from "./conversation/conversation-tree-state.js";
 export {
   type ActiveToolsChangeEntry,
   type BranchSummaryEntry,
@@ -137,8 +137,8 @@ export {
   type MessageEntry,
   type ModelChangeEntry,
   type ThinkingLevelChangeEntry,
-} from "./runtime/conversation/entries.js";
-export { uuidv7 } from "./runtime/conversation/uuid.js";
+} from "./conversation/entries.js";
+export { uuidv7 } from "./conversation/uuid.js";
 export {
   type ExecutionEnv,
   type ExecutionEnvExecOptions,
@@ -146,7 +146,7 @@ export {
   type FileKind,
   type FileSystem,
   type Shell,
-} from "./runtime/environment/types.js";
+} from "./environment/contracts.js";
 export {
   AgentHarnessError,
   type AgentHarnessErrorCode,
@@ -160,7 +160,7 @@ export {
   type ExecutionErrorCode,
   FileError,
   type FileErrorCode,
-} from "./runtime/errors.js";
+} from "./errors.js";
 export {
   type AbortEvent,
   type AbortResult,
@@ -206,7 +206,7 @@ export {
   type ToolResultPatch,
   type ToolsUpdateEvent,
   type TreePreparation,
-} from "./runtime/lifecycle/events.js";
+} from "./harness/lifecycle/events.js";
 export {
   BRANCH_SUMMARY_PREFIX,
   BRANCH_SUMMARY_SUFFIX,
@@ -225,7 +225,7 @@ export {
   createCompactionSummaryMessage,
   createCustomMessage,
   createHarnessMessage,
-} from "./runtime/messages.js";
+} from "./messages/messages.js";
 export {
   type PromptTemplateDiagnostic,
   type PromptTemplateDiagnosticCode,
@@ -234,25 +234,25 @@ export {
   loadSourcedPromptTemplates,
   parseCommandArgs,
   substituteArgs,
-} from "./runtime/resources/prompt-templates.js";
+} from "./resources/prompt-templates.js";
 export {
   formatSkillInvocation,
   formatSkillsForSystemPrompt,
-} from "./runtime/resources/skills/format.js";
+} from "./resources/skills/format.js";
 export {
   type SkillDiagnostic,
   type SkillDiagnosticCode,
   loadSkills,
   loadSourcedSkills,
-} from "./runtime/resources/skills/loader.js";
+} from "./resources/skills/loader.js";
 export {
   type SkillFrontmatter,
   parseFrontmatter,
-} from "./runtime/resources/skills/parser.js";
+} from "./resources/skills/parser.js";
 export {
   validateDescription,
   validateName,
-} from "./runtime/resources/skills/validation.js";
+} from "./resources/skills/validation.js";
 export {
   type Result,
   err,
@@ -260,4 +260,4 @@ export {
   getOrUndefined,
   ok,
   toError,
-} from "./runtime/result.js";
+} from "./result.js";

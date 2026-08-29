@@ -1,5 +1,5 @@
 import { spawnManagedProcess } from "@nervekit/native";
-import { gitProcessPolicy } from "../execution/common/managed-process-policy.js";
+import { gitProcessPolicy } from "../execution/process/managed-process-policy.js";
 
 const COMMAND_TIMEOUT_MS = 20_000;
 const MAX_BUFFER = 16 * 1024 * 1024;

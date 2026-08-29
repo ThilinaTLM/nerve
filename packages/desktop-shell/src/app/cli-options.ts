@@ -1,14 +1,14 @@
-import { app } from "../electron.js";
+import { app } from "../platform/electron/electron-api.js";
 import {
   type ElectronFontRenderHinting,
   parseElectronFontRenderHinting,
   resolveElectronFontRenderHinting,
-} from "../shared/font-rendering.js";
+} from "../platform/chromium/font-rendering.js";
 import {
   electronOzonePlatformSwitch,
   type ElectronOzonePlatform,
   parseElectronOzonePlatform,
-} from "../shared/ozone-platform.js";
+} from "../platform/chromium/ozone-platform.js";
 import type { DesktopCliOptions } from "../types.js";
 
 export type { ElectronFontRenderHinting, ElectronOzonePlatform };

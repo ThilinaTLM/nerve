@@ -1,7 +1,7 @@
 import { optionalString } from "../atlassian/arguments.js";
 import { readFile } from "node:fs/promises";
-import type { ToolExecutionContext } from "../../types.js";
-import { ToolExecutionError } from "../common/tool-error.js";
+import type { ToolExecutionContext } from "../execution-context.js";
+import { ToolExecutionError } from "../errors/tool-error.js";
 import { resolveToolPath } from "../filesystem/path.js";
 import {
   type ConfluenceConnection,

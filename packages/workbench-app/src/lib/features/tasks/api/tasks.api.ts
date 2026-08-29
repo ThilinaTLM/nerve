@@ -6,7 +6,7 @@ import type {
   TaskPortConflictListener,
   TaskRecord,
 } from "@nervekit/contracts";
-import { apiGet, apiPathSegment } from "@nervekit/ui-kit/core/api/client";
+import { apiGet, apiPathSegment } from "$lib/platform/http/api-client";
 import { protocolRequest } from "@nervekit/protocol";
 
 export async function getTaskLogs(

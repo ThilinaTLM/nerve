@@ -6,10 +6,10 @@ import type {
   PlanReviewRecord,
   PlanReviewResolveOptions,
 } from "../../../state/tool-types";
-import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
+import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
-import { SplitButton } from "@nervekit/ui-kit/components/ui/split-button";
+import { SplitButton } from "@nervekit/ui-kit/components/composites/split-button";
 import type { MetaItem } from "../../views/tool-presentation";
 import {
   COLLAPSED_LINES,

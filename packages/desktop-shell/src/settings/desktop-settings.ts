@@ -1,6 +1,6 @@
 import { type Settings, settingsSchema } from "@nervekit/contracts";
-import type { ManagedDaemon } from "../daemon.js";
-import { session } from "../electron.js";
+import type { ManagedDaemon } from "../daemon/composition.js";
+import { session } from "../platform/electron/electron-api.js";
 import { desktopLog } from "../logging.js";
 
 export async function refreshDesktopSettingsFromDaemon(

@@ -12,8 +12,8 @@ import type {
   UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/contracts";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import { storagePaths } from "../../infrastructure/storage/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
+import { storagePaths } from "../../infrastructure/storage-bootstrap/index.js";
 import { builtinPromptSuggestionDefinitions } from "./prompt-suggestion-builtins.js";
 import type { PromptSuggestionEnablementRepository } from "./prompt-suggestion-enablement.repository.js";
 import { evaluatePromptSuggestions } from "./prompt-suggestion-evaluator.js";

@@ -8,7 +8,7 @@ import {
   fileViewKey,
   mermaidViewKey,
   pendingConversationKey,
-} from "$lib/kernel/navigation/view-keys";
+} from "$lib/domain/navigation/view-keys";
 import type { CenterTabIdentity } from "$lib/application/workspace/workspace-state.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";

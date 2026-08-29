@@ -10,9 +10,9 @@ import {
   streamForEvent,
   validatePublicEvent,
 } from "@nervekit/contracts";
-import type { RenameDependencies } from "../storage/index.js";
+import type { RenameDependencies } from "../storage-bootstrap/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
-import type { CanonicalStore } from "../canonical-store/index.js";
+import type { CanonicalStore } from "../persistence/canonical-sqlite/index.js";
 import { StreamLog, type StreamFlushObservation } from "./stream-log.js";
 
 export type PublishedEvent<T = unknown> = EventEnvelope<T> | NotifyEvent<T>;

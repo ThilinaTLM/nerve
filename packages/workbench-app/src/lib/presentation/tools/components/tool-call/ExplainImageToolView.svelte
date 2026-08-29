@@ -1,5 +1,5 @@
 <script lang="ts">
-import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
+import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import type {
   ToolCallDisplayRecord,
   ToolView,

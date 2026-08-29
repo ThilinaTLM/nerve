@@ -20,13 +20,13 @@ import type {
   AppendEntryInput,
   AppendEntryOptions,
 } from "../../app/runtime/types.js";
-import type { WorkbenchRunService } from "../runs/workbench-run.service.js";
-import { agentMessageText } from "../agents/run/index.js";
+import type { WorkbenchRunService } from "../runs/application/workbench-run.service.js";
+import { agentMessageText } from "../agents/execution/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { PlanService } from "../plans/plan-service.js";
-import { toolCallResultForModel } from "../tools/agent-tool-adapter.js";
-import type { ToolService } from "../tools/tool-service.js";
-import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
+import { toolCallResultForModel } from "../tools/orchestration/agent-tool-adapter.js";
+import type { ToolService } from "../tools/execution/tool-service.js";
+import { toToolCallTranscriptRecord } from "../tools/artifacts/tool-call-transcript-preview.js";
 import { ApprovalBatchResolutionService } from "./approval-batch-resolution.js";
 import {
   acceptedPlanFollowUp,

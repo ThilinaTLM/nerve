@@ -1,4 +1,4 @@
-import { relativePathForDisplay } from "@nervekit/ui-kit/core/utils/path-links";
+import { relativePathForDisplay } from "@nervekit/ui-kit/display/path-links";
 
 export type NativeFilePathResolver = (file: File) => string;
 

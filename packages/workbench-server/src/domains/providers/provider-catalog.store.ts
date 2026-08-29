@@ -6,7 +6,7 @@ import {
   type ProviderCatalog,
   providerCatalogSchema,
 } from "@nervekit/contracts";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import { writeHomeConfiguration } from "../../infrastructure/configuration/index.js";
 import { resolveProjectConfiguration } from "../../infrastructure/configuration/index.js";
 

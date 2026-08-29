@@ -10,7 +10,7 @@ import type {
   DaemonStatus,
   DaemonStatusInfo,
   ManagedDaemon,
-} from "../src/daemon/types.ts";
+} from "../src/daemon/contracts.ts";
 import {
   fakeDaemonWorld,
   type FakeDaemonWorld,

@@ -6,10 +6,10 @@ import type {
   PlanReviewResolveOptions,
 } from "../../../state/tool-types";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
-import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
+import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
+import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
-import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
+import { VirtualScroller } from "@nervekit/ui-kit/components/composites/virtual-list";
 import { modelKey, parseModelKey } from "$lib/presentation/utils/model";
 import {
   buildModelCatalog,

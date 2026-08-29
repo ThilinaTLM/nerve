@@ -10,8 +10,8 @@ import type {
   AgentLoopConfig,
   AgentMessage,
   StreamFn,
-} from "../types/index.js";
-import { type AgentEventSink, createAgentStream } from "./events.js";
+} from "../contracts/index.js";
+import { type AgentEventSink, createAgentStream } from "./loop-events.js";
 import { runLoop } from "./turn-loop.js";
 
 /**

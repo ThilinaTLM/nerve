@@ -8,7 +8,7 @@ import {
 import {
   getShortcutAriaLabel,
   getShortcutLabel,
-} from "$lib/kernel/shortcuts/registry";
+} from "$lib/application/commands/command-registry";
 import {
   AudioInputAuthRequiredDialog,
   chatGptAudioAuth,

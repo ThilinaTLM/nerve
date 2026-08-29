@@ -19,9 +19,12 @@ import type {
   JiraWorklogSummaryPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { atlassianPlainTextPreview } from "../common/atlassian-rich-text.js";
-import { buildSemanticTextResult } from "../common/semantic-text-result.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { atlassianPlainTextPreview } from "../atlassian/rich-text.js";
+import { buildSemanticTextResult } from "../output/semantic-text-result.js";
 
 export const JIRA_DISPLAY_ITEM_LIMIT = 20;
 export const JIRA_FIELD_DISPLAY_LIMIT = 20;

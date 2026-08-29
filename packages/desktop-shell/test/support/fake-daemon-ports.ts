@@ -6,7 +6,7 @@ import type {
   ChildExit,
   DaemonPaths,
   HealthyDaemon,
-} from "../../src/daemon/types.ts";
+} from "../../src/daemon/contracts.ts";
 
 interface PendingDelay {
   at: number;

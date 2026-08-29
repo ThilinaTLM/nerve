@@ -10,8 +10,8 @@ import type {
   AgentTool,
   AgentToolCall,
   AgentToolResult,
-} from "../types/index.js";
-import type { AgentEventSink } from "./events.js";
+} from "../contracts/index.js";
+import type { AgentEventSink } from "./loop-events.js";
 
 /**
  * Execute tool calls from an assistant message.

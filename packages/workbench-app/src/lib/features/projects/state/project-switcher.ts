@@ -1,13 +1,13 @@
-import type { StatusTone } from "@nervekit/ui-kit/core/utils/status";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { ConversationRecord, ProjectRecord, TaskRecord } from "$lib/api";
-import { isPathInDirectory } from "$lib/kernel/utils/path";
+import { isPathInDirectory } from "$lib/domain/filesystem/project-path";
 import {
   conversationLastUserPromptAt,
   projectFolderName,
   projectKey,
   shortProjectLabel,
-} from "$lib/kernel/utils/project-tree";
-import type { ConversationActivityState } from "$lib/kernel/conversations/activity";
+} from "$lib/domain/projects/project-tree";
+import type { ConversationActivityState } from "$lib/domain/conversations/activity";
 
 export type ProjectActivitySummary = {
   needsUser: number;

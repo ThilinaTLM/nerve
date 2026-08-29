@@ -7,8 +7,8 @@ import {
 import {
   relativePathForDisplay,
   resolveDisplayPath,
-} from "@nervekit/ui-kit/core/utils/path-links";
-import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
+} from "@nervekit/ui-kit/display/path-links";
+import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
 import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
 import type { GrepMatchView, GroupedMatches } from "./tool-view-types";
 

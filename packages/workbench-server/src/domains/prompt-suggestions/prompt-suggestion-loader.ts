@@ -12,7 +12,7 @@ import {
 } from "@nervekit/contracts";
 import { parseFrontmatter } from "@nervekit/harness";
 import { stringify } from "yaml";
-import { pathExists } from "../../infrastructure/storage/json.js";
+import { pathExists } from "../../infrastructure/storage-bootstrap/json.js";
 import type {
   PromptSuggestionDefinition,
   PromptSuggestionDiagnostic,

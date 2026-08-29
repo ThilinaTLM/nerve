@@ -3,7 +3,7 @@ import {
   atomicWriteJson,
   pathExists,
   readJsonFile,
-} from "../../infrastructure/storage/json.js";
+} from "../../infrastructure/storage-bootstrap/json.js";
 
 type StoredCatalogs = Record<string, ModelsStoreEntry>;
 

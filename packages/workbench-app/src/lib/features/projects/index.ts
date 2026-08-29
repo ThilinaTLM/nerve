@@ -1,11 +1,11 @@
 export * from "./api/projects.api";
-export { default as ProjectSwitcher } from "./components/ProjectSwitcher.svelte";
-export { default as PruneConversationsDialog } from "./components/PruneConversationsDialog.svelte";
+export { default as ProjectSwitcher } from "./views/ProjectSwitcher.svelte";
+export { default as PruneConversationsDialog } from "./views/PruneConversationsDialog.svelte";
 export type {
   DeleteTarget,
   PruneTarget,
   ProjectAgentTreeProps,
-} from "./components/project-agent-tree-props";
+} from "./views/project-agent-tree-props";
 export {
   buildProjectMenu,
   countAgeEligible,
@@ -13,7 +13,7 @@ export {
   countKeepEligible,
   countProjectConversations,
   type ProjectTreeMenuContext,
-} from "./components/project-tree-menus";
+} from "./views/project-tree-menus";
 export {
   buildProjectSwitcherItems,
   projectActivitySignal,

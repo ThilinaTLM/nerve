@@ -15,7 +15,7 @@ import type {
 } from "../../state/tool-types";
 export type ToolCallDisplayRecord = ToolCallRecord | ToolCallTranscriptRecord;
 
-import { LruCache } from "@nervekit/ui-kit/core/utils/lru-cache";
+import { LruCache } from "@nervekit/ui-kit/collections/lru-cache";
 import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
 import {
   redactStructuredValue,

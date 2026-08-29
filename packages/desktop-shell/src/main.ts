@@ -14,7 +14,7 @@ import {
   resolveElectronFontRenderHinting,
 } from "./app/cli-options.js";
 import { prepareDesktopDataDirectory } from "./app/data-directory-migration.js";
-import { startRunRuntime } from "./app/run-runtime-recovery.js";
+import { startRunRuntime } from "./app/runtime-recovery.js";
 import {
   runStartupSequence,
   type StartupProgressPhase,
@@ -24,17 +24,17 @@ import {
   type DaemonStatusInfo,
   ensureDaemon,
   type ManagedDaemon,
-} from "./daemon.js";
+} from "./daemon/composition.js";
 import { DESKTOP_APP_ID, DESKTOP_APP_NAME } from "./desktop-identity.js";
-import type { BrowserWindowType } from "./electron.js";
+import type { BrowserWindowType } from "./platform/electron/electron-api.js";
 import {
   app,
   BrowserWindow,
   dialog,
   nativeTheme,
   session,
-} from "./electron.js";
-import { chromiumLoopbackProxyBypassRules } from "./electron-download-env.js";
+} from "./platform/electron/electron-api.js";
+import { chromiumLoopbackProxyBypassRules } from "./platform/electron/download-environment.js";
 import { showDesktopNotification } from "./ipc/notifications-ipc.js";
 import { registerDesktopIpc, windowState } from "./ipc/window-ipc.js";
 import { configureApplicationLogging, desktopLog } from "./logging.js";

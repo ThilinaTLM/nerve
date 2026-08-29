@@ -1,5 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
-import { projectKey } from "$lib/kernel/utils/project-tree";
+import { projectKey } from "$lib/domain/projects/project-tree";
 import { modelKey } from "$lib/presentation/utils/model";
 import {
   type AgentRecord,

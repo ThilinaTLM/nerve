@@ -3,13 +3,13 @@ import type {
   SubagentTranscriptSnapshot,
   EventEnvelope,
 } from "@nervekit/contracts";
-import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
+import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
-import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
-import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
+import { VirtualScroller } from "@nervekit/ui-kit/components/composites/virtual-list";
+import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
+import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";
 import { getConversationUiCapabilities } from "../../../context.svelte";
 import {
   applySubagentTranscriptEvent,
@@ -17,14 +17,14 @@ import {
 } from "../../../state/subagent-transcript-session";
 import { buildConversationRenderProjection } from "../../../state/render";
 import type { ConversationRenderState } from "../../../state/types";
-import { createConversationScrollController } from "../../../components/transcript/conversation-scroll.svelte.js";
+import { createConversationScrollController } from "../../../transcript/conversation-scroll.svelte.js";
 import {
   groupConsecutiveThinking,
   type TranscriptDisplayNode,
-} from "../../../components/transcript/transcript-presentation";
-import ThinkingGroup from "../../../components/transcript/ThinkingGroup.svelte";
-import UserMessageContent from "../../../components/transcript/UserMessageContent.svelte";
-import WorkingIndicator from "../../../components/transcript/WorkingIndicator.svelte";
+} from "../../../transcript/transcript-presentation";
+import ThinkingGroup from "../../../transcript/ThinkingGroup.svelte";
+import UserMessageContent from "../../../transcript/UserMessageContent.svelte";
+import WorkingIndicator from "../../../transcript/WorkingIndicator.svelte";
 import ToolCallCard from "../ToolCallCard.svelte";
 import ToolResultErrorCard from "./ToolResultErrorCard.svelte";
 

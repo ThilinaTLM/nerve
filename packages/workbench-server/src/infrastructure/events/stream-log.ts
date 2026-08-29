@@ -9,7 +9,7 @@ import {
   atomicWriteFile,
   readJsonLines,
   type RenameDependencies,
-} from "../storage/index.js";
+} from "../storage-bootstrap/index.js";
 
 export interface StreamFlushObservation {
   readonly stream: string;

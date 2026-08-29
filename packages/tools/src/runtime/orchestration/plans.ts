@@ -1,4 +1,4 @@
-import type { ToolExecutionResult } from "../../types.js";
+import type { ToolExecutionResult } from "../../execution/execution-context.js";
 import type { ToolHandlerRegistry } from "../types.js";
 import { optionalString, parsePlanRequest } from "./args.js";
 

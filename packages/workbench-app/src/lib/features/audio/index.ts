@@ -1,4 +1,4 @@
-export { default as AudioInputAuthRequiredDialog } from "./components/AudioInputAuthRequiredDialog.svelte";
+export { default as AudioInputAuthRequiredDialog } from "./views/AudioInputAuthRequiredDialog.svelte";
 export {
   CHATGPT_AUDIO_PROVIDER,
   hasChatGptAudioAuth,

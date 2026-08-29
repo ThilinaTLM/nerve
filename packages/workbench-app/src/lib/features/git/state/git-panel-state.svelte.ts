@@ -14,7 +14,7 @@ import type {
 import {
   gitProjectStateKey,
   gitRepoStateKey,
-} from "$lib/kernel/navigation/view-keys";
+} from "$lib/domain/navigation/view-keys";
 import type { GitContext } from "$lib/features/git/state/git-state.svelte";
 import {
   defaultGitPrFilterConfig,

@@ -2,15 +2,18 @@ import { execFile } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { relative } from "node:path";
 import { promisify } from "node:util";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { numberArg } from "../common/args.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { numberArg } from "../process/arguments.js";
 import {
   boundText,
   FILE_OUTPUT_MAX_LINE_CHARS,
   textBoundaryDetails,
   textLimitSnapshot,
-} from "../common/output-budget.js";
-import { globToRegExp, walkFiles } from "../common/search-utils.js";
+} from "../output/output-budget.js";
+import { globToRegExp, walkFiles } from "./search-utils.js";
 import {
   isErrnoException,
   pathNotFoundMessage,

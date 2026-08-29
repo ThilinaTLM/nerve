@@ -1,4 +1,4 @@
-import type { SettingsChoice } from "$lib/presentation/components/settings";
+import type { SettingsChoice } from "$lib/presentation/settings";
 
 export const modeItems: SettingsChoice[] = [
   {

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
+import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
 import ToolStatusIcon from "./ToolStatusIcon.svelte";
 
 type Props = {

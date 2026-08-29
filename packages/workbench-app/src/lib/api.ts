@@ -135,7 +135,7 @@ import type {
 export type ToolCallDisplayRecord =
   | ToolCallRecordType
   | ToolCallTranscriptRecordType;
-export * from "@nervekit/ui-kit/core/api/client";
+export * from "$lib/platform/http/api-client";
 export type {
   ApprovalWithToolCall,
   PlanReviewResolveOptions,

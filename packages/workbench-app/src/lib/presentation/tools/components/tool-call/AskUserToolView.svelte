@@ -4,9 +4,9 @@ import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import Send from "@lucide/svelte/icons/send";
 import X from "@lucide/svelte/icons/x";
-import { notify } from "@nervekit/ui-kit/core/notify";
-import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
-import ComposerEditor from "$lib/presentation/components/composer/ComposerEditor.svelte";
+import { notify } from "@nervekit/ui-kit/browser/notifications";
+import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
+import ComposerEditor from "$lib/presentation/composer/ComposerEditor.svelte";
 import type { UserQuestionRecord } from "../../../state/tool-types";
 import type {
   ToolCallDisplayRecord,

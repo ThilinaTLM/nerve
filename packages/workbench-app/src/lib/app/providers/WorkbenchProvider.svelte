@@ -10,7 +10,7 @@ import {
   initializeNotificationAudio,
   initializeNotifications,
 } from "$lib/application/notifications/notify.svelte";
-import { registerFeatureEventHandlers } from "$lib/app/composition/register-feature-events";
+import { registerFeatureEventHandlers } from "$lib/app/composition/registrations/register-feature-events";
 import { zoomState } from "$lib/platform/appearance/appearance.svelte";
 import {
   revealPanelView,
@@ -58,7 +58,7 @@ import { permissionRuleSetCatalog } from "$lib/application/permissions/permissio
 import {
   effectivePermissionRuleSetId,
   selectablePermissionRuleSets,
-} from "$lib/kernel/permissions/permission-rule-set-options";
+} from "$lib/domain/permissions/rule-set-options";
 
 type Props = {
   children?: Snippet;

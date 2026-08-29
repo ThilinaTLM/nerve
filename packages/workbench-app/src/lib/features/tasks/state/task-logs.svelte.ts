@@ -3,7 +3,7 @@ import {
   appendTaskLogPage,
   MAX_TASK_LOG_WINDOW_EVENTS,
   prependTaskLogPage,
-} from "$lib/features/tasks/ui";
+} from "$lib/features/tasks/views";
 import { SvelteMap } from "svelte/reactivity";
 import { taskState } from "./task-state.svelte";
 

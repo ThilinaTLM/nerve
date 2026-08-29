@@ -1,0 +1,75 @@
+import {
+  conversationViewKey,
+  pendingConversationKey,
+} from "$lib/domain/navigation/view-keys";
+import type {
+  ConversationViewState,
+  PendingConversationState,
+} from "$lib/features/conversations/state/conversation-state.svelte";
+import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { saveVisibleProjectSession } from "$lib/application/workspace/workspace-tab-sessions";
+import { addCenterTab } from "$lib/application/workspace/center-tabs.svelte";
+import {
+  composerDraft,
+  resetSelection,
+} from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+
+export function ensureConversationView(
+  conversationId: string,
+): ConversationViewState {
+  const key = conversationViewKey(conversationId);
+  conversationState.conversationViews[key] ??= {
+    conversationId,
+    activeEntryId: undefined,
+    activeEntryIds: [],
+    entries: [],
+    toolCalls: [],
+    treeNodes: [],
+    optimisticMessages: [],
+    queuedPrompts: [],
+    cursorSeq: 0,
+    sending: false,
+    stopping: false,
+    composerText: "",
+    loading: false,
+  };
+  return conversationState.conversationViews[key];
+}
+
+export function persistConversationTabs() {
+  saveVisibleProjectSession();
+}
+
+export function addConversationTab(conversationId: string) {
+  addCenterTab({ kind: "conversation", id: conversationId });
+  ensureConversationView(conversationId);
+}
+
+let pendingConversationCounter = 0;
+
+export function createPendingConversationId(): string {
+  pendingConversationCounter += 1;
+  return `pending_${Date.now().toString(36)}_${pendingConversationCounter.toString(36)}`;
+}
+
+export function activePendingConversation():
+  | PendingConversationState
+  | undefined {
+  const active = workspaceState.activeCenterTab;
+  if (active?.kind !== "pending-conversation") return undefined;
+  return conversationState.pendingConversations[
+    pendingConversationKey(active.id)
+  ];
+}
+
+export function clearTranscriptState() {
+  workspaceState.error = undefined;
+}
+
+export function clearActiveSelection() {
+  resetSelection();
+  conversationState.activeConversationTabId = undefined;
+  clearTranscriptState();
+  composerDraft.text = "";
+}

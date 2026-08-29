@@ -1,5 +1,5 @@
 import type { FilesystemProjectEntry } from "@nervekit/contracts";
-import type { PanelTreeNode } from "$lib/presentation/panel";
+import type { PanelTreeNode } from "$lib/presentation/panels";
 import type { FileExplorerProjectState } from "./file-explorer-state.svelte";
 
 export type FileExplorerEntryItem = {

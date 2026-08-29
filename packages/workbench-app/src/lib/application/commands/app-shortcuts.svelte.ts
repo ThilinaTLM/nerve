@@ -3,11 +3,11 @@ import type { PermissionRuleSetId } from "@nervekit/contracts";
 import {
   isEditableTarget,
   matchesShortcut,
-} from "$lib/kernel/shortcuts/keyboard";
+} from "$lib/application/commands/keyboard";
 import {
   DEFAULT_SHORTCUTS,
   type ShortcutCommandId,
-} from "$lib/kernel/shortcuts/registry";
+} from "$lib/application/commands/command-registry";
 import type { CenterTabIdentity } from "$lib/application/workspace";
 
 type CenterTabLike = { kind: CenterTabIdentity["kind"]; id: string };

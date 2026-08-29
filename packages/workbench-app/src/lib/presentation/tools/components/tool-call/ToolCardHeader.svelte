@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
+import type { StatusTone } from "@nervekit/ui-kit/components/composites/status-dot";
 import type { PrimaryArg } from "../../views/tool-presentation";
 import ToolStatusIcon from "./ToolStatusIcon.svelte";
 

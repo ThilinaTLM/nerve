@@ -9,13 +9,13 @@ import {
 const root = "packages/workbench-app/src/lib";
 
 describe("workbench boundaries", () => {
-  it("keeps kernel and platform below product behavior", () => {
+  it("keeps domain and platform below product behavior", () => {
     assert.equal(
       workbenchBoundaryViolation(
-        `${root}/kernel/events/bus.ts`,
+        `${root}/domain/events/bus.ts`,
         `${root}/features/tasks/index.ts`,
       ),
-      "kernel may not depend on features",
+      "domain may not depend on features",
     );
     assert.equal(
       workbenchBoundaryViolation(
@@ -29,15 +29,15 @@ describe("workbench boundaries", () => {
   it("keeps presentation isolated", () => {
     assert.equal(
       workbenchBoundaryViolation(
-        `${root}/presentation/panel/Panel.svelte`,
-        `${root}/kernel/navigation/types.ts`,
+        `${root}/presentation/panels/Panel.svelte`,
+        `${root}/domain/navigation/types.ts`,
       ),
-      "presentation may not depend on kernel",
+      "presentation may not depend on domain",
     );
     assert.equal(
       workbenchBoundaryViolation(
-        `${root}/presentation/panel/Panel.svelte`,
-        `${root}/presentation/panel/model.ts`,
+        `${root}/presentation/panels/Panel.svelte`,
+        `${root}/presentation/panels/model.ts`,
       ),
       undefined,
     );
@@ -64,14 +64,14 @@ describe("workbench boundaries", () => {
     assert.match(
       workbenchBoundaryViolation(
         `${root}/app/shell/Editor.svelte`,
-        `${root}/features/git/ui/GitPane.svelte`,
+        `${root}/features/git/views/GitPane.svelte`,
       ),
       /public APIs/,
     );
     assert.equal(
       workbenchBoundaryViolation(
         `${root}/app/composition/views.ts`,
-        `${root}/features/git/ui/GitPane.svelte`,
+        `${root}/features/git/views/GitPane.svelte`,
       ),
       undefined,
     );
@@ -82,7 +82,7 @@ describe("workbench boundaries", () => {
       ["app", new Set(["feature"])],
       ["feature", new Set(["application"])],
       ["application", new Set(["feature"])],
-      ["kernel", new Set()],
+      ["domain", new Set()],
     ]);
     assert.deepEqual(findDependencyCycles(graph), [["application", "feature"]]);
   });
@@ -98,9 +98,9 @@ describe("workbench boundaries", () => {
     assert.equal(
       resolveWorkbenchImport(
         `${root}/app/shell/Editor.svelte`,
-        "../../kernel/navigation/types",
+        "../../domain/navigation/types",
       ),
-      `${root}/kernel/navigation/types`,
+      `${root}/domain/navigation/types`,
     );
   });
 });

@@ -1,26 +1,29 @@
 import type { ChildProcessByStdio } from "node:child_process";
 import { spawnManagedChildProcess } from "@nervekit/native";
-import { searchProcessPolicy } from "../common/managed-process-policy.js";
+import { searchProcessPolicy } from "../process/managed-process-policy.js";
 import { createReadStream } from "node:fs";
 import { open } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable } from "node:stream";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { numberArg } from "../common/args.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { numberArg } from "../process/arguments.js";
 import {
   boundText,
   FILE_OUTPUT_MAX_LINE_CHARS,
   textBoundaryDetails,
   textLimitSnapshot,
-} from "../common/output-budget.js";
+} from "../output/output-budget.js";
 import {
   globToRegExp,
   resolveSearchScope,
   type SearchScope,
   walkFiles,
-} from "../common/search-utils.js";
-import { GREP_MAX_LINE_LENGTH } from "../common/truncate.js";
+} from "./search-utils.js";
+import { GREP_MAX_LINE_LENGTH } from "../output/truncate.js";
 import { isErrnoException } from "./path.js";
 
 const GREP_TIMEOUT_MS = 30_000;

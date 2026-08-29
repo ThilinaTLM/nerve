@@ -9,8 +9,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
 
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { ToolExecutionError } from "../common/tool-error.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { ToolExecutionError } from "../errors/tool-error.js";
 import { resolveToolPath } from "../filesystem/path.js";
 import { adfFromEither } from "./adf.js";
 import {

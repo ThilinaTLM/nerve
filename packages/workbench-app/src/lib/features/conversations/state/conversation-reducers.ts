@@ -14,7 +14,7 @@ import type {
   ToolCallTranscriptRecord,
 } from "$lib/api";
 import { removeEventStream } from "$lib/application/event-routing/stream-cursors.svelte";
-import { conversationViewKey } from "$lib/kernel/navigation/view-keys";
+import { conversationViewKey } from "$lib/domain/navigation/view-keys";
 import type { ConversationViewState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import {

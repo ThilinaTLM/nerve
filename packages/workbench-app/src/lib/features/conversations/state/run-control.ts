@@ -1,7 +1,7 @@
 import { cancelConversationCompaction, compactConversation } from "$lib/api";
 import { protocolRequest } from "@nervekit/protocol";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
-import { conversationViewKey } from "$lib/kernel/navigation/view-keys";
+import { conversationViewKey } from "$lib/domain/navigation/view-keys";
 import type { CompactionNotice } from "$lib/features/conversations/state/conversation-state.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { flushAgentConfigChanges } from "$lib/features/conversations/state/agent-config-mutations.svelte";
@@ -10,8 +10,8 @@ import { selection } from "$lib/application/workspace/selection.svelte";
 import { reloadWorkspace } from "$lib/application/workspace/workspace-commands";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { createAbortActiveRun } from "./run-abort";
-import { ensureConversationView } from "./state";
-import { openConversation } from "./tabs";
+import { ensureConversationView } from "./conversation-view-actions";
+import { openConversation } from "./conversation-tabs";
 
 export async function navigateToEntry(
   entryId: string | undefined,

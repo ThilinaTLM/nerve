@@ -1,5 +1,5 @@
 <script lang="ts">
-import { cn, type WithElementRef } from "@nervekit/ui-kit/core/utils";
+import { cn, type WithElementRef } from "@nervekit/ui-kit/utils";
 import type { HTMLAttributes } from "svelte/elements";
 import { Dialog as DialogPrimitive } from "bits-ui";
 import { Button } from "@nervekit/ui-kit/components/ui/button";

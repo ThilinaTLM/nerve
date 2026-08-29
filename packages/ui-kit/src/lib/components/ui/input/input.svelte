@@ -3,7 +3,7 @@ import type {
   HTMLInputAttributes,
   HTMLInputTypeAttribute,
 } from "svelte/elements";
-import { cn, type WithElementRef } from "@nervekit/ui-kit/core/utils";
+import { cn, type WithElementRef } from "@nervekit/ui-kit/utils";
 
 type InputType = Exclude<HTMLInputTypeAttribute, "file">;
 

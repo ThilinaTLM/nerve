@@ -8,7 +8,7 @@ import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
 import {
   dateTimeLabel,
   relativeTimeLabel,
-} from "@nervekit/ui-kit/core/utils/time";
+} from "@nervekit/ui-kit/display/time";
 import { jiraIssueUrl, jiraStatusTone } from "../../views/jira-display";
 import { jiraIssueTypeIcon, jiraPriorityMeta } from "../../views/jira-icons";
 

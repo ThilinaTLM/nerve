@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { Separator as SeparatorPrimitive } from "bits-ui";
 import { Separator } from "@nervekit/ui-kit/components/ui/separator";
-import { cn } from "@nervekit/ui-kit/core/utils";
+import { cn } from "@nervekit/ui-kit/utils";
 
 let {
   ref = $bindable(null),

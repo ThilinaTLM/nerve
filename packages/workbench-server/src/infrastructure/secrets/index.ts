@@ -1,9 +1,9 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { atomicWriteFile } from "../storage/file-mutations.js";
-import { pathExists } from "../storage/json.js";
-import { storagePaths } from "../storage/paths.js";
+import { atomicWriteFile } from "../storage-bootstrap/file-mutations.js";
+import { pathExists } from "../storage-bootstrap/json.js";
+import { storagePaths } from "../storage-bootstrap/paths.js";
 
 export interface SecretProvider {
   get(name: string): Promise<string | undefined>;

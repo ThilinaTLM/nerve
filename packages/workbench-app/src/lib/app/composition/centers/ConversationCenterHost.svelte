@@ -10,7 +10,7 @@ import type { CenterTabIdentity } from "$lib/application/workspace";
 import {
   conversationViewKey,
   pendingConversationKey,
-} from "$lib/kernel/navigation/view-keys";
+} from "$lib/domain/navigation/view-keys";
 import {
   modelKey,
   scopedUsableModelOptions,
@@ -53,7 +53,7 @@ import {
   setComposerPermissionRuleSet,
   setComposerThinkingLevel,
 } from "$lib/features/conversations/state/composer-config.svelte";
-import { ensureConversationView } from "$lib/features/conversations/state/state";
+import { ensureConversationView } from "$lib/features/conversations/state/conversation-view-actions";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
 import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
 import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
@@ -65,13 +65,13 @@ import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/p
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { refreshPromptSuggestions } from "$lib/features/prompt-suggestions/state/prompt-suggestions-actions.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
-import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/components/PromptSuggestionTrustDialog.svelte";
-import type { ComposerSuggestion } from "$lib/features/conversations/components/composer-suggestion";
+import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/views/PromptSuggestionTrustDialog.svelte";
+import type { ComposerSuggestion } from "$lib/features/conversations/views/composer-suggestion";
 import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
 import {
   effectivePermissionRuleSetId,
   selectablePermissionRuleSets,
-} from "$lib/kernel/permissions/permission-rule-set-options";
+} from "$lib/domain/permissions/rule-set-options";
 import {
   completeFiles,
   newConversationInProject,

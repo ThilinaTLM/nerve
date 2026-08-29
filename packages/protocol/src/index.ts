@@ -1,32 +1,35 @@
-export { protocolClientId, protocolInstanceId } from "./client/browser-ids.js";
+export {
+  protocolClientId,
+  protocolInstanceId,
+} from "./adapters/browser-id-store.js";
 export {
   ProtocolClientConnection,
   type ProtocolClientConnectionOptions,
   type ProtocolClientConnectionState,
-} from "./client/client-connection.js";
+} from "./connections/client-connection.js";
 export {
   type ClientSessionOptions,
   type ClientSessionState,
   ProtocolClientSession,
   StreamSubscriptionError,
-} from "./client/client-session.js";
+} from "./sessions/client-session.js";
 export {
   NERVE_PROTOCOL_V1_MEDIA_TYPE,
   ProtocolRequestError,
   type ProtocolRequestOptions,
   protocolRequest,
-} from "./client/http-client.js";
+} from "./adapters/http-operation-client.js";
 export {
   ReconnectPolicy,
   type ReconnectPolicyOptions,
-} from "./client/reconnect.js";
-export { type IdFactory, createTransportId } from "./core/ids.js";
+} from "./connections/reconnect-policy.js";
+export { type IdFactory, createTransportId } from "./runtime/ids.js";
 export {
   type MessageFactory,
   type MessageFactoryDependencies,
   type MessageFactoryOptions,
   createMessageFactory,
-} from "./core/messages.js";
+} from "./messages/message-factory.js";
 export {
   type ProtocolClock,
   type ProtocolDiagnosticsPublisher,
@@ -35,13 +38,13 @@ export {
   type ProtocolTransportFactory,
   type StreamReadResult,
   type StreamReader,
-} from "./core/ports.js";
+} from "./runtime/ports.js";
 export {
   systemProtocolClock,
   systemProtocolIds,
   systemProtocolTimers,
-} from "./core/runtime.js";
-export { SessionStateError } from "./core/session-errors.js";
+} from "./runtime/system-runtime.js";
+export { SessionStateError } from "./runtime/session-errors.js";
 export const NERVE_PROTOCOL_NAME = "nerve" as const;
 export const NERVE_PROTOCOL_VERSION = 1 as const;
 export {
@@ -50,26 +53,28 @@ export {
   hashParams,
 } from "./rpc/idempotency-store.js";
 export {
+  RpcClient,
+  type RpcClientOptions,
+  RpcError,
+} from "./rpc/rpc-client.js";
+export {
   type IdempotencyExecution,
   type IdempotencyOutcome,
   type IdempotencyStorePort,
   type OperationHandler,
   type OperationHandlerRegistry,
-  RpcClient,
-  type RpcClientOptions,
   type RpcDispatchResult,
   RpcDispatcher,
   type RpcDispatcherOptions,
-  RpcError,
-} from "./rpc/rpc.js";
+} from "./rpc/rpc-server.js";
 export {
   type ServerSessionOptions,
   type ServerSessionRpc,
   type ServerSessionState,
   type ServerStreamSubscriptionPort,
   type StreamSubscriptionDecision,
-} from "./server/server-session-types.js";
-export { ProtocolServerSession } from "./server/server-session.js";
+} from "./sessions/server-session-contracts.js";
+export { ProtocolServerSession } from "./sessions/server-session.js";
 export {
   type BuildEventBatchOptions,
   buildEventBatch,
@@ -92,21 +97,21 @@ export {
   ProtocolCodec,
   type ProtocolCodecOptions,
   ProtocolDecodeError,
-} from "./transport/codec.js";
+} from "./transports/codec.js";
 export {
   ProtocolConnection,
   type ProtocolConnectionOptions,
   type ProtocolReceiveContext,
-} from "./transport/connection.js";
+} from "./connections/protocol-connection.js";
 export {
   type TransportClose,
   type TransportConnection,
   type TransportFactory,
   type TransportState,
-} from "./transport/transport.js";
+} from "./transports/transport.js";
 export {
   type WebSocketLike,
   browserWebSocketTransportFactory,
   nodeWebSocketTransportFactory,
   websocketTransport,
-} from "./transport/websocket-transport.js";
+} from "./adapters/websocket-transport.js";

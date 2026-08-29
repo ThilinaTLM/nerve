@@ -8,13 +8,13 @@ import {
   createId,
   type TaskRecord,
 } from "@nervekit/contracts";
-import { TaskRepository } from "../../src/domains/tasks/task.repository.js";
+import { TaskRepository } from "../../src/domains/tasks/persistence/task.repository.js";
 import {
   createWorkbenchState,
   shutdownWorkbenchState,
   type WorkbenchState,
-} from "../../src/app/workbench-state.js";
-import { initializeStorage } from "../../src/infrastructure/storage/index.js";
+} from "../../src/app/runtime/server-runtime.js";
+import { initializeStorage } from "../../src/infrastructure/storage-bootstrap/index.js";
 
 const roots: string[] = [];
 const states: WorkbenchState[] = [];

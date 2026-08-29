@@ -1,5 +1,8 @@
 import { readFile } from "node:fs/promises";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
 import { writeTextFileAtomically } from "./atomic-write.js";
 import { argumentError, editError } from "./edit-errors.js";
 import { withFileMutationQueue } from "./file-mutation-queue.js";

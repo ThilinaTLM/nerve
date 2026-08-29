@@ -5,7 +5,7 @@ import {
   isVirtualInterface,
   isWildcardHost,
 } from "@nervekit/workbench-server";
-import type { ShareUrls } from "./types.js";
+import type { ShareUrls } from "./contracts.js";
 
 /**
  * Pure URL/host policy for daemon connections and LAN/mobile sharing. The

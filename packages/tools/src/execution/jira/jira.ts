@@ -1,4 +1,7 @@
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
 import {
   boundedNumber,
   enumSet,
@@ -7,7 +10,7 @@ import {
   optionalStringArray,
   requiredString,
 } from "../atlassian/arguments.js";
-import { ToolExecutionError } from "../common/tool-error.js";
+import { ToolExecutionError } from "../errors/tool-error.js";
 import { adfFromEither } from "./adf.js";
 import {
   type JiraConnection,

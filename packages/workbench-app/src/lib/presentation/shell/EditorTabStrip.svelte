@@ -9,8 +9,8 @@ import X from "@lucide/svelte/icons/x";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ContextMenu, {
   type ContextMenuItem,
-} from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
+} from "@nervekit/ui-kit/components/composites/context-menu-list";
+import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import type {
   WorkbenchTabIdentity,
   WorkbenchTabMenuBuilder,

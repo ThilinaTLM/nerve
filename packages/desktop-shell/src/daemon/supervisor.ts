@@ -28,7 +28,7 @@ import type {
   HealthyDaemon,
   ManagedDaemon,
   ShareUrls,
-} from "./types.js";
+} from "./contracts.js";
 import { buildShareUrls } from "./urls.js";
 
 export interface DaemonSupervisorConfig {

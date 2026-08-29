@@ -9,7 +9,7 @@ import {
 } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { StoragePaths } from "../../infrastructure/storage/index.js";
+import type { StoragePaths } from "../../infrastructure/storage-bootstrap/index.js";
 import type { StorageCleanupRepository } from "./storage-cleanup.repository.js";
 import {
   dirSize,

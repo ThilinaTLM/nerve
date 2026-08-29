@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
-import { explainImageWithModel } from "../../src/models/image-explanation.js";
+import { explainImageWithModel } from "../../src/models/image/explanation.js";
 import { registerManagedFauxProvider } from "../../src/models/model-registry.js";
 
 describe("explainImageWithModel", () => {

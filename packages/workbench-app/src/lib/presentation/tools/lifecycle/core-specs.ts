@@ -1,7 +1,7 @@
 import {
   relativePathForDisplay,
   resolveDisplayPath,
-} from "@nervekit/ui-kit/core/utils/path-links";
+} from "@nervekit/ui-kit/display/path-links";
 import type { CoreToolName } from "@nervekit/contracts";
 import type { MetaItem, PrimaryArg } from "../views/tool-presentation-types";
 import type { ToolArgumentSource } from "./argument-source";

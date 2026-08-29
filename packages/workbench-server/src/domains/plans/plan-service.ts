@@ -10,8 +10,8 @@ import {
   toPlanReviewPreview,
   type ToolCallRecord,
 } from "@nervekit/contracts";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import { pathExists } from "../../infrastructure/storage/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
+import { pathExists } from "../../infrastructure/storage-bootstrap/index.js";
 import {
   isPathInsidePlanDir,
   planDirForStorageHome,

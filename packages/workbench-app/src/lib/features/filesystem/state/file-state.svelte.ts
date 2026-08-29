@@ -1,6 +1,6 @@
 import type { FilesystemFileResponse } from "$lib/api";
-import type { MermaidBlockLocator } from "@nervekit/ui-kit/core/components/mermaid-blocks";
-import type { FileDisplayMode } from "@nervekit/ui-kit/core/utils/file-display";
+import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
+import type { FileDisplayMode } from "@nervekit/ui-kit/display/file-display";
 
 export type FileViewState = {
   id: string;

@@ -1,10 +1,10 @@
-import {
-  type AgentRecord,
-  type ConversationEntry,
-  type ConversationRecord,
-  escapeHtml,
-  type ProjectRecord,
+import type {
+  AgentRecord,
+  ConversationEntry,
+  ConversationRecord,
+  ProjectRecord,
 } from "@nervekit/contracts";
+import { escapeHtml } from "../../../adapters/http/html.js";
 
 export interface ExportedConversationBundle {
   format: "nerve.conversation.v1";

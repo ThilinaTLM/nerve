@@ -3,7 +3,7 @@ import {
   gitProjectStateKey,
   gitRepoStateKey,
   prViewKey,
-} from "$lib/kernel/navigation/view-keys";
+} from "$lib/domain/navigation/view-keys";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";

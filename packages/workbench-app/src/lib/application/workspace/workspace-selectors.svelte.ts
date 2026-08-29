@@ -1,8 +1,8 @@
 import { SvelteSet } from "svelte/reactivity";
 import type { AgentRecord } from "$lib/api";
-import { projectKey } from "$lib/kernel/utils/project-tree";
+import { projectKey } from "$lib/domain/projects/project-tree";
 import { buildProjectSwitcherItems } from "$lib/features/projects/state/project-switcher";
-import { agentRunningTone } from "@nervekit/ui-kit/core/utils/status";
+import { agentRunningTone } from "@nervekit/ui-kit/display/status";
 import {
   conversationViewKey,
   diffViewKey,
@@ -10,15 +10,15 @@ import {
   mermaidViewKey,
   pendingConversationKey,
   prViewKey,
-} from "$lib/kernel/navigation/view-keys";
+} from "$lib/domain/navigation/view-keys";
 import {
   defaultFileDisplayMode,
   fileRenderKind,
-} from "@nervekit/ui-kit/core/utils/file-display";
+} from "@nervekit/ui-kit/display/file-display";
 import {
   buildConversationActivityById,
   idleConversationActivity,
-} from "$lib/kernel/conversations/activity";
+} from "$lib/domain/conversations/activity";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";

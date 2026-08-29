@@ -6,7 +6,7 @@ import {
   atomicWriteJson,
   pathExists,
   readJsonFile,
-} from "../../infrastructure/storage/index.js";
+} from "../../infrastructure/storage-bootstrap/index.js";
 
 export class StorageCleanupRepository {
   constructor(readonly path: string) {}

@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { DaemonPaths, EnsureDaemonOptions } from "./types.js";
+import type { DaemonPaths, EnsureDaemonOptions } from "./contracts.js";
 import { isLoopbackHost } from "./urls.js";
 
 /**

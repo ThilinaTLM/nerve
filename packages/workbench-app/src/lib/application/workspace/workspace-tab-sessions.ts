@@ -1,13 +1,13 @@
 import type { GitDiffArea } from "@nervekit/contracts";
-import type { MermaidBlockLocator } from "@nervekit/ui-kit/core/components/mermaid-blocks";
+import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import type { ConversationRecord, ProjectRecord, TaskRecord } from "$lib/api";
-import { projectKey } from "$lib/kernel/utils/project-tree";
+import { projectKey } from "$lib/domain/projects/project-tree";
 import {
   diffViewKey,
   fileViewKey,
   mermaidViewKey,
   prViewKey,
-} from "$lib/kernel/navigation/view-keys";
+} from "$lib/domain/navigation/view-keys";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { fileViewerPreferences } from "$lib/application/workspace/file-viewer-preferences.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";

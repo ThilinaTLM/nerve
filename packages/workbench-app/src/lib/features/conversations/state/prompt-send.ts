@@ -6,7 +6,7 @@ import { scopedUsableModelOptions } from "$lib/presentation/utils/model";
 import { deleteConversation } from "$lib/api";
 import { protocolRequest } from "@nervekit/protocol";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
-import { pendingConversationKey } from "$lib/kernel/navigation/view-keys";
+import { pendingConversationKey } from "$lib/domain/navigation/view-keys";
 import type {
   ConversationViewState,
   PendingConversationState,
@@ -42,12 +42,12 @@ import {
   refreshConversationView,
   upsertAgentRecord,
   upsertConversationRecord,
-} from "./selection";
+} from "./conversation-selection";
 import {
   activePendingConversation,
   ensureConversationView,
   persistConversationTabs,
-} from "./state";
+} from "./conversation-view-actions";
 
 export function setActiveComposerText(value: string) {
   const pending = activePendingConversation();

@@ -15,7 +15,7 @@ import type {
   ManagedTarget,
   TerminationResult,
   TcpListenerProcess,
-} from "./types.js";
+} from "./contracts.js";
 
 export function configureManagedProcessRuntime(
   options: ManagedProcessRuntimeOptions,

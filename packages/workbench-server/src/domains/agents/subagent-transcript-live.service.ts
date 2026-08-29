@@ -6,7 +6,7 @@ import {
 } from "@nervekit/contracts";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import { ConversationRuntime } from "../runs/runtime/conversation-runtime.js";
-import { assistantContentRedacted } from "./run/harness-execution-shared.js";
+import { assistantContentRedacted } from "./execution/harness-execution-shared.js";
 
 type ChildLiveState = {
   parentAgentId: string;

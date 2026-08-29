@@ -1,5 +1,5 @@
 <script lang="ts">
-import { cn } from "@nervekit/ui-kit/core/utils";
+import { cn } from "@nervekit/ui-kit/utils";
 import { Popover as PopoverPrimitive } from "bits-ui";
 
 let {

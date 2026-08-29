@@ -8,9 +8,9 @@ import { ApplicationError } from "../../core/application-error.js";
 import type {
   ApprovalInteractionBatch,
   WorkbenchRunService,
-} from "../runs/workbench-run.service.js";
-import type { ToolService } from "../tools/tool-service.js";
-import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
+} from "../runs/application/workbench-run.service.js";
+import type { ToolService } from "../tools/execution/tool-service.js";
+import { toToolCallTranscriptRecord } from "../tools/artifacts/tool-call-transcript-preview.js";
 
 interface ApprovalBatchResolutionDeps {
   tools: ToolService;

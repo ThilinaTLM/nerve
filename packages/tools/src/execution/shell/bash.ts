@@ -2,14 +2,17 @@ import {
   spawnManagedChildProcess,
   terminateManagedChildProcess,
 } from "@nervekit/native";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { numberArg } from "../common/args.js";
-import { resolveCommandCwd } from "../common/command-cwd.js";
-import { BoundedProcessOutput } from "../common/bounded-process-output.js";
-import { LiveOutputDelivery } from "../common/live-output.js";
-import { bashProcessPolicy } from "../common/managed-process-policy.js";
-import { forceKillProcessTree } from "../common/process-tree.js";
-import { buildProcessResult } from "../common/process-result.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { numberArg } from "../process/arguments.js";
+import { resolveCommandCwd } from "../process/command-cwd.js";
+import { BoundedProcessOutput } from "../output/bounded-process-output.js";
+import { LiveOutputDelivery } from "../output/live-output.js";
+import { bashProcessPolicy } from "../process/managed-process-policy.js";
+import { forceKillProcessTree } from "../process/process-tree.js";
+import { buildProcessResult } from "../process/process-result.js";
 import { resolveBashShellConfig } from "./shell-config.js";
 
 const FORCE_KILL_AFTER_MS = 2000;

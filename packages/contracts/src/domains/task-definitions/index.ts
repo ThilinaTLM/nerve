@@ -1,2 +1,2 @@
-export * from "./task-definition.events.schema.js";
-export * from "./task-definition.schema.js";
+export * from "./events.js";
+export * from "./task-definition.js";

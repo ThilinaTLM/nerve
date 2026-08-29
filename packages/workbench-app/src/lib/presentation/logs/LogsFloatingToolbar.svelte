@@ -2,7 +2,7 @@
 import { tick } from "svelte";
 import X from "@lucide/svelte/icons/x";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
+import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 
 type Props = {
   contains: string;

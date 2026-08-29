@@ -8,7 +8,7 @@ import {
   checkHealth,
   findHealthyDaemon,
   resolveDaemonLaunch,
-} from "../src/daemon/node-integration.ts";
+} from "../src/daemon/adapters/node-process.ts";
 
 describe("daemon Node health integration", () => {
   it("wraps Linux desktop daemons in a delegated systemd scope", () => {

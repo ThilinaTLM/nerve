@@ -16,7 +16,7 @@ import {
   readJsonLines,
   readJsonLinesTail,
   rewriteJsonLines,
-} from "../storage/index.js";
+} from "../storage-bootstrap/index.js";
 
 export type ApplicationLogContext = Partial<
   Pick<

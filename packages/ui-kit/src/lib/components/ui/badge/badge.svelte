@@ -39,7 +39,7 @@ export type BadgeSize = VariantProps<typeof badgeVariants>["size"];
 
 <script lang="ts">
 import type { HTMLAnchorAttributes } from "svelte/elements";
-import { cn, type WithElementRef } from "@nervekit/ui-kit/core/utils";
+import { cn, type WithElementRef } from "@nervekit/ui-kit/utils";
 
 let {
   ref = $bindable(null),

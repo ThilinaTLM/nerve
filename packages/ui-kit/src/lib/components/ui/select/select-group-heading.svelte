@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Select as SelectPrimitive } from "bits-ui";
-import { cn } from "@nervekit/ui-kit/core/utils";
+import { cn } from "@nervekit/ui-kit/utils";
 import type { ComponentProps } from "svelte";
 
 let {

@@ -1,8 +1,11 @@
 import { requiredString } from "../atlassian/arguments.js";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { ToolExecutionError } from "../common/tool-error.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { ToolExecutionError } from "../errors/tool-error.js";
 import { resolveToolPath } from "../filesystem/path.js";
 import {
   confluenceAttachmentRequest,

@@ -8,7 +8,7 @@ import {
   atomicWriteJson,
   type InitializedStorage,
   readJsonFile,
-} from "../../infrastructure/storage/index.js";
+} from "../../infrastructure/storage-bootstrap/index.js";
 
 const emptyPermissions = (): ProjectPermissions => ({
   version: 2,

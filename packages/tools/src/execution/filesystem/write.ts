@@ -1,6 +1,9 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
 import { writeTextFileAtomically } from "./atomic-write.js";
 import { withFileMutationQueue } from "./file-mutation-queue.js";
 import { resolveToolPath } from "./path.js";

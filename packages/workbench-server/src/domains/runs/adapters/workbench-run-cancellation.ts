@@ -1,12 +1,12 @@
 import type { RunRecord } from "@nervekit/contracts";
 import type { RunCancellationPort } from "../runtime/index.js";
-import type { WorkbenchSubagentExecutions } from "../../agents/run/workbench-subagent-executions.js";
+import type { WorkbenchSubagentExecutions } from "../../agents/execution/workbench-subagent-executions.js";
 import { isActiveTaskStatus } from "../../tasks/index.js";
-import type { WorkbenchTaskService } from "../../tasks/workbench-task-service.js";
-import type { ToolService } from "../../tools/tool-service.js";
-import type { WorkbenchLiveExecutions } from "../run-live-executions.js";
-import type { WorkbenchRunUnitOfWork } from "../run-transition.repository.js";
-import { RUN_CANCELLED_TOOL_OUTCOME } from "../../tools/tool-termination.js";
+import type { WorkbenchTaskService } from "../../tasks/adapters/workbench-task-service.js";
+import type { ToolService } from "../../tools/execution/tool-service.js";
+import type { WorkbenchLiveExecutions } from "../application/run-live-executions.js";
+import type { WorkbenchRunUnitOfWork } from "../persistence/run-transition.repository.js";
+import { RUN_CANCELLED_TOOL_OUTCOME } from "../../tools/execution/tool-termination.js";
 
 type Evidence = "confirmed" | "not_running";
 

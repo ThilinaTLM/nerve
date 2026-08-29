@@ -15,40 +15,13 @@ import {
   findInertClassNames,
   isDynamicClass,
 } from "./lib/style-policy.mjs";
+import { allowedNerveDependencies } from "./lib/workspace-architecture.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const failures = [];
 const sourceExtensions = /\.(?:[cm]?[jt]sx?|svelte)$/;
 const releaseSurfaceExtensions =
   /(?:^|\/)(?:package\.json|pnpm-lock\.yaml|tsconfig(?:\.[^/]+)?\.json|Dockerfile|[^/]+\.(?:[cm]?[jt]sx?|svelte|md|json|ya?ml|toml|tf|sh))$/;
-
-const allowedNerveDependencies = new Map([
-  ["@nervekit/contracts", []],
-  ["@nervekit/native", []],
-  ["@nervekit/protocol", ["@nervekit/contracts"]],
-  ["@nervekit/harness", ["@nervekit/contracts", "@nervekit/native"]],
-  ["@nervekit/tools", ["@nervekit/contracts", "@nervekit/native"]],
-  ["@nervekit/ui-kit", []],
-  ["@nervekit/website", []],
-  [
-    "@nervekit/workbench-server",
-    [
-      "@nervekit/contracts",
-      "@nervekit/native",
-      "@nervekit/protocol",
-      "@nervekit/harness",
-      "@nervekit/tools",
-    ],
-  ],
-  [
-    "@nervekit/workbench-app",
-    ["@nervekit/contracts", "@nervekit/protocol", "@nervekit/ui-kit"],
-  ],
-  [
-    "@nervekit/desktop-shell",
-    ["@nervekit/contracts", "@nervekit/workbench-server"],
-  ],
-]);
 
 const packageByDirectory = new Map();
 for (const [name] of allowedNerveDependencies) {
@@ -564,7 +537,7 @@ function forbiddenRunRuntimeImport(file, specifier) {
 
 function forbiddenPresentationImport(file, specifier) {
   if (
-    /^\$lib\/(?:app|application|features|kernel|platform)(?:\/|$)/.test(
+    /^\$lib\/(?:app|application|domain|features|platform)(?:\/|$)/.test(
       specifier,
     )
   )

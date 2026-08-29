@@ -3,8 +3,8 @@ import { untrack } from "svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
-import type { WorkbenchConversationAdapterProps } from "$lib/features/conversations/components/workbench-conversation-adapter-props";
-import { shortProjectLabel } from "$lib/kernel/utils/project-tree";
+import type { WorkbenchConversationAdapterProps } from "$lib/features/conversations/views/workbench-conversation-adapter-props";
+import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import {
   activeRunStreamingText,
   buildActiveRunTimeline,
@@ -13,17 +13,17 @@ import {
   hasActiveTurnTimelineOutput,
   selectVisibleCommitted,
 } from "$lib/presentation/state";
-import { ConversationPane } from "$lib/presentation/components/conversation";
+import { ConversationPane } from "$lib/presentation/conversations";
 import { setConversationUiCapabilities } from "$lib/presentation/context.svelte";
 import WorkbenchComposerAdapter from "./WorkbenchComposerAdapter.svelte";
 import { workbenchConversationUiCapabilities } from "./conversation-capabilities.svelte";
-import ConversationWelcome from "$lib/features/conversations/components/ConversationWelcome.svelte";
+import ConversationWelcome from "$lib/features/conversations/views/ConversationWelcome.svelte";
 import { openInlineMermaidPane } from "$lib/features/filesystem";
-import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/core/components/mermaid-blocks";
+import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 
 setConversationUiCapabilities(workbenchConversationUiCapabilities());
-import { transcriptMenu } from "$lib/features/conversations/components/conversation-menus";
-import type { TranscriptMenuTarget } from "$lib/presentation/components/conversation";
+import { transcriptMenu } from "$lib/features/conversations/views/conversation-menus";
+import type { TranscriptMenuTarget } from "$lib/presentation/conversations";
 import { createConversationRenderProjection } from "$lib/features/conversations/state/conversation-render-projection.svelte";
 
 let {

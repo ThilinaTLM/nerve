@@ -11,7 +11,7 @@ import {
   apiPathSegment,
   apiPost,
   apiPut,
-} from "@nervekit/ui-kit/core/api/client";
+} from "$lib/platform/http/api-client";
 import { protocolRequest } from "@nervekit/protocol";
 
 export async function getAuthProviders(): Promise<AuthProviderMetadata[]> {

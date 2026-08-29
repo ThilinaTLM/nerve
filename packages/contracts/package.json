@@ -21,6 +21,26 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./events": {
+      "types": "./dist/events/index.d.ts",
+      "import": "./dist/events/index.js"
+    },
+    "./wire": {
+      "types": "./dist/wire/index.d.ts",
+      "import": "./dist/wire/index.js"
+    },
+    "./operations": {
+      "types": "./dist/operations/index.d.ts",
+      "import": "./dist/operations/index.js"
+    },
+    "./snapshots": {
+      "types": "./dist/snapshots/index.d.ts",
+      "import": "./dist/snapshots/index.js"
+    },
+    "./*": {
+      "types": "./dist/domains/*/index.d.ts",
+      "import": "./dist/domains/*/index.js"
     }
   },
   "scripts": {

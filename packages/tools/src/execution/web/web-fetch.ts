@@ -2,20 +2,23 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
 import { webFetchCandidateFitsInline } from "../../result-projection/candidates/web.js";
 import {
   HTML_CONVERSION_MAX_INPUT_BYTES,
   HTML_CONVERSION_TIMEOUT_MS,
   isolatedHtmlToMarkdown,
-} from "../common/isolated-html-to-markdown.js";
-import { withTimeoutSignal } from "../common/abort.js";
+} from "../atlassian/isolated-html-to-markdown.js";
+import { withTimeoutSignal } from "../process/abort.js";
 import {
   assertSafeHttpUrl,
   type HostResolver,
-} from "../common/network-policy.js";
-import { ToolExecutionError } from "../common/tool-error.js";
-import { formatByteSize } from "../common/truncate.js";
+} from "../network/network-policy.js";
+import { ToolExecutionError } from "../errors/tool-error.js";
+import { formatByteSize } from "../output/truncate.js";
 
 const MAX_RESPONSE_BYTES = HTML_CONVERSION_MAX_INPUT_BYTES;
 const MAX_REDIRECTS = 5;

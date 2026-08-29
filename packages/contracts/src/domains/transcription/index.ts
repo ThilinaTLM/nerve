@@ -1,1 +1,1 @@
-export * from "./transcription.schema.js";
+export * from "./transcription.js";

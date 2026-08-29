@@ -4,7 +4,7 @@ import {
   isSequencedEvent,
   onAnyEvent,
   type WorkbenchEvent,
-} from "$lib/kernel/events/event-bus";
+} from "$lib/application/events/event-bus";
 import { removeEventStream } from "$lib/application/event-routing/stream-cursors.svelte";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import {

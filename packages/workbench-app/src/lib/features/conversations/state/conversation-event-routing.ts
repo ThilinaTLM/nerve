@@ -1,6 +1,6 @@
 import { conversationStream, streamForEvent } from "@nervekit/contracts";
 import type { EventEnvelope } from "$lib/api";
-import type { WorkbenchEvent } from "$lib/kernel/events/event-bus";
+import type { WorkbenchEvent } from "$lib/application/events/event-bus";
 
 /**
  * True when the catalog routes this envelope to its conversation's dense

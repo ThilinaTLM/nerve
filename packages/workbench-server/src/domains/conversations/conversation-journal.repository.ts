@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import { noopPerformanceDiagnostics } from "../../infrastructure/diagnostics/performance-metrics.js";
-import { CanonicalStore } from "../../infrastructure/canonical-store/index.js";
-import { storagePaths } from "../../infrastructure/storage/paths.js";
+import { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/index.js";
+import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
 import {
   deserializeState,
   prepareConversationPersistenceDelta,

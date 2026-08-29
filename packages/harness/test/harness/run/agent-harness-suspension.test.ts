@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Type } from "typebox";
-import { AgentHarness } from "../../../src/runtime/agent-harness.js";
-import { Conversation } from "../../../src/runtime/conversation/conversation.js";
-import { InMemoryConversationStorage } from "../../../src/runtime/conversation/adapters/in-memory-storage.js";
+import { AgentHarness } from "../../../src/harness/agent-harness.js";
+import { Conversation } from "../../../src/conversation/conversation.js";
+import { InMemoryConversationStorage } from "../../../src/conversation/adapters/in-memory-storage.js";
 import { resolveAgentModel } from "../../../src/models/resolution.js";
 import { registerAgentScriptedProvider } from "../../../src/models/scripted-provider.js";
 import {
   AgentToolSuspension,
   isAgentToolSuspension,
 } from "../../../src/agent/suspension.js";
-import type { AgentTool } from "../../../src/agent/types/index.js";
+import type { AgentTool } from "../../../src/agent/contracts/index.js";
 
 describe("AgentHarness tool suspensions", () => {
   it("preserves an ordered first-turn sequential batch at the prompt boundary", async () => {

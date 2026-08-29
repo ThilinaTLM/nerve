@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Checkbox as CheckboxPrimitive } from "bits-ui";
-import { cn, type WithoutChildrenOrChild } from "@nervekit/ui-kit/core/utils";
+import { cn, type WithoutChildrenOrChild } from "@nervekit/ui-kit/utils";
 import CheckIcon from "@lucide/svelte/icons/check";
 import MinusIcon from "@lucide/svelte/icons/minus";
 

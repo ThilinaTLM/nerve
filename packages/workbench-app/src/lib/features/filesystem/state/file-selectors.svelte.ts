@@ -1,4 +1,4 @@
-import { fileViewKey, mermaidViewKey } from "$lib/kernel/navigation/view-keys";
+import { fileViewKey, mermaidViewKey } from "$lib/domain/navigation/view-keys";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { fileState } from "./file-state.svelte";
 

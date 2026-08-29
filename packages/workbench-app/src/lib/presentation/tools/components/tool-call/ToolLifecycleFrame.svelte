@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { prefersReducedMotion } from "svelte/motion";
-import { getConversationMotionBudget } from "../../../components/transcript/conversation-motion-context.svelte";
+import { getConversationMotionBudget } from "../../../transcript/conversation-motion-context.svelte";
 import {
   createToolLifecycleMotion,
   type ToolLifecycleMotionController,

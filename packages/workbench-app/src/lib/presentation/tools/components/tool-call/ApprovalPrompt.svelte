@@ -4,7 +4,7 @@ import X from "@lucide/svelte/icons/x";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import { SplitButton } from "@nervekit/ui-kit/components/ui/split-button";
+import { SplitButton } from "@nervekit/ui-kit/components/composites/split-button";
 import type { ApprovalWithToolCall } from "../../../state/tool-types";
 import type { ToolArgumentPresentation } from "../../lifecycle/registry";
 import type { MetaItem, MetaTone } from "../../views/tool-presentation";

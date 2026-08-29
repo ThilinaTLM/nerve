@@ -6,8 +6,8 @@ import {
   type ProjectRecord,
 } from "@nervekit/contracts";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
-import type { RuntimeState } from "../../app/runtime/state.js";
+import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
+import type { RuntimeState } from "../../app/runtime/runtime-projections.js";
 import type { ProjectRepository } from "./project.repository.js";
 
 export class ProjectLifecycleService {

@@ -8,7 +8,7 @@ import type {
   ToolExecutionContext,
   ToolExecutionOutputUpdate,
   ToolExecutionResult,
-} from "../types.js";
+} from "../execution/execution-context.js";
 
 export type ToolDecisionKind = "allow" | "approval" | "deny";
 

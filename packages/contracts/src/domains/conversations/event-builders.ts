@@ -2,7 +2,7 @@ import type { ToolCallTranscriptRecord } from "../tools/index.js";
 import type {
   ConversationEventType,
   ConversationToolCallUpdatedData,
-} from "./run-event-payloads.schema.js";
+} from "./run-event-payloads.js";
 
 export interface ConversationEventScope {
   conversationId: string;

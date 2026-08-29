@@ -1,5 +1,5 @@
 <script lang="ts">
-import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
+import { VirtualScroller } from "@nervekit/ui-kit/components/composites/virtual-list";
 import { segmentRawText } from "./tool-details-state";
 
 type Props = { text: string; maxHeight?: string };

@@ -2,7 +2,7 @@ import {
   isSequencedEvent,
   onAnyEvent,
   type WorkbenchEvent,
-} from "$lib/kernel/events/event-bus";
+} from "$lib/application/events/event-bus";
 import { notifyNative } from "$lib/application/notifications/notify.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { notificationForRuntimeEvent } from "./runtime-notifications";

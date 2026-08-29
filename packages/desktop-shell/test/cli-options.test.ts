@@ -4,7 +4,7 @@ import { parseDesktopOptions } from "../src/app/cli-options.js";
 import {
   electronOzonePlatformSwitch,
   parseElectronOzonePlatform,
-} from "../src/shared/ozone-platform.js";
+} from "../src/platform/chromium/ozone-platform.js";
 import { ShellPageUrlRegistry } from "../src/window/loading-pages.js";
 
 describe("desktop CLI options", () => {

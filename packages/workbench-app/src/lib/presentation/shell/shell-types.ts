@@ -1,5 +1,5 @@
-import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
+import type { StatusTone } from "@nervekit/ui-kit/components/composites/status-dot";
 import type { Component } from "svelte";
 
 /** The three panel docks around the editor area. */

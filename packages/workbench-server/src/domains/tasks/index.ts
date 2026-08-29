@@ -1,18 +1,21 @@
-export { TaskRepository } from "./task.repository.js";
-export type { TaskLaunchConfigStore } from "./task-launch-config.store.js";
+export { TaskRepository } from "./persistence/task.repository.js";
+export type { TaskLaunchConfigStore } from "./persistence/task-launch-config.store.js";
 export {
   SecretTaskLaunchConfigStore,
   taskLaunchConfigSecretName,
   UnconfiguredTaskLaunchConfigStore,
-} from "./task-launch-config.store.js";
-export type { TaskLogCursor, TaskLogStream } from "./task-log.service.js";
+} from "./persistence/task-launch-config.store.js";
+export type {
+  TaskLogCursor,
+  TaskLogStream,
+} from "./application/task-log.service.js";
 export {
   createTaskLogCursor,
   MAX_BUFFERED_LOG_LINE_CHARS,
   TaskLogService,
-} from "./task-log.service.js";
-export { TaskNotificationService } from "./task-notification.service.js";
-export type { TaskPortInspector } from "./task-port-inspector.js";
+} from "./application/task-log.service.js";
+export { TaskNotificationService } from "./application/task-notification.service.js";
+export type { TaskPortInspector } from "./adapters/task-port-inspector.js";
 export {
   dedupeListeningPorts,
   defaultTaskPortInspector,
@@ -20,22 +23,22 @@ export {
   inspectPortListeners,
   inspectRuntimeListeningPorts,
   isSameProcessIdentity,
-} from "./task-port-inspector.js";
-export { isPathInDirectoryTree } from "./task-scope.js";
+} from "./adapters/task-port-inspector.js";
+export { isPathInDirectoryTree } from "./model/task-scope.js";
 export {
   isActiveTaskStatus,
   isOrphanedTaskStatus,
   isStoppableTaskStatus,
-} from "./task-status.js";
+} from "./model/task-status.js";
 export type {
   ProcessLifecycleResult,
   SpawnedManagedTask,
   SpawnManagedTaskOptions,
   TaskSupervisor,
   TerminateTaskResult,
-} from "./task-supervisor.js";
+} from "./application/task-supervisor.js";
 export {
   createTaskSupervisor,
   defaultTaskSupervisor,
   managedTaskShellCommand,
-} from "./task-supervisor.js";
+} from "./application/task-supervisor.js";

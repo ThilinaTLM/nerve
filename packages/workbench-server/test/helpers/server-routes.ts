@@ -6,9 +6,9 @@ import {
   createWorkbenchState,
   shutdownWorkbenchState,
   type WorkbenchState,
-} from "../../src/app/workbench-state.js";
+} from "../../src/app/runtime/server-runtime.js";
 import { createApp } from "../../src/app/server.js";
-import { initializeStorage } from "../../src/infrastructure/storage/index.js";
+import { initializeStorage } from "../../src/infrastructure/storage-bootstrap/index.js";
 
 const roots: string[] = [];
 const states: WorkbenchState[] = [];

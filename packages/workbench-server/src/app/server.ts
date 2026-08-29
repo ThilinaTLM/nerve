@@ -4,17 +4,17 @@ import { Hono } from "hono";
 import {
   cookieHeader,
   createApiAuthMiddleware,
-} from "../http/auth-middleware.js";
+} from "../adapters/http/auth-middleware.js";
 import {
   clearRequestContext,
   setRequestContext,
-} from "../http/request-context.js";
-import { serveStatic } from "../http/static-files.js";
-import { mountApiRoutes } from "../routes/index.js";
-import type { WorkbenchState } from "./workbench-state.js";
+} from "../adapters/http/request-context.js";
+import { serveStatic } from "../adapters/http/static-files.js";
+import { mountApiRoutes } from "../adapters/http/routes/index.js";
+import type { WorkbenchState } from "./runtime/server-runtime.js";
 import { version } from "./version.js";
 
-export { isWebSocketAuthorized } from "../http/auth-middleware.js";
+export { isWebSocketAuthorized } from "../adapters/http/auth-middleware.js";
 
 function remoteUiAuthRedirect(
   request: Request,

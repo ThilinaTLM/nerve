@@ -25,7 +25,7 @@ import baselineJson from "./rule-sets/baseline.json" with { type: "json" };
 import planningJson from "./rule-sets/planning.json" with { type: "json" };
 import readOnlyJson from "./rule-sets/read_only.json" with { type: "json" };
 import supervisedJson from "./rule-sets/supervised.json" with { type: "json" };
-import { normalizeToolArguments } from "../catalog/normalize-arguments.js";
+import { normalizeToolArguments } from "../catalog/argument-normalization.js";
 import { permissionMetadataForTool } from "../catalog/permission-metadata.js";
 import { requireToolDefinition } from "../catalog/manifest.js";
 import { escapeGlobLiteral, patternMatches } from "./path-glob.js";

@@ -12,12 +12,12 @@ import {
   formatElectronDownloadFailure,
   formatProxyPreparationForLog,
   prepareElectronDownloadEnv,
-} from "./electron-download-env.js";
-import { resolveElectronFontRenderHinting } from "./shared/font-rendering.js";
+} from "./platform/electron/download-environment.js";
+import { resolveElectronFontRenderHinting } from "./platform/chromium/font-rendering.js";
 import {
   electronOzonePlatformSwitch,
   parseElectronOzonePlatform,
-} from "./shared/ozone-platform.js";
+} from "./platform/chromium/ozone-platform.js";
 
 const require = createRequire(import.meta.url);
 

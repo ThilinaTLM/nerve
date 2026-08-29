@@ -1,2 +1,2 @@
-export * from "./permission-rule-sets.schema.js";
-export * from "./permissions.schema.js";
+export * from "./permission-rule-sets.js";
+export * from "./permissions.js";

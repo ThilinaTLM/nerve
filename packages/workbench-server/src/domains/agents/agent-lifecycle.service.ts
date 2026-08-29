@@ -9,10 +9,10 @@ import {
 } from "@nervekit/contracts";
 import { ApplicationError } from "../../core/application-error.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import { resolveProjectSettings } from "../../infrastructure/configuration/index.js";
-import type { RuntimeState } from "../../app/runtime/state.js";
+import type { RuntimeState } from "../../app/runtime/runtime-projections.js";
 import type { AgentStatus } from "../../app/runtime/types.js";
 import type { ConversationService } from "../conversations/conversation-service.js";
 import type { AgentRepository } from "./agent.repository.js";

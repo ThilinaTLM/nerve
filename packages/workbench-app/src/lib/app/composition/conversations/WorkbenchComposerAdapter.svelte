@@ -11,18 +11,18 @@ import {
   voiceInputSession,
   type VoiceInputTarget,
 } from "$lib/features/conversations/audio/voice-input-session.svelte";
-import { AgentComposer } from "$lib/presentation/components/conversation";
+import { AgentComposer } from "$lib/presentation/conversations";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   AudioInputAuthRequiredDialog,
   chatGptAudioAuth,
 } from "$lib/features/audio";
-import PromptSuggestionChips from "$lib/features/conversations/components/PromptSuggestionChips.svelte";
+import PromptSuggestionChips from "$lib/features/conversations/views/PromptSuggestionChips.svelte";
 import {
   getShortcutAriaLabel,
   getShortcutLabel,
-} from "$lib/kernel/shortcuts/registry";
-import type { PromptComposerProps } from "$lib/features/conversations/components/prompt-composer-props";
+} from "$lib/application/commands/command-registry";
+import type { PromptComposerProps } from "$lib/features/conversations/views/prompt-composer-props";
 import { deriveComposerAvailability } from "$lib/features/conversations/adapters/composer-availability";
 import { resolveDroppedPaths } from "$lib/features/conversations/adapters/dropped-paths";
 

@@ -1,5 +1,5 @@
 import { getFileContent } from "$lib/api";
-import { mermaidViewKey } from "$lib/kernel/navigation/view-keys";
+import { mermaidViewKey } from "$lib/domain/navigation/view-keys";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   addCenterTab,
@@ -14,7 +14,7 @@ import {
   extractMermaidMarkdownBlocks,
   resolveMermaidMarkdownBlock,
   type MermaidMarkdownBlock,
-} from "@nervekit/ui-kit/core/components/mermaid-blocks";
+} from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import { fileState } from "./file-state.svelte";
 
 function encodeFileMermaidTabId(

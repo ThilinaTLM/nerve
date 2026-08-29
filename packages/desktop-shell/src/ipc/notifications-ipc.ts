@@ -1,4 +1,4 @@
-import { Notification } from "../electron.js";
+import { Notification } from "../platform/electron/electron-api.js";
 import type { DesktopNotificationPayload } from "../types.js";
 
 export function showDesktopNotification(

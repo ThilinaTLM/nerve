@@ -3,7 +3,7 @@ import { Buffer } from "node:buffer";
 import { describe, it } from "node:test";
 import type { ImageContent, Message } from "@earendil-works/pi-ai";
 import sharp from "sharp";
-import { normalizeImagesForModel } from "../../src/models/image-normalization.js";
+import { normalizeImagesForModel } from "../../src/models/image/normalization.js";
 
 async function pngImage(width: number, height: number): Promise<ImageContent> {
   const buffer = await sharp({

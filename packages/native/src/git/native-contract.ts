@@ -6,7 +6,7 @@ import type {
   NativeGitRevisionResult,
   NativeGitSnapshotOptions,
   NativeGitSnapshotResult,
-} from "./types.js";
+} from "./contracts.js";
 
 export interface GitNativeBinding {
   readGitRepositoryInfo(path: string): Promise<NativeGitRepositoryInfoResult>;

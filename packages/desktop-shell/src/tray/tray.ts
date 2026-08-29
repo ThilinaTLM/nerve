@@ -1,7 +1,17 @@
-import type { ManagedDaemon } from "../daemon.js";
+import type { ManagedDaemon } from "../daemon/composition.js";
 import { DESKTOP_APP_NAME, MACOS_TRAY_GUID } from "../desktop-identity.js";
-import type { BrowserWindowType, NativeImage, TrayType } from "../electron.js";
-import { clipboard, Menu, nativeImage, shell, Tray } from "../electron.js";
+import type {
+  BrowserWindowType,
+  NativeImage,
+  TrayType,
+} from "../platform/electron/electron-api.js";
+import {
+  clipboard,
+  Menu,
+  nativeImage,
+  shell,
+  Tray,
+} from "../platform/electron/electron-api.js";
 import type { QuitOptions } from "../types.js";
 import { resolveTrayIconPath } from "../window/preload-paths.js";
 

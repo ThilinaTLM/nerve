@@ -1,7 +1,7 @@
 <script lang="ts">
-import { acquireHighlightCode } from "@nervekit/ui-kit/core/highlight/highlight";
-import { ansiToHtml } from "@nervekit/ui-kit/core/terminal/ansi";
-import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
+import { acquireHighlightCode } from "@nervekit/ui-kit/highlighting/highlight";
+import { ansiToHtml } from "@nervekit/ui-kit/terminal/ansi";
+import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
 import {
   computedLineHeightPixels,
   contentWidthFromBorderBox,

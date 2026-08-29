@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, nativeTheme } from "../electron.js";
+import { app, nativeTheme } from "../platform/electron/electron-api.js";
 import {
   appIconAssetSegments,
   trayIconAssetSegments,

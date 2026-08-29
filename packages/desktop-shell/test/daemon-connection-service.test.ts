@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ensureDaemonConnection } from "../src/daemon/connection-service.ts";
+import { ensureDaemonConnection } from "../src/daemon/connection.ts";
 import { fakeDaemonWorld, healthyDaemon } from "./support/fake-daemon-ports.ts";
 
 describe("daemon connection service", () => {

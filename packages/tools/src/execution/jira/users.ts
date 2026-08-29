@@ -1,4 +1,7 @@
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
 import { optionalString, requiredString } from "../atlassian/arguments.js";
 import { requireJiraConnection } from "./client.js";
 import {

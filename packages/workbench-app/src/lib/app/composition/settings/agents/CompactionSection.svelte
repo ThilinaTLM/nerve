@@ -6,8 +6,8 @@ import {
   SettingsGroup,
   SettingsRow,
   SettingsToggleRow,
-} from "$lib/presentation/components/settings";
-import type { SettingsChange } from "$lib/features/settings/components/pages/settings-change";
+} from "$lib/presentation/settings";
+import type { SettingsChange } from "$lib/features/settings/views/pages/settings-change";
 import { compactionProfileItems } from "./agent-options";
 
 type Props = {

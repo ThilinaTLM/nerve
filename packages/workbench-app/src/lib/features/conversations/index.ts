@@ -1,7 +1,7 @@
 export * from "./api/conversations.api";
-export { default as ConversationContextPanel } from "./components/ConversationContextPanel.svelte";
-export { default as ConversationHistoryDialog } from "./components/ConversationHistoryDialog.svelte";
-export type { ConversationActivityState } from "$lib/kernel/conversations/activity";
+export { default as ConversationContextPanel } from "./views/ConversationContextPanel.svelte";
+export { default as ConversationHistoryDialog } from "./views/ConversationHistoryDialog.svelte";
+export type { ConversationActivityState } from "$lib/domain/conversations/activity";
 export {
   setComposerMode,
   setComposerPermissionRuleSet,
@@ -34,6 +34,6 @@ export {
   navigateToEntry,
 } from "./state/run-control";
 export { restoreConversationTabs } from "./state/conversation-flow.svelte";
-export { openConversation } from "./state/tabs";
-export { refreshConversationView } from "./state/selection";
+export { openConversation } from "./state/conversation-tabs";
+export { refreshConversationView } from "./state/conversation-selection";
 export { registerConversationEventHandlers } from "./state/conversation-events";

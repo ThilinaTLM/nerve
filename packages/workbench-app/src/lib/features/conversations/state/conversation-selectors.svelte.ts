@@ -9,7 +9,7 @@ import type { PlanReviewRecord, UserQuestionRecord } from "$lib/api";
 import {
   conversationViewKey,
   pendingConversationKey,
-} from "$lib/kernel/navigation/view-keys";
+} from "$lib/domain/navigation/view-keys";
 import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
 import { usageReadModel } from "$lib/application/usage/usage-read-model.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";

@@ -11,7 +11,7 @@ import {
   ConversationTreeState,
   type ConversationTreeEntry,
 } from "@nervekit/harness";
-import { encode } from "../../infrastructure/canonical-store/payload-codecs.js";
+import { encode } from "../../infrastructure/persistence/canonical-sqlite/payload-codecs.js";
 import type {
   ConversationJournalState,
   ConversationRunProjection,

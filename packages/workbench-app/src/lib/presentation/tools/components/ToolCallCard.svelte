@@ -36,8 +36,8 @@ import {
   deriveToolLifecycleVisualStage,
 } from "../views/tool-activity-state";
 import { getConversationUiCapabilities } from "../../context.svelte";
-import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
-import { LatestPresentationScheduler } from "@nervekit/ui-kit/core/utils/latest-presentation-scheduler";
+import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
+import { LatestPresentationScheduler } from "@nervekit/ui-kit/scheduling/latest-presentation-scheduler";
 import { toolCardLayoutRevision } from "../views/tool-card-layout";
 import { VIEW_TOOL_DETAILS_LABEL } from "../views/tool-details-label";
 import CardShell from "./tool-call/CardShell.svelte";

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { ChildExit } from "./types.js";
+import type { ChildExit } from "./contracts.js";
 
 const MAX_OUTPUT_LINES = 200;
 

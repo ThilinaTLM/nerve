@@ -3,7 +3,7 @@ import {
   cn,
   type WithElementRef,
   type WithoutChildren,
-} from "@nervekit/ui-kit/core/utils";
+} from "@nervekit/ui-kit/utils";
 import type { HTMLAttributes } from "svelte/elements";
 
 let {

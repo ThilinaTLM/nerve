@@ -1,4 +1,4 @@
-import type { ConversationMotionProfile } from "../../../components/transcript/conversation-motion-budget";
+import type { ConversationMotionProfile } from "../../../transcript/conversation-motion-budget";
 
 export const TOOL_LIFECYCLE_MOTION = {
   standard: {

@@ -7,7 +7,7 @@ import {
 import type {
   AgentModelSelection,
   AgentScriptedProviderStep,
-} from "./types.js";
+} from "./model-contracts.js";
 
 const scriptedProviders = new Map<string, ManagedFauxProviderHandle>();
 

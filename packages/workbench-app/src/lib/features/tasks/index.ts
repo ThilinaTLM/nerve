@@ -11,6 +11,6 @@ export {
   restartSelectedTask,
   runTaskCommand,
 } from "./state/tasks.svelte";
-export { default as TasksPanel } from "./ui/TasksPanel.svelte";
-export * from "./ui/task-panel-controller";
-export * from "./ui/task-panel-types";
+export { default as TasksPanel } from "./views/TasksPanel.svelte";
+export * from "./views/task-panel-controller";
+export * from "./views/task-panel-types";

@@ -2,7 +2,7 @@ import {
   isSequencedEvent,
   onAnyEvent,
   type WorkbenchEvent,
-} from "$lib/kernel/events/event-bus";
+} from "$lib/application/events/event-bus";
 import { refreshConversationView } from "$lib/features/conversations/state/conversation-flow.svelte";
 import {
   conversationIdFromEvent,

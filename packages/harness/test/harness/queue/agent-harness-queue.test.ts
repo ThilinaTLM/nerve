@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { AgentHarness } from "../../../src/runtime/agent-harness.js";
-import { Conversation } from "../../../src/runtime/conversation/conversation.js";
-import { InMemoryConversationStorage } from "../../../src/runtime/conversation/adapters/in-memory-storage.js";
-import type { InboundQueuedMessage } from "../../../src/runtime/queue/operations.js";
+import { AgentHarness } from "../../../src/harness/agent-harness.js";
+import { Conversation } from "../../../src/conversation/conversation.js";
+import { InMemoryConversationStorage } from "../../../src/conversation/adapters/in-memory-storage.js";
+import type { InboundQueuedMessage } from "../../../src/harness/queue/operations.js";
 import type {
   AgentMessage,
   AnyModel,
   QueueMode,
-} from "../../../src/agent/types/index.js";
+} from "../../../src/agent/contracts/index.js";
 
 const model = {
   id: "test-model",

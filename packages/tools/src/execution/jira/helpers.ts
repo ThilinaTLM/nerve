@@ -1,6 +1,6 @@
 import { optionalString, optionalStringArray } from "../atlassian/arguments.js";
-import type { ToolExecutionContext } from "../../types.js";
-import { ToolExecutionError } from "../common/tool-error.js";
+import type { ToolExecutionContext } from "../execution-context.js";
+import { ToolExecutionError } from "../errors/tool-error.js";
 import { type JiraConnection, jiraRequest } from "./client.js";
 import { nameOf, summarizeJiraField, summarizeJiraUser } from "./format.js";
 

@@ -1,8 +1,11 @@
 import type { ToolName } from "@nervekit/contracts";
 import { toolDefinitionByName } from "../catalog/manifest.js";
-import { normalizeToolArguments } from "../catalog/normalize-arguments.js";
-import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
-import { ToolExecutionError } from "./common/tool-error.js";
+import { normalizeToolArguments } from "../catalog/argument-normalization.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "./execution-context.js";
+import { ToolExecutionError } from "./errors/tool-error.js";
 
 export async function executeTool(
   name: ToolName,

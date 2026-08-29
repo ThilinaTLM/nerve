@@ -17,7 +17,7 @@ import {
   createWorkbenchState,
   shutdownWorkbenchState,
   toDaemonFile,
-} from "./app/workbench-state.js";
+} from "./app/runtime/server-runtime.js";
 import { createApp } from "./app/server.js";
 import {
   type DaemonPerformanceMonitor,
@@ -46,9 +46,9 @@ import {
   initializeStorage,
   resolveDataDir,
   writeDaemonFile,
-} from "./infrastructure/storage/index.js";
+} from "./infrastructure/storage-bootstrap/index.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
-import { installProtocolWebSocketUpgrade } from "./protocol/protocol-websocket.js";
+import { installProtocolWebSocketUpgrade } from "./adapters/protocol/protocol-websocket.js";
 
 function prepareEnterpriseNetworkEnvironment(): void {
   const proxyConfigured = Boolean(

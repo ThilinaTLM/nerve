@@ -6,13 +6,13 @@ import {
   coreToolRiskForName,
 } from "./catalog/index.js";
 
-export { confluenceToolDefinitions } from "./catalog/core/confluence.tools.js";
-export { filesystemToolDefinitions } from "./catalog/core/filesystem.tools.js";
-export { interactionToolDefinitions } from "./catalog/core/interaction.tools.js";
-export { jiraToolDefinitions } from "./catalog/core/jira.tools.js";
-export { pythonToolDefinitions } from "./catalog/core/python.tools.js";
-export { shellToolDefinitions } from "./catalog/core/shell.tools.js";
-export { webToolDefinitions } from "./catalog/core/web.tools.js";
+export { confluenceToolDefinitions } from "./catalog/definitions/core/confluence.tools.js";
+export { filesystemToolDefinitions } from "./catalog/definitions/core/filesystem.tools.js";
+export { interactionToolDefinitions } from "./catalog/definitions/core/interaction.tools.js";
+export { jiraToolDefinitions } from "./catalog/definitions/core/jira.tools.js";
+export { pythonToolDefinitions } from "./catalog/definitions/core/python.tools.js";
+export { shellToolDefinitions } from "./catalog/definitions/core/shell.tools.js";
+export { webToolDefinitions } from "./catalog/definitions/core/web.tools.js";
 export {
   allToolDescriptorsFromDefinitions,
   coreToolDescriptorsFromDefinitions,
@@ -34,10 +34,10 @@ export {
   toolHasTrait,
   toolManifest,
 } from "./catalog/manifest.js";
-export { normalizeToolArguments } from "./catalog/normalize-arguments.js";
-export { exploreToolDefinitions } from "./catalog/orchestration/explore.tools.js";
-export { planModeToolDefinitions } from "./catalog/orchestration/plan-mode.tools.js";
-export { taskToolDefinitions } from "./catalog/orchestration/task.tools.js";
+export { normalizeToolArguments } from "./catalog/argument-normalization.js";
+export { exploreToolDefinitions } from "./catalog/definitions/orchestration/explore.tools.js";
+export { planModeToolDefinitions } from "./catalog/definitions/orchestration/plan-mode.tools.js";
+export { taskToolDefinitions } from "./catalog/definitions/orchestration/task.tools.js";
 export { promptGuidelinesForTools } from "./catalog/prompt-guidelines.js";
 export {
   permissionMetadataForTool,
@@ -60,9 +60,9 @@ export {
   defineTool,
   isHostToolDefinition,
   isLocalToolDefinition,
-} from "./catalog/types.js";
-export { resolveCommandCwd } from "./execution/common/command-cwd.js";
-export { LiveOutputDelivery } from "./execution/common/live-output.js";
+} from "./catalog/contracts.js";
+export { resolveCommandCwd } from "./execution/process/command-cwd.js";
+export { LiveOutputDelivery } from "./execution/output/live-output.js";
 export {
   type BoundedTextResult,
   type ContentBlockLike,
@@ -82,12 +82,12 @@ export {
   splitLiveOutputChunks,
   textBoundaryDetails,
   textLimitSnapshot,
-} from "./execution/common/output-budget.js";
+} from "./execution/output/output-budget.js";
 export {
   buildProcessResult,
   buildProcessTextResult,
-} from "./execution/common/process-result.js";
-export { ToolExecutionError } from "./execution/common/tool-error.js";
+} from "./execution/process/process-result.js";
+export { ToolExecutionError } from "./execution/errors/tool-error.js";
 export { executeTool } from "./execution/dispatch.js";
 export {
   type ExecutableLocatorOptions,
@@ -313,7 +313,7 @@ export {
   type WebFetchToolArgs,
   type WebSearchToolArgs,
   type WriteToolArgs,
-} from "./types.js";
+} from "./execution/execution-context.js";
 
 export const coreToolDescriptors: ToolDescriptor[] =
   coreToolDescriptorsFromDefinitions();

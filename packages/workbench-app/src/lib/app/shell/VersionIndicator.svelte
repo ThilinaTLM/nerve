@@ -7,7 +7,7 @@ import Popover, {
   PopoverBody,
   PopoverHeader,
   PopoverSection,
-} from "@nervekit/ui-kit/components/ui/popover-panel";
+} from "@nervekit/ui-kit/components/composites/popover-panel";
 import { onDestroy } from "svelte";
 import { scale } from "svelte/transition";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";

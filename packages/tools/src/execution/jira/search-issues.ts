@@ -1,4 +1,7 @@
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
 import {
   optionalString,
   optionalStringArray,

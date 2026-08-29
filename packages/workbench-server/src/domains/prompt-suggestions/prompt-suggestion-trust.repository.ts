@@ -1,12 +1,12 @@
 import type { PromptSuggestionTrustStatus } from "@nervekit/contracts";
 import { z } from "zod";
-import { CanonicalStore } from "../../infrastructure/canonical-store/index.js";
-import { storagePaths } from "../../infrastructure/storage/paths.js";
+import { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/index.js";
+import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
 import type {
   RuntimeQueryCache,
   PromptSuggestionTrustCacheRecord,
-} from "../../infrastructure/query-cache/index.js";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+} from "../../infrastructure/persistence/query-cache/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 
 const trustRecordSchema = z.object({
   trustId: z.string().min(1),

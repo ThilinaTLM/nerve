@@ -25,6 +25,18 @@
     "./node": {
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
+    },
+    "./agent": {
+      "types": "./dist/agent/index.d.ts",
+      "import": "./dist/agent/index.js"
+    },
+    "./models": {
+      "types": "./dist/models/index.d.ts",
+      "import": "./dist/models/index.js"
+    },
+    "./conversation": {
+      "types": "./dist/conversation/index.d.ts",
+      "import": "./dist/conversation/index.js"
     }
   },
   "scripts": {

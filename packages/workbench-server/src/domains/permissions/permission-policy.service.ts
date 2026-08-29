@@ -27,7 +27,7 @@ import {
 import {
   atomicWriteJson,
   type InitializedStorage,
-} from "../../infrastructure/storage/index.js";
+} from "../../infrastructure/storage-bootstrap/index.js";
 
 interface TrustRecord {
   digest: string;

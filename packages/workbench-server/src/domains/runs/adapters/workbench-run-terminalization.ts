@@ -4,8 +4,8 @@ import {
 } from "@nervekit/contracts";
 import { isTerminalRunStatus } from "../runtime/run-transitions.js";
 import type { RunTerminalizationPort } from "../runtime/run-execution.js";
-import type { ToolService } from "../../tools/tool-service.js";
-import { RUN_CANCELLED_TOOL_OUTCOME } from "../../tools/tool-termination.js";
+import type { ToolService } from "../../tools/execution/tool-service.js";
+import { RUN_CANCELLED_TOOL_OUTCOME } from "../../tools/execution/tool-termination.js";
 
 const TERMINAL_TOOL_OUTCOMES = {
   completed: {

@@ -4,7 +4,7 @@ import { permissionMetadataForTool } from "./permission-metadata.js";
 import type {
   ToolDefinition,
   ToolPermissionTargetDescriptor,
-} from "./types.js";
+} from "./contracts.js";
 
 function ruleKind(
   target: ToolPermissionTargetDescriptor | undefined,

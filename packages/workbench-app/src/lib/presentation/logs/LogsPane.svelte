@@ -10,13 +10,13 @@ import Trash2 from "@lucide/svelte/icons/trash-2";
 import { SvelteSet } from "svelte/reactivity";
 import type { ApplicationLogRecord } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import * as ContextMenu from "@nervekit/ui-kit/components/ui/context-menu";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import {
   VirtualScroller,
   type VirtualScrollerController,
-} from "@nervekit/ui-kit/components/ui/virtual-list";
+} from "@nervekit/ui-kit/components/composites/virtual-list";
 import LogRow from "./LogRow.svelte";
 import LogsFloatingToolbar from "./LogsFloatingToolbar.svelte";
 import type {

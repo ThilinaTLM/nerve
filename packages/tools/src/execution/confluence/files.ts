@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { ToolExecutionContext } from "../../types.js";
+import type { ToolExecutionContext } from "../execution-context.js";
 import {
   type ConfluenceArtifact,
   confluenceTmpDir,

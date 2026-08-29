@@ -13,12 +13,12 @@ import Popover, {
   PopoverHeader,
   PopoverRow,
   PopoverSection,
-} from "@nervekit/ui-kit/components/ui/popover-panel";
-import { formatShortcut } from "$lib/kernel/shortcuts/keyboard";
+} from "@nervekit/ui-kit/components/composites/popover-panel";
+import { formatShortcut } from "$lib/application/commands/keyboard";
 import {
   getShortcut,
   type ShortcutCommandId,
-} from "$lib/kernel/shortcuts/registry";
+} from "$lib/application/commands/command-registry";
 import {
   DOCK_LABELS,
   type DockId,

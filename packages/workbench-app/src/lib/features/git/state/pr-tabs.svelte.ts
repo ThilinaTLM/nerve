@@ -1,5 +1,5 @@
 import type { GithubPr, GithubPrMergeMethod } from "@nervekit/contracts";
-import { prViewKey } from "$lib/kernel/navigation/view-keys";
+import { prViewKey } from "$lib/domain/navigation/view-keys";
 import {
   demandPrTab,
   loadPrCore,

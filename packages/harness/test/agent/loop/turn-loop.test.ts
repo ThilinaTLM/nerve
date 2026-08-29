@@ -11,7 +11,7 @@ import { Type } from "typebox";
 import {
   convertToLlm,
   createHarnessMessage,
-} from "../../../src/runtime/messages.js";
+} from "../../../src/messages/messages.js";
 import {
   runAgentLoop,
   runAgentLoopContinue,
@@ -21,7 +21,7 @@ import type {
   AgentTool,
   AnyModel,
   StreamFn,
-} from "../../../src/agent/types/index.js";
+} from "../../../src/agent/contracts/index.js";
 
 const usage: Usage = {
   input: 0,

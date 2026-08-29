@@ -1,4 +1,4 @@
-import { escapeHtml } from "@nervekit/contracts";
+import { escapeHtml } from "./html.js";
 
 export class ShellPageUrlRegistry {
   #activeUrl: string | undefined;

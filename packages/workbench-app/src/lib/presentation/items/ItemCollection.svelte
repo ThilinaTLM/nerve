@@ -1,6 +1,6 @@
 <script lang="ts">
 import { tick, type Snippet } from "svelte";
-import { cn } from "@nervekit/ui-kit/core/utils";
+import { cn } from "@nervekit/ui-kit/utils";
 import {
   relativeItemRectangle,
   type RelativeItemRectangle,

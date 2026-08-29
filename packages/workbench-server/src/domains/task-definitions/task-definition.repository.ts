@@ -5,11 +5,11 @@ import {
   taskDefinitionSchema,
   type TaskDefinition,
 } from "@nervekit/contracts";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import {
   atomicWriteJson,
   readJsonFile,
-} from "../../infrastructure/storage/index.js";
+} from "../../infrastructure/storage-bootstrap/index.js";
 
 export class TaskDefinitionRepository {
   constructor(private readonly storage: InitializedStorage) {}

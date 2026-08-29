@@ -1,2 +1,2 @@
-export * from "./project.schema.js";
-export * from "./project.events.schema.js";
+export * from "./project.js";
+export * from "./events.js";

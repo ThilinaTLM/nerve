@@ -1,4 +1,4 @@
-import { isPathInDirectory } from "$lib/kernel/utils/path";
+import { isPathInDirectory } from "$lib/domain/filesystem/project-path";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { taskEntryId } from "./task-tabs.svelte";

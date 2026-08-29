@@ -4,7 +4,7 @@ import type {
   AgentToolResult,
   AgentToolUpdateCallback,
   ToolExecutionMode,
-} from "./types/index.js";
+} from "./contracts/index.js";
 
 export type AgentToolDefinitionLike<TParams extends TObject = TObject> = {
   name: string;

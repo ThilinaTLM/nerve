@@ -10,11 +10,11 @@ import {
   type SubagentTranscriptSnapshot,
 } from "@nervekit/contracts";
 import { ApplicationError } from "../../core/application-error.js";
-import { type InitializedStorage } from "../../infrastructure/storage/index.js";
+import { type InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
-import type { ToolService } from "../tools/tool-service.js";
-import { projectHarnessMessageEntry } from "./run/message-mirror.js";
+import type { ToolService } from "../tools/execution/tool-service.js";
+import { projectHarnessMessageEntry } from "./execution/message-mirror.js";
 import type { SubagentTranscriptLiveService } from "./subagent-transcript-live.service.js";
 
 const MAX_PROJECTED_TEXT_CHARS = 2 * 1024 * 1024;

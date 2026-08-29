@@ -1,5 +1,5 @@
 import { type ScratchNote, scratchNoteSchema } from "@nervekit/contracts";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 
 export class ScratchNoteRepository {
   constructor(private readonly storage: InitializedStorage) {}

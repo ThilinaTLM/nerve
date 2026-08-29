@@ -1,5 +1,5 @@
 <script lang="ts">
-import { cn } from "@nervekit/ui-kit/core/utils";
+import { cn } from "@nervekit/ui-kit/utils";
 import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 
 let {

@@ -1,6 +1,6 @@
 import type { PermissionRuleSetSummary } from "@nervekit/contracts";
 import { getPermissionPolicyConfiguration } from "$lib/api";
-import { BUILT_IN_PERMISSION_RULE_SET_SUMMARIES } from "$lib/kernel/permissions/permission-rule-set-options";
+import { BUILT_IN_PERMISSION_RULE_SET_SUMMARIES } from "$lib/domain/permissions/rule-set-options";
 
 type CatalogEntry = {
   summaries: PermissionRuleSetSummary[];

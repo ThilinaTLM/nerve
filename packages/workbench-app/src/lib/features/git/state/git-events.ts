@@ -1,4 +1,7 @@
-import { onEvent, type WorkbenchEvent } from "$lib/kernel/events/event-bus";
+import {
+  onEvent,
+  type WorkbenchEvent,
+} from "$lib/application/events/event-bus";
 import type { GitAutoRefreshDemand } from "./git-auto-refresh-scheduler";
 import { gitEventRefreshRequest } from "./git-event-policy";
 import {

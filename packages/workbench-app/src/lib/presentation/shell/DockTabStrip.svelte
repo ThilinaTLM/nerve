@@ -7,7 +7,7 @@ import PanelLeft from "@lucide/svelte/icons/panel-left";
 import PanelRight from "@lucide/svelte/icons/panel-right";
 import ContextMenu, {
   type ContextMenuItem,
-} from "@nervekit/ui-kit/components/ui/context-menu-list";
+} from "@nervekit/ui-kit/components/composites/context-menu-list";
 import {
   beginPanelViewDrag,
   clearPanelViewDropTarget,

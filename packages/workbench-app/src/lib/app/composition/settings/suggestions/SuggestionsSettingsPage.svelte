@@ -7,7 +7,7 @@ import type {
   PromptSuggestionStatus,
 } from "$lib/api";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
+import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
@@ -18,8 +18,8 @@ import {
   SettingsInlineMessage,
   SettingsList,
   SettingsToolbar,
-} from "$lib/presentation/components/settings";
-import CreatePromptSuggestionDialog from "$lib/features/prompt-suggestions/components/CreatePromptSuggestionDialog.svelte";
+} from "$lib/presentation/settings";
+import CreatePromptSuggestionDialog from "$lib/features/prompt-suggestions/views/CreatePromptSuggestionDialog.svelte";
 import {
   createPromptSuggestion,
   refreshPromptSuggestionStatuses,

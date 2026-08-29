@@ -1,6 +1,9 @@
 import { readFile, stat } from "node:fs/promises";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { buildProcessTextResult } from "../common/process-result.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { buildProcessTextResult } from "../process/process-result.js";
 import { detectSupportedImageMimeType } from "../filesystem/read.js";
 import {
   isErrnoException,

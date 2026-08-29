@@ -7,7 +7,7 @@ import type {
   NativeContainment,
   TerminationResult,
   TcpListenerProcess,
-} from "./types.js";
+} from "./contracts.js";
 
 export interface NativeOutputEvent {
   stream: "stdout" | "stderr";

@@ -1,8 +1,8 @@
 <script lang="ts">
 import Titlebar from "$lib/app/shell/Titlebar.svelte";
-import AlertDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
-import { getShortcutLabel } from "$lib/kernel/shortcuts/registry";
-import { shortProjectLabel } from "$lib/kernel/utils/project-tree";
+import AlertDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
+import { getShortcutLabel } from "$lib/application/commands/command-registry";
+import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import {
   buildProjectMenu,
   countAgeEligible,

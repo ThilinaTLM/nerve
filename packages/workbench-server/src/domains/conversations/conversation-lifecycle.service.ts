@@ -8,10 +8,10 @@ import {
 } from "@nervekit/contracts";
 import type { ConversationTreeEntry } from "@nervekit/harness";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import { resolveProjectSettings } from "../../infrastructure/configuration/index.js";
-import type { RuntimeState } from "../../app/runtime/state.js";
+import type { RuntimeState } from "../../app/runtime/runtime-projections.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
@@ -19,7 +19,7 @@ import type {
 import type { ConversationRepository } from "./conversation.repository.js";
 import type { EntryRepository } from "./entry.repository.js";
 import type { ConversationHarnessStorage } from "./conversation-harness-storage.js";
-import type { ToolResultPayloadStore } from "../tools/tool-result-payload-store.js";
+import type { ToolResultPayloadStore } from "../tools/artifacts/tool-result-payload-store.js";
 
 export class ConversationLifecycleService {
   constructor(

@@ -1,5 +1,5 @@
 <script lang="ts" module>
-import { cn, type WithElementRef } from "@nervekit/ui-kit/core/utils";
+import { cn, type WithElementRef } from "@nervekit/ui-kit/utils";
 import type {
   HTMLAnchorAttributes,
   HTMLButtonAttributes,

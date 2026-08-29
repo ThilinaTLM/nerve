@@ -3,7 +3,7 @@ import type {
   ModelInfo,
   StatusResponse,
 } from "@nervekit/contracts";
-import { apiGet } from "@nervekit/ui-kit/core/api/client";
+import { apiGet } from "$lib/platform/http/api-client";
 import { protocolRequest } from "@nervekit/protocol";
 
 export type ClientConfig = {
