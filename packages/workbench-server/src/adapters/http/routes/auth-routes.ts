@@ -4,11 +4,15 @@ import {
   startOAuthFlowRequestSchema,
 } from "@nervekit/contracts/auth";
 import { Hono } from "hono";
-import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
+type AuthRoutesContext = Pick<
+  ServerRuntime,
+  "auth" | "credentialKey" | "events" | "oauthFlows" | "providerCatalog"
+>;
 import { routeHandler } from "../responses.js";
 import { routeParam } from "../route-params.js";
 
-export function createAuthRoutes(state: WorkbenchState): Hono {
+export function createAuthRoutes(state: AuthRoutesContext): Hono {
   const app = new Hono();
 
   app.get("/auth/providers", async (c) =>

@@ -4,10 +4,7 @@ import {
   type WorkbenchOperationContext,
 } from "../method-handler-registry.js";
 
-type InteractionMethodContext = Pick<
-  WorkbenchOperationContext,
-  "registry" | "services"
->;
+type InteractionMethodContext = Pick<WorkbenchOperationContext, "services">;
 const defineInteractionMethodHandlers =
   defineWorkbenchMethodHandlersFor<InteractionMethodContext>();
 
@@ -33,6 +30,6 @@ export const interactionMethodHandlers: WorkbenchMethodHandlerMapFor<Interaction
         params.byteLimit ?? 64 * 1024,
       ),
     "toolCall.interaction.resolve": async (state, params) => ({
-      ...(await state.registry.resolveToolInteraction(params)),
+      ...(await state.services.toolInteractions.resolve(params)),
     }),
   });

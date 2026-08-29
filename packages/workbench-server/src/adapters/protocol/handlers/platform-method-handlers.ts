@@ -1,4 +1,5 @@
 import { slashCommandCompletionItems } from "@nervekit/contracts/completions";
+import { listAvailableModels } from "@nervekit/harness/models";
 import { type UpdateApplicationConfigurationRequest } from "@nervekit/contracts/settings";
 import {
   providerApiKeySecretName,
@@ -35,8 +36,9 @@ type PlatformMethodContext = Pick<
   | "logger"
   | "providerCatalog"
   | "queryCache"
-  | "registry"
   | "secrets"
+  | "services"
+  | "subscriptionUsage"
   | "storage"
   | "storageCleanup"
   | "storageUsage"
@@ -59,7 +61,7 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       updateApplicationConfiguration(state, params),
     "skill.list": (state, params) => {
       const projectDir = params?.projectId
-        ? state.registry.getProject(params.projectId).dir
+        ? state.services.projectLifecycle.getProject(params.projectId).dir
         : undefined;
       return listAvailableSkills(projectDir, {
         storageHome: state.storage.paths.home,
@@ -108,7 +110,7 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       counts: state.queryCache.counts(),
     }),
     "storage.rebuildIndex": async (state) => {
-      await state.registry.rebuildIndex();
+      rebuildIndex(state);
       return { ok: true, counts: state.queryCache.counts() };
     },
     "storage.usage.get": (state) => state.storageUsage.computeUsage(),
@@ -121,15 +123,15 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
     "storage.cleanup.cancel": async (state, params) => ({
       operation: await state.storageCleanup.cancel(params.operationId),
     }),
-    "model.list": (state) => ({ models: state.registry.listModels() }),
+    "model.list": (state) => ({ models: listModels(state) }),
     "usage.subscription.get": async (state) => ({
-      usage: await state.registry.getSubscriptionUsage(),
+      usage: await state.subscriptionUsage.getSnapshots({ refresh: true }),
     }),
     "completion.slash.list": () => ({
       items: [...slashCommandCompletionItems],
     }),
     "completion.files.list": async (state, params) => ({
-      items: await state.registry.completeFiles(
+      items: await state.services.fileCompletions.completeFiles(
         params?.projectId,
         params?.q ?? "",
         { limit: params?.limit as number | undefined },
@@ -138,19 +140,50 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
     "filesystem.directories.list": (_state, params) =>
       directoryListing(params?.path, params?.showHidden as boolean | undefined),
     "filesystem.project.entries.list": (state, params) => {
-      state.registry.watchProjectFilesystem(params.projectId);
+      const project = state.services.projectLifecycle.getProject(
+        params.projectId,
+      );
+      state.services.projectFilesystemWatcher.watch(project.id, project.dir);
       return projectDirectoryEntries(
         params,
-        (projectId) => state.registry.getProject(projectId).dir,
+        (projectId) =>
+          state.services.projectLifecycle.getProject(projectId).dir,
       );
     },
     "filesystem.project.entries.create": (state, params) =>
       createProjectEntry(
         params,
-        (projectId) => state.registry.getProject(projectId).dir,
+        (projectId) =>
+          state.services.projectLifecycle.getProject(projectId).dir,
       ),
     "applicationLog.prune": (state, params) => state.logger.prune(params),
   });
+
+function rebuildIndex(state: PlatformMethodContext): void {
+  state.queryCache.rebuild({
+    projects: state.services.projectLifecycle.listProjects(),
+    conversations: state.services.conversationLifecycle.listConversations(),
+    agents: state.services.agentLifecycle.listAgents(),
+    tasks: state.services.tasks.listTasks(),
+  });
+}
+
+function listModels(state: PlatformMethodContext) {
+  return listAvailableModels(state.providerCatalog.resolvedModels()).map(
+    (model) => ({
+      provider: model.provider,
+      modelId: model.modelId,
+      name: model.name,
+      label: model.provider === "nerve-faux" ? "Nerve Faux Fast" : model.name,
+      reasoning: model.reasoning,
+      input: model.input,
+      supportedThinkingLevels: model.supportedThinkingLevels,
+      faux: model.provider === "nerve-faux",
+      contextWindow: model.contextWindow,
+      maxOutputTokens: model.maxOutputTokens,
+    }),
+  );
+}
 
 async function updateSettings(
   state: PlatformMethodContext,
@@ -168,7 +201,7 @@ async function updateSettings(
     typeof patch.runtime === "object" &&
     "pythonExecutablePath" in patch.runtime
   ) {
-    await state.registry.pythonRuntime.refresh();
+    await state.services.pythonRuntime.refresh();
   }
   await state.events.publish("settings.updated", { settings });
   return { settings };

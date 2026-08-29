@@ -10,7 +10,7 @@ import { queryTaskLogEvents } from "./task-log-query.js";
 import { mkdir, open } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
-import type { PerformanceDiagnosticsPort } from "../../../core/ports.js";
+import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics.js";
 import {
   appendJsonLine,
   readJsonLines,

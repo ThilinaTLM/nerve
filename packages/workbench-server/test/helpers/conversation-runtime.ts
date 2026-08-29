@@ -10,17 +10,17 @@ import { createId } from "@nervekit/contracts";
 import { type TaskRecord } from "@nervekit/contracts/tasks";
 import { TaskRepository } from "../../src/domains/tasks/persistence/task.repository.js";
 import {
-  createWorkbenchState,
-  shutdownWorkbenchState,
-  type WorkbenchState,
+  createServerRuntime,
+  shutdownServerRuntime,
+  type ServerRuntime,
 } from "../../src/app/runtime/server-runtime.js";
 import { initializeStorage } from "../../src/infrastructure/storage-bootstrap/index.js";
 
 const roots: string[] = [];
-const states: WorkbenchState[] = [];
+const states: ServerRuntime[] = [];
 
 after(async () => {
-  await Promise.allSettled(states.map(shutdownWorkbenchState));
+  await Promise.allSettled(states.map(shutdownServerRuntime));
   await Promise.all(
     roots.map((root) =>
       rm(root, {
@@ -41,9 +41,9 @@ export async function tempHome(prefix: string): Promise<string> {
 
 export async function createState(prefix = "nerve-registry-conversation-") {
   const storage = await initializeStorage(await tempHome(prefix));
-  const state = createWorkbenchState(storage, "127.0.0.1", 0);
+  const state = createServerRuntime(storage, "127.0.0.1", 0);
   states.push(state);
-  await state.registry.hydrate();
+  await state.lifecycle.hydrate();
   return state;
 }
 
@@ -53,7 +53,7 @@ export function ageConversation(
   updatedAt: string,
 ): ConversationRecord {
   const aged = { ...conversation, updatedAt };
-  state.registry.conversations.set(conversation.id, aged);
+  state.lifecycle.conversations.set(conversation.id, aged);
   state.queryCache.upsertConversation(aged);
   return aged;
 }
@@ -70,7 +70,7 @@ export function appendRegistryEntry(
   },
 ): Promise<ConversationEntry> {
   return (
-    state.registry as unknown as {
+    state.lifecycle as unknown as {
       appendEntry: (input: typeof input) => Promise<ConversationEntry>;
     }
   ).appendEntry(input);
@@ -104,7 +104,7 @@ export async function addTaskRecord(
     startedAt: now,
     updatedAt: now,
   };
-  state.registry.tasks.tasks.set(record.id, record);
+  state.services.tasks.tasks.set(record.id, record);
   state.queryCache.upsertTask(record);
   await new TaskRepository(state.storage).write(record);
   return record;

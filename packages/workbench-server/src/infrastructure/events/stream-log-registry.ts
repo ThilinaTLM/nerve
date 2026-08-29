@@ -11,7 +11,7 @@ import {
 } from "@nervekit/contracts/events";
 import { type StreamState } from "@nervekit/contracts/wire";
 import type { RenameDependencies } from "../storage-bootstrap/index.js";
-import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import type { CanonicalStore } from "../persistence/canonical-sqlite/index.js";
 import { StreamLog, type StreamFlushObservation } from "./stream-log.js";
 

@@ -32,7 +32,7 @@ import {
   noopPerformanceDiagnostics,
   PerformanceMetricsCollector,
 } from "../../infrastructure/diagnostics/index.js";
-import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
 import type { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/index.js";
@@ -42,10 +42,10 @@ import {
 } from "../../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { RuntimeServices } from "../bootstrap/create-runtime-services.js";
-import { RuntimeRegistry } from "./runtime-lifecycle.js";
+import { RuntimeLifecycle } from "./runtime-lifecycle.js";
 import { version } from "../version.js";
 
-export interface WorkbenchState {
+export interface ServerRuntime {
   daemonId: string;
   startedAt: string;
   host: string;
@@ -55,7 +55,7 @@ export interface WorkbenchState {
   events: StreamLogRegistry;
   logger: ApplicationLogger;
   applicationLogsEnabled: boolean;
-  registry: RuntimeRegistry;
+  lifecycle: RuntimeLifecycle;
   services: RuntimeServices;
   queryCache: RuntimeQueryCache;
   canonicalStore: CanonicalStore;
@@ -74,7 +74,7 @@ export interface WorkbenchState {
   resourceContainment: ManagedResourceContainmentStatus;
 }
 
-export function createWorkbenchState(
+export function createServerRuntime(
   storage: InitializedStorage,
   host: string,
   port: number,
@@ -84,7 +84,7 @@ export function createWorkbenchState(
     applicationConfiguration?: ApplicationConfigurationSnapshot;
     resourceContainment?: ManagedResourceContainmentStatus;
   } = {},
-): WorkbenchState {
+): ServerRuntime {
   // Rebuildable read model; data/nerve.sqlite remains authoritative.
   const queryCache = new RuntimeQueryCache(storage.paths.queryCachePath);
   queryCache.initialize();
@@ -184,7 +184,7 @@ export function createWorkbenchState(
     logger,
   });
   const agentBrowserSkills = new AgentBrowserSkillCatalog();
-  const registry = new RuntimeRegistry(
+  const lifecycle = new RuntimeLifecycle(
     storage,
     events,
     queryCache,
@@ -198,7 +198,10 @@ export function createWorkbenchState(
   );
   const storageUsage = new StorageUsageService({
     paths: storage.paths,
-    getRegistry: () => registry,
+    getSource: () => ({
+      listConversations: () =>
+        lifecycle.services.conversationLifecycle.listConversations(),
+    }),
   });
   const latestRelease = new LatestReleaseService();
   const storageCleanup = new StorageCleanupService({
@@ -209,7 +212,11 @@ export function createWorkbenchState(
     usage: storageUsage,
     events,
     logger,
-    getRegistry: () => registry,
+    getOperations: () => ({
+      pruneConversationsAcrossProjects: (request) =>
+        pruneConversationsAcrossProjects(lifecycle.services, request),
+      rebuildSearchIndex: () => lifecycle.rebuildIndex(),
+    }),
   });
   return {
     daemonId: createId("daemon"),
@@ -220,8 +227,8 @@ export function createWorkbenchState(
     events,
     logger,
     applicationLogsEnabled: options.applicationLogsEnabled ?? false,
-    registry,
-    services: registry.services,
+    lifecycle,
+    services: lifecycle.services,
     queryCache,
     canonicalStore: storage.canonicalStore,
     storageUsage,
@@ -252,20 +259,39 @@ export function createWorkbenchState(
   };
 }
 
-const shutdownStates = new WeakSet<WorkbenchState>();
+async function pruneConversationsAcrossProjects(
+  services: RuntimeServices,
+  request: { strategy: "olderThanDays"; olderThanDays: number },
+): Promise<{ prunedConversationIds: string[]; skippedCount: number }> {
+  const results = await services.pruneConversations.pruneAcrossProjects(
+    services.projectLifecycle.listProjects(),
+    request,
+  );
+  return {
+    prunedConversationIds: results.flatMap(
+      (result) => result.prunedConversationIds,
+    ),
+    skippedCount: results.reduce(
+      (sum, result) => sum + result.skipped.length,
+      0,
+    ),
+  };
+}
+
+const shutdownStates = new WeakSet<ServerRuntime>();
 
 /**
- * Idempotent owner of workbench-state teardown: registry timers,
+ * Idempotent owner of server-runtime teardown: lifecycle timers,
  * subscription-usage polling, storage-cleanup scheduling, logger flush, and
  * queryCache close. HTTP/WebSocket session shutdown stays with the server entry;
  * call this afterwards, once state-owned logging has finished.
  */
-export async function shutdownWorkbenchState(
-  state: WorkbenchState,
+export async function shutdownServerRuntime(
+  state: ServerRuntime,
 ): Promise<void> {
   if (shutdownStates.has(state)) return;
   shutdownStates.add(state);
-  await state.registry.shutdown();
+  await state.lifecycle.shutdown();
   await state.agentBrowserSkills.shutdown().catch(() => undefined);
   state.subscriptionUsage.stop();
   await state.storageCleanup.shutdown().catch(() => undefined);
@@ -275,7 +301,7 @@ export async function shutdownWorkbenchState(
   await state.canonicalStore.close();
 }
 
-export function toDaemonFile(state: WorkbenchState): DaemonFile {
+export function toDaemonFile(state: ServerRuntime): DaemonFile {
   return {
     daemonId: state.daemonId,
     pid: process.pid,
@@ -295,7 +321,7 @@ export function toDaemonFile(state: WorkbenchState): DaemonFile {
   };
 }
 
-export function statusResponse(state: WorkbenchState): StatusResponse {
+export function statusResponse(state: ServerRuntime): StatusResponse {
   return {
     daemonId: state.daemonId,
     version,
@@ -318,9 +344,9 @@ export function statusResponse(state: WorkbenchState): StatusResponse {
       applicationLogs: state.applicationLogsEnabled,
     },
     runtime: {
-      python: state.registry.pythonRuntime.statusSnapshot(),
-      editors: state.registry.editors.statusSnapshot(),
-      terminal: state.registry.terminal.statusSnapshot(),
+      python: state.services.pythonRuntime.statusSnapshot(),
+      editors: state.services.editors.statusSnapshot(),
+      terminal: state.services.terminal.statusSnapshot(),
     },
     resourceContainment: state.resourceContainment,
   };

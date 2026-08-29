@@ -5,18 +5,19 @@ import { ConversationJournalRepository } from "../../../src/domains/conversation
 import {
   appendRegistryEntry,
   createState,
-} from "../../helpers/registry-conversation.js";
+} from "../../helpers/conversation-runtime.js";
 
-describe("RuntimeRegistry conversation lifecycle", () => {
+describe("RuntimeLifecycle conversation lifecycle", () => {
   it("returns the first transcript entry when an id is appended again", async () => {
     const state = await createState("nerve-registry-idempotent-entry-");
     try {
-      const project = await state.registry.createProject({
+      const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
       });
-      const conversation = await state.registry.createConversation({
-        projectId: project.id,
-      });
+      const conversation =
+        await state.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
       const entryId = "entry_idempotent_task_event";
       const original = await appendRegistryEntry(state, {
         id: entryId,
@@ -35,11 +36,15 @@ describe("RuntimeRegistry conversation lifecycle", () => {
       });
 
       assert.deepEqual(repeated, original);
-      assert.deepEqual(state.registry.getConversationEntries(conversation.id), [
-        original,
-      ]);
+      assert.deepEqual(
+        state.services.conversationLifecycle.getConversationEntries(
+          conversation.id,
+        ),
+        [original],
+      );
       assert.equal(
-        state.registry.getConversation(conversation.id).activeEntryId,
+        state.services.conversationLifecycle.getConversation(conversation.id)
+          .activeEntryId,
         entryId,
       );
       assert.equal(
@@ -58,12 +63,13 @@ describe("RuntimeRegistry conversation lifecycle", () => {
   it("tracks last user message time separately from conversation updates", async () => {
     const state = await createState("nerve-registry-last-user-message-");
     try {
-      const project = await state.registry.createProject({
+      const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
       });
-      const conversation = await state.registry.createConversation({
-        projectId: project.id,
-      });
+      const conversation =
+        await state.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
 
       await appendRegistryEntry(state, {
         conversationId: conversation.id,
@@ -72,7 +78,8 @@ describe("RuntimeRegistry conversation lifecycle", () => {
         createdAt: "2026-01-01T00:01:00.000Z",
       });
       assert.equal(
-        state.registry.getConversation(conversation.id).lastUserMessageAt,
+        state.services.conversationLifecycle.getConversation(conversation.id)
+          .lastUserMessageAt,
         "2026-01-01T00:01:00.000Z",
       );
 
@@ -83,7 +90,8 @@ describe("RuntimeRegistry conversation lifecycle", () => {
         createdAt: "2026-01-01T00:02:00.000Z",
       });
       assert.equal(
-        state.registry.getConversation(conversation.id).lastUserMessageAt,
+        state.services.conversationLifecycle.getConversation(conversation.id)
+          .lastUserMessageAt,
         "2026-01-01T00:01:00.000Z",
       );
 
@@ -94,7 +102,8 @@ describe("RuntimeRegistry conversation lifecycle", () => {
         createdAt: "2026-01-01T00:03:00.000Z",
       });
       assert.equal(
-        state.registry.getConversation(conversation.id).lastUserMessageAt,
+        state.services.conversationLifecycle.getConversation(conversation.id)
+          .lastUserMessageAt,
         "2026-01-01T00:03:00.000Z",
       );
 
@@ -105,7 +114,8 @@ describe("RuntimeRegistry conversation lifecycle", () => {
         createdAt: "2026-01-01T00:00:30.000Z",
       });
       assert.equal(
-        state.registry.getConversation(conversation.id).lastUserMessageAt,
+        state.services.conversationLifecycle.getConversation(conversation.id)
+          .lastUserMessageAt,
         "2026-01-01T00:03:00.000Z",
       );
     } finally {
@@ -116,18 +126,20 @@ describe("RuntimeRegistry conversation lifecycle", () => {
   it("persists conversation state and reopens on the next user entry", async () => {
     const state = await createState("nerve-registry-conversation-state-");
     try {
-      const project = await state.registry.createProject({
+      const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
       });
-      const conversation = await state.registry.createConversation({
-        projectId: project.id,
-      });
+      const conversation =
+        await state.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
       const activityAt = conversation.updatedAt;
 
-      const pinned = await state.registry.updateConversationState(
-        conversation.id,
-        { pinned: true, completed: true, clearRuntimeStatus: true },
-      );
+      const pinned =
+        await state.services.conversationLifecycle.updateConversationState(
+          conversation.id,
+          { pinned: true, completed: true, clearRuntimeStatus: true },
+        );
       assert.equal(pinned.pinned, true);
       assert.ok(pinned.completedAt);
       assert.ok(pinned.runtimeStatusClearedAt);
@@ -139,7 +151,10 @@ describe("RuntimeRegistry conversation lifecycle", () => {
         text: "Still complete",
         createdAt: "2026-01-01T00:01:00.000Z",
       });
-      assert.ok(state.registry.getConversation(conversation.id).completedAt);
+      assert.ok(
+        state.services.conversationLifecycle.getConversation(conversation.id)
+          .completedAt,
+      );
 
       await appendRegistryEntry(state, {
         conversationId: conversation.id,
@@ -147,15 +162,18 @@ describe("RuntimeRegistry conversation lifecycle", () => {
         text: "Reopen this",
         createdAt: "2026-01-01T00:02:00.000Z",
       });
-      const reopened = state.registry.getConversation(conversation.id);
+      const reopened = state.services.conversationLifecycle.getConversation(
+        conversation.id,
+      );
       assert.equal(reopened.completedAt, undefined);
       assert.equal(reopened.pinned, true);
       assert.equal(reopened.updatedAt, "2026-01-01T00:02:00.000Z");
 
-      const explicitlyReopened = await state.registry.updateConversationState(
-        conversation.id,
-        { completed: false, pinned: false },
-      );
+      const explicitlyReopened =
+        await state.services.conversationLifecycle.updateConversationState(
+          conversation.id,
+          { completed: false, pinned: false },
+        );
       assert.equal(explicitlyReopened.completedAt, undefined);
       assert.equal(explicitlyReopened.pinned, false);
       assert.equal(explicitlyReopened.updatedAt, reopened.updatedAt);
@@ -176,24 +194,29 @@ describe("RuntimeRegistry conversation lifecycle", () => {
   it("creates projects, conversations, and agents through public APIs", async () => {
     const state = await createState();
     try {
-      const project = await state.registry.createProject({
+      const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
       });
-      const conversation = await state.registry.createConversation({
-        projectId: project.id,
-      });
-      const agent = await state.registry.createAgent({
+      const conversation =
+        await state.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
+      const agent = await state.services.agentLifecycle.createAgent({
         projectId: project.id,
         conversationId: conversation.id,
       });
 
-      assert.equal(state.registry.getProject(project.id).id, project.id);
       assert.equal(
-        state.registry.getConversation(conversation.id).activeAgentId,
+        state.services.projectLifecycle.getProject(project.id).id,
+        project.id,
+      );
+      assert.equal(
+        state.services.conversationLifecycle.getConversation(conversation.id)
+          .activeAgentId,
         agent.id,
       );
       assert.equal(
-        state.registry.getAgent(agent.id).conversationId,
+        state.services.agentLifecycle.getAgent(agent.id).conversationId,
         conversation.id,
       );
     } finally {
@@ -204,12 +227,13 @@ describe("RuntimeRegistry conversation lifecycle", () => {
   it("publishes compaction lifecycle events with metadata", async () => {
     const state = await createState("nerve-registry-compaction-");
     try {
-      const project = await state.registry.createProject({
+      const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
       });
-      const conversation = await state.registry.createConversation({
-        projectId: project.id,
-      });
+      const conversation =
+        await state.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
       const first = await appendRegistryEntry(state, {
         conversationId: conversation.id,
         role: "user",
@@ -227,7 +251,11 @@ describe("RuntimeRegistry conversation lifecycle", () => {
         text: "Now summarize the work.",
       });
 
-      const result = await state.registry.compactConversation(conversation.id);
+      const result = await state.services.compactionService.compactConversation(
+        conversation.id,
+        {},
+        { reason: "manual" },
+      );
       const events = (
         await state.events.readStream(`conv/${conversation.id}`, 1, 5_000)
       ).events;

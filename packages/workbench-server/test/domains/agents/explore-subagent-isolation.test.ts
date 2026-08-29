@@ -6,8 +6,8 @@ import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/harness/models";
 import { conversationStream } from "@nervekit/contracts/events";
 import {
-  createWorkbenchState,
-  shutdownWorkbenchState,
+  createServerRuntime,
+  shutdownServerRuntime,
 } from "../../../src/app/runtime/server-runtime.js";
 import {
   initializeStorage,
@@ -41,19 +41,23 @@ describe("explore subagent transcript isolation", () => {
         model: { provider, modelId: "scripted-fast" },
       },
     });
-    const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
+    const orchestrator = createServerRuntime(storage, "127.0.0.1", 0);
     try {
-      await orchestrator.registry.hydrate();
-      const project = await orchestrator.registry.createProject({ dir: root });
-      const conversation = await orchestrator.registry.createConversation({
-        projectId: project.id,
-      });
-      const parent = await orchestrator.registry.createAgent({
+      await orchestrator.lifecycle.hydrate();
+      const project =
+        await orchestrator.services.projectLifecycle.createProject({
+          dir: root,
+        });
+      const conversation =
+        await orchestrator.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
+      const parent = await orchestrator.services.agentLifecycle.createAgent({
         projectId: project.id,
         conversationId: conversation.id,
       });
-      const result = await orchestrator.registry.requestTool(
-        parent.id,
+      const result = await orchestrator.services.tools.requestTool(
+        orchestrator.services.agentLifecycle.getAgent(parent.id),
         "explore",
         {
           tasks: [
@@ -74,7 +78,7 @@ describe("explore subagent transcript isolation", () => {
         /temporary project is isolated/i,
       );
 
-      const child = orchestrator.registry
+      const child = orchestrator.lifecycle
         .listAgents()
         .find((agent) => agent.parentAgentId === parent.id);
       assert.ok(child);
@@ -85,13 +89,16 @@ describe("explore subagent transcript isolation", () => {
         /NERVE_HOME.*artifacts, not the source root/,
       );
       assert.equal(
-        orchestrator.registry.getConversation(conversation.id).activeAgentId,
+        orchestrator.services.conversationLifecycle.getConversation(
+          conversation.id,
+        ).activeAgentId,
         parent.id,
       );
 
-      const snapshot = await orchestrator.registry.getConversationSnapshot(
-        conversation.id,
-      );
+      const snapshot =
+        await orchestrator.services.conversationQuery.getConversationSnapshot(
+          conversation.id,
+        );
       assert.deepEqual(snapshot.entries, []);
       assert.deepEqual(snapshot.activeEntryIds, []);
       const childHarness = JSON.stringify(
@@ -107,7 +114,7 @@ describe("explore subagent transcript isolation", () => {
       );
       assert.match(childHarness, /temporary project is isolated/i);
 
-      const childToolCalls = orchestrator.registry.tools.listToolCallPreviews({
+      const childToolCalls = orchestrator.services.tools.listToolCallPreviews({
         agentId: child.id,
         limit: 10,
       });
@@ -116,7 +123,7 @@ describe("explore subagent transcript isolation", () => {
       assert.equal(childToolCalls[0]?.status, "completed");
       assert.equal(childToolCalls[0]?.hidden, true);
       const childTranscript =
-        await orchestrator.registry.subagentTranscripts.get(
+        await orchestrator.services.subagentTranscripts.get(
           parent.id,
           child.id,
         );
@@ -160,7 +167,7 @@ describe("explore subagent transcript isolation", () => {
       const dedicatedJson = JSON.stringify(dedicated);
       assert.doesNotMatch(dedicatedJson, /explore_ls_1|arguments|result|cwd/);
       await assert.rejects(
-        orchestrator.registry.subagentTranscripts.get(child.id, parent.id),
+        orchestrator.services.subagentTranscripts.get(child.id, parent.id),
         hasErrorCode("SUBAGENT_TRANSCRIPT_NOT_FOUND"),
       );
       assert.equal(
@@ -168,20 +175,26 @@ describe("explore subagent transcript isolation", () => {
         false,
       );
       await assert.rejects(
-        orchestrator.registry.promptAgent(child.id, { text: "Continue." }),
+        orchestrator.services.workbenchRun.promptAgent(child.id, {
+          text: "Continue.",
+        }),
         hasErrorCode("SUBAGENT_NOT_INTERACTIVE"),
       );
       await assert.rejects(
-        orchestrator.registry.configureAgent(child.id, { mode: "planning" }),
+        orchestrator.services.agentLifecycle.configureAgent(child.id, {
+          mode: "planning",
+        }),
         hasErrorCode("SUBAGENT_NOT_INTERACTIVE"),
       );
       assert.equal(
-        orchestrator.registry.getConversation(conversation.id).activeAgentId,
+        orchestrator.services.conversationLifecycle.getConversation(
+          conversation.id,
+        ).activeAgentId,
         parent.id,
       );
     } finally {
       registration.unregister();
-      await shutdownWorkbenchState(orchestrator);
+      await shutdownServerRuntime(orchestrator);
       await rm(root, {
         recursive: true,
         force: true,
@@ -194,30 +207,36 @@ describe("explore subagent transcript isolation", () => {
   it("repairs a persisted child active-agent reference during hydration", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-explore-recovery-"));
     const storage = await initializeStorage(root);
-    const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
-    let restarted: ReturnType<typeof createWorkbenchState> | undefined;
+    const orchestrator = createServerRuntime(storage, "127.0.0.1", 0);
+    let restarted: ReturnType<typeof createServerRuntime> | undefined;
     try {
-      await orchestrator.registry.hydrate();
-      const project = await orchestrator.registry.createProject({ dir: root });
-      const conversation = await orchestrator.registry.createConversation({
-        projectId: project.id,
-      });
-      const parent = await orchestrator.registry.createAgent({
+      await orchestrator.lifecycle.hydrate();
+      const project =
+        await orchestrator.services.projectLifecycle.createProject({
+          dir: root,
+        });
+      const conversation =
+        await orchestrator.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
+      const parent = await orchestrator.services.agentLifecycle.createAgent({
         projectId: project.id,
         conversationId: conversation.id,
       });
-      const child = await orchestrator.registry.createAgent({
+      const child = await orchestrator.services.agentLifecycle.createAgent({
         projectId: project.id,
         conversationId: conversation.id,
         parentAgentId: parent.id,
         task: "Recovery fixture",
       });
       assert.equal(
-        orchestrator.registry.getConversation(conversation.id).activeAgentId,
+        orchestrator.services.conversationLifecycle.getConversation(
+          conversation.id,
+        ).activeAgentId,
         parent.id,
       );
 
-      await shutdownWorkbenchState(orchestrator);
+      await shutdownServerRuntime(orchestrator);
       const journal = new ConversationJournalRepository(storage);
       const persistedBefore = (await journal.load(conversation.id))
         .conversation;
@@ -234,10 +253,12 @@ describe("explore subagent transcript isolation", () => {
       });
 
       const restartedStorage = await initializeStorage(root);
-      restarted = createWorkbenchState(restartedStorage, "127.0.0.1", 0);
+      restarted = createServerRuntime(restartedStorage, "127.0.0.1", 0);
       await restarted.registry.hydrate();
       assert.equal(
-        restarted.registry.getConversation(conversation.id).activeAgentId,
+        restarted.services.conversationLifecycle.getConversation(
+          conversation.id,
+        ).activeAgentId,
         parent.id,
       );
       const persisted = (
@@ -247,8 +268,8 @@ describe("explore subagent transcript isolation", () => {
       ).conversation;
       assert.equal(persisted?.activeAgentId, parent.id);
     } finally {
-      await shutdownWorkbenchState(orchestrator);
-      if (restarted) await shutdownWorkbenchState(restarted);
+      await shutdownServerRuntime(orchestrator);
+      if (restarted) await shutdownServerRuntime(restarted);
       await rm(root, {
         recursive: true,
         force: true,
@@ -288,24 +309,28 @@ describe("explore subagent transcript isolation", () => {
         model: { provider, modelId: "scripted-fast" },
       },
     });
-    const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
+    const orchestrator = createServerRuntime(storage, "127.0.0.1", 0);
     try {
-      await orchestrator.registry.hydrate();
-      const project = await orchestrator.registry.createProject({ dir: root });
-      const conversation = await orchestrator.registry.createConversation({
-        projectId: project.id,
-      });
-      const parent = await orchestrator.registry.createAgent({
+      await orchestrator.lifecycle.hydrate();
+      const project =
+        await orchestrator.services.projectLifecycle.createProject({
+          dir: root,
+        });
+      const conversation =
+        await orchestrator.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
+      const parent = await orchestrator.services.agentLifecycle.createAgent({
         projectId: project.id,
         conversationId: conversation.id,
         model: { provider, modelId: "scripted-fast" },
       });
 
-      await orchestrator.registry.promptAgent(parent.id, {
+      await orchestrator.services.workbenchRun.promptAgent(parent.id, {
         text: "Start both explore children.",
       });
       await waitUntil(() => {
-        const children = orchestrator.registry
+        const children = orchestrator.lifecycle
           .listAgents()
           .filter((agent) => agent.parentAgentId === parent.id);
         return (
@@ -314,12 +339,14 @@ describe("explore subagent transcript isolation", () => {
         );
       });
       assert.equal(
-        orchestrator.registry.getConversation(conversation.id).activeAgentId,
+        orchestrator.services.conversationLifecycle.getConversation(
+          conversation.id,
+        ).activeAgentId,
         parent.id,
       );
-      await orchestrator.registry.abortAgent(parent.id);
+      await orchestrator.services.workbenchRun.abortAgent(parent.id);
 
-      const children = orchestrator.registry
+      const children = orchestrator.lifecycle
         .listAgents()
         .filter((agent) => agent.parentAgentId === parent.id);
       assert.equal(children.length, 2);
@@ -336,7 +363,7 @@ describe("explore subagent transcript isolation", () => {
       );
     } finally {
       registration.unregister();
-      await shutdownWorkbenchState(orchestrator);
+      await shutdownServerRuntime(orchestrator);
       await rm(root, {
         recursive: true,
         force: true,

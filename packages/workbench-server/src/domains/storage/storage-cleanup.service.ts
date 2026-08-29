@@ -20,7 +20,7 @@ import {
 } from "./storage-files.js";
 import type { StorageUsageService } from "./storage-usage.service.js";
 
-export interface StorageCleanupRegistryPort {
+export interface StorageCleanupOperations {
   pruneConversationsAcrossProjects(request: {
     strategy: "olderThanDays";
     olderThanDays: number;
@@ -34,7 +34,7 @@ export interface StorageCleanupServiceDeps {
   usage: StorageUsageService;
   events: StreamLogRegistry;
   logger: ApplicationLogger;
-  getRegistry: () => StorageCleanupRegistryPort;
+  getOperations: () => StorageCleanupOperations;
 }
 
 interface TargetPlan {
@@ -288,7 +288,7 @@ export class StorageCleanupService {
           const dir = join(this.deps.paths.payloadsPath, "conversations");
           const before = (await dirSize(dir)).bytes;
           const result = await this.deps
-            .getRegistry()
+            .getOperations()
             .pruneConversationsAcrossProjects({
               strategy: "olderThanDays",
               olderThanDays: request.conversationsOlderThanDays as number,
@@ -356,7 +356,7 @@ export class StorageCleanupService {
         message: "Rebuilding the search index…",
         run: async () => {
           const before = await this.indexFootprint();
-          await this.deps.getRegistry().rebuildSearchIndex();
+          await this.deps.getOperations().rebuildSearchIndex();
           const after = await this.indexFootprint();
           return {
             freedBytes: Math.max(0, before - after),

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { after, before, describe, it } from "node:test";
-import type { WorkbenchState } from "../../../src/app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../../src/app/runtime/server-runtime.js";
 import { serveStatic } from "../../../src/adapters/http/static-files.js";
 
 const roots: string[] = [];
@@ -38,7 +38,7 @@ async function fixture() {
 const state = {
   host: "127.0.0.1",
   storage: { localToken: "test-token" },
-} as WorkbenchState;
+} as ServerRuntime;
 
 describe("static file serving", () => {
   it("serves nested assets inside the configured distribution", async () => {

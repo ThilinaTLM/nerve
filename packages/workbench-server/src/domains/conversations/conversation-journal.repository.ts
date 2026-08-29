@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import { noopPerformanceDiagnostics } from "../../infrastructure/diagnostics/performance-metrics.js";
 import { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/index.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";

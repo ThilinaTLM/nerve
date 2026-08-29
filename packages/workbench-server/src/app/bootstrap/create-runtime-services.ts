@@ -46,6 +46,7 @@ import {
   TaskDefinitionRepository,
   TaskDefinitionService,
 } from "../../domains/task-definitions/index.js";
+import { TaskDefinitionOperations } from "../../domains/task-definitions/task-definition-operations.js";
 import {
   ProjectEditorService,
   ProjectIconService,
@@ -70,6 +71,7 @@ import {
 } from "../../domains/tasks/index.js";
 import { WorkbenchTaskService } from "../../domains/tasks/adapters/workbench-task-service.js";
 import { ToolService } from "../../domains/tools/execution/tool-service.js";
+import { ToolInteractionResolutionService } from "../../domains/tools/orchestration/tool-interaction-resolution.service.js";
 import { ToolResultPayloadStore } from "../../domains/tools/artifacts/tool-result-payload-store.js";
 import {
   PermissionExceptionService,
@@ -85,7 +87,7 @@ import { WorkbenchRunService } from "../../domains/runs/application/workbench-ru
 import { WorkbenchRunQuery } from "../../domains/runs/application/workbench-run-query.js";
 import type { SubscriptionUsageService } from "../../domains/usage/subscription-usage-service.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
 import type { ProviderCatalogStore } from "../../domains/providers/provider-catalog.store.js";
@@ -98,7 +100,10 @@ import {
   gitReadDiagnostic,
 } from "../runtime/git-logging.js";
 import type { RuntimeState } from "../runtime/runtime-projections.js";
-import type { AppendEntryInput, AppendEntryOptions } from "../runtime/types.js";
+import type {
+  AppendEntryInput,
+  AppendEntryOptions,
+} from "../../domains/conversations/append-entry-contracts.js";
 
 export interface RuntimeDeps {
   storage: InitializedStorage;
@@ -119,6 +124,7 @@ export interface RuntimeServices {
   pythonRuntime: PythonRuntimeService;
   plans: PlanService;
   tools: ToolService;
+  toolInteractions: ToolInteractionResolutionService;
   permissionExceptions: PermissionExceptionService;
   permissionPolicy: PermissionPolicyService;
   git: GitService;
@@ -127,6 +133,7 @@ export interface RuntimeServices {
   fileCompletions: FileCompletionService;
   promptSuggestions: PromptSuggestionService;
   taskDefinitions: TaskDefinitionService;
+  taskDefinitionOperations: TaskDefinitionOperations;
   scratchNotes: ScratchNoteService;
   harnessStorage: ConversationHarnessStorage;
   conversationService: ConversationService;
@@ -382,6 +389,11 @@ export function composeRuntime(
     queryCache,
     state,
     removeConversation,
+  );
+  services.taskDefinitionOperations = new TaskDefinitionOperations(
+    services.taskDefinitions,
+    services.tasks,
+    listProjects,
   );
   services.projectIcons = new ProjectIconService(getProject);
   services.fileCompletions = new FileCompletionService(getProject);
@@ -698,6 +710,13 @@ export function composeRuntime(
       );
     },
   });
+  services.toolInteractions = new ToolInteractionResolutionService(
+    services.tools,
+    services.plans,
+    services.humanInput,
+    services.permissionPolicy,
+    services.permissionExceptions,
+  );
   services.pruneConversations = new PruneProjectConversationsService({
     getProject,
     listConversations,

@@ -5,7 +5,7 @@ import {
   type WatchOptions,
 } from "node:fs";
 import { dirname, isAbsolute, join, normalize, resolve, sep } from "node:path";
-import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 
 export type GitRepositoryInvalidation = {
   readonly projectId: string;

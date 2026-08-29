@@ -1,12 +1,13 @@
 import { taskLogQuerySchema } from "@nervekit/contracts/tasks";
 import { Hono } from "hono";
-import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
+type TaskLogRoutesContext = Pick<ServerRuntime, "services">;
 import { HttpError } from "../errors.js";
 import { numberQuery } from "../query.js";
 import { routeHandler } from "../responses.js";
 import { routeParam } from "../route-params.js";
 
-export function createTaskLogRoutes(state: WorkbenchState): Hono {
+export function createTaskLogRoutes(state: TaskLogRoutesContext): Hono {
   const app = new Hono();
   app.get(
     "/tasks/:taskId/logs",
@@ -22,7 +23,7 @@ export function createTaskLogRoutes(state: WorkbenchState): Hono {
       });
       const taskId = routeParam(c, "taskId");
       try {
-        state.registry.getTask(taskId);
+        state.services.tasks.getTask(taskId);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (/Task not found/i.test(message)) {
@@ -34,7 +35,7 @@ export function createTaskLogRoutes(state: WorkbenchState): Hono {
         }
         throw error;
       }
-      return c.json(await state.registry.queryTaskLogs(taskId, query));
+      return c.json(await state.services.tasks.queryLogs(taskId, query));
     }),
   );
   return app;

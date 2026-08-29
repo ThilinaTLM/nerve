@@ -14,7 +14,7 @@ import {
   type TaskRuntime,
 } from "@nervekit/contracts/tasks";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
-import type { PerformanceDiagnosticsPort } from "../../../core/ports.js";
+import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../../infrastructure/persistence/query-cache/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";

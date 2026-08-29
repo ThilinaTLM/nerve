@@ -3,7 +3,7 @@ import { isTerminalToolStatus } from "@nervekit/contracts/events";
 import { type ToolCallRecord } from "@nervekit/contracts/tools";
 import { requireToolDefinition } from "@nervekit/tools/catalog";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
-import type { PerformanceDiagnosticsPort } from "../../../core/ports.js";
+import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics.js";
 import type { OrchestrationToolDispatcher } from "../orchestration/dispatcher.js";
 import { toolErrorDetails } from "./tool-errors.js";
 import { isToolExecutionSuspended } from "./tool-execution-suspension.js";

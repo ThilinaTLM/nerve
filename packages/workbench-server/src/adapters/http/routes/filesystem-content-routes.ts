@@ -1,12 +1,18 @@
 import { Hono } from "hono";
-import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
+type FilesystemContentRoutesContext = Pick<
+  ServerRuntime,
+  "services" | "storage"
+>;
 import {
   fileContent,
   saveClipboardImage,
 } from "../../../domains/filesystem/filesystem.service.js";
 import { routeHandler } from "../responses.js";
 
-export function createFilesystemContentRoutes(state: WorkbenchState): Hono {
+export function createFilesystemContentRoutes(
+  state: FilesystemContentRoutesContext,
+): Hono {
   const app = new Hono();
   app.get(
     "/filesystem/file",
@@ -18,7 +24,8 @@ export function createFilesystemContentRoutes(state: WorkbenchState): Hono {
             path: c.req.query("path"),
             line: c.req.query("line"),
           },
-          (projectId) => state.registry.getProject(projectId).dir,
+          (projectId) =>
+            state.services.projectLifecycle.getProject(projectId).dir,
         ),
       ),
     ),

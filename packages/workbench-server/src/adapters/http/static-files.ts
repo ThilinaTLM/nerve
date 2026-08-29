@@ -10,7 +10,9 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { WorkbenchState } from "../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../app/runtime/server-runtime.js";
+
+type StaticFileContext = Pick<ServerRuntime, "host" | "port" | "storage">;
 import { cookieHeader } from "./auth-middleware.js";
 
 const contentTypes: Record<string, string> = {
@@ -29,7 +31,7 @@ const contentTypes: Record<string, string> = {
   ".webp": "image/webp",
 };
 
-export function fallbackHtml(state: WorkbenchState): string {
+export function fallbackHtml(state: StaticFileContext): string {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -59,7 +61,7 @@ export function fallbackHtml(state: WorkbenchState): string {
 
 export async function serveStatic(
   pathname: string,
-  state: WorkbenchState,
+  state: StaticFileContext,
   clientAddress?: string,
 ): Promise<Response> {
   const webDist = resolveWebDistPath();
@@ -109,7 +111,7 @@ export async function serveStatic(
 
 function staticResponseHeaders(
   contentType: string,
-  state: WorkbenchState,
+  state: StaticFileContext,
   clientAddress?: string,
   pathname?: string,
 ): HeadersInit {
@@ -144,7 +146,7 @@ function staticCacheControl(pathname = "", contentType: string): string {
 }
 
 function shouldIssueLocalUiCookie(
-  state: WorkbenchState,
+  state: StaticFileContext,
   clientAddress?: string,
 ): boolean {
   return isLoopbackHost(state.host) || isLoopbackHost(clientAddress ?? "");

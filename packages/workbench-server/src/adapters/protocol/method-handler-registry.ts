@@ -4,12 +4,12 @@ import {
   type OperationParams,
 } from "@nervekit/contracts/operations";
 import type { OperationHandlerRegistry } from "@nervekit/protocol/server";
-import type { WorkbenchState } from "../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../app/runtime/server-runtime.js";
 
 type MaybePromise<T> = T | Promise<T>;
 
 export type WorkbenchOperationContext = Pick<
-  WorkbenchState,
+  ServerRuntime,
   | "agentBrowserSkills"
   | "applicationConfiguration"
   | "auth"
@@ -19,12 +19,12 @@ export type WorkbenchOperationContext = Pick<
   | "performanceDiagnostics"
   | "providerCatalog"
   | "queryCache"
-  | "registry"
   | "secrets"
   | "services"
   | "storage"
   | "storageCleanup"
   | "storageUsage"
+  | "subscriptionUsage"
 >;
 
 type WorkbenchMethodHandler<

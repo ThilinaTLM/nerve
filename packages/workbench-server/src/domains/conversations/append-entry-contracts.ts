@@ -1,4 +1,3 @@
-import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
   ConversationEntry,
   ConversationEntryUsage,
@@ -26,5 +25,3 @@ export type AppendEntryInput = {
 };
 
 export type AppendEntryOptions = { mirrorToHarness?: boolean };
-
-export type AgentStatus = AgentRecord["status"];

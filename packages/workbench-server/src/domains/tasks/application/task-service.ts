@@ -8,12 +8,10 @@ import type {
   TaskRecord,
 } from "@nervekit/contracts/tasks";
 import type { ToolExecutionOutputUpdate } from "@nervekit/tools/execution";
-import type {
-  ClockPort,
-  DiagnosticPort,
-  DomainEventPublisherPort,
-  IdPort,
-} from "../../../core/ports.js";
+import type { ClockPort } from "../../../core/ports/clock.js";
+import type { DiagnosticPort } from "../../../core/ports/diagnostics.js";
+import type { DomainEventPublisherPort } from "../../../core/ports/domain-events.js";
+import type { IdPort } from "../../../core/ports/ids.js";
 import {
   inspectDefinitionPort,
   type TaskDefinitionLaunchOutcome,

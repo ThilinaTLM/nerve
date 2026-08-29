@@ -14,8 +14,8 @@ import {
 } from "@nervekit/native";
 import WebSocket, { WebSocketServer } from "ws";
 import {
-  createWorkbenchState,
-  shutdownWorkbenchState,
+  createServerRuntime,
+  shutdownServerRuntime,
   toDaemonFile,
 } from "./app/runtime/server-runtime.js";
 import { createApp } from "./app/server.js";
@@ -153,7 +153,7 @@ async function main() {
       `Refusing to bind Nerve daemon to ${host}. Enable remote connections in Settings or set NERVE_ALLOW_REMOTE=1.`,
     );
   }
-  const state = createWorkbenchState(storage, host, port, {
+  const state = createServerRuntime(storage, host, port, {
     applicationLogsEnabled: loggingEnabled,
     performanceDiagnosticsEnabled,
     applicationConfiguration: resolvedConfiguration.snapshot,
@@ -200,7 +200,7 @@ async function main() {
   const agentSkillsDurationMs = Math.round(
     performance.now() - agentSkillsStartedAt,
   );
-  const runtimeCapabilitiesReady = state.registry.refreshRuntimeCapabilities();
+  const runtimeCapabilitiesReady = state.lifecycle.refreshRuntimeCapabilities();
   const eventHydrateStartedAt = Date.now();
   await state.events.hydrate();
   const eventsHydrateDurationMs = Date.now() - eventHydrateStartedAt;
@@ -213,7 +213,7 @@ async function main() {
     },
   });
   const [registryTimings] = await Promise.all([
-    state.registry.hydrate(),
+    state.lifecycle.hydrate(),
     state.storageCleanup.hydrate(),
   ]);
   await state.logger.info("Registry hydrated", {
@@ -311,10 +311,11 @@ async function main() {
         getActivity: () => state.performanceDiagnostics.snapshotAndReset(),
         getCounts: () => ({
           ...registryTimings.counts,
-          projects: state.registry.listProjects().length,
-          conversations: state.registry.listConversations().length,
-          agents: state.registry.listAgents().length,
-          tasks: state.registry.listTasks().length,
+          projects: state.services.projectLifecycle.listProjects().length,
+          conversations:
+            state.services.conversationLifecycle.listConversations().length,
+          agents: state.services.agentLifecycle.listAgents().length,
+          tasks: state.services.tasks.listTasks().length,
         }),
         warn: (error) => {
           void state.logger.warn("Daemon performance sampling failed", {
@@ -322,7 +323,7 @@ async function main() {
           });
         },
       });
-      setImmediate(() => state.registry.startBackgroundMaintenance());
+      setImmediate(() => state.lifecycle.startBackgroundMaintenance());
     },
   );
 
@@ -410,7 +411,7 @@ async function main() {
         durationMs: Date.now() - startedAt,
       })
       .catch(() => undefined);
-    await shutdownWorkbenchState(state).catch(() => undefined);
+    await shutdownServerRuntime(state).catch(() => undefined);
     httpsServer?.close();
     server.close(() => {
       runtimeMonitor?.markClean(signal);
@@ -439,7 +440,7 @@ async function main() {
  * the desktop supervisor restarts a clean process.
  */
 function installCrashGuards(
-  logger: ReturnType<typeof createWorkbenchState>["logger"],
+  logger: ReturnType<typeof createServerRuntime>["logger"],
   dataDir: string,
   monitor: DaemonRuntimeMonitor | undefined,
 ): void {
@@ -501,7 +502,7 @@ function closeWebSocketClients(webSockets: WebSocketServer): void {
 }
 
 function updateMobileHttpsState(
-  state: ReturnType<typeof createWorkbenchState>,
+  state: ReturnType<typeof createServerRuntime>,
   tls: Awaited<ReturnType<typeof ensureMobileHttpsTlsMaterial>>,
   httpPort: number,
   httpsPort: number,

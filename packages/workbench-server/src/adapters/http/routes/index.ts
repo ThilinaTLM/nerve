@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
 import { createAgentArtifactRoutes } from "./agent-artifact-routes.js";
 import { createAuthRoutes } from "./auth-routes.js";
 import { createConversationExportRoutes } from "./conversation-export-routes.js";
@@ -12,7 +12,7 @@ import { createStatusRoutes } from "./status-routes.js";
 import { createTaskLogRoutes } from "./task-log-routes.js";
 import { createTranscriptionRoutes } from "./transcription-routes.js";
 
-export function mountApiRoutes(app: Hono, state: WorkbenchState): void {
+export function mountApiRoutes(app: Hono, state: ServerRuntime): void {
   app.route("/api", createStatusRoutes(state));
   app.route("/api", createSettingsRoutes(state));
   app.route("/api", createAuthRoutes(state));

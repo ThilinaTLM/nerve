@@ -8,7 +8,7 @@ export type StoreHydrationDurations = {
   conversations: number;
 };
 
-export type RegistryHydrationCounts = {
+export type RuntimeHydrationCounts = {
   projects: number;
   conversations: number;
   agents: number;
@@ -18,13 +18,13 @@ export type RegistryHydrationCounts = {
   activeRuns: number;
 };
 
-export interface RegistryHydrationTimings {
+export interface RuntimeHydrationTimings {
   stateDurationMs: number;
   indexDurationMs: number;
   toolCallHydrationSource: "journal";
   storesHydrationDurationMs: number;
   storeDurationsMs: StoreHydrationDurations;
-  counts: RegistryHydrationCounts;
+  counts: RuntimeHydrationCounts;
   agentsHydrationDurationMs: number;
   runRecoveryDurationMs: number;
   humanInputRecoveryDurationMs: number;
@@ -37,7 +37,7 @@ export type StoreHydrationOperation = {
   run: () => Promise<unknown>;
 };
 
-export interface RuntimeRegistryHydrationOptions {
+export interface RuntimeLifecycleHydrationOptions {
   readonly withUpdatesDeferred: <T>(operation: () => Promise<T>) => Promise<T>;
   readonly hydrateStores: readonly StoreHydrationOperation[];
   readonly loadAgents: () => Promise<void>;
@@ -49,7 +49,7 @@ export interface RuntimeRegistryHydrationOptions {
     activeRuns: number;
   }>;
   readonly counts: () => Omit<
-    RegistryHydrationCounts,
+    RuntimeHydrationCounts,
     "runMetadata" | "activeRuns"
   >;
   readonly recoverTaskNotifications: () => Promise<void>;
@@ -58,15 +58,15 @@ export interface RuntimeRegistryHydrationOptions {
   readonly toolCallHydrationSource: "journal";
 }
 
-/** Coordinates startup hydration while keeping RuntimeRegistry as the façade. */
-export class RuntimeRegistryHydrator {
-  constructor(private readonly options: RuntimeRegistryHydrationOptions) {}
+/** Coordinates startup hydration while keeping RuntimeLifecycle as the façade. */
+export class RuntimeHydrator {
+  constructor(private readonly options: RuntimeLifecycleHydrationOptions) {}
 
-  async hydrate(): Promise<RegistryHydrationTimings> {
+  async hydrate(): Promise<RuntimeHydrationTimings> {
     const stateStartedAt = performance.now();
     let storesHydrationDurationMs = 0;
     let storeDurationsMs = emptyStoreHydrationDurations();
-    let counts: RegistryHydrationCounts = {
+    let counts: RuntimeHydrationCounts = {
       projects: 0,
       conversations: 0,
       agents: 0,

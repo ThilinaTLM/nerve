@@ -9,13 +9,13 @@ import {
   oldAgentId,
   oldConversationId,
   secondEntryId,
-} from "../../helpers/registry-conversation.js";
+} from "../../helpers/conversation-runtime.js";
 
-describe("RuntimeRegistry conversation branches", () => {
+describe("RuntimeLifecycle conversation branches", () => {
   it("imports, navigates, exports, and remaps conversation entries", async () => {
     const state = await createState("nerve-registry-import-");
     try {
-      const imported = await state.registry.importConversation({
+      const imported = await state.services.importService.importConversation({
         project: { dir: state.storage.paths.home, name: "Imported Project" },
         conversation: {
           title: "Imported Conversation",
@@ -71,17 +71,20 @@ describe("RuntimeRegistry conversation branches", () => {
         imported.entries[1]?.id,
       );
 
-      await state.registry.navigateConversation(imported.conversation.id, {
-        activeEntryId: imported.entries[0]?.id ?? null,
-      });
+      await state.services.navigationService.navigateConversation(
+        imported.conversation.id,
+        {
+          activeEntryId: imported.entries[0]?.id ?? null,
+        },
+      );
       assert.deepEqual(
-        state.registry
+        state.lifecycle
           .getConversationEntries(imported.conversation.id)
           .map((entry) => entry.text),
         ["Hello"],
       );
 
-      const exported = state.registry.exportConversation(
+      const exported = state.services.exportService.exportConversation(
         imported.conversation.id,
       );
       assert.equal(exported.entries.length, 2);
@@ -94,13 +97,14 @@ describe("RuntimeRegistry conversation branches", () => {
   it("projects the active branch after forking from the middle", async () => {
     const state = await createState("nerve-registry-branch-projection-");
     try {
-      const project = await state.registry.createProject({
+      const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
       });
-      const conversation = await state.registry.createConversation({
-        projectId: project.id,
-        title: "Branch projection",
-      });
+      const conversation =
+        await state.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+          title: "Branch projection",
+        });
 
       const first = await appendRegistryEntry(state, {
         conversationId: conversation.id,
@@ -118,9 +122,12 @@ describe("RuntimeRegistry conversation branches", () => {
         text: "C",
       });
 
-      await state.registry.navigateConversation(conversation.id, {
-        activeEntryId: second.id,
-      });
+      await state.services.navigationService.navigateConversation(
+        conversation.id,
+        {
+          activeEntryId: second.id,
+        },
+      );
       const forked = await appendRegistryEntry(state, {
         conversationId: conversation.id,
         role: "user",
@@ -128,29 +135,36 @@ describe("RuntimeRegistry conversation branches", () => {
       });
 
       assert.deepEqual(
-        state.registry
+        state.lifecycle
           .getConversationEntries(conversation.id)
           .map((entry) => entry.text),
         ["A", "B", "D"],
       );
       assert.deepEqual(
-        await state.registry
+        await state.lifecycle
           .getConversationSnapshot(conversation.id)
           .then((snapshot) => snapshot.activeEntryIds),
         [first.id, second.id, forked.id],
       );
 
-      const tree = state.registry.getConversationTree(conversation.id);
+      const tree = state.services.conversationLifecycle.getConversationTree(
+        conversation.id,
+      );
       assert.deepEqual(
         tree.nodes.find((node) => node.entry.id === second.id)?.childEntryIds,
         [abandoned.id, forked.id],
       );
 
-      await state.registry.navigateConversation(conversation.id, {
-        activeEntryId: null,
-      });
+      await state.services.navigationService.navigateConversation(
+        conversation.id,
+        {
+          activeEntryId: null,
+        },
+      );
       assert.deepEqual(
-        state.registry.getConversationEntries(conversation.id),
+        state.services.conversationLifecycle.getConversationEntries(
+          conversation.id,
+        ),
         [],
       );
     } finally {

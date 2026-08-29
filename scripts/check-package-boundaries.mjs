@@ -117,6 +117,13 @@ function checkSourceImports() {
           "presentation may not import app shells, feature state, or app core",
         );
       if (
+        file.startsWith("packages/workbench-server/src/adapters/") &&
+        resolvedImportPath(file, specifier).endsWith(
+          "/app/runtime/runtime-lifecycle.js",
+        )
+      )
+        fail(file, "server adapters may not depend on process runtime lifecycle");
+      if (
         file.startsWith(
           "packages/workbench-server/src/domains/runs/runtime/",
         ) &&
@@ -536,7 +543,7 @@ function nervePackageName(specifier) {
 
 function forbiddenRunRuntimeImport(file, specifier) {
   if (specifier.startsWith("@nervekit/contracts")) return false;
-  if (specifier === "../../../core/ports.js") return false;
+  if (specifier.startsWith("../../../core/ports/")) return false;
   if (!specifier.startsWith(".")) return true;
   return !resolvedImportPath(file, specifier).startsWith(
     "packages/workbench-server/src/domains/runs/runtime/",

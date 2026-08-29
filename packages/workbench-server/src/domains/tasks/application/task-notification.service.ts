@@ -11,7 +11,7 @@ import type { TaskLogEvent, TaskRecord } from "@nervekit/contracts/tasks";
 import { createId } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
-import type { AppendEntryInput } from "../../../app/runtime/types.js";
+import type { AppendEntryInput } from "../../conversations/append-entry-contracts.js";
 import type { WorkbenchLiveExecutions } from "../../runs/application/run-live-executions.js";
 import type { WorkbenchRunUnitOfWork } from "../../runs/persistence/run-transition.repository.js";
 import type { ConversationHarnessStorage } from "../../conversations/conversation-harness-storage.js";

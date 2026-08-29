@@ -1,14 +1,17 @@
 import { Hono } from "hono";
-import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
+type ProjectAssetRoutesContext = Pick<ServerRuntime, "services">;
 import { routeHandler } from "../responses.js";
 import { routeParam } from "../route-params.js";
 
-export function createProjectAssetRoutes(state: WorkbenchState): Hono {
+export function createProjectAssetRoutes(
+  state: ProjectAssetRoutesContext,
+): Hono {
   const app = new Hono();
   app.get(
     "/:projectId/icon",
     routeHandler(async (c) => {
-      const icon = await state.registry.projectIcons.get(
+      const icon = await state.services.projectIcons.get(
         routeParam(c, "projectId"),
       );
       const cacheHeaders = {

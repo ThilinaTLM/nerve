@@ -13,22 +13,29 @@ import {
   RpcDispatcher,
 } from "@nervekit/protocol/rpc";
 import { ZodError } from "zod";
-import type { WorkbenchState } from "../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../app/runtime/server-runtime.js";
+import type { WorkbenchOperationContext } from "./method-handler-registry.js";
+
+export type ProtocolAdapterContext = WorkbenchOperationContext &
+  Pick<ServerRuntime, "daemonId" | "storage">;
 import { ApplicationError } from "../../core/application-error.js";
 import { FileIdempotencyStore } from "./file-idempotency-store.js";
 import { createProtocolMessage, orchestratorSource } from "./messages.js";
 import {
   bindWorkbenchOperationHandlers,
   WORKBENCH_OPERATION_METHODS,
-} from "./method-handlers.js";
+} from "./create-method-registry.js";
 import { protocolErrorData, redactProtocolValue } from "./protocol-errors.js";
 
 export const PROTOCOL_HTTP_CONTENT_TYPE =
   "application/vnd.nerve.protocol.v1+json";
 const MAX_PROTOCOL_HTTP_BODY_BYTES = 4 * 1024 * 1024;
-const workbenchDispatchers = new WeakMap<WorkbenchState, RpcDispatcher>();
+const workbenchDispatchers = new WeakMap<
+  ProtocolAdapterContext,
+  RpcDispatcher
+>();
 const workbenchIdempotencyStores = new WeakMap<
-  WorkbenchState,
+  ProtocolAdapterContext,
   FileIdempotencyStore
 >();
 const workbenchCapabilities = WORKBENCH_OPERATION_METHODS.map(
@@ -38,7 +45,7 @@ const workbenchCapabilities = WORKBENCH_OPERATION_METHODS.map(
 export class ProtocolHttpDispatcher {
   readonly #dispatcher: RpcDispatcher;
 
-  constructor(private readonly state: WorkbenchState) {
+  constructor(private readonly state: ProtocolAdapterContext) {
     this.#dispatcher = workbenchRpcDispatcher(state);
   }
 
@@ -154,12 +161,14 @@ export class ProtocolHttpDispatcher {
 }
 
 export function workbenchOperationHandlers(
-  state: WorkbenchState,
+  state: ProtocolAdapterContext,
 ): Partial<OperationHandlerRegistry> {
   return bindWorkbenchOperationHandlers(state);
 }
 
-export function workbenchRpcDispatcher(state: WorkbenchState): RpcDispatcher {
+export function workbenchRpcDispatcher(
+  state: ProtocolAdapterContext,
+): RpcDispatcher {
   const existing = workbenchDispatchers.get(state);
   if (existing) return existing;
   const dispatcher = new RpcDispatcher({
@@ -173,7 +182,7 @@ export function workbenchRpcDispatcher(state: WorkbenchState): RpcDispatcher {
 }
 
 function workbenchIdempotencyStore(
-  state: WorkbenchState,
+  state: ProtocolAdapterContext,
 ): FileIdempotencyStore {
   const existing = workbenchIdempotencyStores.get(state);
   if (existing) return existing;
@@ -185,7 +194,7 @@ function workbenchIdempotencyStore(
 }
 
 export function workbenchWebSocketRpcDispatcher(
-  state: WorkbenchState,
+  state: ProtocolAdapterContext,
   acceptedCapabilities: readonly string[],
 ): RpcDispatcher {
   return new RpcDispatcher({

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
+type ConversationExportRoutesContext = Pick<ServerRuntime, "services">;
 import { routeHandler } from "../responses.js";
 import { routeParam } from "../route-params.js";
 
@@ -14,14 +15,16 @@ function headers(
   };
 }
 
-export function createConversationExportRoutes(state: WorkbenchState): Hono {
+export function createConversationExportRoutes(
+  state: ConversationExportRoutesContext,
+): Hono {
   const app = new Hono();
   app.get(
     "/conversations/:conversationId/export",
     routeHandler((c) => {
       const id = routeParam(c, "conversationId");
       return c.json(
-        state.registry.exportConversation(id),
+        state.services.exportService.exportConversation(id),
         200,
         headers(id, "json", "application/json; charset=utf-8"),
       );
@@ -32,7 +35,7 @@ export function createConversationExportRoutes(state: WorkbenchState): Hono {
     routeHandler((c) => {
       const id = routeParam(c, "conversationId");
       return c.text(
-        state.registry.exportConversationMarkdown(id),
+        state.services.exportService.exportConversationMarkdown(id),
         200,
         headers(id, "md", "text/markdown; charset=utf-8"),
       );
@@ -43,7 +46,7 @@ export function createConversationExportRoutes(state: WorkbenchState): Hono {
     routeHandler((c) => {
       const id = routeParam(c, "conversationId");
       return c.html(
-        state.registry.exportConversationHtml(id),
+        state.services.exportService.exportConversationHtml(id),
         200,
         headers(id, "html", "text/html; charset=utf-8"),
       );

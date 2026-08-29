@@ -4,7 +4,7 @@ import {
   monitorEventLoopDelay,
   performance as nodePerformance,
 } from "node:perf_hooks";
-import type { PerformanceMetricsSnapshot } from "../../core/ports.js";
+import type { PerformanceMetricsSnapshot } from "../../core/ports/diagnostics.js";
 
 const SAMPLE_INTERVAL_MS = 10_000;
 

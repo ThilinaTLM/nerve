@@ -1,5 +1,5 @@
 export {
-  createWorkbenchState,
+  createServerRuntime,
   statusResponse,
   toDaemonFile,
 } from "./app/runtime/server-runtime.js";

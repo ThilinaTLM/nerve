@@ -15,7 +15,7 @@ import type { RuntimeState } from "../../app/runtime/runtime-projections.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
-} from "../../app/runtime/types.js";
+} from "./append-entry-contracts.js";
 import type { ConversationRepository } from "./conversation.repository.js";
 import type { EntryRepository } from "./entry.repository.js";
 import type { ConversationHarnessStorage } from "./conversation-harness-storage.js";

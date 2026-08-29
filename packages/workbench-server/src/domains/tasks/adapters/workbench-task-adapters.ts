@@ -5,10 +5,8 @@ import type {
   TaskServicePorts,
   TaskStartInput,
 } from "../application/task-service.js";
-import type {
-  DomainEventPublisherPort,
-  PerformanceDiagnosticsPort,
-} from "../../../core/ports.js";
+import type { DomainEventPublisherPort } from "../../../core/ports/domain-events.js";
+import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics.js";
 import type {
   StartTaskRequest,
   TaskPortConflictListener,

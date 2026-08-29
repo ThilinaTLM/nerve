@@ -39,7 +39,7 @@ import type {
   ToolAnchor,
 } from "../../runs/runtime/conversation-runtime.js";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
-import type { PerformanceDiagnosticsPort } from "../../../core/ports.js";
+import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics.js";
 import type { PermissionExceptionService } from "../../permissions/permission-exceptions.service.js";
 import type { PermissionPolicyService } from "../../permissions/permission-policy.service.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";

@@ -10,7 +10,20 @@ import { parseConversationStream } from "@nervekit/contracts/events";
 import { type ProtocolV1Message } from "@nervekit/contracts/wire";
 import type WebSocket from "ws";
 import type { WebSocketServer } from "ws";
-import type { WorkbenchState } from "../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../app/runtime/server-runtime.js";
+import type { WorkbenchOperationContext } from "./method-handler-registry.js";
+
+type ProtocolWebSocketContext = WorkbenchOperationContext &
+  Pick<
+    ServerRuntime,
+    | "daemonId"
+    | "events"
+    | "host"
+    | "logger"
+    | "performanceDiagnostics"
+    | "port"
+    | "services"
+  >;
 import { isWebSocketAuthorized } from "../../app/server.js";
 import {
   PROTOCOL_CAPABILITIES,
@@ -28,9 +41,12 @@ export interface LocalProtocolSession {
   shutdown(message?: string): Promise<void>;
 }
 
-const activeSessionCounts = new WeakMap<WorkbenchState, number>();
+const activeSessionCounts = new WeakMap<ProtocolWebSocketContext, number>();
 
-function updateActiveSessions(state: WorkbenchState, delta: number): void {
+function updateActiveSessions(
+  state: ProtocolWebSocketContext,
+  delta: number,
+): void {
   if (!state.performanceDiagnostics.enabled) return;
   const count = Math.max(0, (activeSessionCounts.get(state) ?? 0) + delta);
   activeSessionCounts.set(state, count);
@@ -47,7 +63,7 @@ export interface ProtocolSocketServer {
 export function installProtocolWebSocketUpgrade(
   server: ProtocolSocketServer,
   webSockets: WebSocketServer,
-  state: WorkbenchState,
+  state: ProtocolWebSocketContext,
   token: string,
 ): Set<LocalProtocolSession> {
   const sessions = new Set<LocalProtocolSession>();
@@ -79,7 +95,7 @@ export function installProtocolWebSocketUpgrade(
 
 export function createLocalProtocolSession(
   ws: WebSocket,
-  state: WorkbenchState,
+  state: ProtocolWebSocketContext,
   onDispose: () => void = () => undefined,
 ): LocalProtocolSession {
   const diagnostics = state.performanceDiagnostics.enabled
@@ -159,7 +175,9 @@ export function createLocalProtocolSession(
             if (!conversationId) {
               throw new Error(`Unknown stream ${cursor.stream}`);
             }
-            state.registry.getConversation(conversationId);
+            state.services.conversationLifecycle.getConversation(
+              conversationId,
+            );
             streams.push(await state.events.bounds(cursor.stream));
           } catch (error) {
             state.logger.warn("Stream subscription entry unavailable", {

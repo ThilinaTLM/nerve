@@ -13,7 +13,7 @@ import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-c
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import { resolveProjectSettings } from "../../infrastructure/configuration/index.js";
 import type { RuntimeState } from "../../app/runtime/runtime-projections.js";
-import type { AgentStatus } from "../../app/runtime/types.js";
+import type { AgentStatus } from "./agent-status.js";
 import type { ConversationService } from "../conversations/conversation-service.js";
 import type { AgentRepository } from "./agent.repository.js";
 import { assertChildAuthority } from "./agent-authority.js";

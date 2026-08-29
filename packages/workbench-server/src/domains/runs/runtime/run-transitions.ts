@@ -15,7 +15,7 @@ import {
   RUN_FAILURE_MESSAGE_MAX_LENGTH,
   RUN_STATE_EPOCH,
 } from "@nervekit/contracts/runs";
-import type { IdPort } from "../../../core/ports.js";
+import type { IdPort } from "../../../core/ports/ids.js";
 import type { RunHydratedState } from "./run-unit-of-work.js";
 
 export const ACTIVE_STATUSES = new Set<RunRecord["status"]>([

@@ -3,11 +3,12 @@ import {
   clientApplicationLogRequestSchema,
 } from "@nervekit/contracts/logs";
 import { Hono } from "hono";
-import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
+type LogRoutesContext = Pick<ServerRuntime, "logger">;
 import { numberQuery } from "../query.js";
 import { routeHandler } from "../responses.js";
 
-export function createLogRoutes(state: WorkbenchState): Hono {
+export function createLogRoutes(state: LogRoutesContext): Hono {
   const app = new Hono();
 
   app.get(

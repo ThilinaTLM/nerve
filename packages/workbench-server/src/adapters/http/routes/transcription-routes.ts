@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
+type TranscriptionRoutesContext = Pick<ServerRuntime, "auth" | "storage">;
 import { transcribeAudioWithChatGptSubscription } from "../../../domains/transcription/transcription.service.js";
 import { HttpError } from "../errors.js";
 import { routeHandler } from "../responses.js";
@@ -26,7 +27,9 @@ function parseDurationMs(value: FormDataEntryValue | null): number | undefined {
   return parsed;
 }
 
-export function createTranscriptionRoutes(state: WorkbenchState): Hono {
+export function createTranscriptionRoutes(
+  state: TranscriptionRoutesContext,
+): Hono {
   const app = new Hono();
 
   app.post(

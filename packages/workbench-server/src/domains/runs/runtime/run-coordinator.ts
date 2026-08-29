@@ -9,7 +9,9 @@ import type {
   RunRecord,
   RunTransitionRecord,
 } from "@nervekit/contracts/runs";
-import type { ClockPort, DiagnosticPort, IdPort } from "../../../core/ports.js";
+import type { ClockPort } from "../../../core/ports/clock.js";
+import type { DiagnosticPort } from "../../../core/ports/diagnostics.js";
+import type { IdPort } from "../../../core/ports/ids.js";
 import { assertCheckpoint, checkpointValid } from "./run-checkpoints.js";
 import {
   CANCELLATION_TARGETS,

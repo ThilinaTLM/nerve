@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/harness/models";
 import {
-  createWorkbenchState,
-  shutdownWorkbenchState,
+  createServerRuntime,
+  shutdownServerRuntime,
 } from "../../../src/app/runtime/server-runtime.js";
 import { WorkbenchRunUnitOfWork } from "../../../src/domains/runs/persistence/run-transition.repository.js";
 import {
@@ -28,19 +28,25 @@ describe("workbench coordinator-owned provider retry", () => {
     });
     const root = await mkdtemp(join(tmpdir(), "nerve-workbench-retry-"));
     const storage = await initializeStorage(root);
-    const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
+    const orchestrator = createServerRuntime(storage, "127.0.0.1", 0);
     try {
-      await orchestrator.registry.hydrate();
-      const project = await orchestrator.registry.createProject({ dir: root });
-      const conversation = await orchestrator.registry.createConversation({
-        projectId: project.id,
-      });
-      const agent = await orchestrator.registry.createAgent({
+      await orchestrator.lifecycle.hydrate();
+      const project =
+        await orchestrator.services.projectLifecycle.createProject({
+          dir: root,
+        });
+      const conversation =
+        await orchestrator.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
+      const agent = await orchestrator.services.agentLifecycle.createAgent({
         projectId: project.id,
         conversationId: conversation.id,
         model: { provider: "nerve-scripted", modelId: "scripted-fast" },
       });
-      await orchestrator.registry.promptAgent(agent.id, { text: "Retry once" });
+      await orchestrator.services.workbenchRun.promptAgent(agent.id, {
+        text: "Retry once",
+      });
       // This adapter observes a separately owned host, so it must not cache.
       const unitOfWork = new WorkbenchRunUnitOfWork(storage.paths.home, 0);
       let runId: string | undefined;
@@ -68,10 +74,13 @@ describe("workbench coordinator-owned provider retry", () => {
         ).length,
         1,
       );
-      assert.equal(orchestrator.registry.agents.get(agent.id)?.status, "idle");
+      assert.equal(
+        orchestrator.services.agentLifecycle.getAgent(agent.id)?.status,
+        "idle",
+      );
     } finally {
       registration.unregister();
-      await shutdownWorkbenchState(orchestrator);
+      await shutdownServerRuntime(orchestrator);
       await rm(root, {
         recursive: true,
         force: true,
@@ -97,19 +106,23 @@ describe("workbench coordinator-owned provider retry", () => {
     await writeSettings(storage, {
       retry: { enabled: true, maxRetries: 3, baseDelayMs: 1 },
     });
-    const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
+    const orchestrator = createServerRuntime(storage, "127.0.0.1", 0);
     try {
-      await orchestrator.registry.hydrate();
-      const project = await orchestrator.registry.createProject({ dir: root });
-      const conversation = await orchestrator.registry.createConversation({
-        projectId: project.id,
-      });
-      const agent = await orchestrator.registry.createAgent({
+      await orchestrator.lifecycle.hydrate();
+      const project =
+        await orchestrator.services.projectLifecycle.createProject({
+          dir: root,
+        });
+      const conversation =
+        await orchestrator.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
+      const agent = await orchestrator.services.agentLifecycle.createAgent({
         projectId: project.id,
         conversationId: conversation.id,
         model: { provider: "nerve-scripted", modelId: "scripted-fast" },
       });
-      await orchestrator.registry.promptAgent(agent.id, {
+      await orchestrator.services.workbenchRun.promptAgent(agent.id, {
         text: "Retry transient OpenAI failure",
       });
       const unitOfWork = new WorkbenchRunUnitOfWork(storage.paths.home, 0);
@@ -139,7 +152,7 @@ describe("workbench coordinator-owned provider retry", () => {
       );
     } finally {
       registration.unregister();
-      await shutdownWorkbenchState(orchestrator);
+      await shutdownServerRuntime(orchestrator);
       await rm(root, {
         recursive: true,
         force: true,
@@ -173,14 +186,18 @@ describe("workbench coordinator-owned provider retry", () => {
     });
     const root = await mkdtemp(join(tmpdir(), "nerve-workbench-continue-"));
     const storage = await initializeStorage(root);
-    const orchestrator = createWorkbenchState(storage, "127.0.0.1", 0);
+    const orchestrator = createServerRuntime(storage, "127.0.0.1", 0);
     try {
-      await orchestrator.registry.hydrate();
-      const project = await orchestrator.registry.createProject({ dir: root });
-      const conversation = await orchestrator.registry.createConversation({
-        projectId: project.id,
-      });
-      const agent = await orchestrator.registry.createAgent({
+      await orchestrator.lifecycle.hydrate();
+      const project =
+        await orchestrator.services.projectLifecycle.createProject({
+          dir: root,
+        });
+      const conversation =
+        await orchestrator.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
+      const agent = await orchestrator.services.agentLifecycle.createAgent({
         projectId: project.id,
         conversationId: conversation.id,
         model: {
@@ -188,7 +205,7 @@ describe("workbench coordinator-owned provider retry", () => {
           modelId: "billing-failure",
         },
       });
-      await orchestrator.registry.promptAgent(agent.id, {
+      await orchestrator.services.workbenchRun.promptAgent(agent.id, {
         text: "Recover manually",
       });
       const unitOfWork = new WorkbenchRunUnitOfWork(storage.paths.home, 0);
@@ -211,13 +228,13 @@ describe("workbench coordinator-owned provider retry", () => {
       );
       assert.equal(state?.run.attempt, 1);
 
-      await orchestrator.registry.configureAgent(agent.id, {
+      await orchestrator.services.agentLifecycle.configureAgent(agent.id, {
         model: {
           provider: "nerve-scripted-recovery",
           modelId: "recovery-model",
         },
       });
-      await orchestrator.registry.continueRun(agent.id, runId!);
+      await orchestrator.services.workbenchRun.continueRun(agent.id, runId!);
       await waitFor(
         async () => (await unitOfWork.load(runId!))?.run.status === "completed",
       );
@@ -225,11 +242,12 @@ describe("workbench coordinator-owned provider retry", () => {
       state = await unitOfWork.load(runId!);
       assert.equal(state?.run.attempt, 2);
       assert.equal(
-        orchestrator.registry.agents.get(agent.id)?.model?.provider,
+        orchestrator.services.agentLifecycle.getAgent(agent.id)?.model
+          ?.provider,
         "nerve-scripted-recovery",
       );
       assert.equal(
-        orchestrator.registry
+        orchestrator.services.conversationLifecycle
           .getConversationEntries(conversation.id)
           .some((entry) =>
             entry.text.includes("Recovered with the replacement model."),
@@ -239,7 +257,7 @@ describe("workbench coordinator-owned provider retry", () => {
     } finally {
       failingProvider.unregister();
       recoveryProvider.unregister();
-      await shutdownWorkbenchState(orchestrator);
+      await shutdownServerRuntime(orchestrator);
       await rm(root, {
         recursive: true,
         force: true,

@@ -1,68 +1,9 @@
-/* eslint-disable max-lines -- RuntimeRegistry centralizes the hydration/startup use case incl. per-phase timing. */
 import type { Message } from "@earendil-works/pi-ai";
-import { listAvailableModels } from "@nervekit/harness/models";
-import type {
-  AgentRecord,
-  CreateAgentRequest,
-  PromptRequest,
-  UpdateAgentRequest,
-} from "@nervekit/contracts/agents";
-import type {
-  CancelTaskRequest,
-  StartTaskRequest,
-  TaskLogQuery,
-} from "@nervekit/contracts/tasks";
-import type {
-  CompactConversationRequest,
-  ConversationEntry,
-  ConversationRecord,
-  ConversationSnapshot,
-  ConversationTree,
-  CreateConversationRequest,
-  ImportConversationRequest,
-  NavigateConversationRequest,
-  UpdateConversationStateRequest,
-} from "@nervekit/contracts/conversations";
-import type { ContextUsage, ModelInfo } from "@nervekit/contracts/models";
-import type {
-  CreateProjectRequest,
-  OpenProjectInEditorRequest,
-  OpenProjectInEditorResponse,
-  OpenProjectInTerminalRequest,
-  OpenProjectInTerminalResponse,
-  ProjectRecord,
-  ProjectPermissions,
-  PruneProjectConversationsRequest,
-  PruneProjectConversationsResponse,
-} from "@nervekit/contracts/projects";
-import type {
-  CreateTaskDefinitionRequest,
-  UpdateTaskDefinitionRequest,
-} from "@nervekit/contracts/task-definitions";
-import type {
-  CreateScratchNoteRequest,
-  UpdateScratchNoteRequest,
-} from "@nervekit/contracts/scratch-notes";
-import type {
-  PlanImplementationSelection,
-  PlanReviewStatus,
-} from "@nervekit/contracts/plans";
-import type {
-  PermissionOverlay,
-  PermissionOverlayOrigin,
-} from "@nervekit/contracts/permissions";
-import type {
-  ResolveToolInteractionRequest,
-  ToolName,
-  ToolCallRecord,
-  UserQuestionStatus,
-} from "@nervekit/contracts/tools";
 import type { AuthManager } from "../../domains/auth/index.js";
 import type { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/agent-browser-skills.js";
 import type { ProviderCatalogStore } from "../../domains/providers/index.js";
 import type { SubscriptionUsageService } from "../../domains/usage/subscription-usage-service.js";
-import { ApplicationError } from "../../core/application-error.js";
-import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
@@ -74,20 +15,19 @@ import {
 } from "../bootstrap/create-runtime-services.js";
 import { RuntimeState } from "./runtime-projections.js";
 import {
-  RuntimeRegistryHydrator,
-  type RegistryHydrationTimings,
+  RuntimeHydrator,
+  type RuntimeHydrationTimings,
   type StoreHydrationOperation,
 } from "../bootstrap/hydrate-runtime.js";
-import type { AppendEntryInput, AppendEntryOptions } from "./types.js";
 
 export type {
-  RegistryHydrationCounts,
-  RegistryHydrationTimings,
+  RuntimeHydrationCounts,
+  RuntimeHydrationTimings,
   StoreHydrationDurations,
 } from "../bootstrap/hydrate-runtime.js";
 export { settleMeasuredHydrationOperations } from "../bootstrap/hydrate-runtime.js";
 
-export class RuntimeRegistry {
+export class RuntimeLifecycle {
   private readonly state = new RuntimeState();
   readonly projects = this.state.projects;
   readonly conversations = this.state.conversations;
@@ -102,60 +42,16 @@ export class RuntimeRegistry {
   private readonly backgroundOperations = new Set<Promise<void>>();
   private shuttingDown = false;
 
-  get tasks() {
-    return this.services.tasks;
-  }
-
-  get pythonRuntime() {
-    return this.services.pythonRuntime;
-  }
-
-  get plans() {
-    return this.services.plans;
-  }
-
-  get tools() {
-    return this.services.tools;
-  }
-
-  get subagentTranscripts() {
-    return this.services.subagentTranscripts;
-  }
-
-  get git() {
-    return this.services.git;
-  }
-
-  get promptSuggestions() {
-    return this.services.promptSuggestions;
-  }
-
-  get editors() {
-    return this.services.editors;
-  }
-
-  get terminal() {
-    return this.services.terminal;
-  }
-
-  get projectIcons() {
-    return this.services.projectIcons;
-  }
-
-  private get workbenchRun() {
-    return this.services.workbenchRun;
-  }
-
   constructor(
-    private readonly storage: InitializedStorage,
+    storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
     private readonly queryCache: RuntimeQueryCache,
     private readonly auth: AuthManager,
     secrets: SecretProvider,
-    private readonly subscriptionUsage: SubscriptionUsageService,
+    subscriptionUsage: SubscriptionUsageService,
     private readonly logger: ApplicationLogger,
     agentBrowserSkills: AgentBrowserSkillCatalog,
-    private readonly providerCatalog: ProviderCatalogStore,
+    providerCatalog: ProviderCatalogStore,
     performanceDiagnostics: PerformanceDiagnosticsPort,
   ) {
     this.services = composeRuntime(this.state, {
@@ -170,7 +66,7 @@ export class RuntimeRegistry {
       agentBrowserSkills,
       performanceDiagnostics,
     });
-    this.hydrator = new RuntimeRegistryHydrator({
+    this.hydrator = new RuntimeHydrator({
       withUpdatesDeferred: (operation) =>
         this.queryCache.withUpdatesDeferred(operation),
       hydrateStores: [
@@ -178,10 +74,10 @@ export class RuntimeRegistry {
           name: "auth",
           run: () => this.auth.refreshModels({ allowNetwork: false }),
         },
-        { name: "providers", run: () => this.providerCatalog.load() },
-        { name: "tasks", run: () => this.tasks.hydrate() },
-        { name: "tools", run: () => this.tools.hydrate() },
-        { name: "plans", run: () => this.plans.hydrate() },
+        { name: "providers", run: () => providerCatalog.load() },
+        { name: "tasks", run: () => this.services.tasks.hydrate() },
+        { name: "tools", run: () => this.services.tools.hydrate() },
+        { name: "plans", run: () => this.services.plans.hydrate() },
         {
           name: "projects",
           run: () => this.services.projectLifecycle.loadProjects(),
@@ -215,24 +111,25 @@ export class RuntimeRegistry {
         };
       },
       counts: () => ({
-        projects: this.listProjects().length,
-        conversations: this.listConversations().length,
-        agents: this.listAgents().length,
-        tasks: this.tasks.listTasks().length,
-        toolCalls: this.tools.countToolCalls(),
+        projects: this.services.projectLifecycle.listProjects().length,
+        conversations:
+          this.services.conversationLifecycle.listConversations().length,
+        agents: this.services.agentLifecycle.listAgents().length,
+        tasks: this.services.tasks.listTasks().length,
+        toolCalls: this.services.tools.countToolCalls(),
       }),
       recoverTaskNotifications: () =>
         this.services.taskNotifications.recoverPendingNotifications(),
       rebuildIndex: () => this.rebuildIndex(),
-      hydratePromptSuggestions: () => this.promptSuggestions.hydrate(),
-      toolCallHydrationSource: this.tools.toolCallHydrationSource,
+      hydratePromptSuggestions: () => this.services.promptSuggestions.hydrate(),
+      toolCallHydrationSource: this.services.tools.toolCallHydrationSource,
     });
   }
 
-  private readonly hydrator: RuntimeRegistryHydrator;
+  private readonly hydrator: RuntimeHydrator;
 
   /**
-   * Stops registry timers and waits for run executions, transition
+   * Stops lifecycle timers and waits for run executions, transition
    * projections, event deliveries, and journal publications to settle so no
    * writer races teardown.
    */
@@ -258,20 +155,15 @@ export class RuntimeRegistry {
       });
   }
 
-  /** Current subscription usage snapshots (Anthropic / Codex). */
-  async getSubscriptionUsage() {
-    return this.subscriptionUsage.getSnapshots({ refresh: true });
-  }
-
-  async hydrate(): Promise<RegistryHydrationTimings> {
+  async hydrate(): Promise<RuntimeHydrationTimings> {
     return this.hydrator.hydrate();
   }
   async refreshRuntimeCapabilities(): Promise<void> {
     if (this.shuttingDown) return;
     const operations = [
-      ["Python runtime discovery", this.pythonRuntime.refresh()],
-      ["Editor discovery", this.editors.refresh()],
-      ["Terminal discovery", this.terminal.refresh()],
+      ["Python runtime discovery", this.services.pythonRuntime.refresh()],
+      ["Editor discovery", this.services.editors.refresh()],
+      ["Terminal discovery", this.services.terminal.refresh()],
     ] as const;
     await this.logSettledOperations(operations);
   }
@@ -282,7 +174,7 @@ export class RuntimeRegistry {
       ["Network model refresh", this.auth.refreshModels()],
       [
         "Tool-result payload reconciliation",
-        this.tools.reconcileResultPayloads(),
+        this.services.tools.reconcileResultPayloads(),
       ],
     ] as const;
     this.trackBackgroundOperation(this.logSettledOperations(operations));
@@ -315,752 +207,10 @@ export class RuntimeRegistry {
   /** Rebuild the disposable derived SQLite queryCache from repositories. */
   async rebuildIndex(): Promise<void> {
     this.queryCache.rebuild({
-      projects: this.listProjects(),
-      conversations: this.listConversations(),
-      agents: this.listAgents(),
-      tasks: this.tasks.listTasks(),
+      projects: this.services.projectLifecycle.listProjects(),
+      conversations: this.services.conversationLifecycle.listConversations(),
+      agents: this.services.agentLifecycle.listAgents(),
+      tasks: this.services.tasks.listTasks(),
     });
-  }
-
-  async createProject(request: CreateProjectRequest): Promise<ProjectRecord> {
-    return this.services.projectLifecycle.createProject(request);
-  }
-
-  listProjects(): ProjectRecord[] {
-    return this.services.projectLifecycle.listProjects();
-  }
-
-  getProject(projectId: string): ProjectRecord {
-    return this.services.projectLifecycle.getProject(projectId);
-  }
-
-  getProjectPermissions(projectId: string) {
-    return this.services.permissionExceptions.project(projectId);
-  }
-
-  updateProjectPermissions(projectId: string, permissions: ProjectPermissions) {
-    return this.services.permissionExceptions.replaceProject(
-      projectId,
-      permissions,
-    );
-  }
-
-  permissionPolicyConfiguration(projectId: string, conversationId?: string) {
-    this.getProject(projectId);
-    return this.services.permissionPolicy.configuration(
-      projectId,
-      conversationId,
-    );
-  }
-
-  updatePermissionOverlay(
-    projectId: string,
-    origin: PermissionOverlayOrigin,
-    overlay: PermissionOverlay,
-    conversationId?: string,
-  ) {
-    this.getProject(projectId);
-    return this.services.permissionPolicy.replaceOverlay(
-      origin,
-      overlay,
-      origin === "project"
-        ? projectId
-        : origin === "conversation"
-          ? conversationId
-          : undefined,
-    );
-  }
-
-  async updateProjectPermissionTrust(projectId: string, trusted: boolean) {
-    this.getProject(projectId);
-    if (trusted) return this.services.permissionPolicy.trustProject(projectId);
-    await this.services.permissionPolicy.revokeProjectTrust(projectId);
-    return this.services.permissionPolicy.projectTrust(projectId);
-  }
-
-  watchProjectFilesystem(projectId: string): void {
-    const project = this.getProject(projectId);
-    this.services.projectFilesystemWatcher.watch(project.id, project.dir);
-  }
-
-  async createConversation(
-    request: CreateConversationRequest,
-  ): Promise<ConversationRecord> {
-    return this.services.conversationLifecycle.createConversation(request);
-  }
-
-  listConversations(): ConversationRecord[] {
-    return this.services.conversationLifecycle.listConversations();
-  }
-
-  getConversation(conversationId: string): ConversationRecord {
-    return this.services.conversationLifecycle.getConversation(conversationId);
-  }
-
-  async updateConversationState(
-    conversationId: string,
-    request: UpdateConversationStateRequest,
-  ): Promise<ConversationRecord> {
-    return this.services.conversationLifecycle.updateConversationState(
-      conversationId,
-      request,
-    );
-  }
-
-  async createAgent(
-    request: CreateAgentRequest,
-    options: { allowChildAuthorityExceed?: boolean } = {},
-  ): Promise<AgentRecord> {
-    return this.services.agentLifecycle.createAgent(request, options);
-  }
-
-  listAgents(): AgentRecord[] {
-    return this.services.agentLifecycle.listAgents();
-  }
-
-  getAgent(agentId: string): AgentRecord {
-    return this.services.agentLifecycle.getAgent(agentId);
-  }
-
-  private async removeAgentInternal(agentId: string): Promise<void> {
-    return this.services.agentLifecycle.removeAgentInternal(agentId);
-  }
-
-  async removeConversation(conversationId: string): Promise<void> {
-    return this.services.conversationLifecycle.removeConversation(
-      conversationId,
-    );
-  }
-
-  async removeProject(projectId: string): Promise<void> {
-    await this.services.projectLifecycle.removeProject(projectId);
-    this.services.fileCompletions.dispose(projectId);
-  }
-
-  completeFiles(
-    projectId: string | undefined,
-    query: string,
-    options: { limit?: number } = {},
-  ) {
-    return this.services.fileCompletions.completeFiles(
-      projectId,
-      query,
-      options,
-    );
-  }
-
-  async openProjectInEditor(
-    projectId: string,
-    request: OpenProjectInEditorRequest,
-  ): Promise<OpenProjectInEditorResponse> {
-    return this.services.editors.openProject(projectId, request);
-  }
-
-  async openProjectInTerminal(
-    projectId: string,
-    request: OpenProjectInTerminalRequest,
-  ): Promise<OpenProjectInTerminalResponse> {
-    return this.services.terminal.openProject(projectId, request);
-  }
-
-  async pruneProjectConversations(
-    projectId: string,
-    request: PruneProjectConversationsRequest = {
-      strategy: "olderThanDays",
-      olderThanDays: 7,
-    },
-  ): Promise<PruneProjectConversationsResponse> {
-    return this.services.pruneConversations.pruneProjectConversations(
-      projectId,
-      request,
-    );
-  }
-
-  /** Prune matching conversations across all projects with one shared finalize. */
-  async pruneConversationsAcrossProjects(
-    request: PruneProjectConversationsRequest,
-  ): Promise<{ prunedConversationIds: string[]; skippedCount: number }> {
-    const results = await this.services.pruneConversations.pruneAcrossProjects(
-      this.listProjects(),
-      request,
-    );
-    return {
-      prunedConversationIds: results.flatMap(
-        (result) => result.prunedConversationIds,
-      ),
-      skippedCount: results.reduce(
-        (sum, result) => sum + result.skipped.length,
-        0,
-      ),
-    };
-  }
-
-  async rebuildSearchIndex(): Promise<void> {
-    const replacement = this.queryCache.beginFreshReplacement();
-    try {
-      await this.rebuildIndex();
-      this.queryCache.commitFreshReplacement(replacement);
-    } catch (error) {
-      this.queryCache.rollbackFreshReplacement(replacement);
-      await this.rebuildIndex().catch(() => undefined);
-      throw error;
-    }
-  }
-
-  async configureAgent(
-    agentId: string,
-    request: UpdateAgentRequest,
-  ): Promise<AgentRecord> {
-    return this.services.agentLifecycle.configureAgent(agentId, request);
-  }
-
-  getConversationEntries(conversationId: string): ConversationEntry[] {
-    return this.services.conversationLifecycle.getConversationEntries(
-      conversationId,
-    );
-  }
-
-  getConversationActiveEntryIds(conversationId: string): string[] {
-    return this.services.conversationLifecycle.getConversationActiveEntryIds(
-      conversationId,
-    );
-  }
-
-  getConversationTree(conversationId: string): ConversationTree {
-    return this.services.conversationLifecycle.getConversationTree(
-      conversationId,
-    );
-  }
-
-  async getContextUsage(conversationId: string): Promise<ContextUsage> {
-    return this.workbenchRun.getContextUsage(conversationId);
-  }
-
-  async getConversationSnapshot(
-    conversationId: string,
-  ): Promise<ConversationSnapshot> {
-    return this.services.conversationQuery.getConversationSnapshot(
-      conversationId,
-    );
-  }
-
-  async navigateConversation(
-    conversationId: string,
-    request: NavigateConversationRequest,
-  ): Promise<ConversationRecord> {
-    return this.services.navigationService.navigateConversation(
-      conversationId,
-      request,
-    );
-  }
-
-  async compactConversation(
-    conversationId: string,
-    request: CompactConversationRequest = {},
-  ): Promise<{ conversation: ConversationRecord; entry: ConversationEntry }> {
-    return this.services.compactionService.compactConversation(
-      conversationId,
-      request,
-      { reason: "manual" },
-    );
-  }
-
-  async cancelConversationCompaction(
-    conversationId: string,
-  ): Promise<{ ok: true }> {
-    await this.services.compactionService.cancelCompaction(conversationId);
-    return { ok: true };
-  }
-
-  exportConversation(conversationId: string) {
-    return this.services.exportService.exportConversation(conversationId);
-  }
-
-  exportConversationMarkdown(conversationId: string): string {
-    return this.services.exportService.exportConversationMarkdown(
-      conversationId,
-    );
-  }
-
-  exportConversationHtml(conversationId: string): string {
-    return this.services.exportService.exportConversationHtml(conversationId);
-  }
-
-  async importConversation(request: ImportConversationRequest): Promise<{
-    project: ProjectRecord;
-    conversation: ConversationRecord;
-    agents: AgentRecord[];
-    entries: ConversationEntry[];
-  }> {
-    return this.services.importService.importConversation(request);
-  }
-
-  async requestTool(
-    agentId: string,
-    toolName: ToolName,
-    args: Record<string, unknown>,
-  ) {
-    return this.tools.requestTool(this.getAgent(agentId), toolName, args);
-  }
-
-  async resolveToolInteraction(
-    request: ResolveToolInteractionRequest,
-  ): Promise<{
-    toolCall: ToolCallRecord;
-    effect?: {
-      kind: "new_conversation";
-      conversation: ConversationRecord;
-      agent: AgentRecord;
-    };
-  }> {
-    const current = this.tools.getToolCall(request.toolCallId);
-    const existing = current.interactions[request.interactionOrdinal];
-    if (
-      existing?.status === "resolved" &&
-      existing.resolutionRequestId === request.resolutionRequestId
-    ) {
-      return { toolCall: current };
-    }
-    if (current.revision !== request.expectedRevision) {
-      throw new ApplicationError(
-        409,
-        "TOOL_CALL_REVISION_CONFLICT",
-        "The tool call changed before this interaction was resolved.",
-      );
-    }
-    const interaction = current.interactions[request.interactionOrdinal];
-    if (
-      !interaction ||
-      interaction.status !== "pending" ||
-      interaction.kind !== request.resolution.kind
-    ) {
-      throw new ApplicationError(
-        409,
-        "TOOL_INTERACTION_CONFLICT",
-        "The pending tool interaction no longer matches this request.",
-      );
-    }
-    if (request.resolution.kind === "approval") {
-      const durableScope =
-        request.resolution.scope === "always_conversation"
-          ? "conversation"
-          : request.resolution.scope === "always_project"
-            ? "project"
-            : request.resolution.scope === "always_user" ||
-                request.resolution.scope === "always"
-              ? "user"
-              : undefined;
-      if (request.resolution.action === "allow" && durableScope) {
-        if (
-          interaction.kind !== "approval" ||
-          !(
-            interaction.request.offeredScopes.includes(
-              request.resolution.scope ?? "single_call",
-            ) ||
-            (request.resolution.scope === "always_user" &&
-              interaction.request.offeredScopes.includes("always"))
-          ) ||
-          (interaction.request.suggestedExceptions.length === 0 &&
-            interaction.request.suggestedRules.length === 0)
-        ) {
-          throw new ApplicationError(
-            400,
-            "APPROVAL_SCOPE_NOT_OFFERED",
-            "This approval does not offer the requested durable grant scope.",
-          );
-        }
-        if (interaction.request.suggestedRules[0]) {
-          await this.services.permissionPolicy.saveRule(
-            durableScope,
-            interaction.request.suggestedRules[0],
-            durableScope === "project"
-              ? current.projectId
-              : durableScope === "conversation"
-                ? current.conversationId
-                : undefined,
-          );
-        } else if (durableScope !== "conversation") {
-          await this.services.permissionExceptions.add(
-            current.projectId,
-            durableScope,
-            interaction.request.suggestedExceptions,
-          );
-        }
-      }
-      const id = `approval_${current.id}_${interaction.ordinal}`;
-      const toolCall = await this.services.humanInput.resolveApproval(
-        id,
-        request.resolution.action,
-        request.resolution.note,
-        request.resolutionRequestId,
-        request.resolution.scope,
-      );
-      return { toolCall };
-    }
-    if (request.resolution.kind === "user_input") {
-      const id = `question_${current.id}_${interaction.ordinal}`;
-      if (request.resolution.action === "answer") {
-        await this.services.humanInput.answerUserQuestion(
-          id,
-          request.resolution.answer ?? "",
-          request.resolutionRequestId,
-        );
-      } else {
-        await this.services.humanInput.dismissUserQuestion(
-          id,
-          request.resolution.reason,
-          request.resolutionRequestId,
-        );
-      }
-      return { toolCall: this.tools.getToolCall(current.id) };
-    }
-    await this.tools.resolveInteraction(request);
-    const review = this.plans
-      .listPlanReviews()
-      .find((candidate) => candidate.toolCallId === current.id);
-    if (!review)
-      throw new ApplicationError(
-        404,
-        "PLAN_REVIEW_NOT_FOUND",
-        "Plan review not found.",
-      );
-    const selection = {
-      implementationModel: request.resolution.implementationModel as never,
-      implementationThinkingLevel: request.resolution
-        .implementationThinkingLevel as never,
-      compactBeforeImplementation:
-        request.resolution.compactBeforeImplementation,
-    };
-    if (request.resolution.action === "accept_in_new_chat") {
-      const result = await this.services.humanInput.acceptPlanReviewInNewChat(
-        review.id,
-        request.resolution.feedback,
-        selection,
-      );
-      return {
-        toolCall: this.tools.getToolCall(current.id),
-        effect: {
-          kind: "new_conversation",
-          conversation: result.conversation,
-          agent: result.agent,
-        },
-      };
-    }
-    if (request.resolution.action === "accept")
-      await this.services.humanInput.acceptPlanReview(
-        review.id,
-        request.resolution.feedback,
-        selection,
-      );
-    else if (request.resolution.action === "request_changes")
-      await this.services.humanInput.requestPlanChanges(
-        review.id,
-        request.resolution.feedback,
-      );
-    else if (request.resolution.action === "reject")
-      await this.services.humanInput.rejectPlanReview(
-        review.id,
-        request.resolution.feedback,
-      );
-    else
-      await this.services.humanInput.discardPlanReview(
-        review.id,
-        request.resolution.feedback,
-      );
-    return { toolCall: this.tools.getToolCall(current.id) };
-  }
-
-  async grantApproval(
-    approvalId: string,
-    note?: string,
-  ): Promise<ToolCallRecord> {
-    try {
-      return await this.services.humanInput.resolveApproval(
-        approvalId,
-        "allow",
-        note,
-      );
-    } catch (error) {
-      if (error instanceof ApplicationError) throw error;
-      throw new ApplicationError(
-        404,
-        "APPROVAL_NOT_FOUND",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-  }
-
-  async denyApproval(
-    approvalId: string,
-    note?: string,
-  ): Promise<ToolCallRecord> {
-    try {
-      return await this.services.humanInput.resolveApproval(
-        approvalId,
-        "deny",
-        note,
-      );
-    } catch (error) {
-      if (error instanceof ApplicationError) throw error;
-      throw new ApplicationError(
-        404,
-        "APPROVAL_NOT_FOUND",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-  }
-
-  listUserQuestions(status?: UserQuestionStatus) {
-    return this.tools.listUserQuestions(status);
-  }
-
-  listPlanReviews(status?: PlanReviewStatus) {
-    return this.plans.listPlanReviews(status);
-  }
-
-  async acceptPlanReview(
-    reviewId: string,
-    feedback?: string,
-    implementation?: PlanImplementationSelection,
-  ) {
-    return this.services.humanInput.acceptPlanReview(
-      reviewId,
-      feedback,
-      implementation,
-    );
-  }
-
-  async acceptPlanReviewInNewChat(
-    reviewId: string,
-    feedback?: string,
-    implementation?: PlanImplementationSelection,
-  ) {
-    return this.services.humanInput.acceptPlanReviewInNewChat(
-      reviewId,
-      feedback,
-      implementation,
-    );
-  }
-
-  async rejectPlanReview(reviewId: string, feedback?: string) {
-    return this.services.humanInput.rejectPlanReview(reviewId, feedback);
-  }
-
-  async requestPlanChanges(reviewId: string, feedback?: string) {
-    return this.services.humanInput.requestPlanChanges(reviewId, feedback);
-  }
-
-  async discardPlanReview(reviewId: string, feedback?: string) {
-    return this.services.humanInput.discardPlanReview(reviewId, feedback);
-  }
-
-  async answerUserQuestion(questionId: string, answer: string) {
-    return this.services.humanInput.answerUserQuestion(questionId, answer);
-  }
-
-  async dismissUserQuestion(questionId: string, reason?: string) {
-    return this.services.humanInput.dismissUserQuestion(questionId, reason);
-  }
-
-  listTasks() {
-    return this.tasks.listTasks();
-  }
-
-  getTask(taskId: string) {
-    return this.tasks.getTask(taskId);
-  }
-
-  listTaskDefinitions(projectId: string) {
-    return this.services.taskDefinitions.list(projectId);
-  }
-
-  async createTaskDefinition(
-    projectId: string,
-    request: CreateTaskDefinitionRequest,
-  ) {
-    if (request.sourceTaskId) {
-      const source = this.tasks.getTask(request.sourceTaskId);
-      if (source.projectId !== projectId)
-        throw new Error("Source task does not belong to this project.");
-    }
-    const definition = await this.services.taskDefinitions.create(
-      projectId,
-      request,
-    );
-    if (request.sourceTaskId) {
-      try {
-        await this.tasks.associateDefinition(
-          request.sourceTaskId,
-          definition.id,
-        );
-      } catch (error) {
-        await this.services.taskDefinitions
-          .remove(projectId, definition.id)
-          .catch(() => undefined);
-        throw error;
-      }
-    }
-    return definition;
-  }
-
-  updateTaskDefinition(
-    projectId: string,
-    definitionId: string,
-    request: UpdateTaskDefinitionRequest,
-  ) {
-    return this.services.taskDefinitions.update(
-      projectId,
-      definitionId,
-      request,
-    );
-  }
-
-  removeTaskDefinition(projectId: string, definitionId: string) {
-    return this.services.taskDefinitions.remove(projectId, definitionId);
-  }
-
-  listScratchNotes(projectId: string) {
-    return this.services.scratchNotes.list(projectId);
-  }
-
-  createScratchNote(projectId: string, request: CreateScratchNoteRequest) {
-    return this.services.scratchNotes.create(projectId, request);
-  }
-
-  updateScratchNote(
-    projectId: string,
-    noteId: string,
-    request: UpdateScratchNoteRequest,
-  ) {
-    return this.services.scratchNotes.update(projectId, noteId, request);
-  }
-
-  removeScratchNote(projectId: string, noteId: string) {
-    return this.services.scratchNotes.remove(projectId, noteId);
-  }
-
-  startTask(request: StartTaskRequest) {
-    return this.tasks.startTask(request);
-  }
-
-  async launchTaskDefinition(
-    definitionId: string,
-    terminateListeners?: import("@nervekit/contracts/tasks").TaskPortConflictListener[],
-  ) {
-    for (const project of this.listProjects()) {
-      const definition = (
-        await this.services.taskDefinitions.list(project.id)
-      ).find((item) => item.id === definitionId);
-      if (!definition) continue;
-      return this.tasks.launchDefinition({
-        definitionId: definition.id,
-        definitionRunPolicy: definition.runPolicy,
-        definitionPort: definition.port,
-        terminateListeners,
-        projectId: project.id,
-        cwd: definition.cwd ?? project.dir,
-        command: definition.command,
-        displayName: definition.label ?? definition.command,
-        origin: { kind: "utility_panel" },
-      });
-    }
-    throw new Error("Task definition not found.");
-  }
-
-  cancelTask(taskId: string, request?: CancelTaskRequest) {
-    return this.tasks.cancelTask(taskId, request);
-  }
-
-  restartTask(taskId: string, confirmUnverifiedReplacement = false) {
-    return this.tasks.restartTask(taskId, { confirmUnverifiedReplacement });
-  }
-
-  removeTask(taskId: string) {
-    return this.tasks.removeTask(taskId);
-  }
-
-  pruneTasks() {
-    return this.tasks.pruneTasks();
-  }
-
-  queryTaskLogs(taskId: string, query?: TaskLogQuery) {
-    return this.tasks.queryLogs(taskId, query);
-  }
-
-  get providers(): ProviderCatalogStore {
-    return this.providerCatalog;
-  }
-
-  listModels(): ModelInfo[] {
-    return listAvailableModels(this.providerCatalog.resolvedModels()).map(
-      (model) => ({
-        provider: model.provider,
-        modelId: model.modelId,
-        name: model.name,
-        label: model.provider === "nerve-faux" ? "Nerve Faux Fast" : model.name,
-        reasoning: model.reasoning,
-        input: model.input,
-        supportedThinkingLevels: model.supportedThinkingLevels,
-        faux: model.provider === "nerve-faux",
-        contextWindow: model.contextWindow,
-        maxOutputTokens: model.maxOutputTokens,
-      }),
-    );
-  }
-
-  async listQueuedPrompts(agentId: string) {
-    return this.workbenchRun.listQueuedPrompts(agentId);
-  }
-
-  async cancelQueuedPrompt(agentId: string, queuedPromptId: string) {
-    return this.workbenchRun.cancelQueuedPrompt(agentId, queuedPromptId);
-  }
-
-  async forcePushQueuedPrompts(agentId: string) {
-    return this.workbenchRun.forcePushQueuedPrompts(agentId);
-  }
-
-  async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
-    return this.workbenchRun.promptAgent(agentId, request);
-  }
-
-  async abortRun(input: {
-    agentId?: string;
-    runId?: string;
-    reason?: string;
-  }): Promise<void> {
-    return this.workbenchRun.abortRun(input);
-  }
-
-  async abortAgent(agentId: string): Promise<void> {
-    return this.abortRun({ agentId });
-  }
-
-  async continueRun(agentId: string, runId: string): Promise<void> {
-    await this.workbenchRun.continueRun(agentId, runId);
-  }
-
-  private async setAgentStatus(
-    agent: AgentRecord,
-    status: AgentRecord["status"],
-  ): Promise<void> {
-    await this.services.agentLifecycle.setAgentStatus(agent, status);
-  }
-
-  private async updateAgent(agent: AgentRecord): Promise<void> {
-    await this.services.agentLifecycle.updateAgent(agent);
-  }
-
-  private async updateConversation(
-    conversation: ConversationRecord,
-  ): Promise<void> {
-    await this.services.conversationLifecycle.updateConversation(conversation);
-  }
-
-  private async appendEntry(
-    input: AppendEntryInput,
-    options: AppendEntryOptions = {},
-  ): Promise<ConversationEntry> {
-    return this.services.conversationLifecycle.appendEntry(input, options);
   }
 }

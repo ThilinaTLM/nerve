@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { DomainEventIntent } from "../../../src/core/ports.js";
+import type { DomainEventIntent } from "../../../src/core/ports/domain-events.js";
 import {
   TaskService,
   type TaskProcessCallbacks,

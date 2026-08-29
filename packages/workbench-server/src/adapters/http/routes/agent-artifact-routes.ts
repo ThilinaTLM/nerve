@@ -1,18 +1,24 @@
 import { Hono } from "hono";
-import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
+import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
+type AgentArtifactRoutesContext = Pick<
+  ServerRuntime,
+  "agentBrowserSkills" | "services" | "storage"
+>;
 import { buildAgentSystemPrompt } from "../../../domains/agents/execution/system-prompt-builder.js";
 import { routeHandler } from "../responses.js";
 import { routeParam } from "../route-params.js";
 
-export function createAgentArtifactRoutes(state: WorkbenchState): Hono {
+export function createAgentArtifactRoutes(
+  state: AgentArtifactRoutesContext,
+): Hono {
   const app = new Hono();
   app.get(
     "/agents/:agentId/system-prompt",
     routeHandler(async (c) => {
       const agentId = routeParam(c, "agentId");
-      const agent = state.registry.getAgent(agentId);
+      const agent = state.services.agentLifecycle.getAgent(agentId);
       const pythonAvailable =
-        await state.registry.pythonRuntime.isAvailableForProject(
+        await state.services.pythonRuntime.isAvailableForProject(
           agent.projectDir,
         );
       const prompt = await buildAgentSystemPrompt(agent, {

@@ -6,8 +6,8 @@ import type { Server } from "node:http";
 import { afterEach, test } from "node:test";
 import WebSocket, { WebSocketServer } from "ws";
 import {
-  createWorkbenchState,
-  shutdownWorkbenchState,
+  createServerRuntime,
+  shutdownServerRuntime,
 } from "../../../src/app/runtime/server-runtime.js";
 import { createApp } from "../../../src/app/server.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
@@ -67,10 +67,10 @@ function closeWithTimeout(
 
 async function fixture() {
   const storage = await initializeStorage(await tempHome("nerve-protocol-ws-"));
-  const state = createWorkbenchState(storage, "127.0.0.1", 0);
+  const state = createServerRuntime(storage, "127.0.0.1", 0);
   await state.logger.hydrate();
   await state.events.hydrate();
-  await state.registry.hydrate();
+  await state.lifecycle.hydrate();
   const server = await new Promise<Server>((resolve) => {
     const started = serve(
       { fetch: createApp(state).fetch, hostname: "127.0.0.1", port: 0 },
@@ -112,7 +112,7 @@ async function fixture() {
         ),
       ])),
     );
-    await shutdownWorkbenchState(state);
+    await shutdownServerRuntime(state);
     const failures = results.filter(
       (result): result is PromiseRejectedResult => result.status === "rejected",
     );

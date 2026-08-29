@@ -25,7 +25,7 @@ import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging
 import type {
   AppendEntryInput,
   AppendEntryOptions,
-} from "../../app/runtime/types.js";
+} from "../conversations/append-entry-contracts.js";
 import type { WorkbenchRunService } from "../runs/application/workbench-run.service.js";
 import { agentMessageText } from "../agents/execution/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";

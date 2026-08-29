@@ -1,8 +1,10 @@
 import { Hono } from "hono";
-import type { WorkbenchState } from "../../../app/runtime/server-runtime.js";
-import { ProtocolHttpDispatcher } from "../../protocol/http-dispatcher.js";
+import {
+  ProtocolHttpDispatcher,
+  type ProtocolAdapterContext,
+} from "../../protocol/http-dispatcher.js";
 
-export function createProtocolRoutes(state: WorkbenchState): Hono {
+export function createProtocolRoutes(state: ProtocolAdapterContext): Hono {
   const app = new Hono();
   const dispatcher = new ProtocolHttpDispatcher(state);
 
