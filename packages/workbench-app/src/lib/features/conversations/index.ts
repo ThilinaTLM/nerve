@@ -25,7 +25,6 @@ export type {
   ToolDraftViewModel,
   TranscriptItem,
 } from "./state/conversation-state.svelte";
-export { conversationState } from "./state/conversation-state.svelte";
 export { setActiveComposerText } from "./state/prompt-send";
 export {
   abortActiveRun,

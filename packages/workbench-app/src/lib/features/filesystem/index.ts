@@ -4,7 +4,6 @@ export type {
   FileViewState,
   MarkdownMermaidViewState,
 } from "./state/file-state.svelte";
-export { fileState } from "./state/file-state.svelte";
 export {
   openFilePane,
   refreshFilePane,

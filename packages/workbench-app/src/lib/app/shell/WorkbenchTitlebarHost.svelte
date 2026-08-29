@@ -22,7 +22,7 @@ import {
   minimizeDesktopWindow,
   toggleMaximizeDesktopWindow,
 } from "$lib/platform/desktop";
-import { releaseState } from "$lib/features/releases";
+import { releaseSelectors } from "$lib/features/releases";
 import { openLogsPane } from "$lib/features/logs";
 import { discoverTitlebarCount, openDiscoverPane } from "$lib/app/discover";
 import { guideState } from "$lib/app/discover/guides";
@@ -148,7 +148,7 @@ async function handleDesktopClose() {
   logsActive={activeCenterTab?.kind === "logs"}
   applicationLogsEnabled={status?.capabilities.applicationLogs ?? false}
   currentVersion={status?.version}
-  latestRelease={releaseState.latest}
+  latestRelease={releaseSelectors.latest}
   buildProjectMenuItems={projectMenuItems}
   onOpenProject={openProjectPicker}
   onSelectProject={(projectId) => void selectProject(projectId)}

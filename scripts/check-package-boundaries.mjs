@@ -241,6 +241,11 @@ function checkWorkbenchFeatureBoundaries() {
   )) {
     const text = read(file);
     if (
+      /\/features\/[^/]+\/index\.ts$/.test(file) &&
+      /export\s+\{[^}]*\b[a-z][A-Za-z0-9]*State\b[^}]*\}\s+from/.test(text)
+    )
+      fail(file, "feature public APIs may not export mutable state objects");
+    if (
       /\$lib\/(?:stores|events|audio|hooks|logging|shortcuts|utils)(?:\/|["'])/.test(
         text,
       )
