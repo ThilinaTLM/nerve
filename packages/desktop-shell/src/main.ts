@@ -1,18 +1,12 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { defaultSettings, type Settings } from "@nervekit/contracts/settings";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import {
   readCurrentSettingsForBootstrap,
-  resolveApplicationConfiguration,
   resolveDataDir,
 } from "@nervekit/workbench-server";
-import {
-  applyElectronFontRenderHinting,
-  applyElectronOzonePlatform,
-  parseDesktopOptions,
-  parseElectronOzonePlatform,
-  resolveElectronFontRenderHinting,
-} from "./app/cli-options.js";
+import { parseDesktopOptions } from "./app/cli-options.js";
+import { createDesktopConfigurationController } from "./app/desktop-configuration.js";
 import { prepareDesktopDataDirectory } from "./app/data-directory-migration.js";
 import { startRunRuntime } from "./app/runtime-recovery.js";
 import {
@@ -38,12 +32,11 @@ import { chromiumLoopbackProxyBypassRules } from "./platform/electron/download-e
 import { showDesktopNotification } from "./ipc/notifications-ipc.js";
 import { registerDesktopIpc } from "./ipc/register-desktop-ipc.js";
 import { windowState } from "./ipc/window-ipc.js";
-import { configureApplicationLogging, desktopLog } from "./logging.js";
+import { desktopLog } from "./logging.js";
 import {
   installDesktopPerformanceMonitor,
   type DesktopPerformanceMonitor,
 } from "./performance/performance-monitor.js";
-import { applyDevelopmentPerformanceDiagnostics } from "./performance/development-diagnostics.js";
 import {
   installDaemonCookie,
   refreshDesktopSettingsFromDaemon,
@@ -85,73 +78,17 @@ const bootstrapSettings = defaultSettings;
 const performanceEnvironmentWasExplicit =
   process.env.NERVE_PERFORMANCE_DIAGNOSTICS !== undefined;
 
-function resolveDesktopConfiguration(
-  settings: Settings,
-): ReturnType<typeof resolveApplicationConfiguration> {
-  return resolveApplicationConfiguration({
-    settings,
-    env: process.env,
-    argv: process.argv.slice(1),
-    dataDir: desktopDataDir,
-    platform: process.platform,
-    development: !app.isPackaged,
-    packaged: app.isPackaged,
-  });
-}
-
-let desktopConfiguration = resolveDesktopConfiguration(bootstrapSettings);
-
-function applyDesktopRuntimeSettings(
-  settings: Settings,
-  configuration: ReturnType<typeof resolveApplicationConfiguration>,
-  preReady: boolean,
-): void {
-  if (process.env.NERVE_LOGGING_ENABLED !== undefined) {
-    process.env.NERVE_LOGGING_ENABLED = configuration.values.loggingEnabled
-      ? "1"
-      : "0";
-  }
-  if (performanceEnvironmentWasExplicit) {
-    process.env.NERVE_PERFORMANCE_DIAGNOSTICS = configuration.values
-      .performanceEnabled
-      ? "1"
-      : "0";
-  } else {
-    process.env.NERVE_DESKTOP_SYNTHETIC_PERFORMANCE = "1";
-    if (!app.isPackaged || configuration.values.performanceEnabled) {
-      process.env.NERVE_PERFORMANCE_DIAGNOSTICS = configuration.values
-        .performanceEnabled
-        ? "1"
-        : "0";
-    } else {
-      delete process.env.NERVE_PERFORMANCE_DIAGNOSTICS;
-    }
-    if (
-      settings.application.diagnostics.performanceEnabled === undefined &&
-      configuration.values.performanceEnabled
-    ) {
-      process.env.NERVE_DEVELOPMENT_PERFORMANCE_DEFAULT = "1";
-    } else {
-      delete process.env.NERVE_DEVELOPMENT_PERFORMANCE_DEFAULT;
-    }
-  }
-  applyDevelopmentPerformanceDiagnostics(app.isPackaged, process.env, {
-    enabled: configuration.values.performanceEnabled,
-  });
-  configureApplicationLogging(configuration.values.loggingEnabled);
-
-  // Electron command-line switches must be selected before app readiness.
-  if (preReady) {
-    applyElectronOzonePlatform(
-      parseElectronOzonePlatform(configuration.values.ozonePlatform),
-    );
-    applyElectronFontRenderHinting(
-      resolveElectronFontRenderHinting(configuration.values.fontRenderHinting),
-    );
-  }
-}
-
-applyDesktopRuntimeSettings(bootstrapSettings, desktopConfiguration, true);
+const desktopConfigurationController = createDesktopConfigurationController({
+  dataDir: desktopDataDir,
+  performanceEnvironmentWasExplicit,
+});
+let desktopConfiguration =
+  desktopConfigurationController.resolve(bootstrapSettings);
+desktopConfigurationController.apply(
+  bootstrapSettings,
+  desktopConfiguration,
+  true,
+);
 
 const shellPageUrls = new ShellPageUrlRegistry();
 
@@ -257,8 +194,13 @@ if (!gotSingleInstanceLock) {
         desktopOptions.mode === "remote"
           ? defaultSettings
           : await readCurrentSettingsForBootstrap(desktopDataDir);
-      desktopConfiguration = resolveDesktopConfiguration(currentSettings);
-      applyDesktopRuntimeSettings(currentSettings, desktopConfiguration, false);
+      desktopConfiguration =
+        desktopConfigurationController.resolve(currentSettings);
+      desktopConfigurationController.apply(
+        currentSettings,
+        desktopConfiguration,
+        false,
+      );
 
       void desktopLog("info", "app", "Electron app ready", {
         context: {
