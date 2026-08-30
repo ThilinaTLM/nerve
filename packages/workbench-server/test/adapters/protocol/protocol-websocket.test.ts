@@ -1,3 +1,4 @@
+import { createTestServerRuntime } from "../../support/runtime-fixture.js";
 import { serve } from "@hono/node-server";
 import type { ProtocolV1Message } from "@nervekit/contracts/wire";
 import { ProtocolCodec, createMessageFactory } from "@nervekit/protocol";
@@ -5,10 +6,7 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import { afterEach, test } from "node:test";
 import WebSocket, { WebSocketServer } from "ws";
-import {
-  createServerRuntime,
-  shutdownServerRuntime,
-} from "../../../src/app/runtime/server-runtime.js";
+import { shutdownServerRuntime } from "../../../src/app/runtime/server-runtime.js";
 import { createApp } from "../../../src/app/server.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 import { PROTOCOL_CAPABILITIES } from "../../../src/adapters/protocol/constants.js";
@@ -67,7 +65,7 @@ function closeWithTimeout(
 
 async function fixture() {
   const storage = await initializeStorage(await tempHome("nerve-protocol-ws-"));
-  const state = createServerRuntime(storage, "127.0.0.1", 0);
+  const state = createTestServerRuntime(storage, "127.0.0.1", 0);
   await state.logger.hydrate();
   await state.events.hydrate();
   await state.lifecycle.hydrate();
@@ -80,11 +78,12 @@ async function fixture() {
   const address = server.address();
   assert(address && typeof address === "object");
   state.port = address.port;
+  state.adapterContexts.websocket.port = address.port;
   const webSockets = new WebSocketServer({ noServer: true });
   const sessions = installProtocolWebSocketUpgrade(
     server,
     webSockets,
-    state,
+    state.adapterContexts.websocket,
     storage.localToken,
   );
   cleanups.push(async () => {

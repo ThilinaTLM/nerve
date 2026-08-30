@@ -7,25 +7,21 @@ import {
   type ConversationSnapshotResponse,
   type WorkspaceSnapshotResponse,
 } from "@nervekit/contracts/snapshots";
-import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeServices } from "../../app/bootstrap/create-runtime-services.js";
+import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
 
-type SnapshotContext = {
-  events: StreamLogRegistry;
-  services: RuntimeServices;
-};
+type SnapshotContext = ServerAdapterContexts["snapshot"];
 
 export async function getWorkspaceSnapshotResponse(
   state: SnapshotContext,
 ): Promise<WorkspaceSnapshotResponse> {
   const captured = await state.events.withCursor(WORKSPACE_STREAM, () => ({
-    projects: state.services.projectLifecycle.listProjects(),
-    conversations: state.services.conversationLifecycle
+    projects: state.projectLifecycle.listProjects(),
+    conversations: state.conversationLifecycle
       .listConversations()
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    agents: state.services.agentLifecycle.listAgents(),
-    tasks: state.services.tasks.listTasks(),
-    pendingToolCalls: state.services.tools.listToolCallPreviews({
+    agents: state.agentLifecycle.listAgents(),
+    tasks: state.tasks.listTasks(),
+    pendingToolCalls: state.tools.listToolCallPreviews({
       status: "waiting",
       limit: 1_000,
     }),
@@ -43,7 +39,7 @@ export async function getConversationSnapshotResponse(
 ): Promise<ConversationSnapshotResponse<ConversationSnapshot>> {
   const stream = conversationStream(conversationId);
   const captured = await state.events.withCursor(stream, () =>
-    state.services.conversationQuery.getConversationSnapshot(conversationId),
+    state.conversationQuery.getConversationSnapshot(conversationId),
   );
   return {
     snapshot: { ...captured.value, cursorSeq: captured.cursor.processedSeq },

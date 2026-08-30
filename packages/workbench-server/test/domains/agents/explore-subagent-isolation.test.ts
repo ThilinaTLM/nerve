@@ -1,3 +1,4 @@
+import { createTestServerRuntime } from "../../support/runtime-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -5,10 +6,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/harness/models";
 import { conversationStream } from "@nervekit/contracts/events";
-import {
-  createServerRuntime,
-  shutdownServerRuntime,
-} from "../../../src/app/runtime/server-runtime.js";
+import { shutdownServerRuntime } from "../../../src/app/runtime/server-runtime.js";
 import {
   initializeStorage,
   writeSettings,
@@ -41,7 +39,7 @@ describe("explore subagent transcript isolation", () => {
         model: { provider, modelId: "scripted-fast" },
       },
     });
-    const orchestrator = createServerRuntime(storage, "127.0.0.1", 0);
+    const orchestrator = createTestServerRuntime(storage, "127.0.0.1", 0);
     try {
       await orchestrator.lifecycle.hydrate();
       const project =
@@ -207,8 +205,8 @@ describe("explore subagent transcript isolation", () => {
   it("repairs a persisted child active-agent reference during hydration", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-explore-recovery-"));
     const storage = await initializeStorage(root);
-    const orchestrator = createServerRuntime(storage, "127.0.0.1", 0);
-    let restarted: ReturnType<typeof createServerRuntime> | undefined;
+    const orchestrator = createTestServerRuntime(storage, "127.0.0.1", 0);
+    let restarted: ReturnType<typeof createTestServerRuntime> | undefined;
     try {
       await orchestrator.lifecycle.hydrate();
       const project =
@@ -253,7 +251,7 @@ describe("explore subagent transcript isolation", () => {
       });
 
       const restartedStorage = await initializeStorage(root);
-      restarted = createServerRuntime(restartedStorage, "127.0.0.1", 0);
+      restarted = createTestServerRuntime(restartedStorage, "127.0.0.1", 0);
       await restarted.lifecycle.hydrate();
       assert.equal(
         restarted.services.conversationLifecycle.getConversation(
@@ -309,7 +307,7 @@ describe("explore subagent transcript isolation", () => {
         model: { provider, modelId: "scripted-fast" },
       },
     });
-    const orchestrator = createServerRuntime(storage, "127.0.0.1", 0);
+    const orchestrator = createTestServerRuntime(storage, "127.0.0.1", 0);
     try {
       await orchestrator.lifecycle.hydrate();
       const project =

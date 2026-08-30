@@ -23,26 +23,10 @@ import {
 import {
   defineWorkbenchMethodHandlersFor,
   type WorkbenchMethodHandlerMapFor,
-  type WorkbenchOperationContext,
 } from "../method-handler-registry.js";
+import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
 
-type PlatformMethodContext = Pick<
-  WorkbenchOperationContext,
-  | "agentBrowserSkills"
-  | "applicationConfiguration"
-  | "auth"
-  | "events"
-  | "latestRelease"
-  | "logger"
-  | "providerCatalog"
-  | "queryCache"
-  | "secrets"
-  | "services"
-  | "subscriptionUsage"
-  | "storage"
-  | "storageCleanup"
-  | "storageUsage"
->;
+type PlatformMethodContext = ServerAdapterContexts["protocol"]["platform"];
 const definePlatformMethodHandlers =
   defineWorkbenchMethodHandlersFor<PlatformMethodContext>();
 
@@ -61,7 +45,7 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       updateApplicationConfiguration(state, params),
     "skill.list": (state, params) => {
       const projectDir = params?.projectId
-        ? state.services.projectLifecycle.getProject(params.projectId).dir
+        ? state.projectLifecycle.getProject(params.projectId).dir
         : undefined;
       return listAvailableSkills(projectDir, {
         storageHome: state.storage.paths.home,
@@ -131,7 +115,7 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       items: [...slashCommandCompletionItems],
     }),
     "completion.files.list": async (state, params) => ({
-      items: await state.services.fileCompletions.completeFiles(
+      items: await state.fileCompletions.completeFiles(
         params?.projectId,
         params?.q ?? "",
         { limit: params?.limit as number | undefined },
@@ -140,31 +124,27 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
     "filesystem.directories.list": (_state, params) =>
       directoryListing(params?.path, params?.showHidden as boolean | undefined),
     "filesystem.project.entries.list": (state, params) => {
-      const project = state.services.projectLifecycle.getProject(
-        params.projectId,
-      );
-      state.services.projectFilesystemWatcher.watch(project.id, project.dir);
+      const project = state.projectLifecycle.getProject(params.projectId);
+      state.projectFilesystemWatcher.watch(project.id, project.dir);
       return projectDirectoryEntries(
         params,
-        (projectId) =>
-          state.services.projectLifecycle.getProject(projectId).dir,
+        (projectId) => state.projectLifecycle.getProject(projectId).dir,
       );
     },
     "filesystem.project.entries.create": (state, params) =>
       createProjectEntry(
         params,
-        (projectId) =>
-          state.services.projectLifecycle.getProject(projectId).dir,
+        (projectId) => state.projectLifecycle.getProject(projectId).dir,
       ),
     "applicationLog.prune": (state, params) => state.logger.prune(params),
   });
 
 function rebuildIndex(state: PlatformMethodContext): void {
   state.queryCache.rebuild({
-    projects: state.services.projectLifecycle.listProjects(),
-    conversations: state.services.conversationLifecycle.listConversations(),
-    agents: state.services.agentLifecycle.listAgents(),
-    tasks: state.services.tasks.listTasks(),
+    projects: state.projectLifecycle.listProjects(),
+    conversations: state.conversationLifecycle.listConversations(),
+    agents: state.agentLifecycle.listAgents(),
+    tasks: state.tasks.listTasks(),
   });
 }
 
@@ -201,7 +181,7 @@ async function updateSettings(
     typeof patch.runtime === "object" &&
     "pythonExecutablePath" in patch.runtime
   ) {
-    await state.services.pythonRuntime.refresh();
+    await state.pythonRuntime.refresh();
   }
   await state.events.publish("settings.updated", { settings });
   return { settings };

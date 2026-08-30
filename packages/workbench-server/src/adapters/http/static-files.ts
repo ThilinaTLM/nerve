@@ -10,9 +10,9 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ServerRuntime } from "../../app/runtime/server-runtime.js";
+import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
 
-type StaticFileContext = Pick<ServerRuntime, "host" | "port" | "storage">;
+type StaticFileContext = ServerAdapterContexts["http"]["staticFiles"];
 import { cookieHeader } from "./auth-middleware.js";
 
 const contentTypes: Record<string, string> = {

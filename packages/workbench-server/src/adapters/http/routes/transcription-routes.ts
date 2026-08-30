@@ -1,6 +1,7 @@
 import { Hono } from "hono";
-import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
-type TranscriptionRoutesContext = Pick<ServerRuntime, "auth" | "storage">;
+import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+type TranscriptionRoutesContext =
+  ServerAdapterContexts["http"]["transcription"];
 import { transcribeAudioWithChatGptSubscription } from "../../../domains/transcription/transcription.service.js";
 import { HttpError } from "../errors.js";
 import { routeHandler } from "../responses.js";

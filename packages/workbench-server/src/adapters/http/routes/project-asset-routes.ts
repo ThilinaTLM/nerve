@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
-type ProjectAssetRoutesContext = Pick<ServerRuntime, "services">;
+import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+type ProjectAssetRoutesContext = ServerAdapterContexts["http"]["projectAssets"];
 import { routeHandler } from "../responses.js";
 import { routeParam } from "../route-params.js";
 
@@ -11,9 +11,7 @@ export function createProjectAssetRoutes(
   app.get(
     "/:projectId/icon",
     routeHandler(async (c) => {
-      const icon = await state.services.projectIcons.get(
-        routeParam(c, "projectId"),
-      );
+      const icon = await state.projectIcons.get(routeParam(c, "projectId"));
       const cacheHeaders = {
         "Cache-Control": "private, max-age=86400",
         "X-Content-Type-Options": "nosniff",

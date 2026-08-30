@@ -1,9 +1,7 @@
 import { Hono } from "hono";
-import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
-type AgentArtifactRoutesContext = Pick<
-  ServerRuntime,
-  "agentBrowserSkills" | "services" | "storage"
->;
+import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+type AgentArtifactRoutesContext =
+  ServerAdapterContexts["http"]["agentArtifacts"];
 import { buildAgentSystemPrompt } from "../../../domains/agents/execution/system-prompt-builder.js";
 import { routeHandler } from "../responses.js";
 import { routeParam } from "../route-params.js";
@@ -16,11 +14,10 @@ export function createAgentArtifactRoutes(
     "/agents/:agentId/system-prompt",
     routeHandler(async (c) => {
       const agentId = routeParam(c, "agentId");
-      const agent = state.services.agentLifecycle.getAgent(agentId);
-      const pythonAvailable =
-        await state.services.pythonRuntime.isAvailableForProject(
-          agent.projectDir,
-        );
+      const agent = state.agentLifecycle.getAgent(agentId);
+      const pythonAvailable = await state.pythonRuntime.isAvailableForProject(
+        agent.projectDir,
+      );
       const prompt = await buildAgentSystemPrompt(agent, {
         storageHome: state.storage.paths.home,
         pythonAvailable,

@@ -38,11 +38,38 @@ export class RuntimeLifecycle {
   get agentConversationMessages(): Map<string, Message[]> {
     return this.state.agentConversationMessages;
   }
-  readonly services: RuntimeServices;
+  private readonly services: RuntimeServices;
   private readonly backgroundOperations = new Set<Promise<void>>();
   private shuttingDown = false;
 
-  constructor(
+  static compose(
+    storage: InitializedStorage,
+    events: StreamLogRegistry,
+    queryCache: RuntimeQueryCache,
+    auth: AuthManager,
+    secrets: SecretProvider,
+    subscriptionUsage: SubscriptionUsageService,
+    logger: ApplicationLogger,
+    agentBrowserSkills: AgentBrowserSkillCatalog,
+    providerCatalog: ProviderCatalogStore,
+    performanceDiagnostics: PerformanceDiagnosticsPort,
+  ): { lifecycle: RuntimeLifecycle; services: RuntimeServices } {
+    const lifecycle = new RuntimeLifecycle(
+      storage,
+      events,
+      queryCache,
+      auth,
+      secrets,
+      subscriptionUsage,
+      logger,
+      agentBrowserSkills,
+      providerCatalog,
+      performanceDiagnostics,
+    );
+    return { lifecycle, services: lifecycle.services };
+  }
+
+  private constructor(
     storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
     private readonly queryCache: RuntimeQueryCache,

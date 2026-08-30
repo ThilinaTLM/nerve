@@ -1,9 +1,9 @@
+import { createTestServerRuntime } from "../support/runtime-fixture.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after } from "node:test";
 import {
-  createServerRuntime,
   shutdownServerRuntime,
   type ServerRuntime,
 } from "../../src/app/runtime/server-runtime.js";
@@ -35,7 +35,7 @@ export async function createAuthenticatedApp(
   const storage = await initializeStorage(
     await tempHome("nerve-server-routes-"),
   );
-  const state = createServerRuntime(storage, host, 0, options);
+  const state = createTestServerRuntime(storage, host, 0, options);
   states.push(state);
   await state.logger.hydrate();
   await state.lifecycle.hydrate();

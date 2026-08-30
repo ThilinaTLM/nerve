@@ -3,8 +3,8 @@ import {
   clientApplicationLogRequestSchema,
 } from "@nervekit/contracts/logs";
 import { Hono } from "hono";
-import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
-type LogRoutesContext = Pick<ServerRuntime, "logger">;
+import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+type LogRoutesContext = ServerAdapterContexts["http"]["logs"];
 import { numberQuery } from "../query.js";
 import { routeHandler } from "../responses.js";
 

@@ -1,3 +1,4 @@
+import { createTestServerRuntime } from "../support/runtime-fixture.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,7 +11,6 @@ import { createId } from "@nervekit/contracts";
 import { type TaskRecord } from "@nervekit/contracts/tasks";
 import { TaskRepository } from "../../src/domains/tasks/persistence/task.repository.js";
 import {
-  createServerRuntime,
   shutdownServerRuntime,
   type ServerRuntime,
 } from "../../src/app/runtime/server-runtime.js";
@@ -41,7 +41,7 @@ export async function tempHome(prefix: string): Promise<string> {
 
 export async function createState(prefix = "nerve-runtime-conversation-") {
   const storage = await initializeStorage(await tempHome(prefix));
-  const state = createServerRuntime(storage, "127.0.0.1", 0);
+  const state = createTestServerRuntime(storage, "127.0.0.1", 0);
   states.push(state);
   await state.lifecycle.hydrate();
   return state;

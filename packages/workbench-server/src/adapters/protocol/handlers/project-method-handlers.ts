@@ -2,31 +2,29 @@ import { handleScratchNoteMethod } from "../scratch-note-method-handler.js";
 import {
   defineWorkbenchMethodHandlersFor,
   type WorkbenchMethodHandlerMapFor,
-  type WorkbenchOperationContext,
 } from "../method-handler-registry.js";
+import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
 
-type ProjectMethodContext = Pick<WorkbenchOperationContext, "services">;
+type ProjectMethodContext = ServerAdapterContexts["protocol"]["projects"];
 const defineProjectMethodHandlers =
   defineWorkbenchMethodHandlersFor<ProjectMethodContext>();
 
 export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodContext> =
   defineProjectMethodHandlers({
     "project.create": async (state, params) => ({
-      project: await state.services.projectLifecycle.createProject(params),
+      project: await state.projectLifecycle.createProject(params),
     }),
     "project.list": (state) => ({
-      projects: state.services.projectLifecycle.listProjects(),
+      projects: state.projectLifecycle.listProjects(),
     }),
     "project.get": (state, params) => ({
-      project: state.services.projectLifecycle.getProject(params.projectId),
+      project: state.projectLifecycle.getProject(params.projectId),
     }),
     "project.permissions.get": async (state, params) => ({
-      permissions: await state.services.permissionExceptions.project(
-        params.projectId,
-      ),
+      permissions: await state.permissionExceptions.project(params.projectId),
     }),
     "project.permissions.update": async (state, params) => ({
-      permissions: await state.services.permissionExceptions.replaceProject(
+      permissions: await state.permissionExceptions.replaceProject(
         params.projectId,
         params.permissions,
       ),
@@ -41,37 +39,37 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
       trust: await updateProjectPermissionTrust(state, params),
     }),
     "project.openEditor": (state, params) =>
-      state.services.editors.openProject(params.projectId, params),
+      state.editors.openProject(params.projectId, params),
     "project.openTerminal": (state, params) =>
-      state.services.terminal.openProject(params.projectId, params),
+      state.terminal.openProject(params.projectId, params),
     "project.conversations.prune": (state, params) =>
-      state.services.pruneConversations.pruneProjectConversations(
+      state.pruneConversations.pruneProjectConversations(
         params.projectId,
         params,
       ),
     "project.delete": async (state, params) => {
-      await state.services.projectLifecycle.removeProject(params.projectId);
-      state.services.fileCompletions.dispose(params.projectId);
+      await state.projectLifecycle.removeProject(params.projectId);
+      state.fileCompletions.dispose(params.projectId);
       return { ok: true };
     },
     "taskDefinition.list": async (state, params) => ({
-      definitions: await state.services.taskDefinitions.list(projectId(params)),
+      definitions: await state.taskDefinitions.list(projectId(params)),
     }),
     "taskDefinition.create": async (state, params) => ({
-      definition: await state.services.taskDefinitionOperations.create(
+      definition: await state.taskDefinitionOperations.create(
         projectId(params),
         params as never,
       ),
     }),
     "taskDefinition.update": async (state, params) => ({
-      definition: await state.services.taskDefinitions.update(
+      definition: await state.taskDefinitions.update(
         projectId(params),
         params.definitionId,
         params as never,
       ),
     }),
     "taskDefinition.delete": async (state, params) => {
-      await state.services.taskDefinitions.remove(
+      await state.taskDefinitions.remove(
         projectId(params),
         params.definitionId,
       );
@@ -86,25 +84,23 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
     "scratchNote.delete": (state, params) =>
       handleScratchNoteMethod(state, "scratchNote.delete", params),
     "promptSuggestion.listForProject": (state, params) =>
-      state.services.promptSuggestions.listForProject(params.projectId, {
+      state.promptSuggestions.listForProject(params.projectId, {
         conversationId: params.conversationId,
         agentId: params.agentId,
       }),
     "promptSuggestion.statuses.list": async (state, params) => ({
-      statuses: await state.services.promptSuggestions.listStatuses(
-        params?.projectId,
-      ),
+      statuses: await state.promptSuggestions.listStatuses(params?.projectId),
     }),
     "promptSuggestion.trust.update": async (state, params) => {
-      await state.services.promptSuggestions.updateTrust(params);
+      await state.promptSuggestions.updateTrust(params);
       return { ok: true };
     },
     "promptSuggestion.enabled.update": async (state, params) => {
-      await state.services.promptSuggestions.updateEnabled(params);
+      await state.promptSuggestions.updateEnabled(params);
       return { ok: true };
     },
     "promptSuggestion.create": async (state, params) => ({
-      suggestion: await state.services.promptSuggestions.create(params),
+      suggestion: await state.promptSuggestions.create(params),
     }),
   });
 
@@ -116,8 +112,8 @@ function permissionPolicyConfiguration(
   state: ProjectMethodContext,
   params: { projectId: string; conversationId?: string },
 ) {
-  state.services.projectLifecycle.getProject(params.projectId);
-  return state.services.permissionPolicy.configuration(
+  state.projectLifecycle.getProject(params.projectId);
+  return state.permissionPolicy.configuration(
     params.projectId,
     params.conversationId,
   );
@@ -130,12 +126,12 @@ function updatePermissionOverlay(
     conversationId?: string;
     origin: "user" | "project" | "conversation";
     overlay: Parameters<
-      ProjectMethodContext["services"]["permissionPolicy"]["replaceOverlay"]
+      ProjectMethodContext["permissionPolicy"]["replaceOverlay"]
     >[1];
   },
 ) {
-  state.services.projectLifecycle.getProject(params.projectId);
-  return state.services.permissionPolicy.replaceOverlay(
+  state.projectLifecycle.getProject(params.projectId);
+  return state.permissionPolicy.replaceOverlay(
     params.origin,
     params.overlay,
     params.origin === "project"
@@ -150,9 +146,9 @@ async function updateProjectPermissionTrust(
   state: ProjectMethodContext,
   params: { projectId: string; trusted: boolean },
 ) {
-  state.services.projectLifecycle.getProject(params.projectId);
+  state.projectLifecycle.getProject(params.projectId);
   if (params.trusted)
-    return state.services.permissionPolicy.trustProject(params.projectId);
-  await state.services.permissionPolicy.revokeProjectTrust(params.projectId);
-  return state.services.permissionPolicy.projectTrust(params.projectId);
+    return state.permissionPolicy.trustProject(params.projectId);
+  await state.permissionPolicy.revokeProjectTrust(params.projectId);
+  return state.permissionPolicy.projectTrust(params.projectId);
 }

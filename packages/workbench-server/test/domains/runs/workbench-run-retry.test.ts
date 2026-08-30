@@ -1,13 +1,11 @@
+import { createTestServerRuntime } from "../../support/runtime-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/harness/models";
-import {
-  createServerRuntime,
-  shutdownServerRuntime,
-} from "../../../src/app/runtime/server-runtime.js";
+import { shutdownServerRuntime } from "../../../src/app/runtime/server-runtime.js";
 import { WorkbenchRunUnitOfWork } from "../../../src/domains/runs/persistence/run-transition.repository.js";
 import {
   initializeStorage,
@@ -28,7 +26,7 @@ describe("workbench coordinator-owned provider retry", () => {
     });
     const root = await mkdtemp(join(tmpdir(), "nerve-workbench-retry-"));
     const storage = await initializeStorage(root);
-    const orchestrator = createServerRuntime(storage, "127.0.0.1", 0);
+    const orchestrator = createTestServerRuntime(storage, "127.0.0.1", 0);
     try {
       await orchestrator.lifecycle.hydrate();
       const project =
@@ -106,7 +104,7 @@ describe("workbench coordinator-owned provider retry", () => {
     await writeSettings(storage, {
       retry: { enabled: true, maxRetries: 3, baseDelayMs: 1 },
     });
-    const orchestrator = createServerRuntime(storage, "127.0.0.1", 0);
+    const orchestrator = createTestServerRuntime(storage, "127.0.0.1", 0);
     try {
       await orchestrator.lifecycle.hydrate();
       const project =
@@ -186,7 +184,7 @@ describe("workbench coordinator-owned provider retry", () => {
     });
     const root = await mkdtemp(join(tmpdir(), "nerve-workbench-continue-"));
     const storage = await initializeStorage(root);
-    const orchestrator = createServerRuntime(storage, "127.0.0.1", 0);
+    const orchestrator = createTestServerRuntime(storage, "127.0.0.1", 0);
     try {
       await orchestrator.lifecycle.hydrate();
       const project =

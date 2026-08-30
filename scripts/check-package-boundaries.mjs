@@ -116,16 +116,19 @@ function checkSourceImports() {
           file,
           "presentation may not import app shells, feature state, or app core",
         );
-      if (
-        file.startsWith("packages/workbench-server/src/adapters/") &&
-        resolvedImportPath(file, specifier).endsWith(
-          "/app/runtime/runtime-lifecycle.js",
-        )
-      )
-        fail(
-          file,
-          "server adapters may not depend on process runtime lifecycle",
-        );
+      if (file.startsWith("packages/workbench-server/src/adapters/")) {
+        const resolved = resolvedImportPath(file, specifier);
+        if (resolved.endsWith("/app/runtime/runtime-lifecycle.js"))
+          fail(
+            file,
+            "server adapters may not depend on process runtime lifecycle",
+          );
+        if (resolved.endsWith("/app/bootstrap/create-runtime-services.js"))
+          fail(
+            file,
+            "server adapters may not import the bootstrap service aggregate",
+          );
+      }
       if (
         file.startsWith(
           "packages/workbench-server/src/domains/runs/runtime/",

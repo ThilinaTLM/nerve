@@ -1,9 +1,7 @@
 import { Hono } from "hono";
-import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
-type FilesystemContentRoutesContext = Pick<
-  ServerRuntime,
-  "services" | "storage"
->;
+import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+type FilesystemContentRoutesContext =
+  ServerAdapterContexts["http"]["filesystem"];
 import {
   fileContent,
   saveClipboardImage,
@@ -24,8 +22,7 @@ export function createFilesystemContentRoutes(
             path: c.req.query("path"),
             line: c.req.query("line"),
           },
-          (projectId) =>
-            state.services.projectLifecycle.getProject(projectId).dir,
+          (projectId) => state.projectLifecycle.getProject(projectId).dir,
         ),
       ),
     ),

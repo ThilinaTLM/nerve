@@ -252,6 +252,9 @@ async function main() {
     async () => {
       const address = server.address() as AddressInfo;
       state.port = address.port;
+      state.adapterContexts.websocket.port = address.port;
+      state.adapterContexts.http.status.port = address.port;
+      state.adapterContexts.http.staticFiles.port = address.port;
       if (mobileTls)
         updateMobileHttpsState(state, mobileTls, state.port, httpsPort);
       await writeDaemonFile(storage.paths.daemonPath, toDaemonFile(state));
@@ -311,11 +314,15 @@ async function main() {
         getActivity: () => state.performanceDiagnostics.snapshotAndReset(),
         getCounts: () => ({
           ...registryTimings.counts,
-          projects: state.services.projectLifecycle.listProjects().length,
+          projects:
+            state.adapterContexts.snapshot.projectLifecycle.listProjects()
+              .length,
           conversations:
-            state.services.conversationLifecycle.listConversations().length,
-          agents: state.services.agentLifecycle.listAgents().length,
-          tasks: state.services.tasks.listTasks().length,
+            state.adapterContexts.snapshot.conversationLifecycle.listConversations()
+              .length,
+          agents:
+            state.adapterContexts.snapshot.agentLifecycle.listAgents().length,
+          tasks: state.adapterContexts.snapshot.tasks.listTasks().length,
         }),
         warn: (error) => {
           void state.logger.warn("Daemon performance sampling failed", {
@@ -358,14 +365,14 @@ async function main() {
   const protocolSessions = installProtocolWebSocketUpgrade(
     server,
     webSockets,
-    state,
+    state.adapterContexts.websocket,
     storage.localToken,
   );
   const httpsProtocolSessions = httpsServer
     ? installProtocolWebSocketUpgrade(
         httpsServer,
         webSockets,
-        state,
+        state.adapterContexts.websocket,
         storage.localToken,
       )
     : undefined;

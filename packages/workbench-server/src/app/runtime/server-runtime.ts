@@ -42,6 +42,10 @@ import {
 } from "../../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { RuntimeServices } from "../bootstrap/create-runtime-services.js";
+import {
+  createServerAdapterContexts,
+  type ServerAdapterContexts,
+} from "../bootstrap/create-server-adapter-contexts.js";
 import { RuntimeLifecycle } from "./runtime-lifecycle.js";
 import { version } from "../version.js";
 
@@ -56,7 +60,7 @@ export interface ServerRuntime {
   logger: ApplicationLogger;
   applicationLogsEnabled: boolean;
   lifecycle: RuntimeLifecycle;
-  services: RuntimeServices;
+  adapterContexts: ServerAdapterContexts;
   queryCache: RuntimeQueryCache;
   canonicalStore: CanonicalStore;
   storageUsage: StorageUsageService;
@@ -72,19 +76,36 @@ export interface ServerRuntime {
   performanceDiagnostics: PerformanceDiagnosticsPort;
   applicationConfiguration: ApplicationConfigurationSnapshot;
   resourceContainment: ManagedResourceContainmentStatus;
+  dispose(): Promise<void>;
+}
+
+export interface ServerRuntimeOptions {
+  applicationLogsEnabled?: boolean;
+  performanceDiagnosticsEnabled?: boolean;
+  applicationConfiguration?: ApplicationConfigurationSnapshot;
+  resourceContainment?: ManagedResourceContainmentStatus;
 }
 
 export function createServerRuntime(
   storage: InitializedStorage,
   host: string,
   port: number,
-  options: {
-    applicationLogsEnabled?: boolean;
-    performanceDiagnosticsEnabled?: boolean;
-    applicationConfiguration?: ApplicationConfigurationSnapshot;
-    resourceContainment?: ManagedResourceContainmentStatus;
-  } = {},
+  options: ServerRuntimeOptions = {},
 ): ServerRuntime {
+  return composeServerRuntime(storage, host, port, options).runtime;
+}
+
+/** Internal composition seam used by the server test fixture. */
+export function composeServerRuntime(
+  storage: InitializedStorage,
+  host: string,
+  port: number,
+  options: ServerRuntimeOptions = {},
+): {
+  runtime: ServerRuntime;
+  lifecycle: RuntimeLifecycle;
+  services: RuntimeServices;
+} {
   // Rebuildable read model; data/nerve.sqlite remains authoritative.
   const queryCache = new RuntimeQueryCache(storage.paths.queryCachePath);
   queryCache.initialize();
@@ -184,7 +205,7 @@ export function createServerRuntime(
     logger,
   });
   const agentBrowserSkills = new AgentBrowserSkillCatalog();
-  const lifecycle = new RuntimeLifecycle(
+  const { lifecycle, services } = RuntimeLifecycle.compose(
     storage,
     events,
     queryCache,
@@ -200,7 +221,7 @@ export function createServerRuntime(
     paths: storage.paths,
     getSource: () => ({
       listConversations: () =>
-        lifecycle.services.conversationLifecycle.listConversations(),
+        services.conversationLifecycle.listConversations(),
     }),
   });
   const latestRelease = new LatestReleaseService();
@@ -214,12 +235,44 @@ export function createServerRuntime(
     logger,
     getOperations: () => ({
       pruneConversationsAcrossProjects: (request) =>
-        pruneConversationsAcrossProjects(lifecycle.services, request),
+        pruneConversationsAcrossProjects(services, request),
       rebuildSearchIndex: () => lifecycle.rebuildIndex(),
     }),
   });
-  return {
-    daemonId: createId("daemon"),
+  const daemonId = createId("daemon");
+  const applicationConfiguration =
+    options.applicationConfiguration ??
+    resolveApplicationConfiguration({
+      settings: storage.settings,
+      dataDir: storage.paths.home,
+      env: {},
+      argv: [],
+    }).snapshot;
+  const infrastructure = {
+    daemonId,
+    host,
+    port,
+    storage,
+    events,
+    logger,
+    applicationLogsEnabled: options.applicationLogsEnabled ?? false,
+    queryCache,
+    storageUsage,
+    storageCleanup,
+    latestRelease,
+    secrets,
+    auth,
+    providerCatalog,
+    credentialKey,
+    oauthFlows,
+    subscriptionUsage,
+    agentBrowserSkills,
+    performanceDiagnostics,
+    applicationConfiguration,
+    statusResponse: () => statusResponse(runtime),
+  };
+  const runtime: ServerRuntime = {
+    daemonId,
     startedAt: new Date().toISOString(),
     host,
     port,
@@ -228,7 +281,7 @@ export function createServerRuntime(
     logger,
     applicationLogsEnabled: options.applicationLogsEnabled ?? false,
     lifecycle,
-    services: lifecycle.services,
+    adapterContexts: createServerAdapterContexts(services, infrastructure),
     queryCache,
     canonicalStore: storage.canonicalStore,
     storageUsage,
@@ -248,15 +301,10 @@ export function createServerRuntime(
       enforcement: "best_effort",
       detail: "Managed resource containment was not initialized",
     },
-    applicationConfiguration:
-      options.applicationConfiguration ??
-      resolveApplicationConfiguration({
-        settings: storage.settings,
-        dataDir: storage.paths.home,
-        env: {},
-        argv: [],
-      }).snapshot,
+    applicationConfiguration,
+    dispose: () => shutdownServerRuntime(runtime),
   };
+  return { runtime, lifecycle, services };
 }
 
 async function pruneConversationsAcrossProjects(
@@ -344,9 +392,11 @@ export function statusResponse(state: ServerRuntime): StatusResponse {
       applicationLogs: state.applicationLogsEnabled,
     },
     runtime: {
-      python: state.services.pythonRuntime.statusSnapshot(),
-      editors: state.services.editors.statusSnapshot(),
-      terminal: state.services.terminal.statusSnapshot(),
+      python:
+        state.adapterContexts.protocol.platform.pythonRuntime.statusSnapshot(),
+      editors: state.adapterContexts.protocol.projects.editors.statusSnapshot(),
+      terminal:
+        state.adapterContexts.protocol.projects.terminal.statusSnapshot(),
     },
     resourceContainment: state.resourceContainment,
   };

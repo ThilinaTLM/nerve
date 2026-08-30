@@ -2,7 +2,7 @@ import type {
   CreateScratchNoteRequest,
   UpdateScratchNoteRequest,
 } from "@nervekit/contracts/scratch-notes";
-import type { ServerRuntime } from "../../app/runtime/server-runtime.js";
+import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
 
 type ScratchNoteMethod =
   | "scratchNote.list"
@@ -11,14 +11,14 @@ type ScratchNoteMethod =
   | "scratchNote.delete";
 
 export async function handleScratchNoteMethod(
-  state: Pick<ServerRuntime, "services">,
+  state: Pick<ServerAdapterContexts["protocol"]["projects"], "scratchNotes">,
   method: ScratchNoteMethod,
   params: unknown,
 ): Promise<unknown> {
   switch (method) {
     case "scratchNote.list":
       return {
-        notes: await state.services.scratchNotes.list(
+        notes: await state.scratchNotes.list(
           (params as { projectId: string }).projectId,
         ),
       };
@@ -27,10 +27,7 @@ export async function handleScratchNoteMethod(
         projectId: string;
       };
       return {
-        note: await state.services.scratchNotes.create(
-          request.projectId,
-          request,
-        ),
+        note: await state.scratchNotes.create(request.projectId, request),
       };
     }
     case "scratchNote.update": {
@@ -39,7 +36,7 @@ export async function handleScratchNoteMethod(
         noteId: string;
       };
       return {
-        note: await state.services.scratchNotes.update(
+        note: await state.scratchNotes.update(
           request.projectId,
           request.noteId,
           request,
@@ -48,10 +45,7 @@ export async function handleScratchNoteMethod(
     }
     case "scratchNote.delete": {
       const request = params as { projectId: string; noteId: string };
-      await state.services.scratchNotes.remove(
-        request.projectId,
-        request.noteId,
-      );
+      await state.scratchNotes.remove(request.projectId, request.noteId);
       return { ok: true };
     }
   }

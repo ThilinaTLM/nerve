@@ -4,40 +4,18 @@ import {
   type OperationParams,
 } from "@nervekit/contracts/operations";
 import type { OperationHandlerRegistry } from "@nervekit/protocol/server";
-import type { ServerRuntime } from "../../app/runtime/server-runtime.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 
 type MaybePromise<T> = T | Promise<T>;
 
-export type WorkbenchOperationContext = Pick<
-  ServerRuntime,
-  | "agentBrowserSkills"
-  | "applicationConfiguration"
-  | "auth"
-  | "events"
-  | "latestRelease"
-  | "logger"
-  | "performanceDiagnostics"
-  | "providerCatalog"
-  | "queryCache"
-  | "secrets"
-  | "services"
-  | "storage"
-  | "storageCleanup"
-  | "storageUsage"
-  | "subscriptionUsage"
->;
-
-type WorkbenchMethodHandler<
-  M extends OperationName,
-  Context extends object = WorkbenchOperationContext,
-> = (state: Context, params: OperationParams<M>) => MaybePromise<unknown>;
+type WorkbenchMethodHandler<M extends OperationName, Context extends object> = (
+  state: Context,
+  params: OperationParams<M>,
+) => MaybePromise<unknown>;
 
 export type WorkbenchMethodHandlerMapFor<Context extends object> = {
   readonly [M in OperationName]?: WorkbenchMethodHandler<M, Context>;
 };
-
-export type WorkbenchMethodHandlerMap =
-  WorkbenchMethodHandlerMapFor<WorkbenchOperationContext>;
 
 export function defineWorkbenchMethodHandlersFor<Context extends object>() {
   return <const Handlers extends WorkbenchMethodHandlerMapFor<Context>>(
@@ -45,41 +23,64 @@ export function defineWorkbenchMethodHandlersFor<Context extends object>() {
   ): Handlers => handlers;
 }
 
-export interface WorkbenchMethodRegistry {
-  readonly methods: readonly OperationName[];
-  handle(
-    state: WorkbenchOperationContext,
-    method: OperationName,
-    params: unknown,
-  ): Promise<unknown>;
-  bind(state: WorkbenchOperationContext): Partial<OperationHandlerRegistry>;
+export function bindWorkbenchMethodHandlerGroup<Context extends object>(
+  handlers: WorkbenchMethodHandlerMapFor<Context>,
+  context: Context,
+  diagnostics: PerformanceDiagnosticsPort,
+): Partial<OperationHandlerRegistry> {
+  return Object.fromEntries(
+    Object.entries(handlers).map(([method, handler]) => [
+      method,
+      async (params: unknown) => {
+        const operation = method as OperationName;
+        const invoke = handler as WorkbenchMethodHandler<
+          OperationName,
+          Context
+        >;
+        if (!diagnostics.enabled) return invoke(context, params as never);
+        const startedAt = performance.now();
+        try {
+          return await invoke(context, params as never);
+        } catch (error) {
+          diagnostics.count("rpc.error", 1, operation);
+          throw error;
+        } finally {
+          diagnostics.duration(
+            "rpc.handler",
+            performance.now() - startedAt,
+            operation,
+          );
+        }
+      },
+    ]),
+  ) as Partial<OperationHandlerRegistry>;
 }
 
-export function createWorkbenchMethodRegistry(
-  groups: readonly WorkbenchMethodHandlerMap[],
-): WorkbenchMethodRegistry {
+export function combineWorkbenchMethodHandlerGroups(
+  groups: readonly Partial<OperationHandlerRegistry>[],
+): {
+  methods: readonly OperationName[];
+  handlers: Partial<OperationHandlerRegistry>;
+} {
   const handlers = new Map<
     OperationName,
-    WorkbenchMethodHandler<OperationName>
+    OperationHandlerRegistry[OperationName]
   >();
   const duplicates: OperationName[] = [];
-
   for (const group of groups) {
     for (const [method, handler] of Object.entries(group) as [
       OperationName,
-      WorkbenchMethodHandler<OperationName>,
+      OperationHandlerRegistry[OperationName],
     ][]) {
       if (handlers.has(method)) duplicates.push(method);
       handlers.set(method, handler);
     }
   }
-
   if (duplicates.length > 0) {
     throw new Error(
       `Duplicate workbench operation handlers: ${sorted(duplicates).join(", ")}`,
     );
   }
-
   const expectedMethods = allOperationDefinitions()
     .filter((definition) =>
       definition.allowedTargetRoles.includes("workbench_server"),
@@ -90,7 +91,6 @@ export function createWorkbenchMethodRegistry(
   const unexpected = [...handlers.keys()].filter(
     (method) => !expected.has(method),
   );
-
   if (missing.length > 0 || unexpected.length > 0) {
     throw new Error(
       [
@@ -106,43 +106,10 @@ export function createWorkbenchMethodRegistry(
         .replace(/^/, "Workbench operation handler coverage mismatch: "),
     );
   }
-
-  async function handle(
-    state: WorkbenchOperationContext,
-    method: OperationName,
-    params: unknown,
-  ): Promise<unknown> {
-    const handler = handlers.get(method);
-    if (!handler) throw new Error(`Unsupported workbench operation: ${method}`);
-    if (!state.performanceDiagnostics.enabled)
-      return handler(state, params as never);
-    const startedAt = performance.now();
-    try {
-      return await handler(state, params as never);
-    } catch (error) {
-      state.performanceDiagnostics.count("rpc.error", 1, method);
-      throw error;
-    } finally {
-      state.performanceDiagnostics.duration(
-        "rpc.handler",
-        performance.now() - startedAt,
-        method,
-      );
-    }
-  }
-
-  function bind(
-    state: WorkbenchOperationContext,
-  ): Partial<OperationHandlerRegistry> {
-    return Object.fromEntries(
-      expectedMethods.map((method) => [
-        method,
-        (params: unknown) => handle(state, method, params),
-      ]),
-    ) as unknown as Partial<OperationHandlerRegistry>;
-  }
-
-  return { methods: expectedMethods, handle, bind };
+  return {
+    methods: expectedMethods,
+    handlers: Object.fromEntries(handlers) as Partial<OperationHandlerRegistry>,
+  };
 }
 
 function sorted(methods: readonly OperationName[]): OperationName[] {

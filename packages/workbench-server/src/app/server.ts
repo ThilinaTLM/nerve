@@ -200,7 +200,7 @@ export function createApp(state: ServerRuntime): Hono {
 
     return serveStatic(
       new URL(c.req.url).pathname,
-      state,
+      state.adapterContexts.http.staticFiles,
       getConnInfo(c).remote.address,
     );
   });

@@ -10,20 +10,9 @@ import { parseConversationStream } from "@nervekit/contracts/events";
 import { type ProtocolV1Message } from "@nervekit/contracts/wire";
 import type WebSocket from "ws";
 import type { WebSocketServer } from "ws";
-import type { ServerRuntime } from "../../app/runtime/server-runtime.js";
-import type { WorkbenchOperationContext } from "./method-handler-registry.js";
+import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
 
-type ProtocolWebSocketContext = WorkbenchOperationContext &
-  Pick<
-    ServerRuntime,
-    | "daemonId"
-    | "events"
-    | "host"
-    | "logger"
-    | "performanceDiagnostics"
-    | "port"
-    | "services"
-  >;
+type ProtocolWebSocketContext = ServerAdapterContexts["websocket"];
 import { isWebSocketAuthorized } from "../../app/server.js";
 import {
   PROTOCOL_CAPABILITIES,
@@ -175,9 +164,7 @@ export function createLocalProtocolSession(
             if (!conversationId) {
               throw new Error(`Unknown stream ${cursor.stream}`);
             }
-            state.services.conversationLifecycle.getConversation(
-              conversationId,
-            );
+            state.conversationLifecycle.getConversation(conversationId);
             streams.push(await state.events.bounds(cursor.stream));
           } catch (error) {
             state.logger.warn("Stream subscription entry unavailable", {

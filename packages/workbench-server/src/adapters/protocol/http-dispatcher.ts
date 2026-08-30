@@ -13,11 +13,9 @@ import {
   RpcDispatcher,
 } from "@nervekit/protocol/rpc";
 import { ZodError } from "zod";
-import type { ServerRuntime } from "../../app/runtime/server-runtime.js";
-import type { WorkbenchOperationContext } from "./method-handler-registry.js";
+import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
 
-export type ProtocolAdapterContext = WorkbenchOperationContext &
-  Pick<ServerRuntime, "daemonId" | "storage">;
+export type ProtocolAdapterContext = ServerAdapterContexts["protocolAdapter"];
 import { ApplicationError } from "../../core/application-error.js";
 import { FileIdempotencyStore } from "./file-idempotency-store.js";
 import { createProtocolMessage, orchestratorSource } from "./messages.js";
@@ -163,7 +161,10 @@ export class ProtocolHttpDispatcher {
 export function workbenchOperationHandlers(
   state: ProtocolAdapterContext,
 ): Partial<OperationHandlerRegistry> {
-  return bindWorkbenchOperationHandlers(state);
+  return bindWorkbenchOperationHandlers(
+    state.operationContexts,
+    state.performanceDiagnostics,
+  );
 }
 
 export function workbenchRpcDispatcher(

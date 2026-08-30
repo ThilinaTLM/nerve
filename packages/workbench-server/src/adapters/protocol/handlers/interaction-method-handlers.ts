@@ -1,18 +1,19 @@
 import {
   defineWorkbenchMethodHandlersFor,
   type WorkbenchMethodHandlerMapFor,
-  type WorkbenchOperationContext,
 } from "../method-handler-registry.js";
+import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
 
-type InteractionMethodContext = Pick<WorkbenchOperationContext, "services">;
+type InteractionMethodContext =
+  ServerAdapterContexts["protocol"]["interactions"];
 const defineInteractionMethodHandlers =
   defineWorkbenchMethodHandlersFor<InteractionMethodContext>();
 
 export const interactionMethodHandlers: WorkbenchMethodHandlerMapFor<InteractionMethodContext> =
   defineInteractionMethodHandlers({
-    "tool.list": (state) => ({ tools: state.services.tools.listTools() }),
+    "tool.list": (state) => ({ tools: state.tools.listTools() }),
     "toolCall.list": (state, params) =>
-      state.services.tools.queryToolCallPreviews({
+      state.tools.queryToolCallPreviews({
         status: params?.status,
         pendingInteractionKind: params?.pendingInteractionKind,
         conversationId: params?.conversationId,
@@ -22,14 +23,14 @@ export const interactionMethodHandlers: WorkbenchMethodHandlerMapFor<Interaction
         cursor: params?.cursor,
       }),
     "toolCall.get": async (state, params) =>
-      await state.services.tools.getToolCallUiDetails(params.toolCallId),
+      await state.tools.getToolCallUiDetails(params.toolCallId),
     "toolCall.result.read": async (state, params) =>
-      await state.services.tools.readToolCallResult(
+      await state.tools.readToolCallResult(
         params.toolCallId,
         params.byteOffset ?? 0,
         params.byteLimit ?? 64 * 1024,
       ),
     "toolCall.interaction.resolve": async (state, params) => ({
-      ...(await state.services.toolInteractions.resolve(params)),
+      ...(await state.toolInteractions.resolve(params)),
     }),
   });

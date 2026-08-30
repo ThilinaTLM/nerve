@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
-type SettingsRoutesContext = Pick<ServerRuntime, "storage">;
+import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+type SettingsRoutesContext = ServerAdapterContexts["http"]["settings"];
 
 export function createSettingsRoutes(state: SettingsRoutesContext): Hono {
   const app = new Hono();

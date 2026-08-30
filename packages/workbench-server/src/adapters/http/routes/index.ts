@@ -13,20 +13,24 @@ import { createTaskLogRoutes } from "./task-log-routes.js";
 import { createTranscriptionRoutes } from "./transcription-routes.js";
 
 export function mountApiRoutes(app: Hono, state: ServerRuntime): void {
-  app.route("/api", createStatusRoutes(state));
-  app.route("/api", createSettingsRoutes(state));
-  app.route("/api", createAuthRoutes(state));
-  app.route("/api", createProtocolRoutes(state));
-  app.route("/api", createTranscriptionRoutes(state));
+  const contexts = state.adapterContexts.http;
+  app.route("/api", createStatusRoutes(contexts.status));
+  app.route("/api", createSettingsRoutes(contexts.settings));
+  app.route("/api", createAuthRoutes(contexts.auth));
+  app.route("/api", createProtocolRoutes(contexts.protocol));
+  app.route("/api", createTranscriptionRoutes(contexts.transcription));
   if (state.applicationLogsEnabled) {
-    app.route("/api", createLogRoutes(state));
+    app.route("/api", createLogRoutes(contexts.logs));
   } else {
     app.all("/api/logs", (c) => c.notFound());
     app.all("/api/logs/*", (c) => c.notFound());
   }
-  app.route("/api", createTaskLogRoutes(state));
-  app.route("/api", createFilesystemContentRoutes(state));
-  app.route("/api/projects", createProjectAssetRoutes(state));
-  app.route("/api", createConversationExportRoutes(state));
-  app.route("/api", createAgentArtifactRoutes(state));
+  app.route("/api", createTaskLogRoutes(contexts.taskLogs));
+  app.route("/api", createFilesystemContentRoutes(contexts.filesystem));
+  app.route("/api/projects", createProjectAssetRoutes(contexts.projectAssets));
+  app.route(
+    "/api",
+    createConversationExportRoutes(contexts.conversationExport),
+  );
+  app.route("/api", createAgentArtifactRoutes(contexts.agentArtifacts));
 }
