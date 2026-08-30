@@ -71,7 +71,7 @@ function makeService(
       },
     },
   };
-  const usage = new StorageUsageService({ paths, getRegistry: () => registry });
+  const usage = new StorageUsageService({ paths, getSource: () => registry });
   const events = new StreamLogRegistry(home);
   const logger = new ApplicationLogger({
     dataDir: home,
@@ -87,7 +87,7 @@ function makeService(
     usage,
     events,
     logger,
-    getRegistry: () => registry,
+    getOperations: () => registry,
   });
   return { service, repository, usage };
 }

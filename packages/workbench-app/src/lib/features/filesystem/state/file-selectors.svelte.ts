@@ -1,15 +1,27 @@
 import { fileViewKey, mermaidViewKey } from "$lib/domain/navigation/view-keys";
-import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+export interface FileSelectorWorkspaceReadModel {
+  readonly activeCenterTab: { kind: string; id: string } | undefined;
+}
+
+let workspaceReadModel: FileSelectorWorkspaceReadModel = {
+  activeCenterTab: undefined,
+};
+
+export function registerFileSelectorWorkspaceReadModel(
+  readModel: FileSelectorWorkspaceReadModel,
+): void {
+  workspaceReadModel = readModel;
+}
 import { fileState } from "./file-state.svelte";
 
 export const fileSelectors = {
   get activeCenterFileView() {
-    const active = workspaceState.activeCenterTab;
+    const active = workspaceReadModel.activeCenterTab;
     if (active?.kind !== "file") return undefined;
     return fileState.fileViews[fileViewKey(active.id)];
   },
   get activeCenterMermaidView() {
-    const active = workspaceState.activeCenterTab;
+    const active = workspaceReadModel.activeCenterTab;
     if (active?.kind !== "mermaid") return undefined;
     return fileState.mermaidViews[mermaidViewKey(active.id)];
   },

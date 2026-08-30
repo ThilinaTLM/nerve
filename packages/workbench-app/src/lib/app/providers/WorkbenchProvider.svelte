@@ -10,6 +10,7 @@ import {
   initializeNotificationAudio,
   initializeNotifications,
 } from "$lib/application/notifications/notify.svelte";
+import { registerWorkspaceReadModels } from "$lib/app/composition/registrations/register-workspace-read-models.svelte";
 import { registerFeatureEventHandlers } from "$lib/app/composition/registrations/register-feature-events";
 import { zoomState } from "$lib/platform/appearance/appearance.svelte";
 import {
@@ -183,6 +184,7 @@ $effect(() => {
 });
 
 onMount(() => {
+  registerWorkspaceReadModels();
   const unregisterFeatureEvents = registerFeatureEventHandlers();
   const stopNotificationAudio = initializeNotificationAudio();
   const unsubscribeDesktop = initializeDesktopRuntime();

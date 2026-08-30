@@ -78,7 +78,7 @@ describe("explore subagent transcript isolation", () => {
         /temporary project is isolated/i,
       );
 
-      const child = orchestrator.lifecycle
+      const child = orchestrator.services.agentLifecycle
         .listAgents()
         .find((agent) => agent.parentAgentId === parent.id);
       assert.ok(child);
@@ -254,7 +254,7 @@ describe("explore subagent transcript isolation", () => {
 
       const restartedStorage = await initializeStorage(root);
       restarted = createServerRuntime(restartedStorage, "127.0.0.1", 0);
-      await restarted.registry.hydrate();
+      await restarted.lifecycle.hydrate();
       assert.equal(
         restarted.services.conversationLifecycle.getConversation(
           conversation.id,
@@ -330,7 +330,7 @@ describe("explore subagent transcript isolation", () => {
         text: "Start both explore children.",
       });
       await waitUntil(() => {
-        const children = orchestrator.lifecycle
+        const children = orchestrator.services.agentLifecycle
           .listAgents()
           .filter((agent) => agent.parentAgentId === parent.id);
         return (
@@ -346,7 +346,7 @@ describe("explore subagent transcript isolation", () => {
       );
       await orchestrator.services.workbenchRun.abortAgent(parent.id);
 
-      const children = orchestrator.lifecycle
+      const children = orchestrator.services.agentLifecycle
         .listAgents()
         .filter((agent) => agent.parentAgentId === parent.id);
       assert.equal(children.length, 2);

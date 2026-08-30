@@ -41,6 +41,24 @@ export function workbenchBoundaryViolation(sourceFile, targetFile) {
   }
 
   if (
+    sourceLayer === "features" &&
+    /(?:^|\/)\w*-?selectors(?:\.svelte)?\.[^/]+$/.test(source) &&
+    /^application\/workspace\/(?:selection|workspace-(?:state|selectors))/.test(
+      target,
+    )
+  ) {
+    return "feature selectors must receive registered workspace read models instead of mutable workspace internals";
+  }
+
+  if (
+    source.startsWith("application/workspace/") &&
+    target.startsWith("features/") &&
+    isPrivateFeaturePath(target)
+  ) {
+    return "workspace application services must use feature public APIs instead of private feature state";
+  }
+
+  if (
     source.startsWith("app/shell/") &&
     target.startsWith("features/") &&
     isPrivateFeaturePath(target)

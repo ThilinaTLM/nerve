@@ -4,15 +4,35 @@ import {
   gitRepoStateKey,
   prViewKey,
 } from "$lib/domain/navigation/view-keys";
-import { selection } from "$lib/application/workspace/selection.svelte";
-import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
-import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+import type { AgentRecord } from "$lib/api";
+
+export interface GitSelectorWorkspaceReadModel {
+  readonly activeCenterTab: { kind: string; id: string } | undefined;
+  readonly activeProjectId: string | undefined;
+  readonly activeConversationBranchDepth: number;
+  readonly agents: AgentRecord[];
+  readonly selectedAgentId: string | undefined;
+}
+
+let workspaceReadModel: GitSelectorWorkspaceReadModel = {
+  activeCenterTab: undefined,
+  activeProjectId: undefined,
+  activeConversationBranchDepth: 0,
+  agents: [],
+  selectedAgentId: undefined,
+};
+
+export function registerGitSelectorWorkspaceReadModel(
+  readModel: GitSelectorWorkspaceReadModel,
+): void {
+  workspaceReadModel = readModel;
+}
 import { gitPanelState } from "./git-panel.svelte";
 import { gitState } from "./git-state.svelte";
 
 export const gitSelectors = {
   get activeCenterPrView() {
-    const active = workspaceState.activeCenterTab;
+    const active = workspaceReadModel.activeCenterTab;
     if (active?.kind !== "pr") return undefined;
     return gitState.prViews[prViewKey(active.id)];
   },
@@ -30,7 +50,7 @@ export const gitSelectors = {
         repoCount: number;
       }
     | undefined {
-    const projectId = workspaceSelectors.activeProject?.id;
+    const projectId = workspaceReadModel.activeProjectId;
     const state = projectId
       ? gitPanelState.projects[gitProjectStateKey(projectId)]
       : undefined;
@@ -56,14 +76,15 @@ export const gitSelectors = {
     };
   },
   get branchDepth() {
-    return workspaceSelectors.activeConversationBranchDepth;
+    return workspaceReadModel.activeConversationBranchDepth;
   },
 };
 
 export function activeModelKeyForGit(): string {
   return modelKey(
-    workspaceState.agents.find((agent) => agent.id === selection.agentId)
-      ?.model ?? {
+    workspaceReadModel.agents.find(
+      (agent) => agent.id === workspaceReadModel.selectedAgentId,
+    )?.model ?? {
       provider: "",
       modelId: "",
     },

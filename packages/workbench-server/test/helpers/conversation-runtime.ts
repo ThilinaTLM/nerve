@@ -47,14 +47,13 @@ export async function createState(prefix = "nerve-registry-conversation-") {
   return state;
 }
 
-export function ageConversation(
+export async function ageConversation(
   state: Awaited<ReturnType<typeof createState>>,
   conversation: ConversationRecord,
   updatedAt: string,
-): ConversationRecord {
+): Promise<ConversationRecord> {
   const aged = { ...conversation, updatedAt };
-  state.lifecycle.conversations.set(conversation.id, aged);
-  state.queryCache.upsertConversation(aged);
+  await state.services.conversationLifecycle.updateConversation(aged);
   return aged;
 }
 
@@ -69,11 +68,7 @@ export function appendRegistryEntry(
     createdAt?: string;
   },
 ): Promise<ConversationEntry> {
-  return (
-    state.lifecycle as unknown as {
-      appendEntry: (input: typeof input) => Promise<ConversationEntry>;
-    }
-  ).appendEntry(input);
+  return state.services.conversationLifecycle.appendEntry(input);
 }
 
 export async function addTaskRecord(

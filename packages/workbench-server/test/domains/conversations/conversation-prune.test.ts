@@ -34,8 +34,12 @@ describe("RuntimeLifecycle conversation pruning", () => {
         projectId: project.id,
         conversationId: recentConversation.id,
       });
-      ageConversation(state, oldConversation, "2000-01-01T00:00:00.000Z");
-      ageConversation(state, recentConversation, new Date().toISOString());
+      await ageConversation(state, oldConversation, "2000-01-01T00:00:00.000Z");
+      await ageConversation(
+        state,
+        recentConversation,
+        new Date().toISOString(),
+      );
       await state.services.tools.requestTool(
         state.services.agentLifecycle.getAgent(oldAgent.id),
         "todos_set",
@@ -156,7 +160,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
         projectId: project.id,
         conversationId: activeAgentConversation.id,
       });
-      state.lifecycle.agents.set(activeAgent.id, {
+      await state.services.agentLifecycle.updateAgent({
         ...activeAgent,
         status: "running",
       });
@@ -174,12 +178,12 @@ describe("RuntimeLifecycle conversation pruning", () => {
         agentId: taskAgent.id,
         status: "running",
       });
-      ageConversation(
+      await ageConversation(
         state,
         activeAgentConversation,
         "2000-01-01T00:00:00.000Z",
       );
-      ageConversation(
+      await ageConversation(
         state,
         activeTaskConversation,
         "2000-01-01T00:00:00.000Z",
@@ -247,8 +251,8 @@ describe("RuntimeLifecycle conversation pruning", () => {
         await state.services.conversationLifecycle.createConversation({
           projectId: secondProject.id,
         });
-      ageConversation(state, first, "2000-01-01T00:00:00.000Z");
-      ageConversation(state, second, "2000-01-01T00:00:00.000Z");
+      await ageConversation(state, first, "2000-01-01T00:00:00.000Z");
+      await ageConversation(state, second, "2000-01-01T00:00:00.000Z");
 
       const results =
         await state.services.pruneConversations.pruneAcrossProjects(
@@ -302,9 +306,9 @@ describe("RuntimeLifecycle conversation pruning", () => {
           projectId: project.id,
           title: "Newest",
         });
-      ageConversation(state, oldest, "2020-01-01T00:00:00.000Z");
-      ageConversation(state, middle, "2020-06-01T00:00:00.000Z");
-      ageConversation(state, newest, "2021-01-01T00:00:00.000Z");
+      await ageConversation(state, oldest, "2020-01-01T00:00:00.000Z");
+      await ageConversation(state, middle, "2020-06-01T00:00:00.000Z");
+      await ageConversation(state, newest, "2021-01-01T00:00:00.000Z");
 
       const result =
         await state.services.pruneConversations.pruneProjectConversations(

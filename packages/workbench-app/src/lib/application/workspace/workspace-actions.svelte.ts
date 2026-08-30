@@ -1,6 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
 import { projectKey } from "$lib/domain/projects/project-tree";
-import { modelKey } from "$lib/presentation/utils/model";
 import {
   type AgentRecord,
   apiPathSegment,
@@ -24,16 +23,17 @@ import {
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { recoverSnapshotFromNetwork } from "$lib/application/workspace/snapshot-recovery";
 import { registerWorkspaceCommands } from "$lib/application/workspace/workspace-commands";
-import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import {
-  openPendingConversation,
-  removeConversationTabs,
-} from "$lib/features/conversations/state/conversation-flow.svelte";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+  openWorkspacePendingConversation,
+  removeWorkspaceConversationTabs,
+} from "./workspace-feature-commands";
+import { conversationWorkspaceCommands } from "$lib/features/conversations/workspace-commands.svelte";
+import { conversationWorkspaceReadModel } from "$lib/features/conversations/workspace-read-model.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
-import { loadTaskLogWindow } from "$lib/features/tasks/state/task-logs.svelte";
-import { resolveSelectedTaskId } from "$lib/features/tasks/state/task-reducers";
-import { taskState } from "$lib/features/tasks/state/task-state.svelte";
+import {
+  taskWorkspaceCommands,
+  taskWorkspaceReadModel,
+} from "$lib/features/tasks/workspace.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import {
   workspaceState,
@@ -92,7 +92,7 @@ async function applyWorkspaceSnapshot(
   workspaceState.projects = snapshot.snapshot.projects;
   workspaceState.conversations = snapshot.snapshot.conversations;
   workspaceState.agents = agents;
-  taskState.tasks = snapshot.snapshot.tasks;
+  taskWorkspaceCommands.setTasks(snapshot.snapshot.tasks);
   let desiredTab = hydrateWorkspaceTabSessions(
     {
       projects: snapshot.snapshot.projects,
@@ -102,11 +102,11 @@ async function applyWorkspaceSnapshot(
     { deferActivation: options.deferTabActivation },
   );
   const taskEntryIds = new SvelteSet(
-    taskState.tasks.map(
+    taskWorkspaceReadModel.tasks.map(
       (task) => task.definitionId ?? task.restartRootTaskId ?? task.id,
     ),
   );
-  const staleOpenTaskIds = taskState.openTaskTabIds.filter(
+  const staleOpenTaskIds = taskWorkspaceReadModel.openTaskTabIds.filter(
     (taskId) => !taskEntryIds.has(taskId),
   );
   if (staleOpenTaskIds.length) {
@@ -114,25 +114,27 @@ async function applyWorkspaceSnapshot(
       staleOpenTaskIds.map((id) => ({ kind: "task" as const, id })),
     );
   }
-  const selectedTaskId = resolveSelectedTaskId(
-    taskState.tasks,
-    taskState.selectedTaskId,
+  const selectedTaskId = taskWorkspaceCommands.resolveSelectedTaskId(
+    taskWorkspaceReadModel.tasks,
+    taskWorkspaceReadModel.selectedTaskId,
   );
-  if (selectedTaskId !== taskState.selectedTaskId) {
-    taskState.selectedTaskId = selectedTaskId;
-    taskState.taskLogs = undefined;
+  if (selectedTaskId !== taskWorkspaceReadModel.selectedTaskId) {
+    taskWorkspaceCommands.setSelectedTaskId(selectedTaskId);
+    taskWorkspaceCommands.clearTaskLogs();
   }
   workspaceState.pendingToolCalls = snapshot.snapshot.pendingToolCalls;
   syncSelectedAgentConfig(agents, snapshot.snapshot.conversations);
   const conversationIds = new SvelteSet(
     snapshot.snapshot.conversations.map((conversation) => conversation.id),
   );
-  const staleOpenTabIds = conversationState.openConversationTabIds.filter(
-    (conversationId) => !conversationIds.has(conversationId),
-  );
-  if (staleOpenTabIds.length) await removeConversationTabs(staleOpenTabIds);
+  const staleOpenTabIds =
+    conversationWorkspaceReadModel.openConversationTabIds.filter(
+      (conversationId) => !conversationIds.has(conversationId),
+    );
+  if (staleOpenTabIds.length)
+    await removeWorkspaceConversationTabs(staleOpenTabIds);
   if (selectedTaskId && !options.deferTabActivation)
-    await loadTaskLogWindow(selectedTaskId);
+    await taskWorkspaceCommands.loadTaskLogWindow(selectedTaskId);
   const selectedStillExists = workspaceState.projects.some(
     (project) => projectKey(project) === workspaceState.selectedProjectKey,
   );
@@ -169,24 +171,7 @@ function syncSelectedAgentConfig(
     ? agents.find((agent) => agent.id === selection.agentId)
     : undefined;
   if (activeAgent) {
-    // A pending desired override outranks the snapshot for its agent so a
-    // delayed snapshot cannot undo an optimistic composer selection.
-    const override = agentConfigOverride(activeAgent.id);
-    const overrideModel = override?.model ?? undefined;
-    if (overrideModel) {
-      conversationState.selectedModelKey = modelKey(overrideModel);
-    } else if (activeAgent.model) {
-      conversationState.selectedModelKey = modelKey(activeAgent.model);
-    }
-    conversationState.selectedThinkingLevel =
-      override?.thinkingLevel ?? activeAgent.thinkingLevel;
-    conversationState.selectedMode = override?.mode ?? activeAgent.mode;
-    conversationState.selectedPermissionLevel =
-      override?.permissionLevel ?? activeAgent.permissionLevel;
-    conversationState.selectedPermissionRuleSetId =
-      override?.permissionRuleSetId ??
-      activeAgent.permissionRuleSetId ??
-      activeAgent.permissionLevel;
+    conversationWorkspaceCommands.applyAgentConfiguration(activeAgent);
     return;
   }
 
@@ -196,18 +181,19 @@ function syncSelectedAgentConfig(
       )
     : undefined;
   if (!activeConversation) return;
-  conversationState.selectedMode = activeConversation.mode;
-  conversationState.selectedPermissionLevel =
-    activeConversation.permissionLevel;
-  conversationState.selectedPermissionRuleSetId =
-    activeConversation.permissionLevel;
+  conversationWorkspaceCommands.applyConversationConfiguration({
+    mode: activeConversation.mode,
+    permissionLevel: activeConversation.permissionLevel,
+  });
 }
 
 export async function loadSlashCommands() {
-  conversationState.slashCompletions = await queryClient.fetchQuery({
-    queryKey: queryKeys.slashCompletions,
-    queryFn: getSlashCompletions,
-  });
+  conversationWorkspaceCommands.setSlashCompletions(
+    await queryClient.fetchQuery({
+      queryKey: queryKeys.slashCompletions,
+      queryFn: getSlashCompletions,
+    }),
+  );
 }
 
 export function exportUrl(kind: "json" | "md" | "html"): string | undefined {
@@ -334,7 +320,7 @@ export async function deleteProjectAndRefresh(projectId: string) {
       .map((conversation) => conversation.id);
     await deleteProject(projectId);
     if (deletingKey) delete workspaceState.projectTabSessions[deletingKey];
-    await removeConversationTabs(conversationIds);
+    await removeWorkspaceConversationTabs(conversationIds);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     notify.success("Project removed");
@@ -366,7 +352,7 @@ export async function deleteConversationAndRefresh(conversationId: string) {
     removeTabsFromAllSessions(
       (tab) => tab.kind === "conversation" && tab.id === conversationId,
     );
-    await removeConversationTabs([conversationId]);
+    await removeWorkspaceConversationTabs([conversationId]);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     notify.success("Conversation removed");
@@ -419,7 +405,7 @@ export async function pruneProjectConversationsAndRefresh(
 ) {
   try {
     const result = await pruneProjectConversations(projectId, request);
-    await removeConversationTabs(result.prunedConversationIds);
+    await removeWorkspaceConversationTabs(result.prunedConversationIds);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     const pruned = result.prunedConversationIds.length;
@@ -451,7 +437,7 @@ async function openPendingConversationForProject(
   workspaceState.error = undefined;
   workspaceState.projectPickerOpen = false;
   await selectProject(project.id, { deferTabActivation: true });
-  openPendingConversation(project, initialMode);
+  openWorkspacePendingConversation(project, initialMode);
 }
 
 export async function createConversationForDirectory(

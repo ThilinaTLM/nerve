@@ -122,7 +122,10 @@ function checkSourceImports() {
           "/app/runtime/runtime-lifecycle.js",
         )
       )
-        fail(file, "server adapters may not depend on process runtime lifecycle");
+        fail(
+          file,
+          "server adapters may not depend on process runtime lifecycle",
+        );
       if (
         file.startsWith(
           "packages/workbench-server/src/domains/runs/runtime/",

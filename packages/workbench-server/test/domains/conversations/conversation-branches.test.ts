@@ -78,7 +78,7 @@ describe("RuntimeLifecycle conversation branches", () => {
         },
       );
       assert.deepEqual(
-        state.lifecycle
+        state.services.conversationLifecycle
           .getConversationEntries(imported.conversation.id)
           .map((entry) => entry.text),
         ["Hello"],
@@ -135,13 +135,13 @@ describe("RuntimeLifecycle conversation branches", () => {
       });
 
       assert.deepEqual(
-        state.lifecycle
+        state.services.conversationLifecycle
           .getConversationEntries(conversation.id)
           .map((entry) => entry.text),
         ["A", "B", "D"],
       );
       assert.deepEqual(
-        await state.lifecycle
+        await state.services.conversationQuery
           .getConversationSnapshot(conversation.id)
           .then((snapshot) => snapshot.activeEntryIds),
         [first.id, second.id, forked.id],

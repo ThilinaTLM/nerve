@@ -9,6 +9,10 @@ import {
   AgentConfigMutationQueue,
   type AgentConfigPatch,
 } from "./agent-config-mutation-queue";
+import {
+  agentConfigOverride,
+  setAgentConfigOverride,
+} from "./agent-config-overrides.svelte";
 
 /**
  * Reactive desired-config overrides per agent. While a mutation is pending,
@@ -16,16 +20,9 @@ import {
  * delayed authoritative snapshots and events cannot undo a newer local
  * intent. The authoritative agent cache still receives every returned record.
  */
-const overrides = $state<{ byAgentId: Record<string, AgentConfigPatch> }>({
-  byAgentId: {},
-});
-
 const queue = new AgentConfigMutationQueue({
   configure: (agentId, patch) => updateAgentConfig(agentId, patch),
-  onDesiredChanged: (agentId, desired) => {
-    if (desired) overrides.byAgentId[agentId] = desired;
-    else delete overrides.byAgentId[agentId];
-  },
+  onDesiredChanged: setAgentConfigOverride,
   onAgentRecord: (agent) => {
     upsertAgentRecordFresh(agent);
   },
@@ -73,8 +70,4 @@ export function flushAgentConfigChanges(agentId: string): Promise<void> {
 }
 
 /** The pending desired override for an agent, if a mutation is in flight. */
-export function agentConfigOverride(
-  agentId: string | undefined,
-): AgentConfigPatch | undefined {
-  return agentId ? overrides.byAgentId[agentId] : undefined;
-}
+export { agentConfigOverride };

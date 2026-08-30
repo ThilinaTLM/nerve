@@ -21,7 +21,7 @@ flowchart TD
 ## Directories
 
 - `app/`: executable composition, providers, shell, onboarding, and concrete registrations. `composition/registries` owns lazy center/panel descriptors, `composition/hosts` renders descriptors generically, and `composition/panels` owns each panel's feature wiring.
-- `application/`: startup, workspace, commands, notifications, event routing, and other cross-feature workflows.
+- `application/`: startup, workspace, commands, notifications, event routing, and other cross-feature workflows. Workspace coordination consumes feature-owned public read models/commands; selector inputs and callbacks that would create reverse dependencies are registered in `app/composition/registrations`.
 - `domain/`: pure conversations, filesystem, navigation, permissions, and project concepts. It may depend only on itself and external contract packages.
 - `features/<feature>/`: vertical product capabilities. Large slices use `api`, `model`, `state`, `views`, `hosts`, and translation-only `adapters`; small slices stay flat. A feature never imports another feature.
 - `platform/`: browser/Electron infrastructure, including the same-origin HTTP client, query, logging, crypto, PWA, desktop, and clipboard adapters.

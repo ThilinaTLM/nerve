@@ -194,3 +194,9 @@ class VoiceInputSession {
 }
 
 export const voiceInputSession = new VoiceInputSession();
+
+export function cancelVoiceInputTargets(
+  targets: VoiceInputTarget[],
+): Promise<void> {
+  return voiceInputSession.cancelIfTargets(targets);
+}

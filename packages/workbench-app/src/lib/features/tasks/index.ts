@@ -1,5 +1,9 @@
 export * from "./api/tasks.api";
 export { taskSelectors } from "./state/task-selectors.svelte";
+export {
+  taskWorkspaceCommands,
+  taskWorkspaceReadModel,
+} from "./workspace.svelte";
 export { openTaskTab } from "./state/task-tabs.svelte";
 export { registerTaskEventHandlers } from "./state/task-events";
 export {

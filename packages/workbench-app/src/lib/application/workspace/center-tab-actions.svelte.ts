@@ -1,19 +1,13 @@
-import {
-  type VoiceInputTarget,
-  voiceInputSession,
-} from "$lib/features/conversations/audio/voice-input-session.svelte";
-import {
-  conversationViewKey,
-  diffViewKey,
-  fileViewKey,
-  mermaidViewKey,
-  pendingConversationKey,
-} from "$lib/domain/navigation/view-keys";
+import { cancelWorkspaceVoiceInputTargets } from "./workspace-feature-commands";
+import { conversationWorkspaceCommands } from "$lib/features/conversations/workspace-commands.svelte";
+import { conversationWorkspaceReadModel } from "$lib/features/conversations/workspace-read-model.svelte";
 import type { CenterTabIdentity } from "$lib/application/workspace/workspace-state.svelte";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
-import { gitState } from "$lib/features/git/state/git-state.svelte";
-import { taskState } from "$lib/features/tasks/state/task-state.svelte";
+import { filesystemWorkspaceCommands } from "$lib/features/filesystem/workspace.svelte";
+import { gitWorkspaceCommands } from "$lib/features/git/workspace.svelte";
+import {
+  taskWorkspaceCommands,
+  taskWorkspaceReadModel,
+} from "$lib/features/tasks/workspace.svelte";
 import {
   composerDraft,
   resetSelection,
@@ -120,7 +114,10 @@ export async function closeCenterTabs(
     ? fallbackPreferred
     : mostRecentRemainingTab(tabs);
 
-  const voiceTargets: VoiceInputTarget[] = [];
+  const voiceTargets: Array<
+    | { kind: "conversation"; id: string }
+    | { kind: "pending-conversation"; id: string }
+  > = [];
   for (const tab of originalTabs) {
     if (!targets.has(centerTabKey(tab))) continue;
     if (tab.kind === "conversation")
@@ -128,7 +125,7 @@ export async function closeCenterTabs(
     if (tab.kind === "pending-conversation")
       voiceTargets.push({ kind: "pending-conversation", id: tab.id });
   }
-  await voiceInputSession.cancelIfTargets(voiceTargets);
+  await cancelWorkspaceVoiceInputTargets(voiceTargets);
 
   for (const tab of tabs) {
     if (isGlobalCenterTab(tab)) removeGlobalTabFromSessions(tab);
@@ -137,24 +134,28 @@ export async function closeCenterTabs(
 
   for (const tab of originalTabs) {
     if (!targets.has(centerTabKey(tab))) continue;
-    if (tab.kind === "file") delete fileState.fileViews[fileViewKey(tab.id)];
+    if (tab.kind === "file")
+      filesystemWorkspaceCommands.discardFileView(tab.id);
     if (tab.kind === "mermaid")
-      delete fileState.mermaidViews[mermaidViewKey(tab.id)];
-    if (tab.kind === "diff") delete gitState.diffViews[diffViewKey(tab.id)];
+      filesystemWorkspaceCommands.discardMermaidView(tab.id);
+    if (tab.kind === "diff") gitWorkspaceCommands.discardDiffView(tab.id);
     if (tab.kind === "conversation")
-      delete conversationState.conversationViews[conversationViewKey(tab.id)];
+      conversationWorkspaceCommands.discardConversationView(tab.id);
     if (tab.kind === "pending-conversation")
-      delete conversationState.pendingConversations[
-        pendingConversationKey(tab.id)
-      ];
+      conversationWorkspaceCommands.discardPendingConversation(tab.id);
   }
 
   if (
-    taskState.selectedTaskId &&
-    targets.has(centerTabKey({ kind: "task", id: taskState.selectedTaskId }))
+    taskWorkspaceReadModel.selectedTaskId &&
+    targets.has(
+      centerTabKey({
+        kind: "task",
+        id: taskWorkspaceReadModel.selectedTaskId,
+      }),
+    )
   ) {
-    taskState.selectedTaskId = undefined;
-    taskState.taskLogs = undefined;
+    taskWorkspaceCommands.setSelectedTaskId(undefined);
+    taskWorkspaceCommands.clearTaskLogs();
   }
 
   const remainingConversationIds = remainingTabs
@@ -164,18 +165,19 @@ export async function closeCenterTabs(
     )
     .map((tab) => tab.id);
   if (
-    conversationState.activeConversationTabId &&
+    conversationWorkspaceReadModel.activeConversationTabId &&
     targets.has(
       centerTabKey({
         kind: "conversation",
-        id: conversationState.activeConversationTabId,
+        id: conversationWorkspaceReadModel.activeConversationTabId,
       }),
     )
   ) {
-    conversationState.activeConversationTabId =
+    conversationWorkspaceCommands.setActiveConversationTab(
       fallback?.kind === "conversation"
         ? fallback.id
-        : remainingConversationIds[0];
+        : remainingConversationIds[0],
+    );
   }
 
   if (

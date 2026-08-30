@@ -60,6 +60,33 @@ describe("workbench boundaries", () => {
     );
   });
 
+  it("requires registered workspace inputs for feature selectors", () => {
+    assert.match(
+      workbenchBoundaryViolation(
+        `${root}/features/tasks/state/task-selectors.svelte.ts`,
+        `${root}/application/workspace/workspace-state.svelte.ts`,
+      ),
+      /registered workspace read models/,
+    );
+  });
+
+  it("keeps workspace coordination on feature public APIs", () => {
+    assert.match(
+      workbenchBoundaryViolation(
+        `${root}/application/workspace/workspace-selectors.svelte.ts`,
+        `${root}/features/git/state/git-state.svelte.ts`,
+      ),
+      /feature public APIs/,
+    );
+    assert.equal(
+      workbenchBoundaryViolation(
+        `${root}/application/workspace/workspace-selectors.svelte.ts`,
+        `${root}/features/git`,
+      ),
+      undefined,
+    );
+  });
+
   it("reserves private feature wiring for composition", () => {
     assert.match(
       workbenchBoundaryViolation(

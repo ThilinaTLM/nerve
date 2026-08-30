@@ -1,5 +1,9 @@
 export * from "./api/filesystem.api";
 export { fileSelectors } from "./state/file-selectors.svelte";
+export {
+  filesystemWorkspaceCommands,
+  filesystemWorkspaceReadModel,
+} from "./workspace.svelte";
 export type {
   FileViewState,
   MarkdownMermaidViewState,

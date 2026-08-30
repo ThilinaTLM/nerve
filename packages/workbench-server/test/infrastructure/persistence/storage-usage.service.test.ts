@@ -77,7 +77,7 @@ describe("StorageUsageService", () => {
     const home = await fixtureHome();
     const service = new StorageUsageService({
       paths: storagePaths(home),
-      getRegistry: () => ({
+      getSource: () => ({
         listConversations: () => [
           { id: "conv_a", title: "Alpha" },
           { id: "conv_b", title: "Beta" },
@@ -131,7 +131,7 @@ describe("StorageUsageService", () => {
     roots.push(home);
     const usage = await new StorageUsageService({
       paths: storagePaths(home),
-      getRegistry: () => ({ listConversations: () => [] }),
+      getSource: () => ({ listConversations: () => [] }),
     }).computeUsage(true);
 
     assert.equal(usage.totalBytes, 0);
