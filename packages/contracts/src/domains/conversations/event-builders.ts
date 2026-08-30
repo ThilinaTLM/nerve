@@ -1,4 +1,4 @@
-import type { ToolCallTranscriptRecord } from "../tools/index.js";
+import type { ToolCallTranscriptRecord } from "../tools/records.js";
 import type {
   ConversationEventType,
   ConversationToolCallUpdatedData,

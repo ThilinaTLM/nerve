@@ -5,7 +5,7 @@ import {
   filesystemProjectEntriesResponseSchema,
   filesystemProjectEntryCreateRequestSchema,
   filesystemProjectEntryCreateResponseSchema,
-} from "./index.js";
+} from "./filesystem.js";
 import { defineOperation } from "../../operations/definition.js";
 
 export const filesystemOperationDefinitions = [

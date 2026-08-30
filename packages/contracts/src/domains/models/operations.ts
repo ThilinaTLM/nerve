@@ -1,4 +1,4 @@
-import { modelInfoSchema } from "./index.js";
+import { modelInfoSchema } from "./models.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 

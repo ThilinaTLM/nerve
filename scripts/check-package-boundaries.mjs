@@ -17,6 +17,7 @@ import {
 } from "./lib/style-policy.mjs";
 import { allowedNerveDependencies } from "./lib/workspace-architecture.mjs";
 import { validatePackageExportSurfaces } from "./lib/package-export-surfaces.mjs";
+import { contractsSourcePolicyViolations } from "./lib/contracts-source-policy.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const failures = [];
@@ -35,6 +36,7 @@ checkManifestGraph();
 for (const failure of validatePackageExportSurfaces(repoRoot))
   fail("package exports", failure);
 checkSourceImports();
+checkContractsSourcePolicy();
 checkRetiredSurface();
 checkWorkbenchFeatureBoundaries();
 checkWorkbenchLayerBoundaries();
@@ -163,6 +165,13 @@ function checkSourceImports() {
           `contracts must remain transport/framework-neutral: ${specifier}`,
         );
     }
+  }
+}
+
+function checkContractsSourcePolicy() {
+  for (const file of trackedFiles) {
+    for (const violation of contractsSourcePolicyViolations(file, read(file)))
+      fail(file, violation);
   }
 }
 
@@ -542,6 +551,21 @@ function checkRemovedPaths() {
     "packages/workbench-server/src/adapters/protocol/method-handlers.ts",
     "packages/workbench-server/src/adapters/protocol/method-handlers/conversation-agent-method-handlers.ts",
     "packages/workbench-server/src/adapters/protocol/method-handlers/project-task-method-handlers.ts",
+    "packages/contracts/test/agent/agent.schema.test.ts",
+    "packages/contracts/test/atlassian/atlassian-result-summaries.schema.test.ts",
+    "packages/contracts/test/conversation/conversation-state.schema.test.ts",
+    "packages/contracts/test/logs/logs.schema.test.ts",
+    "packages/contracts/test/permission/permission-rule-sets.schema.test.ts",
+    "packages/contracts/test/plan/plan-review.schema.test.ts",
+    "packages/contracts/test/providers/providers.schema.test.ts",
+    "packages/contracts/test/recorded/recorded-tool-name.schema.test.ts",
+    "packages/contracts/test/storage/storage.schema.test.ts",
+    "packages/contracts/test/task/task-definition.schema.test.ts",
+    "packages/contracts/test/task/task-tool-preview.schema.test.ts",
+    "packages/contracts/test/task/task.schema.test.ts",
+    "packages/contracts/test/tool/tool-result-payload.schema.test.ts",
+    "packages/contracts/test/wire-events/protocol.schema.test.ts",
+    "packages/protocol/test/rpc/peer-binding.test.ts",
   ];
   for (const file of removed) {
     if (trackedFiles.includes(file))

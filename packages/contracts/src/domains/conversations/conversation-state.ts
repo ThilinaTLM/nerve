@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { permissionLevelSchema } from "../permissions/index.js";
+import { permissionLevelSchema } from "../permissions/permissions.js";
 import { modeSchema } from "../settings/settings.js";
 
 export const conversationRecordSchema = z.object({

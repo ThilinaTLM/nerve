@@ -1,9 +1,8 @@
 import {
   applicationConfigurationSnapshotSchema,
-  settingsSchema,
   updateApplicationConfigurationRequestSchema,
-  updateSettingsRequestSchema,
-} from "./index.js";
+} from "./application-configuration.js";
+import { settingsSchema, updateSettingsRequestSchema } from "./settings.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 

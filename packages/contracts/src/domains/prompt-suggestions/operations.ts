@@ -5,7 +5,7 @@ import {
   promptSuggestionStatusSchema,
   updatePromptSuggestionEnabledRequestSchema,
   updatePromptSuggestionTrustRequestSchema,
-} from "./index.js";
+} from "./prompt-suggestion.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 

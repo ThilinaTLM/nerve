@@ -4,7 +4,7 @@ import {
   type ThinkingLevel,
   thinkingLevelSchema,
   thinkingLevels,
-} from "../models/index.js";
+} from "../models/models.js";
 
 /**
  * pi-ai `KnownApi` values. Custom providers pick one of these API

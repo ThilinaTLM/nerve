@@ -1,4 +1,4 @@
-import { contextUsageSchema } from "../models/index.js";
+import { contextUsageSchema } from "../models/models.js";
 import {
   compactConversationRequestSchema,
   conversationEntrySchema,
@@ -8,7 +8,7 @@ import {
   importConversationRequestSchema,
   navigateConversationRequestSchema,
   updateConversationStateRequestSchema,
-} from "./index.js";
+} from "./conversation-state.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 

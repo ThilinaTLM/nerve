@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { agentRecordSchema } from "../agents/index.js";
-import { conversationRecordSchema } from "../conversations/index.js";
+import { agentRecordSchema } from "../agents/agent.js";
+import { conversationRecordSchema } from "../conversations/conversation-state.js";
 import { defineOperation } from "../../operations/definition.js";
 import {
   toolCallRecordSchema,

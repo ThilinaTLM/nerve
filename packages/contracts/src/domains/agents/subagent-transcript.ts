@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type ThinkingLevel, thinkingLevelSchema } from "../models/index.js";
+import { type ThinkingLevel, thinkingLevelSchema } from "../models/models.js";
 import {
   type ConversationActiveRunSnapshot,
   conversationActiveRunSnapshotSchema,

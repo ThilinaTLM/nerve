@@ -2,7 +2,7 @@ import {
   approvalRecordSchema,
   executeToolRequestSchema,
   toolCallRecordSchema,
-} from "../tools/index.js";
+} from "../tools/records.js";
 import {
   agentRecordSchema,
   createAgentRequestSchema,

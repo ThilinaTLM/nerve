@@ -4,7 +4,7 @@ import {
   taskLogQuerySchema,
   taskPortConflictListenerSchema,
   taskRecordSchema,
-} from "./index.js";
+} from "./task.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 

@@ -1,4 +1,4 @@
-import { storageInfoSchema } from "../status/index.js";
+import { storageInfoSchema } from "../status/status.js";
 import {
   storageCleanupCancelParamsSchema,
   storageCleanupCancelResponseSchema,
@@ -7,7 +7,7 @@ import {
   storageCleanupStartResponseSchema,
   storageCleanupStatusResponseSchema,
   storageUsageResponseSchema,
-} from "./index.js";
+} from "./storage.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 

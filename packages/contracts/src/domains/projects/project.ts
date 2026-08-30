@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { permissionExceptionSchema } from "../permissions/index.js";
+import { permissionExceptionSchema } from "../permissions/permissions.js";
 
 const projectPermissionExceptionsSchema = z
   .array(permissionExceptionSchema)

@@ -1,4 +1,4 @@
-import { authProviderMetadataSchema } from "./index.js";
+import { authProviderMetadataSchema } from "./auth.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 

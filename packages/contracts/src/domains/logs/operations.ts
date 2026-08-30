@@ -1,7 +1,7 @@
 import {
   applicationLogPruneRequestSchema,
   applicationLogPruneResponseSchema,
-} from "./index.js";
+} from "./logs.js";
 import { defineOperation } from "../../operations/definition.js";
 
 export const logsOperationDefinitions = [

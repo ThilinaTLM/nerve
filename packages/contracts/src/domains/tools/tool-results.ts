@@ -26,13 +26,13 @@ import {
   jiraWorklogSummarySchema,
 } from "./atlassian-result-summaries.js";
 export * from "./atlassian-result-summaries.js";
-import { modelSelectionSchema, thinkingLevelSchema } from "../models/index.js";
+import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
 import {
   taskListeningPortSchema,
   taskLogQueryResponseSchema,
   taskRecordSchema,
   taskStatusSchema,
-} from "../tasks/index.js";
+} from "../tasks/task.js";
 import { taskCancelOutcomeSchema } from "./task-tool-previews.js";
 
 /**

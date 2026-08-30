@@ -1,12 +1,10 @@
 import { z } from "zod";
-import { agentRecordSchema } from "../domains/agents/index.js";
-import {
-  conversationRecordSchema,
-  conversationSnapshotSchema,
-} from "../domains/conversations/index.js";
-import { projectRecordSchema } from "../domains/projects/index.js";
-import { taskRecordSchema } from "../domains/tasks/index.js";
-import { toolCallTranscriptRecordSchema } from "../domains/tools/index.js";
+import { agentRecordSchema } from "../domains/agents/agent.js";
+import { conversationRecordSchema } from "../domains/conversations/conversation-state.js";
+import { conversationSnapshotSchema } from "../domains/conversations/live-state.js";
+import { projectRecordSchema } from "../domains/projects/project.js";
+import { taskRecordSchema } from "../domains/tasks/task.js";
+import { toolCallTranscriptRecordSchema } from "../domains/tools/records.js";
 import { streamCursorSchema } from "../wire/event-stream.js";
 
 export const snapshotCursorSchema = z.object({

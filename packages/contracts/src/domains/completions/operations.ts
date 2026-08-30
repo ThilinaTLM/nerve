@@ -1,4 +1,7 @@
-import { completionItemSchema, fileCompletionQuerySchema } from "./index.js";
+import {
+  completionItemSchema,
+  fileCompletionQuerySchema,
+} from "./completion.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 

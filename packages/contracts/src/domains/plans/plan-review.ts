@@ -4,7 +4,7 @@ import {
   modelSelectionSchema,
   type ThinkingLevel,
   thinkingLevelSchema,
-} from "../models/index.js";
+} from "../models/models.js";
 
 export const planSlugSchema = z
   .string()

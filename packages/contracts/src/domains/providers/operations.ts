@@ -2,7 +2,7 @@ import {
   providerCatalogSchema,
   upsertCustomProviderRequestSchema,
   upsertModelDefinitionRequestSchema,
-} from "./index.js";
+} from "./providers.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 

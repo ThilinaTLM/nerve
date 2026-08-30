@@ -1,4 +1,4 @@
-import { subscriptionUsageSchema } from "./index.js";
+import { subscriptionUsageSchema } from "./usage.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 

@@ -3,7 +3,7 @@ import {
   taskLogEventSchema,
   taskReadinessSchema,
   taskStatusSchema,
-} from "../tasks/index.js";
+} from "../tasks/task.js";
 
 export const taskCancelOutcomeSchema = z.enum([
   "cancelled",

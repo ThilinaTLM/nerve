@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { toolRiskSchema } from "../permissions/index.js";
+import { toolRiskSchema } from "../permissions/permissions.js";
 import { definePublicEvent } from "../../events/definition.js";
 import { toolNameSchema } from "./records.js";
 

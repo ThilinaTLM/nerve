@@ -8,14 +8,14 @@ import {
   projectPermissionsSchema,
   pruneProjectConversationsRequestSchema,
   pruneProjectConversationsResponseSchema,
-} from "./index.js";
+} from "./project.js";
 import { z } from "zod";
 import {
   permissionOverlayOriginSchema,
   permissionOverlaySchema,
   permissionPolicyConfigurationSchema,
   projectPermissionTrustSchema,
-} from "../permissions/index.js";
+} from "../permissions/permission-rule-sets.js";
 import { defineOperation } from "../../operations/definition.js";
 
 const emptyParamsSchema = z.object({}).optional();

@@ -27,7 +27,7 @@ import {
   githubPrMergeResponseSchema,
   githubStatusResponseSchema,
   switchBranchRequestSchema,
-} from "./index.js";
+} from "./git.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 
