@@ -3,13 +3,13 @@ import { describe, it } from "node:test";
 import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
 import {
-  appendRegistryEntry,
+  appendConversationEntry,
   createState,
 } from "../../helpers/conversation-runtime.js";
 
 describe("RuntimeLifecycle conversation lifecycle", () => {
   it("returns the first transcript entry when an id is appended again", async () => {
-    const state = await createState("nerve-registry-idempotent-entry-");
+    const state = await createState("nerve-runtime-idempotent-entry-");
     try {
       const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
@@ -19,14 +19,14 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
           projectId: project.id,
         });
       const entryId = "entry_idempotent_task_event";
-      const original = await appendRegistryEntry(state, {
+      const original = await appendConversationEntry(state, {
         id: entryId,
         conversationId: conversation.id,
         role: "system",
         text: "Task completed",
         createdAt: "2026-01-01T00:01:00.000Z",
       });
-      const repeated = await appendRegistryEntry(state, {
+      const repeated = await appendConversationEntry(state, {
         id: entryId,
         conversationId: conversation.id,
         parentEntryId: "entry_different_parent",
@@ -61,7 +61,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
   });
 
   it("tracks last user message time separately from conversation updates", async () => {
-    const state = await createState("nerve-registry-last-user-message-");
+    const state = await createState("nerve-runtime-last-user-message-");
     try {
       const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
@@ -71,7 +71,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
           projectId: project.id,
         });
 
-      await appendRegistryEntry(state, {
+      await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "user",
         text: "First prompt",
@@ -83,7 +83,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
         "2026-01-01T00:01:00.000Z",
       );
 
-      await appendRegistryEntry(state, {
+      await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "assistant",
         text: "Assistant response",
@@ -95,7 +95,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
         "2026-01-01T00:01:00.000Z",
       );
 
-      await appendRegistryEntry(state, {
+      await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "user",
         text: "Second prompt",
@@ -107,7 +107,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
         "2026-01-01T00:03:00.000Z",
       );
 
-      await appendRegistryEntry(state, {
+      await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "user",
         text: "Imported older prompt",
@@ -124,7 +124,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
   });
 
   it("persists conversation state and reopens on the next user entry", async () => {
-    const state = await createState("nerve-registry-conversation-state-");
+    const state = await createState("nerve-runtime-conversation-state-");
     try {
       const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
@@ -145,7 +145,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
       assert.ok(pinned.runtimeStatusClearedAt);
       assert.equal(pinned.updatedAt, activityAt);
 
-      await appendRegistryEntry(state, {
+      await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "assistant",
         text: "Still complete",
@@ -156,7 +156,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
           .completedAt,
       );
 
-      await appendRegistryEntry(state, {
+      await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "user",
         text: "Reopen this",
@@ -225,7 +225,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
   });
 
   it("publishes compaction lifecycle events with metadata", async () => {
-    const state = await createState("nerve-registry-compaction-");
+    const state = await createState("nerve-runtime-compaction-");
     try {
       const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
@@ -234,18 +234,18 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
         await state.services.conversationLifecycle.createConversation({
           projectId: project.id,
         });
-      const first = await appendRegistryEntry(state, {
+      const first = await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "user",
         text: "Please inspect this project.",
       });
-      await appendRegistryEntry(state, {
+      await appendConversationEntry(state, {
         conversationId: conversation.id,
         parentEntryId: first.id,
         role: "assistant",
         text: "I inspected it and found several files.",
       });
-      await appendRegistryEntry(state, {
+      await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "user",
         text: "Now summarize the work.",

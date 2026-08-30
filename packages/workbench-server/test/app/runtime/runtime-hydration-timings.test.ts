@@ -12,7 +12,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-describe("registry store hydration timings", () => {
+describe("runtime store hydration timings", () => {
   it("starts operations concurrently and records each duration", async () => {
     let clock = 100;
     const auth = deferred();

@@ -39,7 +39,7 @@ export async function tempHome(prefix: string): Promise<string> {
   return root;
 }
 
-export async function createState(prefix = "nerve-registry-conversation-") {
+export async function createState(prefix = "nerve-runtime-conversation-") {
   const storage = await initializeStorage(await tempHome(prefix));
   const state = createServerRuntime(storage, "127.0.0.1", 0);
   states.push(state);
@@ -57,7 +57,7 @@ export async function ageConversation(
   return aged;
 }
 
-export function appendRegistryEntry(
+export function appendConversationEntry(
   state: Awaited<ReturnType<typeof createState>>,
   input: {
     id?: string;

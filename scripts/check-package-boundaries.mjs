@@ -515,6 +515,12 @@ function checkRemovedPaths() {
     "packages/harness/src/harness/utils/shell-output.ts",
     "packages/harness/src/harness/utils/truncate.ts",
     "packages/desktop-shell/src/daemon-helpers.ts",
+    "packages/desktop-shell/src/daemon/adapters/node-launcher.ts",
+    "packages/workbench-server/src/app/runtime/types.ts",
+    "packages/workbench-server/src/core/ports.ts",
+    "packages/workbench-server/src/adapters/protocol/method-handlers.ts",
+    "packages/workbench-server/src/adapters/protocol/method-handlers/conversation-agent-method-handlers.ts",
+    "packages/workbench-server/src/adapters/protocol/method-handlers/project-task-method-handlers.ts",
   ];
   for (const file of removed) {
     if (trackedFiles.includes(file))

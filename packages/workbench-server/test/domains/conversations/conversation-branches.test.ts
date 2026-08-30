@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { EntryRepository } from "../../../src/domains/conversations/index.js";
 import {
-  appendRegistryEntry,
+  appendConversationEntry,
   createdAt,
   createState,
   firstEntryId,
@@ -13,7 +13,7 @@ import {
 
 describe("RuntimeLifecycle conversation branches", () => {
   it("imports, navigates, exports, and remaps conversation entries", async () => {
-    const state = await createState("nerve-registry-import-");
+    const state = await createState("nerve-runtime-import-");
     try {
       const imported = await state.services.importService.importConversation({
         project: { dir: state.storage.paths.home, name: "Imported Project" },
@@ -95,7 +95,7 @@ describe("RuntimeLifecycle conversation branches", () => {
   });
 
   it("projects the active branch after forking from the middle", async () => {
-    const state = await createState("nerve-registry-branch-projection-");
+    const state = await createState("nerve-runtime-branch-projection-");
     try {
       const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
@@ -106,17 +106,17 @@ describe("RuntimeLifecycle conversation branches", () => {
           title: "Branch projection",
         });
 
-      const first = await appendRegistryEntry(state, {
+      const first = await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "user",
         text: "A",
       });
-      const second = await appendRegistryEntry(state, {
+      const second = await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "assistant",
         text: "B",
       });
-      const abandoned = await appendRegistryEntry(state, {
+      const abandoned = await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "user",
         text: "C",
@@ -128,7 +128,7 @@ describe("RuntimeLifecycle conversation branches", () => {
           activeEntryId: second.id,
         },
       );
-      const forked = await appendRegistryEntry(state, {
+      const forked = await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "user",
         text: "D",

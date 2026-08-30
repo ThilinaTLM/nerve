@@ -93,6 +93,33 @@ export const packageExportSurfaces = Object.freeze({
   "@nervekit/workbench-server": [".", "./main"],
 });
 
+export function validateBuiltPackageExportTargets(repoRoot) {
+  const failures = [];
+  for (const definition of workspacePackages) {
+    const packageRoot = join(repoRoot, "packages", definition.directory);
+    const manifest = JSON.parse(
+      readFileSync(join(packageRoot, "package.json"), "utf8"),
+    );
+    for (const [subpath, target] of Object.entries(manifest.exports ?? {})) {
+      for (const value of exportTargets(target)) {
+        if (!value.startsWith("./")) continue;
+        const relativeTarget = value.slice(2);
+        if (relativeTarget.includes("*")) {
+          if (!wildcardTargetHasMatch(packageRoot, relativeTarget))
+            failures.push(
+              `${definition.name} ${subpath}: built wildcard target has no match: ${value}`,
+            );
+        } else if (!existsSync(join(packageRoot, relativeTarget))) {
+          failures.push(
+            `${definition.name} ${subpath}: missing built export target ${value}`,
+          );
+        }
+      }
+    }
+  }
+  return failures;
+}
+
 export function validatePackageExportSurfaces(repoRoot) {
   const failures = [];
   for (const definition of workspacePackages) {

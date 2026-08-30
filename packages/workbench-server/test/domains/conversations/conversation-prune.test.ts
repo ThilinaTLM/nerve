@@ -11,7 +11,7 @@ import {
 
 describe("RuntimeLifecycle conversation pruning", () => {
   it("prunes old inactive project conversations and associated data", async () => {
-    const state = await createState("nerve-registry-prune-");
+    const state = await createState("nerve-runtime-prune-");
     try {
       const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
@@ -104,7 +104,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
   });
 
   it("prunes completed conversations and keeps unfinished conversations", async () => {
-    const state = await createState("nerve-registry-prune-completed-");
+    const state = await createState("nerve-runtime-prune-completed-");
     try {
       const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
@@ -147,7 +147,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
   });
 
   it("skips old conversations with active agents or active tasks", async () => {
-    const state = await createState("nerve-registry-prune-skip-");
+    const state = await createState("nerve-runtime-prune-skip-");
     try {
       const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,
@@ -229,7 +229,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
   });
 
   it("batches old conversation pruning across projects", async () => {
-    const state = await createState("nerve-registry-prune-all-");
+    const state = await createState("nerve-runtime-prune-all-");
     try {
       const firstDir = join(state.storage.paths.home, "first");
       const secondDir = join(state.storage.paths.home, "second");
@@ -286,7 +286,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
   });
 
   it("keeps the most recent conversations when pruning by count", async () => {
-    const state = await createState("nerve-registry-prune-keep-");
+    const state = await createState("nerve-runtime-prune-keep-");
     try {
       const project = await state.services.projectLifecycle.createProject({
         dir: state.storage.paths.home,

@@ -10,7 +10,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "pnpm -r build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs",
+    "build": "pnpm -r build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs && node scripts/check-built-package-exports.mjs",
     "build:native": "pnpm --filter @nervekit/native build:native",
     "build:workbench-runtime": "pnpm --filter @nervekit/workbench-app... --filter @nervekit/workbench-server... build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs",
     "fix": "pnpm --filter @nervekit/native fix:native && oxfmt && eslint . --fix && oxfmt",

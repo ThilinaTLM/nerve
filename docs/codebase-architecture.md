@@ -45,4 +45,14 @@ Arrows in the diagram mean “is consumed by.” `website` is standalone.
 - Avoid `common`, `shared`, and broad `utils` directories. Reusable code belongs to a named technical or domain area.
 - Small domains remain flat; add layer subdirectories only when they improve navigation.
 
-The canonical package inventory and allowed workspace dependencies live in `scripts/lib/workspace-architecture.mjs`. Package-specific `AGENTS.md` and README files define stricter local ownership rules.
+## Runtime composition boundaries
+
+- `workbench-server` composes domain services in `app/bootstrap`; `RuntimeLifecycle` owns hydration, maintenance, and shutdown only. Protocol and HTTP adapters consume narrow service/capability contexts and cannot use the process lifecycle as a service locator. Run-runtime modules depend only on run-local modules, contracts, and `core/ports`.
+- `workbench-app` keeps mutable feature stores private. Workspace workflows consume feature-owned read models and named commands; composition registers selection/tab inputs where a direct feature-to-application import would create a cycle. Presentation remains stateless and isolated from application, feature, and platform state.
+- `desktop-shell/main.ts` performs bootstrap safety, single-instance acquisition, and `DesktopRuntime` construction. The runtime owns Electron/daemon lifetime state, while window creation, network configuration, direct process spawning, systemd policy, and diagnostic capture live in focused adapters.
+
+## Enforced surfaces
+
+Package export allowlists live in `scripts/lib/package-export-surfaces.mjs`. Contracts, protocol, harness, and tools expose curated concept subpaths rather than broad implementation roots. `pnpm build` verifies every declared concrete build target and each wildcard target after production artifacts are generated. Website token parity is checked at build/check time without adding a runtime UI-kit dependency.
+
+The canonical package inventory and allowed workspace dependencies live in `scripts/lib/workspace-architecture.mjs`. Package-specific `AGENTS.md` and README files define stricter local ownership rules. `scripts/check-package-boundaries.mjs` enforces package exports, runtime ports, feature privacy, presentation isolation, and cross-owner cycle rules.
