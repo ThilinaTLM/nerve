@@ -130,6 +130,16 @@ function checkSourceImports() {
           );
       }
       if (
+        file === "packages/desktop-shell/src/app/desktop-runtime.ts" &&
+        ["/platform/electron/electron-api.js", "/daemon/composition.js"].some(
+          (suffix) => resolvedImportPath(file, specifier).endsWith(suffix),
+        )
+      )
+        fail(
+          file,
+          "desktop runtime must receive Electron and daemon capabilities through injected ports",
+        );
+      if (
         file.startsWith(
           "packages/workbench-server/src/domains/runs/runtime/",
         ) &&

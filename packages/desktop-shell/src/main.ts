@@ -3,7 +3,7 @@ import { defaultSettings } from "@nervekit/contracts/settings";
 import { resolveDataDir } from "@nervekit/workbench-server";
 import { parseDesktopOptions } from "./app/cli-options.js";
 import { createDesktopConfigurationController } from "./app/desktop-configuration.js";
-import { DesktopRuntime } from "./app/desktop-runtime.js";
+import { createDesktopRuntime } from "./app/create-desktop-runtime.js";
 import { DESKTOP_APP_ID, DESKTOP_APP_NAME } from "./desktop-identity.js";
 import { app } from "./platform/electron/electron-api.js";
 
@@ -40,7 +40,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.setName(DESKTOP_APP_NAME);
   app.setAppUserModelId(DESKTOP_APP_ID);
-  new DesktopRuntime({
+  createDesktopRuntime({
     desktopOptions,
     desktopDataDir,
     desktopConfigurationController,

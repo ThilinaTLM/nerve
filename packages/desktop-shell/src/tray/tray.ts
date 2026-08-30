@@ -15,7 +15,7 @@ import {
 import type { QuitOptions } from "../app/quit-contracts.js";
 import { resolveTrayIconPath } from "../window/preload-paths.js";
 
-interface TrayControllerDependencies {
+export interface TrayControllerDependencies {
   getMainWindow: () => BrowserWindowType | undefined;
   getManagedDaemon: () => ManagedDaemon | undefined;
   showMainWindow: () => void | Promise<void>;
@@ -29,6 +29,7 @@ export interface TrayController {
   ensureTray(): void;
   updateTrayMenu(): void;
   updateTrayIcon(): void;
+  dispose(): void;
 }
 
 export function createTrayController(
@@ -138,7 +139,12 @@ export function createTrayController(
     return Boolean(tray);
   }
 
-  return { ensureTray, hasTray, updateTrayIcon, updateTrayMenu };
+  function dispose(): void {
+    tray?.destroy();
+    tray = undefined;
+  }
+
+  return { dispose, ensureTray, hasTray, updateTrayIcon, updateTrayMenu };
 }
 
 function daemonTargetLabel(managedDaemon: ManagedDaemon | undefined): string {
