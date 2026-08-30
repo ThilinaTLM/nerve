@@ -33,7 +33,7 @@ export interface TaskNotificationServiceDeps {
   ): Promise<ConversationEntry>;
   harnessStorage: ConversationHarnessStorage;
   getAgent(agentId: string): AgentRecord;
-  getConversationEntries(conversationId: string): ConversationEntry[];
+  getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
   continueAgent?: (agentId: string) => Promise<void>;
   logger?: ApplicationLogger;
 }
@@ -175,7 +175,7 @@ export class TaskNotificationService {
     task: TaskRecord,
     event: HarnessTaskEvent,
   ): Promise<void> {
-    const existing = this.findExistingTaskEventEntry(task, event);
+    const existing = await this.findExistingTaskEventEntry(task, event);
     if (existing) {
       await this.deps.tasks.markNotificationDelivered(
         task.id,
@@ -206,7 +206,7 @@ export class TaskNotificationService {
         return;
       }
       if (!this.shouldDeliver(task, event)) return;
-      const existing = this.findExistingTaskEventEntry(task, event);
+      const existing = await this.findExistingTaskEventEntry(task, event);
       if (existing) {
         await this.deps.tasks.markNotificationDelivered(
           task.id,
@@ -227,7 +227,7 @@ export class TaskNotificationService {
       if (!currentEntryId) {
         await this.deps.tasks.markNotificationPending(task.id, slot, entryId);
       }
-      const existingById = this.findExistingTaskEventEntry(
+      const existingById = await this.findExistingTaskEventEntry(
         task,
         event,
         entryId,
@@ -418,7 +418,11 @@ export class TaskNotificationService {
     timestamp: string,
   ): Promise<void> {
     const event = message.details?.event ?? "completed";
-    const existing = this.findExistingTaskEventEntry(task, event, entryId);
+    const existing = await this.findExistingTaskEventEntry(
+      task,
+      event,
+      entryId,
+    );
     if (existing) {
       await this.deps.tasks.markNotificationDelivered(
         task.id,
@@ -490,15 +494,14 @@ export class TaskNotificationService {
     );
   }
 
-  private findExistingTaskEventEntry(
+  private async findExistingTaskEventEntry(
     task: TaskRecord,
     event: HarnessTaskEvent,
     entryId?: string,
-  ): ConversationEntry | undefined {
+  ): Promise<ConversationEntry | undefined> {
     if (!task.conversationId) return undefined;
-    return this.deps
-      .getConversationEntries(task.conversationId)
-      .find((entry) => {
+    return (await this.deps.getConversationEntries(task.conversationId)).find(
+      (entry) => {
         if (entryId && entry.id === entryId) return true;
         if (entry.kind !== "task_event") return false;
         const details = asRecord(entry.details);
@@ -507,7 +510,8 @@ export class TaskNotificationService {
           details.taskId === task.id &&
           details.event === event
         );
-      });
+      },
+    );
   }
 }
 

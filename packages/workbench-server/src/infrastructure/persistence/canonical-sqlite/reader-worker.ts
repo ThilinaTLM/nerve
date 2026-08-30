@@ -33,5 +33,19 @@ port.on("message", (request: CanonicalWorkerRequest) => {
       error: { name: cause.name, message: cause.message, stack: cause.stack },
     };
   }
-  port.postMessage(response);
+  port.postMessage(response, transferList(response));
 });
+
+function transferList(response: CanonicalWorkerResponse): ArrayBuffer[] {
+  if (!response.ok || !response.value || typeof response.value !== "object") {
+    return [];
+  }
+  const value = response.value as {
+    snapshot?: Uint8Array;
+    commits?: Uint8Array[];
+  };
+  return [
+    ...(value.snapshot ? [value.snapshot.buffer as ArrayBuffer] : []),
+    ...(value.commits ?? []).map((commit) => commit.buffer as ArrayBuffer),
+  ];
+}

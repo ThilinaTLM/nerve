@@ -12,7 +12,7 @@ export class EntryRepository {
   async loadForConversation(
     conversationId: string,
   ): Promise<ConversationEntry[]> {
-    return [...(await this.journal.load(conversationId)).entries];
+    return this.journal.readConversationEntries(conversationId);
   }
 
   async append(entry: ConversationEntry): Promise<ConversationEntry> {

@@ -68,7 +68,7 @@ export interface HumanInputResolutionDeps {
     input: AppendEntryInput,
     options?: AppendEntryOptions,
   ): Promise<ConversationEntry>;
-  getConversationEntries(conversationId: string): ConversationEntry[];
+  getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
   harnessStorage: ConversationHarnessStorage;
   logger: ApplicationLogger;
   compactPlanConversation(input: {
@@ -88,14 +88,18 @@ export class HumanInputResolutionService {
       runs: deps.runs,
       appendToolResult: (toolCall, isError) =>
         this.appendToolResultForToolCall(toolCall, isError),
-      existingToolResultEntry: (toolCall) =>
-        deps.getConversationEntries(toolCall.conversationId).find((entry) => {
-          if (!entry.details || typeof entry.details !== "object") return false;
-          return (
-            (entry.details as { toolRecordId?: unknown }).toolRecordId ===
-            toolCall.id
-          );
-        }),
+      existingToolResultEntry: async (toolCall) =>
+        (await deps.getConversationEntries(toolCall.conversationId)).find(
+          (entry) => {
+            if (!entry.details || typeof entry.details !== "object") {
+              return false;
+            }
+            return (
+              (entry.details as { toolRecordId?: unknown }).toolRecordId ===
+              toolCall.id
+            );
+          },
+        ),
     });
   }
 
@@ -372,7 +376,7 @@ export class HumanInputResolutionService {
     for (const review of reviews) {
       let toolCall;
       try {
-        toolCall = this.deps.tools.getToolCall(review.toolCallId);
+        toolCall = await this.deps.tools.getToolCallDetails(review.toolCallId);
       } catch (error) {
         // The tool-call journal/index may be absent or truncated (e.g. after
         // storage pruning or a partial copy); a missing tool call must not
@@ -603,23 +607,23 @@ export class HumanInputResolutionService {
       review.toolCallId,
       this.deps.plans.planReviewResult(review),
     );
-    if (!this.existingToolResultEntry(completed)) {
+    if (!(await this.existingToolResultEntry(completed))) {
       await this.appendToolResultForToolCall(completed, false);
     }
   }
 
-  private existingToolResultEntry(
+  private async existingToolResultEntry(
     toolCall: ToolCallRecord,
-  ): ConversationEntry | undefined {
-    return this.deps
-      .getConversationEntries(toolCall.conversationId)
-      .find((entry) => {
-        if (!entry.details || typeof entry.details !== "object") return false;
-        return (
-          (entry.details as { toolRecordId?: unknown }).toolRecordId ===
-          toolCall.id
-        );
-      });
+  ): Promise<ConversationEntry | undefined> {
+    return (
+      await this.deps.getConversationEntries(toolCall.conversationId)
+    ).find((entry) => {
+      if (!entry.details || typeof entry.details !== "object") return false;
+      return (
+        (entry.details as { toolRecordId?: unknown }).toolRecordId ===
+        toolCall.id
+      );
+    });
   }
 
   private async setRejectedPlanAgentIdle(
@@ -671,7 +675,7 @@ export class HumanInputResolutionService {
     if (!hasPendingSibling) {
       for (const batchToolCall of orderedToolCalls) {
         const existing = batch
-          ? this.existingToolResultEntry(batchToolCall)
+          ? await this.existingToolResultEntry(batchToolCall)
           : undefined;
         entries.push(
           existing ??

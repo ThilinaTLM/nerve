@@ -70,6 +70,9 @@ export type AppendEntryFn = (
 
 export interface MessageMirrorDeps {
   state: RuntimeState;
+  ensureConversationEntries?: (
+    conversationId: string,
+  ) => Promise<ConversationEntry[]>;
   appendEntry: AppendEntryFn;
   updateConversation: (conversation: ConversationRecord) => Promise<void>;
   events: StreamLogRegistry;
@@ -122,6 +125,7 @@ export class MessageMirror {
       assistantMessageMeta?: AssistantMessageMeta[];
     } = {},
   ): Promise<ConversationEntry[]> {
+    await this.deps.ensureConversationEntries?.(agent.conversationId);
     const mirrored: ConversationEntry[] = [];
     const storageEntries = await storage.getEntries();
     const visibleEntryIds = new Set(
@@ -183,6 +187,7 @@ export class MessageMirror {
     conversationId: string,
     text: string,
   ): Promise<void> {
+    await this.deps.ensureConversationEntries?.(conversationId);
     const conversation = this.deps.state.conversations.get(conversationId);
     if (!conversation) return;
     const userEntryCount = this.deps.state

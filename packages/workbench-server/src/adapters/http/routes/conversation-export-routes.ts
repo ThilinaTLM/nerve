@@ -22,10 +22,10 @@ export function createConversationExportRoutes(
   const app = new Hono();
   app.get(
     "/conversations/:conversationId/export",
-    routeHandler((c) => {
+    routeHandler(async (c) => {
       const id = routeParam(c, "conversationId");
       return c.json(
-        state.exportService.exportConversation(id),
+        await state.exportService.exportConversation(id),
         200,
         headers(id, "json", "application/json; charset=utf-8"),
       );
@@ -33,10 +33,10 @@ export function createConversationExportRoutes(
   );
   app.get(
     "/conversations/:conversationId/export.md",
-    routeHandler((c) => {
+    routeHandler(async (c) => {
       const id = routeParam(c, "conversationId");
       return c.text(
-        state.exportService.exportConversationMarkdown(id),
+        await state.exportService.exportConversationMarkdown(id),
         200,
         headers(id, "md", "text/markdown; charset=utf-8"),
       );
@@ -44,10 +44,10 @@ export function createConversationExportRoutes(
   );
   app.get(
     "/conversations/:conversationId/export.html",
-    routeHandler((c) => {
+    routeHandler(async (c) => {
       const id = routeParam(c, "conversationId");
       return c.html(
-        state.exportService.exportConversationHtml(id),
+        await state.exportService.exportConversationHtml(id),
         200,
         headers(id, "html", "text/html; charset=utf-8"),
       );

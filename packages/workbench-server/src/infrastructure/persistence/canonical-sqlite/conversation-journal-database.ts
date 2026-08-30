@@ -5,6 +5,7 @@ import type {
   MaterializedConversationRecord,
   SerializedConversationState,
 } from "../../../domains/conversations/conversation-state-materializer.js";
+import { upsertConversationRecordProjection } from "../../../domains/conversations/conversation-state-materializer.js";
 import { decode, encode } from "./payload-codecs.js";
 
 export interface JournalHead {
@@ -152,14 +153,30 @@ export function checkpointConversationStateInTransaction(
   database: DatabaseSync,
   serialized: SerializedConversationState,
 ): void {
-  const head = readConversationJournalHead(database, serialized.conversationId);
+  checkpointEncodedConversationStateInTransaction(database, {
+    conversationId: serialized.conversationId,
+    revision: serialized.revision,
+    checksum: serialized.checksum,
+    data: encode(serialized),
+  });
+}
+
+export function checkpointEncodedConversationStateInTransaction(
+  database: DatabaseSync,
+  input: {
+    conversationId: string;
+    revision: number;
+    checksum?: string;
+    data: Uint8Array;
+  },
+): void {
+  const head = readConversationJournalHead(database, input.conversationId);
   if (
     head &&
-    (head.revision !== serialized.revision ||
-      head.checksum !== serialized.checksum)
+    (head.revision !== input.revision || head.checksum !== input.checksum)
   ) {
     throw new Error(
-      `Conversation checkpoint '${serialized.conversationId}' revision conflict: expected ${serialized.revision}, current ${head.revision}.`,
+      `Conversation checkpoint '${input.conversationId}' revision conflict: expected ${input.revision}, current ${head.revision}.`,
     );
   }
   const timestamp = Date.now();
@@ -174,9 +191,9 @@ export function checkpointConversationStateInTransaction(
          updated_at_ms = excluded.updated_at_ms`,
     )
     .run(
-      serialized.conversationId,
-      Math.max(1, serialized.revision),
-      encode(serialized),
+      input.conversationId,
+      Math.max(1, input.revision),
+      input.data,
       timestamp,
       timestamp,
     );
@@ -186,7 +203,7 @@ export function checkpointConversationStateInTransaction(
        WHERE namespace = 'conversation_journal_commit'
          AND scope_id = ? AND CAST(document_id AS INTEGER) <= ?`,
     )
-    .run(serialized.conversationId, serialized.revision);
+    .run(input.conversationId, input.revision);
 }
 
 function readSnapshotHead(
@@ -319,6 +336,12 @@ function materializeConversationDelta(
       encode(record.data),
       Date.parse(record.createdAt),
       Date.parse(record.updatedAt),
+    );
+    upsertConversationRecordProjection(
+      database,
+      delta.conversationId,
+      sequence,
+      record,
     );
   }
 

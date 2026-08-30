@@ -36,6 +36,7 @@ export type PerformanceMetricName =
   | "conversation.commitEvents"
   | "conversation.commitRecords"
   | "conversation.checkpoint"
+  | "conversation.residentEviction"
   | "conversation.contextBuild"
   | "tool.projection"
   | "tool.projectionTruncated"

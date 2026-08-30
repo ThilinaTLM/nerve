@@ -37,21 +37,31 @@ export const conversationMethodHandlers: WorkbenchMethodHandlerMapFor<Conversati
         params,
       ),
     }),
-    "conversation.entries.list": (state, params) => ({
-      entries: state.conversationLifecycle.getConversationEntries(
+    "conversation.entries.list": async (state, params) => {
+      await state.conversationLifecycle.ensureConversationEntries(
         params.conversationId,
-      ),
-    }),
+      );
+      return {
+        entries: state.conversationLifecycle.getConversationEntries(
+          params.conversationId,
+        ),
+      };
+    },
     "conversation.contextUsage.get": async (state, params) => ({
       contextUsage: await state.workbenchRun.getContextUsage(
         params.conversationId,
       ),
     }),
-    "conversation.tree.get": (state, params) => ({
-      tree: state.conversationLifecycle.getConversationTree(
+    "conversation.tree.get": async (state, params) => {
+      await state.conversationLifecycle.ensureConversationEntries(
         params.conversationId,
-      ),
-    }),
+      );
+      return {
+        tree: state.conversationLifecycle.getConversationTree(
+          params.conversationId,
+        ),
+      };
+    },
     "conversation.navigate": async (state, params) => ({
       conversation: await state.navigationService.navigateConversation(
         params.conversationId,

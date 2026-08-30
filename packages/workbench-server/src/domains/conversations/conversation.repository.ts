@@ -6,9 +6,9 @@ export class ConversationRepository {
   constructor(readonly journal: ConversationJournalRepository) {}
 
   async loadAll(): Promise<ConversationRecord[]> {
-    return (await this.journal.hydrateAll())
-      .flatMap((state) => (state.conversation ? [state.conversation] : []))
-      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+    return (await this.journal.listConversationMetadata()).sort((left, right) =>
+      left.createdAt.localeCompare(right.createdAt),
+    );
   }
 
   async write(conversation: ConversationRecord): Promise<void> {

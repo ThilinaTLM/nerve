@@ -28,6 +28,7 @@ export interface ApprovalBatchResolutionMember {
 export interface WorkbenchRunFeatureMechanics {
   activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]>;
   getContextUsage(conversationId: string): Promise<ContextUsage>;
+  getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
@@ -346,7 +347,7 @@ export class WorkbenchRunService {
     }
     const conversation = this.state.getConversation(state.run.conversationId);
     const currentEntryIds = activeBranchEntryIds(
-      this.state.getConversationEntries(conversation.id),
+      await this.features.getConversationEntries(conversation.id),
       conversation.activeEntryId,
     );
     if (!activeBranchEndsWithCheckpoint(currentEntryIds, checkpoint.entryIds)) {

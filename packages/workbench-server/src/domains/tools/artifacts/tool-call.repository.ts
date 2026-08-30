@@ -92,12 +92,18 @@ export class ToolCallRepository {
     this.terminalCacheBytes = 0;
     const ids = new Set<string>();
     let rowCount = 0;
+    let fileBytes = 0;
+    let afterId: string | undefined;
     this.queryCache.beginToolCallRebuild();
     try {
-      for (const state of await this.journal.hydrateAll()) {
-        for (const record of [...state.toolCalls.values()].sort((left, right) =>
-          left.id.localeCompare(right.id),
-        )) {
+      for (;;) {
+        const page = await this.journal.scanToolCalls({
+          ...(afterId ? { afterId } : {}),
+          maxRows: 128,
+          maxBytes: 8 * 1024 * 1024,
+        });
+        fileBytes += page.encodedBytes;
+        for (const record of page.records) {
           if (ids.has(record.id)) {
             throw new Error(`Duplicate canonical tool call '${record.id}'.`);
           }
@@ -113,6 +119,11 @@ export class ToolCallRepository {
           }
           onRecord?.(record);
         }
+        if (page.done) break;
+        if (!page.nextCursor) {
+          throw new Error("Canonical tool-call scan did not advance.");
+        }
+        afterId = page.nextCursor;
       }
       this.queryCache.finishToolCallRebuild();
     } catch (error) {
@@ -122,7 +133,7 @@ export class ToolCallRepository {
     this.hydrationStats = {
       rowCount,
       uniqueCount: rowCount,
-      fileBytes: 0,
+      fileBytes,
       activeCount: this.records.size,
       source: "journal",
     };
@@ -181,11 +192,7 @@ export class ToolCallRepository {
     if (active) return active;
     const cached = this.terminalCache.get(toolCallId);
     if (cached) return cached.record;
-    const conversationId = this.queryCache.toolCallConversationId(toolCallId);
-    if (!conversationId) throw new Error("Tool call not found.");
-    const stored = (await this.journal.load(conversationId)).toolCalls.get(
-      toolCallId,
-    );
+    const stored = await this.journal.readToolCall(toolCallId);
     if (!stored) throw new Error("Tool call not found.");
     this.cacheTerminal(stored, Buffer.byteLength(JSON.stringify(stored)));
     return stored;

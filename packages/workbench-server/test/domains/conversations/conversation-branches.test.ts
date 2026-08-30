@@ -87,7 +87,7 @@ describe("RuntimeLifecycle conversation branches", () => {
         ["Hello"],
       );
 
-      const exported = state.services.exportService.exportConversation(
+      const exported = await state.services.exportService.exportConversation(
         imported.conversation.id,
       );
       assert.equal(exported.entries.length, 2);
@@ -131,11 +131,17 @@ describe("RuntimeLifecycle conversation branches", () => {
           activeEntryId: second.id,
         },
       );
+      assert.equal(
+        state.services.conversationLifecycle.getConversation(conversation.id)
+          .activeEntryId,
+        second.id,
+      );
       const forked = await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "user",
         text: "D",
       });
+      assert.equal(forked.parentEntryId, second.id);
 
       assert.deepEqual(
         state.services.conversationLifecycle

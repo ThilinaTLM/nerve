@@ -120,7 +120,9 @@ export class CompactionService {
     private readonly getProject: (projectId: string) => ProjectRecord,
     private readonly appendEntry: AppendConversationEntry,
     private readonly harnessStorage: ConversationHarnessStorage,
-    private readonly rebuildConversations: () => Promise<void>,
+    private readonly rebuildConversation: (
+      conversationId: string,
+    ) => Promise<void>,
     private readonly events: StreamLogRegistry,
     private readonly summarize?: CompactionSummarizer,
     private readonly progressOptions: CompactionProgressPublisherOptions = {},
@@ -373,7 +375,7 @@ export class CompactionService {
             details,
           });
         }
-        await this.rebuildConversations();
+        await this.rebuildConversation(conversationId);
         await this.events.publish("conversation.compacted", {
           conversationId,
           entryId: entry.id,

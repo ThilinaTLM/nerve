@@ -13,14 +13,14 @@ import {
   CANONICAL_SCHEMA_VERSION,
 } from "../../../src/infrastructure/persistence/canonical-sqlite/schema.js";
 
-test("canonical schema checksum matches the v2 SQL", () => {
+test("canonical schema checksum matches the v3 SQL", () => {
   assert.equal(
     createHash("sha256").update(CANONICAL_SCHEMA_SQL).digest("hex"),
     CANONICAL_SCHEMA_CHECKSUM,
   );
 });
 
-test("fresh canonical stores use v2 without removed tables", async (t) => {
+test("fresh canonical stores use v3 without removed tables", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v2-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const path = join(home, "data", "nerve.sqlite");
@@ -47,7 +47,7 @@ test("fresh canonical stores use v2 without removed tables", async (t) => {
   assert.deepEqual(versions, [CANONICAL_SCHEMA_VERSION]);
 });
 
-test("canonical v1 stores migrate transactionally to v2", async (t) => {
+test("canonical v1 stores migrate transactionally through v3", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v1-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const path = join(home, "nerve.sqlite");
@@ -114,7 +114,7 @@ test("canonical v1 stores migrate transactionally to v2", async (t) => {
     .get() as { count: number };
   migrated.close();
   assert.deepEqual(objects, []);
-  assert.deepEqual(versions, [1, 2]);
+  assert.deepEqual(versions, [1, 2, 3]);
   assert.equal(documents.count, 1);
 });
 

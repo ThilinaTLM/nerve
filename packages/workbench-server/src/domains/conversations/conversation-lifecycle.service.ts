@@ -22,6 +22,9 @@ import type { ConversationHarnessStorage } from "./conversation-harness-storage.
 import type { ToolResultPayloadStore } from "../tools/artifacts/tool-result-payload-store.js";
 
 export class ConversationLifecycleService {
+  private readonly entryLoads = new Map<string, Promise<ConversationEntry[]>>();
+  private readonly entryResidency = new Map<string, number>();
+
   constructor(
     private readonly storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
@@ -62,6 +65,7 @@ export class ConversationLifecycleService {
     this.state.conversations.set(conversation.id, conversation);
     this.queryCache.upsertConversation(conversation);
     this.state.setConversationEntries(conversation.id, []);
+    this.touchConversationEntries(conversation.id, []);
     await this.writeConversation(conversation);
     await this.harnessStorage.createConversation(conversation);
     await this.events.publish("conversation.created", { conversation });
@@ -84,6 +88,7 @@ export class ConversationLifecycleService {
       await this.removeAgent(agent.id);
     }
     this.state.removeConversation(conversationId);
+    this.entryResidency.delete(conversationId);
     this.queryCache.removeConversation(conversationId);
     await this.conversationRepository.remove(conversationId);
     await this.events.publish("conversation.deleted", {
@@ -94,6 +99,33 @@ export class ConversationLifecycleService {
     await this.resultPayloads
       .removeConversation(conversationId)
       .catch(() => undefined);
+  }
+
+  async ensureConversationEntries(
+    conversationId: string,
+  ): Promise<ConversationEntry[]> {
+    if (this.state.hasConversationEntries(conversationId)) {
+      const entries = this.state.getConversationEntries(conversationId);
+      this.touchConversationEntries(conversationId, entries);
+      return entries;
+    }
+    const pending = this.entryLoads.get(conversationId);
+    if (pending) return pending;
+    const loading = this.entryRepository
+      .loadForConversation(conversationId)
+      .then((entries) => {
+        this.state.setConversationEntries(conversationId, entries);
+        this.touchConversationEntries(conversationId, entries);
+        this.pruneConversationEntries(conversationId);
+        return entries;
+      })
+      .finally(() => {
+        if (this.entryLoads.get(conversationId) === loading) {
+          this.entryLoads.delete(conversationId);
+        }
+      });
+    this.entryLoads.set(conversationId, loading);
+    return loading;
   }
 
   getConversationEntries(conversationId: string): ConversationEntry[] {
@@ -186,6 +218,11 @@ export class ConversationLifecycleService {
     );
     if (committed) return committed;
     this.state.appendConversationEntry(entry);
+    this.touchConversationEntries(
+      input.conversationId,
+      this.state.getConversationEntries(input.conversationId),
+    );
+    this.pruneConversationEntries(input.conversationId);
     const lastUserMessageAt =
       entry.role === "user" &&
       (!conversation.lastUserMessageAt ||
@@ -243,16 +280,42 @@ export class ConversationLifecycleService {
 
   async loadConversations(): Promise<void> {
     const storedConversations = await this.conversationRepository.loadAll();
-    await Promise.all(
-      storedConversations.map(async (storedConversation) => {
-        const entries = await this.entryRepository.loadForConversation(
-          storedConversation.id,
-        );
-        this.state.conversations.set(storedConversation.id, storedConversation);
-        this.queryCache.upsertConversation(storedConversation);
-        this.state.setConversationEntries(storedConversation.id, entries);
-      }),
+    for (const storedConversation of storedConversations) {
+      this.state.conversations.set(storedConversation.id, storedConversation);
+      this.queryCache.upsertConversation(storedConversation);
+    }
+  }
+
+  private touchConversationEntries(
+    conversationId: string,
+    entries: ConversationEntry[],
+  ): void {
+    this.entryResidency.delete(conversationId);
+    this.entryResidency.set(
+      conversationId,
+      Buffer.byteLength(JSON.stringify(entries)),
     );
+  }
+
+  private pruneConversationEntries(exclude: string): void {
+    const maxConversations = 32;
+    const maxBytes = 64 * 1024 * 1024;
+    const totalBytes = () => {
+      let total = 0;
+      for (const bytes of this.entryResidency.values()) total += bytes;
+      return total;
+    };
+    while (
+      this.entryResidency.size > maxConversations ||
+      (this.entryResidency.size > 1 && totalBytes() > maxBytes)
+    ) {
+      const candidate = this.entryResidency.keys().next().value as
+        | string
+        | undefined;
+      if (!candidate || candidate === exclude) return;
+      this.entryResidency.delete(candidate);
+      this.state.clearConversationEntries(candidate);
+    }
   }
 
   private async writeConversation(

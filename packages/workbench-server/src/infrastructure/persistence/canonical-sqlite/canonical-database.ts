@@ -10,20 +10,32 @@ import {
 } from "../../../domains/conversations/conversation-state-materializer.js";
 import {
   checkpointConversationStateInTransaction,
+  checkpointEncodedConversationStateInTransaction,
   listConversationJournalIds,
   persistConversationCommitInTransaction,
-  readConversationCommits,
   readConversationJournalHead,
 } from "./conversation-journal-database.js";
+import {
+  appendDurableEventInTransaction,
+  applySchemaMigration,
+  assertCanonicalSchemaCompatible,
+  decodeDocument,
+  decodeDurableEvent,
+  ownedBytes,
+  type DocumentRow,
+  type DurableEventRow,
+} from "./canonical-database-helpers.js";
 import { decode, encode } from "./payload-codecs.js";
 import {
   CANONICAL_BASELINE_NAME,
   CANONICAL_SCHEMA_CHECKSUM,
   CANONICAL_SCHEMA_SQL,
-  CANONICAL_SCHEMA_V1_CHECKSUM,
+  CANONICAL_SCHEMA_V2_CHECKSUM,
   CANONICAL_SCHEMA_VERSION,
   CANONICAL_V1_TO_V2_MIGRATION_NAME,
   CANONICAL_V1_TO_V2_MIGRATION_SQL,
+  CANONICAL_V2_TO_V3_MIGRATION_NAME,
+  CANONICAL_V2_TO_V3_MIGRATION_SQL,
 } from "./schema.js";
 
 export interface CanonicalDocument<T = unknown> {
@@ -88,7 +100,26 @@ export class CanonicalDatabase {
 
     const rows = this.schemaMigrationRows();
     this.assertSchemaCompatible(rows);
-    if (rows.at(-1)?.version === 1) this.migrateV1ToV2();
+    let version = rows.at(-1)?.version;
+    if (version === 1) {
+      applySchemaMigration(
+        this.database,
+        2,
+        CANONICAL_V1_TO_V2_MIGRATION_NAME,
+        CANONICAL_SCHEMA_V2_CHECKSUM,
+        CANONICAL_V1_TO_V2_MIGRATION_SQL,
+      );
+      version = 2;
+    }
+    if (version === 2) {
+      applySchemaMigration(
+        this.database,
+        3,
+        CANONICAL_V2_TO_V3_MIGRATION_NAME,
+        CANONICAL_SCHEMA_CHECKSUM,
+        CANONICAL_V2_TO_V3_MIGRATION_SQL,
+      );
+    }
   }
 
   assertSchemaCompatible(
@@ -97,30 +128,7 @@ export class CanonicalDatabase {
       checksum: string;
     }> = this.schemaMigrationRows(),
   ): void {
-    const newest = rows.at(-1);
-    if (!newest) throw new Error("Storage schema migration ledger is empty.");
-    if (newest.version > CANONICAL_SCHEMA_VERSION) {
-      throw new Error(
-        `Storage schema ${newest.version} is newer than supported schema ${CANONICAL_SCHEMA_VERSION}.`,
-      );
-    }
-    const checksums = new Map([
-      [1, CANONICAL_SCHEMA_V1_CHECKSUM],
-      [CANONICAL_SCHEMA_VERSION, CANONICAL_SCHEMA_CHECKSUM],
-    ]);
-    for (const row of rows) {
-      const expected = checksums.get(row.version);
-      if (!expected) {
-        throw new Error(
-          `Storage schema version ${row.version} is unsupported.`,
-        );
-      }
-      if (row.checksum !== expected) {
-        throw new Error(
-          `Storage schema checksum drift at version ${row.version}.`,
-        );
-      }
-    }
+    assertCanonicalSchemaCompatible(rows);
   }
 
   private schemaMigrationRows(): Array<{
@@ -132,26 +140,6 @@ export class CanonicalDatabase {
         `SELECT version, checksum FROM schema_migrations ORDER BY version`,
       )
       .all() as unknown as Array<{ version: number; checksum: string }>;
-  }
-
-  private migrateV1ToV2(): void {
-    const startedAt = Date.now();
-    this.transaction((database) => {
-      database.exec(CANONICAL_V1_TO_V2_MIGRATION_SQL);
-      database
-        .prepare(
-          `INSERT INTO schema_migrations (
-             version, name, checksum, applied_at_ms, duration_ms
-           ) VALUES (?, ?, ?, ?, ?)`,
-        )
-        .run(
-          CANONICAL_SCHEMA_VERSION,
-          CANONICAL_V1_TO_V2_MIGRATION_NAME,
-          CANONICAL_SCHEMA_CHECKSUM,
-          Date.now(),
-          Date.now() - startedAt,
-        );
-    });
   }
 
   close(checkpoint = true): void {
@@ -404,33 +392,258 @@ export class CanonicalDatabase {
       .run(stream);
   }
 
+  readConversationRevision(conversationId: string): number {
+    const row = this.database
+      .prepare(
+        `SELECT MAX(revision) AS revision FROM domain_documents
+         WHERE scope_id = ? AND namespace IN (
+           'conversation_state',
+           'conversation_journal_head',
+           'conversation_journal_commit'
+         )`,
+      )
+      .get(conversationId) as { revision: number | null };
+    return row.revision ?? 0;
+  }
+
+  readConversationEntries(conversationId: string): unknown[] {
+    const rows = this.database
+      .prepare(
+        `SELECT COALESCE(
+                  projection.data,
+                  CAST(json_extract(CAST(record.data AS TEXT), '$.entry') AS BLOB)
+                ) AS data
+         FROM conversation_records AS record
+         LEFT JOIN conversation_record_projections AS projection
+           ON projection.record_id = record.id
+         WHERE record.conversation_id = ?
+           AND record.kind IN ('message', 'summary')
+           AND COALESCE(
+                 projection.data,
+                 json_extract(CAST(record.data AS TEXT), '$.entry')
+               ) IS NOT NULL
+         ORDER BY record.sequence`,
+      )
+      .all(conversationId) as unknown as Array<{
+      data: Uint8Array | string;
+    }>;
+    return rows.map((row) => decode(row.data));
+  }
+
+  scanToolCalls(input: {
+    afterId?: string;
+    maxRows: number;
+    maxBytes: number;
+  }): {
+    records: unknown[];
+    nextCursor?: string;
+    done: boolean;
+    encodedBytes: number;
+  } {
+    const maxRows = Math.max(1, Math.min(input.maxRows, 1_000));
+    const maxBytes = Math.max(1, input.maxBytes);
+    const rows = this.database
+      .prepare(
+        `SELECT id, data FROM conversation_records
+         WHERE kind = 'tool_call' AND id > ?
+         ORDER BY id LIMIT ?`,
+      )
+      .iterate(input.afterId ?? "", maxRows + 1);
+    const records: unknown[] = [];
+    let encodedBytes = 0;
+    let nextCursor: string | undefined;
+    let hasMore = false;
+    for (const value of rows) {
+      const row = value as { id: string; data: Uint8Array | string };
+      const bytes =
+        typeof row.data === "string"
+          ? Buffer.byteLength(row.data)
+          : row.data.byteLength;
+      if (
+        records.length >= maxRows ||
+        (records.length > 0 && encodedBytes + bytes > maxBytes)
+      ) {
+        hasMore = true;
+        break;
+      }
+      const decoded = decode(row.data) as { toolCall?: unknown };
+      if (decoded.toolCall !== undefined) records.push(decoded.toolCall);
+      encodedBytes += bytes;
+      nextCursor = row.id;
+    }
+    return {
+      records,
+      ...(nextCursor ? { nextCursor } : {}),
+      done: !hasMore,
+      encodedBytes,
+    };
+  }
+
+  readToolCall(toolCallId: string): unknown | undefined {
+    const row = this.database
+      .prepare(
+        `SELECT data FROM conversation_records
+         WHERE kind = 'tool_call' AND id = ?`,
+      )
+      .get(toolCallId) as { data: Uint8Array | string } | undefined;
+    if (!row) return undefined;
+    return (decode(row.data) as { toolCall?: unknown }).toolCall;
+  }
+
+  listRunMetadata(): unknown[] {
+    const rows = this.database
+      .prepare(
+        `SELECT COALESCE(
+                  projection.data,
+                  CAST(json_extract(CAST(record.data AS TEXT), '$.run') AS BLOB)
+                ) AS data
+         FROM conversation_records AS record
+         LEFT JOIN conversation_record_projections AS projection
+           ON projection.record_id = record.id
+         WHERE record.kind = 'run'
+         ORDER BY record.updated_at_ms, record.id`,
+      )
+      .all() as unknown as Array<{ data: Uint8Array | string }>;
+    return rows.map((row) => decode(row.data));
+  }
+
+  listRunStates(statuses: string[]): unknown[] {
+    if (statuses.length === 0) return [];
+    const placeholders = statuses.map(() => "?").join(", ");
+    const rows = this.database
+      .prepare(
+        `SELECT data FROM conversation_records
+         WHERE kind = 'run' AND status IN (${placeholders})
+         ORDER BY updated_at_ms, id`,
+      )
+      .all(...statuses) as unknown as Array<{
+      data: Uint8Array | string;
+    }>;
+    return rows.flatMap((row) => {
+      const state = (decode(row.data) as { state?: unknown }).state;
+      return state === undefined ? [] : [state];
+    });
+  }
+
+  readRunState(runId: string): unknown | undefined {
+    const row = this.database
+      .prepare(
+        `SELECT data FROM conversation_records
+         WHERE kind = 'run' AND id = ?`,
+      )
+      .get(runId) as { data: Uint8Array | string } | undefined;
+    return row ? (decode(row.data) as { state?: unknown }).state : undefined;
+  }
+
+  backfillConversationRecordProjections(input: {
+    afterId?: string;
+    maxRows: number;
+  }): { inserted: number; nextCursor?: string; done: boolean } {
+    const maxRows = Math.max(1, Math.min(input.maxRows, 1_000));
+    return this.transaction((database) => {
+      const rows = database
+        .prepare(
+          `SELECT record.id, record.conversation_id, record.sequence,
+                  record.kind, record.status, record.payload_version,
+                  record.data, record.updated_at_ms
+           FROM conversation_records AS record
+           LEFT JOIN conversation_record_projections AS projection
+             ON projection.record_id = record.id
+           WHERE record.id > ? AND projection.record_id IS NULL
+             AND record.kind IN ('message', 'summary', 'run')
+             AND (
+               record.kind = 'run' OR
+               json_extract(CAST(record.data AS TEXT), '$.entry') IS NOT NULL
+             )
+           ORDER BY record.id LIMIT ?`,
+        )
+        .all(input.afterId ?? "", maxRows) as unknown as Array<{
+        id: string;
+        conversation_id: string;
+        sequence: number;
+        kind: "message" | "summary" | "run";
+        status: string;
+        payload_version: number;
+        data: Uint8Array | string;
+        updated_at_ms: number;
+      }>;
+      const insert = database.prepare(
+        `INSERT OR IGNORE INTO conversation_record_projections (
+           record_id, conversation_id, sequence, kind, status,
+           payload_version, data, updated_at_ms
+         ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+      );
+      let inserted = 0;
+      for (const row of rows) {
+        const decoded = decode(row.data) as {
+          entry?: unknown;
+          run?: unknown;
+        };
+        const projection = row.kind === "run" ? decoded.run : decoded.entry;
+        if (projection === undefined) continue;
+        inserted += Number(
+          insert.run(
+            row.id,
+            row.conversation_id,
+            row.sequence,
+            row.kind,
+            row.status,
+            encode(projection),
+            row.updated_at_ms,
+          ).changes,
+        );
+      }
+      const nextCursor = rows.at(-1)?.id;
+      return {
+        inserted,
+        ...(nextCursor ? { nextCursor } : {}),
+        done: rows.length < maxRows,
+      };
+    });
+  }
+
   listConversationJournalIds(): string[] {
     return listConversationJournalIds(this.database);
   }
 
   readConversationJournal(conversationId: string): {
-    snapshot?: SerializedConversationState;
-    commits: unknown[];
+    snapshot?: Uint8Array;
+    commits: Uint8Array[];
     head?: { revision: number; checksum?: string };
+    encodedBytes: number;
   } {
     this.database.exec("BEGIN");
     try {
-      const snapshot = this.readDocument<SerializedConversationState>(
-        "conversation_state",
-        conversationId,
-        "state",
-      )?.data;
-      const commits = readConversationCommits(
-        this.database,
-        conversationId,
-        snapshot?.revision ?? 0,
-      );
+      const snapshotRow = this.database
+        .prepare(
+          `SELECT revision, data FROM domain_documents
+           WHERE namespace = 'conversation_state'
+             AND scope_id = ? AND document_id = 'state'`,
+        )
+        .get(conversationId) as
+        | { revision: number; data: Uint8Array | string }
+        | undefined;
+      const commitRows = this.database
+        .prepare(
+          `SELECT data FROM domain_documents
+           WHERE namespace = 'conversation_journal_commit'
+             AND scope_id = ? AND CAST(document_id AS INTEGER) > ?
+           ORDER BY document_id`,
+        )
+        .all(conversationId, snapshotRow?.revision ?? 0) as unknown as Array<{
+        data: Uint8Array | string;
+      }>;
+      const snapshot = snapshotRow ? ownedBytes(snapshotRow.data) : undefined;
+      const commits = commitRows.map((row) => ownedBytes(row.data));
       const head = readConversationJournalHead(this.database, conversationId);
       this.database.exec("COMMIT");
       return {
         ...(snapshot ? { snapshot } : {}),
         commits,
         ...(head ? { head } : {}),
+        encodedBytes:
+          (snapshot?.byteLength ?? 0) +
+          commits.reduce((total, commit) => total + commit.byteLength, 0),
       };
     } catch (error) {
       this.database.exec("ROLLBACK");
@@ -449,6 +662,17 @@ export class CanonicalDatabase {
   checkpointConversationState(serialized: SerializedConversationState): void {
     this.transaction((database) =>
       checkpointConversationStateInTransaction(database, serialized),
+    );
+  }
+
+  checkpointEncodedConversationState(input: {
+    conversationId: string;
+    revision: number;
+    checksum?: string;
+    data: Uint8Array;
+  }): void {
+    this.transaction((database) =>
+      checkpointEncodedConversationStateInTransaction(database, input),
     );
   }
   persistConversationState(
@@ -549,77 +773,6 @@ export class CanonicalDatabase {
   }
 }
 
-function appendDurableEventInTransaction(
-  database: DatabaseSync,
-  input: {
-    stream: string;
-    intentId: string;
-    eventType: string;
-    data: unknown;
-    occurredAt: string;
-    conversationId?: string;
-  },
-): { sequence: number; intentId: string } {
-  const existing = database
-    .prepare(
-      `SELECT stream_sequence, stream, event_type, data
-       FROM durable_events WHERE intent_id = ?`,
-    )
-    .get(input.intentId) as
-    | {
-        stream_sequence: number;
-        stream: string;
-        event_type: string;
-        data: Uint8Array | string;
-      }
-    | undefined;
-  if (existing) {
-    if (
-      existing.stream !== input.stream ||
-      existing.event_type !== input.eventType ||
-      JSON.stringify(decode(existing.data)) !== JSON.stringify(input.data)
-    ) {
-      throw new Error(`Conflicting event intent id: ${input.intentId}`);
-    }
-    return { sequence: existing.stream_sequence, intentId: input.intentId };
-  }
-
-  database
-    .prepare(
-      `INSERT INTO durable_event_stream_counters (stream, next_sequence)
-       VALUES (?, 1) ON CONFLICT(stream) DO NOTHING`,
-    )
-    .run(input.stream);
-  const counter = database
-    .prepare(
-      `SELECT next_sequence FROM durable_event_stream_counters WHERE stream = ?`,
-    )
-    .get(input.stream) as { next_sequence: number };
-  const sequence = counter.next_sequence;
-  database
-    .prepare(
-      `INSERT INTO durable_events (
-         stream, stream_sequence, conversation_id, record_id, record_revision,
-         intent_id, event_type, payload_version, data, occurred_at_ms
-       ) VALUES (?, ?, ?, NULL, NULL, ?, ?, 1, ?, ?)`,
-    )
-    .run(
-      input.stream,
-      sequence,
-      input.conversationId ?? null,
-      input.intentId,
-      input.eventType,
-      encode(input.data),
-      Date.parse(input.occurredAt),
-    );
-  database
-    .prepare(
-      `UPDATE durable_event_stream_counters SET next_sequence = ? WHERE stream = ?`,
-    )
-    .run(sequence + 1, input.stream);
-  return { sequence, intentId: input.intentId };
-}
-
 export class CanonicalRevisionConflictError extends Error {
   constructor(
     readonly identity: string,
@@ -631,52 +784,6 @@ export class CanonicalRevisionConflictError extends Error {
     );
     this.name = "CanonicalRevisionConflictError";
   }
-}
-
-interface DocumentRow {
-  revision: number;
-  payload_version: number;
-  data: Uint8Array | string;
-  created_at_ms: number;
-  updated_at_ms: number;
-}
-
-interface DurableEventRow {
-  stream_sequence: number;
-  stream: string;
-  intent_id: string;
-  event_type: string;
-  data: Uint8Array | string;
-  occurred_at_ms: number;
-}
-
-function decodeDocument<T>(
-  namespace: string,
-  scopeId: string,
-  documentId: string,
-  row: DocumentRow,
-): CanonicalDocument<T> {
-  return {
-    namespace,
-    scopeId,
-    documentId,
-    revision: row.revision,
-    payloadVersion: row.payload_version,
-    data: decode(row.data) as T,
-    createdAt: new Date(row.created_at_ms).toISOString(),
-    updatedAt: new Date(row.updated_at_ms).toISOString(),
-  };
-}
-
-function decodeDurableEvent(row: DurableEventRow) {
-  return {
-    sequence: row.stream_sequence,
-    stream: row.stream,
-    intentId: row.intent_id,
-    eventType: row.event_type,
-    data: decode(row.data),
-    occurredAt: new Date(row.occurred_at_ms).toISOString(),
-  };
 }
 
 export { decode, encode } from "./payload-codecs.js";

@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import {
   dirname,
@@ -118,6 +117,8 @@ function staticResponseHeaders(
   const headers: Record<string, string> = {
     "content-type": contentType,
     "cache-control": staticCacheControl(pathname, contentType),
+    "content-security-policy":
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' ws: wss: https:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
   };
   if (shouldIssueLocalUiCookie(state, clientAddress)) {
     headers["set-cookie"] = cookieHeader(state.storage.localToken);
@@ -177,11 +178,10 @@ function resolveWebDistPath(): string {
   const explicitPath = process.env.NERVE_WEB_DIST?.trim();
   if (explicitPath) return resolve(explicitPath);
 
-  const moduleDir = dirname(fileURLToPath(import.meta.url));
-  const packageLocalDist = resolve(moduleDir, "..", "web");
-  if (existsSync(join(packageLocalDist, "index.html"))) {
-    return packageLocalDist;
-  }
+  return resolveBundledWebDistPath(import.meta.url);
+}
 
-  return resolve(moduleDir, "..", "..", "..", "web", "dist");
+export function resolveBundledWebDistPath(moduleUrl: string): string {
+  const moduleDir = dirname(fileURLToPath(moduleUrl));
+  return resolve(moduleDir, "..", "..", "..", "dist", "web");
 }

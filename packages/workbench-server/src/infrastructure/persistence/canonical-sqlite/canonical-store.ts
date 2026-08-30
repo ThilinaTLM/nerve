@@ -1,5 +1,8 @@
 import { Worker } from "node:worker_threads";
-import type { CanonicalDocument } from "./canonical-database.js";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { RunRecord } from "@nervekit/contracts/runs";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
+import { encode, type CanonicalDocument } from "./canonical-database.js";
 import type {
   CanonicalCommand,
   CanonicalWorkerResponse,
@@ -45,7 +48,10 @@ class WorkerEndpoint {
     if (process.env.NODE_TEST_CONTEXT) worker.unref();
   }
 
-  request<T>(command: CanonicalCommand): Promise<T> {
+  request<T>(
+    command: CanonicalCommand,
+    transferList: ArrayBuffer[] = [],
+  ): Promise<T> {
     if (this.closed)
       return Promise.reject(new Error("Canonical store is closed."));
     const id = this.nextId++;
@@ -54,7 +60,7 @@ class WorkerEndpoint {
         resolve: (value) => resolve(value as T),
         reject,
       });
-      this.worker.postMessage({ id, command });
+      this.worker.postMessage({ id, command }, transferList);
     });
   }
 
@@ -102,6 +108,7 @@ export class CanonicalStore {
   private request<T>(
     command: CanonicalCommand,
     consistent = false,
+    transferList: ArrayBuffer[] = [],
   ): Promise<T> {
     if (!this.writer)
       return Promise.reject(new Error("Canonical store is not initialized."));
@@ -111,9 +118,9 @@ export class CanonicalStore {
       this.readers.length > 0
     ) {
       const reader = this.readers[this.nextReader++ % this.readers.length];
-      return reader!.request<T>(command);
+      return reader!.request<T>(command, transferList);
     }
-    return this.writer.request<T>(command);
+    return this.writer.request<T>(command, transferList);
   }
 
   readDocument<T>(namespace: string, scopeId: string, documentId: string) {
@@ -228,6 +235,74 @@ export class CanonicalStore {
       true,
     );
   }
+  async listConversationMetadata<T>() {
+    return (await this.listDocuments<T>("conversation")).map(
+      (document) => document.data,
+    );
+  }
+  readConversationRevision(conversationId: string) {
+    return this.request<number>({
+      kind: "read_conversation_revision",
+      conversationId,
+    });
+  }
+  readConversationEntries(conversationId: string) {
+    return this.request<ConversationEntry[]>({
+      kind: "read_conversation_entries",
+      conversationId,
+    });
+  }
+  scanToolCalls(input: {
+    afterId?: string;
+    maxRows?: number;
+    maxBytes?: number;
+  }) {
+    return this.request<{
+      records: ToolCallRecord[];
+      nextCursor?: string;
+      done: boolean;
+      encodedBytes: number;
+    }>({
+      kind: "scan_tool_calls",
+      ...(input.afterId ? { afterId: input.afterId } : {}),
+      maxRows: input.maxRows ?? 128,
+      maxBytes: input.maxBytes ?? 8 * 1024 * 1024,
+    });
+  }
+  readToolCall(toolCallId: string): Promise<ToolCallRecord | undefined> {
+    return this.request<ToolCallRecord | undefined>({
+      kind: "read_tool_call",
+      toolCallId,
+    });
+  }
+  listRunMetadata() {
+    return this.request<RunRecord[]>({ kind: "list_run_metadata" });
+  }
+  listRunStates<T>(statuses: string[]) {
+    return this.request<T[]>({ kind: "list_run_states", statuses });
+  }
+  readRunState<T>(runId: string) {
+    return this.request<T | undefined>({ kind: "read_run_state", runId });
+  }
+  backfillConversationRecordProjections(
+    input: {
+      afterId?: string;
+      maxRows?: number;
+    } = {},
+  ) {
+    return this.request<{
+      inserted: number;
+      nextCursor?: string;
+      done: boolean;
+    }>(
+      {
+        kind: "backfill_conversation_record_projections",
+        ...(input.afterId ? { afterId: input.afterId } : {}),
+        maxRows: input.maxRows ?? 250,
+      },
+      true,
+    );
+  }
   listConversationJournalIds() {
     return this.request<string[]>(
       { kind: "list_conversation_journal_ids" },
@@ -236,17 +311,28 @@ export class CanonicalStore {
   }
   readConversationJournal(conversationId: string) {
     return this.request<{
-      snapshot?: import("../../../domains/conversations/conversation-state-materializer.js").SerializedConversationState;
-      commits: unknown[];
+      snapshot?: Uint8Array;
+      commits: Uint8Array[];
       head?: { revision: number; checksum?: string };
+      encodedBytes: number;
     }>({ kind: "read_conversation_journal", conversationId }, true);
   }
   checkpointConversationState(
     state: import("../../../domains/conversations/conversation-state-materializer.js").SerializedConversationState,
   ) {
+    const data = Uint8Array.from(encode(state));
     return this.request<void>(
-      { kind: "checkpoint_conversation_state", state },
+      {
+        kind: "checkpoint_conversation_state",
+        input: {
+          conversationId: state.conversationId,
+          revision: state.revision,
+          ...(state.checksum ? { checksum: state.checksum } : {}),
+          data,
+        },
+      },
       true,
+      [data.buffer],
     );
   }
   deleteConversationState(conversationId: string) {

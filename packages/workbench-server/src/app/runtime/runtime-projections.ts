@@ -91,6 +91,10 @@ export class RuntimeState {
     return true;
   }
 
+  hasConversationEntries(conversationId: string): boolean {
+    return this.entries.has(conversationId);
+  }
+
   getConversationEntries(conversationId: string): ConversationEntry[] {
     return this.entries.get(conversationId) ?? [];
   }
@@ -105,6 +109,11 @@ export class RuntimeState {
 
   setAgent(agent: AgentRecord): void {
     this.agents.set(agent.id, agent);
+  }
+
+  clearConversationEntries(conversationId: string): void {
+    this.entries.delete(conversationId);
+    this.entriesById.delete(conversationId);
   }
 
   setConversationEntries(

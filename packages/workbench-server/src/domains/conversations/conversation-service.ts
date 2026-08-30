@@ -48,6 +48,24 @@ export class ConversationService {
     }
   }
 
+  async rebuildConversation(
+    project: ProjectRecord,
+    conversation: ConversationRecord,
+    agents: Iterable<AgentRecord>,
+    entries: ConversationEntry[],
+  ): Promise<void> {
+    const messages = await this.contextMessagesForConversation(
+      conversation,
+      project.dir,
+      new Map([[conversation.id, entries]]),
+    );
+    for (const agent of agents) {
+      if (agent.conversationId === conversation.id) {
+        this.agentConversationCache.set(agent.id, messages);
+      }
+    }
+  }
+
   getForAgent(agentId: string): Message[] | undefined {
     return this.agentConversationCache.get(agentId);
   }

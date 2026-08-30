@@ -32,7 +32,9 @@ export class ImportService {
       conversationId: string,
     ) => ConversationRecord,
     private readonly appendEntry: AppendConversationEntry,
-    private readonly rebuildConversations: () => Promise<void>,
+    private readonly rebuildConversation: (
+      conversationId: string,
+    ) => Promise<void>,
     private readonly events: StreamLogRegistry,
   ) {}
 
@@ -105,7 +107,7 @@ export class ImportService {
       entryIdMap.set(entry.id, imported.id);
       importedEntries.push(imported);
     }
-    await this.rebuildConversations();
+    await this.rebuildConversation(conversation.id);
     await this.events.publish("conversation.imported", {
       project,
       conversation: this.getConversation(conversation.id),

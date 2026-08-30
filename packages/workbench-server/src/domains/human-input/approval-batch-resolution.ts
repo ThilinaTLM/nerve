@@ -18,7 +18,7 @@ interface ApprovalBatchResolutionDeps {
   ): Promise<ConversationEntry>;
   existingToolResultEntry(
     toolCall: ToolCallRecord,
-  ): ConversationEntry | undefined;
+  ): Promise<ConversationEntry | undefined>;
 }
 
 export class ApprovalBatchResolutionService {
@@ -236,7 +236,7 @@ export class ApprovalBatchResolutionService {
 
     const entries: ConversationEntry[] = [];
     for (const toolCall of toolCalls) {
-      const existing = this.deps.existingToolResultEntry(toolCall);
+      const existing = await this.deps.existingToolResultEntry(toolCall);
       entries.push(
         existing ??
           (await this.deps.appendToolResult(

@@ -26,6 +26,63 @@ function conversation(title: string): ConversationRecord {
   };
 }
 
+test("conversation journal single-flights concurrent aggregate loads", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-single-flight-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const seed = new ConversationJournalRepository({ paths: { home } });
+  await seed.commit(conversationId, {
+    kind: "conversation.created",
+    committedAt: now,
+    events: [
+      {
+        kind: "conversation.upserted",
+        conversationId,
+        conversation: conversation("Single flight"),
+      },
+    ],
+  });
+  await seed.checkpointLoaded();
+
+  const repository = new ConversationJournalRepository({ paths: { home } });
+  const [left, right] = await Promise.all([
+    repository.load(conversationId),
+    repository.load(conversationId),
+  ]);
+  assert.equal(left, right);
+  assert.equal(repository.residentStats().residentCount, 1);
+});
+
+test("conversation journal bounds clean resident aggregates", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-resident-bound-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const seed = new ConversationJournalRepository({ paths: { home } });
+  for (const id of ["conv_bound_a", "conv_bound_b", "conv_bound_c"]) {
+    await seed.commit(id, {
+      kind: "conversation.created",
+      committedAt: now,
+      events: [
+        {
+          kind: "conversation.upserted",
+          conversationId: id,
+          conversation: { ...conversation(id), id },
+        },
+      ],
+    });
+  }
+  await seed.checkpointLoaded();
+
+  const repository = new ConversationJournalRepository(
+    { paths: { home } },
+    undefined,
+    { maxResidentConversations: 2 },
+  );
+  await repository.load("conv_bound_a");
+  await repository.load("conv_bound_b");
+  await repository.load("conv_bound_c");
+  assert.equal(repository.residentStats().residentCount, 2);
+  assert.equal(repository.state("conv_bound_a"), undefined);
+});
+
 test("conversation journal records bounded commit diagnostics", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-journal-metrics-"));
   t.after(() => rm(home, { recursive: true, force: true }));
@@ -80,6 +137,47 @@ test("conversation journal commits are chained and idempotent", async (t) => {
   assert.equal(replayed.revision, 1);
   assert.equal(replayed.conversation?.title, "Journal test");
   assert.match(replayed.checksum, /^sha256:[a-f0-9]{64}$/);
+});
+
+test("conversation metadata and transcript projections do not hydrate aggregates", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-projections-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const seed = new ConversationJournalRepository({ paths: { home } });
+  await seed.commit(conversationId, {
+    kind: "conversation.created",
+    committedAt: now,
+    events: [
+      {
+        kind: "conversation.upserted",
+        conversationId,
+        conversation: conversation("Projected"),
+      },
+      {
+        kind: "conversation.entry_appended",
+        conversationId,
+        entry: {
+          id: "entry_projected",
+          conversationId,
+          role: "user",
+          text: "Projection only",
+          createdAt: now,
+        },
+      },
+    ],
+  });
+
+  const repository = new ConversationJournalRepository({ paths: { home } });
+  assert.deepEqual(
+    (await repository.listConversationMetadata()).map((item) => item.title),
+    ["Projected"],
+  );
+  assert.deepEqual(
+    (await repository.readConversationEntries(conversationId)).map(
+      (entry) => entry.id,
+    ),
+    ["entry_projected"],
+  );
+  assert.equal(repository.residentStats().residentCount, 0);
 });
 
 test("conversation entry appends are first-write-wins by id", async (t) => {

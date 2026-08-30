@@ -210,13 +210,20 @@ export function composeRuntime(
   ) => services.conversationLifecycle.updateConversation(conversation);
   const appendEntry = (input: AppendEntryInput, options?: AppendEntryOptions) =>
     services.conversationLifecycle.appendEntry(input, options);
-  const rebuildConversations = () =>
-    services.conversationService.rebuildAll(
-      state.projects.values(),
-      state.conversations.values(),
+  const rebuildConversation = async (conversationId: string) => {
+    const conversation = getConversation(conversationId);
+    const project = getProject(conversation.projectId);
+    const entries =
+      await services.conversationLifecycle.ensureConversationEntries(
+        conversationId,
+      );
+    await services.conversationService.rebuildConversation(
+      project,
+      conversation,
       state.agents.values(),
-      state.entries,
+      entries,
     );
+  };
   const rebuildIndex = async () => {
     // Events are indexed incrementally (publish/prune/boot reconcile); only the
     // derived tables are rebuilt here.
@@ -327,7 +334,7 @@ export function composeRuntime(
     getProject,
     appendEntry,
     services.harnessStorage,
-    rebuildConversations,
+    rebuildConversation,
     events,
     compactionSummarizer,
     {},
@@ -337,11 +344,12 @@ export function composeRuntime(
   services.navigationService = new NavigationService(
     getConversation,
     getProject,
-    state.entries,
+    (conversationId) =>
+      services.conversationLifecycle.ensureConversationEntries(conversationId),
     updateConversation,
     appendEntry,
     services.harnessStorage,
-    rebuildConversations,
+    rebuildConversation,
     events,
     async (conversationId) =>
       (await services.runQuery.activeForConversation(conversationId))?.status,
@@ -350,7 +358,8 @@ export function composeRuntime(
     getConversation,
     getProject,
     listAgents,
-    state.entries,
+    (conversationId) =>
+      services.conversationLifecycle.ensureConversationEntries(conversationId),
   );
   services.importService = new ImportService(
     createProject,
@@ -358,11 +367,13 @@ export function composeRuntime(
     createAgent,
     getConversation,
     appendEntry,
-    rebuildConversations,
+    rebuildConversation,
     events,
   );
   services.messageMirror = new MessageMirror({
     state,
+    ensureConversationEntries: (conversationId) =>
+      services.conversationLifecycle.ensureConversationEntries(conversationId),
     appendEntry,
     updateConversation,
     events,
@@ -417,10 +428,16 @@ export function composeRuntime(
   services.conversationQuery = new ConversationQueryService({
     events,
     state,
-    getConversationEntries: (conversationId) =>
-      services.conversationLifecycle.getConversationEntries(conversationId),
-    getConversationRevision: async (conversationId) =>
-      (await conversationJournal.load(conversationId)).revision,
+    getConversationEntries: async (conversationId) => {
+      await services.conversationLifecycle.ensureConversationEntries(
+        conversationId,
+      );
+      return services.conversationLifecycle.getConversationEntries(
+        conversationId,
+      );
+    },
+    getConversationRevision: (conversationId) =>
+      conversationJournal.readConversationRevision(conversationId),
     getConversationTree: (conversationId) =>
       services.conversationLifecycle.getConversationTree(conversationId),
     getContextUsage: (conversationId) =>
@@ -657,6 +674,10 @@ export function composeRuntime(
         services.agentMechanics.activeToolNamesFor(agent),
       getContextUsage: (conversationId) =>
         services.agentMechanics.getContextUsage(conversationId),
+      getConversationEntries: (conversationId) =>
+        services.conversationLifecycle.ensureConversationEntries(
+          conversationId,
+        ),
       runExplore: (parent, args, options) =>
         services.agentMechanics.runExplore(parent, args, options),
     },
@@ -670,7 +691,7 @@ export function composeRuntime(
     harnessStorage: services.harnessStorage,
     getAgent,
     getConversationEntries: (conversationId) =>
-      state.getConversationEntries(conversationId),
+      services.conversationLifecycle.ensureConversationEntries(conversationId),
     continueAgent: (agentId) => services.workbenchRun.continueAgent(agentId),
     logger: logger.child({ component: "task-notification" }),
   });
@@ -689,7 +710,7 @@ export function composeRuntime(
       services.agentLifecycle.setAgentStatus(agent, status),
     appendEntry,
     getConversationEntries: (conversationId) =>
-      state.getConversationEntries(conversationId),
+      services.conversationLifecycle.ensureConversationEntries(conversationId),
     harnessStorage: services.harnessStorage,
     logger: logger.child({ component: "human-input" }),
     compactPlanConversation: async (input) => {

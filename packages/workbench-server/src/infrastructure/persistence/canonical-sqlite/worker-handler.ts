@@ -49,12 +49,28 @@ export function executeCanonicalCommand(
     case "persist_conversation_commit":
       database.persistConversationCommit(command.delta);
       return undefined;
+    case "read_conversation_revision":
+      return database.readConversationRevision(command.conversationId);
+    case "read_conversation_entries":
+      return database.readConversationEntries(command.conversationId);
+    case "scan_tool_calls":
+      return database.scanToolCalls(command);
+    case "read_tool_call":
+      return database.readToolCall(command.toolCallId);
+    case "list_run_metadata":
+      return database.listRunMetadata();
+    case "list_run_states":
+      return database.listRunStates(command.statuses);
+    case "read_run_state":
+      return database.readRunState(command.runId);
+    case "backfill_conversation_record_projections":
+      return database.backfillConversationRecordProjections(command);
     case "list_conversation_journal_ids":
       return database.listConversationJournalIds();
     case "read_conversation_journal":
       return database.readConversationJournal(command.conversationId);
     case "checkpoint_conversation_state":
-      database.checkpointConversationState(command.state);
+      database.checkpointEncodedConversationState(command.input);
       return undefined;
     case "delete_conversation_state":
       database.deleteConversationState(command.conversationId);

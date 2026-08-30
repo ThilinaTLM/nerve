@@ -357,12 +357,23 @@ export class ToolService {
 
   async reconcileResultPayloads(): Promise<void> {
     const referenced = new Set<string>();
-    for (const state of await this.conversationJournal.hydrateAll()) {
-      for (const toolCall of state.toolCalls.values()) {
+    let afterId: string | undefined;
+    for (;;) {
+      const page = await this.conversationJournal.scanToolCalls({
+        ...(afterId ? { afterId } : {}),
+        maxRows: 256,
+        maxBytes: 8 * 1024 * 1024,
+      });
+      for (const toolCall of page.records) {
         if (toolCall.resultPayload) {
           referenced.add(this.resultPayloads.path(toolCall.resultPayload));
         }
       }
+      if (page.done) break;
+      if (!page.nextCursor) {
+        throw new Error("Canonical tool-call scan did not advance.");
+      }
+      afterId = page.nextCursor;
     }
     await this.resultPayloads.reconcile(referenced);
   }

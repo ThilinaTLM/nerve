@@ -1,6 +1,5 @@
 <script lang="ts">
 import type { GitPanelActions, GitPanelModel } from "$lib/features/git";
-import { SvelteMap } from "svelte/reactivity";
 import LazyViewPending from "$lib/app/shell/LazyViewPending.svelte";
 import {
   panelViewDescriptors,
@@ -17,7 +16,7 @@ let {
   gitActions: GitPanelActions;
 } = $props();
 
-const moduleCache = new SvelteMap<
+const moduleCache = new Map<
   string,
   ReturnType<WorkbenchPanelDescriptor["load"]>
 >();

@@ -175,6 +175,8 @@ export interface MaterializedConversationRecord {
   revision: number;
   payloadVersion?: number;
   data: unknown;
+  /** Compact startup/UI projection; omitted for model-only records. */
+  projection?: ConversationEntry | ConversationRunProjection["run"];
   createdAt: string;
   updatedAt: string;
 }
@@ -342,6 +344,7 @@ function materializedEntry(
           },
         }
       : transcriptData,
+    ...(transcript ? { projection: transcript } : {}),
     createdAt,
     updatedAt: modelEntry?.timestamp ?? createdAt,
   };
@@ -376,6 +379,7 @@ function materializedRun(
     status: projection.run.status,
     revision: projection.run.revision,
     data: { version: 1, run: projection.run, state: projection },
+    projection: projection.run,
     createdAt: projection.run.createdAt,
     updatedAt: projection.run.updatedAt,
   };
@@ -423,6 +427,7 @@ export function materializeConversationRecords(
             tokensBefore: entry.tokensBefore,
           }
         : { version: 1, entry },
+      projection: entry,
       createdAt: entry.createdAt,
       updatedAt: entry.createdAt,
     });
@@ -486,6 +491,7 @@ export function materializeConversationRecords(
       status: projection.run.status,
       revision: projection.run.revision,
       data: { version: 1, run: projection.run, state: projection },
+      projection: projection.run,
       createdAt: projection.run.createdAt,
       updatedAt: projection.run.updatedAt,
     });
@@ -557,6 +563,12 @@ export function materializeConversationRecords(
       Date.parse(record.createdAt),
       Date.parse(record.updatedAt),
     );
+    upsertConversationRecordProjection(
+      database,
+      state.conversationId,
+      sequence,
+      record,
+    );
   }
   const insertLeaf = database.prepare(
     `INSERT INTO agent_context_leaves (
@@ -582,6 +594,51 @@ export function materializeConversationRecords(
       Math.max(1, state.revision),
     );
   }
+}
+
+export function upsertConversationRecordProjection(
+  database: DatabaseSync,
+  conversationId: string,
+  sequence: number,
+  record: MaterializedConversationRecord,
+): void {
+  if (
+    !record.projection ||
+    (record.kind !== "message" &&
+      record.kind !== "summary" &&
+      record.kind !== "run")
+  ) {
+    database
+      .prepare(
+        `DELETE FROM conversation_record_projections WHERE record_id = ?`,
+      )
+      .run(record.id);
+    return;
+  }
+  database
+    .prepare(
+      `INSERT INTO conversation_record_projections (
+         record_id, conversation_id, sequence, kind, status, payload_version,
+         data, updated_at_ms
+       ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+       ON CONFLICT(record_id) DO UPDATE SET
+         conversation_id = excluded.conversation_id,
+         sequence = excluded.sequence,
+         kind = excluded.kind,
+         status = excluded.status,
+         payload_version = excluded.payload_version,
+         data = excluded.data,
+         updated_at_ms = excluded.updated_at_ms`,
+    )
+    .run(
+      record.id,
+      conversationId,
+      sequence,
+      record.kind,
+      record.status,
+      encode(record.projection),
+      Date.parse(record.updatedAt),
+    );
 }
 
 function orderMaterializedRecords(

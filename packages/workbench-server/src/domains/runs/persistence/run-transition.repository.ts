@@ -115,20 +115,17 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
 
   async list(): Promise<readonly RunHydratedState[]> {
     const states: RunHydratedState[] = [];
-    for (const journalState of await this.journal.hydrateAll({
-      fresh: this.refreshJournalReads,
-    })) {
-      for (const runId of journalState.runProjections.keys()) {
-        const cached = this.refreshJournalReads
-          ? undefined
-          : this.cache.get(runId);
-        const state = cached ?? this.reduceFromJournal(journalState, runId);
-        if (!state) continue;
-        if (!cached && ACTIVE_STATUSES.has(state.run.status))
-          this.cache.set(state);
-        this.lookup.observe(state);
-        states.push(state);
+    for (const record of await this.scanMetadata()) {
+      const cached = this.refreshJournalReads
+        ? undefined
+        : this.cache.get(record.runId);
+      const state = cached ?? (await this.hydrate(record.runId));
+      if (!state) continue;
+      if (!cached && ACTIVE_STATUSES.has(state.run.status)) {
+        this.cache.set(state);
       }
+      this.lookup.observe(state);
+      states.push(state);
     }
     this.lookup.markInitialized();
     return states.sort((left, right) =>
@@ -175,13 +172,12 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   async hydrateAllActive(): Promise<void> {
     const records = await this.scanMetadata();
     this.metadata = records;
-    for (const record of records) {
-      if (!ACTIVE_STATUSES.has(record.status)) continue;
-      const state = await this.hydrate(record.runId);
-      if (state) {
-        this.cache.set(state);
-        this.lookup.observe(state);
-      }
+    const active = await this.journal.listRunStates<RunHydratedState>([
+      ...ACTIVE_STATUSES,
+    ]);
+    for (const state of active) {
+      this.cache.set(state);
+      this.lookup.observe(state);
     }
     this.lookup.markInitialized();
   }
@@ -377,34 +373,13 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   }
 
   private async scanMetadata(): Promise<RunRecord[]> {
-    const records: RunRecord[] = [];
-    for (const state of await this.journal.hydrateAll({
-      fresh: this.refreshJournalReads,
-    })) {
-      for (const projection of state.runProjections.values()) {
-        records.push(projection.run);
-      }
-    }
-    return records.sort((left, right) =>
+    return (await this.journal.listRunMetadata()).sort((left, right) =>
       left.updatedAt.localeCompare(right.updatedAt),
     );
   }
 
   private async hydrate(runId: string): Promise<RunHydratedState | undefined> {
-    for (const state of await this.journal.hydrateAll({
-      fresh: this.refreshJournalReads,
-    })) {
-      const hydrated = this.reduceFromJournal(state, runId);
-      if (hydrated) return hydrated;
-    }
-    return undefined;
-  }
-
-  private reduceFromJournal(
-    state: Awaited<ReturnType<ConversationJournalRepository["load"]>>,
-    runId: string,
-  ): RunHydratedState | undefined {
-    return state.runProjections.get(runId);
+    return this.journal.readRunState<RunHydratedState>(runId);
   }
 
   private async exclusive<T>(

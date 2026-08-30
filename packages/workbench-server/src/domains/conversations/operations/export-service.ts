@@ -22,10 +22,14 @@ export class ExportService {
     ) => ConversationRecord,
     private readonly getProject: (projectId: string) => ProjectRecord,
     private readonly listAgents: () => AgentRecord[],
-    private readonly entriesByConversationId: Map<string, ConversationEntry[]>,
+    private readonly getConversationEntries: (
+      conversationId: string,
+    ) => Promise<ConversationEntry[]>,
   ) {}
 
-  exportConversation(conversationId: string): ExportedConversationBundle {
+  async exportConversation(
+    conversationId: string,
+  ): Promise<ExportedConversationBundle> {
     const conversation = this.getConversation(conversationId);
     const project = this.getProject(conversation.projectId);
     const agents = this.listAgents().filter(
@@ -37,17 +41,17 @@ export class ExportService {
       project,
       conversation,
       agents,
-      entries: this.entriesByConversationId.get(conversation.id) ?? [],
+      entries: await this.getConversationEntries(conversation.id),
     };
   }
 
-  exportConversationMarkdown(conversationId: string): string {
-    const exported = this.exportConversation(conversationId);
+  async exportConversationMarkdown(conversationId: string): Promise<string> {
+    const exported = await this.exportConversation(conversationId);
     return conversationExportMarkdown(exported.conversation, exported.entries);
   }
 
-  exportConversationHtml(conversationId: string): string {
-    const exported = this.exportConversation(conversationId);
+  async exportConversationHtml(conversationId: string): Promise<string> {
+    const exported = await this.exportConversation(conversationId);
     return conversationExportHtml(exported.conversation, exported.entries);
   }
 }

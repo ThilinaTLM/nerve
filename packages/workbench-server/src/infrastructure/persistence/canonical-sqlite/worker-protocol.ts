@@ -62,11 +62,33 @@ export type CanonicalCommand =
       kind: "persist_conversation_commit";
       delta: ConversationPersistenceDelta;
     }
+  | { kind: "read_conversation_revision"; conversationId: string }
+  | { kind: "read_conversation_entries"; conversationId: string }
+  | {
+      kind: "scan_tool_calls";
+      afterId?: string;
+      maxRows: number;
+      maxBytes: number;
+    }
+  | { kind: "read_tool_call"; toolCallId: string }
+  | { kind: "list_run_metadata" }
+  | { kind: "list_run_states"; statuses: string[] }
+  | { kind: "read_run_state"; runId: string }
+  | {
+      kind: "backfill_conversation_record_projections";
+      afterId?: string;
+      maxRows: number;
+    }
   | { kind: "list_conversation_journal_ids" }
   | { kind: "read_conversation_journal"; conversationId: string }
   | {
       kind: "checkpoint_conversation_state";
-      state: SerializedConversationState;
+      input: {
+        conversationId: string;
+        revision: number;
+        checksum?: string;
+        data: Uint8Array;
+      };
     }
   | { kind: "delete_conversation_state"; conversationId: string }
   | { kind: "integrity_check" }
@@ -89,6 +111,13 @@ export type CanonicalWorkerResponse =
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "read_document",
   "list_documents",
+  "read_conversation_revision",
+  "read_conversation_entries",
+  "scan_tool_calls",
+  "read_tool_call",
+  "list_run_metadata",
+  "list_run_states",
+  "read_run_state",
   "list_conversation_journal_ids",
   "read_conversation_journal",
   "durable_event_for_intent",

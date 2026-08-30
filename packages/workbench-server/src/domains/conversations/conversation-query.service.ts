@@ -42,7 +42,9 @@ export function toolRecordIdsFromEntries(
 export interface ConversationQueryServiceDeps {
   events: StreamLogRegistry;
   state: RuntimeState;
-  getConversationEntries: (conversationId: string) => ConversationEntry[];
+  getConversationEntries: (
+    conversationId: string,
+  ) => Promise<ConversationEntry[]>;
   getConversationRevision: (conversationId: string) => Promise<number>;
   getConversationTree: (conversationId: string) => ConversationTree;
   getContextUsage: (conversationId: string) => Promise<ContextUsage>;
@@ -66,7 +68,7 @@ export class ConversationQueryService {
     const contextUsage = await this.deps
       .getContextUsage(conversationId)
       .catch(() => undefined);
-    const entries = this.deps.getConversationEntries(conversationId);
+    const entries = await this.deps.getConversationEntries(conversationId);
     const activeEntryIds = entries.map((entry) => entry.id);
     const activeRun = await this.deps.getActiveRun(
       conversationId,

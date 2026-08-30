@@ -122,13 +122,14 @@ async function main() {
   });
   configureManagedProcessRuntime({ maxActiveProcesses: 64 });
   const dataDir = resolveDataDir();
+  const reportStartupProgress = (progress: DaemonStartupProgress) => {
+    process.stderr.write(
+      `${DAEMON_STARTUP_PROGRESS_PREFIX}${JSON.stringify(progress)}\n`,
+    );
+  };
   const storageStartedAt = performance.now();
   const storage = await initializeStorage(dataDir, {
-    reportStartupProgress: (progress: DaemonStartupProgress) => {
-      process.stderr.write(
-        `${DAEMON_STARTUP_PROGRESS_PREFIX}${JSON.stringify(progress)}\n`,
-      );
-    },
+    reportStartupProgress,
   });
   const storageDurationMs = Math.round(performance.now() - storageStartedAt);
   installNodeDiagnosticReports(dataDir);
@@ -211,6 +212,11 @@ async function main() {
       latestSeq: workspaceBounds.latestSeq,
       earliestAvailableSeq: workspaceBounds.earliestAvailableSeq,
     },
+  });
+  reportStartupProgress({
+    type: "nerve.startup.progress",
+    phase: "runtime-hydration",
+    message: "Hydrating runtime projections",
   });
   const [registryTimings] = await Promise.all([
     state.lifecycle.hydrate(),

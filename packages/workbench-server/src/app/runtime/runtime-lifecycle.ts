@@ -203,6 +203,10 @@ export class RuntimeLifecycle {
         "Tool-result payload reconciliation",
         this.services.tools.reconcileResultPayloads(),
       ],
+      [
+        "Conversation projection backfill",
+        this.services.conversationJournal.backfillMissingProjections(),
+      ],
     ] as const;
     this.trackBackgroundOperation(this.logSettledOperations(operations));
   }
