@@ -1,2 +1,5 @@
 export { default as FilePane } from "./FilePane.svelte";
-export type { FilePaneContent, FilePaneViewModel } from "./types.js";
+export type {
+  FilePaneContent,
+  FilePaneViewModel,
+} from "./file-pane-contracts.js";

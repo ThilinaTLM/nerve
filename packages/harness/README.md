@@ -22,7 +22,7 @@ src/
     run/                         turn execution, continuation, and mutable run state
     maintenance/                 conversation-tree maintenance
   conversation/                  conversation facade and storage-neutral port
-  compaction/                    policy, serialization, file tracking, and summaries
+  compaction/                    policy, preparation, usage estimates, results, serialization, file tracking, and summaries
   resources/                     skills and prompt templates
   environment/                   execution environment abstraction and Node adapter
 ```
@@ -38,7 +38,7 @@ src/
 - High-level harness API: `src/harness/agent-harness.ts`
 - Harness hooks and event persistence: `src/harness/lifecycle/`
 - Persisted conversation behavior: `src/conversation/`
-- Compaction decisions or summaries: `src/compaction/`
+- Compaction decisions or summaries: `src/compaction/` (contracts are split by concept into `compaction-policy.ts`, `compaction-preparation.ts`, `context-usage-estimate.ts`, and `compaction-result.ts`)
 - Skills and prompt templates: `src/resources/`
 
 ## Dependency direction

@@ -5,7 +5,7 @@ import {
   type StatusTone,
 } from "@nervekit/ui-kit/components/composites/status-dot";
 import { cn } from "@nervekit/ui-kit/utils";
-import type { SettingsStatus } from "./types";
+import type { SettingsStatus } from "./settings-component-contracts";
 
 type Props = {
   title: string;

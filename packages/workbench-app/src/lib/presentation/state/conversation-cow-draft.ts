@@ -3,7 +3,7 @@ import type {
   ConversationLiveMessageSnapshot,
   ConversationLiveTurnSnapshot,
 } from "@nervekit/contracts/conversations";
-import type { ConversationRenderState } from "./types.js";
+import type { ConversationRenderState } from "./conversation-render-state.js";
 
 /**
  * Dispatch-local ownership helper for the conversation reducer.

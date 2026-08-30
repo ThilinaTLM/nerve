@@ -6,7 +6,7 @@ import type {
   CompactionEntry,
   ConversationTreeEntry,
 } from "../conversation/entries.js";
-import type { ContextUsageEstimate } from "./types.js";
+import type { ContextUsageEstimate } from "./context-usage-estimate.js";
 
 function safeJsonStringify(value: unknown): string {
   try {

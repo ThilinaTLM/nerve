@@ -13,7 +13,7 @@ import {
   type ToolArgumentBody,
   type ToolLifecycleSpec,
   type ToolLifecycleStage,
-} from "./types";
+} from "./tool-lifecycle-contracts";
 
 type ConfluenceToolName = Extract<CoreToolName, `confluence_${string}`>;
 

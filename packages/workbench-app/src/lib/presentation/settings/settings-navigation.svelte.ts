@@ -1,4 +1,7 @@
-import type { SettingsPageDef, SettingsSectionDef } from "./types";
+import type {
+  SettingsPageDef,
+  SettingsSectionDef,
+} from "./settings-component-contracts";
 import { settingsSectionDomId } from "./section-id";
 
 export function firstEnabledSectionId(page?: SettingsPageDef): string {

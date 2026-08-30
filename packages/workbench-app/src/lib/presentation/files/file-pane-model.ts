@@ -5,7 +5,7 @@ import {
   type FileRenderKind,
 } from "@nervekit/ui-kit/display/file-display";
 import { localPathDirectory } from "@nervekit/ui-kit/display/path-links";
-import type { FilePaneViewModel } from "./types.js";
+import type { FilePaneViewModel } from "./file-pane-contracts.js";
 
 export type ResolvedFilePaneModel = {
   filePath: string;

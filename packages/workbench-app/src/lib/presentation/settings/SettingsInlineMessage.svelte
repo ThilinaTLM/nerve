@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
-import type { SettingsTone } from "./types";
+import type { SettingsTone } from "./settings-component-contracts";
 
 type Props = {
   tone?: SettingsTone;

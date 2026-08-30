@@ -1,5 +1,5 @@
 import type { ToolArgumentSource } from "./argument-source";
-import type { ToolArgumentBody } from "./types";
+import type { ToolArgumentBody } from "./tool-lifecycle-contracts";
 
 /**
  * Builder for the structured Jira/Confluence draft body. Pure so the field

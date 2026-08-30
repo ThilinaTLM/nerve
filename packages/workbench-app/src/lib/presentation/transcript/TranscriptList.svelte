@@ -10,7 +10,7 @@ import type {
   QueuedPromptRecord,
   UserQuestionRecord,
 } from "../state/tool-types";
-import type { ConversationMenuBuilders } from "../conversations/types.js";
+import type { ConversationMenuBuilders } from "../conversations/conversation-view-contracts.js";
 import {
   VirtualScroller,
   type VirtualScrollerController,

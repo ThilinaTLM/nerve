@@ -8,7 +8,7 @@ import {
 } from "./timeline.js";
 import { hasActiveTurnTimelineOutput } from "./timeline-output.js";
 import { entriesToTranscript } from "./transcript.js";
-import type { ConversationRenderState } from "./types.js";
+import type { ConversationRenderState } from "./conversation-render-state.js";
 
 export type ConversationRenderProjection = {
   timeline: TimelineItem[];

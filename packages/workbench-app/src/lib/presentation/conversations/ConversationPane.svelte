@@ -12,7 +12,7 @@ import type {
   ConversationMenuBuilders,
   ConversationPaneActions,
   ConversationPaneModel,
-} from "./types.js";
+} from "./conversation-view-contracts.js";
 
 let {
   model,

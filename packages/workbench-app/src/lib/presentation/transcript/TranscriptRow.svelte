@@ -8,7 +8,7 @@ import type {
   ProjectRecord,
   UserQuestionRecord,
 } from "../state/tool-types";
-import type { ConversationMenuBuilders } from "../conversations/types.js";
+import type { ConversationMenuBuilders } from "../conversations/conversation-view-contracts.js";
 import ToolCallCard from "../tools/ToolCallCard.svelte";
 import ToolResultErrorCard from "../tools/tool-call/ToolResultErrorCard.svelte";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";

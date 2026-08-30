@@ -3,7 +3,7 @@ import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as RadioGroup from "@nervekit/ui-kit/components/ui/radio-group";
 import { SelectRow } from "@nervekit/ui-kit/components/composites/select-row";
 import { cn } from "@nervekit/ui-kit/utils";
-import type { SettingsChoice } from "./types";
+import type { SettingsChoice } from "./settings-component-contracts";
 
 type Props = {
   items: SettingsChoice[];

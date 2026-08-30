@@ -14,7 +14,7 @@ import {
   observeSettingsSections,
   scrollNavigation,
 } from "./settings-navigation.svelte";
-import type { SettingsPageDef } from "./types";
+import type { SettingsPageDef } from "./settings-component-contracts";
 
 type Props = {
   pages: SettingsPageDef[];

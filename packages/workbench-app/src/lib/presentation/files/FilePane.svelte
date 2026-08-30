@@ -9,7 +9,7 @@ import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { CodeMirrorViewer } from "$lib/presentation/code";
 import { MermaidPane } from "$lib/presentation/mermaid";
 import { resolveFilePaneModel } from "./file-pane-model.js";
-import type { FilePaneViewModel } from "./types.js";
+import type { FilePaneViewModel } from "./file-pane-contracts.js";
 
 let {
   view,

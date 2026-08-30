@@ -13,7 +13,7 @@ import {
   type ToolLifecycleSpec,
   type ToolLifecycleStage,
   type UnknownToolLifecycleSpec,
-} from "./types";
+} from "./tool-lifecycle-contracts";
 
 export const toolLifecycleRegistry = {
   ...coreToolLifecycleSpecs,
@@ -75,7 +75,7 @@ export function presentToolArguments(
   return toolLifecycleSpec(name).present(toolArgumentSource(input), stage, cwd);
 }
 
-export * from "./types";
+export * from "./tool-lifecycle-contracts";
 export {
   isSuspiciousKey,
   isSuspiciousValue,

@@ -52,7 +52,7 @@ import type {
   CompactionNotice,
   ConversationTransientState,
 } from "./transcript-types.js";
-import type { ConversationRenderState } from "./types.js";
+import type { ConversationRenderState } from "./conversation-render-state.js";
 import { ConversationCowDraft } from "./conversation-cow-draft.js";
 
 const conversationEventTypeSet = new Set<string>(conversationEventTypes);

@@ -3,7 +3,7 @@ import type { Snippet } from "svelte";
 import ContextMenu, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import type { TranscriptMenuTarget } from "../conversations/types.js";
+import type { TranscriptMenuTarget } from "../conversations/conversation-view-contracts.js";
 import { selectedTextForTranscriptRow } from "./transcript-context-selection.js";
 
 type Props = {

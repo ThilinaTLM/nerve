@@ -7,4 +7,4 @@ export {
   conversationStarters,
   type ConversationStarter,
 } from "./conversation-starters";
-export * from "./types.js";
+export * from "./conversation-view-contracts.js";

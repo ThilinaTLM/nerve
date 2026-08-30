@@ -195,6 +195,7 @@ function checkRetiredSurface() {
     "type " + "AgentRunState",
     "legacy" + "NervePaths",
     "global" + "ProcessedSeqFromCursor",
+    "function " + "launchDesktopRuntime",
   ];
 
   for (const file of trackedFiles.filter((path) =>
@@ -525,6 +526,13 @@ function checkRemovedPaths() {
     "packages/workbench-app/src/lib/core/utils/path-links.test.ts",
     "packages/workbench-app/src/lib/core/utils/text-preview.ts",
     "packages/workbench-app/src/lib/core/utils/text-preview.test.ts",
+    "packages/harness/src/compaction/types.ts",
+    "packages/workbench-app/src/lib/presentation/conversations/types.ts",
+    "packages/workbench-app/src/lib/presentation/files/types.ts",
+    "packages/workbench-app/src/lib/presentation/settings/types.ts",
+    "packages/workbench-app/src/lib/presentation/state/types.ts",
+    "packages/workbench-app/src/lib/presentation/tools/lifecycle/types.ts",
+    "packages/workbench-app/src/lib/application/workspace/workspace-feature-commands.ts",
     "packages/harness/src/harness/utils/shell-output.ts",
     "packages/harness/src/harness/utils/truncate.ts",
     "packages/desktop-shell/src/daemon-helpers.ts",

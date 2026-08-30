@@ -1,6 +1,6 @@
 import type { AgentMessage } from "../agent/contracts/index.js";
 import type { ConversationTreeEntry } from "../conversation/entries.js";
-import type { CutPointResult } from "./types.js";
+import type { CutPointResult } from "./compaction-preparation.js";
 import { estimateTokens } from "./usage.js";
 
 function findValidCutPoints(

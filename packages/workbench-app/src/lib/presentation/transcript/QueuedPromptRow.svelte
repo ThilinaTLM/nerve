@@ -4,7 +4,7 @@ import ListPlus from "@lucide/svelte/icons/list-plus";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { QueuedPromptRecord } from "../state/tool-types";
-import type { ConversationMenuBuilders } from "../conversations/types.js";
+import type { ConversationMenuBuilders } from "../conversations/conversation-view-contracts.js";
 import TranscriptContextMenu from "./TranscriptContextMenu.svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import UserMessageContent from "./UserMessageContent.svelte";

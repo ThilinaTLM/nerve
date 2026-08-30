@@ -11,7 +11,7 @@ import {
   type ToolArgumentBody,
   type ToolLifecycleSpec,
   type ToolLifecycleStage,
-} from "./types";
+} from "./tool-lifecycle-contracts";
 
 const BODY_LINES = COLLAPSED_LINES;
 const BODY_CHARS = 6_000;

@@ -6,7 +6,7 @@ import type {
 import type {
   ToolArgumentRegion,
   ToolResultPlaceholder,
-} from "../lifecycle/types";
+} from "../lifecycle/tool-lifecycle-contracts";
 import type { MetaItem } from "./tool-presentation-types";
 
 export type ToolActivityPhase = "drafting" | "prepared" | ToolCallStatus;

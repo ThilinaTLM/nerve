@@ -14,7 +14,7 @@ import {
   fromSubagentTranscriptSnapshot,
 } from "../../state/subagent-transcript-session";
 import { buildConversationRenderProjection } from "../../state/render";
-import type { ConversationRenderState } from "../../state/types";
+import type { ConversationRenderState } from "../../state/conversation-render-state";
 import { createConversationScrollController } from "../../transcript/conversation-scroll.svelte.js";
 import {
   groupConsecutiveThinking,

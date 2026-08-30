@@ -28,10 +28,10 @@ import { err, ok, type Result } from "../result.js";
 import { findCutPoint } from "./cut-points.js";
 import type {
   CompactionDetails,
-  CompactionPreparation,
   CompactionResult,
-  CompactionSettings,
-} from "./types.js";
+} from "./compaction-result.js";
+import type { CompactionPreparation } from "./compaction-preparation.js";
+import type { CompactionSettings } from "./compaction-policy.js";
 import { estimateContextTokens } from "./usage.js";
 import {
   computeFileLists,
@@ -140,13 +140,17 @@ export type {
   AutoCompactionConfiguration,
   AutoCompactionPolicy,
   AutoCompactionReason,
-  CompactionDetails,
-  CompactionPreparation,
-  CompactionResult,
   CompactionSettings,
-  ContextUsageEstimate,
+} from "./compaction-policy.js";
+export type {
+  CompactionPreparation,
   CutPointResult,
-} from "./types.js";
+} from "./compaction-preparation.js";
+export type {
+  CompactionDetails,
+  CompactionResult,
+} from "./compaction-result.js";
+export type { ContextUsageEstimate } from "./context-usage-estimate.js";
 export {
   calculateContextTokens,
   computeContextUsage,

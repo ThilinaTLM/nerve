@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { fromConversationSnapshot } from "./adapters.js";
 import { buildConversationRenderProjection } from "./render.js";
-import type { ConversationRenderState } from "./types.js";
+import type { ConversationRenderState } from "./conversation-render-state.js";
 
 const ts = "2026-07-07T00:00:00.000Z";
 

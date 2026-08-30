@@ -28,4 +28,4 @@ export type {
   SettingsSectionDef,
   SettingsStatus,
   SettingsTone,
-} from "./types";
+} from "./settings-component-contracts";

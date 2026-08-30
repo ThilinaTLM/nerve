@@ -14,7 +14,7 @@ import {
   type ToolArgumentBody,
   type ToolLifecycleSpec,
   type ToolLifecycleStage,
-} from "./types";
+} from "./tool-lifecycle-contracts";
 
 function spec<Name extends OrchestrationToolName>(
   value: ToolLifecycleSpec<Name>,

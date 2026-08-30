@@ -1,5 +1,8 @@
 import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
-import type { AutoCompactionPolicy, CompactionSettings } from "./types.js";
+import type {
+  AutoCompactionPolicy,
+  CompactionSettings,
+} from "./compaction-policy.js";
 
 /** Default compaction settings used by the manual harness API. */
 export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {

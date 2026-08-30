@@ -10,7 +10,7 @@ import ComposerToolbar from "../composer/ComposerToolbar.svelte";
 import type {
   ConversationComposerModel,
   ConversationPaneActions,
-} from "./types.js";
+} from "./conversation-view-contracts.js";
 
 let {
   model,

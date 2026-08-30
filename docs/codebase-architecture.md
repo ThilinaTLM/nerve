@@ -44,12 +44,13 @@ Arrows in the diagram mean “is consumed by.” `website` is standalone.
 - `index.ts` is a curated public boundary, never an internal import shortcut.
 - Avoid `common`, `shared`, and broad `utils` directories. Reusable code belongs to a named technical or domain area.
 - Small domains remain flat; add layer subdirectories only when they improve navigation.
+- Cohesive exceptions remain intentional: UI-kit `utils.ts`, domain-local `operations.ts`, curated `index.ts` boundaries, test-support helpers, and narrowly scoped tools/server contract modules.
 
 ## Runtime composition boundaries
 
-- `workbench-server` composes domain services in `app/bootstrap`; `RuntimeLifecycle` owns hydration, maintenance, and shutdown only. Protocol and HTTP adapters consume narrow service/capability contexts and cannot use the process lifecycle as a service locator. Run-runtime modules depend only on run-local modules, contracts, and `core/ports`.
-- `workbench-app` keeps mutable feature stores private. Workspace workflows consume feature-owned read models and named commands; composition registers selection/tab inputs where a direct feature-to-application import would create a cycle. Presentation remains stateless and isolated from application, feature, and platform state.
-- `desktop-shell/main.ts` performs bootstrap safety, single-instance acquisition, and `DesktopRuntime` construction. The runtime owns Electron/daemon lifetime state, while window creation, network configuration, direct process spawning, systemd policy, and diagnostic capture live in focused adapters.
+- `workbench-server` composes domain services in `app/bootstrap`; `RuntimeLifecycle` privately owns hydration, maintenance, and domain shutdown. Bootstrap projects that graph into prebound protocol, snapshot, WebSocket, and HTTP capability contexts, so adapters cannot use `RuntimeServices` or process lifecycle as a service locator. Run-runtime modules depend only on run-local modules, contracts, and `core/ports`.
+- `workbench-app` keeps mutable feature stores private. Workspace workflows consume application-owned readonly feature ports and named commands; composition installs and unregisters concrete implementations plus reverse selection/tab inputs. Presentation remains stateless and isolated from application, feature, and platform state.
+- `desktop-shell/main.ts` performs bootstrap safety, single-instance acquisition, and concrete runtime construction. `DesktopRuntime` owns Electron/daemon lifetime state and listener disposal through injected ports with idempotent `start()`/`dispose()`; window policy, network configuration, direct process spawning, systemd policy, and diagnostic capture live in focused adapters.
 
 ## Enforced surfaces
 
