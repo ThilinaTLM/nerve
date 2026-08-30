@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -7,48 +7,8 @@ import {
 } from "../policy.js";
 import type { DaemonDiagnosticCaptureResult } from "../ports.js";
 
-let daemonScopeCounter = 0;
-
-export function resolveDaemonLaunch(input: {
-  serverMain: string;
-  args?: string[];
-  env: NodeJS.ProcessEnv;
-}): {
-  command: string;
-  args: string[];
-  env: NodeJS.ProcessEnv;
-  systemdUnit?: string;
-} {
-  const daemonArgs = [input.serverMain, ...(input.args ?? [])];
-  if (
-    process.platform !== "linux" ||
-    input.env.NERVE_ALLOW_UNCONTAINED_PROCESSES === "1" ||
-    input.env.NERVE_CGROUP_ROOT
-  ) {
-    return { command: process.execPath, args: daemonArgs, env: input.env };
-  }
-  daemonScopeCounter += 1;
-  const systemdUnit = `nerve-daemon-${process.pid}-${daemonScopeCounter}.scope`;
-  return {
-    command: "systemd-run",
-    args: [
-      "--user",
-      "--scope",
-      "--quiet",
-      "--collect",
-      `--unit=${systemdUnit}`,
-      "--property=Delegate=yes",
-      "--",
-      process.execPath,
-      ...daemonArgs,
-    ],
-    env: { ...input.env, NERVE_LINUX_DELEGATED_CGROUP: "1" },
-    systemdUnit,
-  };
-}
-
 export async function captureDiagnosticReport(
-  child: ReturnType<typeof spawn>,
+  child: Pick<ChildProcess, "pid" | "kill">,
   dataDir: string,
 ): Promise<DaemonDiagnosticCaptureResult> {
   const startedAt = Date.now();

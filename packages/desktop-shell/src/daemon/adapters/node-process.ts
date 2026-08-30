@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -11,10 +10,8 @@ import type { DaemonConnectionPorts } from "../ports.js";
 import type { NetworkInterfacesSnapshot } from "../urls.js";
 import { findHealthyDaemon } from "./daemon-discovery.js";
 import { checkHealth } from "./daemon-health.js";
-import {
-  captureDiagnosticReport,
-  resolveDaemonLaunch,
-} from "./node-launcher.js";
+import { spawnDaemonProcess } from "./direct-process.js";
+import { resolveDaemonLaunch } from "./systemd-scope.js";
 
 /** Compose focused Node adapters behind the daemon runtime ports. */
 export function createNodeDaemonPorts(): DaemonConnectionPorts {
@@ -23,36 +20,7 @@ export function createNodeDaemonPorts(): DaemonConnectionPorts {
     health: { check: checkHealth },
     discovery: { findHealthyDaemon },
     launcher: {
-      launch: (input) => {
-        const launch = resolveDaemonLaunch(input);
-        const child = spawn(launch.command, launch.args, {
-          env: launch.env,
-          stdio: ["ignore", "pipe", "pipe"],
-          windowsHide: true,
-        });
-        child.stdout?.on("data", (chunk) => input.onOutput("stdout", chunk));
-        child.stderr?.on("data", (chunk) => input.onOutput("stderr", chunk));
-        child.once("error", (error) => input.onError(error));
-        child.once("exit", (code, signal) => {
-          if (launch.systemdUnit) {
-            const cleanup = spawn(
-              "systemctl",
-              ["--user", "stop", launch.systemdUnit],
-              { stdio: "ignore", windowsHide: true },
-            );
-            cleanup.unref();
-          }
-          input.onExit({ code, signal });
-        });
-        return {
-          get pid() {
-            return child.pid;
-          },
-          kill: (signal) => child.kill(signal),
-          requestDiagnosticReport: (dataDir) =>
-            captureDiagnosticReport(child, dataDir),
-        };
-      },
+      launch: (input) => spawnDaemonProcess(input, resolveDaemonLaunch(input)),
     },
     scheduler: {
       now: () => Date.now(),
