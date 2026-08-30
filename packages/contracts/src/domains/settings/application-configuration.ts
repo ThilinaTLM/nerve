@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/logs.js";
 
+export const MIN_DAEMON_MAX_OLD_SPACE_MB = 512;
+
 export const electronOzonePlatformSchema = z.enum(["auto", "x11", "wayland"]);
 export type ElectronOzonePlatform = z.infer<typeof electronOzonePlatformSchema>;
 
@@ -70,7 +72,11 @@ export const applicationSettingsPatchSchema = z.object({
   daemon: z
     .object({
       startupTimeoutMs: z.number().int().positive().optional(),
-      maxOldSpaceMb: z.number().int().positive().optional(),
+      maxOldSpaceMb: z
+        .number()
+        .int()
+        .min(MIN_DAEMON_MAX_OLD_SPACE_MB)
+        .optional(),
     })
     .optional(),
   electron: z

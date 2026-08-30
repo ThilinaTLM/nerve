@@ -38,6 +38,44 @@ describe("application configuration resolution", () => {
     );
   });
 
+  it("normalizes legacy and environment heap limits without changing precedence metadata", () => {
+    const settings = structuredClone(defaultSettings);
+    settings.application.daemon.maxOldSpaceMb = 128;
+    const saved = resolveApplicationConfiguration({
+      settings,
+      env: {},
+      argv: [],
+      dataDir: "/data/nerve",
+    });
+    assert.equal(saved.values.maxOldSpaceMb, 512);
+    assert.equal(
+      saved.snapshot.application.daemon.maxOldSpaceMb.savedValue,
+      128,
+    );
+    assert.equal(
+      saved.snapshot.application.daemon.maxOldSpaceMb.activeValue,
+      512,
+    );
+    assert.equal(
+      saved.snapshot.application.daemon.maxOldSpaceMb.source.kind,
+      "settings",
+    );
+
+    const environment = resolve({ NERVE_DAEMON_MAX_OLD_SPACE_MB: "256" });
+    assert.equal(environment.values.maxOldSpaceMb, 512);
+    assert.deepEqual(
+      environment.snapshot.application.daemon.maxOldSpaceMb.source,
+      {
+        kind: "environment",
+        name: "NERVE_DAEMON_MAX_OLD_SPACE_MB",
+      },
+    );
+    assert.equal(
+      environment.snapshot.application.daemon.maxOldSpaceMb.savedValue,
+      4096,
+    );
+  });
+
   it("makes a remote opt-in bind to the LAN when no host is supplied", () => {
     const result = resolve({ NERVE_ALLOW_REMOTE: "1" });
     assert.equal(result.values.allowRemote, true);

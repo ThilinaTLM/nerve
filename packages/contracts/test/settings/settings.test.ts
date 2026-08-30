@@ -3,12 +3,28 @@ import { describe, it } from "node:test";
 import {
   defaultSettings,
   settingsSchema,
+  updateApplicationConfigurationRequestSchema,
   updateSettingsRequestSchema,
 } from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
   it("round-trips canonical defaults", () => {
     assert.deepEqual(settingsSchema.parse(defaultSettings), defaultSettings);
+  });
+
+  it("reads legacy low daemon heaps but rejects new unsafe updates", () => {
+    const legacy = structuredClone(defaultSettings);
+    legacy.application.daemon.maxOldSpaceMb = 128;
+    assert.equal(
+      settingsSchema.parse(legacy).application.daemon.maxOldSpaceMb,
+      128,
+    );
+    assert.equal(
+      updateApplicationConfigurationRequestSchema.safeParse({
+        application: { daemon: { maxOldSpaceMb: 128 } },
+      }).success,
+      false,
+    );
   });
 
   it("rejects incomplete persisted settings", () => {

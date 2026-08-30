@@ -5,6 +5,7 @@ import type {
   Settings,
   UpdateApplicationConfigurationRequest,
 } from "@nervekit/contracts/settings";
+import { MIN_DAEMON_MAX_OLD_SPACE_MB } from "@nervekit/contracts/settings";
 
 export interface ResolvedApplicationStartup {
   snapshot: ApplicationConfigurationSnapshot;
@@ -273,7 +274,7 @@ export function resolveApplicationConfiguration(
       : undefined,
   });
   const envHeap = envString(env, "NERVE_DAEMON_MAX_OLD_SPACE_MB");
-  const maxOldSpaceMb = select({
+  const requestedMaxOldSpaceMb = select({
     saved: saved.daemon.maxOldSpaceMb,
     environment: envHeap
       ? {
@@ -282,6 +283,10 @@ export function resolveApplicationConfiguration(
         }
       : undefined,
   });
+  const maxOldSpaceMb = {
+    ...requestedMaxOldSpaceMb,
+    value: Math.max(MIN_DAEMON_MAX_OLD_SPACE_MB, requestedMaxOldSpaceMb.value),
+  };
 
   const ozoneEnvironment = envString(env, "NERVE_ELECTRON_OZONE_PLATFORM");
   if (

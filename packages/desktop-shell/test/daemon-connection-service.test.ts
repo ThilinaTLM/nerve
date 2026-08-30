@@ -89,6 +89,25 @@ describe("daemon connection service", () => {
     assert.equal(world.launches.length, 0);
   });
 
+  it("raises low owned-daemon heap overrides before launch", async () => {
+    const world = fakeDaemonWorld({
+      env: { NERVE_DAEMON_MAX_OLD_SPACE_MB: "128" },
+      discovery: [undefined, healthyDaemon()],
+    });
+    const daemon = await ensureDaemonConnection({}, world.ports);
+    assert.equal(
+      world.launches[0]?.env.NODE_OPTIONS,
+      "--max-old-space-size=512",
+    );
+    assert.ok(
+      world.logs.some(
+        (entry) =>
+          entry.level === "warn" && entry.message.includes("supported minimum"),
+      ),
+    );
+    await daemon.stop();
+  });
+
   it("launches an owned daemon when no existing daemon is found", async () => {
     const world = fakeDaemonWorld({
       env: { NERVE_HOST: "127.0.0.1" },

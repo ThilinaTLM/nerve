@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { MIN_DAEMON_MAX_OLD_SPACE_MB } from "@nervekit/contracts/settings";
 import type { DaemonPaths, EnsureDaemonOptions } from "./contracts.js";
 import { isLoopbackHost } from "./urls.js";
 
@@ -38,15 +39,32 @@ export function resolveReadinessTimeoutMs(
   return Math.max(1, Math.trunc(value));
 }
 
-export function resolveDaemonMaxOldSpaceMb(
+export interface DaemonHeapProfile {
+  requestedMb: number;
+  effectiveMb: number;
+  source: "environment" | "configuration" | "default";
+}
+
+export function resolveDaemonHeapProfile(
   env: NodeJS.ProcessEnv = process.env,
-  configured = DEFAULT_DAEMON_MAX_OLD_SPACE_MB,
-): number {
+  configured?: number,
+): DaemonHeapProfile {
   const raw = env.NERVE_DAEMON_MAX_OLD_SPACE_MB?.trim();
   const parsed = raw ? Number(raw) : NaN;
-  return Number.isFinite(parsed) && parsed > 0
-    ? Math.floor(parsed)
-    : configured;
+  const environmentValue =
+    Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined;
+  const requestedMb =
+    environmentValue ?? configured ?? DEFAULT_DAEMON_MAX_OLD_SPACE_MB;
+  return {
+    requestedMb,
+    effectiveMb: Math.max(MIN_DAEMON_MAX_OLD_SPACE_MB, requestedMb),
+    source:
+      environmentValue !== undefined
+        ? "environment"
+        : configured !== undefined
+          ? "configuration"
+          : "default",
+  };
 }
 
 export function buildOrchestratorArgs(options: EnsureDaemonOptions): string[] {
@@ -63,16 +81,19 @@ export function buildOrchestratorArgs(options: EnsureDaemonOptions): string[] {
 export function buildOrchestratorEnv(
   options: EnsureDaemonOptions,
   env: NodeJS.ProcessEnv = process.env,
+  heapProfile = resolveDaemonHeapProfile(env, options.maxOldSpaceMb),
 ): NodeJS.ProcessEnv {
+  const inheritedNodeOptions = (env.NODE_OPTIONS ?? "")
+    .split(/\s+/)
+    .filter(
+      (option) =>
+        option &&
+        !/^--max(?:-|_)old(?:-|_)space(?:-|_)size(?:=|$)/.test(option),
+    );
   const nodeOptions = [
-    env.NODE_OPTIONS,
-    `--max-old-space-size=${resolveDaemonMaxOldSpaceMb(
-      env,
-      options.maxOldSpaceMb,
-    )}`,
-  ]
-    .filter(Boolean)
-    .join(" ");
+    ...inheritedNodeOptions,
+    `--max-old-space-size=${heapProfile.effectiveMb}`,
+  ].join(" ");
   const childEnv = { ...env };
   if (childEnv.NERVE_DESKTOP_SYNTHETIC_PERFORMANCE === "1") {
     delete childEnv.NERVE_PERFORMANCE_DIAGNOSTICS;

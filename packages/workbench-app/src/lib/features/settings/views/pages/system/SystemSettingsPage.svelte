@@ -13,6 +13,7 @@ import {
   SettingsToggleRow,
   type SettingsStat,
 } from "$lib/presentation/settings";
+import { MIN_DAEMON_MAX_OLD_SPACE_MB } from "@nervekit/contracts/settings";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 
@@ -351,18 +352,18 @@ const diagnostics = $derived<SettingsStat[]>([
         id="settings-daemon-heap"
         label="Maximum heap"
         type="number"
-        min={1}
+        min={MIN_DAEMON_MAX_OLD_SPACE_MB}
         suffix="MB"
         value={String(
           controlValue(configuration.application.daemon.maxOldSpaceMb),
         )}
         disabled={!configuration.application.daemon.maxOldSpaceMb.editable}
         hint={describe(
-          "Node.js old-space limit for an owned daemon.",
+          "Node.js old-space limit for an owned daemon. Lower legacy or environment values are raised to the 512 MB supported minimum.",
           configuration.application.daemon.maxOldSpaceMb,
         )}
         onValueChange={(value) =>
-          saveNumber(value, 1, (maxOldSpaceMb) => ({
+          saveNumber(value, MIN_DAEMON_MAX_OLD_SPACE_MB, (maxOldSpaceMb) => ({
             application: { daemon: { maxOldSpaceMb } },
           }))}
       />

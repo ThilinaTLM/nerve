@@ -53,6 +53,9 @@ Common overrides include:
 - `NERVE_ALLOW_REMOTE`, `NERVE_MOBILE_HTTPS`
 - `NERVE_LOGGING_ENABLED`, `NERVE_PERFORMANCE_DIAGNOSTICS`
 - `NERVE_DAEMON_STARTUP_TIMEOUT_MS`, `NERVE_DAEMON_MAX_OLD_SPACE_MB`
+
+Owned daemons use a 4096 MB old-space limit by default. Legacy saved values or environment overrides below the supported 512 MB minimum are raised to 512 MB before launch.
+
 - `NERVE_ELECTRON_OZONE_PLATFORM`, `NERVE_ELECTRON_FONT_RENDER_HINTING`
 
 `NERVE_HOME`, remote tokens, generated performance session IDs, web asset/build routing, and proxy/toolchain variables are launch context rather than saved UI preferences. Secret values are never returned in the configuration snapshot.

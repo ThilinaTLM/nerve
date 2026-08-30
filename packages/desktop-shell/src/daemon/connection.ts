@@ -2,6 +2,7 @@ import type { DaemonConnectionPorts } from "./ports.js";
 import {
   buildOrchestratorArgs,
   buildOrchestratorEnv,
+  resolveDaemonHeapProfile,
   resolveDaemonPaths,
   resolveReadinessTimeoutMs,
   wantsLanAccess,
@@ -102,15 +103,30 @@ async function ensureLocalDaemon(
     );
   }
 
+  const heapProfile = resolveDaemonHeapProfile(
+    ports.env,
+    options.maxOldSpaceMb,
+  );
+  if (heapProfile.requestedMb !== heapProfile.effectiveMb) {
+    ports.logger.log("warn", "Raised owned daemon heap to supported minimum", {
+      context: {
+        requestedMaxOldSpaceMb: heapProfile.requestedMb,
+        effectiveMaxOldSpaceMb: heapProfile.effectiveMb,
+        source: heapProfile.source,
+      },
+    });
+  }
+
   const supervisor = new DaemonSupervisor(
     {
       mode: "local",
       owned: true,
       paths,
       serverMain,
-      launchEnv: buildOrchestratorEnv(options, ports.env),
+      launchEnv: buildOrchestratorEnv(options, ports.env, heapProfile),
       launchArgs: buildOrchestratorArgs(options),
       readinessTimeoutMs,
+      effectiveMaxOldSpaceMb: heapProfile.effectiveMb,
       onStartupProgress: options.onStartupProgress,
     },
     ports,

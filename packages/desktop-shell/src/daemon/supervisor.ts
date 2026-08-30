@@ -33,6 +33,7 @@ export interface DaemonSupervisorConfig {
   mode: DaemonMode;
   owned: boolean;
   readinessTimeoutMs: number;
+  effectiveMaxOldSpaceMb?: number;
   paths?: DaemonPaths;
   serverMain?: string;
   launchEnv?: NodeJS.ProcessEnv;
@@ -227,7 +228,12 @@ export class DaemonSupervisor {
       this.config.onStartupProgress?.(event);
     });
     this.ports.logger.log("info", "Starting owned local daemon", {
-      context: { serverMain, dataDir: paths.home, readinessTimeoutMs },
+      context: {
+        serverMain,
+        dataDir: paths.home,
+        readinessTimeoutMs,
+        effectiveMaxOldSpaceMb: this.config.effectiveMaxOldSpaceMb,
+      },
     });
     const child: OwnedChild = {
       handle: undefined as unknown as DaemonChildHandle,
@@ -264,13 +270,22 @@ export class DaemonSupervisor {
           {
             child,
             error: child.spawnError,
-            context: { serverMain, readinessTimeoutMs },
+            context: {
+              serverMain,
+              readinessTimeoutMs,
+              effectiveMaxOldSpaceMb: this.config.effectiveMaxOldSpaceMb,
+            },
           },
         );
         throw daemonStartupError(
           `Failed to start the Nerve daemon: ${child.spawnError.message}`,
           output,
-          { dataDir: paths.home, readinessTimeoutMs, crashReportPath },
+          {
+            dataDir: paths.home,
+            readinessTimeoutMs,
+            crashReportPath,
+            effectiveMaxOldSpaceMb: this.config.effectiveMaxOldSpaceMb,
+          },
         );
       }
       if (child.exit) {
@@ -281,13 +296,18 @@ export class DaemonSupervisor {
           {
             child,
             exit: child.exit,
-            context: { serverMain, readinessTimeoutMs },
+            context: {
+              serverMain,
+              readinessTimeoutMs,
+              effectiveMaxOldSpaceMb: this.config.effectiveMaxOldSpaceMb,
+            },
           },
         );
         throw daemonStartupError(message, output, {
           dataDir: paths.home,
           readinessTimeoutMs,
           crashReportPath,
+          effectiveMaxOldSpaceMb: this.config.effectiveMaxOldSpaceMb,
         });
       }
       const daemon = await this.ports.discovery.findHealthyDaemon(paths);
@@ -304,12 +324,24 @@ export class DaemonSupervisor {
     const crashReportPath = this.writeOwnedCrashReport(
       "startupTimeout",
       `Nerve daemon did not become ready within ${readinessTimeoutMs}ms.`,
-      { child, context: { serverMain, readinessTimeoutMs } },
+      {
+        child,
+        context: {
+          serverMain,
+          readinessTimeoutMs,
+          effectiveMaxOldSpaceMb: this.config.effectiveMaxOldSpaceMb,
+        },
+      },
     );
     const error = daemonStartupError(
       `Nerve daemon did not become ready within ${readinessTimeoutMs}ms.`,
       output,
-      { dataDir: paths.home, readinessTimeoutMs, crashReportPath },
+      {
+        dataDir: paths.home,
+        readinessTimeoutMs,
+        crashReportPath,
+        effectiveMaxOldSpaceMb: this.config.effectiveMaxOldSpaceMb,
+      },
     );
     this.ports.logger.log("error", "Owned local daemon startup timed out", {
       error,
@@ -318,6 +350,7 @@ export class DaemonSupervisor {
         dataDir: paths.home,
         readinessTimeoutMs,
         crashReportPath,
+        effectiveMaxOldSpaceMb: this.config.effectiveMaxOldSpaceMb,
       },
     });
     throw error;
@@ -332,7 +365,13 @@ export class DaemonSupervisor {
     const crashReportPath = this.writeOwnedCrashReport(
       "childExit",
       `Daemon process exited${formatExit(exit)}.`,
-      { child, exit },
+      {
+        child,
+        exit,
+        context: {
+          effectiveMaxOldSpaceMb: this.config.effectiveMaxOldSpaceMb,
+        },
+      },
     );
     this.ports.logger.log("warn", "Owned daemon child exited", {
       context: {
@@ -340,6 +379,7 @@ export class DaemonSupervisor {
         signal: exit.signal,
         output,
         crashReportPath,
+        effectiveMaxOldSpaceMb: this.config.effectiveMaxOldSpaceMb,
       },
     });
     void this.scheduleRestart(`Daemon process exited${formatExit(exit)}.`);
