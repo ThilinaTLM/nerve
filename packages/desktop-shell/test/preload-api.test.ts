@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
+import { bundleDesktopPreload } from "../scripts/copy-preload.mjs";
 
 const require = createRequire(import.meta.url);
 const { createDesktopPreloadApi } = require("../src/preload-api.cjs") as {
@@ -80,6 +84,23 @@ function fixture(invoke?: FakeIpcRenderer["invoke"]) {
 }
 
 describe("desktop preload API", () => {
+  it("bundles local modules for Electron's sandboxed preload runtime", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "nerve-preload-"));
+    const outfile = join(directory, "preload.cjs");
+    try {
+      await bundleDesktopPreload(
+        join(import.meta.dirname, "..", "src", "preload.cjs"),
+        outfile,
+      );
+      const bundled = await readFile(outfile, "utf8");
+      assert.match(bundled, /require\(["']electron["']\)/);
+      assert.doesNotMatch(bundled, /require\(["'].\/preload-api\.cjs["']\)/);
+      assert.match(bundled, /createDesktopPreloadApi/);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("exposes the complete renderer capability shape", () => {
     const { api } = fixture();
     assert.deepEqual(
