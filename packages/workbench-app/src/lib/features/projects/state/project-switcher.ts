@@ -89,7 +89,7 @@ export function projectActivitySignal(
 export function buildProjectSwitcherItems(input: {
   projects: ProjectRecord[];
   conversations: ConversationRecord[];
-  tasks: TaskRecord[];
+  tasks: readonly TaskRecord[];
   activityById: Record<string, ConversationActivityState>;
   homeDir?: string;
   recency?: Record<string, number>;

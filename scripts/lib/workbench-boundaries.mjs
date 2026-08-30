@@ -53,9 +53,10 @@ export function workbenchBoundaryViolation(sourceFile, targetFile) {
   if (
     source.startsWith("application/workspace/") &&
     target.startsWith("features/") &&
-    isPrivateFeaturePath(target)
+    (isPrivateFeaturePath(target) ||
+      /^features\/[^/]+\/workspace(?:-[^/]*)?\.svelte(?:\.ts)?$/.test(target))
   ) {
-    return "workspace application services must use feature public APIs instead of private feature state";
+    return "workspace application services must use composition-registered feature ports instead of concrete feature state or workspace adapters";
   }
 
   if (

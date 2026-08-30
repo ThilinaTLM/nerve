@@ -4,15 +4,21 @@ export interface TaskSelectorWorkspaceReadModel {
   readonly activeCenterTab: { kind: string; id: string } | undefined;
 }
 
-let workspaceReadModel: TaskSelectorWorkspaceReadModel = {
+const unregisteredWorkspaceReadModel: TaskSelectorWorkspaceReadModel = {
   activeProjectDir: undefined,
   activeCenterTab: undefined,
 };
 
+let workspaceReadModel = unregisteredWorkspaceReadModel;
+
 export function registerTaskSelectorWorkspaceReadModel(
   readModel: TaskSelectorWorkspaceReadModel,
-): void {
+): () => void {
   workspaceReadModel = readModel;
+  return () => {
+    if (workspaceReadModel === readModel)
+      workspaceReadModel = unregisteredWorkspaceReadModel;
+  };
 }
 import { taskEntryId } from "./task-tabs.svelte";
 import { taskState } from "./task-state.svelte";

@@ -1,3 +1,4 @@
+import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import type { GitDiffArea } from "@nervekit/contracts/git";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import type { ConversationRecord, ProjectRecord, TaskRecord } from "$lib/api";
@@ -8,15 +9,7 @@ import {
   mermaidViewKey,
   prViewKey,
 } from "$lib/domain/navigation/view-keys";
-import {
-  filesystemWorkspaceCommands,
-  filesystemWorkspaceReadModel,
-} from "$lib/features/filesystem/workspace.svelte";
 import { fileViewerPreferences } from "$lib/application/workspace/file-viewer-preferences.svelte";
-import {
-  gitWorkspaceCommands,
-  gitWorkspaceReadModel,
-} from "$lib/features/git/workspace.svelte";
 import { syncCenterTabMirrors } from "./center-tab-mirrors.svelte";
 import type {
   CenterTabIdentity,
@@ -275,7 +268,7 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
   for (const stored of storedTabs) {
     if (stored.kind === "file") {
       if (!stored.projectId || !stored.path) continue;
-      filesystemWorkspaceCommands.restoreFileView(stored.id, {
+      workspaceFeaturePorts().filesystem.commands.restoreFileView(stored.id, {
         id: stored.id,
         projectId: stored.projectId,
         path: stored.path,
@@ -287,14 +280,17 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
     } else if (stored.kind === "mermaid") {
       if (!stored.projectId || !isMermaidBlockLocator(stored.locator)) continue;
       if (stored.path) {
-        filesystemWorkspaceCommands.restoreMermaidView(stored.id, {
-          origin: "file",
-          id: stored.id,
-          projectId: stored.projectId,
-          path: stored.path,
-          locator: stored.locator,
-          loading: false,
-        });
+        workspaceFeaturePorts().filesystem.commands.restoreMermaidView(
+          stored.id,
+          {
+            origin: "file",
+            id: stored.id,
+            projectId: stored.projectId,
+            path: stored.path,
+            locator: stored.locator,
+            loading: false,
+          },
+        );
       } else if (
         typeof stored.source === "string" &&
         stored.source.trim() &&
@@ -303,16 +299,19 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
         typeof stored.name === "string" &&
         stored.name
       ) {
-        filesystemWorkspaceCommands.restoreMermaidView(stored.id, {
-          origin: "inline",
-          id: stored.id,
-          projectId: stored.projectId,
-          sourceKey: stored.sourceKey,
-          name: stored.name,
-          locator: stored.locator,
-          source: stored.source,
-          loading: false,
-        });
+        workspaceFeaturePorts().filesystem.commands.restoreMermaidView(
+          stored.id,
+          {
+            origin: "inline",
+            id: stored.id,
+            projectId: stored.projectId,
+            sourceKey: stored.sourceKey,
+            name: stored.name,
+            locator: stored.locator,
+            source: stored.source,
+            loading: false,
+          },
+        );
       } else {
         continue;
       }
@@ -323,7 +322,7 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
         typeof stored.number !== "number"
       )
         continue;
-      gitWorkspaceCommands.restorePrView(stored.id, {
+      workspaceFeaturePorts().git.commands.restorePrView(stored.id, {
         id: stored.id,
         projectId: stored.projectId,
         repo: stored.repo,
@@ -347,7 +346,7 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
         (stored.area !== "staged" && stored.area !== "unstaged")
       )
         continue;
-      gitWorkspaceCommands.restoreDiffView(stored.id, {
+      workspaceFeaturePorts().git.commands.restoreDiffView(stored.id, {
         id: stored.id,
         projectId: stored.projectId,
         repo: stored.repo,
@@ -442,16 +441,24 @@ export function hydrateWorkspaceTabSessions(
       if (tab.kind === "pending-conversation") return false;
       if (tab.kind === "file")
         return Boolean(
-          filesystemWorkspaceReadModel.fileViews[fileViewKey(tab.id)],
+          workspaceFeaturePorts().filesystem.read.fileViews[
+            fileViewKey(tab.id)
+          ],
         );
       if (tab.kind === "mermaid")
         return Boolean(
-          filesystemWorkspaceReadModel.mermaidViews[mermaidViewKey(tab.id)],
+          workspaceFeaturePorts().filesystem.read.mermaidViews[
+            mermaidViewKey(tab.id)
+          ],
         );
       if (tab.kind === "pr")
-        return Boolean(gitWorkspaceReadModel.prViews[prViewKey(tab.id)]);
+        return Boolean(
+          workspaceFeaturePorts().git.read.prViews[prViewKey(tab.id)],
+        );
       if (tab.kind === "diff")
-        return Boolean(gitWorkspaceReadModel.diffViews[diffViewKey(tab.id)]);
+        return Boolean(
+          workspaceFeaturePorts().git.read.diffViews[diffViewKey(tab.id)],
+        );
       if (tab.kind === "conversation") return conversationIds.has(tab.id);
       if (tab.kind === "task") return taskIds.has(tab.id);
       return true;
@@ -492,7 +499,9 @@ export function persistWorkspaceTabSessions(): void {
           if (tab.kind === "pending-conversation") return [];
           if (tab.kind === "file") {
             const view =
-              filesystemWorkspaceReadModel.fileViews[fileViewKey(tab.id)];
+              workspaceFeaturePorts().filesystem.read.fileViews[
+                fileViewKey(tab.id)
+              ];
             return view
               ? [
                   {
@@ -508,7 +517,9 @@ export function persistWorkspaceTabSessions(): void {
           }
           if (tab.kind === "mermaid") {
             const view =
-              filesystemWorkspaceReadModel.mermaidViews[mermaidViewKey(tab.id)];
+              workspaceFeaturePorts().filesystem.read.mermaidViews[
+                mermaidViewKey(tab.id)
+              ];
             if (!view) return [];
             return view.origin === "file"
               ? [
@@ -531,7 +542,8 @@ export function persistWorkspaceTabSessions(): void {
                 ];
           }
           if (tab.kind === "pr") {
-            const view = gitWorkspaceReadModel.prViews[prViewKey(tab.id)];
+            const view =
+              workspaceFeaturePorts().git.read.prViews[prViewKey(tab.id)];
             return view
               ? [
                   {
@@ -544,7 +556,8 @@ export function persistWorkspaceTabSessions(): void {
               : [];
           }
           if (tab.kind === "diff") {
-            const view = gitWorkspaceReadModel.diffViews[diffViewKey(tab.id)];
+            const view =
+              workspaceFeaturePorts().git.read.diffViews[diffViewKey(tab.id)];
             return view
               ? [
                   {

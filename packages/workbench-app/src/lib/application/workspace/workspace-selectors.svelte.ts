@@ -1,3 +1,4 @@
+import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import { SvelteSet } from "svelte/reactivity";
 import type { AgentRecord } from "$lib/api";
 import { projectKey } from "$lib/domain/projects/project-tree";
@@ -19,12 +20,6 @@ import {
   buildConversationActivityById,
   idleConversationActivity,
 } from "$lib/domain/conversations/activity";
-import { conversationWorkspaceReadModel } from "$lib/features/conversations/workspace-read-model.svelte";
-import { filesystemWorkspaceReadModel } from "$lib/features/filesystem/workspace.svelte";
-import { gitWorkspaceReadModel } from "$lib/features/git/workspace.svelte";
-import { logWorkspaceReadModel } from "$lib/features/logs/workspace.svelte";
-import { settingsWorkspaceReadModel } from "$lib/features/settings/workspace.svelte";
-import { taskWorkspaceReadModel } from "$lib/features/tasks/workspace.svelte";
 import {
   pendingApprovals,
   pendingPlanReviews,
@@ -77,7 +72,7 @@ function activeTabMatches(
 function activePendingConversation() {
   const active = workspaceState.activeCenterTab;
   if (active?.kind !== "pending-conversation") return undefined;
-  return conversationWorkspaceReadModel.pendingConversations[
+  return workspaceFeaturePorts().conversations.read.pendingConversations[
     pendingConversationKey(active.id)
   ];
 }
@@ -90,7 +85,7 @@ const conversationActivityById = $derived.by(() =>
   buildConversationActivityById({
     conversations: workspaceState.conversations,
     agents: workspaceState.agents,
-    views: conversationWorkspaceReadModel.conversationViews,
+    views: workspaceFeaturePorts().conversations.read.conversationViews,
     approvals: pendingApprovals(workspaceState.pendingToolCalls),
     userQuestions: pendingUserQuestions(workspaceState.pendingToolCalls),
     planReviews: pendingPlanReviews(workspaceState.pendingToolCalls),
@@ -105,10 +100,10 @@ export const workspaceSelectors = {
   get activeConversationBranchDepth() {
     const conversationId =
       selection.conversationId ??
-      conversationWorkspaceReadModel.activeConversationTabId;
+      workspaceFeaturePorts().conversations.read.activeConversationTabId;
     if (!conversationId) return 0;
     return (
-      conversationWorkspaceReadModel.conversationViews[
+      workspaceFeaturePorts().conversations.read.conversationViews[
         conversationViewKey(conversationId)
       ]?.treeNodes.length ?? 0
     );
@@ -122,9 +117,9 @@ export const workspaceSelectors = {
   get error() {
     const conversationId =
       selection.conversationId ??
-      conversationWorkspaceReadModel.activeConversationTabId;
+      workspaceFeaturePorts().conversations.read.activeConversationTabId;
     const activeView = conversationId
-      ? conversationWorkspaceReadModel.conversationViews[
+      ? workspaceFeaturePorts().conversations.read.conversationViews[
           conversationViewKey(conversationId)
         ]
       : undefined;
@@ -178,7 +173,7 @@ export const workspaceSelectors = {
     return buildProjectSwitcherItems({
       projects: workspaceState.projects,
       conversations: workspaceState.conversations,
-      tasks: taskWorkspaceReadModel.tasks,
+      tasks: workspaceFeaturePorts().tasks.read.tasks,
       activityById: this.conversationActivityById,
       homeDir: workspaceState.status?.storage.userHome,
       recency: workspaceState.projectRecency,
@@ -223,7 +218,8 @@ export const workspaceSelectors = {
     }
     const activityById = conversationActivityById;
 
-    for (const conversationId of conversationWorkspaceReadModel.openConversationTabIds) {
+    for (const conversationId of workspaceFeaturePorts().conversations.read
+      .openConversationTabIds) {
       const conversation = conversationsById[conversationId];
       if (!conversation) continue;
       const project = projectsById[conversation.projectId];
@@ -232,7 +228,7 @@ export const workspaceSelectors = {
           ? agentsById[conversation.activeAgentId]
           : undefined) ?? agentsByConversationId[conversation.id];
       const view =
-        conversationWorkspaceReadModel.conversationViews[
+        workspaceFeaturePorts().conversations.read.conversationViews[
           conversationViewKey(conversation.id)
         ];
       const activity =
@@ -259,7 +255,7 @@ export const workspaceSelectors = {
     for (const tab of workspaceState.openCenterTabs) {
       if (tab.kind !== "pending-conversation") continue;
       const pending =
-        conversationWorkspaceReadModel.pendingConversations[
+        workspaceFeaturePorts().conversations.read.pendingConversations[
           pendingConversationKey(tab.id)
         ];
       if (!pending) continue;
@@ -292,10 +288,11 @@ export const workspaceSelectors = {
   },
   get openTaskTabs(): TaskTabModel[] {
     const tabs: TaskTabModel[] = [];
-    for (const taskId of taskWorkspaceReadModel.openTaskTabIds) {
-      const selectedRunId = taskWorkspaceReadModel.selectedRunByEntry[taskId];
-      const candidates = taskWorkspaceReadModel.tasks
-        .filter(
+    for (const taskId of workspaceFeaturePorts().tasks.read.openTaskTabIds) {
+      const selectedRunId =
+        workspaceFeaturePorts().tasks.read.selectedRunByEntry[taskId];
+      const candidates = workspaceFeaturePorts()
+        .tasks.read.tasks.filter(
           (candidate) =>
             (candidate.definitionId ??
               candidate.restartRootTaskId ??
@@ -321,8 +318,9 @@ export const workspaceSelectors = {
     return tabs;
   },
   get openFileTabs(): FileTabModel[] {
-    return filesystemWorkspaceReadModel.openFileTabIds.map((id) => {
-      const view = filesystemWorkspaceReadModel.fileViews[fileViewKey(id)];
+    return workspaceFeaturePorts().filesystem.read.openFileTabIds.map((id) => {
+      const view =
+        workspaceFeaturePorts().filesystem.read.fileViews[fileViewKey(id)];
       const displayPath = view?.content?.relativePath ?? view?.path;
       return {
         kind: "file" as const,
@@ -343,7 +341,9 @@ export const workspaceSelectors = {
     return workspaceState.openCenterTabs.flatMap((tab) => {
       if (tab.kind !== "mermaid") return [];
       const view =
-        filesystemWorkspaceReadModel.mermaidViews[mermaidViewKey(tab.id)];
+        workspaceFeaturePorts().filesystem.read.mermaidViews[
+          mermaidViewKey(tab.id)
+        ];
       if (!view) return [];
       return [
         {
@@ -362,8 +362,8 @@ export const workspaceSelectors = {
     });
   },
   get openDiffTabs(): DiffTabModel[] {
-    return gitWorkspaceReadModel.openDiffTabIds.map((id) => {
-      const view = gitWorkspaceReadModel.diffViews[diffViewKey(id)];
+    return workspaceFeaturePorts().git.read.openDiffTabIds.map((id) => {
+      const view = workspaceFeaturePorts().git.read.diffViews[diffViewKey(id)];
       return {
         kind: "diff" as const,
         id,
@@ -377,8 +377,8 @@ export const workspaceSelectors = {
     });
   },
   get openPrTabs(): PrTabModel[] {
-    return gitWorkspaceReadModel.openPrTabIds.map((id) => {
-      const view = gitWorkspaceReadModel.prViews[prViewKey(id)];
+    return workspaceFeaturePorts().git.read.openPrTabIds.map((id) => {
+      const view = workspaceFeaturePorts().git.read.prViews[prViewKey(id)];
       return {
         kind: "pr" as const,
         id,
@@ -393,23 +393,24 @@ export const workspaceSelectors = {
     });
   },
   get openSettingsTabs(): SettingsTabModel[] {
-    return settingsWorkspaceReadModel.tabOpen
+    return workspaceFeaturePorts().settings.read.tabOpen
       ? [
           {
             kind: "settings" as const,
             id: "settings" as const,
             active: activeTabMatches("settings", "settings"),
-            sending: settingsWorkspaceReadModel.saveStatus === "saving",
+            sending:
+              workspaceFeaturePorts().settings.read.saveStatus === "saving",
             error:
-              settingsWorkspaceReadModel.saveStatus === "error"
-                ? settingsWorkspaceReadModel.message
+              workspaceFeaturePorts().settings.read.saveStatus === "error"
+                ? workspaceFeaturePorts().settings.read.message
                 : undefined,
           },
         ]
       : [];
   },
   get openLogsTabs(): LogsTabModel[] {
-    return logWorkspaceReadModel.tabOpen
+    return workspaceFeaturePorts().logs.read.tabOpen
       ? [
           {
             kind: "logs" as const,

@@ -39,7 +39,7 @@ export interface ConversationSelectorWorkspaceReadModel {
   readonly subscriptionUsage: Record<string, SubscriptionUsage>;
 }
 
-let workspaceReadModel: ConversationSelectorWorkspaceReadModel = {
+const unregisteredWorkspaceReadModel: ConversationSelectorWorkspaceReadModel = {
   selectedConversationId: undefined,
   selectedAgentId: undefined,
   activeCenterTab: undefined,
@@ -57,10 +57,16 @@ let workspaceReadModel: ConversationSelectorWorkspaceReadModel = {
   subscriptionUsage: {},
 };
 
+let workspaceReadModel = unregisteredWorkspaceReadModel;
+
 export function registerConversationSelectorWorkspaceReadModel(
   readModel: ConversationSelectorWorkspaceReadModel,
-): void {
+): () => void {
   workspaceReadModel = readModel;
+  return () => {
+    if (workspaceReadModel === readModel)
+      workspaceReadModel = unregisteredWorkspaceReadModel;
+  };
 }
 import { conversationState } from "./conversation-state.svelte";
 

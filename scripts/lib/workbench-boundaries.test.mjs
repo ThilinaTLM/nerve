@@ -76,7 +76,14 @@ describe("workbench boundaries", () => {
         `${root}/application/workspace/workspace-selectors.svelte.ts`,
         `${root}/features/git/state/git-state.svelte.ts`,
       ),
-      /feature public APIs/,
+      /composition-registered feature ports/,
+    );
+    assert.match(
+      workbenchBoundaryViolation(
+        `${root}/application/workspace/workspace-selectors.svelte.ts`,
+        `${root}/features/git/workspace.svelte.ts`,
+      ),
+      /composition-registered feature ports/,
     );
     assert.equal(
       workbenchBoundaryViolation(

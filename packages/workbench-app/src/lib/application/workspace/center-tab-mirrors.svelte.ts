@@ -1,22 +1,19 @@
-import { conversationWorkspaceCommands } from "$lib/features/conversations/workspace-commands.svelte";
-import { filesystemWorkspaceCommands } from "$lib/features/filesystem/workspace.svelte";
-import { gitWorkspaceCommands } from "$lib/features/git/workspace.svelte";
-import { setLogWorkspaceTabOpen } from "$lib/features/logs/workspace.svelte";
-import { setSettingsWorkspaceTabOpen } from "$lib/features/settings/workspace.svelte";
-import { taskWorkspaceCommands } from "$lib/features/tasks/workspace.svelte";
+import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import { workspaceState } from "./workspace-state.svelte";
 
 /** Keep feature-specific tab projections aligned with the canonical center-tab list. */
 export function syncCenterTabMirrors(): void {
-  conversationWorkspaceCommands.setOpenConversationTabIds(
+  workspaceFeaturePorts().conversations.commands.setOpenConversationTabIds(
     idsForKind("conversation"),
   );
-  taskWorkspaceCommands.setOpenTaskTabIds(idsForKind("task"));
-  filesystemWorkspaceCommands.setOpenFileTabIds(idsForKind("file"));
-  gitWorkspaceCommands.setOpenPrTabIds(idsForKind("pr"));
-  gitWorkspaceCommands.setOpenDiffTabIds(idsForKind("diff"));
-  setSettingsWorkspaceTabOpen(hasKind("settings"));
-  setLogWorkspaceTabOpen(hasKind("logs"));
+  workspaceFeaturePorts().tasks.commands.setOpenTaskTabIds(idsForKind("task"));
+  workspaceFeaturePorts().filesystem.commands.setOpenFileTabIds(
+    idsForKind("file"),
+  );
+  workspaceFeaturePorts().git.commands.setOpenPrTabIds(idsForKind("pr"));
+  workspaceFeaturePorts().git.commands.setOpenDiffTabIds(idsForKind("diff"));
+  workspaceFeaturePorts().settings.commands.setTabOpen(hasKind("settings"));
+  workspaceFeaturePorts().logs.commands.setTabOpen(hasKind("logs"));
 }
 
 function idsForKind(

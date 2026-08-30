@@ -14,7 +14,7 @@ export interface GitSelectorWorkspaceReadModel {
   readonly selectedAgentId: string | undefined;
 }
 
-let workspaceReadModel: GitSelectorWorkspaceReadModel = {
+const unregisteredWorkspaceReadModel: GitSelectorWorkspaceReadModel = {
   activeCenterTab: undefined,
   activeProjectId: undefined,
   activeConversationBranchDepth: 0,
@@ -22,10 +22,16 @@ let workspaceReadModel: GitSelectorWorkspaceReadModel = {
   selectedAgentId: undefined,
 };
 
+let workspaceReadModel = unregisteredWorkspaceReadModel;
+
 export function registerGitSelectorWorkspaceReadModel(
   readModel: GitSelectorWorkspaceReadModel,
-): void {
+): () => void {
   workspaceReadModel = readModel;
+  return () => {
+    if (workspaceReadModel === readModel)
+      workspaceReadModel = unregisteredWorkspaceReadModel;
+  };
 }
 import { gitPanelState } from "./git-panel.svelte";
 import { gitState } from "./git-state.svelte";

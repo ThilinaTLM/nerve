@@ -3,14 +3,20 @@ export interface FileSelectorWorkspaceReadModel {
   readonly activeCenterTab: { kind: string; id: string } | undefined;
 }
 
-let workspaceReadModel: FileSelectorWorkspaceReadModel = {
+const unregisteredWorkspaceReadModel: FileSelectorWorkspaceReadModel = {
   activeCenterTab: undefined,
 };
 
+let workspaceReadModel = unregisteredWorkspaceReadModel;
+
 export function registerFileSelectorWorkspaceReadModel(
   readModel: FileSelectorWorkspaceReadModel,
-): void {
+): () => void {
   workspaceReadModel = readModel;
+  return () => {
+    if (workspaceReadModel === readModel)
+      workspaceReadModel = unregisteredWorkspaceReadModel;
+  };
 }
 import { fileState } from "./file-state.svelte";
 

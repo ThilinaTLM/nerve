@@ -1,13 +1,5 @@
-import { cancelWorkspaceVoiceInputTargets } from "./workspace-feature-commands";
-import { conversationWorkspaceCommands } from "$lib/features/conversations/workspace-commands.svelte";
-import { conversationWorkspaceReadModel } from "$lib/features/conversations/workspace-read-model.svelte";
+import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import type { CenterTabIdentity } from "$lib/application/workspace/workspace-state.svelte";
-import { filesystemWorkspaceCommands } from "$lib/features/filesystem/workspace.svelte";
-import { gitWorkspaceCommands } from "$lib/features/git/workspace.svelte";
-import {
-  taskWorkspaceCommands,
-  taskWorkspaceReadModel,
-} from "$lib/features/tasks/workspace.svelte";
 import {
   composerDraft,
   resetSelection,
@@ -125,7 +117,9 @@ export async function closeCenterTabs(
     if (tab.kind === "pending-conversation")
       voiceTargets.push({ kind: "pending-conversation", id: tab.id });
   }
-  await cancelWorkspaceVoiceInputTargets(voiceTargets);
+  await workspaceFeaturePorts().conversations.commands.cancelVoiceInputTargets(
+    voiceTargets,
+  );
 
   for (const tab of tabs) {
     if (isGlobalCenterTab(tab)) removeGlobalTabFromSessions(tab);
@@ -135,27 +129,28 @@ export async function closeCenterTabs(
   for (const tab of originalTabs) {
     if (!targets.has(centerTabKey(tab))) continue;
     if (tab.kind === "file")
-      filesystemWorkspaceCommands.discardFileView(tab.id);
+      workspaceFeaturePorts().filesystem.commands.discardFileView(tab.id);
     if (tab.kind === "mermaid")
-      filesystemWorkspaceCommands.discardMermaidView(tab.id);
-    if (tab.kind === "diff") gitWorkspaceCommands.discardDiffView(tab.id);
+      workspaceFeaturePorts().filesystem.commands.discardMermaidView(tab.id);
+    if (tab.kind === "diff")
+      workspaceFeaturePorts().git.commands.discardDiffView(tab.id);
     if (tab.kind === "conversation")
-      conversationWorkspaceCommands.discardConversationView(tab.id);
+      workspaceFeaturePorts().conversations.commands.discardConversationView(
+        tab.id,
+      );
     if (tab.kind === "pending-conversation")
-      conversationWorkspaceCommands.discardPendingConversation(tab.id);
+      workspaceFeaturePorts().conversations.commands.discardPendingConversation(
+        tab.id,
+      );
   }
 
+  const selectedTaskId = workspaceFeaturePorts().tasks.read.selectedTaskId;
   if (
-    taskWorkspaceReadModel.selectedTaskId &&
-    targets.has(
-      centerTabKey({
-        kind: "task",
-        id: taskWorkspaceReadModel.selectedTaskId,
-      }),
-    )
+    selectedTaskId &&
+    targets.has(centerTabKey({ kind: "task", id: selectedTaskId }))
   ) {
-    taskWorkspaceCommands.setSelectedTaskId(undefined);
-    taskWorkspaceCommands.clearTaskLogs();
+    workspaceFeaturePorts().tasks.commands.setSelectedTaskId(undefined);
+    workspaceFeaturePorts().tasks.commands.clearTaskLogs();
   }
 
   const remainingConversationIds = remainingTabs
@@ -164,16 +159,15 @@ export async function closeCenterTabs(
         tab.kind === "conversation",
     )
     .map((tab) => tab.id);
+  const activeConversationTabId =
+    workspaceFeaturePorts().conversations.read.activeConversationTabId;
   if (
-    conversationWorkspaceReadModel.activeConversationTabId &&
+    activeConversationTabId &&
     targets.has(
-      centerTabKey({
-        kind: "conversation",
-        id: conversationWorkspaceReadModel.activeConversationTabId,
-      }),
+      centerTabKey({ kind: "conversation", id: activeConversationTabId }),
     )
   ) {
-    conversationWorkspaceCommands.setActiveConversationTab(
+    workspaceFeaturePorts().conversations.commands.setActiveConversationTab(
       fallback?.kind === "conversation"
         ? fallback.id
         : remainingConversationIds[0],

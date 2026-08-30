@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onMount, type Snippet } from "svelte";
+import { onDestroy, onMount, type Snippet } from "svelte";
 import {
   desktopRuntime,
   initializeDesktopRuntime,
@@ -66,6 +66,8 @@ type Props = {
 };
 
 let { children }: Props = $props();
+const unregisterWorkspaceReadModels = registerWorkspaceReadModels();
+onDestroy(unregisterWorkspaceReadModels);
 
 const activeProject = $derived(workspaceSelectors.activeProject);
 const activeConversation = $derived(conversationSelectors.activeConversation);
@@ -184,7 +186,6 @@ $effect(() => {
 });
 
 onMount(() => {
-  registerWorkspaceReadModels();
   const unregisterFeatureEvents = registerFeatureEventHandlers();
   const stopNotificationAudio = initializeNotificationAudio();
   const unsubscribeDesktop = initializeDesktopRuntime();
