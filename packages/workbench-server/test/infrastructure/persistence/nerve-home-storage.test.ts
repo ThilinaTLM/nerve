@@ -26,7 +26,7 @@ async function temporaryHome(prefix: string) {
   return mkdtemp(join(tmpdir(), prefix));
 }
 
-test("initializes the complete v1 home and keeps configuration out of SQLite", async (t) => {
+test("initializes the required v1 home and keeps optional directories lazy", async (t) => {
   const home = await temporaryHome("nerve-home-v1-");
   t.after(() => rm(home, { recursive: true, force: true }));
   const storage = await initializeStorage(home);
@@ -57,6 +57,8 @@ test("initializes the complete v1 home and keeps configuration out of SQLite", a
   assert.equal((await stat(storage.paths.home)).mode & 0o777, 0o700);
   assert.equal((await stat(storage.paths.secretsPath)).mode & 0o777, 0o700);
   assert.equal((await stat(storage.paths.localTokenPath)).mode & 0o777, 0o600);
+  await assert.rejects(stat(storage.paths.agentPath), { code: "ENOENT" });
+  await assert.rejects(stat(storage.paths.suggestionsPath), { code: "ENOENT" });
 
   const database = new DatabaseSync(storage.paths.sqlitePath, {
     readOnly: true,
