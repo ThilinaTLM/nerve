@@ -1,4 +1,4 @@
-import { createTestServerRuntime } from "../../support/runtime-fixture.js";
+import { createRuntimeFixture } from "../../support/runtime-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -26,7 +26,7 @@ describe("workbench coordinator-owned provider retry", () => {
     });
     const root = await mkdtemp(join(tmpdir(), "nerve-workbench-retry-"));
     const storage = await initializeStorage(root);
-    const orchestrator = createTestServerRuntime(storage, "127.0.0.1", 0);
+    const orchestrator = createRuntimeFixture(storage, "127.0.0.1", 0);
     try {
       await orchestrator.lifecycle.hydrate();
       const project =
@@ -78,7 +78,7 @@ describe("workbench coordinator-owned provider retry", () => {
       );
     } finally {
       registration.unregister();
-      await shutdownServerRuntime(orchestrator);
+      await shutdownServerRuntime(orchestrator.runtime);
       await rm(root, {
         recursive: true,
         force: true,
@@ -104,7 +104,7 @@ describe("workbench coordinator-owned provider retry", () => {
     await writeSettings(storage, {
       retry: { enabled: true, maxRetries: 3, baseDelayMs: 1 },
     });
-    const orchestrator = createTestServerRuntime(storage, "127.0.0.1", 0);
+    const orchestrator = createRuntimeFixture(storage, "127.0.0.1", 0);
     try {
       await orchestrator.lifecycle.hydrate();
       const project =
@@ -150,7 +150,7 @@ describe("workbench coordinator-owned provider retry", () => {
       );
     } finally {
       registration.unregister();
-      await shutdownServerRuntime(orchestrator);
+      await shutdownServerRuntime(orchestrator.runtime);
       await rm(root, {
         recursive: true,
         force: true,
@@ -184,7 +184,7 @@ describe("workbench coordinator-owned provider retry", () => {
     });
     const root = await mkdtemp(join(tmpdir(), "nerve-workbench-continue-"));
     const storage = await initializeStorage(root);
-    const orchestrator = createTestServerRuntime(storage, "127.0.0.1", 0);
+    const orchestrator = createRuntimeFixture(storage, "127.0.0.1", 0);
     try {
       await orchestrator.lifecycle.hydrate();
       const project =
@@ -255,7 +255,7 @@ describe("workbench coordinator-owned provider retry", () => {
     } finally {
       failingProvider.unregister();
       recoveryProvider.unregister();
-      await shutdownServerRuntime(orchestrator);
+      await shutdownServerRuntime(orchestrator.runtime);
       await rm(root, {
         recursive: true,
         force: true,

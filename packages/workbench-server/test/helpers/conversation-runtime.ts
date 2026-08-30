@@ -1,4 +1,4 @@
-import { createTestServerRuntime } from "../support/runtime-fixture.js";
+import { createRuntimeFixture } from "../support/runtime-fixture.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -41,10 +41,10 @@ export async function tempHome(prefix: string): Promise<string> {
 
 export async function createState(prefix = "nerve-runtime-conversation-") {
   const storage = await initializeStorage(await tempHome(prefix));
-  const state = createTestServerRuntime(storage, "127.0.0.1", 0);
-  states.push(state);
-  await state.lifecycle.hydrate();
-  return state;
+  const fixture = createRuntimeFixture(storage, "127.0.0.1", 0);
+  states.push(fixture.runtime);
+  await fixture.lifecycle.hydrate();
+  return fixture;
 }
 
 export async function ageConversation(
@@ -81,14 +81,17 @@ export async function addTaskRecord(
   },
 ): Promise<TaskRecord> {
   const id = createId("task");
-  const logsPath = join(state.storage.paths.tasksPath, `${id}.logs.jsonl`);
+  const logsPath = join(
+    state.runtime.storage.paths.tasksPath,
+    `${id}.logs.jsonl`,
+  );
   const now = new Date().toISOString();
   const record: TaskRecord = {
     id,
     projectId: input.projectId,
     conversationId: input.conversationId,
     agentId: input.agentId,
-    cwd: state.storage.paths.home,
+    cwd: state.runtime.storage.paths.home,
     command: "echo test",
     status: input.status,
     readiness: { outcome: "none" },
@@ -100,8 +103,8 @@ export async function addTaskRecord(
     updatedAt: now,
   };
   state.services.tasks.tasks.set(record.id, record);
-  state.queryCache.upsertTask(record);
-  await new TaskRepository(state.storage).write(record);
+  state.runtime.queryCache.upsertTask(record);
+  await new TaskRepository(state.runtime.storage).write(record);
   return record;
 }
 

@@ -16,7 +16,10 @@ describe("RuntimeLifecycle conversation branches", () => {
     const state = await createState("nerve-runtime-import-");
     try {
       const imported = await state.services.importService.importConversation({
-        project: { dir: state.storage.paths.home, name: "Imported Project" },
+        project: {
+          dir: state.runtime.storage.paths.home,
+          name: "Imported Project",
+        },
         conversation: {
           title: "Imported Conversation",
           mode: "coding",
@@ -27,11 +30,11 @@ describe("RuntimeLifecycle conversation branches", () => {
             id: oldAgentId,
             conversationId: oldConversationId,
             projectId: "proj_01HN0000000000000000000000",
-            projectDir: state.storage.paths.home,
+            projectDir: state.runtime.storage.paths.home,
             rootAgentId: oldAgentId,
             mode: "coding",
             permissionLevel: "supervised",
-            workspaceScope: { roots: [state.storage.paths.home] },
+            workspaceScope: { roots: [state.runtime.storage.paths.home] },
             budget: { depth: 0, maxDepth: 3 },
             status: "idle",
             createdAt,
@@ -90,7 +93,7 @@ describe("RuntimeLifecycle conversation branches", () => {
       assert.equal(exported.entries.length, 2);
       assert.equal(exported.entries[1]?.parentEntryId, exported.entries[0]?.id);
     } finally {
-      state.queryCache.close();
+      state.runtime.queryCache.close();
     }
   });
 
@@ -98,7 +101,7 @@ describe("RuntimeLifecycle conversation branches", () => {
     const state = await createState("nerve-runtime-branch-projection-");
     try {
       const project = await state.services.projectLifecycle.createProject({
-        dir: state.storage.paths.home,
+        dir: state.runtime.storage.paths.home,
       });
       const conversation =
         await state.services.conversationLifecycle.createConversation({
@@ -168,7 +171,7 @@ describe("RuntimeLifecycle conversation branches", () => {
         [],
       );
     } finally {
-      state.queryCache.close();
+      state.runtime.queryCache.close();
     }
   });
 

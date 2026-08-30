@@ -21,16 +21,3 @@ export function createRuntimeFixture(
 ): RuntimeFixture {
   return composeServerRuntime(storage, host, port, options);
 }
-
-export type TestServerRuntime = ServerRuntime & { services: RuntimeServices };
-
-/** Test-only convenience for domain tests that intentionally inspect services. */
-export function createTestServerRuntime(
-  storage: InitializedStorage,
-  host = "127.0.0.1",
-  port = 0,
-  options: ServerRuntimeOptions = {},
-): TestServerRuntime {
-  const fixture = createRuntimeFixture(storage, host, port, options);
-  return Object.assign(fixture.runtime, { services: fixture.services });
-}

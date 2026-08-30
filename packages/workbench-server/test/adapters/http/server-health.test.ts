@@ -1,4 +1,4 @@
-import { createTestServerRuntime } from "../../support/runtime-fixture.js";
+import { createRuntimeFixture } from "../../support/runtime-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,7 +11,7 @@ describe("server health routes", () => {
   it("keeps public and authenticated probes minimal", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-server-health-"));
     const storage = await initializeStorage(home);
-    const state = createTestServerRuntime(storage, "127.0.0.1", 0);
+    const { runtime: state } = createRuntimeFixture(storage, "127.0.0.1", 0);
     const app = createApp(state);
 
     try {

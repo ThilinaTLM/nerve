@@ -43,13 +43,13 @@ describe("application logging gate", () => {
   });
 
   it("identifies authorization failures by method and path", async () => {
-    const { app, state } = await createAuthenticatedApp("127.0.0.1", {
+    const { app, runtime } = await createAuthenticatedApp("127.0.0.1", {
       applicationLogsEnabled: true,
     });
 
     const response = await app.request("/api/client-config");
     assert.equal(response.status, 401);
-    const logs = await state.logger.query({ component: "http", limit: 10 });
+    const logs = await runtime.logger.query({ component: "http", limit: 10 });
     const authorization = logs.logs.find((log) =>
       log.message.includes("authorization failed"),
     );

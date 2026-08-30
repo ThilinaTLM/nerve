@@ -1,4 +1,4 @@
-import { createTestServerRuntime } from "../../support/runtime-fixture.js";
+import { createRuntimeFixture } from "../../support/runtime-fixture.js";
 import { serve } from "@hono/node-server";
 import type { ProtocolV1Message } from "@nervekit/contracts/wire";
 import { ProtocolCodec, createMessageFactory } from "@nervekit/protocol";
@@ -65,10 +65,11 @@ function closeWithTimeout(
 
 async function fixture() {
   const storage = await initializeStorage(await tempHome("nerve-protocol-ws-"));
-  const state = createTestServerRuntime(storage, "127.0.0.1", 0);
+  const runtimeFixture = createRuntimeFixture(storage, "127.0.0.1", 0);
+  const state = runtimeFixture.runtime;
   await state.logger.hydrate();
   await state.events.hydrate();
-  await state.lifecycle.hydrate();
+  await runtimeFixture.lifecycle.hydrate();
   const server = await new Promise<Server>((resolve) => {
     const started = serve(
       { fetch: createApp(state).fetch, hostname: "127.0.0.1", port: 0 },

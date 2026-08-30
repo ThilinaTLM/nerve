@@ -12,7 +12,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
     const state = await createState("nerve-runtime-idempotent-entry-");
     try {
       const project = await state.services.projectLifecycle.createProject({
-        dir: state.storage.paths.home,
+        dir: state.runtime.storage.paths.home,
       });
       const conversation =
         await state.services.conversationLifecycle.createConversation({
@@ -49,14 +49,14 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
       );
       assert.equal(
         (
-          await new ConversationJournalRepository(state.storage).load(
+          await new ConversationJournalRepository(state.runtime.storage).load(
             conversation.id,
           )
         ).entries.length,
         1,
       );
     } finally {
-      state.queryCache.close();
+      state.runtime.queryCache.close();
     }
   });
 
@@ -64,7 +64,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
     const state = await createState("nerve-runtime-last-user-message-");
     try {
       const project = await state.services.projectLifecycle.createProject({
-        dir: state.storage.paths.home,
+        dir: state.runtime.storage.paths.home,
       });
       const conversation =
         await state.services.conversationLifecycle.createConversation({
@@ -119,7 +119,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
         "2026-01-01T00:03:00.000Z",
       );
     } finally {
-      state.queryCache.close();
+      state.runtime.queryCache.close();
     }
   });
 
@@ -127,7 +127,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
     const state = await createState("nerve-runtime-conversation-state-");
     try {
       const project = await state.services.projectLifecycle.createProject({
-        dir: state.storage.paths.home,
+        dir: state.runtime.storage.paths.home,
       });
       const conversation =
         await state.services.conversationLifecycle.createConversation({
@@ -179,7 +179,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
       assert.equal(explicitlyReopened.updatedAt, reopened.updatedAt);
 
       const persisted = (
-        await new ConversationJournalRepository(state.storage).load(
+        await new ConversationJournalRepository(state.runtime.storage).load(
           conversation.id,
         )
       ).conversation as ConversationRecord;
@@ -187,7 +187,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
       assert.equal(persisted.completedAt, undefined);
       assert.ok(persisted.runtimeStatusClearedAt);
     } finally {
-      state.queryCache.close();
+      state.runtime.queryCache.close();
     }
   });
 
@@ -195,7 +195,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
     const state = await createState();
     try {
       const project = await state.services.projectLifecycle.createProject({
-        dir: state.storage.paths.home,
+        dir: state.runtime.storage.paths.home,
       });
       const conversation =
         await state.services.conversationLifecycle.createConversation({
@@ -220,7 +220,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
         conversation.id,
       );
     } finally {
-      state.queryCache.close();
+      state.runtime.queryCache.close();
     }
   });
 
@@ -228,7 +228,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
     const state = await createState("nerve-runtime-compaction-");
     try {
       const project = await state.services.projectLifecycle.createProject({
-        dir: state.storage.paths.home,
+        dir: state.runtime.storage.paths.home,
       });
       const conversation =
         await state.services.conversationLifecycle.createConversation({
@@ -257,7 +257,11 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
         { reason: "manual" },
       );
       const events = (
-        await state.events.readStream(`conv/${conversation.id}`, 1, 5_000)
+        await state.runtime.events.readStream(
+          `conv/${conversation.id}`,
+          1,
+          5_000,
+        )
       ).events;
       const started = events.find(
         (event) => event.type === "conversation.compaction.started",
@@ -299,7 +303,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
         "number",
       );
     } finally {
-      state.queryCache.close();
+      state.runtime.queryCache.close();
     }
   });
 });

@@ -18,6 +18,7 @@ import {
 import { allowedNerveDependencies } from "./lib/workspace-architecture.mjs";
 import { validatePackageExportSurfaces } from "./lib/package-export-surfaces.mjs";
 import { contractsSourcePolicyViolations } from "./lib/contracts-source-policy.mjs";
+import { serverTestRuntimePolicyViolations } from "./lib/server-test-runtime-policy.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const failures = [];
@@ -37,6 +38,7 @@ for (const failure of validatePackageExportSurfaces(repoRoot))
   fail("package exports", failure);
 checkSourceImports();
 checkContractsSourcePolicy();
+checkServerTestRuntimePolicy();
 checkRetiredSurface();
 checkWorkbenchFeatureBoundaries();
 checkWorkbenchLayerBoundaries();
@@ -171,6 +173,13 @@ function checkSourceImports() {
 function checkContractsSourcePolicy() {
   for (const file of trackedFiles) {
     for (const violation of contractsSourcePolicyViolations(file, read(file)))
+      fail(file, violation);
+  }
+}
+
+function checkServerTestRuntimePolicy() {
+  for (const file of trackedFiles) {
+    for (const violation of serverTestRuntimePolicyViolations(file, read(file)))
       fail(file, violation);
   }
 }

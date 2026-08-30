@@ -1,4 +1,4 @@
-import { createTestServerRuntime } from "../../support/runtime-fixture.js";
+import { createRuntimeFixture } from "../../support/runtime-fixture.js";
 import assert from "node:assert/strict";
 import {
   createCipheriv,
@@ -71,7 +71,7 @@ function encryptApiKey(
 describe("server credential route auth", () => {
   it("lets an authenticated UI session manage credentials and rejects anonymous requests", async () => {
     const storage = await initializeStorage(await tempHome());
-    const state = createTestServerRuntime(storage, "127.0.0.1", 0);
+    const { runtime: state } = createRuntimeFixture(storage, "127.0.0.1", 0);
     const app = createApp(state);
     const cookie = `nerve_token=${storage.localToken}`;
 

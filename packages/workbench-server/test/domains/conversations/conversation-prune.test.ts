@@ -14,7 +14,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
     const state = await createState("nerve-runtime-prune-");
     try {
       const project = await state.services.projectLifecycle.createProject({
-        dir: state.storage.paths.home,
+        dir: state.runtime.storage.paths.home,
       });
       const oldConversation =
         await state.services.conversationLifecycle.createConversation({
@@ -78,7 +78,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
       assert.equal(
         await pathExists(
           join(
-            state.storage.paths.logsPath,
+            state.runtime.storage.paths.logsPath,
             "events",
             "conversations",
             `${oldConversation.id}.jsonl`,
@@ -88,7 +88,10 @@ describe("RuntimeLifecycle conversation pruning", () => {
       );
       assert.equal(
         await pathExists(
-          join(state.storage.paths.tasksPath, `${inactiveTask.id}.logs.jsonl`),
+          join(
+            state.runtime.storage.paths.tasksPath,
+            `${inactiveTask.id}.logs.jsonl`,
+          ),
         ),
         false,
       );
@@ -99,7 +102,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
         false,
       );
     } finally {
-      state.queryCache.close();
+      state.runtime.queryCache.close();
     }
   });
 
@@ -107,7 +110,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
     const state = await createState("nerve-runtime-prune-completed-");
     try {
       const project = await state.services.projectLifecycle.createProject({
-        dir: state.storage.paths.home,
+        dir: state.runtime.storage.paths.home,
       });
       const completed =
         await state.services.conversationLifecycle.createConversation({
@@ -142,7 +145,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
         unfinished.id,
       );
     } finally {
-      state.queryCache.close();
+      state.runtime.queryCache.close();
     }
   });
 
@@ -150,7 +153,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
     const state = await createState("nerve-runtime-prune-skip-");
     try {
       const project = await state.services.projectLifecycle.createProject({
-        dir: state.storage.paths.home,
+        dir: state.runtime.storage.paths.home,
       });
       const activeAgentConversation =
         await state.services.conversationLifecycle.createConversation({
@@ -224,15 +227,15 @@ describe("RuntimeLifecycle conversation pruning", () => {
         activeTask.id,
       );
     } finally {
-      state.queryCache.close();
+      state.runtime.queryCache.close();
     }
   });
 
   it("batches old conversation pruning across projects", async () => {
     const state = await createState("nerve-runtime-prune-all-");
     try {
-      const firstDir = join(state.storage.paths.home, "first");
-      const secondDir = join(state.storage.paths.home, "second");
+      const firstDir = join(state.runtime.storage.paths.home, "first");
+      const secondDir = join(state.runtime.storage.paths.home, "second");
       await mkdir(firstDir, { recursive: true });
       await mkdir(secondDir, { recursive: true });
       const firstProject = await state.services.projectLifecycle.createProject({
@@ -281,7 +284,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
         state.services.conversationLifecycle.getConversation(second.id),
       );
     } finally {
-      state.queryCache.close();
+      state.runtime.queryCache.close();
     }
   });
 
@@ -289,7 +292,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
     const state = await createState("nerve-runtime-prune-keep-");
     try {
       const project = await state.services.projectLifecycle.createProject({
-        dir: state.storage.paths.home,
+        dir: state.runtime.storage.paths.home,
       });
       const oldest =
         await state.services.conversationLifecycle.createConversation({
@@ -333,7 +336,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
         state.services.conversationLifecycle.getConversation(middle.id),
       );
     } finally {
-      state.queryCache.close();
+      state.runtime.queryCache.close();
     }
   });
 });

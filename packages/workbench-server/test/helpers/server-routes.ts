@@ -1,4 +1,4 @@
-import { createTestServerRuntime } from "../support/runtime-fixture.js";
+import { createRuntimeFixture } from "../support/runtime-fixture.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -35,11 +35,11 @@ export async function createAuthenticatedApp(
   const storage = await initializeStorage(
     await tempHome("nerve-server-routes-"),
   );
-  const state = createTestServerRuntime(storage, host, 0, options);
-  states.push(state);
-  await state.logger.hydrate();
-  await state.lifecycle.hydrate();
-  const app = createApp(state);
+  const fixture = createRuntimeFixture(storage, host, 0, options);
+  states.push(fixture.runtime);
+  await fixture.runtime.logger.hydrate();
+  await fixture.lifecycle.hydrate();
+  const app = createApp(fixture.runtime);
   const headers = { authorization: `Bearer ${storage.localToken}` };
-  return { app, state, headers };
+  return { app, runtime: fixture.runtime, services: fixture.services, headers };
 }

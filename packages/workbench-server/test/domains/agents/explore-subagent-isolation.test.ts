@@ -1,4 +1,4 @@
-import { createTestServerRuntime } from "../../support/runtime-fixture.js";
+import { createRuntimeFixture } from "../../support/runtime-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -39,7 +39,7 @@ describe("explore subagent transcript isolation", () => {
         model: { provider, modelId: "scripted-fast" },
       },
     });
-    const orchestrator = createTestServerRuntime(storage, "127.0.0.1", 0);
+    const orchestrator = createRuntimeFixture(storage, "127.0.0.1", 0);
     try {
       await orchestrator.lifecycle.hydrate();
       const project =
@@ -140,7 +140,7 @@ describe("explore subagent transcript isolation", () => {
       assert.equal(childTranscript.activeRun, undefined);
       assert.ok(childTranscript.cursorSeq > 0);
 
-      const stream = await orchestrator.events.readStream(
+      const stream = await orchestrator.runtime.events.readStream(
         conversationStream(conversation.id),
         1,
         1_000,
@@ -192,7 +192,7 @@ describe("explore subagent transcript isolation", () => {
       );
     } finally {
       registration.unregister();
-      await shutdownServerRuntime(orchestrator);
+      await shutdownServerRuntime(orchestrator.runtime);
       await rm(root, {
         recursive: true,
         force: true,
@@ -205,8 +205,8 @@ describe("explore subagent transcript isolation", () => {
   it("repairs a persisted child active-agent reference during hydration", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-explore-recovery-"));
     const storage = await initializeStorage(root);
-    const orchestrator = createTestServerRuntime(storage, "127.0.0.1", 0);
-    let restarted: ReturnType<typeof createTestServerRuntime> | undefined;
+    const orchestrator = createRuntimeFixture(storage, "127.0.0.1", 0);
+    let restarted: ReturnType<typeof createRuntimeFixture> | undefined;
     try {
       await orchestrator.lifecycle.hydrate();
       const project =
@@ -234,7 +234,7 @@ describe("explore subagent transcript isolation", () => {
         parent.id,
       );
 
-      await shutdownServerRuntime(orchestrator);
+      await shutdownServerRuntime(orchestrator.runtime);
       const journal = new ConversationJournalRepository(storage);
       const persistedBefore = (await journal.load(conversation.id))
         .conversation;
@@ -251,7 +251,7 @@ describe("explore subagent transcript isolation", () => {
       });
 
       const restartedStorage = await initializeStorage(root);
-      restarted = createTestServerRuntime(restartedStorage, "127.0.0.1", 0);
+      restarted = createRuntimeFixture(restartedStorage, "127.0.0.1", 0);
       await restarted.lifecycle.hydrate();
       assert.equal(
         restarted.services.conversationLifecycle.getConversation(
@@ -266,8 +266,8 @@ describe("explore subagent transcript isolation", () => {
       ).conversation;
       assert.equal(persisted?.activeAgentId, parent.id);
     } finally {
-      await shutdownServerRuntime(orchestrator);
-      if (restarted) await shutdownServerRuntime(restarted);
+      await shutdownServerRuntime(orchestrator.runtime);
+      if (restarted) await shutdownServerRuntime(restarted.runtime);
       await rm(root, {
         recursive: true,
         force: true,
@@ -307,7 +307,7 @@ describe("explore subagent transcript isolation", () => {
         model: { provider, modelId: "scripted-fast" },
       },
     });
-    const orchestrator = createTestServerRuntime(storage, "127.0.0.1", 0);
+    const orchestrator = createRuntimeFixture(storage, "127.0.0.1", 0);
     try {
       await orchestrator.lifecycle.hydrate();
       const project =
@@ -361,7 +361,7 @@ describe("explore subagent transcript isolation", () => {
       );
     } finally {
       registration.unregister();
-      await shutdownServerRuntime(orchestrator);
+      await shutdownServerRuntime(orchestrator.runtime);
       await rm(root, {
         recursive: true,
         force: true,

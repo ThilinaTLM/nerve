@@ -222,8 +222,8 @@ describe("project icon route", () => {
       join(dir, "favicon.svg"),
       '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"></svg>',
     );
-    const { app, state, headers } = await createAuthenticatedApp();
-    const created = await state.services.projectLifecycle.createProject({
+    const { app, services, headers } = await createAuthenticatedApp();
+    const created = await services.projectLifecycle.createProject({
       dir,
     });
     const path = `/api/projects/${created.id}/icon`;
@@ -248,7 +248,7 @@ describe("project icon route", () => {
     assert.equal(conditional.status, 304);
 
     const missingDir = await projectDirectory("route-missing");
-    const missing = await state.services.projectLifecycle.createProject({
+    const missing = await services.projectLifecycle.createProject({
       dir: missingDir,
     });
     const notFound = await app.request(`/api/projects/${missing.id}/icon`, {
