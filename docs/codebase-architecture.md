@@ -44,7 +44,7 @@ Arrows in the diagram mean “is consumed by.” `website` is standalone.
 - `index.ts` is a curated public boundary, never an internal import shortcut.
 - Avoid `common`, `shared`, and broad `utils` directories. Reusable code belongs to a named technical or domain area.
 - Small domains remain flat; add layer subdirectories only when they improve navigation.
-- Cohesive exceptions remain intentional: UI-kit `utils.ts`, domain-local `operations.ts`, curated `index.ts` boundaries, test-support helpers, and narrowly scoped tools/server contract modules.
+- Cohesive exceptions remain intentional: UI-kit `utils.ts`, domain-local `operations.ts`, curated `index.ts` boundaries, test-support helpers, narrowly scoped tools/server contract modules, and the desktop daemon composition boundary. `scripts/lib/source-naming-policy.mjs` is the complete authoritative inventory for production `types.ts`, `state.ts`, `helpers.ts`, `utils.ts`, `operations.ts`, and `composition.ts` exceptions; every new occurrence requires architecture review and an explicit inventory update.
 
 ## Runtime composition boundaries
 
@@ -56,4 +56,4 @@ Arrows in the diagram mean “is consumed by.” `website` is standalone.
 
 Package export allowlists live in `scripts/lib/package-export-surfaces.mjs`. Contracts, protocol, harness, and tools expose curated concept subpaths rather than broad implementation roots. `pnpm build` verifies every declared concrete build target and each wildcard target after production artifacts are generated. Website token parity is checked at build/check time without adding a runtime UI-kit dependency.
 
-The canonical package inventory and allowed workspace dependencies live in `scripts/lib/workspace-architecture.mjs`. Package-specific `AGENTS.md` and README files define stricter local ownership rules. `scripts/check-package-boundaries.mjs` enforces package exports, runtime ports, feature privacy, presentation isolation, and cross-owner cycle rules.
+The canonical package inventory and allowed workspace dependencies live in `scripts/lib/workspace-architecture.mjs`. Package-specific `AGENTS.md` and README files define stricter local ownership rules. `scripts/check-package-boundaries.mjs` enforces package exports, direct contracts source ownership, the generic-source-name inventory, runtime ports, feature privacy, presentation isolation, retired paths, and cross-owner cycle rules.

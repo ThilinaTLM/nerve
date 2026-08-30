@@ -6,4 +6,5 @@ Inherits the root `AGENTS.md`. This package is the source of official shadcn-sve
 - Use theme-token Tailwind utilities and official shadcn-svelte components; use `@lucide/svelte` for icons.
 - Keep mono typography for code, logs, and paths only.
 - Global shared CSS belongs in `src/styles/` with `app.css` as its entry.
+- `src/lib/utils.ts` is the shadcn-required cohesive naming exception; other broad production filenames must be reviewed in `scripts/lib/source-naming-policy.mjs`.
 - Validate with `pnpm --filter @nervekit/ui-kit check` and relevant tests.

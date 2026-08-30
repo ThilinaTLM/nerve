@@ -19,6 +19,7 @@ import { allowedNerveDependencies } from "./lib/workspace-architecture.mjs";
 import { validatePackageExportSurfaces } from "./lib/package-export-surfaces.mjs";
 import { contractsSourcePolicyViolations } from "./lib/contracts-source-policy.mjs";
 import { serverTestRuntimePolicyViolations } from "./lib/server-test-runtime-policy.mjs";
+import { sourceNamingPolicyViolation } from "./lib/source-naming-policy.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const failures = [];
@@ -39,6 +40,7 @@ for (const failure of validatePackageExportSurfaces(repoRoot))
 checkSourceImports();
 checkContractsSourcePolicy();
 checkServerTestRuntimePolicy();
+checkSourceNamingPolicy();
 checkRetiredSurface();
 checkWorkbenchFeatureBoundaries();
 checkWorkbenchLayerBoundaries();
@@ -184,6 +186,13 @@ function checkServerTestRuntimePolicy() {
   }
 }
 
+function checkSourceNamingPolicy() {
+  for (const file of trackedFiles) {
+    const violation = sourceNamingPolicyViolation(file);
+    if (violation) fail(file, violation);
+  }
+}
+
 function checkRetiredSurface() {
   const retiredPackages = [
     "@nervekit/" + "agent-runtime",
@@ -202,6 +211,9 @@ function checkRetiredSurface() {
   const retiredPathFragments = [
     "/protocol/" + "session.ts",
     "/protocol/" + "manager-protocol-session.ts",
+  ];
+  const retiredTextFragments = [
+    "packages/contracts/src/domains/" + "protocol/",
   ];
   const retiredIdentifiers = [
     "class " + "TaskManager",
@@ -223,6 +235,10 @@ function checkRetiredSurface() {
     for (const name of retiredPackages) {
       if (file !== "docs/release.md" && text.includes(name))
         fail(file, `retired package/path remains: ${name}`);
+    }
+    for (const fragment of retiredTextFragments) {
+      if (text.includes(fragment))
+        fail(file, `retired path reference remains: ${fragment}`);
     }
     for (const identifier of retiredIdentifiers) {
       if (text.includes(identifier))
