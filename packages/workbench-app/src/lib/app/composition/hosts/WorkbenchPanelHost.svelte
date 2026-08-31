@@ -17,20 +17,20 @@ let {
 } = $props();
 
 // Keep this cache non-reactive: it is populated inside `$derived.by`, where
-// mutating a reactive SvelteMap would trigger `state_unsafe_mutation`.
-const moduleCache = new Map<
+// mutating reactive state would trigger `state_unsafe_mutation`.
+const moduleCache = Object.create(null) as Record<
   string,
   ReturnType<WorkbenchPanelDescriptor["load"]>
->();
+>;
 const descriptor = $derived(
   panelViewDescriptors.find((candidate) => candidate.id === viewId),
 );
 const panelModule = $derived.by(() => {
   if (!descriptor) return undefined;
-  let loaded = moduleCache.get(descriptor.id);
+  let loaded = moduleCache[descriptor.id];
   if (!loaded) {
     loaded = descriptor.load();
-    moduleCache.set(descriptor.id, loaded);
+    moduleCache[descriptor.id] = loaded;
   }
   return loaded;
 });

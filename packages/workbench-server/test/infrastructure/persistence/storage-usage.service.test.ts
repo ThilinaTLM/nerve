@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { StorageUsageService } from "../../../src/domains/storage/storage-usage.service.js";
 import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/index.js";
@@ -50,7 +50,7 @@ async function fixtureHome(): Promise<string> {
   await write("unknown-root.bin", 27);
   await write("data/unknown-data.bin", 28);
 
-  const external = join(home, "..", `${home.split("/").at(-1)}-external`);
+  const external = join(home, "..", `${basename(home)}-external`);
   await writeFile(external, "x".repeat(100));
   roots.push(external);
   await symlink(external, join(home, "unknown-link"));

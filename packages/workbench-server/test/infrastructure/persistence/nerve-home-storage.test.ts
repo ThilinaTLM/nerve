@@ -28,12 +28,16 @@ async function temporaryHome(prefix: string) {
 
 test("initializes the required v1 home and keeps optional directories lazy", async (t) => {
   const home = await temporaryHome("nerve-home-v1-");
-  t.after(() => rm(home, { recursive: true, force: true }));
   const progress: string[] = [];
   const storage = await initializeStorage(home, {
     reportStartupProgress: (event) => progress.push(event.phase),
   });
-  t.after(() => storage.canonicalStore.close());
+  const resources: { database?: DatabaseSync } = {};
+  t.after(async () => {
+    resources.database?.close();
+    await storage.canonicalStore.close();
+    await rm(home, { recursive: true, force: true });
+  });
 
   assert.deepEqual(
     JSON.parse(await readFile(storage.paths.manifestPath, "utf8")),
@@ -57,20 +61,24 @@ test("initializes the required v1 home and keeps optional directories lazy", asy
   ]) {
     assert.equal((await stat(path)).isFile(), true, path);
   }
-  assert.equal((await stat(storage.paths.home)).mode & 0o777, 0o700);
-  assert.equal((await stat(storage.paths.secretsPath)).mode & 0o777, 0o700);
-  assert.equal((await stat(storage.paths.localTokenPath)).mode & 0o777, 0o600);
+  if (process.platform !== "win32") {
+    assert.equal((await stat(storage.paths.home)).mode & 0o777, 0o700);
+    assert.equal((await stat(storage.paths.secretsPath)).mode & 0o777, 0o700);
+    assert.equal(
+      (await stat(storage.paths.localTokenPath)).mode & 0o777,
+      0o600,
+    );
+  }
   assert.deepEqual(progress, ["storage-check"]);
   assert.equal(storage.timings.sqliteMigrationApplyMs, 0);
   assert.ok(storage.timings.canonicalOpenMs >= 0);
   await assert.rejects(stat(storage.paths.agentPath), { code: "ENOENT" });
   await assert.rejects(stat(storage.paths.suggestionsPath), { code: "ENOENT" });
 
-  const database = new DatabaseSync(storage.paths.sqlitePath, {
+  resources.database = new DatabaseSync(storage.paths.sqlitePath, {
     readOnly: true,
   });
-  t.after(() => database.close());
-  const tables = database
+  const tables = resources.database
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
     .all()
     .map((row) => String((row as { name: unknown }).name));
@@ -103,10 +111,12 @@ test("fails closed on every non-empty unmanifested or unsupported home", async (
 test("encrypts secrets and resolves project configuration precedence", async (t) => {
   const home = await temporaryHome("nerve-home-config-");
   const project = await temporaryHome("nerve-project-config-");
-  t.after(() => rm(home, { recursive: true, force: true }));
   t.after(() => rm(project, { recursive: true, force: true }));
   const storage = await initializeStorage(home);
-  t.after(() => storage.canonicalStore.close());
+  t.after(async () => {
+    await storage.canonicalStore.close();
+    await rm(home, { recursive: true, force: true });
+  });
   const secrets = new EncryptedFileSecretProvider(home);
   const value = "secret-value-that-must-not-be-plaintext";
   await secrets.set("provider:test", value);
@@ -138,9 +148,11 @@ test("encrypts secrets and resolves project configuration precedence", async (t)
 
 test("persists logical managed-file references and materializes absolute paths", async (t) => {
   const home = await temporaryHome("nerve-home-references-");
-  t.after(() => rm(home, { recursive: true, force: true }));
   const storage = await initializeStorage(home);
-  t.after(() => storage.canonicalStore.close());
+  t.after(async () => {
+    await storage.canonicalStore.close();
+    await rm(home, { recursive: true, force: true });
+  });
   const tasks = new TaskRepository(storage);
   const now = new Date().toISOString();
   const paths = tasks.paths("task_reference");

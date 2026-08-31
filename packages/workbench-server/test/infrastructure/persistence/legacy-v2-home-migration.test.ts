@@ -357,7 +357,6 @@ async function writeLegacySecrets(
 test("migrates legacy v2 configuration, conversations, credentials, payloads, and plans", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "nerve-legacy-v2-"));
   const home = join(root, ".nerve");
-  t.after(() => rm(root, { recursive: true, force: true }));
   await createPost0012Home(home);
   assert.deepEqual(await inspectLegacyV2Home(home), {
     kind: "legacy-v2",
@@ -399,7 +398,10 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
   );
 
   const storage = await initializeStorage(home);
-  t.after(() => storage.canonicalStore.close());
+  t.after(async () => {
+    await storage.canonicalStore.close();
+    await rm(root, { recursive: true, force: true });
+  });
   assert.equal(storage.settings.defaultThinkingLevel, "high");
   assert.equal(
     storage.configuration.providers.providers[0]?.id,
