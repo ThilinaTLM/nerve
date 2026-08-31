@@ -1,5 +1,4 @@
 <script lang="ts">
-import { SvelteMap } from "svelte/reactivity";
 import type { GitPanelActions, GitPanelModel } from "$lib/features/git";
 import LazyViewPending from "$lib/app/shell/LazyViewPending.svelte";
 import {
@@ -17,7 +16,9 @@ let {
   gitActions: GitPanelActions;
 } = $props();
 
-const moduleCache = new SvelteMap<
+// Keep this cache non-reactive: it is populated inside `$derived.by`, where
+// mutating a reactive SvelteMap would trigger `state_unsafe_mutation`.
+const moduleCache = new Map<
   string,
   ReturnType<WorkbenchPanelDescriptor["load"]>
 >();
