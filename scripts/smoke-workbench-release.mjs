@@ -6,14 +6,16 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createMessageFactory } from "../packages/protocol/dist/index.js";
 import {
-  createMessageFactory,
-  nodeWebSocketTransportFactory,
-  protocolRequest,
   ProtocolClientConnection,
   ProtocolClientSession,
   ReconnectPolicy,
-} from "../packages/protocol/dist/index.js";
+} from "../packages/protocol/dist/client.js";
+import {
+  nodeWebSocketTransportFactory,
+  protocolRequest,
+} from "../packages/protocol/dist/adapters/index.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const require = createRequire(
