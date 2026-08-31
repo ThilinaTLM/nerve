@@ -33,6 +33,11 @@ describe("ToolResultPayloadStore", () => {
       z: "last",
       a: "first",
     });
+    assert.equal(reference.version, 2);
+    assert.equal(
+      reference.logicalPath,
+      "conversations/test/tool-calls/test/result.json",
+    );
     assert.equal(reference.completeness, "complete");
     assert.deepEqual(await payloads.read(reference), {
       a: "first",
@@ -41,14 +46,25 @@ describe("ToolResultPayloadStore", () => {
     const path = join(
       home,
       "data",
-      "payloads",
       "conversations",
-      "conv_test",
+      "test",
       "tool-calls",
-      "tool_test",
+      "test",
       "result.json",
     );
     assert.match(await readFile(path, "utf8"), /^\{\n {2}"a": "first"/);
+    assert.equal(
+      payloads.filesPath("conv_test", "tool_test"),
+      join(
+        home,
+        "data",
+        "conversations",
+        "test",
+        "tool-calls",
+        "test",
+        "files",
+      ),
+    );
   });
 
   it("reads UTF-8-safe bounded ranges", async () => {
@@ -92,7 +108,11 @@ describe("ToolResultPayloadStore", () => {
     await payloads.initialize();
     const target = join(home, "escape");
     await mkdir(target);
-    await symlink(target, join(home, "data", "payloads", "conversations"));
+    await rm(join(home, "data", "conversations"), {
+      recursive: true,
+      force: true,
+    });
+    await symlink(target, join(home, "data", "conversations"));
     await assert.rejects(
       payloads.write("conv_test", "tool_test", "no escape"),
       ToolResultPayloadCorruptError,

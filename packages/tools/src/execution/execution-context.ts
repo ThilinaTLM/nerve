@@ -33,34 +33,29 @@ export interface BaseExecutionContext {
   onUpdate?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
 }
 export interface FilesystemExecutionContext extends BaseExecutionContext {
-  dataDir?: string;
   artifactDir?: string;
 }
 export interface ShellExecutionContext extends BaseExecutionContext {
   shellPath?: string;
-  dataDir?: string;
   artifactDir?: string;
 }
 export interface PythonExecutionContext extends BaseExecutionContext {
-  dataDir?: string;
   artifactDir?: string;
   pythonRuntime?: PythonRuntime;
   pythonPolicy?: { allowNetwork: boolean; allowFileWrite: boolean };
 }
 export interface WebExecutionContext extends BaseExecutionContext {
-  dataDir?: string;
   artifactDir?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
   webFetchPolicy?: { allowPrivateNetwork?: boolean };
 }
 export interface VisionExecutionContext extends BaseExecutionContext {
-  dataDir?: string;
+  artifactDir?: string;
   explainImage?: (
     request: ExplainImageRequest,
   ) => Promise<ExplainImageResponse>;
 }
 export interface IntegrationExecutionContext extends BaseExecutionContext {
-  dataDir?: string;
   artifactDir?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
   getProviderConfig?: (provider: string) => Promise<unknown>;

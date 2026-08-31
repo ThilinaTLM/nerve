@@ -286,15 +286,13 @@ export type ToolCallErrorDetails = z.infer<typeof toolCallErrorDetailsSchema>;
 
 export const toolResultPayloadReferenceSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     kind: z.literal("tool_result"),
     conversationId: z.string().startsWith("conv_").max(256),
     toolCallId: z.string().startsWith("tool_").max(256),
     logicalPath: z
       .string()
-      .regex(
-        /^payloads\/conversations\/[^/]+\/tool-calls\/[^/]+\/result\.json$/,
-      ),
+      .regex(/^conversations\/[^/]+\/tool-calls\/[^/]+\/result\.json$/),
     digest: z.string().regex(/^[a-f0-9]{64}$/),
     byteLength: z.number().int().nonnegative().safe(),
     mediaType: z.literal("application/json"),

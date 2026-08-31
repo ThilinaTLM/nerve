@@ -749,7 +749,7 @@ Conversation-wide choices create a conversation overlay. They must:
 
 - contain only `overridable` rules and never define guardrails;
 - be scoped to one conversation;
-- be persisted at `<NERVE_HOME>/data/payloads/conversations/<conversation-id>/permissions.json` so it survives application and daemon restarts;
+- be persisted at `<NERVE_HOME>/data/conversations/<bare-conversation-id>/permissions.json` so it survives application and daemon restarts;
 - have stable IDs and creation metadata;
 - be visible and revocable;
 - use canonical matchers derived from the approved request;
@@ -762,11 +762,11 @@ Approving one drafted call changes only that call unless the user explicitly cho
 
 A prompted decision may create a canonical rule at one of three scopes without creating or selecting another rule set:
 
-| User choice                | Destination                                                                   | Effect                                                                 |
-| -------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Apply to this conversation | `<NERVE_HOME>/data/payloads/conversations/<conversation-id>/permissions.json` | Applies only to the current conversation and persists across sessions. |
-| Apply to this project      | `<project>/.nerve/config/permissions.json`                                    | Applies to the active project with its trusted content digest updated. |
-| Apply to all projects      | `<NERVE_HOME>/config/permissions.json`                                        | Applies at user scope across projects.                                 |
+| User choice                | Destination                                                               | Effect                                                                 |
+| -------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Apply to this conversation | `<NERVE_HOME>/data/conversations/<bare-conversation-id>/permissions.json` | Applies only to the current conversation and persists across sessions. |
+| Apply to this project      | `<project>/.nerve/config/permissions.json`                                | Applies to the active project with its trusted content digest updated. |
+| Apply to all projects      | `<NERVE_HOME>/config/permissions.json`                                    | Applies at user scope across projects.                                 |
 
 Nerve automatically creates or atomically updates the selected destination when the user confirms one of these scoped choices. It updates the existing scope-owned overlay rather than creating another rule set or permission file. The saved rule affects future evaluations and does not retroactively change already drafted calls.
 
@@ -878,7 +878,7 @@ The user rule-set folder is serialized as `rule-sets`; there is no intermediate 
 
 Built-in rule sets are packaged application resources and are not copied into writable configuration by default. A user may duplicate a built-in set under a new ID to customize it.
 
-Conversation overlays are durable conversation-scoped state. They survive across sessions at `<NERVE_HOME>/data/payloads/conversations/<conversation-id>/permissions.json`, participate only in their owning conversation, and are removed with that conversation. They are not portable user or project configuration.
+Conversation overlays are durable conversation-scoped state. They survive across sessions at `<NERVE_HOME>/data/conversations/<bare-conversation-id>/permissions.json`, participate only in their owning conversation, and are removed with that conversation. They are not portable user or project configuration.
 
 Storage requirements:
 

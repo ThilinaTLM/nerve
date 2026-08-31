@@ -283,10 +283,7 @@ export async function executePython(
   };
 
   const tempDir = await mkdtemp(join(tmpdir(), "nerve-python-"));
-  const artifactDir = await createArtifactDir(
-    context.dataDir,
-    context.artifactDir,
-  );
+  const artifactDir = await createArtifactDir(context.artifactDir);
   let keepArtifactDir = false;
   const runnerPath = join(tempDir, "runner.py");
   const userPath =
@@ -312,7 +309,6 @@ export async function executePython(
       envOverrides,
       inputMode: source.kind,
       scriptPath: source.kind === "file" ? source.path : undefined,
-      dataDir: context.dataDir,
       signal: context.signal,
       onUpdate: context.onUpdate,
     });
@@ -340,7 +336,6 @@ type RunPythonProcessOptions = {
   envOverrides: Record<string, string>;
   inputMode: PythonSource["kind"];
   scriptPath?: string;
-  dataDir?: string;
   signal?: AbortSignal;
   onUpdate?: PythonExecutionContext["onUpdate"];
 };
@@ -361,7 +356,6 @@ async function runPythonProcess({
   envOverrides,
   inputMode,
   scriptPath,
-  dataDir,
   signal,
   onUpdate,
 }: RunPythonProcessOptions): Promise<ToolExecutionResult> {
@@ -499,7 +493,6 @@ async function runPythonProcess({
             signal: closeSignal,
             outputFilePrefix: "nerve-python",
             exitMessagePrefix: "Python",
-            dataDir,
             artifactDir,
             durationMs,
             timedOut,
@@ -611,16 +604,13 @@ function envOverridesArg(value: unknown): Record<string, string> {
 }
 
 async function createArtifactDir(
-  dataDir: string | undefined,
   preferredDir: string | undefined,
 ): Promise<string> {
   if (preferredDir) {
     await mkdir(preferredDir, { recursive: true, mode: 0o700 });
     return preferredDir;
   }
-  const baseDir = dataDir
-    ? join(dataDir, "tmp", "python-artifacts")
-    : join(tmpdir(), "nerve-python-artifacts");
+  const baseDir = join(tmpdir(), "nerve-python-artifacts");
   await mkdir(baseDir, { recursive: true, mode: 0o700 });
   return await mkdtemp(join(baseDir, "run-"));
 }

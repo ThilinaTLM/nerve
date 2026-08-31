@@ -6,7 +6,16 @@ import {
   CANONICAL_SCHEMA_V1_CHECKSUM,
   CANONICAL_SCHEMA_V2_CHECKSUM,
   CANONICAL_SCHEMA_V3_CHECKSUM,
+  CANONICAL_SCHEMA_V4_CHECKSUM,
   CANONICAL_SCHEMA_VERSION,
+  CANONICAL_V1_TO_V2_MIGRATION_NAME,
+  CANONICAL_V1_TO_V2_MIGRATION_SQL,
+  CANONICAL_V2_TO_V3_MIGRATION_NAME,
+  CANONICAL_V2_TO_V3_MIGRATION_SQL,
+  CANONICAL_V3_TO_V4_MIGRATION_NAME,
+  CANONICAL_V3_TO_V4_MIGRATION_SQL,
+  CANONICAL_V4_TO_V5_MIGRATION_NAME,
+  CANONICAL_V4_TO_V5_MIGRATION_SQL,
 } from "./schema.js";
 
 export interface DocumentRow {
@@ -40,6 +49,7 @@ export function assertCanonicalSchemaCompatible(
     [1, CANONICAL_SCHEMA_V1_CHECKSUM],
     [2, CANONICAL_SCHEMA_V2_CHECKSUM],
     [3, CANONICAL_SCHEMA_V3_CHECKSUM],
+    [4, CANONICAL_SCHEMA_V4_CHECKSUM],
     [CANONICAL_SCHEMA_VERSION, CANONICAL_SCHEMA_CHECKSUM],
   ]);
   for (const row of rows) {
@@ -77,6 +87,48 @@ export function applySchemaMigration(
   } catch (error) {
     database.exec("ROLLBACK");
     throw error;
+  }
+}
+
+export function applyPendingCanonicalSchemaMigrations(
+  database: DatabaseSync,
+  initialVersion: number | undefined,
+): void {
+  let version = initialVersion;
+  const migrations = [
+    [
+      1,
+      2,
+      CANONICAL_V1_TO_V2_MIGRATION_NAME,
+      CANONICAL_SCHEMA_V2_CHECKSUM,
+      CANONICAL_V1_TO_V2_MIGRATION_SQL,
+    ],
+    [
+      2,
+      3,
+      CANONICAL_V2_TO_V3_MIGRATION_NAME,
+      CANONICAL_SCHEMA_V3_CHECKSUM,
+      CANONICAL_V2_TO_V3_MIGRATION_SQL,
+    ],
+    [
+      3,
+      4,
+      CANONICAL_V3_TO_V4_MIGRATION_NAME,
+      CANONICAL_SCHEMA_V4_CHECKSUM,
+      CANONICAL_V3_TO_V4_MIGRATION_SQL,
+    ],
+    [
+      4,
+      5,
+      CANONICAL_V4_TO_V5_MIGRATION_NAME,
+      CANONICAL_SCHEMA_CHECKSUM,
+      CANONICAL_V4_TO_V5_MIGRATION_SQL,
+    ],
+  ] as const;
+  for (const [from, to, name, checksum, sql] of migrations) {
+    if (version !== from) continue;
+    applySchemaMigration(database, to, name, checksum, sql);
+    version = to;
   }
 }
 

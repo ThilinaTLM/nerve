@@ -72,7 +72,7 @@ export async function executeExplainImage(
     text: explanation,
     outputFilePrefix: "nerve-image-explanation",
     exitMessagePrefix: "Image explanation",
-    dataDir: context.dataDir,
+    artifactDir: context.artifactDir,
     details: {
       path,
       mimeType,

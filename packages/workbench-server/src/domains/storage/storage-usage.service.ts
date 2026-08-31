@@ -7,7 +7,10 @@ import type {
   StorageCleanupTargetUsage,
   StorageUsageResponse,
 } from "@nervekit/contracts/storage";
-import type { StoragePaths } from "../../infrastructure/storage-bootstrap/index.js";
+import {
+  managedOwnerId,
+  type StoragePaths,
+} from "../../infrastructure/storage-bootstrap/index.js";
 import {
   dirSize,
   fileSize,
@@ -42,8 +45,8 @@ const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
     protected: true,
   },
   payloads: {
-    label: "Payloads",
-    description: "Retained tool results and other conversation payloads.",
+    label: "Conversation files",
+    description: "Retained tool results and other conversation-owned files.",
     cleanable: true,
     protected: false,
   },
@@ -197,11 +200,11 @@ export class StorageUsageService {
       queryCacheFilePaths(paths.queryCachePath),
     );
     const queryCacheNames = queryCacheFileNames(paths.queryCachePath);
-    const conversationRoot = join(paths.payloadsPath, "conversations");
+    const conversationRoot = paths.conversationsPath;
     const conversationPayloadTally = await dirSize(conversationRoot);
 
     add("database", databaseTally);
-    add("payloads", await dirSize(paths.payloadsPath));
+    add("payloads", await dirSize(paths.conversationsPath));
     add("reports", await dirSize(paths.reportsPath));
     add("images", await dirSize(paths.imagesPath));
     add("plans", await dirSize(paths.plansPath));
@@ -226,10 +229,11 @@ export class StorageUsageService {
 
     const knownDataNames = new Set([
       ...sqliteFilePaths(paths.sqlitePath).map((path) => basename(path)),
-      basename(paths.payloadsPath),
+      basename(paths.conversationsPath),
       basename(paths.reportsPath),
       basename(paths.imagesPath),
       basename(paths.plansPath),
+      basename(paths.tasksPath),
       basename(paths.idempotencyPath),
       basename(paths.maintenancePath),
     ]);
@@ -246,7 +250,6 @@ export class StorageUsageService {
       basename(paths.crashesPath),
       basename(paths.migrationsPath),
       basename(paths.backupsPath),
-      basename(paths.tasksPath),
       basename(paths.agentPath),
       basename(paths.manifestPath),
       basename(paths.daemonPath),
@@ -277,7 +280,7 @@ export class StorageUsageService {
     for (const child of children) {
       if (!child.isDirectory() || child.isSymbolicLink()) continue;
       conversationSizes.push({
-        id: child.name,
+        id: managedOwnerId(child.name, "conv_"),
         bytes: (await dirSize(join(conversationRoot, child.name))).bytes,
       });
     }

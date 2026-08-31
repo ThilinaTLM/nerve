@@ -39,7 +39,6 @@ export async function buildForegroundBashResult(
     signal: (task.signal as NodeJS.Signals | null | undefined) ?? null,
     outputFilePrefix: "nerve-bash",
     exitMessagePrefix: "Command",
-    dataDir: this.taskRepository.storageHome,
     artifactDir,
     timedOut,
     timeoutKilled: timedOut,
@@ -212,7 +211,7 @@ export async function runForegroundBashWithPromotion(
     text,
     outputFilePrefix: "nerve-task-promotion",
     exitMessagePrefix: "Command promotion",
-    dataDir: this.taskRepository.storageHome,
+    artifactDir: input.artifactDir,
     details: {
       execution: {
         disposition: "backgrounded",

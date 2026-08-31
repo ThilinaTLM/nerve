@@ -6,10 +6,9 @@ import {
 } from "../../src/domains/tools/index.js";
 
 const reference = {
-  version: 1 as const,
+  version: 2 as const,
   kind: "tool_result" as const,
-  logicalPath:
-    "payloads/conversations/conv_test/tool-calls/tool_test/result.json",
+  logicalPath: "conversations/test/tool-calls/test/result.json",
   conversationId: "conv_test",
   toolCallId: "tool_test",
   digest: "a".repeat(64),

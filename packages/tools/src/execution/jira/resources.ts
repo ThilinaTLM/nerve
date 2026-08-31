@@ -225,10 +225,7 @@ export async function executeJiraDownloadAttachment(
     requested ?? remoteName ?? `attachment-${attachmentId}`,
   );
   const baseDir =
-    context.artifactDir ??
-    (context.dataDir
-      ? join(context.dataDir, "tmp", "jira", "attachments")
-      : join(tmpdir(), "nerve-jira", "attachments"));
+    context.artifactDir ?? join(tmpdir(), "nerve-jira", "attachments");
   await mkdir(baseDir, { recursive: true, mode: 0o700 });
   const hash = createHash("sha256")
     .update(downloaded.bytes)

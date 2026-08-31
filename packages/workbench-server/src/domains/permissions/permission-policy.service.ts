@@ -26,6 +26,7 @@ import {
 } from "@nervekit/tools/policy";
 import {
   atomicWriteJson,
+  managedOwnerPathSegment,
   type InitializedStorage,
 } from "../../infrastructure/storage-bootstrap/index.js";
 
@@ -427,9 +428,8 @@ export class PermissionPolicyService {
 
   private conversationOverlayPath(conversationId: string): string {
     return join(
-      this.storage.paths.payloadsPath,
-      "conversations",
-      conversationId,
+      this.storage.paths.conversationsPath,
+      managedOwnerPathSegment(conversationId, "conv_"),
       "permissions.json",
     );
   }

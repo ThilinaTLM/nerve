@@ -33,13 +33,10 @@ import {
   type HostToolFactory,
 } from "./host-tool-factory.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
-import { join } from "node:path";
-import {
-  storagePaths,
-  type InitializedStorage,
-} from "../../../infrastructure/storage-bootstrap/index.js";
+import { type InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";
 import type { PlanService } from "../../plans/plan-service.js";
 import type { PythonRuntimeService } from "../execution/python-runtime.js";
+import { ToolResultPayloadStore } from "../artifacts/tool-result-payload-store.js";
 import {
   isActiveTaskStatus,
   isPathInDirectoryTree,
@@ -290,6 +287,13 @@ export class OrchestrationToolDispatcher {
     };
   }
 
+  private toolArtifactDir(toolCall: ToolCallRecord): string {
+    return new ToolResultPayloadStore(this.deps.storage.paths.home).filesPath(
+      toolCall.conversationId,
+      toolCall.id,
+    );
+  }
+
   executionContext(
     toolCall: ToolCallRecord,
     options: ToolRequestOptions = {},
@@ -297,16 +301,7 @@ export class OrchestrationToolDispatcher {
     return {
       cwd: toolCall.cwd,
       signal: options.signal,
-      dataDir: this.deps.storage.paths.home,
-      artifactDir: join(
-        this.deps.storage.paths.payloadsPath ??
-          storagePaths(this.deps.storage.paths.home).payloadsPath,
-        "conversations",
-        toolCall.conversationId,
-        "tool-calls",
-        toolCall.id,
-        "files",
-      ),
+      artifactDir: this.toolArtifactDir(toolCall),
       shellPath: this.deps.storage.settings.runtime.shellPath,
       getApiKey: async (provider) => {
         const credentialProvider = integrationCredentialProvider(
@@ -453,7 +448,7 @@ export class OrchestrationToolDispatcher {
       }),
       outputFilePrefix: "nerve-task-start",
       exitMessagePrefix: "Task start",
-      dataDir: this.deps.storage.paths.home,
+      artifactDir: this.toolArtifactDir(toolCall),
     });
     return taskStartToolResultSchema.parse({
       task,
@@ -505,7 +500,7 @@ export class OrchestrationToolDispatcher {
       text: formatTaskStatusSummary(tasks),
       outputFilePrefix: "nerve-task-status",
       exitMessagePrefix: "Task status",
-      dataDir: this.deps.storage.paths.home,
+      artifactDir: this.toolArtifactDir(toolCall),
     });
     return taskStatusToolResultSchema.parse({
       tasks,
@@ -553,7 +548,7 @@ export class OrchestrationToolDispatcher {
       text: formatTaskCancelSummary([result]),
       outputFilePrefix: "nerve-task-stop",
       exitMessagePrefix: "Task stop",
-      dataDir: this.deps.storage.paths.home,
+      artifactDir: this.toolArtifactDir(toolCall),
     });
     return taskControlToolResultSchema.parse({
       action,

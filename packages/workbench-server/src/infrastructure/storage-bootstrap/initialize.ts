@@ -26,6 +26,11 @@ import {
 import { inspectNerveHome } from "./state-layout.js";
 import { acquireStorageStartupLock } from "./startup-lock.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
+import {
+  CONSOLIDATE_MANAGED_FILES_MIGRATION,
+  consolidateManagedFiles,
+  recordConsolidatedManagedFiles,
+} from "../migrations/consolidate-managed-files.js";
 
 const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["configPath", 0o755],
@@ -33,7 +38,7 @@ const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["dataPath", 0o700],
   ["idempotencyPath", 0o700],
   ["maintenancePath", 0o700],
-  ["payloadsPath", 0o700],
+  ["conversationsPath", 0o700],
   ["reportsPath", 0o700],
   ["imagesPath", 0o700],
   ["plansPath", 0o755],
@@ -103,6 +108,11 @@ export async function initializeStorage(
     await chmod(paths.home, 0o700).catch(() => undefined);
     if (fresh) {
       await atomicWriteJson(paths.manifestPath, NERVE_HOME_MANIFEST, 0o600);
+    } else {
+      if (!(await pathExists(paths.sqlitePath))) {
+        throw new Error("Nerve SQLite state at data/nerve.sqlite is missing.");
+      }
+      await consolidateManagedFiles(paths);
     }
     for (const [key, mode] of HOME_DIRECTORIES) {
       const directory = paths[key];
@@ -118,9 +128,6 @@ export async function initializeStorage(
       await secretProvider.initialize();
     } else {
       await secretProvider.validate();
-    }
-    if (!fresh && !(await pathExists(paths.sqlitePath))) {
-      throw new Error("Nerve SQLite state at data/nerve.sqlite is missing.");
     }
     const sqliteMigrationCheckStartedAt = performance.now();
     const schemaInspection = fresh
@@ -155,13 +162,16 @@ export async function initializeStorage(
               id: "nerve-home-v1",
               appliedAt: new Date().toISOString(),
             },
+            {
+              id: CONSOLIDATE_MANAGED_FILES_MIGRATION,
+              appliedAt: new Date().toISOString(),
+            },
           ],
         },
         0o600,
       );
-    } else if (!(await pathExists(paths.migrationLedgerPath))) {
-      await canonicalStore.close();
-      throw new Error("Nerve migration ledger is missing.");
+    } else {
+      await recordConsolidatedManagedFiles(paths);
     }
     const settings = settingsFromConfiguration(configuration);
 

@@ -149,22 +149,15 @@ export async function executeBash(
       void liveOutput
         .end()
         .then(() =>
-          buildResult(
-            output.snapshot(),
-            code,
-            signal,
-            context.dataDir,
-            context.artifactDir,
-            {
-              durationMs: Math.round(performance.now() - startedAt),
-              timedOut,
-              timeoutKilled,
-              timeoutMessage:
-                timeoutSeconds !== undefined
-                  ? `Command timed out after ${timeoutSeconds}s and ${timeoutKilled ? "was killed" : "was not killed"}.`
-                  : undefined,
-            },
-          ),
+          buildResult(output.snapshot(), code, signal, context.artifactDir, {
+            durationMs: Math.round(performance.now() - startedAt),
+            timedOut,
+            timeoutKilled,
+            timeoutMessage:
+              timeoutSeconds !== undefined
+                ? `Command timed out after ${timeoutSeconds}s and ${timeoutKilled ? "was killed" : "was not killed"}.`
+                : undefined,
+          }),
         )
         .then(resolve)
         .catch(reject);
@@ -176,7 +169,6 @@ async function buildResult(
   output: ReturnType<BoundedProcessOutput["snapshot"]>,
   code: number | null,
   signal: NodeJS.Signals | null,
-  dataDir: string | undefined,
   artifactDir: string | undefined,
   options: {
     durationMs?: number;
@@ -194,7 +186,6 @@ async function buildResult(
     signal,
     outputFilePrefix: "nerve-bash",
     exitMessagePrefix: "Command",
-    dataDir,
     artifactDir,
     durationMs: options.durationMs,
     timedOut: options.timedOut,

@@ -13,14 +13,14 @@ import {
   CANONICAL_SCHEMA_VERSION,
 } from "../../../src/infrastructure/persistence/canonical-sqlite/schema.js";
 
-test("canonical schema checksum matches the v4 SQL", () => {
+test("canonical schema checksum matches the v5 SQL", () => {
   assert.equal(
     createHash("sha256").update(CANONICAL_SCHEMA_SQL).digest("hex"),
     CANONICAL_SCHEMA_CHECKSUM,
   );
 });
 
-test("fresh canonical stores use v4 without removed tables", async (t) => {
+test("fresh canonical stores use v5 without removed tables", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v2-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const path = join(home, "data", "nerve.sqlite");
@@ -47,7 +47,7 @@ test("fresh canonical stores use v4 without removed tables", async (t) => {
   assert.deepEqual(versions, [CANONICAL_SCHEMA_VERSION]);
 });
 
-test("canonical v1 stores migrate transactionally through v4", async (t) => {
+test("canonical v1 stores migrate transactionally through v5", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v1-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const path = join(home, "nerve.sqlite");
@@ -132,11 +132,32 @@ test("canonical v1 stores migrate transactionally through v4", async (t) => {
           toolName: "todos_set",
           status: "completed",
           interactions: [],
+          resultPayload: {
+            version: 1,
+            kind: "tool_result",
+            conversationId: "conv_test",
+            toolCallId: "tool_test",
+            logicalPath:
+              "payloads/conversations/conv_test/tool-calls/tool_test/result.json",
+            digest: "a".repeat(64),
+            byteLength: 42,
+            mediaType: "application/json",
+            encoding: "utf-8",
+            completeness: "complete",
+          },
           updatedAt: "2026-08-31T00:00:00.000Z",
         },
       }),
     ),
   );
+  database
+    .prepare(
+      `INSERT INTO file_assets (
+         id, category, logical_path, conversation_id, tool_call_id,
+         byte_length, created_at_ms, updated_at_ms
+       ) VALUES ('asset_test', 'payload', ?, 'conv_test', 'tool_test', 42, 1, 1)`,
+    )
+    .run("payloads/conversations/conv_test/tool-calls/tool_test/result.json");
   database.close();
 
   const store = new CanonicalStore(path);
@@ -172,13 +193,40 @@ test("canonical v1 stores migrate transactionally through v4", async (t) => {
        FROM tool_call_projections WHERE record_id = 'tool_test'`,
     )
     .get() as { projectId: string; isTodoState: number };
+  const migratedToolCall = JSON.parse(
+    Buffer.from(
+      (
+        migrated
+          .prepare(
+            `SELECT data FROM conversation_records WHERE id = 'tool_test'`,
+          )
+          .get() as { data: Uint8Array }
+      ).data,
+    ).toString("utf8"),
+  ) as {
+    toolCall: { resultPayload: { version: number; logicalPath: string } };
+  };
+  const migratedAsset = migrated
+    .prepare(
+      `SELECT logical_path AS logicalPath FROM file_assets WHERE id = 'asset_test'`,
+    )
+    .get() as { logicalPath: string };
   migrated.close();
   assert.deepEqual(objects, []);
-  assert.deepEqual(versions, [1, 2, 3, 4]);
+  assert.deepEqual(versions, [1, 2, 3, 4, 5]);
   assert.equal(documents.count, 1);
   assert.equal(settlement.revision, 2);
   assert.equal(toolProjection.projectId, "project_test");
   assert.equal(toolProjection.isTodoState, 1);
+  assert.equal(migratedToolCall.toolCall.resultPayload.version, 2);
+  assert.equal(
+    migratedToolCall.toolCall.resultPayload.logicalPath,
+    "conversations/test/tool-calls/test/result.json",
+  );
+  assert.equal(
+    migratedAsset.logicalPath,
+    "conversations/test/tool-calls/test/result.json",
+  );
 });
 
 test("canonical documents use revision compare-and-swap", async (t) => {
@@ -290,7 +338,7 @@ test("newer SQLite schemas are refused", async (t) => {
     .prepare(
       `INSERT INTO schema_migrations
        (version, name, checksum, applied_at_ms, duration_ms)
-       VALUES (5, 'future', 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 1, 0)`,
+       VALUES (6, 'future', 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 1, 0)`,
     )
     .run();
   database.close();

@@ -173,7 +173,7 @@ describe("agent tool-result preview", () => {
       (_, index) => `${index} ${"🙂".repeat(80)}`,
     ).join("\n");
     const path =
-      "/home/test/.nerve/payloads/conversations/conv_test/tool-calls/tool_test.json";
+      "/home/test/.nerve/data/conversations/test/tool-calls/test/result.json";
     const output = text(
       toolCallResultForModel(
         toolCall({

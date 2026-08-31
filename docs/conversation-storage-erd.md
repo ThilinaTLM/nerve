@@ -97,7 +97,7 @@ erDiagram
     }
 ```
 
-`data` is a discriminated, versioned payload validated by the shared contracts and storage package. Frequently queried envelope fields remain relational and indexed. A tool-call payload stores its bounded agent result, six-line/item UI preview, and—only when the agent result truncates—a validated descriptor for `<NERVE_HOME>/data/payloads/conversations/<conversationId>/tool-calls/<toolCallId>.json`. There is no byte-size placement threshold and no payload metadata table or join.
+`data` is a discriminated, versioned payload validated by the shared contracts and storage package. Frequently queried envelope fields remain relational and indexed. A tool-call payload stores its bounded agent result, six-line/item UI preview, and—only when the agent result truncates—a validated descriptor for `<NERVE_HOME>/data/conversations/<bare-conversation-id>/tool-calls/<bare-tool-call-id>/result.json`. There is no byte-size placement threshold and no payload metadata table or join.
 
 ## Record kinds
 

@@ -72,6 +72,15 @@ test("initializes the required v1 home and keeps optional directories lazy", asy
   assert.deepEqual(progress, ["storage-check"]);
   assert.equal(storage.timings.sqliteMigrationApplyMs, 0);
   assert.ok(storage.timings.canonicalOpenMs >= 0);
+  assert.equal((await stat(storage.paths.tasksPath)).isDirectory(), true);
+  assert.equal(
+    (await stat(storage.paths.conversationsPath)).isDirectory(),
+    true,
+  );
+  await assert.rejects(stat(join(home, "tasks")), { code: "ENOENT" });
+  await assert.rejects(stat(join(home, "data", "payloads")), {
+    code: "ENOENT",
+  });
   await assert.rejects(stat(storage.paths.agentPath), { code: "ENOENT" });
   await assert.rejects(stat(storage.paths.suggestionsPath), { code: "ENOENT" });
 
@@ -186,7 +195,7 @@ test("persists logical managed-file references and materializes absolute paths",
   });
   assert.equal(
     reference.logicalPath,
-    "payloads/conversations/conv_reference/tool-calls/tool_reference/result.json",
+    "conversations/reference/tool-calls/reference/result.json",
   );
   assert.equal(payloads.path(reference).startsWith(home), true);
 });

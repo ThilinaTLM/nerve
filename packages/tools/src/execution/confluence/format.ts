@@ -34,12 +34,7 @@ export type ConfluenceArtifact = {
 };
 
 export function confluenceTmpDir(context: IntegrationExecutionContext): string {
-  return (
-    context.artifactDir ??
-    (context.dataDir
-      ? join(context.dataDir, "tmp", "confluence")
-      : join(tmpdir(), "nerve-confluence"))
-  );
+  return context.artifactDir ?? join(tmpdir(), "nerve-confluence");
 }
 
 export async function writeConfluenceArtifact(
