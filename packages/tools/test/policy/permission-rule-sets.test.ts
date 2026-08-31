@@ -176,7 +176,7 @@ test("external writes follow each built-in rule set's normal capability", () => 
   }
 });
 
-test("planning allows reads, interaction, Explore, and exact plan writes", () => {
+test("planning separates research, prompted analysis, and mutations", () => {
   assert.equal(
     decision("planning", "read", { path: "README.md" }).decision,
     "allow",
@@ -193,18 +193,43 @@ test("planning allows reads, interaction, Explore, and exact plan writes", () =>
     }).decision,
     "allow",
   );
-  assert.equal(
-    decision("planning", "edit", { path: "/workspace/a.ts" }).decision,
-    "deny",
-  );
+
+  for (const [toolName, args] of [
+    ["web_search", { query: "Nerve planning" }],
+    ["web_fetch", { url: "https://example.com" }],
+    ["explain_image", { path: "/workspace/screenshot.png" }],
+    ["jira_get_issue", { issue_key: "NERVE-1" }],
+    ["confluence_get_page", { page_id: "123" }],
+  ] as const) {
+    assert.equal(
+      decision("planning", toolName, args).decision,
+      "allow",
+      toolName,
+    );
+  }
+
   assert.equal(
     decision("planning", "bash", { command: "pwd" }).decision,
-    "deny",
+    "prompt",
   );
   assert.equal(
-    decision("planning", "web_fetch", { url: "https://example.com" }).decision,
-    "deny",
+    decision("planning", "python_exec", { code: "print(1)" }).decision,
+    "prompt",
   );
+
+  for (const [toolName, args] of [
+    ["edit", { path: "/workspace/a.ts" }],
+    ["jira_update_issue", { issue_key: "NERVE-1", summary: "Changed" }],
+    ["confluence_create_page", { title: "Changed", body: "content" }],
+    ["task_start", { command: "pnpm dev" }],
+    ["task_control", { task: "dev", action: "stop" }],
+  ] as const) {
+    assert.equal(
+      decision("planning", toolName, args).decision,
+      "deny",
+      toolName,
+    );
+  }
 });
 
 test("guardrails and scope ranks precede numeric priority and decision kind", () => {
