@@ -254,9 +254,9 @@ function extractTargets(
   }
   if (treeReadPathTools.has(toolName)) {
     const values =
-      toolName === "grep"
-        ? (args.paths ?? args.path ?? ".")
-        : (args.path ?? ".");
+      toolName === "grep" && args.paths !== undefined
+        ? args.paths
+        : singletonSearchPath(args.path);
     return stringPathTargets(values, "read", "tree", roots, cwd);
   }
   if (toolName === "plan_mode_present") {
@@ -292,6 +292,13 @@ function extractTargets(
   );
   if (fileTargets.length > 0) return fileTargets;
   return [{ kind: "whole_tool" }];
+}
+
+function singletonSearchPath(value: unknown): unknown {
+  return value === undefined ||
+    (typeof value === "string" && value.trim().length === 0)
+    ? "."
+    : value;
 }
 
 function stringPathTargets(
