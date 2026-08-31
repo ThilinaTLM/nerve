@@ -5,7 +5,7 @@ import type {
   ExactContinuation,
   ProjectionCount,
   ValidatedToolArtifact,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import { fallbackText, validContentBlocks } from "../fallback.js";
 import { textHead } from "../measure.js";
 import { formatWebFetchCandidateText } from "../candidates/web.js";

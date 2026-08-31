@@ -10,7 +10,7 @@ import { hasChatGptAudioAuth } from "$lib/features/audio";
 import { conversationSelectors } from "$lib/features/conversations";
 import { openConversationHistory } from "$lib/features/conversations/state/composer-signals.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { atlassianProfileReady } from "$lib/features/settings/components/pages/providers/provider-profiles";
+import { atlassianProfileReady } from "$lib/features/settings/views/pages/providers/provider-profiles";
 import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
 import {
   captureCenterTabsPresentation,

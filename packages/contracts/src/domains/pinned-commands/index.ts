@@ -1,1 +1,1 @@
-export * from "./pinned-command.schema.js";
+export * from "./pinned-command.js";

@@ -2,13 +2,13 @@ import { join } from "node:path";
 import {
   type PermissionRuleConfig,
   legacyPermissionsConfigSchema,
-  type ProjectPermissions,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/settings";
+import { type ProjectPermissions } from "@nervekit/contracts/projects";
 import {
   atomicWriteJson,
   type InitializedStorage,
   readJsonFile,
-} from "../../infrastructure/storage/index.js";
+} from "../../infrastructure/storage-bootstrap/index.js";
 
 const emptyPermissions = (): ProjectPermissions => ({
   version: 2,

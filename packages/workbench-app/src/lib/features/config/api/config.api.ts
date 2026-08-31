@@ -1,10 +1,8 @@
-import type {
-  CompletionItem,
-  ModelInfo,
-  StatusResponse,
-} from "@nervekit/contracts";
-import { apiGet } from "@nervekit/ui-kit/core/api/client";
-import { protocolRequest } from "@nervekit/protocol";
+import type { CompletionItem } from "@nervekit/contracts/completions";
+import type { ModelInfo } from "@nervekit/contracts/models";
+import type { StatusResponse } from "@nervekit/contracts/status";
+import { apiGet } from "$lib/platform/http/api-client";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export type ClientConfig = {
   url: string;
@@ -12,7 +10,7 @@ export type ClientConfig = {
   status: StatusResponse;
 };
 
-export type { CompletionItem } from "@nervekit/contracts";
+export type { CompletionItem } from "@nervekit/contracts/completions";
 
 export type ModelOption = ModelInfo;
 

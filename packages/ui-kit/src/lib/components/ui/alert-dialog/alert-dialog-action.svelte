@@ -5,7 +5,7 @@ import {
   type ButtonVariant,
   type ButtonSize,
 } from "@nervekit/ui-kit/components/ui/button";
-import { cn } from "@nervekit/ui-kit/core/utils";
+import { cn } from "@nervekit/ui-kit/utils";
 
 let {
   ref = $bindable(null),

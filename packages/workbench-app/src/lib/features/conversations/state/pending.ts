@@ -1,5 +1,5 @@
 import type { AgentRecord, ProjectRecord } from "$lib/api";
-import { pendingConversationKey } from "$lib/kernel/navigation/view-keys";
+import { pendingConversationKey } from "$lib/domain/navigation/view-keys";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
 import {
@@ -13,7 +13,10 @@ import {
 } from "$lib/application/workspace/selection.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { resolveNewAgentComposerSelection } from "$lib/application/preferences/agent-selection";
-import { clearTranscriptState, createPendingConversationId } from "./state";
+import {
+  clearTranscriptState,
+  createPendingConversationId,
+} from "./conversation-view-actions";
 
 export function openPendingConversation(
   project: ProjectRecord,

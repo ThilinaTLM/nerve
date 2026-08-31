@@ -7,17 +7,17 @@ import { serve } from "@hono/node-server";
 import {
   DAEMON_STARTUP_PROGRESS_PREFIX,
   type DaemonStartupProgress,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/storage";
 import {
   configureManagedProcessRuntime,
   initializeManagedProcessHost,
 } from "@nervekit/native";
 import WebSocket, { WebSocketServer } from "ws";
 import {
-  createWorkbenchState,
-  shutdownWorkbenchState,
+  createServerRuntime,
+  shutdownServerRuntime,
   toDaemonFile,
-} from "./app/workbench-state.js";
+} from "./app/runtime/server-runtime.js";
 import { createApp } from "./app/server.js";
 import {
   type DaemonPerformanceMonitor,
@@ -46,9 +46,9 @@ import {
   initializeStorage,
   resolveDataDir,
   writeDaemonFile,
-} from "./infrastructure/storage/index.js";
+} from "./infrastructure/storage-bootstrap/index.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
-import { installProtocolWebSocketUpgrade } from "./protocol/protocol-websocket.js";
+import { installProtocolWebSocketUpgrade } from "./adapters/protocol/protocol-websocket.js";
 
 function prepareEnterpriseNetworkEnvironment(): void {
   const proxyConfigured = Boolean(
@@ -122,13 +122,14 @@ async function main() {
   });
   configureManagedProcessRuntime({ maxActiveProcesses: 64 });
   const dataDir = resolveDataDir();
+  const reportStartupProgress = (progress: DaemonStartupProgress) => {
+    process.stderr.write(
+      `${DAEMON_STARTUP_PROGRESS_PREFIX}${JSON.stringify(progress)}\n`,
+    );
+  };
   const storageStartedAt = performance.now();
   const storage = await initializeStorage(dataDir, {
-    reportStartupProgress: (progress: DaemonStartupProgress) => {
-      process.stderr.write(
-        `${DAEMON_STARTUP_PROGRESS_PREFIX}${JSON.stringify(progress)}\n`,
-      );
-    },
+    reportStartupProgress,
   });
   const storageDurationMs = Math.round(performance.now() - storageStartedAt);
   installNodeDiagnosticReports(dataDir);
@@ -153,7 +154,7 @@ async function main() {
       `Refusing to bind Nerve daemon to ${host}. Enable remote connections in Settings or set NERVE_ALLOW_REMOTE=1.`,
     );
   }
-  const state = createWorkbenchState(storage, host, port, {
+  const state = createServerRuntime(storage, host, port, {
     applicationLogsEnabled: loggingEnabled,
     performanceDiagnosticsEnabled,
     applicationConfiguration: resolvedConfiguration.snapshot,
@@ -179,6 +180,7 @@ async function main() {
       host,
       port,
       storageDurationMs,
+      ...storage.timings,
       loggerHydrateDurationMs,
     },
   });
@@ -200,7 +202,7 @@ async function main() {
   const agentSkillsDurationMs = Math.round(
     performance.now() - agentSkillsStartedAt,
   );
-  const runtimeCapabilitiesReady = state.registry.refreshRuntimeCapabilities();
+  const runtimeCapabilitiesReady = state.lifecycle.refreshRuntimeCapabilities();
   const eventHydrateStartedAt = Date.now();
   await state.events.hydrate();
   const eventsHydrateDurationMs = Date.now() - eventHydrateStartedAt;
@@ -212,8 +214,19 @@ async function main() {
       earliestAvailableSeq: workspaceBounds.earliestAvailableSeq,
     },
   });
+  reportStartupProgress({
+    type: "nerve.startup.progress",
+    phase: "runtime-hydration",
+    message: "Hydrating runtime projections",
+  });
   const [registryTimings] = await Promise.all([
-    state.registry.hydrate(),
+    state.lifecycle.hydrate((stage) =>
+      reportStartupProgress({
+        type: "nerve.startup.progress",
+        phase: "runtime-hydration",
+        message: `Runtime bootstrap: ${stage}`,
+      }),
+    ),
     state.storageCleanup.hydrate(),
   ]);
   await state.logger.info("Registry hydrated", {
@@ -252,6 +265,9 @@ async function main() {
     async () => {
       const address = server.address() as AddressInfo;
       state.port = address.port;
+      state.adapterContexts.websocket.port = address.port;
+      state.adapterContexts.http.status.port = address.port;
+      state.adapterContexts.http.staticFiles.port = address.port;
       if (mobileTls)
         updateMobileHttpsState(state, mobileTls, state.port, httpsPort);
       await writeDaemonFile(storage.paths.daemonPath, toDaemonFile(state));
@@ -287,6 +303,7 @@ async function main() {
           performance.now() - processStartupStartedAt,
         ),
         storageDurationMs,
+        ...storage.timings,
         loggerHydrateDurationMs,
         agentSkillsDurationMs,
         eventsHydrateDurationMs,
@@ -296,12 +313,17 @@ async function main() {
         storeDurationsMs: registryTimings.storeDurationsMs,
         hydrationCounts: registryTimings.counts,
         agentsHydrationDurationMs: registryTimings.agentsHydrationDurationMs,
+        initialDeliveryFlushDurationMs:
+          registryTimings.initialDeliveryFlushDurationMs,
         runRecoveryDurationMs: registryTimings.runRecoveryDurationMs,
+        finalDeliveryFlushDurationMs:
+          registryTimings.finalDeliveryFlushDurationMs,
         humanInputRecoveryDurationMs:
           registryTimings.humanInputRecoveryDurationMs,
         projectorDurationMs: registryTimings.projectorDurationMs,
         taskNotificationsDurationMs:
           registryTimings.taskNotificationsDurationMs,
+        bootstrapStageDurationsMs: registryTimings.bootstrapStageDurationsMs,
         toolCallHydrationSource: registryTimings.toolCallHydrationSource,
       });
       performanceMonitor ??= installDaemonPerformanceMonitor({
@@ -311,10 +333,15 @@ async function main() {
         getActivity: () => state.performanceDiagnostics.snapshotAndReset(),
         getCounts: () => ({
           ...registryTimings.counts,
-          projects: state.registry.listProjects().length,
-          conversations: state.registry.listConversations().length,
-          agents: state.registry.listAgents().length,
-          tasks: state.registry.listTasks().length,
+          projects:
+            state.adapterContexts.snapshot.projectLifecycle.listProjects()
+              .length,
+          conversations:
+            state.adapterContexts.snapshot.conversationLifecycle.listConversations()
+              .length,
+          agents:
+            state.adapterContexts.snapshot.agentLifecycle.listAgents().length,
+          tasks: state.adapterContexts.snapshot.tasks.listTasks().length,
         }),
         warn: (error) => {
           void state.logger.warn("Daemon performance sampling failed", {
@@ -322,7 +349,7 @@ async function main() {
           });
         },
       });
-      setImmediate(() => state.registry.startBackgroundMaintenance());
+      setImmediate(() => state.lifecycle.startBackgroundMaintenance());
     },
   );
 
@@ -357,14 +384,14 @@ async function main() {
   const protocolSessions = installProtocolWebSocketUpgrade(
     server,
     webSockets,
-    state,
+    state.adapterContexts.websocket,
     storage.localToken,
   );
   const httpsProtocolSessions = httpsServer
     ? installProtocolWebSocketUpgrade(
         httpsServer,
         webSockets,
-        state,
+        state.adapterContexts.websocket,
         storage.localToken,
       )
     : undefined;
@@ -410,7 +437,7 @@ async function main() {
         durationMs: Date.now() - startedAt,
       })
       .catch(() => undefined);
-    await shutdownWorkbenchState(state).catch(() => undefined);
+    await shutdownServerRuntime(state).catch(() => undefined);
     httpsServer?.close();
     server.close(() => {
       runtimeMonitor?.markClean(signal);
@@ -439,7 +466,7 @@ async function main() {
  * the desktop supervisor restarts a clean process.
  */
 function installCrashGuards(
-  logger: ReturnType<typeof createWorkbenchState>["logger"],
+  logger: ReturnType<typeof createServerRuntime>["logger"],
   dataDir: string,
   monitor: DaemonRuntimeMonitor | undefined,
 ): void {
@@ -501,7 +528,7 @@ function closeWebSocketClients(webSockets: WebSocketServer): void {
 }
 
 function updateMobileHttpsState(
-  state: ReturnType<typeof createWorkbenchState>,
+  state: ReturnType<typeof createServerRuntime>,
   tls: Awaited<ReturnType<typeof ensureMobileHttpsTlsMaterial>>,
   httpPort: number,
   httpsPort: number,

@@ -1,8 +1,11 @@
 import { requiredString } from "../atlassian/arguments.js";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { ToolExecutionError } from "../common/tool-error.js";
+import type {
+  IntegrationExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { ToolExecutionError } from "../errors/tool-error.js";
 import { resolveToolPath } from "../filesystem/path.js";
 import {
   confluenceAttachmentRequest,
@@ -28,7 +31,7 @@ function kindPath(kind: string) {
   return kind === "inline" ? "inline-comments" : "footer-comments";
 }
 function dry(
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
   text: string,
   details: Record<string, unknown>,
 ) {
@@ -45,7 +48,7 @@ function dry(
 
 export async function executeConfluenceManageComment(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireConfluenceConnection(context);
   const action = actionOf(args);
@@ -148,7 +151,7 @@ export async function executeConfluenceManageComment(
 
 export async function executeConfluenceManagePage(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireConfluenceConnection(context);
   const action = actionOf(args);
@@ -234,7 +237,7 @@ export async function executeConfluenceManagePage(
 
 export async function executeConfluenceManageLabel(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireConfluenceConnection(context);
   const action = actionOf(args);
@@ -292,7 +295,7 @@ export async function executeConfluenceManageLabel(
 
 export async function executeConfluenceManageRestriction(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireConfluenceConnection(context);
   const action = actionOf(args);
@@ -360,7 +363,7 @@ export async function executeConfluenceManageRestriction(
 
 export async function executeConfluenceManageAttachment(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const action = actionOf(args);
   const connection = await requireConfluenceConnection(context);

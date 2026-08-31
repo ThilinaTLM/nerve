@@ -5,13 +5,13 @@ import type {
   TaskDefinition,
   TaskRecord,
 } from "$lib/api";
+import type { CancelTaskRequest } from "@nervekit/contracts/tasks";
 import type {
-  CancelTaskRequest,
   CreateTaskDefinitionRequest,
   UpdateTaskDefinitionRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/task-definitions";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
-import { onEvent } from "$lib/kernel/events/event-bus";
+import { onEvent } from "$lib/application/events/event-bus";
 import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import {
@@ -39,16 +39,16 @@ import { createTaskDefinitionRevalidationGate } from "$lib/features/tasks/state/
 import {
   disabledCapability,
   enabledCapability,
-} from "$lib/kernel/capabilities/feature-capability";
+} from "$lib/domain/capabilities/feature-capability";
 import {
   createTaskPanelActions,
   normalizeTaskDefinition,
-} from "$lib/features/tasks/ui/task-panel-controller";
+} from "$lib/features/tasks/views/task-panel-controller";
 import type {
   TaskPanelActions,
   TaskPanelDefinition,
   TaskPanelModel,
-} from "$lib/features/tasks/ui/task-panel-types";
+} from "$lib/features/tasks/views/task-panel-types";
 
 export type WorkbenchTaskPanelHostActions = {
   readonly openTaskOutput?: (id: string) => void;
@@ -142,7 +142,7 @@ export function createWorkbenchTaskPanelAdapter(
 
   async function launchDefinition(
     definition: TaskPanelDefinition,
-    terminateListeners?: import("@nervekit/contracts").TaskPortConflictListener[],
+    terminateListeners?: import("@nervekit/contracts/tasks").TaskPortConflictListener[],
   ): Promise<void> {
     const project = activeProject();
     if (!project) return;

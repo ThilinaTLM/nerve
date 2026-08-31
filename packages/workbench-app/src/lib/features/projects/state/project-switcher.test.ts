@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ConversationRecord, ProjectRecord, TaskRecord } from "$lib/api";
-import type { ConversationActivityState } from "$lib/kernel/conversations/activity";
+import type { ConversationActivityState } from "$lib/domain/conversations/activity";
 import {
   buildProjectSwitcherItems,
   projectActivitySignal,

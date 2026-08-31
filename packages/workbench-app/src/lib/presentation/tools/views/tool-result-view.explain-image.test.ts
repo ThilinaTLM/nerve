@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
+import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts/conversations";
 import { parseToolView } from "./tool-result-view";
 import { toolCall } from "./tool-result-view.fixtures";
 

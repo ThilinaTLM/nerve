@@ -1,14 +1,13 @@
 import type {
   PermissionLevel,
-  ToolGroupName,
-  ToolName,
   ToolRisk,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
+import type { ToolGroupName, ToolName } from "@nervekit/contracts/tools";
 import type {
   ToolExecutionContext,
   ToolExecutionOutputUpdate,
   ToolExecutionResult,
-} from "../types.js";
+} from "../execution/execution-context.js";
 
 export type ToolDecisionKind = "allow" | "approval" | "deny";
 

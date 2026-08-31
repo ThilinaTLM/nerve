@@ -1,5 +1,5 @@
 <script lang="ts">
-import { cn } from "@nervekit/ui-kit/core/utils";
+import { cn } from "@nervekit/ui-kit/utils";
 import type { SVGAttributes } from "svelte/elements";
 
 let {

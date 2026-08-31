@@ -1,20 +1,20 @@
 import { randomUUID } from "node:crypto";
-import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import { noopPerformanceDiagnostics } from "../../infrastructure/diagnostics/performance-metrics.js";
 import type { Message } from "@earendil-works/pi-ai";
+import { type AgentMessage } from "@nervekit/harness/agent";
 import {
-  type AgentMessage,
   Conversation,
   ConversationTreeState,
   type ConversationMetadata,
   type ConversationStorage,
   type ConversationTreeEntry,
-} from "@nervekit/harness";
+} from "@nervekit/harness/conversation";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
-  AgentRecord,
   ConversationEntry,
   ConversationRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
 import type { ConversationRepository } from "./index.js";
 
 export class ConversationHarnessStorage {

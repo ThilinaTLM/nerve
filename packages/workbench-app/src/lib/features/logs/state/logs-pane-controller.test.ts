@@ -4,7 +4,7 @@ import type {
   ApplicationLogQuery,
   ApplicationLogQueryResponse,
   ApplicationLogRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/logs";
 import {
   LogsPaneController,
   logsFilterRequest,

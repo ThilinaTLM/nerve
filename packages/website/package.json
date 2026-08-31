@@ -14,7 +14,8 @@
   "type": "module",
   "scripts": {
     "build": "astro build",
-    "check": "astro check",
+    "check": "node scripts/check-token-parity.mjs && astro check",
+    "test": "node --test \"scripts/**/*.test.mjs\"",
     "dev": "astro dev --host 127.0.0.1",
     "preview": "astro preview --host 127.0.0.1"
   },

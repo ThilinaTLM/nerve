@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
-import { resolveToolPath } from "@nervekit/tools";
-import { storagePaths } from "../../infrastructure/storage/paths.js";
+import { resolveToolPath } from "@nervekit/tools/execution";
+import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
 
 export function planDirForStorageHome(storageHome: string): string {
   return resolve(storagePaths(storageHome).plansPath);

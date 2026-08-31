@@ -2,7 +2,7 @@ import type {
   ApplicationLogLevel,
   ApplicationLogRecord,
   ApplicationLogSource,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/logs";
 
 export type LogsLevelFilter = ApplicationLogLevel | "all";
 export type LogsSourceFilter = ApplicationLogSource | "all";

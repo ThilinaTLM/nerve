@@ -1,9 +1,9 @@
 import type {
   PermissionException,
   PermissionLevel,
-  ToolName,
   ToolRisk,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
+import type { ToolName } from "@nervekit/contracts/tools";
 
 export interface ShellCommandSegmentAssessment {
   tokens: string[];

@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import type {
   PermissionException,
-  ToolName,
   ToolRisk,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
+import type { ToolName } from "@nervekit/contracts/tools";
 import { requireToolDefinition } from "../catalog/manifest.js";
 import {
   pathGlobMatches,

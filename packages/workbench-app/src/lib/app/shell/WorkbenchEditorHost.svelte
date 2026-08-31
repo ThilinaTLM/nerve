@@ -6,7 +6,7 @@ import {
   ConversationCenterHost,
   type CenterViewModule,
   type RegisteredCenterViewKind,
-} from "$lib/app/composition/center-views";
+} from "$lib/app/composition/registries/center-view-registry";
 import LazyViewPending from "$lib/app/shell/LazyViewPending.svelte";
 import {
   centerTabKey,

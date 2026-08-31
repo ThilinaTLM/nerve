@@ -2,7 +2,7 @@ import type {
   GitOverviewResponse,
   GitRecentCommit,
   GitRepoSummary,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import type { GitService } from "./git-service.js";
 import type { GitReadSnapshot } from "./read/types.js";
 import { parsePorcelainV2, parseShortstat } from "./git-status.js";

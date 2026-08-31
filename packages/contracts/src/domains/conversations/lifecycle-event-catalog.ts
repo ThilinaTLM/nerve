@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { definePublicEvent } from "../events/event-definition.schema.js";
-import { projectRecordSchema } from "../projects/project.schema.js";
-import { conversationRecordSchema } from "./conversation-state.schema.js";
+import { definePublicEvent } from "../../events/definition.js";
+import { projectRecordSchema } from "../projects/project.js";
+import { conversationRecordSchema } from "./conversation-state.js";
 
 const workbenchRoles = ["workbench_server"] as const;
 const conversationIdSchema = z.string().startsWith("conv_");

@@ -15,8 +15,8 @@ export function workbenchBoundaryViolation(sourceFile, targetFile) {
   const sourceLayer = source.split("/", 1)[0];
   const targetLayer = target.split("/", 1)[0];
 
-  if (sourceLayer === "kernel" && targetLayer !== "kernel") {
-    return `kernel may not depend on ${targetLayer}`;
+  if (sourceLayer === "domain" && targetLayer !== "domain") {
+    return `domain may not depend on ${targetLayer}`;
   }
 
   if (
@@ -38,6 +38,25 @@ export function workbenchBoundaryViolation(sourceFile, targetFile) {
 
   if (sourceLayer === "features" && targetLayer === "app") {
     return "features may not depend on app composition";
+  }
+
+  if (
+    sourceLayer === "features" &&
+    /(?:^|\/)\w*-?selectors(?:\.svelte)?\.[^/]+$/.test(source) &&
+    /^application\/workspace\/(?:selection|workspace-(?:state|selectors))/.test(
+      target,
+    )
+  ) {
+    return "feature selectors must receive registered workspace read models instead of mutable workspace internals";
+  }
+
+  if (
+    source.startsWith("application/workspace/") &&
+    target.startsWith("features/") &&
+    (isPrivateFeaturePath(target) ||
+      /^features\/[^/]+\/workspace(?:-[^/]*)?\.svelte(?:\.ts)?$/.test(target))
+  ) {
+    return "workspace application services must use composition-registered feature ports instead of concrete feature state or workspace adapters";
   }
 
   if (
@@ -120,7 +139,7 @@ function featureOwner(path) {
 }
 
 function isPrivateFeaturePath(path) {
-  return /^features\/[^/]+\/(?:api|application|components|domain|infrastructure|state|ui)\//.test(
+  return /^features\/[^/]+\/(?:api|adapters|application|hosts|infrastructure|model|state|views)\//.test(
     path,
   );
 }

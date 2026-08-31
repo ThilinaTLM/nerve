@@ -1,8 +1,8 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import ContextMenuList from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { cn } from "@nervekit/ui-kit/core/utils";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
+import ContextMenuList from "@nervekit/ui-kit/components/composites/context-menu-list";
+import { cn } from "@nervekit/ui-kit/utils";
 
 type SurfaceElement = "div" | "section";
 type SurfaceHover = "none" | "soft" | "default";

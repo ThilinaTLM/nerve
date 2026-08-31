@@ -1,10 +1,10 @@
+import type { CompletionItem } from "@nervekit/contracts/completions";
+import type { EventEnvelope } from "@nervekit/contracts/events";
+import type { SubagentTranscriptSnapshot } from "@nervekit/contracts/agents";
 import type {
-  CompletionItem,
-  EventEnvelope,
-  SubagentTranscriptSnapshot,
   ToolCallDetails,
   ToolCallResultChunk,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import type { Component } from "svelte";
 import { getContext, setContext } from "svelte";
 

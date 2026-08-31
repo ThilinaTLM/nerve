@@ -1,13 +1,13 @@
+import type { PlanReviewRecord } from "@nervekit/contracts/plans";
 import type {
-  PlanReviewRecord,
   TodoItem,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import { todoItemsField } from "../tools/views/tool-view-helpers.js";
 import { buildConversationRenderProjection } from "./render.js";
 import type { ApprovalWithToolCall } from "./tool-types.js";
-import type { ConversationRenderState } from "./types.js";
+import type { ConversationRenderState } from "./conversation-render-state.js";
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object"

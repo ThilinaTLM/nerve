@@ -1,4 +1,4 @@
-import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
+import type { StatusTone } from "@nervekit/ui-kit/components/composites/status-dot";
 import { VIEW_TOOL_DETAILS_LABEL } from "./tool-details-label";
 import type { DetailsActionInfo, MetaTone } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";

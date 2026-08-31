@@ -1,17 +1,17 @@
 # Workbench server module ownership
 
-The workbench server owns local runtime effects and authority boundaries: HTTP/WebSocket transport, local auth, catalog dispatch, canonical repositories, policy, tasks, tools, and run coordination.
+The server owns local authority and runtime effects: HTTP/WebSocket adapters, local auth, canonical persistence, host use cases, tasks, tool composition, and run coordination.
 
-Root TypeScript files are entrypoints only: `index.ts` is the package API and `main.ts` is `@nervekit/workbench-server/main`.
+- Root `index.ts` and `main.ts` are package entrypoints only.
+- `app/bootstrap/` constructs and hydrates services. `app/runtime/` owns process-lifetime resources, lifecycle, and mutable runtime projections.
+- `adapters/http/` owns middleware, routes, request/response translation, cookies, HTML, and static files.
+- `adapters/protocol/` owns WebSocket dispatch, snapshots, idempotency, the verified operation registry, and thin domain-grouped handlers. Bootstrap binds each handler group to a narrow capability context before combining the verified registry; adapters never receive `RuntimeServices` or process lifecycle ownership.
+- `domains/<area>/` owns business behavior. Large task/tool/run slices use explicit `model`, `application`, `persistence`, `artifacts`, `orchestration`, `execution`, or `adapters` areas.
+- `domains/agents/execution/` owns prompts, harness integration, subagents/explore, approvals, and streaming. It is distinct from durable run lifecycle.
+- `domains/runs/runtime/` owns the port-driven run state machine and may not depend on transports, persistence implementations, UI, or process drivers.
+- `infrastructure/persistence/canonical-sqlite/` is authoritative storage; `persistence/query-cache/` is a disposable read model. `storage-bootstrap/` owns paths, locks, layout, initialization, and file mutations. `migrations/` owns compatibility upgrades.
+- `core/application-error.ts` and `core/ports.ts` remain transport-neutral boundaries.
 
-- `app/` composes the server, routes, protocol host, status, and version metadata.
-- `app/runtime/` composes server-owned host services and route-facing registries.
-- `domains/<area>/` owns feature repositories/services for auth, agents, conversations, tools, tasks, projects, pinned commands, interactions, plans, Git, usage, providers, storage, and completions.
-- `infrastructure/` owns canonical SQLite storage, payload files, events, TLS, secrets, and diagnostics. `canonical-store/` is authoritative; `query-cache/` is a disposable, versioned read model rebuilt during hydration.
-- `http/` and `routes/` adapt authenticated HTTP/WebSocket requests to typed handlers.
-- `core/application-error.ts` defines transport-neutral domain failures; HTTP and protocol adapters map them at their boundaries.
-- `domains/filesystem/filesystem.service.ts` owns filesystem behavior shared by REST and protocol handlers.
-- `domains/runs/runtime/conversation-runtime.ts` owns mutable, server-scoped conversation/run projection state.
-- HTTP and WebSocket dispatchers share one state-scoped idempotency store so retries are deduplicated across transports.
+`RuntimeLifecycle` keeps its service graph private and owns hydration, maintenance, and domain shutdown. `ServerRuntime` exposes process resources, prebuilt adapter contexts, and idempotent disposal; HTTP/WebSocket socket and session teardown remains in `main.ts`.
 
-`ProtocolServerSession` is the session lifecycle authority. `RunCoordinator`, `TaskService`, `HostToolFactory`, and `GitService` provide host semantics inside this package. The run runtime under `domains/runs/runtime/` stays port-driven and imports only contracts, local run modules, and neutral ports from `core/ports.ts`; concrete protocol, storage, and process adapters remain outside it. Keep transport-neutral schemas in `@nervekit/contracts`, protocol mechanics in `@nervekit/protocol`, agent mechanics in `@nervekit/harness`, and canonical tool mechanics in `@nervekit/tools`.
+`ProtocolServerSession` is session authority. `RunCoordinator`, task application services, host tool orchestration, and Git services provide host semantics. Shared schemas stay in `@nervekit/contracts`, protocol lifecycle in `@nervekit/protocol`, agent mechanics in `@nervekit/harness`, and canonical tool execution/security in `@nervekit/tools`.

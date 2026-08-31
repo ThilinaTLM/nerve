@@ -1,5 +1,5 @@
 import type { ConversationViewState } from "$lib/features/conversations/state/conversation-state.svelte";
-import type { ConversationEntry } from "@nervekit/contracts";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {

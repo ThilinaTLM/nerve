@@ -1,4 +1,4 @@
-import type { Mode } from "@nervekit/contracts";
+import type { Mode } from "@nervekit/contracts/settings";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {

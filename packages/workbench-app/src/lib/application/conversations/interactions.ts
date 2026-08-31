@@ -9,7 +9,7 @@ import {
   upsertPendingToolCall,
 } from "$lib/application/workspace/entity-reducers";
 import { createInteractionActions } from "$lib/features/conversations/state/interaction-actions";
-import { openConversation } from "$lib/features/conversations/state/tabs";
+import { openConversation } from "$lib/features/conversations/state/conversation-tabs";
 
 const actions = createInteractionActions({
   requests: { resolve: resolveToolInteraction },

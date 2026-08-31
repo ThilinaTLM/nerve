@@ -3,10 +3,10 @@ import { lstat, readdir, rmdir, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   type ApplicationLogError,
-  createId,
   type DaemonCrashReport,
   daemonCrashReportSchema,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/logs";
+import { createId } from "@nervekit/contracts";
 
 export type CrashReportInput = Omit<
   DaemonCrashReport,

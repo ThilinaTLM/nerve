@@ -1,15 +1,17 @@
 /* eslint-disable max-lines -- Coordinator keeps the canonical run lifecycle in one auditable use case. */
+import type { PeerRole } from "@nervekit/contracts/wire";
+import type { PromptImage } from "@nervekit/contracts/agents";
 import type {
-  PeerRole,
-  PromptImage,
   RunCheckpointRecord,
   RunFailureRecord,
   RunInteractionRecord,
   RunPromptRecord,
   RunRecord,
   RunTransitionRecord,
-} from "@nervekit/contracts";
-import type { ClockPort, DiagnosticPort, IdPort } from "../../../core/ports.js";
+} from "@nervekit/contracts/runs";
+import type { ClockPort } from "../../../core/ports/clock.js";
+import type { DiagnosticPort } from "../../../core/ports/diagnostics.js";
+import type { IdPort } from "../../../core/ports/ids.js";
 import { assertCheckpoint, checkpointValid } from "./run-checkpoints.js";
 import {
   CANCELLATION_TARGETS,
@@ -349,7 +351,7 @@ export class RunCoordinator {
 
   async appendEntries(
     runId: string,
-    entries: readonly import("@nervekit/contracts").ConversationEntry[],
+    entries: readonly import("@nervekit/contracts/conversations").ConversationEntry[],
   ): Promise<void> {
     await this.appendDurable(runId, "entries_appended", {
       entries: [...entries],
@@ -358,7 +360,7 @@ export class RunCoordinator {
 
   async upsertToolCalls(
     runId: string,
-    toolCalls: readonly import("@nervekit/contracts").ToolCallTranscriptRecord[],
+    toolCalls: readonly import("@nervekit/contracts/tools").ToolCallTranscriptRecord[],
   ): Promise<void> {
     await this.appendDurable(runId, "tool_calls_upserted", {
       toolCalls: [...toolCalls],

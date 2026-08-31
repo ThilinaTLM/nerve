@@ -4,7 +4,7 @@ import {
   formatElectronDownloadFailure,
   formatProxyPreparationForLog,
   prepareElectronDownloadEnv,
-} from "../src/electron-download-env.ts";
+} from "../src/platform/electron/download-environment.ts";
 
 describe("prepareElectronDownloadEnv", () => {
   it("copies package-manager proxy config for Electron downloads", () => {

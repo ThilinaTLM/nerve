@@ -1,5 +1,5 @@
 import { getConversationContextUsage } from "$lib/api";
-import { conversationViewKey } from "$lib/kernel/navigation/view-keys";
+import { conversationViewKey } from "$lib/domain/navigation/view-keys";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { isOpenConversation } from "./conversation-reducer-shared";
 

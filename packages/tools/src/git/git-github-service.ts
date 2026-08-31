@@ -18,7 +18,7 @@ import type {
   GithubPrOverview,
   GithubStatusResponse,
   GitRepoSummary,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import { GitWorkflowError } from "./git-errors.js";
 import type { GithubApiClient } from "./git-github-api-client.js";
 import {

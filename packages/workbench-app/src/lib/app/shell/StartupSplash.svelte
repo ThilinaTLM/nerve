@@ -1,5 +1,5 @@
 <script lang="ts">
-import NerveBadge from "$lib/presentation/components/brand/NerveBadge.svelte";
+import NerveBadge from "$lib/presentation/brand/NerveBadge.svelte";
 
 let { status = "Opening Nerve" }: { status?: string } = $props();
 </script>

@@ -1,8 +1,9 @@
+import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import { SvelteSet } from "svelte/reactivity";
 import type { AgentRecord } from "$lib/api";
-import { projectKey } from "$lib/kernel/utils/project-tree";
-import { buildProjectSwitcherItems } from "$lib/features/projects/state/project-switcher";
-import { agentRunningTone } from "@nervekit/ui-kit/core/utils/status";
+import { projectKey } from "$lib/domain/projects/project-tree";
+import { buildProjectSwitcherItems } from "$lib/features/projects";
+import { agentRunningTone } from "@nervekit/ui-kit/display/status";
 import {
   conversationViewKey,
   diffViewKey,
@@ -10,26 +11,20 @@ import {
   mermaidViewKey,
   pendingConversationKey,
   prViewKey,
-} from "$lib/kernel/navigation/view-keys";
+} from "$lib/domain/navigation/view-keys";
 import {
   defaultFileDisplayMode,
   fileRenderKind,
-} from "@nervekit/ui-kit/core/utils/file-display";
+} from "@nervekit/ui-kit/display/file-display";
 import {
   buildConversationActivityById,
   idleConversationActivity,
-} from "$lib/kernel/conversations/activity";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
-import { gitState } from "$lib/features/git/state/git-state.svelte";
-import { logsState } from "$lib/features/logs/state/log-state.svelte";
-import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { taskState } from "$lib/features/tasks/state/task-state.svelte";
+} from "$lib/domain/conversations/activity";
 import {
   pendingApprovals,
   pendingPlanReviews,
   pendingUserQuestions,
-} from "$lib/features/tools/state/tool-interaction-projections";
+} from "$lib/features/tools";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import {
   type CenterTabIdentity,
@@ -77,7 +72,7 @@ function activeTabMatches(
 function activePendingConversation() {
   const active = workspaceState.activeCenterTab;
   if (active?.kind !== "pending-conversation") return undefined;
-  return conversationState.pendingConversations[
+  return workspaceFeaturePorts().conversations.read.pendingConversations[
     pendingConversationKey(active.id)
   ];
 }
@@ -90,7 +85,7 @@ const conversationActivityById = $derived.by(() =>
   buildConversationActivityById({
     conversations: workspaceState.conversations,
     agents: workspaceState.agents,
-    views: conversationState.conversationViews,
+    views: workspaceFeaturePorts().conversations.read.conversationViews,
     approvals: pendingApprovals(workspaceState.pendingToolCalls),
     userQuestions: pendingUserQuestions(workspaceState.pendingToolCalls),
     planReviews: pendingPlanReviews(workspaceState.pendingToolCalls),
@@ -104,11 +99,13 @@ function centerTabKey(tab: CenterTabIdentity): string {
 export const workspaceSelectors = {
   get activeConversationBranchDepth() {
     const conversationId =
-      selection.conversationId ?? conversationState.activeConversationTabId;
+      selection.conversationId ??
+      workspaceFeaturePorts().conversations.read.activeConversationTabId;
     if (!conversationId) return 0;
     return (
-      conversationState.conversationViews[conversationViewKey(conversationId)]
-        ?.treeNodes.length ?? 0
+      workspaceFeaturePorts().conversations.read.conversationViews[
+        conversationViewKey(conversationId)
+      ]?.treeNodes.length ?? 0
     );
   },
   get status() {
@@ -119,9 +116,12 @@ export const workspaceSelectors = {
   },
   get error() {
     const conversationId =
-      selection.conversationId ?? conversationState.activeConversationTabId;
+      selection.conversationId ??
+      workspaceFeaturePorts().conversations.read.activeConversationTabId;
     const activeView = conversationId
-      ? conversationState.conversationViews[conversationViewKey(conversationId)]
+      ? workspaceFeaturePorts().conversations.read.conversationViews[
+          conversationViewKey(conversationId)
+        ]
       : undefined;
     return (
       activePendingConversation()?.error ??
@@ -173,7 +173,7 @@ export const workspaceSelectors = {
     return buildProjectSwitcherItems({
       projects: workspaceState.projects,
       conversations: workspaceState.conversations,
-      tasks: taskState.tasks,
+      tasks: workspaceFeaturePorts().tasks.read.tasks,
       activityById: this.conversationActivityById,
       homeDir: workspaceState.status?.storage.userHome,
       recency: workspaceState.projectRecency,
@@ -218,7 +218,8 @@ export const workspaceSelectors = {
     }
     const activityById = conversationActivityById;
 
-    for (const conversationId of conversationState.openConversationTabIds) {
+    for (const conversationId of workspaceFeaturePorts().conversations.read
+      .openConversationTabIds) {
       const conversation = conversationsById[conversationId];
       if (!conversation) continue;
       const project = projectsById[conversation.projectId];
@@ -227,7 +228,7 @@ export const workspaceSelectors = {
           ? agentsById[conversation.activeAgentId]
           : undefined) ?? agentsByConversationId[conversation.id];
       const view =
-        conversationState.conversationViews[
+        workspaceFeaturePorts().conversations.read.conversationViews[
           conversationViewKey(conversation.id)
         ];
       const activity =
@@ -254,7 +255,9 @@ export const workspaceSelectors = {
     for (const tab of workspaceState.openCenterTabs) {
       if (tab.kind !== "pending-conversation") continue;
       const pending =
-        conversationState.pendingConversations[pendingConversationKey(tab.id)];
+        workspaceFeaturePorts().conversations.read.pendingConversations[
+          pendingConversationKey(tab.id)
+        ];
       if (!pending) continue;
       tabs.push({
         kind: "pending-conversation",
@@ -285,10 +288,11 @@ export const workspaceSelectors = {
   },
   get openTaskTabs(): TaskTabModel[] {
     const tabs: TaskTabModel[] = [];
-    for (const taskId of taskState.openTaskTabIds) {
-      const selectedRunId = taskState.selectedRunByEntry[taskId];
-      const candidates = taskState.tasks
-        .filter(
+    for (const taskId of workspaceFeaturePorts().tasks.read.openTaskTabIds) {
+      const selectedRunId =
+        workspaceFeaturePorts().tasks.read.selectedRunByEntry[taskId];
+      const candidates = workspaceFeaturePorts()
+        .tasks.read.tasks.filter(
           (candidate) =>
             (candidate.definitionId ??
               candidate.restartRootTaskId ??
@@ -314,8 +318,9 @@ export const workspaceSelectors = {
     return tabs;
   },
   get openFileTabs(): FileTabModel[] {
-    return fileState.openFileTabIds.map((id) => {
-      const view = fileState.fileViews[fileViewKey(id)];
+    return workspaceFeaturePorts().filesystem.read.openFileTabIds.map((id) => {
+      const view =
+        workspaceFeaturePorts().filesystem.read.fileViews[fileViewKey(id)];
       const displayPath = view?.content?.relativePath ?? view?.path;
       return {
         kind: "file" as const,
@@ -335,7 +340,10 @@ export const workspaceSelectors = {
   get openMermaidTabs(): MermaidTabModel[] {
     return workspaceState.openCenterTabs.flatMap((tab) => {
       if (tab.kind !== "mermaid") return [];
-      const view = fileState.mermaidViews[mermaidViewKey(tab.id)];
+      const view =
+        workspaceFeaturePorts().filesystem.read.mermaidViews[
+          mermaidViewKey(tab.id)
+        ];
       if (!view) return [];
       return [
         {
@@ -354,8 +362,8 @@ export const workspaceSelectors = {
     });
   },
   get openDiffTabs(): DiffTabModel[] {
-    return gitState.openDiffTabIds.map((id) => {
-      const view = gitState.diffViews[diffViewKey(id)];
+    return workspaceFeaturePorts().git.read.openDiffTabIds.map((id) => {
+      const view = workspaceFeaturePorts().git.read.diffViews[diffViewKey(id)];
       return {
         kind: "diff" as const,
         id,
@@ -369,8 +377,8 @@ export const workspaceSelectors = {
     });
   },
   get openPrTabs(): PrTabModel[] {
-    return gitState.openPrTabIds.map((id) => {
-      const view = gitState.prViews[prViewKey(id)];
+    return workspaceFeaturePorts().git.read.openPrTabIds.map((id) => {
+      const view = workspaceFeaturePorts().git.read.prViews[prViewKey(id)];
       return {
         kind: "pr" as const,
         id,
@@ -385,23 +393,24 @@ export const workspaceSelectors = {
     });
   },
   get openSettingsTabs(): SettingsTabModel[] {
-    return settingsState.settingsTabOpen
+    return workspaceFeaturePorts().settings.read.tabOpen
       ? [
           {
             kind: "settings" as const,
             id: "settings" as const,
             active: activeTabMatches("settings", "settings"),
-            sending: settingsState.settingsSaveStatus === "saving",
+            sending:
+              workspaceFeaturePorts().settings.read.saveStatus === "saving",
             error:
-              settingsState.settingsSaveStatus === "error"
-                ? settingsState.settingsMessage
+              workspaceFeaturePorts().settings.read.saveStatus === "error"
+                ? workspaceFeaturePorts().settings.read.message
                 : undefined,
           },
         ]
       : [];
   },
   get openLogsTabs(): LogsTabModel[] {
-    return logsState.logsTabOpen
+    return workspaceFeaturePorts().logs.read.tabOpen
       ? [
           {
             kind: "logs" as const,

@@ -2,7 +2,7 @@ import {
   SUBSCRIPTION_USAGE_EVENT,
   type SubscriptionUsage,
   type SubscriptionUsageProvider,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/usage";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { AuthManager } from "../auth/index.js";

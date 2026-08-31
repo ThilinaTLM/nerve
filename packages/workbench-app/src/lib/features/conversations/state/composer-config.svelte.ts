@@ -1,6 +1,6 @@
 import { modelKey, parseModelKey } from "$lib/presentation/utils/model";
 import type { AgentRecord, ModelInfo, ModelSelection } from "$lib/api";
-import { pendingConversationKey } from "$lib/kernel/navigation/view-keys";
+import { pendingConversationKey } from "$lib/domain/navigation/view-keys";
 import { queueAgentConfigChange } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { rememberLastAgentSelection } from "$lib/application/settings";
@@ -8,7 +8,7 @@ import { settingsReadModel } from "$lib/application/preferences/settings-read-mo
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { mainAgentForConversation } from "./main-agent";
-import { legacyPermissionLevelForRuleSet } from "$lib/kernel/permissions/permission-rule-set-options";
+import { legacyPermissionLevelForRuleSet } from "$lib/domain/permissions/rule-set-options";
 import {
   clampThinkingLevelForModel,
   supportedThinkingLevelsForModel,

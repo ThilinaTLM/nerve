@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
-import type { StaticToolRisk, ToolName, ToolRisk } from "@nervekit/contracts";
+import type { StaticToolRisk, ToolRisk } from "@nervekit/contracts/permissions";
+import type { ToolName } from "@nervekit/contracts/tools";
 import {
   builtInPermissionRuleSet,
   composeEffectivePermissionPolicy,

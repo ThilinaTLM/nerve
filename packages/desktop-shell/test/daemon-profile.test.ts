@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import {
   buildOrchestratorArgs,
   buildOrchestratorEnv,
-  resolveDaemonMaxOldSpaceMb,
+  resolveDaemonHeapProfile,
   resolveDaemonPaths,
   resolveReadinessTimeoutMs,
   wantsLanAccess,
@@ -50,15 +50,29 @@ describe("daemon profile policy", () => {
     );
   });
 
-  it("resolves the daemon memory option", () => {
-    assert.equal(resolveDaemonMaxOldSpaceMb({}), 4096);
-    assert.equal(
-      resolveDaemonMaxOldSpaceMb({ NERVE_DAEMON_MAX_OLD_SPACE_MB: "8192" }),
-      8192,
+  it("resolves the daemon memory option with a supported floor", () => {
+    assert.deepEqual(resolveDaemonHeapProfile({}), {
+      requestedMb: 4096,
+      effectiveMb: 4096,
+      source: "default",
+    });
+    assert.deepEqual(
+      resolveDaemonHeapProfile({ NERVE_DAEMON_MAX_OLD_SPACE_MB: "8192" }),
+      { requestedMb: 8192, effectiveMb: 8192, source: "environment" },
+    );
+    assert.deepEqual(resolveDaemonHeapProfile({}, 128), {
+      requestedMb: 128,
+      effectiveMb: 512,
+      source: "configuration",
+    });
+    assert.deepEqual(
+      resolveDaemonHeapProfile({ NERVE_DAEMON_MAX_OLD_SPACE_MB: "256" }, 8192),
+      { requestedMb: 256, effectiveMb: 512, source: "environment" },
     );
     assert.equal(
-      resolveDaemonMaxOldSpaceMb({ NERVE_DAEMON_MAX_OLD_SPACE_MB: "-5" }),
-      4096,
+      resolveDaemonHeapProfile({ NERVE_DAEMON_MAX_OLD_SPACE_MB: "-5" }, 2048)
+        .effectiveMb,
+      2048,
     );
   });
 
@@ -72,7 +86,11 @@ describe("daemon profile policy", () => {
         mobileHttps: true,
         webDistPath: "/opt/web",
       },
-      { NODE_OPTIONS: "--enable-source-maps", PATH: "/usr/bin" },
+      {
+        NODE_OPTIONS:
+          "--enable-source-maps --max-old-space-size=128 --max_old_space_size=256",
+        PATH: "/usr/bin",
+      },
     );
     assert.equal(env.ELECTRON_RUN_AS_NODE, "1");
     assert.equal(

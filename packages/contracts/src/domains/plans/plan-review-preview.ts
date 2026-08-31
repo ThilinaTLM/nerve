@@ -1,4 +1,4 @@
-import type { PlanReviewRecord } from "./plan-review.schema.js";
+import type { PlanReviewRecord } from "./plan-review.js";
 
 export const PLAN_REVIEW_PREVIEW_LINES = 10;
 export const PLAN_REVIEW_PREVIEW_CHARACTERS = 8_000;

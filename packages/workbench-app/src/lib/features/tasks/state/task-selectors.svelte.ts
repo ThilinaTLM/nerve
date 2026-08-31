@@ -1,6 +1,25 @@
-import { isPathInDirectory } from "$lib/kernel/utils/path";
-import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
-import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+import { isPathInDirectory } from "$lib/domain/filesystem/project-path";
+export interface TaskSelectorWorkspaceReadModel {
+  readonly activeProjectDir: string | undefined;
+  readonly activeCenterTab: { kind: string; id: string } | undefined;
+}
+
+const unregisteredWorkspaceReadModel: TaskSelectorWorkspaceReadModel = {
+  activeProjectDir: undefined,
+  activeCenterTab: undefined,
+};
+
+let workspaceReadModel = unregisteredWorkspaceReadModel;
+
+export function registerTaskSelectorWorkspaceReadModel(
+  readModel: TaskSelectorWorkspaceReadModel,
+): () => void {
+  workspaceReadModel = readModel;
+  return () => {
+    if (workspaceReadModel === readModel)
+      workspaceReadModel = unregisteredWorkspaceReadModel;
+  };
+}
 import { taskEntryId } from "./task-tabs.svelte";
 import { taskState } from "./task-state.svelte";
 
@@ -9,7 +28,7 @@ export const taskSelectors = {
     return taskState.tasks;
   },
   get scopedTasks() {
-    const projectDir = workspaceSelectors.activeProject?.dir;
+    const projectDir = workspaceReadModel.activeProjectDir;
     if (!projectDir) return [];
     return taskState.tasks.filter((task) =>
       isPathInDirectory(task.cwd, projectDir),
@@ -19,7 +38,7 @@ export const taskSelectors = {
     return taskState.tasks.find((task) => task.id === taskState.selectedTaskId);
   },
   get activeCenterTask() {
-    const active = workspaceState.activeCenterTab;
+    const active = workspaceReadModel.activeCenterTab;
     if (active?.kind !== "task") return undefined;
     const candidates = taskState.tasks
       .filter((task) => taskEntryId(task) === active.id)
@@ -31,7 +50,7 @@ export const taskSelectors = {
     );
   },
   get activeCenterTaskRuns() {
-    const active = workspaceState.activeCenterTab;
+    const active = workspaceReadModel.activeCenterTab;
     if (active?.kind !== "task") return [];
     return taskState.tasks
       .filter((task) => taskEntryId(task) === active.id)

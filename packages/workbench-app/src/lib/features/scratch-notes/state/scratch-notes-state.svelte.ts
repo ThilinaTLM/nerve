@@ -1,4 +1,4 @@
-import type { ScratchNote } from "@nervekit/contracts";
+import type { ScratchNote } from "@nervekit/contracts/scratch-notes";
 import { SvelteMap } from "svelte/reactivity";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import {

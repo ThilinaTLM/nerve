@@ -1,18 +1,21 @@
 import { readFile } from "node:fs/promises";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { numberArg } from "../common/args.js";
+import type {
+  FilesystemExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { numberArg } from "../process/arguments.js";
 import {
   type BoundedTextResult,
   boundText,
   FILE_OUTPUT_MAX_LINE_CHARS,
   textBoundaryDetails,
   textLimitSnapshot,
-} from "../common/output-budget.js";
+} from "../output/output-budget.js";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatByteSize,
-} from "../common/truncate.js";
+} from "../output/truncate.js";
 import {
   isErrnoException,
   pathNotFoundMessage,
@@ -57,7 +60,7 @@ export function detectSupportedImageMimeType(
 
 export async function executeRead(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: FilesystemExecutionContext,
 ): Promise<ToolExecutionResult> {
   const path = await resolveReadPath(context.cwd, args.path);
   const buffer = await readFile(path).catch((error: unknown) => {

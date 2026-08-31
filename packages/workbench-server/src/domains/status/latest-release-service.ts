@@ -1,5 +1,5 @@
-import type { LatestRelease } from "@nervekit/contracts";
-import { latestReleaseSchema } from "@nervekit/contracts";
+import type { LatestRelease } from "@nervekit/contracts/status";
+import { latestReleaseSchema } from "@nervekit/contracts/status";
 import { z } from "zod";
 
 const LATEST_RELEASE_URL =

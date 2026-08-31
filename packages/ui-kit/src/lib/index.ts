@@ -4,4 +4,4 @@ export {
   type WithoutChild,
   type WithoutChildren,
   type WithoutChildrenOrChild,
-} from "./core/utils.js";
+} from "./utils.js";

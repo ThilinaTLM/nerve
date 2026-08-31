@@ -2,7 +2,7 @@ import {
   colorThemeSchema,
   type ColorMode,
   type ColorTheme,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/settings";
 import { setMode, userPrefersMode } from "mode-watcher";
 
 const COLOR_THEME_STORAGE_KEY = "nerve-color-theme";

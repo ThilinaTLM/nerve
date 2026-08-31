@@ -15,38 +15,38 @@ import type {
 import {
   SettingsShell,
   SettingsSidebarStatus,
-} from "$lib/presentation/components/settings";
+} from "$lib/presentation/settings";
 import { settingsPages } from "$lib/features/settings/registry/settings-pages";
 import {
   skillSourceLabels,
   skillSourceSectionIds,
-} from "$lib/features/settings/components/pages/skills/skills-filter";
+} from "$lib/features/settings/views/pages/skills/skills-filter";
 import AgentsSettingsPage from "./agents/AgentsSettingsPage.svelte";
-import ModelsPageActions from "$lib/features/settings/components/pages/models/ModelsPageActions.svelte";
-import ModelsSettingsPage from "$lib/features/settings/components/pages/models/ModelsSettingsPage.svelte";
-import { ModelsPageState } from "$lib/features/settings/components/pages/models/models-page-state.svelte";
-import NotificationsSettingsPage from "$lib/features/settings/components/pages/notifications/NotificationsSettingsPage.svelte";
-import PermissionsSettingsPage from "$lib/features/settings/components/pages/permissions/PermissionsSettingsPage.svelte";
-import { PermissionsPageState } from "$lib/features/settings/components/pages/permissions/permissions-page-state.svelte";
+import ModelsPageActions from "$lib/features/settings/views/pages/models/ModelsPageActions.svelte";
+import ModelsSettingsPage from "$lib/features/settings/views/pages/models/ModelsSettingsPage.svelte";
+import { ModelsPageState } from "$lib/features/settings/views/pages/models/models-page-state.svelte";
+import NotificationsSettingsPage from "$lib/features/settings/views/pages/notifications/NotificationsSettingsPage.svelte";
+import PermissionsSettingsPage from "$lib/features/settings/views/pages/permissions/PermissionsSettingsPage.svelte";
+import { PermissionsPageState } from "$lib/features/settings/views/pages/permissions/permissions-page-state.svelte";
 import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
 import {
   getPermissionPolicyConfiguration,
   updatePermissionOverlay,
   updateProjectPermissionTrust,
 } from "$lib/features/projects/api/projects.api";
-import ProvidersSettingsPage from "$lib/features/settings/components/pages/providers/ProvidersSettingsPage.svelte";
-import ShortcutsSettingsPage from "$lib/features/settings/components/pages/shortcuts/ShortcutsSettingsPage.svelte";
-import SkillsSettingsPage from "$lib/features/settings/components/pages/skills/SkillsSettingsPage.svelte";
-import StoragePageActions from "$lib/features/settings/components/pages/storage/StoragePageActions.svelte";
-import StorageSettingsPage from "$lib/features/settings/components/pages/storage/StorageSettingsPage.svelte";
-import { StoragePageController } from "$lib/features/settings/components/pages/storage/storage-page-state.svelte";
+import ProvidersSettingsPage from "$lib/features/settings/views/pages/providers/ProvidersSettingsPage.svelte";
+import ShortcutsSettingsPage from "$lib/features/settings/views/pages/shortcuts/ShortcutsSettingsPage.svelte";
+import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/SkillsSettingsPage.svelte";
+import StoragePageActions from "$lib/features/settings/views/pages/storage/StoragePageActions.svelte";
+import StorageSettingsPage from "$lib/features/settings/views/pages/storage/StorageSettingsPage.svelte";
+import { StoragePageController } from "$lib/features/settings/views/pages/storage/storage-page-state.svelte";
 import SuggestionsPageActions from "./suggestions/SuggestionsPageActions.svelte";
 import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelte";
 import { SuggestionsPageState } from "./suggestions/suggestions-page-state.svelte";
-import SystemSettingsPage from "$lib/features/settings/components/pages/system/SystemSettingsPage.svelte";
-import ToolsSettingsPage from "$lib/features/settings/components/pages/tools/ToolsSettingsPage.svelte";
-import TranscriptionSettingsPage from "$lib/features/settings/components/pages/transcription/TranscriptionSettingsPage.svelte";
-import WorkbenchSettingsPage from "$lib/features/settings/components/pages/workbench/WorkbenchSettingsPage.svelte";
+import SystemSettingsPage from "$lib/features/settings/views/pages/system/SystemSettingsPage.svelte";
+import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
+import TranscriptionSettingsPage from "$lib/features/settings/views/pages/transcription/TranscriptionSettingsPage.svelte";
+import WorkbenchSettingsPage from "$lib/features/settings/views/pages/workbench/WorkbenchSettingsPage.svelte";
 
 type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 

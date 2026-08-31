@@ -1,10 +1,12 @@
 import {
   assertTransition,
-  createId,
-  LIVE_TOOL_OUTPUT_MAX_CHARS,
-  LIVE_TOOL_OUTPUT_MAX_CHUNKS,
   liveMessageTransitions,
   turnTransitions,
+  type LiveMessageStatus,
+  type TurnStatus,
+} from "@nervekit/contracts/events";
+import { createId } from "@nervekit/contracts";
+import {
   type AgentMessageContentKind,
   type ConversationActiveRunSnapshot,
   type ConversationLiveContentDeltaData,
@@ -25,10 +27,9 @@ import {
   type ConversationLiveToolOutputStream,
   type ConversationLiveTurnSnapshot,
   type ConversationRunRetrySnapshot,
-  type LiveMessageStatus,
-  type QueuedPromptRecord,
-  type TurnStatus,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import { capToolOutput } from "./tool-output-projection.js";
+import { type QueuedPromptRecord } from "@nervekit/contracts/agents";
 
 export interface ConversationRuntimeDependencies {
   now(): Date;
@@ -757,44 +758,4 @@ function cloneTurn(turn: MutableTurn): ConversationLiveTurnSnapshot {
       ];
     }),
   };
-}
-
-function capToolOutput(
-  output: ConversationLiveToolOutputSnapshot,
-  totals: { totalChars?: number } = {},
-): ConversationLiveToolOutputSnapshot {
-  const totalChars = totals.totalChars ?? output.text.length;
-  let text = output.text;
-  if (text.length > LIVE_TOOL_OUTPUT_MAX_CHARS) {
-    text = text.slice(text.length - LIVE_TOOL_OUTPUT_MAX_CHARS);
-  }
-  const chunks =
-    output.chunks.length > LIVE_TOOL_OUTPUT_MAX_CHUNKS
-      ? output.chunks.slice(output.chunks.length - LIVE_TOOL_OUTPUT_MAX_CHUNKS)
-      : output.chunks;
-  const capped =
-    totalChars > text.length ||
-    output.chunks.length > LIVE_TOOL_OUTPUT_MAX_CHUNKS;
-  return {
-    ...output,
-    text,
-    chunks,
-    outputLimits: {
-      capped,
-      direction: "tail",
-      maxChars: LIVE_TOOL_OUTPUT_MAX_CHARS,
-      maxChunks: LIVE_TOOL_OUTPUT_MAX_CHUNKS,
-      totalChars,
-      displayedChars: text.length,
-      omittedChars: Math.max(0, totalChars - text.length),
-      displayedLines: countLines(text),
-      totalLines: capped ? undefined : countLines(text),
-      omittedLines: undefined,
-    },
-  };
-}
-
-function countLines(text: string): number {
-  if (text.length === 0) return 0;
-  return text.split("\n").length;
 }

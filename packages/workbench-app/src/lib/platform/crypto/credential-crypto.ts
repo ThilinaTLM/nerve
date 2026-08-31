@@ -1,7 +1,7 @@
 import type {
   CredentialKeyResponse,
   EncryptedSecretEnvelope,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/auth";
 
 function base64ToBuffer(value: string): ArrayBuffer {
   const binary = atob(value);

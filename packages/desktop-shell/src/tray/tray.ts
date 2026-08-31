@@ -1,11 +1,21 @@
-import type { ManagedDaemon } from "../daemon.js";
+import type { ManagedDaemon } from "../daemon/composition.js";
 import { DESKTOP_APP_NAME, MACOS_TRAY_GUID } from "../desktop-identity.js";
-import type { BrowserWindowType, NativeImage, TrayType } from "../electron.js";
-import { clipboard, Menu, nativeImage, shell, Tray } from "../electron.js";
-import type { QuitOptions } from "../types.js";
+import type {
+  BrowserWindowType,
+  NativeImage,
+  TrayType,
+} from "../platform/electron/electron-api.js";
+import {
+  clipboard,
+  Menu,
+  nativeImage,
+  shell,
+  Tray,
+} from "../platform/electron/electron-api.js";
+import type { QuitOptions } from "../app/quit-contracts.js";
 import { resolveTrayIconPath } from "../window/preload-paths.js";
 
-interface TrayControllerDependencies {
+export interface TrayControllerDependencies {
   getMainWindow: () => BrowserWindowType | undefined;
   getManagedDaemon: () => ManagedDaemon | undefined;
   showMainWindow: () => void | Promise<void>;
@@ -19,6 +29,7 @@ export interface TrayController {
   ensureTray(): void;
   updateTrayMenu(): void;
   updateTrayIcon(): void;
+  dispose(): void;
 }
 
 export function createTrayController(
@@ -128,7 +139,12 @@ export function createTrayController(
     return Boolean(tray);
   }
 
-  return { ensureTray, hasTray, updateTrayIcon, updateTrayMenu };
+  function dispose(): void {
+    tray?.destroy();
+    tray = undefined;
+  }
+
+  return { dispose, ensureTray, hasTray, updateTrayIcon, updateTrayMenu };
 }
 
 function daemonTargetLabel(managedDaemon: ManagedDaemon | undefined): string {

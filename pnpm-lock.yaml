@@ -73,6 +73,9 @@ importers:
       electron-builder:
         specifier: ^26.15.0
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)(supports-color@7.2.0)
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
       tsx:
         specifier: 4.22.4
         version: 4.22.4

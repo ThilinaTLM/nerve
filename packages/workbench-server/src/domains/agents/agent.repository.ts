@@ -1,5 +1,8 @@
-import { type AgentRecord, agentRecordSchema } from "@nervekit/contracts";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import {
+  type AgentRecord,
+  agentRecordSchema,
+} from "@nervekit/contracts/agents";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 
 export class AgentRepository {
   constructor(private readonly storage: InitializedStorage) {}

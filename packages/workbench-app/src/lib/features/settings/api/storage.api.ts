@@ -5,7 +5,7 @@ import type {
   StorageCleanupStatusResponse,
   StorageUsageResponse,
 } from "$lib/api";
-import { protocolRequest } from "@nervekit/protocol";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export async function getStorageUsage(): Promise<StorageUsageResponse> {
   return (await protocolRequest("storage.usage.get", {})).result;

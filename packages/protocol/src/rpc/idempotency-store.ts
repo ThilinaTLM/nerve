@@ -2,7 +2,7 @@ import type {
   IdempotencyExecution,
   IdempotencyOutcome,
   IdempotencyStorePort,
-} from "./rpc.js";
+} from "./rpc-server.js";
 
 export interface IdempotencyEntry {
   readonly scope: string;

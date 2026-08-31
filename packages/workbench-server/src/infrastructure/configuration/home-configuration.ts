@@ -13,9 +13,13 @@ import {
   permissionsConfigSchema,
   providersConfigSchema,
   uiConfigSchema,
-} from "@nervekit/contracts";
-import type { StoragePaths } from "../storage/paths.js";
-import { atomicWriteJson, pathExists, readJsonFile } from "../storage/json.js";
+} from "@nervekit/contracts/settings";
+import type { StoragePaths } from "../storage-bootstrap/paths.js";
+import {
+  atomicWriteJson,
+  pathExists,
+  readJsonFile,
+} from "../storage-bootstrap/json.js";
 
 const CONFIG_MODE = 0o600;
 

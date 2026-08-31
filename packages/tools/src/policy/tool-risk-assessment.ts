@@ -1,4 +1,4 @@
-import type { ToolName } from "@nervekit/contracts";
+import type { ToolName } from "@nervekit/contracts/tools";
 import { requireToolDefinition } from "../catalog/manifest.js";
 import { assessShellCommand } from "./shell/assessment.js";
 import type { ToolRiskAssessment } from "./types.js";

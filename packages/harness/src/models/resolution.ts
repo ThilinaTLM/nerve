@@ -4,7 +4,7 @@ import {
   fauxAssistantMessage,
   getSupportedThinkingLevels,
 } from "@earendil-works/pi-ai";
-import type { ThinkingLevel } from "../agent/types/index.js";
+import type { ThinkingLevel } from "../agent/contracts/index.js";
 import {
   ensureProviderForModel,
   getBuiltinProviderIds,
@@ -18,7 +18,7 @@ import type {
   AgentCustomModel,
   AgentModelInfo,
   AgentModelSelection,
-} from "./types.js";
+} from "./model-contracts.js";
 
 function templateForCustomModel(
   model: AgentCustomModel,

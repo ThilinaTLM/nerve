@@ -1,8 +1,8 @@
 <script lang="ts">
 import Titlebar from "$lib/app/shell/Titlebar.svelte";
-import AlertDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
-import { getShortcutLabel } from "$lib/kernel/shortcuts/registry";
-import { shortProjectLabel } from "$lib/kernel/utils/project-tree";
+import AlertDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
+import { getShortcutLabel } from "$lib/application/commands/command-registry";
+import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import {
   buildProjectMenu,
   countAgeEligible,
@@ -22,7 +22,7 @@ import {
   minimizeDesktopWindow,
   toggleMaximizeDesktopWindow,
 } from "$lib/platform/desktop";
-import { releaseState } from "$lib/features/releases";
+import { releaseSelectors } from "$lib/features/releases";
 import { openLogsPane } from "$lib/features/logs";
 import { discoverTitlebarCount, openDiscoverPane } from "$lib/app/discover";
 import { guideState } from "$lib/app/discover/guides";
@@ -148,7 +148,7 @@ async function handleDesktopClose() {
   logsActive={activeCenterTab?.kind === "logs"}
   applicationLogsEnabled={status?.capabilities.applicationLogs ?? false}
   currentVersion={status?.version}
-  latestRelease={releaseState.latest}
+  latestRelease={releaseSelectors.latest}
   buildProjectMenuItems={projectMenuItems}
   onOpenProject={openProjectPicker}
   onSelectProject={(projectId) => void selectProject(projectId)}

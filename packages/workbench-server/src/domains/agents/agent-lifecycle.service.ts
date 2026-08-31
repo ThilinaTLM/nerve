@@ -1,19 +1,19 @@
 import { resolve } from "node:path";
-import { clampAgentThinkingLevel } from "@nervekit/harness";
+import { clampAgentThinkingLevel } from "@nervekit/harness/models";
 import {
   type AgentRecord,
   type CreateAgentRequest,
-  createId,
-  type Mode,
   type UpdateAgentRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/agents";
+import { createId } from "@nervekit/contracts";
+import { type Mode } from "@nervekit/contracts/settings";
 import { ApplicationError } from "../../core/application-error.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeQueryCache } from "../../infrastructure/query-cache/index.js";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import { resolveProjectSettings } from "../../infrastructure/configuration/index.js";
-import type { RuntimeState } from "../../app/runtime/state.js";
-import type { AgentStatus } from "../../app/runtime/types.js";
+import type { RuntimeState } from "../../app/runtime/runtime-projections.js";
+import type { AgentStatus } from "./agent-status.js";
 import type { ConversationService } from "../conversations/conversation-service.js";
 import type { AgentRepository } from "./agent.repository.js";
 import { assertChildAuthority } from "./agent-authority.js";

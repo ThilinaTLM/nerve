@@ -1,6 +1,9 @@
 import { readFile, stat } from "node:fs/promises";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { buildProcessTextResult } from "../common/process-result.js";
+import type {
+  VisionExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { buildProcessTextResult } from "../process/process-result.js";
 import { detectSupportedImageMimeType } from "../filesystem/read.js";
 import {
   isErrnoException,
@@ -20,7 +23,7 @@ function optionalPrompt(value: unknown): string | undefined {
 
 export async function executeExplainImage(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: VisionExecutionContext,
 ): Promise<ToolExecutionResult> {
   if (!context.explainImage) {
     throw new Error(

@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Progress as ProgressPrimitive } from "bits-ui";
-import { cn, type WithoutChildrenOrChild } from "@nervekit/ui-kit/core/utils";
+import { cn, type WithoutChildrenOrChild } from "@nervekit/ui-kit/utils";
 
 let {
   ref = $bindable(null),

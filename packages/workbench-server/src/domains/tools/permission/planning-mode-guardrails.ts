@@ -1,10 +1,10 @@
 import { tmpdir } from "node:os";
-import type { ToolName } from "@nervekit/contracts";
+import type { ToolName } from "@nervekit/contracts/tools";
 import {
   assessToolRisk,
   isAllowedPlanModeBashCommand,
-  isReadOnlyNetworkToolForApproval,
-} from "@nervekit/tools";
+} from "@nervekit/tools/policy";
+import { isReadOnlyNetworkToolForApproval } from "@nervekit/tools/catalog";
 import {
   isPathInsideDirectory,
   planDirForStorageHome,

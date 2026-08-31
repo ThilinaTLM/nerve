@@ -1,4 +1,4 @@
-import type { HeaderType } from "@nervekit/contracts";
+import type { HeaderType } from "@nervekit/contracts/settings";
 
 export type ResolvedHeaderType = Exclude<HeaderType, "auto">;
 

@@ -1,1 +1,1 @@
-export * from "./models.schema.js";
+export * from "./models.js";

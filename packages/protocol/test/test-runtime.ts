@@ -1,4 +1,4 @@
-import type { ProtocolV1Message } from "@nervekit/contracts";
+import type { ProtocolV1Message } from "@nervekit/contracts/wire";
 import {
   ProtocolCodec,
   type ProtocolClock,

@@ -11,12 +11,15 @@ export {
   continueFromFailure,
   navigateToEntry,
 } from "./run-control";
-export { clearConversationState, refreshConversationView } from "./selection";
-export { ensureConversationView } from "./state";
+export {
+  clearConversationState,
+  refreshConversationView,
+} from "./conversation-selection";
+export { ensureConversationView } from "./conversation-view-actions";
 export {
   closeConversationTab,
   closePendingConversationTab,
   openConversation,
   removeConversationTabs,
   restoreConversationTabs,
-} from "./tabs";
+} from "./conversation-tabs";

@@ -4,7 +4,7 @@ import {
   subscriptionUsageSchema,
   type SubscriptionUsage,
   type SubscriptionWindow,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/usage";
 
 const API_URL = "https://chatgpt.com/backend-api/wham/usage";
 const API_TIMEOUT_MS = 5000;

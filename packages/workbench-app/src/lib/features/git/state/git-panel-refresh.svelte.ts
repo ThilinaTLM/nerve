@@ -1,6 +1,6 @@
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { ProjectRecord } from "$lib/api";
-import type { GithubPrListFilters } from "@nervekit/contracts";
+import type { GithubPrListFilters } from "@nervekit/contracts/git";
 import {
   discoverGitRepos,
   getGithubStatus,
@@ -11,7 +11,7 @@ import {
 import {
   gitProjectStateKey,
   gitRepoStateKey,
-} from "$lib/kernel/navigation/view-keys";
+} from "$lib/domain/navigation/view-keys";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { hasPendingPrChecks } from "$lib/features/git/checks";
 import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";

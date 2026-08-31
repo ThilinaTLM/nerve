@@ -1,5 +1,5 @@
-import type { BrowserWindowType } from "../electron.js";
-import { shell } from "../electron.js";
+import type { BrowserWindowType } from "../platform/electron/electron-api.js";
+import { shell } from "../platform/electron/electron-api.js";
 
 export type NavigationTarget = "daemon-root" | "external" | "blocked";
 

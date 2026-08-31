@@ -1,4 +1,4 @@
-import type { CancelTaskRequest } from "@nervekit/contracts";
+import type { CancelTaskRequest } from "@nervekit/contracts/tasks";
 import {
   cancelTask,
   deleteTask,

@@ -5,7 +5,7 @@ import FolderSearch from "@lucide/svelte/icons/folder-search";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
+import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import {
   listDirectories,
   type FilesystemDirectoryResponse,
@@ -13,20 +13,20 @@ import {
 } from "$lib/api";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { discoverGitRepos, GIT_STALE_MS } from "$lib/features/git";
-import { looksLikePath, pathKey } from "$lib/kernel/utils/path";
-import DirectoryPickerFooter from "$lib/features/projects/components/DirectoryPickerFooter.svelte";
-import DirectoryPickerList from "$lib/features/projects/components/DirectoryPickerList.svelte";
-import DirectoryPickerSearch from "$lib/features/projects/components/DirectoryPickerSearch.svelte";
-import RecentProjectsView from "$lib/features/projects/components/RecentProjectsView.svelte";
+import { looksLikePath, pathKey } from "$lib/domain/filesystem/project-path";
+import DirectoryPickerFooter from "$lib/features/projects/views/DirectoryPickerFooter.svelte";
+import DirectoryPickerList from "$lib/features/projects/views/DirectoryPickerList.svelte";
+import DirectoryPickerSearch from "$lib/features/projects/views/DirectoryPickerSearch.svelte";
+import RecentProjectsView from "$lib/features/projects/views/RecentProjectsView.svelte";
 import {
   expandHome,
   signalMeta,
   uniqueSignals,
-} from "$lib/features/projects/components/directory-picker-helpers";
+} from "$lib/features/projects/views/directory-picker-helpers";
 import type {
   FilesystemEntry,
   NavItem,
-} from "$lib/features/projects/components/directory-picker-types";
+} from "$lib/features/projects/views/directory-picker-types";
 import type { ProjectSwitcherItem } from "$lib/features/projects/state/project-switcher";
 import {
   summarizeProjectGit,

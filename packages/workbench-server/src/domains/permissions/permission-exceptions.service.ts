@@ -2,15 +2,17 @@ import type {
   PermissionException,
   LegacyPermissionRule,
   LegacyPermissionRuleMatcherKind,
+} from "@nervekit/contracts/permissions";
+import type {
   ProjectPermissions,
   ProjectRecord,
-} from "@nervekit/contracts";
-import { deduplicatePermissionExceptions } from "@nervekit/tools";
+} from "@nervekit/contracts/projects";
+import { deduplicatePermissionExceptions } from "@nervekit/tools/policy";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import {
   type InitializedStorage,
   writeSettings,
-} from "../../infrastructure/storage/index.js";
+} from "../../infrastructure/storage-bootstrap/index.js";
 import type { ProjectPermissionsRepository } from "./project-permissions.repository.js";
 
 function matcherKind(

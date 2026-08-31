@@ -1,17 +1,19 @@
 import {
   taskCancelResultSchema,
   taskControlToolResultPreviewSchema,
-  taskLogEventSchema,
   taskLogsToolResultPreviewSchema,
-  taskRecordSchema,
   taskStartToolResultPreviewSchema,
   taskStatusToolResultPreviewSchema,
   taskToolSummarySchema,
   type TaskCancelOutcomePreviewPayload,
+  type TaskToolSummaryPayload,
+} from "@nervekit/contracts/tools";
+import {
+  taskLogEventSchema,
+  taskRecordSchema,
   type TaskLogEvent,
   type TaskRecord,
-  type TaskToolSummaryPayload,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tasks";
 
 export type ParsedTaskActionResult = {
   task?: TaskToolSummaryPayload;

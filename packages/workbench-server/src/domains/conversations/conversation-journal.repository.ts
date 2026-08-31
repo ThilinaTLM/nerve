@@ -1,18 +1,26 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import { noopPerformanceDiagnostics } from "../../infrastructure/diagnostics/performance-metrics.js";
-import { CanonicalStore } from "../../infrastructure/canonical-store/index.js";
-import { storagePaths } from "../../infrastructure/storage/paths.js";
+import {
+  CanonicalStore,
+  decode,
+} from "../../infrastructure/persistence/canonical-sqlite/index.js";
+import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
 import {
   deserializeState,
   prepareConversationPersistenceDelta,
   serializeState,
   type ConversationPersistenceDelta,
+  type SerializedConversationState,
 } from "./conversation-state-materializer.js";
+import {
+  applyRunProjectionTransition,
+  validateCommitEvents,
+} from "./conversation-journal-validation.js";
 import {
   ConversationTreeState,
   type ConversationTreeEntry,
-} from "@nervekit/harness";
+} from "@nervekit/harness/conversation";
 import {
   CONVERSATION_JOURNAL_EPOCH,
   conversationJournalCommitSchema,
@@ -22,14 +30,16 @@ import {
   type ConversationJournalEvent,
   type ConversationRecord,
   type ConversationSuspensionRecord,
+} from "@nervekit/contracts/conversations";
+import {
   type RunCheckpointRecord,
   type RunEventDeliveryRecord,
   type RunInteractionRecord,
   type RunPromptRecord,
   type RunRecord,
   type RunTransitionRecord,
-  type ToolCallRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
+import { type ToolCallRecord } from "@nervekit/contracts/tools";
 
 export interface ConversationJournalState {
   conversationId: string;
@@ -84,9 +94,16 @@ const journalLocks = new Map<string, Promise<void>>();
 
 export class ConversationJournalRepository {
   private readonly states = new Map<string, ConversationJournalState>();
+  private readonly pendingLoads = new Map<
+    string,
+    Promise<ConversationJournalState>
+  >();
+  private readonly dirty = new Set<string>();
+  private readonly encodedBytes = new Map<string, number>();
   private readonly locks = journalLocks;
 
   private readonly canonical: CanonicalStore;
+  private readonly ownsCanonicalStore: boolean;
   private readonly ready: Promise<void>;
   constructor(
     private readonly storage: {
@@ -94,7 +111,12 @@ export class ConversationJournalRepository {
       canonicalStore?: CanonicalStore;
     },
     private readonly diagnostics: PerformanceDiagnosticsPort = noopPerformanceDiagnostics,
+    private readonly cacheOptions: {
+      maxResidentConversations?: number;
+      maxResidentEncodedBytes?: number;
+    } = {},
   ) {
+    this.ownsCanonicalStore = storage.canonicalStore === undefined;
     this.canonical =
       storage.canonicalStore ??
       new CanonicalStore(
@@ -103,12 +125,137 @@ export class ConversationJournalRepository {
     this.ready = this.canonical.initialize();
   }
 
+  async close(): Promise<void> {
+    if (!this.ownsCanonicalStore) return;
+    await this.ready;
+    await this.canonical.close();
+  }
+
   homePath(): string {
     return this.storage.paths.home;
   }
 
   unload(conversationId: string): void {
+    if (this.dirty.has(conversationId)) return;
     this.states.delete(conversationId);
+    this.encodedBytes.delete(conversationId);
+  }
+
+  async listConversationMetadata(): Promise<ConversationRecord[]> {
+    await this.ready;
+    return this.canonical.listConversationMetadata<ConversationRecord>();
+  }
+
+  async readConversationRevision(conversationId: string): Promise<number> {
+    await this.ready;
+    return this.canonical.readConversationRevision(conversationId);
+  }
+
+  async readConversationEntries(
+    conversationId: string,
+  ): Promise<ConversationEntry[]> {
+    await this.ready;
+    return this.canonical.readConversationEntries(conversationId);
+  }
+
+  async scanToolCalls(
+    input: {
+      afterId?: string;
+      maxRows?: number;
+      maxBytes?: number;
+    } = {},
+  ) {
+    await this.ready;
+    return this.canonical.scanToolCalls(input);
+  }
+
+  async readToolCall(toolCallId: string): Promise<ToolCallRecord | undefined> {
+    await this.ready;
+    return this.canonical.readToolCall(toolCallId);
+  }
+
+  async countToolCallProjections(): Promise<number> {
+    await this.ready;
+    return this.canonical.countToolCallProjections();
+  }
+
+  async queryToolCallProjections(
+    query: Parameters<CanonicalStore["queryToolCallProjections"]>[0],
+  ) {
+    await this.ready;
+    return this.canonical.queryToolCallProjections(query);
+  }
+
+  async listToolCallStartupRecords(): Promise<ToolCallRecord[]> {
+    await this.ready;
+    return this.canonical.listToolCallStartupRecords();
+  }
+
+  async toolCallConversationId(
+    toolCallId: string,
+  ): Promise<string | undefined> {
+    await this.ready;
+    return this.canonical.toolCallConversationId(toolCallId);
+  }
+
+  async listRunMetadata(): Promise<RunRecord[]> {
+    await this.ready;
+    return this.canonical.listRunMetadata();
+  }
+
+  async listRunStates<T>(statuses: string[]): Promise<T[]> {
+    await this.ready;
+    return this.canonical.listRunStates<T>(statuses);
+  }
+
+  async listRunDeliveryRecoveryStates<T>(): Promise<T[]> {
+    await this.ready;
+    return this.canonical.listRunDeliveryRecoveryStates<T>();
+  }
+
+  async readRunState<T>(runId: string): Promise<T | undefined> {
+    await this.ready;
+    return this.canonical.readRunState<T>(runId);
+  }
+
+  async backfillConversationRecordProjections(
+    input: {
+      afterId?: string;
+      maxRows?: number;
+    } = {},
+  ) {
+    await this.ready;
+    return this.canonical.backfillConversationRecordProjections(input);
+  }
+
+  async backfillMissingProjections(): Promise<number> {
+    let afterId: string | undefined;
+    let inserted = 0;
+    for (;;) {
+      const page = await this.backfillConversationRecordProjections({
+        ...(afterId ? { afterId } : {}),
+        maxRows: 250,
+      });
+      inserted += page.inserted;
+      if (page.done) return inserted;
+      if (!page.nextCursor) {
+        throw new Error("Conversation projection backfill did not advance.");
+      }
+      afterId = page.nextCursor;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+  }
+
+  residentStats(): {
+    residentCount: number;
+    residentEncodedBytes: number;
+    dirtyCount: number;
+  } {
+    return {
+      residentCount: this.states.size,
+      residentEncodedBytes: this.totalEncodedBytes(),
+      dirtyCount: this.dirty.size,
+    };
   }
 
   async hydrateAll(
@@ -129,7 +276,20 @@ export class ConversationJournalRepository {
   }
 
   async load(conversationId: string): Promise<ConversationJournalState> {
-    return this.states.get(conversationId) ?? this.loadFresh(conversationId);
+    const resident = this.states.get(conversationId);
+    if (resident) {
+      this.touch(conversationId, resident);
+      return resident;
+    }
+    const pending = this.pendingLoads.get(conversationId);
+    if (pending) return pending;
+    const loading = this.loadFresh(conversationId).finally(() => {
+      if (this.pendingLoads.get(conversationId) === loading) {
+        this.pendingLoads.delete(conversationId);
+      }
+    });
+    this.pendingLoads.set(conversationId, loading);
+    return loading;
   }
 
   state(conversationId: string): ConversationJournalState | undefined {
@@ -242,6 +402,13 @@ export class ConversationJournalRepository {
         performance.now() - persistStartedAt,
       );
       applyCommit(state, parsed);
+      this.dirty.add(conversationId);
+      this.encodedBytes.set(
+        conversationId,
+        (this.encodedBytes.get(conversationId) ?? 0) +
+          Buffer.byteLength(JSON.stringify(parsed)),
+      );
+      this.touch(conversationId, state);
       return parsed;
     });
   }
@@ -249,6 +416,8 @@ export class ConversationJournalRepository {
   async remove(conversationId: string): Promise<void> {
     await this.exclusive(conversationId, async () => {
       this.states.delete(conversationId);
+      this.dirty.delete(conversationId);
+      this.encodedBytes.delete(conversationId);
       await this.canonical.deleteConversationState(conversationId);
     });
   }
@@ -257,10 +426,10 @@ export class ConversationJournalRepository {
     await this.ready;
     const stored = await this.canonical.readConversationJournal(conversationId);
     const state = stored.snapshot
-      ? deserializeState(stored.snapshot)
+      ? deserializeState(decode(stored.snapshot) as SerializedConversationState)
       : emptyState(conversationId);
     for (const value of stored.commits) {
-      const commit = conversationJournalCommitSchema.parse(value);
+      const commit = conversationJournalCommitSchema.parse(decode(value));
       verifyCommit(state, commit);
       applyCommit(state, commit);
     }
@@ -273,21 +442,73 @@ export class ConversationJournalRepository {
         `Conversation journal '${conversationId}' does not match its head.`,
       );
     }
-    this.states.set(conversationId, state);
+    this.encodedBytes.set(conversationId, stored.encodedBytes);
+    this.touch(conversationId, state);
+    await this.pruneResidents(conversationId);
     return state;
   }
 
   async checkpointLoaded(): Promise<void> {
     await this.ready;
-    for (const state of this.states.values()) {
-      if (state.revision === 0) continue;
-      const startedAt = performance.now();
-      await this.canonical.checkpointConversationState(serializeState(state));
-      this.diagnostics.duration(
-        "conversation.checkpoint",
-        performance.now() - startedAt,
-      );
+    for (const conversationId of [...this.dirty]) {
+      const state = this.states.get(conversationId);
+      if (!state || state.revision === 0) continue;
+      await this.checkpoint(conversationId, state);
     }
+  }
+
+  private async checkpoint(
+    conversationId: string,
+    state: ConversationJournalState,
+  ): Promise<void> {
+    const startedAt = performance.now();
+    await this.canonical.checkpointConversationState(serializeState(state));
+    this.dirty.delete(conversationId);
+    this.diagnostics.duration(
+      "conversation.checkpoint",
+      performance.now() - startedAt,
+    );
+  }
+
+  private touch(conversationId: string, state: ConversationJournalState): void {
+    this.states.delete(conversationId);
+    this.states.set(conversationId, state);
+  }
+
+  private async pruneResidents(exclude: string): Promise<void> {
+    const maximum = Math.max(
+      1,
+      this.cacheOptions.maxResidentConversations ?? 4,
+    );
+    const maximumBytes = Math.max(
+      1,
+      this.cacheOptions.maxResidentEncodedBytes ?? 256 * 1024 * 1024,
+    );
+    while (
+      this.states.size > maximum ||
+      (this.states.size > 1 && this.totalEncodedBytes() > maximumBytes)
+    ) {
+      const candidate = [...this.states.entries()].find(
+        ([conversationId]) =>
+          conversationId !== exclude &&
+          !this.pendingLoads.has(conversationId) &&
+          !this.locks.has(conversationId),
+      );
+      if (!candidate) return;
+      const [conversationId, state] = candidate;
+      if (this.dirty.has(conversationId)) {
+        await this.checkpoint(conversationId, state);
+      }
+      this.states.delete(conversationId);
+      this.encodedBytes.delete(conversationId);
+      this.diagnostics.count("conversation.residentEviction");
+    }
+  }
+
+  private totalEncodedBytes(): number {
+    let total = 0;
+    for (const bytes of this.encodedBytes.values()) total += bytes;
+    return total;
   }
 
   private async persistCommit(
@@ -319,138 +540,6 @@ export class ConversationJournalRepository {
 
 export function journalChecksum(value: unknown): string {
   return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
-}
-
-interface CommitPreview {
-  runProjections: Map<string, ConversationRunProjection>;
-}
-
-function validateCommitEvents(
-  state: ConversationJournalState,
-  events: ConversationJournalEvent[],
-  conversationId: string,
-): CommitPreview {
-  const toolCalls = new Map<string, ToolCallRecord>();
-  const interactions = new Map<string, ConversationInteractionRecord>();
-  const runProjections = new Map<string, ConversationRunProjection>();
-  const modelEntries = new Map<string, ConversationTreeEntry>();
-
-  const toolCall = (id: string) => toolCalls.get(id) ?? state.toolCalls.get(id);
-  const interaction = (id: string) =>
-    interactions.get(id) ?? state.interactions.get(id);
-  const runProjection = (id: string) =>
-    runProjections.get(id) ?? state.runProjections.get(id);
-
-  for (const event of events) {
-    validateEventIdentity(event, conversationId);
-    switch (event.kind) {
-      case "model_context.entry_appended": {
-        const entry = event.entry as unknown as ConversationTreeEntry;
-        const current = event.ownerAgentId
-          ? state.agentModelEntryById.get(event.ownerAgentId)?.get(entry.id)
-          : state.modelEntryById.get(entry.id);
-        const previous = modelEntries.get(
-          `${event.ownerAgentId ?? ""}:${entry.id}`,
-        );
-        if (
-          (current && JSON.stringify(current) !== JSON.stringify(entry)) ||
-          (previous && JSON.stringify(previous) !== JSON.stringify(entry))
-        ) {
-          throw new Error(`Conflicting model-context entry '${entry.id}'.`);
-        }
-        if (!current && !previous && entry.parentId) {
-          const parent = event.ownerAgentId
-            ? state.agentModelEntryById
-                .get(event.ownerAgentId)
-                ?.get(entry.parentId)
-            : state.modelEntryById.get(entry.parentId);
-          const pendingParent = modelEntries.get(
-            `${event.ownerAgentId ?? ""}:${entry.parentId}`,
-          );
-          if (
-            !parent &&
-            !pendingParent &&
-            !(event.ownerAgentId && entry.type === "compaction")
-          ) {
-            throw new Error(
-              `Unknown model-context parent '${entry.parentId}'.`,
-            );
-          }
-        }
-        modelEntries.set(`${event.ownerAgentId ?? ""}:${entry.id}`, entry);
-        break;
-      }
-      case "tool_call.upserted": {
-        const previous = toolCall(event.toolCall.id);
-        if (previous && event.toolCall.revision < previous.revision) {
-          throw new Error(
-            `Tool-call revision moved backwards for '${event.toolCall.id}'.`,
-          );
-        }
-        toolCalls.set(event.toolCall.id, event.toolCall);
-        break;
-      }
-      case "interaction.upserted": {
-        const currentToolCall = toolCall(event.interaction.toolCallId);
-        if (
-          !currentToolCall ||
-          currentToolCall.revision !== event.interaction.toolCallRevision
-        ) {
-          throw new Error("Conversation interaction tool revision is stale.");
-        }
-        interactions.set(event.interaction.id, event.interaction);
-        break;
-      }
-      case "suspension.upserted":
-        for (const member of event.suspension.members) {
-          const currentInteraction = interaction(member.interactionId);
-          if (
-            !currentInteraction ||
-            currentInteraction.suspensionId !== event.suspension.id ||
-            currentInteraction.checkpointId !== event.suspension.checkpointId ||
-            currentInteraction.toolCallId !== member.toolCallId ||
-            currentInteraction.toolCallRevision !== member.toolCallRevision
-          ) {
-            throw new Error("Conversation suspension member is inconsistent.");
-          }
-        }
-        break;
-      case "run.transition_committed": {
-        const previous = runProjection(event.transition.runId);
-        if (
-          event.transition.previousRevision !== (previous?.run.revision ?? 0)
-        ) {
-          throw new Error(
-            `Run transition chain is invalid for '${event.transition.runId}'.`,
-          );
-        }
-        runProjections.set(
-          event.transition.runId,
-          applyRunProjectionTransition(previous, event.transition),
-        );
-        break;
-      }
-      case "run.event_delivered": {
-        const previous = runProjection(event.delivery.runId);
-        if (!previous) {
-          throw new Error(
-            `Run delivery '${event.delivery.intentId}' has no run projection.`,
-          );
-        }
-        const deliveries = previous.deliveries.some(
-          (delivery) => delivery.intentId === event.delivery.intentId,
-        )
-          ? previous.deliveries
-          : [...previous.deliveries, event.delivery];
-        runProjections.set(event.delivery.runId, {
-          ...previous,
-          deliveries,
-        });
-        break;
-      }
-    }
-  }
-  return { runProjections };
 }
 
 function verifyCommit(
@@ -499,31 +588,6 @@ function applyCommit(
   }
   state.revision = commit.revision;
   state.checksum = commit.checksum;
-}
-
-function validateEventIdentity(
-  event: ConversationJournalEvent,
-  conversationId: string,
-): void {
-  if (event.conversationId !== conversationId) {
-    throw new Error("Conversation journal event identity mismatch.");
-  }
-  if (
-    (event.kind === "conversation.upserted" &&
-      event.conversation.id !== conversationId) ||
-    (event.kind === "conversation.entry_appended" &&
-      event.entry.conversationId !== conversationId) ||
-    (event.kind === "tool_call.upserted" &&
-      event.toolCall.conversationId !== conversationId) ||
-    (event.kind === "interaction.upserted" &&
-      event.interaction.conversationId !== conversationId) ||
-    (event.kind === "suspension.upserted" &&
-      event.suspension.conversationId !== conversationId) ||
-    (event.kind === "run.transition_committed" &&
-      event.transition.run.conversationId !== conversationId)
-  ) {
-    throw new Error("Conversation journal record identity mismatch.");
-  }
 }
 
 function applyEvent(
@@ -665,43 +729,6 @@ function applyEvent(
       if (!existing) projection.deliveries.push(event.delivery);
     }
   }
-}
-
-function applyRunProjectionTransition(
-  previous: ConversationRunProjection | undefined,
-  transition: RunTransitionRecord,
-): ConversationRunProjection {
-  const prompts = new Map(
-    previous?.prompts.map((record) => [record.id, record] as const),
-  );
-  const interactions = new Map(
-    previous?.interactions.map((record) => [record.id, record] as const),
-  );
-  const checkpoints = new Map(
-    previous?.checkpoints.map(
-      (record) => [record.checkpointId, record] as const,
-    ),
-  );
-  for (const record of transition.prompts) prompts.set(record.id, record);
-  for (const record of transition.interactions)
-    interactions.set(record.id, record);
-  for (const record of transition.checkpoints)
-    checkpoints.set(record.checkpointId, record);
-  const projection: ConversationRunProjection = {
-    run: transition.run,
-    prompts: [...prompts.values()].sort(
-      (left, right) => left.ordinal - right.ordinal,
-    ),
-    interactions: [...interactions.values()].sort((left, right) =>
-      left.createdAt.localeCompare(right.createdAt),
-    ),
-    checkpoints: [...checkpoints.values()].sort((left, right) =>
-      left.createdAt.localeCompare(right.createdAt),
-    ),
-    transitions: [...(previous?.transitions ?? []), transition],
-    deliveries: [...(previous?.deliveries ?? [])],
-  };
-  return projection;
 }
 
 function emptyState(conversationId: string): ConversationJournalState {

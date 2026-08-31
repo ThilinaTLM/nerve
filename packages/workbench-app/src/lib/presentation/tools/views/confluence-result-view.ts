@@ -7,8 +7,8 @@ import {
   confluenceRestrictionSummarySchema,
   confluenceResultDetailsSchema,
   confluenceSpaceSummarySchema,
-} from "@nervekit/contracts";
-import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
+import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts/conversations";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {
   asRecord,

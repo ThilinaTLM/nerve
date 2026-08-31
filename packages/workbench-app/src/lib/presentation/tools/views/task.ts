@@ -1,4 +1,4 @@
-import type { TaskToolSummaryPayload } from "@nervekit/contracts";
+import type { TaskToolSummaryPayload } from "@nervekit/contracts/tools";
 
 const urlPattern = /https?:\/\/[^\s)'"]+/i;
 

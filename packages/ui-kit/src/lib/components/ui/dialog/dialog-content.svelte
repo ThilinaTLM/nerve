@@ -3,7 +3,7 @@ import { Dialog as DialogPrimitive } from "bits-ui";
 import DialogPortal from "./dialog-portal.svelte";
 import type { Snippet } from "svelte";
 import * as Dialog from ".";
-import { cn, type WithoutChildrenOrChild } from "@nervekit/ui-kit/core/utils";
+import { cn, type WithoutChildrenOrChild } from "@nervekit/ui-kit/utils";
 import type { ComponentProps } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import XIcon from "@lucide/svelte/icons/x";

@@ -1,4 +1,4 @@
-import type { FilesystemProjectEntry } from "@nervekit/contracts";
+import type { FilesystemProjectEntry } from "@nervekit/contracts/filesystem";
 import { SvelteSet } from "svelte/reactivity";
 
 export type FileExplorerDirectoryState = {

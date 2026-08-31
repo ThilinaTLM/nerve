@@ -4,9 +4,9 @@ import type {
   AgentLoopConfig,
   AgentMessage,
   StreamFn,
-} from "../types/index.js";
-import type { AgentEventSink } from "./events.js";
-import { streamAssistantResponse } from "./stream-assistant.js";
+} from "../contracts/index.js";
+import type { AgentEventSink } from "./loop-events.js";
+import { streamAssistantResponse } from "./assistant-stream.js";
 import { executeToolCalls } from "./tool-execution.js";
 
 /**

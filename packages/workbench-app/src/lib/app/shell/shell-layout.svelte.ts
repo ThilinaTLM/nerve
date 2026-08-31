@@ -11,7 +11,7 @@ import {
   showShellView,
   toggleShellDock,
 } from "$lib/presentation/shell";
-import { panelViewDescriptors } from "$lib/app/composition/panel-views";
+import { panelViewDescriptors } from "$lib/app/composition/registries/panel-registry";
 
 const STORAGE_KEY = "nerve.layout.v1";
 const RESIZE_PERSIST_DEBOUNCE_MS = 200;

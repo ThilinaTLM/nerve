@@ -1,1 +1,1 @@
-export * from "./suspension.schema.js";
+export * from "./suspension.js";

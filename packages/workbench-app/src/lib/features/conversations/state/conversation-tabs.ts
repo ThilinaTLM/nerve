@@ -1,0 +1,166 @@
+import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
+import { protocolRequest } from "@nervekit/protocol/adapters";
+import { conversationStream } from "@nervekit/contracts/events";
+import { removeEventStream } from "$lib/application/event-routing/stream-cursors.svelte";
+import {
+  conversationViewKey,
+  pendingConversationKey,
+} from "$lib/domain/navigation/view-keys";
+import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import {
+  nextCenterTabAfterClose,
+  removeCenterTab,
+  replaceOpenCenterTabs,
+  selectCenterTab,
+  setActiveCenterTab,
+} from "$lib/application/workspace/center-tabs.svelte";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+import {
+  applyActiveConversationSelection,
+  refreshConversationView,
+} from "./conversation-selection";
+import {
+  addConversationTab,
+  clearActiveSelection,
+  ensureConversationView,
+  persistConversationTabs,
+} from "./conversation-view-actions";
+
+export async function openConversation(conversationId: string) {
+  const conversation =
+    workspaceState.conversations.find(
+      (candidate) => candidate.id === conversationId,
+    ) ??
+    (await protocolRequest("conversation.get", { conversationId })).result
+      .conversation;
+  if (conversation.projectId !== workspaceState.selectedProjectId) {
+    const { selectWorkspaceProject } =
+      await import("$lib/application/workspace/workspace-commands");
+    await selectWorkspaceProject(conversation.projectId);
+  }
+  addConversationTab(conversation.id);
+  conversationState.activeConversationTabId = conversation.id;
+  setActiveCenterTab({ kind: "conversation", id: conversation.id });
+  persistConversationTabs();
+  await applyActiveConversationSelection(conversation);
+  await refreshConversationView(conversation.id);
+  const view = ensureConversationView(conversation.id);
+  workspaceState.error = view.error;
+}
+
+export async function restoreConversationTabs(
+  desiredTab = workspaceState.activeCenterTab,
+): Promise<boolean> {
+  const tabIds = workspaceState.openCenterTabs
+    .filter(
+      (tab): tab is Extract<typeof tab, { kind: "conversation" }> =>
+        tab.kind === "conversation",
+    )
+    .map((tab) => tab.id);
+  for (const conversationId of tabIds) ensureConversationView(conversationId);
+  conversationState.activeConversationTabId =
+    desiredTab?.kind === "conversation" ? desiredTab.id : tabIds[0];
+  if (desiredTab?.kind !== "conversation") return false;
+  await selectCenterTab(desiredTab);
+  return true;
+}
+
+export async function closeConversationTab(conversationId: string) {
+  const currentIds = conversationState.openConversationTabIds;
+  const closingIndex = currentIds.indexOf(conversationId);
+  if (closingIndex === -1) return;
+  const tab = { kind: "conversation" as const, id: conversationId };
+  const fallback = nextCenterTabAfterClose(tab);
+  const nextIds = currentIds.filter((id) => id !== conversationId);
+  const nextConversationId = nextIds[closingIndex] ?? nextIds[closingIndex - 1];
+  await voiceInputSession.cancelIfTarget({
+    kind: "conversation",
+    id: conversationId,
+  });
+  removeCenterTab(tab);
+  delete conversationState.conversationViews[
+    conversationViewKey(conversationId)
+  ];
+  removeEventStream(conversationStream(conversationId));
+
+  const closingActiveCenter =
+    workspaceState.activeCenterTab?.kind === "conversation" &&
+    workspaceState.activeCenterTab.id === conversationId;
+
+  if (conversationState.activeConversationTabId === conversationId) {
+    conversationState.activeConversationTabId = nextConversationId;
+  }
+
+  if (selection.conversationId === conversationId && !nextConversationId) {
+    clearActiveSelection();
+  }
+
+  persistConversationTabs();
+
+  if (closingActiveCenter) {
+    await selectCenterTab(fallback);
+  }
+}
+
+export async function closePendingConversationTab(pendingId: string) {
+  const pending =
+    conversationState.pendingConversations[pendingConversationKey(pendingId)];
+  if (!pending) return;
+  const tab = { kind: "pending-conversation" as const, id: pendingId };
+  const fallback = nextCenterTabAfterClose(tab);
+  const closingActiveCenter =
+    workspaceState.activeCenterTab?.kind === "pending-conversation" &&
+    workspaceState.activeCenterTab.id === pendingId;
+  await voiceInputSession.cancelIfTarget({
+    kind: "pending-conversation",
+    id: pendingId,
+  });
+  removeCenterTab(tab);
+  delete conversationState.pendingConversations[
+    pendingConversationKey(pendingId)
+  ];
+  if (closingActiveCenter) {
+    clearActiveSelection();
+    await selectCenterTab(fallback);
+  }
+  persistConversationTabs();
+}
+
+export async function removeConversationTabs(conversationIds: string[]) {
+  const removing = new Set(conversationIds);
+  const activeRemoved = selection.conversationId
+    ? removing.has(selection.conversationId)
+    : false;
+  await voiceInputSession.cancelIfTargets(
+    conversationIds.map((id) => ({ kind: "conversation", id })),
+  );
+  replaceOpenCenterTabs(
+    workspaceState.openCenterTabs.filter(
+      (tab) => tab.kind !== "conversation" || !removing.has(tab.id),
+    ),
+  );
+  for (const conversationId of removing) {
+    delete conversationState.conversationViews[
+      conversationViewKey(conversationId)
+    ];
+    removeEventStream(conversationStream(conversationId));
+  }
+
+  if (!activeRemoved) {
+    persistConversationTabs();
+    return;
+  }
+
+  const nextConversationId = conversationState.openConversationTabIds[0];
+  if (nextConversationId) {
+    conversationState.activeConversationTabId = nextConversationId;
+    persistConversationTabs();
+    await openConversation(nextConversationId);
+    return;
+  }
+
+  clearActiveSelection();
+  await selectCenterTab(workspaceState.openCenterTabs[0]);
+  persistConversationTabs();
+}

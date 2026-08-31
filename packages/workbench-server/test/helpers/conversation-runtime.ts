@@ -1,0 +1,115 @@
+import { createRuntimeFixture } from "../support/runtime-fixture.js";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after } from "node:test";
+import {
+  type ConversationEntry,
+  type ConversationRecord,
+} from "@nervekit/contracts/conversations";
+import { createId } from "@nervekit/contracts";
+import { type TaskRecord } from "@nervekit/contracts/tasks";
+import { TaskRepository } from "../../src/domains/tasks/persistence/task.repository.js";
+import {
+  shutdownServerRuntime,
+  type ServerRuntime,
+} from "../../src/app/runtime/server-runtime.js";
+import { initializeStorage } from "../../src/infrastructure/storage-bootstrap/index.js";
+
+const roots: string[] = [];
+const states: ServerRuntime[] = [];
+
+after(async () => {
+  await Promise.allSettled(states.map(shutdownServerRuntime));
+  await Promise.all(
+    roots.map((root) =>
+      rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+      }),
+    ),
+  );
+});
+
+export async function tempHome(prefix: string): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), prefix));
+  roots.push(root);
+  return root;
+}
+
+export async function createState(prefix = "nerve-runtime-conversation-") {
+  const storage = await initializeStorage(await tempHome(prefix));
+  const fixture = createRuntimeFixture(storage, "127.0.0.1", 0);
+  states.push(fixture.runtime);
+  await fixture.lifecycle.hydrate();
+  return fixture;
+}
+
+export async function ageConversation(
+  state: Awaited<ReturnType<typeof createState>>,
+  conversation: ConversationRecord,
+  updatedAt: string,
+): Promise<ConversationRecord> {
+  const aged = { ...conversation, updatedAt };
+  await state.services.conversationLifecycle.updateConversation(aged);
+  return aged;
+}
+
+export function appendConversationEntry(
+  state: Awaited<ReturnType<typeof createState>>,
+  input: {
+    id?: string;
+    conversationId: string;
+    parentEntryId?: string | null;
+    role: ConversationEntry["role"];
+    text: string;
+    createdAt?: string;
+  },
+): Promise<ConversationEntry> {
+  return state.services.conversationLifecycle.appendEntry(input);
+}
+
+export async function addTaskRecord(
+  state: Awaited<ReturnType<typeof createState>>,
+  input: {
+    projectId: string;
+    conversationId: string;
+    agentId?: string;
+    status: TaskRecord["status"];
+  },
+): Promise<TaskRecord> {
+  const id = createId("task");
+  const logsPath = join(
+    state.runtime.storage.paths.tasksPath,
+    `${id}.logs.jsonl`,
+  );
+  const now = new Date().toISOString();
+  const record: TaskRecord = {
+    id,
+    projectId: input.projectId,
+    conversationId: input.conversationId,
+    agentId: input.agentId,
+    cwd: state.runtime.storage.paths.home,
+    command: "echo test",
+    status: input.status,
+    readiness: { outcome: "none" },
+    stdoutPath: logsPath,
+    stderrPath: logsPath,
+    combinedPath: logsPath,
+    logsPath,
+    startedAt: now,
+    updatedAt: now,
+  };
+  state.services.tasks.tasks.set(record.id, record);
+  state.runtime.queryCache.upsertTask(record);
+  await new TaskRepository(state.runtime.storage).write(record);
+  return record;
+}
+
+export const oldConversationId = "conv_01HN0000000000000000000000";
+export const oldAgentId = "agent_01HN0000000000000000000000";
+export const firstEntryId = "entry_01HN0000000000000000000000";
+export const secondEntryId = "entry_01HN0000000000000000000001";
+export const createdAt = "2026-01-01T00:00:00.000Z";

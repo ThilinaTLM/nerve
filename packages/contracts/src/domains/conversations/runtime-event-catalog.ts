@@ -1,8 +1,8 @@
 import {
   defineContentEvent,
   definePublicEvent,
-} from "../events/event-definition.schema.js";
-import { conversationEventPayloadSchemas } from "./run-event-payloads.schema.js";
+} from "../../events/definition.js";
+import { conversationEventPayloadSchemas } from "./run-event-payloads.js";
 
 const LIVE_PREFIX = "conversation.live.";
 const CONCAT_MAX_CHARS = 16_384;

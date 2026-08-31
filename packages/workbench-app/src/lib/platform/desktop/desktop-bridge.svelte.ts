@@ -38,6 +38,7 @@ export interface NerveDesktopBridge {
     setCloseToTray: (closeToTray: boolean) => Promise<void>;
   };
   app: {
+    reportRendererCoreReady: () => Promise<{ ok: true }>;
     onQuitStarted: (listener: () => void) => () => void;
   };
   notifications: {

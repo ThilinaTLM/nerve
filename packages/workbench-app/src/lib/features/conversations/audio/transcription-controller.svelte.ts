@@ -1,7 +1,7 @@
 import {
   AUDIO_TRANSCRIPTION_MAX_DURATION_MS,
   AUDIO_TRANSCRIPTION_MAX_RETRIES,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/transcription";
 import { ApiRequestError, transcribeAudio } from "$lib/api";
 import { PcmWavRecorder, type WavRecordingResult } from "./wav-recorder";
 

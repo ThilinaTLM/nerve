@@ -5,8 +5,8 @@ import MousePointerClick from "@lucide/svelte/icons/mouse-pointer-click";
 import type { ModelInfo, ModelSelection, ThinkingLevel } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
-import { SettingsRow } from "$lib/presentation/components/settings";
-import SingleModelSelectionDialog from "$lib/features/settings/components/shared/SingleModelSelectionDialog.svelte";
+import { SettingsRow } from "$lib/presentation/settings";
+import SingleModelSelectionDialog from "$lib/features/settings/views/shared/SingleModelSelectionDialog.svelte";
 
 type SaveSelection = {
   model?: ModelSelection;

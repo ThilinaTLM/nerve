@@ -1,10 +1,8 @@
-import {
-  type AgentMessage,
-  convertToLlm,
-  serializeConversation,
-} from "@nervekit/harness";
+import { type AgentMessage } from "@nervekit/harness/agent";
+import { convertToLlm } from "@nervekit/harness/messages";
+import { serializeConversation } from "@nervekit/harness/compaction";
 
-export { deriveConversationTitle } from "@nervekit/contracts";
+export { deriveConversationTitle } from "@nervekit/contracts/conversations";
 
 export interface ExtractiveSummaryInput {
   title: string;

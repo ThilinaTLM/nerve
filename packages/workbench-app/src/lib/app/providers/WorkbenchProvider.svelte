@@ -1,7 +1,8 @@
 <script lang="ts">
-import { onMount, type Snippet } from "svelte";
+import { onDestroy, onMount, type Snippet } from "svelte";
 import {
   desktopRuntime,
+  getDesktopBridge,
   initializeDesktopRuntime,
   syncDesktopCloseToTray,
 } from "$lib/platform/desktop";
@@ -10,7 +11,8 @@ import {
   initializeNotificationAudio,
   initializeNotifications,
 } from "$lib/application/notifications/notify.svelte";
-import { registerFeatureEventHandlers } from "$lib/app/composition/register-feature-events";
+import { registerWorkspaceReadModels } from "$lib/app/composition/registrations/register-workspace-read-models.svelte";
+import { registerFeatureEventHandlers } from "$lib/app/composition/registrations/register-feature-events";
 import { zoomState } from "$lib/platform/appearance/appearance.svelte";
 import {
   revealPanelView,
@@ -58,13 +60,15 @@ import { permissionRuleSetCatalog } from "$lib/application/permissions/permissio
 import {
   effectivePermissionRuleSetId,
   selectablePermissionRuleSets,
-} from "$lib/kernel/permissions/permission-rule-set-options";
+} from "$lib/domain/permissions/rule-set-options";
 
 type Props = {
   children?: Snippet;
 };
 
 let { children }: Props = $props();
+const unregisterWorkspaceReadModels = registerWorkspaceReadModels();
+onDestroy(unregisterWorkspaceReadModels);
 
 const activeProject = $derived(workspaceSelectors.activeProject);
 const activeConversation = $derived(conversationSelectors.activeConversation);
@@ -203,6 +207,9 @@ onMount(() => {
   void initializeWorkbench()
     .then((initialized) => {
       if (!initialized) return;
+      void getDesktopBridge()
+        ?.app.reportRendererCoreReady()
+        .catch(() => undefined);
       initializeNotifications();
       if (startedOnSettings) void openSettingsPane();
     })

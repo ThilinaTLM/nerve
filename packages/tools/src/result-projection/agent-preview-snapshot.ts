@@ -1,4 +1,4 @@
-import type { AgentPreviewSnapshot } from "@nervekit/contracts";
+import type { AgentPreviewSnapshot } from "@nervekit/contracts/tools";
 import { createHash } from "node:crypto";
 import type { ProjectableBlock } from "./types.js";
 

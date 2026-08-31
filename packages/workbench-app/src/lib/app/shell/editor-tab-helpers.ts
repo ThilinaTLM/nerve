@@ -1,5 +1,5 @@
-import { shortenPath } from "$lib/kernel/utils/path";
-import { shortProjectLabel } from "$lib/kernel/utils/project-tree";
+import { shortenPath } from "$lib/domain/filesystem/project-path";
+import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import type {
   CenterTabIdentity,
   CenterTabModel,

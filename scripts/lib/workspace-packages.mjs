@@ -9,6 +9,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readRustReleaseVersions } from "./release-version.mjs";
+import { workspacePackageByDirectory } from "./workspace-architecture.mjs";
 
 /** Absolute repository root for scripts executed from scripts/. */
 export const repoRoot = resolve(
@@ -42,6 +43,20 @@ export const bundledPackages = [
   ["@nervekit/tools", "tools"],
   ["@nervekit/workbench-server", "workbench-server"],
 ];
+
+for (const directory of versionLockedPackages) {
+  if (!workspacePackageByDirectory.has(directory)) {
+    throw new Error(`Unknown version-locked workspace package: ${directory}`);
+  }
+}
+for (const [name, directory] of bundledPackages) {
+  const definition = workspacePackageByDirectory.get(directory);
+  if (definition?.name !== name) {
+    throw new Error(
+      `Bundled package inventory mismatch: ${name} at ${directory}`,
+    );
+  }
+}
 
 export async function readJson(relativePath, rootDirectory = repoRoot) {
   return JSON.parse(await readFile(join(rootDirectory, relativePath), "utf8"));

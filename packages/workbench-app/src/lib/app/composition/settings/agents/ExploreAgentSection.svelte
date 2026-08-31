@@ -1,22 +1,19 @@
 <script lang="ts">
-import { thinkingLevels } from "@nervekit/contracts";
+import { thinkingLevels } from "@nervekit/contracts/models";
 import type {
   AuthProviderMetadata,
   ModelInfo,
   ModelSelection,
   Settings,
 } from "$lib/api";
-import {
-  SettingsGroup,
-  SettingsKeyValueRow,
-} from "$lib/presentation/components/settings";
+import { SettingsGroup, SettingsKeyValueRow } from "$lib/presentation/settings";
 import {
   modelDisplayName,
   modelKey,
   providerDisplayName,
   usableModelOptions,
 } from "$lib/presentation/utils/model";
-import type { SettingsChange } from "$lib/features/settings/components/pages/settings-change";
+import type { SettingsChange } from "$lib/features/settings/views/pages/settings-change";
 import ModelPickerRow from "./ModelPickerRow.svelte";
 
 type Props = {

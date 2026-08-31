@@ -1,4 +1,4 @@
-import type { GitFileChange, GitStatusCode } from "@nervekit/contracts";
+import type { GitFileChange, GitStatusCode } from "@nervekit/contracts/git";
 
 export interface PorcelainBranchInfo {
   head: string | null;

@@ -11,7 +11,7 @@ import {
   resolve,
 } from "node:path";
 import { promisify } from "node:util";
-import type { CompletionItem } from "@nervekit/contracts";
+import type { CompletionItem } from "@nervekit/contracts/completions";
 import { fdir } from "fdir";
 import {
   labelNameOffset,

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { CanonicalStore } from "../../infrastructure/canonical-store/index.js";
-import { storagePaths } from "../../infrastructure/storage/paths.js";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/index.js";
+import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 
 const enablementRecordSchema = z.object({
   definitionKey: z.string().min(1),

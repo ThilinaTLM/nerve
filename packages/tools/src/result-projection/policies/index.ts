@@ -1,4 +1,4 @@
-import type { ToolName } from "@nervekit/contracts";
+import type { ToolName } from "@nervekit/contracts/tools";
 import type { AgentResultPolicy } from "../types.js";
 import {
   confluenceDownloadAgentResultPolicy,

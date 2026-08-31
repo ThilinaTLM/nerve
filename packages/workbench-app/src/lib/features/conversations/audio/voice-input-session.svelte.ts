@@ -1,6 +1,6 @@
-import { pendingConversationKey } from "$lib/kernel/navigation/view-keys";
+import { pendingConversationKey } from "$lib/domain/navigation/view-keys";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { ensureConversationView } from "$lib/features/conversations/state/state";
+import { ensureConversationView } from "$lib/features/conversations/state/conversation-view-actions";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { TranscriptionController } from "./transcription-controller.svelte";
 import {
@@ -194,3 +194,9 @@ class VoiceInputSession {
 }
 
 export const voiceInputSession = new VoiceInputSession();
+
+export function cancelVoiceInputTargets(
+  targets: VoiceInputTarget[],
+): Promise<void> {
+  return voiceInputSession.cancelIfTargets(targets);
+}

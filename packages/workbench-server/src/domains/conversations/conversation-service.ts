@@ -1,11 +1,11 @@
 import type { Message } from "@earendil-works/pi-ai";
-import { convertToLlm } from "@nervekit/harness";
+import { convertToLlm } from "@nervekit/harness/messages";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
-  AgentRecord,
   ConversationEntry,
   ConversationRecord,
-  ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import type { ConversationHarnessStorage } from "./conversation-harness-storage.js";
 import type { EntryRepository } from "./index.js";
 
@@ -45,6 +45,24 @@ export class ConversationService {
         agent.id,
         conversationMessages.get(agent.conversationId) ?? [],
       );
+    }
+  }
+
+  async rebuildConversation(
+    project: ProjectRecord,
+    conversation: ConversationRecord,
+    agents: Iterable<AgentRecord>,
+    entries: ConversationEntry[],
+  ): Promise<void> {
+    const messages = await this.contextMessagesForConversation(
+      conversation,
+      project.dir,
+      new Map([[conversation.id, entries]]),
+    );
+    for (const agent of agents) {
+      if (agent.conversationId === conversation.id) {
+        this.agentConversationCache.set(agent.id, messages);
+      }
     }
   }
 

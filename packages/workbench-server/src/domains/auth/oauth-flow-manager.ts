@@ -4,11 +4,11 @@ import type {
   AuthPrompt,
   Provider,
 } from "@earendil-works/pi-ai";
+import { createId } from "@nervekit/contracts";
 import {
-  createId,
   type OAuthFlowInfo,
   type RespondOAuthFlowRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/auth";
 import { ApplicationError } from "../../core/application-error.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { AuthManager } from "./auth-manager.js";

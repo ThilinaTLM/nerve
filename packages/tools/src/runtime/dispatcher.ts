@@ -1,8 +1,11 @@
-import type { ToolName } from "@nervekit/contracts";
+import type { ToolName } from "@nervekit/contracts/tools";
 import { toolManifest } from "../catalog/manifest.js";
-import { normalizeToolArguments } from "../catalog/normalize-arguments.js";
-import type { ToolDefinition } from "../catalog/types.js";
-import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
+import { normalizeToolArguments } from "../catalog/argument-normalization.js";
+import type { ToolDefinition } from "../catalog/contracts.js";
+import type {
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from "../execution/execution-context.js";
 import {
   type ToolDecision,
   type ToolHandler,

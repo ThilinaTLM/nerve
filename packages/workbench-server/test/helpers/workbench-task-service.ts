@@ -6,28 +6,28 @@ import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after } from "node:test";
+import { createId } from "@nervekit/contracts";
 import {
-  createId,
   type StartTaskRequest,
   type TaskLaunchConfig,
   type TaskListeningPort,
   type TaskRecord,
   type TaskRuntime,
-} from "@nervekit/contracts";
-import type { TaskLaunchConfigStore } from "../../src/domains/tasks/task-launch-config.store.js";
-import { TaskRepository } from "../../src/domains/tasks/task.repository.js";
-import { WorkbenchTaskService } from "../../src/domains/tasks/workbench-task-service.js";
+} from "@nervekit/contracts/tasks";
+import type { TaskLaunchConfigStore } from "../../src/domains/tasks/persistence/task-launch-config.store.js";
+import { TaskRepository } from "../../src/domains/tasks/persistence/task.repository.js";
+import { WorkbenchTaskService } from "../../src/domains/tasks/adapters/workbench-task-service.js";
 import type {
   SpawnManagedTaskOptions,
   TaskSupervisor,
   TerminateTaskResult,
-} from "../../src/domains/tasks/task-supervisor.js";
+} from "../../src/domains/tasks/application/task-supervisor.js";
 import { StreamLogRegistry } from "../../src/infrastructure/events/index.js";
-import { RuntimeQueryCache } from "../../src/infrastructure/query-cache/index.js";
+import { RuntimeQueryCache } from "../../src/infrastructure/persistence/query-cache/index.js";
 import {
   type InitializedStorage,
   initializeStorage,
-} from "../../src/infrastructure/storage/index.js";
+} from "../../src/infrastructure/storage-bootstrap/index.js";
 
 export interface FakeChild extends ChildProcess {
   stdout: EventEmitter;

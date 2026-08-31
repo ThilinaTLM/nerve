@@ -2,11 +2,11 @@
 import { WorkbenchShell } from "$lib/presentation/shell";
 import DesktopShutdownOverlay from "$lib/app/shell/DesktopShutdownOverlay.svelte";
 import WorkbenchEditorHost from "$lib/app/shell/WorkbenchEditorHost.svelte";
-import PanelViewHost from "$lib/app/composition/WorkbenchPanelHost.svelte";
+import PanelViewHost from "$lib/app/composition/hosts/WorkbenchPanelHost.svelte";
 import ProjectDialogHost from "$lib/app/shell/ProjectDialogHost.svelte";
 import WorkbenchStatusBarHost from "$lib/app/shell/WorkbenchStatusBarHost.svelte";
 import WorkbenchTitlebarHost from "$lib/app/shell/WorkbenchTitlebarHost.svelte";
-import { panelViewDescriptors } from "$lib/app/composition/panel-views";
+import { panelViewDescriptors } from "$lib/app/composition/registries/panel-registry";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import {
   activatePanelView,

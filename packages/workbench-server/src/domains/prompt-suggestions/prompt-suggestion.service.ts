@@ -1,19 +1,19 @@
 import { mkdir, open, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
-import type { GitService } from "@nervekit/tools";
+import type { GitService } from "@nervekit/tools/git";
+import type { AgentRecord } from "@nervekit/contracts/agents";
+import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import type {
-  AgentRecord,
-  ConversationRecord,
   CreatePromptSuggestionRequest,
-  ProjectRecord,
   PromptSuggestionListResponse,
   PromptSuggestionStatus,
   UpdatePromptSuggestionEnabledRequest,
   UpdatePromptSuggestionTrustRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/prompt-suggestions";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import { storagePaths } from "../../infrastructure/storage/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
+import { storagePaths } from "../../infrastructure/storage-bootstrap/index.js";
 import { builtinPromptSuggestionDefinitions } from "./prompt-suggestion-builtins.js";
 import type { PromptSuggestionEnablementRepository } from "./prompt-suggestion-enablement.repository.js";
 import { evaluatePromptSuggestions } from "./prompt-suggestion-evaluator.js";

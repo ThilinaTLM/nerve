@@ -19,7 +19,7 @@ export type TabsListVariant = VariantProps<typeof tabsListVariants>["variant"];
 
 <script lang="ts">
 import { Tabs as TabsPrimitive } from "bits-ui";
-import { cn } from "@nervekit/ui-kit/core/utils";
+import { cn } from "@nervekit/ui-kit/utils";
 
 let {
   ref = $bindable(null),

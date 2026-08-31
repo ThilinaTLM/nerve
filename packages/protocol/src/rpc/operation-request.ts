@@ -1,12 +1,14 @@
 import {
   operationDefinition,
   parseOperationParams,
-  protocolRequestDataSchema,
   type OperationName,
   type OperationParams,
+} from "@nervekit/contracts/operations";
+import {
+  protocolRequestDataSchema,
   type PeerDescriptor,
   type ProtocolRequestData,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
 
 export interface OperationRequestFailure {
   readonly code: "AUTH_FORBIDDEN" | "VALIDATION_FAILED";

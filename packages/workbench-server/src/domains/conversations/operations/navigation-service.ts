@@ -1,11 +1,11 @@
-import type { ConversationTreeEntry } from "@nervekit/harness";
+import type { ConversationTreeEntry } from "@nervekit/harness/conversation";
 import type {
   ConversationActiveRunSnapshot,
   ConversationEntry,
   ConversationRecord,
   NavigateConversationRequest,
-  ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../../core/application-error.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversation-harness-storage.js";
@@ -18,13 +18,17 @@ export class NavigationService {
       conversationId: string,
     ) => ConversationRecord,
     private readonly getProject: (projectId: string) => ProjectRecord,
-    private readonly entriesByConversationId: Map<string, ConversationEntry[]>,
+    private readonly conversationEntries:
+      | Map<string, ConversationEntry[]>
+      | ((conversationId: string) => Promise<ConversationEntry[]>),
     private readonly updateConversation: (
       conversation: ConversationRecord,
     ) => Promise<void>,
     private readonly appendEntry: AppendConversationEntry,
     private readonly harnessStorage: ConversationHarnessStorage,
-    private readonly rebuildConversations: () => Promise<void>,
+    private readonly rebuildConversation: (
+      conversationId: string,
+    ) => Promise<void>,
     private readonly events: StreamLogRegistry,
     private readonly getActiveRunStatus: (
       conversationId: string,
@@ -36,6 +40,10 @@ export class NavigationService {
     request: NavigateConversationRequest,
   ): Promise<ConversationRecord> {
     const conversation = this.getConversation(conversationId);
+    const entries =
+      typeof this.conversationEntries === "function"
+        ? await this.conversationEntries(conversationId)
+        : (this.conversationEntries.get(conversationId) ?? []);
     const activeEntryId = request.activeEntryId ?? undefined;
     if (conversation.activeEntryId !== activeEntryId) {
       const activeRunStatus = await this.getActiveRunStatus(conversationId);
@@ -47,12 +55,7 @@ export class NavigationService {
         );
       }
     }
-    if (
-      activeEntryId &&
-      !(this.entriesByConversationId.get(conversation.id) ?? []).some(
-        (entry) => entry.id === activeEntryId,
-      )
-    ) {
+    if (activeEntryId && !entries.some((entry) => entry.id === activeEntryId)) {
       throw new ApplicationError(404, "ENTRY_NOT_FOUND", "Entry not found.");
     }
 
@@ -73,7 +76,7 @@ export class NavigationService {
     };
     await this.updateConversation(updated);
     await this.harnessStorage.setLeaf(updated, nextActiveEntryId);
-    await this.rebuildConversations();
+    await this.rebuildConversation(conversationId);
     await this.events.publish("conversation.navigated", {
       conversationId: conversation.id,
       activeEntryId: nextActiveEntryId,

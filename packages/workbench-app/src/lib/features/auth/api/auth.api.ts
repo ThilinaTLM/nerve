@@ -4,15 +4,15 @@ import type {
   EncryptedSecretEnvelope,
   OAuthFlowInfo,
   RespondOAuthFlowRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/auth";
 import {
   apiDelete,
   apiGet,
   apiPathSegment,
   apiPost,
   apiPut,
-} from "@nervekit/ui-kit/core/api/client";
-import { protocolRequest } from "@nervekit/protocol";
+} from "$lib/platform/http/api-client";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export async function getAuthProviders(): Promise<AuthProviderMetadata[]> {
   return (await protocolRequest("auth.providers.list", {})).result.providers;

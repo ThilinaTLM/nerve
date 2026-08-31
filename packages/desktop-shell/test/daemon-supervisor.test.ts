@@ -10,7 +10,7 @@ import type {
   DaemonStatus,
   DaemonStatusInfo,
   ManagedDaemon,
-} from "../src/daemon/types.ts";
+} from "../src/daemon/contracts.ts";
 import {
   fakeDaemonWorld,
   type FakeDaemonWorld,
@@ -35,6 +35,7 @@ function ownedSupervisor(
       serverMain: "/opt/nerve/server/main.js",
       launchEnv: { ELECTRON_RUN_AS_NODE: "1" },
       readinessTimeoutMs,
+      effectiveMaxOldSpaceMb: 512,
     },
     world.ports,
   );
@@ -60,6 +61,8 @@ describe("daemon supervisor", () => {
       assert.match(error.message, /exited before it became ready with code 1/);
       assert.match(error.message, /Startup timeout: 1000ms/);
       assert.match(error.message, /Crash report: \/crash\/1.json/);
+      assert.match(error.message, /Effective daemon heap: 512 MB/);
+      assert.doesNotMatch(error.message, /exhausted its JavaScript heap/);
       assert.match(error.daemonOutput, /RunRevisionConflictError/);
       assert.equal(
         isDaemonStartupErrorCode(error, "RUN_REVISION_CONFLICT"),
@@ -70,6 +73,27 @@ describe("daemon supervisor", () => {
     await world.scheduler.advance(1_000);
     await rejected;
     assert.equal(world.crashReports[0]?.kind, "startupExit");
+  });
+
+  it("adds actionable guidance for startup heap exhaustion without retrying", async () => {
+    const world = fakeDaemonWorld({ discovery: [undefined] });
+    const startup = ownedSupervisor(world).startOwned();
+    world.children[0]?.emitOutput(
+      "stderr",
+      "FATAL ERROR: MarkCompactCollector: young object promotion failed Allocation failed - JavaScript heap out of memory\n",
+    );
+    world.children[0]?.exit(null, "SIGABRT");
+    const rejected = assert.rejects(startup, (error) => {
+      assert.ok(error instanceof DaemonStartupError);
+      assert.match(error.message, /Effective daemon heap: 512 MB/);
+      assert.match(error.message, /exhausted its JavaScript heap/);
+      assert.match(error.message, /NERVE_DAEMON_MAX_OLD_SPACE_MB/);
+      return true;
+    });
+    await world.scheduler.advance(1_000);
+    await rejected;
+    assert.equal(world.launches.length, 1);
+    assert.equal(world.crashReports[0]?.context?.effectiveMaxOldSpaceMb, 512);
   });
 
   it("extends startup readiness while the daemon reports migration progress", async () => {

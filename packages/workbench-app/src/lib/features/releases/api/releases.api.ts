@@ -1,5 +1,5 @@
-import type { LatestRelease } from "@nervekit/contracts";
-import { protocolRequest } from "@nervekit/protocol";
+import type { LatestRelease } from "@nervekit/contracts/status";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export async function getLatestRelease(): Promise<LatestRelease> {
   return (await protocolRequest("status.latestRelease.get", {})).result;

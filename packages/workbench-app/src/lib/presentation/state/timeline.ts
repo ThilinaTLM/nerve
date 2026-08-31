@@ -1,9 +1,9 @@
 import {
   type ConversationActiveRunSnapshot,
   type ConversationLiveToolOutputSnapshot,
-  isTerminalToolStatus,
-  type ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import { isTerminalToolStatus } from "@nervekit/contracts/events";
+import { type ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import { type ToolDraftViewModel } from "./active-run.js";
 import { buildActiveRunTimeline } from "./active-run-timeline.js";
 import {

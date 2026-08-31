@@ -1,17 +1,17 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";
+import { type AgentRecord } from "@nervekit/contracts/agents";
+import { createId } from "@nervekit/contracts";
+import { type Mode } from "@nervekit/contracts/settings";
 import {
-  type AgentRecord,
-  createId,
-  type Mode,
   type PlanReviewRecord,
   PLAN_REVIEW_SUMMARY_PREVIEW_CHARACTERS,
   type PlanReviewStatus,
   toPlanReviewPreview,
-  type ToolCallRecord,
-} from "@nervekit/contracts";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import { pathExists } from "../../infrastructure/storage/index.js";
+} from "@nervekit/contracts/plans";
+import { type ToolCallRecord } from "@nervekit/contracts/tools";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
+import { pathExists } from "../../infrastructure/storage-bootstrap/index.js";
 import {
   isPathInsidePlanDir,
   planDirForStorageHome,

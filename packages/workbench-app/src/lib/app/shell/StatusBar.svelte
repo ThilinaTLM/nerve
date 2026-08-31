@@ -9,7 +9,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { ShellStatusBar, type DockToggle } from "$lib/presentation/shell";
 import type { TaskRecord, ProjectRecord, StatusResponse } from "$lib/api";
 import type { SubscriptionUsageEntry } from "$lib/features/usage";
-import { tildePath } from "$lib/kernel/utils/path";
+import { tildePath } from "$lib/domain/filesystem/project-path";
 import StatusPopover from "./StatusPopover.svelte";
 import { SubscriptionUsageChip } from "$lib/features/usage";
 import LayoutControl from "./LayoutControl.svelte";

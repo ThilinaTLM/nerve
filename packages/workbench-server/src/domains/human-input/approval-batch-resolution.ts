@@ -1,16 +1,13 @@
 import { createHash } from "node:crypto";
-import type {
-  ApprovalRecord,
-  ConversationEntry,
-  ToolCallRecord,
-} from "@nervekit/contracts";
+import type { ApprovalRecord, ToolCallRecord } from "@nervekit/contracts/tools";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import { ApplicationError } from "../../core/application-error.js";
 import type {
   ApprovalInteractionBatch,
   WorkbenchRunService,
-} from "../runs/workbench-run.service.js";
-import type { ToolService } from "../tools/tool-service.js";
-import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
+} from "../runs/application/workbench-run.service.js";
+import type { ToolService } from "../tools/execution/tool-service.js";
+import { toToolCallTranscriptRecord } from "../tools/artifacts/tool-call-transcript-preview.js";
 
 interface ApprovalBatchResolutionDeps {
   tools: ToolService;
@@ -21,7 +18,7 @@ interface ApprovalBatchResolutionDeps {
   ): Promise<ConversationEntry>;
   existingToolResultEntry(
     toolCall: ToolCallRecord,
-  ): ConversationEntry | undefined;
+  ): Promise<ConversationEntry | undefined>;
 }
 
 export class ApprovalBatchResolutionService {
@@ -239,7 +236,7 @@ export class ApprovalBatchResolutionService {
 
     const entries: ConversationEntry[] = [];
     for (const toolCall of toolCalls) {
-      const existing = this.deps.existingToolResultEntry(toolCall);
+      const existing = await this.deps.existingToolResultEntry(toolCall);
       entries.push(
         existing ??
           (await this.deps.appendToolResult(

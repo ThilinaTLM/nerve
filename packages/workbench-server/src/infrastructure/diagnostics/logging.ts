@@ -8,15 +8,15 @@ import {
   type ApplicationLogRecord,
   type ApplicationLogSource,
   applicationLogRecordSchema,
-  createId,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/logs";
+import { createId } from "@nervekit/contracts";
 import {
   appendJsonLine,
   forEachJsonLineReverse,
   readJsonLines,
   readJsonLinesTail,
   rewriteJsonLines,
-} from "../storage/index.js";
+} from "../storage-bootstrap/index.js";
 
 export type ApplicationLogContext = Partial<
   Pick<

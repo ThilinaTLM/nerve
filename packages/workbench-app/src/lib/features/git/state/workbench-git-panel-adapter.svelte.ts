@@ -15,7 +15,7 @@ import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
 import {
   gitProjectStateKey,
   gitRepoStateKey,
-} from "$lib/kernel/navigation/view-keys";
+} from "$lib/domain/navigation/view-keys";
 import { pendingPollTargets, PR_PENDING_POLL_MS } from "./git-refresh-policy";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { shouldActivateGitPanel } from "./git-startup-policy";

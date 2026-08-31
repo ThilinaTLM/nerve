@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { LatestRelease } from "@nervekit/contracts";
+import type { LatestRelease } from "@nervekit/contracts/status";
 import Check from "@lucide/svelte/icons/check";
 import Copy from "@lucide/svelte/icons/copy";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -7,7 +7,7 @@ import Popover, {
   PopoverBody,
   PopoverHeader,
   PopoverSection,
-} from "@nervekit/ui-kit/components/ui/popover-panel";
+} from "@nervekit/ui-kit/components/composites/popover-panel";
 import { onDestroy } from "svelte";
 import { scale } from "svelte/transition";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";

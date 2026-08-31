@@ -1,5 +1,8 @@
 import type { SubscriptionUsage } from "$lib/api";
-import { onEvent, type WorkbenchEvent } from "$lib/kernel/events/event-bus";
+import {
+  onEvent,
+  type WorkbenchEvent,
+} from "$lib/application/events/event-bus";
 import { usageState } from "./usage-state.svelte";
 
 export function registerUsageEventHandlers(): () => void {

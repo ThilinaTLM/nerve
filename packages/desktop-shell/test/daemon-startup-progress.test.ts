@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { DaemonStartupProgress } from "@nervekit/contracts";
+import type { DaemonStartupProgress } from "@nervekit/contracts/storage";
 import { DaemonStartupProgressDecoder } from "../src/daemon/startup-progress.js";
 
 describe("daemon startup progress", () => {

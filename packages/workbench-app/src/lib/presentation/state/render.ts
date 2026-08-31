@@ -1,4 +1,4 @@
-import type { QueuedPromptRecord } from "@nervekit/contracts";
+import type { QueuedPromptRecord } from "@nervekit/contracts/agents";
 import { activeRunStreamingText } from "./active-run.js";
 import { buildActiveRunTimeline } from "./active-run-timeline.js";
 import {
@@ -8,7 +8,7 @@ import {
 } from "./timeline.js";
 import { hasActiveTurnTimelineOutput } from "./timeline-output.js";
 import { entriesToTranscript } from "./transcript.js";
-import type { ConversationRenderState } from "./types.js";
+import type { ConversationRenderState } from "./conversation-render-state.js";
 
 export type ConversationRenderProjection = {
   timeline: TimelineItem[];

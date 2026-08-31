@@ -1,4 +1,4 @@
-import type { ToolGroupName, ToolName } from "@nervekit/contracts";
+import type { ToolGroupName, ToolName } from "@nervekit/contracts/tools";
 import { toolManifest } from "../catalog/manifest.js";
 import type { ToolAvailabilityInput } from "./types.js";
 

@@ -1,0 +1,34 @@
+import {
+  conversationSnapshotResponseSchema,
+  workspaceSnapshotResponseSchema,
+} from "../../snapshots/runtime-snapshot.js";
+import { z } from "zod";
+import { defineOperation } from "../../operations/definition.js";
+
+const emptyParamsSchema = z.object({}).optional();
+const conversationIdSchema = z.string().startsWith("conv_");
+const conversationIdParamsSchema = z.object({
+  conversationId: conversationIdSchema,
+});
+const conversationSnapshotParamsSchema = conversationIdParamsSchema;
+
+export const snapshotsOperationDefinitions = [
+  defineOperation(
+    "snapshot.workspace.get",
+    emptyParamsSchema,
+    workspaceSnapshotResponseSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.snapshot.workspace.get",
+  ),
+  defineOperation(
+    "snapshot.conversation.get",
+    conversationSnapshotParamsSchema,
+    conversationSnapshotResponseSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.snapshot.conversation.get",
+  ),
+] as const;

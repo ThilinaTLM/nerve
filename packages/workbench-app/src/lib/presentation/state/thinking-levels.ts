@@ -1,8 +1,5 @@
-import {
-  type AgentRecord,
-  type ModelInfo,
-  thinkingLevels,
-} from "@nervekit/contracts";
+import { type AgentRecord } from "@nervekit/contracts/agents";
+import { type ModelInfo, thinkingLevels } from "@nervekit/contracts/models";
 
 export const THINKING_LEVEL_ORDER: AgentRecord["thinkingLevel"][] = [
   ...thinkingLevels,

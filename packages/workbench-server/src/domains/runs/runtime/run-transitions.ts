@@ -1,6 +1,6 @@
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { PromptImage } from "@nervekit/contracts/agents";
 import type {
-  ConversationEntry,
-  PromptImage,
   RunCheckpointRecord,
   RunExecutionRecord,
   RunFailureRecord,
@@ -9,13 +9,13 @@ import type {
   RunPublicEventIntent,
   RunTransitionRecord,
   RunRecord,
-  ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
+import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import {
   RUN_FAILURE_MESSAGE_MAX_LENGTH,
   RUN_STATE_EPOCH,
-} from "@nervekit/contracts";
-import type { IdPort } from "../../../core/ports.js";
+} from "@nervekit/contracts/runs";
+import type { IdPort } from "../../../core/ports/ids.js";
 import type { RunHydratedState } from "./run-unit-of-work.js";
 
 export const ACTIVE_STATUSES = new Set<RunRecord["status"]>([

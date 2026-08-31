@@ -1,12 +1,10 @@
 import type { AgentHarnessEvent } from "@nervekit/harness";
-import {
-  PUBLIC_EVENT_MAX_STRING_CHARS,
-  type AgentRecord,
-  type ConversationActiveRunSnapshot,
-} from "@nervekit/contracts";
+import { PUBLIC_EVENT_MAX_STRING_CHARS } from "@nervekit/contracts/events";
+import { type AgentRecord } from "@nervekit/contracts/agents";
+import { type ConversationActiveRunSnapshot } from "@nervekit/contracts/conversations";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import { ConversationRuntime } from "../runs/runtime/conversation-runtime.js";
-import { assistantContentRedacted } from "./run/harness-execution-shared.js";
+import { assistantContentRedacted } from "./execution/harness-execution-shared.js";
 
 type ChildLiveState = {
   parentAgentId: string;

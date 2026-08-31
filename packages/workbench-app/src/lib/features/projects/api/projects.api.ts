@@ -1,21 +1,25 @@
-import { taskDefinitionSchema } from "@nervekit/contracts";
+import { taskDefinitionSchema } from "@nervekit/contracts/task-definitions";
 import type {
   CreateTaskDefinitionRequest,
+  TaskDefinition,
+  UpdateTaskDefinitionRequest,
+} from "@nervekit/contracts/task-definitions";
+import type {
   OpenProjectInEditorResponse,
   OpenProjectInTerminalResponse,
-  PermissionOverlay,
-  PermissionOverlayOrigin,
-  PermissionPolicyConfiguration,
   ProjectEditor,
-  ProjectPermissionTrust,
-  TaskDefinition,
   ProjectRecord,
   ProjectPermissions,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
-  UpdateTaskDefinitionRequest,
-} from "@nervekit/contracts";
-import { protocolRequest } from "@nervekit/protocol";
+} from "@nervekit/contracts/projects";
+import type {
+  PermissionOverlay,
+  PermissionOverlayOrigin,
+  PermissionPolicyConfiguration,
+  ProjectPermissionTrust,
+} from "@nervekit/contracts/permissions";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export async function createProject(dir: string): Promise<ProjectRecord> {
   return (await protocolRequest("project.create", { dir })).result.project;

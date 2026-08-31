@@ -1,6 +1,6 @@
 import { getFileContent } from "$lib/api";
-import { fileViewKey, mermaidViewKey } from "$lib/kernel/navigation/view-keys";
-import { defaultFileDisplayMode } from "@nervekit/ui-kit/core/utils/file-display";
+import { fileViewKey, mermaidViewKey } from "$lib/domain/navigation/view-keys";
+import { defaultFileDisplayMode } from "@nervekit/ui-kit/display/file-display";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import {
   fileViewerPreferences,

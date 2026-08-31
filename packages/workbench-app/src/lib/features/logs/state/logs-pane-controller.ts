@@ -5,7 +5,7 @@ import type {
   ApplicationLogQueryResponse,
   ApplicationLogRecord,
   ApplicationLogSource,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/logs";
 import { formatApplicationLog } from "$lib/presentation/logs/log-entry";
 
 export type LogLevelFilter = ApplicationLogLevel | "all";

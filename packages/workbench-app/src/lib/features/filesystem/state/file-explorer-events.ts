@@ -1,4 +1,7 @@
-import { onEvent, type WorkbenchEvent } from "$lib/kernel/events/event-bus";
+import {
+  onEvent,
+  type WorkbenchEvent,
+} from "$lib/application/events/event-bus";
 
 function changedProjectId(event: WorkbenchEvent): string | undefined {
   if (event.type !== "filesystem.project.changed") return undefined;

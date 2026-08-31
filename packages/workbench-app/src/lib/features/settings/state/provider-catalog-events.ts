@@ -1,4 +1,7 @@
-import { onAnyEvent, type WorkbenchEvent } from "$lib/kernel/events/event-bus";
+import {
+  onAnyEvent,
+  type WorkbenchEvent,
+} from "$lib/application/events/event-bus";
 import { refreshProviderCatalog } from "./provider-catalog-actions.svelte";
 import { providerCatalogState } from "./provider-catalog-state.svelte";
 

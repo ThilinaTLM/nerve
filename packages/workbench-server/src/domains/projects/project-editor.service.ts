@@ -7,15 +7,17 @@ import {
   locateExecutable,
   type ResolvedExecutable,
   spawnExecutable,
-} from "@nervekit/tools";
+} from "@nervekit/tools/execution";
 import type {
   ExternalEditorStatus,
   ExternalEditorStatuses,
+} from "@nervekit/contracts/status";
+import type {
   OpenProjectInEditorRequest,
   OpenProjectInEditorResponse,
   ProjectEditor,
   ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../core/application-error.js";
 import { resolveProjectLaunchTarget } from "./project-launch-target.js";
 

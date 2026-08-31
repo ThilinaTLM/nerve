@@ -1,11 +1,11 @@
-import type { DaemonFile } from "@nervekit/contracts";
+import type { DaemonFile } from "@nervekit/contracts/status";
 import {
   isLoopbackHost,
   isPrivateIpv4,
   isVirtualInterface,
   isWildcardHost,
 } from "@nervekit/workbench-server";
-import type { ShareUrls } from "./types.js";
+import type { ShareUrls } from "./contracts.js";
 
 /**
  * Pure URL/host policy for daemon connections and LAN/mobile sharing. The

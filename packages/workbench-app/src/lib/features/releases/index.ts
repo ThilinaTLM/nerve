@@ -1,4 +1,4 @@
-export { releaseState } from "./state/release-state.svelte";
+export { releaseSelectors } from "./state/release-selectors.svelte";
 export {
   startReleasePolling,
   stopReleasePolling,

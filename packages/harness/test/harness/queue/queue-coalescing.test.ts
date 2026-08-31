@@ -3,11 +3,11 @@ import { describe, it } from "node:test";
 import {
   coalesceQueuedUserEntries,
   takeQueuedMessageEntries,
-} from "../../../src/runtime/queue/coalescing.js";
-import type { InboundQueuedMessage } from "../../../src/runtime/queue/operations.js";
-import { createHarnessMessage } from "../../../src/runtime/messages.js";
-import { createUserMessage } from "../../../src/runtime/run/messages.js";
-import type { AgentMessage } from "../../../src/agent/types/index.js";
+} from "../../../src/harness/queue/coalescing.js";
+import type { InboundQueuedMessage } from "../../../src/harness/queue/operations.js";
+import { createHarnessMessage } from "../../../src/messages/messages.js";
+import { createUserMessage } from "../../../src/harness/run/run-messages.js";
+import type { AgentMessage } from "../../../src/agent/contracts/index.js";
 
 function textOf(message: AgentMessage): string {
   if (message.role === "user") {

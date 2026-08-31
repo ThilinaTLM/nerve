@@ -1,5 +1,5 @@
-import { relativePathForDisplay } from "@nervekit/ui-kit/core/utils/path-links";
-import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
+import { relativePathForDisplay } from "@nervekit/ui-kit/display/path-links";
+import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts/conversations";
 
 /** Canonical tool-draft content block; local alias for signature brevity. */
 type ToolDraftBlock = ConversationLiveToolDraftBlockSnapshot;

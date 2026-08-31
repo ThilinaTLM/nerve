@@ -5,21 +5,75 @@ import {
 } from "$lib/presentation/utils/model";
 import { activeRunStreamingText } from "$lib/presentation/state";
 import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
-import type { PlanReviewRecord, UserQuestionRecord } from "$lib/api";
+import type {
+  AgentRecord,
+  AuthProviderMetadata,
+  ConversationRecord,
+  ModelInfo,
+  PlanReviewRecord,
+  ProjectRecord,
+  Settings,
+  SubscriptionUsage,
+  UserQuestionRecord,
+} from "$lib/api";
+import type { ConversationActivityState } from "$lib/domain/conversations/activity";
 import {
   conversationViewKey,
   pendingConversationKey,
-} from "$lib/kernel/navigation/view-keys";
-import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
-import { usageReadModel } from "$lib/application/usage/usage-read-model.svelte";
-import { selection } from "$lib/application/workspace/selection.svelte";
-import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
-import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+} from "$lib/domain/navigation/view-keys";
+export interface ConversationSelectorWorkspaceReadModel {
+  readonly selectedConversationId: string | undefined;
+  readonly selectedAgentId: string | undefined;
+  readonly activeCenterTab: { kind: string; id: string } | undefined;
+  readonly activeProject: ProjectRecord | undefined;
+  readonly activeConversation: ConversationRecord | undefined;
+  readonly activeAgent: AgentRecord | undefined;
+  readonly userQuestions: UserQuestionRecord[];
+  readonly planReviews: PlanReviewRecord[];
+  readonly conversationActivityById: Record<string, ConversationActivityState>;
+  readonly agents: AgentRecord[];
+  readonly connection: string;
+  readonly models: ModelInfo[];
+  readonly authProviders: AuthProviderMetadata[];
+  readonly settingsDraft: Settings | undefined;
+  readonly subscriptionUsage: Record<string, SubscriptionUsage>;
+}
+
+const unregisteredWorkspaceReadModel: ConversationSelectorWorkspaceReadModel = {
+  selectedConversationId: undefined,
+  selectedAgentId: undefined,
+  activeCenterTab: undefined,
+  activeProject: undefined,
+  activeConversation: undefined,
+  activeAgent: undefined,
+  userQuestions: [],
+  planReviews: [],
+  conversationActivityById: {},
+  agents: [],
+  connection: "connecting",
+  models: [],
+  authProviders: [],
+  settingsDraft: undefined,
+  subscriptionUsage: {},
+};
+
+let workspaceReadModel = unregisteredWorkspaceReadModel;
+
+export function registerConversationSelectorWorkspaceReadModel(
+  readModel: ConversationSelectorWorkspaceReadModel,
+): () => void {
+  workspaceReadModel = readModel;
+  return () => {
+    if (workspaceReadModel === readModel)
+      workspaceReadModel = unregisteredWorkspaceReadModel;
+  };
+}
 import { conversationState } from "./conversation-state.svelte";
 
 function activeView() {
   const conversationId =
-    selection.conversationId ?? conversationState.activeConversationTabId;
+    workspaceReadModel.selectedConversationId ??
+    conversationState.activeConversationTabId;
   if (!conversationId) return undefined;
   return conversationState.conversationViews[
     conversationViewKey(conversationId)
@@ -27,7 +81,7 @@ function activeView() {
 }
 
 function activePendingConversation() {
-  const active = workspaceState.activeCenterTab;
+  const active = workspaceReadModel.activeCenterTab;
   if (active?.kind !== "pending-conversation") return undefined;
   return conversationState.pendingConversations[
     pendingConversationKey(active.id)
@@ -36,13 +90,13 @@ function activePendingConversation() {
 
 const conversationSelectorsValue = {
   get activeProject() {
-    return workspaceSelectors.activeProject;
+    return workspaceReadModel.activeProject;
   },
   get activeConversation() {
-    return workspaceSelectors.activeConversation;
+    return workspaceReadModel.activeConversation;
   },
   get activeAgent() {
-    return workspaceSelectors.activeAgent;
+    return workspaceReadModel.activeAgent;
   },
   get activePendingConversation() {
     return activePendingConversation();
@@ -51,29 +105,30 @@ const conversationSelectorsValue = {
     return Boolean(activePendingConversation());
   },
   get activeUserQuestion(): UserQuestionRecord | undefined {
-    const conversationId = selection.conversationId;
-    const agentId = selection.agentId;
-    return workspaceSelectors.userQuestions.find((question) => {
+    const conversationId = workspaceReadModel.selectedConversationId;
+    const agentId = workspaceReadModel.selectedAgentId;
+    return workspaceReadModel.userQuestions.find((question) => {
       if (conversationId && question.conversationId === conversationId)
         return true;
       return Boolean(agentId && question.agentId === agentId);
     });
   },
   get activePlanReview(): PlanReviewRecord | undefined {
-    const conversationId = selection.conversationId;
-    const agentId = selection.agentId;
-    return workspaceSelectors.planReviews.find((review) => {
+    const conversationId = workspaceReadModel.selectedConversationId;
+    const agentId = workspaceReadModel.selectedAgentId;
+    return workspaceReadModel.planReviews.find((review) => {
       if (conversationId && review.conversationId === conversationId)
         return true;
       return Boolean(agentId && review.agentId === agentId);
     });
   },
   get conversationActivityById() {
-    return workspaceSelectors.conversationActivityById;
+    return workspaceReadModel.conversationActivityById;
   },
   get conversationAgents() {
-    return workspaceState.agents.filter(
-      (agent) => agent.conversationId === selection.conversationId,
+    return workspaceReadModel.agents.filter(
+      (agent) =>
+        agent.conversationId === workspaceReadModel.selectedConversationId,
     );
   },
   get conversationActiveRun() {
@@ -126,18 +181,18 @@ const conversationSelectorsValue = {
     return activeView()?.contextUsage;
   },
   get activeModelInfo() {
-    const model = workspaceState.agents.find(
-      (agent) => agent.id === selection.agentId,
+    const model = workspaceReadModel.agents.find(
+      (agent) => agent.id === workspaceReadModel.selectedAgentId,
     )?.model;
     if (!model) return undefined;
-    return settingsReadModel.models.find(
+    return workspaceReadModel.models.find(
       (candidate) =>
         candidate.provider === model.provider &&
         candidate.modelId === model.modelId,
     );
   },
   get activeContextWindow(): number {
-    const selectedModelInfo = settingsReadModel.models.find(
+    const selectedModelInfo = workspaceReadModel.models.find(
       (model) => modelKey(model) === conversationState.selectedModelKey,
     );
     if (selectedModelInfo?.contextWindow)
@@ -151,13 +206,13 @@ const conversationSelectorsValue = {
   },
   get usableModels() {
     return scopedUsableModelOptions(
-      settingsReadModel.models,
-      settingsReadModel.authProviders,
-      settingsReadModel.settingsDraft?.scopedModels,
+      workspaceReadModel.models,
+      workspaceReadModel.authProviders,
+      workspaceReadModel.settingsDraft?.scopedModels,
     );
   },
   get live() {
-    return workspaceState.connection === "live";
+    return workspaceReadModel.connection === "live";
   },
   get sending() {
     return (
@@ -166,15 +221,16 @@ const conversationSelectorsValue = {
   },
   get activeSubscriptionProvider() {
     return (
-      workspaceState.agents.find((agent) => agent.id === selection.agentId)
-        ?.model?.provider ??
+      workspaceReadModel.agents.find(
+        (agent) => agent.id === workspaceReadModel.selectedAgentId,
+      )?.model?.provider ??
       parseModelKey(conversationState.selectedModelKey)?.provider
     );
   },
   get activeSubscriptionUsage() {
     const provider = this.activeSubscriptionProvider;
     if (!provider) return undefined;
-    return usageReadModel.subscriptionUsage[provider];
+    return workspaceReadModel.subscriptionUsage[provider];
   },
 };
 

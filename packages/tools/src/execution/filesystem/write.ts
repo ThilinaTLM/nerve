@@ -1,13 +1,16 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import type {
+  FilesystemExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
 import { writeTextFileAtomically } from "./atomic-write.js";
 import { withFileMutationQueue } from "./file-mutation-queue.js";
 import { resolveToolPath } from "./path.js";
 
 export async function executeWrite(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: FilesystemExecutionContext,
 ): Promise<ToolExecutionResult> {
   const path = resolveToolPath(context.cwd, args.path);
   if (typeof args.content !== "string")

@@ -1,21 +1,21 @@
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
-  AgentRecord,
   PermissionException,
   LegacyPermissionRule,
   LegacyPermissionRuleMatcherKind,
   StaticToolRisk,
-  ToolName,
   ToolRisk,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/permissions";
+import type { ToolName } from "@nervekit/contracts/tools";
 import {
   evaluatePermissionRequest,
   evaluateToolPermission,
   evaluateToolSupervision,
   normalizePermissionRequest,
-  permissionMetadataForTool,
-} from "@nervekit/tools";
+} from "@nervekit/tools/policy";
+import { permissionMetadataForTool } from "@nervekit/tools/catalog";
 import { planningModeGuardrails } from "./planning-mode-guardrails.js";
 import { toolRequestContext } from "./tool-request-context.js";
 import type {

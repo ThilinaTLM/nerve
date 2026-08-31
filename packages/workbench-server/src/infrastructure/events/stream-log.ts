@@ -3,13 +3,13 @@ import { dirname } from "node:path";
 import {
   eventEnvelopeSchema,
   type EventEnvelope,
-  type StreamState,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/events";
+import { type StreamState } from "@nervekit/contracts/wire";
 import {
   atomicWriteFile,
   readJsonLines,
   type RenameDependencies,
-} from "../storage/index.js";
+} from "../storage-bootstrap/index.js";
 
 export interface StreamFlushObservation {
   readonly stream: string;

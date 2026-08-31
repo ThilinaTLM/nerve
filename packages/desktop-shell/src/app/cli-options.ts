@@ -1,15 +1,24 @@
-import { app } from "../electron.js";
+import { app } from "../platform/electron/electron-api.js";
 import {
   type ElectronFontRenderHinting,
   parseElectronFontRenderHinting,
   resolveElectronFontRenderHinting,
-} from "../shared/font-rendering.js";
+} from "../platform/chromium/font-rendering.js";
 import {
   electronOzonePlatformSwitch,
   type ElectronOzonePlatform,
   parseElectronOzonePlatform,
-} from "../shared/ozone-platform.js";
-import type { DesktopCliOptions } from "../types.js";
+} from "../platform/chromium/ozone-platform.js";
+export interface DesktopCliOptions {
+  mode?: "local" | "remote";
+  remoteUrl?: string;
+  token?: string;
+  host?: string;
+  port?: number;
+  httpsPort?: number;
+  allowRemote?: boolean;
+  mobileHttps?: boolean;
+}
 
 export type { ElectronFontRenderHinting, ElectronOzonePlatform };
 export {

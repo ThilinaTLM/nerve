@@ -11,4 +11,4 @@ export * from "./timeline-projection.js";
 export * from "./tool-types.js";
 export * from "./transcript.js";
 export * from "./transcript-types.js";
-export * from "./types.js";
+export * from "./conversation-render-state.js";

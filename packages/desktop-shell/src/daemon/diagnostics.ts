@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { ChildExit } from "./types.js";
+import type { ChildExit } from "./contracts.js";
 
 const MAX_OUTPUT_LINES = 200;
 
@@ -54,6 +54,12 @@ export function isDaemonStartupErrorCode(
   return error instanceof DaemonStartupError && error.hasDaemonErrorCode(code);
 }
 
+export function isHeapExhaustionOutput(output: string): boolean {
+  return /(?:heap out of memory|allocation failed[^\n]*javascript heap|young object promotion failed)/i.test(
+    output,
+  );
+}
+
 export function daemonStartupError(
   message: string,
   output: OutputBuffer,
@@ -61,6 +67,7 @@ export function daemonStartupError(
     dataDir?: string;
     readinessTimeoutMs?: number;
     crashReportPath?: string;
+    effectiveMaxOldSpaceMb?: number;
   },
 ): DaemonStartupError {
   const diagnostics = [
@@ -78,15 +85,21 @@ export function daemonStartupError(
     context?.crashReportPath
       ? `Crash report: ${context.crashReportPath}`
       : undefined,
+    context?.effectiveMaxOldSpaceMb
+      ? `Effective daemon heap: ${context.effectiveMaxOldSpaceMb} MB`
+      : undefined,
   ].filter((line): line is string => Boolean(line));
 
   const daemonOutput = output.tail();
+  const heapGuidance = isHeapExhaustionOutput(daemonOutput)
+    ? "The daemon exhausted its JavaScript heap. Raise application.daemon.maxOldSpaceMb or NERVE_DAEMON_MAX_OLD_SPACE_MB and restart the desktop app."
+    : undefined;
   return new DaemonStartupError(
     `${message}\n\nDaemon output:\n${daemonOutput}${
       diagnostics.length > 0
         ? `\n\nDiagnostics:\n${diagnostics.map((line) => `- ${line}`).join("\n")}`
         : ""
-    }`,
+    }${heapGuidance ? `\n\nGuidance:\n${heapGuidance}` : ""}`,
     daemonOutput,
   );
 }

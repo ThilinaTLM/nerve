@@ -15,40 +15,17 @@ import {
   findInertClassNames,
   isDynamicClass,
 } from "./lib/style-policy.mjs";
+import { allowedNerveDependencies } from "./lib/workspace-architecture.mjs";
+import { validatePackageExportSurfaces } from "./lib/package-export-surfaces.mjs";
+import { contractsSourcePolicyViolations } from "./lib/contracts-source-policy.mjs";
+import { serverTestRuntimePolicyViolations } from "./lib/server-test-runtime-policy.mjs";
+import { sourceNamingPolicyViolation } from "./lib/source-naming-policy.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const failures = [];
 const sourceExtensions = /\.(?:[cm]?[jt]sx?|svelte)$/;
 const releaseSurfaceExtensions =
   /(?:^|\/)(?:package\.json|pnpm-lock\.yaml|tsconfig(?:\.[^/]+)?\.json|Dockerfile|[^/]+\.(?:[cm]?[jt]sx?|svelte|md|json|ya?ml|toml|tf|sh))$/;
-
-const allowedNerveDependencies = new Map([
-  ["@nervekit/contracts", []],
-  ["@nervekit/native", []],
-  ["@nervekit/protocol", ["@nervekit/contracts"]],
-  ["@nervekit/harness", ["@nervekit/contracts", "@nervekit/native"]],
-  ["@nervekit/tools", ["@nervekit/contracts", "@nervekit/native"]],
-  ["@nervekit/ui-kit", []],
-  ["@nervekit/website", []],
-  [
-    "@nervekit/workbench-server",
-    [
-      "@nervekit/contracts",
-      "@nervekit/native",
-      "@nervekit/protocol",
-      "@nervekit/harness",
-      "@nervekit/tools",
-    ],
-  ],
-  [
-    "@nervekit/workbench-app",
-    ["@nervekit/contracts", "@nervekit/protocol", "@nervekit/ui-kit"],
-  ],
-  [
-    "@nervekit/desktop-shell",
-    ["@nervekit/contracts", "@nervekit/workbench-server"],
-  ],
-]);
 
 const packageByDirectory = new Map();
 for (const [name] of allowedNerveDependencies) {
@@ -58,7 +35,12 @@ for (const [name] of allowedNerveDependencies) {
 
 const trackedFiles = trackedRepositoryFiles();
 checkManifestGraph();
+for (const failure of validatePackageExportSurfaces(repoRoot))
+  fail("package exports", failure);
 checkSourceImports();
+checkContractsSourcePolicy();
+checkServerTestRuntimePolicy();
+checkSourceNamingPolicy();
 checkRetiredSurface();
 checkWorkbenchFeatureBoundaries();
 checkWorkbenchLayerBoundaries();
@@ -140,6 +122,29 @@ function checkSourceImports() {
           file,
           "presentation may not import app shells, feature state, or app core",
         );
+      if (file.startsWith("packages/workbench-server/src/adapters/")) {
+        const resolved = resolvedImportPath(file, specifier);
+        if (resolved.endsWith("/app/runtime/runtime-lifecycle.js"))
+          fail(
+            file,
+            "server adapters may not depend on process runtime lifecycle",
+          );
+        if (resolved.endsWith("/app/bootstrap/create-runtime-services.js"))
+          fail(
+            file,
+            "server adapters may not import the bootstrap service aggregate",
+          );
+      }
+      if (
+        file === "packages/desktop-shell/src/app/desktop-runtime.ts" &&
+        ["/platform/electron/electron-api.js", "/daemon/composition.js"].some(
+          (suffix) => resolvedImportPath(file, specifier).endsWith(suffix),
+        )
+      )
+        fail(
+          file,
+          "desktop runtime must receive Electron and daemon capabilities through injected ports",
+        );
       if (
         file.startsWith(
           "packages/workbench-server/src/domains/runs/runtime/",
@@ -152,7 +157,7 @@ function checkSourceImports() {
         );
       if (
         file === "packages/workbench-server/src/core/ports.ts" &&
-        specifier !== "@nervekit/contracts"
+        !specifier.startsWith("@nervekit/contracts")
       )
         fail(file, `server core ports may not import ${specifier}`);
       if (
@@ -164,6 +169,27 @@ function checkSourceImports() {
           `contracts must remain transport/framework-neutral: ${specifier}`,
         );
     }
+  }
+}
+
+function checkContractsSourcePolicy() {
+  for (const file of trackedFiles) {
+    for (const violation of contractsSourcePolicyViolations(file, read(file)))
+      fail(file, violation);
+  }
+}
+
+function checkServerTestRuntimePolicy() {
+  for (const file of trackedFiles) {
+    for (const violation of serverTestRuntimePolicyViolations(file, read(file)))
+      fail(file, violation);
+  }
+}
+
+function checkSourceNamingPolicy() {
+  for (const file of trackedFiles) {
+    const violation = sourceNamingPolicyViolation(file);
+    if (violation) fail(file, violation);
   }
 }
 
@@ -186,6 +212,9 @@ function checkRetiredSurface() {
     "/protocol/" + "session.ts",
     "/protocol/" + "manager-protocol-session.ts",
   ];
+  const retiredTextFragments = [
+    "packages/contracts/src/domains/" + "protocol/",
+  ];
   const retiredIdentifiers = [
     "class " + "TaskManager",
     "class " + "RunManager",
@@ -196,6 +225,7 @@ function checkRetiredSurface() {
     "type " + "AgentRunState",
     "legacy" + "NervePaths",
     "global" + "ProcessedSeqFromCursor",
+    "function " + "launchDesktopRuntime",
   ];
 
   for (const file of trackedFiles.filter((path) =>
@@ -205,6 +235,10 @@ function checkRetiredSurface() {
     for (const name of retiredPackages) {
       if (file !== "docs/release.md" && text.includes(name))
         fail(file, `retired package/path remains: ${name}`);
+    }
+    for (const fragment of retiredTextFragments) {
+      if (text.includes(fragment))
+        fail(file, `retired path reference remains: ${fragment}`);
     }
     for (const identifier of retiredIdentifiers) {
       if (text.includes(identifier))
@@ -267,6 +301,11 @@ function checkWorkbenchFeatureBoundaries() {
       sourceExtensions.test(path),
   )) {
     const text = read(file);
+    if (
+      /\/features\/[^/]+\/index\.ts$/.test(file) &&
+      /export\s+\{[^}]*\b[a-z][A-Za-z0-9]*State\b[^}]*\}\s+from/.test(text)
+    )
+      fail(file, "feature public APIs may not export mutable state objects");
     if (
       /\$lib\/(?:stores|events|audio|hooks|logging|shortcuts|utils)(?:\/|["'])/.test(
         text,
@@ -521,9 +560,37 @@ function checkRemovedPaths() {
     "packages/workbench-app/src/lib/core/utils/path-links.test.ts",
     "packages/workbench-app/src/lib/core/utils/text-preview.ts",
     "packages/workbench-app/src/lib/core/utils/text-preview.test.ts",
+    "packages/harness/src/compaction/types.ts",
+    "packages/workbench-app/src/lib/presentation/conversations/types.ts",
+    "packages/workbench-app/src/lib/presentation/files/types.ts",
+    "packages/workbench-app/src/lib/presentation/settings/types.ts",
+    "packages/workbench-app/src/lib/presentation/state/types.ts",
+    "packages/workbench-app/src/lib/presentation/tools/lifecycle/types.ts",
+    "packages/workbench-app/src/lib/application/workspace/workspace-feature-commands.ts",
     "packages/harness/src/harness/utils/shell-output.ts",
     "packages/harness/src/harness/utils/truncate.ts",
     "packages/desktop-shell/src/daemon-helpers.ts",
+    "packages/desktop-shell/src/daemon/adapters/node-launcher.ts",
+    "packages/workbench-server/src/app/runtime/types.ts",
+    "packages/workbench-server/src/core/ports.ts",
+    "packages/workbench-server/src/adapters/protocol/method-handlers.ts",
+    "packages/workbench-server/src/adapters/protocol/method-handlers/conversation-agent-method-handlers.ts",
+    "packages/workbench-server/src/adapters/protocol/method-handlers/project-task-method-handlers.ts",
+    "packages/contracts/test/agent/agent.schema.test.ts",
+    "packages/contracts/test/atlassian/atlassian-result-summaries.schema.test.ts",
+    "packages/contracts/test/conversation/conversation-state.schema.test.ts",
+    "packages/contracts/test/logs/logs.schema.test.ts",
+    "packages/contracts/test/permission/permission-rule-sets.schema.test.ts",
+    "packages/contracts/test/plan/plan-review.schema.test.ts",
+    "packages/contracts/test/providers/providers.schema.test.ts",
+    "packages/contracts/test/recorded/recorded-tool-name.schema.test.ts",
+    "packages/contracts/test/storage/storage.schema.test.ts",
+    "packages/contracts/test/task/task-definition.schema.test.ts",
+    "packages/contracts/test/task/task-tool-preview.schema.test.ts",
+    "packages/contracts/test/task/task.schema.test.ts",
+    "packages/contracts/test/tool/tool-result-payload.schema.test.ts",
+    "packages/contracts/test/wire-events/protocol.schema.test.ts",
+    "packages/protocol/test/rpc/peer-binding.test.ts",
   ];
   for (const file of removed) {
     if (trackedFiles.includes(file))
@@ -554,8 +621,8 @@ function nervePackageName(specifier) {
 }
 
 function forbiddenRunRuntimeImport(file, specifier) {
-  if (specifier === "@nervekit/contracts") return false;
-  if (specifier === "../../../core/ports.js") return false;
+  if (specifier.startsWith("@nervekit/contracts")) return false;
+  if (specifier.startsWith("../../../core/ports/")) return false;
   if (!specifier.startsWith(".")) return true;
   return !resolvedImportPath(file, specifier).startsWith(
     "packages/workbench-server/src/domains/runs/runtime/",
@@ -564,7 +631,7 @@ function forbiddenRunRuntimeImport(file, specifier) {
 
 function forbiddenPresentationImport(file, specifier) {
   if (
-    /^\$lib\/(?:app|application|features|kernel|platform)(?:\/|$)/.test(
+    /^\$lib\/(?:app|application|domain|features|platform)(?:\/|$)/.test(
       specifier,
     )
   )

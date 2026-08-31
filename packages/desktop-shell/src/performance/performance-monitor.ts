@@ -20,7 +20,7 @@ type ElectronProcessMetric = {
 
 type IntervalHandle = ReturnType<typeof setInterval>;
 
-type DesktopPerformanceMonitorOptions = {
+export type DesktopPerformanceMonitorOptions = {
   enabled: boolean;
   dataDir: string;
   sessionId?: string;

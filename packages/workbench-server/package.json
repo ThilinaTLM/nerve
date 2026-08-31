@@ -30,9 +30,9 @@
     "build": "tsc -b",
     "check": "tsc -b --pretty false",
     "dev": "tsx src/main.ts",
-    "test": "tsx --test test/*.test.ts",
-    "test:migrations": "tsx --test test/canonical-storage-migration.test.ts test/file-mutations.test.ts test/storage-migrations.test.ts test/storage-settings-migration.test.ts test/project-permissions.test.ts",
-    "test:native": "tsx --test test/file-mutations.test.ts test/process-runtime-driver.test.ts test/task-port-inspector.test.ts test/task-scope.test.ts test/task-supervisor.test.ts"
+    "test": "tsx --test --test-concurrency=1 \"test/**/*.test.ts\"",
+    "test:migrations": "tsx --test \"test/infrastructure/persistence/*.test.ts\" test/domains/projects/project-permissions.test.ts",
+    "test:native": "tsx --test test/infrastructure/persistence/file-mutations.test.ts test/domains/tasks/process-runtime-driver.test.ts test/domains/tasks/task-port-inspector.test.ts test/domains/tasks/task-scope.test.ts test/domains/tasks/task-supervisor.test.ts"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.84.3",

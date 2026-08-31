@@ -7,9 +7,9 @@ import {
   type Settings,
   type UserConfiguration,
   userConfigurationSchema,
-} from "@nervekit/contracts";
-import type { InitializedStorage } from "../storage/initialize.js";
-import { readJsonFile } from "../storage/json.js";
+} from "@nervekit/contracts/settings";
+import type { InitializedStorage } from "../storage-bootstrap/initialize.js";
+import { readJsonFile } from "../storage-bootstrap/json.js";
 import { settingsFromConfiguration } from "./home-configuration.js";
 
 export interface ConfigurationResolutionInput {

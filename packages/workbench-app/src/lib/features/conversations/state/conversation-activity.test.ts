@@ -7,12 +7,12 @@ import type {
   PlanReviewRecord,
   UserQuestionRecord,
 } from "$lib/api";
-import { conversationViewKey } from "$lib/kernel/navigation/view-keys";
+import { conversationViewKey } from "$lib/domain/navigation/view-keys";
 import type { ConversationViewState } from "$lib/features/conversations/state/conversation-state.svelte";
 import {
   buildConversationActivityById,
   conversationActivityForRecord,
-} from "$lib/kernel/conversations/activity";
+} from "$lib/domain/conversations/activity";
 
 function conversation(id: string, activeAgentId?: string): ConversationRecord {
   return { id, activeAgentId, mode: "coding" } as ConversationRecord;

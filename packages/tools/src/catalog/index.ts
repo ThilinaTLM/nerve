@@ -1,23 +1,44 @@
-import type { CoreToolName } from "@nervekit/contracts";
+import type {
+  CoreToolName,
+  ToolDescriptor,
+  ToolName,
+} from "@nervekit/contracts/tools";
+import type { ToolRisk } from "@nervekit/contracts/permissions";
 import { coreToolDefinitions } from "./manifest.js";
-import type { ToolDefinition } from "./types.js";
+import {
+  allToolDescriptorsFromDefinitions,
+  coreToolDescriptorsFromDefinitions,
+} from "./descriptors.js";
+import { coreToolRiskForName } from "./risk.js";
+import type { ToolDefinition } from "./contracts.js";
 
-export * from "./core/confluence.tools.js";
-export * from "./core/filesystem.tools.js";
-export * from "./core/interaction.tools.js";
-export * from "./core/jira.tools.js";
-export * from "./core/python.tools.js";
-export * from "./core/shell.tools.js";
-export * from "./core/web.tools.js";
+export * from "./definitions/core/confluence.tools.js";
+export * from "./definitions/core/filesystem.tools.js";
+export * from "./definitions/core/interaction.tools.js";
+export * from "./definitions/core/jira.tools.js";
+export * from "./definitions/core/python.tools.js";
+export * from "./definitions/core/shell.tools.js";
+export * from "./definitions/core/web.tools.js";
 export * from "./descriptors.js";
 export * from "./manifest.js";
-export * from "./normalize-arguments.js";
-export * from "./orchestration/explore.tools.js";
-export * from "./orchestration/plan-mode.tools.js";
-export * from "./orchestration/task.tools.js";
+export * from "./argument-normalization.js";
+export * from "./definitions/orchestration/explore.tools.js";
+export * from "./definitions/orchestration/plan-mode.tools.js";
+export * from "./definitions/orchestration/task.tools.js";
 export * from "./prompt-guidelines.js";
+export * from "./permission-metadata.js";
 export * from "./risk.js";
-export * from "./types.js";
+export * from "./contracts.js";
+
+export const coreToolDescriptors: ToolDescriptor[] =
+  coreToolDescriptorsFromDefinitions();
+
+export const allToolDescriptors: ToolDescriptor[] =
+  allToolDescriptorsFromDefinitions();
+
+export function toolRiskForName(name: ToolName): ToolRisk {
+  return coreToolRiskForName(name);
+}
 
 export function coreToolDefinitionByName(name: CoreToolName): ToolDefinition {
   const definition = coreToolDefinitions.find((tool) => tool.name === name);

@@ -3,9 +3,9 @@ import { Select as SelectPrimitive } from "bits-ui";
 import SelectPortal from "./select-portal.svelte";
 import SelectScrollUpButton from "./select-scroll-up-button.svelte";
 import SelectScrollDownButton from "./select-scroll-down-button.svelte";
-import { cn, type WithoutChild } from "@nervekit/ui-kit/core/utils";
+import { cn, type WithoutChild } from "@nervekit/ui-kit/utils";
 import type { ComponentProps } from "svelte";
-import type { WithoutChildrenOrChild } from "@nervekit/ui-kit/core/utils";
+import type { WithoutChildrenOrChild } from "@nervekit/ui-kit/utils";
 
 let {
   ref = $bindable(null),

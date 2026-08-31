@@ -1,15 +1,19 @@
 import {
   type AgentRecord,
   agentRecordSchema,
+  type CreateAgentRequest,
+} from "@nervekit/contracts/agents";
+import {
   type ConversationEntry,
   type ConversationRecord,
-  type CreateAgentRequest,
   type CreateConversationRequest,
-  type CreateProjectRequest,
   conversationEntrySchema,
   type ImportConversationRequest,
+} from "@nervekit/contracts/conversations";
+import {
+  type CreateProjectRequest,
   type ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/projects";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { AppendConversationEntry } from "./compaction-service.js";
 
@@ -28,7 +32,9 @@ export class ImportService {
       conversationId: string,
     ) => ConversationRecord,
     private readonly appendEntry: AppendConversationEntry,
-    private readonly rebuildConversations: () => Promise<void>,
+    private readonly rebuildConversation: (
+      conversationId: string,
+    ) => Promise<void>,
     private readonly events: StreamLogRegistry,
   ) {}
 
@@ -101,7 +107,7 @@ export class ImportService {
       entryIdMap.set(entry.id, imported.id);
       importedEntries.push(imported);
     }
-    await this.rebuildConversations();
+    await this.rebuildConversation(conversation.id);
     await this.events.publish("conversation.imported", {
       project,
       conversation: this.getConversation(conversation.id),

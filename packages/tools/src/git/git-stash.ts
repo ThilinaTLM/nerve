@@ -1,4 +1,4 @@
-import type { GitStashArea, GitStashEntry } from "@nervekit/contracts";
+import type { GitStashArea, GitStashEntry } from "@nervekit/contracts/git";
 import { GitWorkflowError } from "./git-errors.js";
 import type { GitService } from "./git-service.js";
 

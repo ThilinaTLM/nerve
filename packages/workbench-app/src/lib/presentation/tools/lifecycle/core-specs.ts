@@ -1,8 +1,8 @@
 import {
   relativePathForDisplay,
   resolveDisplayPath,
-} from "@nervekit/ui-kit/core/utils/path-links";
-import type { CoreToolName } from "@nervekit/contracts";
+} from "@nervekit/ui-kit/display/path-links";
+import type { CoreToolName } from "@nervekit/contracts/tools";
 import type { MetaItem, PrimaryArg } from "../views/tool-presentation-types";
 import type { ToolArgumentSource } from "./argument-source";
 import { COLLAPSED_LINES } from "../views/tool-view-helpers";
@@ -11,7 +11,7 @@ import {
   type ToolArgumentBody,
   type ToolLifecycleSpec,
   type ToolLifecycleStage,
-} from "./types";
+} from "./tool-lifecycle-contracts";
 
 const BODY_LINES = COLLAPSED_LINES;
 const BODY_CHARS = 6_000;

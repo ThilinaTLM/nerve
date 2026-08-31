@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isRetryableProviderError } from "../../src/models/provider-error-classification.js";
+import { isRetryableProviderError } from "../../src/models/provider-errors.js";
 
 describe("provider error classification", () => {
   it("retries OpenAI's generic server-side processing failure", () => {

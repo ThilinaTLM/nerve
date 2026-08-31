@@ -1,21 +1,21 @@
 import {
   type ToolGroupName,
   type ToolName,
-  type ToolRisk,
   type ToolTrait,
   toolGroupNameSchema,
-} from "@nervekit/contracts";
-import { confluenceToolDefinitions } from "./core/confluence.tools.js";
-import { filesystemToolDefinitions } from "./core/filesystem.tools.js";
-import { interactionToolDefinitions } from "./core/interaction.tools.js";
-import { jiraToolDefinitions } from "./core/jira.tools.js";
-import { pythonToolDefinitions } from "./core/python.tools.js";
-import { shellToolDefinitions } from "./core/shell.tools.js";
-import { webToolDefinitions } from "./core/web.tools.js";
-import { visionToolDefinitions } from "./core/vision.tools.js";
-import { exploreToolDefinitions } from "./orchestration/explore.tools.js";
-import { planModeToolDefinitions } from "./orchestration/plan-mode.tools.js";
-import { taskToolDefinitions } from "./orchestration/task.tools.js";
+} from "@nervekit/contracts/tools";
+import { type ToolRisk } from "@nervekit/contracts/permissions";
+import { confluenceToolDefinitions } from "./definitions/core/confluence.tools.js";
+import { filesystemToolDefinitions } from "./definitions/core/filesystem.tools.js";
+import { interactionToolDefinitions } from "./definitions/core/interaction.tools.js";
+import { jiraToolDefinitions } from "./definitions/core/jira.tools.js";
+import { pythonToolDefinitions } from "./definitions/core/python.tools.js";
+import { shellToolDefinitions } from "./definitions/core/shell.tools.js";
+import { webToolDefinitions } from "./definitions/core/web.tools.js";
+import { visionToolDefinitions } from "./definitions/core/vision.tools.js";
+import { exploreToolDefinitions } from "./definitions/orchestration/explore.tools.js";
+import { planModeToolDefinitions } from "./definitions/orchestration/plan-mode.tools.js";
+import { taskToolDefinitions } from "./definitions/orchestration/task.tools.js";
 import { agentResultPolicyForTool } from "../result-projection/policies/index.js";
 import { permissionMetadataForTool } from "./permission-metadata.js";
 import {
@@ -24,7 +24,7 @@ import {
   isLocalToolDefinition,
   type LocalToolDefinition,
   type ToolDefinition,
-} from "./types.js";
+} from "./contracts.js";
 
 const [readToolDefinition, ...remainingFilesystemToolDefinitions] =
   filesystemToolDefinitions;

@@ -1,7 +1,10 @@
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { withTimeoutSignal } from "../common/abort.js";
-import { numberArg } from "../common/args.js";
-import { buildProcessTextResult } from "../common/process-result.js";
+import type {
+  WebExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { withTimeoutSignal } from "../process/abort.js";
+import { numberArg } from "../process/arguments.js";
+import { buildProcessTextResult } from "../process/process-result.js";
 
 interface TavilyResult {
   title: string;
@@ -41,7 +44,7 @@ function snippet(value: unknown): string | undefined {
 
 export async function executeWebSearch(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: WebExecutionContext,
 ): Promise<ToolExecutionResult> {
   const query = stringArg(args.query, "query");
   const maxResults = maxResultsArg(args.max_results);

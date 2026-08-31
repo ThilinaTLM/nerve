@@ -1,11 +1,11 @@
-import type { RunRecord } from "@nervekit/contracts";
+import type { RunRecord } from "@nervekit/contracts/runs";
 import type {
   RunExecution,
   RunExecutionFactoryPort,
   RunExecutionSink,
 } from "../runtime/index.js";
-import type { WorkbenchExploreAdmission } from "../../agents/run/workbench-explore-admission.js";
-import type { WorkbenchLiveExecutions } from "../run-live-executions.js";
+import type { WorkbenchExploreAdmission } from "../../agents/execution/workbench-explore-admission.js";
+import type { WorkbenchLiveExecutions } from "../application/run-live-executions.js";
 
 /**
  * Host execution mechanics boundary. The cutover moves the harness/tool/message

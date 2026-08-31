@@ -1,22 +1,24 @@
+import { type AgentMessage } from "@nervekit/harness/agent";
+import { createCompactionSummaryMessage } from "@nervekit/harness/messages";
 import {
-  type AgentMessage,
   buildConversationContext,
-  type CompactionSummaryProfile,
   type Conversation,
   type ConversationTreeEntry,
-  createCompactionSummaryMessage,
+} from "@nervekit/harness/conversation";
+import {
+  type CompactionSummaryProfile,
   DEFAULT_COMPACTION_SETTINGS,
   estimateTokens,
   prepareCompaction,
-} from "@nervekit/harness";
+} from "@nervekit/harness/compaction";
 import { createId } from "@nervekit/contracts";
 import type {
   CompactConversationRequest,
   ConversationCompactionReason,
   ConversationEntry,
   ConversationRecord,
-  ProjectRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../../core/application-error.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversation-harness-storage.js";
@@ -118,7 +120,9 @@ export class CompactionService {
     private readonly getProject: (projectId: string) => ProjectRecord,
     private readonly appendEntry: AppendConversationEntry,
     private readonly harnessStorage: ConversationHarnessStorage,
-    private readonly rebuildConversations: () => Promise<void>,
+    private readonly rebuildConversation: (
+      conversationId: string,
+    ) => Promise<void>,
     private readonly events: StreamLogRegistry,
     private readonly summarize?: CompactionSummarizer,
     private readonly progressOptions: CompactionProgressPublisherOptions = {},
@@ -371,7 +375,7 @@ export class CompactionService {
             details,
           });
         }
-        await this.rebuildConversations();
+        await this.rebuildConversation(conversationId);
         await this.events.publish("conversation.compacted", {
           conversationId,
           entryId: entry.id,

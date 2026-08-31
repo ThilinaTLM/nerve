@@ -6,8 +6,8 @@ import type {
   StorageCategoryUsage,
   StorageCleanupTargetUsage,
   StorageUsageResponse,
-} from "@nervekit/contracts";
-import type { StoragePaths } from "../../infrastructure/storage/index.js";
+} from "@nervekit/contracts/storage";
+import type { StoragePaths } from "../../infrastructure/storage-bootstrap/index.js";
 import {
   dirSize,
   fileSize,
@@ -18,13 +18,13 @@ import {
   type SizeTally,
 } from "./storage-files.js";
 
-export interface StorageUsageRegistryPort {
+export interface StorageUsageSource {
   listConversations(): Array<{ id: string; title: string | null }>;
 }
 
 export interface StorageUsageServiceDeps {
   paths: StoragePaths;
-  getRegistry: () => StorageUsageRegistryPort;
+  getSource: () => StorageUsageSource;
 }
 
 interface CategoryMeta {
@@ -283,7 +283,7 @@ export class StorageUsageService {
     }
     const titleById = new Map(
       this.deps
-        .getRegistry()
+        .getSource()
         .listConversations()
         .map((item) => [item.id, item.title]),
     );
@@ -343,7 +343,7 @@ export class StorageUsageService {
       {
         target: "conversations",
         bytes: conversationPayloads.bytes,
-        itemCount: this.deps.getRegistry().listConversations().length,
+        itemCount: this.deps.getSource().listConversations().length,
         estimate: "upTo",
       },
       {

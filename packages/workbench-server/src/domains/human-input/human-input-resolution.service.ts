@@ -1,32 +1,38 @@
 /* eslint-disable max-lines -- Human-input resolution centralizes the approval/plan-review suspension lifecycle in one auditable use case. */
 import { createHash } from "node:crypto";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
-import type { AgentMessage } from "@nervekit/harness";
+import type { AgentMessage } from "@nervekit/harness/agent";
 import type {
   AgentRecord,
+  CreateAgentRequest,
+  UpdateAgentRequest,
+} from "@nervekit/contracts/agents";
+import type {
   ConversationEntry,
   ConversationRecord,
-  CreateAgentRequest,
   CreateConversationRequest,
+} from "@nervekit/contracts/conversations";
+import type {
   PlanImplementationSelection,
   PlanReviewRecord,
+} from "@nervekit/contracts/plans";
+import type {
   ToolCallRecord,
-  UpdateAgentRequest,
   UserQuestionRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import { ApplicationError } from "../../core/application-error.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
-} from "../../app/runtime/types.js";
-import type { WorkbenchRunService } from "../runs/workbench-run.service.js";
-import { agentMessageText } from "../agents/run/index.js";
+} from "../conversations/append-entry-contracts.js";
+import type { WorkbenchRunService } from "../runs/application/workbench-run.service.js";
+import { agentMessageText } from "../agents/execution/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { PlanService } from "../plans/plan-service.js";
-import { toolCallResultForModel } from "../tools/agent-tool-adapter.js";
-import type { ToolService } from "../tools/tool-service.js";
-import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
+import { toolCallResultForModel } from "../tools/orchestration/agent-tool-adapter.js";
+import type { ToolService } from "../tools/execution/tool-service.js";
+import { toToolCallTranscriptRecord } from "../tools/artifacts/tool-call-transcript-preview.js";
 import { ApprovalBatchResolutionService } from "./approval-batch-resolution.js";
 import {
   acceptedPlanFollowUp,
@@ -62,7 +68,7 @@ export interface HumanInputResolutionDeps {
     input: AppendEntryInput,
     options?: AppendEntryOptions,
   ): Promise<ConversationEntry>;
-  getConversationEntries(conversationId: string): ConversationEntry[];
+  getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
   harnessStorage: ConversationHarnessStorage;
   logger: ApplicationLogger;
   compactPlanConversation(input: {
@@ -82,14 +88,18 @@ export class HumanInputResolutionService {
       runs: deps.runs,
       appendToolResult: (toolCall, isError) =>
         this.appendToolResultForToolCall(toolCall, isError),
-      existingToolResultEntry: (toolCall) =>
-        deps.getConversationEntries(toolCall.conversationId).find((entry) => {
-          if (!entry.details || typeof entry.details !== "object") return false;
-          return (
-            (entry.details as { toolRecordId?: unknown }).toolRecordId ===
-            toolCall.id
-          );
-        }),
+      existingToolResultEntry: async (toolCall) =>
+        (await deps.getConversationEntries(toolCall.conversationId)).find(
+          (entry) => {
+            if (!entry.details || typeof entry.details !== "object") {
+              return false;
+            }
+            return (
+              (entry.details as { toolRecordId?: unknown }).toolRecordId ===
+              toolCall.id
+            );
+          },
+        ),
     });
   }
 
@@ -366,7 +376,7 @@ export class HumanInputResolutionService {
     for (const review of reviews) {
       let toolCall;
       try {
-        toolCall = this.deps.tools.getToolCall(review.toolCallId);
+        toolCall = await this.deps.tools.getToolCallDetails(review.toolCallId);
       } catch (error) {
         // The tool-call journal/index may be absent or truncated (e.g. after
         // storage pruning or a partial copy); a missing tool call must not
@@ -597,23 +607,23 @@ export class HumanInputResolutionService {
       review.toolCallId,
       this.deps.plans.planReviewResult(review),
     );
-    if (!this.existingToolResultEntry(completed)) {
+    if (!(await this.existingToolResultEntry(completed))) {
       await this.appendToolResultForToolCall(completed, false);
     }
   }
 
-  private existingToolResultEntry(
+  private async existingToolResultEntry(
     toolCall: ToolCallRecord,
-  ): ConversationEntry | undefined {
-    return this.deps
-      .getConversationEntries(toolCall.conversationId)
-      .find((entry) => {
-        if (!entry.details || typeof entry.details !== "object") return false;
-        return (
-          (entry.details as { toolRecordId?: unknown }).toolRecordId ===
-          toolCall.id
-        );
-      });
+  ): Promise<ConversationEntry | undefined> {
+    return (
+      await this.deps.getConversationEntries(toolCall.conversationId)
+    ).find((entry) => {
+      if (!entry.details || typeof entry.details !== "object") return false;
+      return (
+        (entry.details as { toolRecordId?: unknown }).toolRecordId ===
+        toolCall.id
+      );
+    });
   }
 
   private async setRejectedPlanAgentIdle(
@@ -665,7 +675,7 @@ export class HumanInputResolutionService {
     if (!hasPendingSibling) {
       for (const batchToolCall of orderedToolCalls) {
         const existing = batch
-          ? this.existingToolResultEntry(batchToolCall)
+          ? await this.existingToolResultEntry(batchToolCall)
           : undefined;
         entries.push(
           existing ??

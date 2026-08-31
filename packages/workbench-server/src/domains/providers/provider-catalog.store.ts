@@ -1,12 +1,12 @@
-import type { AgentCustomModel } from "@nervekit/harness";
+import type { AgentCustomModel } from "@nervekit/harness/models";
 import {
   type CustomProvider,
-  type HeaderConfig,
   type ModelDefinition,
   type ProviderCatalog,
   providerCatalogSchema,
-} from "@nervekit/contracts";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+} from "@nervekit/contracts/providers";
+import { type HeaderConfig } from "@nervekit/contracts/settings";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import { writeHomeConfiguration } from "../../infrastructure/configuration/index.js";
 import { resolveProjectConfiguration } from "../../infrastructure/configuration/index.js";
 

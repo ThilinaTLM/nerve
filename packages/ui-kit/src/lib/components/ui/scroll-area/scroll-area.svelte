@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import type { HTMLAttributes } from "svelte/elements";
-import { cn } from "@nervekit/ui-kit/core/utils";
+import { cn } from "@nervekit/ui-kit/utils";
 
 type Props = Omit<HTMLAttributes<HTMLDivElement>, "children"> & {
   ref?: HTMLElement | null;

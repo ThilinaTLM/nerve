@@ -1,15 +1,15 @@
 import { join } from "node:path";
+import { projectRecordSchema } from "@nervekit/contracts/projects";
 import {
-  projectRecordSchema,
   taskDefinitionFileSchema,
   taskDefinitionSchema,
   type TaskDefinition,
-} from "@nervekit/contracts";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+} from "@nervekit/contracts/task-definitions";
+import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import {
   atomicWriteJson,
   readJsonFile,
-} from "../../infrastructure/storage/index.js";
+} from "../../infrastructure/storage-bootstrap/index.js";
 
 export class TaskDefinitionRepository {
   constructor(private readonly storage: InitializedStorage) {}

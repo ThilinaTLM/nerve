@@ -24,9 +24,9 @@ import type {
   QueueMode,
   StreamFn,
   ToolExecutionMode,
-} from "./types/index.js";
+} from "./contracts/index.js";
 
-export type { QueueMode } from "./types/index.js";
+export type { QueueMode } from "./contracts/index.js";
 
 function defaultConvertToLlm(messages: AgentMessage[]): Message[] {
   return messages.filter(

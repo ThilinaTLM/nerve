@@ -28,7 +28,7 @@ import type {
   GitRecentCommit,
   GitRepoSummary,
   GitStashArea,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import {
   branchExists as branchExistsImpl,
   comparisonBaseRef as comparisonBaseRefImpl,

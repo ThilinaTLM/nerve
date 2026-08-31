@@ -1,10 +1,10 @@
 <script lang="ts">
-import ProjectConversationNavigator from "$lib/features/projects/components/ProjectConversationNavigator.svelte";
+import ProjectConversationNavigator from "$lib/features/projects/views/ProjectConversationNavigator.svelte";
 import { projectNavigatorSignals } from "$lib/features/projects/state/project-navigator-signals.svelte";
 import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
-import { openConversation } from "$lib/features/conversations/state/tabs";
+import { openConversation } from "$lib/features/conversations/state/conversation-tabs";
 import {
   deleteConversationAndRefresh,
   deleteProjectAndRefresh,

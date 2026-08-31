@@ -1,14 +1,14 @@
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { PeerRole } from "@nervekit/contracts/wire";
+import type { QueuedPromptRecord } from "@nervekit/contracts/agents";
 import type {
-  ConversationEntry,
-  PeerRole,
-  QueuedPromptRecord,
   RunCheckpointRecord,
   RunInteractionRecord,
   RunPromptRecord,
   RunPublicEventIntent,
   RunRecord,
-} from "@nervekit/contracts";
-import { validatePublicEvent } from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
+import { validatePublicEvent } from "@nervekit/contracts/events";
 
 /**
  * Bounded, non-authoritative notify progress/delta emitted by a live
@@ -240,7 +240,7 @@ export class RunEventFactory {
 
   toolCallUpdated(
     run: RunRecord,
-    toolCall: import("@nervekit/contracts").ToolCallTranscriptRecord,
+    toolCall: import("@nervekit/contracts/tools").ToolCallTranscriptRecord,
   ): RunPublicEventIntent {
     return this.intent(
       run,

@@ -12,10 +12,13 @@ import type {
   ConfluenceRestrictionSummaryPayload,
   ConfluenceSpaceSummaryPayload,
   ToolOutputLimitsPayload,
-} from "@nervekit/contracts";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { atlassianPlainTextPreview } from "../common/atlassian-rich-text.js";
-import { buildSemanticTextResult } from "../common/semantic-text-result.js";
+} from "@nervekit/contracts/tools";
+import type {
+  IntegrationExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { atlassianPlainTextPreview } from "../atlassian/rich-text.js";
+import { buildSemanticTextResult } from "../output/semantic-text-result.js";
 
 export const CONFLUENCE_DISPLAY_ITEM_LIMIT = 20;
 export const CONFLUENCE_TEXT_FIELD_MAX_CHARS = 300;
@@ -30,7 +33,7 @@ export type ConfluenceArtifact = {
   format?: "markdown" | "text" | "json" | "jsonl" | "directory_manifest";
 };
 
-export function confluenceTmpDir(context: ToolExecutionContext): string {
+export function confluenceTmpDir(context: IntegrationExecutionContext): string {
   return (
     context.artifactDir ??
     (context.dataDir
@@ -40,7 +43,7 @@ export function confluenceTmpDir(context: ToolExecutionContext): string {
 }
 
 export async function writeConfluenceArtifact(
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
   kind: string,
   payload: unknown,
 ): Promise<{ path: string; bytes: number; chars: number; lines: number }> {
@@ -67,7 +70,7 @@ export async function buildConfluenceTextResult({
   artifacts,
 }: {
   text: string;
-  context: ToolExecutionContext;
+  context: IntegrationExecutionContext;
   details?: Record<string, unknown>;
   artifact?: ConfluenceArtifact;
   artifacts?: ConfluenceArtifact[];

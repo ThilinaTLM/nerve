@@ -1,13 +1,13 @@
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { PromptImage } from "@nervekit/contracts/agents";
 import type {
-  ConversationEntry,
-  PromptImage,
   RunCheckpointRecord,
   RunFailureRecord,
   RunInteractionRecord,
   RunPromptRecord,
   RunRecord,
-  ToolCallTranscriptRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/runs";
+import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import type { RunProgressEvent } from "./run-events.js";
 import type { CheckpointCommand, WaitCommand } from "./run-transitions.js";
 

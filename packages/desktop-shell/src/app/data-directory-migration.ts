@@ -5,7 +5,7 @@ import {
   migrateLegacyV2Home,
 } from "@nervekit/workbench-server";
 import type { MessageBoxOptions, MessageBoxReturnValue } from "electron";
-import type { DaemonMode } from "../daemon.js";
+import type { DaemonMode } from "../daemon/composition.js";
 
 export type DesktopDataDirectoryPreparation =
   | { status: "ready" }

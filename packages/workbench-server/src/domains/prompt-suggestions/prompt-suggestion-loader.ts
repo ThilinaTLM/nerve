@@ -9,10 +9,10 @@ import {
   PROMPT_SUGGESTION_PROMPT_MAX_LENGTH,
   promptSuggestionWhenSchema,
   type CreatePromptSuggestionRequest,
-} from "@nervekit/contracts";
-import { parseFrontmatter } from "@nervekit/harness";
+} from "@nervekit/contracts/prompt-suggestions";
+import { parseFrontmatter } from "@nervekit/harness/resources";
 import { stringify } from "yaml";
-import { pathExists } from "../../infrastructure/storage/json.js";
+import { pathExists } from "../../infrastructure/storage-bootstrap/json.js";
 import type {
   PromptSuggestionDefinition,
   PromptSuggestionDiagnostic,

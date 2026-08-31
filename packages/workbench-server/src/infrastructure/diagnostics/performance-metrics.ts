@@ -3,7 +3,7 @@ import type {
   PerformanceMetricAggregate,
   PerformanceMetricName,
   PerformanceMetricsSnapshot,
-} from "../../core/ports.js";
+} from "../../core/ports/diagnostics.js";
 
 type MutableAggregate = {
   count: number;

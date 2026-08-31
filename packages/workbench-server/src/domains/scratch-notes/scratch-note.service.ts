@@ -1,11 +1,11 @@
 import {
   type CreateScratchNoteRequest,
-  createId,
-  type ProjectRecord,
   SCRATCH_NOTE_DEFAULT_TITLE,
   type ScratchNote,
   type UpdateScratchNoteRequest,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/scratch-notes";
+import { createId } from "@nervekit/contracts";
+import { type ProjectRecord } from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../core/application-error.js";
 import type { ScratchNoteRepository } from "./scratch-note.repository.js";
 

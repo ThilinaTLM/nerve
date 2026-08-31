@@ -6,7 +6,7 @@ import {
   cn,
   type WithoutChild,
   type WithoutChildrenOrChild,
-} from "@nervekit/ui-kit/core/utils";
+} from "@nervekit/ui-kit/utils";
 import type { ComponentProps } from "svelte";
 
 let {

@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { AgentRecord } from "@nervekit/contracts";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 
 export function toolRequestContext(
   agent: AgentRecord,

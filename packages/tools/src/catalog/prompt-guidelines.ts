@@ -1,4 +1,4 @@
-import type { ToolGroupName, ToolName } from "@nervekit/contracts";
+import type { ToolGroupName, ToolName } from "@nervekit/contracts/tools";
 import { toolDefinitionByName } from "./manifest.js";
 
 const TOOL_GUIDELINES: Partial<Record<ToolName, string>> = {

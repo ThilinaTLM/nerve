@@ -33,7 +33,8 @@ import {
   clampThinkingLevelForModel,
   resolveNewAgentComposerSelection,
 } from "$lib/application/preferences/agent-selection";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { composerConfigurationCommands } from "$lib/features/conversations/composer-configuration-commands.svelte";
+import { conversationWorkspaceReadModel } from "$lib/features/conversations/workspace-read-model.svelte";
 import {
   getDesktopDaemonCapability,
   restartDesktopDaemon,
@@ -84,7 +85,8 @@ function currentActiveAgent(): AgentRecord | undefined {
 
 function currentSelectedModelInfo(): ModelInfo | undefined {
   return settingsState.models.find(
-    (model) => modelKey(model) === conversationState.selectedModelKey,
+    (model) =>
+      modelKey(model) === conversationWorkspaceReadModel.selectedModelKey,
   );
 }
 
@@ -195,35 +197,48 @@ export function reconcileComposerSelectionFromSettings(): void {
   );
   const activeAgent = currentActiveAgent();
   if (activeAgent) {
-    conversationState.selectedMode = activeAgent.mode;
-    conversationState.selectedPermissionLevel = activeAgent.permissionLevel;
-    conversationState.selectedPermissionRuleSetId =
-      activeAgent.permissionRuleSetId ?? activeAgent.permissionLevel;
+    composerConfigurationCommands.setMode(activeAgent.mode);
+    composerConfigurationCommands.setPermissionLevel(
+      activeAgent.permissionLevel,
+    );
+    composerConfigurationCommands.setPermissionRuleSetId(
+      activeAgent.permissionRuleSetId ?? activeAgent.permissionLevel,
+    );
     const activeModel = activeAgent.model;
     if (
       activeModel &&
       usable.some((model) => modelKey(model) === modelKey(activeModel))
     ) {
-      conversationState.selectedModelKey = modelKey(activeModel);
-      conversationState.selectedThinkingLevel = activeAgent.thinkingLevel;
+      composerConfigurationCommands.setModelKey(modelKey(activeModel));
+      composerConfigurationCommands.setThinkingLevel(activeAgent.thinkingLevel);
     } else {
-      conversationState.selectedModelKey = defaultSelection.selectedModelKey;
-      conversationState.selectedThinkingLevel =
-        defaultSelection.selectedThinkingLevel;
+      composerConfigurationCommands.setModelKey(
+        defaultSelection.selectedModelKey,
+      );
+      composerConfigurationCommands.setThinkingLevel(
+        defaultSelection.selectedThinkingLevel,
+      );
     }
   } else {
-    conversationState.selectedMode = defaultSelection.selectedMode;
-    conversationState.selectedPermissionLevel =
-      defaultSelection.selectedPermissionLevel;
-    conversationState.selectedPermissionRuleSetId =
-      defaultSelection.selectedPermissionRuleSetId;
-    conversationState.selectedModelKey = defaultSelection.selectedModelKey;
-    conversationState.selectedThinkingLevel =
-      defaultSelection.selectedThinkingLevel;
+    composerConfigurationCommands.setMode(defaultSelection.selectedMode);
+    composerConfigurationCommands.setPermissionLevel(
+      defaultSelection.selectedPermissionLevel,
+    );
+    composerConfigurationCommands.setPermissionRuleSetId(
+      defaultSelection.selectedPermissionRuleSetId,
+    );
+    composerConfigurationCommands.setModelKey(
+      defaultSelection.selectedModelKey,
+    );
+    composerConfigurationCommands.setThinkingLevel(
+      defaultSelection.selectedThinkingLevel,
+    );
   }
-  conversationState.selectedThinkingLevel = clampThinkingLevelForModel(
-    conversationState.selectedThinkingLevel,
-    currentSelectedModelInfo(),
+  composerConfigurationCommands.setThinkingLevel(
+    clampThinkingLevelForModel(
+      conversationWorkspaceReadModel.selectedThinkingLevel,
+      currentSelectedModelInfo(),
+    ),
   );
 }
 
@@ -434,16 +449,20 @@ function reconcileSelectedModelForScope(
   );
   if (
     usable.some(
-      (model) => modelKey(model) === conversationState.selectedModelKey,
+      (model) =>
+        modelKey(model) === conversationWorkspaceReadModel.selectedModelKey,
     )
   ) {
     return;
   }
-  conversationState.selectedModelKey =
-    usable.length > 0 ? modelKey(usable[0]) : "";
-  conversationState.selectedThinkingLevel = clampThinkingLevelForModel(
-    conversationState.selectedThinkingLevel,
-    currentSelectedModelInfo(),
+  composerConfigurationCommands.setModelKey(
+    usable.length > 0 ? modelKey(usable[0]) : "",
+  );
+  composerConfigurationCommands.setThinkingLevel(
+    clampThinkingLevelForModel(
+      conversationWorkspaceReadModel.selectedThinkingLevel,
+      currentSelectedModelInfo(),
+    ),
   );
 }
 

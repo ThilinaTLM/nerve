@@ -3,8 +3,8 @@ import { dirname, join } from "node:path";
 import {
   type ApplicationLogLevel,
   type ApplicationLogRecord,
-  createId,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/logs";
+import { createId } from "@nervekit/contracts";
 import { resolveDataDir } from "@nervekit/workbench-server";
 
 let seq = 0;

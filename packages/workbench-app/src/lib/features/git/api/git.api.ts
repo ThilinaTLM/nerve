@@ -22,8 +22,8 @@ import type {
   GitOverviewResponse,
   GitProjectFileStatusResponse,
   GitStashArea,
-} from "@nervekit/contracts";
-import { protocolRequest } from "@nervekit/protocol";
+} from "@nervekit/contracts/git";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export async function discoverGitRepos(
   projectId: string,

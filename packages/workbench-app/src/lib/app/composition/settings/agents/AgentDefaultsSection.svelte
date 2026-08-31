@@ -8,7 +8,7 @@ import {
   SettingsKeyValueRow,
   SettingsRow,
   SettingsToggleRow,
-} from "$lib/presentation/components/settings";
+} from "$lib/presentation/settings";
 import {
   modelDisplayName,
   modelKey,
@@ -16,9 +16,9 @@ import {
   providerDisplayName,
   scopedUsableModelOptions,
 } from "$lib/presentation/utils/model";
-import type { SettingsChange } from "$lib/features/settings/components/pages/settings-change";
+import type { SettingsChange } from "$lib/features/settings/views/pages/settings-change";
 import { modeItems } from "./agent-options";
-import { permissionRuleSetDisplayName } from "$lib/kernel/permissions/permission-rule-set-options";
+import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
 import ModelPickerRow from "./ModelPickerRow.svelte";
 
 type Props = {

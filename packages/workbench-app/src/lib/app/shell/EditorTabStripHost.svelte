@@ -20,7 +20,7 @@ import type {
   WorkbenchTabIdentity,
   WorkbenchTabModel,
 } from "$lib/presentation/shell";
-import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import type {
   CenterTabIdentity,
@@ -30,7 +30,7 @@ import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   getShortcutAriaLabel,
   getShortcutLabel,
-} from "$lib/kernel/shortcuts/registry";
+} from "$lib/application/commands/command-registry";
 import {
   fileToggleLabel,
   fileWrapLabel,

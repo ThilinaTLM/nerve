@@ -5,9 +5,9 @@ import type {
   ApplicationLogQuery,
   ApplicationLogQueryResponse,
   ApplicationLogSource,
-} from "@nervekit/contracts";
-import { apiGet } from "@nervekit/ui-kit/core/api/client";
-import { protocolRequest } from "@nervekit/protocol";
+} from "@nervekit/contracts/logs";
+import { apiGet } from "$lib/platform/http/api-client";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export type {
   ApplicationLogLevel,

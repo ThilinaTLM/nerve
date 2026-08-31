@@ -6,13 +6,13 @@ import type {
   ProjectRecord,
   TaskRecord,
 } from "$lib/api";
-import type { GitDiffArea } from "@nervekit/contracts";
-import type { MermaidBlockLocator } from "@nervekit/ui-kit/core/components/mermaid-blocks";
+import type { GitDiffArea } from "@nervekit/contracts/git";
+import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import type {
   FileDisplayMode,
   FileRenderKind,
-} from "@nervekit/ui-kit/core/utils/file-display";
-import type { ConversationActivityState } from "$lib/kernel/conversations/activity";
+} from "@nervekit/ui-kit/display/file-display";
+import type { ConversationActivityState } from "$lib/domain/conversations/activity";
 
 export type ConversationTabModel = {
   kind: "conversation";

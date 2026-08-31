@@ -1,9 +1,9 @@
 <script lang="ts">
 import { Tooltip as TooltipPrimitive } from "bits-ui";
-import { cn } from "@nervekit/ui-kit/core/utils";
+import { cn } from "@nervekit/ui-kit/utils";
 import TooltipPortal from "./tooltip-portal.svelte";
 import type { ComponentProps } from "svelte";
-import type { WithoutChildrenOrChild } from "@nervekit/ui-kit/core/utils";
+import type { WithoutChildrenOrChild } from "@nervekit/ui-kit/utils";
 
 let {
   ref = $bindable(null),

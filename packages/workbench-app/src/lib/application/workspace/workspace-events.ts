@@ -1,10 +1,10 @@
-import { conversationStream } from "@nervekit/contracts";
+import { conversationStream } from "@nervekit/contracts/events";
 import type { AgentRecord } from "$lib/api";
 import {
   isSequencedEvent,
   onAnyEvent,
   type WorkbenchEvent,
-} from "$lib/kernel/events/event-bus";
+} from "$lib/application/events/event-bus";
 import { removeEventStream } from "$lib/application/event-routing/stream-cursors.svelte";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import {

@@ -1,15 +1,15 @@
 <script lang="ts">
 import type { StatusResponse } from "$lib/api";
-import { formatDurationMinutes } from "@nervekit/ui-kit/core/utils/usage";
+import { formatDurationMinutes } from "@nervekit/ui-kit/display/usage";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Popover, {
   PopoverBody,
   PopoverHeader,
   PopoverProperties,
   PopoverProperty,
-} from "@nervekit/ui-kit/components/ui/popover-panel";
-import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
-import { type StatusTone } from "@nervekit/ui-kit/core/utils/status";
+} from "@nervekit/ui-kit/components/composites/popover-panel";
+import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
+import { type StatusTone } from "@nervekit/ui-kit/display/status";
 
 type Props = {
   connection?: string;

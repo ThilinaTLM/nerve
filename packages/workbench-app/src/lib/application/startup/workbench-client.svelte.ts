@@ -1,18 +1,20 @@
 import { SvelteURL } from "svelte/reactivity";
+import { createMessageFactory } from "@nervekit/protocol";
 import {
-  browserWebSocketTransportFactory,
-  createMessageFactory,
   ProtocolClientConnection,
   ProtocolClientSession,
+  type ProtocolClientConnectionState,
+} from "@nervekit/protocol/client";
+import {
+  browserWebSocketTransportFactory,
   protocolClientId,
   protocolInstanceId,
-  type ProtocolClientConnectionState,
-} from "@nervekit/protocol";
+} from "@nervekit/protocol/adapters";
+import { parseConversationStream } from "@nervekit/contracts/events";
 import {
-  parseConversationStream,
   STREAM_SUBSCRIPTION_CAPABILITY,
   type PeerDescriptor,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/wire";
 import { getClientConfig } from "$lib/api";
 import {
   applyAppearance,
@@ -24,7 +26,7 @@ import {
   flushNotifyEvents,
   pendingNotifyCount,
   type WorkbenchNotifyEvent,
-} from "$lib/kernel/events/event-bus";
+} from "$lib/application/events/event-bus";
 import {
   advanceEventCursor,
   bindSubscriptionSync,

@@ -1,4 +1,4 @@
-import type { CoreToolName } from "@nervekit/contracts";
+import type { CoreToolName } from "@nervekit/contracts/tools";
 import type { MetaItem } from "../views/tool-presentation-types";
 import type { ToolArgumentSource } from "./argument-source";
 import {
@@ -13,7 +13,7 @@ import {
   type ToolArgumentBody,
   type ToolLifecycleSpec,
   type ToolLifecycleStage,
-} from "./types";
+} from "./tool-lifecycle-contracts";
 
 type JiraToolName = Extract<CoreToolName, `jira_${string}`>;
 

@@ -1,7 +1,7 @@
 import type {
   GitBranchListResponse,
   GitBranchSummary,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/git";
 import type { GitReadSnapshot } from "./read/types.js";
 
 export interface GitBranchServicePort {

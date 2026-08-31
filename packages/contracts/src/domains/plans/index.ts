@@ -1,3 +1,3 @@
-export * from "./plan-review.schema.js";
+export * from "./plan-review.js";
 export * from "./plan-review-preview.js";
-export * from "./plan.events.schema.js";
+export * from "./events.js";

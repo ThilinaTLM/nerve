@@ -1,9 +1,9 @@
-import type { ConversationTreeEntry } from "@nervekit/harness";
+import type { ConversationTreeEntry } from "@nervekit/harness/conversation";
 import type {
   ConversationEntry,
   ConversationRecord,
   ConversationTree,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
 import type { ConversationJournalRepository } from "./conversation-journal.repository.js";
 
 export class EntryRepository {
@@ -12,7 +12,7 @@ export class EntryRepository {
   async loadForConversation(
     conversationId: string,
   ): Promise<ConversationEntry[]> {
-    return [...(await this.journal.load(conversationId)).entries];
+    return this.journal.readConversationEntries(conversationId);
   }
 
   async append(entry: ConversationEntry): Promise<ConversationEntry> {

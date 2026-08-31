@@ -1,4 +1,4 @@
-import { ToolExecutionError } from "../common/tool-error.js";
+import { ToolExecutionError } from "../errors/tool-error.js";
 
 export function argumentError(
   message: string,

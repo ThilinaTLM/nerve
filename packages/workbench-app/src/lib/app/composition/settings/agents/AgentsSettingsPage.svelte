@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { AuthProviderMetadata, ModelInfo, Settings } from "$lib/api";
-import { SettingsSection } from "$lib/presentation/components/settings";
-import type { SettingsChange } from "$lib/features/settings/components/pages/settings-change";
+import { SettingsSection } from "$lib/presentation/settings";
+import type { SettingsChange } from "$lib/features/settings/views/pages/settings-change";
 import AgentDefaultsSection from "./AgentDefaultsSection.svelte";
 import CompactionSection from "./CompactionSection.svelte";
 import ExploreAgentSection from "./ExploreAgentSection.svelte";

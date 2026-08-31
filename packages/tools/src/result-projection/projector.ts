@@ -1,7 +1,7 @@
 import type {
   AgentResultProfileId,
   AgentResultStrategyId,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import { conservativeFallbackCandidate } from "./fallback.js";
 import { measureBlocks } from "./measure.js";
 import {

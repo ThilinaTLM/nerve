@@ -1,4 +1,4 @@
-import { isolatedHtmlToMarkdown } from "../common/isolated-html-to-markdown.js";
+import { isolatedHtmlToMarkdown } from "../atlassian/isolated-html-to-markdown.js";
 
 export async function storageXmlToMarkdown(
   storageXml: string,

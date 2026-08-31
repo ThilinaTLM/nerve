@@ -1,4 +1,4 @@
-import type { GithubChecksSummary, GithubPr } from "@nervekit/contracts";
+import type { GithubChecksSummary, GithubPr } from "@nervekit/contracts/git";
 
 export function isGithubChecksPending(
   checks: Pick<GithubChecksSummary, "status"> | undefined,

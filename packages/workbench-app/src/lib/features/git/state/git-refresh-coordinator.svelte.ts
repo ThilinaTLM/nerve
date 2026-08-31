@@ -22,7 +22,7 @@ import {
 } from "$lib/api";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
-import { prViewKey } from "$lib/kernel/navigation/view-keys";
+import { prViewKey } from "$lib/domain/navigation/view-keys";
 import {
   gitState,
   type PrResourceState,

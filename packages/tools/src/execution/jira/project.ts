@@ -1,6 +1,9 @@
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import type {
+  IntegrationExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
 import { enumSet, optionalString } from "../atlassian/arguments.js";
-import { ToolExecutionError } from "../common/tool-error.js";
+import { ToolExecutionError } from "../errors/tool-error.js";
 import { jiraRequest, pathSegment, requireJiraConnection } from "./client.js";
 import {
   buildJiraTextResult,
@@ -19,11 +22,11 @@ import {
   fieldsFromProjectResult,
   issueTypeIdFromName,
   valuesFromJiraList,
-} from "./helpers.js";
+} from "./field-resolution.js";
 
 export async function executeJiraGetProject(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const projectKey =

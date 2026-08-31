@@ -10,8 +10,8 @@ import {
   type ProjectSwitcherItem,
 } from "$lib/features/projects";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import type { LatestRelease } from "@nervekit/contracts";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
+import type { LatestRelease } from "@nervekit/contracts/status";
 import VersionIndicator from "$lib/app/shell/VersionIndicator.svelte";
 import WindowControls from "$lib/app/shell/WindowControls.svelte";
 import type { ResolvedHeaderType } from "$lib/app/shell/header-type";

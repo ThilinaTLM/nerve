@@ -1,0 +1,222 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import {
+  taskControlToolResultSchema,
+  taskStartToolResultSchema,
+  taskStatusToolResultSchema,
+  toolCallRecordSchema,
+  toolNameSchema,
+} from "../../src/domains/tools/index.js";
+import {
+  taskEnvInfoSchema,
+  taskLaunchConfigSchema,
+  taskLogQueryResponseSchema,
+  taskLogQuerySchema,
+  taskRecordSchema,
+  type TaskRecord,
+} from "../../src/domains/tasks/index.js";
+
+function record(overrides: Partial<TaskRecord> = {}): TaskRecord {
+  return {
+    id: "task_test",
+    cwd: "/tmp/project",
+    command: "pnpm dev",
+    status: "running",
+    readiness: { outcome: "pending" },
+    stdoutPath: "/tmp/task/stdout.log",
+    stderrPath: "/tmp/task/stderr.log",
+    logsPath: "/tmp/task/logs.jsonl",
+    startedAt: "2026-01-02T03:04:05.000Z",
+    updatedAt: "2026-01-02T03:04:05.000Z",
+    ...overrides,
+  };
+}
+
+describe("taskRecordSchema env metadata", () => {
+  it("strips raw env from public task records", () => {
+    const parsed = taskRecordSchema.parse({
+      ...record(),
+      env: { API_TOKEN: "secret", PORT: "3000" },
+    });
+
+    assert.equal("env" in parsed, false);
+  });
+
+  it("accepts raw env in encrypted launch config storage schema", () => {
+    const parsed = taskLaunchConfigSchema.parse({
+      version: 1,
+      env: { API_TOKEN: "secret", PORT: "3000" },
+      createdAt: "2026-01-02T03:04:05.000Z",
+      updatedAt: "2026-01-02T03:04:05.000Z",
+    });
+
+    assert.deepEqual(parsed.env, { API_TOKEN: "secret", PORT: "3000" });
+  });
+
+  it("rejects non-redacted public env metadata", () => {
+    const parsed = taskEnvInfoSchema.safeParse({
+      keys: ["PORT"],
+      persisted: true,
+      redacted: false,
+    });
+
+    assert.equal(parsed.success, false);
+  });
+});
+
+describe("tool task result metadata", () => {
+  it("rejects missing required task-tool payload fields", () => {
+    assert.equal(taskStartToolResultSchema.safeParse({}).success, false);
+    assert.equal(
+      taskStartToolResultSchema.safeParse({
+        task: record(),
+        otherActiveTasks: [],
+        otherActiveTaskCount: 0,
+      }).success,
+      true,
+    );
+    assert.equal(taskStatusToolResultSchema.safeParse({}).success, false);
+    assert.equal(
+      taskControlToolResultSchema.safeParse({
+        action: "stop",
+        task: record({ status: "cancelled" }),
+      }).success,
+      false,
+    );
+    assert.equal(
+      taskControlToolResultSchema.safeParse({
+        action: "restart",
+        task: record(),
+      }).success,
+      false,
+    );
+  });
+
+  it("accepts structured tool error metadata", () => {
+    const parsed = toolCallRecordSchema.safeParse({
+      id: "tool_test",
+      agentId: "agent_test",
+      conversationId: "conv_test",
+      projectId: "proj_test",
+      toolName: "task_status",
+      risk: "read",
+      args: { taskId: "missing" },
+      cwd: "/tmp/project",
+      status: "failed",
+      revision: 1,
+      attempt: 1,
+      interactions: [],
+      settledAt: "2026-01-02T03:04:06.000Z",
+      error: "Task 'missing' not found.",
+      errorDetails: {
+        code: "TASK_NOT_FOUND",
+        message: "Task 'missing' not found.",
+        details: { ref: "missing" },
+      },
+      createdAt: "2026-01-02T03:04:05.000Z",
+      updatedAt: "2026-01-02T03:04:06.000Z",
+    });
+
+    assert.equal(parsed.success, true);
+  });
+
+  it("keeps records for removed tools readable without making them active", () => {
+    const parsed = toolCallRecordSchema.safeParse({
+      id: "tool_legacy",
+      agentId: "agent_test",
+      conversationId: "conv_test",
+      projectId: "proj_test",
+      toolName: "task_list",
+      risk: "read",
+      args: { activeOnly: true },
+      cwd: "/tmp/project",
+      status: "completed",
+      revision: 1,
+      attempt: 1,
+      interactions: [],
+      settledAt: "2026-01-02T03:04:06.000Z",
+      createdAt: "2026-01-02T03:04:05.000Z",
+      updatedAt: "2026-01-02T03:04:06.000Z",
+    });
+
+    assert.equal(parsed.success, true);
+    assert.equal(toolNameSchema.safeParse("task_list").success, false);
+  });
+});
+
+describe("task log paging metadata", () => {
+  it("accepts backward cursors and requires pagination flags", () => {
+    assert.equal(
+      taskLogQuerySchema.safeParse({
+        mode: "recent",
+        beforeSeq: 42,
+        limit: 20,
+      }).success,
+      true,
+    );
+    assert.equal(
+      taskLogQueryResponseSchema.safeParse({
+        task: record(),
+        events: [],
+        nextCursor: 42,
+        hasMoreBefore: true,
+        hasMoreAfter: false,
+        mode: "recent",
+      }).success,
+      true,
+    );
+    assert.equal(
+      taskLogQueryResponseSchema.safeParse({
+        task: record(),
+        events: [],
+        nextCursor: 42,
+        mode: "recent",
+      }).success,
+      false,
+    );
+  });
+});
+
+describe("taskRecordSchema runtime metadata", () => {
+  const runtime = {
+    version: 2 as const,
+    platform: "linux",
+    childPid: 1234,
+    processGroupId: 1234,
+    detached: true,
+    shell: true,
+    containment: "process-group" as const,
+    spawnedAt: "2026-01-02T03:04:06.000Z",
+    identity: { kind: "linux" as const, startTimeTicks: 5678 },
+    capabilities: {
+      identity: true,
+      processTree: true,
+      listeningPorts: true,
+      detail: "native:process-group",
+    },
+  };
+
+  it("accepts complete native runtime metadata", () => {
+    assert.equal(taskRecordSchema.safeParse(record({ runtime })).success, true);
+  });
+
+  it("rejects incomplete and legacy runtime metadata", () => {
+    assert.equal(
+      taskRecordSchema.safeParse(
+        record({ runtime: { ...runtime, childPid: -1 } }),
+      ).success,
+      false,
+    );
+    for (const legacy of [
+      { ...runtime, version: undefined },
+      { ...runtime, containment: undefined },
+      { ...runtime, identity: undefined },
+      { ...runtime, identity: { kind: "legacy_unverified" } },
+    ]) {
+      assert.equal(
+        taskRecordSchema.safeParse({ ...record(), runtime: legacy }).success,
+        false,
+      );
+    }
+  });
+});

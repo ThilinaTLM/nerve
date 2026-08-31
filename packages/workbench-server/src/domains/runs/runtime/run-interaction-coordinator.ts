@@ -1,5 +1,5 @@
-import type { RunInteractionRecord, RunRecord } from "@nervekit/contracts";
-import type { IdPort } from "../../../core/ports.js";
+import type { RunInteractionRecord, RunRecord } from "@nervekit/contracts/runs";
+import type { IdPort } from "../../../core/ports/ids.js";
 import { RunEventFactory } from "./run-events.js";
 import {
   InvalidRunStateError,

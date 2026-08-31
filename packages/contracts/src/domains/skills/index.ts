@@ -1,1 +1,1 @@
-export * from "./skill.schema.js";
+export * from "./skill.js";

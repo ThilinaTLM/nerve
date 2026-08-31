@@ -1,5 +1,5 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { AgentToolCall } from "./types/index.js";
+import type { AgentToolCall } from "./contracts/index.js";
 
 export type AgentToolSuspensionData = {
   toolCallId: string;

@@ -1,12 +1,15 @@
 import { readdir, stat } from "node:fs/promises";
-import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
-import { numberArg } from "../common/args.js";
+import type {
+  FilesystemExecutionContext,
+  ToolExecutionResult,
+} from "../execution-context.js";
+import { numberArg } from "../process/arguments.js";
 import {
   boundText,
   FILE_OUTPUT_MAX_LINE_CHARS,
   textBoundaryDetails,
   textLimitSnapshot,
-} from "../common/output-budget.js";
+} from "../output/output-budget.js";
 import {
   isErrnoException,
   pathNotFoundMessage,
@@ -15,7 +18,7 @@ import {
 
 export async function executeLs(
   args: Record<string, unknown>,
-  context: ToolExecutionContext,
+  context: FilesystemExecutionContext,
 ): Promise<ToolExecutionResult> {
   const input =
     typeof args.path === "string" && args.path.trim().length === 0

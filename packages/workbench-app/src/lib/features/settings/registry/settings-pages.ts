@@ -11,7 +11,7 @@ import Server from "@lucide/svelte/icons/server";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import Shield from "@lucide/svelte/icons/shield";
 import Wrench from "@lucide/svelte/icons/wrench";
-import type { SettingsPageDef } from "$lib/presentation/components/settings";
+import type { SettingsPageDef } from "$lib/presentation/settings";
 
 export const settingsPages: SettingsPageDef[] = [
   {

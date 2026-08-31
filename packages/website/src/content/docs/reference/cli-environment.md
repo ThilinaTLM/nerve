@@ -35,7 +35,7 @@ Pass app options after `--` when using `npx` or `pnpm dlx`.
 | `NERVE_DAEMON_TOKEN`                 | Token for `--connect`; secret                                              |
 | `NERVE_WEB_DIST`                     | Override built Workbench asset directory                                   |
 | `NERVE_DAEMON_STARTUP_TIMEOUT_MS`    | Owned readiness timeout; 60000                                             |
-| `NERVE_DAEMON_MAX_OLD_SPACE_MB`      | Owned Node heap cap; 4096                                                  |
+| `NERVE_DAEMON_MAX_OLD_SPACE_MB`      | Owned Node heap cap; 4096 default, values below 512 are raised to 512      |
 | `NERVE_API_TARGET`                   | Vite UI development daemon target                                          |
 | `NERVE_LOGGING_ENABLED=1\|0`         | Enable/disable persistent application logs                                 |
 | `NERVE_PERFORMANCE_DIAGNOSTICS=1\|0` | Enable/disable local performance sampling                                  |

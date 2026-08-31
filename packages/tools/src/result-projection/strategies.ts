@@ -2,7 +2,7 @@ import type {
   AgentResultProfileId,
   ExactContinuation,
   ProjectionCount,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/tools";
 import { ProjectionBudgetLedger } from "./budget-ledger.js";
 import { blocksFit, measureBlocks, textHead, textTail } from "./measure.js";
 import { profileBudget, type ProjectionBudget } from "./profiles.js";

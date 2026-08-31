@@ -5,13 +5,14 @@ import type {
   ConversationJournalCommit,
   ConversationRecord,
   ConversationSuspensionRecord,
-  ToolCallRecord,
-} from "@nervekit/contracts";
+} from "@nervekit/contracts/conversations";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import {
   ConversationTreeState,
   type ConversationTreeEntry,
-} from "@nervekit/harness";
-import { encode } from "../../infrastructure/canonical-store/payload-codecs.js";
+} from "@nervekit/harness/conversation";
+import { encode } from "../../infrastructure/persistence/canonical-sqlite/payload-codecs.js";
+import { latestDeliverySettledRevision } from "../runs/runtime/index.js";
 import type {
   ConversationJournalState,
   ConversationRunProjection,
@@ -175,6 +176,19 @@ export interface MaterializedConversationRecord {
   revision: number;
   payloadVersion?: number;
   data: unknown;
+  /** Compact startup/UI projection; omitted for model-only records. */
+  projection?: ConversationEntry | ConversationRunProjection["run"];
+  /** Highest run revision whose public event intents are durably delivered. */
+  runDeliverySettledRevision?: number;
+  toolCallProjection?: {
+    projectId: string;
+    status: ToolCallRecord["status"];
+    pendingInteractionKind?: string;
+    toolName: string;
+    hasInteraction: boolean;
+    hasPlanReview: boolean;
+    isTodoState: boolean;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -342,6 +356,7 @@ function materializedEntry(
           },
         }
       : transcriptData,
+    ...(transcript ? { projection: transcript } : {}),
     createdAt,
     updatedAt: modelEntry?.timestamp ?? createdAt,
   };
@@ -360,9 +375,33 @@ function materializedToolCall(
     revision: toolCall.revision,
     payloadVersion: 2,
     data: { version: 2, toolCall },
+    toolCallProjection: {
+      projectId: toolCall.projectId,
+      status: toolCall.status,
+      pendingInteractionKind: toolCall.interactions.find(
+        (interaction) => interaction.status === "pending",
+      )?.kind,
+      toolName: toolCall.toolName,
+      hasInteraction: toolCall.interactions.length > 0,
+      hasPlanReview: toolCall.interactions.some(
+        (interaction) => interaction.kind === "plan_review",
+      ),
+      isTodoState:
+        toolCall.toolName === "todos_set" && toolCall.status === "completed",
+    },
     createdAt: toolCall.createdAt,
     updatedAt: toolCall.updatedAt,
   };
+}
+
+function runDeliverySettledRevision(
+  projection: ConversationRunProjection,
+): number | undefined {
+  const settledRevision = latestDeliverySettledRevision(projection.deliveries);
+  return settledRevision !== undefined &&
+    settledRevision <= projection.run.revision
+    ? settledRevision
+    : undefined;
 }
 
 function materializedRun(
@@ -376,6 +415,8 @@ function materializedRun(
     status: projection.run.status,
     revision: projection.run.revision,
     data: { version: 1, run: projection.run, state: projection },
+    projection: projection.run,
+    runDeliverySettledRevision: runDeliverySettledRevision(projection),
     createdAt: projection.run.createdAt,
     updatedAt: projection.run.updatedAt,
   };
@@ -423,6 +464,7 @@ export function materializeConversationRecords(
             tokensBefore: entry.tokensBefore,
           }
         : { version: 1, entry },
+      projection: entry,
       createdAt: entry.createdAt,
       updatedAt: entry.createdAt,
     });
@@ -463,19 +505,7 @@ export function materializeConversationRecords(
     });
   }
   for (const toolCall of state.toolCalls.values()) {
-    records.set(toolCall.id, {
-      id: toolCall.id,
-      agentId: toolCall.agentId,
-      runId: toolCall.runId,
-      groupId: toolCall.groupId,
-      kind: "tool_call",
-      status: toolCall.phase ?? toolCall.status,
-      revision: toolCall.revision,
-      payloadVersion: 2,
-      data: { version: 2, toolCall },
-      createdAt: toolCall.createdAt,
-      updatedAt: toolCall.updatedAt,
-    });
+    records.set(toolCall.id, materializedToolCall(toolCall));
   }
   for (const projection of state.runProjections.values()) {
     records.set(projection.run.runId, {
@@ -486,6 +516,8 @@ export function materializeConversationRecords(
       status: projection.run.status,
       revision: projection.run.revision,
       data: { version: 1, run: projection.run, state: projection },
+      projection: projection.run,
+      runDeliverySettledRevision: runDeliverySettledRevision(projection),
       createdAt: projection.run.createdAt,
       updatedAt: projection.run.updatedAt,
     });
@@ -499,8 +531,9 @@ export function materializeConversationRecords(
   const insert = database.prepare(
     `INSERT INTO conversation_records (
        id, conversation_id, agent_id, parent_id, run_id, group_id, sequence,
-       revision, kind, status, payload_version, data, created_at_ms, updated_at_ms
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       revision, kind, status, payload_version, data, created_at_ms, updated_at_ms,
+       run_delivery_settled_revision
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        conversation_id = excluded.conversation_id,
        agent_id = excluded.agent_id,
@@ -514,7 +547,8 @@ export function materializeConversationRecords(
        payload_version = excluded.payload_version,
        data = excluded.data,
        created_at_ms = excluded.created_at_ms,
-       updated_at_ms = excluded.updated_at_ms`,
+       updated_at_ms = excluded.updated_at_ms,
+       run_delivery_settled_revision = excluded.run_delivery_settled_revision`,
   );
   const existingSequence = affectedRecordIds
     ? database.prepare(
@@ -556,7 +590,15 @@ export function materializeConversationRecords(
       encode(record.data),
       Date.parse(record.createdAt),
       Date.parse(record.updatedAt),
+      record.runDeliverySettledRevision ?? null,
     );
+    upsertConversationRecordProjection(
+      database,
+      state.conversationId,
+      sequence,
+      record,
+    );
+    upsertToolCallProjection(database, state.conversationId, record);
   }
   const insertLeaf = database.prepare(
     `INSERT INTO agent_context_leaves (
@@ -582,6 +624,99 @@ export function materializeConversationRecords(
       Math.max(1, state.revision),
     );
   }
+}
+
+export function upsertToolCallProjection(
+  database: DatabaseSync,
+  conversationId: string,
+  record: MaterializedConversationRecord,
+): void {
+  const projection = record.toolCallProjection;
+  if (!projection || record.kind !== "tool_call") return;
+  if (!record.agentId) {
+    throw new Error(`Tool call projection '${record.id}' has no agent id.`);
+  }
+  database
+    .prepare(
+      `INSERT INTO tool_call_projections (
+         record_id, conversation_id, project_id, agent_id, run_id, status,
+         pending_interaction_kind, tool_name, has_interaction, has_plan_review,
+         is_todo_state, revision, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(record_id) DO UPDATE SET
+         conversation_id = excluded.conversation_id,
+         project_id = excluded.project_id,
+         agent_id = excluded.agent_id,
+         run_id = excluded.run_id,
+         status = excluded.status,
+         pending_interaction_kind = excluded.pending_interaction_kind,
+         tool_name = excluded.tool_name,
+         has_interaction = excluded.has_interaction,
+         has_plan_review = excluded.has_plan_review,
+         is_todo_state = excluded.is_todo_state,
+         revision = excluded.revision,
+         updated_at = excluded.updated_at`,
+    )
+    .run(
+      record.id,
+      conversationId,
+      projection.projectId,
+      record.agentId,
+      record.runId ?? null,
+      projection.status,
+      projection.pendingInteractionKind ?? null,
+      projection.toolName,
+      projection.hasInteraction ? 1 : 0,
+      projection.hasPlanReview ? 1 : 0,
+      projection.isTodoState ? 1 : 0,
+      record.revision,
+      record.updatedAt,
+    );
+}
+
+export function upsertConversationRecordProjection(
+  database: DatabaseSync,
+  conversationId: string,
+  sequence: number,
+  record: MaterializedConversationRecord,
+): void {
+  if (
+    !record.projection ||
+    (record.kind !== "message" &&
+      record.kind !== "summary" &&
+      record.kind !== "run")
+  ) {
+    database
+      .prepare(
+        `DELETE FROM conversation_record_projections WHERE record_id = ?`,
+      )
+      .run(record.id);
+    return;
+  }
+  database
+    .prepare(
+      `INSERT INTO conversation_record_projections (
+         record_id, conversation_id, sequence, kind, status, payload_version,
+         data, updated_at_ms
+       ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+       ON CONFLICT(record_id) DO UPDATE SET
+         conversation_id = excluded.conversation_id,
+         sequence = excluded.sequence,
+         kind = excluded.kind,
+         status = excluded.status,
+         payload_version = excluded.payload_version,
+         data = excluded.data,
+         updated_at_ms = excluded.updated_at_ms`,
+    )
+    .run(
+      record.id,
+      conversationId,
+      sequence,
+      record.kind,
+      record.status,
+      encode(record.projection),
+      Date.parse(record.updatedAt),
+    );
 }
 
 function orderMaterializedRecords(
