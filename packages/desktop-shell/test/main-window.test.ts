@@ -39,6 +39,8 @@ describe("desktop main window", () => {
           return window;
         },
         shouldUseDarkColors: () => true,
+        resolveAppIconPath: () => "/test/icon.png",
+        resolvePreloadPath: () => "/test/preload.cjs",
         platform: "linux",
         log: async () => undefined,
         redactUrl: (url) => url,
@@ -54,7 +56,8 @@ describe("desktop main window", () => {
     assert.equal(options?.webPreferences?.sandbox, true);
     assert.equal(options?.webPreferences?.contextIsolation, true);
     assert.equal(options?.webPreferences?.nodeIntegration, false);
-    assert.ok(options?.webPreferences?.preload);
+    assert.equal(options?.icon, "/test/icon.png");
+    assert.equal(options?.webPreferences?.preload, "/test/preload.cjs");
     assert.equal(navigationInstalled, 1);
 
     let prevented = 0;

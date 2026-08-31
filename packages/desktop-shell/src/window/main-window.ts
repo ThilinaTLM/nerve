@@ -3,7 +3,6 @@ import type { BrowserWindowConstructorOptions } from "electron";
 import type { BrowserWindowType } from "../platform/electron/electron-api.js";
 import type { QuitSource } from "../app/quit-contracts.js";
 import { loadingWindowBackground } from "./loading-pages.js";
-import { resolveAppIconPath, resolvePreloadPath } from "./preload-paths.js";
 
 export interface MainWindowCallbacks {
   daemonUrl(): string | undefined;
@@ -16,6 +15,8 @@ export interface MainWindowCallbacks {
 export interface MainWindowDependencies {
   createWindow(options: BrowserWindowConstructorOptions): BrowserWindowType;
   shouldUseDarkColors(): boolean;
+  resolveAppIconPath(): string;
+  resolvePreloadPath(): string;
   readonly platform: NodeJS.Platform;
   log(
     level: "info" | "warn" | "error",
@@ -48,11 +49,11 @@ export function createDesktopMainWindow(
     ),
     ...(dependencies.platform === "darwin"
       ? {}
-      : { icon: resolveAppIconPath() }),
+      : { icon: dependencies.resolveAppIconPath() }),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: resolvePreloadPath(),
+      preload: dependencies.resolvePreloadPath(),
       sandbox: true,
     },
   });

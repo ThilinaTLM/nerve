@@ -23,7 +23,11 @@ import {
 import { createTrayController } from "../tray/tray.js";
 import { createDesktopMainWindow } from "../window/main-window.js";
 import { installNavigationGuards } from "../window/navigation-guards.js";
-import { resolvePackagedWebDistPath } from "../window/preload-paths.js";
+import {
+  resolveAppIconPath,
+  resolvePackagedWebDistPath,
+  resolvePreloadPath,
+} from "../window/preload-paths.js";
 import { prepareDesktopDataDirectory } from "./data-directory-migration.js";
 import {
   DesktopRuntime,
@@ -99,6 +103,8 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
           createWindow: (browserWindowOptions) =>
             new BrowserWindow(browserWindowOptions),
           shouldUseDarkColors: () => nativeTheme.shouldUseDarkColors,
+          resolveAppIconPath,
+          resolvePreloadPath,
           platform: process.platform,
           log: desktopLog,
           redactUrl: redactUrlForLog,
