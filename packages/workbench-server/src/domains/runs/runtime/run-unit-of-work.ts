@@ -8,6 +8,32 @@ import type {
   RunTransitionRecord,
 } from "@nervekit/contracts/runs";
 
+export const DELIVERY_SETTLED_PREFIX = "__nerve_settled__";
+
+export function deliverySettledIntentId(
+  runId: string,
+  revision: number,
+): string {
+  return `${DELIVERY_SETTLED_PREFIX}:${runId}:${revision}`;
+}
+
+export function isDeliverySettledRecord(
+  delivery: RunEventDeliveryRecord | undefined,
+): delivery is RunEventDeliveryRecord {
+  return (
+    delivery !== undefined &&
+    delivery.intentId ===
+      deliverySettledIntentId(delivery.runId, delivery.revision)
+  );
+}
+
+export function latestDeliverySettledRevision(
+  deliveries: readonly RunEventDeliveryRecord[],
+): number | undefined {
+  const latest = deliveries.at(-1);
+  return isDeliverySettledRecord(latest) ? latest.revision : undefined;
+}
+
 export interface RunHydratedState {
   readonly run: RunRecord;
   readonly prompts: readonly RunPromptRecord[];

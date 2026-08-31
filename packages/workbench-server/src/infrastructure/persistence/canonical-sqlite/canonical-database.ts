@@ -27,15 +27,32 @@ import {
 } from "./canonical-database-helpers.js";
 import { decode, encode } from "./payload-codecs.js";
 import {
+  listCanonicalRunDeliveryRecoveryStates,
+  listCanonicalRunMetadata,
+  listCanonicalRunStates,
+  readCanonicalRunState,
+} from "./canonical-run-queries.js";
+import {
+  canonicalToolCallConversationId,
+  countCanonicalToolCallProjections,
+  listCanonicalToolCallStartupRecords,
+  queryCanonicalToolCallProjections,
+  readCanonicalToolCall,
+  type CanonicalToolCallProjectionQuery,
+} from "./canonical-tool-call-queries.js";
+import {
   CANONICAL_BASELINE_NAME,
   CANONICAL_SCHEMA_CHECKSUM,
   CANONICAL_SCHEMA_SQL,
   CANONICAL_SCHEMA_V2_CHECKSUM,
+  CANONICAL_SCHEMA_V3_CHECKSUM,
   CANONICAL_SCHEMA_VERSION,
   CANONICAL_V1_TO_V2_MIGRATION_NAME,
   CANONICAL_V1_TO_V2_MIGRATION_SQL,
   CANONICAL_V2_TO_V3_MIGRATION_NAME,
   CANONICAL_V2_TO_V3_MIGRATION_SQL,
+  CANONICAL_V3_TO_V4_MIGRATION_NAME,
+  CANONICAL_V3_TO_V4_MIGRATION_SQL,
 } from "./schema.js";
 
 export interface CanonicalDocument<T = unknown> {
@@ -116,8 +133,18 @@ export class CanonicalDatabase {
         this.database,
         3,
         CANONICAL_V2_TO_V3_MIGRATION_NAME,
-        CANONICAL_SCHEMA_CHECKSUM,
+        CANONICAL_SCHEMA_V3_CHECKSUM,
         CANONICAL_V2_TO_V3_MIGRATION_SQL,
+      );
+      version = 3;
+    }
+    if (version === 3) {
+      applySchemaMigration(
+        this.database,
+        4,
+        CANONICAL_V3_TO_V4_MIGRATION_NAME,
+        CANONICAL_SCHEMA_CHECKSUM,
+        CANONICAL_V3_TO_V4_MIGRATION_SQL,
       );
     }
   }
@@ -480,59 +507,42 @@ export class CanonicalDatabase {
   }
 
   readToolCall(toolCallId: string): unknown | undefined {
-    const row = this.database
-      .prepare(
-        `SELECT data FROM conversation_records
-         WHERE kind = 'tool_call' AND id = ?`,
-      )
-      .get(toolCallId) as { data: Uint8Array | string } | undefined;
-    if (!row) return undefined;
-    return (decode(row.data) as { toolCall?: unknown }).toolCall;
+    return readCanonicalToolCall(this.database, toolCallId);
+  }
+
+  countToolCallProjections(): number {
+    return countCanonicalToolCallProjections(this.database);
+  }
+
+  queryToolCallProjections(query: CanonicalToolCallProjectionQuery): {
+    records: unknown[];
+    nextCursor?: { updatedAt: string; id: string };
+  } {
+    return queryCanonicalToolCallProjections(this.database, query);
+  }
+
+  listToolCallStartupRecords(): unknown[] {
+    return listCanonicalToolCallStartupRecords(this.database);
+  }
+
+  toolCallConversationId(toolCallId: string): string | undefined {
+    return canonicalToolCallConversationId(this.database, toolCallId);
   }
 
   listRunMetadata(): unknown[] {
-    const rows = this.database
-      .prepare(
-        `SELECT COALESCE(
-                  projection.data,
-                  CAST(json_extract(CAST(record.data AS TEXT), '$.run') AS BLOB)
-                ) AS data
-         FROM conversation_records AS record
-         LEFT JOIN conversation_record_projections AS projection
-           ON projection.record_id = record.id
-         WHERE record.kind = 'run'
-         ORDER BY record.updated_at_ms, record.id`,
-      )
-      .all() as unknown as Array<{ data: Uint8Array | string }>;
-    return rows.map((row) => decode(row.data));
+    return listCanonicalRunMetadata(this.database);
   }
 
   listRunStates(statuses: string[]): unknown[] {
-    if (statuses.length === 0) return [];
-    const placeholders = statuses.map(() => "?").join(", ");
-    const rows = this.database
-      .prepare(
-        `SELECT data FROM conversation_records
-         WHERE kind = 'run' AND status IN (${placeholders})
-         ORDER BY updated_at_ms, id`,
-      )
-      .all(...statuses) as unknown as Array<{
-      data: Uint8Array | string;
-    }>;
-    return rows.flatMap((row) => {
-      const state = (decode(row.data) as { state?: unknown }).state;
-      return state === undefined ? [] : [state];
-    });
+    return listCanonicalRunStates(this.database, statuses);
+  }
+
+  listRunDeliveryRecoveryStates(): unknown[] {
+    return listCanonicalRunDeliveryRecoveryStates(this.database);
   }
 
   readRunState(runId: string): unknown | undefined {
-    const row = this.database
-      .prepare(
-        `SELECT data FROM conversation_records
-         WHERE kind = 'run' AND id = ?`,
-      )
-      .get(runId) as { data: Uint8Array | string } | undefined;
-    return row ? (decode(row.data) as { state?: unknown }).state : undefined;
+    return readCanonicalRunState(this.database, runId);
   }
 
   backfillConversationRecordProjections(input: {

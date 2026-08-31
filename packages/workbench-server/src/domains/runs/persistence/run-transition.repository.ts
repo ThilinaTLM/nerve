@@ -16,25 +16,11 @@ import {
   applyRunEventDelivery,
   applyRunTransition,
   BoundedRunStateCache,
+  deliverySettledIntentId,
   RunRevisionConflictError,
   type RunHydratedState,
   type RunUnitOfWorkPort,
 } from "../runtime/index.js";
-
-export const DELIVERY_SETTLED_PREFIX = "__nerve_settled__";
-
-export function deliverySettledIntentId(
-  runId: string,
-  revision: number,
-): string {
-  return `${DELIVERY_SETTLED_PREFIX}:${runId}:${revision}`;
-}
-
-export function isDeliverySettledRecord(
-  delivery: RunEventDeliveryRecord | undefined,
-): delivery is RunEventDeliveryRecord {
-  return delivery?.intentId.startsWith(DELIVERY_SETTLED_PREFIX) === true;
-}
 
 /** Run projection/unit of work backed by conversation aggregate journals. */
 export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
@@ -224,27 +210,38 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
       revision: number;
       intent: RunTransitionRecord["events"][number];
     }> = [];
-    for (const state of await this.list()) {
-      const journalState = await this.journal.load(state.run.conversationId);
+    const candidates =
+      await this.journal.listRunDeliveryRecoveryStates<RunHydratedState>();
+    for (const state of candidates) {
       const delivered = new Set(state.deliveries.map((item) => item.intentId));
-      for (const transition of state.transitions) {
-        for (const intent of transition.events) {
-          if (!delivered.has(intent.id)) {
-            const conversationRevision =
-              journalState.intentConversationRevisions.get(intent.id);
-            pending.push({
-              runId: transition.runId,
-              revision: transition.revision,
-              intent:
-                conversationRevision === undefined || !isRecord(intent.data)
-                  ? intent
-                  : {
-                      ...intent,
-                      data: { ...intent.data, conversationRevision },
-                    },
-            });
-          }
-        }
+      const runPending = state.transitions.flatMap((transition) =>
+        transition.events
+          .filter((intent) => !delivered.has(intent.id))
+          .map((intent) => ({
+            runId: transition.runId,
+            revision: transition.revision,
+            intent,
+          })),
+      );
+      if (runPending.length === 0) {
+        await this.markDeliverySettled(state.run.runId, state.run.revision);
+        continue;
+      }
+
+      const journalState = await this.journal.load(state.run.conversationId);
+      for (const item of runPending) {
+        const conversationRevision =
+          journalState.intentConversationRevisions.get(item.intent.id);
+        pending.push({
+          ...item,
+          intent:
+            conversationRevision === undefined || !isRecord(item.intent.data)
+              ? item.intent
+              : {
+                  ...item.intent,
+                  data: { ...item.intent.data, conversationRevision },
+                },
+        });
       }
     }
     return pending.sort(

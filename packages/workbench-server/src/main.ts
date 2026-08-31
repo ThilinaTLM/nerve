@@ -180,6 +180,7 @@ async function main() {
       host,
       port,
       storageDurationMs,
+      ...storage.timings,
       loggerHydrateDurationMs,
     },
   });
@@ -219,7 +220,13 @@ async function main() {
     message: "Hydrating runtime projections",
   });
   const [registryTimings] = await Promise.all([
-    state.lifecycle.hydrate(),
+    state.lifecycle.hydrate((stage) =>
+      reportStartupProgress({
+        type: "nerve.startup.progress",
+        phase: "runtime-hydration",
+        message: `Runtime bootstrap: ${stage}`,
+      }),
+    ),
     state.storageCleanup.hydrate(),
   ]);
   await state.logger.info("Registry hydrated", {
@@ -296,6 +303,7 @@ async function main() {
           performance.now() - processStartupStartedAt,
         ),
         storageDurationMs,
+        ...storage.timings,
         loggerHydrateDurationMs,
         agentSkillsDurationMs,
         eventsHydrateDurationMs,
@@ -305,12 +313,17 @@ async function main() {
         storeDurationsMs: registryTimings.storeDurationsMs,
         hydrationCounts: registryTimings.counts,
         agentsHydrationDurationMs: registryTimings.agentsHydrationDurationMs,
+        initialDeliveryFlushDurationMs:
+          registryTimings.initialDeliveryFlushDurationMs,
         runRecoveryDurationMs: registryTimings.runRecoveryDurationMs,
+        finalDeliveryFlushDurationMs:
+          registryTimings.finalDeliveryFlushDurationMs,
         humanInputRecoveryDurationMs:
           registryTimings.humanInputRecoveryDurationMs,
         projectorDurationMs: registryTimings.projectorDurationMs,
         taskNotificationsDurationMs:
           registryTimings.taskNotificationsDurationMs,
+        bootstrapStageDurationsMs: registryTimings.bootstrapStageDurationsMs,
         toolCallHydrationSource: registryTimings.toolCallHydrationSource,
       });
       performanceMonitor ??= installDaemonPerformanceMonitor({

@@ -275,11 +275,43 @@ export class CanonicalStore {
       toolCallId,
     });
   }
+  countToolCallProjections(): Promise<number> {
+    return this.request<number>({ kind: "count_tool_call_projections" });
+  }
+  queryToolCallProjections(query: {
+    status?: ToolCallRecord["status"];
+    pendingInteractionKind?: "approval" | "user_input" | "plan_review";
+    conversationId?: string;
+    projectId?: string;
+    agentId?: string;
+    runId?: string;
+    limit?: number;
+    cursor?: { updatedAt: string; id: string };
+  }) {
+    return this.request<{
+      records: ToolCallRecord[];
+      nextCursor?: { updatedAt: string; id: string };
+    }>({ kind: "query_tool_call_projections", query });
+  }
+  listToolCallStartupRecords(): Promise<ToolCallRecord[]> {
+    return this.request<ToolCallRecord[]>({
+      kind: "list_tool_call_startup_records",
+    });
+  }
+  toolCallConversationId(toolCallId: string): Promise<string | undefined> {
+    return this.request<string | undefined>({
+      kind: "tool_call_conversation_id",
+      toolCallId,
+    });
+  }
   listRunMetadata() {
     return this.request<RunRecord[]>({ kind: "list_run_metadata" });
   }
   listRunStates<T>(statuses: string[]) {
     return this.request<T[]>({ kind: "list_run_states", statuses });
+  }
+  listRunDeliveryRecoveryStates<T>() {
+    return this.request<T[]>({ kind: "list_run_delivery_recovery_states" });
   }
   readRunState<T>(runId: string) {
     return this.request<T | undefined>({ kind: "read_run_state", runId });

@@ -22,6 +22,8 @@ function createDesktopPreloadApi({ ipcRenderer, webUtils, platform }) {
         ),
     },
     app: {
+      reportRendererCoreReady: () =>
+        ipcRenderer.invoke("desktop.startup.rendererCoreReady"),
       onQuitStarted: (listener) =>
         subscribe(
           ipcRenderer,

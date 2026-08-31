@@ -112,10 +112,11 @@ describe("explore subagent transcript isolation", () => {
       );
       assert.match(childHarness, /temporary project is isolated/i);
 
-      const childToolCalls = orchestrator.services.tools.listToolCallPreviews({
-        agentId: child.id,
-        limit: 10,
-      });
+      const childToolCalls =
+        await orchestrator.services.tools.listToolCallPreviews({
+          agentId: child.id,
+          limit: 10,
+        });
       assert.equal(childToolCalls.length, 1);
       assert.equal(childToolCalls[0]?.toolName, "ls");
       assert.equal(childToolCalls[0]?.status, "completed");

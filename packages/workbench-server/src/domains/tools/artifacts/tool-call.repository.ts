@@ -7,10 +7,16 @@ import {
 } from "@nervekit/contracts/tools";
 import { type ConversationJournalEvent } from "@nervekit/contracts/conversations";
 import { createHash } from "node:crypto";
-import type {
-  RuntimeQueryCache,
-  ToolCallPreviewQuery,
-} from "../../../infrastructure/persistence/query-cache/index.js";
+export interface ToolCallPreviewQuery {
+  status?: ToolCallRecord["status"];
+  pendingInteractionKind?: "approval" | "user_input" | "plan_review";
+  conversationId?: string;
+  projectId?: string;
+  agentId?: string;
+  runId?: string;
+  limit?: number;
+  cursor?: { updatedAt: string; id: string };
+}
 import { storagePaths } from "../../../infrastructure/storage-bootstrap/paths.js";
 import { ConversationJournalRepository } from "../../conversations/conversation-journal.repository.js";
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
@@ -24,12 +30,17 @@ import {
 
 const TERMINAL_CACHE_MAX_BYTES = 16 * 1024 * 1024;
 
+export interface ToolCallPreviewPage {
+  toolCalls: ToolCallTranscriptRecord[];
+  nextCursor?: { updatedAt: string; id: string };
+}
+
 export interface ToolCallHydrationStats {
   rowCount: number;
   uniqueCount: number;
   fileBytes: number;
   activeCount: number;
-  source: "journal";
+  source: "canonical_projection";
 }
 
 export class ToolCallRevisionConflictError extends Error {
@@ -48,6 +59,7 @@ export class ToolCallRevisionConflictError extends Error {
 /** Journal-backed canonical tool-call projection. */
 export class ToolCallRepository {
   readonly records: Map<string, ToolCallRecord> = new Map();
+  private readonly interactionRecords = new Map<string, ToolCallRecord>();
   private readonly terminalCache = new Map<
     string,
     { record: ToolCallRecord; bytes: number }
@@ -60,17 +72,15 @@ export class ToolCallRepository {
     uniqueCount: 0,
     fileBytes: 0,
     activeCount: 0,
-    source: "journal",
+    source: "canonical_projection",
   };
 
   private readonly journal: ConversationJournalRepository;
-  private readonly queryCache: RuntimeQueryCache;
 
   constructor(
     journalOrStorage:
       | ConversationJournalRepository
       | { paths: { home: string } },
-    queryCache: RuntimeQueryCache,
     private readonly payloads?: ToolResultPayloadStore,
   ) {
     this.journal =
@@ -80,68 +90,42 @@ export class ToolCallRepository {
             ...journalOrStorage,
             paths: storagePaths(journalOrStorage.paths.home),
           });
-    this.queryCache = queryCache;
   }
 
   async hydrate(
     onRecord?: (record: ToolCallRecord) => void,
   ): Promise<ToolCallRecord[]> {
     this.records.clear();
+    this.interactionRecords.clear();
     this.providerToolCallIds.clear();
     this.terminalCache.clear();
     this.terminalCacheBytes = 0;
-    const ids = new Set<string>();
-    let rowCount = 0;
-    let fileBytes = 0;
-    let afterId: string | undefined;
-    this.queryCache.beginToolCallRebuild();
-    try {
-      for (;;) {
-        const page = await this.journal.scanToolCalls({
-          ...(afterId ? { afterId } : {}),
-          maxRows: 128,
-          maxBytes: 8 * 1024 * 1024,
-        });
-        fileBytes += page.encodedBytes;
-        for (const record of page.records) {
-          if (ids.has(record.id)) {
-            throw new Error(`Duplicate canonical tool call '${record.id}'.`);
-          }
-          ids.add(record.id);
-          rowCount += 1;
-          this.queryCache.appendToolCallRebuild(
-            record,
-            toToolCallTranscriptRecord(record),
-          );
-          if (!isTerminal(record.status)) {
-            this.records.set(record.id, record);
-            this.indexProviderIds(record);
-          }
-          onRecord?.(record);
-        }
-        if (page.done) break;
-        if (!page.nextCursor) {
-          throw new Error("Canonical tool-call scan did not advance.");
-        }
-        afterId = page.nextCursor;
+    const [rowCount, startupRecords] = await Promise.all([
+      this.journal.countToolCallProjections(),
+      this.journal.listToolCallStartupRecords(),
+    ]);
+    for (const record of startupRecords) {
+      if (record.interactions.length > 0) {
+        this.interactionRecords.set(record.id, record);
       }
-      this.queryCache.finishToolCallRebuild();
-    } catch (error) {
-      this.queryCache.rollbackToolCallRebuild();
-      throw error;
+      if (!isTerminal(record.status)) {
+        this.records.set(record.id, record);
+        this.indexProviderIds(record);
+      }
+      onRecord?.(record);
     }
     this.hydrationStats = {
       rowCount,
       uniqueCount: rowCount,
-      fileBytes,
+      fileBytes: 0,
       activeCount: this.records.size,
-      source: "journal",
+      source: "canonical_projection",
     };
     return this.listActive();
   }
 
-  get hydrationSource(): "journal" {
-    return "journal";
+  get hydrationSource(): "canonical_projection" {
+    return "canonical_projection";
   }
 
   get hydrationStatsValue(): ToolCallHydrationStats {
@@ -161,19 +145,31 @@ export class ToolCallRepository {
   }
 
   count(): number {
-    return this.queryCache.countToolCalls();
+    return this.hydrationStats.rowCount;
   }
 
   listActive(): ToolCallRecord[] {
     return [...this.records.values()].sort(compareUpdatedDescending);
   }
 
-  listPreviews(query: ToolCallPreviewQuery = {}): ToolCallTranscriptRecord[] {
-    return this.queryCache.listToolCallPreviews(query);
+  listInteractionRecords(): ToolCallRecord[] {
+    return [...this.interactionRecords.values()].sort(compareUpdatedDescending);
   }
 
-  queryPreviews(query: ToolCallPreviewQuery = {}) {
-    return this.queryCache.queryToolCallPreviews(query);
+  async listPreviews(
+    query: ToolCallPreviewQuery = {},
+  ): Promise<ToolCallTranscriptRecord[]> {
+    return (await this.queryPreviews(query)).toolCalls;
+  }
+
+  async queryPreviews(
+    query: ToolCallPreviewQuery = {},
+  ): Promise<ToolCallPreviewPage> {
+    const page = await this.journal.queryToolCallProjections(query);
+    return {
+      toolCalls: page.records.map(toToolCallTranscriptRecord),
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+    };
   }
 
   get(toolCallId: string): ToolCallRecord {
@@ -411,36 +407,36 @@ export class ToolCallRepository {
   }
 
   async removeForConversations(conversationIds: Set<string>): Promise<void> {
+    for (const [id, record] of [...this.interactionRecords]) {
+      if (conversationIds.has(record.conversationId)) {
+        this.interactionRecords.delete(id);
+      }
+    }
     for (const [id, record] of [...this.records]) {
       if (!conversationIds.has(record.conversationId)) continue;
       this.records.delete(id);
       this.unindexProviderIds(record);
-      this.queryCache.deleteToolCall(id);
     }
     for (const [id, cached] of [...this.terminalCache]) {
       if (!conversationIds.has(cached.record.conversationId)) continue;
       this.terminalCache.delete(id);
       this.terminalCacheBytes -= cached.bytes;
       this.unindexProviderIds(cached.record);
-      this.queryCache.deleteToolCall(id);
     }
   }
 
   private observe(record: ToolCallRecord): void {
     this.indexProviderIds(record);
+    if (record.interactions.length > 0) {
+      this.interactionRecords.set(record.id, record);
+    } else {
+      this.interactionRecords.delete(record.id);
+    }
     if (isTerminal(record.status)) {
       this.records.delete(record.id);
       this.cacheTerminal(record, Buffer.byteLength(JSON.stringify(record)));
     } else {
       this.records.set(record.id, record);
-    }
-    try {
-      this.queryCache.upsertToolCall(
-        record,
-        toToolCallTranscriptRecord(record),
-      );
-    } catch {
-      // The journal remains authoritative; SQLite is disposable.
     }
   }
 

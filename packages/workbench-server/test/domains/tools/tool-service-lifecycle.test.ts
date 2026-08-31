@@ -5,10 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { AgentRecord } from "@nervekit/contracts/agents";
-import type {
-  ToolCallRecord,
-  ToolCallTranscriptRecord,
-} from "@nervekit/contracts/tools";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { defaultSettings } from "@nervekit/contracts/settings";
 import { ToolService } from "../../../src/domains/tools/execution/tool-service.js";
 import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/index.js";
@@ -28,7 +25,6 @@ describe("tool service lifecycle", () => {
         publish: async (type: string, data: unknown) =>
           events.push({ type, data }),
       } as never,
-      { upsertToolCall: () => undefined } as never,
       {} as never,
       {
         runtimeForProject: async () => undefined,
@@ -307,7 +303,6 @@ function buildToolService(
   },
 ) {
   const events: Array<{ type: string; data: unknown }> = [];
-  const previews = new Map<string, ToolCallTranscriptRecord>();
   const service = new ToolService(
     {
       paths: storagePaths(home),
@@ -318,17 +313,6 @@ function buildToolService(
       publish: async (type: string, data: unknown) =>
         events.push({ type, data }),
     }) as never,
-    {
-      upsertToolCall: (
-        record: ToolCallRecord,
-        preview: ToolCallTranscriptRecord,
-      ) => previews.set(record.id, preview),
-      listToolCallPreviews: () => [...previews.values()],
-      upsertApproval: () => undefined,
-      writeToolCallSnapshot: () => undefined,
-      isToolCallSnapshotValid: () => ({ valid: false, reason: "no-meta" }),
-      loadToolCalls: () => [],
-    } as never,
     {} as never,
     (pythonRuntime ?? {
       runtimeForProject: async () => undefined,

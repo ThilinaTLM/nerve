@@ -42,7 +42,7 @@ function preloadApiShape() {
       getState: invoke,
       onStateChange: subscribe,
     },
-    app: { onQuitStarted: subscribe },
+    app: { reportRendererCoreReady: invoke, onQuitStarted: subscribe },
     daemon: { getCapability: invoke, restart: invoke },
     settings: { setCloseToTray: invoke },
     notifications: { show: invoke },

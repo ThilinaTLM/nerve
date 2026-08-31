@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { settleMeasuredHydrationOperations } from "../../../src/app/runtime/runtime-lifecycle.js";
+import { RuntimeHydrator } from "../../../src/app/bootstrap/hydrate-runtime.js";
 
 function deferred() {
   let resolve!: () => void;
@@ -49,6 +50,47 @@ describe("runtime store hydration timings", () => {
     assert.equal(durations.auth, 35);
     assert.equal(durations.tasks, 80);
     assert.equal(durations.tools, 0);
+  });
+
+  it("preserves both delivery barriers and reports explicit bootstrap stages", async () => {
+    let flushes = 0;
+    const stages: string[] = [];
+    const hydrator = new RuntimeHydrator({
+      withUpdatesDeferred: (operation) => operation(),
+      hydrateStores: [],
+      loadAgents: async () => undefined,
+      flushRunDelivery: async () => {
+        flushes += 1;
+      },
+      recoverRuns: async () => undefined,
+      recoverHumanInput: async () => undefined,
+      rebuildProjector: async () => ({ runMetadata: 0, activeRuns: 0 }),
+      counts: () => ({
+        projects: 0,
+        conversations: 0,
+        agents: 0,
+        tasks: 0,
+        toolCalls: 0,
+      }),
+      recoverTaskNotifications: async () => undefined,
+      rebuildIndex: async () => undefined,
+      hydratePromptSuggestions: async () => undefined,
+      toolCallHydrationSource: "canonical_projection",
+    });
+
+    const timings = await hydrator.hydrate((stage) => stages.push(stage));
+
+    assert.equal(flushes, 2);
+    assert.deepEqual(stages, [
+      "hydrating-read-models",
+      "recovering-durable-state",
+      "hydrating-read-models",
+      "core-ready",
+    ]);
+    assert.ok(
+      timings.bootstrapStageDurationsMs["recovering-durable-state"] !==
+        undefined,
+    );
   });
 
   it("settles every operation and rethrows the first rejection by input order", async () => {

@@ -190,13 +190,16 @@ export class SubagentTranscriptService {
           )
           .filter((entry): entry is SubagentTranscriptEntry => Boolean(entry));
 
-        const allToolCalls = this.deps.tools
-          .listToolCallPreviews({ agentId: child.id, limit: 1_000 })
-          .sort((a, b) =>
-            a.createdAt === b.createdAt
-              ? a.id.localeCompare(b.id)
-              : a.createdAt.localeCompare(b.createdAt),
-          );
+        const allToolCalls = (
+          await this.deps.tools.listToolCallPreviews({
+            agentId: child.id,
+            limit: 1_000,
+          })
+        ).sort((a, b) =>
+          a.createdAt === b.createdAt
+            ? a.id.localeCompare(b.id)
+            : a.createdAt.localeCompare(b.createdAt),
+        );
         const toolCalls = allToolCalls.slice(
           -SUBAGENT_TRANSCRIPT_MAX_TOOL_CALLS,
         );

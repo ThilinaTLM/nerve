@@ -16,6 +16,7 @@ import {
 import { RuntimeState } from "./runtime-projections.js";
 import {
   RuntimeHydrator,
+  type RuntimeBootstrapStage,
   type RuntimeHydrationTimings,
   type StoreHydrationOperation,
 } from "../bootstrap/hydrate-runtime.js";
@@ -182,8 +183,10 @@ export class RuntimeLifecycle {
       });
   }
 
-  async hydrate(): Promise<RuntimeHydrationTimings> {
-    return this.hydrator.hydrate();
+  async hydrate(
+    reportStage?: (stage: RuntimeBootstrapStage) => void,
+  ): Promise<RuntimeHydrationTimings> {
+    return this.hydrator.hydrate(reportStage);
   }
   async refreshRuntimeCapabilities(): Promise<void> {
     if (this.shuttingDown) return;

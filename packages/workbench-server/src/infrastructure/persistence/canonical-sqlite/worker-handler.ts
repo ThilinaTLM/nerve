@@ -57,10 +57,20 @@ export function executeCanonicalCommand(
       return database.scanToolCalls(command);
     case "read_tool_call":
       return database.readToolCall(command.toolCallId);
+    case "count_tool_call_projections":
+      return database.countToolCallProjections();
+    case "query_tool_call_projections":
+      return database.queryToolCallProjections(command.query);
+    case "list_tool_call_startup_records":
+      return database.listToolCallStartupRecords();
+    case "tool_call_conversation_id":
+      return database.toolCallConversationId(command.toolCallId);
     case "list_run_metadata":
       return database.listRunMetadata();
     case "list_run_states":
       return database.listRunStates(command.statuses);
+    case "list_run_delivery_recovery_states":
+      return database.listRunDeliveryRecoveryStates();
     case "read_run_state":
       return database.readRunState(command.runId);
     case "backfill_conversation_record_projections":

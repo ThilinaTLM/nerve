@@ -9,7 +9,24 @@ import type {
   ConversationRecord,
 } from "@nervekit/contracts/conversations";
 import { PerformanceMetricsCollector } from "../../../src/infrastructure/diagnostics/performance-metrics.js";
-import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
+import { ConversationJournalRepository as CanonicalConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
+
+const repositories: ConversationJournalRepository[] = [];
+class ConversationJournalRepository extends CanonicalConversationJournalRepository {
+  constructor(
+    ...args: ConstructorParameters<
+      typeof CanonicalConversationJournalRepository
+    >
+  ) {
+    super(...args);
+    repositories.push(this);
+  }
+}
+test.afterEach(async () => {
+  await Promise.all(
+    repositories.splice(0).map((repository) => repository.close()),
+  );
+});
 
 const conversationId = "conv_journal_test";
 const now = "2026-08-23T00:00:00.000Z";

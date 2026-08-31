@@ -103,6 +103,7 @@ export class ConversationJournalRepository {
   private readonly locks = journalLocks;
 
   private readonly canonical: CanonicalStore;
+  private readonly ownsCanonicalStore: boolean;
   private readonly ready: Promise<void>;
   constructor(
     private readonly storage: {
@@ -115,12 +116,19 @@ export class ConversationJournalRepository {
       maxResidentEncodedBytes?: number;
     } = {},
   ) {
+    this.ownsCanonicalStore = storage.canonicalStore === undefined;
     this.canonical =
       storage.canonicalStore ??
       new CanonicalStore(
         storage.paths.sqlitePath ?? storagePaths(storage.paths.home).sqlitePath,
       );
     this.ready = this.canonical.initialize();
+  }
+
+  async close(): Promise<void> {
+    if (!this.ownsCanonicalStore) return;
+    await this.ready;
+    await this.canonical.close();
   }
 
   homePath(): string {
@@ -166,6 +174,30 @@ export class ConversationJournalRepository {
     return this.canonical.readToolCall(toolCallId);
   }
 
+  async countToolCallProjections(): Promise<number> {
+    await this.ready;
+    return this.canonical.countToolCallProjections();
+  }
+
+  async queryToolCallProjections(
+    query: Parameters<CanonicalStore["queryToolCallProjections"]>[0],
+  ) {
+    await this.ready;
+    return this.canonical.queryToolCallProjections(query);
+  }
+
+  async listToolCallStartupRecords(): Promise<ToolCallRecord[]> {
+    await this.ready;
+    return this.canonical.listToolCallStartupRecords();
+  }
+
+  async toolCallConversationId(
+    toolCallId: string,
+  ): Promise<string | undefined> {
+    await this.ready;
+    return this.canonical.toolCallConversationId(toolCallId);
+  }
+
   async listRunMetadata(): Promise<RunRecord[]> {
     await this.ready;
     return this.canonical.listRunMetadata();
@@ -174,6 +206,11 @@ export class ConversationJournalRepository {
   async listRunStates<T>(statuses: string[]): Promise<T[]> {
     await this.ready;
     return this.canonical.listRunStates<T>(statuses);
+  }
+
+  async listRunDeliveryRecoveryStates<T>(): Promise<T[]> {
+    await this.ready;
+    return this.canonical.listRunDeliveryRecoveryStates<T>();
   }
 
   async readRunState<T>(runId: string): Promise<T | undefined> {

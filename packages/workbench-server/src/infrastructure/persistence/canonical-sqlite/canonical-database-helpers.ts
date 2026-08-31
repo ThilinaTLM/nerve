@@ -5,6 +5,7 @@ import {
   CANONICAL_SCHEMA_CHECKSUM,
   CANONICAL_SCHEMA_V1_CHECKSUM,
   CANONICAL_SCHEMA_V2_CHECKSUM,
+  CANONICAL_SCHEMA_V3_CHECKSUM,
   CANONICAL_SCHEMA_VERSION,
 } from "./schema.js";
 
@@ -38,6 +39,7 @@ export function assertCanonicalSchemaCompatible(
   const checksums = new Map([
     [1, CANONICAL_SCHEMA_V1_CHECKSUM],
     [2, CANONICAL_SCHEMA_V2_CHECKSUM],
+    [3, CANONICAL_SCHEMA_V3_CHECKSUM],
     [CANONICAL_SCHEMA_VERSION, CANONICAL_SCHEMA_CHECKSUM],
   ]);
   for (const row of rows) {

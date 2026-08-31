@@ -29,7 +29,10 @@ async function temporaryHome(prefix: string) {
 test("initializes the required v1 home and keeps optional directories lazy", async (t) => {
   const home = await temporaryHome("nerve-home-v1-");
   t.after(() => rm(home, { recursive: true, force: true }));
-  const storage = await initializeStorage(home);
+  const progress: string[] = [];
+  const storage = await initializeStorage(home, {
+    reportStartupProgress: (event) => progress.push(event.phase),
+  });
   t.after(() => storage.canonicalStore.close());
 
   assert.deepEqual(
@@ -57,6 +60,9 @@ test("initializes the required v1 home and keeps optional directories lazy", asy
   assert.equal((await stat(storage.paths.home)).mode & 0o777, 0o700);
   assert.equal((await stat(storage.paths.secretsPath)).mode & 0o777, 0o700);
   assert.equal((await stat(storage.paths.localTokenPath)).mode & 0o777, 0o600);
+  assert.deepEqual(progress, ["storage-check"]);
+  assert.equal(storage.timings.sqliteMigrationApplyMs, 0);
+  assert.ok(storage.timings.canonicalOpenMs >= 0);
   await assert.rejects(stat(storage.paths.agentPath), { code: "ENOENT" });
   await assert.rejects(stat(storage.paths.suggestionsPath), { code: "ENOENT" });
 

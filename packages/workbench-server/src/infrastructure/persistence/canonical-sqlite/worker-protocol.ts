@@ -71,8 +71,25 @@ export type CanonicalCommand =
       maxBytes: number;
     }
   | { kind: "read_tool_call"; toolCallId: string }
+  | { kind: "count_tool_call_projections" }
+  | {
+      kind: "query_tool_call_projections";
+      query: {
+        status?: string;
+        pendingInteractionKind?: string;
+        conversationId?: string;
+        projectId?: string;
+        agentId?: string;
+        runId?: string;
+        limit?: number;
+        cursor?: { updatedAt: string; id: string };
+      };
+    }
+  | { kind: "list_tool_call_startup_records" }
+  | { kind: "tool_call_conversation_id"; toolCallId: string }
   | { kind: "list_run_metadata" }
   | { kind: "list_run_states"; statuses: string[] }
+  | { kind: "list_run_delivery_recovery_states" }
   | { kind: "read_run_state"; runId: string }
   | {
       kind: "backfill_conversation_record_projections";
@@ -115,8 +132,13 @@ export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "read_conversation_entries",
   "scan_tool_calls",
   "read_tool_call",
+  "count_tool_call_projections",
+  "query_tool_call_projections",
+  "list_tool_call_startup_records",
+  "tool_call_conversation_id",
   "list_run_metadata",
   "list_run_states",
+  "list_run_delivery_recovery_states",
   "read_run_state",
   "list_conversation_journal_ids",
   "read_conversation_journal",

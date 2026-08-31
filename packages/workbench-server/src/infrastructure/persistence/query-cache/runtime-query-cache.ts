@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- Query cache operations remain cohesive around one disposable SQLite read model. */
 import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -6,11 +5,6 @@ import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
 import type { TaskRecord } from "@nervekit/contracts/tasks";
-import type {
-  ToolCallRecord,
-  ToolCallStatus,
-  ToolCallTranscriptRecord,
-} from "@nervekit/contracts/tools";
 import { QUERY_CACHE_SCHEMA_SQL } from "./schema.js";
 
 export interface QueryCacheCounts {
@@ -39,22 +33,6 @@ export interface RebuildQueryCacheInput {
   tasks?: TaskRecord[];
 }
 
-export interface ToolCallPreviewQuery {
-  status?: ToolCallStatus;
-  pendingInteractionKind?: "approval" | "user_input" | "plan_review";
-  conversationId?: string;
-  projectId?: string;
-  agentId?: string;
-  runId?: string;
-  limit?: number;
-  cursor?: { updatedAt: string; id: string };
-}
-
-export interface ToolCallPreviewPage {
-  toolCalls: ToolCallTranscriptRecord[];
-  nextCursor?: { updatedAt: string; id: string };
-}
-
 export interface QueryCacheReplacementToken {
   readonly backupPath: string;
 }
@@ -63,7 +41,6 @@ export class RuntimeQueryCache {
   private db: DatabaseSync;
   private healthy = true;
   private updatesDeferred = false;
-  private toolCallPreviewSchemaReady = false;
 
   constructor(readonly path: string) {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -94,7 +71,6 @@ export class RuntimeQueryCache {
       this.db.exec("PRAGMA synchronous = NORMAL");
       this.db.exec("PRAGMA wal_autocheckpoint = 1000");
       this.db.exec(QUERY_CACHE_SCHEMA_SQL);
-      this.toolCallPreviewSchemaReady = true;
     });
     // Drain any oversized WAL left by a previous large rebuild. A passive
     // autocheckpoint reuses the WAL file in place and never shrinks it, so an
@@ -286,123 +262,6 @@ export class RuntimeQueryCache {
     if (this.updatesDeferred) return;
     this.guard(() => {
       this.db.prepare("DELETE FROM tasks WHERE id = ?").run(taskId);
-    });
-  }
-
-  upsertToolCall(
-    toolCall: ToolCallRecord,
-    preview: ToolCallTranscriptRecord,
-  ): void {
-    if (this.updatesDeferred) return;
-    this.writeToolCallPreview(toolCall, preview, true);
-  }
-
-  beginToolCallRebuild(): void {
-    this.guard(() => {
-      this.ensureToolCallPreviewTable();
-      this.db.exec("BEGIN IMMEDIATE");
-      this.db.exec("DELETE FROM tool_calls");
-    });
-  }
-
-  appendToolCallRebuild(
-    toolCall: ToolCallRecord,
-    preview: ToolCallTranscriptRecord,
-  ): void {
-    this.writeToolCallPreview(toolCall, preview, false);
-  }
-
-  finishToolCallRebuild(): void {
-    this.guard(() => this.db.exec("COMMIT"));
-  }
-
-  rollbackToolCallRebuild(): void {
-    try {
-      this.db.exec("ROLLBACK");
-    } catch {
-      // No active transaction after an earlier SQLite failure.
-    }
-  }
-
-  countToolCalls(): number {
-    return this.guard(() => {
-      this.ensureToolCallPreviewTable();
-      const row = this.db
-        .prepare("SELECT COUNT(*) AS count FROM tool_calls")
-        .get() as { count: number } | undefined;
-      return row?.count ?? 0;
-    });
-  }
-
-  listToolCallPreviews(
-    query: ToolCallPreviewQuery = {},
-  ): ToolCallTranscriptRecord[] {
-    return this.queryToolCallPreviews(query).toolCalls;
-  }
-
-  queryToolCallPreviews(query: ToolCallPreviewQuery = {}): ToolCallPreviewPage {
-    return this.guard(() => {
-      this.ensureToolCallPreviewTable();
-      const clauses: string[] = [];
-      const values: Array<string | number> = [];
-      const filters = [
-        ["status", query.status],
-        ["pending_interaction_kind", query.pendingInteractionKind],
-        ["conversation_id", query.conversationId],
-        ["project_id", query.projectId],
-        ["agent_id", query.agentId],
-        ["run_id", query.runId],
-      ] as const;
-      for (const [column, value] of filters) {
-        if (value === undefined) continue;
-        clauses.push(`${column} = ?`);
-        values.push(value);
-      }
-      if (query.cursor) {
-        clauses.push("(updated_at < ? OR (updated_at = ? AND id < ?))");
-        values.push(
-          query.cursor.updatedAt,
-          query.cursor.updatedAt,
-          query.cursor.id,
-        );
-      }
-      const limit = Math.min(Math.max(query.limit ?? 200, 1), 1_000);
-      values.push(limit + 1);
-      const rows = this.db
-        .prepare(
-          `SELECT preview_json FROM tool_calls${
-            clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : ""
-          } ORDER BY updated_at DESC, id DESC LIMIT ?`,
-        )
-        .all(...values) as Array<{ preview_json: string }>;
-      const toolCalls = rows
-        .slice(0, limit)
-        .map((row) => JSON.parse(row.preview_json) as ToolCallTranscriptRecord);
-      const last = toolCalls.at(-1);
-      return {
-        toolCalls,
-        nextCursor:
-          rows.length > limit && last
-            ? { updatedAt: last.updatedAt, id: last.id }
-            : undefined,
-      };
-    });
-  }
-
-  toolCallConversationId(id: string): string | undefined {
-    return this.guard(() => {
-      this.ensureToolCallPreviewTable();
-      const row = this.db
-        .prepare("SELECT conversation_id FROM tool_calls WHERE id = ?")
-        .get(id) as { conversation_id: string } | undefined;
-      return row?.conversation_id;
-    });
-  }
-
-  deleteToolCall(id: string): void {
-    if (this.updatesDeferred) return;
-    this.guard(() => {
-      this.db.prepare("DELETE FROM tool_calls WHERE id = ?").run(id);
     });
   }
 
@@ -648,7 +507,6 @@ export class RuntimeQueryCache {
       }
       this.db = new DatabaseSync(this.path);
       this.healthy = true;
-      this.toolCallPreviewSchemaReady = false;
       this.initialize();
       return { backupPath };
     } catch (error) {
@@ -676,7 +534,6 @@ export class RuntimeQueryCache {
     this.restoreReplacementFiles(token.backupPath);
     this.db = new DatabaseSync(this.path);
     this.healthy = true;
-    this.toolCallPreviewSchemaReady = false;
   }
 
   close(): void {
@@ -701,7 +558,7 @@ export class RuntimeQueryCache {
             .get() as { value?: string } | undefined
         )?.value
       : undefined;
-    if (tables.length > 0 && version !== "1") {
+    if (tables.length > 0 && version !== "2") {
       this.db.close();
       for (const suffix of ["", "-wal", "-shm"]) {
         rmSync(`${this.path}${suffix}`, { force: true });
@@ -711,58 +568,9 @@ export class RuntimeQueryCache {
     this.db.exec(QUERY_CACHE_SCHEMA_SQL);
     this.db
       .prepare(
-        "INSERT OR REPLACE INTO query_cache_meta (key, value) VALUES ('schema_version', '1')",
+        "INSERT OR REPLACE INTO query_cache_meta (key, value) VALUES ('schema_version', '2')",
       )
       .run();
-  }
-
-  private ensureToolCallPreviewTable(): void {
-    if (this.toolCallPreviewSchemaReady) return;
-    this.db.exec(QUERY_CACHE_SCHEMA_SQL);
-    this.toolCallPreviewSchemaReady = true;
-  }
-
-  private writeToolCallPreview(
-    toolCall: ToolCallRecord,
-    preview: ToolCallTranscriptRecord,
-    guarded: boolean,
-  ): void {
-    const operation = () => {
-      if (guarded) this.ensureToolCallPreviewTable();
-      this.db
-        .prepare(
-          `INSERT INTO tool_calls (
-             id, conversation_id, project_id, agent_id, run_id, status,
-             pending_interaction_kind, revision, updated_at, preview_json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-             conversation_id = excluded.conversation_id,
-             project_id = excluded.project_id,
-             agent_id = excluded.agent_id,
-             run_id = excluded.run_id,
-             status = excluded.status,
-             pending_interaction_kind = excluded.pending_interaction_kind,
-             revision = excluded.revision,
-             updated_at = excluded.updated_at,
-             preview_json = excluded.preview_json`,
-        )
-        .run(
-          toolCall.id,
-          toolCall.conversationId,
-          toolCall.projectId,
-          toolCall.agentId,
-          toolCall.runId ?? null,
-          toolCall.status,
-          toolCall.interactions.find(
-            (interaction) => interaction.status === "pending",
-          )?.kind ?? null,
-          toolCall.revision,
-          toolCall.updatedAt,
-          JSON.stringify(preview),
-        );
-    };
-    if (guarded) this.guard(operation);
-    else operation();
   }
 
   private recoverReplacementFiles(): void {

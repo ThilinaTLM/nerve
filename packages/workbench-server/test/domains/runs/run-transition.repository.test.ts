@@ -147,6 +147,41 @@ test("run state and deliveries replay from the conversation journal", async (t) 
   assert.equal(count.count, 3);
 });
 
+test("delivery recovery checkpoints candidates and skips settled runs", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-run-delivery-candidates-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const records = transitions();
+  const initial = new WorkbenchRunUnitOfWork(home);
+  await initial.commit(0, records.first);
+
+  assert.equal((await initial.pendingEventIntents()).length, 1);
+  await initial.markEventDelivered({
+    intentId: "intent_cache_test",
+    runId,
+    revision: 1,
+    eventId: "event_cache_test",
+    sequence: 1,
+    deliveredAt: "2026-07-12T00:00:02.000Z",
+  });
+
+  const restarted = new WorkbenchRunUnitOfWork(home);
+  assert.deepEqual(await restarted.pendingEventIntents(), []);
+  const database = new DatabaseSync(join(home, "data", "nerve.sqlite"), {
+    readOnly: true,
+  });
+  const checkpoint = database
+    .prepare(
+      `SELECT run_delivery_settled_revision AS revision
+       FROM conversation_records WHERE id = ?`,
+    )
+    .get(runId) as { revision: number };
+  database.close();
+  assert.equal(checkpoint.revision, 1);
+
+  const settled = new WorkbenchRunUnitOfWork(home);
+  assert.deepEqual(await settled.pendingEventIntents(), []);
+});
+
 test("run commits preserve per-run compare-and-swap", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-conversation-run-cas-"));
   t.after(() => rm(home, { recursive: true, force: true }));

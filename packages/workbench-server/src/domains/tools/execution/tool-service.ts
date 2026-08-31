@@ -43,7 +43,6 @@ import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics
 import type { PermissionExceptionService } from "../../permissions/permission-exceptions.service.js";
 import type { PermissionPolicyService } from "../../permissions/permission-policy.service.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
-import type { RuntimeQueryCache } from "../../../infrastructure/persistence/query-cache/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";
 import type { PlanService } from "../../plans/plan-service.js";
 import type { PythonRuntimeService } from "./python-runtime.js";
@@ -264,7 +263,6 @@ export class ToolService {
   constructor(
     private readonly storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
-    queryCache: RuntimeQueryCache,
     private readonly tasks: WorkbenchTaskService,
     private readonly pythonRuntime: PythonRuntimeService,
     private readonly startTask: TaskStarter,
@@ -296,7 +294,6 @@ export class ToolService {
       resultPayloads ?? new ToolResultPayloadStore(storage.paths.home);
     this.toolCallRepository = new ToolCallRepository(
       this.conversationJournal,
-      queryCache,
       this.resultPayloads,
     );
     this.toolCalls = this.toolCallRepository.records;
@@ -386,9 +383,9 @@ export class ToolService {
     return this.toolCallRepository.listActive();
   }
 
-  listToolCallPreviews(
+  async listToolCallPreviews(
     query: Parameters<ToolCallRepository["listPreviews"]>[0] = {},
-  ): ToolCallTranscriptRecord[] {
+  ): Promise<ToolCallTranscriptRecord[]> {
     return this.toolCallRepository.listPreviews(query);
   }
 
@@ -403,7 +400,7 @@ export class ToolService {
   }
 
   /** Whether the tool-call records were loaded from the persisted snapshot. */
-  get toolCallHydrationSource(): "journal" {
+  get toolCallHydrationSource(): "canonical_projection" {
     return this.toolCallRepository.hydrationSource;
   }
 
@@ -421,7 +418,7 @@ export class ToolService {
     const toolCalls =
       status === "pending"
         ? this.listToolCalls()
-        : this.listToolCallPreviews({ limit: 1_000 });
+        : this.toolCallRepository.listInteractionRecords();
     return toolCalls
       .flatMap((toolCall) =>
         toolCall.interactions.flatMap((interaction) =>
@@ -472,7 +469,7 @@ export class ToolService {
     const toolCalls =
       status === "pending"
         ? this.listToolCalls()
-        : this.listToolCallPreviews({ limit: 1_000 });
+        : this.toolCallRepository.listInteractionRecords();
     return toolCalls
       .flatMap((toolCall) =>
         toolCall.interactions.flatMap((interaction) => {

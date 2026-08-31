@@ -5,6 +5,7 @@ import { registerDaemonIpc, type DaemonCapability } from "./daemon-ipc.js";
 import { registerFilesIpc } from "./files-ipc.js";
 import { registerNotificationsIpc } from "./notifications-ipc.js";
 import { registerSettingsIpc } from "./settings-ipc.js";
+import { registerStartupIpc } from "./startup-ipc.js";
 import { registerWindowIpc } from "./window-ipc.js";
 
 export function registerDesktopIpc(options: {
@@ -15,6 +16,7 @@ export function registerDesktopIpc(options: {
   showDesktopNotification: (payload: unknown) => { shown: boolean };
   getDaemonCapability: () => DaemonCapability;
   restartDaemon: () => Promise<void>;
+  reportRendererCoreReady: () => void;
 }): void {
   registerWindowIpc(options);
   registerDaemonIpc(options);
@@ -22,4 +24,5 @@ export function registerDesktopIpc(options: {
   registerNotificationsIpc(options.showDesktopNotification);
   registerClipboardIpc();
   registerFilesIpc();
+  registerStartupIpc(options.reportRendererCoreReady);
 }

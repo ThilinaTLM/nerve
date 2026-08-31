@@ -5,7 +5,10 @@ import type {
   MaterializedConversationRecord,
   SerializedConversationState,
 } from "../../../domains/conversations/conversation-state-materializer.js";
-import { upsertConversationRecordProjection } from "../../../domains/conversations/conversation-state-materializer.js";
+import {
+  upsertConversationRecordProjection,
+  upsertToolCallProjection,
+} from "../../../domains/conversations/conversation-state-materializer.js";
 import { decode, encode } from "./payload-codecs.js";
 
 export interface JournalHead {
@@ -295,8 +298,9 @@ function materializeConversationDelta(
   const insert = database.prepare(
     `INSERT INTO conversation_records (
        id, conversation_id, agent_id, parent_id, run_id, group_id, sequence,
-       revision, kind, status, payload_version, data, created_at_ms, updated_at_ms
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       revision, kind, status, payload_version, data, created_at_ms, updated_at_ms,
+       run_delivery_settled_revision
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        conversation_id = excluded.conversation_id,
        agent_id = excluded.agent_id,
@@ -310,7 +314,8 @@ function materializeConversationDelta(
        payload_version = excluded.payload_version,
        data = excluded.data,
        created_at_ms = excluded.created_at_ms,
-       updated_at_ms = excluded.updated_at_ms`,
+       updated_at_ms = excluded.updated_at_ms,
+       run_delivery_settled_revision = excluded.run_delivery_settled_revision`,
   );
   for (const record of ordered) {
     const stored = existingSequence.get(delta.conversationId, record.id) as
@@ -336,6 +341,7 @@ function materializeConversationDelta(
       encode(record.data),
       Date.parse(record.createdAt),
       Date.parse(record.updatedAt),
+      record.runDeliverySettledRevision ?? null,
     );
     upsertConversationRecordProjection(
       database,
@@ -343,6 +349,7 @@ function materializeConversationDelta(
       sequence,
       record,
     );
+    upsertToolCallProjection(database, delta.conversationId, record);
   }
 
   const insertLeaf = database.prepare(

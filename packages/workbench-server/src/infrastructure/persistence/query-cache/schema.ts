@@ -49,24 +49,6 @@ export const QUERY_CACHE_SCHEMA_SQL = `
     updated_at TEXT NOT NULL,
     json TEXT NOT NULL
   );
-  CREATE TABLE IF NOT EXISTS tool_calls (
-    id TEXT PRIMARY KEY,
-    conversation_id TEXT NOT NULL,
-    project_id TEXT NOT NULL,
-    agent_id TEXT NOT NULL,
-    run_id TEXT,
-    status TEXT NOT NULL,
-    pending_interaction_kind TEXT,
-    revision INTEGER NOT NULL,
-    updated_at TEXT NOT NULL,
-    preview_json TEXT NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS tool_calls_conversation ON tool_calls(conversation_id);
-  CREATE INDEX IF NOT EXISTS tool_calls_project ON tool_calls(project_id);
-  CREATE INDEX IF NOT EXISTS tool_calls_run ON tool_calls(run_id);
-  CREATE INDEX IF NOT EXISTS tool_calls_status ON tool_calls(status);
-  CREATE INDEX IF NOT EXISTS tool_calls_updated ON tool_calls(updated_at DESC, id DESC);
-  CREATE INDEX IF NOT EXISTS tool_calls_pending_interaction ON tool_calls(pending_interaction_kind);
   CREATE TABLE IF NOT EXISTS prompt_suggestion_trust (
     trust_id TEXT PRIMARY KEY,
     source_kind TEXT NOT NULL,

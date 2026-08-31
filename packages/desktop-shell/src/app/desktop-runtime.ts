@@ -128,6 +128,7 @@ export class DesktopRuntime {
         // Best-effort observability only.
       }
     }
+    let rendererCoreReadyReported = false;
     // Nested lifecycle callbacks deliberately capture the owning instance.
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const runtime = this;
@@ -169,6 +170,20 @@ export class DesktopRuntime {
           );
         }
         await runtime.#managedDaemon.restart();
+      },
+      reportRendererCoreReady: () => {
+        if (rendererCoreReadyReported) return;
+        rendererCoreReadyReported = true;
+        const processUptimeMs = Math.round(process.uptime() * 1_000);
+        void desktopLog("info", "app", "Renderer core ready", {
+          context: { processUptimeMs },
+        });
+        void appendStartupRecord({
+          type: "nerve.startup",
+          source: "renderer",
+          stage: "core-ready",
+          processUptimeMs,
+        });
       },
     });
 

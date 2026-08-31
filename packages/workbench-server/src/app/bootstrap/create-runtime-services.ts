@@ -517,7 +517,6 @@ export function composeRuntime(
   services.tools = new ToolService(
     storage,
     events,
-    queryCache,
     services.tasks,
     services.pythonRuntime,
     (request) => services.tasks.startTask(request),

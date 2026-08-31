@@ -8,7 +8,6 @@ import {
   ToolCallRepository,
   ToolCallRevisionConflictError,
 } from "../../../src/domains/tools/artifacts/tool-call.repository.js";
-import { RuntimeQueryCache } from "../../../src/infrastructure/persistence/query-cache/index.js";
 import { ToolResultPayloadStore } from "../../../src/domains/tools/artifacts/tool-result-payload-store.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
@@ -39,12 +38,10 @@ function toolCall(id: string): ToolCallRecord {
 
 async function repository(home: string) {
   const storage = await initializeStorage(home);
-  const queryCache = new RuntimeQueryCache(storage.paths.sqlitePath);
   const payloads = new ToolResultPayloadStore(home);
   return {
-    queryCache,
     payloads,
-    repository: new ToolCallRepository(storage, queryCache, payloads),
+    repository: new ToolCallRepository(storage, payloads),
   };
 }
 
@@ -54,11 +51,9 @@ describe("canonical ToolCallRepository", () => {
     roots.push(home);
     const first = await repository(home);
     await first.repository.create(toolCall("tool_test"));
-    first.queryCache.close();
     const second = await repository(home);
     await second.repository.hydrate();
     assert.equal(second.repository.get("tool_test").revision, 1);
-    second.queryCache.close();
   });
 
   it("serializes CAS updates, rejects stale revisions, and freezes terminal records", async () => {
@@ -85,7 +80,6 @@ describe("canonical ToolCallRepository", () => {
       value.repository.replace("tool_test", 2, (current) => current),
       /immutable/,
     );
-    value.queryCache.close();
   });
 
   it("hydrates terminal history into previews without retaining full records", async () => {
@@ -101,7 +95,6 @@ describe("canonical ToolCallRepository", () => {
       });
     }
     await first.repository.create(toolCall("tool_active"));
-    first.queryCache.close();
 
     const second = await repository(home);
     await second.repository.hydrate();
@@ -112,14 +105,16 @@ describe("canonical ToolCallRepository", () => {
       cachedTerminalBytes: 0,
     });
     assert.equal(second.repository.count(), 51);
-    assert.equal(second.repository.listPreviews({ limit: 100 }).length, 51);
+    assert.equal(
+      (await second.repository.listPreviews({ limit: 100 })).length,
+      51,
+    );
     assert.throws(() => second.repository.get("tool_terminal_0"), /not active/);
     assert.equal(
       (await second.repository.getCanonical("tool_terminal_0")).status,
       "completed",
     );
     assert.equal(second.repository.residentStats().cachedTerminalRecords, 1);
-    second.queryCache.close();
   });
 
   it("loads complete details explicitly without hydrating transcript history", async () => {
@@ -152,10 +147,9 @@ describe("canonical ToolCallRepository", () => {
     assert.match(chunk.text, /complete output/);
     assert.equal(chunk.done, true);
     assert.deepEqual(
-      value.repository.listPreviews({ limit: 10 })[0]?.resultPreview,
+      (await value.repository.listPreviews({ limit: 10 }))[0]?.resultPreview,
       { content: "bounded" },
     );
-    value.queryCache.close();
   });
 
   it("pages previews stably by updated time and id", async () => {
@@ -170,10 +164,10 @@ describe("canonical ToolCallRepository", () => {
         settledAt: "2026-07-25T00:00:00.000Z",
       });
     }
-    const first = value.repository.queryPreviews({ limit: 2 });
+    const first = await value.repository.queryPreviews({ limit: 2 });
     assert.equal(first.toolCalls.length, 2);
     assert.ok(first.nextCursor);
-    const second = value.repository.queryPreviews({
+    const second = await value.repository.queryPreviews({
       limit: 2,
       cursor: first.nextCursor,
     });
@@ -184,12 +178,11 @@ describe("canonical ToolCallRepository", () => {
       4,
     );
     assert.ok(second.nextCursor);
-    const third = value.repository.queryPreviews({
+    const third = await value.repository.queryPreviews({
       limit: 2,
       cursor: second.nextCursor,
     });
     assert.equal(third.toolCalls.length, 1);
     assert.equal(third.nextCursor, undefined);
-    value.queryCache.close();
   });
 });

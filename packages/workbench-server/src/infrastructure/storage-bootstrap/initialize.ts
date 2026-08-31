@@ -12,7 +12,10 @@ import {
 } from "@nervekit/contracts/settings";
 import { atomicWriteJson, pathExists, writeTextFileIfMissing } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
-import { CanonicalStore } from "../persistence/canonical-sqlite/index.js";
+import {
+  CanonicalStore,
+  inspectCanonicalSchema,
+} from "../persistence/canonical-sqlite/index.js";
 import {
   configurationWithSettings,
   initializeHomeConfiguration,
@@ -44,6 +47,13 @@ const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["backupsPath", 0o700],
 ];
 
+export interface StorageInitializationTimings {
+  homeInspectionMs: number;
+  sqliteMigrationCheckMs: number;
+  sqliteMigrationApplyMs: number;
+  canonicalOpenMs: number;
+}
+
 export interface InitializedStorage {
   paths: StoragePaths;
   configuration: UserConfiguration;
@@ -51,6 +61,7 @@ export interface InitializedStorage {
   settings: Settings;
   localToken: string;
   canonicalStore: CanonicalStore;
+  timings: StorageInitializationTimings;
 }
 
 export async function readCurrentSettingsForBootstrap(
@@ -81,7 +92,11 @@ export async function initializeStorage(
 
   const startupLock = await acquireStorageStartupLock(home);
   try {
+    const homeInspectionStartedAt = performance.now();
     const inspection = await inspectNerveHome(home);
+    const homeInspectionMs = Math.round(
+      performance.now() - homeInspectionStartedAt,
+    );
     if (inspection.kind === "unsupported") throw new Error(inspection.reason);
     const fresh = inspection.kind === "missing" || inspection.kind === "empty";
     await mkdir(paths.home, { recursive: true, mode: 0o700 });
@@ -107,8 +122,28 @@ export async function initializeStorage(
     if (!fresh && !(await pathExists(paths.sqlitePath))) {
       throw new Error("Nerve SQLite state at data/nerve.sqlite is missing.");
     }
+    const sqliteMigrationCheckStartedAt = performance.now();
+    const schemaInspection = fresh
+      ? { kind: "uninitialized" as const }
+      : inspectCanonicalSchema(paths.sqlitePath);
+    const sqliteMigrationCheckMs = Math.round(
+      performance.now() - sqliteMigrationCheckStartedAt,
+    );
+    if (schemaInspection.kind === "migration-required") {
+      options.reportStartupProgress?.({
+        type: "nerve.startup.progress",
+        phase: "storage-migration",
+        message: `Upgrading Nerve storage schema from v${schemaInspection.version}`,
+      });
+    }
+    const canonicalOpenStartedAt = performance.now();
     const canonicalStore = new CanonicalStore(paths.sqlitePath);
     await canonicalStore.initialize();
+    const canonicalOpenMs = Math.round(
+      performance.now() - canonicalOpenStartedAt,
+    );
+    const sqliteMigrationApplyMs =
+      schemaInspection.kind === "migration-required" ? canonicalOpenMs : 0;
     if (fresh) {
       await atomicWriteJson(
         paths.migrationLedgerPath,
@@ -157,6 +192,12 @@ export async function initializeStorage(
       settings,
       localToken,
       canonicalStore,
+      timings: {
+        homeInspectionMs,
+        sqliteMigrationCheckMs,
+        sqliteMigrationApplyMs,
+        canonicalOpenMs,
+      },
     };
   } finally {
     await startupLock.release();

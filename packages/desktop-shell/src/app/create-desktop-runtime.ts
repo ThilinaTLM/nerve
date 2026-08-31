@@ -44,6 +44,7 @@ const ipcChannels = [
   "desktop.daemon.getCapability",
   "desktop.daemon.restart",
   "desktop.clipboard.writeText",
+  "desktop.startup.rendererCoreReady",
 ] as const;
 
 export function createDesktopRuntime(

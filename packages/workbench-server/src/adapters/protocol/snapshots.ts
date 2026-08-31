@@ -14,18 +14,21 @@ type SnapshotContext = ServerAdapterContexts["snapshot"];
 export async function getWorkspaceSnapshotResponse(
   state: SnapshotContext,
 ): Promise<WorkspaceSnapshotResponse> {
-  const captured = await state.events.withCursor(WORKSPACE_STREAM, () => ({
-    projects: state.projectLifecycle.listProjects(),
-    conversations: state.conversationLifecycle
-      .listConversations()
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    agents: state.agentLifecycle.listAgents(),
-    tasks: state.tasks.listTasks(),
-    pendingToolCalls: state.tools.listToolCallPreviews({
-      status: "waiting",
-      limit: 1_000,
+  const captured = await state.events.withCursor(
+    WORKSPACE_STREAM,
+    async () => ({
+      projects: state.projectLifecycle.listProjects(),
+      conversations: state.conversationLifecycle
+        .listConversations()
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+      agents: state.agentLifecycle.listAgents(),
+      tasks: state.tasks.listTasks(),
+      pendingToolCalls: await state.tools.listToolCallPreviews({
+        status: "waiting",
+        limit: 1_000,
+      }),
     }),
-  }));
+  );
   return {
     snapshot: captured.value,
     cursor: { streams: [captured.cursor] },

@@ -48,7 +48,9 @@ export interface ConversationQueryServiceDeps {
   getConversationRevision: (conversationId: string) => Promise<number>;
   getConversationTree: (conversationId: string) => ConversationTree;
   getContextUsage: (conversationId: string) => Promise<ContextUsage>;
-  listToolCallPreviews: (conversationId: string) => ToolCallTranscriptRecord[];
+  listToolCallPreviews: (
+    conversationId: string,
+  ) => Promise<ToolCallTranscriptRecord[]>;
   getActiveRun: (
     conversationId: string,
     activeEntryIds: readonly string[],
@@ -80,7 +82,7 @@ export class ConversationQueryService {
       entries,
       activeEntryIds,
       tree: this.deps.getConversationTree(conversationId),
-      toolCalls: this.activeBranchToolCalls(
+      toolCalls: await this.activeBranchToolCalls(
         conversationId,
         entries,
         activeRun?.runId,
@@ -92,25 +94,27 @@ export class ConversationQueryService {
     };
   }
 
-  activeBranchToolCalls(
+  async activeBranchToolCalls(
     conversationId: string,
     entries: ConversationEntry[],
     activeRunId: string | undefined,
-  ): ToolCallTranscriptRecord[] {
+  ): Promise<ToolCallTranscriptRecord[]> {
     const toolIds = toolRecordIdsFromEntries(entries);
-    return this.deps.listToolCallPreviews(conversationId).filter((toolCall) => {
-      if (toolCall.conversationId !== conversationId) return false;
-      if (toolCall.hidden) return false;
-      if (activeRunId && toolCall.runId === activeRunId) return true;
-      if (toolIds.has(toolCall.id)) return true;
-      if (toolCall.sourceToolCallId && toolIds.has(toolCall.sourceToolCallId))
-        return true;
-      if (
-        toolCall.providerToolCallId &&
-        toolIds.has(toolCall.providerToolCallId)
-      )
-        return true;
-      return false;
-    });
+    return (await this.deps.listToolCallPreviews(conversationId)).filter(
+      (toolCall) => {
+        if (toolCall.conversationId !== conversationId) return false;
+        if (toolCall.hidden) return false;
+        if (activeRunId && toolCall.runId === activeRunId) return true;
+        if (toolIds.has(toolCall.id)) return true;
+        if (toolCall.sourceToolCallId && toolIds.has(toolCall.sourceToolCallId))
+          return true;
+        if (
+          toolCall.providerToolCallId &&
+          toolIds.has(toolCall.providerToolCallId)
+        )
+          return true;
+        return false;
+      },
+    );
   }
 }

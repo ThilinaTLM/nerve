@@ -2,6 +2,7 @@
 import { onDestroy, onMount, type Snippet } from "svelte";
 import {
   desktopRuntime,
+  getDesktopBridge,
   initializeDesktopRuntime,
   syncDesktopCloseToTray,
 } from "$lib/platform/desktop";
@@ -206,6 +207,9 @@ onMount(() => {
   void initializeWorkbench()
     .then((initialized) => {
       if (!initialized) return;
+      void getDesktopBridge()
+        ?.app.reportRendererCoreReady()
+        .catch(() => undefined);
       initializeNotifications();
       if (startedOnSettings) void openSettingsPane();
     })
