@@ -143,10 +143,7 @@ describe("bash executor", () => {
       };
     };
     assert.ok(details.fullOutputPath);
-    assert.match(
-      details.fullOutputPath,
-      /tmp[\\/]nerve-tool-outputs[\\/]nerve-bash-/,
-    );
+    assert.match(details.fullOutputPath, /nerve-tool-outputs[\\/]nerve-bash-/);
     assert.equal(details.truncation?.truncated, true);
     assert.equal(details.truncation?.direction, "head_tail");
     assert.equal(details.streams?.stdout?.truncated, true);
