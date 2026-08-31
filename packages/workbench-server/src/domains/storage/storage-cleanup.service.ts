@@ -285,7 +285,7 @@ export class StorageCleanupService {
         target: "conversations",
         message: "Removing old inactive conversations…",
         run: async () => {
-          const dir = join(this.deps.paths.payloadsPath, "conversations");
+          const dir = this.deps.paths.conversationsPath;
           const before = (await dirSize(dir)).bytes;
           const result = await this.deps
             .getOperations()

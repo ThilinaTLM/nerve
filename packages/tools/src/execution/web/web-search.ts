@@ -87,7 +87,7 @@ export async function executeWebSearch(
     text: content,
     outputFilePrefix: "nerve-web-search",
     exitMessagePrefix: "Web search",
-    dataDir: context.dataDir,
+    artifactDir: context.artifactDir,
   });
 
   return {

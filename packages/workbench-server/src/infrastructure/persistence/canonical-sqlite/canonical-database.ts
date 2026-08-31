@@ -17,7 +17,7 @@ import {
 } from "./conversation-journal-database.js";
 import {
   appendDurableEventInTransaction,
-  applySchemaMigration,
+  applyPendingCanonicalSchemaMigrations,
   assertCanonicalSchemaCompatible,
   decodeDocument,
   decodeDurableEvent,
@@ -44,15 +44,7 @@ import {
   CANONICAL_BASELINE_NAME,
   CANONICAL_SCHEMA_CHECKSUM,
   CANONICAL_SCHEMA_SQL,
-  CANONICAL_SCHEMA_V2_CHECKSUM,
-  CANONICAL_SCHEMA_V3_CHECKSUM,
   CANONICAL_SCHEMA_VERSION,
-  CANONICAL_V1_TO_V2_MIGRATION_NAME,
-  CANONICAL_V1_TO_V2_MIGRATION_SQL,
-  CANONICAL_V2_TO_V3_MIGRATION_NAME,
-  CANONICAL_V2_TO_V3_MIGRATION_SQL,
-  CANONICAL_V3_TO_V4_MIGRATION_NAME,
-  CANONICAL_V3_TO_V4_MIGRATION_SQL,
 } from "./schema.js";
 
 export interface CanonicalDocument<T = unknown> {
@@ -117,36 +109,7 @@ export class CanonicalDatabase {
 
     const rows = this.schemaMigrationRows();
     this.assertSchemaCompatible(rows);
-    let version = rows.at(-1)?.version;
-    if (version === 1) {
-      applySchemaMigration(
-        this.database,
-        2,
-        CANONICAL_V1_TO_V2_MIGRATION_NAME,
-        CANONICAL_SCHEMA_V2_CHECKSUM,
-        CANONICAL_V1_TO_V2_MIGRATION_SQL,
-      );
-      version = 2;
-    }
-    if (version === 2) {
-      applySchemaMigration(
-        this.database,
-        3,
-        CANONICAL_V2_TO_V3_MIGRATION_NAME,
-        CANONICAL_SCHEMA_V3_CHECKSUM,
-        CANONICAL_V2_TO_V3_MIGRATION_SQL,
-      );
-      version = 3;
-    }
-    if (version === 3) {
-      applySchemaMigration(
-        this.database,
-        4,
-        CANONICAL_V3_TO_V4_MIGRATION_NAME,
-        CANONICAL_SCHEMA_CHECKSUM,
-        CANONICAL_V3_TO_V4_MIGRATION_SQL,
-      );
-    }
+    applyPendingCanonicalSchemaMigrations(this.database, rows.at(-1)?.version);
   }
 
   assertSchemaCompatible(

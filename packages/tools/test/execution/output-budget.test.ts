@@ -47,7 +47,7 @@ describe("aggregate model tool-result output budget", () => {
 
   it("uses the exact agent notice within the aggregate line and byte limits", () => {
     const path =
-      "/home/test/.nerve/payloads/conversations/conv_test/tool-calls/tool_test.json";
+      "/home/test/.nerve/data/conversations/test/tool-calls/test/result.json";
     const result = boundContentBlocks(
       [
         {

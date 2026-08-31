@@ -22,13 +22,12 @@ async function fixtureHome(): Promise<string> {
 
   await write("data/nerve.sqlite", 10);
   await write("data/nerve.sqlite-wal", 2);
-  await write("data/payloads/conversations/conv_a/result.json", 11);
-  await write("data/payloads/conversations/conv_b/result.json", 7);
-  await write("data/payloads/shared.bin", 3);
+  await write("data/conversations/a/result.json", 11);
+  await write("data/conversations/b/result.json", 7);
   await write("data/reports/report.md", 4);
   await write("data/images/image.png", 5);
   await write("data/plans/plan.md", 6);
-  await write("tasks/task_1/log.txt", 8);
+  await write("data/tasks/task_1/log.txt", 8);
   await write("agent/suggestions/items.json", 9);
   await write("data/idempotency/http-v1.json", 10);
   await write("data/maintenance/storage-cleanup.json", 11);
@@ -87,7 +86,7 @@ describe("StorageUsageService", () => {
 
     const usage = await service.computeUsage(true);
     assert.equal(usage.homeDir, home);
-    assert.equal(usage.totalBytes, 426);
+    assert.equal(usage.totalBytes, 423);
     assert.equal(
       usage.categories.reduce((sum, category) => sum + category.bytes, 0),
       usage.totalBytes,
@@ -98,7 +97,7 @@ describe("StorageUsageService", () => {
         ?.fileCount,
       2,
     );
-    assert.equal(categoryBytes(usage, "payloads"), 21);
+    assert.equal(categoryBytes(usage, "payloads"), 18);
     assert.equal(categoryBytes(usage, "runtimeState"), 21);
     assert.equal(categoryBytes(usage, "queryCache"), 48);
     assert.equal(categoryBytes(usage, "cache"), 18);

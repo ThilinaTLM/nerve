@@ -52,7 +52,6 @@ export type ProcessResultOptions = {
   exitMessagePrefix: string;
   noOutputText?: string;
   details?: Record<string, unknown>;
-  dataDir?: string;
   artifactDir?: string;
   durationMs?: number;
   timedOut?: boolean;
@@ -68,7 +67,6 @@ export type ProcessTextResultOptions = {
   exitMessagePrefix: string;
   noOutputText?: string;
   details?: Record<string, unknown>;
-  dataDir?: string;
   artifactDir?: string;
   contentFooterLines?: string[];
 };
@@ -108,7 +106,6 @@ export async function buildProcessTextResult({
   exitMessagePrefix,
   noOutputText,
   details,
-  dataDir,
   artifactDir,
   contentFooterLines,
 }: ProcessTextResultOptions): Promise<ToolExecutionResult> {
@@ -124,7 +121,6 @@ export async function buildProcessTextResult({
     exitMessagePrefix,
     noOutputText,
     details,
-    dataDir,
     artifactDir,
     contentFooterLines,
   });
@@ -141,7 +137,6 @@ export async function buildProcessResult({
   exitMessagePrefix,
   noOutputText = "(no output)",
   details = {},
-  dataDir,
   artifactDir,
   durationMs,
   timedOut = false,
@@ -173,7 +168,7 @@ export async function buildProcessResult({
   const fullOutputPath =
     recovery?.combinedPath ??
     (boundedOutput
-      ? await writeTranscriptFile({ outputFilePrefix, text: combined, dataDir })
+      ? await writeTranscriptFile({ outputFilePrefix, text: combined })
       : undefined);
 
   const stdoutStream = buildStreamResult({
@@ -683,15 +678,11 @@ async function writeRecoveryFiles(
 async function writeTranscriptFile({
   outputFilePrefix,
   text,
-  dataDir,
 }: {
   outputFilePrefix: string;
   text: string;
-  dataDir?: string;
 }): Promise<string> {
-  const baseDir = dataDir
-    ? join(dataDir, "tmp", "tool-outputs")
-    : join(tmpdir(), "nerve-tool-outputs");
+  const baseDir = join(tmpdir(), "nerve-tool-outputs");
   await mkdir(baseDir, { recursive: true, mode: 0o700 });
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const path = join(

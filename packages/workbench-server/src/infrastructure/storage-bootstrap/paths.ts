@@ -23,7 +23,7 @@ export interface StoragePaths {
   idempotencyPath: string;
   maintenancePath: string;
   storageCleanupOperationPath: string;
-  payloadsPath: string;
+  conversationsPath: string;
   reportsPath: string;
   imagesPath: string;
   plansPath: string;
@@ -76,11 +76,11 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     idempotencyPath: join(dataPath, "idempotency"),
     maintenancePath,
     storageCleanupOperationPath: join(maintenancePath, "storage-cleanup.json"),
-    payloadsPath: join(dataPath, "payloads"),
+    conversationsPath: join(dataPath, "conversations"),
     reportsPath: join(dataPath, "reports"),
     imagesPath: join(dataPath, "images"),
     plansPath: join(dataPath, "plans"),
-    tasksPath: join(home, "tasks"),
+    tasksPath: join(dataPath, "tasks"),
     agentPath,
     suggestionsPath: join(agentPath, "suggestions"),
     tlsPath: join(home, "tls"),

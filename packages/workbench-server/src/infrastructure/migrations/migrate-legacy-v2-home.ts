@@ -29,6 +29,7 @@ import {
   readJsonFile,
 } from "../storage-bootstrap/json.js";
 import { initializeStorage } from "../storage-bootstrap/initialize.js";
+import { managedOwnerPathSegment } from "../storage-bootstrap/managed-owner-path.js";
 import { storagePaths } from "../storage-bootstrap/paths.js";
 import { assertCurrentStorage } from "../storage-bootstrap/storage-postconditions.js";
 import { acquireStorageStartupLock } from "../storage-bootstrap/startup-lock.js";
@@ -544,7 +545,8 @@ function transformPayloadReferences(
     return (
       migrated ?? {
         ...record,
-        logicalPath: `payloads/conversations/${record.conversationId}/tool-calls/${record.toolCallId}/result.json`,
+        version: 2,
+        logicalPath: `conversations/${managedOwnerPathSegment(record.conversationId, "conv_")}/tool-calls/${managedOwnerPathSegment(record.toolCallId, "tool_")}/result.json`,
       }
     );
   }

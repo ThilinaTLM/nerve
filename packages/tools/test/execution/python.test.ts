@@ -272,7 +272,11 @@ describe("python executor", () => {
           "print(artifact)",
         ].join("\n"),
       },
-      { cwd: project.root, dataDir: project.root, pythonRuntime: runtime },
+      {
+        cwd: project.root,
+        artifactDir: join(project.root, "owned-artifacts"),
+        pythonRuntime: runtime,
+      },
     );
 
     const artifacts = (result.details as { artifacts?: { path: string }[] })
@@ -323,7 +327,7 @@ describe("python executor", () => {
       },
       {
         cwd: project.root,
-        dataDir: project.root,
+        artifactDir: join(project.root, "planning-artifacts"),
         pythonRuntime: runtime,
         pythonPolicy: { allowNetwork: true, allowFileWrite: false },
       },

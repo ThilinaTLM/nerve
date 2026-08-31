@@ -15,7 +15,10 @@ import {
 } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { atomicWriteFile } from "../../../infrastructure/storage-bootstrap/file-mutations.js";
-import { storagePaths } from "../../../infrastructure/storage-bootstrap/paths.js";
+import {
+  managedOwnerPathSegment,
+  storagePaths,
+} from "../../../infrastructure/storage-bootstrap/index.js";
 
 const PAYLOAD_GRACE_MS = 24 * 60 * 60 * 1000;
 
@@ -41,7 +44,7 @@ export class ToolResultPayloadStore {
   >();
 
   constructor(readonly home: string) {
-    this.root = storagePaths(home).payloadsPath;
+    this.root = storagePaths(home).conversationsPath;
   }
 
   async initialize(): Promise<void> {
@@ -67,11 +70,11 @@ export class ToolResultPayloadStore {
     const bytes = Buffer.from(serialized, "utf8");
     const digest = createHash("sha256").update(bytes).digest("hex");
     const reference: ToolResultPayloadReference = {
-      version: 1,
+      version: 2,
       kind: "tool_result",
       conversationId,
       toolCallId,
-      logicalPath: `payloads/conversations/${conversationId}/tool-calls/${toolCallId}/result.json`,
+      logicalPath: `conversations/${ownerSegment(conversationId, "conv_")}/tool-calls/${ownerSegment(toolCallId, "tool_")}/result.json`,
       digest,
       byteLength: bytes.byteLength,
       mediaType: "application/json",
@@ -96,10 +99,9 @@ export class ToolResultPayloadStore {
     }
     const candidate = join(
       this.root,
-      "conversations",
-      reference.conversationId,
+      ownerSegment(reference.conversationId, "conv_"),
       "tool-calls",
-      reference.toolCallId,
+      ownerSegment(reference.toolCallId, "tool_"),
       "result.json",
     );
     assertWithin(this.root, candidate);
@@ -131,10 +133,9 @@ export class ToolResultPayloadStore {
     assertOwnerId(toolCallId, "tool_");
     const candidate = join(
       this.root,
-      "conversations",
-      conversationId,
+      ownerSegment(conversationId, "conv_"),
       "tool-calls",
-      toolCallId,
+      ownerSegment(toolCallId, "tool_"),
       "files",
     );
     assertWithin(this.root, candidate);
@@ -196,7 +197,7 @@ export class ToolResultPayloadStore {
 
   async removeConversation(conversationId: string): Promise<void> {
     assertOwnerId(conversationId, "conv_");
-    await rm(join(this.root, "conversations", conversationId), {
+    await rm(join(this.root, ownerSegment(conversationId, "conv_")), {
       recursive: true,
       force: true,
     });
@@ -206,7 +207,7 @@ export class ToolResultPayloadStore {
     referenced: ReadonlySet<string>,
     now = Date.now(),
   ): Promise<{ removed: number; skipped: number }> {
-    const conversationsRoot = join(this.root, "conversations");
+    const conversationsRoot = this.root;
     const conversations = await readdir(conversationsRoot, {
       withFileTypes: true,
     }).catch(() => []);
@@ -249,18 +250,13 @@ export class ToolResultPayloadStore {
     conversationId: string,
     toolCallId: string,
   ): Promise<void> {
+    const conversationSegment = ownerSegment(conversationId, "conv_");
+    const toolCallSegment = ownerSegment(toolCallId, "tool_");
     const directories = [
       this.root,
-      join(this.root, "conversations"),
-      join(this.root, "conversations", conversationId),
-      join(this.root, "conversations", conversationId, "tool-calls"),
-      join(
-        this.root,
-        "conversations",
-        conversationId,
-        "tool-calls",
-        toolCallId,
-      ),
+      join(this.root, conversationSegment),
+      join(this.root, conversationSegment, "tool-calls"),
+      join(this.root, conversationSegment, "tool-calls", toolCallSegment),
     ];
     for (const directory of directories) {
       await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -278,18 +274,13 @@ export class ToolResultPayloadStore {
     conversationId: string,
     toolCallId: string,
   ): Promise<void> {
+    const conversationSegment = ownerSegment(conversationId, "conv_");
+    const toolCallSegment = ownerSegment(toolCallId, "tool_");
     const directories = [
       this.root,
-      join(this.root, "conversations"),
-      join(this.root, "conversations", conversationId),
-      join(this.root, "conversations", conversationId, "tool-calls"),
-      join(
-        this.root,
-        "conversations",
-        conversationId,
-        "tool-calls",
-        toolCallId,
-      ),
+      join(this.root, conversationSegment),
+      join(this.root, conversationSegment, "tool-calls"),
+      join(this.root, conversationSegment, "tool-calls", toolCallSegment),
     ];
     for (const directory of directories) {
       let info;
@@ -430,6 +421,11 @@ function assertOwnerId(value: string, prefix: "conv_" | "tool_"): void {
       `Invalid payload owner id '${value}'.`,
     );
   }
+}
+
+function ownerSegment(value: string, prefix: "conv_" | "tool_"): string {
+  assertOwnerId(value, prefix);
+  return managedOwnerPathSegment(value, prefix);
 }
 
 function assertWithin(root: string, candidate: string): void {

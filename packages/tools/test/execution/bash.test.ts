@@ -123,7 +123,7 @@ describe("bash executor", () => {
       {
         command: `${node} -e "for (let i = 0; i < 600; i++) console.log('line ' + i)"`,
       },
-      { cwd: project.root, dataDir: project.root },
+      { cwd: project.root },
     );
 
     assert.match(result.content ?? "", /output exceeded inline limits/);
@@ -145,7 +145,7 @@ describe("bash executor", () => {
     assert.ok(details.fullOutputPath);
     assert.match(
       details.fullOutputPath,
-      /tmp[\\/]tool-outputs[\\/]nerve-bash-/,
+      /tmp[\\/]nerve-tool-outputs[\\/]nerve-bash-/,
     );
     assert.equal(details.truncation?.truncated, true);
     assert.equal(details.truncation?.direction, "head_tail");

@@ -85,12 +85,7 @@ function isHtml(contentType: string): boolean {
 }
 
 function saveDir(context: WebExecutionContext): string {
-  return (
-    context.artifactDir ??
-    (context.dataDir
-      ? join(context.dataDir, "tmp", "web-fetch")
-      : join(tmpdir(), "nerve-web-fetch"))
-  );
+  return context.artifactDir ?? join(tmpdir(), "nerve-web-fetch");
 }
 
 function tmpPath(
