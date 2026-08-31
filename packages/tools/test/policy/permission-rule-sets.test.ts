@@ -159,6 +159,46 @@ test("all built-in rule sets allow core reads outside managed roots", () => {
   }
 });
 
+test("blank singleton search paths target the current project directory", () => {
+  const requests = [
+    ["grep", { pattern: "needle", path: "" }],
+    ["find", { pattern: "*.ts", path: "" }],
+    ["ls", { path: "" }],
+  ] as const;
+
+  for (const [toolName, args] of requests) {
+    const request = normalizePermissionRequest({
+      toolName,
+      args,
+      roots,
+      conversationId: "conv_test",
+    });
+    assert.deepEqual(request.targets, [
+      {
+        kind: "path",
+        access: "read",
+        scope: "tree",
+        root: "project",
+        relativePath: "",
+      },
+    ]);
+    assert.equal(decision("read_only", toolName, args).decision, "allow");
+  }
+});
+
+test("an empty grep paths collection does not default to the project", () => {
+  assert.throws(
+    () =>
+      normalizePermissionRequest({
+        toolName: "grep",
+        args: { pattern: "needle", paths: [] },
+        roots,
+        conversationId: "conv_test",
+      }),
+    /Required permission targets could not be derived for grep/,
+  );
+});
+
 test("external writes follow each built-in rule set's normal capability", () => {
   const writeArgs = { path: "/tmp/outside.txt", content: "x" };
   const editArgs = {
