@@ -45,9 +45,17 @@ pnpm --filter @nervekit/desktop-shell package:dir
 node scripts/smoke-desktop-package.mjs
 ```
 
-## Automated release flow
+## Release tagging flow
 
-Run the **Tag Release** workflow manually with the exact version to publish. It requires `RELEASE_PUSH_TOKEN`, updates all workspace versions on protected `main`, creates the signed release commit and annotated `v<version>` tag, and atomically pushes both refs.
+Start from a clean checkout on the branch that should contain the release commit, with a local Git identity and commit-signing key configured. Run the local release script with the exact version to publish, without a leading `v`:
+
+```sh
+scripts/tag-release.sh X.Y.Z
+```
+
+The script updates every workspace `package.json`, the native `Cargo.toml`, and the `nerve-native` entry in `Cargo.lock`. It then creates the signed `chore(release): bump version to vX.Y.Z` commit and an annotated `vX.Y.Z` tag. It never pushes the current branch. Put the release commit onto the protected default branch through the repository's normal branch and pull-request process.
+
+The final prompt offers to push only the tag. Confirm only when the release commit is ready to publish: pushing the tag immediately starts the **Publish Release** workflow. If the prompt is declined or no interactive terminal is available, push it later with `git push origin refs/tags/vX.Y.Z`.
 
 The authenticated SemVer tag push starts the **Publish Release** workflow. It validates the tag and builds the native runtime on architecture-matched runners for Linux x64/ARM64, Windows 11 x64/ARM64, macOS Intel, and macOS Apple Silicon. Every runner executes the generated addon before the artifacts are merged. Representative Linux, Windows, and macOS jobs then run the complete quality and Electron package smokes against the merged inventory. The workflow builds and deploys the website to GitHub Pages, publishes to npm through OIDC, and creates the GitHub release. Website deployment occurs only after release validation and npm publication.
 
@@ -61,17 +69,9 @@ Current homes use `manifest.json` with format `nerve-home`, version `1`. The onl
 
 ## Release commit signing
 
-The manually dispatched **Tag Release** workflow creates its version-bump commit on protected `main`, so it must use the dedicated `Nerve Release Bot` GPG key registered on the `ThilinaTLM` GitHub account. The initiating maintainer remains the commit author; `Nerve Release Bot <41065538+ThilinaTLM@users.noreply.github.com>` is the signing committer.
+`scripts/tag-release.sh` uses `git commit -S` and refuses to create the tag unless Git records a signature on the release commit. Each maintainer must configure a local Git identity and a signing key whose public identity GitHub recognizes. The script does not read private signing material from repository secrets.
 
-Configure these repository Actions secrets together:
-
-- `RELEASE_GPG_PRIVATE_KEY`: the passphrase-protected armored private key
-- `RELEASE_GPG_PASSPHRASE`: the private-key passphrase
-- `RELEASE_GPG_FINGERPRINT`: the full primary-key fingerprint
-
-The matching public key must remain registered with GitHub. Tag Release imports the private key into an ephemeral keyring and fails before its atomic push if a secret is missing, the fingerprint differs, the key cannot be unlocked, or the release commit does not verify against that fingerprint.
-
-The current automation key expires on 2028-08-10. Rotate it before expiry by generating and registering a replacement key, replacing all three secrets together, validating a release, and then removing the old public key. If the key may be compromised, remove it from GitHub and replace the secrets before another release.
+If signing fails, fix the local Git signing configuration and retry. The script does not reset partially updated files, so inspect the working tree before deciding whether to restore the version changes or complete the commit manually.
 
 ## npm publication and OIDC
 
