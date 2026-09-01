@@ -10,17 +10,18 @@ import {
   CANONICAL_SCHEMA_CHECKSUM,
   CANONICAL_SCHEMA_SQL,
   CANONICAL_SCHEMA_V1_CHECKSUM,
+  CANONICAL_SCHEMA_V5_CHECKSUM,
   CANONICAL_SCHEMA_VERSION,
 } from "../../../src/infrastructure/persistence/canonical-sqlite/schema.js";
 
-test("canonical schema checksum matches the v5 SQL", () => {
+test("canonical schema checksum matches the v6 SQL", () => {
   assert.equal(
     createHash("sha256").update(CANONICAL_SCHEMA_SQL).digest("hex"),
     CANONICAL_SCHEMA_CHECKSUM,
   );
 });
 
-test("fresh canonical stores use v5 without removed tables", async (t) => {
+test("fresh canonical stores use v6 without removed tables", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v2-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const path = join(home, "data", "nerve.sqlite");
@@ -47,7 +48,7 @@ test("fresh canonical stores use v5 without removed tables", async (t) => {
   assert.deepEqual(versions, [CANONICAL_SCHEMA_VERSION]);
 });
 
-test("canonical v1 stores migrate transactionally through v5", async (t) => {
+test("canonical v1 stores migrate transactionally through v6", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v1-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const path = join(home, "nerve.sqlite");
@@ -213,7 +214,7 @@ test("canonical v1 stores migrate transactionally through v5", async (t) => {
     .get() as { logicalPath: string };
   migrated.close();
   assert.deepEqual(objects, []);
-  assert.deepEqual(versions, [1, 2, 3, 4, 5]);
+  assert.deepEqual(versions, [1, 2, 3, 4, 5, 6]);
   assert.equal(documents.count, 1);
   assert.equal(settlement.revision, 2);
   assert.equal(toolProjection.projectId, "project_test");
@@ -227,6 +228,54 @@ test("canonical v1 stores migrate transactionally through v5", async (t) => {
     migratedAsset.logicalPath,
     "conversations/test/tool-calls/test/result.json",
   );
+});
+
+test("canonical v5 stores add idempotency schema and preserve documents", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v5-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const path = join(home, "nerve.sqlite");
+  const database = new DatabaseSync(path);
+  database.exec(schemaWithoutRpcIdempotency());
+  database
+    .prepare(
+      `INSERT INTO schema_migrations
+       (version, name, checksum, applied_at_ms, duration_ms)
+       VALUES (5, 'nerve-home-v5', ?, 1, 0)`,
+    )
+    .run(CANONICAL_SCHEMA_V5_CHECKSUM);
+  database
+    .prepare(
+      `INSERT INTO domain_documents (
+         namespace, scope_id, document_id, revision, payload_version, data,
+         created_at_ms, updated_at_ms
+       ) VALUES ('test', 'global', 'preserved', 1, 1, ?, 1, 1)`,
+    )
+    .run(Buffer.from(JSON.stringify({ preserved: true })));
+  database.close();
+
+  const store = new CanonicalStore(path);
+  await store.initialize();
+  assert.deepEqual(
+    (await store.readDocument("test", "global", "preserved"))?.data,
+    { preserved: true },
+  );
+  await store.close();
+  const inspected = new DatabaseSync(path, { readOnly: true });
+  const objects = inspected
+    .prepare(
+      `SELECT name FROM sqlite_master
+       WHERE name IN ('rpc_idempotency', 'rpc_idempotency_expiry')
+       ORDER BY name`,
+    )
+    .all()
+    .map((row) => String((row as { name: unknown }).name));
+  const versions = inspected
+    .prepare(`SELECT version FROM schema_migrations ORDER BY version`)
+    .all()
+    .map((row) => Number((row as { version: unknown }).version));
+  inspected.close();
+  assert.deepEqual(objects, ["rpc_idempotency", "rpc_idempotency_expiry"]);
+  assert.deepEqual(versions, [5, 6]);
 });
 
 test("canonical documents use revision compare-and-swap", async (t) => {
@@ -338,7 +387,7 @@ test("newer SQLite schemas are refused", async (t) => {
     .prepare(
       `INSERT INTO schema_migrations
        (version, name, checksum, applied_at_ms, duration_ms)
-       VALUES (6, 'future', 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 1, 0)`,
+       VALUES (7, 'future', 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 1, 0)`,
     )
     .run();
   database.close();
@@ -347,14 +396,23 @@ test("newer SQLite schemas are refused", async (t) => {
   await future.close();
 });
 
-function schemaWithoutRunDeliverySettlement(): string {
+function schemaWithoutRpcIdempotency(): string {
   return CANONICAL_SCHEMA_SQL.replace(
-    / {2}run_delivery_settled_revision INTEGER\n {4}CHECK\(run_delivery_settled_revision >= 0\),\n/,
-    "",
-  ).replace(
-    /CREATE INDEX IF NOT EXISTS conversation_records_pending_run_delivery\n {2}ON conversation_records\(run_delivery_settled_revision, revision, id\)\n {2}WHERE kind = 'run';\n/,
+    /CREATE TABLE IF NOT EXISTS rpc_idempotency \([\s\S]*?CREATE INDEX IF NOT EXISTS rpc_idempotency_expiry\n {2}ON rpc_idempotency\(expires_at_ms, created_at_ms\);\n\n/,
     "",
   );
+}
+
+function schemaWithoutRunDeliverySettlement(): string {
+  return schemaWithoutRpcIdempotency()
+    .replace(
+      / {2}run_delivery_settled_revision INTEGER\n {4}CHECK\(run_delivery_settled_revision >= 0\),\n/,
+      "",
+    )
+    .replace(
+      /CREATE INDEX IF NOT EXISTS conversation_records_pending_run_delivery\n {2}ON conversation_records\(run_delivery_settled_revision, revision, id\)\n {2}WHERE kind = 'run';\n/,
+      "",
+    );
 }
 
 test("checksum-drifted v1 schemas are refused before migration", async (t) => {

@@ -20,9 +20,6 @@ export interface StoragePaths {
   localTokenPath: string;
   dataPath: string;
   sqlitePath: string;
-  idempotencyPath: string;
-  maintenancePath: string;
-  storageCleanupOperationPath: string;
   conversationsPath: string;
   reportsPath: string;
   imagesPath: string;
@@ -52,7 +49,6 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
   const secretsPath = join(home, "secrets");
   const dataPath = join(home, "data");
   const agentPath = join(home, "agent");
-  const maintenancePath = join(dataPath, "maintenance");
   const migrationsPath = join(home, "migrations");
   const cachePath = join(home, "cache");
   return {
@@ -73,9 +69,6 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     localTokenPath: join(secretsPath, "daemon-token"),
     dataPath,
     sqlitePath: join(dataPath, "nerve.sqlite"),
-    idempotencyPath: join(dataPath, "idempotency"),
-    maintenancePath,
-    storageCleanupOperationPath: join(maintenancePath, "storage-cleanup.json"),
     conversationsPath: join(dataPath, "conversations"),
     reportsPath: join(dataPath, "reports"),
     imagesPath: join(dataPath, "images"),

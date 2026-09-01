@@ -21,7 +21,7 @@ Unless explicitly overridden by `NERVE_HOME`, the user-level root is `~/.nerve`.
 ```text
 ~/.nerve/
 ├── manifest.json                    # Nerve-home format and version
-├── daemon.json                      # Active daemon discovery metadata
+├── daemon.json                      # Active daemon discovery + heartbeat/crash lease
 │
 ├── config/                          # Human-readable portable configuration
 │   ├── daemon.json
@@ -125,7 +125,8 @@ Nerve writes configuration atomically and uses deterministic JSON formatting. Co
 - conversations, messages, agents, and run state;
 - tool-call history and lifecycle records;
 - task metadata and execution state;
-- durable protocol events;
+- durable protocol events and bounded RPC idempotency outcomes;
+- storage-maintenance operations and digest-bound project permission trust;
 - conversation-specific model, mode, and permission selections;
 - ownership, integrity, and lifecycle metadata for file-backed data;
 - indexes and relationships requiring transactions.
@@ -227,7 +228,7 @@ Copying `master.key` and `credentials.enc` together supports whole-home recovery
 
 ### Daemon discovery, locks, and TLS
 
-The root `daemon.json` is transient discovery metadata for the currently active daemon: daemon ID, PID, URL, ports, version, and start time. It is removed during clean shutdown and ignored when stale. It is distinct from `config/daemon.json`.
+The root `daemon.json` is the transient discovery and liveness lease for the currently active daemon: daemon ID, PID, URL, ports, version, start time, heartbeat, process arguments, and optional crash-report annotation. One monitor owns its atomic writes. It is published only after HTTP listens and removed after clean shutdown. It is distinct from `config/daemon.json`.
 
 Migration coordination remains under `migrations/`. The startup lock may remain a sibling such as `<NERVE_HOME>.startup-lock.json` because it must be acquired before Nerve knows which internal home layout is present.
 

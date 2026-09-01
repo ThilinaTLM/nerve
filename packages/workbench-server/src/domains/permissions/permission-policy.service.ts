@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
@@ -12,6 +12,7 @@ import type {
   ProjectPermissionTrust,
 } from "@nervekit/contracts/permissions";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
+import { z } from "zod";
 import {
   permissionOverlayForOriginSchema,
   permissionRuleSetSchema,
@@ -30,14 +31,16 @@ import {
   type InitializedStorage,
 } from "../../infrastructure/storage-bootstrap/index.js";
 
-interface TrustRecord {
-  digest: string;
-  trustedAt: string;
-}
-interface TrustStore {
-  version: 1;
-  projects: Record<string, TrustRecord>;
-}
+const trustRecordSchema = z
+  .object({
+    version: z.literal(1),
+    digest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    trustedAt: z.string().datetime(),
+  })
+  .strict();
+type TrustRecord = z.infer<typeof trustRecordSchema>;
+const TRUST_NAMESPACE = "project-permission-trust";
+const TRUST_SCOPE = "global";
 
 export interface ResolvedPermissionPolicy {
   policy: EffectivePermissionPolicy;
@@ -49,18 +52,11 @@ export interface ResolvedPermissionPolicy {
 
 export class PermissionPolicyService {
   private readonly queues = new Map<string, Promise<void>>();
-  private readonly trustPath: string;
 
   constructor(
     private readonly storage: InitializedStorage,
     private readonly getProject: (projectId: string) => ProjectRecord,
-  ) {
-    this.trustPath = join(
-      storage.paths.dataPath,
-      "permissions",
-      "project-trust.json",
-    );
-  }
+  ) {}
 
   async resolve(agent: AgentRecord): Promise<ResolvedPermissionPolicy> {
     const project = this.getProject(agent.projectId);
@@ -352,7 +348,7 @@ export class PermissionPolicyService {
         reason: errorMessage(error),
       };
     }
-    const trusted = (await this.readTrustStore()).projects[projectId];
+    const trusted = await this.readTrustRecord(projectId);
     if (!trusted || trusted.digest !== digest) {
       return {
         status: "untrusted",
@@ -376,22 +372,34 @@ export class PermissionPolicyService {
     const content = await readFile(path, "utf8");
     permissionOverlayForOriginSchema("project").parse(JSON.parse(content));
     const digest = digestContent(content);
-    await this.exclusive("project-trust", async () => {
-      const store = await this.readTrustStore();
-      store.projects[projectId] = {
-        digest,
-        trustedAt: new Date().toISOString(),
-      };
-      await atomicWriteJson(this.trustPath, store, 0o600);
+    await this.exclusive(`project-trust:${projectId}`, async () => {
+      const current = await this.storage.canonicalStore.readDocument(
+        TRUST_NAMESPACE,
+        TRUST_SCOPE,
+        projectId,
+      );
+      await this.storage.canonicalStore.writeDocument({
+        namespace: TRUST_NAMESPACE,
+        scopeId: TRUST_SCOPE,
+        documentId: projectId,
+        data: {
+          version: 1 as const,
+          digest,
+          trustedAt: new Date().toISOString(),
+        },
+        expectedRevision: current?.revision ?? 0,
+      });
     });
     return this.projectTrust(projectId);
   }
 
   async revokeProjectTrust(projectId: string): Promise<void> {
-    await this.exclusive("project-trust", async () => {
-      const store = await this.readTrustStore();
-      delete store.projects[projectId];
-      await atomicWriteJson(this.trustPath, store, 0o600);
+    await this.exclusive(`project-trust:${projectId}`, async () => {
+      await this.storage.canonicalStore.deleteDocument(
+        TRUST_NAMESPACE,
+        TRUST_SCOPE,
+        projectId,
+      );
     });
   }
 
@@ -434,24 +442,17 @@ export class PermissionPolicyService {
     );
   }
 
-  private async readTrustStore(): Promise<TrustStore> {
-    try {
-      const raw = JSON.parse(
-        await readFile(this.trustPath, "utf8"),
-      ) as TrustStore;
-      if (raw.version !== 1 || typeof raw.projects !== "object")
-        throw new Error("Invalid project permission trust store.");
-      return raw;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        await mkdir(join(this.storage.paths.dataPath, "permissions"), {
-          recursive: true,
-          mode: 0o700,
-        });
-        return { version: 1, projects: {} };
-      }
-      throw error;
-    }
+  private async readTrustRecord(
+    projectId: string,
+  ): Promise<TrustRecord | undefined> {
+    const document = await this.storage.canonicalStore.readDocument<unknown>(
+      TRUST_NAMESPACE,
+      TRUST_SCOPE,
+      projectId,
+    );
+    if (!document) return undefined;
+    const parsed = trustRecordSchema.safeParse(document.data);
+    return parsed.success ? parsed.data : undefined;
   }
 
   private exclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {

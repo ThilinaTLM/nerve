@@ -1,17 +1,12 @@
-import { mkdir, readFile } from "node:fs/promises";
-import { dirname } from "node:path";
 import type {
   IdempotencyExecution,
   IdempotencyOutcome,
   IdempotencyStorePort,
 } from "@nervekit/protocol/rpc";
 import { hashParams } from "@nervekit/protocol/rpc";
-import { z } from "zod";
-import { retryRename } from "../../infrastructure/storage-bootstrap/file-mutations.js";
-import { atomicWriteJson } from "../../infrastructure/storage-bootstrap/json.js";
+import type { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/index.js";
 import { redactProtocolValue } from "./protocol-errors.js";
 
-const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const MAX_RECORD_BYTES = 256 * 1024;
 const MAX_DEPTH = 8;
 const MAX_ARRAY_ITEMS = 1_000;
@@ -21,38 +16,12 @@ const SECRET_KEY_PATTERN =
   /authorization|cookie|token|apikey|api_key|password|passwd|secret|credential|private_key|private-key/i;
 const CREDENTIAL_URL_PATTERN = /https?:\/\/[^/\s:@]+:[^/\s@]+@/i;
 
-const errorSchema = z.object({
-  code: z.string().max(64),
-  message: z.string().max(512),
-  retryable: z.boolean(),
-  close: z.boolean().optional(),
-  details: z.record(z.string(), z.unknown()).optional(),
-  recovery: z.unknown().optional(),
-});
-const entrySchema = z.object({
-  scope: z.string().max(256),
-  key: z.string().max(256),
-  method: z.string().max(256),
-  paramsHash: z.string().max(128),
-  outcome: z.discriminatedUnion("status", [
-    z.object({ status: z.literal("success"), result: z.unknown() }),
-    z.object({ status: z.literal("error"), error: errorSchema }),
-  ]),
-  expiresAt: z.number().int().nonnegative(),
-});
-const fileSchema = z.object({
-  version: z.literal(1),
-  entries: z.array(entrySchema).max(1_000),
-});
-type StoredEntry = z.infer<typeof entrySchema>;
-
-/** File-first, bounded idempotency outcomes shared by HTTP and WebSocket RPC. */
-export class FileIdempotencyStore implements IdempotencyStorePort {
-  #entries: StoredEntry[] | undefined;
+/** Bounded SQLite idempotency outcomes shared by HTTP and WebSocket RPC. */
+export class SqliteIdempotencyStore implements IdempotencyStorePort {
   #lock: Promise<void> = Promise.resolve();
 
   constructor(
-    private readonly path: string,
+    private readonly store: CanonicalStore,
     private readonly ttlMs = 10 * 60_000,
     private readonly maxEntries = 1_000,
     private readonly now = () => Date.now(),
@@ -67,77 +36,36 @@ export class FileIdempotencyStore implements IdempotencyStorePort {
   ): Promise<IdempotencyExecution> {
     const paramsHash = hashParams(params);
     return this.#withLock(async () => {
-      await this.#load();
-      this.#prune();
-      const existing = this.#entries?.find(
-        (entry) => entry.scope === scope && entry.key === key,
+      const now = this.now();
+      const existing = await this.store.readRpcIdempotency<IdempotencyOutcome>(
+        scope,
+        key,
+        now,
       );
       if (existing) {
         if (existing.method !== method || existing.paramsHash !== paramsHash)
           return { status: "conflict" };
-        return {
-          status: "replayed",
-          outcome: existing.outcome as IdempotencyOutcome,
-        };
+        return { status: "replayed", outcome: existing.outcome };
       }
 
-      const resolved = safeOutcome(await operation());
+      let outcome = safeOutcome(await operation());
+      const createdAt = this.now();
       const entry = {
         scope,
         key,
         method,
         paramsHash,
-        outcome: resolved,
-        expiresAt: this.now() + this.ttlMs,
+        outcome,
+        expiresAt: createdAt + this.ttlMs,
+        createdAt,
       };
-      if (Buffer.byteLength(JSON.stringify(entry)) > MAX_RECORD_BYTES)
-        entry.outcome = unsafeOutcome();
-      this.#entries?.push(entry);
-      this.#prune();
-      await this.#persist();
-      return { status: "executed", outcome: entry.outcome };
+      if (Buffer.byteLength(JSON.stringify(entry)) > MAX_RECORD_BYTES) {
+        outcome = unsafeOutcome();
+        entry.outcome = outcome;
+      }
+      await this.store.writeRpcIdempotency(entry, this.maxEntries, createdAt);
+      return { status: "executed", outcome };
     });
-  }
-
-  async #load(): Promise<void> {
-    if (this.#entries) return;
-    try {
-      const text = await readFile(this.path, "utf8");
-      if (Buffer.byteLength(text) > MAX_FILE_BYTES)
-        throw new Error("oversized");
-      this.#entries = fileSchema.parse(JSON.parse(text)).entries;
-    } catch (error) {
-      this.#entries = [];
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT")
-        await retryRename(this.path, `${this.path}.corrupt`).catch(
-          () => undefined,
-        );
-    }
-  }
-
-  #prune(): void {
-    const now = this.now();
-    this.#entries = (this.#entries ?? []).filter(
-      (entry) => entry.expiresAt > now,
-    );
-    if (this.#entries.length > this.maxEntries)
-      this.#entries = this.#entries.slice(-this.maxEntries);
-  }
-
-  async #persist(): Promise<void> {
-    while (
-      (this.#entries?.length ?? 0) > 1 &&
-      Buffer.byteLength(
-        JSON.stringify({ version: 1, entries: this.#entries }),
-      ) > MAX_FILE_BYTES
-    )
-      this.#entries?.shift();
-    await mkdir(dirname(this.path), { recursive: true });
-    await atomicWriteJson(
-      this.path,
-      { version: 1, entries: this.#entries },
-      0o600,
-    );
   }
 
   async #withLock<T>(operation: () => Promise<T>): Promise<T> {

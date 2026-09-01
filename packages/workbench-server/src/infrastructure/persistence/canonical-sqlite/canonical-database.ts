@@ -27,6 +27,10 @@ import {
 } from "./canonical-database-helpers.js";
 import { decode, encode } from "./payload-codecs.js";
 import {
+  readRpcIdempotencyInTransaction,
+  writeRpcIdempotencyInTransaction,
+} from "./canonical-idempotency-database.js";
+import {
   listCanonicalRunDeliveryRecoveryStates,
   listCanonicalRunMetadata,
   listCanonicalRunStates,
@@ -46,6 +50,16 @@ import {
   CANONICAL_SCHEMA_SQL,
   CANONICAL_SCHEMA_VERSION,
 } from "./schema.js";
+
+export interface RpcIdempotencyEntry<T = unknown> {
+  scope: string;
+  key: string;
+  method: string;
+  paramsHash: string;
+  outcome: T;
+  expiresAt: number;
+  createdAt: number;
+}
 
 export interface CanonicalDocument<T = unknown> {
   namespace: string;
@@ -151,6 +165,26 @@ export class CanonicalDatabase {
       }
       throw error;
     }
+  }
+
+  readRpcIdempotency<T>(
+    scope: string,
+    key: string,
+    now: number,
+  ): RpcIdempotencyEntry<T> | undefined {
+    return this.transaction((database) =>
+      readRpcIdempotencyInTransaction<T>(database, scope, key, now),
+    );
+  }
+
+  writeRpcIdempotency<T>(
+    entry: RpcIdempotencyEntry<T>,
+    maxEntries: number,
+    now: number,
+  ): void {
+    this.transaction((database) =>
+      writeRpcIdempotencyInTransaction(database, entry, maxEntries, now),
+    );
   }
 
   readDocument<T>(

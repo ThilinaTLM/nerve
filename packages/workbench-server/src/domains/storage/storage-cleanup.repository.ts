@@ -2,24 +2,34 @@ import {
   type StorageCleanupOperation,
   storageCleanupOperationSchema,
 } from "@nervekit/contracts/storage";
-import {
-  atomicWriteJson,
-  pathExists,
-  readJsonFile,
-} from "../../infrastructure/storage-bootstrap/index.js";
+import type { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/index.js";
+
+const NAMESPACE = "maintenance";
+const SCOPE = "global";
+const DOCUMENT = "storage-cleanup";
 
 export class StorageCleanupRepository {
-  constructor(readonly path: string) {}
+  constructor(private readonly store: CanonicalStore) {}
 
   async read(): Promise<StorageCleanupOperation | null> {
-    if (!(await pathExists(this.path))) return null;
-    const raw = await readJsonFile<unknown>(this.path).catch(() => undefined);
-    const parsed = storageCleanupOperationSchema.safeParse(raw);
+    const document = await this.store.readDocument<unknown>(
+      NAMESPACE,
+      SCOPE,
+      DOCUMENT,
+    );
+    const parsed = storageCleanupOperationSchema.safeParse(document?.data);
     return parsed.success ? parsed.data : null;
   }
 
   async write(operation: StorageCleanupOperation): Promise<void> {
     const validated = storageCleanupOperationSchema.parse(operation);
-    await atomicWriteJson(this.path, validated, 0o600);
+    const current = await this.store.readDocument(NAMESPACE, SCOPE, DOCUMENT);
+    await this.store.writeDocument({
+      namespace: NAMESPACE,
+      scopeId: SCOPE,
+      documentId: DOCUMENT,
+      data: validated,
+      expectedRevision: current?.revision ?? 0,
+    });
   }
 }

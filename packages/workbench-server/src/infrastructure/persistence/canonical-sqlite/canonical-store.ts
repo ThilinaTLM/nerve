@@ -2,7 +2,11 @@ import { Worker } from "node:worker_threads";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type { RunRecord } from "@nervekit/contracts/runs";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
-import { encode, type CanonicalDocument } from "./canonical-database.js";
+import {
+  encode,
+  type CanonicalDocument,
+  type RpcIdempotencyEntry,
+} from "./canonical-database.js";
 import type {
   CanonicalCommand,
   CanonicalWorkerResponse,
@@ -123,6 +127,22 @@ export class CanonicalStore {
     return this.writer.request<T>(command, transferList);
   }
 
+  readRpcIdempotency<T>(scope: string, key: string, now = Date.now()) {
+    return this.request<RpcIdempotencyEntry<T> | undefined>(
+      { kind: "read_rpc_idempotency", scope, key, now },
+      true,
+    );
+  }
+  writeRpcIdempotency<T>(
+    entry: RpcIdempotencyEntry<T>,
+    maxEntries: number,
+    now = Date.now(),
+  ) {
+    return this.request<void>(
+      { kind: "write_rpc_idempotency", entry, maxEntries, now },
+      true,
+    );
+  }
   readDocument<T>(namespace: string, scopeId: string, documentId: string) {
     return this.request<CanonicalDocument<T> | undefined>(
       { kind: "read_document", namespace, scopeId, documentId },

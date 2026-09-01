@@ -1,12 +1,5 @@
 import assert from "node:assert/strict";
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -16,6 +9,7 @@ import {
   StorageUsageService,
 } from "../../../src/domains/storage/index.js";
 import { ApplicationLogger } from "../../../src/infrastructure/diagnostics/index.js";
+import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/index.js";
 import { StreamLogRegistry } from "../../../src/infrastructure/events/index.js";
 import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
@@ -39,13 +33,12 @@ async function seedHome(): Promise<string> {
   await write("cache/value.json", 250);
   await write("cache/query-cache.sqlite", 600);
   await write("cache/query-cache.sqlite.cleanup-backup", 80);
-  await write("data/nerve.sqlite", 900);
   await write("tmp/scratch.txt", 60);
   await write("secrets/daemon-token", 40);
   return home;
 }
 
-function makeService(
+async function makeService(
   home: string,
   overrides: {
     prune?: () => Promise<{
@@ -78,9 +71,9 @@ function makeService(
     source: "orchestrator",
     component: "storage-test",
   });
-  const repository = new StorageCleanupRepository(
-    join(home, "maintenance", "storage-cleanup.json"),
-  );
+  const canonicalStore = new CanonicalStore(paths.sqlitePath);
+  await canonicalStore.initialize();
+  const repository = new StorageCleanupRepository(canonicalStore);
   const service = new StorageCleanupService({
     paths,
     repository,
@@ -112,7 +105,7 @@ async function waitForTerminal(
 describe("StorageCleanupService", () => {
   it("accepts immediately, clears selected data, and persists detailed results", async () => {
     const home = await seedHome();
-    const { service, repository, usage } = makeService(home);
+    const { service, repository, usage } = await makeService(home);
     await service.hydrate();
     const before = await usage.computeUsage(true);
     assert.equal(
@@ -152,8 +145,7 @@ describe("StorageCleanupService", () => {
 
   it("keeps generic cache and query-cache rebuild disjoint", async () => {
     const home = await seedHome();
-    const canonicalBefore = await readFile(join(home, "data", "nerve.sqlite"));
-    const { service, usage } = makeService(home, {
+    const { service, usage } = await makeService(home, {
       rebuild: async () => {
         await writeFile(
           join(home, "cache", "query-cache.sqlite"),
@@ -188,10 +180,6 @@ describe("StorageCleanupService", () => {
       result.results.find((item) => item.target === "searchIndex")?.freedBytes,
       580,
     );
-    assert.deepEqual(
-      await readFile(join(home, "data", "nerve.sqlite")),
-      canonicalBefore,
-    );
     assert.deepEqual(await readdir(join(home, "cache")), [
       "query-cache.sqlite",
     ]);
@@ -203,7 +191,7 @@ describe("StorageCleanupService", () => {
     const blocked = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const { service } = makeService(home, {
+    const { service } = await makeService(home, {
       prune: async () => {
         await blocked;
         return { prunedConversationIds: [], skippedCount: 0 };
@@ -235,7 +223,7 @@ describe("StorageCleanupService", () => {
 
   it("marks an active persisted operation interrupted during hydrate", async () => {
     const home = await seedHome();
-    const { service, repository } = makeService(home);
+    const { service, repository } = await makeService(home);
     const now = new Date().toISOString();
     await repository.write({
       id: "storageop_TEST",

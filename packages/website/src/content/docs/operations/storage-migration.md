@@ -11,7 +11,7 @@ Electron's active Chromium profile remains outside `NERVE_HOME`. A whole-home ba
 
 ## Inspect and clean up
 
-Settings reports readable files across the complete Nerve home, including canonical data, payloads, runtime state, diagnostics, migrations, and backups. It can run asynchronous cleanup for old conversations and diagnostics, event compaction, reports, non-query cache/temp data, and the rebuildable query cache. Rebuilding the query cache replaces files under `cache/query-cache.sqlite`; it never modifies the authoritative `data/nerve.sqlite`. Migrations and backups are visible in usage but are not cleanup targets. Cleanup skips symlinks and observes cancellation between targets.
+Settings reports readable files across the complete Nerve home, including canonical data, payloads, diagnostics, migrations, and backups. It can run asynchronous cleanup for old conversations and diagnostics, event compaction, reports, non-query cache/temp data, and the rebuildable query cache. Rebuilding the query cache replaces files under `cache/query-cache.sqlite`; it never modifies the authoritative `data/nerve.sqlite`. Migrations and backups are visible in usage but are not cleanup targets. Cleanup skips symlinks and observes cancellation between targets.
 
 Conversation pruning skips running or awaiting agents and conversations with active tasks before removing associated inactive records and managed files.
 

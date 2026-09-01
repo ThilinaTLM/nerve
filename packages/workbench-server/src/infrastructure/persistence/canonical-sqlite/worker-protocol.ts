@@ -6,6 +6,21 @@ import type {
 
 export type CanonicalCommand =
   | { kind: "initialize" }
+  | { kind: "read_rpc_idempotency"; scope: string; key: string; now: number }
+  | {
+      kind: "write_rpc_idempotency";
+      entry: {
+        scope: string;
+        key: string;
+        method: string;
+        paramsHash: string;
+        outcome: unknown;
+        expiresAt: number;
+        createdAt: number;
+      };
+      maxEntries: number;
+      now: number;
+    }
   | {
       kind: "read_document";
       namespace: string;

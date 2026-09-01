@@ -227,9 +227,7 @@ export function composeServerRuntime(
   const latestRelease = new LatestReleaseService();
   const storageCleanup = new StorageCleanupService({
     paths: storage.paths,
-    repository: new StorageCleanupRepository(
-      storage.paths.storageCleanupOperationPath,
-    ),
+    repository: new StorageCleanupRepository(storage.canonicalStore),
     usage: storageUsage,
     events,
     logger,

@@ -83,6 +83,13 @@ test("initializes the required v1 home and keeps optional directories lazy", asy
   });
   await assert.rejects(stat(storage.paths.agentPath), { code: "ENOENT" });
   await assert.rejects(stat(storage.paths.suggestionsPath), { code: "ENOENT" });
+  for (const path of [
+    join(home, "data", "idempotency"),
+    join(home, "data", "maintenance"),
+    join(home, "data", "permissions"),
+    join(home, "runtime"),
+  ])
+    await assert.rejects(stat(path), { code: "ENOENT" });
 
   resources.database = new DatabaseSync(storage.paths.sqlitePath, {
     readOnly: true,

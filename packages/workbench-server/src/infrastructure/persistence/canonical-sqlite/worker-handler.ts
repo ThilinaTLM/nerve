@@ -9,6 +9,19 @@ export function executeCanonicalCommand(
     case "initialize":
       database.initialize();
       return undefined;
+    case "read_rpc_idempotency":
+      return database.readRpcIdempotency(
+        command.scope,
+        command.key,
+        command.now,
+      );
+    case "write_rpc_idempotency":
+      database.writeRpcIdempotency(
+        command.entry,
+        command.maxEntries,
+        command.now,
+      );
+      return undefined;
     case "read_document":
       return database.readDocument(
         command.namespace,

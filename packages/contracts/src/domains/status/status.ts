@@ -91,6 +91,10 @@ export const daemonFileSchema = z.object({
   url: z.string().url(),
   mobileHttps: mobileHttpsInfoSchema.optional(),
   startedAt: z.string().datetime(),
+  lastHeartbeatAt: z.string().datetime().optional(),
+  crashReportedAt: z.string().datetime().optional(),
+  crashReportPath: z.string().optional(),
+  argv: z.array(z.string()).optional(),
   dataDir: z.string(),
   version: z.string(),
 });
