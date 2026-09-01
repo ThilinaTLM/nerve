@@ -3,22 +3,7 @@ import type { CanonicalDocument } from "./canonical-database.js";
 import { decode, encode } from "./payload-codecs.js";
 import {
   CANONICAL_SCHEMA_CHECKSUM,
-  CANONICAL_SCHEMA_V1_CHECKSUM,
-  CANONICAL_SCHEMA_V2_CHECKSUM,
-  CANONICAL_SCHEMA_V3_CHECKSUM,
-  CANONICAL_SCHEMA_V4_CHECKSUM,
-  CANONICAL_SCHEMA_V5_CHECKSUM,
   CANONICAL_SCHEMA_VERSION,
-  CANONICAL_V1_TO_V2_MIGRATION_NAME,
-  CANONICAL_V1_TO_V2_MIGRATION_SQL,
-  CANONICAL_V2_TO_V3_MIGRATION_NAME,
-  CANONICAL_V2_TO_V3_MIGRATION_SQL,
-  CANONICAL_V3_TO_V4_MIGRATION_NAME,
-  CANONICAL_V3_TO_V4_MIGRATION_SQL,
-  CANONICAL_V4_TO_V5_MIGRATION_NAME,
-  CANONICAL_V4_TO_V5_MIGRATION_SQL,
-  CANONICAL_V5_TO_V6_MIGRATION_NAME,
-  CANONICAL_V5_TO_V6_MIGRATION_SQL,
 } from "./schema.js";
 
 export interface DocumentRow {
@@ -41,105 +26,19 @@ export interface DurableEventRow {
 export function assertCanonicalSchemaCompatible(
   rows: Array<{ version: number; checksum: string }>,
 ): void {
-  const newest = rows.at(-1);
-  if (!newest) throw new Error("Storage schema migration ledger is empty.");
-  if (newest.version > CANONICAL_SCHEMA_VERSION) {
+  if (rows.length === 0) {
+    throw new Error("Storage schema migration ledger is empty.");
+  }
+  if (rows.length !== 1 || rows[0]?.version !== CANONICAL_SCHEMA_VERSION) {
+    const version = rows.at(-1)?.version;
     throw new Error(
-      `Storage schema ${newest.version} is newer than supported schema ${CANONICAL_SCHEMA_VERSION}.`,
+      `Storage schema ${version ?? "unknown"} is unsupported; expected schema ${CANONICAL_SCHEMA_VERSION}.`,
     );
   }
-  const checksums = new Map([
-    [1, CANONICAL_SCHEMA_V1_CHECKSUM],
-    [2, CANONICAL_SCHEMA_V2_CHECKSUM],
-    [3, CANONICAL_SCHEMA_V3_CHECKSUM],
-    [4, CANONICAL_SCHEMA_V4_CHECKSUM],
-    [5, CANONICAL_SCHEMA_V5_CHECKSUM],
-    [CANONICAL_SCHEMA_VERSION, CANONICAL_SCHEMA_CHECKSUM],
-  ]);
-  for (const row of rows) {
-    const expected = checksums.get(row.version);
-    if (!expected) {
-      throw new Error(`Storage schema version ${row.version} is unsupported.`);
-    }
-    if (row.checksum !== expected) {
-      throw new Error(
-        `Storage schema checksum drift at version ${row.version}.`,
-      );
-    }
-  }
-}
-
-export function applySchemaMigration(
-  database: DatabaseSync,
-  version: number,
-  name: string,
-  checksum: string,
-  sql: string,
-): void {
-  const startedAt = Date.now();
-  database.exec("BEGIN IMMEDIATE");
-  try {
-    database.exec(sql);
-    database
-      .prepare(
-        `INSERT INTO schema_migrations (
-           version, name, checksum, applied_at_ms, duration_ms
-         ) VALUES (?, ?, ?, ?, ?)`,
-      )
-      .run(version, name, checksum, Date.now(), Date.now() - startedAt);
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
-}
-
-export function applyPendingCanonicalSchemaMigrations(
-  database: DatabaseSync,
-  initialVersion: number | undefined,
-): void {
-  let version = initialVersion;
-  const migrations = [
-    [
-      1,
-      2,
-      CANONICAL_V1_TO_V2_MIGRATION_NAME,
-      CANONICAL_SCHEMA_V2_CHECKSUM,
-      CANONICAL_V1_TO_V2_MIGRATION_SQL,
-    ],
-    [
-      2,
-      3,
-      CANONICAL_V2_TO_V3_MIGRATION_NAME,
-      CANONICAL_SCHEMA_V3_CHECKSUM,
-      CANONICAL_V2_TO_V3_MIGRATION_SQL,
-    ],
-    [
-      3,
-      4,
-      CANONICAL_V3_TO_V4_MIGRATION_NAME,
-      CANONICAL_SCHEMA_V4_CHECKSUM,
-      CANONICAL_V3_TO_V4_MIGRATION_SQL,
-    ],
-    [
-      4,
-      5,
-      CANONICAL_V4_TO_V5_MIGRATION_NAME,
-      CANONICAL_SCHEMA_V5_CHECKSUM,
-      CANONICAL_V4_TO_V5_MIGRATION_SQL,
-    ],
-    [
-      5,
-      6,
-      CANONICAL_V5_TO_V6_MIGRATION_NAME,
-      CANONICAL_SCHEMA_CHECKSUM,
-      CANONICAL_V5_TO_V6_MIGRATION_SQL,
-    ],
-  ] as const;
-  for (const [from, to, name, checksum, sql] of migrations) {
-    if (version !== from) continue;
-    applySchemaMigration(database, to, name, checksum, sql);
-    version = to;
+  if (rows[0].checksum !== CANONICAL_SCHEMA_CHECKSUM) {
+    throw new Error(
+      `Storage schema checksum drift at version ${CANONICAL_SCHEMA_VERSION}.`,
+    );
   }
 }
 

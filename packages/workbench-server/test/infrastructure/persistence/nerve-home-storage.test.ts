@@ -46,6 +46,21 @@ test("initializes the required v1 home and keeps optional directories lazy", asy
       version: 1,
     },
   );
+  const migrationLedger = JSON.parse(
+    await readFile(storage.paths.migrationLedgerPath, "utf8"),
+  ) as { format: string; version: number; entries: Array<{ id: string }> };
+  assert.deepEqual(
+    {
+      format: migrationLedger.format,
+      version: migrationLedger.version,
+      entries: migrationLedger.entries.map((entry) => entry.id),
+    },
+    {
+      format: "nerve-home-migrations",
+      version: 1,
+      entries: ["nerve-home-v1"],
+    },
+  );
   for (const path of [
     storage.paths.daemonConfigPath,
     storage.paths.harnessConfigPath,

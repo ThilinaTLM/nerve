@@ -17,7 +17,6 @@ import {
 } from "./conversation-journal-database.js";
 import {
   appendDurableEventInTransaction,
-  applyPendingCanonicalSchemaMigrations,
   assertCanonicalSchemaCompatible,
   decodeDocument,
   decodeDurableEvent,
@@ -121,9 +120,7 @@ export class CanonicalDatabase {
       return;
     }
 
-    const rows = this.schemaMigrationRows();
-    this.assertSchemaCompatible(rows);
-    applyPendingCanonicalSchemaMigrations(this.database, rows.at(-1)?.version);
+    this.assertSchemaCompatible();
   }
 
   assertSchemaCompatible(

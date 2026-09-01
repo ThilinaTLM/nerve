@@ -14,9 +14,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { defaultSettings } from "@nervekit/contracts/settings";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
-import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/index.js";
 import {
   inspectLegacyV2Home,
   migrateLegacyV2Home,
@@ -25,170 +23,6 @@ import { EncryptedFileSecretProvider } from "../../../src/infrastructure/secrets
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
 const now = "2026-08-26T00:00:00.000Z";
-
-async function createCanonicalV3Home(home: string): Promise<void> {
-  await mkdir(home, { recursive: true, mode: 0o700 });
-  await writeFile(
-    join(home, "VERSION"),
-    `${JSON.stringify({ format: "nerve-workbench-state", version: 2 }, null, 2)}\n`,
-  );
-  const sqlitePath = join(home, "state.sqlite");
-  const store = new CanonicalStore(sqlitePath);
-  await store.initialize();
-  const journal = new ConversationJournalRepository({
-    paths: { home, sqlitePath },
-    canonicalStore: store,
-  });
-  await journal.commit("conv_migration_test", {
-    kind: "migration.fixture",
-    committedAt: now,
-    events: [
-      {
-        kind: "conversation.upserted",
-        conversationId: "conv_migration_test",
-        conversation: {
-          id: "conv_migration_test",
-          projectId: "proj_migration_test",
-          title: "Migrated conversation",
-          mode: "coding",
-          permissionLevel: "supervised",
-          createdAt: now,
-          updatedAt: now,
-        },
-      },
-      {
-        kind: "conversation.entry_appended",
-        conversationId: "conv_migration_test",
-        entry: {
-          id: "entry_migration_test",
-          conversationId: "conv_migration_test",
-          role: "user",
-          kind: "message",
-          text: "Preserve this message",
-          createdAt: now,
-        },
-      },
-    ],
-  });
-  await store.writeDocument({
-    namespace: "project",
-    scopeId: "global",
-    documentId: "proj_migration_test",
-    data: {
-      id: "proj_migration_test",
-      name: "Migration project",
-      path: "/tmp/migration-project",
-      createdAt: now,
-      updatedAt: now,
-    },
-    expectedRevision: 0,
-    now,
-  });
-  await store.writeDocument({
-    namespace: "provider_catalog",
-    scopeId: "global",
-    documentId: "catalog",
-    data: {
-      version: 1,
-      providers: [
-        {
-          id: "migration-provider",
-          displayName: "Migration Provider",
-          api: "openai-completions",
-          baseUrl: "https://example.test/v1",
-          headers: { "X-Test": "value" },
-        },
-      ],
-      models: [],
-    },
-    expectedRevision: 0,
-    now,
-  });
-  await store.close();
-
-  const database = new DatabaseSync(sqlitePath);
-  database.exec(`
-    CREATE TABLE settings_store (
-      id TEXT PRIMARY KEY,
-      revision INTEGER NOT NULL,
-      payload_version INTEGER NOT NULL,
-      data BLOB NOT NULL,
-      updated_at_ms INTEGER NOT NULL
-    ) STRICT;
-    CREATE TABLE permission_rules (
-      id TEXT PRIMARY KEY,
-      scope TEXT NOT NULL CHECK(scope IN ('user','project')),
-      project_id TEXT,
-      effect TEXT NOT NULL CHECK(effect IN ('allow','deny')),
-      tool_name TEXT NOT NULL,
-      matcher_kind TEXT NOT NULL CHECK(matcher_kind IN ('whole_tool','path_glob','command_glob','url_glob')),
-      pattern TEXT NOT NULL,
-      source_digest TEXT CHECK(source_digest IS NULL OR length(source_digest) = 64),
-      enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
-      created_at_ms INTEGER NOT NULL,
-      updated_at_ms INTEGER NOT NULL,
-      CHECK((scope = 'project' AND project_id IS NOT NULL) OR (scope = 'user' AND project_id IS NULL))
-    ) STRICT;
-    CREATE INDEX permission_rules_scope_tool
-      ON permission_rules(scope, project_id, tool_name, enabled);
-    DELETE FROM schema_migrations;
-  `);
-  database
-    .prepare(
-      `INSERT INTO schema_migrations
-       (version, name, checksum, applied_at_ms, duration_ms)
-       VALUES (3, 'normalize-canonical-data', ?, ?, 0)`,
-    )
-    .run(
-      "0c37fcedf26320bcbc4b7b966a39ccbaa9759fd8295fc3cdc8c850d0c8598367",
-      Date.parse(now),
-    );
-  database
-    .prepare(
-      `INSERT INTO settings_store
-       (id, revision, payload_version, data, updated_at_ms)
-       VALUES ('settings', 1, 1, ?, ?)`,
-    )
-    .run(
-      Buffer.from(
-        JSON.stringify({ ...defaultSettings, defaultThinkingLevel: "high" }),
-      ),
-      Date.parse(now),
-    );
-  database.close();
-
-  await writeLegacySecrets(home, {
-    "provider:migration-provider:apiKey": "migration-secret-value",
-    "task:task_legacy:launchConfig": "must-not-import",
-  });
-  await mkdir(
-    join(
-      home,
-      "payloads",
-      "conversations",
-      "conv_migration_test",
-      "tool-calls",
-    ),
-    { recursive: true },
-  );
-  await writeFile(
-    join(
-      home,
-      "payloads",
-      "conversations",
-      "conv_migration_test",
-      "tool-calls",
-      "tool_migration_test.json",
-    ),
-    '{"large":"result"}\n',
-  );
-  await mkdir(join(home, "plans"), { recursive: true });
-  await writeFile(join(home, "plans", "migration.md"), "# Migrated plan\n");
-  for (const directory of ["logs", "cache", "tmp", "crashes"]) {
-    await mkdir(join(home, directory), { recursive: true });
-    await writeFile(join(home, directory, "sentinel"), directory);
-  }
-}
 
 async function createPost0012Home(home: string): Promise<void> {
   await cp(
@@ -358,10 +192,7 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
   const root = await mkdtemp(join(tmpdir(), "nerve-legacy-v2-"));
   const home = join(root, ".nerve");
   await createPost0012Home(home);
-  assert.deepEqual(await inspectLegacyV2Home(home), {
-    kind: "legacy-v2",
-    layout: "released-post-0012",
-  });
+  assert.deepEqual(await inspectLegacyV2Home(home), { kind: "legacy-v2" });
 
   const report = await migrateLegacyV2Home(home, {
     now: (() => {
@@ -402,6 +233,23 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
     await storage.canonicalStore.close();
     await rm(root, { recursive: true, force: true });
   });
+  const schema = new DatabaseSync(storage.paths.sqlitePath, { readOnly: true });
+  const schemaMigrations = schema
+    .prepare(`SELECT version, name FROM schema_migrations ORDER BY version`)
+    .all()
+    .map((row) => ({
+      version: Number((row as { version: unknown }).version),
+      name: String((row as { name: unknown }).name),
+    }));
+  schema.close();
+  assert.deepEqual(schemaMigrations, [{ version: 1, name: "nerve-home-v1" }]);
+  const homeMigrations = JSON.parse(
+    await readFile(storage.paths.migrationLedgerPath, "utf8"),
+  ) as { entries: Array<{ id: string }> };
+  assert.deepEqual(
+    homeMigrations.entries.map((entry) => entry.id),
+    ["nerve-home-v1", "legacy-v2-to-nerve-home-v1"],
+  );
   assert.equal(storage.settings.defaultThinkingLevel, "high");
   assert.equal(
     storage.configuration.providers.providers[0]?.id,
@@ -443,18 +291,27 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
   );
 });
 
-test("retains canonical-v3 compatibility", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "nerve-legacy-canonical-v3-"));
-  const home = join(root, ".nerve");
-  t.after(() => rm(root, { recursive: true, force: true }));
-  await createCanonicalV3Home(home);
-  assert.deepEqual(await inspectLegacyV2Home(home), {
-    kind: "legacy-v2",
-    layout: "canonical-v3",
-  });
-  const report = await migrateLegacyV2Home(home);
-  assert.equal(report.counts.conversations, 1);
-  assert.equal(report.counts.projects, 1);
+test("rejects canonical development homes without the exact v0.26 ledger", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-legacy-development-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  await writeFile(
+    join(home, "VERSION"),
+    `${JSON.stringify({ format: "nerve-workbench-state", version: 2 })}
+`,
+  );
+  const database = new DatabaseSync(join(home, "state.sqlite"));
+  database.exec(`
+    CREATE TABLE schema_migrations (
+      version INTEGER PRIMARY KEY,
+      checksum TEXT NOT NULL
+    );
+    INSERT INTO schema_migrations VALUES (3, '${"0".repeat(64)}');
+  `);
+  database.close();
+
+  assert.equal((await inspectLegacyV2Home(home)).kind, "not-legacy-v2");
+  await assert.rejects(migrateLegacyV2Home(home), /released Nerve 0\.26/);
+  assert.equal((await stat(join(home, "state.sqlite"))).isFile(), true);
 });
 
 test("refuses a legacy home while its daemon is running", async (t) => {
