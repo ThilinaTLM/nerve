@@ -1,5 +1,7 @@
 # Codebase architecture
 
+> **Status:** Current implementation. [`scripts/lib/workspace-architecture.mjs`](../../scripts/lib/workspace-architecture.mjs), package manifests, export surfaces, and boundary checks are authoritative.
+
 Nerve is a ten-package pnpm workspace. Paths communicate ownership: domain contracts are separate from runtime mechanics, product runtimes compose reusable libraries, and platform shells sit at the edge.
 
 ```mermaid
@@ -54,6 +56,6 @@ Arrows in the diagram mean “is consumed by.” `website` is standalone.
 
 ## Enforced surfaces
 
-Package export allowlists live in `scripts/lib/package-export-surfaces.mjs`. Contracts, protocol, harness, and tools expose curated concept subpaths rather than broad implementation roots. `pnpm build` verifies every declared concrete build target and each wildcard target after production artifacts are generated. Website token parity is checked at build/check time without adding a runtime UI-kit dependency.
+Package export allowlists live in [`scripts/lib/package-export-surfaces.mjs`](../../scripts/lib/package-export-surfaces.mjs). Contracts, protocol, harness, and tools expose curated concept subpaths rather than broad implementation roots. `pnpm build` verifies every declared concrete build target and each wildcard target after production artifacts are generated. Website token parity is checked at build/check time without adding a runtime UI-kit dependency.
 
-The canonical package inventory and allowed workspace dependencies live in `scripts/lib/workspace-architecture.mjs`. Package-specific `AGENTS.md` and README files define stricter local ownership rules. `scripts/check-package-boundaries.mjs` enforces package exports, direct contracts source ownership, the generic-source-name inventory, runtime ports, feature privacy, presentation isolation, retired paths, and cross-owner cycle rules.
+The canonical package inventory and allowed workspace dependencies live in [`scripts/lib/workspace-architecture.mjs`](../../scripts/lib/workspace-architecture.mjs). Package-specific `AGENTS.md` and README files define stricter local ownership rules. [`scripts/check-package-boundaries.mjs`](../../scripts/check-package-boundaries.mjs) enforces package exports, direct contracts source ownership, the generic-source-name inventory, runtime ports, feature privacy, presentation isolation, retired paths, and cross-owner cycle rules.

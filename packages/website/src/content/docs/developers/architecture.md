@@ -63,7 +63,7 @@ See [package responsibilities](/developers/packages/) for the complete ownership
 
 ## State and external boundaries
 
-`NERVE_HOME` keeps canonical conversation records and durable event streams in SQLite. Complete tool results that exceed the agent preview contract use private owner-scoped files under `payloads/`; SQLite records retain their projections, ownership, and integrity references. Electron's active Chromium profile stays outside the Nerve home so whole-home backup and migration do not capture live browser caches or profile locks. See [persistence and security boundaries](/developers/persistence-security/) for storage, secrets, authentication, and migration details.
+`NERVE_HOME` keeps canonical conversation records and durable event streams in SQLite. Complete tool results that exceed the agent preview contract use private owner-scoped files beneath `data/conversations/`; SQLite records retain their projections, ownership, and integrity references. Electron's active Chromium profile stays outside the Nerve home so whole-home backup and migration do not capture live browser caches or profile locks. See [persistence and security boundaries](/developers/persistence-security/) for storage, secrets, authentication, and migration details.
 
 The server reaches project files and processes locally. Model providers, OAuth, voice transcription, Web and Atlassian integrations, and Git remotes are explicit external paths. [Platform reliability](/developers/platform-reliability/) documents the native filesystem, process, and desktop-state rules behind those boundaries.
 

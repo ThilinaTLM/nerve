@@ -1,5 +1,7 @@
 # Release checklist
 
+> **Scope:** Maintainer procedure. The release workflows and release scripts are authoritative when this document differs.
+
 Nerve publishes one npm package, `@nervekit/desktop`. The source implementation remains the private `@nervekit/desktop-shell` workspace; signed native installers are not part of this release path. Native-host filesystem and process requirements are documented in the public [Platform reliability](https://nerve.tlmtech.dev/developers/platform-reliability/) guide.
 
 ## Requirements
@@ -19,8 +21,9 @@ All source workspaces are private. Workbench-server embeds the built workbench w
 Keep the root and workspace versions aligned and tag `v<version>`.
 
 ```sh
+release_tag=vX.Y.Z
 pnpm install --frozen-lockfile
-node scripts/verify-release-tag.mjs v0.13.0
+node scripts/verify-release-tag.mjs "$release_tag"
 pnpm fix
 pnpm check
 pnpm run test:full
@@ -54,16 +57,16 @@ If Tag Release pushes the commit and tag but emitting the event fails, re-emit i
 gh api --method POST "repos/ThilinaTLM/nerve/dispatches" --input - <<'EOF'
 {
   "event_type": "release-tagged",
-  "client_payload": { "tag": "v0.13.0" }
+  "client_payload": { "tag": "vX.Y.Z" }
 }
 EOF
 ```
 
-## State reset before testing an incompatible development store
+## Storage and migration testing
 
-Stop all Nerve processes first, then remove the complete `NERVE_HOME` (default `~/.nerve`). Its marker is `nerve-workbench-state` version 2. Clear browser site local and session storage when testing the browser workbench independently.
+Never validate a release or migration against the live home. Stop related Nerve processes, copy the source home to an isolated directory under `/tmp`, set an explicit `NERVE_HOME`, use explicit non-default ports, and give Electron a separate `userData` profile when desktop browser state must also be isolated.
 
-The deterministic workbench error is `Incompatible Nerve state at <path>...`, ending with `Reset this directory before starting Nerve Protocol v1.` The headless workbench has no general migration reader. The desktop has one narrow upgrade path for an unversioned legacy workbench home: after confirmation it retains a timestamped whole-home backup, initializes version 2, and restores only portable user state—validated settings, the custom provider/model catalog, and re-encrypted provider credentials. Malformed settings or catalog data aborts the migration and restores the original home; an undecryptable credential store is reported as a nonfatal failure because the backup retains it. Conversations, agents, projects, logs, plans, run history, SQLite, and daemon/session state remain only in the backup. Nerve never downgrades or automatically resets malformed, unknown, or future versioned stores.
+Current homes use `manifest.json` with format `nerve-home`, version `1`. The only supported legacy import is the explicit offline migration from the released `nerve-workbench-state` version `2` layout with its checksummed ledger through `0012-remove-workers`. Unknown, malformed, intermediate-development, and future homes fail closed and remain untouched. See [Storage, cleanup, and migration](https://nerve.tlmtech.dev/operations/storage-migration/) and the repository [storage architecture](../architecture/storage.md).
 
 ## Release commit signing
 

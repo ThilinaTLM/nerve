@@ -233,7 +233,7 @@ function checkRetiredSurface() {
   )) {
     const text = read(file);
     for (const name of retiredPackages) {
-      if (file !== "docs/release.md" && text.includes(name))
+      if (file !== "docs/runbooks/release.md" && text.includes(name))
         fail(file, `retired package/path remains: ${name}`);
     }
     for (const fragment of retiredTextFragments) {

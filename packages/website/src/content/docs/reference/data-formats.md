@@ -17,7 +17,7 @@ All Nerve-home paths move with `NERVE_HOME`; default is `~/.nerve`.
 | RPC, maintenance, and trust state | Tables/documents in `<NERVE_HOME>/data/nerve.sqlite`         |
 | Rebuildable query cache           | `<NERVE_HOME>/cache/query-cache.sqlite` plus SQLite sidecars |
 | Other disposable caches           | Other content under `<NERVE_HOME>/cache`                     |
-| Task records and logs             | `<NERVE_HOME>/tasks`                                         |
+| Task records and logs             | `<NERVE_HOME>/data/tasks`                                    |
 | Agent resources                   | `<NERVE_HOME>/agent`                                         |
 | Desktop/daemon/event logs         | `<NERVE_HOME>/logs`, JSONL                                   |
 | Crash/Node reports                | `<NERVE_HOME>/crashes`; age-retained diagnostics             |

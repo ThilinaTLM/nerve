@@ -1,11 +1,11 @@
 ---
 title: Agent tool catalog
-description: The 50 agent-callable tools, availability gates, risks, and important limits.
+description: Agent-callable tools, availability gates, risks, and important limits.
 sidebar:
   order: 3
 ---
 
-Nerve exposes 50 tool names. Availability also depends on mode, permission, runtime discovery, module settings, and user toggles.
+Nerve exposes the tool names below. The contracts and manifest own the exact catalog; availability also depends on mode, permission, runtime discovery, module settings, and user toggles.
 
 ## Files and execution
 
