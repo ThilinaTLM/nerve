@@ -253,23 +253,26 @@ The tables define the first publishable corpus. “Visual / warning” specifies
 | `/developers/contributing/`         | Focused changes, test philosophy, boundaries, docs editing, security reporting                                                                                                            | Development → GitHub CONTRIBUTING/SECURITY | No screenshot; vulnerabilities remain private                                               |
 | `/reference/cli-environment/`       | Desktop/server flags and environment variables with defaults/precedence                                                                                                                   | Operations config                          | Warning markers for secret/token/debug values                                               |
 | `/reference/shortcuts/`             | Current fixed shortcut table grouped by navigation/run/composer/appearance                                                                                                                | Workbench/personalize                      | OS modifier notation; generated/verified from shortcut registry during writing              |
-| `/reference/tools/`                 | All 50 agent tool names grouped by file, execution, web, Atlassian, interaction, task, Explore, planning; risk/prereq/availability                                                        | Tools policy/integrations                  | State that Git/PR UI and Agent Browser are not tool entries                                 |
+| `/reference/tools/`                 | Agent tool names grouped by file, execution, web, Atlassian, interaction, task, Explore, planning; risk/prereq/availability                                                               | Tools policy/integrations                  | State that Git/PR UI and Agent Browser are not tool entries                                 |
 | `/reference/resources/`             | Exact AGENTS/SYSTEM/skills path and precedence tables; toggle semantics                                                                                                                   | Skills guide                               | Root-to-project precedence diagram; no legacy `.pi` loading                                 |
 | `/reference/prompt-suggestions/`    | Full frontmatter/conditions/JS contract, paths, precedence/trust                                                                                                                          | Suggestions guide                          | Code examples; JS trust warning                                                             |
 | `/reference/data-formats/`          | Conversation export formats, state/log/crash locations, task artifacts and temp image behavior                                                                                            | Storage/import-export                      | Paths are defaults and move with `NERVE_HOME`; temp image paths are not durable attachments |
 
 ## Canonical-source map
 
-| Current item                           | Canonical owner | Boundary                                                                                                                 |
-| -------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `packages/website/src/content/docs/**` | Website package | Public user, operations, architecture, protocol, lifecycle, reliability, troubleshooting, and developer-reference prose. |
-| `packages/website/diagrams/**`         | Website package | Editable architecture sources; update the generated SVGs in the same change.                                             |
-| `packages/website/public/diagrams/**`  | Website package | Static visuals embedded by public pages; generated from the editable sources.                                            |
-| `packages/website/content-strategy.md` | Website package | Editorial evidence, page backlog, and claim-review plan; not a public route.                                             |
-| `docs/release.md`                      | Root docs       | Maintainer release procedure, signing, packaging, and publication operations.                                            |
-| `docs/performance-profiling.md`        | Root docs       | Development-only diagnostics and incident analysis procedure.                                                            |
-| `docs/README.md`                       | Root docs       | Short index explaining the root/website ownership boundary.                                                              |
-| `CONTRIBUTING.md`, `SECURITY.md`       | Repository root | Governance and vulnerability reporting; website pages summarize and link to these files.                                 |
+| Current item                               | Canonical owner | Boundary                                                                                                                 |
+| ------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `packages/website/src/content/docs/**`     | Website package | Public user, operations, architecture, protocol, lifecycle, reliability, troubleshooting, and developer-reference prose. |
+| `packages/website/diagrams/**`             | Website package | Editable architecture sources; update the generated SVGs in the same change.                                             |
+| `packages/website/public/diagrams/**`      | Website package | Static visuals embedded by public pages; generated from the editable sources.                                            |
+| `packages/website/content-strategy.md`     | Website package | Editorial evidence, page backlog, and claim-review plan; not a public route.                                             |
+| `docs/runbooks/release.md`                 | Root docs       | Maintainer release procedure, signing, packaging, and publication operations.                                            |
+| `docs/runbooks/performance-diagnostics.md` | Root docs       | Development-only diagnostics and incident analysis procedure.                                                            |
+| `docs/architecture/**`                     | Root docs       | Concise current cross-package architecture that links owning code.                                                       |
+| `docs/decisions/**`                        | Root docs       | Accepted cross-package design rationale without copied catalogs or schemas.                                              |
+| `docs/proposals/**`                        | Root docs       | Active, explicitly unimplemented target designs.                                                                         |
+| `docs/README.md`                           | Root docs       | Index explaining the root/website/package ownership boundary.                                                            |
+| `CONTRIBUTING.md`, `SECURITY.md`           | Repository root | Governance and vulnerability reporting; website pages summarize and link to these files.                                 |
 
 Duplicate-source rules:
 
@@ -375,7 +378,7 @@ Convert existing README troubleshooting into symptom-oriented pages, correcting 
 - Update all repository links before deleting obsolete public-doc files.
 - Correct `README.md` migration wording, notes/fork terminology where retained, protocol ACK wording, and links to the new site.
 - Keep ACK wording in `packages/website/diagrams/01-system-context.puml`, `02-package-dependencies.puml`, and `03-desktop-runtime.puml` aligned with Protocol v1 and current contracts.
-- Correct any release/native-validation overclaims in `docs/release.md` and `/developers/platform-reliability/` to match current workflows.
+- Correct any release/native-validation overclaims in `docs/runbooks/release.md` and `/developers/platform-reliability/` to match current workflows.
 - Preserve only release and performance-profiling workflow documents in root `docs/`; public architecture and lifecycle material belongs to the website package.
 
 ### 8. Add GitHub Pages deployment

@@ -7,7 +7,7 @@ sidebar:
 
 ## Authoritative state
 
-Projects and conversations live under `NERVE_HOME`. Canonical conversation records and durable protocol events use SQLite. Complete truncated tool results use private owner-scoped files under `payloads/`, referenced by digest-bearing conversation records. Ephemeral notifications are not persisted or replayed.
+Projects and conversations live under `NERVE_HOME`. Canonical conversation records and durable protocol events use SQLite. Complete truncated tool results use private owner-scoped files beneath `<NERVE_HOME>/data/conversations/`, referenced by digest-bearing conversation records. Ephemeral notifications are not persisted or replayed.
 
 The same database also contains rebuildable query projections. Code must keep the canonical conversation records distinct from disposable indexes and caches.
 

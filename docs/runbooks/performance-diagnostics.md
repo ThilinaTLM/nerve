@@ -1,12 +1,14 @@
-# Development performance diagnostics
+# Performance diagnostics
 
-Source desktop launches collect lightweight performance diagnostics automatically. Run Nerve normally:
+> **Scope:** Maintainer workflow for unpackaged source desktop sessions. Public operational guidance lives in [Logs and diagnostics](https://nerve.tlmtech.dev/operations/diagnostics/).
+
+Source desktop launches collect lightweight performance diagnostics by default until a saved diagnostics choice overrides that development fallback. Run Nerve normally:
 
 ```sh
 pnpm desktop
 ```
 
-No alternate home, ports, Electron profile, or profiling flags are required. The unpackaged desktop process enables diagnostics for itself and the local daemon it owns. Packaged/released Nerve does not enable these diagnostics automatically.
+No alternate home, ports, Electron profile, or profiling flags are required for normal use. The unpackaged desktop process configures diagnostics for itself and the local daemon it owns. Packaged releases do not enable sampling automatically, although users can enable it in Settings.
 
 ## When CPU becomes high
 
@@ -30,9 +32,10 @@ If the source desktop attached to a daemon that was already running outside this
 The coding agent uses the summarizer directly. Its default output is structured JSON with aggregate metrics and the ten hottest daemon samples:
 
 ```sh
-latest=$(ls -1t "$HOME/.nerve/logs"/performance-*.jsonl | head -n1)
+nerve_home=${NERVE_HOME:-"$HOME/.nerve"}
+latest=$(ls -1t "$nerve_home/logs"/performance-*.jsonl | head -n1)
 node scripts/summarize-performance-jsonl.mjs \
-  --startup "$HOME/.nerve/logs/startup.jsonl" \
+  --startup "$nerve_home/logs/startup.jsonl" \
   --performance "$latest"
 ```
 
@@ -64,4 +67,4 @@ To compare against a source launch with diagnostics disabled:
 NERVE_PERFORMANCE_DIAGNOSTICS=0 pnpm desktop
 ```
 
-An explicit `0` or `1` is always respected. Do not run two daemons against the same `NERVE_HOME`. Diagnostics remain local and are never uploaded automatically.
+An explicit `0` or `1` is always respected. A saved Settings choice also overrides the unpackaged-source default when no environment override is present. Do not run two daemons against the same `NERVE_HOME`. Diagnostics remain local and are never uploaded automatically.
