@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import {
   permissionOverlayForOriginSchema,
@@ -429,13 +436,13 @@ test("external and mixed grep paths remain distinct permission targets", () => {
       kind: "path",
       access: "read",
       scope: "tree",
-      absolutePath: "/tmp/first",
+      absolutePath: resolve("/tmp/first"),
     },
     {
       kind: "path",
       access: "read",
       scope: "tree",
-      absolutePath: "/tmp/second",
+      absolutePath: resolve("/tmp/second"),
     },
     {
       kind: "path",
@@ -498,7 +505,7 @@ test("existing symlinks are canonicalized to external targets", async () => {
         kind: "path",
         access: "read",
         scope: "exact",
-        absolutePath: outside,
+        absolutePath: await realpath(outside),
       },
     ]);
   } finally {

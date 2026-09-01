@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { access } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createNodeDaemonPorts } from "../packages/desktop-shell/dist/daemon/node-integration.js";
+import { createNodeDaemonPorts } from "../packages/desktop-shell/dist/daemon/adapters/node-process.js";
 import {
   localConnectUrl,
   normalizeRemoteDaemonUrl,

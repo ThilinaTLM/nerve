@@ -101,6 +101,7 @@ describe("DesktopRuntime", () => {
     let quitCount = 0;
     let performanceInstallCount = 0;
     let performanceStopCount = 0;
+    const performanceInstalled = Promise.withResolvers<void>();
     const daemon: ManagedDaemon = {
       url: "http://127.0.0.1:4801",
       owned: true,
@@ -161,6 +162,7 @@ describe("DesktopRuntime", () => {
       }),
       installPerformanceMonitor: () => {
         performanceInstallCount += 1;
+        performanceInstalled.resolve();
         return {
           stop: () => {
             performanceStopCount += 1;
@@ -187,12 +189,7 @@ describe("DesktopRuntime", () => {
     );
 
     runtime.start();
-    for (
-      let attempt = 0;
-      attempt < 20 && performanceInstallCount === 0;
-      attempt++
-    )
-      await new Promise((resolve) => setTimeout(resolve, 1));
+    await performanceInstalled.promise;
     assert.equal(performanceInstallCount, 1);
     const beforeQuit = listeners.get("before-quit");
     assert.ok(beforeQuit);
