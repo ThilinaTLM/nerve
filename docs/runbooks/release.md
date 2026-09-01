@@ -47,20 +47,11 @@ node scripts/smoke-desktop-package.mjs
 
 ## Automated release flow
 
-Run the **Tag Release** workflow manually with the exact version to publish. It updates all workspace versions on protected `main`, creates the signed release commit and annotated `v<version>` tag, atomically pushes both refs, and emits the internal `release-tagged` event for that immutable tag.
+Run the **Tag Release** workflow manually with the exact version to publish. It requires `RELEASE_PUSH_TOKEN`, updates all workspace versions on protected `main`, creates the signed release commit and annotated `v<version>` tag, and atomically pushes both refs.
 
-The **Publish Release** workflow responds to that event, validates the tag, and builds the native runtime on architecture-matched runners for Linux x64/ARM64, Windows 11 x64/ARM64, macOS Intel, and macOS Apple Silicon. Every runner executes the generated addon before the artifacts are merged. Representative Linux, Windows, and macOS jobs then run the complete quality and Electron package smokes against the merged inventory. The workflow builds and deploys the website to GitHub Pages, publishes to npm through OIDC, and creates the GitHub release. Website deployment occurs only after release validation and npm publication. Direct pushes of matching SemVer tags also start Publish Release automatically.
+The authenticated SemVer tag push starts the **Publish Release** workflow. It validates the tag and builds the native runtime on architecture-matched runners for Linux x64/ARM64, Windows 11 x64/ARM64, macOS Intel, and macOS Apple Silicon. Every runner executes the generated addon before the artifacts are merged. Representative Linux, Windows, and macOS jobs then run the complete quality and Electron package smokes against the merged inventory. The workflow builds and deploys the website to GitHub Pages, publishes to npm through OIDC, and creates the GitHub release. Website deployment occurs only after release validation and npm publication.
 
-If Tag Release pushes the commit and tag but emitting the event fails, re-emit it for the existing immutable tag. Do not recreate or move the tag:
-
-```sh
-gh api --method POST "repos/ThilinaTLM/nerve/dispatches" --input - <<'EOF'
-{
-  "event_type": "release-tagged",
-  "client_payload": { "tag": "vX.Y.Z" }
-}
-EOF
-```
+If publication fails after the immutable tag has started Publish Release, use GitHub Actions to re-run the failed jobs or the complete existing run. Do not recreate or move the tag.
 
 ## Storage and migration testing
 

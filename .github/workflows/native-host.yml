@@ -2,18 +2,6 @@ name: Native host tests
 
 on:
   pull_request:
-    paths:
-      - ".github/workflows/native-host.yml"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "packages/native/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - "packages/tools/**"
-      - "packages/workbench-server/**"
-      - "packages/desktop-shell/**"
   push:
     branches:
       - main
@@ -22,8 +10,49 @@ permissions:
   contents: read
 
 jobs:
+  paths:
+    name: Detect native-impacting changes
+    runs-on: ubuntu-latest
+    outputs:
+      native: ${{ steps.filter.outputs.native }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Classify changed files
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          base: ${{ github.event_name == 'push' && github.event.before || '' }}
+          filters: |
+            native:
+              - '.github/workflows/native-host.yml'
+              - 'packages/contracts/**'
+              - 'packages/native/**'
+              - 'packages/protocol/**'
+              - 'packages/harness/**'
+              - 'packages/tools/**'
+              - 'packages/ui-kit/**'
+              - 'packages/workbench-server/**'
+              - 'packages/workbench-app/**'
+              - 'packages/desktop-shell/**'
+              - 'scripts/copy-workbench-app-dist-to-workbench-server.mjs'
+              - 'scripts/generate-brand-assets.mjs'
+              - 'assets/brand/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+              - '.nvmrc'
+
   test:
     name: Native ${{ matrix.suite }} tests (${{ matrix.os }})
+    needs: paths
+    if: github.event_name != 'pull_request' || needs.paths.outputs.native == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -34,18 +63,18 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: pnpm
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable 2026-08-05
         with:
           toolchain: 1.97.1
           components: clippy,rustfmt
@@ -77,3 +106,29 @@ jobs:
         if: matrix.suite == 'desktop'
         timeout-minutes: 8
         run: pnpm --filter @nervekit/desktop-shell test
+
+  gate:
+    name: Native host gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - paths
+      - test
+
+    steps:
+      - name: Require successful native host jobs
+        shell: bash
+        env:
+          PATHS_RESULT: ${{ needs.paths.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          set -euo pipefail
+          if [ "${PATHS_RESULT}" != "success" ]; then
+            echo "Native path detection failed: ${PATHS_RESULT}" >&2
+            exit 1
+          fi
+          if [ "${TEST_RESULT}" != "success" ] && [ "${TEST_RESULT}" != "skipped" ]; then
+            echo "Native test matrix failed: ${TEST_RESULT}" >&2
+            exit 1
+          fi
+          echo "Native host CI passed: paths=${PATHS_RESULT}, tests=${TEST_RESULT}"
