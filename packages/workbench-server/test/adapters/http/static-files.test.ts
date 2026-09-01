@@ -61,10 +61,10 @@ describe("static file serving", () => {
     await fixture();
     const response = await serveStatic("/assets/app.js", state);
     assert.equal(await response.text(), "safe asset");
-    assert.match(
-      response.headers.get("content-security-policy") ?? "",
-      /script-src 'self' 'unsafe-inline'/,
-    );
+    const contentSecurityPolicy =
+      response.headers.get("content-security-policy") ?? "";
+    assert.match(contentSecurityPolicy, /img-src[^;]*https:/);
+    assert.match(contentSecurityPolicy, /script-src 'self' 'unsafe-inline'/);
     assert.doesNotMatch(
       response.headers.get("content-security-policy") ?? "",
       /unsafe-eval/,

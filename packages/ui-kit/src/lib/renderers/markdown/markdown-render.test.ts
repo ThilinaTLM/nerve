@@ -41,6 +41,18 @@ describe("Markdown line breaks", () => {
   });
 });
 
+describe("Markdown images", () => {
+  it("preserves HTTPS image URLs through sanitization", () => {
+    const imageUrl =
+      "https://github.com/ThilinaTLM/nerve/actions/workflows/ci.yml/badge.svg";
+    const html = renderMarkdown(`[![CI](${imageUrl})](${imageUrl})`, {
+      cache: false,
+    });
+
+    assert.ok(html.includes(`<img src="${imageUrl}" alt="CI">`));
+  });
+});
+
 describe("markdown-render caching", () => {
   it("keeps streaming cache bypass output equivalent to finalized decoration", () => {
     const source = `streaming ${Math.random()} with **markdown**`;
