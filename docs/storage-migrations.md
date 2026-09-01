@@ -143,7 +143,7 @@ If the platform later supplies an OS keychain, the same interface can migrate en
 
 ## Fresh installations
 
-A fresh installation creates the current schema directly and records one baseline version. It does not replay historical migrations.
+A fresh installation creates the current schema directly and records one baseline version. It does not replay historical migrations. The first released canonical store in Nerve 0.27 is SQLite schema v1; the exact Nerve 0.26 file-based home is imported directly into that baseline rather than passing through any unreleased post-0.26 schemas.
 
 ```text
 No database  -> create current baseline

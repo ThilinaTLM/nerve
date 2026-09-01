@@ -7,22 +7,21 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/index.js";
 import {
+  CANONICAL_BASELINE_NAME,
   CANONICAL_SCHEMA_CHECKSUM,
   CANONICAL_SCHEMA_SQL,
-  CANONICAL_SCHEMA_V1_CHECKSUM,
-  CANONICAL_SCHEMA_V5_CHECKSUM,
   CANONICAL_SCHEMA_VERSION,
 } from "../../../src/infrastructure/persistence/canonical-sqlite/schema.js";
 
-test("canonical schema checksum matches the v6 SQL", () => {
+test("canonical schema checksum matches the v1 baseline SQL", () => {
   assert.equal(
     createHash("sha256").update(CANONICAL_SCHEMA_SQL).digest("hex"),
     CANONICAL_SCHEMA_CHECKSUM,
   );
 });
 
-test("fresh canonical stores use v6 without removed tables", async (t) => {
-  const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v2-"));
+test("fresh canonical stores create the complete v1 baseline directly", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v1-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const path = join(home, "data", "nerve.sqlite");
   const store = new CanonicalStore(path);
@@ -34,248 +33,75 @@ test("fresh canonical stores use v6 without removed tables", async (t) => {
     .prepare(
       `SELECT name FROM sqlite_master
        WHERE name IN (
-         'canonical_meta', 'permission_rules', 'permission_rules_scope_tool'
+         'canonical_meta', 'permission_rules',
+         'conversation_record_projections', 'tool_call_projections',
+         'rpc_idempotency'
        ) ORDER BY name`,
-    )
-    .all();
-  const versions = (
-    database
-      .prepare(`SELECT version FROM schema_migrations ORDER BY version`)
-      .all() as Array<{ version: number }>
-  ).map((row) => row.version);
-  database.close();
-  assert.deepEqual(objects, []);
-  assert.deepEqual(versions, [CANONICAL_SCHEMA_VERSION]);
-});
-
-test("canonical v1 stores migrate transactionally through v6", async (t) => {
-  const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v1-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
-  const path = join(home, "nerve.sqlite");
-  const database = new DatabaseSync(path);
-  database.exec(schemaWithoutRunDeliverySettlement());
-  database.exec(`
-    CREATE TABLE canonical_meta (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    ) STRICT;
-    CREATE TABLE permission_rules (
-      id TEXT PRIMARY KEY,
-      scope TEXT NOT NULL,
-      project_id TEXT,
-      effect TEXT NOT NULL,
-      tool_name TEXT NOT NULL,
-      matcher_kind TEXT NOT NULL,
-      pattern TEXT NOT NULL,
-      source_digest TEXT,
-      enabled INTEGER NOT NULL,
-      created_at_ms INTEGER NOT NULL,
-      updated_at_ms INTEGER NOT NULL
-    ) STRICT;
-    CREATE INDEX permission_rules_scope_tool
-      ON permission_rules(scope, project_id, tool_name, enabled);
-  `);
-  database
-    .prepare(
-      `INSERT INTO schema_migrations
-       (version, name, checksum, applied_at_ms, duration_ms)
-       VALUES (1, 'canonical-baseline', ?, 1, 0)`,
-    )
-    .run(CANONICAL_SCHEMA_V1_CHECKSUM);
-  database
-    .prepare(
-      `INSERT INTO domain_documents (
-         namespace, scope_id, document_id, revision, payload_version, data,
-         created_at_ms, updated_at_ms
-       ) VALUES ('test', 'global', 'preserved', 1, 1, ?, 1, 1)`,
-    )
-    .run(Buffer.from(JSON.stringify({ preserved: true })));
-  const insertRecord = database.prepare(
-    `INSERT INTO conversation_records (
-       id, conversation_id, agent_id, run_id, sequence, revision, kind, status,
-       payload_version, data, created_at_ms, updated_at_ms
-     ) VALUES (?, 'conv_test', 'agent_test', ?, ?, ?, ?, ?, 1, ?, 1, 1)`,
-  );
-  insertRecord.run(
-    "run_test",
-    "run_test",
-    1,
-    2,
-    "run",
-    "completed",
-    Buffer.from(
-      JSON.stringify({
-        state: {
-          deliveries: [
-            {
-              intentId: "__nerve_settled__:run_test:2",
-              revision: 2,
-            },
-          ],
-        },
-      }),
-    ),
-  );
-  insertRecord.run(
-    "tool_test",
-    null,
-    2,
-    1,
-    "tool_call",
-    "completed",
-    Buffer.from(
-      JSON.stringify({
-        toolCall: {
-          id: "tool_test",
-          conversationId: "conv_test",
-          projectId: "project_test",
-          agentId: "agent_test",
-          toolName: "todos_set",
-          status: "completed",
-          interactions: [],
-          resultPayload: {
-            version: 1,
-            kind: "tool_result",
-            conversationId: "conv_test",
-            toolCallId: "tool_test",
-            logicalPath:
-              "payloads/conversations/conv_test/tool-calls/tool_test/result.json",
-            digest: "a".repeat(64),
-            byteLength: 42,
-            mediaType: "application/json",
-            encoding: "utf-8",
-            completeness: "complete",
-          },
-          updatedAt: "2026-08-31T00:00:00.000Z",
-        },
-      }),
-    ),
-  );
-  database
-    .prepare(
-      `INSERT INTO file_assets (
-         id, category, logical_path, conversation_id, tool_call_id,
-         byte_length, created_at_ms, updated_at_ms
-       ) VALUES ('asset_test', 'payload', ?, 'conv_test', 'tool_test', 42, 1, 1)`,
-    )
-    .run("payloads/conversations/conv_test/tool-calls/tool_test/result.json");
-  database.close();
-
-  const store = new CanonicalStore(path);
-  await store.initialize();
-  await store.close();
-
-  const migrated = new DatabaseSync(path, { readOnly: true });
-  const objects = migrated
-    .prepare(
-      `SELECT name FROM sqlite_master
-       WHERE name IN (
-         'canonical_meta', 'permission_rules', 'permission_rules_scope_tool'
-       ) ORDER BY name`,
-    )
-    .all();
-  const versions = (
-    migrated
-      .prepare(`SELECT version FROM schema_migrations ORDER BY version`)
-      .all() as Array<{ version: number }>
-  ).map((row) => row.version);
-  const documents = migrated
-    .prepare(`SELECT COUNT(*) AS count FROM domain_documents`)
-    .get() as { count: number };
-  const settlement = migrated
-    .prepare(
-      `SELECT run_delivery_settled_revision AS revision
-       FROM conversation_records WHERE id = 'run_test'`,
-    )
-    .get() as { revision: number };
-  const toolProjection = migrated
-    .prepare(
-      `SELECT project_id AS projectId, is_todo_state AS isTodoState
-       FROM tool_call_projections WHERE record_id = 'tool_test'`,
-    )
-    .get() as { projectId: string; isTodoState: number };
-  const migratedToolCall = JSON.parse(
-    Buffer.from(
-      (
-        migrated
-          .prepare(
-            `SELECT data FROM conversation_records WHERE id = 'tool_test'`,
-          )
-          .get() as { data: Uint8Array }
-      ).data,
-    ).toString("utf8"),
-  ) as {
-    toolCall: { resultPayload: { version: number; logicalPath: string } };
-  };
-  const migratedAsset = migrated
-    .prepare(
-      `SELECT logical_path AS logicalPath FROM file_assets WHERE id = 'asset_test'`,
-    )
-    .get() as { logicalPath: string };
-  migrated.close();
-  assert.deepEqual(objects, []);
-  assert.deepEqual(versions, [1, 2, 3, 4, 5, 6]);
-  assert.equal(documents.count, 1);
-  assert.equal(settlement.revision, 2);
-  assert.equal(toolProjection.projectId, "project_test");
-  assert.equal(toolProjection.isTodoState, 1);
-  assert.equal(migratedToolCall.toolCall.resultPayload.version, 2);
-  assert.equal(
-    migratedToolCall.toolCall.resultPayload.logicalPath,
-    "conversations/test/tool-calls/test/result.json",
-  );
-  assert.equal(
-    migratedAsset.logicalPath,
-    "conversations/test/tool-calls/test/result.json",
-  );
-});
-
-test("canonical v5 stores add idempotency schema and preserve documents", async (t) => {
-  const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v5-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
-  const path = join(home, "nerve.sqlite");
-  const database = new DatabaseSync(path);
-  database.exec(schemaWithoutRpcIdempotency());
-  database
-    .prepare(
-      `INSERT INTO schema_migrations
-       (version, name, checksum, applied_at_ms, duration_ms)
-       VALUES (5, 'nerve-home-v5', ?, 1, 0)`,
-    )
-    .run(CANONICAL_SCHEMA_V5_CHECKSUM);
-  database
-    .prepare(
-      `INSERT INTO domain_documents (
-         namespace, scope_id, document_id, revision, payload_version, data,
-         created_at_ms, updated_at_ms
-       ) VALUES ('test', 'global', 'preserved', 1, 1, ?, 1, 1)`,
-    )
-    .run(Buffer.from(JSON.stringify({ preserved: true })));
-  database.close();
-
-  const store = new CanonicalStore(path);
-  await store.initialize();
-  assert.deepEqual(
-    (await store.readDocument("test", "global", "preserved"))?.data,
-    { preserved: true },
-  );
-  await store.close();
-  const inspected = new DatabaseSync(path, { readOnly: true });
-  const objects = inspected
-    .prepare(
-      `SELECT name FROM sqlite_master
-       WHERE name IN ('rpc_idempotency', 'rpc_idempotency_expiry')
-       ORDER BY name`,
     )
     .all()
     .map((row) => String((row as { name: unknown }).name));
-  const versions = inspected
+  const migrations = database
+    .prepare(
+      `SELECT version, name, checksum FROM schema_migrations ORDER BY version`,
+    )
+    .all()
+    .map((row) => ({
+      version: Number((row as { version: unknown }).version),
+      name: String((row as { name: unknown }).name),
+      checksum: String((row as { checksum: unknown }).checksum),
+    }));
+  database.close();
+
+  assert.deepEqual(objects, [
+    "conversation_record_projections",
+    "rpc_idempotency",
+    "tool_call_projections",
+  ]);
+  assert.deepEqual(migrations, [
+    {
+      version: CANONICAL_SCHEMA_VERSION,
+      name: CANONICAL_BASELINE_NAME,
+      checksum: CANONICAL_SCHEMA_CHECKSUM,
+    },
+  ]);
+});
+
+test("current v1 stores reopen without changing data or migration history", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-canonical-reopen-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const path = join(home, "data", "nerve.sqlite");
+  const first = new CanonicalStore(path);
+  await first.initialize();
+  await first.writeDocument({
+    namespace: "test",
+    scopeId: "global",
+    documentId: "preserved",
+    data: { preserved: true },
+    expectedRevision: 0,
+  });
+  await first.close();
+
+  const second = new CanonicalStore(path);
+  await second.initialize();
+  assert.deepEqual(
+    (
+      await second.readDocument<{ preserved: boolean }>(
+        "test",
+        "global",
+        "preserved",
+      )
+    )?.data,
+    { preserved: true },
+  );
+  await second.close();
+
+  const database = new DatabaseSync(path, { readOnly: true });
+  const versions = database
     .prepare(`SELECT version FROM schema_migrations ORDER BY version`)
     .all()
-    .map((row) => Number((row as { version: unknown }).version));
-  inspected.close();
-  assert.deepEqual(objects, ["rpc_idempotency", "rpc_idempotency_expiry"]);
-  assert.deepEqual(versions, [5, 6]);
+    .map((row) => ({ version: Number((row as { version: unknown }).version) }));
+  database.close();
+  assert.deepEqual(versions, [{ version: 1 }]);
 });
 
 test("canonical documents use revision compare-and-swap", async (t) => {
@@ -375,7 +201,7 @@ test("canonical events are dense per stream and idempotent by durable intent", a
   await store.close();
 });
 
-test("newer SQLite schemas are refused", async (t) => {
+test("unreleased canonical schema versions are refused", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-version-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const path = join(home, "data", "nerve.sqlite");
@@ -385,35 +211,14 @@ test("newer SQLite schemas are refused", async (t) => {
   const database = new DatabaseSync(path);
   database
     .prepare(
-      `INSERT INTO schema_migrations
-       (version, name, checksum, applied_at_ms, duration_ms)
-       VALUES (7, 'future', 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 1, 0)`,
+      `UPDATE schema_migrations SET version = 6, name = 'development-v6'`,
     )
     .run();
   database.close();
   const future = new CanonicalStore(path);
-  await assert.rejects(future.initialize(), /newer than supported/i);
+  await assert.rejects(future.initialize(), /schema 6 is unsupported/i);
   await future.close();
 });
-
-function schemaWithoutRpcIdempotency(): string {
-  return CANONICAL_SCHEMA_SQL.replace(
-    /CREATE TABLE IF NOT EXISTS rpc_idempotency \([\s\S]*?CREATE INDEX IF NOT EXISTS rpc_idempotency_expiry\n {2}ON rpc_idempotency\(expires_at_ms, created_at_ms\);\n\n/,
-    "",
-  );
-}
-
-function schemaWithoutRunDeliverySettlement(): string {
-  return schemaWithoutRpcIdempotency()
-    .replace(
-      / {2}run_delivery_settled_revision INTEGER\n {4}CHECK\(run_delivery_settled_revision >= 0\),\n/,
-      "",
-    )
-    .replace(
-      /CREATE INDEX IF NOT EXISTS conversation_records_pending_run_delivery\n {2}ON conversation_records\(run_delivery_settled_revision, revision, id\)\n {2}WHERE kind = 'run';\n/,
-      "",
-    );
-}
 
 test("checksum-drifted v1 schemas are refused before migration", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-drift-"));

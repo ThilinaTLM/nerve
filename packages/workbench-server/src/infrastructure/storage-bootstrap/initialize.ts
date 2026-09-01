@@ -25,15 +25,6 @@ import {
 import { inspectNerveHome } from "./state-layout.js";
 import { acquireStorageStartupLock } from "./startup-lock.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
-import {
-  CONSOLIDATE_MANAGED_FILES_MIGRATION,
-  consolidateManagedFiles,
-  recordConsolidatedManagedFiles,
-} from "../migrations/consolidate-managed-files.js";
-import {
-  migrateOperationalState,
-  OPERATIONAL_STATE_MIGRATION,
-} from "../migrations/operational-state-to-sqlite.js";
 
 const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["configPath", 0o755],
@@ -109,11 +100,8 @@ export async function initializeStorage(
     await chmod(paths.home, 0o700).catch(() => undefined);
     if (fresh) {
       await atomicWriteJson(paths.manifestPath, NERVE_HOME_MANIFEST, 0o600);
-    } else {
-      if (!(await pathExists(paths.sqlitePath))) {
-        throw new Error("Nerve SQLite state at data/nerve.sqlite is missing.");
-      }
-      await consolidateManagedFiles(paths);
+    } else if (!(await pathExists(paths.sqlitePath))) {
+      throw new Error("Nerve SQLite state at data/nerve.sqlite is missing.");
     }
     for (const [key, mode] of HOME_DIRECTORIES) {
       const directory = paths[key];
@@ -152,14 +140,6 @@ export async function initializeStorage(
     );
     const sqliteMigrationApplyMs =
       schemaInspection.kind === "migration-required" ? canonicalOpenMs : 0;
-    if (!fresh) {
-      try {
-        await migrateOperationalState(paths, canonicalStore);
-      } catch (error) {
-        await canonicalStore.close();
-        throw error;
-      }
-    }
     if (fresh) {
       await atomicWriteJson(
         paths.migrationLedgerPath,
@@ -171,20 +151,10 @@ export async function initializeStorage(
               id: "nerve-home-v1",
               appliedAt: new Date().toISOString(),
             },
-            {
-              id: CONSOLIDATE_MANAGED_FILES_MIGRATION,
-              appliedAt: new Date().toISOString(),
-            },
-            {
-              id: OPERATIONAL_STATE_MIGRATION,
-              appliedAt: new Date().toISOString(),
-            },
           ],
         },
         0o600,
       );
-    } else {
-      await recordConsolidatedManagedFiles(paths);
     }
     const settings = settingsFromConfiguration(configuration);
 
