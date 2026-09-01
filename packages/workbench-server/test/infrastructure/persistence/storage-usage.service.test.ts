@@ -29,8 +29,6 @@ async function fixtureHome(): Promise<string> {
   await write("data/plans/plan.md", 6);
   await write("data/tasks/task_1/log.txt", 8);
   await write("agent/suggestions/items.json", 9);
-  await write("data/idempotency/http-v1.json", 10);
-  await write("data/maintenance/storage-cleanup.json", 11);
   await write("logs/application-2020-01-01.jsonl", 12);
   await write("logs/events.jsonl.1", 13);
   await write("crashes/report.json", 14);
@@ -86,7 +84,7 @@ describe("StorageUsageService", () => {
 
     const usage = await service.computeUsage(true);
     assert.equal(usage.homeDir, home);
-    assert.equal(usage.totalBytes, 423);
+    assert.equal(usage.totalBytes, 402);
     assert.equal(
       usage.categories.reduce((sum, category) => sum + category.bytes, 0),
       usage.totalBytes,
@@ -98,7 +96,10 @@ describe("StorageUsageService", () => {
       2,
     );
     assert.equal(categoryBytes(usage, "payloads"), 18);
-    assert.equal(categoryBytes(usage, "runtimeState"), 21);
+    assert.equal(
+      usage.categories.some((category) => category.key === "runtimeState"),
+      false,
+    );
     assert.equal(categoryBytes(usage, "queryCache"), 48);
     assert.equal(categoryBytes(usage, "cache"), 18);
     assert.equal(categoryBytes(usage, "other"), 55);

@@ -80,12 +80,6 @@ const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
     cleanable: false,
     protected: false,
   },
-  runtimeState: {
-    label: "Runtime state",
-    description: "Idempotency and maintenance operation state.",
-    cleanable: false,
-    protected: false,
-  },
   logs: {
     label: "Logs & events",
     description: "Application, desktop, event, and tool-call logs.",
@@ -152,7 +146,6 @@ const CATEGORY_ORDER: StorageCategoryKey[] = [
   "plans",
   "tasks",
   "agentResources",
-  "runtimeState",
   "logs",
   "crashReports",
   "queryCache",
@@ -210,8 +203,6 @@ export class StorageUsageService {
     add("plans", await dirSize(paths.plansPath));
     add("tasks", await dirSize(paths.tasksPath));
     add("agentResources", await dirSize(paths.agentPath));
-    add("runtimeState", await dirSize(paths.idempotencyPath));
-    add("runtimeState", await dirSize(paths.maintenancePath));
     add("logs", await dirSize(paths.logsPath));
     add("crashReports", await dirSize(paths.crashesPath));
     add("queryCache", queryCacheTally);
@@ -234,8 +225,6 @@ export class StorageUsageService {
       basename(paths.imagesPath),
       basename(paths.plansPath),
       basename(paths.tasksPath),
-      basename(paths.idempotencyPath),
-      basename(paths.maintenancePath),
     ]);
     add("other", await dirSize(paths.dataPath, knownDataNames));
 

@@ -16,7 +16,6 @@ export const storageCategoryKeySchema = z.enum([
   "plans",
   "tasks",
   "agentResources",
-  "runtimeState",
   "logs",
   "crashReports",
   "queryCache",

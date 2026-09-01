@@ -1,4 +1,4 @@
-import { appendFile, mkdir, rm } from "node:fs/promises";
+import { appendFile, mkdir } from "node:fs/promises";
 import { createServer as createHttpsServer } from "node:https";
 import type { AddressInfo } from "node:net";
 import { networkInterfaces } from "node:os";
@@ -20,10 +20,10 @@ import {
 } from "./app/runtime/server-runtime.js";
 import { createApp } from "./app/server.js";
 import {
+  type DaemonLeaseMonitor,
   type DaemonPerformanceMonitor,
-  type DaemonRuntimeMonitor,
+  createDaemonLeaseMonitor,
   installDaemonPerformanceMonitor,
-  installDaemonRuntimeMonitor,
   installNodeDiagnosticReports,
   pruneCrashReports,
   serializeCrashError,
@@ -45,7 +45,6 @@ import {
 import {
   initializeStorage,
   resolveDataDir,
-  writeDaemonFile,
 } from "./infrastructure/storage-bootstrap/index.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
 import { installProtocolWebSocketUpgrade } from "./adapters/protocol/protocol-websocket.js";
@@ -82,7 +81,7 @@ function prepareEnterpriseNetworkEnvironment(): void {
   process.env.no_proxy = mergedNoProxy;
 }
 
-let runtimeMonitor: DaemonRuntimeMonitor | undefined;
+let leaseMonitor: DaemonLeaseMonitor | undefined;
 let performanceMonitor: DaemonPerformanceMonitor | undefined;
 const processStartupStartedAt = performance.now();
 
@@ -133,7 +132,7 @@ async function main() {
   });
   const storageDurationMs = Math.round(performance.now() - storageStartedAt);
   installNodeDiagnosticReports(dataDir);
-  runtimeMonitor = installDaemonRuntimeMonitor(dataDir);
+  leaseMonitor = await createDaemonLeaseMonitor(dataDir);
   const resolvedConfiguration = resolveApplicationConfiguration({
     settings: storage.settings,
     env: process.env,
@@ -165,7 +164,7 @@ async function main() {
   const loggerHydrateDurationMs = Math.round(
     performance.now() - loggerHydrateStartedAt,
   );
-  installCrashGuards(state.logger, storage.paths.home, runtimeMonitor);
+  installCrashGuards(state.logger, storage.paths.home, leaseMonitor);
   await state.logger.pruneRetention();
   await pruneCrashReports(
     storage.paths.home,
@@ -270,7 +269,7 @@ async function main() {
       state.adapterContexts.http.staticFiles.port = address.port;
       if (mobileTls)
         updateMobileHttpsState(state, mobileTls, state.port, httpsPort);
-      await writeDaemonFile(storage.paths.daemonPath, toDaemonFile(state));
+      await leaseMonitor?.publish(toDaemonFile(state));
       await state.events.publish("daemon.started", {
         daemonId: state.daemonId,
         pid: process.pid,
@@ -369,7 +368,7 @@ async function main() {
           const address = httpsServer?.address() as AddressInfo | undefined;
           if (!address) return;
           updateMobileHttpsState(state, mobileTls, state.port, address.port);
-          await writeDaemonFile(storage.paths.daemonPath, toDaemonFile(state));
+          await leaseMonitor?.publish(toDaemonFile(state));
           await state.logger.info("Mobile HTTPS daemon listening", {
             context: {
               url: state.mobileHttps?.url,
@@ -421,10 +420,6 @@ async function main() {
         durationMs: Date.now() - startedAt,
       })
       .catch(() => undefined);
-    await rm(storage.paths.daemonPath, { force: true }).catch(() => undefined);
-    await state.logger
-      .info("Daemon file removed", { durationMs: Date.now() - startedAt })
-      .catch(() => undefined);
     await Promise.all(
       [...protocolSessions, ...(httpsProtocolSessions ?? [])].map((session) =>
         session.shutdown("Daemon shutting down"),
@@ -438,18 +433,21 @@ async function main() {
       })
       .catch(() => undefined);
     await shutdownServerRuntime(state).catch(() => undefined);
-    httpsServer?.close();
-    server.close(() => {
-      runtimeMonitor?.markClean(signal);
-      process.exit(0);
-    });
+    await Promise.all([
+      new Promise<void>((resolve) => server.close(() => resolve())),
+      ...(httpsServer
+        ? [new Promise<void>((resolve) => httpsServer.close(() => resolve()))]
+        : []),
+    ]);
+    await leaseMonitor?.close();
+    process.exit(0);
   };
   const requestShutdown = (signal: NodeJS.Signals) => {
     void shutdown(signal).catch(async (error: unknown) => {
       await state.logger
         .error("Daemon shutdown failed", { error })
         .catch(() => undefined);
-      runtimeMonitor?.markCrashReported(
+      leaseMonitor?.markCrashReported(
         writeNodeDiagnosticReport(storage.paths.home, error),
       );
       process.exit(1);
@@ -468,7 +466,7 @@ async function main() {
 function installCrashGuards(
   logger: ReturnType<typeof createServerRuntime>["logger"],
   dataDir: string,
-  monitor: DaemonRuntimeMonitor | undefined,
+  monitor: DaemonLeaseMonitor | undefined,
 ): void {
   let exiting = false;
   const fatal = (
@@ -591,6 +589,6 @@ main().catch((error) => {
     error: serializeCrashError(error),
   });
   const diagnosticReportPath = writeNodeDiagnosticReport(dataDir, error);
-  runtimeMonitor?.markCrashReported(crashReportPath ?? diagnosticReportPath);
+  leaseMonitor?.markCrashReported(crashReportPath ?? diagnosticReportPath);
   process.exit(1);
 });

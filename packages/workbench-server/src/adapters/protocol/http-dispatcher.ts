@@ -1,4 +1,3 @@
-import { join } from "node:path";
 import { GitWorkflowError } from "@nervekit/tools/git";
 import {
   type NerveErrorCode,
@@ -17,7 +16,7 @@ import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-ad
 
 export type ProtocolAdapterContext = ServerAdapterContexts["protocolAdapter"];
 import { ApplicationError } from "../../core/application-error.js";
-import { FileIdempotencyStore } from "./file-idempotency-store.js";
+import { SqliteIdempotencyStore } from "./sqlite-idempotency-store.js";
 import { createProtocolMessage, orchestratorSource } from "./messages.js";
 import {
   bindWorkbenchOperationHandlers,
@@ -34,7 +33,7 @@ const workbenchDispatchers = new WeakMap<
 >();
 const workbenchIdempotencyStores = new WeakMap<
   ProtocolAdapterContext,
-  FileIdempotencyStore
+  SqliteIdempotencyStore
 >();
 const workbenchCapabilities = WORKBENCH_OPERATION_METHODS.map(
   (method) => operationDefinition(method).requiredCapability,
@@ -184,12 +183,10 @@ export function workbenchRpcDispatcher(
 
 function workbenchIdempotencyStore(
   state: ProtocolAdapterContext,
-): FileIdempotencyStore {
+): SqliteIdempotencyStore {
   const existing = workbenchIdempotencyStores.get(state);
   if (existing) return existing;
-  const store = new FileIdempotencyStore(
-    join(state.storage.paths.idempotencyPath, "http-v1.json"),
-  );
+  const store = new SqliteIdempotencyStore(state.storage.canonicalStore);
   workbenchIdempotencyStores.set(state, store);
   return store;
 }

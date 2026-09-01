@@ -107,6 +107,48 @@ test("project overlays remain inactive until their complete content digest is tr
   );
 });
 
+test("project trust persists across service reconstruction and revokes in isolation", async () => {
+  const { storage, service, project } = await setup();
+  await service.replaceOverlay(
+    "project",
+    { schemaVersion: 1, rules: [allowWrite] },
+    project.id,
+  );
+  const reconstructed = new PermissionPolicyService(storage, () => project);
+  assert.equal(
+    (await reconstructed.projectTrust(project.id)).status,
+    "trusted",
+  );
+  await reconstructed.revokeProjectTrust(project.id);
+  assert.equal((await service.projectTrust(project.id)).status, "untrusted");
+});
+
+test("invalid canonical project trust never activates an overlay", async () => {
+  const { storage, service, project } = await setup();
+  await service.replaceOverlay(
+    "project",
+    { schemaVersion: 1, rules: [allowWrite] },
+    project.id,
+  );
+  const current = await storage.canonicalStore.readDocument(
+    "project-permission-trust",
+    "global",
+    project.id,
+  );
+  await storage.canonicalStore.writeDocument({
+    namespace: "project-permission-trust",
+    scopeId: "global",
+    documentId: project.id,
+    data: {
+      version: 1,
+      digest: "invalid",
+      trustedAt: new Date().toISOString(),
+    },
+    expectedRevision: current?.revision,
+  });
+  assert.equal((await service.projectTrust(project.id)).status, "untrusted");
+});
+
 test("invalid custom selection falls back to Baseline while retaining overlays", async () => {
   const { service, agent } = await setup();
   await service.saveRule("user", {

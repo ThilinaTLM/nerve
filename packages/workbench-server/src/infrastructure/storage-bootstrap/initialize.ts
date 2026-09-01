@@ -1,6 +1,5 @@
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { type DaemonFile } from "@nervekit/contracts/status";
 import { type DaemonStartupProgress } from "@nervekit/contracts/storage";
 import {
   defaultSettings,
@@ -31,13 +30,15 @@ import {
   consolidateManagedFiles,
   recordConsolidatedManagedFiles,
 } from "../migrations/consolidate-managed-files.js";
+import {
+  migrateOperationalState,
+  OPERATIONAL_STATE_MIGRATION,
+} from "../migrations/operational-state-to-sqlite.js";
 
 const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["configPath", 0o755],
   ["secretsPath", 0o700],
   ["dataPath", 0o700],
-  ["idempotencyPath", 0o700],
-  ["maintenancePath", 0o700],
   ["conversationsPath", 0o700],
   ["reportsPath", 0o700],
   ["imagesPath", 0o700],
@@ -151,6 +152,14 @@ export async function initializeStorage(
     );
     const sqliteMigrationApplyMs =
       schemaInspection.kind === "migration-required" ? canonicalOpenMs : 0;
+    if (!fresh) {
+      try {
+        await migrateOperationalState(paths, canonicalStore);
+      } catch (error) {
+        await canonicalStore.close();
+        throw error;
+      }
+    }
     if (fresh) {
       await atomicWriteJson(
         paths.migrationLedgerPath,
@@ -164,6 +173,10 @@ export async function initializeStorage(
             },
             {
               id: CONSOLIDATE_MANAGED_FILES_MIGRATION,
+              appliedAt: new Date().toISOString(),
+            },
+            {
+              id: OPERATIONAL_STATE_MIGRATION,
               appliedAt: new Date().toISOString(),
             },
           ],
@@ -405,11 +418,4 @@ export async function writeSettings(
   );
   storage.settings = settingsFromConfiguration(storage.configuration);
   return storage.settings;
-}
-
-export async function writeDaemonFile(
-  path: string,
-  daemon: DaemonFile,
-): Promise<void> {
-  await atomicWriteJson(path, daemon, 0o600);
 }

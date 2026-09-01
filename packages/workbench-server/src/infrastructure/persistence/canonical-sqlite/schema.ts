@@ -1,5 +1,5 @@
-export const CANONICAL_SCHEMA_VERSION = 5;
-export const CANONICAL_BASELINE_NAME = "nerve-home-v5";
+export const CANONICAL_SCHEMA_VERSION = 6;
+export const CANONICAL_BASELINE_NAME = "nerve-home-v6";
 export const CANONICAL_SCHEMA_V1_CHECKSUM =
   "c6bfbb3901f4a51992de7baf11d11fa797ecc8063fa883d1fb6fb7d2e07d8433";
 export const CANONICAL_SCHEMA_V2_CHECKSUM =
@@ -8,8 +8,10 @@ export const CANONICAL_SCHEMA_V3_CHECKSUM =
   "6aeb3d94e691e7ec2f5ab86ca030dac33fc2dc5db8eceb99b461ef55c3f658e9";
 export const CANONICAL_SCHEMA_V4_CHECKSUM =
   "215ebadf1b693567375dddb6d38ca80ee968ed4fd8fb8ce4f97f793ec55d4854";
-export const CANONICAL_SCHEMA_CHECKSUM =
+export const CANONICAL_SCHEMA_V5_CHECKSUM =
   "215ebadf1b693567375dddb6d38ca80ee968ed4fd8fb8ce4f97f793ec55d4854";
+export const CANONICAL_SCHEMA_CHECKSUM =
+  "f9dc1e603a8e1adbd9254471ae6e096ca92399edc0d2117933ad62850de2ad39";
 export const CANONICAL_V1_TO_V2_MIGRATION_NAME =
   "drop-redundant-canonical-tables";
 export const CANONICAL_V1_TO_V2_MIGRATION_SQL = `
@@ -154,6 +156,22 @@ WHERE category = 'payload'
   AND conversation_id LIKE 'conv_%'
   AND tool_call_id LIKE 'tool_%';
 `;
+export const CANONICAL_V5_TO_V6_MIGRATION_NAME =
+  "consolidate-operational-state";
+export const CANONICAL_V5_TO_V6_MIGRATION_SQL = `
+CREATE TABLE rpc_idempotency (
+  scope TEXT NOT NULL,
+  key TEXT NOT NULL,
+  method TEXT NOT NULL,
+  params_hash TEXT NOT NULL,
+  outcome BLOB NOT NULL,
+  expires_at_ms INTEGER NOT NULL,
+  created_at_ms INTEGER NOT NULL,
+  PRIMARY KEY(scope, key)
+) STRICT;
+CREATE INDEX rpc_idempotency_expiry
+  ON rpc_idempotency(expires_at_ms, created_at_ms);
+`;
 export const CANONICAL_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,
@@ -295,6 +313,19 @@ CREATE TABLE IF NOT EXISTS file_assets (
 ) STRICT;
 CREATE INDEX IF NOT EXISTS file_assets_owner
   ON file_assets(conversation_id, tool_call_id, task_id, category);
+
+CREATE TABLE IF NOT EXISTS rpc_idempotency (
+  scope TEXT NOT NULL,
+  key TEXT NOT NULL,
+  method TEXT NOT NULL,
+  params_hash TEXT NOT NULL,
+  outcome BLOB NOT NULL,
+  expires_at_ms INTEGER NOT NULL,
+  created_at_ms INTEGER NOT NULL,
+  PRIMARY KEY(scope, key)
+) STRICT;
+CREATE INDEX IF NOT EXISTS rpc_idempotency_expiry
+  ON rpc_idempotency(expires_at_ms, created_at_ms);
 
 CREATE TABLE IF NOT EXISTS domain_documents (
   namespace TEXT NOT NULL,
