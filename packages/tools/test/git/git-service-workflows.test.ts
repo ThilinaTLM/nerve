@@ -21,7 +21,13 @@ async function command(
   await service.runGit(cwd, args);
 }
 
-async function configureUser(service: GitService, cwd: string): Promise<void> {
+async function configureRepository(
+  service: GitService,
+  cwd: string,
+): Promise<void> {
+  // These tests assert exact working-tree bytes. Disable Windows Git's default
+  // LF-to-CRLF conversion so Git rewrites the fixtures consistently.
+  await command(service, cwd, "config", "core.autocrlf", "false");
   await command(service, cwd, "config", "user.name", "Nerve Test");
   await command(service, cwd, "config", "user.email", "nerve@example.test");
 }
@@ -43,7 +49,7 @@ async function createFixture(): Promise<RepositoryFixture> {
     remote,
   );
   await command(service, root, "init", "--initial-branch=main", seed);
-  await configureUser(service, seed);
+  await configureRepository(service, seed);
   await writeFile(join(seed, "local.txt"), "initial local\n");
   await writeFile(join(seed, "shared.txt"), "initial shared\n");
   await writeFile(join(seed, "upstream.txt"), "initial upstream\n");
@@ -51,10 +57,28 @@ async function createFixture(): Promise<RepositoryFixture> {
   await command(service, seed, "commit", "-m", "initial");
   await command(service, seed, "remote", "add", "origin", remote);
   await command(service, seed, "push", "-u", "origin", "main");
-  await command(service, root, "clone", remote, work);
-  await command(service, root, "clone", remote, updater);
-  await configureUser(service, work);
-  await configureUser(service, updater);
+  // Apply the deterministic line-ending policy before clone writes the initial
+  // working trees; configuring it afterward leaves Windows checkout CRLFs dirty.
+  await command(
+    service,
+    root,
+    "-c",
+    "core.autocrlf=false",
+    "clone",
+    remote,
+    work,
+  );
+  await command(
+    service,
+    root,
+    "-c",
+    "core.autocrlf=false",
+    "clone",
+    remote,
+    updater,
+  );
+  await configureRepository(service, work);
+  await configureRepository(service, updater);
 
   return { root, work, updater, service };
 }

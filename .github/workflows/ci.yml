@@ -70,8 +70,8 @@ jobs:
               - 'Cargo.lock'
               - 'rust-toolchain.toml'
 
-  storage-windows:
-    name: Storage migrations (Windows)
+  windows-checks:
+    name: Tools and storage checks (Windows)
     runs-on: windows-latest
     needs: paths
     if: github.event_name != 'pull_request' || needs.paths.outputs.workbench == 'true'
@@ -96,6 +96,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build native host and type dependencies
         run: pnpm build:native && pnpm --filter @nervekit/workbench-server... check
+      - name: Run tools tests on native Windows filesystems
+        run: pnpm --filter @nervekit/tools test
       - name: Run storage migration tests on native Windows filesystems
         run: pnpm --filter @nervekit/workbench-server test:migrations
 
@@ -177,7 +179,7 @@ jobs:
     if: always()
     needs:
       - paths
-      - storage-windows
+      - windows-checks
       - validate
       - website
 
@@ -186,7 +188,7 @@ jobs:
         shell: bash
         env:
           PATHS_RESULT: ${{ needs.paths.result }}
-          STORAGE_RESULT: ${{ needs.storage-windows.result }}
+          WINDOWS_RESULT: ${{ needs.windows-checks.result }}
           VALIDATE_RESULT: ${{ needs.validate.result }}
           WEBSITE_RESULT: ${{ needs.website.result }}
         run: |
@@ -195,10 +197,10 @@ jobs:
             echo "Required CI job failed: paths=${PATHS_RESULT}, validate=${VALIDATE_RESULT}" >&2
             exit 1
           fi
-          for result in "${STORAGE_RESULT}" "${WEBSITE_RESULT}"; do
+          for result in "${WINDOWS_RESULT}" "${WEBSITE_RESULT}"; do
             if [ "${result}" != "success" ] && [ "${result}" != "skipped" ]; then
-              echo "Conditional CI job failed: storage=${STORAGE_RESULT}, website=${WEBSITE_RESULT}" >&2
+              echo "Conditional CI job failed: windows=${WINDOWS_RESULT}, website=${WEBSITE_RESULT}" >&2
               exit 1
             fi
           done
-          echo "CI passed: paths=${PATHS_RESULT}, validate=${VALIDATE_RESULT}, storage=${STORAGE_RESULT}, website=${WEBSITE_RESULT}"
+          echo "CI passed: paths=${PATHS_RESULT}, validate=${VALIDATE_RESULT}, windows=${WINDOWS_RESULT}, website=${WEBSITE_RESULT}"

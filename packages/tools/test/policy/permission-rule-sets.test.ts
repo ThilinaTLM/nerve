@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
-import {
-  mkdtemp,
-  mkdir,
-  realpath,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -505,7 +499,7 @@ test("existing symlinks are canonicalized to external targets", async () => {
         kind: "path",
         access: "read",
         scope: "exact",
-        absolutePath: await realpath(outside),
+        absolutePath: realpathSync(outside),
       },
     ]);
   } finally {
