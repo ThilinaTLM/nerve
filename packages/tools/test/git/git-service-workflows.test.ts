@@ -57,8 +57,26 @@ async function createFixture(): Promise<RepositoryFixture> {
   await command(service, seed, "commit", "-m", "initial");
   await command(service, seed, "remote", "add", "origin", remote);
   await command(service, seed, "push", "-u", "origin", "main");
-  await command(service, root, "clone", remote, work);
-  await command(service, root, "clone", remote, updater);
+  // Apply the deterministic line-ending policy before clone writes the initial
+  // working trees; configuring it afterward leaves Windows checkout CRLFs dirty.
+  await command(
+    service,
+    root,
+    "-c",
+    "core.autocrlf=false",
+    "clone",
+    remote,
+    work,
+  );
+  await command(
+    service,
+    root,
+    "-c",
+    "core.autocrlf=false",
+    "clone",
+    remote,
+    updater,
+  );
   await configureRepository(service, work);
   await configureRepository(service, updater);
 
