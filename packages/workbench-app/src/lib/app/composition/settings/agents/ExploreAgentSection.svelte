@@ -73,11 +73,11 @@ function saveExploreModel(selection: {
     selectedThinkingLevel={settingsDraft.exploreAgent.thinkingLevel}
     summaryTitle={selectedModelInfo
       ? modelDisplayName(selectedModelInfo)
-      : "Default model"}
+      : "Parent agent model"}
     fallbackOption={{
-      label: "Default model",
-      detail: "Use the platform fallback model",
-      actionLabel: "Use default model",
+      label: "Parent agent model",
+      detail: "Use the same model as the parent agent",
+      actionLabel: "Use parent agent model",
     }}
     fallbackThinkingLevels={[...thinkingLevels]}
     dialogTitle="Choose explore model"
@@ -89,7 +89,7 @@ function saveExploreModel(selection: {
       {#if selectedModelInfo}
         {providerDisplayName(selectedModelInfo.provider)}
       {:else}
-        Use the platform fallback model
+        Use the same model as the parent agent
       {/if}
     {/snippet}
     {#snippet policy()}

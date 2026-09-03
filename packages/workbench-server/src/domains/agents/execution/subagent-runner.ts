@@ -243,7 +243,7 @@ export class SubagentRunner {
               prompt: exploreUserPrompt(task, plan),
               systemPrompt: exploreSystemPrompt(parent.projectDir),
               historyMode: "fresh",
-              model: settings.exploreAgent.model,
+              model: settings.exploreAgent.model ?? parent.model,
               thinkingLevel: settings.exploreAgent.thinkingLevel,
               workspaceScope: parent.workspaceScope,
               task: task.task,
