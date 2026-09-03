@@ -1,10 +1,10 @@
 # Nerve public website: content-first implementation plan
 
-> **Editorial status (2026-07-29):** Evidence inventory reviewed against the implementation; first-pass public copy drafted in `packages/website/src/content/docs/`; final product-owner copy review and production screenshot refresh remain before declaring the corpus stable.
+> **Editorial status (2026-09-04):** Public copy was re-audited against v0.27.0 plus the project-switcher work at HEAD. Current deltas for project navigation, prompt-suggestion storage, native package ownership, and active Protocol v1 roles are reflected in the corpus. The docs now have a guided `/start/` entry point, content-integrity checks, and instructional use of the existing approved screenshots. A new production screenshot capture remains a separate follow-up.
 
 ## Objective and outcome
 
-Create a private workspace package, `packages/website`, for a static public site at `https://nerve.tlmtech.dev`. The site will combine a concise marketing homepage with comprehensive, task-oriented product and developer documentation. Content discovery and claim correction come first; visual customization remains intentionally minimal until the documentation corpus is coherent and reviewed.
+Maintain the private workspace package, `packages/website`, as a static public site at `https://nerve.tlmtech.dev`. The site will combine a concise marketing homepage with comprehensive, task-oriented product and developer documentation. Content discovery and claim correction come first; visual customization remains intentionally minimal until the documentation corpus is coherent and reviewed.
 
 This plan supersedes the earlier “strategy only” boundary because the product owner explicitly approved beginning the website package, while retaining the requirement that content quality take priority over styling.
 
@@ -161,10 +161,10 @@ Avoid unsupported comparative claims, exhaustive provider logos, fabricated test
 
 ### Documentation navigation
 
-- **Start here** — overview, install, first project, providers, first task.
-- **Use Nerve** — workbench, composer, conversations/history, controls, review gates, files/context/notes, Git/PRs, tasks, suggestions, skills, personalization, import/export.
+- **Start here** — guided `/start/` hub, overview, install, first project, providers, first task.
+- **Workflows** — workbench, composer, conversations/history, controls, review gates, files/context/notes, Git/PRs, tasks, suggestions, skills, personalization, import/export.
 - **Models & integrations** — model/provider concepts, custom definitions, usage/images/voice, web/Python, Jira, Confluence, Agent Browser, editors.
-- **Advanced operation** — browser/PWA, LAN/mobile, remote daemon, configuration, storage/migration, security, diagnostics.
+- **Operate safely** — browser/PWA, LAN/mobile, remote daemon, configuration, storage/migration, security, diagnostics.
 - **Troubleshooting** — decision-oriented symptom pages.
 - **Developers** — architecture, harness, tools/policy, persistence/security boundary, Nerve Protocol v1, extension model, development and contribution.
 - **Reference** — CLI/env, shortcuts, tool catalog, resource precedence, suggestion format, storage/export formats.

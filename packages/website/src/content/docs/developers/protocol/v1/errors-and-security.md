@@ -1,5 +1,6 @@
 ---
 title: Errors and security
+description: Handle protocol errors, authentication, authorization, origin checks, and safe diagnostics.
 sidebar:
   order: 9
 ---

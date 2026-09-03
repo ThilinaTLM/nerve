@@ -1,12 +1,13 @@
 ---
 title: Protocol v1 overview
+description: Learn Protocol v1 roles, routing, streams, transport surfaces, and delivery guarantees.
 sidebar:
   order: 2
 ---
 
 ## Roles and routing
 
-Wire roles are `workbench_server`, `ui`, `desktop_shell`, and `cli`. A peer is `{ role, id?, name?, instanceId? }`; every message has explicit `source` and `target`.
+Wire roles reserved by the schema are `workbench_server`, `ui`, `desktop_shell`, and `cli`. The currently implemented session is `ui` ↔ `workbench_server`; the other roles express valid identities/targets rather than active product clients. A peer is `{ role, id?, name?, instanceId? }`; every message has explicit `source` and `target`.
 
 The operation catalog declares the allowed target roles for every method. The workbench server validates the catalog method, parameters, target, idempotency key, timeout, and lineage before dispatch.
 

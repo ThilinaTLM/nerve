@@ -1,12 +1,13 @@
 ---
 title: Nerve Protocol v1 reference
+description: Navigate the implemented Protocol v1 envelopes, sessions, RPC, streams, recovery, and extension rules.
 sidebar:
   order: 1
 ---
 
 This directory documents the implemented Nerve Protocol v1. The wire envelopes, event catalog, and operation catalog in `packages/contracts/src/wire/`, `packages/contracts/src/events/`, and `packages/contracts/src/operations/`, together with the sessions in `packages/protocol/`, are authoritative.
 
-Protocol v1 connects the workbench app (`ui`) with the local server (`workbench_server`). The desktop shell and CLI use their own wire roles where they participate in protocol messages.
+Protocol v1 connects the workbench app (`ui`) with the server (`workbench_server`). The schema also reserves `desktop_shell` and `cli` wire roles for catalog targeting and future clients, but the current desktop shell manages daemon lifecycle outside the Protocol v1 session and no CLI client is implemented.
 
 The link uses a strict envelope, catalog-validated RPC, subscription-based stream recovery, unsequenced notifications, snapshots, and bounded delivery behavior. HTTP and WebSocket requests share the same operation catalog.
 

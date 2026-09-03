@@ -1,5 +1,6 @@
 ---
 title: Backpressure and overflow
+description: Apply Protocol v1 queue bounds, coalescing, overflow handling, and resynchronization.
 sidebar:
   order: 7
 ---

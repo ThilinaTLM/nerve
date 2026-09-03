@@ -1,5 +1,6 @@
 ---
 title: Subscriptions and recovery
+description: Resume streams with exact subscriptions, cursors, replay, snapshots, and resynchronization.
 sidebar:
   order: 6
 ---

@@ -1,5 +1,6 @@
 ---
 title: HTTP mapping
+description: Map catalog operations to authenticated Protocol v1 HTTP requests and responses.
 sidebar:
   order: 8
 ---

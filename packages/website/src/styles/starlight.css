@@ -169,7 +169,7 @@ site-search kbd {
 
 /* Tailwind's preflight strips list markers and indentation, which Starlight
  * inherits from user-agent defaults. Restore them for prose content only. */
-.sl-markdown-content :is(ul, ol):not(:where(.not-content *)) {
+.sl-markdown-content :is(ul, ol):not(:where(.not-content *, .sl-steps)) {
   padding-inline-start: 1.5rem;
 }
 
@@ -181,7 +181,7 @@ site-search kbd {
   list-style: circle;
 }
 
-.sl-markdown-content ol:not(:where(.not-content *)) {
+.sl-markdown-content ol:not(:where(.not-content *, .sl-steps)) {
   list-style: decimal;
 }
 

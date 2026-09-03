@@ -1,5 +1,6 @@
 ---
 title: Extension model
+description: Extend Protocol v1 through authoritative catalogs, capabilities, and compatible schema evolution.
 sidebar:
   order: 10
 ---

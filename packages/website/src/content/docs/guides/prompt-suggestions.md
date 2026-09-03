@@ -21,7 +21,7 @@ Settings lists built-ins even when their runtime condition is false. Each can be
 
 Create suggestions in Settings or edit Markdown files:
 
-- User: `~/.nerve/suggestions/*.md` or `$NERVE_HOME/suggestions/*.md`
+- User: `<NERVE_HOME>/agent/suggestions/*.md` (normally `~/.nerve/agent/suggestions/*.md`)
 - Project: `<project>/.nerve/suggestions/*.md`
 
 Project definitions override user definitions with the same name; user definitions override built-ins. A disabled higher-precedence definition remains authoritative instead of revealing the lower one. Settings identifies shadowed definitions.
@@ -30,7 +30,7 @@ A definition can set label, description, order, default enabled state, prompt bo
 
 ## JavaScript predicates
 
-An `enable-js`/`enable.js` predicate can synchronously inspect JSON-safe project, Git, conversation, and agent context. Nerve does not run it until you approve the warning. Trust is tied to a hash of the predicate; editing code requires approval again.
+An `enable-js` predicate, or the compatible nested `enable: { js: ... }` form, can synchronously inspect JSON-safe project, Git, conversation, and agent context. Nerve does not run it until you approve the warning. Trust is tied to a hash of the predicate; editing code requires approval again.
 
 :::danger
 A project suggestion predicate is executable JavaScript from the project. Review it as code. Deny or reset trust in Settings if its origin or behavior is unclear.

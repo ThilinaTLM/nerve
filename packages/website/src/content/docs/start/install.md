@@ -54,7 +54,7 @@ NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui
 Nerve uses `~/.nerve` by default for portable application state, credentials, logs, reports, and daemon metadata. Override it with `NERVE_HOME` when you need an isolated test profile. Electron's active Chromium profile is deliberately stored elsewhere, so also isolate Electron user data when a test requires a completely separate browser profile.
 
 :::note
-If an unversioned legacy `~/.nerve` is found, the desktop asks before migration. Read [Storage and migration](/operations/storage-migration/) before accepting if you need old conversations or project history.
+If Nerve recognizes a supported legacy v2 home (`manifest.json` format `nerve-workbench-state`), the desktop asks before migration. Read [Storage and migration](/operations/storage-migration/) before accepting if you need old conversations or project history.
 :::
 
 ## If installation fails

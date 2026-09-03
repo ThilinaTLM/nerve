@@ -1,5 +1,6 @@
 ---
 title: Protocol examples
+description: Follow concrete Protocol v1 session, RPC, subscription, replay, and recovery messages.
 sidebar:
   order: 11
 ---

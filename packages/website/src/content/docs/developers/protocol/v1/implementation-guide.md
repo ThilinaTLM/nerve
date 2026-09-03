@@ -1,5 +1,6 @@
 ---
 title: Implementation guide
+description: Build a conforming Protocol v1 client or host in a safe implementation order.
 sidebar:
   order: 12
 ---

@@ -5,6 +5,12 @@ sidebar:
   order: 9
 ---
 
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import gitDark from "../../../assets/screenshots/desktop/git-dark.webp";
+import gitLight from "../../../assets/screenshots/desktop/git-light.webp";
+import pullRequestDark from "../../../assets/screenshots/desktop/pull-request-dark.webp";
+import pullRequestLight from "../../../assets/screenshots/desktop/pull-request-light.webp";
+
 ## Git panel
 
 Nerve discovers repositories in the project and shows branch, working-tree changes, and recent commits. Available UI operations include branch creation and switching, stage/unstage, stash, discard, fetch, pull, push, and sync. The Staged and Unstaged headings expose visible whole-group actions; right-click a group, folder, or file for scoped actions. Destructive discard asks for confirmation. Folder expansion is remembered locally per repository and change area.
@@ -12,6 +18,15 @@ Nerve discovers repositories in the project and shows branch, working-tree chang
 Stash actions preserve the area where you invoke them: stashing from **Staged** saves staged changes, while stashing from **Unstaged** saves unstaged and untracked changes without changing the index. File and directory actions limit the stash to that path. When a repository has saved stashes, **Stashes (N)** opens a manager where you can apply a stash without removing it or permanently drop it after confirmation.
 
 These Workbench operations are server routes, not agent tools. An agent uses Git indirectly through finite Bash commands, subject to its mode and permission policy.
+
+<DocsScreenshot
+  light={gitLight}
+  dark={gitDark}
+  alt="Nerve Git panel showing repository status, staged and unstaged changes, and commit history"
+  caption="Repository state and scoped actions stay visible beside the conversation, but destructive discard still requires confirmation."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
 
 ## GitHub pull requests
 
@@ -24,6 +39,15 @@ GitHub support requires:
 The Pull Requests panel shows status and lists. A PR tab can display the conversation, commits, checks, and changed files; it can check out or merge when the repository state permits.
 
 Checkout and merge can modify local or remote state. Read the confirmation, working-tree status, target/base branch, and check results before proceeding.
+
+<DocsScreenshot
+  light={pullRequestLight}
+  dark={pullRequestDark}
+  alt="Nerve pull request tab showing a GitHub pull request conversation, checks, commits, and changed files"
+  caption="The pull request tab brings review context, checks, commits, and changed files together before checkout or merge actions."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
 
 ## Agent follow-ups
 

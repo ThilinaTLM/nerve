@@ -24,4 +24,5 @@ Nerve's file tabs remain preview-only. Edit in your external editor or use appro
 ## Next steps
 
 - [Files, context, and notes](/guides/files-context-notes/)
+- [Remote daemon behavior](/operations/remote-daemon/)
 - [Platform troubleshooting](/troubleshooting/platform/)

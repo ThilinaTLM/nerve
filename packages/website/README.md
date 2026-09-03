@@ -4,11 +4,11 @@ Static marketing and documentation site for [nerve.tlmtech.dev](https://nerve.tl
 
 ## Authoring
 
-Public prose lives in `src/content/docs/`. Keep guides task-oriented and put exact catalogs or limits in reference pages. The evidence inventory and page backlog live in [`content-strategy.md`](content-strategy.md). Architecture sources live in `diagrams/` and their generated SVGs live in `public/diagrams/`.
+Public prose lives in `src/content/docs/`; `/start/` is the guided documentation entry point. Keep guides task-oriented and put exact catalogs or limits in reference pages. Use MDX only when a page needs a static Astro/Starlight component, and prefer Starlight's accessible `Steps`, `CardGrid`, and `LinkCard` primitives over custom interaction. The evidence inventory and page backlog live in [`content-strategy.md`](content-strategy.md). Architecture sources live in `diagrams/` and their generated SVGs live in `public/diagrams/`.
 
 ```sh
 pnpm --filter @nervekit/website dev
-pnpm --filter @nervekit/website check
+pnpm --filter @nervekit/website check # token parity, content links/metadata, and Astro
 pnpm --filter @nervekit/website build
 ```
 
@@ -49,4 +49,4 @@ The site is static and must not call a local Nerve daemon. GitHub Pages deployme
 
 Landing-page captures come from the live loopback workbench at desktop and phone viewports. The current approved set covers conversation, Git, pull requests, tasks, conversation history, model control, and dock sheets. Before committing a frame, select only the public `nerve` project, hide unrelated project shortcuts, avoid authentication/settings panes, and inspect the image for tokens, private paths, account details, or other project names.
 
-Optimized WebP sources live in `src/assets/screenshots/{desktop,mobile}/`; Astro generates responsive variants at build time. Keep descriptive alt text on every use when adding or retiring a frame.
+Optimized WebP sources live in `src/assets/screenshots/{desktop,mobile}/`; Astro generates responsive variants at build time. Documentation pages use `src/components/docs/DocsScreenshot.astro` for theme-aware responsive pairs. Every use needs descriptive alt text and a short “What to notice” caption so the image teaches a workflow rather than serving as decoration.

@@ -1,0 +1,63 @@
+---
+title: Get started with Nerve
+description: Install Nerve, connect a model, open a project, and complete a safe first coding task.
+sidebar:
+  order: 0
+---
+
+import { CardGrid, LinkCard, Steps } from "@astrojs/starlight/components";
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import conversationDark from "../../../assets/screenshots/desktop/conversation-dark.webp";
+import conversationLight from "../../../assets/screenshots/desktop/conversation-light.webp";
+
+Nerve is a local-first desktop coding harness for people who want an agent's work to stay visible and controllable. This path takes you from installation to a small, reviewed change with supervised permission.
+
+## Your first run
+
+<Steps>
+
+1. **[Install Nerve](/start/install/).** Launch the desktop app from npm or a source checkout. You need Node.js 24 or newer.
+2. **[Connect a model provider](/start/providers/).** Choose API-key or OAuth authentication, then select a default model.
+3. **[Open a project](/start/first-project/).** Select a local directory and begin with Coding mode plus Supervised permission.
+4. **[Complete a safe first task](/start/first-task/).** Inspect first, review approvals and diffs, run focused validation, and verify the final Git state yourself.
+
+</Steps>
+
+<DocsScreenshot
+  light={conversationLight}
+  dark={conversationDark}
+  alt="Nerve desktop workbench with a project conversation, streaming transcript, composer controls, and project panels"
+  caption="The transcript keeps model output and tool activity together; the composer keeps model, mode, permission, context, and stop controls within reach."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+  loading="eager"
+/>
+
+## Choose the path you need
+
+<CardGrid>
+  <LinkCard
+    title="Learn the daily workflow"
+    description="Navigate conversations, the composer, reviews, files, Git, pull requests, and background tasks."
+    href="/guides/workbench/"
+  />
+  <LinkCard
+    title="Configure models and integrations"
+    description="Connect providers, select models, and enable optional Web, Python, Atlassian, or browser guidance."
+    href="/models/providers-and-auth/"
+  />
+  <LinkCard
+    title="Operate Nerve safely"
+    description="Understand configuration, storage, security, browser access, LAN/mobile use, and remote daemons."
+    href="/operations/security/"
+  />
+  <LinkCard
+    title="Build and extend Nerve"
+    description="Explore package boundaries, the harness, tools, persistence, and Protocol v1."
+    href="/developers/architecture/"
+  />
+</CardGrid>
+
+## Understand the product first
+
+If you are still evaluating Nerve, start with [What is Nerve?](/start/overview/) for the local-first topology, core concepts, and authority model. For a symptom you are already troubleshooting, use the [troubleshooting index](/troubleshooting/).

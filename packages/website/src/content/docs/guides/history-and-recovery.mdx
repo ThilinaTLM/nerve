@@ -5,11 +5,24 @@ sidebar:
   order: 7
 ---
 
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import historyDark from "../../../assets/screenshots/desktop/history-dark.webp";
+import historyLight from "../../../assets/screenshots/desktop/history-light.webp";
+
 ## Navigate and branch
 
 Open the history graph to inspect the conversation tree, minimap, entry details, and segments. Navigating to an earlier entry makes that lineage active. New work from there creates a branch while the rest of the stored tree remains available.
 
 Optional navigation summarization is extractive: Nerve assembles a local branch summary from discarded messages and writes a `branch_summary` system entry. It does not call a model for that operation.
+
+<DocsScreenshot
+  light={historyLight}
+  dark={historyDark}
+  alt="Nerve conversation history graph showing branched entries, a minimap, and entry details"
+  caption="Selecting an earlier entry changes the active lineage; the stored branches remain visible so you can inspect where work diverged."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
 
 ## Edit a prior prompt
 

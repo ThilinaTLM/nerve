@@ -15,6 +15,12 @@ Project-specific Nerve resources live under `.nerve/`. Portable shared agent ski
 
 Legacy `.pi` directories are not loaded.
 
+## Skill files and discovery
+
+Nerve recursively discovers `SKILL.md` files below each configured skills directory. It also accepts Markdown files placed directly at that directory's root. `.gitignore`, `.ignore`, and `.fdignore` rules are honored while walking.
+
+A skill needs a nonempty `description`. A directory-based skill's lowercase, hyphenated name must match its parent directory; invalid files are skipped and surfaced as diagnostics. Nerve gives the model each discoverable skill's name, description, and location, then reads the full file only when the skill is used. Set `disable-model-invocation: true` when a skill should remain available for explicit application use without being advertised to the model.
+
 ## Skill precedence
 
 First definition by skill name wins. Effective discovery favors project Nerve skills and ancestor portable project skills before global Nerve and global portable skills. Disabled names are removed. Review the exact [resource precedence table](/reference/resources/) when two definitions share a name.
