@@ -110,7 +110,8 @@ function confirmPrune(
   }
 }
 
-function openProjectPicker() {
+function openProjectBrowser() {
+  workspaceState.projectPickerMode = "browse";
   workspaceState.projectPickerOpen = true;
 }
 
@@ -135,7 +136,9 @@ async function handleDesktopClose() {
 
 <Titlebar
   projects={quickProjects}
+  projectOptions={projectItems}
   activeProjectKey={workspaceState.selectedProjectKey}
+  homeDir={status?.storage.userHome}
   desktop={desktopRuntime.isDesktop}
   {headerType}
   maximized={desktopRuntime.windowState.maximized}
@@ -150,7 +153,7 @@ async function handleDesktopClose() {
   currentVersion={status?.version}
   latestRelease={releaseSelectors.latest}
   buildProjectMenuItems={projectMenuItems}
-  onOpenProject={openProjectPicker}
+  onOpenProject={openProjectBrowser}
   onSelectProject={(projectId) => void selectProject(projectId)}
   onOpenLogs={() => openLogsPane()}
   onOpenDiscover={openDiscoverPane}

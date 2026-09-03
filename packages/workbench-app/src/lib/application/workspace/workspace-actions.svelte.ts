@@ -282,6 +282,7 @@ export function newConversation() {
     (project) => project.id === workspaceState.selectedProjectId,
   );
   if (!activeProject) {
+    workspaceState.projectPickerMode = "recent";
     workspaceState.projectPickerOpen = true;
     return;
   }

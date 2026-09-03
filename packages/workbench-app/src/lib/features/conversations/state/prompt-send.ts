@@ -124,6 +124,7 @@ export async function ensureAgent(): Promise<string> {
     await reloadWorkspace();
     return agent.id;
   }
+  workspaceState.projectPickerMode = "recent";
   workspaceState.projectPickerOpen = true;
   throw new Error("Select a project directory before starting a conversation.");
 }
@@ -267,6 +268,7 @@ export async function sendPromptText(
     return;
   }
   if (!selection.projectId || !selection.conversationId || !view) {
+    workspaceState.projectPickerMode = "recent";
     workspaceState.projectPickerOpen = true;
     const message =
       "Select a project directory before starting a conversation.";

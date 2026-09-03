@@ -46,4 +46,5 @@ export const workspaceState = $state({
   activeCenterTab: undefined as CenterTabIdentity | undefined,
   centerTabMru: [] as string[],
   projectPickerOpen: false,
+  projectPickerMode: "recent" as "recent" | "browse",
 });

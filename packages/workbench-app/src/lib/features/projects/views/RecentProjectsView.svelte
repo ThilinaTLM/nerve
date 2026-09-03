@@ -4,15 +4,13 @@ import Copy from "@lucide/svelte/icons/copy";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import MessageSquarePlus from "@lucide/svelte/icons/message-square-plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { tildePath } from "$lib/domain/filesystem/project-path";
 import { ItemScrollRegion, ItemSurface } from "$lib/presentation";
-import type { ProjectGitOverview } from "$lib/features/projects/state/project-overview";
 import type { ProjectSwitcherItem } from "$lib/features/projects/state/project-switcher";
-import ProjectCardStatus from "./ProjectCardStatus.svelte";
+import ProjectActivityStatus from "./ProjectActivityStatus.svelte";
 import ProjectIcon from "./ProjectIcon.svelte";
 
 type Props = {
@@ -26,9 +24,6 @@ type Props = {
   activeProjectKey?: string;
   homeDir?: string;
   loading: boolean;
-  gitByProjectKey: Record<string, ProjectGitOverview>;
-  gitLoadingByProjectKey: Record<string, boolean>;
-  gitErrorByProjectKey: Record<string, boolean>;
   onOpen: (item: ProjectSwitcherItem) => void;
   onForget?: (projectId: string) => void;
   onCopyPath: (path: string) => void;
@@ -54,9 +49,6 @@ let {
   activeProjectKey,
   homeDir,
   loading,
-  gitByProjectKey,
-  gitLoadingByProjectKey,
-  gitErrorByProjectKey,
   onOpen,
   onForget,
   onCopyPath,
@@ -140,7 +132,6 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
         aria-activedescendant={activeDescendant}
       >
         {#each items as item, i (item.key)}
-          {@const current = item.key === activeProjectKey}
           {@const selected = selectedIndex === i}
           <ItemSurface
             id={`recent:${encodeURIComponent(item.key)}`}
@@ -166,18 +157,8 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
                 >
                   {item.project.name}
                 </strong>
-                {#if current}
-                  <Badge tone="accent" size="xs" class="flex-none"
-                    >Current</Badge
-                  >
-                {/if}
                 <span class="ml-auto min-w-0 flex-none">
-                  <ProjectCardStatus
-                    {item}
-                    git={gitByProjectKey[item.key]}
-                    gitLoading={gitLoadingByProjectKey[item.key] ?? false}
-                    gitError={gitErrorByProjectKey[item.key] ?? false}
-                  />
+                  <ProjectActivityStatus {item} />
                 </span>
               </span>
               <span
