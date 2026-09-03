@@ -106,6 +106,7 @@ const revealWorkbench = $derived(
 );
 
 function openProjectPicker() {
+  workspaceState.projectPickerMode = "recent";
   workspaceState.projectPickerOpen = true;
 }
 

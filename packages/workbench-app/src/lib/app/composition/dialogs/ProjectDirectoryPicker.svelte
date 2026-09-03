@@ -1,6 +1,4 @@
 <script lang="ts">
-import { untrack } from "svelte";
-import { SvelteSet } from "svelte/reactivity";
 import FolderSearch from "@lucide/svelte/icons/folder-search";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { notify } from "$lib/application/notifications/notify.svelte";
@@ -11,8 +9,6 @@ import {
   type FilesystemDirectoryResponse,
   type ProjectRecord,
 } from "$lib/api";
-import { queryClient, queryKeys } from "$lib/platform/query/client";
-import { discoverGitRepos, GIT_STALE_MS } from "$lib/features/git";
 import { looksLikePath, pathKey } from "$lib/domain/filesystem/project-path";
 import DirectoryPickerFooter from "$lib/features/projects/views/DirectoryPickerFooter.svelte";
 import DirectoryPickerList from "$lib/features/projects/views/DirectoryPickerList.svelte";
@@ -28,16 +24,14 @@ import type {
   NavItem,
 } from "$lib/features/projects/views/directory-picker-types";
 import type { ProjectSwitcherItem } from "$lib/features/projects/state/project-switcher";
-import {
-  summarizeProjectGit,
-  type ProjectGitOverview,
-} from "$lib/features/projects/state/project-overview";
+type Mode = "recent" | "browse";
 type Props = {
   open?: boolean;
   projects?: ProjectRecord[];
   switcherItems?: ProjectSwitcherItem[];
   activeProjectKey?: string;
   homeDir?: string;
+  initialMode?: Mode;
   onClose?: () => void;
   onSelectProject?: (projectId: string) => void | Promise<void>;
   onOpenDirectory?: (path: string) => void | Promise<void>;
@@ -50,13 +44,13 @@ let {
   switcherItems = [],
   activeProjectKey,
   homeDir,
+  initialMode = "recent",
   onClose,
   onSelectProject,
   onOpenDirectory,
   onNewChat,
   onForget,
 }: Props = $props();
-type Mode = "recent" | "browse";
 let mode = $state<Mode>("recent");
 let query = $state("");
 let listing = $state<FilesystemDirectoryResponse | undefined>(undefined);
@@ -69,11 +63,6 @@ let wasOpen = $state(false);
 let previousShowHidden = $state(false);
 let listEl = $state<HTMLDivElement | undefined>(undefined);
 let recentScrollEl = $state<HTMLDivElement | undefined>(undefined);
-let gitByProjectKey = $state<Record<string, ProjectGitOverview>>({});
-let gitLoadingByProjectKey = $state<Record<string, boolean>>({});
-let gitErrorByProjectKey = $state<Record<string, boolean>>({});
-let gitLoadGeneration = 0;
-const gitInFlightProjectKeys = new SvelteSet<string>();
 const openedProjectKeys = $derived.by(
   () => new Set(projects.map((project) => pathKey(project.dir))),
 );
@@ -236,40 +225,6 @@ async function copyPath(path: string) {
     notify.error("Could not copy to clipboard");
   }
 }
-async function loadRecentGit(items: ProjectSwitcherItem[], generation: number) {
-  let nextIndex = 0;
-  async function worker() {
-    while (generation === gitLoadGeneration && open && mode === "recent") {
-      const item = items[nextIndex++];
-      if (!item) return;
-      if (
-        gitByProjectKey[item.key] ||
-        gitErrorByProjectKey[item.key] ||
-        gitInFlightProjectKeys.has(item.key)
-      ) {
-        continue;
-      }
-
-      gitInFlightProjectKeys.add(item.key);
-      gitLoadingByProjectKey[item.key] = true;
-      try {
-        const discovery = await queryClient.fetchQuery({
-          queryKey: queryKeys.git.repos(item.project.id),
-          queryFn: () => discoverGitRepos(item.project.id),
-          staleTime: GIT_STALE_MS,
-        });
-        gitByProjectKey[item.key] = summarizeProjectGit(discovery);
-      } catch {
-        if (!gitByProjectKey[item.key]) gitErrorByProjectKey[item.key] = true;
-      } finally {
-        gitInFlightProjectKeys.delete(item.key);
-        gitLoadingByProjectKey[item.key] = false;
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: 4 }, () => worker()));
-}
 function handleRecentKeydown(event: KeyboardEvent) {
   const target = event.target as HTMLElement | null;
   const inInput = target?.tagName === "INPUT";
@@ -361,19 +316,12 @@ function handleKeydown(event: KeyboardEvent) {
   else handleBrowseKeydown(event);
 }
 $effect(() => {
-  const items = open && mode === "recent" ? filteredRecents : [];
-  const generation = ++gitLoadGeneration;
-  if (!items.length || typeof window === "undefined") return;
-  untrack(() => void loadRecentGit(items, generation));
-});
-$effect(() => {
   if (open && !wasOpen) {
-    mode = recentProjects.length ? "recent" : "browse";
+    mode =
+      initialMode === "browse" || !recentProjects.length ? "browse" : "recent";
     recentSelectedIndex = -1;
     selectedIndex = -1;
     query = "";
-    gitByProjectKey = {};
-    gitErrorByProjectKey = {};
     void load(listing?.path || undefined);
   }
   wasOpen = open;
@@ -439,9 +387,6 @@ $effect(() => {
         {activeProjectKey}
         {homeDir}
         {loading}
-        {gitByProjectKey}
-        {gitLoadingByProjectKey}
-        {gitErrorByProjectKey}
         onOpen={(item) => void chooseProject(item.project.id)}
         onNewChat={(path) => void onNewChat?.(path)}
         onCopyPath={(path) => void copyPath(path)}

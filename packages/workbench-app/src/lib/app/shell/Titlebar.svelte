@@ -18,7 +18,9 @@ import type { ResolvedHeaderType } from "$lib/app/shell/header-type";
 
 type Props = {
   projects?: ProjectSwitcherItem[];
+  projectOptions?: ProjectSwitcherItem[];
   activeProjectKey?: string;
+  homeDir?: string;
   desktop?: boolean;
   headerType?: ResolvedHeaderType;
   maximized?: boolean;
@@ -44,7 +46,9 @@ type Props = {
 
 let {
   projects = [],
+  projectOptions = [],
   activeProjectKey,
+  homeDir,
   desktop = false,
   headerType = "linux",
   maximized = false,
@@ -89,7 +93,9 @@ let {
     </span>
     <ProjectSwitcher
       items={projects}
+      popoverItems={projectOptions}
       activeKey={activeProjectKey}
+      {homeDir}
       buildMenuItems={buildProjectMenuItems}
       onSelect={onSelectProject}
       onOpenPicker={onOpenProject}

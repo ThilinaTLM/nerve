@@ -44,6 +44,7 @@ async function editConversationEntry(entry: {
   switcherItems={projectItems}
   activeProjectKey={workspaceState.selectedProjectKey}
   homeDir={status?.storage.userHome}
+  initialMode={workspaceState.projectPickerMode}
   onSelectProject={(projectId) => void selectProject(projectId)}
   onOpenDirectory={(path) => void openProjectDirectory(path)}
   onNewChat={(path) => void createConversationForDirectory(path)}
