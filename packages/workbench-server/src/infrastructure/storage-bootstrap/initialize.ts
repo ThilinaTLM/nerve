@@ -25,6 +25,10 @@ import {
 import { inspectNerveHome } from "./state-layout.js";
 import { acquireStorageStartupLock } from "./startup-lock.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
+import {
+  currentHomeMigrationEntries,
+  migrateToolResultPayloadReferences,
+} from "../migrations/tool-result-payload-reference-v2.js";
 
 const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["configPath", 0o755],
@@ -132,6 +136,20 @@ export async function initializeStorage(
         message: `Upgrading Nerve storage schema from v${schemaInspection.version}`,
       });
     }
+    const dataMigrationStartedAt = performance.now();
+    const dataMigration = fresh
+      ? undefined
+      : await migrateToolResultPayloadReferences(paths, {
+          onStart: () =>
+            options.reportStartupProgress?.({
+              type: "nerve.startup.progress",
+              phase: "storage-migration",
+              message: "Upgrading tool-result payload references",
+            }),
+        });
+    const dataMigrationMs = Math.round(
+      performance.now() - dataMigrationStartedAt,
+    );
     const canonicalOpenStartedAt = performance.now();
     const canonicalStore = new CanonicalStore(paths.sqlitePath);
     await canonicalStore.initialize();
@@ -139,19 +157,16 @@ export async function initializeStorage(
       performance.now() - canonicalOpenStartedAt,
     );
     const sqliteMigrationApplyMs =
-      schemaInspection.kind === "migration-required" ? canonicalOpenMs : 0;
+      (schemaInspection.kind === "migration-required" ? canonicalOpenMs : 0) +
+      (dataMigration?.applied ? dataMigrationMs : 0);
     if (fresh) {
+      const appliedAt = new Date().toISOString();
       await atomicWriteJson(
         paths.migrationLedgerPath,
         {
           format: "nerve-home-migrations",
           version: 1,
-          entries: [
-            {
-              id: "nerve-home-v1",
-              appliedAt: new Date().toISOString(),
-            },
-          ],
+          entries: currentHomeMigrationEntries(appliedAt),
         },
         0o600,
       );
