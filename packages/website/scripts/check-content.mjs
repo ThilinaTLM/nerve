@@ -51,7 +51,6 @@ function frontmatter(source) {
 function slugifyHeading(value) {
   return value
     .toLowerCase()
-    .replace(/<[^>]*>/g, "")
     .replace(/[`*_~]/g, "")
     .replace(/&[a-z\d#]+;/gi, "")
     .replace(/[^\p{Letter}\p{Number}\s-]/gu, "")
