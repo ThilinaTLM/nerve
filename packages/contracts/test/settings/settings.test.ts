@@ -119,7 +119,13 @@ describe("settings schema", () => {
         agentBrowser: { enabled: ["core", "dogfood"] },
       },
       tools: {
-        disabled: ["web_search", "web_fetch", "explain_image", "python_exec"],
+        disabled: [
+          "explore",
+          "web_search",
+          "web_fetch",
+          "explain_image",
+          "python_exec",
+        ],
         bash: {
           autoPromotion: { enabled: false, afterMs: 240_000 },
         },
@@ -200,6 +206,7 @@ describe("settings schema", () => {
       "C:\\Program Files\\Git\\bin\\bash.exe",
     );
     assert.deepEqual(parsed.tools?.disabled, [
+      "explore",
       "web_search",
       "web_fetch",
       "explain_image",

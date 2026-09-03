@@ -11,6 +11,7 @@ export type ToolGroupId =
   | "file-editing"
   | "plan-mode"
   | "todos"
+  | "explore"
   | "web"
   | "vision"
   | "tasks"
@@ -28,6 +29,7 @@ export type ToolGroupDef = {
 };
 
 export const configurableToolOrder: ConfigurableToolName[] = [
+  "explore",
   "web_search",
   "web_fetch",
   "explain_image",
@@ -114,6 +116,21 @@ export const toolGroups: ToolGroupDef[] = [
     tools: [
       { name: "todos_set", description: "Set the current task checklist." },
       { name: "todos_get", description: "Read the current task checklist." },
+    ],
+  },
+  {
+    id: "explore",
+    category: "core",
+    label: "Explore",
+    description:
+      "Delegate focused, read-only codebase research to child agents.",
+    configurableTools: ["explore"],
+    tools: [
+      {
+        name: "explore",
+        description:
+          "Launch one or more read-only agents to investigate independent tasks.",
+      },
     ],
   },
   {

@@ -47,6 +47,7 @@ export const coreToolNameSchema = z.enum([
 export type CoreToolName = z.infer<typeof coreToolNameSchema>;
 
 export const userConfigurableToolNameSchema = z.enum([
+  "explore",
   "web_search",
   "web_fetch",
   "explain_image",

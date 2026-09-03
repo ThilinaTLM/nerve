@@ -34,11 +34,6 @@ describe("explore subagent transcript isolation", () => {
     });
     const root = await mkdtemp(join(tmpdir(), "nerve-explore-isolation-"));
     const storage = await initializeStorage(root);
-    await writeSettings(storage, {
-      exploreAgent: {
-        model: { provider, modelId: "scripted-fast" },
-      },
-    });
     const orchestrator = createRuntimeFixture(storage, "127.0.0.1", 0);
     try {
       await orchestrator.lifecycle.hydrate();
@@ -53,6 +48,7 @@ describe("explore subagent transcript isolation", () => {
       const parent = await orchestrator.services.agentLifecycle.createAgent({
         projectId: project.id,
         conversationId: conversation.id,
+        model: { provider, modelId: "scripted-fast" },
       });
       const result = await orchestrator.services.tools.requestTool(
         orchestrator.services.agentLifecycle.getAgent(parent.id),
@@ -80,6 +76,7 @@ describe("explore subagent transcript isolation", () => {
         .listAgents()
         .find((agent) => agent.parentAgentId === parent.id);
       assert.ok(child);
+      assert.deepEqual(child.model, parent.model);
       assert.equal(child.status, "idle");
       assert.ok((child.systemPrompt ?? "").includes(project.dir));
       assert.match(
