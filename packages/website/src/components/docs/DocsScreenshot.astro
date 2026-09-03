@@ -1,0 +1,136 @@
+---
+import type { ImageMetadata } from "astro";
+import { Image } from "astro:assets";
+
+interface Props {
+  light: ImageMetadata;
+  dark: ImageMetadata;
+  alt: string;
+  caption: string;
+  widths?: number[];
+  sizes?: string;
+  loading?: "eager" | "lazy";
+  variant?: "desktop" | "phone";
+}
+
+const {
+  light,
+  dark,
+  alt,
+  caption,
+  widths = [480, 768, 1024, 1440],
+  sizes = "(min-width: 72rem) 48rem, calc(100vw - 3rem)",
+  loading = "lazy",
+  variant = "desktop",
+} = Astro.props;
+const safeWidths = widths.filter(
+  (width) => width <= Math.min(light.width, dark.width),
+);
+---
+
+<figure class:list={["docs-screenshot", `docs-screenshot-${variant}`]}>
+  <div class="docs-screenshot-frame">
+    <span class="docs-screenshot-label">Nerve workbench</span>
+    <span class="docs-screenshot-status" aria-hidden="true"></span>
+    <span class="theme-image theme-image-dark">
+      <Image
+        src={dark}
+        {alt}
+        widths={safeWidths}
+        {sizes}
+        {loading}
+        decoding="async"
+      />
+    </span>
+    <span class="theme-image theme-image-light">
+      <Image
+        src={light}
+        {alt}
+        widths={safeWidths}
+        {sizes}
+        {loading}
+        decoding="async"
+      />
+    </span>
+  </div>
+  <figcaption><strong>What to notice:</strong> {caption}</figcaption>
+</figure>
+
+<style>
+  .docs-screenshot {
+    margin-block: 1.75rem;
+  }
+
+  .docs-screenshot-phone {
+    width: min(100%, 24rem);
+    margin-inline: auto;
+  }
+
+  .docs-screenshot-frame {
+    position: relative;
+    overflow: hidden;
+    padding-top: 2rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-device);
+    background: var(--surface-elevated);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .docs-screenshot-label {
+    position: absolute;
+    inset-block-start: 0.48rem;
+    inset-inline-start: 0.75rem;
+    padding: 0.08rem 0.5rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-pill);
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    line-height: 1.2;
+  }
+
+  .docs-screenshot-status {
+    position: absolute;
+    inset-block-start: 0.82rem;
+    inset-inline-end: 0.85rem;
+    width: 0.35rem;
+    height: 0.35rem;
+    border-radius: var(--radius-pill);
+    background: var(--success);
+  }
+
+  .theme-image {
+    display: block;
+    border-top: 1px solid var(--hairline);
+    line-height: 0;
+  }
+
+  .theme-image-light {
+    display: none;
+  }
+
+  .theme-image :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  :global(:root[data-theme="light"]) .theme-image-dark {
+    display: none;
+  }
+
+  :global(:root[data-theme="light"]) .theme-image-light {
+    display: block;
+  }
+
+  figcaption {
+    margin-block-start: 0.75rem;
+    color: var(--muted-foreground);
+    font-size: 0.9rem;
+    line-height: 1.55;
+  }
+
+  figcaption strong {
+    color: var(--foreground);
+  }
+</style>

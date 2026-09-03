@@ -46,16 +46,17 @@ Shared foundations stay transport- and framework-neutral:
 - `@nervekit/protocol` owns the Protocol v1 codec, sessions, RPC, replay, cursors, snapshots, and bounded delivery.
 - `@nervekit/harness` owns model resolution, conversation behavior, the generic agent loop, resources, and compaction.
 - `@nervekit/tools` owns the canonical tool catalog, executors, output bounds, artifacts, and Git/GitHub utilities.
+- `@nervekit/native` provides normalized TypeScript façades over the Rust N-API Git, process, platform, and runtime primitives used by the server.
 - `@nervekit/ui-kit` provides contract-free presentation primitives and renderers.
 
 The product hosts compose those foundations:
 
-- `@nervekit/workbench-server` owns HTTP/WebSocket routes, persistence, authentication, runtime composition, process drivers, and the static web host.
+- `@nervekit/workbench-server` owns HTTP/WebSocket routes, persistence, authentication, runtime composition, process drivers, and the static web host. It consumes `@nervekit/native` for cross-platform Git and managed-process behavior.
 - `@nervekit/workbench-app` owns Svelte presentation and feature adapters/effects.
 - `@nervekit/desktop-shell` owns the published launcher, Electron bridge, migration consent/presentation, and daemon ownership; the server package owns storage inspection and migration transactions.
 
 <figure>
-  <img src="/diagrams/02-package-dependencies.svg" alt="Package dependency diagram showing shared contracts, protocol, harness, tools, and UI kit foundations and the workbench server, app, and desktop shell hosts." loading="lazy" />
+  <img src="/diagrams/02-package-dependencies.svg" alt="Package dependency diagram showing contracts, protocol, harness, tools, native runtime, and UI kit foundations plus the workbench server, app, and desktop shell hosts." loading="lazy" />
   <figcaption>Package graph: compile-time dependencies are separate from the app-to-server runtime link.</figcaption>
 </figure>
 

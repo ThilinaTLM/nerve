@@ -1,5 +1,6 @@
 ---
 title: Feature coverage
+description: Map Protocol v1 guarantees to their owning implementation and automated coverage.
 sidebar:
   order: 14
 ---

@@ -10,11 +10,11 @@
 
 Nerve keeps agent activity visible and gives you direct control over models, permissions, tools, approvals, Git, and background tasks while working with local projects.
 
-[Website](https://nerve.tlmtech.dev/) · [Documentation](https://nerve.tlmtech.dev/start/overview/) · [Install guide](https://nerve.tlmtech.dev/start/install/) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
+[Website](https://nerve.tlmtech.dev/) · [Documentation](https://nerve.tlmtech.dev/start/) · [Install guide](https://nerve.tlmtech.dev/start/install/) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="packages/website/src/assets/shots/d5-git-dark.webp">
-  <img src="packages/website/src/assets/shots/d5-git-light.webp" alt="Nerve desktop workbench showing a coding conversation, tool activity, and Git changes">
+  <source media="(prefers-color-scheme: dark)" srcset="packages/website/src/assets/screenshots/desktop/git-dark.webp">
+  <img src="packages/website/src/assets/screenshots/desktop/git-light.webp" alt="Nerve desktop workbench showing a coding conversation, tool activity, and Git changes">
 </picture>
 
 > [!NOTE]
@@ -44,7 +44,7 @@ The first launch may download Electron's platform binary. Nerve starts a local l
 
 The website is the primary source for product and developer documentation:
 
-- [Get started](https://nerve.tlmtech.dev/start/overview/)
+- [Get started](https://nerve.tlmtech.dev/start/)
 - [Use the workbench](https://nerve.tlmtech.dev/guides/workbench/)
 - [Configure and operate Nerve](https://nerve.tlmtech.dev/operations/configuration/)
 - [Troubleshoot installation and runtime issues](https://nerve.tlmtech.dev/troubleshooting/)

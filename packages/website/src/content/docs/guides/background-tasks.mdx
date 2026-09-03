@@ -5,6 +5,10 @@ sidebar:
   order: 10
 ---
 
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import tasksDark from "../../../assets/screenshots/desktop/tasks-dark.webp";
+import tasksLight from "../../../assets/screenshots/desktop/tasks-light.webp";
+
 Nerve separates a durable **task definition** from immutable **task runs**. A definition owns its label, command, working directory, and launch policy. Restarting creates a new run in the same lineage, so the task and tab remain stable while prior output stays in History.
 
 - `single` (default): launching an active definition focuses its current run.
@@ -42,7 +46,16 @@ Quitting the desktop app immediately terminates active local task process trees 
 
 ## Task controls
 
-The Tasks panel and task-output tab let you switch between sibling runs, restart a saved task, cancel a run, load earlier log output, clean up terminal history, and prune old runs. The agent uses `task_control` with `action: "stop"` or `action: "restart"` for one task at a time. **Force kill** is available only when Nerve has verified the process identity (or a run is stuck stopping); it is intentionally unavailable for `recovery_unknown` records. Removing a run's history does not remove the durable task definition.
+The Tasks panel and task-output tab let you switch between sibling runs, restart a saved task, cancel a run, load earlier log output, clean up terminal history, and prune old runs. The project switcher also includes running task counts in its activity state, so work in another project remains visible. The agent uses `task_control` with `action: "stop"` or `action: "restart"` for one task at a time. **Force kill** is available only when Nerve has verified the process identity (or a run is stuck stopping); it is intentionally unavailable for `recovery_unknown` records. Removing a run's history does not remove the durable task definition.
+
+<DocsScreenshot
+  light={tasksLight}
+  dark={tasksDark}
+  alt="Nerve Tasks panel and task output tab showing supervised process state and bounded logs"
+  caption="A durable task definition keeps its identity while individual runs, readiness, status, and historical output remain inspectable."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
 
 ## Agent notifications
 

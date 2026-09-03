@@ -5,6 +5,7 @@ export interface LinkColumn {
 
 const links = {
   home: { label: "Home", href: "/" },
+  getStarted: { label: "Get started", href: "/start/" },
   overview: { label: "Overview", href: "/start/overview/" },
   install: { label: "Install", href: "/start/install/" },
   firstProject: { label: "First project", href: "/start/first-project/" },
@@ -39,7 +40,12 @@ const links = {
 export const marketingFooterColumns: LinkColumn[] = [
   {
     title: "Product",
-    links: [links.overview, links.install, links.firstProject, links.firstTask],
+    links: [
+      links.getStarted,
+      links.install,
+      links.firstProject,
+      links.firstTask,
+    ],
   },
   {
     title: "Documentation",
@@ -68,7 +74,7 @@ export const marketingFooterColumns: LinkColumn[] = [
 export const docsFooterColumns: LinkColumn[] = [
   {
     title: "Start",
-    links: [links.overview, links.install, links.firstTask],
+    links: [links.getStarted, links.overview, links.firstTask],
   },
   {
     title: "Operate",

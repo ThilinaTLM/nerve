@@ -1,5 +1,6 @@
 ---
 title: Message envelope
+description: Reference the strict versioned message envelope and peer identity fields.
 sidebar:
   order: 3
 ---

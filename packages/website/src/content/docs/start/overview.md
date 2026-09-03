@@ -39,6 +39,7 @@ Nerve can modify files, execute commands, use credentials, and contact networks.
 
 ## Next steps
 
+- [Follow the guided quickstart](/start/)
 - [Install Nerve](/start/install/)
 - [Connect a model provider](/start/providers/)
 - [Understand the security boundary](/operations/security/)

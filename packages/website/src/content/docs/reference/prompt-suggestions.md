@@ -5,7 +5,7 @@ sidebar:
   order: 5
 ---
 
-User files live in `$NERVE_HOME/suggestions/*.md`; project files live in `<project>/.nerve/suggestions/*.md`. Internal enablement/trust state is created lazily on first use, so a fresh Nerve home does not contain an empty prompt-suggestion state directory.
+User files live in `<NERVE_HOME>/agent/suggestions/*.md` (normally `~/.nerve/agent/suggestions/*.md`); project files live in `<project>/.nerve/suggestions/*.md`. Internal enablement/trust state is created lazily on first use, so a fresh Nerve home does not contain an empty prompt-suggestion state directory.
 
 ```md
 ---
@@ -26,13 +26,15 @@ Review the current git diff. Call out correctness risks and missing tests.
 
 ## Fields
 
-- `name`: optional filename-derived lowercase letters/digits/single hyphens.
-- `label`: optional chip label; defaults from name.
-- `description`: optional Settings description.
-- `order`: lower appears first.
-- `enabled`: file default; Settings preference overrides without editing.
+- `name`: optional filename-derived lowercase letters, digits, and single hyphens; maximum 64 characters.
+- `label`: optional chip label; defaults from name and is limited to 80 characters.
+- `description`: optional Settings description, limited to 1,024 characters.
+- `order`: lower appears first; defaults to `100`.
+- `enabled`: file default, enabled unless explicitly `false`; Settings preference overrides without editing.
 - `when`: declarative `gitDirty`, `hasRepos`, `githubAuthenticated`, `modes`, and `permissionLevels` conditions.
-- `enable-js` or `enable.js`: optional synchronous JavaScript predicate.
+- `enable-js`: optional synchronous JavaScript predicate. The nested form `enable: { js: ... }` is also accepted for compatible definitions.
+
+The trimmed prompt body is required and is limited to 100,000 characters. Invalid files are omitted and reported as diagnostics rather than partially loaded.
 
 The Markdown body is the prompt inserted or sent by the chip.
 

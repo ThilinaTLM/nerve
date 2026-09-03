@@ -9,7 +9,9 @@ Nerve Protocol v1 connects the Workbench UI to `workbench_server` over authentic
 
 ## Roles and catalogs
 
-Roles are `workbench_server`, `ui`, `desktop_shell`, and `cli`. Strict envelopes name source/target. The operation catalog declares method schemas, roles, capabilities, idempotency, and transport exposure. The public event catalog declares payload, source roles, delivery class, and routing.
+The schema reserves `workbench_server`, `ui`, `desktop_shell`, and `cli` roles so every strict envelope can name its source and target. The implemented product link today is the Workbench UI (`ui`) to `workbench_server`; the desktop shell manages daemon lifecycle outside that session, and there is no active CLI Protocol v1 client.
+
+The operation catalog declares method schemas, roles, capabilities, idempotency, and transport exposure. The public event catalog declares payload, source roles, delivery class, and routing.
 
 ## Session and streams
 
@@ -22,6 +24,13 @@ Protocol v1 has no event-progress ACK message or flow-control window. Subscripti
 :::
 
 HTTP and WebSocket share typed handlers where operations expose both transports. Large files/logs, OAuth callbacks, binary transfer, and selected configuration remain HTTP or out-of-band.
+
+## Follow one client flow
+
+1. Start with the [message envelope](/developers/protocol/v1/message-envelope/) and [session lifecycle](/developers/protocol/v1/session-lifecycle/) to negotiate `hello → welcome → ready`.
+2. Use the [HTTP mapping](/developers/protocol/v1/http-mapping/) for a typed request, or send the same catalog operation through WebSocket RPC when exposed there.
+3. Install the complete desired stream set using [subscriptions and recovery](/developers/protocol/v1/subscription-and-recovery/); process [event batches](/developers/protocol/v1/event-stream/) before advancing each cursor.
+4. On a gap or retention miss, apply the repository snapshot and resubscribe instead of inventing a second recovery path. The [examples](/developers/protocol/v1/examples/) show the messages together.
 
 ## Versioned reference
 

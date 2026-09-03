@@ -21,6 +21,8 @@ Effective skill discovery is first-name-wins in this order:
 4. global `~/.agents/skills`;
 5. enabled Agent Browser skill guidance, only when no file skill already won that name.
 
+Within each skills root, Nerve recursively discovers `SKILL.md`, accepts direct root `.md` files, and honors `.gitignore`, `.ignore`, and `.fdignore`. Skills require a description; directory-based names must match their parent directory and use lowercase letters, digits, and single hyphens. Invalid files are omitted with diagnostics. `disable-model-invocation: true` keeps a skill out of model-visible discovery while preserving explicit application use.
+
 Settings toggles remove disabled names without deleting source files. Changes apply to subsequent agent runs.
 
 Project definitions therefore take precedence over global definitions with the same name. Inspect the Settings Skills view to see discovered scope and effective state.

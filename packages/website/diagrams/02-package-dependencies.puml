@@ -13,6 +13,7 @@ package "Shared desktop foundations" as foundations {
   component "@nervekit/protocol\nProtocol v1 codec, sessions, RPC,\nreplay, cursors, and bounded delivery" as protocol
   component "@nervekit/harness\nModel conversation, harness,\nand agent loop runtime" as harness
   component "@nervekit/tools\nCanonical coding tool catalog,\nexecutors, and policy contracts" as tools
+  component "@nervekit/native\nNormalized Rust N-API Git, process,\nplatform, and runtime primitives" as native
   component "@nervekit/ui-kit\nContract-free shadcn-svelte primitives,\ntheme, utilities, and renderers" as ui_kit
 }
 
@@ -30,6 +31,7 @@ workbench_server -[#3567a8]-> contracts
 workbench_server -[#3567a8]-> protocol
 workbench_server -[#3567a8]-> harness
 workbench_server -[#3567a8]-> tools
+workbench_server -[#3567a8]-> native
 workbench_app -[#3567a8]-> contracts
 workbench_app -[#3567a8]-> protocol
 workbench_app -[#3567a8]-> ui_kit

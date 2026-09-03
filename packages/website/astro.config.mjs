@@ -84,19 +84,24 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "start" } }],
         },
         {
-          label: "Use Nerve",
+          label: "Workflows",
           items: [{ autogenerate: { directory: "guides" } }],
         },
         {
-          label: "Models",
-          items: [{ autogenerate: { directory: "models" } }],
+          label: "Models & integrations",
+          items: [
+            {
+              label: "Models",
+              items: [{ autogenerate: { directory: "models" } }],
+            },
+            {
+              label: "Integrations",
+              items: [{ autogenerate: { directory: "integrations" } }],
+            },
+          ],
         },
         {
-          label: "Integrations",
-          items: [{ autogenerate: { directory: "integrations" } }],
-        },
-        {
-          label: "Advanced operation",
+          label: "Operate safely",
           items: [{ autogenerate: { directory: "operations" } }],
         },
         {

@@ -11,11 +11,12 @@ sidebar:
 - `packages/protocol` — protocol codec, HTTP mapping, RPC, client/server sessions, subscriptions, replay, snapshots, reconnect, and queues. Depends on contracts.
 - `packages/harness` — model resolution, conversation facade, agent loop, streaming/tool primitives, resources, and generic compaction. Depends on contracts.
 - `packages/tools` — canonical tool definitions, local executors, output bounds, artifacts, and Git/GitHub utility service. Depends on contracts.
+- `packages/native` — normalized TypeScript façades over the Rust N-API Git, managed-process, platform, and runtime primitives. Its raw bindings and prebuild paths remain private.
 - `packages/ui-kit` — contract-free shadcn-svelte primitives, theme, generic Markdown/code/terminal rendering, and utilities.
 
 ## Product hosts
 
-- `packages/workbench-server` — HTTP/WebSocket daemon, persistence, auth, use cases, runtime composition, process drivers, and static web host. It composes contracts, protocol, harness, and tools.
+- `packages/workbench-server` — HTTP/WebSocket daemon, persistence, auth, use cases, runtime composition, process drivers, and static web host. It composes contracts, protocol, harness, tools, and native runtime primitives.
 - `packages/workbench-app` — Svelte workbench presentation plus feature adapters/state/effects. It depends on contracts, protocol, and UI kit.
 - `packages/desktop-shell` — published npm/Electron launcher, desktop bridge, migration gate, and daemon ownership. It depends on contracts and server packaging.
 - `packages/website` — static public marketing/documentation site. It intentionally imports no product runtime package.
@@ -24,7 +25,7 @@ sidebar:
 
 ## Ownership principle
 
-Put shared schemas and mutable catalogs in contracts, transport mechanics in protocol, generic agent behavior in harness, executor behavior in tools, host policy/persistence in server, and user interaction in app. Avoid compatibility shims that duplicate an owning layer.
+Put shared schemas and mutable catalogs in contracts, transport mechanics in protocol, generic agent behavior in harness, executor behavior in tools, normalized OS primitives in native, host policy/persistence in server, and user interaction in app. Avoid compatibility shims that duplicate an owning layer.
 
 ## Next steps
 

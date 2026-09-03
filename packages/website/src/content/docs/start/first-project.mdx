@@ -5,16 +5,22 @@ sidebar:
   order: 4
 ---
 
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import conversationDark from "../../../assets/screenshots/desktop/conversation-dark.webp";
+import conversationLight from "../../../assets/screenshots/desktop/conversation-light.webp";
+
 A Nerve project points to a local directory. The project record and conversation history live in `NERVE_HOME`; the code remains in the directory you select.
 
 ## Select a directory
 
-1. Open the project picker.
-2. Browse from your home directory, choose a recent location, or type a path.
-3. Select the repository or workspace root.
-4. Create a conversation.
+1. Open the project switcher from the title bar.
+2. Choose a recent project, or select **Browse for a project** to open the full directory picker.
+3. In the picker, choose **Recent** or **Browse**. You can browse from your home directory or enter a path directly.
+4. Select the repository or workspace root, then create a conversation.
 
-The picker highlights common project signals such as Git, package workspaces, Python, Rust, and Go. Hidden directories are omitted from normal browsing. Nerve resolves absolute and symbolic paths where possible and reuses an existing project record for the same canonical directory.
+The switcher filters known projects by name and directory path and supports arrow-key navigation. Its activity indicators highlight projects with conversations waiting for you, active or failed runs, or running background tasks. The full picker highlights common project signals such as Git, package workspaces, Python, Rust, and Go; hidden directories are omitted from normal browsing.
+
+Nerve resolves absolute and symbolic paths where possible and reuses an existing project record for the same canonical directory. Switching changes the selected Workbench scope; it does not discard the other project's persisted conversations or tasks.
 
 Selecting a directory gives enabled agent tools direct access to that workspace according to the current permission level. Nerve does not require the directory to contain Git, but a clean Git working tree makes review and recovery easier.
 
@@ -42,6 +48,15 @@ You will see text and any thinking returned by the provider, plus cards for file
 :::tip
 Below 1024px, dock views become left and right sheets. The phone-density layout begins below 640px, but the same project and conversation data remains available.
 :::
+
+<DocsScreenshot
+  light={conversationLight}
+  dark={conversationDark}
+  alt="Nerve desktop workbench showing a coding conversation, transcript, composer, and project panels"
+  caption="The selected project scopes the conversation navigator, task list, Git state, context, and notes while the center workspace keeps the active conversation visible."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
 
 ## Use the built-in guide
 

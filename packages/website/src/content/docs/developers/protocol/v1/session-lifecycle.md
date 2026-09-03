@@ -1,5 +1,6 @@
 ---
 title: Session lifecycle
+description: Follow Protocol v1 negotiation, readiness, heartbeats, reconnects, and shutdown.
 sidebar:
   order: 4
 ---

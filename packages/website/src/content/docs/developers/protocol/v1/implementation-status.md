@@ -1,5 +1,6 @@
 ---
 title: Implementation status
+description: See which Protocol v1 capabilities and host integrations are implemented today.
 sidebar:
   order: 13
 ---

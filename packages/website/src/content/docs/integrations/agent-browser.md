@@ -5,7 +5,7 @@ sidebar:
   order: 5
 ---
 
-Nerve can discover skills by invoking the installed `agent-browser` CLI and reading its skill catalog. Enable selected entries in Settings to append their `SKILL.md` guidance to subsequent agent runs.
+Nerve can discover skills by invoking the `agent-browser` CLI installed on the workbench daemon host and reading its skill catalog. Enable selected entries in Settings to append their `SKILL.md` guidance to subsequent agent runs.
 
 Agent Browser entries follow normal skill toggling and cannot override same-named file skills that already won resource precedence.
 
@@ -19,3 +19,4 @@ Review imported skill instructions before enabling them, especially when they as
 
 - [Skills and resources](/guides/skills-and-resources/)
 - [Resource precedence](/reference/resources/)
+- [Remote daemon behavior](/operations/remote-daemon/)

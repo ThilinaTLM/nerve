@@ -1,5 +1,6 @@
 ---
 title: Event streams
+description: Understand sequenced stream batches, ephemeral notifications, routing, and cursor ownership.
 sidebar:
   order: 5
 ---
@@ -52,6 +53,6 @@ All `conversation.live.*` updates are notifications. They project in-progress tu
 
 ## Persistence and retention
 
-Workbench logs are per stream and maintain dense local high-water metadata. Supersedable deltas use a 25 ms/64-event group-commit window; lifecycle events force an immediate flush and fsync. On restart, the next sequence is `max(meta.lastSeq, logTailSeq) + 1`.
+Workbench logs are per stream and maintain dense local high-water metadata. The current host defaults group supersedable deltas for up to 25 ms or 64 events; lifecycle events force an immediate flush and fsync. On restart, the next sequence is `max(meta.lastSeq, logTailSeq) + 1`.
 
-Retention uses append-only group commits until a journal reaches a high-water mark (normally 6,250 events or 10 MiB), then atomically compacts it back to the latest 5,000 events and at most 8 MiB. Truncation never renumbers retained events. A cursor below `earliestAvailableSeq - 1` therefore requires a repository-derived snapshot followed by a new subscription.
+These are host storage defaults, not wire guarantees. The owning [`StreamLog` implementation](https://github.com/ThilinaTLM/nerve/blob/main/packages/workbench-server/src/infrastructure/events/stream-log.ts) appends group commits until a journal reaches its current high-water mark (normally 6,250 events or 10 MiB), then atomically compacts it back to the latest 5,000 events and at most 8 MiB. Truncation never renumbers retained events. A cursor below `earliestAvailableSeq - 1` therefore requires a repository-derived snapshot followed by a new subscription.
