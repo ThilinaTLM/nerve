@@ -365,8 +365,8 @@ export class HumanInputResolutionService {
     );
   }
 
-  recoverReadyApprovalBatches(): Promise<void> {
-    return this.approvalBatches.recoverReadyBatches();
+  recoverReadyApprovalBatches(conversationId?: string): Promise<void> {
+    return this.approvalBatches.recoverReadyBatches(conversationId);
   }
 
   async recoverAcceptedPlanReviews(): Promise<void> {

@@ -54,8 +54,10 @@ test("startup recovery loads evicted terminal approval tool calls asynchronously
 
   const canonicalLoads: string[] = [];
   let resolutions = 0;
+  let finalizations = 0;
   const tools = {
-    listApprovals: () => [approval],
+    listApprovals: (status?: ApprovalRecord["status"]) =>
+      status === "pending" ? [] : [approval],
     getToolCall: () => {
       throw new Error("Tool call is not active; load it asynchronously.");
     },
@@ -63,9 +65,15 @@ test("startup recovery loads evicted terminal approval tool calls asynchronously
       canonicalLoads.push(toolCallId);
       return toolCallId === decided.id ? decided : policyTerminal;
     },
-    finalizeDecidedApproval: async () => decided,
+    getApprovalForToolCallDetails: async (toolCallId: string) =>
+      toolCallId === decided.id ? approval : undefined,
+    finalizeDecidedApproval: async () => {
+      finalizations += 1;
+      return decided;
+    },
   } as unknown as ToolService;
   const runs = {
+    listPendingApprovalInteractions: async () => batch.interactions,
     approvalBatchForToolCall: async () => batch,
     assertApprovalBatchContextUnchanged: async () => undefined,
     resolveInteractionBatchForToolCalls: async () => {
@@ -82,6 +90,7 @@ test("startup recovery loads evicted terminal approval tool calls asynchronously
   await service.recoverReadyBatches();
 
   assert.equal(resolutions, 1);
+  assert.equal(finalizations, 0, "terminal tools must not execute again");
   assert.ok(canonicalLoads.includes(decided.id));
   assert.ok(canonicalLoads.includes(policyTerminal.id));
 });

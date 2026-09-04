@@ -52,6 +52,22 @@ export class WorkbenchRunService {
     private readonly features: WorkbenchRunFeatureMechanics,
   ) {}
 
+  async listPendingApprovalInteractions(
+    conversationId?: string,
+  ): Promise<RunInteractionRecord[]> {
+    const states = await this.unitOfWork.listActive();
+    return states.flatMap((state) =>
+      state.run.status === "waiting" &&
+      (!conversationId || state.run.conversationId === conversationId)
+        ? state.interactions.filter(
+            (interaction) =>
+              interaction.kind === "approval" &&
+              interaction.status === "pending",
+          )
+        : [],
+    );
+  }
+
   async listQueuedPrompts(agentId: string) {
     const agent = this.requireAgent(agentId);
     const state = await this.unitOfWork.findActive(this.scopeId(agent));
