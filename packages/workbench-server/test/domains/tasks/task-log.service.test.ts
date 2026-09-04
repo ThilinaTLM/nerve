@@ -145,6 +145,71 @@ describe("task log service line buffering", () => {
     assert.equal(older.hasMoreBefore, true);
   });
 
+  it("persists a Cargo-sized output burst in order", async () => {
+    const { record, service, cursor, onLog, emitted } = await createFixture({
+      publishOutputEvents: false,
+    });
+    const lines = Array.from(
+      { length: 750 },
+      (_, index) => `      Adding crate-${index} v1.0.0`,
+    );
+    const raw = Buffer.from(`${lines.join("\n")}\n`, "utf8");
+
+    await service.captureOutput(record, cursor, "stderr", raw, onLog);
+
+    const events = await service.readLogEvents(record.logsPath);
+    assert.equal(events.length, lines.length);
+    assert.deepEqual(
+      events.map((event) => event.seq),
+      lines.map((_, index) => index + 1),
+    );
+    assert.deepEqual(
+      events.map((event) => event.line),
+      lines,
+    );
+    assert.deepEqual(emitted, events);
+    assert.deepEqual(events[0]?.raw, {
+      start: 0,
+      end: Buffer.byteLength(`${lines[0]}\n`),
+      terminatorBytes: 1,
+      fidelity: "captured",
+    });
+    assert.equal(events.at(-1)?.raw?.end, raw.byteLength);
+    assert.deepEqual(await readFile(record.stderrPath), raw);
+  });
+
+  it("completes buffered lines across chunks without reordering", async () => {
+    const { record, service, cursor, onLog, emitted } = await createFixture();
+
+    await service.captureOutput(
+      record,
+      cursor,
+      "stdout",
+      "one\ntwo-par",
+      onLog,
+    );
+    await service.captureOutput(
+      record,
+      cursor,
+      "stdout",
+      "tial\nthree\n",
+      onLog,
+    );
+
+    assert.deepEqual(
+      emitted.map((event) => [event.seq, event.line]),
+      [
+        [1, "one"],
+        [2, "two-partial"],
+        [3, "three"],
+      ],
+    );
+    assert.equal(
+      await readFile(record.stdoutPath, "utf8"),
+      "one\ntwo-partial\nthree\n",
+    );
+  });
+
   it("indexes exact raw UTF-8 byte ranges after durable stream capture", async () => {
     const { record, service, cursor, onLog } = await createFixture();
     const raw = Buffer.from("α\r\nβ🙂\n", "utf8");
@@ -188,7 +253,9 @@ describe("task log service line buffering", () => {
   });
 });
 
-async function createFixture(): Promise<{
+async function createFixture(
+  options: { publishOutputEvents?: boolean } = {},
+): Promise<{
   record: TaskRecord;
   service: TaskLogService;
   cursor: ReturnType<typeof createTaskLogCursor>;
@@ -218,6 +285,7 @@ async function createFixture(): Promise<{
   const metrics = new PerformanceMetricsCollector();
   const service = new TaskLogService(new StreamLogRegistry(root), {
     diagnostics: metrics,
+    ...options,
   });
   return {
     record,

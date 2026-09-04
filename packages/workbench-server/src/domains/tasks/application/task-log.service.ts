@@ -12,7 +12,7 @@ import { dirname } from "node:path";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics.js";
 import {
-  appendJsonLine,
+  appendJsonLines,
   readJsonLines,
 } from "../../../infrastructure/storage-bootstrap/index.js";
 
@@ -277,6 +277,7 @@ export class TaskLogService {
     const combined = Buffer.concat([previous, chunk]);
     const combinedStart = cursor.streamBytes[stream] - previous.byteLength;
     cursor.streamBytes[stream] += chunk.byteLength;
+    const events: TaskLogEvent[] = [];
     let position = 0;
     for (;;) {
       const newline = combined.indexOf(0x0a, position);
@@ -284,8 +285,7 @@ export class TaskLogService {
       const hasCr = newline > position && combined[newline - 1] === 0x0d;
       const contentEnd = hasCr ? newline - 1 : newline;
       const end = newline + 1;
-      await this.emitLogLine(
-        record,
+      const event = this.createLogLine(
         cursor,
         stream,
         combined.subarray(position, contentEnd).toString("utf8"),
@@ -295,8 +295,8 @@ export class TaskLogService {
           terminatorBytes: hasCr ? 2 : 1,
           fidelity: "captured",
         },
-        onLog,
       );
+      if (event) events.push(event);
       position = end;
     }
     cursor.rawBuffers[stream] = Buffer.from(combined.subarray(position));
@@ -306,20 +306,15 @@ export class TaskLogService {
       const start = cursor.streamBytes[stream] - raw.byteLength;
       cursor.rawBuffers[stream] = Buffer.alloc(0);
       cursor.lineBuffers[stream] = "";
-      await this.emitLogLine(
-        record,
-        cursor,
-        stream,
-        raw.toString("utf8"),
-        {
-          start,
-          end: cursor.streamBytes[stream],
-          terminatorBytes: 0,
-          fidelity: "captured",
-        },
-        onLog,
-      );
+      const event = this.createLogLine(cursor, stream, raw.toString("utf8"), {
+        start,
+        end: cursor.streamBytes[stream],
+        terminatorBytes: 0,
+        fidelity: "captured",
+      });
+      if (event) events.push(event);
     }
+    await this.persistLogLines(record, events, onLog);
   }
 
   private async flushOutputNow(
@@ -332,19 +327,13 @@ export class TaskLogService {
     cursor.rawBuffers[stream] = Buffer.alloc(0);
     cursor.lineBuffers[stream] = "";
     if (raw.byteLength === 0) return;
-    await this.emitLogLine(
-      record,
-      cursor,
-      stream,
-      raw.toString("utf8"),
-      {
-        start: cursor.streamBytes[stream] - raw.byteLength,
-        end: cursor.streamBytes[stream],
-        terminatorBytes: 0,
-        fidelity: "captured",
-      },
-      onLog,
-    );
+    const event = this.createLogLine(cursor, stream, raw.toString("utf8"), {
+      start: cursor.streamBytes[stream] - raw.byteLength,
+      end: cursor.streamBytes[stream],
+      terminatorBytes: 0,
+      fidelity: "captured",
+    });
+    await this.persistLogLines(record, event ? [event] : [], onLog);
   }
 
   private async persistTail(
@@ -355,19 +344,17 @@ export class TaskLogService {
     cursor.tailDirtyBytes = 0;
   }
 
-  private async emitLogLine(
-    record: TaskRecord,
+  private createLogLine(
     cursor: TaskLogCursor,
     stream: TaskLogStream,
     line: string,
     raw: NonNullable<TaskLogEvent["raw"]>,
-    onLog: (event: TaskLogEvent) => Promise<void>,
-  ): Promise<void> {
+  ): TaskLogEvent | undefined {
     const cleaned = line.trimEnd();
-    if (cleaned.length === 0) return;
+    if (cleaned.length === 0) return undefined;
 
     cursor.logSeq += 1;
-    const event: TaskLogEvent = {
+    return {
       seq: cursor.logSeq,
       ts: new Date().toISOString(),
       stream,
@@ -375,17 +362,27 @@ export class TaskLogService {
       line: cleaned,
       raw,
     };
-    await appendJsonLine(record.logsPath, event, 0o600);
-    this.options.diagnostics?.count("task.outputLine");
-    if (this.options.publishOutputEvents !== false) {
-      await this.events.publish("task.output", {
-        taskId: record.id,
-        stream,
-        text: cleaned.slice(-16_384),
-      });
-      this.options.diagnostics?.count("task.outputPublication");
+  }
+
+  private async persistLogLines(
+    record: TaskRecord,
+    events: readonly TaskLogEvent[],
+    onLog: (event: TaskLogEvent) => Promise<void>,
+  ): Promise<void> {
+    if (events.length === 0) return;
+    await appendJsonLines(record.logsPath, events, 0o600);
+    for (const event of events) {
+      this.options.diagnostics?.count("task.outputLine");
+      if (this.options.publishOutputEvents !== false) {
+        await this.events.publish("task.output", {
+          taskId: record.id,
+          stream: event.stream,
+          text: event.line.slice(-16_384),
+        });
+        this.options.diagnostics?.count("task.outputPublication");
+      }
+      await onLog(event);
     }
-    await onLog(event);
   }
 }
 
