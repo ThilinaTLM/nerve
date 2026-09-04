@@ -248,7 +248,11 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
   ) as { entries: Array<{ id: string }> };
   assert.deepEqual(
     homeMigrations.entries.map((entry) => entry.id),
-    ["nerve-home-v1", "legacy-v2-to-nerve-home-v1"],
+    [
+      "nerve-home-v1",
+      "tool-result-payload-reference-v2",
+      "legacy-v2-to-nerve-home-v1",
+    ],
   );
   assert.equal(storage.settings.defaultThinkingLevel, "high");
   assert.equal(

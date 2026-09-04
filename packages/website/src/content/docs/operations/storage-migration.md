@@ -15,6 +15,12 @@ Settings reports readable files across the complete Nerve home, including canoni
 
 Conversation pruning skips running or awaiting agents and conversations with active tasks before removing associated inactive records and managed files.
 
+## Current-home data migrations
+
+Startup applies recorded, idempotent data migrations to recognized `nerve-home` v1 homes before runtime hydration. The tool-result payload reference migration converts the former `payloads/conversations/conv_…/tool-calls/tool_…` descriptor and file layout to the compact `conversations/…/tool-calls/…` v2 format. It verifies and rechains affected conversation journals, updates durable event copies and canonical projections, discards affected entries from the bounded RPC replay cache, and records completion in `migrations/ledger.json`. Normal runtime contracts continue to accept only the current v2 descriptor.
+
+These migrations apply only to an otherwise valid current home with the exact canonical schema ledger. Database journals and filesystem conflicts are preflighted before legacy payload files are changed. Unknown schemas and malformed or checksum-corrupt journals still fail closed.
+
 ## Legacy v2 migration
 
 Ordinary startup never guesses or repairs an unknown home. The sole import path is an explicit offline migration from the immediately preceding marker:
@@ -26,7 +32,7 @@ Ordinary startup never guesses or repairs an unknown home. The sole import path 
 }
 ```
 
-Local desktop mode detects this format and asks for confirmation. The only supported source is the released Nerve 0.26 layout with its checksummed migration ledger ending at `0012-remove-workers`. It migrates directly to the `nerve-home` v1 and canonical SQLite schema-v1 baselines—do **not** install or run `0013-canonical-storage` first. Homes produced by unreleased intermediate development builds are not supported. Remote desktop mode does not inspect local `NERVE_HOME`. Unknown, malformed, partial, checksum-modified, intermediate, and newer layouts remain untouched.
+Local desktop mode detects this format and asks for confirmation. The only supported import source is the released Nerve 0.26 layout with its checksummed migration ledger ending at `0012-remove-workers`. It migrates directly to the `nerve-home` v1 and canonical SQLite schema-v1 baselines—do **not** install or run `0013-canonical-storage` first. Apart from explicitly recorded current-home data migrations, homes produced by unreleased intermediate development builds are not supported. Remote desktop mode does not inspect local `NERVE_HOME`. Unknown, malformed, partial, checksum-modified, intermediate, and newer layouts remain untouched.
 
 Before migration, quit every Nerve process that uses the source home. Migration then:
 

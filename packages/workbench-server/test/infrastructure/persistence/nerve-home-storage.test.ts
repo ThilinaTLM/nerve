@@ -58,7 +58,7 @@ test("initializes the required v1 home and keeps optional directories lazy", asy
     {
       format: "nerve-home-migrations",
       version: 1,
-      entries: ["nerve-home-v1"],
+      entries: ["nerve-home-v1", "tool-result-payload-reference-v2"],
     },
   );
   for (const path of [
