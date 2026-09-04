@@ -13,13 +13,14 @@
     "build": "pnpm -r build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs && node scripts/check-built-package-exports.mjs",
     "build:native": "pnpm --filter @nervekit/native build:native",
     "build:workbench-runtime": "pnpm --filter @nervekit/workbench-app... --filter @nervekit/workbench-server... build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs",
-    "fix": "pnpm --filter @nervekit/native fix:native && oxfmt && eslint . --fix && oxfmt",
+    "fix": "cargo fmt --all && oxfmt && eslint . --fix && oxfmt",
     "check": "oxfmt --check && eslint . && node scripts/check-package-boundaries.mjs && pnpm -r check",
     "test:affected": "pnpm build:native && node --test \"scripts/**/*.test.mjs\" && pnpm --workspace-concurrency=1 --filter \"...[origin/main]\" --if-present test",
     "test:full": "pnpm build:native && node --test \"scripts/**/*.test.mjs\" && pnpm --workspace-concurrency=1 -r --if-present test",
     "dev": "pnpm build:native && pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/tools build && pnpm --parallel --stream --filter @nervekit/workbench-server --filter @nervekit/workbench-app dev",
     "dev:ui": "pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/tools build && pnpm --filter @nervekit/workbench-app dev",
-    "desktop": "pnpm --filter @nervekit/desktop-shell dev --"
+    "desktop": "pnpm --filter @nervekit/desktop-shell dev --",
+    "gpui": "pnpm --filter @nervekit/gpui-workbench dev"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

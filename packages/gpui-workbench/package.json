@@ -1,0 +1,22 @@
+{
+  "name": "@nervekit/gpui-workbench",
+  "version": "0.27.0",
+  "private": true,
+  "description": "Experimental disconnected GPUI workbench shell for Nerve.",
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/gpui-workbench"
+  },
+  "homepage": "https://github.com/ThilinaTLM/nerve#readme",
+  "scripts": {
+    "dev": "cargo run --manifest-path Cargo.toml",
+    "check": "cargo fmt --check --manifest-path Cargo.toml && cargo clippy --manifest-path Cargo.toml --all-targets -- -D warnings",
+    "test": "cargo test --manifest-path Cargo.toml"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
