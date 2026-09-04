@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { appendFile, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import {
+  appendJsonLines,
   forEachJsonLineReverse,
+  readJsonLines,
   readJsonLinesTail,
   readTextFileConsistent,
   withFileMutation,
@@ -23,6 +25,35 @@ async function tempPath(): Promise<string> {
   roots.push(root);
   return join(root, "records.jsonl");
 }
+
+describe("appendJsonLines", () => {
+  it("appends each batch contiguously in mutation order", async () => {
+    const path = await tempPath();
+
+    const first = appendJsonLines(path, [{ value: 1 }, { value: 2 }]);
+    const second = appendJsonLines(path, [{ value: 3 }, { value: 4 }]);
+    await Promise.all([first, second]);
+
+    assert.deepEqual(await readJsonLines(path), [
+      { value: 1 },
+      { value: 2 },
+      { value: 3 },
+      { value: 4 },
+    ]);
+    assert.equal(
+      await readFile(path, "utf8"),
+      '{"value":1}\n{"value":2}\n{"value":3}\n{"value":4}\n',
+    );
+  });
+
+  it("does not create a file for an empty batch", async () => {
+    const path = await tempPath();
+
+    await appendJsonLines(path, []);
+
+    await assert.rejects(readFile(path), { code: "ENOENT" });
+  });
+});
 
 describe("readTextFileConsistent", () => {
   it("waits for an in-process append before reading", async () => {

@@ -263,8 +263,17 @@ export function appendJsonLine(
   value: unknown,
   mode?: number,
 ): Promise<void> {
+  return appendJsonLines(path, [value], mode);
+}
+
+export function appendJsonLines(
+  path: string,
+  values: readonly unknown[],
+  mode?: number,
+): Promise<void> {
+  if (values.length === 0) return Promise.resolve();
   return withFileMutation(path, (resolvedPath) =>
-    appendJsonLineDirect(resolvedPath, value, mode),
+    appendJsonLinesDirect(resolvedPath, values, mode),
   );
 }
 
@@ -277,15 +286,16 @@ export function rewriteJsonLines(
   return atomicWriteFile(path, text ? `${text}\n` : "", { mode });
 }
 
-async function appendJsonLineDirect(
+async function appendJsonLinesDirect(
   path: string,
-  value: unknown,
+  values: readonly unknown[],
   mode?: number,
 ): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
+  const contents = values.map((value) => `${JSON.stringify(value)}\n`).join("");
   const handle = await open(path, "a", mode);
   try {
-    await handle.write(`${JSON.stringify(value)}\n`, undefined, "utf8");
+    await handle.write(contents, undefined, "utf8");
     await handle.sync();
   } finally {
     await handle.close();
