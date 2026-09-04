@@ -1132,6 +1132,18 @@ export class ToolService {
     return await this.toolCallRepository.getCanonical(toolCallId);
   }
 
+  async getApprovalForToolCallDetails(
+    toolCallId: string,
+  ): Promise<ApprovalRecord | undefined> {
+    const toolCall = await this.getToolCallDetails(toolCallId);
+    const interaction = toolCall.interactions.find(
+      (candidate) => candidate.kind === "approval",
+    );
+    return interaction
+      ? this.projectApproval(toolCall, interaction.ordinal)
+      : undefined;
+  }
+
   async getToolCallUiDetails(toolCallId: string): Promise<ToolCallDetails> {
     return await this.toolCallRepository.getDetails(toolCallId);
   }
