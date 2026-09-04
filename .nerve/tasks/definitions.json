@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "definitions": [
+    {
+      "id": "taskdef_01M0YEMZ4YGKSATM6NTK9D7YKM",
+      "scope": {
+        "kind": "project"
+      },
+      "label": "workbench-ui",
+      "command": "NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui",
+      "port": 5173,
+      "runPolicy": "single",
+      "createdAt": "2026-08-26T07:13:15.422Z",
+      "updatedAt": "2026-08-26T07:13:15.422Z"
+    },
+    {
+      "id": "taskdef_01M1MC6697719MP50THZ3EPDXP",
+      "scope": {
+        "kind": "project"
+      },
+      "label": "website-docs",
+      "command": "pnpm --filter @nervekit/website preview --port 4322",
+      "port": 4322,
+      "runPolicy": "single",
+      "createdAt": "2026-09-03T19:33:31.559Z",
+      "updatedAt": "2026-09-03T19:33:38.288Z"
+    }
+  ]
+}

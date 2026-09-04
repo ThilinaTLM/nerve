@@ -17,7 +17,6 @@ release/
 # Editor & Agents
 .vscode
 .zed
-.nerve
 .pi
 
 # Terraform
