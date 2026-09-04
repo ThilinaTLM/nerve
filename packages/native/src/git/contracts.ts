@@ -38,6 +38,7 @@ export interface NativeGitReference {
   target?: string;
   symbolicTarget?: string;
   upstream?: string;
+  commitTimestampSeconds?: number;
 }
 
 export interface NativeGitRemote {

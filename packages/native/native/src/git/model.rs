@@ -49,6 +49,7 @@ pub struct Reference {
     pub target: Option<String>,
     pub symbolic_target: Option<String>,
     pub upstream: Option<String>,
+    pub commit_timestamp_seconds: Option<i64>,
 }
 
 #[derive(Clone, Debug)]

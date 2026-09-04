@@ -4,6 +4,7 @@ import { GitService } from "@nervekit/tools/git";
 const mutationReasons = {
   createBranch: "branch.created",
   switchBranch: "branch.switched",
+  deleteBranch: "branch.deleted",
   stageFile: "file.staged",
   unstageFile: "file.unstaged",
   discardFile: "file.discarded",

@@ -1,29 +1,38 @@
 <script lang="ts">
-import Check from "@lucide/svelte/icons/check";
+import Cloud from "@lucide/svelte/icons/cloud";
 import GitBranch from "@lucide/svelte/icons/git-branch";
-import Info from "@lucide/svelte/icons/info";
 import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
+import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts/git";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
+import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import GitBranchRow from "./GitBranchRow.svelte";
+import type { GitBranchDialogGroups } from "./git-panel-controller";
 
 type Props = {
   open?: boolean;
   repoSummary: GitRepoSummary;
   selectedRepo: string;
-  filteredBranches: GitBranchSummary[];
-  baseBranchSummary?: GitBranchSummary;
+  branchGroups: GitBranchDialogGroups;
   loadingBranches: boolean;
+  loadingPrHeads: boolean;
   switchingBranch?: string;
+  deletingBranch?: string;
   creatingBranch: boolean;
   branchesEnabled: boolean;
   branchFilter?: string;
   newBranchName?: string;
   onSwitchBranch: (repo: string, branch: GitBranchSummary) => void;
+  onDeleteBranch: (
+    repo: string,
+    branch: GitBranchSummary,
+  ) => boolean | Promise<boolean>;
+  onOpenPullRequest: (repo: string, number: number) => void;
+  onRefreshBranches: () => void;
   onCreateBranch: (repo: string) => void;
 };
 
@@ -31,25 +40,34 @@ let {
   open = $bindable(false),
   repoSummary,
   selectedRepo,
-  filteredBranches,
-  baseBranchSummary,
+  branchGroups,
   loadingBranches,
+  loadingPrHeads,
   switchingBranch,
+  deletingBranch,
   creatingBranch,
   branchesEnabled,
   branchFilter = $bindable(""),
   newBranchName = $bindable(""),
   onSwitchBranch,
+  onDeleteBranch,
+  onOpenPullRequest,
+  onRefreshBranches,
   onCreateBranch,
 }: Props = $props();
 
 let view = $state<"switch" | "create">("switch");
+let showRemoteBranches = $state(false);
+let deleteCandidate = $state<GitBranchSummary>();
+let searchInput = $state<HTMLInputElement | null>(null);
 
 const currentBranchLabel = $derived(repoSummary.currentBranch ?? "detached");
-const baseBranch = $derived(repoSummary.baseBranch);
-const showBaseQuickSwitch = $derived(
-  !repoSummary.detached && Boolean(baseBranch),
+const visibleBranches = $derived(
+  showRemoteBranches
+    ? branchGroups.all
+    : branchGroups.all.filter(({ branch }) => !branch.remote),
 );
+const resultCount = $derived(visibleBranches.length);
 
 // A light client-side guard so the Create button stays disabled for obviously
 // invalid names; git check-ref-format performs the authoritative validation.
@@ -73,104 +91,110 @@ const dialogDescription = $derived(
     ? `Current branch: ${currentBranchLabel}`
     : `Create from: ${currentBranchLabel}`,
 );
+
+$effect(() => {
+  if (!open || view !== "switch") return;
+  queueMicrotask(() => searchInput?.focus());
+});
+
+async function confirmDelete(): Promise<void> {
+  const branch = deleteCandidate;
+  deleteCandidate = undefined;
+  if (branch) await onDeleteBranch(selectedRepo, branch);
+}
+
+function openPullRequest(number: number): void {
+  open = false;
+  onOpenPullRequest(selectedRepo, number);
+}
 </script>
 
 <Dialog
   bind:open
   title={dialogTitle}
   description={dialogDescription}
-  size="sm"
+  size="md"
   onOpenChange={(next) => {
-    if (!next) view = "switch";
+    if (!next) {
+      view = "switch";
+      deleteCandidate = undefined;
+    }
   }}
 >
   {#if view === "switch"}
-    <div class="grid gap-4">
-      {#if repoSummary.dirty}
-        <div
-          class="flex items-start gap-2 rounded-md border border-info/40 bg-info/10 px-3 py-2 text-xs text-muted-foreground"
+    <div class="grid gap-3">
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="icon-sm"
+          disabled={loadingBranches}
+          ariaLabel="Refresh branches"
+          title="Refresh branches"
+          onclick={onRefreshBranches}
         >
-          <Info class="mt-0.5 size-3.5 shrink-0 text-info" />
-          <p>
-            Local changes move with a compatible switch. Git will stop if the
-            target branch would overwrite them.
-          </p>
-        </div>
-      {/if}
-
-      {#if showBaseQuickSwitch}
-        <div
-          class="flex items-center gap-2 rounded-md border border-info/40 bg-info/10 px-3 py-2"
-        >
-          <GitBranch size={14} class="shrink-0 text-info" />
-          <div class="flex min-w-0 flex-1 flex-col">
-            <span class="text-xs font-medium text-foreground">Base branch</span>
-            <span class="truncate font-mono text-xs text-muted-foreground"
-              >{baseBranch}</span
-            >
-          </div>
-          {#if repoSummary.onBaseBranch}
-            <span class="text-xs text-muted-foreground">You're here</span>
-          {:else if baseBranchSummary}
-            <Button
-              size="xs"
-              disabled={!branchesEnabled ||
-                switchingBranch === baseBranchSummary.name}
-              onclick={() => onSwitchBranch(selectedRepo, baseBranchSummary)}
-            >
-              {#if switchingBranch === baseBranchSummary.name}
-                <Spinner class="size-3" />
-              {:else}
-                <GitBranch />
-              {/if}
-              Switch to base
-            </Button>
+          {#if loadingBranches}
+            <Spinner class="size-3.5" />
+          {:else}
+            <RefreshCw class="size-3.5" aria-hidden="true" />
           {/if}
-        </div>
-      {/if}
-
-      <SearchInput
-        bind:value={branchFilter}
-        placeholder="Filter branches"
-        ariaLabel="Filter branches"
-      />
-
-      <div class="max-h-72 overflow-y-auto rounded-md border">
-        {#if loadingBranches}
-          <div
-            class="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"
+        </Button>
+        <Button
+          variant={showRemoteBranches ? "default" : "outline"}
+          size="icon-sm"
+          pressed={showRemoteBranches}
+          ariaLabel={showRemoteBranches
+            ? "Hide remote branches"
+            : "Show remote branches"}
+          title={showRemoteBranches
+            ? "Hide remote branches"
+            : "Show remote branches"}
+          onclick={() => (showRemoteBranches = !showRemoteBranches)}
+        >
+          <Cloud class="size-3.5" aria-hidden="true" />
+        </Button>
+        <SearchInput
+          bind:ref={searchInput}
+          bind:value={branchFilter}
+          placeholder="Search branches or PRs"
+          ariaLabel="Search branches or pull requests"
+          size="sm"
+          class="min-w-48 flex-1"
+        />
+        {#if loadingPrHeads && !loadingBranches}
+          <span
+            class="flex size-8 items-center justify-center"
+            title="Loading pull request links"
           >
-            <Spinner class="size-3.5" /> Loading branches…
+            <Spinner class="size-3.5 text-muted-foreground" />
+          </span>
+        {/if}
+      </div>
+
+      <div class="max-h-[60vh] overflow-y-auto rounded-md border">
+        {#if loadingBranches && resultCount === 0}
+          <div
+            class="flex items-center justify-center gap-2 px-3 py-10 text-sm text-muted-foreground"
+          >
+            <Spinner class="size-4" /> Loading branches…
           </div>
-        {:else if filteredBranches.length === 0}
-          <div class="px-3 py-2 text-xs text-muted-foreground">
-            No branches found.
+        {:else if resultCount === 0}
+          <div class="px-3 py-10 text-center text-sm text-muted-foreground">
+            {branchFilter.trim()
+              ? `No branches match “${branchFilter.trim()}”.`
+              : "No branches found."}
           </div>
         {:else}
-          {#each filteredBranches as branch (branch.name)}
-            <button
-              type="button"
-              class="flex w-full items-center gap-2 border-b px-2.5 py-1.5 text-left text-xs last:border-b-0 hover:bg-muted/60 disabled:opacity-60"
-              disabled={branch.current || switchingBranch === branch.name}
-              onclick={() => onSwitchBranch(selectedRepo, branch)}
-            >
-              {#if switchingBranch === branch.name}
-                <Spinner class="text-muted-foreground size-3.5" />
-              {:else if branch.current}
-                <Check size={13} class="text-success" />
-              {:else}
-                <GitBranch size={13} class="text-muted-foreground" />
-              {/if}
-              <span class="min-w-0 flex-1 truncate font-mono text-foreground"
-                >{branch.name}</span
-              >
-              {#if branch.name === baseBranch}
-                <Badge tone="running" size="xs">base</Badge>
-              {/if}
-              {#if branch.remote}
-                <Badge tone="neutral" size="xs">remote</Badge>
-              {/if}
-            </button>
+          {#each visibleBranches as row (row.branch.name)}
+            <GitBranchRow
+              {row}
+              baseBranch={repoSummary.baseBranch}
+              enabled={branchesEnabled}
+              switching={switchingBranch === row.branch.name}
+              deleting={deletingBranch === row.branch.name}
+              onSwitch={(branch) => onSwitchBranch(selectedRepo, branch)}
+              onDelete={(branch) => (deleteCandidate = branch)}
+              onOpenPullRequest={openPullRequest}
+            />
           {/each}
         {/if}
       </div>
@@ -205,9 +229,10 @@ const dialogDescription = $derived(
 
   {#snippet footer()}
     {#if view === "switch"}
-      <Button size="sm" variant="ghost" onclick={() => (open = false)}
-        >Close</Button
-      >
+      <span class="mr-auto text-xs text-muted-foreground tabular-nums">
+        {resultCount}
+        {resultCount === 1 ? "result" : "results"}
+      </span>
       <Button
         size="sm"
         disabled={!branchesEnabled}
@@ -234,3 +259,17 @@ const dialogDescription = $derived(
     {/if}
   {/snippet}
 </Dialog>
+
+<ConfirmDialog
+  open={deleteCandidate !== undefined}
+  title="Delete local branch?"
+  description={deleteCandidate
+    ? `Delete “${deleteCandidate.name}”? Git will only delete it if it is fully merged.`
+    : undefined}
+  confirmLabel="Delete branch"
+  destructive
+  onOpenChange={(next) => {
+    if (!next) deleteCandidate = undefined;
+  }}
+  onConfirm={() => void confirmDelete()}
+/>

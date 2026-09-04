@@ -49,6 +49,10 @@ export async function listBranches(
         current: !remote && name === snapshot.branch.head,
         remote,
         upstream: ref.upstream ?? null,
+        updatedAt:
+          ref.commitTimestampSeconds === undefined
+            ? null
+            : new Date(ref.commitTimestampSeconds * 1_000).toISOString(),
       };
     })
     .filter((branch): branch is GitBranchSummary => branch !== null)

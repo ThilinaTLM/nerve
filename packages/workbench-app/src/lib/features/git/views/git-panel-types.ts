@@ -3,6 +3,7 @@ import type {
   GitDiffArea,
   GitFileChange,
   GithubPr,
+  GithubPrHeadsResponse,
   GithubStatusResponse,
   GitRepoSummary,
   GitStashArea,
@@ -76,6 +77,7 @@ export interface GitPanelOperationState {
   readonly syncing: boolean;
   readonly switchingBaseAndPulling: boolean;
   readonly switchingBranch?: string;
+  readonly deletingBranch?: string;
   readonly creatingBranch: boolean;
   readonly fileMutation?: FileMutation;
   readonly bulkMutation?: ScopedFileMutation;
@@ -96,6 +98,7 @@ export interface GitPanelModel {
   readonly stashes: readonly GitStashEntry[];
   readonly github?: GithubStatusResponse;
   readonly pullRequests: readonly GithubPr[];
+  readonly prHeads?: GithubPrHeadsResponse;
   readonly pullRequestFilters: GitPrFilterConfig;
   readonly selectedPullRequestNumber?: number;
   readonly initialLoading: boolean;
@@ -104,6 +107,7 @@ export interface GitPanelModel {
   readonly loadingOverview: boolean;
   readonly loadingBranches: boolean;
   readonly loadingPullRequests: boolean;
+  readonly loadingPrHeads: boolean;
   readonly pullRequestError?: string;
   readonly operations: GitPanelOperationState;
   readonly capabilities: GitPanelCapabilities;
@@ -113,6 +117,7 @@ export interface GitPanelActions {
   readonly refreshAll: () => void | Promise<void>;
   readonly refreshRepository: (repository: string) => void | Promise<void>;
   readonly refreshBranches: (repository: string) => void | Promise<void>;
+  readonly refreshPrHeads: (repository: string) => void | Promise<void>;
   readonly refreshPullRequests: (repository: string) => void | Promise<void>;
   readonly configurePullRequests: (
     repository: string,
@@ -125,6 +130,10 @@ export interface GitPanelActions {
     name: string,
   ) => boolean | void | Promise<boolean | void>;
   readonly switchBranch: (
+    repository: string,
+    branch: GitBranchSummary,
+  ) => boolean | void | Promise<boolean | void>;
+  readonly deleteBranch: (
     repository: string,
     branch: GitBranchSummary,
   ) => boolean | void | Promise<boolean | void>;

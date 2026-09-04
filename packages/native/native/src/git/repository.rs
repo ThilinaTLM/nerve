@@ -96,6 +96,8 @@ fn read_refs(repo: &gix::Repository, limit: usize) -> Result<Vec<Reference>, Git
             ));
         }
         let reference = item.map_err(|error| GitReadError::from_gix("read reference", error))?;
+        let name = reference.name().as_bstr().to_str_lossy().into_owned();
+        let is_branch = name.starts_with("refs/heads/") || name.starts_with("refs/remotes/");
         let upstream = match reference.remote_tracking_ref_name(gix::remote::Direction::Fetch) {
             Some(Ok(name)) => Some(name.shorten().to_str_lossy().into_owned()),
             Some(Err(error)) => {
@@ -103,17 +105,26 @@ fn read_refs(repo: &gix::Repository, limit: usize) -> Result<Vec<Reference>, Git
             }
             None => None,
         };
-        let (target, symbolic_target) = match reference.target() {
-            gix::refs::TargetRef::Object(id) => (Some(id.to_string()), None),
+        let (target, symbolic_target, commit_timestamp_seconds) = match reference.target() {
+            gix::refs::TargetRef::Object(id) => {
+                let commit_timestamp_seconds = is_branch
+                    .then(|| repo.find_object(id).ok())
+                    .flatten()
+                    .and_then(|object| object.try_into_commit().ok())
+                    .and_then(|commit| commit.time().ok())
+                    .map(|time| time.seconds);
+                (Some(id.to_string()), None, commit_timestamp_seconds)
+            }
             gix::refs::TargetRef::Symbolic(name) => {
-                (None, Some(name.as_bstr().to_str_lossy().into_owned()))
+                (None, Some(name.as_bstr().to_str_lossy().into_owned()), None)
             }
         };
         refs.push(Reference {
-            name: reference.name().as_bstr().to_str_lossy().into_owned(),
+            name,
             target,
             symbolic_target,
             upstream,
+            commit_timestamp_seconds,
         });
     }
     refs.sort_by(|left, right| left.name.cmp(&right.name));

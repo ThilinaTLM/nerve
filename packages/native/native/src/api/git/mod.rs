@@ -41,6 +41,7 @@ pub struct NativeGitReference {
     pub target: Option<String>,
     pub symbolic_target: Option<String>,
     pub upstream: Option<String>,
+    pub commit_timestamp_seconds: Option<f64>,
 }
 
 #[napi(object)]
@@ -423,6 +424,9 @@ impl From<Snapshot> for NativeGitSnapshot {
                     target: value.target,
                     symbolic_target: value.symbolic_target,
                     upstream: value.upstream,
+                    commit_timestamp_seconds: value
+                        .commit_timestamp_seconds
+                        .map(|timestamp| timestamp as f64),
                 })
                 .collect(),
             remotes: value

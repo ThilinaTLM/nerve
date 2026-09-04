@@ -17,7 +17,7 @@ import GitPanelBanner from "./GitPanelBanner.svelte";
 import GitRepositoryControls from "./GitRepositoryControls.svelte";
 import GitStashDialog from "./GitStashDialog.svelte";
 import {
-  filterAndSortBranches,
+  groupBranchesForDialog,
   gitFileGroups,
   gitFilesInScope,
 } from "./git-panel-controller.js";
@@ -62,16 +62,12 @@ let discardCandidate = $state<
 
 const fileGroups = $derived(gitFileGroups(model.changes?.files ?? []));
 const changeCount = $derived(model.changes?.files.length ?? 0);
-const filteredBranches = $derived(
-  filterAndSortBranches(
+const branchGroups = $derived(
+  groupBranchesForDialog(
     model.branches,
     branchFilter,
     model.repositorySummary?.baseBranch,
-  ),
-);
-const baseBranchSummary = $derived(
-  model.branches.find(
-    (branch) => branch.name === model.repositorySummary?.baseBranch,
+    model.prHeads,
   ),
 );
 const remoteBusy = $derived(
@@ -103,6 +99,13 @@ async function switchBranch(
   resetRepositoryUi();
 }
 
+async function deleteBranch(
+  repository: string,
+  branch: (typeof model.branches)[number],
+): Promise<boolean> {
+  return (await actions.deleteBranch(repository, branch)) !== false;
+}
+
 async function createBranch(repository: string): Promise<void> {
   const name = newBranchName.trim();
   if (!name) return;
@@ -112,10 +115,17 @@ async function createBranch(repository: string): Promise<void> {
   resetRepositoryUi();
 }
 
+function refreshBranchDialog(): void {
+  void Promise.all([
+    actions.refreshBranches(model.selectedRepository),
+    actions.refreshPrHeads(model.selectedRepository),
+  ]);
+}
+
 function openBranchDialog(): void {
   branchDialogOpen = true;
   resetRepositoryUi();
-  void actions.refreshBranches(model.selectedRepository);
+  refreshBranchDialog();
 }
 </script>
 
@@ -140,19 +150,24 @@ function openBranchDialog(): void {
       repoSummary={model.repositorySummary}
       repos={[...model.repositories]}
       selectedRepo={model.selectedRepository}
-      {filteredBranches}
+      {branchGroups}
       loadingBranches={model.loadingBranches}
+      loadingPrHeads={model.loadingPrHeads}
       switchingBranch={model.operations.switchingBranch}
+      deletingBranch={model.operations.deletingBranch}
       creatingBranch={model.operations.creatingBranch}
       capabilities={model.capabilities}
       bind:branchFilter
       bind:newBranchName
       bind:branchDialogOpen
-      {baseBranchSummary}
       onSelectRepo={selectRepository}
       onOpenBranchDialog={openBranchDialog}
       onSwitchBranch={(repository, branch) =>
         void switchBranch(repository, branch)}
+      onDeleteBranch={deleteBranch}
+      onOpenPullRequest={(repository, number) =>
+        void actions.openPullRequest(repository, number)}
+      onRefreshBranches={refreshBranchDialog}
       onCreateBranch={(repository) => void createBranch(repository)}
     />
 

@@ -93,6 +93,8 @@ export type {
   GithubPrFileDiffResponse,
   GithubPrFileStatus,
   GithubPrFilesResponse,
+  GithubPrHeadSummary,
+  GithubPrHeadsResponse,
   GithubPrInitial,
   GithubPrListResponse,
   GithubPrMergeMethod,

@@ -8,6 +8,7 @@ import {
   applyGitStash,
   createGitBranch,
   createGitStash,
+  deleteGitBranch,
   discardGitFile,
   dropGitStash,
   fetchGit,
@@ -26,6 +27,7 @@ import {
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { gitFilesInScope, gitPathspecs } from "$lib/features/git";
 import {
+  refreshBranches,
   refreshGitOverview,
   scheduleAutomaticGitRefresh,
 } from "./git-panel-refresh.svelte";
@@ -157,6 +159,32 @@ export async function switchGitRepoBranch(
     return false;
   } finally {
     state.operations.switchingBranch = undefined;
+  }
+}
+
+export async function deleteGitRepoBranch(
+  projectId: string,
+  repo: string,
+  branch: GitBranchSummary,
+): Promise<boolean> {
+  if (branch.current || branch.remote) return false;
+  const state = ensureGitRepoState(projectId, repo);
+  state.operations.deletingBranch = branch.name;
+  try {
+    const result = await deleteGitBranch(projectId, repo, branch.name);
+    mergeRepoSummary(projectId, result.repo);
+    setBranchesIfChanged(state, []);
+    notify.success(`Deleted branch ${branch.name}`);
+    await Promise.all([
+      refreshBranches(projectId, repo, undefined, true),
+      refreshGitOverview(projectId, repo, { force: true, silent: true }),
+    ]);
+    return true;
+  } catch (error) {
+    notifyGitFailure("Delete branch failed", error);
+    return false;
+  } finally {
+    state.operations.deletingBranch = undefined;
   }
 }
 

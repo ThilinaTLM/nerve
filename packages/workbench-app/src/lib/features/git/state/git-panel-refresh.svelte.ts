@@ -6,6 +6,7 @@ import {
   getGithubStatus,
   getGitOverview,
   listGitBranches,
+  listGithubPrHeads,
   listGithubPrs,
 } from "$lib/api";
 import {
@@ -40,6 +41,7 @@ import {
   setBranchesIfChanged,
   setGithubStatusIfChanged,
   setProjectRepos,
+  setPrHeadsIfChanged,
   setPrsIfChanged,
   storedRepo,
 } from "./git-panel-state.svelte";
@@ -316,12 +318,15 @@ export async function refreshBranches(
   projectId: string,
   repo: string,
   criticalErrorTitle?: string,
+  force = false,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
   state.loadingBranches = true;
   try {
+    const queryKey = queryKeys.git.branches(projectId, repo);
+    if (force) await queryClient.invalidateQueries({ queryKey });
     const result = await queryClient.fetchQuery({
-      queryKey: queryKeys.git.branches(projectId, repo),
+      queryKey,
       queryFn: () => listGitBranches(projectId, repo),
       staleTime: GIT_STALE_MS,
     });
@@ -332,6 +337,34 @@ export async function refreshBranches(
     else notify.error(`Could not list branches: ${details}`);
   } finally {
     state.loadingBranches = false;
+  }
+}
+
+export async function refreshPrHeads(
+  projectId: string,
+  repo: string,
+  force = false,
+): Promise<void> {
+  const state = ensureGitRepoState(projectId, repo);
+  if (!repoHasGithubRemote(projectId, repo) || !state.github?.authenticated) {
+    setPrHeadsIfChanged(state, undefined);
+    return;
+  }
+  state.loadingPrHeads = true;
+  try {
+    const queryKey = queryKeys.git.prHeads(projectId, repo);
+    if (force) await queryClient.invalidateQueries({ queryKey });
+    const result = await queryClient.fetchQuery({
+      queryKey,
+      queryFn: () => listGithubPrHeads(projectId, repo),
+      staleTime: GIT_STALE_MS,
+    });
+    setPrHeadsIfChanged(state, result);
+  } catch {
+    // Pull request badges are optional enrichment and must not block branches.
+    setPrHeadsIfChanged(state, undefined);
+  } finally {
+    state.loadingPrHeads = false;
   }
 }
 

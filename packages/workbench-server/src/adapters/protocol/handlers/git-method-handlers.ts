@@ -23,6 +23,8 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
       state.git.createBranch(params.projectId, repo(params), params.name),
     "git.branch.switch": (state, params) =>
       state.git.switchBranch(params.projectId, repo(params), params.name),
+    "git.branch.delete": (state, params) =>
+      state.git.deleteBranch(params.projectId, repo(params), params.name),
     "git.file.diff.get": (state, params) =>
       state.git.fileDiff(
         params.projectId,
@@ -69,6 +71,8 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
       ),
     "github.status.get": (state, params) =>
       state.git.githubStatus(params.projectId, repo(params)),
+    "github.pr.heads.list": (state, params) =>
+      state.git.listOpenPrHeads(params.projectId, repo(params)),
     "github.pr.list": (state, params) =>
       state.git.listOpenPrs(
         params.projectId,

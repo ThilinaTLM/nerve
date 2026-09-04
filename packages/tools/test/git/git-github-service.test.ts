@@ -5,6 +5,7 @@ import {
   allowedMergeMethods,
   checkoutPr,
   githubPrSearch,
+  listOpenPrHeads,
   listOpenPrs,
   mergePr,
   prFileDiff,
@@ -125,6 +126,54 @@ describe("GitHub PR listing", () => {
     );
     assert.deepEqual(calls, ["list-pull-requests"]);
     assert.equal(result.prs[0]?.checks.status, "passing");
+  });
+});
+
+describe("GitHub PR head listing", () => {
+  it("paginates lightweight head metadata with repository identity", async () => {
+    const afterValues: unknown[] = [];
+    const result = await listOpenPrHeads(
+      context({
+        graphql: (operation, variables) => {
+          assert.equal(operation, "list-pull-request-heads");
+          afterValues.push(variables.after);
+          const secondPage = variables.after === "next";
+          return {
+            repository: {
+              pullRequests: {
+                nodes: [
+                  {
+                    number: secondPage ? 8 : 7,
+                    url: `https://github.com/example/repo/pull/${secondPage ? 8 : 7}`,
+                    headRefName: secondPage ? "fork-feature" : "feature",
+                    headRepository: {
+                      nameWithOwner: secondPage ? "fork/repo" : "example/repo",
+                    },
+                    isDraft: secondPage,
+                    updatedAt: "2026-07-20T00:00:00Z",
+                  },
+                ],
+                pageInfo: secondPage
+                  ? { hasNextPage: false, endCursor: null }
+                  : { hasNextPage: true, endCursor: "next" },
+              },
+            },
+          };
+        },
+      }),
+      "proj_test",
+      ".",
+    );
+
+    assert.deepEqual(afterValues, [null, "next"]);
+    assert.equal(result.repository, "example/repo");
+    assert.deepEqual(
+      result.prs.map((pr) => [pr.number, pr.headRepository]),
+      [
+        [7, "example/repo"],
+        [8, "fork/repo"],
+      ],
+    );
   });
 });
 

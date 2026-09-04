@@ -11,6 +11,7 @@ import type {
   GithubPrFileDiffResponse,
   GithubPrFileStatus,
   GithubPrFilesResponse,
+  GithubPrHeadsResponse,
   GithubPrInitial,
   GithubPrListFilters,
   GithubPrListResponse,
@@ -87,6 +88,20 @@ export async function switchGitBranch(
 ): Promise<GitMutationResponse> {
   return (
     await protocolRequest("git.branch.switch", {
+      projectId,
+      repo,
+      name,
+    })
+  ).result;
+}
+
+export async function deleteGitBranch(
+  projectId: string,
+  repo: string,
+  name: string,
+): Promise<GitMutationResponse> {
+  return (
+    await protocolRequest("git.branch.delete", {
       projectId,
       repo,
       name,
@@ -246,6 +261,18 @@ export async function getGithubStatus(
 ): Promise<GithubStatusResponse> {
   return (
     await protocolRequest("github.status.get", {
+      projectId,
+      repo,
+    })
+  ).result;
+}
+
+export async function listGithubPrHeads(
+  projectId: string,
+  repo: string,
+): Promise<GithubPrHeadsResponse> {
+  return (
+    await protocolRequest("github.pr.heads.list", {
       projectId,
       repo,
     })
