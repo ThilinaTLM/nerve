@@ -44,6 +44,7 @@ import ToolArgumentBody from "./tool-call/ToolArgumentBody.svelte";
 import ToolCallDetailsDialog from "./tool-call/ToolCallDetailsDialog.svelte";
 import ApprovalPrompt from "./tool-call/ApprovalPrompt.svelte";
 import ExploreToolView from "./tool-call/ExploreToolView.svelte";
+import { resolveAskUserQuestion } from "./tool-call/ask-user-state";
 
 type Props = {
   /** Retained live slot used before and during durable-record handoff. */
@@ -273,9 +274,7 @@ const hilInteractive = $derived(
     (view?.kind === "plan_mode" && view.action === "present"),
 );
 const toolQuestion = $derived(
-  toolCall && pendingUserQuestion?.toolCallId === toolCall.id
-    ? pendingUserQuestion
-    : undefined,
+  resolveAskUserQuestion(toolCall, pendingUserQuestion),
 );
 const toolPlanReview = $derived(
   toolCall && pendingPlanReview?.toolCallId === toolCall.id
