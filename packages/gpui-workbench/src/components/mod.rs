@@ -1,6 +1,7 @@
 mod callbacks;
 mod center;
 mod chrome;
+mod conversations;
 mod panels;
 mod placeholder;
 mod workspace;

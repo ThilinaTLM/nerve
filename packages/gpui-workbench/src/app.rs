@@ -3,13 +3,17 @@ use gpui::{
 };
 use gpui_component::{ActiveTheme, Placement, Root, WindowExt};
 
-use crate::components::{Header, Side, SidePanel, StatusBar, WorkspaceLayout};
+use crate::{
+    components::{Header, Side, SidePanel, StatusBar, WorkspaceLayout},
+    workbench::WorkbenchState,
+};
 
 /// Below this width the layout switches to the mobile shell where the side
 /// panels are hidden and become slide-in drawers opened from the status bar.
 const MOBILE_BREAKPOINT: Pixels = px(768.);
 
 pub struct AppShell {
+    workbench: Entity<WorkbenchState>,
     workspace: Entity<WorkspaceLayout>,
     left_visible: bool,
     right_visible: bool,
@@ -21,8 +25,12 @@ pub struct AppShell {
 
 impl AppShell {
     pub fn new(cx: &mut Context<Self>) -> Self {
+        let workbench = cx.new(WorkbenchState::new);
+        cx.observe(&workbench, |_, _, cx| cx.notify()).detach();
+        let workspace = cx.new(|cx| WorkspaceLayout::connected(workbench.clone(), cx));
         Self {
-            workspace: cx.new(|_| WorkspaceLayout::new()),
+            workbench,
+            workspace,
             left_visible: true,
             right_visible: true,
             bottom_visible: false,
@@ -111,18 +119,21 @@ impl AppShell {
                     workspace.update(cx, |this, cx| this.panel_add(side, *ix, cx));
                 }
             };
+            let panel = SidePanel::new(side, tabs)
+                .selected(selected)
+                .on_click(on_tab)
+                .on_add(on_add);
+            let panel = match workspace.read(app).panel_body(side, selected, app) {
+                Some(body) => panel.body(body),
+                None => panel,
+            };
             sheet
                 .title(title)
                 .size(DefiniteLength::Fraction(0.8))
                 .resizable(false)
                 .overlay(true)
                 .overlay_closable(true)
-                .child(
-                    SidePanel::new(side, tabs)
-                        .selected(selected)
-                        .on_click(on_tab)
-                        .on_add(on_add),
-                )
+                .child(panel)
                 .on_close(move |_, _, cx| {
                     // Covers overlay click, Escape and the title bar close button.
                     close_entity.update(cx, |this, cx| {
@@ -192,6 +203,25 @@ impl Render for AppShell {
             }
         };
 
+        let (projects, active_project_key, connection_status, connection_target) = {
+            let workbench = self.workbench.read(cx);
+            (
+                workbench.projects().to_vec(),
+                workbench.selected_project_key().map(ToOwned::to_owned),
+                workbench.status().clone(),
+                workbench.target().map(ToOwned::to_owned),
+            )
+        };
+        let on_select_project = {
+            let workbench = self.workbench.clone();
+            move |key: &String, _: &mut Window, cx: &mut App| {
+                workbench.update(cx, |state, cx| {
+                    state.select_project(key);
+                    cx.notify();
+                });
+            }
+        };
+
         // Drawer/sheet overlay layer managed by the window Root.
         let sheet_layer = Root::render_sheet_layer(window, cx);
 
@@ -202,7 +232,10 @@ impl Render for AppShell {
             .overflow_hidden()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
-            .child(Header)
+            .child(
+                Header::new(projects, active_project_key, connection_status.clone())
+                    .on_select_project(on_select_project),
+            )
             .child(
                 div()
                     .w_full()
@@ -220,6 +253,7 @@ impl Render for AppShell {
                     .mobile(self.is_mobile)
                     .mobile_left_open(self.mobile_left_open)
                     .mobile_right_open(self.mobile_right_open)
+                    .connection(connection_status, connection_target)
                     .on_toggle_left(on_toggle_left)
                     .on_toggle_right(on_toggle_right)
                     .on_toggle_bottom(on_toggle_bottom),

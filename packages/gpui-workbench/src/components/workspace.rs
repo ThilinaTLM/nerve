@@ -1,14 +1,17 @@
 use std::rc::Rc;
 
 use gpui::{
-    App, Bounds, Context, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    Pixels, Point, Render, SharedString, Window, canvas, div, prelude::*, px,
+    AnyElement, App, Bounds, Context, Entity, IntoElement, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, Pixels, Point, Render, SharedString, Window, canvas, div,
+    prelude::*, px,
 };
 use gpui_component::{ActiveTheme, IconName};
 
 use super::callbacks::IndexCallback;
 use super::center::ContentArea;
+use super::conversations::ConversationList;
 use super::panels::{PanelAction, PanelTab, PanelTabKind, Side, SidePanel};
+use crate::workbench::WorkbenchState;
 
 const LEFT_INITIAL: Pixels = px(220.);
 const LEFT_MIN: Pixels = px(140.);
@@ -46,6 +49,8 @@ struct SideColumn {
 }
 
 pub struct WorkspaceLayout {
+    workbench: Option<Entity<WorkbenchState>>,
+    conversation_count: usize,
     left_width: Pixels,
     right_width: Pixels,
     bottom_height: Pixels,
@@ -75,6 +80,8 @@ pub struct WorkspaceLayout {
 impl WorkspaceLayout {
     pub fn new() -> Self {
         Self {
+            workbench: None,
+            conversation_count: 0,
             left_width: LEFT_INITIAL,
             right_width: RIGHT_INITIAL,
             bottom_height: BOTTOM_INITIAL,
@@ -95,6 +102,20 @@ impl WorkspaceLayout {
             next_untitled: 1,
             scratch_notes: vec!["Scratch note 1".into(), "Scratch note 2".into()],
             next_scratch_note: 3,
+        }
+    }
+
+    pub fn connected(workbench: Entity<WorkbenchState>, cx: &mut Context<Self>) -> Self {
+        let conversation_count = workbench.read(cx).conversation_count();
+        cx.observe(&workbench, |this, workbench, cx| {
+            this.conversation_count = workbench.read(cx).conversation_count();
+            cx.notify();
+        })
+        .detach();
+        Self {
+            workbench: Some(workbench),
+            conversation_count,
+            ..Self::new()
         }
     }
 
@@ -157,7 +178,7 @@ impl WorkspaceLayout {
                     IconName::Bot,
                     "Conversations",
                     PanelTabKind::Conversations,
-                    3,
+                    self.conversation_count,
                 ),
                 PanelTab::new(
                     IconName::Folder,
@@ -189,6 +210,34 @@ impl WorkspaceLayout {
                 PanelTab::new(IconName::Inspector, "Context", PanelTabKind::Context, 4),
             ],
         }
+    }
+
+    pub(crate) fn panel_body(&self, side: Side, index: usize, cx: &App) -> Option<AnyElement> {
+        let kind = self.panel_tabs(side).get(index)?.kind;
+        if kind != PanelTabKind::Conversations {
+            return None;
+        }
+        let workbench = self.workbench.as_ref()?.clone();
+        let (status, has_project, sections, selected_id) = {
+            let state = workbench.read(cx);
+            (
+                state.status().clone(),
+                state.active_project().is_some(),
+                state.conversation_sections(),
+                state.selected_conversation_id().map(ToOwned::to_owned),
+            )
+        };
+        Some(
+            ConversationList::new(status, has_project, sections)
+                .selected(selected_id)
+                .on_select(move |id, _, cx| {
+                    workbench.update(cx, |state, cx| {
+                        state.select_conversation(id);
+                        cx.notify();
+                    });
+                })
+                .into_any_element(),
+        )
     }
 
     /// Handle the header action ("+") of the given side panel tab.
@@ -346,17 +395,20 @@ impl WorkspaceLayout {
         let on_add: IndexCallback = Rc::new(move |ix, _window, cx| {
             entity.update(cx, |this, cx| this.panel_add(side, *ix, cx));
         });
+        let side_panel = SidePanel::new(side, self.panel_tabs(side))
+            .selected(column.selected)
+            .on_click(move |ix, window, cx| on_click(ix, window, cx))
+            .on_add(move |ix, window, cx| on_add(ix, window, cx));
+        let side_panel = match self.panel_body(side, column.selected, cx) {
+            Some(body) => side_panel.body(body),
+            None => side_panel,
+        };
         let panel = div()
             .w(column.width)
             .h_full()
             .flex_none()
             .overflow_hidden()
-            .child(
-                SidePanel::new(side, self.panel_tabs(side))
-                    .selected(column.selected)
-                    .on_click(move |ix, window, cx| on_click(ix, window, cx))
-                    .on_add(move |ix, window, cx| on_add(ix, window, cx)),
-            );
+            .child(side_panel);
         let handle = self.resize_handle(
             HandleOrientation::Vertical,
             column.handle_id,
@@ -551,6 +603,10 @@ mod tests {
     use gpui::{Bounds, Modifiers, TestAppContext, point, size};
 
     use super::*;
+    use crate::workbench::models::{
+        ConversationRecord, ProjectRecord, SnapshotCursor, StreamCursor, WorkspaceSnapshot,
+        WorkspaceSnapshotResponse,
+    };
 
     fn layout() -> WorkspaceLayout {
         WorkspaceLayout {
@@ -594,6 +650,70 @@ mod tests {
 
         let count = cx.read(|app| workspace.read(app).scratch_notes.len());
         assert_eq!(count, 3, "clicking + should create a scratch note");
+    }
+
+    #[gpui::test]
+    fn server_backed_conversation_row_selects_stable_id(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            crate::theme::apply_default_theme(cx);
+        });
+        let workbench = cx.new(|_| {
+            let mut state = WorkbenchState::disconnected();
+            state.apply_snapshot(
+                "/home/test".to_string(),
+                WorkspaceSnapshotResponse {
+                    snapshot: WorkspaceSnapshot {
+                        projects: vec![ProjectRecord {
+                            id: "proj_test".to_string(),
+                            name: "test".to_string(),
+                            dir: "/work/test".to_string(),
+                            created_at: "2026-09-01T00:00:00Z".to_string(),
+                            updated_at: "2026-09-04T00:00:00Z".to_string(),
+                        }],
+                        conversations: vec![ConversationRecord {
+                            id: "conv_test".to_string(),
+                            project_id: "proj_test".to_string(),
+                            title: "Connected conversation".to_string(),
+                            created_at: "2026-09-04T00:00:00Z".to_string(),
+                            updated_at: "2026-09-04T00:00:00Z".to_string(),
+                            last_user_message_at: None,
+                            pinned: false,
+                            completed_at: None,
+                        }],
+                    },
+                    cursor: SnapshotCursor {
+                        streams: vec![StreamCursor {
+                            stream: "workspace".to_string(),
+                            processed_seq: 1,
+                        }],
+                    },
+                },
+            );
+            state
+        });
+        let (workspace, cx) =
+            cx.add_window_view(|_, cx| WorkspaceLayout::connected(workbench.clone(), cx));
+
+        let _ = cx.update(|window, app| window.draw(app));
+        let row = cx
+            .debug_bounds("conversation-conv_test")
+            .expect("server conversation row should render");
+        cx.simulate_click(row.center(), Modifiers::none());
+
+        assert_eq!(
+            cx.read(|app| {
+                workbench
+                    .read(app)
+                    .selected_conversation_id()
+                    .map(ToOwned::to_owned)
+            }),
+            Some("conv_test".to_string())
+        );
+        assert_eq!(
+            cx.read(|app| workspace.read(app).panel_tabs(Side::Left)[0].count),
+            1
+        );
     }
 
     #[test]

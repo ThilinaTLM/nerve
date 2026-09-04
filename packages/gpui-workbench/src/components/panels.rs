@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use gpui::{App, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px};
+use gpui::{AnyElement, App, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px};
 use gpui_component::{
     ActiveTheme, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
@@ -84,6 +84,7 @@ pub struct SidePanel {
     active: usize,
     on_click: Option<IndexCallback>,
     on_add: Option<IndexCallback>,
+    body: Option<AnyElement>,
 }
 
 impl SidePanel {
@@ -94,6 +95,7 @@ impl SidePanel {
             active: 0,
             on_click: None,
             on_add: None,
+            body: None,
         }
     }
 
@@ -112,6 +114,11 @@ impl SidePanel {
         self.on_add = Some(Rc::new(on_add));
         self
     }
+
+    pub fn body(mut self, body: impl IntoElement) -> Self {
+        self.body = Some(body.into_any_element());
+        self
+    }
 }
 
 impl RenderOnce for SidePanel {
@@ -128,6 +135,9 @@ impl RenderOnce for SidePanel {
         };
         let active_index = active;
         let on_add = self.on_add.clone();
+        let body = self.body.unwrap_or_else(|| {
+            Placeholder::new(active_tab.icon.clone(), active_tab.label).into_any_element()
+        });
 
         div()
             .size_full()
@@ -208,6 +218,6 @@ impl RenderOnce for SidePanel {
                         )
                     }),
             )
-            .child(Placeholder::new(active_tab.icon, active_tab.label))
+            .child(body)
     }
 }

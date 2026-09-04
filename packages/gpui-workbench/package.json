@@ -2,7 +2,7 @@
   "name": "@nervekit/gpui-workbench",
   "version": "0.27.0",
   "private": true,
-  "description": "Experimental disconnected GPUI workbench shell for Nerve.",
+  "description": "Experimental GPUI client for an existing Nerve Workbench server.",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "repository": {

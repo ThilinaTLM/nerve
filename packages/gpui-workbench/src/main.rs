@@ -1,6 +1,7 @@
 mod app;
 mod components;
 mod theme;
+mod workbench;
 
 use app::AppShell;
 use gpui::{App, AppContext, Application, WindowOptions};
