@@ -1,4 +1,5 @@
 import {
+  normalizeLegacyToolCallRecord,
   toolCallRecordSchema,
   type ToolCallDetails,
   type ToolCallRecord,
@@ -104,7 +105,8 @@ export class ToolCallRepository {
       this.journal.countToolCallProjections(),
       this.journal.listToolCallStartupRecords(),
     ]);
-    for (const record of startupRecords) {
+    for (const storedRecord of startupRecords) {
+      const record = normalizeLegacyToolCallRecord(storedRecord);
       if (record.interactions.length > 0) {
         this.interactionRecords.set(record.id, record);
       }
@@ -190,8 +192,9 @@ export class ToolCallRepository {
     if (cached) return cached.record;
     const stored = await this.journal.readToolCall(toolCallId);
     if (!stored) throw new Error("Tool call not found.");
-    this.cacheTerminal(stored, Buffer.byteLength(JSON.stringify(stored)));
-    return stored;
+    const record = normalizeLegacyToolCallRecord(stored);
+    this.cacheTerminal(record, Buffer.byteLength(JSON.stringify(record)));
+    return record;
   }
 
   async getDetails(toolCallId: string): Promise<ToolCallDetails> {
@@ -349,10 +352,12 @@ export class ToolCallRepository {
       }
       const candidate = mutate(current);
       assertImmutableIdentity(current, candidate);
-      const next = toolCallRecordSchema.parse({
-        ...candidate,
-        revision: current.revision + 1,
-      });
+      const next = toolCallRecordSchema.parse(
+        normalizeLegacyToolCallRecord({
+          ...candidate,
+          revision: current.revision + 1,
+        }),
+      );
       const journalState = await this.journal.load(next.conversationId);
       const events: ConversationJournalEvent[] = [
         {

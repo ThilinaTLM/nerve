@@ -396,6 +396,36 @@ export const toolCallRecordSchema = toolCallRecordBaseSchema.superRefine(
 );
 export type ToolCallRecord = z.infer<typeof toolCallRecordSchema>;
 
+/**
+ * Upgrades permission evidence stored before v0.27 without changing schemas or
+ * checksum inputs for immutable conversation journal commits.
+ */
+export function normalizeLegacyToolCallRecord(
+  record: ToolCallRecord,
+): ToolCallRecord {
+  const evaluation = record.permissionEvaluation;
+  if (
+    !evaluation ||
+    Object.hasOwn(evaluation, "winningRuleSetId") ||
+    Object.hasOwn(evaluation, "selectedRuleSetId")
+  ) {
+    return record;
+  }
+  const selectedRuleSetId = evaluation.activeRuleSetIds.at(-1);
+  if (!selectedRuleSetId) return record;
+  return {
+    ...record,
+    permissionEvaluation: {
+      ...evaluation,
+      winningRuleSetId:
+        evaluation.winningRuleOrigin === "baseline"
+          ? "baseline"
+          : selectedRuleSetId,
+      selectedRuleSetId,
+    },
+  };
+}
+
 export const toolCallPreviewOverflowSchema = z.object({
   hidden: z.number().int().nonnegative(),
   noun: z.string().min(1),
