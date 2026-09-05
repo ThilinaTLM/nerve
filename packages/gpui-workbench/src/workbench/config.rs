@@ -101,6 +101,12 @@ impl ConnectionConfig {
             .expect("validated server target joins client-config path")
     }
 
+    pub fn protocol_url(&self) -> Url {
+        self.target
+            .join("/api/protocol/v1")
+            .expect("validated server target joins protocol path")
+    }
+
     pub fn display_target(&self) -> String {
         self.target.as_str().trim_end_matches('/').to_string()
     }

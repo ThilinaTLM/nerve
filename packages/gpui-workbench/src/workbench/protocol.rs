@@ -186,7 +186,10 @@ fn run_session(
     let welcome = session.receive_welcome(&mut socket, stop)?;
     session.send_ready(&mut socket)?;
 
-    let snapshot = session.request_snapshot(&mut socket, stop)?;
+    // Workspace snapshots can exceed the WebSocket codec's 1 MiB frame cap.
+    // The canonical HTTP protocol endpoint supports the same operation without
+    // forcing a large response through the live event transport.
+    let snapshot = fetch_workspace_snapshot(config, &session.source, &session.target)?;
     let user_home = client_config.status.storage.user_home;
     events
         .send_blocking(WorkerEvent::Snapshot {
@@ -219,14 +222,17 @@ fn run_session(
             "heartbeat" => session.send_heartbeat(&mut socket)?,
             "event.batch" => {
                 if session.apply_workspace_batch(&envelope)? {
-                    let snapshot = session.request_snapshot(&mut socket, stop)?;
+                    let snapshot =
+                        fetch_workspace_snapshot(config, &session.source, &session.target)?;
                     events
                         .send_blocking(WorkerEvent::Snapshot {
                             user_home: user_home.clone(),
-                            snapshot: snapshot.clone(),
+                            snapshot,
                         })
                         .map_err(|_| "UI closed".to_string())?;
-                    session.subscribe_workspace(&mut socket, &snapshot, stop)?;
+                    // Keep the existing live subscription. Replacing it after
+                    // every event races queued live batches against replay and
+                    // can deliver the same sequence twice.
                 }
             }
             "goodbye" => return Err(server_message(&envelope, "Server closed the session")),
@@ -237,12 +243,15 @@ fn run_session(
     }
 }
 
-fn fetch_client_config(config: &ConnectionConfig) -> Result<ClientConfigResponse, String> {
-    let agent: ureq::Agent = ureq::Agent::config_builder()
+fn http_agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
         .timeout_global(Some(REQUEST_TIMEOUT))
         .build()
-        .into();
-    let mut response = agent
+        .into()
+}
+
+fn fetch_client_config(config: &ConnectionConfig) -> Result<ClientConfigResponse, String> {
+    let mut response = http_agent()
         .get(config.client_config_url().as_str())
         .header("authorization", &format!("Bearer {}", config.token))
         .call()
@@ -251,6 +260,59 @@ fn fetch_client_config(config: &ConnectionConfig) -> Result<ClientConfigResponse
         .body_mut()
         .read_json::<ClientConfigResponse>()
         .map_err(|error| format!("Workbench client configuration is invalid: {error}"))
+}
+
+fn fetch_workspace_snapshot(
+    config: &ConnectionConfig,
+    source: &PeerDescriptor,
+    target: &PeerDescriptor,
+) -> Result<WorkspaceSnapshotResponse, String> {
+    let request = outgoing_envelope(
+        "request",
+        json!({ "method": "snapshot.workspace.get", "params": {} }),
+        source.clone(),
+        target.clone(),
+    );
+    let request_id = request.id.clone();
+    let mut response = http_agent()
+        .post(config.protocol_url().as_str())
+        .header("authorization", &format!("Bearer {}", config.token))
+        .header("content-type", "application/vnd.nerve.protocol.v1+json")
+        .send_json(&request)
+        .map_err(|error| format!("Could not load Workbench workspace snapshot: {error}"))?;
+    let envelope = response
+        .body_mut()
+        .read_json::<Envelope>()
+        .map_err(|error| format!("Workbench workspace snapshot response is invalid: {error}"))?;
+    if envelope.protocol != "nerve"
+        || envelope.version != 1
+        || envelope.source != *target
+        // HTTP protocol responses are intentionally addressed to the generic
+        // UI role rather than echoing the request's concrete peer identity.
+        || envelope.target != PeerDescriptor::http_response_target()
+        || envelope.reply_to.as_deref() != Some(request_id.as_str())
+    {
+        return Err("Workspace snapshot response identity does not match the request".to_string());
+    }
+    if envelope.kind == "error" {
+        return Err(server_message(
+            &envelope,
+            "Workspace snapshot request failed",
+        ));
+    }
+    if envelope.kind != "response"
+        || envelope.data.get("method").and_then(Value::as_str) != Some("snapshot.workspace.get")
+        || envelope.data.get("ok").and_then(Value::as_bool) != Some(true)
+    {
+        return Err("Workspace snapshot response does not match the request".to_string());
+    }
+    let result = envelope
+        .data
+        .get("result")
+        .cloned()
+        .ok_or_else(|| "Workspace snapshot response has no result".to_string())?;
+    serde_json::from_value(result)
+        .map_err(|error| format!("Workspace snapshot is invalid: {error}"))
 }
 
 fn should_stop(stop: &mpsc::Receiver<()>) -> bool {
@@ -339,6 +401,15 @@ impl PeerDescriptor {
     fn server() -> Self {
         Self {
             role: "workbench_server".to_string(),
+            id: None,
+            name: None,
+            instance_id: None,
+        }
+    }
+
+    fn http_response_target() -> Self {
+        Self {
+            role: "ui".to_string(),
             id: None,
             name: None,
             instance_id: None,
@@ -467,45 +538,6 @@ impl ProtocolSession {
     fn send_ready(&mut self, socket: &mut Socket) -> Result<(), String> {
         self.send(socket, "ready", json!({ "sessionId": self.session_id()? }))?;
         Ok(())
-    }
-
-    fn request_snapshot(
-        &mut self,
-        socket: &mut Socket,
-        stop: &mpsc::Receiver<()>,
-    ) -> Result<WorkspaceSnapshotResponse, String> {
-        let request_id = self.send(
-            socket,
-            "request",
-            json!({ "method": "snapshot.workspace.get", "params": {} }),
-        )?;
-        let envelope = self.read_until(socket, stop, |message| {
-            (message.kind == "response" || message.kind == "error")
-                && message.reply_to.as_deref() == Some(request_id.as_str())
-        })?;
-        if envelope.kind == "error" {
-            return Err(server_message(
-                &envelope,
-                "Workspace snapshot request failed",
-            ));
-        }
-        let method = envelope.data.get("method").and_then(Value::as_str);
-        if method != Some("snapshot.workspace.get")
-            || envelope.data.get("ok").and_then(Value::as_bool) != Some(true)
-        {
-            return Err("Workspace snapshot response does not match the request".to_string());
-        }
-        let result = envelope
-            .data
-            .get("result")
-            .cloned()
-            .ok_or_else(|| "Workspace snapshot response has no result".to_string())?;
-        let snapshot: WorkspaceSnapshotResponse = serde_json::from_value(result)
-            .map_err(|error| format!("Workspace snapshot is invalid: {error}"))?;
-        if let Some(cursor) = workspace_cursor(&snapshot) {
-            self.workspace_seq = cursor.processed_seq;
-        }
-        Ok(snapshot)
     }
 
     fn subscribe_workspace(
@@ -821,133 +853,212 @@ mod tests {
             .unwrap();
     }
 
+    fn receive_http_request(stream: &mut TcpStream) -> (String, Vec<u8>) {
+        let mut bytes = Vec::new();
+        let mut buffer = [0u8; 4096];
+        let header_end = loop {
+            let read = stream.read(&mut buffer).unwrap();
+            assert!(read > 0, "HTTP request ended before its headers");
+            bytes.extend_from_slice(&buffer[..read]);
+            if let Some(index) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
+                break index + 4;
+            }
+        };
+        let headers = String::from_utf8_lossy(&bytes[..header_end]).to_string();
+        let content_length = headers
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.eq_ignore_ascii_case("content-length")
+                    .then(|| value.trim().parse::<usize>().unwrap())
+            })
+            .unwrap_or_default();
+        while bytes.len() < header_end + content_length {
+            let read = stream.read(&mut buffer).unwrap();
+            assert!(read > 0, "HTTP request ended before its body");
+            bytes.extend_from_slice(&buffer[..read]);
+        }
+        (
+            headers,
+            bytes[header_end..header_end + content_length].to_vec(),
+        )
+    }
+
+    fn send_http_json(stream: &mut TcpStream, body: &str) {
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        )
+        .unwrap();
+        stream.flush().unwrap();
+    }
+
+    fn workspace_response(request: Envelope, title: &str, sequence: u64, padding: usize) -> String {
+        assert_eq!(request.kind, "request");
+        assert_eq!(
+            request.data.get("method").and_then(Value::as_str),
+            Some("snapshot.workspace.get")
+        );
+        let mut response = outgoing_envelope(
+            "response",
+            json!({
+                "ok": true,
+                "method": "snapshot.workspace.get",
+                "result": {
+                    "snapshot": {
+                        "projects": [{
+                            "id": "proj_test",
+                            "name": "test",
+                            "dir": "/work/test",
+                            "createdAt": "2026-09-01T00:00:00Z",
+                            "updatedAt": "2026-09-04T00:00:00Z"
+                        }],
+                        "conversations": [{
+                            "id": "conv_test",
+                            "projectId": "proj_test",
+                            "title": title,
+                            "createdAt": "2026-09-04T00:00:00Z",
+                            "updatedAt": "2026-09-04T00:00:00Z"
+                        }],
+                        "agents": [{"ignoredPadding": "x".repeat(padding)}],
+                        "tasks": [],
+                        "pendingToolCalls": []
+                    },
+                    "cursor": {
+                        "streams": [{"stream": "workspace", "processedSeq": sequence}]
+                    },
+                    "generatedAt": "2026-09-04T00:00:00Z"
+                }
+            }),
+            peer("workbench_server", "server"),
+            PeerDescriptor::http_response_target(),
+        );
+        response.reply_to = Some(request.id.clone());
+        response.correlation_id = Some(request.id);
+        serde_json::to_string(&response).unwrap()
+    }
+
     #[test]
     #[allow(clippy::result_large_err)]
-    fn worker_authenticates_handshakes_and_loads_snapshot() {
+    fn worker_authenticates_handshakes_and_loads_large_snapshot_over_http() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
         let server = thread::spawn(move || {
-            let (mut http, _) = listener.accept().unwrap();
-            let mut request = [0u8; 2048];
-            let read = http.read(&mut request).unwrap();
-            let request = String::from_utf8_lossy(&request[..read]).to_lowercase();
-            assert!(request.contains("authorization: bearer nt_test"));
-            let body = format!(
+            let (mut config_http, _) = listener.accept().unwrap();
+            let (headers, body) = receive_http_request(&mut config_http);
+            assert!(
+                headers
+                    .to_lowercase()
+                    .contains("authorization: bearer nt_test")
+            );
+            assert!(body.is_empty());
+            let config_body = format!(
                 r#"{{"wsUrl":"ws://{address}/ws","status":{{"storage":{{"userHome":"/home/test"}}}}}}"#
             );
-            write!(
-                http,
-                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                body.len(),
-                body
-            )
-            .unwrap();
-            http.flush().unwrap();
-            drop(http);
+            send_http_json(&mut config_http, &config_body);
+            drop(config_http);
 
             let (stream, _) = listener.accept().unwrap();
-            let mut socket =
-                tungstenite::accept_hdr(stream, |request: &Request, response: Response| {
-                    assert_eq!(
-                        request.headers().get("authorization").unwrap(),
-                        "Bearer nt_test"
-                    );
-                    Ok(response)
-                })
-                .unwrap();
-            let hello = receive_text(&mut socket);
-            assert_eq!(hello.kind, "hello");
-            let server_peer = peer("workbench_server", "server");
-            send_server(
-                &mut socket,
-                "welcome",
-                json!({
-                    "sessionId": "ses_test",
-                    "acceptingPeer": server_peer,
-                    "acceptedVersion": 1,
-                    "capabilities": REQUIRED_CAPABILITIES,
-                    "encoding": "json",
-                    "limits": {
-                        "maxMessageBytes": 4194304,
-                        "maxBatchEvents": 500,
-                        "maxBatchBytes": 1048576
-                    },
-                    "heartbeat": {"intervalMs": 30000, "timeoutMs": 70000}
-                }),
-                &server_peer,
-                &hello.source,
-                None,
-            );
-            assert_eq!(receive_text(&mut socket).kind, "ready");
-            let snapshot_request = receive_text(&mut socket);
-            assert_eq!(
-                snapshot_request.data.get("method").and_then(Value::as_str),
-                Some("snapshot.workspace.get")
-            );
-            send_server(
-                &mut socket,
-                "response",
-                json!({
-                    "ok": true,
-                    "method": "snapshot.workspace.get",
-                    "result": {
-                        "snapshot": {
-                            "projects": [{
-                                "id": "proj_test",
-                                "name": "test",
-                                "dir": "/work/test",
-                                "createdAt": "2026-09-01T00:00:00Z",
-                                "updatedAt": "2026-09-04T00:00:00Z"
-                            }],
-                            "conversations": [{
-                                "id": "conv_test",
-                                "projectId": "proj_test",
-                                "title": "Connected",
-                                "createdAt": "2026-09-04T00:00:00Z",
-                                "updatedAt": "2026-09-04T00:00:00Z"
-                            }],
-                            "agents": [],
-                            "tasks": [],
-                            "pendingToolCalls": []
+            let websocket_server = thread::spawn(move || {
+                let mut socket =
+                    tungstenite::accept_hdr(stream, |request: &Request, response: Response| {
+                        assert_eq!(
+                            request.headers().get("authorization").unwrap(),
+                            "Bearer nt_test"
+                        );
+                        Ok(response)
+                    })
+                    .unwrap();
+                let hello = receive_text(&mut socket);
+                assert_eq!(hello.kind, "hello");
+                let server_peer = peer("workbench_server", "server");
+                send_server(
+                    &mut socket,
+                    "welcome",
+                    json!({
+                        "sessionId": "ses_test",
+                        "acceptingPeer": server_peer,
+                        "acceptedVersion": 1,
+                        "capabilities": REQUIRED_CAPABILITIES,
+                        "encoding": "json",
+                        "limits": {
+                            "maxMessageBytes": 1048576,
+                            "maxBatchEvents": 500,
+                            "maxBatchBytes": 1048576
                         },
-                        "cursor": {
-                            "streams": [{"stream": "workspace", "processedSeq": 3}]
-                        },
-                        "generatedAt": "2026-09-04T00:00:00Z"
-                    }
-                }),
-                &server_peer,
-                &hello.source,
-                Some(snapshot_request.id),
-            );
-            let subscription = receive_text(&mut socket);
-            assert_eq!(subscription.kind, "stream.subscription.set");
-            let subscription_id = subscription
-                .data
-                .get("subscriptionId")
-                .and_then(Value::as_str)
-                .unwrap()
-                .to_string();
-            send_server(
-                &mut socket,
-                "stream.subscription.updated",
-                json!({
-                    "sessionId": "ses_test",
-                    "subscriptionId": subscription_id,
-                    "accepted": true,
-                    "streams": [{
+                        "heartbeat": {"intervalMs": 30000, "timeoutMs": 70000}
+                    }),
+                    &server_peer,
+                    &hello.source,
+                    None,
+                );
+                assert_eq!(receive_text(&mut socket).kind, "ready");
+                let subscription = receive_text(&mut socket);
+                assert_eq!(subscription.kind, "stream.subscription.set");
+                let subscription_id = subscription
+                    .data
+                    .get("subscriptionId")
+                    .and_then(Value::as_str)
+                    .unwrap()
+                    .to_string();
+                send_server(
+                    &mut socket,
+                    "stream.subscription.updated",
+                    json!({
+                        "sessionId": "ses_test",
+                        "subscriptionId": subscription_id,
+                        "accepted": true,
+                        "streams": [{
+                            "stream": "workspace",
+                            "latestSeq": 3,
+                            "earliestAvailableSeq": 1,
+                            "mode": "live"
+                        }]
+                    }),
+                    &server_peer,
+                    &hello.source,
+                    None,
+                );
+                send_server(
+                    &mut socket,
+                    "event.batch",
+                    json!({
+                        "sessionId": "ses_test",
+                        "subscriptionId": subscription_id,
                         "stream": "workspace",
-                        "latestSeq": 3,
-                        "earliestAvailableSeq": 1,
-                        "mode": "live"
-                    }]
-                }),
-                &server_peer,
-                &hello.source,
-                None,
+                        "events": [{"seq": 4}]
+                    }),
+                    &server_peer,
+                    &hello.source,
+                    None,
+                );
+                let closing = receive_text(&mut socket);
+                assert_eq!(closing.kind, "goodbye");
+            });
+
+            let (mut snapshot_http, _) = listener.accept().unwrap();
+            let (headers, body) = receive_http_request(&mut snapshot_http);
+            let headers = headers.to_lowercase();
+            assert!(headers.contains("authorization: bearer nt_test"));
+            assert!(headers.contains("content-type: application/vnd.nerve.protocol.v1+json"));
+            let request: Envelope = serde_json::from_slice(&body).unwrap();
+            let response_body = workspace_response(request, "Connected", 3, 1_100_000);
+            assert!(response_body.len() > 1_048_576);
+            send_http_json(&mut snapshot_http, &response_body);
+
+            let (mut refresh_http, _) = listener.accept().unwrap();
+            let (headers, body) = receive_http_request(&mut refresh_http);
+            assert!(
+                headers
+                    .to_lowercase()
+                    .contains("authorization: bearer nt_test")
             );
-            let closing = receive_text(&mut socket);
-            assert_eq!(closing.kind, "goodbye");
+            let request: Envelope = serde_json::from_slice(&body).unwrap();
+            let response_body = workspace_response(request, "Refreshed", 4, 0);
+            send_http_json(&mut refresh_http, &response_body);
+            websocket_server.join().unwrap();
         });
 
         let config = ConnectionConfig {
@@ -956,12 +1067,15 @@ mod tests {
         };
         let (worker, events) = WorkerHandle::spawn(config);
         let deadline = Instant::now() + Duration::from_secs(5);
-        let mut saw_snapshot = false;
+        let mut saw_large_snapshot = false;
+        let mut saw_refreshed_snapshot = false;
         let mut saw_live = false;
-        while Instant::now() < deadline && !saw_live {
+        while Instant::now() < deadline && !(saw_live && saw_refreshed_snapshot) {
             match events.try_recv() {
                 Ok(WorkerEvent::Snapshot { snapshot, .. }) => {
-                    saw_snapshot = snapshot.snapshot.projects[0].id == "proj_test";
+                    let title = &snapshot.snapshot.conversations[0].title;
+                    saw_large_snapshot |= title == "Connected";
+                    saw_refreshed_snapshot |= title == "Refreshed";
                 }
                 Ok(WorkerEvent::Live { .. }) => saw_live = true,
                 Ok(WorkerEvent::Error { message, .. }) => panic!("worker failed: {message}"),
@@ -971,7 +1085,8 @@ mod tests {
                 Err(async_channel::TryRecvError::Closed) => break,
             }
         }
-        assert!(saw_snapshot);
+        assert!(saw_large_snapshot);
+        assert!(saw_refreshed_snapshot);
         assert!(saw_live);
         drop(worker);
         server.join().unwrap();
