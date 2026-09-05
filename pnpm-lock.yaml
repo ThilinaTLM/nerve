@@ -86,8 +86,8 @@ importers:
   packages/harness:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.85.0
-        version: 0.85.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.85.1
+        version: 0.85.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -488,8 +488,8 @@ importers:
   packages/workbench-server:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.85.0
-        version: 0.85.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.85.1
+        version: 0.85.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
       '@hono/node-server':
         specifier: 2.0.12
         version: 2.0.12(hono@4.12.34)
@@ -1465,13 +1465,13 @@ packages:
   '@dagrejs/graphlib@4.0.1':
     resolution: {integrity: sha512-IvcV6FduIIAmLwnH+yun+QtV36SC7mERqa86aClNqmMN09WhmPPYU8ckHrZBozErf+UvHPWOTJYaGYiIcs0DgA==}
 
-  '@earendil-works/pi-ai@0.85.0':
-    resolution: {integrity: sha512-CbeeZH3NHav7Rs182tYq0eoCAWfDd1MvOAXKzonIF4uN3uO99EB8iT1HfyGofJmPkAf8MeIwOBQtqqd0zgrPWA==}
+  '@earendil-works/pi-ai@0.85.1':
+    resolution: {integrity: sha512-+VgVIJDkDO2efYJKEEqvPTH4zmnIaXdAppGbO+vKFA9qy5PdhFiAenuFAkU+oiCSfOC4dMHDyrjdQeL4ZoC5CQ==}
     engines: {node: '>=22.19.0'}
     hasBin: true
 
-  '@earendil-works/pi-telemetry@0.85.0':
-    resolution: {integrity: sha512-gs8Zq1lySn8liq7U7CCSgWHJcA8c6+ZWk+CBPp7w0K+SN5LcLcsbs3+bh7zipm4CqNkVhcpwGAEGJp7qZqsVnA==}
+  '@earendil-works/pi-telemetry@0.85.1':
+    resolution: {integrity: sha512-Bg/YN6kA7Swja/NQxka8xFdecb4E/auIEGF2G5A25EaQXhRnPj300/7/KpgsDDMYUzHTDAv4RyUxaQPJKW81Rw==}
     engines: {node: '>=22.19.0'}
 
   '@electron-internal/extract-zip@1.0.5':
@@ -8925,11 +8925,11 @@ snapshots:
 
   '@dagrejs/graphlib@4.0.1': {}
 
-  '@earendil-works/pi-ai@0.85.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)':
+  '@earendil-works/pi-ai@0.85.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)':
     dependencies:
       '@anthropic-ai/sdk': 0.123.0(zod@4.1.12)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
-      '@earendil-works/pi-telemetry': 0.85.0
+      '@earendil-works/pi-telemetry': 0.85.1
       '@google/genai': 1.52.0(supports-color@7.2.0)
       '@smithy/node-http-handler': 4.7.3
       http-proxy-agent: 7.0.2(supports-color@7.2.0)
@@ -8945,7 +8945,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-telemetry@0.85.0': {}
+  '@earendil-works/pi-telemetry@0.85.1': {}
 
   '@electron-internal/extract-zip@1.0.5': {}
 
