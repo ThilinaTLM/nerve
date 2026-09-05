@@ -39,7 +39,10 @@ import {
   type RunRecord,
   type RunTransitionRecord,
 } from "@nervekit/contracts/runs";
-import { type ToolCallRecord } from "@nervekit/contracts/tools";
+import {
+  normalizeLegacyToolCallRecord,
+  type ToolCallRecord,
+} from "@nervekit/contracts/tools";
 
 export interface ConversationJournalState {
   conversationId: string;
@@ -426,11 +429,18 @@ export class ConversationJournalRepository {
     await this.ready;
     const stored = await this.canonical.readConversationJournal(conversationId);
     const state = stored.snapshot
-      ? deserializeState(decode(stored.snapshot) as SerializedConversationState)
+      ? deserializeState(
+          normalizeLegacyToolCalls(
+            decode(stored.snapshot),
+          ) as SerializedConversationState,
+        )
       : emptyState(conversationId);
     for (const value of stored.commits) {
-      const commit = conversationJournalCommitSchema.parse(decode(value));
-      verifyCommit(state, commit);
+      const decoded = decode(value) as Record<string, unknown>;
+      const commit = conversationJournalCommitSchema.parse(
+        normalizeLegacyToolCalls(decoded),
+      );
+      verifyCommit(state, commit, decoded);
       applyCommit(state, commit);
     }
     if (
@@ -542,9 +552,28 @@ export function journalChecksum(value: unknown): string {
   return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
 }
 
+function normalizeLegacyToolCalls(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeLegacyToolCalls);
+  if (typeof value !== "object" || value === null) return value;
+  const record = value as Record<string, unknown>;
+  const normalized = Object.hasOwn(record, "permissionEvaluation")
+    ? (normalizeLegacyToolCallRecord(record as ToolCallRecord) as Record<
+        string,
+        unknown
+      >)
+    : record;
+  return Object.fromEntries(
+    Object.entries(normalized).map(([key, child]) => [
+      key,
+      normalizeLegacyToolCalls(child),
+    ]),
+  );
+}
+
 function verifyCommit(
   state: ConversationJournalState,
   commit: ConversationJournalCommit,
+  checksumSource: Record<string, unknown> = commit,
 ): void {
   if (
     commit.epoch !== CONVERSATION_JOURNAL_EPOCH ||
@@ -558,7 +587,7 @@ function verifyCommit(
     );
   }
   const base = Object.fromEntries(
-    Object.entries(commit).filter(([key]) => key !== "checksum"),
+    Object.entries(checksumSource).filter(([key]) => key !== "checksum"),
   );
   if (journalChecksum(base) !== commit.checksum) {
     throw new Error(
