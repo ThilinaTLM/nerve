@@ -15,17 +15,25 @@ Every dispatch produces persisted lifecycle records. File mutations serialize pe
 
 ## Policy decisions
 
-The server evaluates mode, permission, risk, tool availability, and request details:
+The server composes Baseline with one selected permission rule set:
 
-- Read only allows local inspection and interaction, but denies commands, network access, mutations, and child spawning;
-- Supervised automatically allows safe local reads and audited read-only integrations, then requests approval for other risks unless an exact-risk allow exception covers the complete request;
-- Autonomous permits allowed risks without normal approval, but explicit block exceptions still apply;
-- effective exceptions are the deduplicated union of user permissions under `~/.nerve/config/permissions.json` and project permissions under `<project>/.nerve/config/permissions.json`;
-- planning adds path-constrained writes, tool omissions, and shell guardrails before generic permission evaluation.
+- **Read only** allows interaction, local inspection, and Explore, then denies other capabilities;
+- **Supervised** allows interaction and local inspection, then prompts for other capabilities;
+- **Autonomous** allows valid requests unless a scoped overlay or guardrail replaces the decision;
+- **Planning** allows research, interaction, Explore, and plan-file writes, prompts for local analysis commands, and denies other mutations;
+- custom user rule sets can define another ordered policy for compatible agent modes.
 
-The permission engine combines manifest and argument-sensitive risk, normalized request targets, permission level, hard host constraints, and typed user exceptions to produce `allow`, `approval`, or `deny`. Block exceptions win across scopes. Allow exceptions cannot expand Read only or bypass planning restrictions. Compound Bash calls are parsed into segments, and every mutating segment must match an exact-risk command-prefix exception before the call can run without approval. Python execution remains opaque and never receives a durable allow suggestion.
+The permission engine combines manifest metadata, normalized arguments and targets, the selected rule set, and matching overlays to produce `allow`, `prompt`, or `deny`. A prompt becomes a durable Workbench approval interaction. Multi-target calls are automatically allowed only when the winning allow rule covers every relevant target.
 
-File path exceptions use project-relative POSIX globs such as `secrets/**`; web exceptions use exact or leading-wildcard hostnames. They apply to Nerve's corresponding tools and are not an operating-system sandbox.
+## Rule-set-scoped overlays
+
+User, project, and conversation overlays are each bound to exactly one permission rule set. A Planning grant does not affect Supervised or Autonomous, and a coding grant does not affect Planning. Ownership scopes still determine precedence within that rule set: conversation replaces project, project replaces ordinary user rules, and user guardrails cannot be overridden.
+
+User overlays are stored under `~/.nerve/config/permissions.json`; project overlays are stored under `<project>/.nerve/config/permissions.json`; conversation overlays are stored with managed conversation data. Each scope uses one atomic document containing groups shaped as `overlays: [{ ruleSetId, rules }]`, rather than one file per rule set. The complete project document digest must be trusted before any project group is active.
+
+Durable approval choices retain the permission rule set captured when the call was evaluated. Changing a conversation's selected rule set while an approval is pending cannot redirect the saved grant. If a selected custom set becomes missing, malformed, disabled, or incompatible, the host falls back to Baseline without applying overlays.
+
+Rules can match tool names/groups, risks, validated arguments, and canonical path or URL targets. Portable path matchers use rooted POSIX patterns such as `src/**`; external host-specific paths use exact argument matching. Rules apply to Nerve's corresponding tools and are not an operating-system sandbox.
 
 ## Distinctions
 

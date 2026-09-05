@@ -1,5 +1,6 @@
 import type {
   PermissionOverlay,
+  PermissionOverlayDocument,
   PermissionPolicyConfiguration,
   PermissionRule,
   ProjectRecord,
@@ -27,6 +28,7 @@ export class PermissionsPageState {
   loading = $state(false);
   errorMessage = $state<string>();
   pendingKeys = $state<string[]>([]);
+  overlayRuleSetId = $state("supervised");
   private generation = 0;
 
   constructor(private readonly dependencies: Dependencies) {}
@@ -49,22 +51,33 @@ export class PermissionsPageState {
     this.retry();
   }
 
+  selectRuleSet(ruleSetId: string): void {
+    this.overlayRuleSetId = ruleSetId;
+    this.errorMessage = undefined;
+  }
+
   rules(scope: PermissionScope): PermissionRule[] {
     if (!this.configuration) return [];
-    return scope === "project"
-      ? this.configuration.projectOverlay.rules
-      : this.configuration.userOverlay.rules;
+    const document =
+      scope === "project"
+        ? this.configuration.projectOverlays
+        : this.configuration.userOverlays;
+    return (
+      document.overlays.find(
+        (overlay) => overlay.ruleSetId === this.overlayRuleSetId,
+      )?.rules ?? []
+    );
   }
 
   isPending(scope: PermissionScope, id: string): boolean {
-    return this.pendingKeys.includes(`${scope}:${id}`);
+    return this.pendingKeys.includes(`${scope}:${this.overlayRuleSetId}:${id}`);
   }
 
   async remove(scope: PermissionScope, id: string): Promise<void> {
     await this.save(
       scope,
       this.rules(scope).filter((rule) => rule.id !== id),
-      `${scope}:${id}`,
+      `${scope}:${this.overlayRuleSetId}:${id}`,
     );
   }
 
@@ -87,7 +100,7 @@ export class PermissionsPageState {
     return this.save(
       scope,
       [...current, { ...input, priority }],
-      `${scope}:${input.id}`,
+      `${scope}:${this.overlayRuleSetId}:${input.id}`,
     );
   }
 
@@ -115,12 +128,16 @@ export class PermissionsPageState {
     }
     const rules = [...current];
     rules[index] = replacement;
-    return this.save(scope, rules, `${scope}:${originalId}`);
+    return this.save(
+      scope,
+      rules,
+      `${scope}:${this.overlayRuleSetId}:${originalId}`,
+    );
   }
 
   async setTrusted(trusted: boolean): Promise<void> {
     if (!this.project) return;
-    const key = "project:trust";
+    const key = `project:${this.overlayRuleSetId}:trust`;
     if (this.pendingKeys.includes(key)) return;
     this.pendingKeys = [...this.pendingKeys, key];
     this.errorMessage = undefined;
@@ -149,14 +166,24 @@ export class PermissionsPageState {
       const overlay = await this.dependencies.updateOverlay(
         this.project.id,
         scope,
-        { schemaVersion: 1, rules },
+        { ruleSetId: this.overlayRuleSetId, rules },
       );
       if (!this.configuration) return true;
       this.configuration = {
         ...this.configuration,
         ...(scope === "project"
-          ? { projectOverlay: overlay }
-          : { userOverlay: overlay }),
+          ? {
+              projectOverlays: replaceOverlay(
+                this.configuration.projectOverlays,
+                overlay,
+              ),
+            }
+          : {
+              userOverlays: replaceOverlay(
+                this.configuration.userOverlays,
+                overlay,
+              ),
+            }),
       };
       if (scope === "project")
         await this.load(this.project.id, ++this.generation);
@@ -192,6 +219,18 @@ export class PermissionsPageState {
       if (generation === this.generation) this.loading = false;
     }
   }
+}
+
+function replaceOverlay(
+  document: PermissionOverlayDocument,
+  overlay: PermissionOverlay,
+): PermissionOverlayDocument {
+  const overlays = document.overlays.filter(
+    (candidate) => candidate.ruleSetId !== overlay.ruleSetId,
+  );
+  if (overlay.rules.length > 0) overlays.push(overlay);
+  overlays.sort((left, right) => left.ruleSetId.localeCompare(right.ruleSetId));
+  return { schemaVersion: 2, overlays };
 }
 
 function errorMessage(error: unknown, fallback: string): string {

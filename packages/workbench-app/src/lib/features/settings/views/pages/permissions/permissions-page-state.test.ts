@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type {
   PermissionOverlay,
+  PermissionOverlayDocument,
   PermissionPolicyConfiguration,
   ProjectRecord,
 } from "$lib/api";
@@ -20,11 +21,22 @@ const project: ProjectRecord = {
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
-const emptyOverlay: PermissionOverlay = { schemaVersion: 1, rules: [] };
+const emptyOverlays: PermissionOverlayDocument = {
+  schemaVersion: 2,
+  overlays: [],
+};
 const configuration: PermissionPolicyConfiguration = {
-  ruleSets: [],
-  userOverlay: emptyOverlay,
-  projectOverlay: emptyOverlay,
+  ruleSets: [
+    {
+      id: "supervised",
+      name: "Supervised",
+      source: "builtin",
+      enabled: true,
+      available: true,
+    },
+  ],
+  userOverlays: emptyOverlays,
+  projectOverlays: emptyOverlays,
   projectTrust: { status: "missing" },
   diagnostics: [],
 };
@@ -57,7 +69,10 @@ describe("PermissionsPageState", () => {
   });
 
   it("adds and removes canonical rules through one overlay", async () => {
-    let saved: PermissionOverlay = emptyOverlay;
+    let saved: PermissionOverlay = {
+      ruleSetId: "supervised",
+      rules: [],
+    };
     const state = new PermissionsPageState({
       getConfiguration: async () => configuration,
       updateOverlay: async (_id, _scope, overlay) => {
@@ -78,6 +93,7 @@ describe("PermissionsPageState", () => {
       decision: "allow" as const,
     };
     assert.equal(await state.add("user", rule), true);
+    assert.equal(saved.ruleSetId, "supervised");
     assert.equal(saved.rules[0]?.id, "allow-write");
     const replacement = {
       ...saved.rules[0]!,
@@ -98,6 +114,41 @@ describe("PermissionsPageState", () => {
     assert.equal(saved.rules[0]?.decision, "prompt");
     await state.remove("user", "allow-write");
     assert.deepEqual(saved.rules, []);
+  });
+
+  it("edits only the selected rule-set overlay", async () => {
+    const planningRule = {
+      id: "planning-rule",
+      enabled: true,
+      priority: 0,
+      enforcement: "overridable" as const,
+      when: { toolNames: ["bash"] },
+      decision: "allow" as const,
+    };
+    let saved: PermissionOverlay | undefined;
+    const state = new PermissionsPageState({
+      getConfiguration: async () => ({
+        ...configuration,
+        userOverlays: {
+          schemaVersion: 2,
+          overlays: [{ ruleSetId: "planning", rules: [planningRule] }],
+        },
+      }),
+      updateOverlay: async (_id, _scope, overlay) => {
+        saved = overlay;
+        return overlay;
+      },
+      updateTrust: async () => undefined,
+    });
+    state.selectProject(project);
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.deepEqual(state.rules("user"), []);
+    state.selectRuleSet("planning");
+    assert.deepEqual(state.rules("user"), [planningRule]);
+    await state.remove("user", planningRule.id);
+    assert.deepEqual(saved, { ruleSetId: "planning", rules: [] });
+    assert.deepEqual(state.configuration?.userOverlays.overlays, []);
   });
 
   it("refreshes project trust after a trust mutation", async () => {

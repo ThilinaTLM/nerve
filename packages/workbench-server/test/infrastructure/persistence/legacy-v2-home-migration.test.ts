@@ -261,7 +261,7 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
   );
   // Permission exceptions were never externally shipped and are not imported
   // into the versioned rule-set/overlay format.
-  assert.deepEqual(storage.configuration.permissions.rules, []);
+  assert.deepEqual(storage.configuration.permissions.overlays, []);
   const migratedAgent = await storage.canonicalStore.readDocument<
     Record<string, unknown>
   >("agent", "global", "agent_migration_test");

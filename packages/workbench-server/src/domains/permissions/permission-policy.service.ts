@@ -5,6 +5,7 @@ import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
   IgnoredPermissionSource,
   PermissionOverlay,
+  PermissionOverlayDocument,
   PermissionOverlayOrigin,
   PermissionPolicyConfiguration,
   PermissionRule,
@@ -14,7 +15,9 @@ import type {
 import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { z } from "zod";
 import {
+  permissionOverlayDocumentForOriginSchema,
   permissionOverlayForOriginSchema,
+  permissionRuleSchema,
   permissionRuleSetSchema,
   projectPermissionTrustSchema,
 } from "@nervekit/contracts/permissions";
@@ -41,6 +44,16 @@ const trustRecordSchema = z
 type TrustRecord = z.infer<typeof trustRecordSchema>;
 const TRUST_NAMESPACE = "project-permission-trust";
 const TRUST_SCOPE = "global";
+const emptyOverlayDocument = (): PermissionOverlayDocument => ({
+  schemaVersion: 2,
+  overlays: [],
+});
+const legacyPermissionOverlaySchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    rules: z.array(permissionRuleSchema).max(256),
+  })
+  .strict();
 
 export interface ResolvedPermissionPolicy {
   policy: EffectivePermissionPolicy;
@@ -66,18 +79,12 @@ export class PermissionPolicyService {
       : agent.mode === "planning"
         ? "planning"
         : (agent.permissionRuleSetId ?? agent.permissionLevel);
-    const diagnostics: string[] = [];
+    const custom = await this.customRuleSets();
+    const diagnostics: string[] = [...custom.diagnostics];
     let selected: PermissionRuleSet | undefined =
       builtInPermissionRuleSets.find(
         (candidate) => candidate.id === selectedId,
-      );
-    if (!selected) {
-      const custom = await this.customRuleSets();
-      selected = custom.available.find(
-        (candidate) => candidate.id === selectedId,
-      );
-      diagnostics.push(...custom.diagnostics);
-    }
+      ) ?? custom.available.find((candidate) => candidate.id === selectedId);
     const compatibleMode = agent.mode === "planning" ? "planning" : "coding";
     const selectionValid =
       selected?.enabled === true &&
@@ -93,16 +100,23 @@ export class PermissionPolicyService {
     const effectiveSelected = selected ?? builtInPermissionRuleSet("baseline");
 
     const ignored: IgnoredPermissionSource[] = [];
-    const user = await this.loadOverlay(
+    const knownRuleSetIds = this.knownRuleSetIds(custom.available);
+    const userDocument = await this.loadOverlayDocument(
       "user",
       this.storage.paths.permissionsConfigPath,
       ignored,
+      knownRuleSetIds,
     );
     const projectPath = this.projectOverlayPath(project);
     const trust = await this.projectTrust(agent.projectId);
-    const projectOverlay =
+    const projectDocument =
       trust.status === "trusted"
-        ? await this.loadOverlay("project", projectPath, ignored)
+        ? await this.loadOverlayDocument(
+            "project",
+            projectPath,
+            ignored,
+            knownRuleSetIds,
+          )
         : undefined;
     if (trust.status === "invalid" || trust.status === "untrusted") {
       ignored.push({
@@ -112,22 +126,33 @@ export class PermissionPolicyService {
       });
     }
     const conversationPath = this.conversationOverlayPath(agent.conversationId);
-    const conversation = await this.loadOverlay(
+    const conversationDocument = await this.loadOverlayDocument(
       "conversation",
       conversationPath,
       ignored,
+      knownRuleSetIds,
     );
     diagnostics.push(...ignored.map((item) => `${item.path}: ${item.reason}`));
+    const overlaysEnabled = !subagent && !fallback;
     return {
       policy: composeEffectivePermissionPolicy({
         selectedRuleSet: effectiveSelected,
-        ...(subagent
-          ? {}
-          : {
-              userOverlay: user,
-              projectOverlay,
-              conversationOverlay: conversation,
-            }),
+        ...(overlaysEnabled
+          ? {
+              userOverlay: overlayForRuleSet(
+                userDocument,
+                effectiveSelected.id,
+              ),
+              projectOverlay: overlayForRuleSet(
+                projectDocument,
+                effectiveSelected.id,
+              ),
+              conversationOverlay: overlayForRuleSet(
+                conversationDocument,
+                effectiveSelected.id,
+              ),
+            }
+          : {}),
         ignoredOverlays: subagent ? [] : ignored,
         subagent,
       }),
@@ -148,28 +173,46 @@ export class PermissionPolicyService {
     conversationId?: string,
   ): Promise<PermissionPolicyConfiguration> {
     const custom = await this.customRuleSets();
+    const knownRuleSetIds = this.knownRuleSetIds(custom.available);
     const ignored: IgnoredPermissionSource[] = [];
-    const userOverlay = (await this.loadOverlay(
-      "user",
-      this.storage.paths.permissionsConfigPath,
-      ignored,
-    )) ?? { schemaVersion: 1 as const, rules: [] };
+    const userOverlays =
+      (await this.loadOverlayDocument(
+        "user",
+        this.storage.paths.permissionsConfigPath,
+        ignored,
+        knownRuleSetIds,
+      )) ?? emptyOverlayDocument();
     const project = this.getProject(projectId);
-    const projectOverlay = (await this.loadOverlay(
-      "project",
-      this.projectOverlayPath(project),
-      ignored,
-    )) ?? { schemaVersion: 1 as const, rules: [] };
-    const conversationOverlay = conversationId
-      ? ((await this.loadOverlay(
+    const projectOverlays =
+      (await this.loadOverlayDocument(
+        "project",
+        this.projectOverlayPath(project),
+        ignored,
+        knownRuleSetIds,
+      )) ?? emptyOverlayDocument();
+    const conversationOverlays = conversationId
+      ? ((await this.loadOverlayDocument(
           "conversation",
           this.conversationOverlayPath(conversationId),
           ignored,
-        )) ?? { schemaVersion: 1 as const, rules: [] })
+          knownRuleSetIds,
+        )) ?? emptyOverlayDocument())
       : undefined;
+    const availableRuleSets = [
+      ...builtInPermissionRuleSets,
+      ...custom.available,
+    ];
+    const referencedIds = new Set(
+      [userOverlays, projectOverlays, conversationOverlays]
+        .flatMap((document) => document?.overlays ?? [])
+        .map((overlay) => overlay.ruleSetId),
+    );
+    const unavailableIds = [...referencedIds]
+      .filter((id) => !availableRuleSets.some((ruleSet) => ruleSet.id === id))
+      .sort();
     return {
       ruleSets: [
-        ...builtInPermissionRuleSets.map((ruleSet) => ({
+        ...availableRuleSets.map((ruleSet) => ({
           id: ruleSet.id,
           name: ruleSet.name,
           description: ruleSet.description,
@@ -178,19 +221,18 @@ export class PermissionPolicyService {
           compatibleModes: ruleSet.compatibleModes,
           available: true,
         })),
-        ...custom.available.map((ruleSet) => ({
-          id: ruleSet.id,
-          name: ruleSet.name,
-          description: ruleSet.description,
-          source: ruleSet.source,
-          enabled: ruleSet.enabled,
-          compatibleModes: ruleSet.compatibleModes,
-          available: true,
+        ...unavailableIds.map((id) => ({
+          id,
+          name: id,
+          source: "user" as const,
+          enabled: false,
+          available: false,
+          diagnostic: "The referenced permission rule set is unavailable.",
         })),
       ],
-      userOverlay,
-      projectOverlay,
-      ...(conversationOverlay ? { conversationOverlay } : {}),
+      userOverlays,
+      projectOverlays,
+      ...(conversationOverlays ? { conversationOverlays } : {}),
       projectTrust: await this.projectTrust(projectId),
       diagnostics: [
         ...custom.diagnostics,
@@ -244,16 +286,11 @@ export class PermissionPolicyService {
 
   async readOverlay(
     origin: PermissionOverlayOrigin,
+    ruleSetId: string,
     ownerId?: string,
   ): Promise<PermissionOverlay> {
-    const path = this.overlayPath(origin, ownerId);
-    const ignored: IgnoredPermissionSource[] = [];
-    return (
-      (await this.loadOverlay(origin, path, ignored)) ?? {
-        schemaVersion: 1,
-        rules: [],
-      }
-    );
+    const document = await this.readOverlayDocument(origin, ownerId);
+    return overlayForRuleSet(document, ruleSetId) ?? { ruleSetId, rules: [] };
   }
 
   async replaceOverlay(
@@ -262,24 +299,29 @@ export class PermissionPolicyService {
     ownerId?: string,
   ): Promise<PermissionOverlay> {
     const parsed = permissionOverlayForOriginSchema(origin).parse(overlay);
-    const path = this.overlayPath(origin, ownerId);
     return this.exclusive(`${origin}:${ownerId ?? "global"}`, async () => {
-      await atomicWriteJson(path, parsed, 0o600);
-      if (origin === "project") {
-        if (!ownerId) throw new Error("Project ID is required.");
-        await this.trustProject(ownerId);
-      }
+      const current = await this.readOverlayDocument(origin, ownerId);
+      await this.writeOverlayDocument(
+        origin,
+        replaceOverlayGroup(current, parsed),
+        ownerId,
+      );
       return parsed;
     });
   }
 
   async saveRule(
     origin: PermissionOverlayOrigin,
+    ruleSetId: string,
     rule: PermissionRule,
     ownerId?: string,
   ): Promise<PermissionOverlay> {
     return this.exclusive(`${origin}:${ownerId ?? "global"}`, async () => {
-      const current = await this.readOverlay(origin, ownerId);
+      const currentDocument = await this.readOverlayDocument(origin, ownerId);
+      const current = overlayForRuleSet(currentDocument, ruleSetId) ?? {
+        ruleSetId,
+        rules: [],
+      };
       const canonical = canonicalMatcher(rule);
       const duplicate = current.rules.findIndex(
         (candidate) =>
@@ -314,14 +356,14 @@ export class PermissionPolicyService {
         enforcement: desiredEnforcement,
       };
       const parsed = permissionOverlayForOriginSchema(origin).parse({
-        schemaVersion: 1,
+        ruleSetId,
         rules: [...remaining, saved],
       });
-      await atomicWriteJson(this.overlayPath(origin, ownerId), parsed, 0o600);
-      if (origin === "project") {
-        if (!ownerId) throw new Error("Project ID is required.");
-        await this.trustProject(ownerId);
-      }
+      await this.writeOverlayDocument(
+        origin,
+        replaceOverlayGroup(currentDocument, parsed),
+        ownerId,
+      );
       return parsed;
     });
   }
@@ -340,7 +382,7 @@ export class PermissionPolicyService {
     }
     let digest: string;
     try {
-      permissionOverlayForOriginSchema("project").parse(JSON.parse(content));
+      parseOverlayDocument("project", content, []);
       digest = digestContent(content);
     } catch (error) {
       return {
@@ -370,7 +412,7 @@ export class PermissionPolicyService {
     const project = this.getProject(projectId);
     const path = this.projectOverlayPath(project);
     const content = await readFile(path, "utf8");
-    permissionOverlayForOriginSchema("project").parse(JSON.parse(content));
+    parseOverlayDocument("project", content, []);
     const digest = digestContent(content);
     await this.exclusive(`project-trust:${projectId}`, async () => {
       const current = await this.storage.canonicalStore.readDocument(
@@ -403,15 +445,54 @@ export class PermissionPolicyService {
     });
   }
 
-  private async loadOverlay(
+  private knownRuleSetIds(custom: readonly PermissionRuleSet[]): string[] {
+    return [...builtInPermissionRuleSets, ...custom]
+      .map((ruleSet) => ruleSet.id)
+      .filter((id, index, ids) => ids.indexOf(id) === index)
+      .sort();
+  }
+
+  private async readOverlayDocument(
+    origin: PermissionOverlayOrigin,
+    ownerId?: string,
+  ): Promise<PermissionOverlayDocument> {
+    const ignored: IgnoredPermissionSource[] = [];
+    const custom = await this.customRuleSets();
+    return (
+      (await this.loadOverlayDocument(
+        origin,
+        this.overlayPath(origin, ownerId),
+        ignored,
+        this.knownRuleSetIds(custom.available),
+      )) ?? emptyOverlayDocument()
+    );
+  }
+
+  private async writeOverlayDocument(
+    origin: PermissionOverlayOrigin,
+    document: PermissionOverlayDocument,
+    ownerId?: string,
+  ): Promise<void> {
+    const parsed =
+      permissionOverlayDocumentForOriginSchema(origin).parse(document);
+    await atomicWriteJson(this.overlayPath(origin, ownerId), parsed, 0o600);
+    if (origin === "project") {
+      if (!ownerId) throw new Error("Project ID is required.");
+      await this.trustProject(ownerId);
+    }
+  }
+
+  private async loadOverlayDocument(
     origin: PermissionOverlayOrigin,
     path: string,
     ignored: IgnoredPermissionSource[],
-  ): Promise<PermissionOverlay | undefined> {
+    knownRuleSetIds: readonly string[],
+  ): Promise<PermissionOverlayDocument | undefined> {
     try {
-      const content = await readFile(path, "utf8");
-      return permissionOverlayForOriginSchema(origin).parse(
-        JSON.parse(content),
+      return parseOverlayDocument(
+        origin,
+        await readFile(path, "utf8"),
+        knownRuleSetIds,
       );
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
@@ -467,6 +548,49 @@ export class PermissionPolicyService {
       if (this.queues.get(key) === tail) this.queues.delete(key);
     });
   }
+}
+
+function parseOverlayDocument(
+  origin: PermissionOverlayOrigin,
+  content: string,
+  knownRuleSetIds: readonly string[],
+): PermissionOverlayDocument {
+  const value: unknown = JSON.parse(content);
+  const current =
+    permissionOverlayDocumentForOriginSchema(origin).safeParse(value);
+  if (current.success) return current.data;
+
+  const legacy = legacyPermissionOverlaySchema.parse(value);
+  permissionOverlayForOriginSchema(origin).parse({
+    ruleSetId: "baseline",
+    rules: legacy.rules,
+  });
+  return permissionOverlayDocumentForOriginSchema(origin).parse({
+    schemaVersion: 2,
+    overlays: [...new Set(knownRuleSetIds)].sort().map((ruleSetId) => ({
+      ruleSetId,
+      rules: legacy.rules,
+    })),
+  });
+}
+
+function overlayForRuleSet(
+  document: PermissionOverlayDocument | undefined,
+  ruleSetId: string,
+): PermissionOverlay | undefined {
+  return document?.overlays.find((overlay) => overlay.ruleSetId === ruleSetId);
+}
+
+function replaceOverlayGroup(
+  document: PermissionOverlayDocument,
+  overlay: PermissionOverlay,
+): PermissionOverlayDocument {
+  const overlays = document.overlays.filter(
+    (candidate) => candidate.ruleSetId !== overlay.ruleSetId,
+  );
+  if (overlay.rules.length > 0) overlays.push(overlay);
+  overlays.sort((left, right) => left.ruleSetId.localeCompare(right.ruleSetId));
+  return { schemaVersion: 2, overlays };
 }
 
 function digestContent(content: string): string {

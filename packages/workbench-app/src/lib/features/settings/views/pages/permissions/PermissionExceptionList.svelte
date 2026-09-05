@@ -75,7 +75,7 @@ function matcher(rule: PermissionRule): string {
             <Button
               size="icon-sm"
               variant="ghost"
-              disabled={pendingIds.includes(rule.id)}
+              disabled={!onEdit || pendingIds.includes(rule.id)}
               aria-label={`Edit ${rule.id} permission rule`}
               onclick={() => onEdit?.(rule)}
             >

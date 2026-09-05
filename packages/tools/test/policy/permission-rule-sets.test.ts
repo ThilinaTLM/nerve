@@ -74,8 +74,11 @@ function rule(
   };
 }
 
-function overlay(...rules: PermissionRule[]): PermissionOverlay {
-  return { schemaVersion: 1, rules };
+function overlay(
+  ruleSetId: string,
+  ...rules: PermissionRule[]
+): PermissionOverlay {
+  return { ruleSetId, rules };
 }
 
 test("catalog has complete static policy metadata", () => {
@@ -273,9 +276,51 @@ test("planning separates research, prompted analysis, and mutations", () => {
   }
 });
 
+test("overlays apply only to their selected permission rule set", () => {
+  const planningOverlay = overlay(
+    "planning",
+    rule("allow-write-in-planning", 10, "allow"),
+  );
+  assert.equal(
+    decision(
+      "planning",
+      "write",
+      { path: "/nerve/data/plans/a.md" },
+      { userOverlay: planningOverlay },
+    ).winningRuleId,
+    "allow-write-in-planning",
+  );
+  assert.equal(
+    decision(
+      "supervised",
+      "write",
+      { path: "src/a.ts" },
+      { userOverlay: planningOverlay },
+    ).decision,
+    "prompt",
+  );
+
+  const baselineOverlay = overlay(
+    "baseline",
+    rule("baseline-allow-write", 10, "allow"),
+  );
+  assert.notEqual(
+    decision(
+      "supervised",
+      "write",
+      { path: "src/a.ts" },
+      { userOverlay: baselineOverlay },
+    ).winningRuleId,
+    "baseline-allow-write",
+  );
+});
+
 test("guardrails and scope ranks precede numeric priority and decision kind", () => {
-  const userOverlay = overlay(rule("user-deny", 1000, "deny"));
-  const projectOverlay = overlay(rule("project-allow", -1000, "allow"));
+  const userOverlay = overlay("read_only", rule("user-deny", 1000, "deny"));
+  const projectOverlay = overlay(
+    "read_only",
+    rule("project-allow", -1000, "allow"),
+  );
   assert.equal(
     decision(
       "read_only",
@@ -286,8 +331,12 @@ test("guardrails and scope ranks precede numeric priority and decision kind", ()
     "allow",
   );
 
-  const guardrail = overlay(rule("never-write", -1000, "deny", "guardrail"));
+  const guardrail = overlay(
+    "autonomous",
+    rule("never-write", -1000, "deny", "guardrail"),
+  );
   const conversationOverlay = overlay(
+    "autonomous",
     rule("conversation-allow", 1000, "allow"),
   );
   const result = decision(
@@ -305,6 +354,7 @@ test("guardrails and scope ranks precede numeric priority and decision kind", ()
 
 test("greater priority wins only within the same enforcement and origin", () => {
   const projectOverlay = overlay(
+    "autonomous",
     rule("lower-deny", 10, "deny"),
     rule("higher-prompt", 20, "prompt"),
   );
@@ -332,7 +382,7 @@ test("all target matcher rejects empty target collections and covers compound ta
     },
     decision: "allow",
   };
-  const projectOverlay = overlay(allowPlans);
+  const projectOverlay = overlay("read_only", allowPlans);
   assert.equal(
     decision(
       "read_only",
@@ -409,10 +459,22 @@ test("policy hash is deterministic and changes with effective policy", () => {
     "write",
     { path: "a" },
     {
-      userOverlay: overlay(rule("allow-write", 1, "allow")),
+      userOverlay: overlay("supervised", rule("allow-write", 1, "allow")),
     },
   );
   assert.notEqual(first.policySnapshotHash, changed.policySnapshotHash);
+
+  const inactive = decision(
+    "supervised",
+    "write",
+    { path: "a" },
+    {
+      userOverlay: overlay("autonomous", rule("allow-write", 1, "allow")),
+    },
+  );
+  assert.equal(first.policySnapshotHash, inactive.policySnapshotHash);
+  assert.equal(changed.selectedRuleSetId, "supervised");
+  assert.equal(changed.winningRuleSetId, "supervised");
 });
 
 test("external and mixed grep paths remain distinct permission targets", () => {
@@ -447,7 +509,7 @@ test("external and mixed grep paths remain distinct permission targets", () => {
     },
   ]);
 
-  const projectOnly = overlay({
+  const projectOnly = overlay("supervised", {
     id: "allow-project-grep",
     enabled: true,
     priority: 1,
@@ -510,12 +572,12 @@ test("existing symlinks are canonicalized to external targets", async () => {
 test("source schemas reject forbidden guardrails and broad project grants", () => {
   assert.throws(() =>
     permissionOverlayForOriginSchema("conversation").parse(
-      overlay(rule("guard", 1, "deny", "guardrail")),
+      overlay("planning", rule("guard", 1, "deny", "guardrail")),
     ),
   );
   assert.throws(() =>
     permissionOverlayForOriginSchema("project").parse({
-      schemaVersion: 1,
+      ruleSetId: "planning",
       rules: [
         {
           id: "broad-home",

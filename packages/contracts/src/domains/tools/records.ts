@@ -9,6 +9,7 @@ import {
 import {
   permissionEvaluationResultSchema,
   permissionRuleSchema,
+  permissionRuleSetIdSchema,
   permissionTargetKindSchema,
   staticToolRiskSchema,
   toolKindSchema,
@@ -196,6 +197,7 @@ export const approvalToolInteractionSchema = interactionBaseSchema.extend({
       .max(7),
     suggestedExceptions: z.array(permissionExceptionSchema).max(16).default([]),
     suggestedRules: z.array(permissionRuleSchema).max(16).default([]),
+    permissionRuleSetId: permissionRuleSetIdSchema.optional(),
   }),
   resolution: z
     .object({
@@ -467,6 +469,7 @@ export const approvalRecordSchema = z.object({
     .default(["single_call"]),
   suggestedExceptions: z.array(permissionExceptionSchema).max(16).default([]),
   suggestedRules: z.array(permissionRuleSchema).max(16).default([]),
+  permissionRuleSetId: permissionRuleSetIdSchema.optional(),
 });
 export type ApprovalRecord = z.infer<typeof approvalRecordSchema>;
 

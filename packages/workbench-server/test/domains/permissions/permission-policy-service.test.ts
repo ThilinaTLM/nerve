@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
@@ -64,7 +64,12 @@ const allowWrite = {
 
 test("conversation rules persist independently and compose at highest scope", async () => {
   const { service, agent } = await setup();
-  await service.saveRule("conversation", allowWrite, agent.conversationId);
+  await service.saveRule(
+    "conversation",
+    "supervised",
+    allowWrite,
+    agent.conversationId,
+  );
   const resolved = await service.resolve(agent);
   const winner = resolved.policy.rules.find(
     (entry) =>
@@ -73,16 +78,131 @@ test("conversation rules persist independently and compose at highest scope", as
   assert.ok(winner);
   assert.equal(winner.precedence.scopeRank, 4);
   assert.deepEqual(
-    (await service.readOverlay("conversation", agent.conversationId)).rules,
+    (
+      await service.readOverlay(
+        "conversation",
+        "supervised",
+        agent.conversationId,
+      )
+    ).rules,
     [{ ...allowWrite, priority: 0 }],
   );
+});
+
+test("overlay rules apply only to their bound selected rule set", async () => {
+  const { service, agent } = await setup();
+  await service.saveRule("user", "planning", allowWrite);
+
+  const coding = await service.resolve(agent);
+  assert.equal(
+    coding.policy.rules.some(
+      (entry) => entry.origin === "user" && entry.rule.id === "allow-write",
+    ),
+    false,
+  );
+
+  agent.mode = "planning";
+  const planning = await service.resolve(agent);
+  assert.equal(planning.selectedRuleSetId, "planning");
+  assert.ok(
+    planning.policy.rules.some(
+      (entry) =>
+        entry.origin === "user" &&
+        entry.ruleSetId === "planning" &&
+        entry.rule.id === "allow-write",
+    ),
+  );
+});
+
+test("legacy flat overlays normalize to explicit groups and write forward", async () => {
+  const { service, storage } = await setup();
+  await writeFile(
+    storage.paths.permissionsConfigPath,
+    JSON.stringify({ schemaVersion: 1, rules: [allowWrite] }),
+  );
+
+  const configuration = await service.configuration("proj_test");
+  for (const id of ["planning", "supervised", "autonomous", "read_only"]) {
+    assert.ok(
+      configuration.userOverlays.overlays.some(
+        (overlay) =>
+          overlay.ruleSetId === id && overlay.rules[0]?.id === "allow-write",
+      ),
+    );
+  }
+
+  await service.replaceOverlay("user", {
+    ruleSetId: "supervised",
+    rules: [],
+  });
+  const written = JSON.parse(
+    await readFile(storage.paths.permissionsConfigPath, "utf8"),
+  );
+  assert.equal(written.schemaVersion, 2);
+  assert.equal(
+    written.overlays.some(
+      (overlay: { ruleSetId: string }) => overlay.ruleSetId === "supervised",
+    ),
+    false,
+  );
+  assert.ok(
+    written.overlays.some(
+      (overlay: { ruleSetId: string }) => overlay.ruleSetId === "planning",
+    ),
+  );
+});
+
+test("dormant overlays remain visible but never apply to another set", async () => {
+  const { service, storage, agent } = await setup();
+  await writeFile(
+    storage.paths.permissionsConfigPath,
+    JSON.stringify({
+      schemaVersion: 2,
+      overlays: [{ ruleSetId: "removed-set", rules: [allowWrite] }],
+    }),
+  );
+  const configuration = await service.configuration(agent.projectId);
+  const removed = configuration.ruleSets.find(
+    (ruleSet) => ruleSet.id === "removed-set",
+  );
+  assert.equal(removed?.available, false);
+  assert.equal(
+    (await service.resolve(agent)).policy.rules.some(
+      (entry) => entry.origin === "user",
+    ),
+    false,
+  );
+});
+
+test("trusted legacy project overlays retain trust until explicit v2 write-forward", async () => {
+  const { service, project } = await setup();
+  const path = join(project.dir, ".nerve", "config", "permissions.json");
+  await mkdir(join(project.dir, ".nerve", "config"), { recursive: true });
+  await writeFile(
+    path,
+    JSON.stringify({ schemaVersion: 1, rules: [allowWrite] }),
+  );
+  assert.equal((await service.trustProject(project.id)).status, "trusted");
+  assert.ok(
+    (await service.configuration(project.id)).projectOverlays.overlays.some(
+      (overlay) => overlay.ruleSetId === "planning",
+    ),
+  );
+
+  await service.replaceOverlay(
+    "project",
+    { ruleSetId: "planning", rules: [allowWrite] },
+    project.id,
+  );
+  assert.equal((await service.projectTrust(project.id)).status, "trusted");
+  assert.equal(JSON.parse(await readFile(path, "utf8")).schemaVersion, 2);
 });
 
 test("project overlays remain inactive until their complete content digest is trusted", async () => {
   const { service, project, agent } = await setup();
   await service.replaceOverlay(
     "project",
-    { schemaVersion: 1, rules: [allowWrite] },
+    { ruleSetId: "supervised", rules: [allowWrite] },
     project.id,
   );
   assert.equal((await service.projectTrust(project.id)).status, "trusted");
@@ -94,7 +214,7 @@ test("project overlays remain inactive until their complete content digest is tr
 
   const path = join(project.dir, ".nerve", "config", "permissions.json");
   const raw = JSON.parse(await readFile(path, "utf8"));
-  raw.rules[0].description = "Externally changed";
+  raw.overlays[0].rules[0].description = "Externally changed";
   await writeFile(path, JSON.stringify(raw));
   assert.equal((await service.projectTrust(project.id)).status, "untrusted");
   const resolved = await service.resolve(agent);
@@ -111,7 +231,7 @@ test("project trust persists across service reconstruction and revokes in isolat
   const { storage, service, project } = await setup();
   await service.replaceOverlay(
     "project",
-    { schemaVersion: 1, rules: [allowWrite] },
+    { ruleSetId: "supervised", rules: [allowWrite] },
     project.id,
   );
   const reconstructed = new PermissionPolicyService(storage, () => project);
@@ -127,7 +247,7 @@ test("invalid canonical project trust never activates an overlay", async () => {
   const { storage, service, project } = await setup();
   await service.replaceOverlay(
     "project",
-    { schemaVersion: 1, rules: [allowWrite] },
+    { ruleSetId: "supervised", rules: [allowWrite] },
     project.id,
   );
   const current = await storage.canonicalStore.readDocument(
@@ -149,9 +269,9 @@ test("invalid canonical project trust never activates an overlay", async () => {
   assert.equal((await service.projectTrust(project.id)).status, "untrusted");
 });
 
-test("invalid custom selection falls back to Baseline while retaining overlays", async () => {
+test("invalid custom selection falls back to Baseline without overlays", async () => {
   const { service, agent } = await setup();
-  await service.saveRule("user", {
+  await service.saveRule("user", "supervised", {
     ...allowWrite,
     id: "never-write",
     enforcement: "guardrail",
@@ -161,17 +281,16 @@ test("invalid custom selection falls back to Baseline while retaining overlays",
   const resolved = await service.resolve(agent);
   assert.equal(resolved.fallback, true);
   assert.deepEqual(resolved.policy.activeRuleSetIds, ["baseline"]);
-  assert.ok(
-    resolved.policy.rules.some(
-      (entry) => entry.origin === "user" && entry.rule.id === "never-write",
-    ),
+  assert.equal(
+    resolved.policy.rules.some((entry) => entry.origin === "user"),
+    false,
   );
   assert.match(resolved.diagnostics.join("\n"), /missing, disabled, malformed/);
 });
 
 test("Explore children receive only fixed Read only without overlays", async () => {
   const { service, agent } = await setup();
-  await service.saveRule("user", allowWrite);
+  await service.saveRule("user", "autonomous", allowWrite);
   agent.parentAgentId = "agent_parent";
   agent.permissionRuleSetId = "autonomous";
   const resolved = await service.resolve(agent);

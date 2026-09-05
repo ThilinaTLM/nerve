@@ -1,20 +1,12 @@
 # Permission rules and rule sets
 
-> **Status:** Active target proposal; not implemented. Current behavior is defined by the permission contracts, tool policy implementation, tests, and the public [Tools and approval policy](https://nerve.tlmtech.dev/developers/tools-policy/) page.
+> **Status:** Implemented architecture. Current behavior is defined by the permission contracts, tool policy implementation, tests, and the public [Tools and approval policy](https://nerve.tlmtech.dev/developers/tools-policy/) page.
 
-## Current versus target
+## Implementation ownership
 
-The shipped evaluator currently combines:
+The shipped evaluator combines named permission rule sets, catalog and argument-sensitive risk assessment, normalized targets, and rule-set-bound user/project/conversation overlays. Policy decisions are `allow`, `prompt`, or `deny`; the host projects `prompt` to an approval interaction.
 
-- permission levels `autonomous`, `supervised`, and `read_only`;
-- catalog and argument-sensitive risk assessment;
-- normalized request targets and host/mode constraints;
-- user and project `allow`/`deny` exceptions;
-- outcomes `allow`, `approval`, or `deny`.
-
-Current implementation is owned by [`permissions.ts`](../../packages/contracts/src/domains/permissions/permissions.ts), [`evaluate-tool-permission.ts`](../../packages/tools/src/policy/evaluate-tool-permission.ts), and [`evaluate-tool-supervision.ts`](../../packages/tools/src/policy/evaluate-tool-supervision.ts).
-
-This proposal would replace mode-specific baselines and exception composition with named, versioned rule sets and scoped overlays. In the target terminology, the outcomes are `allow`, `prompt`, or `deny`; target `prompt` corresponds to the current evaluator's `approval` boundary. The proposal must not be read as shipped behavior.
+The transport-neutral contracts live in [`permission-rule-sets.ts`](../../packages/contracts/src/domains/permissions/permission-rule-sets.ts), pure composition and evaluation live in [`permission-policy.ts`](../../packages/tools/src/policy/permission-policy.ts), and storage/trust resolution lives in [`permission-policy.service.ts`](../../packages/workbench-server/src/domains/permissions/permission-policy.service.ts).
 
 ## Purpose
 
@@ -22,7 +14,7 @@ Use one generic permission framework for every agent-callable tool. The framewor
 
 Product concepts such as Read only, Supervised, Autonomous, Planning, and future custom agents select or compose rule sets. They do not add special branches inside the generic evaluator.
 
-The target system must be:
+The system is designed to be:
 
 - deterministic and fail-closed;
 - independent of tool execution and agent mode implementation;
@@ -34,16 +26,16 @@ The target system must be:
 
 ## Concepts
 
-| Concept             | Target meaning                                                                                                                                                |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Permission rule     | Filters plus one `allow`, `prompt`, or `deny` decision.                                                                                                       |
-| Permission rule set | Named, versioned, ordered collection of permission rules with source and compatibility metadata.                                                              |
-| Built-in rule set   | Immutable application-owned Baseline, Read only, Supervised, Autonomous, or Planning policy.                                                                  |
-| Overlay             | Scoped ad hoc rules applied above the selected set. User and project overlays are portable configuration; conversation overlays are conversation-owned state. |
-| Guardrail           | Non-overridable restriction that can only preserve or reduce authority.                                                                                       |
-| Effective policy    | Immutable composition evaluated for one drafted call.                                                                                                         |
-| Tool descriptor     | Catalog-owned identity, groups, risks, argument selectors, and target extraction metadata.                                                                    |
-| Permission target   | Canonical structured resource affected by the call, such as a path, command segment, URL, agent, or whole tool.                                               |
+| Concept             | Target meaning                                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Permission rule     | Filters plus one `allow`, `prompt`, or `deny` decision.                                                         |
+| Permission rule set | Named, versioned, ordered collection of permission rules with source and compatibility metadata.                |
+| Built-in rule set   | Immutable application-owned Baseline, Read only, Supervised, Autonomous, or Planning policy.                    |
+| Overlay             | Ad hoc rules bound to one permission rule set and one user, project, or conversation ownership scope.           |
+| Guardrail           | Non-overridable restriction that can only preserve or reduce authority.                                         |
+| Effective policy    | Immutable composition evaluated for one drafted call.                                                           |
+| Tool descriptor     | Catalog-owned identity, groups, risks, argument selectors, and target extraction metadata.                      |
+| Permission target   | Canonical structured resource affected by the call, such as a path, command segment, URL, agent, or whole tool. |
 
 The tool manifest remains the source of truth for available names and metadata. This proposal intentionally does not duplicate the catalog.
 
@@ -74,16 +66,16 @@ Normalization is a security boundary. Rules never match untrusted raw argument t
 
 ### Composition order
 
-The target effective policy composes:
+The effective policy composes:
 
-1. non-overridable Baseline guardrails;
+1. Baseline foundation rules;
 2. one selected built-in or custom rule set;
-3. user overlay;
-4. project overlay;
-5. conversation overlay;
+3. the user overlay bound to that selected rule set;
+4. the project overlay bound to that selected rule set;
+5. the conversation overlay bound to that selected rule set;
 6. call-specific host constraints that can only reduce authority.
 
-Exact precedence is encoded in contracts, not inferred from storage order. Deny/guardrail behavior must remain monotonic: a lower-authority layer cannot override a non-overridable restriction.
+An overlay does not match merely because another rule set, such as Baseline, is also active. Planning and coding grants therefore remain isolated. Exact precedence is encoded in contracts, not inferred from storage order. User guardrails remain non-overridable within their bound rule set.
 
 ### Matching
 
@@ -102,21 +94,23 @@ Multi-target calls are allowed automatically only when the effective decision co
 
 ### Decision and evidence
 
-Every successful evaluation returns exactly one target decision:
+Every successful evaluation returns exactly one decision:
 
 ```ts
 type PermissionDecision = "allow" | "prompt" | "deny";
 ```
 
-The durable evidence should include the policy version/hash, normalized targets, applicable rule source versions, matched rule identifiers, reason, and any safe suggested overlay. Evidence is committed before execution starts so a later policy edit cannot change why an existing call proceeded or stopped.
+Durable evidence includes the selected and winning rule-set IDs, policy hash, normalized targets, matched rule, reason, and any safe suggested rule. The selected rule-set ID is copied into approval state so a durable grant is saved against evaluation-time policy identity even if conversation selection later changes. Evidence is committed before execution starts so a later policy edit cannot change why an existing call proceeded or stopped.
 
 Interaction tools that implement the human boundary must not recursively prompt for permission to display that boundary.
 
 ## Storage and portability
 
 - Built-in rule sets ship with the application and are immutable.
-- User and project rule sets/overlays use versioned portable configuration without absolute `NERVE_HOME` paths.
-- Conversation overlays are canonical conversation-owned data.
+- Each ownership scope keeps one atomic v2 overlay document with `overlays: [{ ruleSetId, rules }]`; separate per-rule-set files are not used.
+- User and project rule sets/overlays use portable configuration without absolute `NERVE_HOME` paths.
+- Conversation overlays are stored with managed conversation data.
+- Project trust covers the digest of the complete project overlay document.
 - Durable records store policy identity and evidence, not a mutable pointer whose meaning can change later.
 - Secrets never appear in rules or evidence.
 - Unknown tool names remain readable in historical evidence but cannot execute without an active catalog descriptor.
@@ -125,11 +119,11 @@ The final storage shape must follow the implemented [storage architecture](../ar
 
 ## Failure behavior
 
-The target evaluator denies when:
+The evaluator fails closed when:
 
 - arguments fail validation;
 - required targets cannot be derived or canonicalized;
-- a referenced rule set is missing, malformed, incompatible, or has an unknown version;
+- a referenced rule set is missing, malformed, incompatible, or has an unknown version; the host selects Baseline without overlays;
 - the selected policy exceeds an enclosing guardrail;
 - an unknown matcher could expand authority;
 - policy evidence cannot be committed before execution.
@@ -138,7 +132,7 @@ A policy failure is never converted into automatic approval.
 
 ## Implementation criteria
 
-The proposal is complete only when:
+The architecture remains complete only while:
 
 - shared contracts define rule sets, overlays, normalized requests, decisions, and evidence;
 - the tool manifest supplies all required metadata without a second inventory;

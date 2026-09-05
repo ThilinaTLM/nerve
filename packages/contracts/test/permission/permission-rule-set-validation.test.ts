@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  permissionOverlayDocumentForOriginSchema,
+  permissionOverlayDocumentSchema,
   permissionOverlayForOriginSchema,
   permissionOverlaySchema,
   permissionRuleSchema,
@@ -28,14 +30,47 @@ test("permission rule schemas enforce priorities and guardrail decisions", () =>
   );
   assert.throws(() =>
     permissionOverlaySchema.parse({
-      schemaVersion: 1,
+      ruleSetId: "planning",
       rules: [rule, { ...rule, id: "other" }],
     }),
   );
   assert.throws(() =>
     permissionOverlaySchema.parse({
-      schemaVersion: 1,
+      ruleSetId: "planning",
       rules: [rule, { ...rule, priority: 11 }],
+    }),
+  );
+});
+
+test("overlay documents require one bounded group per rule set", () => {
+  assert.deepEqual(
+    permissionOverlayDocumentSchema
+      .parse({
+        schemaVersion: 2,
+        overlays: [
+          { ruleSetId: "planning", rules: [rule] },
+          {
+            ruleSetId: "supervised",
+            rules: [{ ...rule, id: "allow-read", priority: 10 }],
+          },
+        ],
+      })
+      .overlays.map((overlay) => overlay.ruleSetId),
+    ["planning", "supervised"],
+  );
+  assert.throws(() =>
+    permissionOverlayDocumentSchema.parse({
+      schemaVersion: 2,
+      overlays: [
+        { ruleSetId: "planning", rules: [] },
+        { ruleSetId: "planning", rules: [] },
+      ],
+    }),
+  );
+  assert.throws(() =>
+    permissionOverlayDocumentSchema.parse({
+      schemaVersion: 2,
+      overlays: [{ ruleSetId: "planning", rules: Array(257).fill(rule) }],
     }),
   );
 });
@@ -66,26 +101,31 @@ test("rule sets reject guardrails and unsafe IDs", () => {
 test("project and conversation sources reject forbidden authority", () => {
   assert.throws(() =>
     permissionOverlayForOriginSchema("conversation").parse({
-      schemaVersion: 1,
+      ruleSetId: "planning",
       rules: [{ ...rule, enforcement: "guardrail", decision: "deny" }],
     }),
   );
   assert.throws(() =>
-    permissionOverlayForOriginSchema("project").parse({
-      schemaVersion: 1,
-      rules: [
+    permissionOverlayDocumentForOriginSchema("project").parse({
+      schemaVersion: 2,
+      overlays: [
         {
-          ...rule,
-          when: {
-            targets: {
-              quantifier: "all",
-              matcher: {
-                kind: "path",
-                root: "nerve_data",
-                pattern: "**",
+          ruleSetId: "planning",
+          rules: [
+            {
+              ...rule,
+              when: {
+                targets: {
+                  quantifier: "all",
+                  matcher: {
+                    kind: "path",
+                    root: "nerve_data",
+                    pattern: "**",
+                  },
+                },
               },
             },
-          },
+          ],
         },
       ],
     }),

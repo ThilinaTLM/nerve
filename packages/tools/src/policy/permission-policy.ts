@@ -51,12 +51,14 @@ export interface EffectivePermissionRule {
   rule: PermissionRule;
   origin: PermissionRuleOrigin;
   sourceId: string;
+  ruleSetId: string;
   precedence: RulePrecedence;
 }
 
 export interface EffectivePermissionPolicy {
   rules: readonly EffectivePermissionRule[];
   activeRuleSetIds: readonly string[];
+  selectedRuleSetId: string;
   ignoredOverlays: readonly IgnoredPermissionSource[];
   snapshotHash: string;
   subagent: boolean;
@@ -104,7 +106,7 @@ export function composeEffectivePermissionPolicy(
   if (!subagent) {
     const baseline = builtInPermissionRuleSet("baseline");
     activeRuleSetIds.push(baseline.id);
-    appendRules(entries, baseline.rules, "baseline", baseline.id);
+    appendRules(entries, baseline.rules, "baseline", baseline.id, baseline.id);
   }
   if (subagent || input.selectedRuleSet.id !== "baseline") {
     activeRuleSetIds.push(input.selectedRuleSet.id);
@@ -113,50 +115,77 @@ export function composeEffectivePermissionPolicy(
       input.selectedRuleSet.rules,
       "rule_set",
       input.selectedRuleSet.id,
+      input.selectedRuleSet.id,
     );
   }
+  const userOverlay = matchingOverlay(
+    input.userOverlay,
+    input.selectedRuleSet.id,
+  );
+  const projectOverlay = matchingOverlay(
+    input.projectOverlay,
+    input.selectedRuleSet.id,
+  );
+  const conversationOverlay = matchingOverlay(
+    input.conversationOverlay,
+    input.selectedRuleSet.id,
+  );
   if (!subagent) {
-    appendRules(entries, input.userOverlay?.rules ?? [], "user", "user");
-    appendRules(
-      entries,
-      input.projectOverlay?.rules ?? [],
-      "project",
-      "project",
-    );
-    appendRules(
-      entries,
-      input.conversationOverlay?.rules ?? [],
-      "conversation",
-      "conversation",
-    );
+    appendOverlay(entries, userOverlay, "user");
+    appendOverlay(entries, projectOverlay, "project");
+    appendOverlay(entries, conversationOverlay, "conversation");
   }
   const ignoredOverlays = [...(input.ignoredOverlays ?? [])];
   const snapshotHash = hashCanonical({
-    version: 1,
+    version: 2,
     subagent,
     activeRuleSetIds,
     sources: {
       baseline: subagent ? undefined : builtInPermissionRuleSet("baseline"),
       selectedRuleSet: input.selectedRuleSet,
-      userOverlay: subagent ? undefined : input.userOverlay,
-      projectOverlay: subagent ? undefined : input.projectOverlay,
-      conversationOverlay: subagent ? undefined : input.conversationOverlay,
+      userOverlay: subagent ? undefined : userOverlay,
+      projectOverlay: subagent ? undefined : projectOverlay,
+      conversationOverlay: subagent ? undefined : conversationOverlay,
     },
     ignoredOverlays,
-    rules: entries.map(({ rule, origin, sourceId, precedence }) => ({
+    rules: entries.map(({ rule, origin, sourceId, ruleSetId, precedence }) => ({
       rule,
       origin,
       sourceId,
+      ruleSetId,
       precedence,
     })),
   });
   return deepFreeze({
     rules: entries,
     activeRuleSetIds,
+    selectedRuleSetId: input.selectedRuleSet.id,
     ignoredOverlays,
     snapshotHash,
     subagent,
   });
+}
+
+function matchingOverlay(
+  overlay: PermissionOverlay | undefined,
+  selectedRuleSetId: string,
+): PermissionOverlay | undefined {
+  return overlay?.ruleSetId === selectedRuleSetId ? overlay : undefined;
+}
+
+function appendOverlay(
+  destination: EffectivePermissionRule[],
+  overlay: PermissionOverlay | undefined,
+  origin: "user" | "project" | "conversation",
+): void {
+  if (!overlay) return;
+  appendRules(
+    destination,
+    overlay.rules,
+    origin,
+    `${origin}:${overlay.ruleSetId}`,
+    overlay.ruleSetId,
+  );
 }
 
 function appendRules(
@@ -164,12 +193,14 @@ function appendRules(
   rules: readonly PermissionRule[],
   origin: PermissionRuleOrigin,
   sourceId: string,
+  ruleSetId: string,
 ): void {
   for (const rule of rules) {
     destination.push({
       rule,
       origin,
       sourceId,
+      ruleSetId,
       precedence: precedenceFor(rule, origin),
     });
   }
@@ -374,9 +405,11 @@ export function evaluatePermissionRequest(
     winningRuleId: winner.rule.id,
     winningRule: winner.rule,
     winningRuleOrigin: winner.origin,
+    winningRuleSetId: winner.ruleSetId,
     winningRuleEnforcement: winner.rule.enforcement,
     winningRulePrecedence: winner.precedence,
     activeRuleSetIds: [...input.policy.activeRuleSetIds],
+    selectedRuleSetId: input.policy.selectedRuleSetId,
     ignoredOverlays: [...input.policy.ignoredOverlays],
     policySnapshotHash: input.policy.snapshotHash,
     suggestedRules:
