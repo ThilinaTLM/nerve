@@ -1,8 +1,13 @@
-import type { ApprovalSettlement } from "@nervekit/contracts/conversations";
+import type {
+  ApprovalSettlement,
+  ConversationEntry,
+  ConversationRecord,
+} from "@nervekit/contracts/conversations";
 import { INTERRUPTED_TOOL_ERROR_CODE } from "@nervekit/contracts/events";
 import type { ToolService } from "../tools/execution/tool-service.js";
 import type { WorkbenchRunService } from "../runs/application/workbench-run.service.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging.js";
+import { ConversationJournalRevisionConflictError } from "../conversations/conversation-journal.repository.js";
 import type { ApprovalSettlementRepository } from "./approval-settlement.repository.js";
 
 interface SettlementDeps {
@@ -10,6 +15,10 @@ interface SettlementDeps {
   tools: ToolService;
   runs: WorkbenchRunService;
   logger: ApplicationLogger;
+  reconcileConversationProjection(
+    conversation: ConversationRecord,
+    entries: readonly ConversationEntry[],
+  ): void;
 }
 const terminal = new Set(["completed", "denied", "failed", "cancelled"]);
 const stopped = new Set([
@@ -24,6 +33,7 @@ export class ApprovalSettlementService {
   private enabled = false;
   private readonly active = new Map<string, Promise<void>>();
   private readonly due = new Map<string, ApprovalSettlement>();
+  private readonly rewokenWhileActive = new Map<string, ApprovalSettlement>();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private unsubscribe: (() => void) | undefined;
 
@@ -107,9 +117,18 @@ export class ApprovalSettlementService {
     if (
       ["completed", "cancelled"].includes(value.phase) ||
       (stopped.has(value.phase) && !reconsider)
-    )
+    ) {
       this.due.delete(value.id);
-    else this.due.set(value.id, value);
+      this.rewokenWhileActive.delete(value.id);
+    } else {
+      this.due.set(value.id, value);
+      if (this.active.has(value.id)) {
+        // A run/interaction commit can make an awaiting settlement runnable
+        // while its previous pass is still deciding to sleep. Preserve that
+        // edge so the old pass cannot delete the only wake-up.
+        this.rewokenWhileActive.set(value.id, value);
+      }
+    }
     this.schedule();
   }
 
@@ -120,6 +139,8 @@ export class ApprovalSettlementService {
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
     await Promise.allSettled(this.active.values());
+    this.rewokenWhileActive.clear();
+    this.due.clear();
   }
 
   private schedule(): void {
@@ -162,6 +183,11 @@ export class ApprovalSettlementService {
           })
           .finally(() => {
             this.active.delete(value.id);
+            const rewoken = this.rewokenWhileActive.get(value.id);
+            if (rewoken) {
+              this.rewokenWhileActive.delete(value.id);
+              this.due.set(value.id, rewoken);
+            }
             this.schedule();
           });
         this.active.set(value.id, task);
@@ -268,13 +294,32 @@ export class ApprovalSettlementService {
         const current = await this.deps.repository.journal.load(
           value.conversationId,
         );
-        if (current.conversation)
-          this.deps.runs.reconcileApprovalConversation(current.conversation);
+        if (current.conversation) {
+          this.deps.reconcileConversationProjection(
+            current.conversation,
+            current.entries,
+          );
+        }
         await this.observe(value);
         await this.deps.runs.continueApprovalSettlement(value);
       }
       this.due.delete(value.id);
     } catch (error) {
+      if (error instanceof ConversationJournalRevisionConflictError) {
+        const concurrent = await this.deps.repository.get(
+          value.conversationId,
+          value.id,
+        );
+        if (
+          !concurrent ||
+          ["completed", "cancelled"].includes(concurrent.phase)
+        ) {
+          this.due.delete(value.id);
+        } else {
+          this.wake(concurrent, true);
+        }
+        return;
+      }
       // A cancelled run or a winning concurrent continuation must not be resurrected.
       const latest = await this.deps.repository.get(
         value.conversationId,

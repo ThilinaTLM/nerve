@@ -71,6 +71,10 @@ export interface HumanInputResolutionDeps {
     options?: AppendEntryOptions,
   ): Promise<ConversationEntry>;
   getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
+  reconcileConversationProjection(
+    conversation: ConversationRecord,
+    entries: readonly ConversationEntry[],
+  ): void;
   harnessStorage: ConversationHarnessStorage;
   logger: ApplicationLogger;
   compactPlanConversation(input: {
@@ -90,6 +94,7 @@ export class HumanInputResolutionService {
       runs: deps.runs,
       journal: deps.journal,
       logger: deps.logger,
+      reconcileConversationProjection: deps.reconcileConversationProjection,
     });
   }
 

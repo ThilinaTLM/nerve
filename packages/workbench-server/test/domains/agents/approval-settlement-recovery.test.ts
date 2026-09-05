@@ -43,6 +43,7 @@ test("one unreadable approval does not prevent unrelated recovery", async () => 
         errors++;
       },
     },
+    reconcileConversationProjection: () => undefined,
   } as never);
   try {
     await service.start();

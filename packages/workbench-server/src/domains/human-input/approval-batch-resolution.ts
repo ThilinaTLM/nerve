@@ -1,3 +1,7 @@
+import type {
+  ConversationEntry,
+  ConversationRecord,
+} from "@nervekit/contracts/conversations";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { ApplicationError } from "../../core/application-error.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging.js";
@@ -12,6 +16,10 @@ interface ApprovalBatchResolutionDeps {
   runs: WorkbenchRunService;
   journal: ConversationJournalRepository;
   logger: ApplicationLogger;
+  reconcileConversationProjection(
+    conversation: ConversationRecord,
+    entries: readonly ConversationEntry[],
+  ): void;
 }
 
 /** Accepts decisions; execution belongs exclusively to the daemon settlement worker. */

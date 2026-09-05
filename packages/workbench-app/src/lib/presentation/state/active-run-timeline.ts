@@ -145,6 +145,7 @@ export function buildActiveRunTimeline(
         state: "failed",
         errorMessage: `Approval processing blocked: ${activeRun.settlement.failure?.message ?? "Unknown failure"} Cancel this run before starting new work.`,
         retryable: false,
+        cancellable: true,
       },
     });
   }

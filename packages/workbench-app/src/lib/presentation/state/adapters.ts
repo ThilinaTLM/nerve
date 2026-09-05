@@ -90,7 +90,10 @@ export function fromConversationSnapshot(
     generatedAt: snapshot.generatedAt,
     sending: Boolean(
       snapshot.activeRun &&
-      ["running", "retrying", "aborting"].includes(snapshot.activeRun.status),
+      (["running", "retrying", "aborting", "settling"].includes(
+        snapshot.activeRun.status,
+      ) ||
+        Boolean(snapshot.activeRun.settlement)),
     ),
   };
 }
@@ -251,6 +254,7 @@ export function applyConversationEvent(
             : "settling";
         next.activeRun.retry = undefined;
         next.activeRun.recovery = undefined;
+        next.sending = true;
       }
       break;
     }

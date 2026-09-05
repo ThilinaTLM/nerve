@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ConversationRecord } from "@nervekit/contracts/conversations";
+import type {
+  ConversationEntry,
+  ConversationRecord,
+} from "@nervekit/contracts/conversations";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
 import {
   appendConversationEntry,
@@ -8,6 +11,57 @@ import {
 } from "../../helpers/conversation-runtime.js";
 
 describe("RuntimeLifecycle conversation lifecycle", () => {
+  it("reconciles a canonical aggregate projection before resumed output", async () => {
+    const state = await createState("nerve-runtime-canonical-projection-");
+    const project = await state.services.projectLifecycle.createProject({
+      dir: state.runtime.storage.paths.home,
+    });
+    const conversation =
+      await state.services.conversationLifecycle.createConversation({
+        projectId: project.id,
+      });
+    const parent = await appendConversationEntry(state, {
+      id: "entry_before_settlement",
+      conversationId: conversation.id,
+      role: "assistant",
+      text: "Tool call",
+    });
+    const result: ConversationEntry = {
+      id: "entry_settlement_result",
+      conversationId: conversation.id,
+      parentEntryId: parent.id,
+      role: "system",
+      kind: "message",
+      text: "Tool result",
+      createdAt: "2026-09-05T08:28:45.434Z",
+    };
+    const canonical = {
+      ...state.services.conversationLifecycle.getConversation(conversation.id),
+      activeEntryId: result.id,
+      updatedAt: result.createdAt,
+    };
+
+    state.services.conversationLifecycle.reconcileCanonicalProjection(
+      canonical,
+      [parent, result],
+    );
+    state.services.conversationLifecycle.reconcileCanonicalProjection(
+      canonical,
+      [parent, result],
+    );
+
+    assert.equal(
+      state.services.conversationLifecycle.getConversation(conversation.id)
+        .activeEntryId,
+      result.id,
+    );
+    assert.deepEqual(
+      state.services.conversationLifecycle.getConversationEntries(
+        conversation.id,
+      ),
+      [parent, result],
+    );
+  });
   it("returns the first transcript entry when an id is appended again", async () => {
     const state = await createState("nerve-runtime-idempotent-entry-");
     try {

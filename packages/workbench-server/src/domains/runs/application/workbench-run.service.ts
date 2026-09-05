@@ -47,12 +47,6 @@ export class WorkbenchRunService {
     private readonly features: WorkbenchRunFeatureMechanics,
   ) {}
 
-  reconcileApprovalConversation(
-    conversation: import("@nervekit/contracts/conversations").ConversationRecord,
-  ): void {
-    this.state.conversations.set(conversation.id, conversation);
-  }
-
   async observeApprovalCommit(runId: string): Promise<void> {
     await this.unitOfWork.loadFresh(runId);
     await this.coordinator.observeAggregateCommit(runId);

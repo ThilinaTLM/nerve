@@ -295,6 +295,9 @@ function menuForTranscript(
     onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
     onContinueFromFailure,
+    onCancelRun: (runId) => {
+      if (activeRun?.runId === runId) onAbort?.();
+    },
     onForcePushQueuedPrompts,
     onDiscardQueuedPrompt,
     onMoveQueuedPromptToComposer,

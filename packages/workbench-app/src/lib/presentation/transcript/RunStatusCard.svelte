@@ -7,10 +7,19 @@ type Props = {
   notice: RunStatusNotice;
   isLast: boolean;
   sending: boolean;
+  stopping?: boolean;
   onContinueFromFailure?: (runId: string) => void;
+  onCancelRun?: (runId: string) => void;
 };
 
-let { notice, isLast, sending, onContinueFromFailure }: Props = $props();
+let {
+  notice,
+  isLast,
+  sending,
+  stopping = false,
+  onContinueFromFailure,
+  onCancelRun,
+}: Props = $props();
 
 let now = $state(Date.now());
 
@@ -30,6 +39,13 @@ const canContinue = $derived(
     notice.retryable === true &&
     Boolean(notice.runId) &&
     Boolean(onContinueFromFailure),
+);
+
+const canCancel = $derived(
+  isLast &&
+    notice.cancellable === true &&
+    Boolean(notice.runId) &&
+    Boolean(onCancelRun),
 );
 
 const dotTone = $derived(notice.state === "retrying" ? "running" : "warn");
@@ -101,6 +117,11 @@ function continueFromFailure() {
   if (!notice.runId || !canContinue) return;
   onContinueFromFailure?.(notice.runId);
 }
+
+function cancelRun() {
+  if (!notice.runId || !canCancel || stopping) return;
+  onCancelRun?.(notice.runId);
+}
 </script>
 
 <article class={`run-status-line state-${notice.state}`}>
@@ -117,11 +138,23 @@ function continueFromFailure() {
 
   <p class="status-summary">{bodyText}</p>
 
-  {#if canContinue}
+  {#if canContinue || canCancel}
     <div class="status-actions">
-      <Button size="sm" variant="default" onclick={continueFromFailure}>
-        Continue
-      </Button>
+      {#if canContinue}
+        <Button size="sm" variant="default" onclick={continueFromFailure}>
+          Continue
+        </Button>
+      {/if}
+      {#if canCancel}
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={stopping}
+          onclick={cancelRun}
+        >
+          {stopping ? "Cancelling…" : "Cancel run"}
+        </Button>
+      {/if}
     </div>
   {/if}
 </article>

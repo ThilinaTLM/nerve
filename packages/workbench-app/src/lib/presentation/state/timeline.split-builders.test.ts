@@ -50,6 +50,7 @@ describe("buildConversationTimeline split builders", () => {
     const item = timeline.find((entry) => entry.kind === "run_status");
     assert.ok(item?.kind === "run_status");
     assert.equal(item.notice.retryable, false);
+    assert.equal(item.notice.cancellable, true);
     assert.match(item.notice.errorMessage ?? "", /may have executed/);
     assert.match(item.notice.errorMessage ?? "", /Cancel this run/);
   });

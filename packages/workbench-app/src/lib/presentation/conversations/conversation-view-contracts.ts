@@ -157,6 +157,7 @@ export type ConversationPaneActions = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
+  onCancelRun?: (runId: string) => void;
   onForcePushQueuedPrompts?: (
     prompt: QueuedPromptRecord,
   ) => void | Promise<void>;

@@ -9,7 +9,10 @@ import type {
 } from "@nervekit/contracts/conversations";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import type { RunInteractionRecord } from "@nervekit/contracts/runs";
-import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
+import {
+  ConversationJournalRepository,
+  ConversationJournalRevisionConflictError,
+} from "../../../src/domains/conversations/conversation-journal.repository.js";
 import { ApprovalSettlementRepository } from "../../../src/domains/human-input/approval-settlement.repository.js";
 import { ApprovalSettlementService } from "../../../src/domains/human-input/approval-settlement.service.js";
 import { ToolCallRepository } from "../../../src/domains/tools/artifacts/tool-call.repository.js";
@@ -243,6 +246,7 @@ async function fixture(t: test.TestContext, count = 1) {
   }
   let executions = 0;
   let continuations = 0;
+  let projectionCalls = 0;
   let beforeExecute: (() => Promise<void>) | undefined;
   let beforeContinue: (() => Promise<void>) | undefined;
   const worker = new ApprovalSettlementService({
@@ -276,7 +280,6 @@ async function fixture(t: test.TestContext, count = 1) {
     runs: {
       listApprovalRecoveryInteractions: async () => [],
       observeApprovalCommit: async () => undefined,
-      reconcileApprovalConversation: () => undefined,
       continueApprovalSettlement: async (value: ApprovalSettlement) => {
         await beforeContinue?.();
         continuations++;
@@ -293,6 +296,9 @@ async function fixture(t: test.TestContext, count = 1) {
       },
     },
     logger: { error: async () => undefined },
+    reconcileConversationProjection: () => {
+      projectionCalls++;
+    },
   } as never);
   t.after(() => worker.stop());
   return {
@@ -308,6 +314,9 @@ async function fixture(t: test.TestContext, count = 1) {
     },
     get continuations() {
       return continuations;
+    },
+    get projectionCalls() {
+      return projectionCalls;
     },
     set beforeExecute(value: (() => Promise<void>) | undefined) {
       beforeExecute = value;
@@ -421,6 +430,51 @@ test("failure before continuation never repeats terminal tools or transcript", a
   assert.equal((await f.journal.load("conv_test")).entries.length, 2);
 });
 
+test("canonical conversation projection is reconciled before continuation", async (t) => {
+  const f = await fixture(t);
+  const value = await f.accept();
+  f.beforeContinue = async () => {
+    assert.equal(f.projectionCalls, 1);
+  };
+  await f.worker.process(value);
+  assert.equal(f.projectionCalls, 1);
+  assert.equal(f.continuations, 1);
+});
+
+test("a concurrent journal commit is retried immediately without consuming the failure budget", async (t) => {
+  const f = await fixture(t);
+  await f.accept();
+  const update = f.repository.update.bind(f.repository);
+  let conflicted = false;
+  f.repository.update = async (value, patch, runPatch) => {
+    if (!conflicted && patch.phase === "executing") {
+      conflicted = true;
+      throw new ConversationJournalRevisionConflictError("conv_test", 1, 2);
+    }
+    return update(value, patch, runPatch);
+  };
+  const completed = new Promise<void>((resolve) => {
+    const unsubscribe = f.journal.onCommit((commit) => {
+      if (
+        commit.events.some(
+          (event) =>
+            event.kind === "approval_settlement.upserted" &&
+            event.settlement.phase === "completed",
+        )
+      ) {
+        unsubscribe();
+        resolve();
+      }
+    });
+  });
+  await f.worker.start();
+  await completed;
+  assert.equal(conflicted, true);
+  assert.equal(f.executions, 1);
+  assert.equal(f.continuations, 1);
+  assert.equal((await f.repository.list())[0]?.attempts, 0);
+});
+
 test("unknown claimed execution blocks instead of redispatching", async (t) => {
   const f = await fixture(t);
   const value = await f.accept();
@@ -455,6 +509,56 @@ test("changed branch blocks before dispatch and does not silently rebase", async
   });
   await f.worker.process(value);
   assert.equal((await f.repository.list())[0]?.phase, "blocked");
+  assert.equal(f.executions, 0);
+});
+
+test("cancelling a blocked settlement terminalizes its obligation without dispatch", async (t) => {
+  const f = await fixture(t);
+  const value = await f.accept();
+  const state = await f.journal.load("conv_test");
+  await f.journal.commit("conv_test", {
+    kind: "branch.changed",
+    events: [
+      {
+        kind: "conversation.upserted",
+        conversationId: "conv_test",
+        conversation: { ...state.conversation!, activeEntryId: undefined },
+      },
+    ],
+  });
+  await f.worker.process(value);
+  const blocked = (await f.repository.list())[0]!;
+  const blockedState = await f.journal.load("conv_test");
+  const projection = blockedState.runProjections.get("run_test")!;
+  const cancellingRun = {
+    ...projection.run,
+    status: "cancellation_requested" as const,
+    revision: projection.run.revision + 1,
+    updatedAt: now,
+  };
+  await f.journal.commit(
+    "conv_test",
+    {
+      kind: "run.cancellation_requested",
+      events: [
+        {
+          kind: "run.transition_committed",
+          conversationId: "conv_test",
+          transition: buildTransition(
+            cancellingRun,
+            "cancellation_requested",
+            projection.run.revision,
+            {},
+            ids,
+            integrity,
+          ),
+        },
+      ],
+    },
+    blockedState.revision,
+  );
+  await f.worker.process(blocked);
+  assert.equal((await f.repository.list())[0]?.phase, "cancelled");
   assert.equal(f.executions, 0);
 });
 

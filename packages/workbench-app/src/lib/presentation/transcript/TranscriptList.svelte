@@ -48,6 +48,7 @@ type Props = {
   timelineTail: TimelineItem[];
   streamingText: string;
   sending: boolean;
+  stopping?: boolean;
   hasActiveTurnOutput: boolean;
   queuedPrompts: QueuedPromptRecord[];
   followBottom?: boolean;
@@ -84,6 +85,7 @@ type Props = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
+  onCancelRun?: (runId: string) => void;
   onForcePushQueuedPrompts?: (
     prompt: QueuedPromptRecord,
   ) => void | Promise<void>;
@@ -109,6 +111,7 @@ let {
   timelineTail,
   streamingText,
   sending,
+  stopping = false,
   hasActiveTurnOutput,
   queuedPrompts,
   followBottom = true,
@@ -132,6 +135,7 @@ let {
   onAcceptPlanReviewInNewChat,
   onRejectPlanReview,
   onContinueFromFailure,
+  onCancelRun,
   onForcePushQueuedPrompts,
   onDiscardQueuedPrompt,
   onMoveQueuedPromptToComposer,
@@ -351,6 +355,7 @@ $effect(() => {
             entranceMotion={item.entranceMotion}
             onClaimEntrance={(token) => claimEntrance(item.key, token)}
             {sending}
+            {stopping}
             hydrateToolBodies={active}
             {activeProject}
             {approvalsByToolCallId}
@@ -370,6 +375,7 @@ $effect(() => {
             {onAcceptPlanReviewInNewChat}
             {onRejectPlanReview}
             {onContinueFromFailure}
+            {onCancelRun}
             {transcriptMenu}
           />
         {:else if item.kind === "waiting"}

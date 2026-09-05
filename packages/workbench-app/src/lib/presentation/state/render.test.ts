@@ -33,6 +33,38 @@ function toolCall(
 }
 
 describe("conversation render projection", () => {
+  it("hydrates a settling run as busy for cancellation and prompt queueing", () => {
+    const render = fromConversationSnapshot({
+      conversation: {
+        id: "conv_workbench",
+        projectId: "proj_workbench",
+        title: "Workbench",
+        mode: "coding",
+        permissionLevel: "supervised",
+        createdAt: ts,
+        updatedAt: ts,
+      },
+      conversationRevision: 1,
+      tree: { conversationId: "conv_workbench", rootEntryIds: [], nodes: [] },
+      entries: [],
+      activeEntryIds: [],
+      toolCalls: [],
+      activeRun: {
+        runId: "run_workbench",
+        agentId: "agent_workbench",
+        projectId: "proj_workbench",
+        conversationId: "conv_workbench",
+        status: "settling",
+        startedAt: ts,
+        turns: [],
+        toolOutputsByToolCallId: {},
+        queuedPrompts: [],
+      },
+      cursorSeq: 0,
+      generatedAt: ts,
+    });
+    assert.equal(render.sending, true);
+  });
   it("keeps active-run text, tool cards, and trailing text in content-index order", () => {
     const state: ConversationRenderState = {
       conversationId: "conv_workbench",
