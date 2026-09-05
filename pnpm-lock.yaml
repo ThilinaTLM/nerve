@@ -86,8 +86,8 @@ importers:
   packages/harness:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.84.4
-        version: 0.84.4(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.85.0
+        version: 0.85.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -488,8 +488,8 @@ importers:
   packages/workbench-server:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.84.4
-        version: 0.84.4(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.85.0
+        version: 0.85.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
       '@hono/node-server':
         specifier: 2.0.12
         version: 2.0.12(hono@4.12.34)
@@ -548,8 +548,8 @@ packages:
   '@antfu/install-pkg@1.1.0':
     resolution: {integrity: sha512-MGQsmw10ZyI+EJo45CdSER4zEb+p31LpDAFp2Z3gkSd1yqVZGi0Ebx++YTEMonJy4oChEMLsxZ64j8FH6sSqtQ==}
 
-  '@anthropic-ai/sdk@0.91.1':
-    resolution: {integrity: sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw==}
+  '@anthropic-ai/sdk@0.123.0':
+    resolution: {integrity: sha512-Y9oX9mPNGZClHQOFqrWRk43Srcu/UHuPq3rfxxOq7JgW0gi+lJA2MAOK4Ul3k/+AUrwRWFJvd0tK3oC0Pw25dw==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -1465,13 +1465,13 @@ packages:
   '@dagrejs/graphlib@4.0.1':
     resolution: {integrity: sha512-IvcV6FduIIAmLwnH+yun+QtV36SC7mERqa86aClNqmMN09WhmPPYU8ckHrZBozErf+UvHPWOTJYaGYiIcs0DgA==}
 
-  '@earendil-works/pi-ai@0.84.4':
-    resolution: {integrity: sha512-AClAZxf5+c4RRu44NJPS6wyQy+Nmq+Mzyyrdvm4ZVMNuixelO02RZX4G4Aq1F145Yzp43wnM5S+hLlSI7ypfVw==}
+  '@earendil-works/pi-ai@0.85.0':
+    resolution: {integrity: sha512-CbeeZH3NHav7Rs182tYq0eoCAWfDd1MvOAXKzonIF4uN3uO99EB8iT1HfyGofJmPkAf8MeIwOBQtqqd0zgrPWA==}
     engines: {node: '>=22.19.0'}
     hasBin: true
 
-  '@earendil-works/pi-telemetry@0.84.4':
-    resolution: {integrity: sha512-8e2CuxM+ht+hedQXTZmi5JVl6/xDK9RpSDL2+MbITevKYQhMZ/z6lJOTFgox3HQyGxO8mOZEtYGVeQNaD4OzqA==}
+  '@earendil-works/pi-telemetry@0.85.0':
+    resolution: {integrity: sha512-gs8Zq1lySn8liq7U7CCSgWHJcA8c6+ZWk+CBPp7w0K+SN5LcLcsbs3+bh7zipm4CqNkVhcpwGAEGJp7qZqsVnA==}
     engines: {node: '>=22.19.0'}
 
   '@electron-internal/extract-zip@1.0.5':
@@ -3295,6 +3295,9 @@ packages:
     resolution: {integrity: sha512-R8Rdn8Hy72KKcebgLiv8jQcQkXoLMOGGv5uI1/k0l+snqkOzQ1R0ChUBCxWMlBsFMekWjq0wRudIweFs7sKT5A==}
     engines: {node: '>=14.0.0'}
 
+  '@stablelib/base64@1.0.1':
+    resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
+
   '@svelte-put/shortcut@4.2.0':
     resolution: {integrity: sha512-hqNLo4yEc++SLgAkZUvuwMxIAsii9qjQtTuzfcYVf3xRxa+0HFcfaWFK7LdU3l+15s9SYVNbPB0qQj9CHFqSuw==}
     peerDependencies:
@@ -4743,6 +4746,9 @@ packages:
 
   fast-levenshtein@2.0.6:
     resolution: {integrity: sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==}
+
+  fast-sha256@1.3.0:
+    resolution: {integrity: sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==}
 
   fast-string-truncated-width@3.0.3:
     resolution: {integrity: sha512-0jjjIEL6+0jag3l2XWWizO64/aZVtpiGE3t0Zgqxv0DPuxiMjvB3M24fCyhZUO4KomJQPj3LTSUnDP3GpdwC0g==}
@@ -6625,6 +6631,9 @@ packages:
   sprintf-js@1.1.3:
     resolution: {integrity: sha512-Oo+0REFV59/rz3gfJNKQiBlwfHaSESl1pcGyABQsnnIfWOFt6JNj5gCog2U6MLZ//IGYD+nA8nI+mTShREReaA==}
 
+  standardwebhooks@1.1.1:
+    resolution: {integrity: sha512-bCbX9ZEyFkWPsRz7Bl3NuQUJohmwGSev/yhr7vhaGPlc4AfIrspIRa6cPTBuI1ItmrTDJ4d/S2hCsfe4+vQGnQ==}
+
   stat-mode@1.0.0:
     resolution: {integrity: sha512-jH9EhtKIjuXZ2cWxmXS8ZP80XyC3iasQxMDV8jzhNJpfDb7VbQLVW4Wvsxz9QZvzV+G4YoSfBUVKDOyxLzi/sg==}
     engines: {node: '>= 6'}
@@ -7509,9 +7518,10 @@ snapshots:
       package-manager-detector: 1.8.0
       tinyexec: 1.2.4
 
-  '@anthropic-ai/sdk@0.91.1(zod@4.1.12)':
+  '@anthropic-ai/sdk@0.123.0(zod@4.1.12)':
     dependencies:
       json-schema-to-ts: 3.1.1
+      standardwebhooks: 1.1.1
     optionalDependencies:
       zod: 4.1.12
 
@@ -8915,11 +8925,11 @@ snapshots:
 
   '@dagrejs/graphlib@4.0.1': {}
 
-  '@earendil-works/pi-ai@0.84.4(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)':
+  '@earendil-works/pi-ai@0.85.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)':
     dependencies:
-      '@anthropic-ai/sdk': 0.91.1(zod@4.1.12)
+      '@anthropic-ai/sdk': 0.123.0(zod@4.1.12)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
-      '@earendil-works/pi-telemetry': 0.84.4
+      '@earendil-works/pi-telemetry': 0.85.0
       '@google/genai': 1.52.0(supports-color@7.2.0)
       '@smithy/node-http-handler': 4.7.3
       http-proxy-agent: 7.0.2(supports-color@7.2.0)
@@ -8935,7 +8945,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-telemetry@0.84.4': {}
+  '@earendil-works/pi-telemetry@0.85.0': {}
 
   '@electron-internal/extract-zip@1.0.5': {}
 
@@ -10568,6 +10578,8 @@ snapshots:
     dependencies:
       '@smithy/util-buffer-from': 2.2.0
       tslib: 2.8.1
+
+  '@stablelib/base64@1.0.1': {}
 
   '@svelte-put/shortcut@4.2.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))':
     dependencies:
@@ -12363,6 +12375,8 @@ snapshots:
   fast-json-stable-stringify@2.1.0: {}
 
   fast-levenshtein@2.0.6: {}
+
+  fast-sha256@1.3.0: {}
 
   fast-string-truncated-width@3.0.3: {}
 
@@ -14863,6 +14877,11 @@ snapshots:
 
   sprintf-js@1.1.3:
     optional: true
+
+  standardwebhooks@1.1.1:
+    dependencies:
+      '@stablelib/base64': 1.0.1
+      fast-sha256: 1.3.0
 
   stat-mode@1.0.0: {}
 
