@@ -25,6 +25,7 @@ import {
   autoRefreshPrsIfStale,
   createGitRepoBranch,
   createGitRepoStash,
+  deleteGitRepoBranch,
   fetchGitRepo,
   dropGitRepoStash,
   gitPanelState,
@@ -37,6 +38,7 @@ import {
   refreshGithub,
   refreshGitOverview,
   refreshGitProject,
+  refreshPrHeads,
   refreshPrs,
   selectGitProject,
   setGitChangeTreeFolderExpanded,
@@ -119,6 +121,7 @@ export function createWorkbenchGitPanelAdapter(
         stashes: current?.stashes ?? [],
         github: current?.github,
         pullRequests: current?.prs ?? [],
+        prHeads: current?.prHeads,
         pullRequestFilters: current?.prFilters ?? defaultGitPrFilterConfig,
         initialLoading:
           Boolean(project && !projectState) ||
@@ -138,6 +141,7 @@ export function createWorkbenchGitPanelAdapter(
         loadingOverview: current?.loadingOverview ?? false,
         loadingBranches: current?.loadingBranches ?? false,
         loadingPullRequests: current?.loadingPrs ?? false,
+        loadingPrHeads: current?.loadingPrHeads ?? false,
         pullRequestError: current?.prsError,
         operations: current?.operations ?? {
           fetching: false,
@@ -185,7 +189,12 @@ export function createWorkbenchGitPanelAdapter(
           project.id,
           repository,
           "Could not refresh branches",
+          true,
         );
+    },
+    refreshPrHeads: (repository) => {
+      const project = activeProject();
+      if (project) return refreshPrHeads(project.id, repository);
     },
     refreshPullRequests: async (repository) => {
       const project = activeProject();
@@ -255,6 +264,12 @@ export function createWorkbenchGitPanelAdapter(
       const project = activeProject();
       return project
         ? switchGitRepoBranch(project.id, repository, branch)
+        : false;
+    },
+    deleteBranch: (repository, branch) => {
+      const project = activeProject();
+      return project
+        ? deleteGitRepoBranch(project.id, repository, branch)
         : false;
     },
     openDiff: (repository, file, area) => {

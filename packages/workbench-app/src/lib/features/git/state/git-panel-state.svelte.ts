@@ -4,6 +4,7 @@ import type {
   GithubChecksSummary,
   GithubPr,
   GithubPrCore,
+  GithubPrHeadsResponse,
   GithubStatusResponse,
   GitOverviewResponse,
   GitRecentCommit,
@@ -37,6 +38,7 @@ import {
   type GitChangesState,
   githubStatusFingerprint,
   prsFingerprint,
+  prHeadsFingerprint,
   recentCommitsFingerprint,
   repoSummaryFingerprint,
   stashesFingerprint,
@@ -55,6 +57,7 @@ export type GitPanelOperationsState = {
   syncing: boolean;
   switchingBaseAndPulling: boolean;
   switchingBranch?: string;
+  deletingBranch?: string;
   creatingBranch: boolean;
   fileMutation?: FileMutation;
   bulkMutation?: ScopedFileMutation;
@@ -70,12 +73,14 @@ export type GitPanelRepoState = {
   stashes: GitStashEntry[];
   github?: GithubStatusResponse;
   prs: GithubPr[];
+  prHeads?: GithubPrHeadsResponse;
   prFilters: GitPrFilterConfig;
   branches: GitBranchSummary[];
   collapsedChangeTreeFolders: SvelteSet<string>;
   operations: GitPanelOperationsState;
   loadingOverview: boolean;
   loadingPrs: boolean;
+  loadingPrHeads: boolean;
   prsError?: string;
   loadingBranches: boolean;
   prsRequestInFlight: boolean;
@@ -91,6 +96,7 @@ export type GitPanelRepoState = {
   lastStashesFingerprint?: string;
   lastBranchesFingerprint?: string;
   lastPrsFingerprint?: string;
+  lastPrHeadsFingerprint?: string;
   lastGithubFingerprint?: string;
   loaded: boolean;
   loadedAt?: number;
@@ -169,6 +175,7 @@ function createOperationsState(): GitPanelOperationsState {
     syncing: false,
     switchingBaseAndPulling: false,
     switchingBranch: undefined,
+    deletingBranch: undefined,
     creatingBranch: false,
     fileMutation: undefined,
     bulkMutation: undefined,
@@ -184,6 +191,7 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     stashes: [],
     github: undefined,
     prs: [],
+    prHeads: undefined,
     prFilters:
       projectId && repo
         ? storedPrFilters(projectId, repo)
@@ -195,6 +203,7 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     operations: createOperationsState(),
     loadingOverview: false,
     loadingPrs: false,
+    loadingPrHeads: false,
     prsError: undefined,
     loadingBranches: false,
     prsRequestInFlight: false,
@@ -210,6 +219,7 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     lastStashesFingerprint: undefined,
     lastBranchesFingerprint: undefined,
     lastPrsFingerprint: undefined,
+    lastPrHeadsFingerprint: undefined,
     lastGithubFingerprint: undefined,
     loaded: false,
     loadedAt: undefined,
@@ -373,6 +383,7 @@ export function repoMutationInProgress(
       operations.switchingBaseAndPulling ||
       operations.creatingBranch ||
       operations.switchingBranch ||
+      operations.deletingBranch ||
       operations.fileMutation ||
       operations.bulkMutation ||
       operations.stashMutation),
@@ -481,6 +492,17 @@ export function setGithubStatusIfChanged(
   if (state.lastGithubFingerprint === fingerprint) return false;
   state.github = github;
   state.lastGithubFingerprint = fingerprint;
+  return true;
+}
+
+export function setPrHeadsIfChanged(
+  state: GitPanelRepoState,
+  result: GithubPrHeadsResponse | undefined,
+): boolean {
+  const fingerprint = prHeadsFingerprint(result);
+  if (state.lastPrHeadsFingerprint === fingerprint) return false;
+  state.prHeads = result;
+  state.lastPrHeadsFingerprint = fingerprint;
   return true;
 }
 
@@ -651,6 +673,18 @@ export function clearGithubState(
   if (state.github !== undefined || state.lastGithubFingerprint !== undefined) {
     state.github = undefined;
     state.lastGithubFingerprint = undefined;
+    changed = true;
+  }
+  if (
+    state.prHeads !== undefined ||
+    state.lastPrHeadsFingerprint !== undefined
+  ) {
+    state.prHeads = undefined;
+    state.lastPrHeadsFingerprint = undefined;
+    changed = true;
+  }
+  if (state.loadingPrHeads) {
+    state.loadingPrHeads = false;
     changed = true;
   }
   const emptyPrsFingerprint = prsFingerprint([]);

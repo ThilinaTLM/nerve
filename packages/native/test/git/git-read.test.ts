@@ -46,7 +46,9 @@ describe("native Git reads", () => {
       assert.equal(info.bare, false);
       assert.equal(snapshot.headBranch, "main");
       assert.equal(snapshot.recentCommits[0]?.subject, "initial");
-      assert.ok(snapshot.refs.some((ref) => ref.name === "refs/heads/main"));
+      const main = snapshot.refs.find((ref) => ref.name === "refs/heads/main");
+      assert.ok(main);
+      assert.equal(typeof main.commitTimestampSeconds, "number");
       assert.ok(snapshot.files.some((file) => file.path === "tracked.txt"));
       assert.ok(snapshot.files.some((file) => file.path === "new.txt"));
       assert.equal(

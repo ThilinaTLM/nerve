@@ -3,6 +3,7 @@ import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts/git";
 import { cn } from "@nervekit/ui-kit/utils";
+import type { GitBranchDialogGroups } from "./git-panel-controller";
 import type { GitPanelCapabilities } from "./git-panel-types";
 import GitBranchDialog from "./GitBranchDialog.svelte";
 import GitRepositorySelector from "./GitRepositorySelector.svelte";
@@ -11,18 +12,25 @@ type Props = {
   repoSummary?: GitRepoSummary;
   repos: GitRepoSummary[];
   selectedRepo: string;
-  filteredBranches: GitBranchSummary[];
+  branchGroups: GitBranchDialogGroups;
   loadingBranches: boolean;
+  loadingPrHeads: boolean;
   switchingBranch?: string;
+  deletingBranch?: string;
   creatingBranch: boolean;
   capabilities: GitPanelCapabilities;
   branchFilter?: string;
   newBranchName?: string;
   branchDialogOpen?: boolean;
-  baseBranchSummary?: GitBranchSummary;
   onSelectRepo: (value: string) => void;
   onOpenBranchDialog: () => void;
   onSwitchBranch: (repo: string, branch: GitBranchSummary) => void;
+  onDeleteBranch: (
+    repo: string,
+    branch: GitBranchSummary,
+  ) => boolean | Promise<boolean>;
+  onOpenPullRequest: (repo: string, number: number) => void;
+  onRefreshBranches: () => void;
   onCreateBranch: (repo: string) => void;
 };
 
@@ -30,18 +38,22 @@ let {
   repoSummary,
   repos,
   selectedRepo,
-  filteredBranches,
+  branchGroups,
   loadingBranches,
+  loadingPrHeads,
   switchingBranch,
+  deletingBranch,
   creatingBranch,
   capabilities,
   branchFilter = $bindable(""),
   newBranchName = $bindable(""),
   branchDialogOpen = $bindable(false),
-  baseBranchSummary,
   onSelectRepo,
   onOpenBranchDialog,
   onSwitchBranch,
+  onDeleteBranch,
+  onOpenPullRequest,
+  onRefreshBranches,
   onCreateBranch,
 }: Props = $props();
 </script>
@@ -88,15 +100,19 @@ let {
       bind:open={branchDialogOpen}
       repoSummary={repo}
       {selectedRepo}
-      {filteredBranches}
-      {baseBranchSummary}
+      {branchGroups}
       {loadingBranches}
+      {loadingPrHeads}
       {switchingBranch}
+      {deletingBranch}
       {creatingBranch}
       branchesEnabled={capabilities.branches.enabled}
       bind:branchFilter
       bind:newBranchName
       {onSwitchBranch}
+      {onDeleteBranch}
+      {onOpenPullRequest}
+      {onRefreshBranches}
       {onCreateBranch}
     />
   {/if}

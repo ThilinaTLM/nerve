@@ -2,6 +2,7 @@ import { prSummaryFingerprint } from "./pr-sync";
 import type {
   GitBranchSummary,
   GithubPr,
+  GithubPrHeadsResponse,
   GithubStatusResponse,
   GitOverviewResponse,
   GitRecentCommit,
@@ -101,8 +102,16 @@ export function branchesFingerprint(branches: GitBranchSummary[]): string {
       current: branch.current,
       remote: branch.remote,
       upstream: branch.upstream,
+      updatedAt: branch.updatedAt,
     })),
   );
+}
+
+export function prHeadsFingerprint(
+  result: GithubPrHeadsResponse | undefined,
+): string | undefined {
+  if (!result) return undefined;
+  return JSON.stringify(result);
 }
 
 export function githubStatusFingerprint(

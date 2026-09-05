@@ -1,5 +1,6 @@
 import {
   createBranchRequestSchema,
+  deleteBranchRequestSchema,
   gitBranchListResponseSchema,
   gitDiscoveryResponseSchema,
   gitFileActionRequestSchema,
@@ -21,6 +22,7 @@ import {
   githubPrFilesResponseSchema,
   githubPrInitialSchema,
   githubPrOverviewSchema,
+  githubPrHeadsResponseSchema,
   githubPrListRequestSchema,
   githubPrListResponseSchema,
   githubPrMergeRequestSchema,
@@ -41,6 +43,9 @@ const gitCreateBranchParamsSchema = projectIdParamsSchema.merge(
 );
 const gitSwitchBranchParamsSchema = projectIdParamsSchema.merge(
   switchBranchRequestSchema,
+);
+const gitDeleteBranchParamsSchema = projectIdParamsSchema.merge(
+  deleteBranchRequestSchema,
 );
 const gitFileActionParamsSchema = projectIdParamsSchema.merge(
   gitFileActionRequestSchema,
@@ -124,6 +129,15 @@ export const gitOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.git.branch.switch",
+  ),
+  defineOperation(
+    "git.branch.delete",
+    gitDeleteBranchParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.git.branch.delete",
   ),
   defineOperation(
     "git.file.diff.get",
@@ -241,6 +255,15 @@ export const gitOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.github.status.get",
+  ),
+  defineOperation(
+    "github.pr.heads.list",
+    gitRepoParamsSchema,
+    githubPrHeadsResponseSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.github.pr.heads.list",
   ),
   defineOperation(
     "github.pr.list",

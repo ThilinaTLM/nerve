@@ -13,6 +13,7 @@ export interface GitReadRef {
   target?: string;
   symbolicTarget?: string;
   upstream?: string;
+  commitTimestampSeconds?: number;
 }
 
 export interface GitReadRemote {

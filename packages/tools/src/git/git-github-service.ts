@@ -10,6 +10,7 @@ import type {
   GithubPrFileDiffRequest,
   GithubPrFileDiffResponse,
   GithubPrFilesResponse,
+  GithubPrHeadsResponse,
   GithubPrInitial,
   GithubPrListFilters,
   GithubPrListResponse,
@@ -70,6 +71,15 @@ type GithubCommitNodeRaw = {
   authors?: { nodes?: Array<{ name?: string } | null> | null } | null;
   statusCheckRollup?: GithubCheckRollupRaw;
 };
+type GithubPrHeadRaw = {
+  number: number;
+  url: string;
+  headRefName: string;
+  headRepository?: { nameWithOwner?: string } | null;
+  isDraft: boolean;
+  updatedAt: string;
+};
+
 type GithubPrDetailRaw = {
   number: number;
   title: string;
@@ -359,6 +369,77 @@ export async function listOpenPrs(
         : [],
     ),
   };
+}
+
+const PR_HEADS_QUERY = `query PullRequestHeads(
+  $owner: String!
+  $repo: String!
+  $after: String
+) {
+  repository(owner: $owner, name: $repo) {
+    pullRequests(
+      states: OPEN
+      first: 100
+      after: $after
+      orderBy: { field: UPDATED_AT, direction: DESC }
+    ) {
+      nodes {
+        number url headRefName isDraft updatedAt
+        headRepository { nameWithOwner }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}`;
+
+export async function listOpenPrHeads(
+  context: GithubServiceContext,
+  projectId: string,
+  relativePath: string,
+): Promise<GithubPrHeadsResponse> {
+  const { repository } = await preparePr(context, projectId, relativePath);
+  const prs: GithubPrHeadsResponse["prs"] = [];
+  let after: string | null = null;
+  let hasNextPage = true;
+  let pageCount = 0;
+  while (hasNextPage && pageCount < 10) {
+    pageCount += 1;
+    const data: {
+      repository?: {
+        pullRequests?: {
+          nodes?: Array<GithubPrHeadRaw | null> | null;
+          pageInfo?: {
+            hasNextPage?: boolean;
+            endCursor?: string | null;
+          } | null;
+        } | null;
+      } | null;
+    } = await context.githubApi.graphql(
+      repository,
+      "list-pull-request-heads",
+      PR_HEADS_QUERY,
+      {
+        owner: repository.owner,
+        repo: repository.repo,
+        after,
+      },
+    );
+    const connection = data.repository?.pullRequests;
+    for (const raw of connection?.nodes ?? []) {
+      if (!raw) continue;
+      prs.push({
+        number: raw.number,
+        url: raw.url,
+        headRefName: raw.headRefName,
+        headRepository: raw.headRepository?.nameWithOwner ?? null,
+        isDraft: raw.isDraft,
+        updatedAt: raw.updatedAt,
+      });
+    }
+    after = connection?.pageInfo?.endCursor ?? null;
+    hasNextPage = connection?.pageInfo?.hasNextPage === true && after !== null;
+  }
+  return { repository: `${repository.owner}/${repository.repo}`, prs };
 }
 
 export function allowedMergeMethods(raw: GithubRepoRaw): GithubPrMergeMethod[] {

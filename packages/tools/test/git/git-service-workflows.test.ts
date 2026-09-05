@@ -171,6 +171,51 @@ describe("GitService dirty-worktree workflows", () => {
     });
   });
 
+  it("deletes only merged, non-protected local branches", async () => {
+    await withFixture(async (fixture) => {
+      await command(fixture.service, fixture.work, "switch", "-c", "merged");
+      await command(fixture.service, fixture.work, "switch", "main");
+
+      await fixture.service.deleteBranch("project", ".", "merged");
+      assert.equal(
+        (await fixture.service.listBranches("project", ".")).branches.some(
+          (branch) => branch.name === "merged",
+        ),
+        false,
+      );
+
+      await command(fixture.service, fixture.work, "switch", "-c", "unmerged");
+      await writeFile(join(fixture.work, "unmerged.txt"), "not merged\n");
+      await command(fixture.service, fixture.work, "add", "unmerged.txt");
+      await command(fixture.service, fixture.work, "commit", "-m", "unmerged");
+      await assert.rejects(
+        fixture.service.deleteBranch("project", ".", "unmerged"),
+        (error: unknown) =>
+          error instanceof GitWorkflowError &&
+          error.code === "GIT_CURRENT_BRANCH_DELETE",
+      );
+      await assert.rejects(
+        fixture.service.deleteBranch("project", ".", "main"),
+        (error: unknown) =>
+          error instanceof GitWorkflowError &&
+          error.code === "GIT_BASE_BRANCH_DELETE",
+      );
+      await command(fixture.service, fixture.work, "switch", "main");
+      await assert.rejects(
+        fixture.service.deleteBranch("project", ".", "origin/main"),
+        (error: unknown) =>
+          error instanceof GitWorkflowError &&
+          error.code === "GIT_REMOTE_BRANCH_DELETE_UNSUPPORTED",
+      );
+      await assert.rejects(
+        fixture.service.deleteBranch("project", ".", "unmerged"),
+        (error: unknown) =>
+          error instanceof GitWorkflowError &&
+          error.code === "GIT_COMMAND_FAILED",
+      );
+    });
+  });
+
   it("lets Git reject an overlapping pull without changing the local file", async () => {
     await withFixture(async (fixture) => {
       await writeFile(join(fixture.work, "shared.txt"), "local version\n");

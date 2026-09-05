@@ -2,6 +2,8 @@ import type {
   GitBranchSummary,
   GitFileChange,
   GithubPr,
+  GithubPrHeadSummary,
+  GithubPrHeadsResponse,
   GitStashArea,
 } from "@nervekit/contracts/git";
 import type {
@@ -66,21 +68,104 @@ export function gitExpandedGroupIds<T>(
   );
 }
 
-export function filterAndSortBranches(
+export type GitBranchDialogRow = {
+  readonly branch: GitBranchSummary;
+  readonly pullRequest?: GithubPrHeadSummary;
+  readonly updatedLabel: string;
+};
+
+export type GitBranchDialogGroups = {
+  readonly all: GitBranchDialogRow[];
+  readonly local: GitBranchDialogRow[];
+  readonly remote: GitBranchDialogRow[];
+};
+
+function branchHeadName(branch: GitBranchSummary): string {
+  if (!branch.remote) return branch.name;
+  const separator = branch.name.indexOf("/");
+  return separator === -1 ? branch.name : branch.name.slice(separator + 1);
+}
+
+function branchTimestamp(branch: GitBranchSummary): number {
+  if (!branch.updatedAt) return Number.NEGATIVE_INFINITY;
+  const timestamp = Date.parse(branch.updatedAt);
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+}
+
+export function formatBranchUpdatedLabel(
+  updatedAt: string | null,
+  now = Date.now(),
+): string {
+  if (!updatedAt) return "Update time unavailable";
+  const timestamp = Date.parse(updatedAt);
+  if (Number.isNaN(timestamp)) return "Update time unavailable";
+  const seconds = Math.max(0, Math.floor((now - timestamp) / 1_000));
+  if (seconds < 60) return "Updated just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `Updated ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Updated ${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `Updated ${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `Updated ${months}mo ago`;
+  return `Updated ${Math.floor(months / 12)}y ago`;
+}
+
+export function groupBranchesForDialog(
   branches: readonly GitBranchSummary[],
   filter: string,
   baseBranch?: string,
-): GitBranchSummary[] {
+  prHeads?: GithubPrHeadsResponse,
+  now = Date.now(),
+): GitBranchDialogGroups {
+  const eligiblePrs = new Map<string, GithubPrHeadSummary>();
+  if (prHeads) {
+    const repository = prHeads.repository.toLocaleLowerCase();
+    for (const pr of prHeads.prs) {
+      if (pr.headRepository?.toLocaleLowerCase() !== repository) continue;
+      if (!eligiblePrs.has(pr.headRefName)) eligiblePrs.set(pr.headRefName, pr);
+    }
+  }
   const query = filter.trim().toLocaleLowerCase();
-  return branches
-    .filter((branch) => branch.name.toLocaleLowerCase().includes(query))
-    .sort((left, right) => {
-      if (left.current !== right.current) return left.current ? -1 : 1;
-      const leftBase = baseBranch !== undefined && left.name === baseBranch;
-      const rightBase = baseBranch !== undefined && right.name === baseBranch;
-      if (leftBase !== rightBase) return leftBase ? -1 : 1;
-      return left.name.localeCompare(right.name);
+  const rows = branches
+    .map((branch): GitBranchDialogRow => {
+      const pullRequest = eligiblePrs.get(branchHeadName(branch));
+      return {
+        branch,
+        ...(pullRequest ? { pullRequest } : {}),
+        updatedLabel: formatBranchUpdatedLabel(branch.updatedAt, now),
+      };
+    })
+    .filter(({ branch, pullRequest }) => {
+      if (!query) return true;
+      return [
+        branch.name,
+        branch.upstream ?? "",
+        pullRequest ? `#${pullRequest.number}` : "",
+      ].some((value) => value.toLocaleLowerCase().includes(query));
     });
+  const compare = (left: GitBranchDialogRow, right: GitBranchDialogRow) => {
+    if (left.branch.current !== right.branch.current)
+      return left.branch.current ? -1 : 1;
+    const leftBase =
+      !left.branch.remote &&
+      baseBranch !== undefined &&
+      left.branch.name === baseBranch;
+    const rightBase =
+      !right.branch.remote &&
+      baseBranch !== undefined &&
+      right.branch.name === baseBranch;
+    if (leftBase !== rightBase) return leftBase ? -1 : 1;
+    const recency =
+      branchTimestamp(right.branch) - branchTimestamp(left.branch);
+    return recency || left.branch.name.localeCompare(right.branch.name);
+  };
+  return {
+    all: [...rows].sort(compare),
+    local: rows.filter(({ branch }) => !branch.remote).sort(compare),
+    remote: rows.filter(({ branch }) => branch.remote).sort(compare),
+  };
 }
 
 export const defaultGitPrFilterConfig: GitPrFilterConfig = {
@@ -210,6 +295,10 @@ export function createGitPanelActions(
       if (available() && model().capabilities.refresh.enabled)
         return host.refreshBranches(repository);
     },
+    refreshPrHeads: (repository) => {
+      if (available() && model().capabilities.refresh.enabled)
+        return host.refreshPrHeads(repository);
+    },
     refreshPullRequests: (repository) => {
       if (available() && model().capabilities.refresh.enabled)
         return host.refreshPullRequests(repository);
@@ -234,6 +323,11 @@ export function createGitPanelActions(
     switchBranch: (repository, branch) => {
       if (available() && model().capabilities.branches.enabled)
         return host.switchBranch(repository, branch);
+      return false;
+    },
+    deleteBranch: (repository, branch) => {
+      if (available() && model().capabilities.branches.enabled)
+        return host.deleteBranch(repository, branch);
       return false;
     },
     openDiff: (repository, file, area) => {

@@ -123,6 +123,8 @@ export const gitBranchSummarySchema = z.object({
   current: z.boolean(),
   remote: z.boolean(),
   upstream: z.string().nullable(),
+  /** Commit time of the branch tip, when the object is available locally. */
+  updatedAt: z.string().datetime().nullable(),
 });
 export type GitBranchSummary = z.infer<typeof gitBranchSummarySchema>;
 
@@ -144,6 +146,12 @@ export const switchBranchRequestSchema = z.object({
   name: z.string().min(1),
 });
 export type SwitchBranchRequest = z.infer<typeof switchBranchRequestSchema>;
+
+export const deleteBranchRequestSchema = z.object({
+  repo: z.string().default("."),
+  name: z.string().min(1),
+});
+export type DeleteBranchRequest = z.infer<typeof deleteBranchRequestSchema>;
 
 /** Generic remote operation (push / pull / fetch) on the current branch. */
 export const gitRemoteOpRequestSchema = z.object({
@@ -232,6 +240,22 @@ export const githubChecksSummarySchema = z.object({
   runs: z.array(githubCheckRunSchema),
 });
 export type GithubChecksSummary = z.infer<typeof githubChecksSummarySchema>;
+
+export const githubPrHeadSummarySchema = z.object({
+  number: z.number().int().positive(),
+  url: z.string(),
+  headRefName: z.string(),
+  headRepository: z.string().nullable(),
+  isDraft: z.boolean(),
+  updatedAt: z.string(),
+});
+export type GithubPrHeadSummary = z.infer<typeof githubPrHeadSummarySchema>;
+
+export const githubPrHeadsResponseSchema = z.object({
+  repository: z.string(),
+  prs: z.array(githubPrHeadSummarySchema),
+});
+export type GithubPrHeadsResponse = z.infer<typeof githubPrHeadsResponseSchema>;
 
 export const githubPrSchema = z.object({
   number: z.number().int(),

@@ -15,6 +15,7 @@ import type {
   GithubPrFileDiffRequest,
   GithubPrFileDiffResponse,
   GithubPrFilesResponse,
+  GithubPrHeadsResponse,
   GithubPrInitial,
   GithubPrListFilters,
   GithubPrListResponse,
@@ -63,6 +64,7 @@ import {
   prInitial as getGithubPrInitial,
   prOverview as getGithubPrOverview,
   githubStatus as getGithubStatus,
+  listOpenPrHeads as listGithubOpenPrHeads,
   listOpenPrs as listGithubOpenPrs,
 } from "./git-github-service.js";
 import type {
@@ -529,6 +531,56 @@ export class GitService {
     };
   }
 
+  async deleteBranch(
+    projectId: string,
+    relativePath: string,
+    name: string,
+  ): Promise<GitMutationResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const branches = await this.listBranches(projectId, relativePath);
+    const target = branches.branches.find((branch) => branch.name === name);
+    if (!target) {
+      throw new GitWorkflowError(
+        404,
+        "GIT_BRANCH_NOT_FOUND",
+        `Branch '${name}' was not found.`,
+      );
+    }
+    if (target.remote) {
+      throw new GitWorkflowError(
+        400,
+        "GIT_REMOTE_BRANCH_DELETE_UNSUPPORTED",
+        "Only local branches can be deleted.",
+      );
+    }
+    if (target.current) {
+      throw new GitWorkflowError(
+        409,
+        "GIT_CURRENT_BRANCH_DELETE",
+        "Switch to another branch before deleting the current branch.",
+      );
+    }
+    const baseBranch = await this.detectBaseBranch(repoDir);
+    if (name === baseBranch) {
+      throw new GitWorkflowError(
+        409,
+        "GIT_BASE_BRANCH_DELETE",
+        `The base branch '${baseBranch}' cannot be deleted.`,
+      );
+    }
+    await this.mapGit(() =>
+      this.runGit(repoDir, ["branch", "--delete", "--", name]),
+    );
+    this.invalidateStableRepoMetadata(repoDir);
+    return {
+      repo: await this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+      ),
+    };
+  }
+
   async fileDiff(
     projectId: string,
     relativePath: string,
@@ -896,6 +948,13 @@ export class GitService {
     relativePath: string,
   ): Promise<GithubStatusResponse> {
     return getGithubStatus(this.githubContext(), projectId, relativePath);
+  }
+
+  async listOpenPrHeads(
+    projectId: string,
+    relativePath: string,
+  ): Promise<GithubPrHeadsResponse> {
+    return listGithubOpenPrHeads(this.githubContext(), projectId, relativePath);
   }
 
   async listOpenPrs(
