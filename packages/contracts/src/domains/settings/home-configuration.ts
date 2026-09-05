@@ -6,7 +6,7 @@ import {
   thinkingLevelSchema,
 } from "../models/models.js";
 import {
-  permissionOverlaySchema,
+  permissionOverlayDocumentSchema,
   permissionRuleSetIdSchema,
 } from "../permissions/permission-rule-sets.js";
 import { permissionLevelSchema } from "../permissions/permissions.js";
@@ -300,11 +300,11 @@ export type LegacyPermissionsConfig = z.infer<
   typeof legacyPermissionsConfigSchema
 >;
 
-export const permissionsConfigSchema = permissionOverlaySchema;
+export const permissionsConfigSchema = permissionOverlayDocumentSchema;
 export type PermissionsConfig = z.infer<typeof permissionsConfigSchema>;
 export const defaultPermissionsConfig: PermissionsConfig = {
-  schemaVersion: 1,
-  rules: [],
+  schemaVersion: 2,
+  overlays: [],
 };
 
 export const headerConfigSchema = z.union([

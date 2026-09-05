@@ -158,6 +158,7 @@ export type {
 export type {
   PermissionException,
   PermissionOverlay,
+  PermissionOverlayDocument,
   PermissionOverlayOrigin,
   PermissionPolicyConfiguration,
   PermissionRule,

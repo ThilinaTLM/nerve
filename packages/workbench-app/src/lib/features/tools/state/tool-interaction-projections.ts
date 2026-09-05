@@ -49,6 +49,7 @@ export function pendingApprovals(
               offeredScopes: approvalScopes(interaction.request.offeredScopes),
               suggestedExceptions: interaction.request.suggestedExceptions,
               suggestedRules: interaction.request.suggestedRules,
+              permissionRuleSetId: interaction.request.permissionRuleSetId,
               toolCall,
             },
           ]

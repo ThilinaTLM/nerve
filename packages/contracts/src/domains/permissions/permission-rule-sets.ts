@@ -357,12 +357,44 @@ export type PermissionRuleSet = z.infer<typeof permissionRuleSetSchema>;
 
 export const permissionOverlaySchema = z
   .object({
-    schemaVersion: z.literal(1),
+    ruleSetId: permissionRuleSetIdSchema,
     rules: z.array(permissionRuleSchema).max(256),
   })
   .strict()
   .superRefine((overlay, context) => validateRules(overlay.rules, context));
 export type PermissionOverlay = z.infer<typeof permissionOverlaySchema>;
+
+export const permissionOverlayDocumentSchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    overlays: z.array(permissionOverlaySchema).max(256),
+  })
+  .strict()
+  .superRefine((document, context) => {
+    const ruleSetIds = new Set<string>();
+    let ruleCount = 0;
+    for (const [index, overlay] of document.overlays.entries()) {
+      if (ruleSetIds.has(overlay.ruleSetId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["overlays", index, "ruleSetId"],
+          message: "Overlay rule-set IDs must be unique within a document.",
+        });
+      }
+      ruleSetIds.add(overlay.ruleSetId);
+      ruleCount += overlay.rules.length;
+    }
+    if (ruleCount > 256) {
+      context.addIssue({
+        code: "custom",
+        path: ["overlays"],
+        message: "Permission overlay documents may contain at most 256 rules.",
+      });
+    }
+  });
+export type PermissionOverlayDocument = z.infer<
+  typeof permissionOverlayDocumentSchema
+>;
 
 export const permissionRuleOriginSchema = z.enum([
   "baseline",
@@ -402,9 +434,11 @@ export const permissionEvaluationResultSchema = z
     winningRuleId: identifierSchema,
     winningRule: permissionRuleSchema,
     winningRuleOrigin: permissionRuleOriginSchema,
+    winningRuleSetId: permissionRuleSetIdSchema,
     winningRuleEnforcement: ruleEnforcementSchema,
     winningRulePrecedence: rulePrecedenceSchema,
     activeRuleSetIds: z.array(identifierSchema).min(1).max(16),
+    selectedRuleSetId: permissionRuleSetIdSchema,
     ignoredOverlays: z.array(ignoredPermissionSourceSchema).max(16),
     policySnapshotHash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
     suggestedRules: z.array(permissionRuleSchema).max(16),
@@ -461,9 +495,9 @@ export type ProjectPermissionTrust = z.infer<
 export const permissionPolicyConfigurationSchema = z
   .object({
     ruleSets: z.array(permissionRuleSetSummarySchema).max(256),
-    userOverlay: permissionOverlaySchema,
-    projectOverlay: permissionOverlaySchema,
-    conversationOverlay: permissionOverlaySchema.optional(),
+    userOverlays: permissionOverlayDocumentSchema,
+    projectOverlays: permissionOverlayDocumentSchema,
+    conversationOverlays: permissionOverlayDocumentSchema.optional(),
     projectTrust: projectPermissionTrustSchema,
     diagnostics: z.array(z.string().max(4_096)).max(256),
   })
@@ -472,34 +506,52 @@ export type PermissionPolicyConfiguration = z.infer<
   typeof permissionPolicyConfigurationSchema
 >;
 
+function validateOverlayOrigin(
+  origin: PermissionOverlayOrigin,
+  overlay: PermissionOverlay,
+  context: z.RefinementCtx,
+  pathPrefix: PropertyKey[] = [],
+): void {
+  if (origin === "user") return;
+  for (const [index, rule] of overlay.rules.entries()) {
+    if (rule.enforcement === "guardrail") {
+      context.addIssue({
+        code: "custom",
+        path: [...pathPrefix, "rules", index, "enforcement"],
+        message: `${origin} overlays may contain only overridable rules.`,
+      });
+    }
+    if (
+      origin === "project" &&
+      (rule.when.primaryTarget?.root === "nerve_home" ||
+        rule.when.primaryTarget?.root === "nerve_data" ||
+        rule.when.targets?.matcher.root === "nerve_home" ||
+        rule.when.targets?.matcher.root === "nerve_data") &&
+      rule.decision === "allow"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: [...pathPrefix, "rules", index, "when"],
+        message: "Project overlays cannot grant broad Nerve-owned root access.",
+      });
+    }
+  }
+}
+
 export function permissionOverlayForOriginSchema(
   origin: PermissionOverlayOrigin,
 ) {
-  return permissionOverlaySchema.superRefine((overlay, context) => {
-    if (origin === "user") return;
-    for (const [index, rule] of overlay.rules.entries()) {
-      if (rule.enforcement === "guardrail") {
-        context.addIssue({
-          code: "custom",
-          path: ["rules", index, "enforcement"],
-          message: `${origin} overlays may contain only overridable rules.`,
-        });
-      }
-      if (
-        origin === "project" &&
-        (rule.when.primaryTarget?.root === "nerve_home" ||
-          rule.when.primaryTarget?.root === "nerve_data" ||
-          rule.when.targets?.matcher.root === "nerve_home" ||
-          rule.when.targets?.matcher.root === "nerve_data") &&
-        rule.decision === "allow"
-      ) {
-        context.addIssue({
-          code: "custom",
-          path: ["rules", index, "when"],
-          message:
-            "Project overlays cannot grant broad Nerve-owned root access.",
-        });
-      }
+  return permissionOverlaySchema.superRefine((overlay, context) =>
+    validateOverlayOrigin(origin, overlay, context),
+  );
+}
+
+export function permissionOverlayDocumentForOriginSchema(
+  origin: PermissionOverlayOrigin,
+) {
+  return permissionOverlayDocumentSchema.superRefine((document, context) => {
+    for (const [index, overlay] of document.overlays.entries()) {
+      validateOverlayOrigin(origin, overlay, context, ["overlays", index]);
     }
   });
 }

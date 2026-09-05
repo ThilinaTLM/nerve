@@ -462,6 +462,7 @@ export class ToolService {
       offeredScopes: durableApprovalScopes(interaction.request.offeredScopes),
       suggestedExceptions: interaction.request.suggestedExceptions,
       suggestedRules: interaction.request.suggestedRules,
+      permissionRuleSetId: interaction.request.permissionRuleSetId,
     };
   }
 
@@ -698,6 +699,8 @@ export class ToolService {
               suggestedExceptions: evaluation.suggestedExceptions ?? [],
               suggestedRules:
                 evaluation.permissionEvaluation?.suggestedRules ?? [],
+              permissionRuleSetId:
+                evaluation.permissionEvaluation?.selectedRuleSetId,
             },
           },
         ],

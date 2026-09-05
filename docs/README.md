@@ -13,7 +13,7 @@ Root `docs/` is for maintainers working across package boundaries. Public produc
 
 ## Active proposals
 
-- [Permission rule sets](proposals/permission-rule-sets.md) — target permission architecture that is not yet implemented.
+- [Permission rule sets](proposals/permission-rule-sets.md) — implemented permission architecture and rule-set-scoped overlay model.
 
 ## Maintainer runbooks
 

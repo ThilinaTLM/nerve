@@ -112,9 +112,21 @@ const hasPersistentChoice = $derived(
   canPersistConversation || canPersistProject || canPersistUser,
 );
 const reviewedTarget = $derived(reviewedRuleLabel());
+const permissionRuleSetLabel = $derived(
+  approval.permissionRuleSetId
+    ? approval.permissionRuleSetId
+        .replaceAll("_", " ")
+        .replace(/\b\w/g, (character) => character.toUpperCase())
+    : undefined,
+);
 </script>
 
 <div class="grid gap-2" aria-label="Tool approval">
+  {#if permissionRuleSetLabel && hasPersistentChoice}
+    <p class="text-xs text-muted-foreground">
+      Durable grants apply only to the {permissionRuleSetLabel} permission rule set.
+    </p>
+  {/if}
   <ToolFooter {meta} {detailsAction}>
     {#snippet actions()}
       {#if hasPersistentChoice}
@@ -141,7 +153,7 @@ const reviewedTarget = $derived(reviewedRuleLabel());
             {#if canPersistConversation}
               <DropdownMenu.Item
                 disabled={Boolean(decision)}
-                title={`Allow ${reviewedTarget} in this conversation`}
+                title={`Allow ${reviewedTarget} in this conversation${permissionRuleSetLabel ? ` for ${permissionRuleSetLabel}` : ""}`}
                 onSelect={() => void decide("always_conversation")}
               >
                 Allow in this conversation
@@ -150,7 +162,7 @@ const reviewedTarget = $derived(reviewedRuleLabel());
             {#if canPersistProject}
               <DropdownMenu.Item
                 disabled={Boolean(decision)}
-                title={`Always approve ${reviewedTarget} in this project`}
+                title={`Always approve ${reviewedTarget} in this project${permissionRuleSetLabel ? ` for ${permissionRuleSetLabel}` : ""}`}
                 onSelect={() => void decide("always_project")}
               >
                 Always approve in project
@@ -159,7 +171,7 @@ const reviewedTarget = $derived(reviewedRuleLabel());
             {#if canPersistUser}
               <DropdownMenu.Item
                 disabled={Boolean(decision)}
-                title={`Always approve ${reviewedTarget} for this user`}
+                title={`Always approve ${reviewedTarget} for this user${permissionRuleSetLabel ? ` in ${permissionRuleSetLabel}` : ""}`}
                 onSelect={() => void decide("always_user")}
               >
                 Always approve for user

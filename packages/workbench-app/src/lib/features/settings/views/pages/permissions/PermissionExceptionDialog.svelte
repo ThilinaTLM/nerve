@@ -10,11 +10,18 @@ import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 type Props = {
   open?: boolean;
   scope: "project" | "user";
+  ruleSetId: string;
   rule?: PermissionRule;
   onSave?: (rule: PermissionRule) => Promise<boolean>;
 };
 
-let { open = $bindable(false), scope, rule, onSave }: Props = $props();
+let {
+  open = $bindable(false),
+  scope,
+  ruleSetId,
+  rule,
+  onSave,
+}: Props = $props();
 let source = $state("");
 let saving = $state(false);
 let error = $state<string>();
@@ -36,13 +43,13 @@ async function save(): Promise<void> {
   }
 
   const parsed = permissionOverlayForOriginSchema(scope).safeParse({
-    schemaVersion: 1,
+    ruleSetId,
     rules: [value],
   });
   if (!parsed.success) {
     error = parsed.error.issues
       .map((issue) => {
-        const path = issue.path.slice(2).join(".");
+        const path = issue.path.slice(1).join(".");
         return path ? `${path}: ${issue.message}` : issue.message;
       })
       .join(" ");
@@ -79,7 +86,7 @@ function newRule(targetScope: "project" | "user"): PermissionRule {
   bind:open
   size="wide"
   title={`${rule ? "Edit" : "Add"} ${scope} permission rule`}
-  description="Edit the complete overlay rule. The rule is validated before the overlay is saved atomically."
+  description={`This rule applies only to the ${ruleSetId} permission rule set and is validated before the overlay is saved atomically.`}
 >
   <div class="grid gap-2">
     <Label for={`permission-rule-json-${scope}`}>Rule JSON</Label>

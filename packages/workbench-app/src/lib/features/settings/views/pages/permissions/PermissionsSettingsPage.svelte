@@ -4,6 +4,7 @@ import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import ShieldAlert from "@lucide/svelte/icons/shield-alert";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import type { PermissionRule, ProjectRecord, Settings } from "$lib/api";
 import {
@@ -35,6 +36,12 @@ let editingProjectRule = $state<PermissionRule>();
 let editingUserRule = $state<PermissionRule>();
 
 $effect(() => controller.selectProject(activeProject));
+$effect(() =>
+  controller.selectRuleSet(
+    settingsDraft.defaultPermissionRuleSetId ??
+      settingsDraft.defaultPermissionLevel,
+  ),
+);
 
 const builtInPermissionItems: SettingsChoice[] = [
   {
@@ -81,6 +88,24 @@ const permissionItems = $derived<SettingsChoice[]>(
     : builtInPermissionItems,
 );
 
+const overlayRuleSetItems = $derived(
+  controller.configuration?.ruleSets.map((ruleSet) => ({
+    value: ruleSet.id,
+    label: ruleSet.name,
+    detail: ruleSet.available
+      ? ruleSet.description
+      : "Unavailable; stored rules are dormant",
+    disabled: !ruleSet.available && !hasRulesForRuleSet(ruleSet.id),
+  })) ?? [],
+);
+const managedRuleSet = $derived(
+  controller.configuration?.ruleSets.find(
+    (ruleSet) => ruleSet.id === controller.overlayRuleSetId,
+  ),
+);
+const canAddManagedRules = $derived(
+  Boolean(managedRuleSet?.available && managedRuleSet.enabled),
+);
 const projectRules = $derived(controller.rules("project"));
 const userRules = $derived(controller.rules("user"));
 const projectPendingIds = $derived(
@@ -125,6 +150,26 @@ async function saveUser(rule: PermissionRule): Promise<boolean> {
   return editingUserRule
     ? controller.update("user", editingUserRule.id, rule)
     : controller.add("user", rule);
+}
+
+function hasRulesForRuleSet(ruleSetId: string): boolean {
+  const configuration = controller.configuration;
+  if (!configuration) return false;
+  return [configuration.userOverlays, configuration.projectOverlays].some(
+    (document) =>
+      document.overlays.some(
+        (overlay) =>
+          overlay.ruleSetId === ruleSetId && overlay.rules.length > 0,
+      ),
+  );
+}
+
+function selectOverlayRuleSet(ruleSetId: string): void {
+  projectDialogOpen = false;
+  userDialogOpen = false;
+  editingProjectRule = undefined;
+  editingUserRule = undefined;
+  controller.selectRuleSet(ruleSetId);
 }
 
 function openProjectRule(rule?: PermissionRule): void {
@@ -221,6 +266,30 @@ function ruleSetRole(id: string, compatibleModes?: string[]): string {
   {/if}
 </SettingsSection>
 
+<SettingsSection
+  id="permission-overlay-target"
+  title="Manage permission overlays"
+  description="Choose the permission rule set whose user and project overlays you want to inspect or edit."
+>
+  <SettingsGroup>
+    <SettingsRow label="Permission rule set" layout="stacked">
+      <SelectField
+        items={overlayRuleSetItems}
+        value={controller.overlayRuleSetId}
+        placeholder="Select a permission rule set"
+        ariaLabel="Overlay permission rule set"
+        onValueChange={selectOverlayRuleSet}
+      />
+    </SettingsRow>
+  </SettingsGroup>
+  {#if managedRuleSet && !managedRuleSet.available}
+    <SettingsInlineMessage
+      tone="warning"
+      text="This rule set is unavailable. Its stored rules are dormant and may only be inspected or removed."
+    />
+  {/if}
+</SettingsSection>
+
 {#if controller.errorMessage}
   <SettingsInlineMessage tone="error" text={controller.errorMessage}>
     {#snippet actions()}
@@ -241,7 +310,7 @@ function ruleSetRole(id: string, compatibleModes?: string[]): string {
   id="project-permissions"
   title="Project permission overlay"
   description={activeProject
-    ? `Repository-controlled rules for ${activeProject.name}. The complete file digest must be trusted before these rules become active.`
+    ? `Repository-controlled ${managedRuleSet?.name ?? controller.overlayRuleSetId} rules for ${activeProject.name}. The complete file digest must be trusted before these rules become active.`
     : "Select a project to inspect and manage its permission overlay."}
 >
   {#if controller.loading}
@@ -288,14 +357,17 @@ function ruleSetRole(id: string, compatibleModes?: string[]): string {
 
   <div class="flex items-center justify-between gap-3">
     <p class="text-xs text-muted-foreground">
-      Project rules override ordinary user defaults but never user guardrails.
+      These rules apply only to the {managedRuleSet?.name ??
+        controller.overlayRuleSetId} permission rule set. Project rules override ordinary
+      user defaults but never user guardrails in that set.
     </p>
     <Button
       size="sm"
       variant="outline"
       disabled={!activeProject ||
         !controller.configuration ||
-        controller.loading}
+        controller.loading ||
+        !canAddManagedRules}
       onclick={() => openProjectRule()}
       ><Plus class="size-3.5" />Add rule</Button
     >
@@ -304,7 +376,7 @@ function ruleSetRole(id: string, compatibleModes?: string[]): string {
     rules={projectRules}
     pendingIds={projectPendingIds}
     emptyTitle={activeProject ? "No project rules" : "No project selected"}
-    onEdit={(rule) => openProjectRule(rule)}
+    onEdit={canAddManagedRules ? (rule) => openProjectRule(rule) : undefined}
     onRemove={(id) => void controller.remove("project", id)}
   />
 </SettingsSection>
@@ -312,19 +384,20 @@ function ruleSetRole(id: string, compatibleModes?: string[]): string {
 <SettingsSection
   id="user-permissions"
   title="User permission overlay"
-  description="Defaults and protected guardrails stored under your Nerve home and applied across primary-agent projects."
+  description={`Defaults and protected guardrails for ${managedRuleSet?.name ?? controller.overlayRuleSetId}, stored under your Nerve home and applied across primary-agent projects using that rule set.`}
 >
   <div class="flex items-center justify-between gap-3">
     <p class="text-xs text-muted-foreground">
       A guardrail may prompt or deny and cannot be replaced by project or
-      conversation rules.
+      conversation rules within this permission rule set.
     </p>
     <Button
       size="sm"
       variant="outline"
       disabled={!activeProject ||
         !controller.configuration ||
-        controller.loading}
+        controller.loading ||
+        !canAddManagedRules}
       onclick={() => openUserRule()}><Plus class="size-3.5" />Add rule</Button
     >
   </div>
@@ -332,7 +405,7 @@ function ruleSetRole(id: string, compatibleModes?: string[]): string {
     rules={userRules}
     pendingIds={userPendingIds}
     emptyTitle="No user rules"
-    onEdit={(rule) => openUserRule(rule)}
+    onEdit={canAddManagedRules ? (rule) => openUserRule(rule) : undefined}
     onRemove={(id) => void controller.remove("user", id)}
   />
 </SettingsSection>
@@ -340,12 +413,14 @@ function ruleSetRole(id: string, compatibleModes?: string[]): string {
 <PermissionExceptionDialog
   bind:open={projectDialogOpen}
   scope="project"
+  ruleSetId={controller.overlayRuleSetId}
   rule={editingProjectRule}
   onSave={saveProject}
 />
 <PermissionExceptionDialog
   bind:open={userDialogOpen}
   scope="user"
+  ruleSetId={controller.overlayRuleSetId}
   rule={editingUserRule}
   onSave={saveUser}
 />

@@ -82,8 +82,15 @@ export class ToolInteractionResolutionService {
             "This approval does not offer the requested durable grant scope.",
           );
         if (interaction.request.suggestedRules[0]) {
+          if (!interaction.request.permissionRuleSetId)
+            throw new ApplicationError(
+              400,
+              "APPROVAL_RULE_SET_MISSING",
+              "This historical approval cannot create a durable rule without its evaluated permission rule set.",
+            );
           await this.permissionPolicy.saveRule(
             durableScope,
+            interaction.request.permissionRuleSetId,
             interaction.request.suggestedRules[0],
             durableScope === "project"
               ? current.projectId
