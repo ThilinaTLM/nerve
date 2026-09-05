@@ -57,7 +57,7 @@
     "test": "tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.85.0",
+    "@earendil-works/pi-ai": "0.85.1",
     "@nervekit/contracts": "workspace:*",
     "@nervekit/native": "workspace:*",
     "ignore": "7.0.5",

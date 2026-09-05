@@ -35,7 +35,7 @@
     "test:native": "tsx --test test/infrastructure/persistence/file-mutations.test.ts test/domains/tasks/process-runtime-driver.test.ts test/domains/tasks/task-port-inspector.test.ts test/domains/tasks/task-scope.test.ts test/domains/tasks/task-supervisor.test.ts"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.85.0",
+    "@earendil-works/pi-ai": "0.85.1",
     "@hono/node-server": "2.0.12",
     "@nervekit/contracts": "workspace:*",
     "@nervekit/harness": "workspace:*",
