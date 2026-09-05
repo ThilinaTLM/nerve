@@ -1,3 +1,4 @@
+import type { ApprovalSettlement } from "@nervekit/contracts/conversations";
 import { createHash, randomUUID } from "node:crypto";
 import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import { noopPerformanceDiagnostics } from "../../infrastructure/diagnostics/performance-metrics.js";
@@ -55,6 +56,7 @@ export interface ConversationJournalState {
   runProjections: Map<string, ConversationRunProjection>;
   interactions: Map<string, ConversationInteractionRecord>;
   suspensions: Map<string, ConversationSuspensionRecord>;
+  approvalSettlements: Map<string, ApprovalSettlement>;
   idempotencyKeys: Map<string, ConversationJournalCommit>;
   intentConversationRevisions: Map<string, number>;
   /** Non-serialized indexes maintained with the resident projection. */
@@ -103,6 +105,15 @@ export class ConversationJournalRepository {
   private readonly locks = journalLocks;
 
   private readonly canonical: CanonicalStore;
+  private readonly commitListeners = new Set<
+    (commit: ConversationJournalCommit) => void
+  >();
+
+  /** In-memory wake-ups only; durable obligations remain discoverable on restart. */
+  onCommit(listener: (commit: ConversationJournalCommit) => void): () => void {
+    this.commitListeners.add(listener);
+    return () => this.commitListeners.delete(listener);
+  }
   private readonly ownsCanonicalStore: boolean;
   private readonly ready: Promise<void>;
   constructor(
@@ -320,6 +331,14 @@ export class ConversationJournalRepository {
     );
   }
 
+  async listApprovalSettlements(): Promise<ApprovalSettlement[]> {
+    return (
+      await this.canonical.listDocuments<ApprovalSettlement>(
+        "approval_settlement",
+      )
+    ).map((document) => document.data);
+  }
+
   listLoaded(): ConversationJournalState[] {
     return [...this.states.values()];
   }
@@ -402,6 +421,13 @@ export class ConversationJournalRepository {
         performance.now() - persistStartedAt,
       );
       applyCommit(state, parsed);
+      for (const listener of this.commitListeners) {
+        try {
+          listener(parsed);
+        } catch {
+          /* A wake-up cannot roll back a committed fact. */
+        }
+      }
       this.dirty.add(conversationId);
       this.encodedBytes.set(
         conversationId,
@@ -713,6 +739,9 @@ function applyEvent(
       );
       return;
     }
+    case "approval_settlement.upserted":
+      state.approvalSettlements.set(event.settlement.id, event.settlement);
+      break;
     case "suspension.upserted":
       state.suspensions.set(event.suspension.id, event.suspension);
       return;
@@ -744,6 +773,7 @@ function emptyState(conversationId: string): ConversationJournalState {
     runProjections: new Map(),
     interactions: new Map(),
     suspensions: new Map(),
+    approvalSettlements: new Map(),
     idempotencyKeys: new Map(),
     intentConversationRevisions: new Map(),
     entryById: new Map(),

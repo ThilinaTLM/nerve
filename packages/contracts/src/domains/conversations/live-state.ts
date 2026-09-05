@@ -1,3 +1,7 @@
+import {
+  approvalSettlementSchema,
+  type ApprovalSettlement,
+} from "./approval-settlement.js";
 /* Live conversation state and ephemeral stream payload contracts. */
 import { z } from "zod";
 import { boundedPublicObjectSchema } from "../../events/bounded-public-data.js";
@@ -35,6 +39,7 @@ export type RunStatus =
   | "running"
   | "retrying"
   | "aborting"
+  | "settling"
   | "waiting"
   | "interrupted";
 
@@ -286,6 +291,7 @@ export interface ConversationActiveRunSnapshot {
   projectId: string;
   conversationId: string;
   status: RunStatus;
+  settlement?: ApprovalSettlement;
   startedAt: string;
   turns: ConversationLiveTurnSnapshot[];
   toolOutputsByToolCallId: Record<string, ConversationLiveToolOutputSnapshot>;
@@ -408,7 +414,15 @@ export const conversationActiveRunSnapshotSchema = z.object({
   agentId: z.string().startsWith("agent_"),
   projectId: z.string().startsWith("proj_"),
   conversationId: z.string().startsWith("conv_"),
-  status: z.enum(["running", "retrying", "aborting", "waiting", "interrupted"]),
+  status: z.enum([
+    "running",
+    "retrying",
+    "aborting",
+    "waiting",
+    "settling",
+    "interrupted",
+  ]),
+  settlement: approvalSettlementSchema.optional(),
   startedAt: z.string().datetime(),
   turns: z.array(conversationLiveTurnSnapshotSchema),
   toolOutputsByToolCallId: z.record(

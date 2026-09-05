@@ -42,7 +42,6 @@ export async function getConversationSnapshotResponse(
 ): Promise<ConversationSnapshotResponse<ConversationSnapshot>> {
   const stream = conversationStream(conversationId);
   const captured = await state.events.withCursor(stream, async () => {
-    await state.humanInput.recoverReadyApprovalBatches(conversationId);
     return state.conversationQuery.getConversationSnapshot(conversationId);
   });
   return {

@@ -20,11 +20,6 @@ export interface ApprovalInteractionBatch {
   interactions: readonly RunInteractionRecord[];
 }
 
-export interface ApprovalBatchResolutionMember {
-  interaction: RunInteractionRecord;
-  resolution: Record<string, unknown>;
-}
-
 export interface WorkbenchRunFeatureMechanics {
   activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]>;
   getContextUsage(conversationId: string): Promise<ContextUsage>;
@@ -51,6 +46,38 @@ export class WorkbenchRunService {
     private readonly unitOfWork: WorkbenchRunUnitOfWork,
     private readonly features: WorkbenchRunFeatureMechanics,
   ) {}
+
+  reconcileApprovalConversation(
+    conversation: import("@nervekit/contracts/conversations").ConversationRecord,
+  ): void {
+    this.state.conversations.set(conversation.id, conversation);
+  }
+
+  async observeApprovalCommit(runId: string): Promise<void> {
+    await this.unitOfWork.loadFresh(runId);
+    await this.coordinator.observeAggregateCommit(runId);
+  }
+
+  async continueApprovalSettlement(
+    settlement: import("@nervekit/contracts/conversations").ApprovalSettlement,
+  ): Promise<void> {
+    if (!settlement.runId) return;
+    await this.unitOfWork.loadFresh(settlement.runId);
+    await this.coordinator.continue(settlement.runId, settlement);
+  }
+
+  async listApprovalRecoveryInteractions(): Promise<RunInteractionRecord[]> {
+    const states = await this.unitOfWork.listActive();
+    return states.flatMap((state) =>
+      ["waiting", "suspended", "settling"].includes(state.run.status)
+        ? state.interactions.filter(
+            (item) =>
+              item.kind === "approval" &&
+              item.checkpointId === state.run.lastCheckpointId,
+          )
+        : [],
+    );
+  }
 
   async listPendingApprovalInteractions(
     conversationId?: string,
@@ -306,119 +333,6 @@ export class WorkbenchRunService {
     };
   }
 
-  async approvalBatchForToolCall(
-    toolCallId: string,
-    runId?: string,
-  ): Promise<ApprovalInteractionBatch> {
-    const batch = await this.interactionBatchForToolCall(toolCallId, runId);
-    const interactions = batch.interactions.filter(
-      (interaction) =>
-        interaction.kind === "approval" && interaction.status === "pending",
-    );
-    if (
-      !interactions.some((interaction) => interaction.toolCallId === toolCallId)
-    ) {
-      throw new ApplicationError(
-        409,
-        "RUN_APPROVAL_BATCH_INVALID",
-        "The pending approval interaction was not found in the run batch.",
-      );
-    }
-    return {
-      ...batch,
-      batchToolCallIds: interactions.map(
-        (interaction) => interaction.toolCallId,
-      ),
-      interactions,
-    };
-  }
-
-  async assertApprovalBatchContextUnchanged(
-    batch: ApprovalInteractionBatch,
-  ): Promise<void> {
-    const state = await this.unitOfWork.loadFresh(batch.runId);
-    const checkpoint = state?.checkpoints.find(
-      (candidate) => candidate.checkpointId === batch.checkpointId,
-    );
-    if (!state || !checkpoint || state.run.status !== "waiting") {
-      throw new ApplicationError(
-        409,
-        "RUN_CHECKPOINT_STALE",
-        "The approval checkpoint is no longer active.",
-      );
-    }
-    for (const toolCallId of batch.batchToolCallIds) {
-      if (
-        !(await this.unitOfWork.hasActionableInteraction(
-          batch.runId,
-          toolCallId,
-        ))
-      ) {
-        throw new ApplicationError(
-          409,
-          "RUN_TOOL_REVISION_STALE",
-          "A tool changed after this approval was requested. No tool was executed.",
-        );
-      }
-    }
-    const conversation = this.state.getConversation(state.run.conversationId);
-    const currentEntryIds = activeBranchEntryIds(
-      await this.features.getConversationEntries(conversation.id),
-      conversation.activeEntryId,
-    );
-    if (!activeBranchEndsWithCheckpoint(currentEntryIds, checkpoint.entryIds)) {
-      throw new ApplicationError(
-        409,
-        "RUN_CHECKPOINT_STALE",
-        "The conversation changed after this approval was requested. No tool was executed.",
-      );
-    }
-  }
-
-  async resolveInteractionBatchForToolCalls(input: {
-    members: readonly ApprovalBatchResolutionMember[];
-    entries: readonly ConversationEntry[];
-    toolCalls: readonly ToolCallTranscriptRecord[];
-    resolutionRequestId: string;
-  }): Promise<void> {
-    const first = input.members[0]?.interaction;
-    if (!first) {
-      throw new ApplicationError(
-        409,
-        "RUN_INTERACTION_NOT_FOUND",
-        "The approval interaction batch is empty.",
-      );
-    }
-    if (input.toolCalls.length) {
-      await this.coordinator.upsertToolCalls(first.runId, input.toolCalls);
-    }
-    if (input.entries.length) {
-      const state = await this.unitOfWork.load(first.runId);
-      const existingEntryIds = new Set(
-        state?.transitions.flatMap((transition) =>
-          transition.entries.map((entry) => entry.id),
-        ),
-      );
-      const missingEntries = input.entries.filter(
-        (entry) => !existingEntryIds.has(entry.id),
-      );
-      if (missingEntries.length) {
-        await this.coordinator.appendEntries(first.runId, missingEntries);
-      }
-    }
-    const commands = input.members.map(({ interaction, resolution }) => ({
-      interactionId: interaction.id,
-      resolutionRequestId: input.resolutionRequestId,
-      resolution,
-    }));
-    if (first.batchToolCallIds) {
-      await this.coordinator.resolveInteractionBatch(first.runId, commands);
-    } else {
-      await this.coordinator.resolveInteraction(first.runId, commands[0]!);
-    }
-    await this.coordinator.continue(first.runId);
-  }
-
   async resolveInteractionForToolCall(input: {
     toolCallId: string;
     runId?: string;
@@ -469,6 +383,11 @@ export class WorkbenchRunService {
       command,
     );
     if (input.continueRun) {
+      const settlement = await this.unitOfWork.approvalSettlementForRun(
+        state.run.runId,
+      );
+      if (settlement && !["completed", "cancelled"].includes(settlement.phase))
+        return;
       const latest = await this.unitOfWork.load(state.run.runId);
       const hasPendingSibling = latest?.interactions.some(
         (candidate) =>
@@ -537,7 +456,7 @@ export function activeBranchEndsWithCheckpoint(
   );
 }
 
-function activeBranchEntryIds(
+export function activeBranchEntryIds(
   entries: readonly ConversationEntry[],
   activeEntryId: string | undefined,
 ): string[] {

@@ -1,3 +1,4 @@
+import type { ApprovalSettlement } from "@nervekit/contracts/conversations";
 /* eslint-disable max-lines -- Shared reducer covers the full live conversation event surface. */
 import {
   assertTransition,
@@ -236,6 +237,23 @@ export function applyConversationEvent(
         options.retainHiddenToolCalls,
       );
       break;
+    case "run.settlement.updated": {
+      draft.ownRun();
+      const data = event.data as {
+        runId: string;
+        settlement: ApprovalSettlement;
+      };
+      if (next.activeRun?.runId === data.runId) {
+        next.activeRun.settlement = data.settlement;
+        next.activeRun.status =
+          data.settlement.phase === "awaiting_decisions"
+            ? "waiting"
+            : "settling";
+        next.activeRun.retry = undefined;
+        next.activeRun.recovery = undefined;
+      }
+      break;
+    }
     case "run.resumed":
       draft.ownRun();
       applyRunResumed(next, event.data as ConversationRunResumedData);
@@ -381,6 +399,7 @@ function cloneActiveRun(
     ...run,
     retry: run.retry ? { ...run.retry } : undefined,
     recovery: run.recovery ? { ...run.recovery } : undefined,
+    settlement: run.settlement ? { ...run.settlement } : undefined,
     queuedPrompts: [...run.queuedPrompts],
     turns: run.turns.map((turn) => ({
       ...turn,
@@ -567,6 +586,7 @@ function applyRunResumed(
   activeRun.status = "running";
   activeRun.retry = undefined;
   activeRun.recovery = undefined;
+  activeRun.settlement = undefined;
   state.sending = true;
   state.error = undefined;
 }
@@ -584,6 +604,7 @@ function applyRunRetrying(
   });
   activeRun.status = "retrying";
   activeRun.recovery = undefined;
+  activeRun.settlement = undefined;
   activeRun.retry = {
     attempt: data.attempt,
     maxRetries: data.maxRetries,

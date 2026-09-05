@@ -131,6 +131,24 @@ export function buildActiveRunTimeline(
     });
   }
 
+  if (
+    activeRun?.settlement?.phase === "blocked" &&
+    !context.statusRunIds.has(activeRun.runId)
+  ) {
+    items.push({
+      kind: "run_status",
+      key: `run-status:${activeRun.runId}`,
+      notice: {
+        conversationId: activeRun.conversationId,
+        agentId: activeRun.agentId,
+        runId: activeRun.runId,
+        state: "failed",
+        errorMessage: `Approval processing blocked: ${activeRun.settlement.failure?.message ?? "Unknown failure"} Cancel this run before starting new work.`,
+        retryable: false,
+      },
+    });
+  }
+
   if (transient?.compaction) {
     const duplicateKeys = [
       transient.compaction.id,

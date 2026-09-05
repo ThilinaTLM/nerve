@@ -34,13 +34,15 @@ export class WorkbenchRunQuery {
       (checkpoint) =>
         checkpoint.checkpointId === canonical.run.lastCheckpointId,
     )?.harnessLeafId;
-    if (
-      activeEntryIds &&
-      branchAnchor &&
-      !activeEntryIds.includes(branchAnchor)
-    ) {
-      return undefined;
-    }
+    const settlement = await this.unitOfWork.approvalSettlementForRun(
+      canonical.run.runId,
+    );
+    const outsideBranch = Boolean(
+      activeEntryIds && branchAnchor && !activeEntryIds.includes(branchAnchor),
+    );
+    // A blocked settlement still owns the busy run. Keep its cancellation
+    // guidance visible even when the user selected a different branch.
+    if (outsideBranch && settlement?.phase !== "blocked") return undefined;
     const transient =
       this.state.conversationRuntime.snapshotForConversation(conversationId);
     const retry = retrySnapshot(canonical);
@@ -49,20 +51,25 @@ export class WorkbenchRunQuery {
       agentId: canonical.run.agentId,
       projectId: canonical.run.projectId,
       conversationId: canonical.run.conversationId,
+      settlement,
       status: retry
         ? "retrying"
-        : canonical.run.status === "waiting"
-          ? "waiting"
-          : canonical.run.status === "interrupted"
-            ? "interrupted"
-            : canonical.run.status === "cancellation_failed"
-              ? "retrying"
-              : canonical.run.status === "cancellation_requested"
-                ? "aborting"
-                : "running",
+        : canonical.run.status === "settling"
+          ? "settling"
+          : canonical.run.status === "waiting"
+            ? "waiting"
+            : canonical.run.status === "interrupted"
+              ? "interrupted"
+              : canonical.run.status === "cancellation_failed"
+                ? "retrying"
+                : canonical.run.status === "cancellation_requested"
+                  ? "aborting"
+                  : "running",
       startedAt: canonical.run.startedAt ?? canonical.run.createdAt,
-      turns: transient?.turns ?? [],
-      toolOutputsByToolCallId: transient?.toolOutputsByToolCallId ?? {},
+      turns: outsideBranch ? [] : (transient?.turns ?? []),
+      toolOutputsByToolCallId: outsideBranch
+        ? {}
+        : (transient?.toolOutputsByToolCallId ?? {}),
       queuedPrompts: canonical.prompts.filter(
         (prompt) => prompt.status === "queued" || prompt.status === "accepted",
       ),

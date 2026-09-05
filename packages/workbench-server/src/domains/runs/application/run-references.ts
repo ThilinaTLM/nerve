@@ -36,9 +36,17 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
     const conversation = this.state.getConversation(run.conversationId);
     const storage = await this.harnessStorage.openStorage(conversation);
     const leafId = await storage.getLeafId();
-    const entryIds = runState.transitions.flatMap((transition) =>
-      transition.entries.map((entry) => entry.id),
+    // A run's append history can contain abandoned assistant messages after
+    // retry/branch restoration. A checkpoint describes the current model branch,
+    // not every entry ever written by the run.
+    const recorded = new Set(
+      runState.transitions.flatMap((transition) =>
+        transition.entries.map((entry) => entry.id),
+      ),
     );
+    const entryIds = (await storage.getPathToRoot(leafId))
+      .filter((entry) => recorded.has(entry.id))
+      .map((entry) => entry.id);
     return {
       cursor: entryIds.length,
       entryIds,

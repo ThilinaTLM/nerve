@@ -1,3 +1,10 @@
+import { ToolExecutionBoundaryError } from "./execution-boundary-error.js";
+import type { ConversationJournalEvent } from "@nervekit/contracts/conversations";
+import type { ConversationJournalState } from "../../conversations/conversation-journal.repository.js";
+type ApprovalCommitEvents = (
+  state: ConversationJournalState,
+  next: ToolCallRecord,
+) => ConversationJournalEvent[];
 /* eslint-disable max-lines -- Tool lifecycle orchestration remains centralized pending a follow-up service split. */
 import { realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
@@ -216,7 +223,7 @@ async function assertWriteTargetBoundaries(
     }
     const child = relative(root, existing);
     if (child === ".." || child.startsWith(`..${sep}`) || isAbsolute(child)) {
-      throw new Error(
+      throw new ToolExecutionBoundaryError(
         `Write target escapes the authorized ${target.root} root through a symbolic link.`,
       );
     }
@@ -896,7 +903,9 @@ export class ToolService {
       .listActive()
       .filter(
         (toolCall) =>
-          toolCall.status === "committed" || toolCall.status === "running",
+          toolCall.status === "running" ||
+          (toolCall.status === "committed" &&
+            !toolCall.interactions.some((item) => item.kind === "approval")),
       );
     for (const toolCall of interrupted) {
       const failed = await this.updateToolCall(
@@ -924,6 +933,7 @@ export class ToolService {
       | "always_conversation"
       | "always_project"
       | "always_user",
+    aggregateEvents?: ApprovalCommitEvents,
   ): Promise<ApprovalRecord> {
     const approval = this.projectApprovals().find(
       (candidate) => candidate.id === approvalId,
@@ -945,24 +955,28 @@ export class ToolService {
           }
         : interaction,
     );
-    const updated = await this.updateToolCall(current.id, {
-      interactions,
-      status: decision === "allow" ? "committed" : "denied",
-      supervision: current.supervision
-        ? {
-            ...current.supervision,
-            status: decision === "allow" ? "approved" : "denied",
-            source: "user",
-            decidedAt: resolvedAt,
-          }
-        : undefined,
-      ...(decision === "deny"
-        ? {
-            error: note ?? "Denied by user.",
-            ...denialProjection(current, note ?? "Denied by user.", "user"),
-          }
-        : {}),
-    });
+    const updated = await this.updateToolCall(
+      current.id,
+      {
+        interactions,
+        status: decision === "allow" ? "committed" : "denied",
+        supervision: current.supervision
+          ? {
+              ...current.supervision,
+              status: decision === "allow" ? "approved" : "denied",
+              source: "user",
+              decidedAt: resolvedAt,
+            }
+          : undefined,
+        ...(decision === "deny"
+          ? {
+              error: note ?? "Denied by user.",
+              ...denialProjection(current, note ?? "Denied by user.", "user"),
+            }
+          : {}),
+      },
+      aggregateEvents,
+    );
     const decided = this.projectApproval(updated, ordinal);
     return decided;
   }
@@ -977,22 +991,6 @@ export class ToolService {
     if (approval.status === "pending")
       throw new Error("Approval is still pending.");
     return this.executor.executeAllowedTool(toolCall.id);
-  }
-
-  async grantApproval(
-    approvalId: string,
-    note?: string,
-  ): Promise<ToolCallRecord> {
-    await this.decideApproval(approvalId, "allow", note);
-    return this.finalizeDecidedApproval(approvalId);
-  }
-
-  async denyApproval(
-    approvalId: string,
-    note?: string,
-  ): Promise<ToolCallRecord> {
-    await this.decideApproval(approvalId, "deny", note);
-    return this.finalizeDecidedApproval(approvalId);
   }
 
   async resolveInteraction(
@@ -1247,7 +1245,7 @@ export class ToolService {
       JSON.stringify(evaluation.normalizedArgs) !==
         JSON.stringify(toolCall.args)
     ) {
-      throw new Error(
+      throw new ToolExecutionBoundaryError(
         "Tool approval is stale or its execution target no longer satisfies policy.",
       );
     }
@@ -1274,15 +1272,22 @@ export class ToolService {
   private async updateToolCall(
     toolCallId: string,
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
+    aggregateEvents?: ApprovalCommitEvents,
   ): Promise<ToolCallRecord> {
     const current = this.getToolCall(toolCallId);
-    return this.updateToolCallAtRevision(toolCallId, current.revision, patch);
+    return this.updateToolCallAtRevision(
+      toolCallId,
+      current.revision,
+      patch,
+      aggregateEvents,
+    );
   }
 
   private async updateToolCallAtRevision(
     toolCallId: string,
     expectedRevision: number,
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
+    aggregateEvents?: ApprovalCommitEvents,
   ): Promise<ToolCallRecord> {
     const current = this.getToolCall(toolCallId);
     if (current.revision !== expectedRevision) {
@@ -1341,6 +1346,7 @@ export class ToolService {
         }
         return candidate;
       },
+      aggregateEvents,
     );
     if (isTerminalToolCall(next)) this.notifyWaiters(next);
     return next;

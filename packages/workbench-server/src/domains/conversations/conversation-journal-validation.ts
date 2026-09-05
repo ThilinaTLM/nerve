@@ -1,3 +1,4 @@
+import { validateApprovalSettlement } from "./approval-settlement-validation.js";
 import type {
   ConversationInteractionRecord,
   ConversationJournalEvent,
@@ -33,6 +34,16 @@ export function validateCommitEvents(
   for (const event of events) {
     validateEventIdentity(event, conversationId);
     switch (event.kind) {
+      case "approval_settlement.upserted": {
+        const value = event.settlement;
+        validateApprovalSettlement(
+          value,
+          state.approvalSettlements.get(value.id),
+          value.runId ? runProjection(value.runId)?.run : undefined,
+          toolCall,
+        );
+        break;
+      }
       case "model_context.entry_appended": {
         const entry = event.entry as unknown as ConversationTreeEntry;
         const current = event.ownerAgentId
@@ -150,6 +161,8 @@ function validateEventIdentity(
     throw new Error("Conversation journal event identity mismatch.");
   }
   if (
+    (event.kind === "approval_settlement.upserted" &&
+      event.settlement.conversationId !== conversationId) ||
     (event.kind === "conversation.upserted" &&
       event.conversation.id !== conversationId) ||
     (event.kind === "conversation.entry_appended" &&

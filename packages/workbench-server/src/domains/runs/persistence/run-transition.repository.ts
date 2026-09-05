@@ -26,7 +26,6 @@ import {
 export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   private readonly locks = new Map<string, Promise<void>>();
   private readonly cache: BoundedRunStateCache;
-  private metadata: RunRecord[] | undefined;
   private readonly lookup = new ActiveRunLookup({
     load: (runId) => this.load(runId),
     hydrateActive: () => this.hydrateAllActive(),
@@ -53,7 +52,14 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
 
   async load(runId: string): Promise<RunHydratedState | undefined> {
     const cached = this.refreshJournalReads ? undefined : this.cache.get(runId);
-    if (cached) return cached;
+    if (cached) {
+      const aggregate = await this.journal.load(cached.run.conversationId);
+      if (
+        aggregate.runProjections.get(runId)?.run.revision ===
+        cached.run.revision
+      )
+        return cached;
+    }
     const state = await this.hydrate(runId);
     if (state) {
       this.cache.set(state);
@@ -102,14 +108,8 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   async list(): Promise<readonly RunHydratedState[]> {
     const states: RunHydratedState[] = [];
     for (const record of await this.scanMetadata()) {
-      const cached = this.refreshJournalReads
-        ? undefined
-        : this.cache.get(record.runId);
-      const state = cached ?? (await this.hydrate(record.runId));
+      const state = await this.load(record.runId);
       if (!state) continue;
-      if (!cached && ACTIVE_STATUSES.has(state.run.status)) {
-        this.cache.set(state);
-      }
       this.lookup.observe(state);
       states.push(state);
     }
@@ -151,13 +151,22 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
     );
   }
 
+  async approvalSettlementForRun(runId: string) {
+    const run = await this.load(runId);
+    if (!run) return undefined;
+    const aggregate = await this.journal.load(run.run.conversationId);
+    return [...aggregate.approvalSettlements.values()].find(
+      (value) =>
+        value.runId === runId &&
+        value.checkpointId === run.run.lastCheckpointId,
+    );
+  }
+
   async listMetadata(): Promise<readonly RunRecord[]> {
-    return (this.metadata ??= await this.scanMetadata());
+    return this.scanMetadata();
   }
 
   async hydrateAllActive(): Promise<void> {
-    const records = await this.scanMetadata();
-    this.metadata = records;
     const active = await this.journal.listRunStates<RunHydratedState>([
       ...ACTIVE_STATUSES,
     ]);
@@ -171,6 +180,7 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   async commit(
     expectedRevision: number,
     transition: RunTransitionRecord,
+    aggregateEvents: ConversationJournalEvent[] = [],
   ): Promise<RunHydratedState> {
     const parsed = runTransitionRecordSchema.parse(
       JSON.parse(JSON.stringify(transition)) as unknown,
@@ -191,6 +201,7 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
           transition: parsed,
         },
         ...(await this.normalizedInteractionEvents(next, parsed)),
+        ...aggregateEvents,
       ];
       await this.journal.commit(parsed.run.conversationId, {
         kind: `run.${parsed.kind}`,
@@ -199,7 +210,6 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
       });
       this.cache.set(next);
       this.lookup.observe(next);
-      this.metadata = undefined;
       return next;
     });
   }

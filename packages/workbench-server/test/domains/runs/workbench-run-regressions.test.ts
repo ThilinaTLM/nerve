@@ -272,6 +272,7 @@ describe("workbench coordinator behavior regressions", () => {
       {
         list: async () => states,
         listActive: async () => states,
+        approvalSettlementForRun: async () => undefined,
       } as never,
       runtime,
     );
@@ -349,6 +350,7 @@ describe("workbench coordinator behavior regressions", () => {
       {
         list: async () => states,
         listActive: async () => states,
+        approvalSettlementForRun: async () => undefined,
       } as never,
       runtime,
     );
@@ -383,6 +385,7 @@ describe("workbench coordinator behavior regressions", () => {
       {
         list: async () => states,
         listActive: async () => states,
+        approvalSettlementForRun: async () => undefined,
       } as never,
       runtime,
     );
@@ -441,6 +444,7 @@ describe("workbench coordinator behavior regressions", () => {
       {
         list: async () => states,
         listActive: async () => states,
+        approvalSettlementForRun: async () => undefined,
       } as never,
       runtime,
     );

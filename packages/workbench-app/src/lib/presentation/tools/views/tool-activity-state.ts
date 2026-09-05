@@ -71,6 +71,7 @@ export function deriveToolLifecycleVisualStage(input: {
         ? "approval"
         : "interaction";
     case "committed":
+      return "prepared";
     case "running":
       return "executing";
     case "completed":
@@ -122,9 +123,7 @@ export function deriveToolActivitySections(
     input.toolCall?.status === "denied" ||
     input.toolCall?.status === "cancelled";
   const inFlight = Boolean(
-    input.toolCall &&
-    (input.toolCall.status === "committed" ||
-      input.toolCall.status === "running"),
+    input.toolCall && input.toolCall.status === "running",
   );
 
   let resultMode: ToolActivityResultMode;
@@ -135,7 +134,11 @@ export function deriveToolActivitySections(
   } else if (input.hasInteraction) {
     // Native interaction views own their body for every lifecycle status.
     resultMode = "output";
-  } else if (input.hasApproval || input.toolCall.status === "waiting") {
+  } else if (
+    input.hasApproval ||
+    input.toolCall.status === "waiting" ||
+    input.toolCall.status === "committed"
+  ) {
     // The durable tool row may arrive one frame before its approval projection.
     resultMode = "none";
   } else if (inFlight && !input.hasDurableBodyContent) {

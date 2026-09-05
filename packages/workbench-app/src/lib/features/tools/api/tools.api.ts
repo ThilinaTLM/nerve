@@ -61,16 +61,32 @@ export async function resolveToolInteraction(
 }> {
   const { toolCallId, ordinal } = interactionAddress(interactionId);
   const current = await getToolCall(toolCallId);
-  const result = (
-    await protocolRequest("toolCall.interaction.resolve", {
-      toolCallId,
-      interactionOrdinal: ordinal,
-      expectedRevision: current.revision,
-      resolutionRequestId: crypto.randomUUID(),
-      resolution,
-    })
-  ).result;
-  return { ...result, toolCall: toolCallRecordSchema.parse(result.toolCall) };
+  const resolutionRequestId = crypto.randomUUID();
+  try {
+    const result = (
+      await protocolRequest("toolCall.interaction.resolve", {
+        toolCallId,
+        interactionOrdinal: ordinal,
+        expectedRevision: current.revision,
+        resolutionRequestId,
+        resolution,
+      })
+    ).result;
+    return { ...result, toolCall: toolCallRecordSchema.parse(result.toolCall) };
+  } catch (error) {
+    // A transport error is not evidence that acceptance rolled back. Read the
+    // durable receipt; never issue a second decision under a fresh identity.
+    if (resolution.kind === "approval") {
+      const accepted = await getToolCall(toolCallId).catch(() => undefined);
+      if (
+        accepted?.interactions[ordinal]?.resolutionRequestId ===
+        resolutionRequestId
+      ) {
+        return { toolCall: accepted };
+      }
+    }
+    throw error;
+  }
 }
 
 export function approvalResolution(

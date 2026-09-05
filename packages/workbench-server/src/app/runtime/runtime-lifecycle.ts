@@ -121,7 +121,7 @@ export class RuntimeLifecycle {
         await this.services.runRuntime.coordinator.recover();
       },
       recoverHumanInput: async () => {
-        await this.services.humanInput.recoverReadyApprovalBatches();
+        await this.services.humanInput.startApprovalSettlement();
         await this.services.humanInput.recoverAcceptedPlanReviews();
       },
       rebuildProjector: async () => {
@@ -165,6 +165,7 @@ export class RuntimeLifecycle {
     this.shuttingDown = true;
     this.services.gitRepositoryWatcher.close();
     this.services.projectFilesystemWatcher.close();
+    await this.services.humanInput.stopApprovalSettlement();
     await this.services.tasks.shutdown();
     this.services.taskNotifications.stop();
     await Promise.allSettled([...this.backgroundOperations]);

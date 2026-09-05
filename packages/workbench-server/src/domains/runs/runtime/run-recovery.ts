@@ -20,6 +20,7 @@ export async function decideRunRecovery(
   now: () => string,
 ): Promise<RunRecoveryDecision> {
   if (
+    state.run.status === "settling" ||
     state.run.status === "waiting" ||
     state.run.status === "suspended" ||
     TERMINAL_STATUSES.has(state.run.status)

@@ -1,3 +1,4 @@
+import type { ConversationJournalState } from "../../conversations/conversation-journal.repository.js";
 import {
   toolCallRecordSchema,
   type ToolCallDetails,
@@ -334,6 +335,10 @@ export class ToolCallRepository {
     toolCallId: string,
     expectedRevision: number,
     mutate: (current: ToolCallRecord) => ToolCallRecord,
+    aggregateEvents?: (
+      state: ConversationJournalState,
+      next: ToolCallRecord,
+    ) => ConversationJournalEvent[],
   ): Promise<ToolCallRecord> {
     return this.serialize(toolCallId, async () => {
       const current = this.get(toolCallId);
@@ -354,6 +359,48 @@ export class ToolCallRepository {
         revision: current.revision + 1,
       });
       const journalState = await this.journal.load(next.conversationId);
+      if (
+        next.status === "running" &&
+        current.phase === "drafted" &&
+        current.interactions.some(
+          (item) => item.kind === "approval" && item.status === "resolved",
+        ) &&
+        next.runId
+      ) {
+        const projection = journalState.runProjections.get(next.runId);
+        const run = projection?.run;
+        const settlement = [...journalState.approvalSettlements.values()].find(
+          (item) =>
+            item.toolCallIds.includes(next.id) && item.phase === "executing",
+        );
+        const checkpoint = projection?.checkpoints.find(
+          (item) => item.checkpointId === settlement?.checkpointId,
+        );
+        const resultTail = settlement
+          ? journalState.entries
+              .filter((entry) =>
+                settlement.toolCallIds.includes(
+                  (entry.details as { toolRecordId?: string } | undefined)
+                    ?.toolRecordId ?? "",
+                ),
+              )
+              .at(-1)?.id
+          : undefined;
+        if (
+          !run ||
+          !settlement ||
+          !checkpoint ||
+          run.status !== "settling" ||
+          run.executionId !== settlement.executionId ||
+          run.lastCheckpointId !== settlement.checkpointId ||
+          journalState.conversation?.activeEntryId !==
+            (resultTail ?? checkpoint.entryIds.at(-1))
+        ) {
+          throw new Error(
+            "Tool execution claim no longer belongs to an executable run.",
+          );
+        }
+      }
       const events: ConversationJournalEvent[] = [
         {
           kind: "tool_call.upserted",
@@ -397,10 +444,15 @@ export class ToolCallRepository {
           },
         });
       }
-      await this.journal.commit(next.conversationId, {
-        kind: "tool_call.revised",
-        events,
-      });
+      events.push(...(aggregateEvents?.(journalState, next) ?? []));
+      await this.journal.commit(
+        next.conversationId,
+        {
+          kind: "tool_call.revised",
+          events,
+        },
+        journalState.revision,
+      );
       this.observe(next);
       return next;
     });

@@ -1,30 +1,39 @@
-import { createHash } from "node:crypto";
-import type { ApprovalRecord, ToolCallRecord } from "@nervekit/contracts/tools";
-import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { ApplicationError } from "../../core/application-error.js";
-import type {
-  ApprovalInteractionBatch,
-  WorkbenchRunService,
-} from "../runs/application/workbench-run.service.js";
+import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging.js";
+import type { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
+import type { WorkbenchRunService } from "../runs/application/workbench-run.service.js";
 import type { ToolService } from "../tools/execution/tool-service.js";
-import { toToolCallTranscriptRecord } from "../tools/artifacts/tool-call-transcript-preview.js";
+import { ApprovalSettlementRepository } from "./approval-settlement.repository.js";
+import { ApprovalSettlementService } from "./approval-settlement.service.js";
 
 interface ApprovalBatchResolutionDeps {
   tools: ToolService;
   runs: WorkbenchRunService;
-  appendToolResult(
-    toolCall: ToolCallRecord,
-    isError: boolean,
-  ): Promise<ConversationEntry>;
-  existingToolResultEntry(
-    toolCall: ToolCallRecord,
-  ): Promise<ConversationEntry | undefined>;
+  journal: ConversationJournalRepository;
+  logger: ApplicationLogger;
 }
 
+/** Accepts decisions; execution belongs exclusively to the daemon settlement worker. */
 export class ApprovalBatchResolutionService {
+  private readonly repository: ApprovalSettlementRepository;
+  private readonly worker: ApprovalSettlementService;
   private readonly locks = new Map<string, Promise<void>>();
 
-  constructor(private readonly deps: ApprovalBatchResolutionDeps) {}
+  constructor(private readonly deps: ApprovalBatchResolutionDeps) {
+    this.repository = new ApprovalSettlementRepository(deps.journal);
+    this.worker = new ApprovalSettlementService({
+      ...deps,
+      repository: this.repository,
+    });
+  }
+
+  start(): Promise<void> {
+    return this.worker.start();
+  }
+  stop(): Promise<void> {
+    return this.worker.stop();
+  }
 
   async resolve(
     approvalId: string,
@@ -40,287 +49,71 @@ export class ApprovalBatchResolutionService {
       | "always_project"
       | "always_user",
   ): Promise<ToolCallRecord> {
-    const projected = this.approval(approvalId);
-    if (projected.status !== "pending") {
-      return this.duplicateResolution(projected, resolutionRequestId, decision);
-    }
-    const approval = projected;
-    const pendingToolCall = this.deps.tools.getToolCall(approval.toolCallId);
-    if (!pendingToolCall.runId) {
-      await this.deps.tools.decideApproval(
-        approvalId,
-        decision,
-        note,
-        resolutionRequestId,
-        scope,
-      );
-      return this.deps.tools.finalizeDecidedApproval(approvalId);
-    }
-    const initialBatch = await this.deps.runs.approvalBatchForToolCall(
-      pendingToolCall.id,
-      pendingToolCall.runId,
-    );
-    return this.exclusive(
-      `${initialBatch.runId}:${initialBatch.checkpointId}`,
-      async () => {
-        const currentApproval = this.approval(approvalId);
-        if (currentApproval.status !== "pending") {
-          return this.duplicateResolution(
-            currentApproval,
-            resolutionRequestId,
+    const previous = this.locks.get(approvalId) ?? Promise.resolve();
+    const result = previous
+      .catch(() => undefined)
+      .then(async () => {
+        const approval = this.deps.tools
+          .listApprovals()
+          .find((item) => item.id === approvalId);
+        if (!approval)
+          throw new ApplicationError(
+            404,
+            "APPROVAL_NOT_FOUND",
+            "Approval was not found.",
+          );
+        let tool = await this.deps.tools.getToolCallDetails(
+          approval.toolCallId,
+        );
+        const ordinal = Number(
+          approvalId.slice(approvalId.lastIndexOf("_") + 1),
+        );
+        const interaction = tool.interactions[ordinal];
+        if (approval.status !== "pending") {
+          if (
+            !resolutionRequestId ||
+            interaction?.resolutionRequestId !== resolutionRequestId ||
+            interaction.resolution?.action !== decision ||
+            interaction.resolution?.note !== note ||
+            interaction.resolution?.scope !== scope
+          ) {
+            throw new ApplicationError(
+              409,
+              "APPROVAL_ALREADY_RESOLVED",
+              "Approval already has a different decision.",
+            );
+          }
+        } else {
+          if (tool.runId)
+            await this.deps.runs.assertPendingInteractionForToolCall(
+              tool.id,
+              tool.runId,
+            );
+          await this.deps.tools.decideApproval(
+            approvalId,
             decision,
+            note,
+            resolutionRequestId,
+            scope,
+            (state, next) => this.repository.acceptanceEvents(state, next),
           );
+          tool = await this.deps.tools.getToolCallDetails(tool.id);
         }
-        const currentToolCall = this.deps.tools.getToolCall(
-          currentApproval.toolCallId,
-        );
-        const batch = await this.deps.runs.approvalBatchForToolCall(
-          currentToolCall.id,
-          currentToolCall.runId,
-        );
-        await this.deps.runs.assertPendingInteractionForToolCall(
-          currentToolCall.id,
-          currentToolCall.runId,
-        );
-        await this.deps.tools.decideApproval(
-          approvalId,
-          decision,
-          note,
-          resolutionRequestId,
-          scope,
-        );
-        if (!(await this.batchReady(batch))) {
-          return this.deps.tools.getToolCall(currentToolCall.id);
+        const state = await this.deps.journal.load(tool.conversationId);
+        for (const settlement of state.approvalSettlements.values()) {
+          if (settlement.toolCallIds.includes(tool.id))
+            this.worker.wake(settlement);
         }
-        return this.drain(batch, currentToolCall.id);
-      },
-    );
-  }
-
-  async recoverReadyBatches(conversationId?: string): Promise<void> {
-    for (const approval of this.deps.tools.listApprovals("pending")) {
-      if (conversationId && approval.conversationId !== conversationId)
-        continue;
-      const toolCall = await this.deps.tools.getToolCallDetails(
-        approval.toolCallId,
-      );
-      if (!toolCall.runId) continue;
-      try {
-        await this.deps.runs.assertPendingInteractionForToolCall(
-          toolCall.id,
-          toolCall.runId,
-        );
-      } catch (error) {
-        if (
-          error instanceof ApplicationError &&
-          error.code === "RUN_INTERACTION_NOT_PENDING"
-        ) {
-          await this.deps.tools.abandonPendingInteraction(
-            toolCall.id,
-            "Approval was cancelled because its source run did not suspend.",
-          );
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    const recovered = new Set<string>();
-    const pendingInteractions =
-      await this.deps.runs.listPendingApprovalInteractions(conversationId);
-    for (const interaction of pendingInteractions) {
-      const approval = await this.deps.tools.getApprovalForToolCallDetails(
-        interaction.toolCallId,
-      );
-      if (!approval || approval.status === "pending") continue;
-      let batch: ApprovalInteractionBatch;
-      try {
-        batch = await this.deps.runs.approvalBatchForToolCall(
-          interaction.toolCallId,
-          interaction.runId,
-        );
-      } catch {
-        continue;
-      }
-      const key = `${batch.runId}:${batch.checkpointId}`;
-      if (recovered.has(key)) continue;
-      recovered.add(key);
-      if (!(await this.batchReady(batch))) continue;
-      await this.exclusive(key, async () => {
-        let current: ApprovalInteractionBatch;
-        try {
-          current = await this.deps.runs.approvalBatchForToolCall(
-            interaction.toolCallId,
-            interaction.runId,
-          );
-        } catch {
-          return;
-        }
-        if (
-          current.interactions.some(
-            (candidate) => candidate.status === "pending",
-          ) &&
-          (await this.batchReady(current))
-        ) {
-          await this.drain(current, interaction.toolCallId);
-        }
+        // The receipt denotes a durable decision, not successful external execution.
+        return tool;
       });
-    }
-  }
-
-  private approval(approvalId: string): ApprovalRecord {
-    const approval = this.deps.tools
-      .listApprovals()
-      .find((candidate) => candidate.id === approvalId);
-    if (!approval) {
-      throw new ApplicationError(
-        404,
-        "APPROVAL_NOT_FOUND",
-        "Approval was not found.",
-      );
-    }
-    return approval;
-  }
-
-  private async duplicateResolution(
-    approval: ApprovalRecord,
-    resolutionRequestId: string | undefined,
-    decision: "allow" | "deny",
-  ): Promise<ToolCallRecord> {
-    const toolCall = await this.deps.tools.getToolCallDetails(
-      approval.toolCallId,
-    );
-    const ordinal = Number(approval.id.slice(approval.id.lastIndexOf("_") + 1));
-    const interaction = toolCall.interactions[ordinal];
-    if (
-      resolutionRequestId &&
-      interaction?.resolutionRequestId === resolutionRequestId &&
-      interaction.resolution?.action === decision
-    ) {
-      return toolCall;
-    }
-    throw new ApplicationError(
-      409,
-      "APPROVAL_ALREADY_RESOLVED",
-      "Approval was already resolved by another request.",
-    );
-  }
-
-  private async batchReady(batch: ApprovalInteractionBatch): Promise<boolean> {
-    for (const toolCallId of batch.batchToolCallIds) {
-      const approval =
-        await this.deps.tools.getApprovalForToolCallDetails(toolCallId);
-      if (approval) {
-        if (approval.status === "pending") return false;
-        continue;
-      }
-      const toolCall = await this.deps.tools.getToolCallDetails(toolCallId);
-      if (!isTerminalToolCall(toolCall)) return false;
-    }
-    return true;
-  }
-
-  private async drain(
-    batch: ApprovalInteractionBatch,
-    targetToolCallId: string,
-  ): Promise<ToolCallRecord> {
-    // Validate the branch before any approved side effect starts. Continuation
-    // validation is intentionally not sufficient because it runs after tools.
-    await this.deps.runs.assertApprovalBatchContextUnchanged(batch);
-    const toolCalls: ToolCallRecord[] = [];
-    const approvalsByToolCallId = new Map<string, ApprovalRecord>();
-    for (const toolCallId of batch.batchToolCallIds) {
-      const approval =
-        await this.deps.tools.getApprovalForToolCallDetails(toolCallId);
-      if (approval) approvalsByToolCallId.set(toolCallId, approval);
-      const current = await this.deps.tools.getToolCallDetails(toolCallId);
-      const toolCall = isTerminalToolCall(current)
-        ? current
-        : approval
-          ? await this.deps.tools.finalizeDecidedApproval(approval.id)
-          : current;
-      if (!isTerminalToolCall(toolCall)) {
-        throw new Error(
-          `Approval batch member ${toolCall.id} did not reach a terminal state.`,
-        );
-      }
-      toolCalls.push(toolCall);
-    }
-
-    const entries: ConversationEntry[] = [];
-    for (const toolCall of toolCalls) {
-      const existing = await this.deps.existingToolResultEntry(toolCall);
-      entries.push(
-        existing ??
-          (await this.deps.appendToolResult(
-            toolCall,
-            toolCall.status !== "completed",
-          )),
-      );
-    }
-    const members = batch.interactions.map((interaction) => {
-      const approval = approvalsByToolCallId.get(interaction.toolCallId);
-      if (!approval || approval.status === "pending") {
-        throw new Error(
-          `Approval decision for ${interaction.toolCallId} is not durable.`,
-        );
-      }
-      return {
-        interaction,
-        resolution: {
-          decision: approval.status === "granted" ? "allow" : "deny",
-          note: approval.resolutionNote,
-        },
-      };
-    });
-    await this.deps.runs.resolveInteractionBatchForToolCalls({
-      members,
-      entries,
-      toolCalls: toolCalls.map(toToolCallTranscriptRecord),
-      resolutionRequestId: resolutionRequestId(batch, (toolCallId) =>
-        approvalsByToolCallId.get(toolCallId),
-      ),
-    });
-    return this.deps.tools.getToolCallDetails(targetToolCallId);
-  }
-
-  private exclusive<T>(key: string, action: () => Promise<T>): Promise<T> {
-    const previous = this.locks.get(key) ?? Promise.resolve();
-    const task = previous.catch(() => undefined).then(action);
-    const tail = task.then(
+    const tail = result.then(
       () => undefined,
       () => undefined,
     );
-    this.locks.set(key, tail);
-    return task.finally(() => {
-      if (this.locks.get(key) === tail) this.locks.delete(key);
+    this.locks.set(approvalId, tail);
+    return result.finally(() => {
+      if (this.locks.get(approvalId) === tail) this.locks.delete(approvalId);
     });
   }
-}
-
-function resolutionRequestId(
-  batch: ApprovalInteractionBatch,
-  approvalForToolCall: (toolCallId: string) => ApprovalRecord | undefined,
-): string {
-  return `resolution_${createHash("sha256")
-    .update(
-      JSON.stringify({
-        runId: batch.runId,
-        checkpointId: batch.checkpointId,
-        decisions: batch.batchToolCallIds.map((toolCallId) => {
-          const approval = approvalForToolCall(toolCallId);
-          return approval
-            ? [toolCallId, approval.status, approval.resolutionNote]
-            : [toolCallId, "policy_terminal"];
-        }),
-      }),
-    )
-    .digest("hex")
-    .slice(0, 24)}`;
-}
-
-function isTerminalToolCall(toolCall: ToolCallRecord): boolean {
-  return ["completed", "denied", "failed", "cancelled"].includes(
-    toolCall.status,
-  );
 }
