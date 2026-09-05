@@ -19,6 +19,7 @@ sidebar:
 - `packages/workbench-server` — HTTP/WebSocket daemon, persistence, auth, use cases, runtime composition, process drivers, and static web host. It composes contracts, protocol, harness, tools, and native runtime primitives.
 - `packages/workbench-app` — Svelte workbench presentation plus feature adapters/state/effects. It depends on contracts, protocol, and UI kit.
 - `packages/desktop-shell` — published npm/Electron launcher, desktop bridge, migration gate, and daemon ownership. It depends on contracts and server packaging.
+- `packages/gpui-workbench` — private, disconnected GPUI workbench interaction prototype. It has no internal Nerve dependency and is not a release artifact or supported UI replacement.
 - `packages/website` — static public marketing/documentation site. It intentionally imports no product runtime package.
 
 `scripts/check-package-boundaries.mjs` enforces workspace-level edges. Package-local AGENTS instructions enforce finer boundaries, such as keeping presentation free from feature/application state and keeping UI kit contract-free.

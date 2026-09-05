@@ -37,6 +37,7 @@ export const packageExportSurfaces = Object.freeze({
     "./usage",
   ],
   "@nervekit/desktop-shell": [],
+  "@nervekit/gpui-workbench": [],
   "@nervekit/harness": [
     ".",
     "./node",

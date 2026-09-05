@@ -17,6 +17,7 @@ test("every workspace package has an explicit export policy", () => {
   assert.deepEqual(Object.keys(packageExportSurfaces).sort(), [
     "@nervekit/contracts",
     "@nervekit/desktop-shell",
+    "@nervekit/gpui-workbench",
     "@nervekit/harness",
     "@nervekit/native",
     "@nervekit/protocol",

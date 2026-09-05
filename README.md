@@ -60,7 +60,7 @@ pnpm install
 pnpm desktop
 ```
 
-Use `pnpm dev` for the daemon and browser UI development servers. See the [development guide](https://nerve.tlmtech.dev/developers/development/) and [`CONTRIBUTING.md`](CONTRIBUTING.md) for the complete workflow. Release engineering details remain in [`docs/runbooks/release.md`](docs/runbooks/release.md).
+Use `pnpm dev` for the daemon and browser UI development servers. `pnpm gpui` launches the disconnected experimental GPUI workbench shell on supported development hosts. See the [development guide](https://nerve.tlmtech.dev/developers/development/) and [`CONTRIBUTING.md`](CONTRIBUTING.md) for the complete workflow. Release engineering details remain in [`docs/runbooks/release.md`](docs/runbooks/release.md).
 
 ## Support
 

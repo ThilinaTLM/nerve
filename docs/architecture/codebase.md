@@ -2,7 +2,7 @@
 
 > **Status:** Current implementation. [`scripts/lib/workspace-architecture.mjs`](../../scripts/lib/workspace-architecture.mjs), package manifests, export surfaces, and boundary checks are authoritative.
 
-Nerve is a ten-package pnpm workspace. Paths communicate ownership: domain contracts are separate from runtime mechanics, product runtimes compose reusable libraries, and platform shells sit at the edge.
+Nerve is an eleven-package pnpm workspace. Paths communicate ownership: domain contracts are separate from runtime mechanics, product runtimes compose reusable libraries, and platform shells sit at the edge.
 
 ```mermaid
 flowchart TD
@@ -21,7 +21,7 @@ flowchart TD
   workbench-server --> desktop-shell
 ```
 
-Arrows in the diagram mean “is consumed by.” `website` is standalone.
+Arrows in the diagram mean “is consumed by.” `gpui-workbench` and `website` are standalone.
 
 | Package            | Ownership                                                                                   |
 | ------------------ | ------------------------------------------------------------------------------------------- |
@@ -34,6 +34,7 @@ Arrows in the diagram mean “is consumed by.” `website` is standalone.
 | `workbench-server` | HTTP/WebSocket adapters, persistence, host use cases, tasks, tools, and run coordination    |
 | `workbench-app`    | Svelte composition, application workflows, vertical features, platform adapters, and UI     |
 | `desktop-shell`    | Electron lifecycle, daemon supervision, IPC, windows, tray, and packaging                   |
+| `gpui-workbench`   | Disconnected experimental GPUI workbench shell and interaction prototype                    |
 | `website`          | Standalone Astro marketing and documentation site                                           |
 
 ## Naming

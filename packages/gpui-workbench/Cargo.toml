@@ -1,0 +1,24 @@
+[package]
+name = "nerve-gpui-workbench"
+version = "0.1.0"
+edition = "2024"
+description = "Experimental GPUI workbench shell for Nerve"
+license = "Apache-2.0"
+repository = "https://github.com/ThilinaTLM/nerve"
+publish = false
+
+[dependencies]
+async-channel = "2.5"
+chrono = "0.4.45"
+gpui = "0.2.2"
+gpui-component = "0.5.1"
+gpui-component-assets = "0.5.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tungstenite = { version = "0.28", features = ["rustls-tls-native-roots"] }
+ureq = { version = "3", features = ["json"] }
+url = "2.5"
+uuid = { version = "1.26", features = ["v4"] }
+
+[dev-dependencies]
+gpui = { version = "0.2.2", features = ["test-support"] }

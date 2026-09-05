@@ -20,6 +20,7 @@ pnpm desktop
 pnpm desktop                # Electron app from source
 pnpm dev                    # daemon + Vite workbench
 pnpm dev:ui                 # UI against an existing daemon
+pnpm gpui                   # disconnected experimental GPUI shell
 pnpm build                  # TypeScript packages and staged Workbench assets
 pnpm build:native           # host Rust addon in packages/native/prebuilds/local
 pnpm fix                    # Rust, TypeScript, Svelte, and ESLint fixes
@@ -29,6 +30,8 @@ pnpm run test:full          # run the complete package and Rust test suite
 ```
 
 `pnpm dev` and `pnpm desktop` build the host native addon automatically. Release prebuilds are separate architecture-specific files and are produced by GitHub Actions.
+
+`pnpm gpui` runs the private GPUI interaction alpha on macOS or Linux with GPUI's platform dependencies installed. It uses placeholder data, does not connect to a daemon, and is excluded from release artifacts.
 
 Enable trusted-LAN and mobile HTTPS access from **Settings → System → Network**, then restart the owned daemon when prompted.
 

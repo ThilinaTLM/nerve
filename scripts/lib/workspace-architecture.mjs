@@ -1,5 +1,6 @@
 const definitions = [
   ["contracts", "@nervekit/contracts", []],
+  ["gpui-workbench", "@nervekit/gpui-workbench", []],
   ["native", "@nervekit/native", []],
   ["protocol", "@nervekit/protocol", ["@nervekit/contracts"]],
   ["harness", "@nervekit/harness", ["@nervekit/contracts", "@nervekit/native"]],
