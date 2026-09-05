@@ -142,6 +142,24 @@ export function persistConversationCommitInTransaction(
     upsertConversationDocument(database, delta.conversation);
   }
   materializeConversationDelta(database, delta);
+  for (const event of delta.commit.events) {
+    if (event.kind !== "approval_settlement.upserted") continue;
+    const value = event.settlement;
+    database
+      .prepare(`INSERT INTO domain_documents
+      (namespace, scope_id, document_id, revision, payload_version, data, created_at_ms, updated_at_ms)
+      VALUES ('approval_settlement', ?, ?, ?, 1, ?, ?, ?)
+      ON CONFLICT(namespace, scope_id, document_id) DO UPDATE SET
+        revision=excluded.revision, data=excluded.data, updated_at_ms=excluded.updated_at_ms`)
+      .run(
+        value.conversationId,
+        value.id,
+        value.revision,
+        encode(value),
+        Date.parse(value.createdAt),
+        Date.parse(value.updatedAt),
+      );
+  }
   appendDurableEvent({
     stream: `internal/conv/${delta.conversationId}`,
     conversationId: delta.conversationId,

@@ -24,6 +24,36 @@ const RETRY = {
 };
 
 describe("buildConversationTimeline split builders", () => {
+  it("shows blocked approval work without offering an unsafe continuation", () => {
+    const run = activeRun({
+      status: "settling",
+      settlement: {
+        id: "approval:checkpoint_test",
+        conversationId: "conv_test",
+        runId: "run_test",
+        executionId: "exec_test",
+        checkpointId: "checkpoint_test",
+        toolCallIds: ["tool_test"],
+        phase: "blocked",
+        revision: 2,
+        attempts: 1,
+        failure: {
+          code: "TOOL_EXECUTION_OUTCOME_UNKNOWN",
+          message: "The command may have executed.",
+          retryable: false,
+        },
+        createdAt: "2026-09-05T06:00:00.000Z",
+        updatedAt: "2026-09-05T06:00:01.000Z",
+      },
+    });
+    const timeline = buildConversationTimeline([], [], run);
+    const item = timeline.find((entry) => entry.kind === "run_status");
+    assert.ok(item?.kind === "run_status");
+    assert.equal(item.notice.retryable, false);
+    assert.equal(item.notice.cancellable, true);
+    assert.match(item.notice.errorMessage ?? "", /may have executed/);
+    assert.match(item.notice.errorMessage ?? "", /Cancel this run/);
+  });
   it("appends one continuable status for an interrupted active run", () => {
     const run = activeRun({
       status: "interrupted",

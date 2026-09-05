@@ -57,6 +57,20 @@ export class RunEventFactory {
     };
   }
 
+  settlementUpdated(
+    run: RunRecord,
+    settlement: import("@nervekit/contracts/conversations").ApprovalSettlement,
+  ): RunPublicEventIntent {
+    return this.intent(run, "run.settlement.updated", settlement.updatedAt, {
+      conversationId: run.conversationId,
+      agentId: run.agentId,
+      projectId: run.projectId,
+      runId: run.runId,
+      startedAt: run.startedAt ?? run.createdAt,
+      settlement,
+    });
+  }
+
   started(run: RunRecord, now: string): RunPublicEventIntent {
     return this.intent(run, "run.started", now, {
       conversationId: run.conversationId,

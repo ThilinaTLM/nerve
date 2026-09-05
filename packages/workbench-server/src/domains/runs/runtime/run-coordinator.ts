@@ -1,3 +1,4 @@
+import type { ApprovalSettlement } from "@nervekit/contracts/conversations";
 /* eslint-disable max-lines -- Coordinator keeps the canonical run lifecycle in one auditable use case. */
 import type { PeerRole } from "@nervekit/contracts/wire";
 import type { PromptImage } from "@nervekit/contracts/agents";
@@ -149,6 +150,7 @@ export class RunCoordinator {
       commit: (previous, run, kind, changes) =>
         this.commit(previous, run, kind, changes),
       continueLive: async (runId) => {
+        if ((await this.require(runId)).run.approvalSettlementId) return;
         await this.live.get(runId)?.execution.control.continue();
       },
       cancelLive: async (runId, reason) => {
@@ -257,9 +259,37 @@ export class RunCoordinator {
     });
   }
 
-  async continue(runId: string): Promise<RunRecord> {
+  async observeAggregateCommit(runId: string): Promise<void> {
+    const state = await this.require(runId);
+    const transition = state.transitions.at(-1);
+    if (!transition) return;
+    await this.ports.transitionObserver?.committed(transition);
+    await this.ports.flushEvents(transition);
+  }
+
+  async continue(
+    runId: string,
+    settlement?: ApprovalSettlement,
+  ): Promise<RunRecord> {
     return this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
+      if (!settlement && state.run.approvalSettlementId) {
+        throw new InvalidRunStateError(
+          "Approval settlement owns continuation of this run",
+        );
+      }
+      if (
+        settlement &&
+        (settlement.id !== state.run.approvalSettlementId ||
+          settlement.phase !== "continuation_pending" ||
+          settlement.runId !== runId ||
+          settlement.executionId !== state.run.executionId ||
+          settlement.checkpointId !== state.run.lastCheckpointId)
+      ) {
+        throw new InvalidRunStateError(
+          "Approval continuation no longer owns this checkpoint",
+        );
+      }
       if (state.interactions.some((item) => item.status === "pending")) {
         throw new InvalidRunStateError(
           "All interactions must be resolved before continue",
@@ -287,6 +317,7 @@ export class RunCoordinator {
         attempt: state.run.attempt + 1,
         executionId: prefixed("exec", this.ports.ids.next()),
         activeInteractionId: undefined,
+        approvalSettlementId: undefined,
         updatedAt: now,
         failure: undefined,
       };
@@ -297,6 +328,20 @@ export class RunCoordinator {
       await this.commit(state, next, "resumed", {
         execution: executionRecord(next, "starting", now),
         events: [this.events.resumed(next, now, resumeKind)],
+        aggregateEvents: settlement
+          ? [
+              {
+                kind: "approval_settlement.upserted",
+                conversationId: settlement.conversationId,
+                settlement: {
+                  ...settlement,
+                  phase: "completed",
+                  revision: settlement.revision + 1,
+                  updatedAt: now,
+                },
+              },
+            ]
+          : [],
       });
       this.launch(next, execution, "continue");
       return next;
@@ -812,6 +857,7 @@ export class RunCoordinator {
       const committed = await this.ports.unitOfWork.commit(
         expectedRevision,
         transition,
+        changes.aggregateEvents,
       );
       try {
         await this.ports.transitionObserver?.committed(transition);

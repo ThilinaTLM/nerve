@@ -47,6 +47,7 @@ const lifecycle = $derived.by<"running" | "complete" | "error" | "idle">(() => {
   if (draftPhase) return "running";
   switch (status) {
     case "committed":
+      return "idle";
     case "waiting":
     case "running":
       return "running";
@@ -68,17 +69,19 @@ const statusLabel = $derived(
       ? "Needs approval"
       : status === "waiting"
         ? "Waiting for user feedback"
-        : status === "committed" || status === "running"
-          ? "Executing tool call"
-          : status === "completed"
-            ? "Tool call completed"
-            : status === "denied"
-              ? "Tool call denied"
-              : status === "failed"
-                ? "Tool call failed"
-                : status === "cancelled"
-                  ? "Tool call cancelled"
-                  : "Tool call status",
+        : status === "committed"
+          ? "Approval accepted; queued for execution"
+          : status === "running"
+            ? "Executing tool call"
+            : status === "completed"
+              ? "Tool call completed"
+              : status === "denied"
+                ? "Tool call denied"
+                : status === "failed"
+                  ? "Tool call failed"
+                  : status === "cancelled"
+                    ? "Tool call cancelled"
+                    : "Tool call status",
 );
 const footerVisible = $derived(
   footer && (meta.length > 0 || Boolean(detailsAction)),

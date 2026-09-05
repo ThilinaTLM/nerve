@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { approvalSettlementSchema } from "./approval-settlement.js";
 import {
   runEventDeliveryRecordSchema,
   runTransitionRecordSchema,
@@ -69,6 +70,10 @@ export const modelContextJournalEntrySchema = z
   .catchall(z.json());
 
 export const conversationJournalEventSchema = z.discriminatedUnion("kind", [
+  identitySchema.extend({
+    kind: z.literal("approval_settlement.upserted"),
+    settlement: approvalSettlementSchema,
+  }),
   identitySchema.extend({
     kind: z.literal("conversation.upserted"),
     conversation: conversationRecordSchema,

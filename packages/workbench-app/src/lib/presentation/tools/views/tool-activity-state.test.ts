@@ -58,12 +58,14 @@ describe("deriveToolLifecycleVisualStage", () => {
       }),
       "interaction",
     );
-    for (const status of ["committed", "running"] as const) {
-      assert.equal(
-        deriveToolLifecycleVisualStage({ toolCall: toolCall(status) }),
-        "executing",
-      );
-    }
+    assert.equal(
+      deriveToolLifecycleVisualStage({ toolCall: toolCall("committed") }),
+      "prepared",
+    );
+    assert.equal(
+      deriveToolLifecycleVisualStage({ toolCall: toolCall("running") }),
+      "executing",
+    );
     assert.equal(
       deriveToolLifecycleVisualStage({ toolCall: toolCall("completed") }),
       "completed",

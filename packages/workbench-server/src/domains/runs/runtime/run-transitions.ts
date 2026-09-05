@@ -1,3 +1,4 @@
+import type { ConversationJournalEvent } from "@nervekit/contracts/conversations";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type { PromptImage } from "@nervekit/contracts/agents";
 import type {
@@ -22,6 +23,7 @@ export const ACTIVE_STATUSES = new Set<RunRecord["status"]>([
   "starting",
   "running",
   "retrying",
+  "settling",
   "waiting",
   "suspended",
   "cancellation_requested",
@@ -87,6 +89,7 @@ export function revise(
 }
 
 export interface TransitionChanges {
+  aggregateEvents?: ConversationJournalEvent[];
   execution?: RunExecutionRecord;
   prompts?: RunPromptRecord[];
   interactions?: RunInteractionRecord[];

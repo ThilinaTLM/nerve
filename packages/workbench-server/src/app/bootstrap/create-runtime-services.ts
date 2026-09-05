@@ -696,6 +696,7 @@ export function composeRuntime(
   });
   services.taskNotifications.start();
   services.humanInput = new HumanInputResolutionService({
+    journal: conversationJournal,
     tools: services.tools,
     plans: services.plans,
     runs: services.workbenchRun,
@@ -710,6 +711,11 @@ export function composeRuntime(
     appendEntry,
     getConversationEntries: (conversationId) =>
       services.conversationLifecycle.ensureConversationEntries(conversationId),
+    reconcileConversationProjection: (conversation, entries) =>
+      services.conversationLifecycle.reconcileCanonicalProjection(
+        conversation,
+        entries,
+      ),
     harnessStorage: services.harnessStorage,
     logger: logger.child({ component: "human-input" }),
     compactPlanConversation: async (input) => {

@@ -207,9 +207,13 @@ describe("tool service lifecycle", () => {
       { todos: [{ todo: "do not apply", done: false }] },
       { forceApproval: true, durableSuspend: true },
     );
-    const denied = await approvalService.denyApproval(
+    await approvalService.decideApproval(
       pending.approval!.id,
+      "deny",
       "Not now.",
+    );
+    const denied = await approvalService.finalizeDecidedApproval(
+      pending.approval!.id,
     );
     assert.equal(denied.status, "denied");
     assert.equal(denied.supervision?.source, "user");

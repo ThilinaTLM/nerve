@@ -80,6 +80,10 @@ export class WorkbenchRunProjector implements RunTransitionObserverPort {
       startedAt: run.startedAt ?? run.createdAt,
     });
 
+    if (run.status === "settling") {
+      runtime.projectStatus(run.runId, "settling");
+      return;
+    }
     if (run.status === "retrying") {
       runtime.projectStatus(run.runId, "retrying", retry);
       return;
@@ -122,9 +126,13 @@ export function agentStatusForRun(
   status: RunRecord["status"],
 ): AgentRecord["status"] {
   if (
-    ["starting", "running", "retrying", "cancellation_requested"].includes(
-      status,
-    )
+    [
+      "starting",
+      "running",
+      "retrying",
+      "settling",
+      "cancellation_requested",
+    ].includes(status)
   ) {
     return "running";
   }

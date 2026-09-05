@@ -73,8 +73,9 @@ export function statusDot(
       return { tone: "danger", pulse: false };
     case "cancelled":
       return { tone: "warn", pulse: false };
-    case "running":
     case "committed":
+      return { tone: "neutral", pulse: false };
+    case "running":
       return { tone: "running", pulse: true };
     case "waiting":
       return { tone: "warn", pulse: true };

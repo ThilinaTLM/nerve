@@ -26,6 +26,7 @@ import TranscriptContextMenu from "./TranscriptContextMenu.svelte";
 type Props = {
   node: TranscriptDisplayNode;
   sending: boolean;
+  stopping?: boolean;
   activeProject?: ProjectRecord;
   approvalsByToolCallId?: ReadonlyMap<string, ApprovalWithToolCall>;
   questionsByToolCallId?: ReadonlyMap<string, UserQuestionRecord>;
@@ -60,12 +61,14 @@ type Props = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
+  onCancelRun?: (runId: string) => void;
   transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
 };
 
 let {
   node,
   sending,
+  stopping = false,
   activeProject,
   approvalsByToolCallId = new Map(),
   questionsByToolCallId = new Map(),
@@ -87,6 +90,7 @@ let {
   onAcceptPlanReviewInNewChat,
   onRejectPlanReview,
   onContinueFromFailure,
+  onCancelRun,
   transcriptMenu,
 }: Props = $props();
 
@@ -225,7 +229,9 @@ $effect(() => {
         notice={node.notice}
         isLast={node.key === lastTimelineKey}
         {sending}
+        {stopping}
         {onContinueFromFailure}
+        {onCancelRun}
       />
     </TranscriptContextMenu>
   {:else if node.kind === "compaction"}

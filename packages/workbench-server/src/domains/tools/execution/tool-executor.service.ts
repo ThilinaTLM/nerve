@@ -1,3 +1,4 @@
+import { ToolExecutionBoundaryError } from "./execution-boundary-error.js";
 import { randomUUID } from "node:crypto";
 import { isTerminalToolStatus } from "@nervekit/contracts/events";
 import { type ToolCallRecord } from "@nervekit/contracts/tools";
@@ -57,7 +58,20 @@ export class ToolExecutorService {
     ) {
       throw new Error("Tool execution requires a durably approved draft.");
     }
-    await this.deps.assertExecutionBoundary(drafted);
+    try {
+      await this.deps.assertExecutionBoundary(drafted);
+    } catch (error) {
+      if (!(error instanceof ToolExecutionBoundaryError)) throw error;
+      const settled = await this.settleToolCall(drafted.id, {
+        status: "failed",
+        phase: "failed",
+        error: error.message,
+        errorDetails: { code: error.code, message: error.message },
+        result: { error: error.message, code: error.code, notExecuted: true },
+      });
+      if (settled.owned) await this.emitLifecycle(settled.record, options);
+      return settled.record;
+    }
     const definition = requireToolDefinition(drafted.toolName as never);
     const startedAt = new Date().toISOString();
     const toolCall = await this.deps.claimExecution(
@@ -74,16 +88,18 @@ export class ToolExecutorService {
         },
       },
     );
-    await this.emitLifecycle(toolCall, options);
+    await this.emitLifecycle(toolCall, options).catch(() => undefined);
     const started = performance.now();
-    await this.deps.logger?.info("Tool execution started", {
-      toolCallId: toolCall.id,
-      agentId: toolCall.agentId,
-      conversationId: toolCall.conversationId,
-      projectId: toolCall.projectId,
-      runId: toolCall.runId,
-      context: { toolName: toolCall.toolName, risk: toolCall.risk },
-    });
+    await this.deps.logger
+      ?.info("Tool execution started", {
+        toolCallId: toolCall.id,
+        agentId: toolCall.agentId,
+        conversationId: toolCall.conversationId,
+        projectId: toolCall.projectId,
+        runId: toolCall.runId,
+        context: { toolName: toolCall.toolName, risk: toolCall.risk },
+      })
+      .catch(() => undefined);
     let terminal: ToolCallRecord | undefined;
     let executionError: unknown;
     let suspended = false;

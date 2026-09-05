@@ -1,3 +1,4 @@
+import type { ConversationJournalRepository } from "../conversations/conversation-journal.repository.js";
 /* eslint-disable max-lines -- Human-input resolution centralizes the approval/plan-review suspension lifecycle in one auditable use case. */
 import { createHash } from "node:crypto";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
@@ -47,6 +48,7 @@ export type AcceptPlanReviewInNewChatResult = {
 };
 
 export interface HumanInputResolutionDeps {
+  journal: ConversationJournalRepository;
   tools: ToolService;
   plans: PlanService;
   runs: WorkbenchRunService;
@@ -69,6 +71,10 @@ export interface HumanInputResolutionDeps {
     options?: AppendEntryOptions,
   ): Promise<ConversationEntry>;
   getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
+  reconcileConversationProjection(
+    conversation: ConversationRecord,
+    entries: readonly ConversationEntry[],
+  ): void;
   harnessStorage: ConversationHarnessStorage;
   logger: ApplicationLogger;
   compactPlanConversation(input: {
@@ -86,20 +92,9 @@ export class HumanInputResolutionService {
     this.approvalBatches = new ApprovalBatchResolutionService({
       tools: deps.tools,
       runs: deps.runs,
-      appendToolResult: (toolCall, isError) =>
-        this.appendToolResultForToolCall(toolCall, isError),
-      existingToolResultEntry: async (toolCall) =>
-        (await deps.getConversationEntries(toolCall.conversationId)).find(
-          (entry) => {
-            if (!entry.details || typeof entry.details !== "object") {
-              return false;
-            }
-            return (
-              (entry.details as { toolRecordId?: unknown }).toolRecordId ===
-              toolCall.id
-            );
-          },
-        ),
+      journal: deps.journal,
+      logger: deps.logger,
+      reconcileConversationProjection: deps.reconcileConversationProjection,
     });
   }
 
@@ -365,8 +360,12 @@ export class HumanInputResolutionService {
     );
   }
 
-  recoverReadyApprovalBatches(conversationId?: string): Promise<void> {
-    return this.approvalBatches.recoverReadyBatches(conversationId);
+  startApprovalSettlement(): Promise<void> {
+    return this.approvalBatches.start();
+  }
+
+  stopApprovalSettlement(): Promise<void> {
+    return this.approvalBatches.stop();
   }
 
   async recoverAcceptedPlanReviews(): Promise<void> {
@@ -672,7 +671,12 @@ export class HumanInputResolutionService {
           this.deps.tools.getToolCall(id),
         );
     const entries: ConversationEntry[] = [];
-    if (!hasPendingSibling) {
+    const resultsReady =
+      !hasPendingSibling &&
+      orderedToolCalls.every((call) =>
+        ["completed", "denied", "failed", "cancelled"].includes(call.status),
+      );
+    if (resultsReady) {
       for (const batchToolCall of orderedToolCalls) {
         const existing = batch
           ? await this.existingToolResultEntry(batchToolCall)
@@ -686,7 +690,7 @@ export class HumanInputResolutionService {
         );
       }
     }
-    if (options.followUpUserMessage && !hasPendingSibling) {
+    if (options.followUpUserMessage && resultsReady) {
       entries.push(
         await this.appendUserInstructionForAgent(
           completed.agentId,

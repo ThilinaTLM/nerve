@@ -53,6 +53,7 @@ export type RunStatusNotice = {
   retryAt?: string;
   errorMessage?: string;
   retryable?: boolean;
+  cancellable?: boolean;
   createdAt?: string;
 };
 

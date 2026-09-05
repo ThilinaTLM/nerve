@@ -1,3 +1,4 @@
+import type { ApprovalSettlement } from "@nervekit/contracts/conversations";
 import type { DatabaseSync } from "node:sqlite";
 import type {
   ConversationEntry,
@@ -32,6 +33,7 @@ export interface SerializedConversationState {
   runProjections: Array<[string, ConversationRunProjection]>;
   interactions: Array<[string, ConversationInteractionRecord]>;
   suspensions: Array<[string, ConversationSuspensionRecord]>;
+  approvalSettlements?: Array<[string, ApprovalSettlement]>;
   idempotencyKeys: Array<[string, ConversationJournalCommit]>;
   intentConversationRevisions: Array<[string, number]>;
 }
@@ -53,6 +55,7 @@ export function serializeState(
     runProjections: [...state.runProjections],
     interactions: [...state.interactions],
     suspensions: [...state.suspensions],
+    approvalSettlements: [...state.approvalSettlements],
     idempotencyKeys: [...state.idempotencyKeys],
     intentConversationRevisions: [...state.intentConversationRevisions],
   };
@@ -92,6 +95,7 @@ export function deserializeState(
     runProjections: new Map(state.runProjections),
     interactions,
     suspensions: new Map(state.suspensions),
+    approvalSettlements: new Map(state.approvalSettlements ?? []),
     idempotencyKeys: new Map(state.idempotencyKeys),
     intentConversationRevisions: new Map(state.intentConversationRevisions),
     entryById: new Map(state.entries.map((entry) => [entry.id, entry])),

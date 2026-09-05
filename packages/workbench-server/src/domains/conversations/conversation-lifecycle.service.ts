@@ -128,6 +128,19 @@ export class ConversationLifecycleService {
     return loading;
   }
 
+  reconcileCanonicalProjection(
+    conversation: ConversationRecord,
+    entries: readonly ConversationEntry[],
+  ): void {
+    this.state.setConversation(conversation);
+    this.queryCache.upsertConversation(conversation);
+    if (!this.state.hasConversationEntries(conversation.id)) return;
+    const canonicalEntries = [...entries];
+    this.state.setConversationEntries(conversation.id, canonicalEntries);
+    this.touchConversationEntries(conversation.id, canonicalEntries);
+    this.pruneConversationEntries(conversation.id);
+  }
+
   getConversationEntries(conversationId: string): ConversationEntry[] {
     const conversation = this.getConversation(conversationId);
     return this.entryRepository.activeBranchEntries(

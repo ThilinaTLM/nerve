@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
+import { ToolExecutionBoundaryError } from "../../../src/domains/tools/execution/execution-boundary-error.js";
 import { CodedToolError } from "../../../src/domains/tools/execution/tool-errors.js";
 import { ToolExecutorService } from "../../../src/domains/tools/execution/tool-executor.service.js";
 import {
@@ -75,6 +76,7 @@ function cancelledPreview(record: ToolCallRecord): string {
 function createExecutor(input: {
   record: ToolCallRecord;
   execute: () => Promise<unknown>;
+  boundary?: () => Promise<void>;
   onUpdate?: (record: ToolCallRecord) => void;
   storageHome?: string;
   publish?: (record: ToolCallRecord) => Promise<void>;
@@ -107,13 +109,55 @@ function createExecutor(input: {
       input.onUpdate?.(record);
       return record;
     },
-    assertExecutionBoundary: async () => undefined,
+    assertExecutionBoundary: input.boundary ?? (async () => undefined),
     storageHome: input.storageHome ?? "/tmp/nerve-test",
     dispatcher: { execute: input.execute },
   } as never);
 }
 
 describe("ToolExecutorService structured errors", () => {
+  it("settles definitive preflight rejection as not executed, without claiming or dispatching", async () => {
+    let dispatches = 0;
+    const updates: ToolCallRecord[] = [];
+    const executor = createExecutor({
+      record: toolCall(),
+      boundary: async () => {
+        throw new ToolExecutionBoundaryError("Policy changed");
+      },
+      execute: async () => {
+        dispatches++;
+      },
+      onUpdate: (record) => updates.push(record),
+    });
+    const result = await executor.executeAllowedTool("tool_test");
+    assert.equal(result.status, "failed");
+    assert.equal(result.attempt, 0);
+    assert.equal(result.errorDetails?.code, "TOOL_APPROVAL_STALE");
+    assert.equal((result.result as { notExecuted: boolean }).notExecuted, true);
+    assert.equal(dispatches, 0);
+    assert.ok(updates.every((record) => record.status !== "running"));
+  });
+
+  it("leaves transient preflight failures unclaimed for durable settlement retry", async () => {
+    const executor = createExecutor({
+      record: toolCall(),
+      boundary: async () => {
+        throw new Error("Storage unavailable");
+      },
+      execute: async () => {
+        assert.fail("must not dispatch");
+      },
+      onUpdate: () => {
+        assert.fail(
+          "must not claim or terminalize a transient preflight failure",
+        );
+      },
+    });
+    await assert.rejects(
+      executor.executeAllowedTool("tool_test"),
+      /Storage unavailable/,
+    );
+  });
   it("stores coded error metadata when dispatch fails", async () => {
     let record = toolCall();
     const executor = createExecutor({

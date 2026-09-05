@@ -3,7 +3,7 @@ import test from "node:test";
 import { conversationStream } from "@nervekit/contracts/events";
 import { getConversationSnapshotResponse } from "../../../src/adapters/protocol/snapshots.js";
 
-test("conversation snapshot reconciles its pending approvals before querying", async () => {
+test("conversation snapshot is read-only and never starts approval work", async () => {
   const conversationId = "conv_test";
   const order: string[] = [];
   const state = {
@@ -39,7 +39,7 @@ test("conversation snapshot reconciles its pending approvals before querying", a
     conversationId,
   );
 
-  assert.deepEqual(order, ["cursor:start", "reconcile", "query", "cursor:end"]);
+  assert.deepEqual(order, ["cursor:start", "query", "cursor:end"]);
   assert.equal(response.snapshot.cursorSeq, 42);
   assert.equal(response.cursor.streams[0]?.processedSeq, 42);
 });

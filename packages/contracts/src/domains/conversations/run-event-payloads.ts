@@ -1,3 +1,4 @@
+import { approvalSettlementSchema } from "./approval-settlement.js";
 import { z } from "zod";
 import {
   contentBlockIdSchema,
@@ -550,7 +551,13 @@ const conversationLiveToolOutputDeltaDataSchema = z.object({
   delta: z.string().max(PUBLIC_EVENT_MAX_STRING_CHARS),
 });
 
+export const conversationRunSettlementDataSchema =
+  conversationRunStartedDataSchema.extend({
+    settlement: approvalSettlementSchema,
+  });
+
 export const conversationEventPayloadSchemas = {
+  "run.settlement.updated": conversationRunSettlementDataSchema,
   "run.started": conversationRunStartedDataSchema,
   "run.completed": conversationRunCompletedDataSchema,
   "run.cancelled": conversationRunCancelledDataSchema,
@@ -595,6 +602,7 @@ export const conversationEventTypeSchema = z.enum(
 );
 
 export const conversationEventTypes = [
+  "run.settlement.updated",
   "run.started",
   "run.completed",
   "run.cancelled",

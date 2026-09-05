@@ -1,3 +1,4 @@
+import type { ConversationJournalEvent } from "@nervekit/contracts/conversations";
 import type {
   RunCheckpointRecord,
   RunEventDeliveryRecord,
@@ -73,6 +74,7 @@ export interface RunUnitOfWorkPort {
   commit(
     expectedRevision: number,
     transition: RunTransitionRecord,
+    aggregateEvents?: ConversationJournalEvent[],
   ): Promise<RunHydratedState>;
   pendingEventIntents(): Promise<
     readonly {
