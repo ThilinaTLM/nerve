@@ -13,7 +13,7 @@ it("uses the selected model context window for threshold compaction", async () =
   const selected = agentRecord(
     "agent_selected_small_window",
     "xai",
-    "grok-build-0.1",
+    "grok-4.5",
   );
   const timestamp = "2026-07-18T00:00:00.000Z";
   const branch = [
@@ -27,15 +27,15 @@ it("uses the selected model context window for threshold compaction", async () =
         content: [
           { type: "text", text: "Approaching the selected model limit." },
         ],
-        api: "openai-completions",
+        api: "openai-responses",
         provider: "xai",
-        model: "grok-build-0.1",
+        model: "grok-4.5",
         usage: {
-          input: 240_000,
+          input: 450_000,
           output: 0,
           cacheRead: 0,
           cacheWrite: 0,
-          totalTokens: 240_000,
+          totalTokens: 450_000,
           cost: {
             input: 0,
             output: 0,
@@ -107,14 +107,14 @@ it("uses the selected model context window for threshold compaction", async () =
   });
   assert.equal(compactions.length, 1);
   assert.equal(compactions[0]?.agentId, selected.id);
-  assert.equal(compactions[0]?.contextWindow, 256_000);
-  assert.equal(compactions[0]?.thresholdTokens, 204_800);
-  assert.equal(compactions[0]?.keepRecentTokens, 38_400);
+  assert.equal(compactions[0]?.contextWindow, 500_000);
+  assert.equal(compactions[0]?.thresholdTokens, 400_000);
+  assert.equal(compactions[0]?.keepRecentTokens, 75_000);
   assert.equal(compactions[0]?.activeConversation, activeConversation);
 });
 
 it("compacts projected prompt usage before the first provider iteration", async () => {
-  const agent = agentRecord("agent_preflight", "xai", "grok-build-0.1");
+  const agent = agentRecord("agent_preflight", "xai", "grok-4.5");
   const timestamp = "2026-07-18T00:00:00.000Z";
   const branch = [
     {
@@ -125,15 +125,15 @@ it("compacts projected prompt usage before the first provider iteration", async 
       message: {
         role: "assistant",
         content: [{ type: "text", text: "Near the balanced threshold." }],
-        api: "openai-completions",
+        api: "openai-responses",
         provider: "xai",
-        model: "grok-build-0.1",
+        model: "grok-4.5",
         usage: {
-          input: 200_000,
+          input: 400_000,
           output: 0,
           cacheRead: 0,
           cacheWrite: 0,
-          totalTokens: 200_000,
+          totalTokens: 400_000,
           cost: {
             input: 0,
             output: 0,
@@ -203,7 +203,7 @@ it("compacts projected prompt usage before the first provider iteration", async 
     true,
   );
   assert.equal(compactions.length, 1);
-  assert.equal(compactions[0]?.contextTokens, 205_000);
+  assert.equal(compactions[0]?.contextTokens, 405_000);
 });
 
 function agentRecord(
