@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Component, Snippet } from "svelte";
 import ContextMenuList, {
   type ContextMenuItem,
@@ -6,7 +7,6 @@ import ContextMenuList, {
 import {
   StatusDot,
   type StatusDotVariant,
-  type StatusTone,
 } from "@nervekit/ui-kit/components/composites/status-dot";
 import { cn } from "@nervekit/ui-kit/utils";
 
@@ -22,7 +22,7 @@ let {
   metaMono = false,
   title,
   mono = false,
-  tone = "default",
+  tone = "neutral",
   indent = 0,
   flush = false,
   selected = false,
@@ -70,7 +70,7 @@ let {
   metaMono?: boolean;
   title?: string;
   mono?: boolean;
-  tone?: "default" | "muted" | "destructive" | "success" | "warning" | "info";
+  tone?: StatusTone;
   /** Indentation steps for tree-like lists. */
   indent?: number;
   /** Drops the base row inset so the row aligns with the panel's outer padding. */
@@ -143,7 +143,7 @@ const toneClass = $derived(
         ? "text-warning"
         : tone === "info"
           ? "text-info"
-          : tone === "muted"
+          : tone === "neutral"
             ? "text-muted-foreground"
             : "text-foreground",
 );

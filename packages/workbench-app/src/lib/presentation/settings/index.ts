@@ -27,5 +27,4 @@ export type {
   SettingsPageDef,
   SettingsSectionDef,
   SettingsStatus,
-  SettingsTone,
 } from "./settings-component-contracts";

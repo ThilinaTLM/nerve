@@ -22,8 +22,12 @@ Application `*Host` components are state/effect adapters around canonical featur
   the one that matches the role.
 - **Status colour has one vocabulary**: `neutral`, `accent`, `info`, `success`,
   `warning`, `destructive` (`StatusTone` in `@nervekit/ui-kit/display/status`).
-  `StatusDot`, `Badge`, and the status helpers all speak it, so a tone computed
-  once can drive any of them. Never invent a parallel set of tone names.
+  `StatusDot`, `Badge`, `ProgressRing`, `PanelRow`, `PanelBanner`, and the
+  status helpers all speak it, so a tone computed once can drive any of them.
+  Never invent a parallel set of tone names (`good`/`warn`/`danger`/`error`/
+  `muted`/`default` are all spellings of tones that already exist). Domain
+  vocabularies that are genuinely not status — diff line kinds, notification
+  sounds — stay separate.
 - **File-type icons are deliberately outside the token system.** The Material
   Icon Theme sprite in `$lib/features/filesystem/views` keeps its own multi-hued
   palette so file types stay recognizable; do not recolour it with theme tokens.

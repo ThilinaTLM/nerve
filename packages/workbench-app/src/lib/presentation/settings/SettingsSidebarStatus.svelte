@@ -1,8 +1,6 @@
 <script lang="ts">
-import {
-  StatusDot,
-  type StatusTone,
-} from "@nervekit/ui-kit/components/composites/status-dot";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 
 type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 

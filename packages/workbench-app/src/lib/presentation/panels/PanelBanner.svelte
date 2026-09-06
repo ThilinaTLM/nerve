@@ -1,14 +1,15 @@
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Component, Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
 
 let {
-  tone = "muted",
+  tone = "neutral",
   icon: Icon,
   actions,
   children,
 }: {
-  tone?: "info" | "warning" | "destructive" | "muted";
+  tone?: StatusTone;
   icon?: Component;
   actions?: Snippet;
   children: Snippet;

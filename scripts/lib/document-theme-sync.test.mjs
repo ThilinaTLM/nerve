@@ -59,6 +59,44 @@ describe("standalone document theme mirrors", () => {
     }
   });
 
+  it("declares every token the daemon documents actually reference", () => {
+    /* The mirror is deliberately minimal rather than a copy of the full theme.
+     * This keeps it honest: adding `var(--x)` to a rendered page without
+     * mirroring the token fails here instead of rendering an unset value. */
+    const themeSource = read(
+      "packages",
+      "workbench-server",
+      "src",
+      "infrastructure",
+      "documents",
+      "document-theme.ts",
+    );
+    const declared = new Set([
+      ...[...themeSource.matchAll(/"?([\w-]+)"?: "oklch\(/g)].map(
+        (match) => match[1],
+      ),
+      // Locally declared in documentStyles() alongside the mirrored tokens.
+      "radius",
+      "font-sans",
+      "font-mono",
+    ]);
+
+    const documentSources = [
+      ["app", "server.ts"],
+      ["adapters", "http", "static-files.ts"],
+      ["domains", "conversations", "operations", "export-service.ts"],
+      ["infrastructure", "documents", "document-theme.ts"],
+    ];
+    for (const segments of documentSources) {
+      const source = read("packages", "workbench-server", "src", ...segments);
+      for (const [, token] of source.matchAll(/var\(--([\w-]+)\)/g))
+        assert.ok(
+          declared.has(token),
+          `${segments.at(-1)} references --${token}, which document-theme.ts does not declare`,
+        );
+    }
+  });
+
   it("keeps the desktop loading window in sync with theme.css", () => {
     const source = read(
       "packages",

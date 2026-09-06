@@ -31,9 +31,8 @@ export const statusDotVariants = tv({
   },
 });
 
-export type StatusTone = NonNullable<
-  VariantProps<typeof statusDotVariants>["tone"]
->;
+/* `tone` intentionally mirrors StatusTone from display/status, which is the
+ * single source of the vocabulary; this keeps the two in lockstep. */
 export type StatusDotSize = NonNullable<
   VariantProps<typeof statusDotVariants>["size"]
 >;
@@ -43,6 +42,7 @@ export type StatusDotVariant = NonNullable<
 </script>
 
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { cn } from "@nervekit/ui-kit/utils";
 
 let {

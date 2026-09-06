@@ -1,6 +1,7 @@
-import type { StatusTone } from "@nervekit/ui-kit/components/composites/status-dot";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
+
 import { VIEW_TOOL_DETAILS_LABEL } from "./tool-details-label";
-import type { DetailsActionInfo, MetaTone } from "./tool-presentation-types";
+import type { DetailsActionInfo } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import { countLogicalLines } from "./tool-view-helpers";
 import {
@@ -95,19 +96,4 @@ export function statusDot(
     return { tone: "destructive", pulse: false };
   }
   return { tone: "success", pulse: false };
-}
-
-export function toneFromDot(tone: StatusTone): MetaTone {
-  switch (tone) {
-    case "success":
-      return "success";
-    case "warning":
-      return "warning";
-    case "destructive":
-      return "error";
-    case "info":
-      return "info";
-    default:
-      return "default";
-  }
 }

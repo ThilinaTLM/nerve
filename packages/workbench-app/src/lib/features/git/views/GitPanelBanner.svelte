@@ -7,7 +7,7 @@ let { model }: { model: GitPanelModel } = $props();
 </script>
 
 {#if !model.availability.available}
-  <PanelBanner tone="muted">{model.availability.message}</PanelBanner>
+  <PanelBanner tone="neutral">{model.availability.message}</PanelBanner>
 {:else if model.cachedError && model.repositories.length === 0}
   <PanelBanner tone="destructive" icon={TriangleAlert}>
     {model.cachedError}
@@ -17,9 +17,9 @@ let { model }: { model: GitPanelModel } = $props();
     Using cached Git data. Refresh failed: {model.cachedError}
   </PanelBanner>
 {:else if model.initialLoading}
-  <PanelBanner tone="muted">Loading Git repositories…</PanelBanner>
+  <PanelBanner tone="neutral">Loading Git repositories…</PanelBanner>
 {:else if model.repositories.length === 0}
-  <PanelBanner tone="muted">
+  <PanelBanner tone="neutral">
     {model.emptyMessage ?? "No Git repositories found."}
   </PanelBanner>
 {/if}

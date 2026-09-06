@@ -1,9 +1,7 @@
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Snippet } from "svelte";
-import {
-  StatusDot,
-  type StatusTone,
-} from "@nervekit/ui-kit/components/composites/status-dot";
+import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import { cn } from "@nervekit/ui-kit/utils";
 import type { SettingsStatus } from "./settings-component-contracts";
 

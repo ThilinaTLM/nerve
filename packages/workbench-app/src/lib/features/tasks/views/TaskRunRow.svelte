@@ -144,7 +144,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     description={nested ? undefined : startedAt}
     title={tooltip}
     mono={!nested && label.isCommand}
-    tone={nested || label.isCommand ? "muted" : "default"}
+    tone={nested || label.isCommand ? "neutral" : undefined}
     indent={nested ? 1 : 0}
     alwaysShowActions
     {active}

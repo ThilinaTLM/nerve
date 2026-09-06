@@ -22,7 +22,6 @@ import { presentToolArguments } from "../lifecycle/registry";
 export type {
   DetailsActionInfo,
   MetaItem,
-  MetaTone,
   PrimaryArg,
   ToolPresentation,
 } from "./tool-presentation-types";
@@ -180,7 +179,7 @@ export function toolPresentation(
       const meta: MetaItem[] = [];
       const lines = view.outputLineCount;
       if (view.exitCode !== undefined && view.exitCode !== 0) {
-        meta.push({ text: `exit ${view.exitCode}`, tone: "error" });
+        meta.push({ text: `exit ${view.exitCode}`, tone: "destructive" });
       }
       if (view.signal)
         meta.push({ text: `signal ${view.signal}`, tone: "warning" });
@@ -227,11 +226,11 @@ export function toolPresentation(
       const meta: MetaItem[] = [];
       const lines = view.outputLineCount;
       if (view.exitCode !== undefined && view.exitCode !== 0) {
-        meta.push({ text: `exit ${view.exitCode}`, tone: "error" });
+        meta.push({ text: `exit ${view.exitCode}`, tone: "destructive" });
       }
       if (view.signal)
         meta.push({ text: `signal ${view.signal}`, tone: "warning" });
-      if (view.timedOut) meta.push({ text: "timed out", tone: "error" });
+      if (view.timedOut) meta.push({ text: "timed out", tone: "destructive" });
       const duration = formatDuration(view.durationMs);
       if (duration) meta.push({ text: duration });
       if (lines > 0) meta.push({ text: plural(lines, "line") });
@@ -282,7 +281,7 @@ export function toolPresentation(
       if (view.additions > 0)
         meta.push({ text: `+${view.additions}`, tone: "success" });
       if (view.deletions > 0)
-        meta.push({ text: `−${view.deletions}`, tone: "error" });
+        meta.push({ text: `−${view.deletions}`, tone: "destructive" });
       if (view.diffLineCount > 0)
         meta.push({ text: plural(view.diffLineCount, "diff line") });
       return {
@@ -372,7 +371,7 @@ export function toolPresentation(
       if (view.status !== undefined) {
         meta.push({
           text: `${view.status}`,
-          tone: view.status >= 400 ? "error" : "success",
+          tone: view.status >= 400 ? "destructive" : "success",
         });
       }
       if (view.contentType) meta.push({ text: view.contentType });
@@ -730,7 +729,7 @@ export function toolPresentation(
         meta.push({ text: `${summary.totalTokens.toLocaleString()} tokens` });
       }
       if (summary.failed > 0)
-        meta.push({ text: `${summary.failed} failed`, tone: "error" });
+        meta.push({ text: `${summary.failed} failed`, tone: "destructive" });
       if (summary.aborted > 0)
         meta.push({ text: `${summary.aborted} stopped`, tone: "warning" });
       const finished = summary.completed + summary.failed + summary.aborted;

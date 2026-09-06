@@ -175,7 +175,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     label={label.text}
     title={tooltip}
     mono={label.isCommand}
-    tone={label.isCommand ? "muted" : "default"}
+    tone={label.isCommand ? "neutral" : undefined}
     disabled={!latest}
     indent={0}
     alwaysShowActions

@@ -229,7 +229,7 @@ function copyPath(path: string): void {
 
 {#if promptSuggestionsState.error || mutationError}
   <SettingsInlineMessage
-    tone="error"
+    tone="destructive"
     text={mutationError ?? promptSuggestionsState.error}
   >
     {#snippet actions()}

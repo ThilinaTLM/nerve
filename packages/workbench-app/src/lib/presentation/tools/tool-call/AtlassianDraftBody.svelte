@@ -58,7 +58,7 @@ const showText = $derived(
           class="m-0 min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"
           class:font-mono={field.mono}
           class:text-warning={field.tone === "warning"}
-          class:text-destructive={field.tone === "error"}
+          class:text-destructive={field.tone === "destructive"}
           class:text-success={field.tone === "success"}
           class:text-info={field.tone === "info"}
         >

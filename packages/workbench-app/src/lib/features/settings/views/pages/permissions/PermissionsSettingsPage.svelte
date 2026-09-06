@@ -291,7 +291,7 @@ function ruleSetRole(id: string, compatibleModes?: string[]): string {
 </SettingsSection>
 
 {#if controller.errorMessage}
-  <SettingsInlineMessage tone="error" text={controller.errorMessage}>
+  <SettingsInlineMessage tone="destructive" text={controller.errorMessage}>
     {#snippet actions()}
       <Button size="xs" variant="outline" onclick={() => controller.retry()}
         >Retry</Button

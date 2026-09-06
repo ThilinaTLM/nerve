@@ -1,4 +1,5 @@
 <script lang="ts" generics="T">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Folder from "@lucide/svelte/icons/folder";
@@ -47,16 +48,7 @@ type Props = {
    */
   indentItems?: boolean;
   getItemSelected?: (item: T) => boolean;
-  getItemTone?: (
-    item: T,
-  ) =>
-    | "default"
-    | "muted"
-    | "destructive"
-    | "success"
-    | "warning"
-    | "info"
-    | undefined;
+  getItemTone?: (item: T) => StatusTone | undefined;
   /** Controlled expansion state. Node ids are the ids produced by the builders. */
   expandedIds?: ReadonlySet<string>;
   /** Uncontrolled initial expansion policy. Existing callers default to all. */

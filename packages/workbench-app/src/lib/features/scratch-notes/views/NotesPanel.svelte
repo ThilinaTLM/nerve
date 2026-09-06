@@ -57,9 +57,9 @@ $effect(() => {
       {/snippet}
     </PanelHeader>
     {#if !projectId}
-      <PanelBanner tone="muted">Select a project to take notes.</PanelBanner>
+      <PanelBanner tone="neutral">Select a project to take notes.</PanelBanner>
     {:else if !project || project.loadStatus === "idle" || project.loadStatus === "loading"}
-      <PanelBanner tone="muted">Loading scratch notes…</PanelBanner>
+      <PanelBanner tone="neutral">Loading scratch notes…</PanelBanner>
     {:else if project.loadStatus === "error"}
       <PanelBanner tone="destructive">
         Could not load scratch notes.

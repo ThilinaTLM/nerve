@@ -239,12 +239,12 @@ function start(): void {
 
     {#if selection.conversations}
       <SettingsInlineMessage
-        tone="error"
+        tone="destructive"
         text="Old conversations and their messages are permanently deleted and cannot be recovered."
       />
     {/if}
     {#if selectionError}
-      <SettingsInlineMessage tone="error" text={selectionError} />
+      <SettingsInlineMessage tone="destructive" text={selectionError} />
     {/if}
   </div>
 

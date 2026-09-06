@@ -1,13 +1,5 @@
-<script lang="ts" module>
-export type ProgressRingTone =
-  | "neutral"
-  | "primary"
-  | "good"
-  | "warn"
-  | "danger";
-</script>
-
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { cn } from "@nervekit/ui-kit/utils";
 
 let {
@@ -17,7 +9,7 @@ let {
 }: {
   /** 0-100; clamped. */
   percent?: number | null;
-  tone?: ProgressRingTone;
+  tone?: StatusTone;
   class?: string;
 } = $props();
 
@@ -47,19 +39,23 @@ const fill = $derived(Math.min(100, Math.max(0, percent ?? 0)));
     inset;
 }
 
-.progress-ring[data-tone="primary"] {
-  --progress-ring-color: var(--primary);
+.progress-ring[data-tone="accent"] {
+  --progress-ring-color: var(--foreground);
 }
 
-.progress-ring[data-tone="good"] {
+.progress-ring[data-tone="info"] {
+  --progress-ring-color: var(--info);
+}
+
+.progress-ring[data-tone="success"] {
   --progress-ring-color: var(--success);
 }
 
-.progress-ring[data-tone="warn"] {
+.progress-ring[data-tone="warning"] {
   --progress-ring-color: var(--warning);
 }
 
-.progress-ring[data-tone="danger"] {
+.progress-ring[data-tone="destructive"] {
   --progress-ring-color: var(--destructive);
 }
 

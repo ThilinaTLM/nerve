@@ -1,6 +1,7 @@
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Snippet } from "svelte";
-import type { StatusTone } from "@nervekit/ui-kit/components/composites/status-dot";
+
 import type { MetaItem, PrimaryArg } from "../views/tool-presentation";
 import ToolFooter from "./ToolFooter.svelte";
 import ToolCardHeader from "./ToolCardHeader.svelte";

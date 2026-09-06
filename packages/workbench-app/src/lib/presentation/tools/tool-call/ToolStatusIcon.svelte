@@ -1,11 +1,12 @@
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import Circle from "@lucide/svelte/icons/circle";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import CircleX from "@lucide/svelte/icons/circle-x";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import type { StatusTone } from "@nervekit/ui-kit/components/composites/status-dot";
+
 import { cn } from "@nervekit/ui-kit/utils";
 
 let {

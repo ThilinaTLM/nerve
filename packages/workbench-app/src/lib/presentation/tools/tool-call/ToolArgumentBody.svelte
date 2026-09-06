@@ -63,7 +63,7 @@ let {
         class="m-0 min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"
         class:font-mono={item.mono}
         class:text-warning={item.tone === "warning"}
-        class:text-destructive={item.tone === "error"}
+        class:text-destructive={item.tone === "destructive"}
         class:text-success={item.tone === "success"}
         class:text-info={item.tone === "info"}
       >

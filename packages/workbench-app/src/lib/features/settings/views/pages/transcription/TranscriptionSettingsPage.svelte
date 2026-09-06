@@ -139,7 +139,7 @@ function saveVocabulary(): void {
       onblur={saveLanguages}
     />
     {#if languageError}
-      <SettingsInlineMessage tone="error" text={languageError} />
+      <SettingsInlineMessage tone="destructive" text={languageError} />
     {/if}
   </SettingsRow>
 
@@ -162,7 +162,7 @@ function saveVocabulary(): void {
       onblur={saveVocabulary}
     />
     {#if vocabularyError}
-      <SettingsInlineMessage tone="error" text={vocabularyError} />
+      <SettingsInlineMessage tone="destructive" text={vocabularyError} />
     {/if}
     <p class="text-xs text-muted-foreground">
       Include only terms relevant to your dictation. Strong hints can bias the

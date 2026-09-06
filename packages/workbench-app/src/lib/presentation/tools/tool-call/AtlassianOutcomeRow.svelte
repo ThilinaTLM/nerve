@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import CircleDashed from "@lucide/svelte/icons/circle-dashed";
 import Download from "@lucide/svelte/icons/download";
@@ -17,7 +18,6 @@ import Trash2 from "@lucide/svelte/icons/trash-2";
 import Upload from "@lucide/svelte/icons/upload";
 import Workflow from "@lucide/svelte/icons/workflow";
 
-type Tone = "default" | "success" | "info" | "warning" | "destructive";
 type OutcomeIcon =
   | "add"
   | "arrow"
@@ -38,11 +38,11 @@ type OutcomeIcon =
 type Props = {
   title: string;
   detail?: string;
-  tone?: Tone;
+  tone?: StatusTone;
   icon?: OutcomeIcon;
 };
 
-let { title, detail, tone = "default", icon }: Props = $props();
+let { title, detail, tone = "neutral", icon }: Props = $props();
 
 const iconMap = {
   add: Plus,

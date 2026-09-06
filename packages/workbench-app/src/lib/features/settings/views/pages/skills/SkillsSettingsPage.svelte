@@ -175,7 +175,7 @@ function copyPath(path: string): void {
 </SettingsToolbar>
 
 {#if error}
-  <SettingsInlineMessage tone="error" text={error}>
+  <SettingsInlineMessage tone="destructive" text={error}>
     {#snippet actions()}
       <Button size="xs" variant="outline" onclick={onRetry}>Retry</Button>
     {/snippet}

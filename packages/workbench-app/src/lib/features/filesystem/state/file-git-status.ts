@@ -1,17 +1,11 @@
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { GitProjectFileStatus } from "@nervekit/contracts/git";
-
-export type FileGitTone =
-  | "destructive"
-  | "warning"
-  | "success"
-  | "info"
-  | "muted";
 
 export type FileGitDecoration = {
   label: string;
   title: string;
   class: string;
-  tone: FileGitTone;
+  tone: StatusTone;
 };
 
 const conflictCodes = new Set(["U"]);
@@ -22,12 +16,13 @@ export function indexProjectFileStatuses(
   return new Map(files.map((file) => [file.path, file]));
 }
 
-const tonePriority: Record<FileGitTone, number> = {
+const tonePriority: Record<StatusTone, number> = {
   destructive: 4,
   warning: 3,
   success: 2,
   info: 1,
-  muted: 0,
+  neutral: 0,
+  accent: 0,
 };
 
 export function indexFileTreeGitDecorations(
@@ -67,12 +62,12 @@ export function fileTreeGitDecoration(
       label: "",
       title: "Git metadata",
       class: "text-muted-foreground",
-      tone: "muted",
+      tone: "neutral",
     };
   let directory = path.slice(0, path.lastIndexOf("/"));
   while (directory) {
     const inherited = decorations.get(directory);
-    if (inherited?.tone === "muted") return inherited;
+    if (inherited?.tone === "neutral") return inherited;
     directory = directory.slice(0, directory.lastIndexOf("/"));
   }
   return undefined;
@@ -88,7 +83,7 @@ export function fileGitDecoration(
       label: "",
       title: "Ignored by Git",
       class: "text-muted-foreground",
-      tone: "muted",
+      tone: "neutral",
     };
   const conflicted =
     conflictCodes.has(index) ||

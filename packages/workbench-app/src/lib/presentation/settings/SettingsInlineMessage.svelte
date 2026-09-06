@@ -1,10 +1,10 @@
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
-import type { SettingsTone } from "./settings-component-contracts";
 
 type Props = {
-  tone?: SettingsTone;
+  tone?: StatusTone;
   text?: string;
   class?: string;
   actions?: Snippet;
@@ -19,11 +19,13 @@ let {
   children,
 }: Props = $props();
 
-const toneClasses: Record<SettingsTone, string> = {
+const toneClasses: Record<StatusTone, string> = {
+  neutral: "border-border bg-muted text-foreground",
+  accent: "border-border bg-accent text-foreground",
   info: "border-info/40 bg-info/10 text-foreground",
   success: "border-success/40 bg-success/10 text-foreground",
   warning: "border-warning/40 bg-warning/10 text-foreground",
-  error: "border-destructive/40 bg-destructive/10 text-foreground",
+  destructive: "border-destructive/40 bg-destructive/10 text-foreground",
 };
 </script>
 
@@ -33,7 +35,7 @@ const toneClasses: Record<SettingsTone, string> = {
     toneClasses[tone],
     className,
   )}
-  role={tone === "error" ? "alert" : undefined}
+  role={tone === "destructive" ? "alert" : undefined}
 >
   <div class="min-w-0">
     {#if text}

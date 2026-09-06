@@ -71,7 +71,7 @@ onMount(() => {
 </script>
 
 {#if controller.errorMessage}
-  <SettingsInlineMessage tone="error" text={controller.errorMessage} />
+  <SettingsInlineMessage tone="destructive" text={controller.errorMessage} />
 {/if}
 
 {#if operation}

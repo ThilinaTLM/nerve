@@ -1,3 +1,4 @@
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type {
   ConversationEntry,
   ConversationTreeNode,
@@ -35,8 +36,6 @@ export type HistoryIconName =
   | "hand"
   | "triangle-alert";
 
-export type HistoryTone = "default" | "success" | "warning" | "info" | "danger";
-
 export type HistoryNodeType =
   | "user"
   | "assistant"
@@ -51,7 +50,7 @@ export type HistoryNodeType =
 export type HistoryNodeBadge = {
   icon: HistoryIconName;
   label?: string;
-  tone: HistoryTone;
+  tone: StatusTone;
   title?: string;
 };
 
@@ -60,7 +59,7 @@ export type HistoryNodeDescriptor = {
   icon: HistoryIconName;
   label: string;
   preview: string;
-  tone: HistoryTone;
+  tone: StatusTone;
   /** Preview is code/log/path-like content and should render in mono. */
   mono: boolean;
   badges: HistoryNodeBadge[];
@@ -193,7 +192,7 @@ export function classifyHistoryEntry(
       ? {
           icon: "sparkles",
           label: tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : `${tokens}`,
-          tone: "default",
+          tone: "neutral",
           title: `${tokens.toLocaleString()} tokens`,
         }
       : undefined;
@@ -239,7 +238,7 @@ export function classifyHistoryEntry(
       icon: "user",
       label: "You",
       preview: trimPreview(entry.text) || "empty message",
-      tone: "default",
+      tone: "neutral",
       mono: false,
       badges,
     };
@@ -259,7 +258,7 @@ export function classifyHistoryEntry(
         icon: toolIcon(primary),
         label: `${primary}${extra}`,
         preview: names.slice(0, 4).join(", "),
-        tone: isInteraction ? "warning" : "default",
+        tone: isInteraction ? "warning" : "neutral",
         mono: true,
         badges: isInteraction
           ? [{ icon: "hand", label: "input", tone: "warning" }, ...badges]
@@ -273,7 +272,7 @@ export function classifyHistoryEntry(
       icon: "sparkles",
       label: "Assistant",
       preview: trimPreview(entry.text) || "(thinking)",
-      tone: "default",
+      tone: "neutral",
       mono: false,
       badges,
     };
@@ -299,14 +298,18 @@ export function classifyHistoryEntry(
       badges.push({ icon: "hand", label: "human", tone: "warning" });
     }
     if (isError) {
-      badges.push({ icon: "triangle-alert", label: "error", tone: "danger" });
+      badges.push({
+        icon: "triangle-alert",
+        label: "error",
+        tone: "destructive",
+      });
     }
     return {
       type: humanLoop ? "human_loop" : "tool_result",
       icon: toolIcon(toolName),
       label: toolName,
       preview: trimPreview(entry.text),
-      tone: isError ? "danger" : humanLoop ? "warning" : "success",
+      tone: isError ? "destructive" : humanLoop ? "warning" : "success",
       mono: true,
       badges,
     };
@@ -317,7 +320,7 @@ export function classifyHistoryEntry(
     icon: "info",
     label: "System",
     preview: trimPreview(entry.text) || "system entry",
-    tone: "default",
+    tone: "neutral",
     mono: false,
     badges,
   };
