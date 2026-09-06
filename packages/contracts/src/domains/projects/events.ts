@@ -3,7 +3,7 @@ import { definePublicEvent } from "../../events/definition.js";
 import {
   projectRecordSchema,
   projectPermissionsSchema,
-  pruneProjectConversationsResponseSchema,
+  pruneProjectConversationsSummarySchema,
 } from "./project.js";
 
 const workbenchRoles = ["workbench_server"] as const;
@@ -29,7 +29,7 @@ export const projectEventDefinitions = [
   ),
   definePublicEvent(
     "project.conversations.pruned",
-    pruneProjectConversationsResponseSchema,
+    pruneProjectConversationsSummarySchema,
     { allowedSourceRoles: workbenchRoles, scope: ["projectId"] },
   ),
 ];

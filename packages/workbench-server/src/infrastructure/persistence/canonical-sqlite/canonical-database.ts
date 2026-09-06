@@ -25,6 +25,12 @@ import {
   type DurableEventRow,
 } from "./canonical-database-helpers.js";
 import { decode, encode } from "./payload-codecs.js";
+import { repairCanonicalDeletionIndexes } from "./deletion-indexes.js";
+import {
+  deleteConversationChunk,
+  type ConversationDeletionCursor,
+  type ConversationDeletionChunk,
+} from "./conversation-deletion.js";
 import {
   readRpcIdempotencyInTransaction,
   writeRpcIdempotencyInTransaction,
@@ -117,10 +123,10 @@ export class CanonicalDatabase {
           CANONICAL_SCHEMA_CHECKSUM,
           Date.now(),
         );
-      return;
     }
 
     this.assertSchemaCompatible();
+    this.transaction(repairCanonicalDeletionIndexes);
   }
 
   assertSchemaCompatible(
@@ -735,34 +741,14 @@ export class CanonicalDatabase {
     });
   }
 
-  deleteConversationState(conversationId: string): void {
-    this.transaction((database) => {
-      database
-        .prepare(`DELETE FROM durable_events WHERE conversation_id = ?`)
-        .run(conversationId);
-      database
-        .prepare(`DELETE FROM agent_context_leaves WHERE conversation_id = ?`)
-        .run(conversationId);
-      database
-        .prepare(
-          `UPDATE conversation_records SET parent_id = NULL WHERE conversation_id = ?`,
-        )
-        .run(conversationId);
-      database
-        .prepare(`DELETE FROM conversation_records WHERE conversation_id = ?`)
-        .run(conversationId);
-      database
-        .prepare(
-          `DELETE FROM domain_documents
-           WHERE (namespace IN (
-                    'conversation_state',
-                    'conversation_journal_head',
-                    'conversation_journal_commit'
-                  ) AND scope_id = ?)
-              OR (namespace = 'conversation' AND document_id = ?)`,
-        )
-        .run(conversationId, conversationId);
-    });
+  deleteConversationStateChunk(
+    conversationId: string,
+    limit: number,
+    cursor?: ConversationDeletionCursor,
+  ): ConversationDeletionChunk {
+    return this.transaction((database) =>
+      deleteConversationChunk(database, conversationId, limit, cursor),
+    );
   }
 
   integrityCheck(): void {

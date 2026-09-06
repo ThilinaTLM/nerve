@@ -1,3 +1,4 @@
+import { maintenanceOperationDefinitions } from "../domains/maintenance/maintenance-operations.js";
 import { z } from "zod";
 export type {
   OperationDefinition,
@@ -28,6 +29,7 @@ import { toolsOperationDefinitions } from "../domains/tools/operations.js";
 import { usageOperationDefinitions } from "../domains/usage/operations.js";
 
 const methodDefinitions = [
+  ...maintenanceOperationDefinitions,
   ...agentsOperationDefinitions,
   ...runOperationDefinitions,
   ...authOperationDefinitions,

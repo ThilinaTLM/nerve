@@ -24,7 +24,10 @@ export class ConversationRepository {
     });
   }
 
-  async remove(conversationId: string): Promise<void> {
-    await this.journal.remove(conversationId);
+  async remove(
+    conversationId: string,
+    options?: Parameters<ConversationJournalRepository["remove"]>[1],
+  ): Promise<void> {
+    await this.journal.remove(conversationId, options);
   }
 }

@@ -42,15 +42,20 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
       state.editors.openProject(params.projectId, params),
     "project.openTerminal": (state, params) =>
       state.terminal.openProject(params.projectId, params),
-    "project.conversations.prune": (state, params) =>
-      state.pruneConversations.pruneProjectConversations(
-        params.projectId,
-        params,
-      ),
+    "project.conversations.prune": async (state, params) => ({
+      operation: await state.maintenance.start({
+        kind: "prune_conversations",
+        projectId: params.projectId,
+        parameters: params,
+      }),
+    }),
     "project.delete": async (state, params) => {
-      await state.projectLifecycle.removeProject(params.projectId);
+      const operation = await state.maintenance.start({
+        kind: "delete_project",
+        projectId: params.projectId,
+      });
       state.fileCompletions.dispose(params.projectId);
-      return { ok: true };
+      return { operation };
     },
     "taskDefinition.list": async (state, params) => ({
       definitions: await state.taskDefinitions.list(projectId(params)),

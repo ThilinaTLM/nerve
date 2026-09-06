@@ -13,7 +13,7 @@ import type { PeerRole } from "../wire/envelope.js";
 import { eventBatchDataSchema } from "../wire/event-stream.js";
 import { settingsEventDefinitions } from "../domains/settings/events.js";
 import { daemonEventDefinitions } from "../domains/status/events.js";
-import { storageEventDefinitions } from "../domains/storage/events.js";
+import { maintenanceEventDefinitions } from "../domains/maintenance/events.js";
 import { taskDefinitionEventDefinitions } from "../domains/task-definitions/events.js";
 import { taskEventDefinitions } from "../domains/tasks/events.js";
 import { toolEventDefinitions } from "../domains/tools/events.js";
@@ -43,7 +43,7 @@ const definitions: PublicEventDefinition[] = [
   ...authEventDefinitions,
   ...daemonEventDefinitions,
   ...promptSuggestionEventDefinitions,
-  ...storageEventDefinitions,
+  ...maintenanceEventDefinitions,
   ...usageEventDefinitions,
 ];
 

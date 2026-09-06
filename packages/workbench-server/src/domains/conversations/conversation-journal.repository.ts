@@ -1,3 +1,7 @@
+import {
+  ConversationJournalDeletion,
+  type JournalDeletionOptions,
+} from "./conversation-journal-deletion.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import { noopPerformanceDiagnostics } from "../../infrastructure/diagnostics/performance-metrics.js";
@@ -97,6 +101,7 @@ const journalLocks = new Map<string, Promise<void>>();
 
 export class ConversationJournalRepository {
   private readonly states = new Map<string, ConversationJournalState>();
+  readonly deletions: ConversationJournalDeletion;
   private readonly pendingLoads = new Map<
     string,
     Promise<ConversationJournalState>
@@ -125,7 +130,17 @@ export class ConversationJournalRepository {
       new CanonicalStore(
         storage.paths.sqlitePath ?? storagePaths(storage.paths.home).sqlitePath,
       );
-    this.ready = this.canonical.initialize();
+    this.deletions = new ConversationJournalDeletion(
+      this.canonical,
+      this.canonical.initialize(),
+      (id, work) => this.exclusive(id, work),
+      (id) => {
+        this.states.delete(id);
+        this.dirty.delete(id);
+        this.encodedBytes.delete(id);
+      },
+    );
+    this.ready = this.deletions.ready;
   }
 
   async close(): Promise<void> {
@@ -279,6 +294,7 @@ export class ConversationJournalRepository {
   }
 
   async load(conversationId: string): Promise<ConversationJournalState> {
+    await this.deletions.assertAvailable(conversationId);
     const resident = this.states.get(conversationId);
     if (resident) {
       this.touch(conversationId, resident);
@@ -338,11 +354,8 @@ export class ConversationJournalRepository {
     expectedRevision?: number,
   ): Promise<ConversationJournalCommit> {
     return this.exclusive(conversationId, async () => {
-      // The repository is the sole in-process writer and the conversation lock
-      // serializes commits. Replaying the entire append-only journal here made
-      // every tool lifecycle update O(journal size), which became seconds for
-      // established conversations. A cold repository still replays once;
-      // subsequent commits advance the validated in-memory projection.
+      // The conversation lock serializes commits. Reuse the resident projection
+      // instead of replaying the entire journal on each hot write.
       const state = await this.load(conversationId);
       if (input.idempotencyKey) {
         const existing = state.idempotencyKeys.get(input.idempotencyKey);
@@ -416,18 +429,17 @@ export class ConversationJournalRepository {
     });
   }
 
-  async remove(conversationId: string): Promise<void> {
-    await this.exclusive(conversationId, async () => {
-      this.states.delete(conversationId);
-      this.dirty.delete(conversationId);
-      this.encodedBytes.delete(conversationId);
-      await this.canonical.deleteConversationState(conversationId);
-    });
+  async remove(
+    conversationId: string,
+    options?: JournalDeletionOptions,
+  ): Promise<void> {
+    await this.deletions.remove(conversationId, options);
   }
 
   async loadFresh(conversationId: string): Promise<ConversationJournalState> {
-    await this.ready;
+    await this.deletions.assertAvailable(conversationId);
     const stored = await this.canonical.readConversationJournal(conversationId);
+    await this.deletions.assertAvailable(conversationId);
     const state = stored.snapshot
       ? deserializeState(
           normalizeLegacyToolCalls(

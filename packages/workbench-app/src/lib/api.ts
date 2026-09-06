@@ -1,3 +1,4 @@
+export type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
 export type {
   AgentRecord,
   QueuedPromptRecord,
@@ -115,7 +116,6 @@ export type {
   ProjectRecord,
   ProjectPermissions,
   PruneProjectConversationsRequest,
-  PruneProjectConversationsResponse,
 } from "@nervekit/contracts/projects";
 export type { PlanReviewRecord } from "@nervekit/contracts/plans";
 export type {
@@ -140,15 +140,10 @@ export type {
 export type { StatusResponse } from "@nervekit/contracts/status";
 export type {
   StorageCategoryUsage,
-  StorageCleanupCancelResponse,
-  StorageCleanupOperation,
   StorageCleanupRequest,
   StorageCleanupResult,
-  StorageCleanupStartResponse,
-  StorageCleanupStatusResponse,
   StorageCleanupTarget,
   StorageCleanupTargetUsage,
-  StorageCleanupUpdatedEvent,
   StorageUsageResponse,
 } from "@nervekit/contracts/storage";
 export type {

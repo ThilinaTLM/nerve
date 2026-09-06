@@ -111,18 +111,14 @@ export type PruneProjectConversationSkippedReason = z.infer<
   typeof pruneProjectConversationSkippedReasonSchema
 >;
 
-export const pruneProjectConversationsResponseSchema = z.object({
+export const pruneProjectConversationsSummarySchema = z.object({
   projectId: z.string().startsWith("proj_"),
   strategy: pruneStrategySchema,
-  prunedConversationIds: z.array(z.string().startsWith("conv_")),
-  prunedTaskIds: z.array(z.string().startsWith("task_")),
-  skipped: z.array(
-    z.object({
-      conversationId: z.string().startsWith("conv_"),
-      reason: pruneProjectConversationSkippedReasonSchema,
-    }),
-  ),
+  removedConversationCount: z.number().int().nonnegative(),
+  removedTaskCount: z.number().int().nonnegative(),
+  skippedActiveAgentCount: z.number().int().nonnegative(),
+  skippedActiveTaskCount: z.number().int().nonnegative(),
 });
-export type PruneProjectConversationsResponse = z.infer<
-  typeof pruneProjectConversationsResponseSchema
+export type PruneProjectConversationsSummary = z.infer<
+  typeof pruneProjectConversationsSummarySchema
 >;

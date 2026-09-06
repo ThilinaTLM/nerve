@@ -22,7 +22,7 @@ import { taskSelectors } from "$lib/features/tasks";
 import { settingsSelectors } from "$lib/features/settings";
 import { setUiZoomLevel } from "$lib/application/settings";
 import { usageSelectors } from "$lib/application/usage/usage-selectors.svelte";
-import { workspaceSelectors } from "$lib/application/workspace";
+import { maintenance, workspaceSelectors } from "$lib/application/workspace";
 
 const activeProject = $derived(workspaceSelectors.activeProject);
 const connection = $derived(workspaceSelectors.connection);
@@ -42,6 +42,9 @@ const gitStatus = $derived(gitSelectors.gitStatus);
 const subscriptionUsages = $derived(usageSelectors.subscriptionUsages);
 const status = $derived(workspaceSelectors.status);
 const settingsDraft = $derived(settingsSelectors.settingsDraft);
+const maintenanceOperation = $derived(
+  maintenance.active ? maintenance.operation : null,
+);
 const currentZoomLevel = $derived(
   settingsDraft?.ui.zoomLevel ?? zoomState.level,
 );
@@ -83,6 +86,7 @@ const dockToggles = $derived<DockToggle[]>(
   {gitStatus}
   {subscriptionUsages}
   {status}
+  {maintenanceOperation}
   homeDir={status?.storage.userHome}
   zoomLevel={currentZoomLevel}
   {dockToggles}

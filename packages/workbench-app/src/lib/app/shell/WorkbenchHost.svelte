@@ -24,7 +24,23 @@ import BrowserNotificationPrompt from "$lib/application/notifications/BrowserNot
 import CriticalErrorDialog from "$lib/application/notifications/CriticalErrorDialog.svelte";
 import { DiscoverStartupHost } from "$lib/app/discover";
 import { GuideOverlayHost } from "$lib/app/discover/guides";
-import { workspaceSelectors } from "$lib/application/workspace";
+import { maintenance, workspaceSelectors } from "$lib/application/workspace";
+import { onDestroy } from "svelte";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+
+onDestroy(() => maintenance.dispose());
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive) return;
+  maintenance.start();
+});
+$effect(() => {
+  if (
+    workbenchStartupState.progressiveActive &&
+    workspaceState.connection === "connected"
+  )
+    maintenance.reconnect();
+});
 
 const isCompact = $derived(responsive.isCompact);
 const activeEditorTab = $derived(workspaceSelectors.activeCenterTab);

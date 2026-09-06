@@ -32,6 +32,7 @@ type Props = {
   activeProjectKey?: string;
   homeDir?: string;
   initialMode?: Mode;
+  forgetDisabled?: boolean;
   onClose?: () => void;
   onSelectProject?: (projectId: string) => void | Promise<void>;
   onOpenDirectory?: (path: string) => void | Promise<void>;
@@ -45,6 +46,7 @@ let {
   activeProjectKey,
   homeDir,
   initialMode = "recent",
+  forgetDisabled = false,
   onClose,
   onSelectProject,
   onOpenDirectory,
@@ -387,6 +389,7 @@ $effect(() => {
         {activeProjectKey}
         {homeDir}
         {loading}
+        {forgetDisabled}
         onOpen={(item) => void chooseProject(item.project.id)}
         onNewChat={(path) => void onNewChat?.(path)}
         onCopyPath={(path) => void copyPath(path)}

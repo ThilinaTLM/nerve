@@ -29,6 +29,7 @@ export const packageExportSurfaces = Object.freeze({
     "./skills",
     "./status",
     "./storage",
+    "./maintenance",
     "./suspensions",
     "./task-definitions",
     "./tasks",

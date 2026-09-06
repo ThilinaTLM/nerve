@@ -93,19 +93,22 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       sqlitePath: state.storage.paths.sqlitePath,
       counts: state.queryCache.counts(),
     }),
-    "storage.rebuildIndex": async (state) => {
-      rebuildIndex(state);
-      return { ok: true, counts: state.queryCache.counts() };
-    },
+    "storage.rebuildIndex": async (state) => ({
+      operation: await state.maintenance.start({
+        kind: "storage_cleanup",
+        parameters: { rebuildSearchIndex: true },
+      }),
+    }),
     "storage.usage.get": (state) => state.storageUsage.computeUsage(),
-    "storage.cleanup": async (state, params) => ({
-      operation: await state.storageCleanup.start(params),
+    "storage.cleanup": async (state, parameters) => ({
+      operation: await state.maintenance.start({
+        kind: "storage_cleanup",
+        parameters,
+      }),
     }),
-    "storage.cleanup.get": (state, params) => ({
-      operation: state.storageCleanup.get(params?.operationId),
-    }),
-    "storage.cleanup.cancel": async (state, params) => ({
-      operation: await state.storageCleanup.cancel(params.operationId),
+    "maintenance.get": (state) => ({ operation: state.maintenance.get() }),
+    "maintenance.cancel": async (state, params) => ({
+      operation: await state.maintenance.cancel(params.operationId),
     }),
     "model.list": (state) => ({ models: listModels(state) }),
     "usage.subscription.get": async (state) => ({
@@ -138,15 +141,6 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       ),
     "applicationLog.prune": (state, params) => state.logger.prune(params),
   });
-
-function rebuildIndex(state: PlatformMethodContext): void {
-  state.queryCache.rebuild({
-    projects: state.projectLifecycle.listProjects(),
-    conversations: state.conversationLifecycle.listConversations(),
-    agents: state.agentLifecycle.listAgents(),
-    tasks: state.tasks.listTasks(),
-  });
-}
 
 function listModels(state: PlatformMethodContext) {
   return listAvailableModels(state.providerCatalog.resolvedModels()).map(

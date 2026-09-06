@@ -8,7 +8,6 @@ import {
   type ConversationRecord,
   createProject,
   deleteConversation,
-  deleteProject,
   getFileCompletions,
   getSlashCompletions,
   getWorkspaceSnapshot,
@@ -17,7 +16,6 @@ import {
   type ProjectEditor,
   type ProjectRecord,
   type PruneProjectConversationsRequest,
-  pruneProjectConversations,
   type UpdateConversationStateRequest,
   updateConversationState,
 } from "$lib/api";
@@ -34,6 +32,7 @@ import { mergeAgentsByUpdatedAt } from "./agent-freshness";
 import { upsertConversationRecord } from "./entity-reducers";
 import { projectForNewConversation } from "./new-conversation-project";
 import { closeCenterTabs } from "./center-tab-actions.svelte";
+import { maintenance } from "../maintenance/maintenance-state.svelte";
 import { selectCenterTab, setActiveCenterTab } from "./center-tabs.svelte";
 import {
   applyVisibleSession,
@@ -305,34 +304,7 @@ export function newConversationInProject(
 }
 
 export async function deleteProjectAndRefresh(projectId: string) {
-  try {
-    const deletingProject = workspaceState.projects.find(
-      (project) => project.id === projectId,
-    );
-    const deletingKey = deletingProject
-      ? projectKey(deletingProject)
-      : undefined;
-    const aliasedIds = new SvelteSet(
-      workspaceState.projects
-        .filter((project) => deletingKey && projectKey(project) === deletingKey)
-        .map((project) => project.id),
-    );
-    const conversationIds = workspaceState.conversations
-      .filter((conversation) => aliasedIds.has(conversation.projectId))
-      .map((conversation) => conversation.id);
-    await deleteProject(projectId);
-    if (deletingKey) delete workspaceState.projectTabSessions[deletingKey];
-    await workspaceFeaturePorts().conversations.commands.removeConversationTabs(
-      conversationIds,
-    );
-    await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
-    await loadWorkspaceState();
-    notify.success("Project removed");
-  } catch (caught) {
-    const message = caught instanceof Error ? caught.message : String(caught);
-    workspaceState.error = message;
-    notify.error("Could not remove project", { description: message });
-  }
+  await maintenance.startDelete(projectId);
 }
 
 export async function updateConversationStateAndRefresh(
@@ -409,33 +381,7 @@ export async function pruneProjectConversationsAndRefresh(
   projectId: string,
   request: PruneProjectConversationsRequest,
 ) {
-  try {
-    const result = await pruneProjectConversations(projectId, request);
-    await workspaceFeaturePorts().conversations.commands.removeConversationTabs(
-      result.prunedConversationIds,
-    );
-    await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
-    await loadWorkspaceState();
-    const pruned = result.prunedConversationIds.length;
-    const skipped = result.skipped.length;
-    notify.success(
-      pruned === 1
-        ? "Cleaned up 1 conversation"
-        : `Cleaned up ${pruned} conversations`,
-      skipped > 0
-        ? {
-            description:
-              skipped === 1
-                ? "Skipped 1 active conversation"
-                : `Skipped ${skipped} active conversations`,
-          }
-        : {},
-    );
-  } catch (caught) {
-    const message = caught instanceof Error ? caught.message : String(caught);
-    workspaceState.error = message;
-    notify.error("Could not clean up conversations", { description: message });
-  }
+  await maintenance.startPrune(projectId, request);
 }
 
 async function openPendingConversationForProject(

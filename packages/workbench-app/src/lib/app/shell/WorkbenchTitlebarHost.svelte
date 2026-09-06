@@ -34,6 +34,7 @@ import {
   openProjectInEditorAndNotify,
   openProjectInTerminalAndNotify,
   pruneProjectConversationsAndRefresh,
+  maintenance,
   selectProject,
   workspaceSelectors,
   workspaceState,
@@ -78,6 +79,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
   terminalAvailability: status?.runtime.terminal,
   conversationCount: (projectId) =>
     countProjectConversations(conversations, projectId),
+  maintenanceActive: maintenance.active,
   onNewConversationInProject: newConversationInProject,
   onOpenProjectInEditor: (projectId, editor) =>
     void openProjectInEditorAndNotify(projectId, editor),
@@ -97,7 +99,7 @@ function projectMenuItems(item: ProjectSwitcherItem) {
 }
 
 function confirmDelete() {
-  if (pendingDelete?.kind === "project") {
+  if (pendingDelete?.kind === "project" && !maintenance.active) {
     void deleteProjectAndRefresh(pendingDelete.id);
   }
 }
@@ -105,7 +107,7 @@ function confirmDelete() {
 function confirmPrune(
   request: Parameters<typeof pruneProjectConversationsAndRefresh>[1],
 ) {
-  if (pendingPrune) {
+  if (pendingPrune && !maintenance.active) {
     void pruneProjectConversationsAndRefresh(pendingPrune.id, request);
   }
 }
@@ -189,6 +191,7 @@ async function handleDesktopClose() {
     pendingPrune ? countKeepEligible(conversations, pendingPrune.id, keep) : 0}
   completedEligible={() =>
     pendingPrune ? countCompletedEligible(conversations, pendingPrune.id) : 0}
+  disabled={maintenance.active}
   onConfirm={confirmPrune}
   onOpenChange={(open) => {
     if (!open) pendingPrune = undefined;

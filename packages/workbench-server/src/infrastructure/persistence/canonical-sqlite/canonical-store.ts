@@ -1,3 +1,8 @@
+import type {
+  ConversationDeletionChunk,
+  ConversationDeletionCursor,
+  ConversationDeletionProgress,
+} from "./conversation-deletion.js";
 import { Worker } from "node:worker_threads";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type { RunRecord } from "@nervekit/contracts/runs";
@@ -387,11 +392,33 @@ export class CanonicalStore {
       [data.buffer],
     );
   }
-  deleteConversationState(conversationId: string) {
-    return this.request<void>(
-      { kind: "delete_conversation_state", conversationId },
-      true,
-    );
+  async deleteConversationState(
+    conversationId: string,
+    onProgress?: (
+      progress: ConversationDeletionProgress,
+    ) => void | Promise<void>,
+  ): Promise<void> {
+    const limit = 500;
+    let cursor: ConversationDeletionCursor = { phase: "events" };
+    let removed = 0;
+    let detached = 0;
+    for (;;) {
+      const result = await this.request<ConversationDeletionChunk>(
+        {
+          kind: "delete_conversation_state_chunk",
+          conversationId,
+          limit,
+          cursor,
+        },
+        true,
+      );
+      cursor = result.next;
+      removed += result.removed;
+      detached += result.detached;
+      await onProgress?.({ phase: result.phase, removed, detached });
+      if (result.done) return;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
   }
   integrityCheck() {
     return this.request<void>({ kind: "integrity_check" }, true);

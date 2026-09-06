@@ -226,7 +226,7 @@ async function main() {
         message: `Runtime bootstrap: ${stage}`,
       }),
     ),
-    state.storageCleanup.hydrate(),
+    state.maintenance.hydrate(),
   ]);
   await state.logger.info("Registry hydrated", {
     durationMs: registryTimings.stateDurationMs,

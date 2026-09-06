@@ -1,9 +1,14 @@
+import type {
+  ConversationRemovalOptions,
+  ConversationRemovalProgress,
+} from "../conversations/conversation-deletion-progress.js";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import type {
   ProjectRecord,
+  PruneProjectConversationSkippedReason,
   PruneProjectConversationsRequest,
-  PruneProjectConversationsResponse,
+  PruneProjectConversationsSummary,
 } from "@nervekit/contracts/projects";
 import type { TaskRecord } from "@nervekit/contracts/tasks";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
@@ -27,6 +32,34 @@ export interface PruneConversationsToolPort {
 export interface PruneConversationsPlanPort {
   removeReviewsForConversations(conversationIds: string[]): Promise<void>;
 }
+export interface PruneProjectConversationsResult extends PruneProjectConversationsSummary {
+  prunedConversationIds: string[];
+  prunedTaskIds: string[];
+  skipped: Array<{
+    conversationId: string;
+    reason: PruneProjectConversationSkippedReason;
+  }>;
+}
+
+export interface PruneProjectConversationsProgress {
+  operationId?: string;
+  shouldCancel?: () => boolean;
+  onCurrentItem?: (
+    progress: ConversationRemovalProgress,
+  ) => void | Promise<void>;
+  onDiscovered?: (input: {
+    totalItems: number;
+    skippedActiveAgentCount: number;
+    skippedActiveTaskCount: number;
+  }) => void | Promise<void>;
+  onPhase?: (
+    phase: "removing_related_data" | "removing_conversations" | "finalizing",
+    message: string,
+  ) => void | Promise<void>;
+  onConversationRemoved?: (completedItems: number) => void | Promise<void>;
+  yieldControl?: () => Promise<void>;
+}
+
 export interface PruneProjectConversationsServiceDeps {
   getProject: (projectId: string) => ProjectRecord;
   listConversations: () => ConversationRecord[];
@@ -35,8 +68,10 @@ export interface PruneProjectConversationsServiceDeps {
   tools: PruneConversationsToolPort;
   plans: PruneConversationsPlanPort;
   conversationRepository: ConversationRepository;
-  removeConversation: (conversationId: string) => Promise<void>;
-  rebuildIndex: () => Promise<void>;
+  removeConversation: (
+    conversationId: string,
+    options?: ConversationRemovalOptions,
+  ) => Promise<void>;
   events: StreamLogRegistry;
   logger: ApplicationLogger;
 }
@@ -50,17 +85,19 @@ export class PruneProjectConversationsService {
       strategy: "olderThanDays",
       olderThanDays: 7,
     },
-  ): Promise<PruneProjectConversationsResponse> {
+    progress: PruneProjectConversationsProgress = {},
+  ): Promise<PruneProjectConversationsResult> {
     const project = this.deps.getProject(projectId);
     return (
-      await this.pruneAcrossProjects([project], request)
-    )[0] as PruneProjectConversationsResponse;
+      await this.pruneAcrossProjects([project], request, progress)
+    )[0] as PruneProjectConversationsResult;
   }
 
   async pruneAcrossProjects(
     projects: ProjectRecord[],
     request: PruneProjectConversationsRequest,
-  ): Promise<PruneProjectConversationsResponse[]> {
+    progress: PruneProjectConversationsProgress = {},
+  ): Promise<PruneProjectConversationsResult[]> {
     const projectIds = new Set(projects.map((project) => project.id));
     const projectConversations = this.deps
       .listConversations()
@@ -80,9 +117,8 @@ export class PruneProjectConversationsService {
     const pruned: ConversationRecord[] = [];
     const skippedByProject = new Map<
       string,
-      PruneProjectConversationsResponse["skipped"]
+      PruneProjectConversationsResult["skipped"]
     >();
-    const prunedAgentIds: string[] = [];
 
     for (const conversation of candidates) {
       const agents = agentsByConversationId.get(conversation.id) ?? [];
@@ -109,41 +145,120 @@ export class PruneProjectConversationsService {
         continue;
       }
       pruned.push(conversation);
-      prunedAgentIds.push(...agents.map((agent) => agent.id));
     }
 
     const prunedIds = pruned.map((conversation) => conversation.id);
+    await progress.onDiscovered?.({
+      totalItems: prunedIds.length,
+      skippedActiveAgentCount: [...skippedByProject.values()]
+        .flat()
+        .filter((entry) => entry.reason === "active_agent").length,
+      skippedActiveTaskCount: [...skippedByProject.values()]
+        .flat()
+        .filter((entry) => entry.reason === "active_task").length,
+    });
+    await progress.onPhase?.(
+      "removing_related_data",
+      "Removing related task and tool data…",
+    );
     const taskProjectById = new Map(
       this.deps.tasks.listTasks().map((task) => [task.id, task.projectId]),
     );
-    const prunedTaskIds =
-      await this.deps.tasks.removeInactiveTasksForConversations(prunedIds);
-    await this.deps.tools.removeRecordsForConversations(
-      prunedIds,
-      prunedAgentIds,
+    const prunedTaskIds: string[] = [];
+    const removed: ConversationRecord[] = [];
+    let completedItems = 0;
+    for (const conversation of pruned) {
+      if (progress.shouldCancel?.()) break;
+      // Eligibility must be checked again at the safe conversation boundary,
+      // before deleting any of its task, tool, or review data.
+      const agents =
+        this.agentsByConversation([conversation.id]).get(conversation.id) ?? [];
+      const reason = agents.some(
+        (agent) =>
+          agent.status === "running" || agent.status === "awaiting_user",
+      )
+        ? ("active_agent" as const)
+        : this.deps.tasks.activeTasksForConversations([conversation.id])
+              .length > 0
+          ? ("active_task" as const)
+          : undefined;
+      if (reason) {
+        const skipped = skippedByProject.get(conversation.projectId) ?? [];
+        skipped.push({ conversationId: conversation.id, reason });
+        skippedByProject.set(conversation.projectId, skipped);
+        continue;
+      }
+      await this.deps.removeConversation(conversation.id, {
+        operationId: progress.operationId,
+        onProgress: progress.onCurrentItem,
+        prepare: async () => {
+          await progress.onPhase?.(
+            "removing_related_data",
+            "Removing related task and tool data…",
+          );
+          prunedTaskIds.push(
+            ...(await this.deps.tasks.removeInactiveTasksForConversations([
+              conversation.id,
+            ])),
+          );
+          await this.deps.tools.removeRecordsForConversations(
+            [conversation.id],
+            agents.map((agent) => agent.id),
+          );
+          await this.deps.plans.removeReviewsForConversations([
+            conversation.id,
+          ]);
+          await progress.onPhase?.(
+            "removing_conversations",
+            "Removing conversation history…",
+          );
+        },
+      });
+      removed.push(conversation);
+      completedItems += 1;
+      await progress.onConversationRemoved?.(completedItems);
+      await progress.yieldControl?.();
+    }
+    await progress.onPhase?.("finalizing", "Finalizing cleanup…");
+    await this.deps.logger.removeLogsForConversations(
+      removed.map((conversation) => conversation.id),
     );
-    await this.deps.plans.removeReviewsForConversations(prunedIds);
-    for (const conversation of pruned)
-      await this.deps.removeConversation(conversation.id);
-    await this.deps.logger.removeLogsForConversations(prunedIds);
-    if (prunedIds.length > 0) await this.deps.rebuildIndex();
 
     const responses = projects.map((project) => {
-      const response: PruneProjectConversationsResponse = {
+      const projectPrunedIds = removed
+        .filter((conversation) => conversation.projectId === project.id)
+        .map((conversation) => conversation.id);
+      const projectPrunedTaskIds = prunedTaskIds.filter(
+        (taskId) => taskProjectById.get(taskId) === project.id,
+      );
+      const skipped = skippedByProject.get(project.id) ?? [];
+      const response: PruneProjectConversationsResult = {
         projectId: project.id,
         strategy: request.strategy,
-        prunedConversationIds: pruned
-          .filter((conversation) => conversation.projectId === project.id)
-          .map((conversation) => conversation.id),
-        prunedTaskIds: prunedTaskIds.filter(
-          (taskId) => taskProjectById.get(taskId) === project.id,
-        ),
-        skipped: skippedByProject.get(project.id) ?? [],
+        removedConversationCount: projectPrunedIds.length,
+        removedTaskCount: projectPrunedTaskIds.length,
+        skippedActiveAgentCount: skipped.filter(
+          (entry) => entry.reason === "active_agent",
+        ).length,
+        skippedActiveTaskCount: skipped.filter(
+          (entry) => entry.reason === "active_task",
+        ).length,
+        prunedConversationIds: projectPrunedIds,
+        prunedTaskIds: projectPrunedTaskIds,
+        skipped,
       };
       return response;
     });
     for (const response of responses) {
-      await this.deps.events.publish("project.conversations.pruned", response);
+      const summary: PruneProjectConversationsSummary = {
+        projectId: response.projectId,
+        strategy: response.strategy,
+        removedConversationCount: response.removedConversationCount,
+        removedTaskCount: response.removedTaskCount,
+        skippedActiveAgentCount: response.skippedActiveAgentCount,
+        skippedActiveTaskCount: response.skippedActiveTaskCount,
+      };
+      await this.deps.events.publish("project.conversations.pruned", summary);
     }
     return responses;
   }

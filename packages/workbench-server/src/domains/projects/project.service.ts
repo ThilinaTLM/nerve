@@ -81,6 +81,11 @@ export class ProjectLifecycleService {
       .filter((candidate) => candidate.projectId === projectId)) {
       await this.removeConversation(conversation.id);
     }
+    await this.finalizeProjectRemoval(projectId);
+  }
+
+  async finalizeProjectRemoval(projectId: string): Promise<void> {
+    this.getProject(projectId);
     this.state.projects.delete(projectId);
     this.queryCache.removeProject(projectId);
     await this.projectRepository.remove(projectId);

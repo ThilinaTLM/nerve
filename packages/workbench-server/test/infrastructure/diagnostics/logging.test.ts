@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -399,4 +406,48 @@ describe("ApplicationLogger", () => {
       ["ignored one", "ignored two"],
     );
   });
+});
+
+it("conversation log filtering preserves queued appends and malformed unrelated lines", async () => {
+  const home = await tempHome();
+  const logger = new ApplicationLogger({
+    dataDir: home,
+    mirrorToConsole: false,
+  });
+  await logger.hydrate();
+  const child = logger.child({ component: "child" });
+  const before = child.info("before cleanup", {
+    conversationId: "conv_remove",
+  });
+  const keep = logger.info("keep before", { conversationId: "conv_keep" });
+  const cleanup = child.removeLogsForConversations(["conv_remove"]);
+  const after = child.info("after cleanup", { conversationId: "conv_remove" });
+  await Promise.all([before, keep, cleanup, after]);
+  const logs = (await logger.query()).logs;
+  assert.deepEqual(
+    logs.map((log) => log.message),
+    ["keep before", "after cleanup"],
+  );
+
+  const { filterConversationLogs } =
+    await import("../../../src/infrastructure/diagnostics/filter-conversation-logs.js");
+  const path = join(home, "fixture.jsonl");
+  await writeFile(
+    path,
+    Array.from({ length: 5000 }, (_, index) =>
+      JSON.stringify({
+        conversationId: index % 2 ? "conv_keep" : "conv_remove",
+        index,
+      }),
+    ).join("\n") + "\nmalformed diagnostic line\n",
+  );
+  await filterConversationLogs(path, new Set(["conv_remove"]));
+  const lines = (await readFile(path, "utf8")).trimEnd().split("\n");
+  assert.equal(lines.length, 2501);
+  assert.equal(lines.at(-1), "malformed diagnostic line");
+  assert.ok(
+    lines
+      .slice(0, -1)
+      .every((line) => JSON.parse(line).conversationId === "conv_keep"),
+  );
 });

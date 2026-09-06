@@ -7,12 +7,18 @@ import Terminal from "@lucide/svelte/icons/terminal";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { ShellStatusBar, type DockToggle } from "$lib/presentation/shell";
-import type { TaskRecord, ProjectRecord, StatusResponse } from "$lib/api";
+import type {
+  MaintenanceOperation,
+  TaskRecord,
+  ProjectRecord,
+  StatusResponse,
+} from "$lib/api";
 import type { SubscriptionUsageEntry } from "$lib/features/usage";
 import { tildePath } from "$lib/domain/filesystem/project-path";
 import StatusPopover from "./StatusPopover.svelte";
 import { SubscriptionUsageChip } from "$lib/features/usage";
 import LayoutControl from "./LayoutControl.svelte";
+import MaintenanceStatus from "./MaintenanceStatus.svelte";
 
 type GitStatus = {
   branch: string;
@@ -37,6 +43,7 @@ type Props = {
   gitStatus?: GitStatus;
   subscriptionUsages?: SubscriptionUsageEntry[];
   status?: StatusResponse;
+  maintenanceOperation?: MaintenanceOperation | null;
   homeDir?: string;
   zoomLevel?: number;
   dockToggles?: DockToggle[];
@@ -54,6 +61,7 @@ let {
   gitStatus,
   subscriptionUsages = [],
   status,
+  maintenanceOperation,
   homeDir,
   zoomLevel = 0,
   dockToggles = [],
@@ -159,6 +167,10 @@ function gitStatusTitle(status: GitStatus): string {
 
   {#snippet right()}
     <span class="inline-flex items-center gap-1" data-tour-id="status-controls">
+      {#if maintenanceOperation}
+        <MaintenanceStatus operation={maintenanceOperation} />
+      {/if}
+
       {#if !phone}
         {#if activeTasks > 0}
           <span class="footer-item" title="Running tasks">

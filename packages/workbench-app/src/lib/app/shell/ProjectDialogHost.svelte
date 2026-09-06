@@ -11,6 +11,7 @@ import ProjectDirectoryPicker from "$lib/app/composition/dialogs/ProjectDirector
 import {
   createConversationForDirectory,
   deleteProjectAndRefresh,
+  maintenance,
   openProjectDirectory,
   selectProject,
   workspaceSelectors,
@@ -45,6 +46,7 @@ async function editConversationEntry(entry: {
   activeProjectKey={workspaceState.selectedProjectKey}
   homeDir={status?.storage.userHome}
   initialMode={workspaceState.projectPickerMode}
+  forgetDisabled={maintenance.active}
   onSelectProject={(projectId) => void selectProject(projectId)}
   onOpenDirectory={(path) => void openProjectDirectory(path)}
   onNewChat={(path) => void createConversationForDirectory(path)}

@@ -118,6 +118,10 @@
       "types": "./dist/domains/storage/index.d.ts",
       "import": "./dist/domains/storage/index.js"
     },
+    "./maintenance": {
+      "types": "./dist/domains/maintenance/index.d.ts",
+      "import": "./dist/domains/maintenance/index.js"
+    },
     "./suspensions": {
       "types": "./dist/domains/suspensions/index.d.ts",
       "import": "./dist/domains/suspensions/index.js"

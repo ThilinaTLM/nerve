@@ -24,6 +24,7 @@ type Props = {
   activeProjectKey?: string;
   homeDir?: string;
   loading: boolean;
+  forgetDisabled?: boolean;
   onOpen: (item: ProjectSwitcherItem) => void;
   onForget?: (projectId: string) => void;
   onCopyPath: (path: string) => void;
@@ -49,6 +50,7 @@ let {
   activeProjectKey,
   homeDir,
   loading,
+  forgetDisabled = false,
   onOpen,
   onForget,
   onCopyPath,
@@ -76,6 +78,7 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
         label: "Forget project",
         icon: Trash2,
         destructive: true,
+        disabled: forgetDisabled,
         onSelect: () => onForget(project.id),
       },
     );

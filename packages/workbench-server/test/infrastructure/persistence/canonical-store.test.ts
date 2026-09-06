@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/index.js";
+import {
+  CanonicalStore,
+  encode,
+} from "../../../src/infrastructure/persistence/canonical-sqlite/index.js";
 import {
   CANONICAL_BASELINE_NAME,
   CANONICAL_SCHEMA_CHECKSUM,
@@ -238,4 +241,102 @@ test("checksum-drifted v1 schemas are refused before migration", async (t) => {
   const store = new CanonicalStore(path);
   await assert.rejects(store.initialize(), /checksum drift at version 1/i);
   await store.close();
+});
+
+test("v1 deletion index repair preserves data and ledger and prevents child scans", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-deletion-indexes-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const path = join(home, "nerve.sqlite");
+  const seed = new DatabaseSync(path);
+  seed.exec(CANONICAL_SCHEMA_SQL);
+  seed
+    .prepare("INSERT INTO schema_migrations VALUES (?, ?, ?, ?, ?)")
+    .run(
+      CANONICAL_SCHEMA_VERSION,
+      CANONICAL_BASELINE_NAME,
+      CANONICAL_SCHEMA_CHECKSUM,
+      123,
+      456,
+    );
+  const ledger = seed.prepare("SELECT * FROM schema_migrations").all();
+  seed
+    .prepare(`INSERT INTO domain_documents VALUES (
+    'test', 'global', 'preserved', 1, 1, ?, 123, 123
+  )`)
+    .run(encode({ value: 42 }));
+  seed.close();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const store = new CanonicalStore(path);
+    await store.initialize();
+    assert.deepEqual(
+      (await store.readDocument("test", "global", "preserved"))?.data,
+      { value: 42 },
+    );
+    await store.close();
+    const database = new DatabaseSync(path);
+    database.exec("PRAGMA foreign_keys = ON");
+    assert.deepEqual(
+      database.prepare("SELECT * FROM schema_migrations").all(),
+      ledger,
+    );
+    const plan = database
+      .prepare(
+        "EXPLAIN QUERY PLAN DELETE FROM conversation_records WHERE id = ?",
+      )
+      .all("record")
+      .map((row) => String(row.detail))
+      .join("\n");
+    assert.match(
+      plan,
+      /SEARCH durable_events USING COVERING INDEX durable_events_record/,
+    );
+    assert.match(
+      plan,
+      /SEARCH agent_context_leaves USING COVERING INDEX agent_context_leaves_active_record/,
+    );
+    assert.doesNotMatch(plan, /SCAN (durable_events|agent_context_leaves)/);
+    database.close();
+  }
+});
+
+test("deletion index repair fails transactionally for an incorrectly named index", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-deletion-index-conflict-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const path = join(home, "nerve.sqlite");
+  const seed = new DatabaseSync(path);
+  seed.exec(CANONICAL_SCHEMA_SQL);
+  seed
+    .prepare("INSERT INTO schema_migrations VALUES (?, ?, ?, ?, ?)")
+    .run(
+      CANONICAL_SCHEMA_VERSION,
+      CANONICAL_BASELINE_NAME,
+      CANONICAL_SCHEMA_CHECKSUM,
+      123,
+      0,
+    );
+  seed.exec(
+    "CREATE INDEX durable_events_record ON durable_events(conversation_id)",
+  );
+  seed.close();
+  const store = new CanonicalStore(path);
+  await assert.rejects(
+    store.initialize(),
+    /Canonical deletion index durable_events_record/,
+  );
+  await store.close();
+  const database = new DatabaseSync(path);
+  assert.equal(
+    database
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE name = 'agent_context_leaves_active_record'",
+      )
+      .get(),
+    undefined,
+  );
+  assert.equal(
+    database.prepare("SELECT count(*) AS count FROM schema_migrations").get()
+      ?.count,
+    1,
+  );
+  database.close();
 });

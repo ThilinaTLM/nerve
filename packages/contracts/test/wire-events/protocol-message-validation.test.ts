@@ -318,10 +318,42 @@ describe("Protocol v1 shared schemas", () => {
       }),
       { method: "project.get", params: { projectId: "proj_1" } },
     );
-    assert.deepEqual(parseOperationResult("project.delete", { ok: true }), {
-      ok: true,
-    });
-    assert.throws(() => parseOperationResult("project.delete", { ok: false }));
+    const projectRemovalOperation = {
+      id: "maintenanceop_1",
+      revision: 1,
+      kind: "delete_project",
+      request: { kind: "delete_project", projectId: "proj_1" },
+      cancellable: false,
+      cancellationRequested: false,
+      completedTargets: 0,
+      totalTargets: 0,
+      freedBytes: 0,
+      warnings: [],
+      project: {
+        id: "proj_1",
+        name: "Example",
+        dir: "/tmp/example",
+        createdAt: "2025-01-01T00:00:00.000Z",
+        updatedAt: "2025-01-01T00:00:00.000Z",
+      },
+      status: "queued",
+      phase: "queued",
+      message: "Project removal is queued.",
+      createdAt: "2025-01-01T00:00:00.000Z",
+      updatedAt: "2025-01-01T00:00:00.000Z",
+      completedItems: 0,
+      removedConversationCount: 0,
+      removedTaskCount: 0,
+      skippedActiveAgentCount: 0,
+      skippedActiveTaskCount: 0,
+    };
+    assert.deepEqual(
+      parseOperationResult("project.delete", {
+        operation: projectRemovalOperation,
+      }),
+      { operation: projectRemovalOperation },
+    );
+    assert.throws(() => parseOperationResult("project.delete", { ok: true }));
     assert.deepEqual(
       parseOperationParams("conversation.compaction.cancel", {
         conversationId: "conv_1",
@@ -336,9 +368,9 @@ describe("Protocol v1 shared schemas", () => {
       parseProtocolResponseData("project.delete", {
         ok: true,
         method: "project.delete",
-        result: { ok: true },
+        result: { operation: projectRemovalOperation },
       }).result,
-      { ok: true },
+      { operation: projectRemovalOperation },
     );
   });
 

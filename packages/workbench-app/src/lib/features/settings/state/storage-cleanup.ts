@@ -1,9 +1,7 @@
 import {
-  type StorageCleanupOperation,
   type StorageCleanupRequest,
   type StorageCleanupTarget,
   type StorageCleanupTargetUsage,
-  storageCleanupUpdatedEventSchema,
 } from "@nervekit/contracts/storage";
 
 export interface StorageCleanupSelection {
@@ -126,31 +124,6 @@ export function selectedFootprint(
     if (target.estimate !== "exact") upTo = true;
   }
   return { bytes, upTo };
-}
-
-export function cleanupProgress(operation: StorageCleanupOperation): number {
-  if (operation.totalTargets <= 0)
-    return operation.status === "succeeded" ? 100 : 0;
-  return Math.min(
-    100,
-    Math.round((operation.completedTargets / operation.totalTargets) * 100),
-  );
-}
-
-export function isCleanupActive(
-  operation?: StorageCleanupOperation | null,
-): boolean {
-  return (
-    !!operation &&
-    ["queued", "running", "cancelling"].includes(operation.status)
-  );
-}
-
-export function parseStorageCleanupEvent(
-  data: unknown,
-): StorageCleanupOperation | undefined {
-  const parsed = storageCleanupUpdatedEventSchema.safeParse(data);
-  return parsed.success ? parsed.data.operation : undefined;
 }
 
 export function targetLabel(target: StorageCleanupTarget): string {

@@ -4,6 +4,7 @@ import { projectNavigatorSignals } from "$lib/features/projects/state/project-na
 import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
+import { maintenance } from "$lib/application/maintenance/maintenance-state.svelte";
 import { openConversation } from "$lib/features/conversations/state/conversation-tabs";
 import {
   deleteConversationAndRefresh,
@@ -42,6 +43,7 @@ const conversationActivityById = $derived(
   searchFocusToken={projectNavigatorSignals.searchFocusToken}
   editorAvailability={status?.runtime.editors}
   terminalAvailability={status?.runtime.terminal}
+  maintenanceActive={maintenance.active}
   onOpenConversation={openConversation}
   onNewConversationInProject={newConversationInProject}
   onOpenProjectInEditor={(projectId, editor) =>
