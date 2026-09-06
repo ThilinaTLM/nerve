@@ -1,4 +1,5 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import type {
   CreateTaskDefinitionRequest,
   UpdateTaskDefinitionRequest,
@@ -14,7 +15,13 @@ import type { TaskPanelDefinition } from "./task-panel-types";
 type Props = {
   open?: boolean;
   definition?: TaskPanelDefinition;
-  initial?: { label?: string; command: string; cwd?: string; port?: number };
+  initial?: {
+    label?: string;
+    command: string;
+    cwd?: string;
+    port?: number;
+    runPolicy?: "single" | "concurrent";
+  };
   projectCwd?: string;
   saving?: boolean;
   title?: string;
@@ -39,11 +46,12 @@ let {
   onOpenChange,
 }: Props = $props();
 
-let label = $state("");
-let commandText = $state("");
-let cwd = $state("");
-let port = $state<number | undefined>(undefined);
-let runPolicy = $state<"single" | "concurrent">("single");
+const source = untrack(() => definition ?? initial);
+let label = $state(source?.label ?? "");
+let commandText = $state(source?.command ?? "");
+let cwd = $state(source?.cwd ?? "");
+let port = $state<number | undefined>(source?.port);
+let runPolicy = $state<"single" | "concurrent">(source?.runPolicy ?? "single");
 
 const dialogTitle = $derived(
   title ?? (definition ? "Edit task" : "Create task"),
@@ -61,16 +69,6 @@ const portValid = $derived(
   port === undefined || (Number.isInteger(port) && port >= 1 && port <= 65_535),
 );
 const canSave = $derived(!saving && commandText.trim().length > 0 && portValid);
-
-$effect(() => {
-  if (!open) return;
-  const source = definition ?? initial;
-  label = source?.label ?? "";
-  commandText = source?.command ?? "";
-  cwd = source?.cwd ?? "";
-  port = source?.port;
-  runPolicy = definition?.runPolicy ?? "single";
-});
 
 function submit() {
   if (!canSave) return;
@@ -90,13 +88,14 @@ function submit() {
   bind:open
   title={dialogTitle}
   description={dialogDescription}
-  class="max-w-xl"
+  size="sm"
   {onOpenChange}
 >
-  <div class="grid gap-4">
+  <div class="grid gap-3">
     <div class="grid gap-1.5">
       <Label for="task-definition-label">Label</Label>
       <Input
+        size="xs"
         id="task-definition-label"
         bind:value={label}
         placeholder="web-dev"
@@ -109,9 +108,9 @@ function submit() {
       <Textarea
         id="task-definition-command"
         bind:value={commandText}
-        rows={4}
+        rows={3}
         placeholder="pnpm dev"
-        class="font-mono text-xs"
+        class="min-h-20 py-1.5 font-mono text-xs md:text-xs"
         disabled={saving}
       />
       <p class="text-xs text-muted-foreground">
@@ -122,6 +121,7 @@ function submit() {
     <div class="grid gap-1.5">
       <Label for="task-definition-port">Port</Label>
       <Input
+        size="xs"
         id="task-definition-port"
         bind:value={port}
         type="number"
@@ -146,6 +146,7 @@ function submit() {
           { value: "concurrent", label: "Concurrent runs" },
         ]}
         disabled={saving}
+        triggerClass="h-7 px-2 text-xs"
       />
       <p class="text-xs text-muted-foreground">
         Single run focuses an existing process. Concurrent runs may start
@@ -156,6 +157,7 @@ function submit() {
     <div class="grid gap-1.5">
       <Label for="task-definition-cwd">Working directory</Label>
       <Input
+        size="xs"
         id="task-definition-cwd"
         bind:value={cwd}
         placeholder={projectCwd
@@ -165,7 +167,8 @@ function submit() {
         disabled={saving}
       />
       <p class="text-xs text-muted-foreground">
-        Leave blank to use the default working directory.
+        Leave blank to use the project directory. Relative paths resolve from
+        it.
       </p>
     </div>
   </div>

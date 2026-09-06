@@ -33,6 +33,7 @@ let {
   onForceKill,
   onRestart,
   onEdit,
+  onDuplicate,
   onDelete,
   onCleanupRuns,
   onCopy,
@@ -46,6 +47,7 @@ let {
   onForceKill?: (taskId: string) => void;
   onRestart?: (taskId: string) => void;
   onEdit?: () => void;
+  onDuplicate?: () => void;
   onDelete?: () => void;
   onCleanupRuns?: (taskIds: readonly string[]) => void;
   onCopy?: (text: string) => void;
@@ -133,6 +135,12 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     icon: Pencil,
     disabled: !capabilities.manageDefinitions,
     onSelect: () => onEdit?.(),
+  });
+  items.push({
+    label: "Duplicate task",
+    icon: Copy,
+    disabled: !capabilities.manageDefinitions,
+    onSelect: () => onDuplicate?.(),
   });
   items.push({
     label: "Delete task",

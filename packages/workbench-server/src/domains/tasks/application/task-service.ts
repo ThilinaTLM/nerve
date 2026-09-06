@@ -1,4 +1,3 @@
-import path from "node:path";
 import type {
   StartTaskRequest,
   TaskPortConflictListener,
@@ -19,6 +18,7 @@ import {
 } from "../model/task-definition-launch.js";
 import { TaskProcessSupervisor } from "./task-process-supervisor.js";
 import { isTerminalTaskStatus } from "../model/task-status.js";
+import { resolveTaskWorkingDirectory } from "../model/task-working-directory.js";
 
 export { isTerminalTaskStatus } from "../model/task-status.js";
 
@@ -780,15 +780,4 @@ function boundedErrorMessage(error: unknown): string {
     0,
     4_096,
   );
-}
-
-export function resolveTaskWorkingDirectory(input: string): string {
-  const flavor =
-    /^[A-Za-z]:[\\/]/.test(input) || input.startsWith("\\")
-      ? path.win32
-      : path.posix;
-  if (!flavor.isAbsolute(input)) {
-    throw new Error("Task working directory must be an absolute path");
-  }
-  return flavor.resolve(input);
 }

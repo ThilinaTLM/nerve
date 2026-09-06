@@ -63,14 +63,18 @@ const selectedSiblingRuns = $derived.by(() => {
     )
     .sort((left, right) => right.startedAt.localeCompare(left.startedAt));
 });
-let addOpen = $state(false);
+type TaskDialogSession =
+  | { kind: "create" }
+  | { kind: "edit"; definition: TaskPanelDefinition }
+  | { kind: "duplicate"; definition: TaskPanelDefinition }
+  | { kind: "save-run"; task: TaskRecord };
+
+let taskDialog = $state<TaskDialogSession | undefined>();
 let saving = $state(false);
 let confirmPruneOpen = $state(false);
 let forceKillTask = $state<TaskRecord | undefined>();
-let editDefinition = $state<TaskPanelDefinition | undefined>();
 let deleteDefinition = $state<TaskPanelDefinition | undefined>();
 let cleanupRunIds = $state<readonly string[]>([]);
-let saveSourceTask = $state<TaskRecord | undefined>();
 let panelWidth = $state(0);
 let runsRegion = $state<HTMLDivElement | null>(null);
 let runsFooter = $state<HTMLDivElement | null>(null);
@@ -111,30 +115,42 @@ const capabilities = $derived<TaskEntryCapabilities>({
   manageDefinitions: model.capabilities.manageDefinitions.enabled,
 });
 
-async function createDefinition(
-  input: CreateTaskDefinitionRequest,
+async function saveDefinition(
+  input: CreateTaskDefinitionRequest | UpdateTaskDefinitionRequest,
 ): Promise<void> {
+  const session = taskDialog;
+  if (!session) return;
   saving = true;
   try {
-    await panelActions.createDefinition(input);
-    addOpen = false;
-    saveSourceTask = undefined;
+    if (session.kind === "edit") {
+      await panelActions.updateDefinition(session.definition, input);
+    } else {
+      await panelActions.createDefinition({
+        ...input,
+        ...(session.kind === "save-run"
+          ? { sourceTaskId: session.task.id }
+          : {}),
+      });
+    }
+    taskDialog = undefined;
   } finally {
     saving = false;
   }
 }
 
-async function updateDefinition(
-  input: UpdateTaskDefinitionRequest,
-): Promise<void> {
-  if (!editDefinition) return;
-  saving = true;
-  try {
-    await panelActions.updateDefinition(editDefinition, input);
-    editDefinition = undefined;
-  } finally {
-    saving = false;
+function dialogInitial(session: TaskDialogSession) {
+  if (session.kind === "duplicate") {
+    const { label, command, cwd, port, runPolicy } = session.definition;
+    return { label, command, cwd, port, runPolicy };
   }
+  if (session.kind === "save-run") {
+    return {
+      label: session.task.displayName ?? session.task.name,
+      command: session.task.command,
+      cwd: session.task.cwd === model.defaultCwd ? undefined : session.task.cwd,
+    };
+  }
+  return undefined;
 }
 
 async function cleanupRuns(): Promise<void> {
@@ -200,7 +216,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
               size="xs"
               variant="outline"
               disabled={!model.capabilities.manageDefinitions.enabled}
-              onclick={() => (addOpen = true)}
+              onclick={() => (taskDialog = { kind: "create" })}
             >
               <Plus />
               New task
@@ -219,7 +235,16 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
               onCancel={(id) => void panelActions.cancelTask(id)}
               onForceKill={requestForceKill}
               onRestart={(id) => void panelActions.restartTask(id)}
-              onEdit={() => (editDefinition = entry.definition)}
+              onEdit={() =>
+                (taskDialog = {
+                  kind: "edit",
+                  definition: entry.definition,
+                })}
+              onDuplicate={() =>
+                (taskDialog = {
+                  kind: "duplicate",
+                  definition: entry.definition,
+                })}
               onDelete={() => (deleteDefinition = entry.definition)}
               onCleanupRuns={(ids) => (cleanupRunIds = ids)}
               onCopy={(text) => void panelActions.copyText(text)}
@@ -257,7 +282,8 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
               onRestart={(id) => void panelActions.restartTask(id)}
               onRemove={(id) => void panelActions.removeTask(id)}
               onCopy={(text) => void panelActions.copyText(text)}
-              onSaveAsDefinition={(task) => (saveSourceTask = task)}
+              onSaveAsDefinition={(task) =>
+                (taskDialog = { kind: "save-run", task })}
             />
           {/each}
         </PanelList>
@@ -291,7 +317,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
               icon={Plus}
               label="Create task"
               disabled={!model.capabilities.manageDefinitions.enabled}
-              onclick={() => (addOpen = true)}
+              onclick={() => (taskDialog = { kind: "create" })}
             />
           {/if}
         {/snippet}
@@ -346,48 +372,39 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
   onRerunDefinition={rerunDefinition}
   onRemove={(id) => void panelActions.removeTask(id)}
   onCopy={(text) => void panelActions.copyText(text)}
-  onSaveAsDefinition={(task) => (saveSourceTask = task)}
+  onSaveAsDefinition={(task) => (taskDialog = { kind: "save-run", task })}
 />
-<TaskDefinitionDialog
-  bind:open={addOpen}
-  projectCwd={model.defaultCwd}
-  {saving}
-  onSave={(input) => void createDefinition(input)}
-/>
-<TaskDefinitionDialog
-  open={Boolean(editDefinition)}
-  definition={editDefinition}
-  projectCwd={model.defaultCwd}
-  {saving}
-  onSave={(input) => void updateDefinition(input)}
-  onOpenChange={(open) => {
-    if (!open) editDefinition = undefined;
-  }}
-/>
-<TaskDefinitionDialog
-  open={Boolean(saveSourceTask)}
-  projectCwd={model.defaultCwd}
-  initial={saveSourceTask
-    ? {
-        label: saveSourceTask.displayName ?? saveSourceTask.name,
-        command: saveSourceTask.command,
-        cwd:
-          saveSourceTask.cwd === model.defaultCwd
-            ? undefined
-            : saveSourceTask.cwd,
-      }
-    : undefined}
-  title="Save as task definition"
-  description="Create a reusable definition from this run. The run stays linked to it."
-  submitLabel="Save task"
-  {saving}
-  onSave={(input) =>
-    saveSourceTask &&
-    void createDefinition({ ...input, sourceTaskId: saveSourceTask.id })}
-  onOpenChange={(open) => {
-    if (!open) saveSourceTask = undefined;
-  }}
-/>
+{#if taskDialog}
+  {@const session = taskDialog}
+  {#key session}
+    <TaskDefinitionDialog
+      open
+      definition={session.kind === "edit" ? session.definition : undefined}
+      initial={dialogInitial(session)}
+      projectCwd={model.defaultCwd}
+      title={session.kind === "duplicate"
+        ? "Duplicate task"
+        : session.kind === "save-run"
+          ? "Save as task definition"
+          : undefined}
+      description={session.kind === "duplicate"
+        ? "Create a new task definition from this saved task."
+        : session.kind === "save-run"
+          ? "Create a reusable definition from this run. The run stays linked to it."
+          : undefined}
+      submitLabel={session.kind === "duplicate"
+        ? "Create duplicate"
+        : session.kind === "save-run"
+          ? "Save task"
+          : undefined}
+      {saving}
+      onSave={(input) => void saveDefinition(input)}
+      onOpenChange={(open) => {
+        if (!open) taskDialog = undefined;
+      }}
+    />
+  {/key}
+{/if}
 <ConfirmDialog
   open={Boolean(model.portConflict)}
   destructive

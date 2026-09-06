@@ -2,6 +2,7 @@ import type { ProjectRecord } from "@nervekit/contracts/projects";
 import type { CreateTaskDefinitionRequest } from "@nervekit/contracts/task-definitions";
 import type { TaskPortConflictListener } from "@nervekit/contracts/tasks";
 import type { WorkbenchTaskService } from "../tasks/adapters/workbench-task-service.js";
+import { resolveTaskWorkingDirectory } from "../tasks/model/task-working-directory.js";
 import type { TaskDefinitionService } from "./task-definition.service.js";
 
 export class TaskDefinitionOperations {
@@ -45,7 +46,10 @@ export class TaskDefinitionOperations {
         definitionPort: definition.port,
         terminateListeners,
         projectId: project.id,
-        cwd: definition.cwd ?? project.dir,
+        cwd: resolveTaskWorkingDirectory(
+          definition.cwd ?? project.dir,
+          project.dir,
+        ),
         command: definition.command,
         displayName: definition.label ?? definition.command,
         origin: { kind: "utility_panel" },
