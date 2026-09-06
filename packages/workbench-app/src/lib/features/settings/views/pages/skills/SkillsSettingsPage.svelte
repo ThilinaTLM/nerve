@@ -207,8 +207,7 @@ function copyPath(path: string): void {
           >
             {#snippet badges()}
               {#if entry.overrideNote}
-                <Badge variant="secondary" size="xs">{entry.overrideNote}</Badge
-                >
+                <Badge variant="neutral">{entry.overrideNote}</Badge>
               {/if}
             {/snippet}
             {#snippet actions()}

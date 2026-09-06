@@ -1,6 +1,6 @@
 /*
  * Shared modal chrome for DialogShell and ConfirmDialog/AlertDialog.
- * One visual language across every modal: flat sidebar-tinted scrim, card
+ * One visual language across every modal: flat panel-tinted scrim, card
  * surface with the theme radius and compact, unified chrome. Entrance and
  * exit motion comes from tw-animate data-state utilities applied by the
  * components; content inside a dialog body is styled by consumers with
@@ -11,7 +11,7 @@
   z-index: 50;
   inset: 0;
   isolation: isolate;
-  background: color-mix(in oklab, var(--sidebar) 72%, transparent);
+  background: color-mix(in oklab, var(--panel) 72%, transparent);
 }
 
 .dialog-content {

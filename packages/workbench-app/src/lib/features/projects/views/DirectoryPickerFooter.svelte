@@ -43,7 +43,7 @@ let {
     {#each signals as signal (signal)}
       {@const meta = signalMeta[signal]}
       {@const Icon = meta.icon}
-      <Badge tone={meta.tone ?? "neutral"} size="xs" title={meta.title}>
+      <Badge variant={meta.tone ?? "neutral"} title={meta.title}>
         <Icon size={11} strokeWidth={2.2} />{meta.label}
       </Badge>
     {/each}

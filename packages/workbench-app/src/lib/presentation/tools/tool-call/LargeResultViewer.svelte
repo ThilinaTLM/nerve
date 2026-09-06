@@ -14,7 +14,7 @@ const items = $derived(segmentRawText(text));
     estimateSize={() => 18}
     viewportAriaLabel="Complete tool result"
     viewportTabIndex={0}
-    viewportClass="max-h-(--result-max-height) rounded-sm border bg-sidebar p-2 font-mono text-xs text-sidebar-foreground"
+    viewportClass="max-h-(--result-max-height) rounded-sm border bg-well p-2 font-mono text-xs text-foreground"
   >
     {#snippet row({ item })}
       <div class="whitespace-pre-wrap break-all leading-[1.35]">

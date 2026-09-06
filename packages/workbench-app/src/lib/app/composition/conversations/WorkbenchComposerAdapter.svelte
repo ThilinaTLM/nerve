@@ -437,9 +437,9 @@ function handleMicContextMenu(event: MouseEvent) {
       class="composer-transcription-status"
     />
     <Button
-      variant={recording ? "destructive" : "secondary"}
+      variant={recording ? "destructive" : "outline"}
       size="icon-sm"
-      class={`rounded-full ${recording ? "inset-ring-1 inset-ring-destructive/28" : ""}`}
+      class={`${recording ? "inset-ring-1 inset-ring-destructive/28" : ""}`}
       type="button"
       disabled={micDisabled}
       onclick={toggleRecording}

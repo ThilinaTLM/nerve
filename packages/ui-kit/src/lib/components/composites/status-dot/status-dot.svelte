@@ -8,10 +8,10 @@ export const statusDotVariants = tv({
       neutral:
         "bg-muted-foreground border-muted-foreground text-muted-foreground",
       accent: "bg-foreground border-foreground text-foreground",
-      running: "bg-info border-info text-info",
-      good: "bg-success border-success text-success",
-      warn: "bg-warning border-warning text-warning",
-      danger:
+      info: "bg-info border-info text-info",
+      success: "bg-success border-success text-success",
+      warning: "bg-warning border-warning text-warning",
+      destructive:
         "bg-destructive-solid border-destructive-solid text-destructive-solid",
     },
     size: {

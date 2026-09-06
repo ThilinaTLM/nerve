@@ -232,7 +232,7 @@ const title = $derived.by(() => {
               {/if}
             </span>
             {#if entry.active}
-              <Badge size="xs" tone="neutral">Active</Badge>
+              <Badge variant="neutral">Active</Badge>
             {/if}
           </div>
 

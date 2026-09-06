@@ -45,7 +45,7 @@ let {
     >
       <Button
         class="rounded-full shadow-sm"
-        variant="secondary"
+        variant="outline"
         size="sm"
         ariaLabel="Scroll to latest"
         title="Scroll to latest"

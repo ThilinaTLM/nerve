@@ -9,7 +9,7 @@ import Equal from "@lucide/svelte/icons/equal";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import SquareCheckBig from "@lucide/svelte/icons/square-check-big";
 import Zap from "@lucide/svelte/icons/zap";
-import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Component } from "svelte";
 import { jiraPriorityTone } from "./jira-display";
 
@@ -30,7 +30,7 @@ export function jiraIssueTypeIcon(issueType?: string): Component {
  */
 export function jiraPriorityMeta(
   priority?: string,
-): { icon: Component; tone: BadgeTone } | undefined {
+): { icon: Component; tone: StatusTone } | undefined {
   const tone = jiraPriorityTone(priority);
   if (!tone) return undefined;
   // A defined tone guarantees one of the known priority keys below.

@@ -157,9 +157,9 @@ const toneClass = $derived(
       hoverable && "panel-row-hoverable",
       actions && overlayActions && "relative",
       stacked
-        ? "min-h-11 gap-2 py-2.5 pr-3 text-xs"
+        ? "min-h-10 gap-2 py-2 pr-3 text-xs"
         : labelLines === 2
-          ? "h-10 gap-2 py-0.5 pr-3 text-xs"
+          ? "h-9 gap-2 py-0.5 pr-3 text-xs"
           : dense
             ? "h-5 gap-1 pr-1 text-xs"
             : "h-7 gap-1.5 pr-1.5 text-xs",

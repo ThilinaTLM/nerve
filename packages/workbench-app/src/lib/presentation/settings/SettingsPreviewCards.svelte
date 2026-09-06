@@ -61,7 +61,7 @@ function choose(next: string): void {
       aria-checked={active}
       aria-label={option.label}
       class={cn(
-        "group/opt grid min-w-0 cursor-pointer gap-1.5 rounded-md border bg-accent/90 p-1.5 text-left transition-colors hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        "group/opt grid min-w-0 cursor-pointer gap-1.5 rounded-md border bg-accent/90 p-1.5 text-left transition-colors hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
         active ? "border-primary" : "border-transparent",
       )}
       onclick={() => choose(option.value)}
@@ -79,7 +79,7 @@ function choose(next: string): void {
               index === 1 && "border-l border-border/40",
             )}
           >
-            <span class="w-1.5 flex-none rounded-xs bg-sidebar"></span>
+            <span class="w-1.5 flex-none rounded-sm bg-panel"></span>
             <span class="grid min-w-0 flex-1 content-start gap-1">
               <span
                 class={cn("h-1 w-full rounded-full", previewForegroundClass)}

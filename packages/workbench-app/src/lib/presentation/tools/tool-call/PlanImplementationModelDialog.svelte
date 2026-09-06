@@ -233,7 +233,7 @@ $effect(() => {
             {@const active = level === selectedThinkingLevel}
             <button
               type="button"
-              class={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              class={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
                 active
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-border bg-input text-muted-foreground hover:border-primary/40 hover:text-foreground"

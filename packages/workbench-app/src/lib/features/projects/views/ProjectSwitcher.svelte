@@ -71,8 +71,8 @@ function tabLabel(item: ProjectSwitcherItem): string {
 }
 
 function conversationSignalClass(tone: ProjectActivitySignal["tone"]): string {
-  if (tone === "warn") return "bg-warning text-warning-foreground";
-  if (tone === "danger")
+  if (tone === "warning") return "bg-warning text-warning-foreground";
+  if (tone === "destructive")
     return "bg-destructive-solid text-destructive-solid-foreground";
   return "bg-info text-info-foreground";
 }
@@ -193,7 +193,7 @@ function handleSubmit(event: Event) {
                     menuItems={buildMenuItems?.(item) ?? []}
                     menuDisabled={!buildMenuItems}
                     hover="default"
-                    class={`group w-full cursor-pointer items-center gap-2.5 border border-transparent px-2.5 py-2 text-left focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none ${selected ? "bg-accent/90 hover:bg-accent dark:bg-accent/80 dark:hover:bg-accent/80" : "hover:bg-accent/90 dark:hover:bg-accent/70"}`}
+                    class={`group w-full cursor-pointer items-center gap-2.5 border border-transparent px-2.5 py-2 text-left focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none ${selected ? "bg-accent/90 hover:bg-accent dark:bg-accent/80 dark:hover:bg-accent/80" : "hover:bg-accent/90 dark:hover:bg-accent/70"}`}
                     onclick={() => chooseProject(item)}
                     onkeydown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {

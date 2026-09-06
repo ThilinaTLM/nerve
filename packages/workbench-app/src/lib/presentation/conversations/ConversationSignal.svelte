@@ -1,5 +1,6 @@
 <script lang="ts">
 import Folder from "@lucide/svelte/icons/folder";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { Snippet } from "svelte";
 import NerveBadge from "../brand/NerveBadge.svelte";
 import type { ConversationStarter } from "./conversation-starters";
@@ -39,11 +40,11 @@ const launchpad = $derived(variant === "launchpad");
       class={`relative flex items-center justify-center ${launchpad ? "size-20" : "size-14"}`}
     >
       <div
-        class={`absolute rotate-6 rounded-2xl border bg-muted/50 ${launchpad ? "size-16" : "size-12"}`}
+        class={`absolute rotate-6 rounded-lg border bg-muted/50 ${launchpad ? "size-16" : "size-12"}`}
         aria-hidden="true"
       ></div>
       <div
-        class={`absolute -rotate-6 rounded-2xl border border-border/70 bg-background ${launchpad ? "size-14" : "size-10"}`}
+        class={`absolute -rotate-6 rounded-lg border border-border/70 bg-background ${launchpad ? "size-14" : "size-10"}`}
         aria-hidden="true"
       ></div>
       <NerveBadge
@@ -77,9 +78,11 @@ const launchpad = $derived(variant === "launchpad");
       >
         {#each starters as starter (starter.id)}
           {@const Icon = starter.icon}
-          <button
+          <Button
             type="button"
-            class="group inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border bg-card px-4 text-xs font-medium text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-50 @sm:text-sm"
+            variant="outline"
+            size="lg"
+            class="group gap-2 bg-card text-xs shadow-sm hover:border-primary/40 @sm:text-sm"
             disabled={startersDisabled}
             onclick={() => onSelectStarter?.(starter)}
           >
@@ -89,14 +92,14 @@ const launchpad = $derived(variant === "launchpad");
               aria-hidden="true"
             />
             <span>{starter.label}</span>
-          </button>
+          </Button>
         {/each}
       </div>
     {/if}
 
     {#if projectLabel}
       <div
-        class={`${starters.length > 0 || launchpad ? "mt-4" : "mt-3"} inline-flex max-w-md items-center gap-1.5 rounded-full border bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground`}
+        class={`${starters.length > 0 || launchpad ? "mt-4" : "mt-3"} inline-flex max-w-md items-center gap-1.5 rounded-md border bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground`}
         title={projectPath}
         aria-label={projectPath
           ? `Current project ${projectPath}`

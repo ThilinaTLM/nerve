@@ -46,7 +46,7 @@ const hasCheckDetails = $derived(pr.checks.runs.length > 0);
       >{pr.title}</span
     >
     {#if pr.isDraft}
-      <Badge tone="neutral" size="xs">draft</Badge>
+      <Badge variant="neutral">draft</Badge>
     {/if}
   </button>
 
@@ -61,7 +61,7 @@ const hasCheckDetails = $derived(pr.checks.runs.length > 0);
       class="rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none"
       onclick={onToggleChecks}
     >
-      <Badge tone={checksTone(pr.checks)} size="xs">
+      <Badge variant={checksTone(pr.checks)}>
         {#if pr.checks.status === "passing"}
           <Check class="size-3" aria-hidden="true" />
         {:else if pr.checks.status === "failing"}

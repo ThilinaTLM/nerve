@@ -194,7 +194,7 @@ const permissionRuleSetLabel = $derived(
       {/if}
       <Button
         size="sm"
-        variant="secondary"
+        variant="outline"
         disabled={Boolean(decision)}
         onclick={() => void decide("deny")}
       >

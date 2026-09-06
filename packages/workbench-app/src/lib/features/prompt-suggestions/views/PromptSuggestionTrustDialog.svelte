@@ -73,7 +73,7 @@ function decideLater() {
               >{request.label}</strong
             >
             <span
-              class="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground"
+              class="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground"
               >{request.sourceKind}</span
             >
           </div>

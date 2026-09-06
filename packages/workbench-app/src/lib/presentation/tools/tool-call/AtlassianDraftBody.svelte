@@ -48,7 +48,7 @@ const showText = $derived(
 {/snippet}
 
 {#if fields.length > 0}
-  <div class="grid gap-1.5 rounded-sm border bg-sidebar px-2.5 py-2">
+  <div class="grid gap-1.5 rounded-sm border bg-well px-2.5 py-2">
     <dl
       class="m-0 grid gap-x-3 gap-y-1 text-xs sm:grid-cols-[max-content_minmax(0,1fr)]"
     >

@@ -10,6 +10,7 @@ import {
   setRequestContext,
 } from "../adapters/http/request-context.js";
 import { serveStatic } from "../adapters/http/static-files.js";
+import { documentStyles } from "../infrastructure/documents/index.js";
 import { mountApiRoutes } from "../adapters/http/routes/index.js";
 import type { ServerRuntime } from "./runtime/server-runtime.js";
 import { version } from "./version.js";
@@ -89,17 +90,10 @@ function mobileSetupHtml(input: {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nerve mobile HTTPS setup</title>
-    <style>
-      :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, sans-serif; background: #070a10; color: #eef2ff; }
-      body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; }
-      main { max-width: 760px; border: 1px solid #243047; border-radius: 20px; padding: 24px; background: #0b1020; }
-      h1 { margin: 0 0 12px; }
-      p, li { color: #b9c4d8; line-height: 1.55; }
-      a { color: #7dd3fc; }
-      .actions { display: grid; gap: 12px; margin: 20px 0; }
-      .button { display: inline-block; border: 1px solid #3b82f6; border-radius: 10px; padding: 10px 14px; color: #eff6ff; background: #1d4ed8; text-decoration: none; font-weight: 600; }
-      code { word-break: break-all; background: #020617; border: 1px solid #243047; border-radius: 8px; padding: 3px 6px; }
-      .warning { border: 1px solid #854d0e; border-radius: 12px; padding: 12px; background: #451a03; color: #fde68a; }
+    <style>${documentStyles()}
+      body { display: grid; place-items: center; padding: 1.5rem; }
+      main { max-width: 760px; padding: 1.5rem; }
+      .actions { display: grid; gap: 0.75rem; margin: 1.25rem 0; }
     </style>
   </head>
   <body>

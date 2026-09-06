@@ -16,7 +16,7 @@ let { checks }: Props = $props();
 
 <GitHubPrSection title="Checks" contentClass="p-0">
   {#snippet actions()}
-    <Badge tone={checksTone(checks)} size="xs">
+    <Badge variant={checksTone(checks)}>
       {#if checks.status === "passing"}
         <Check class="size-3" aria-hidden="true" />
       {:else if checks.status === "failing"}

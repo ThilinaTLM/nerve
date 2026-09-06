@@ -3,7 +3,7 @@ import type {
   GithubChecksSummary,
   GitRepoSummary,
 } from "@nervekit/contracts/git";
-import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 
 const REPO_LABEL_SHORTENING = [
   { minCount: 9, maxLength: 12 },
@@ -77,14 +77,14 @@ export function fileStatusLabel(
   }
 }
 
-export function checksTone(checks: GithubChecksSummary): BadgeTone {
+export function checksTone(checks: GithubChecksSummary): StatusTone {
   switch (checks.status) {
     case "passing":
-      return "good";
+      return "success";
     case "failing":
-      return "danger";
+      return "destructive";
     case "pending":
-      return "warn";
+      return "warning";
     default:
       return "neutral";
   }

@@ -15,7 +15,7 @@ const bars = $derived(Array.from({ length: Math.max(1, rows) }, (_, i) => i));
 <!-- Placeholder silhouette for result cards while a tool call executes. -->
 {#if variant === "text"}
   <div
-    class="grid gap-1.5 rounded-sm border border-border bg-sidebar p-2.5"
+    class="grid gap-1.5 rounded-sm border border-border bg-well p-2.5"
     aria-hidden="true"
   >
     {#each bars as bar (bar)}

@@ -26,22 +26,22 @@ let {
 
 // Drafting/running states spin; HIL waits and terminal states show static
 // glyphs. Tone drives the theme color in both cases.
-const spin = $derived(!waitingForUser && (pulse || tone === "running"));
+const spin = $derived(!waitingForUser && (pulse || tone === "info"));
 
 const colorClass: Record<StatusTone, string> = {
-  running: "text-info",
-  good: "text-success",
-  warn: "text-warning",
-  danger: "text-destructive",
+  info: "text-info",
+  success: "text-success",
+  warning: "text-warning",
+  destructive: "text-destructive",
   neutral: "text-muted-foreground",
   accent: "text-muted-foreground",
 };
 
 const terminalIcon = {
-  running: Circle,
-  good: CircleCheck,
-  warn: CircleAlert,
-  danger: CircleX,
+  info: Circle,
+  success: CircleCheck,
+  warning: CircleAlert,
+  destructive: CircleX,
   neutral: Circle,
   accent: Circle,
 } satisfies Record<StatusTone, typeof Circle>;

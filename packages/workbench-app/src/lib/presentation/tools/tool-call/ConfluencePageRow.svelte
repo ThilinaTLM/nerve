@@ -5,7 +5,7 @@ import type { ConfluencePageSummaryPayload } from "@nervekit/contracts/tools";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import {
   confluencePageUrl,
-  confluenceStatusBadgeTone,
+  confluenceStatusBadgeVariant,
 } from "../views/confluence-display";
 import { basename } from "../views/tool-presentation-helpers";
 
@@ -59,14 +59,14 @@ const files = $derived(
           <ExternalLink size={11} strokeWidth={2} class="opacity-70" />
         </a>
       {:else}
-        <span class="font-mono text-xs font-semibold text-sidebar-foreground"
+        <span class="font-mono text-xs font-semibold text-foreground"
           >{page.id}</span
         >
       {/if}
     </span>
     {#if page.title}
       <span
-        class="min-w-0 break-words text-xs font-medium leading-snug text-sidebar-foreground"
+        class="min-w-0 break-words text-xs font-medium leading-snug text-foreground"
         >{page.title}</span
       >
     {/if}
@@ -75,12 +75,12 @@ const files = $derived(
   {#if hasChips}
     <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
       {#if page.status}
-        <Badge tone={confluenceStatusBadgeTone(page.status)} size="xs"
+        <Badge variant={confluenceStatusBadgeVariant(page.status)}
           >{page.status}</Badge
         >
       {/if}
       {#if page.versionNumber !== undefined}
-        <Badge tone="neutral" size="xs">v{page.versionNumber}</Badge>
+        <Badge variant="neutral">v{page.versionNumber}</Badge>
       {/if}
       {#if page.spaceKey}
         <span class="text-xs text-muted-foreground">Space {page.spaceKey}</span>

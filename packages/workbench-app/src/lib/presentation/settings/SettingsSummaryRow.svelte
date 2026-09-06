@@ -18,9 +18,9 @@ type Props = {
 let { title, status, class: className, meta, actions }: Props = $props();
 
 const statusTones: Record<SettingsStatus, StatusTone> = {
-  ok: "good",
-  warning: "warn",
-  error: "danger",
+  ok: "success",
+  warning: "warning",
+  error: "destructive",
   muted: "neutral",
 };
 </script>

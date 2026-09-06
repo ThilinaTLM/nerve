@@ -40,10 +40,10 @@ const reasonLabel = $derived.by(() => {
 });
 
 const dotTone = $derived.by<StatusTone>(() => {
-  if (notice.state === "failed") return "danger";
-  if (notice.state === "cancelled") return "warn";
-  if (notice.state === "running") return "running";
-  return "good";
+  if (notice.state === "failed") return "destructive";
+  if (notice.state === "cancelled") return "warning";
+  if (notice.state === "running") return "info";
+  return "success";
 });
 
 const contextPercent = $derived.by(() => {

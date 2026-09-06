@@ -105,7 +105,7 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
   {#if pathQuery}
     <button
       type="button"
-      class="group flex w-full items-center gap-2.5 rounded-md border border-transparent bg-transparent px-2.5 py-2 text-left hover:bg-accent/60 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+      class="group flex w-full items-center gap-2.5 rounded-md border border-transparent bg-transparent px-2.5 py-2 text-left hover:bg-accent/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       onclick={onBrowsePath}
     >
       <span
@@ -144,7 +144,7 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
             itemKey={item.key}
             menuItems={projectMenu(item)}
             hover="default"
-            class={`group w-full cursor-pointer items-center gap-2.5 border border-transparent px-2.5 py-1.5 text-left focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none ${
+            class={`group w-full cursor-pointer items-center gap-2.5 border border-transparent px-2.5 py-1.5 text-left focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none ${
               selected
                 ? "bg-accent/90 hover:bg-accent dark:bg-accent/80 dark:hover:bg-accent/80"
                 : "hover:bg-accent/90 dark:hover:bg-accent/70"

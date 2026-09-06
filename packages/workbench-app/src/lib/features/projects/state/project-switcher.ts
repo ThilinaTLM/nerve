@@ -45,14 +45,14 @@ export function summarizeProjectActivity(
     const activity = activityById[conversation.id];
     if (!activity) continue;
     if (activity.needsUser) summary.needsUser += 1;
-    else if (activity.tone === "danger") summary.failed += 1;
+    else if (activity.tone === "destructive") summary.failed += 1;
     else if (activity.busy) summary.running += 1;
   }
   return summary;
 }
 
 export type ProjectActivitySignal = {
-  tone: Extract<StatusTone, "warn" | "danger" | "running">;
+  tone: Extract<StatusTone, "warning" | "destructive" | "info">;
   count: number;
   /** Human-readable breakdown of current actionable activity. */
   summary: string;
@@ -74,10 +74,10 @@ export function projectActivitySignal(
   ].filter(Boolean);
   if (!parts.length) return undefined;
   const tone: ProjectActivitySignal["tone"] = activity.needsUser
-    ? "warn"
+    ? "warning"
     : activity.failed
-      ? "danger"
-      : "running";
+      ? "destructive"
+      : "info";
   return {
     tone,
     count:

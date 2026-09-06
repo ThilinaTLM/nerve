@@ -159,10 +159,10 @@ function agentStatusIcon(agent: AgentRecord): typeof HatGlasses {
 const STATUS_TONE_TEXT: Record<StatusTone, string> = {
   neutral: "text-muted-foreground",
   accent: "text-foreground",
-  running: "text-info",
-  good: "text-success",
-  warn: "text-warning",
-  danger: "text-destructive",
+  info: "text-info",
+  success: "text-success",
+  warning: "text-warning",
+  destructive: "text-destructive",
 };
 
 function agentStatusIconClass(agent: AgentRecord): string {

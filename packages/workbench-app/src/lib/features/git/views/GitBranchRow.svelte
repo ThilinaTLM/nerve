@@ -70,10 +70,10 @@ const canDelete = $derived(
 
   <div class="flex shrink-0 items-center gap-1 pr-2">
     {#if branch.current}
-      <Badge tone="good" size="xs">current</Badge>
+      <Badge variant="success">current</Badge>
     {/if}
     {#if isBase}
-      <Badge tone="running" size="xs">base</Badge>
+      <Badge variant="info">base</Badge>
     {/if}
     {#if row.pullRequest}
       <Button

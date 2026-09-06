@@ -47,7 +47,7 @@ describe("conversation activity", () => {
       planReviews: [],
     });
 
-    assert.equal(result["conversation-1"]?.tone, "danger");
+    assert.equal(result["conversation-1"]?.tone, "destructive");
     assert.equal(result["conversation-1"]?.source, "agent");
   });
 
@@ -121,7 +121,7 @@ describe("conversation activity", () => {
       conversationId: "conversation-1",
       agent: agent("agent-1", "conversation-1", "error"),
     });
-    assert.equal(failed.tone, "danger");
+    assert.equal(failed.tone, "destructive");
     assert.equal(failed.indicator, "error");
 
     const failedWithPendingInput = conversationActivityForRecord({
@@ -140,7 +140,7 @@ describe("conversation activity", () => {
         } as NonNullable<ConversationViewState["activeRun"]>,
       }),
     });
-    assert.equal(interrupted.tone, "danger");
+    assert.equal(interrupted.tone, "destructive");
     assert.equal(interrupted.pulse, false);
     assert.equal(interrupted.busy, false);
 
@@ -198,7 +198,7 @@ describe("conversation activity", () => {
       },
       runtimeStatusClearedAt: "2026-01-01T00:02:00.000Z",
     });
-    assert.equal(laterFailure.tone, "danger");
+    assert.equal(laterFailure.tone, "destructive");
     assert.equal(laterFailure.clearableFailure, true);
   });
 

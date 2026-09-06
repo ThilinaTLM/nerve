@@ -134,7 +134,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(view.otherActiveTasks?.[0]?.name, "storybook");
     assert.equal(view.otherActiveTaskCount, 1);
     const presentation = toolPresentation(view, tc);
-    assert.equal(presentation.dotTone, "good");
+    assert.equal(presentation.dotTone, "success");
     assert.equal(presentation.dotPulse, false);
   });
 

@@ -17,7 +17,7 @@ const name = $derived(user.displayName ?? user.emailAddress ?? user.accountId);
   >
   <div class="grid min-w-0 flex-1 gap-0.5">
     <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-      <span class="min-w-0 truncate text-xs font-medium text-sidebar-foreground"
+      <span class="min-w-0 truncate text-xs font-medium text-foreground"
         >{name}</span
       >
       {#if user.emailAddress && user.emailAddress !== name}
@@ -26,10 +26,10 @@ const name = $derived(user.displayName ?? user.emailAddress ?? user.accountId);
         >
       {/if}
       {#if user.accountType}
-        <Badge tone="neutral" size="xs">{user.accountType}</Badge>
+        <Badge variant="neutral">{user.accountType}</Badge>
       {/if}
       {#if user.active === false}
-        <Badge tone="warn" size="xs">inactive</Badge>
+        <Badge variant="warning">inactive</Badge>
       {/if}
     </div>
     <span class="truncate font-mono text-xs text-muted-foreground/80"

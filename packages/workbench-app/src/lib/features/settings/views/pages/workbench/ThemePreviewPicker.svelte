@@ -1,4 +1,5 @@
 <script lang="ts">
+import Moon from "@lucide/svelte/icons/moon";
 import Palette from "@lucide/svelte/icons/palette";
 import TreePine from "@lucide/svelte/icons/tree-pine";
 import Waves from "@lucide/svelte/icons/waves";
@@ -11,6 +12,7 @@ const options: SettingsPreviewOption[] = [
   { value: "nerve", label: "Nerve", icon: Palette },
   { value: "ocean", label: "Ocean", icon: Waves },
   { value: "forest", label: "Forest", icon: TreePine },
+  { value: "midnight", label: "Midnight", icon: Moon },
 ];
 
 let {

@@ -221,7 +221,7 @@ $effect(() => {
     data-slot="sheet-content"
     data-side={side}
     class={cn(
-      "bg-sidebar text-foreground data-open:animate-in data-closed:animate-out fixed z-50 flex flex-col overflow-hidden shadow-lg outline-none duration-200",
+      "bg-panel text-foreground data-open:animate-in data-closed:animate-out fixed z-50 flex flex-col overflow-hidden shadow-lg outline-none duration-200",
       side === "right" &&
         "data-open:slide-in-from-right data-closed:slide-out-to-right inset-y-0 right-0 h-full w-[min(90vw,24rem)] border-l",
       side === "left" &&

@@ -1,4 +1,4 @@
-import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 
 export type ConfluenceTone =
   | "default"
@@ -7,23 +7,23 @@ export type ConfluenceTone =
   | "info"
   | "muted";
 
-const TONE_TO_BADGE: Record<ConfluenceTone, BadgeTone> = {
-  success: "good",
-  warning: "warn",
-  info: "running",
+const TONE_TO_BADGE: Record<ConfluenceTone, StatusTone> = {
+  success: "success",
+  warning: "warning",
+  info: "info",
   muted: "neutral",
   default: "neutral",
 };
 
-export function confluenceStatusBadgeTone(
+export function confluenceStatusBadgeVariant(
   status: string | undefined,
-): BadgeTone {
+): StatusTone {
   return TONE_TO_BADGE[confluenceStatusTone(status)];
 }
 
-export function confluenceOutcomeBadgeTone(
+export function confluenceOutcomeBadgeVariant(
   status: string | undefined,
-): BadgeTone {
+): StatusTone {
   return TONE_TO_BADGE[confluenceOutcomeTone(status)];
 }
 

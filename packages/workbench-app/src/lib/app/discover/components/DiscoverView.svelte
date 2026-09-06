@@ -42,7 +42,7 @@ let {
               Based on the setup and walkthroughs you have not completed yet.
             </p>
           </div>
-          <Badge tone="warn" size="xs">
+          <Badge variant="warning">
             {sections.startHere.length} remaining
           </Badge>
         </div>

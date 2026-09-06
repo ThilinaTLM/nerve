@@ -70,14 +70,14 @@ export function statusDot(
   switch (toolCall.status) {
     case "failed":
     case "denied":
-      return { tone: "danger", pulse: false };
+      return { tone: "destructive", pulse: false };
     case "cancelled":
-      return { tone: "warn", pulse: false };
+      return { tone: "warning", pulse: false };
     case "running":
     case "committed":
-      return { tone: "running", pulse: true };
+      return { tone: "info", pulse: true };
     case "waiting":
-      return { tone: "warn", pulse: true };
+      return { tone: "warning", pulse: true };
     default:
       break;
   }
@@ -86,26 +86,26 @@ export function statusDot(
     view.exitCode !== undefined &&
     view.exitCode !== 0
   ) {
-    return { tone: "danger", pulse: false };
+    return { tone: "destructive", pulse: false };
   }
   if (
     view.kind === "explore" &&
     aggregateExploreTasks(view).summary.failed > 0
   ) {
-    return { tone: "danger", pulse: false };
+    return { tone: "destructive", pulse: false };
   }
-  return { tone: "good", pulse: false };
+  return { tone: "success", pulse: false };
 }
 
 export function toneFromDot(tone: StatusTone): MetaTone {
   switch (tone) {
-    case "good":
+    case "success":
       return "success";
-    case "warn":
+    case "warning":
       return "warning";
-    case "danger":
+    case "destructive":
       return "error";
-    case "running":
+    case "info":
       return "info";
     default:
       return "default";

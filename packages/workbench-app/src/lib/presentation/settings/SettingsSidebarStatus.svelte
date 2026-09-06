@@ -15,10 +15,10 @@ let { status = "idle", text }: Props = $props();
 
 const tones: Record<SaveStatus, StatusTone> = {
   idle: "neutral",
-  dirty: "running",
-  saving: "running",
-  saved: "good",
-  error: "danger",
+  dirty: "info",
+  saving: "info",
+  saved: "success",
+  error: "destructive",
 };
 
 const tone = $derived(tones[status ?? "idle"] ?? "neutral");

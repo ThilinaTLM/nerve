@@ -25,7 +25,7 @@ export function createDataUrl(html: string): string {
 // Native BrowserWindow fallback used before either loading document can paint.
 // These mirror the light/dark --background tokens in shellStyles().
 export function loadingWindowBackground(dark: boolean): string {
-  return dark ? "#262624" : "#faf9f5";
+  return dark ? "#272521" : "#faf8f1";
 }
 
 export type LoadingStage = "starting" | "preparing" | "opening";
@@ -169,14 +169,14 @@ function shellStyles(): string {
   return `
     :root {
       color-scheme: light dark;
-      --background: oklch(0.9818 0.0054 95.0986);
+      --background: oklch(0.979 0.009 92);
       --foreground: oklch(0.3438 0.0269 95.7226);
       --primary: oklch(0.57 0.1375 39.0427);
       --muted-foreground: oklch(0.5341 0.0078 97.4503);
-      --border: oklch(0.8847 0.0069 97.3627);
+      --border: oklch(0.872 0.017 95);
       --destructive: oklch(0.5 0.19 27);
-      --radius: 0.625rem;
-      --radius-lg: 0.625rem;
+      --radius: 0.375rem;
+      --radius-lg: 0.375rem;
       --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       --text-xs: 0.8125rem;
@@ -188,11 +188,11 @@ function shellStyles(): string {
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --background: oklch(0.2679 0.0036 106.6427);
-        --foreground: oklch(0.9576 0.0027 106.4494);
+        --background: oklch(0.264 0.008 80);
+        --foreground: oklch(0.9 0.0027 106.4494);
         --primary: oklch(0.6724 0.1308 38.7559);
         --muted-foreground: oklch(0.7713 0.0169 99.0657);
-        --border: oklch(0.3618 0.0101 106.8928);
+        --border: oklch(0.353 0.013 82);
         --destructive: oklch(0.8 0.114 25.5);
       }
     }

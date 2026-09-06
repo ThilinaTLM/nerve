@@ -97,7 +97,7 @@ const show = $derived(meta.length > 0 || Boolean(detailsAction) || hasActions);
   align-items: center;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--sidebar);
+  background: var(--well);
   padding: 0.075rem 0.45rem;
   font-family: var(--font-sans);
   font-size: var(--text-xs);

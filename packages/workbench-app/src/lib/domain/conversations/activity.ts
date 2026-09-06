@@ -88,7 +88,7 @@ export function conversationActivityForRecord(input: {
   if (failed && !failureCleared) {
     return {
       indicator: "error",
-      tone: "danger",
+      tone: "destructive",
       pulse: false,
       label: "Agent error",
       busy: false,
@@ -101,7 +101,7 @@ export function conversationActivityForRecord(input: {
   if (pending || waiting || input.agent?.status === "awaiting_user") {
     return {
       indicator: "needs-user",
-      tone: "warn",
+      tone: "warning",
       pulse: false,
       label: "Needs user action",
       busy: false,
@@ -114,7 +114,7 @@ export function conversationActivityForRecord(input: {
   if (input.view?.transient?.compaction?.state === "running") {
     return {
       indicator: "running",
-      tone: "running",
+      tone: "info",
       pulse: true,
       label: "Compacting context",
       busy: true,

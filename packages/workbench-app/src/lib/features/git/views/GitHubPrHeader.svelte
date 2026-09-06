@@ -54,7 +54,7 @@ const StateIcon = $derived(
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 items-center gap-2">
         {#if display}
-          <Badge tone={stateTone(display)} size="sm" class="shrink-0">
+          <Badge variant={stateTone(display)} class="shrink-0">
             <StateIcon class="size-3" aria-hidden="true" />
             {stateLabel(display)}
           </Badge>
@@ -104,11 +104,11 @@ const StateIcon = $derived(
             class="inline-flex items-center gap-1"
             aria-label={`Merges ${display.headRefName} into ${display.baseRefName}`}
           >
-            <Badge variant="outline" size="xs" class="font-mono"
+            <Badge variant="outline" class="font-mono"
               >{display.baseRefName}</Badge
             >
             <ArrowLeft class="size-3" aria-hidden="true" />
-            <Badge variant="outline" size="xs" class="font-mono"
+            <Badge variant="outline" class="font-mono"
               >{display.headRefName}</Badge
             >
           </span>

@@ -110,12 +110,12 @@ onMount(() => {
           </div>
           <div class="flex min-h-5 flex-wrap items-center gap-1.5">
             {#if activeItem.releaseLabel}
-              <Badge variant="outline" size="xs">
+              <Badge variant="outline">
                 {activeItem.releaseLabel}
               </Badge>
             {/if}
             {#if activeItem.new}
-              <Badge tone="running" size="xs">New</Badge>
+              <Badge variant="info">New</Badge>
             {/if}
           </div>
           {#if activeItem.action}

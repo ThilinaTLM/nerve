@@ -1,4 +1,4 @@
-/* Shared composer toolbar pill buttons. Four components pass `.composer-tab`
+/* Shared composer toolbar chip buttons. Four components pass `.composer-tab`
  * through `triggerClass`, so it is a genuine cross-component contract. Layered
  * under `components` so a consumer's own utilities always win. */
 
@@ -11,7 +11,7 @@
     height: 1.55rem;
     min-width: 0;
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--radius-md);
     background: var(--card);
     color: var(--muted-foreground);
     padding: 0 0.6rem;

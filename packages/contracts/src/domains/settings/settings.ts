@@ -16,7 +16,12 @@ import { userConfigurableToolNameSchema } from "../tools/tool-name.js";
 export const modeSchema = z.enum(["planning", "coding"]);
 export type Mode = z.infer<typeof modeSchema>;
 
-export const colorThemeSchema = z.enum(["nerve", "ocean", "forest"]);
+export const colorThemeSchema = z.enum([
+  "nerve",
+  "ocean",
+  "forest",
+  "midnight",
+]);
 export type ColorTheme = z.infer<typeof colorThemeSchema>;
 
 export const colorModeSchema = z.enum(["system", "light", "dark"]);

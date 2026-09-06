@@ -14,7 +14,7 @@ let { project }: Props = $props();
     >
     {#if project.name}
       <span
-        class="min-w-0 break-words text-xs font-medium leading-snug text-sidebar-foreground"
+        class="min-w-0 break-words text-xs font-medium leading-snug text-foreground"
         >{project.name}</span
       >
     {/if}
@@ -22,7 +22,7 @@ let { project }: Props = $props();
   {#if project.projectTypeKey || project.lead}
     <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
       {#if project.projectTypeKey}
-        <Badge tone="neutral" size="xs">{project.projectTypeKey}</Badge>
+        <Badge variant="neutral">{project.projectTypeKey}</Badge>
       {/if}
       {#if project.lead}
         <span

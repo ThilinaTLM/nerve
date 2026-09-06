@@ -288,7 +288,7 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--sidebar);
+  background: var(--panel);
 }
 
 /* paneforge renders the pane group DOM (escape-hatch reason 5). */

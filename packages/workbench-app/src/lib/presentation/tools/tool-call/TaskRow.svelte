@@ -51,15 +51,15 @@ const hasExit = $derived(
             </a>
           {/if}
           {#if hasExit}<Badge
-              tone={task.termination?.exitCode === 0 ? "neutral" : "danger"}
-              size="xs">exit {task.termination?.exitCode}</Badge
+              variant={task.termination?.exitCode === 0
+                ? "neutral"
+                : "destructive"}>exit {task.termination?.exitCode}</Badge
             >
-          {:else if task.termination?.signal}<Badge tone="warn" size="xs"
+          {:else if task.termination?.signal}<Badge variant="warning"
               >signal {task.termination.signal}</Badge
             >{/if}
           <Badge
-            {tone}
-            size="xs"
+            variant={tone}
             class={tone === "neutral"
               ? "border-border bg-muted text-muted-foreground"
               : ""}>{task.status}</Badge

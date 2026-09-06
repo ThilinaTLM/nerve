@@ -2,7 +2,7 @@
 import Database from "@lucide/svelte/icons/database";
 import type { ConfluenceSpaceSummaryPayload } from "@nervekit/contracts/tools";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import { confluenceStatusBadgeTone } from "../views/confluence-display";
+import { confluenceStatusBadgeVariant } from "../views/confluence-display";
 
 type Props = { space: ConfluenceSpaceSummaryPayload };
 let { space }: Props = $props();
@@ -19,7 +19,7 @@ const hasChips = $derived(Boolean(space.status || space.type));
         class="shrink-0 text-muted-foreground"
       />
       {#if space.key}
-        <span class="font-mono text-xs font-semibold text-sidebar-foreground"
+        <span class="font-mono text-xs font-semibold text-foreground"
           >{space.key}</span
         >
       {/if}
@@ -27,7 +27,7 @@ const hasChips = $derived(Boolean(space.status || space.type));
     </span>
     {#if space.name}
       <span
-        class="min-w-0 break-words text-xs font-medium leading-snug text-sidebar-foreground"
+        class="min-w-0 break-words text-xs font-medium leading-snug text-foreground"
         >{space.name}</span
       >
     {/if}
@@ -36,7 +36,7 @@ const hasChips = $derived(Boolean(space.status || space.type));
   {#if hasChips}
     <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
       {#if space.status}
-        <Badge tone={confluenceStatusBadgeTone(space.status)} size="xs"
+        <Badge variant={confluenceStatusBadgeVariant(space.status)}
           >{space.status}</Badge
         >
       {/if}

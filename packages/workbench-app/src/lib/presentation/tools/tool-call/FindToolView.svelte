@@ -24,7 +24,7 @@ const visible = $derived(
   <p class="m-0 text-xs text-muted-foreground">No files found.</p>
 {:else if view.count > 0}
   <ul
-    class="m-0 list-none rounded-sm border bg-sidebar px-2.5 py-2 font-mono text-xs leading-snug text-sidebar-foreground"
+    class="m-0 list-none rounded-sm border bg-well px-2.5 py-2 font-mono text-xs leading-snug text-foreground"
   >
     {#each visible as item (item.path)}
       <li>

@@ -4,6 +4,7 @@ import type {
   ConversationRecord,
 } from "@nervekit/contracts/conversations";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
+import { documentStyles } from "../../../infrastructure/documents/index.js";
 import { escapeHtml } from "../../../adapters/http/html.js";
 
 export interface ExportedConversationBundle {
@@ -98,8 +99,10 @@ export function conversationExportHtml(
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeHtml(conversation.title)}</title>
-<style>
-body{font-family:Geist,ui-sans-serif,system-ui,sans-serif;line-height:1.5;max-width:900px;margin:40px auto;padding:0 24px;color:#0f172a;background:#f8fafc}article{border:1px solid #cbd5e1;border-radius:16px;background:white;padding:20px;margin:16px 0;box-shadow:0 10px 30px rgba(15,23,42,.06)}pre{white-space:pre-wrap;font:inherit}small{color:#64748b}
+<style>${documentStyles()}
+body{line-height:1.5;max-width:900px;margin:2.5rem auto;padding:0 1.5rem}
+article{border:1px solid var(--border);border-radius:calc(var(--radius) * 1.333);background:var(--card);padding:1.25rem;margin:1rem 0}
+pre{white-space:pre-wrap;font:inherit}small{color:var(--muted-foreground)}
 </style>
 </head>
 <body>

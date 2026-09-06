@@ -73,8 +73,8 @@ const visibleGroups = $derived.by(() => {
   gap: 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--sidebar);
-  color: var(--sidebar-foreground);
+  background: var(--well);
+  color: var(--foreground);
   padding: 0.5rem 0.6rem;
   font-family: var(--font-mono);
   font-size: var(--text-xs);

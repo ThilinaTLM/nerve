@@ -349,7 +349,7 @@ const layoutRevision = $derived(
 );
 // A prepared draft only means argument generation finished; execution has not.
 // Keep it visibly in-flight until a durable terminal status takes ownership.
-const dotTone = $derived(presentation?.dotTone ?? "running");
+const dotTone = $derived(presentation?.dotTone ?? "info");
 const dotPulse = $derived(presentation?.dotPulse ?? true);
 const meta = $derived(activityMeta);
 const detailsAction = $derived(

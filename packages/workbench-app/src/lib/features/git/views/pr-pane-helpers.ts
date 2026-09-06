@@ -8,7 +8,7 @@ import type {
   GithubPrOverview,
   GithubPrReviewSummary,
 } from "@nervekit/contracts/git";
-import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { githubCheckRunOutcome } from "./github-pr-checks";
 
 type TimelineEntry =
@@ -20,14 +20,14 @@ export type MergeReadiness = {
   reasons: string[];
 };
 
-export function checksTone(checks: GithubChecksSummary): BadgeTone {
+export function checksTone(checks: GithubChecksSummary): StatusTone {
   switch (checks.status) {
     case "passing":
-      return "good";
+      return "success";
     case "failing":
-      return "danger";
+      return "destructive";
     case "pending":
-      return "warn";
+      return "warning";
     default:
       return "neutral";
   }
@@ -35,12 +35,12 @@ export function checksTone(checks: GithubChecksSummary): BadgeTone {
 
 type PrStateSummary = Pick<GithubPrCore, "isDraft" | "state">;
 
-export function stateTone(detail: PrStateSummary | undefined): BadgeTone {
+export function stateTone(detail: PrStateSummary | undefined): StatusTone {
   if (!detail) return "neutral";
   if (detail.isDraft) return "neutral";
   if (detail.state === "MERGED") return "accent";
-  if (detail.state === "CLOSED") return "danger";
-  return "good";
+  if (detail.state === "CLOSED") return "destructive";
+  return "success";
 }
 
 export function stateLabel(detail: PrStateSummary | undefined): string {
@@ -49,17 +49,17 @@ export function stateLabel(detail: PrStateSummary | undefined): string {
   return detail.state.toLowerCase();
 }
 
-export function reviewTone(decision: string): BadgeTone {
-  if (decision === "APPROVED") return "good";
-  if (decision === "CHANGES_REQUESTED") return "danger";
-  return "warn";
+export function reviewTone(decision: string): StatusTone {
+  if (decision === "APPROVED") return "success";
+  if (decision === "CHANGES_REQUESTED") return "destructive";
+  return "warning";
 }
 
-export function runTone(status: string): BadgeTone {
+export function runTone(status: string): StatusTone {
   const outcome = githubCheckRunOutcome(status);
-  if (outcome === "passed") return "good";
-  if (outcome === "failed") return "danger";
-  return "warn";
+  if (outcome === "passed") return "success";
+  if (outcome === "failed") return "destructive";
+  return "warning";
 }
 
 export function formatPrDate(value?: string): string {
@@ -150,9 +150,9 @@ export function divergenceLabel(detail: GithubPrOverview): string {
   return `${detail.behindBy} ${detail.behindBy === 1 ? "commit" : "commits"} behind base`;
 }
 
-export function divergenceTone(detail: GithubPrOverview): BadgeTone {
+export function divergenceTone(detail: GithubPrOverview): StatusTone {
   if (detail.behindBy === null) return "neutral";
-  return detail.behindBy > 0 ? "warn" : "good";
+  return detail.behindBy > 0 ? "warning" : "success";
 }
 
 export function prTimeline(detail: GithubPrConversation): TimelineEntry[] {
