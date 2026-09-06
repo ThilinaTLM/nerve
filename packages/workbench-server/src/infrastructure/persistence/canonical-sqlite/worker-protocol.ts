@@ -1,3 +1,4 @@
+import type { ConversationDeletionCursor } from "./conversation-deletion.js";
 import type { ConversationJournalCommit } from "@nervekit/contracts/conversations";
 import type {
   ConversationPersistenceDelta,
@@ -122,7 +123,12 @@ export type CanonicalCommand =
         data: Uint8Array;
       };
     }
-  | { kind: "delete_conversation_state"; conversationId: string }
+  | {
+      kind: "delete_conversation_state_chunk";
+      conversationId: string;
+      limit: number;
+      cursor?: ConversationDeletionCursor;
+    }
   | { kind: "integrity_check" }
   | { kind: "checkpoint" }
   | { kind: "close" };

@@ -16,6 +16,7 @@ type Props = {
   ageEligible?: (days: number) => number;
   keepEligible?: (keep: number) => number;
   completedEligible?: () => number;
+  disabled?: boolean;
   onConfirm?: (request: PruneProjectConversationsRequest) => void;
   onOpenChange?: (open: boolean) => void;
 };
@@ -27,6 +28,7 @@ let {
   ageEligible = () => 0,
   keepEligible = () => 0,
   completedEligible = () => 0,
+  disabled = false,
   onConfirm,
   onOpenChange,
 }: Props = $props();
@@ -112,7 +114,7 @@ function handleOpenChange(next: boolean) {
   size="sm"
   onOpenChange={handleOpenChange}
 >
-  <div class="prune-body">
+  <div class="grid gap-4">
     <RadioGroupField
       items={strategyItems}
       bind:value={strategy}
@@ -120,7 +122,7 @@ function handleOpenChange(next: boolean) {
     />
 
     {#if strategy !== "completed"}
-      <div class="prune-control">
+      <div class="grid max-w-72">
         {#if strategy === "olderThanDays"}
           <SelectField
             items={ageItems}
@@ -137,11 +139,12 @@ function handleOpenChange(next: boolean) {
       </div>
     {/if}
 
-    <p class="prune-summary">
-      Removes up to <strong>{removeCount}</strong> of {totalCount} conversation{totalCount ===
-      1
-        ? ""
-        : "s"}. Active conversations and tasks are skipped.
+    <p class="m-0 text-sm text-muted-foreground">
+      Removes up to <strong class="font-semibold text-foreground"
+        >{removeCount}</strong
+      >
+      of {totalCount} conversation{totalCount === 1 ? "" : "s"}. Active
+      conversations and tasks are skipped.
     </p>
   </div>
 
@@ -153,32 +156,9 @@ function handleOpenChange(next: boolean) {
       size="sm"
       variant="destructive"
       onclick={handleConfirm}
-      disabled={removeCount === 0}
+      disabled={disabled || removeCount === 0}
     >
       Clean up
     </Button>
   {/snippet}
 </Dialog>
-
-<style>
-.prune-body {
-  display: grid;
-  gap: 1rem;
-}
-
-.prune-control {
-  display: grid;
-  max-width: 18rem;
-}
-
-.prune-summary {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-}
-
-.prune-summary strong {
-  color: var(--foreground);
-  font-weight: 600;
-}
-</style>

@@ -1,3 +1,10 @@
+import { MaintenanceService } from "../../domains/maintenance/maintenance.service.js";
+import { MaintenanceRepository } from "../../domains/maintenance/maintenance.repository.js";
+import {
+  pruneProgress,
+  type MaintenanceExecution,
+} from "../../domains/maintenance/maintenance-execution.js";
+import { ProjectRemovalExecutor } from "../../domains/projects/project-removal-executor.js";
 import { join } from "node:path";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { registerManagedProvider } from "@nervekit/harness/models";
@@ -20,8 +27,7 @@ import { PiAiModelsStore } from "../../domains/auth/pi-ai-models-store.js";
 import { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/agent-browser-skills.js";
 import { ProviderCatalogStore } from "../../domains/providers/index.js";
 import {
-  StorageCleanupRepository,
-  StorageCleanupService,
+  StorageCleanupExecutor,
   StorageUsageService,
 } from "../../domains/storage/index.js";
 import { LatestReleaseService } from "../../domains/status/latest-release-service.js";
@@ -64,7 +70,7 @@ export interface ServerRuntime {
   queryCache: RuntimeQueryCache;
   canonicalStore: CanonicalStore;
   storageUsage: StorageUsageService;
-  storageCleanup: StorageCleanupService;
+  maintenance: MaintenanceService;
   latestRelease: LatestReleaseService;
   secrets: SecretProvider;
   auth: AuthManager;
@@ -225,17 +231,54 @@ export function composeServerRuntime(
     }),
   });
   const latestRelease = new LatestReleaseService();
-  const storageCleanup = new StorageCleanupService({
+  const storageCleanup = new StorageCleanupExecutor({
     paths: storage.paths,
-    repository: new StorageCleanupRepository(storage.canonicalStore),
     usage: storageUsage,
-    events,
-    logger,
     getOperations: () => ({
-      pruneConversationsAcrossProjects: (request) =>
-        pruneConversationsAcrossProjects(services, request),
+      pruneConversationsAcrossProjects: (request, execution) =>
+        pruneConversationsAcrossProjects(services, request, execution),
       rebuildSearchIndex: () => lifecycle.rebuildIndex(),
     }),
+  });
+  const projectRemoval = new ProjectRemovalExecutor({
+    projects: services.projectLifecycle,
+    listConversations: () => services.conversationLifecycle.listConversations(),
+    removeConversation: (id, options) =>
+      services.conversationLifecycle.removeConversation(id, options),
+  });
+  const maintenance = new MaintenanceService({
+    repository: new MaintenanceRepository(storage.canonicalStore),
+    publish: (operation) =>
+      events.publish("maintenance.updated", { operation }),
+    getProject: (id) => services.projectLifecycle.getProject(id),
+    reserveProject: (id) => services.maintenanceScopes.reserveProject(id),
+    warn: (error) => logger.warn("Maintenance failed", { error }),
+    execute: async (request, execution) => {
+      if (request.kind === "storage_cleanup")
+        return storageCleanup.execute(request.parameters, execution);
+      if (request.kind === "delete_project")
+        return projectRemoval.execute(request.projectId, execution);
+      const result =
+        await services.pruneConversations.pruneProjectConversations(
+          request.projectId,
+          request.parameters,
+          pruneProgress(execution),
+        );
+      await execution.report({
+        removedConversationCount: result.removedConversationCount,
+        removedTaskCount: result.removedTaskCount,
+        skippedActiveAgentCount: result.skippedActiveAgentCount,
+        skippedActiveTaskCount: result.skippedActiveTaskCount,
+        result: {
+          kind: "prune_conversations",
+          removedConversationCount: result.removedConversationCount,
+          removedTaskCount: result.removedTaskCount,
+        },
+        warnings: result.skipped.length
+          ? [`Skipped ${result.skipped.length} active conversations.`]
+          : [],
+      });
+    },
   });
   const daemonId = createId("daemon");
   const applicationConfiguration =
@@ -256,7 +299,7 @@ export function composeServerRuntime(
     applicationLogsEnabled: options.applicationLogsEnabled ?? false,
     queryCache,
     storageUsage,
-    storageCleanup,
+    maintenance,
     latestRelease,
     secrets,
     auth,
@@ -283,7 +326,7 @@ export function composeServerRuntime(
     queryCache,
     canonicalStore: storage.canonicalStore,
     storageUsage,
-    storageCleanup,
+    maintenance,
     latestRelease,
     secrets,
     auth,
@@ -308,17 +351,21 @@ export function composeServerRuntime(
 async function pruneConversationsAcrossProjects(
   services: RuntimeServices,
   request: { strategy: "olderThanDays"; olderThanDays: number },
-): Promise<{ prunedConversationIds: string[]; skippedCount: number }> {
+  execution: MaintenanceExecution,
+): Promise<{ removedConversationCount: number; skippedCount: number }> {
   const results = await services.pruneConversations.pruneAcrossProjects(
     services.projectLifecycle.listProjects(),
     request,
+    pruneProgress(execution),
   );
   return {
-    prunedConversationIds: results.flatMap(
-      (result) => result.prunedConversationIds,
+    removedConversationCount: results.reduce(
+      (sum, result) => sum + result.removedConversationCount,
+      0,
     ),
     skippedCount: results.reduce(
-      (sum, result) => sum + result.skipped.length,
+      (sum, result) =>
+        sum + result.skippedActiveAgentCount + result.skippedActiveTaskCount,
       0,
     ),
   };
@@ -337,10 +384,10 @@ export async function shutdownServerRuntime(
 ): Promise<void> {
   if (shutdownStates.has(state)) return;
   shutdownStates.add(state);
+  await state.maintenance.shutdown();
   await state.lifecycle.shutdown();
   await state.agentBrowserSkills.shutdown().catch(() => undefined);
   state.subscriptionUsage.stop();
-  await state.storageCleanup.shutdown().catch(() => undefined);
   await state.events.shutdown();
   await state.logger.flush();
   state.queryCache.close();

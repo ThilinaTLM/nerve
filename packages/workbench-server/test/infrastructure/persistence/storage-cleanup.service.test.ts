@@ -1,16 +1,16 @@
+import { MaintenanceRepository } from "../../../src/domains/maintenance/maintenance.repository.js";
+import { MaintenanceService } from "../../../src/domains/maintenance/maintenance.service.js";
+import type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import {
-  StorageCleanupRepository,
-  StorageCleanupService,
+  StorageCleanupExecutor,
   StorageUsageService,
 } from "../../../src/domains/storage/index.js";
-import { ApplicationLogger } from "../../../src/infrastructure/diagnostics/index.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/index.js";
-import { StreamLogRegistry } from "../../../src/infrastructure/events/index.js";
 import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
 const roots: string[] = [];
@@ -42,7 +42,7 @@ async function makeService(
   home: string,
   overrides: {
     prune?: () => Promise<{
-      prunedConversationIds: string[];
+      removedConversationCount: number;
       skippedCount: number;
     }>;
     rebuild?: () => Promise<void>;
@@ -53,7 +53,7 @@ async function makeService(
     listConversations: () => [],
     pruneConversationsAcrossProjects:
       overrides.prune ??
-      (async () => ({ prunedConversationIds: [], skippedCount: 0 })),
+      (async () => ({ removedConversationCount: 0, skippedCount: 0 })),
     rebuildSearchIndex: overrides.rebuild ?? (async () => {}),
     tools: {
       async compactToolCallLog() {
@@ -65,30 +65,31 @@ async function makeService(
     },
   };
   const usage = new StorageUsageService({ paths, getSource: () => registry });
-  const events = new StreamLogRegistry(home);
-  const logger = new ApplicationLogger({
-    dataDir: home,
-    source: "orchestrator",
-    component: "storage-test",
-  });
   const canonicalStore = new CanonicalStore(paths.sqlitePath);
   await canonicalStore.initialize();
-  const repository = new StorageCleanupRepository(canonicalStore);
-  const service = new StorageCleanupService({
+  const repository = new MaintenanceRepository(canonicalStore);
+  const executor = new StorageCleanupExecutor({
     paths,
-    repository,
     usage,
-    events,
-    logger,
     getOperations: () => registry,
+  });
+  const service = new MaintenanceService({
+    repository,
+    publish: async () => {},
+    getProject: () => {
+      throw new Error("not project cleanup");
+    },
+    reserveProject: () => () => {},
+    warn: async () => {},
+    execute: async (request, context) => {
+      if (request.kind === "storage_cleanup")
+        await executor.execute(request.parameters, context);
+    },
   });
   return { service, repository, usage };
 }
 
-async function waitForTerminal(
-  service: StorageCleanupService,
-  timeoutMs = 2_000,
-) {
+async function waitForTerminal(service: MaintenanceService, timeoutMs = 2_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const operation = service.get();
@@ -120,18 +121,21 @@ describe("StorageCleanupService", () => {
     );
 
     const queued = await service.start({
-      logsOlderThanDays: 7,
-      truncateEventLog: true,
-      clearCrashReports: true,
-      clearCache: true,
-      clearTmp: true,
+      kind: "storage_cleanup",
+      parameters: {
+        logsOlderThanDays: 7,
+        truncateEventLog: true,
+        clearCrashReports: true,
+        clearCache: true,
+        clearTmp: true,
+      },
     });
     assert.equal(queued.status, "queued");
     assert.equal(queued.totalTargets, 5);
 
     const result = await waitForTerminal(service);
     assert.equal(result.status, "succeeded", result.error);
-    assert.equal(result.results.length, 5);
+    assert.equal(storageResults(result).length, 5);
     assert.ok(result.freedBytes >= 300 + 1_200 + 500 + 250 + 60);
     await assert.rejects(readdir(join(home, "crashes")), /ENOENT/);
     assert.deepEqual(await readdir(join(home, "cache")), [
@@ -169,15 +173,20 @@ describe("StorageCleanupService", () => {
       680,
     );
 
-    await service.start({ clearCache: true, rebuildSearchIndex: true });
+    await service.start({
+      kind: "storage_cleanup",
+      parameters: { clearCache: true, rebuildSearchIndex: true },
+    });
     const result = await waitForTerminal(service);
     assert.equal(result.status, "succeeded", result.error);
     assert.equal(
-      result.results.find((item) => item.target === "cache")?.freedBytes,
+      storageResults(result).find((item) => item.target === "cache")
+        ?.freedBytes,
       250,
     );
     assert.equal(
-      result.results.find((item) => item.target === "searchIndex")?.freedBytes,
+      storageResults(result).find((item) => item.target === "searchIndex")
+        ?.freedBytes,
       580,
     );
     assert.deepEqual(await readdir(join(home, "cache")), [
@@ -194,13 +203,16 @@ describe("StorageCleanupService", () => {
     const { service } = await makeService(home, {
       prune: async () => {
         await blocked;
-        return { prunedConversationIds: [], skippedCount: 0 };
+        return { removedConversationCount: 0, skippedCount: 0 };
       },
     });
     await service.hydrate();
     const queued = await service.start({
-      conversationsOlderThanDays: 30,
-      clearCache: true,
+      kind: "storage_cleanup",
+      parameters: {
+        conversationsOlderThanDays: 30,
+        clearCache: true,
+      },
     });
     while (service.get()?.currentTarget !== "conversations")
       await new Promise((resolve) => setTimeout(resolve, 5));
@@ -211,7 +223,7 @@ describe("StorageCleanupService", () => {
     const result = await waitForTerminal(service);
     assert.equal(result.status, "cancelled");
     assert.equal(
-      result.results.find((item) => item.target === "cache")?.outcome,
+      storageResults(result).find((item) => item.target === "cache")?.outcome,
       "cancelled",
     );
     assert.deepEqual(await readdir(join(home, "cache")), [
@@ -227,7 +239,16 @@ describe("StorageCleanupService", () => {
     const now = new Date().toISOString();
     await repository.write({
       id: "storageop_TEST",
-      request: { clearCache: true },
+      kind: "storage_cleanup",
+      revision: 1,
+      phase: "cache",
+      warnings: [],
+      completedItems: 0,
+      removedConversationCount: 0,
+      removedTaskCount: 0,
+      skippedActiveAgentCount: 0,
+      skippedActiveTaskCount: 0,
+      request: { kind: "storage_cleanup", parameters: { clearCache: true } },
       status: "running",
       createdAt: now,
       updatedAt: now,
@@ -238,10 +259,17 @@ describe("StorageCleanupService", () => {
       cancellable: true,
       cancellationRequested: false,
       freedBytes: 0,
-      results: [],
+      result: { kind: "storage_cleanup", targets: [] },
     });
     await service.hydrate();
     assert.equal(service.get()?.status, "failed");
     assert.match(service.get()?.error ?? "", /daemon stopped/i);
   });
 });
+
+function storageResults(operation: MaintenanceOperation) {
+  assert.equal(operation.result?.kind, "storage_cleanup");
+  return operation.result?.kind === "storage_cleanup"
+    ? operation.result.targets
+    : [];
+}

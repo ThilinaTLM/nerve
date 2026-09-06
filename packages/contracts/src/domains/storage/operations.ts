@@ -1,18 +1,13 @@
+import { maintenanceStartResponseSchema } from "../maintenance/maintenance.js";
 import { storageInfoSchema } from "../status/status.js";
 import {
-  storageCleanupCancelParamsSchema,
-  storageCleanupCancelResponseSchema,
-  storageCleanupGetParamsSchema,
   storageCleanupRequestSchema,
-  storageCleanupStartResponseSchema,
-  storageCleanupStatusResponseSchema,
   storageUsageResponseSchema,
 } from "./storage.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 
 const emptyParamsSchema = z.object({}).optional();
-const countsSchema = z.record(z.string(), z.number().int().nonnegative());
 
 export const storageOperationDefinitions = [
   defineOperation(
@@ -27,8 +22,8 @@ export const storageOperationDefinitions = [
   defineOperation(
     "storage.rebuildIndex",
     emptyParamsSchema,
-    z.object({ ok: z.literal(true), counts: countsSchema.optional() }),
-    "mutation",
+    maintenanceStartResponseSchema,
+    "accepted_async",
     "recommended",
     ["workbench_server"] as const,
     "operation.storage.rebuildIndex",
@@ -45,28 +40,10 @@ export const storageOperationDefinitions = [
   defineOperation(
     "storage.cleanup",
     storageCleanupRequestSchema,
-    storageCleanupStartResponseSchema,
+    maintenanceStartResponseSchema,
     "accepted_async",
     "recommended",
     ["workbench_server"] as const,
     "operation.storage.cleanup",
-  ),
-  defineOperation(
-    "storage.cleanup.get",
-    storageCleanupGetParamsSchema,
-    storageCleanupStatusResponseSchema,
-    "read",
-    "none",
-    ["workbench_server"] as const,
-    "operation.storage.cleanup.get",
-  ),
-  defineOperation(
-    "storage.cleanup.cancel",
-    storageCleanupCancelParamsSchema,
-    storageCleanupCancelResponseSchema,
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.storage.cleanup.cancel",
   ),
 ] as const;

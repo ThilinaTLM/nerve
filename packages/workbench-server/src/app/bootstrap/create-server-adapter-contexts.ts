@@ -1,3 +1,4 @@
+import type { MaintenanceService } from "../../domains/maintenance/maintenance.service.js";
 import type { ApplicationConfigurationSnapshot } from "@nervekit/contracts/settings";
 import type { StatusResponse } from "@nervekit/contracts/status";
 import type {
@@ -7,10 +8,7 @@ import type {
 } from "../../domains/auth/index.js";
 import type { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/agent-browser-skills.js";
 import type { ProviderCatalogStore } from "../../domains/providers/index.js";
-import type {
-  StorageCleanupService,
-  StorageUsageService,
-} from "../../domains/storage/index.js";
+import type { StorageUsageService } from "../../domains/storage/index.js";
 import type { LatestReleaseService } from "../../domains/status/latest-release-service.js";
 import type { SubscriptionUsageService } from "../../domains/usage/subscription-usage-service.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
@@ -31,7 +29,7 @@ interface AdapterInfrastructure {
   applicationLogsEnabled: boolean;
   queryCache: RuntimeQueryCache;
   storageUsage: StorageUsageService;
-  storageCleanup: StorageCleanupService;
+  maintenance: MaintenanceService;
   latestRelease: LatestReleaseService;
   secrets: SecretProvider;
   auth: AuthManager;
@@ -72,7 +70,7 @@ export function createServerAdapterContexts(
       queryCache: infrastructure.queryCache,
       secrets: infrastructure.secrets,
       storage: infrastructure.storage,
-      storageCleanup: infrastructure.storageCleanup,
+      maintenance: infrastructure.maintenance,
       storageUsage: infrastructure.storageUsage,
       subscriptionUsage: infrastructure.subscriptionUsage,
       fileCompletions: services.fileCompletions,
@@ -102,6 +100,7 @@ export function createServerAdapterContexts(
       permissionExceptions: services.permissionExceptions,
       permissionPolicy: services.permissionPolicy,
       projectLifecycle: services.projectLifecycle,
+      maintenance: infrastructure.maintenance,
       promptSuggestions: services.promptSuggestions,
       pruneConversations: services.pruneConversations,
       scratchNotes: services.scratchNotes,

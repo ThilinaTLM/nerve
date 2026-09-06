@@ -28,6 +28,7 @@ export type ProjectTreeMenuContext = {
   editorAvailability?: StatusResponse["runtime"]["editors"];
   terminalAvailability?: StatusResponse["runtime"]["terminal"];
   conversationCount: (projectId: string) => number;
+  maintenanceActive?: boolean;
   onOpenConversation?: (conversationId: string) => void;
   conversationActivity?: (
     conversationId: string,
@@ -138,13 +139,15 @@ export function buildProjectMenu(
       label: "Clean up conversations",
       icon: Trash2,
       destructive: true,
-      disabled: ctx.conversationCount(project.id) === 0,
+      disabled:
+        ctx.maintenanceActive || ctx.conversationCount(project.id) === 0,
       onSelect: () => ctx.requestPrune(project),
     },
     {
       label: "Remove project",
       icon: Trash2,
       destructive: true,
+      disabled: ctx.maintenanceActive,
       onSelect: () =>
         ctx.requestDelete({
           kind: "project",

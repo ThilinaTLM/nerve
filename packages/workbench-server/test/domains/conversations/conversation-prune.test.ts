@@ -340,3 +340,97 @@ describe("RuntimeLifecycle conversation pruning", () => {
     }
   });
 });
+
+it("rechecks newly active conversations before removing their related data", async () => {
+  const state = await createState("nerve-prune-boundary-");
+  try {
+    const project = await state.services.projectLifecycle.createProject({
+      dir: state.runtime.storage.paths.home,
+    });
+    const conversation =
+      await state.services.conversationLifecycle.createConversation({
+        projectId: project.id,
+      });
+    const agent = await state.services.agentLifecycle.createAgent({
+      projectId: project.id,
+      conversationId: conversation.id,
+    });
+    const task = await addTaskRecord(state, {
+      projectId: project.id,
+      conversationId: conversation.id,
+      agentId: agent.id,
+      status: "completed",
+    });
+    await ageConversation(state, conversation, "2000-01-01T00:00:00.000Z");
+    const result =
+      await state.services.pruneConversations.pruneProjectConversations(
+        project.id,
+        { strategy: "olderThanDays", olderThanDays: 7 },
+        {
+          onDiscovered: async () => {
+            await state.services.agentLifecycle.updateAgent({
+              ...agent,
+              status: "running",
+            });
+          },
+        },
+      );
+    assert.equal(result.removedConversationCount, 0);
+    assert.equal(result.skippedActiveAgentCount, 1);
+    assert.ok(
+      state.services.tasks
+        .listTasks()
+        .some((candidate) => candidate.id === task.id),
+    );
+    assert.equal(
+      state.services.conversationLifecycle.getConversation(conversation.id).id,
+      conversation.id,
+    );
+  } finally {
+    state.runtime.queryCache.close();
+  }
+});
+
+it("prune cancellation finishes the current conversation and reports rows before completion", async () => {
+  const state = await createState("nerve-prune-cancel-boundary-");
+  try {
+    const project = await state.services.projectLifecycle.createProject({
+      dir: state.runtime.storage.paths.home,
+    });
+    for (let index = 0; index < 2; index++) {
+      const conversation =
+        await state.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
+      await ageConversation(state, conversation, "2000-01-01T00:00:00.000Z");
+    }
+    let cancel = false;
+    let completed = 0;
+    let sawRowsBeforeCompletion = false;
+    const result =
+      await state.services.pruneConversations.pruneProjectConversations(
+        project.id,
+        { strategy: "olderThanDays", olderThanDays: 7 },
+        {
+          shouldCancel: () => cancel,
+          onCurrentItem: (progress) => {
+            cancel = true;
+            if (progress.removedRows > 0 && completed === 0)
+              sawRowsBeforeCompletion = true;
+          },
+          onConversationRemoved: (count) => {
+            completed = count;
+          },
+        },
+      );
+    assert.equal(result.removedConversationCount, 1);
+    assert.equal(completed, 1);
+    assert.equal(sawRowsBeforeCompletion, true);
+    assert.equal(
+      state.services.conversationLifecycle.listConversations().length,
+      1,
+    );
+  } finally {
+    state.runtime.queryCache.close();
+  }
+});

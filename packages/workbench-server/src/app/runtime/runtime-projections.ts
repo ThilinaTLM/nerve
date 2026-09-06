@@ -1,3 +1,4 @@
+import { MaintenanceScopes } from "../../domains/maintenance/maintenance-scopes.js";
 import type { Message } from "@earendil-works/pi-ai";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import {
@@ -9,6 +10,7 @@ import { ConversationRuntime } from "../../domains/runs/runtime/conversation-run
 import { ApplicationError } from "../../core/application-error.js";
 
 export class RuntimeState {
+  readonly maintenanceScopes = new MaintenanceScopes();
   readonly projects = new Map<string, ProjectRecord>();
   readonly conversations = new Map<string, ConversationRecord>();
   readonly agents = new Map<string, AgentRecord>();

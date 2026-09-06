@@ -1,3 +1,4 @@
+import { maintenanceStartResponseSchema } from "../maintenance/maintenance.js";
 import {
   createProjectRequestSchema,
   openProjectInEditorRequestSchema,
@@ -7,7 +8,6 @@ import {
   projectRecordSchema,
   projectPermissionsSchema,
   pruneProjectConversationsRequestSchema,
-  pruneProjectConversationsResponseSchema,
 } from "./project.js";
 import { z } from "zod";
 import {
@@ -19,7 +19,6 @@ import {
 import { defineOperation } from "../../operations/definition.js";
 
 const emptyParamsSchema = z.object({}).optional();
-const okResultSchema = z.object({ ok: z.literal(true) });
 const projectIdSchema = z.string().startsWith("proj_");
 const projectIdParamsSchema = z.object({ projectId: projectIdSchema });
 const projectOpenEditorParamsSchema = projectIdParamsSchema.merge(
@@ -135,8 +134,8 @@ export const projectsOperationDefinitions = [
   defineOperation(
     "project.conversations.prune",
     projectPruneConversationsParamsSchema,
-    pruneProjectConversationsResponseSchema,
-    "mutation",
+    maintenanceStartResponseSchema,
+    "accepted_async",
     "recommended",
     ["workbench_server"] as const,
     "operation.project.conversations.prune",
@@ -144,8 +143,8 @@ export const projectsOperationDefinitions = [
   defineOperation(
     "project.delete",
     projectIdParamsSchema,
-    okResultSchema,
-    "mutation",
+    maintenanceStartResponseSchema,
+    "accepted_async",
     "recommended",
     ["workbench_server"] as const,
     "operation.project.delete",

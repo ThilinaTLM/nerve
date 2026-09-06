@@ -33,7 +33,8 @@ export type IdPrefix =
   | "promptq"
   | "pin"
   | "note"
-  | "storageop";
+  | "storageop"
+  | "projectop";
 
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

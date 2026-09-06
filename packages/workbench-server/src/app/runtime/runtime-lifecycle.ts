@@ -186,6 +186,8 @@ export class RuntimeLifecycle {
   async hydrate(
     reportStage?: (stage: RuntimeBootstrapStage) => void,
   ): Promise<RuntimeHydrationTimings> {
+    reportStage?.("recovering-conversation-deletions");
+    await this.services.conversationLifecycle.recoverDeletions();
     return this.hydrator.hydrate(reportStage);
   }
   async refreshRuntimeCapabilities(): Promise<void> {
@@ -240,11 +242,11 @@ export class RuntimeLifecycle {
 
   /** Rebuild the disposable derived SQLite queryCache from repositories. */
   async rebuildIndex(): Promise<void> {
-    this.queryCache.rebuild({
+    await this.queryCache.rebuildIncrementally(() => ({
       projects: this.services.projectLifecycle.listProjects(),
       conversations: this.services.conversationLifecycle.listConversations(),
       agents: this.services.agentLifecycle.listAgents(),
       tasks: this.services.tasks.listTasks(),
-    });
+    }));
   }
 }

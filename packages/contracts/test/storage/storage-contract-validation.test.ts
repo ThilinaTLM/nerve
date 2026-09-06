@@ -1,8 +1,8 @@
+import { maintenanceOperationSchema } from "../../src/domains/maintenance/index.js";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { operationDefinition } from "../../src/operations/index.js";
 import {
-  storageCleanupOperationSchema,
   storageCleanupRequestSchema,
   storageUsageResponseSchema,
 } from "../../src/domains/storage/index.js";
@@ -65,10 +65,7 @@ describe("storage cleanup contracts", () => {
         conversations: { total: 0, largest: [] },
       },
     };
-    assert.equal(
-      storageCleanupOperationSchema.safeParse(legacy).success,
-      false,
-    );
+    assert.equal(maintenanceOperationSchema.safeParse(legacy).success, false);
   });
   it("requires at least one valid cleanup target", () => {
     assert.equal(storageCleanupRequestSchema.safeParse({}).success, false);
@@ -95,10 +92,7 @@ describe("storage cleanup contracts", () => {
 
   it("registers cleanup as an accepted operation with status and cancel methods", () => {
     assert.equal(operationDefinition("storage.cleanup").kind, "accepted_async");
-    assert.equal(operationDefinition("storage.cleanup.get").kind, "read");
-    assert.equal(
-      operationDefinition("storage.cleanup.cancel").kind,
-      "mutation",
-    );
+    assert.equal(operationDefinition("maintenance.get").kind, "read");
+    assert.equal(operationDefinition("maintenance.cancel").kind, "mutation");
   });
 });

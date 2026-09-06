@@ -119,6 +119,7 @@ export interface RuntimeDeps {
 }
 
 export interface RuntimeServices {
+  maintenanceScopes: RuntimeState["maintenanceScopes"];
   tasks: WorkbenchTaskService;
   taskNotifications: TaskNotificationService;
   pythonRuntime: PythonRuntimeService;
@@ -176,6 +177,7 @@ export function composeRuntime(
     performanceDiagnostics,
   } = deps;
   const services = {} as RuntimeServices;
+  services.maintenanceScopes = state.maintenanceScopes;
   const subagentExecutions = new WorkbenchSubagentExecutions();
   const exploreAdmission = new WorkbenchExploreAdmission();
 
@@ -199,8 +201,11 @@ export function composeRuntime(
     request: Parameters<AgentLifecycleService["createAgent"]>[0],
     options?: Parameters<AgentLifecycleService["createAgent"]>[1],
   ) => services.agentLifecycle.createAgent(request, options);
-  const removeConversation = (conversationId: string) =>
-    services.conversationLifecycle.removeConversation(conversationId);
+  const removeConversation = (
+    conversationId: string,
+    options?: Parameters<ConversationLifecycleService["removeConversation"]>[1],
+  ) =>
+    services.conversationLifecycle.removeConversation(conversationId, options);
   const removeAgentInternal = (agentId: string) =>
     services.agentLifecycle.removeAgentInternal(agentId);
   const updateConversation = (
@@ -224,17 +229,6 @@ export function composeRuntime(
       entries,
     );
   };
-  const rebuildIndex = async () => {
-    // Events are indexed incrementally (publish/prune/boot reconcile); only the
-    // derived tables are rebuilt here.
-    queryCache.rebuild({
-      projects: listProjects(),
-      conversations: listConversations(),
-      agents: listAgents(),
-      tasks: services.tasks.listTasks(),
-    });
-  };
-
   const projectRepository = new ProjectRepository(storage);
   services.permissionExceptions = new PermissionExceptionService(
     storage,
@@ -746,7 +740,6 @@ export function composeRuntime(
     plans: services.plans,
     conversationRepository,
     removeConversation,
-    rebuildIndex,
     events,
     logger,
   });

@@ -67,6 +67,8 @@ export class AgentLifecycleService {
     request: CreateAgentRequest,
     options: { allowChildAuthorityExceed?: boolean } = {},
   ): Promise<AgentRecord> {
+    this.state.maintenanceScopes.assertConversation(request.conversationId);
+    this.state.maintenanceScopes.assertProject(request.projectId);
     const conversation = this.state.getConversation(request.conversationId);
     const project = this.state.getProject(request.projectId);
     const parent = request.parentAgentId
@@ -139,6 +141,8 @@ export class AgentLifecycleService {
       createdAt: now,
       updatedAt: now,
     };
+    this.state.maintenanceScopes.assertConversation(request.conversationId);
+    this.state.maintenanceScopes.assertProject(request.projectId);
     this.state.agents.set(agent.id, agent);
     this.queryCache.upsertAgent(agent);
     await this.writeAgent(agent);

@@ -73,6 +73,28 @@ The physical schema is owned by [`canonical-sqlite/schema.ts`](../../packages/wo
 
 Projects, conversations, agents, settings, tasks, and other domain state use repositories backed by `domain_documents` where a dedicated query table is unnecessary. The older conceptual `PROJECT`/`CONVERSATION`/`AGENT` ERD is therefore not the physical database model.
 
+### Additive deletion access paths
+
+Startup validates the immutable v1 migration ledger, then transactionally installs
+`durable_events_record(record_id)` and
+`agent_context_leaves_active_record(active_record_id)`. These indexes prevent
+foreign-key checks from scanning unrelated history for every deleted record.
+Existing index definitions are validated; an incorrectly named index fails startup
+rather than being silently accepted. The baseline SQL and migration ledger do not
+change, and initialization never rebuilds, vacuums, or replaces the database.
+
+The first updated startup can take longer on a large home and requires temporary
+additional disk space for index construction. Requests are not accepted until the
+storage check finishes. A failed index transaction preserves canonical data and
+can be retried on a later startup after resolving the reported error.
+
+Conversation deletion uses bounded writer commands and yields between them. A
+`conversation_deletion` document records committed deletion intent before the
+first destructive chunk. Startup finishes pending deletions before hydrating
+runtime projections; it does not resume the remaining bulk cleanup candidates.
+The intent remains until stream and payload cleanup succeeds. A failed recovery
+blocks startup instead of hydrating a partially deleted journal as healthy data.
+
 ## Conversation journal
 
 A conversation is hydrated from a checkpoint plus ordered journal commits:

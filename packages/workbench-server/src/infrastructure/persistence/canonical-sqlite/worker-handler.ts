@@ -95,9 +95,12 @@ export function executeCanonicalCommand(
     case "checkpoint_conversation_state":
       database.checkpointEncodedConversationState(command.input);
       return undefined;
-    case "delete_conversation_state":
-      database.deleteConversationState(command.conversationId);
-      return undefined;
+    case "delete_conversation_state_chunk":
+      return database.deleteConversationStateChunk(
+        command.conversationId,
+        command.limit,
+        command.cursor,
+      );
     case "integrity_check":
       database.integrityCheck();
       return undefined;

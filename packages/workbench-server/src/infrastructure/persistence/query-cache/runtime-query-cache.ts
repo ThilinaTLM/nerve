@@ -355,6 +355,57 @@ export class RuntimeQueryCache {
     });
   }
 
+  async rebuildIncrementally(
+    readInput: () => RebuildQueryCacheInput,
+  ): Promise<void> {
+    const yieldControl = () =>
+      new Promise<void>((resolve) => setImmediate(resolve));
+    for (const table of ["tasks", "agents", "conversations", "projects"]) {
+      while (
+        Number(
+          this.db
+            .prepare(
+              `DELETE FROM ${table} WHERE rowid IN (SELECT rowid FROM ${table} LIMIT 500)`,
+            )
+            .run().changes,
+        ) > 0
+      )
+        await yieldControl();
+    }
+    const populate = async <T extends { id: string }>(
+      read: () => T[],
+      upsert: (record: T) => void,
+    ) => {
+      const ids = read().map((record) => record.id);
+      for (let offset = 0; offset < ids.length; offset += 500) {
+        // Refresh each batch so normal writes during yields are never overwritten
+        // by stale snapshot rows, and removed entities are not resurrected.
+        const current = new Map(read().map((record) => [record.id, record]));
+        for (const id of ids.slice(offset, offset + 500)) {
+          const record = current.get(id);
+          if (record) upsert(record);
+        }
+        await yieldControl();
+      }
+    };
+    await populate(
+      () => readInput().projects,
+      (record) => this.upsertProject(record),
+    );
+    await populate(
+      () => readInput().conversations,
+      (record) => this.upsertConversation(record),
+    );
+    await populate(
+      () => readInput().agents,
+      (record) => this.upsertAgent(record),
+    );
+    await populate(
+      () => readInput().tasks ?? [],
+      (record) => this.upsertTask(record),
+    );
+  }
+
   rebuild(input: RebuildQueryCacheInput): void {
     this.guard(() => {
       this.db.exec("BEGIN IMMEDIATE");

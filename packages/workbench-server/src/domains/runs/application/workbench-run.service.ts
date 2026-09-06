@@ -117,6 +117,8 @@ export class WorkbenchRunService {
 
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
     const agent = this.requireAgent(agentId);
+    this.state.maintenanceScopes.assertConversation(agent.conversationId);
+    this.state.maintenanceScopes.assertProject(agent.projectId);
     if (agent.parentAgentId) {
       throw new ApplicationError(
         409,
@@ -157,6 +159,8 @@ export class WorkbenchRunService {
       }
       return;
     }
+    this.state.maintenanceScopes.assertConversation(agent.conversationId);
+    this.state.maintenanceScopes.assertProject(agent.projectId);
     await this.coordinator.start({
       conversationId: agent.conversationId,
       agentId: agent.id,
@@ -178,6 +182,8 @@ export class WorkbenchRunService {
     if (!state || state.run.agentId !== agent.id) {
       throw new ApplicationError(404, "RUN_NOT_FOUND", "Run not found.");
     }
+    this.state.maintenanceScopes.assertConversation(agent.conversationId);
+    this.state.maintenanceScopes.assertProject(agent.projectId);
     await this.coordinator.continue(runId);
   }
 

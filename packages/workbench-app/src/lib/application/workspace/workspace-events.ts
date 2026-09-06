@@ -13,6 +13,8 @@ import {
   upsertAgentRecordFresh,
 } from "./entity-reducers";
 import { loadWorkspaceState } from "./workspace-actions.svelte";
+import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
+import { removeTabsFromAllSessions } from "./workspace-tab-sessions";
 import {
   runtimeAgentStatusFromEvent,
   shouldRefreshWorkspace,
@@ -33,7 +35,19 @@ function handleWorkspaceEvent(event: WorkbenchEvent): void {
 
   if (event.type === "conversation.deleted") {
     const conversationId = stringValue(event.data?.conversationId);
-    if (conversationId) removeEventStream(conversationStream(conversationId));
+    if (conversationId) {
+      removeTabsFromAllSessions(
+        (tab) => tab.kind === "conversation" && tab.id === conversationId,
+      );
+      try {
+        void workspaceFeaturePorts()
+          .conversations.commands.removeConversationTabs([conversationId])
+          .catch(() => undefined);
+      } catch {
+        // Feature registration can lag event replay during startup.
+      }
+      removeEventStream(conversationStream(conversationId));
+    }
   }
 
   if (isAgentRecordEvent(event.type)) {

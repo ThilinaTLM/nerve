@@ -1,3 +1,4 @@
+import { filterConversationLogs } from "./filter-conversation-logs.js";
 import { mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -262,22 +263,14 @@ export class ApplicationLogger {
       return this.root.removeLogsForConversations(conversationIds);
     const conversations = new Set(conversationIds);
     if (conversations.size === 0) return;
-    this.#buffer = this.#buffer.filter(
-      (log) => !log.conversationId || !conversations.has(log.conversationId),
-    );
-    for (const file of await this.applicationLogFiles()) {
-      const path = join(this.logsDir(), file);
-      const logs = await readJsonLines<unknown>(path).catch(() => []);
-      const kept = logs
-        .map((value) => applicationLogRecordSchema.safeParse(value))
-        .filter((result) => result.success)
-        .map((result) => result.data)
-        .filter(
-          (log) =>
-            !log.conversationId || !conversations.has(log.conversationId),
-        );
-      await rewriteJsonLines(path, kept, 0o600);
-    }
+    await this.serializeWrite(async () => {
+      for (const file of await this.applicationLogFiles()) {
+        await filterConversationLogs(join(this.logsDir(), file), conversations);
+      }
+      this.#buffer = this.#buffer.filter(
+        (log) => !log.conversationId || !conversations.has(log.conversationId),
+      );
+    });
   }
 
   private async write(
@@ -324,9 +317,11 @@ export class ApplicationLogger {
    * swallows rejections so later appends continue.
    */
   private append(record: ApplicationLogRecord): Promise<void> {
-    const queued = this.#appendTail
-      .catch(() => undefined)
-      .then(() => this.appendDirect(record));
+    return this.serializeWrite(() => this.appendDirect(record));
+  }
+
+  private serializeWrite<T>(operation: () => Promise<T>): Promise<T> {
+    const queued = this.#appendTail.catch(() => undefined).then(operation);
     this.#appendTail = queued.then(
       () => undefined,
       () => undefined,

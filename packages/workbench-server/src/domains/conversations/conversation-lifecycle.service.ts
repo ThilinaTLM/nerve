@@ -1,3 +1,7 @@
+import type {
+  ConversationDeletionIntent,
+  ConversationRemovalOptions,
+} from "./conversation-deletion-progress.js";
 import {
   type ConversationEntry,
   type ConversationRecord,
@@ -40,6 +44,7 @@ export class ConversationLifecycleService {
   async createConversation(
     request: CreateConversationRequest,
   ): Promise<ConversationRecord> {
+    this.state.maintenanceScopes.assertProject(request.projectId);
     const project = this.state.getProject(request.projectId);
     const now = new Date().toISOString();
     const effectiveSettings = await resolveProjectSettings(
@@ -62,6 +67,7 @@ export class ConversationLifecycleService {
       createdAt: now,
       updatedAt: now,
     };
+    this.state.maintenanceScopes.assertProject(request.projectId);
     this.state.conversations.set(conversation.id, conversation);
     this.queryCache.upsertConversation(conversation);
     this.state.setConversationEntries(conversation.id, []);
@@ -80,25 +86,83 @@ export class ConversationLifecycleService {
     return this.state.getConversation(conversationId);
   }
 
-  async removeConversation(conversationId: string): Promise<void> {
+  async removeConversation(
+    conversationId: string,
+    options: ConversationRemovalOptions = {},
+  ): Promise<void> {
     const conversation = this.getConversation(conversationId);
-    for (const agent of [...this.state.agents.values()].filter(
-      (candidate) => candidate.conversationId === conversationId,
-    )) {
-      await this.removeAgent(agent.id);
+    const release =
+      this.state.maintenanceScopes.reserveConversation(conversationId);
+    try {
+      await options.prepare?.();
+      let removedRows = 0;
+      let detachedLinks = 0;
+      const report = (stage: "stopping_agents" | "streams" | "payloads") =>
+        options.onProgress?.({
+          conversationId,
+          title: conversation.title,
+          stage,
+          removedRows,
+          detachedLinks,
+        });
+      await report("stopping_agents");
+      for (const agent of [...this.state.agents.values()].filter(
+        (candidate) => candidate.conversationId === conversationId,
+      )) {
+        await this.removeAgent(agent.id);
+      }
+      this.state.removeConversation(conversationId);
+      this.entryResidency.delete(conversationId);
+      this.queryCache.removeConversation(conversationId);
+      await this.conversationRepository.remove(conversationId, {
+        operationId: options.operationId,
+        onProgress: (progress) => {
+          removedRows = progress.removed;
+          detachedLinks = progress.detached;
+          return options.onProgress?.({
+            conversationId,
+            title: conversation.title,
+            stage: progress.phase,
+            removedRows,
+            detachedLinks,
+          });
+        },
+        finish: async (intent) => {
+          await report("streams");
+          await this.events.removeConversationStream(conversationId);
+          await report("payloads");
+          await this.resultPayloads.removeConversation(conversationId);
+          await this.publishDeletion(intent);
+        },
+      });
+    } finally {
+      release();
     }
-    this.state.removeConversation(conversationId);
-    this.entryResidency.delete(conversationId);
-    this.queryCache.removeConversation(conversationId);
-    await this.conversationRepository.remove(conversationId);
-    await this.events.publish("conversation.deleted", {
-      conversationId,
-      projectId: conversation.projectId,
-    });
-    await this.events.removeConversationStream(conversationId);
-    await this.resultPayloads
-      .removeConversation(conversationId)
-      .catch(() => undefined);
+  }
+
+  async recoverDeletions(report?: (message: string) => void): Promise<void> {
+    await this.conversationRepository.journal.deletions.recover(
+      async (intent) => {
+        await this.events.removeConversationStream(intent.conversationId);
+        await this.resultPayloads.removeConversation(intent.conversationId);
+        await this.publishDeletion(intent);
+      },
+      (conversationId, progress) => {
+        report?.(
+          `Recovering deletion ${conversationId}: ${progress.phase}, ${progress.removed} rows removed`,
+        );
+      },
+    );
+  }
+
+  private async publishDeletion(
+    intent: ConversationDeletionIntent,
+  ): Promise<void> {
+    if (intent.projectId)
+      await this.events.publish("conversation.deleted", {
+        conversationId: intent.conversationId,
+        projectId: intent.projectId,
+      });
   }
 
   async ensureConversationEntries(

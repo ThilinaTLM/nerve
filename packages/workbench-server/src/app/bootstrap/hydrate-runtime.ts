@@ -19,6 +19,7 @@ export type RuntimeHydrationCounts = {
 };
 
 export type RuntimeBootstrapStage =
+  | "recovering-conversation-deletions"
   | "recovering-durable-state"
   | "hydrating-read-models"
   | "core-ready"

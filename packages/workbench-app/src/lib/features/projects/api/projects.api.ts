@@ -1,3 +1,4 @@
+import type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
 import { taskDefinitionSchema } from "@nervekit/contracts/task-definitions";
 import type {
   CreateTaskDefinitionRequest,
@@ -11,7 +12,6 @@ import type {
   ProjectRecord,
   ProjectPermissions,
   PruneProjectConversationsRequest,
-  PruneProjectConversationsResponse,
 } from "@nervekit/contracts/projects";
 import type {
   PermissionOverlay,
@@ -92,20 +92,23 @@ export async function updateProjectPermissionTrust(
   ).result.trust;
 }
 
-export async function deleteProject(projectId: string): Promise<void> {
-  await protocolRequest("project.delete", { projectId });
+export async function deleteProject(
+  projectId: string,
+): Promise<MaintenanceOperation> {
+  return (await protocolRequest("project.delete", { projectId })).result
+    .operation;
 }
 
 export async function pruneProjectConversations(
   projectId: string,
   request: PruneProjectConversationsRequest,
-): Promise<PruneProjectConversationsResponse> {
+): Promise<MaintenanceOperation> {
   return (
     await protocolRequest("project.conversations.prune", {
       projectId,
       ...request,
     })
-  ).result;
+  ).result.operation;
 }
 
 export async function openProjectInEditor(

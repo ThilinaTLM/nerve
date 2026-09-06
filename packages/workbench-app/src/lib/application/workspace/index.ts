@@ -25,6 +25,7 @@ export {
   selectProject,
   systemPromptUrl,
 } from "./workspace-actions.svelte";
+export { maintenance } from "../maintenance/maintenance-state.svelte";
 export type { CenterTabModel } from "./workspace-selectors.svelte";
 export { workspaceSelectors } from "./workspace-selectors.svelte";
 export type { CenterTabIdentity } from "./workspace-state.svelte";

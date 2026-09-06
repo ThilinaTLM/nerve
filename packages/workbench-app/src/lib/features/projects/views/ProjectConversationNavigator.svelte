@@ -52,11 +52,13 @@ let {
   searchFocusToken = 0,
   editorAvailability,
   terminalAvailability,
+  maintenanceActive = false,
   homeDir,
   onOpenConversation,
   onNewConversationInProject,
   onOpenProjectInEditor,
   onOpenProjectInTerminal,
+  onDeleteProject,
   onDeleteConversation,
   onUpdateConversationState,
   onPruneProjectConversations,
@@ -113,6 +115,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
   conversationCount: (projectId) =>
     conversations.filter((conversation) => conversation.projectId === projectId)
       .length,
+  maintenanceActive,
   onOpenConversation,
   conversationActivity: (conversationId) =>
     conversationActivityById[conversationId],
@@ -222,7 +225,8 @@ const menuContext = $derived<ProjectTreeMenuContext>({
 <ConversationListSettingsDialog
   bind:open={settingsOpen}
   hideCompleted={conversationListPreferences.hideCompleted}
-  cleanUpDisabled={!activeProject ||
+  cleanUpDisabled={maintenanceActive ||
+    !activeProject ||
     countProjectConversations(conversations, activeProject.id) === 0}
   onHideCompletedChange={setHideCompletedConversations}
   onCleanUp={() => (cleanUpOpen = true)}
@@ -239,10 +243,30 @@ const menuContext = $derived<ProjectTreeMenuContext>({
       countKeepEligible(conversations, activeProject.id, keep)}
     completedEligible={() =>
       countCompletedEligible(conversations, activeProject.id)}
-    onConfirm={(request) =>
-      onPruneProjectConversations?.(activeProject.id, request)}
+    disabled={maintenanceActive}
+    onConfirm={(request) => {
+      if (!maintenanceActive)
+        onPruneProjectConversations?.(activeProject.id, request);
+    }}
   />
 {/if}
+
+<AlertDialog
+  open={pendingDelete?.kind === "project"}
+  title="Remove project?"
+  description={pendingDelete
+    ? `This removes “${pendingDelete.label}” from Nerve and deletes its Nerve conversations. Files on disk are not deleted.`
+    : ""}
+  confirmLabel="Remove"
+  destructive
+  onConfirm={() => {
+    if (pendingDelete?.kind === "project" && !maintenanceActive)
+      onDeleteProject?.(pendingDelete.id);
+  }}
+  onOpenChange={(open) => {
+    if (!open) pendingDelete = undefined;
+  }}
+/>
 
 <AlertDialog
   open={pendingDelete?.kind === "conversation"}
