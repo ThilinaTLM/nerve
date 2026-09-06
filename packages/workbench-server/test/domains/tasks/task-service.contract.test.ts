@@ -351,13 +351,25 @@ test("terminal callbacks are idempotent across repeated exit and cancellation ra
   );
 });
 
-test("task working directories normalize POSIX and Windows absolute paths", async () => {
+test("task working directories normalize absolute and project-relative paths", async () => {
   const { resolveTaskWorkingDirectory } =
-    await import("../../../src/domains/tasks/application/task-service.js");
+    await import("../../../src/domains/tasks/model/task-working-directory.js");
   assert.equal(resolveTaskWorkingDirectory("/workspace/a/.."), "/workspace");
+  assert.equal(
+    resolveTaskWorkingDirectory("apps/web/..", "/workspace/project"),
+    "/workspace/project/apps",
+  );
+  assert.equal(
+    resolveTaskWorkingDirectory("../shared", "/workspace/project"),
+    "/workspace/shared",
+  );
   assert.equal(
     resolveTaskWorkingDirectory("C:\\workspace\\project\\.."),
     "C:\\workspace",
+  );
+  assert.equal(
+    resolveTaskWorkingDirectory("apps\\web\\..", "C:\\workspace\\project"),
+    "C:\\workspace\\project\\apps",
   );
   assert.equal(
     resolveTaskWorkingDirectory("\\\\server\\share\\project"),
@@ -366,6 +378,10 @@ test("task working directories normalize POSIX and Windows absolute paths", asyn
   assert.throws(
     () => resolveTaskWorkingDirectory("workspace/project"),
     /absolute path/,
+  );
+  assert.throws(
+    () => resolveTaskWorkingDirectory("workspace/project", "relative/base"),
+    /base must be an absolute path/,
   );
 });
 
