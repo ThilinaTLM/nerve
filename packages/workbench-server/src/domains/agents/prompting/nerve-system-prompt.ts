@@ -73,7 +73,7 @@ function defaultPrompt(options: {
   for (const guideline of options.promptGuidelines) addToolRule(guideline);
   if (options.mode !== "planning" && activeTools.has("plan_mode_enter")) {
     addToolRule(
-      "Enter plan mode before requested plans or design-heavy edits.",
+      "Use Plan Mode only for explicit plan requests or implementation with unresolved design decisions—not codebase questions, exploration, debugging, or routine edits.",
     );
   }
 
