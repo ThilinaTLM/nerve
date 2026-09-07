@@ -164,14 +164,16 @@ test("encrypts secrets and resolves project configuration precedence", async (t)
   await mkdir(configDir, { recursive: true });
   await writeFile(
     join(configDir, "harness.json"),
-    `${JSON.stringify({ version: 1, defaults: { mode: "planning" } })}\n`,
+    `${JSON.stringify({ version: 1, defaults: { thinkingLevel: "low" } })}\n`,
   );
   const projectSettings = await resolveProjectSettings(storage, project, {
-    env: { NERVE_DEFAULT_MODE: "coding" },
-    argv: ["--default-mode=planning"],
+    env: { NERVE_DEFAULT_PERMISSION_LEVEL: "read_only" },
+    argv: ["--default-permission-level=supervised"],
   });
-  assert.equal(projectSettings.defaultMode, "planning");
-  assert.equal(
+  // Arguments win over environment, which wins over the project harness file.
+  assert.equal(projectSettings.defaultPermissionLevel, "supervised");
+  assert.equal(projectSettings.defaultThinkingLevel, "low");
+  assert.notEqual(
     projectSettings.defaultPermissionLevel,
     defaultSettings.defaultPermissionLevel,
   );

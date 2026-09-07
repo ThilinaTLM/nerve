@@ -186,7 +186,6 @@ function applyHarnessEnvironment(
     ...harness,
     defaults: {
       ...harness.defaults,
-      ...(env.NERVE_DEFAULT_MODE ? { mode: env.NERVE_DEFAULT_MODE } : {}),
       ...(env.NERVE_DEFAULT_PERMISSION_LEVEL
         ? { permissionLevel: env.NERVE_DEFAULT_PERMISSION_LEVEL }
         : {}),
@@ -212,7 +211,7 @@ function applyHarnessArguments(
   const values = new Map(
     argv.flatMap((argument) => {
       const match =
-        /^--(default-mode|default-permission-level|default-model|default-thinking-level)=(.+)$/.exec(
+        /^--(default-permission-level|default-model|default-thinking-level)=(.+)$/.exec(
           argument,
         );
       return match ? [[match[1], match[2]] as const] : [];
@@ -223,9 +222,6 @@ function applyHarnessArguments(
     ...harness,
     defaults: {
       ...harness.defaults,
-      ...(values.get("default-mode")
-        ? { mode: values.get("default-mode") }
-        : {}),
       ...(values.get("default-permission-level")
         ? { permissionLevel: values.get("default-permission-level") }
         : {}),

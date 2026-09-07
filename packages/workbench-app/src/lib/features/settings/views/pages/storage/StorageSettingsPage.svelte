@@ -148,10 +148,9 @@ onMount(() => {
     title="What uses space"
     description="Categories are ordered by current footprint."
   >
-    <SettingsList ariaLabel="Storage categories" divided={false} gap="sm">
+    <SettingsList ariaLabel="Storage categories">
       {#each categories as category, index (category.key)}
         <SettingsDisclosureItem
-          variant="card"
           title={category.label}
           description={category.description}
         >

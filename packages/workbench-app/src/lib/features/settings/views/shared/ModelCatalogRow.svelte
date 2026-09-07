@@ -40,7 +40,7 @@ const outputLabel = $derived(
 <Label
   title={entry.model.modelId}
   class={cn(
-    "flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-md border bg-accent/90 px-2 py-2 text-left transition-colors hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70",
+    "flex h-9 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-md border bg-card px-2 text-left transition-colors hover:bg-accent/50",
     selected ? "border-primary" : "border-transparent",
     disabled && "pointer-events-none opacity-55",
   )}

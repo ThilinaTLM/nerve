@@ -55,7 +55,7 @@ let dialogOpen = $state(false);
 <SettingsRow {label} {description} layout="responsive">
   {#snippet control()}
     <div
-      class="relative w-full min-w-0 cursor-pointer rounded-md border border-transparent bg-accent/90 transition-colors hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70 sm:w-64"
+      class="relative w-full min-w-0 cursor-pointer rounded-md border border-transparent bg-card transition-colors hover:bg-accent/50 sm:w-64"
       role="group"
       aria-label={label}
     >

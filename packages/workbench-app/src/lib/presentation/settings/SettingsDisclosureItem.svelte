@@ -45,15 +45,15 @@ let {
   bind:open
   class={cn(
     "min-w-0",
-    variant === "card" &&
-      "overflow-hidden rounded-md border border-transparent bg-accent/90 dark:bg-accent/60",
+    variant === "card" && "overflow-hidden rounded-md border bg-card",
     className,
   )}
 >
   <SettingsListItem
     {leading}
-    {badges}
+    status={badges}
     {meta}
+    revealActionsOnHover={false}
     {actions}
     class={variant === "card" ? "px-3" : undefined}
   >

@@ -61,7 +61,7 @@ function choose(next: string): void {
       aria-checked={active}
       aria-label={option.label}
       class={cn(
-        "group/opt grid min-w-0 cursor-pointer gap-1.5 rounded-md border bg-accent/90 p-1.5 text-left transition-colors hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        "group/opt grid min-w-0 cursor-pointer gap-1.5 rounded-md border bg-card p-1.5 text-left transition-colors hover:bg-accent/50  focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
         active ? "border-primary" : "border-transparent",
       )}
       onclick={() => choose(option.value)}

@@ -134,7 +134,7 @@ function save(): void {
           <VirtualScroller
             items={filteredModels}
             getKey={(entry) => entry.key}
-            estimateSize={() => 44}
+            estimateSize={() => 40}
             gap={4}
             viewportClass="h-full"
             viewportAriaLabel="Authenticated models"

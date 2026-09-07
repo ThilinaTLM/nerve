@@ -28,6 +28,13 @@ Application `*Host` components are state/effect adapters around canonical featur
   `muted`/`default` are all spellings of tones that already exist). Domain
   vocabularies that are genuinely not status — diff line kinds, notification
   sounds — stay separate.
+- **Settings uses one set of list patterns.** Entity lists are a single
+  `SettingsList` (bordered `card` surface, hairline-divided rows) holding
+  `SettingsListItem` rows, never a stack of individually tinted cards. A row's
+  hierarchy is fixed: `title` (primary), `description` (secondary), `status`
+  (badges/dots), `meta` (tertiary, right-aligned), `actions`. Row actions are
+  icon-only `IconAction`s, which require a label and supply the tooltip and
+  accessible name; detail editing belongs in a dialog, not inline on the page.
 - **File-type icons are deliberately outside the token system.** The Material
   Icon Theme sprite in `$lib/features/filesystem/views` keeps its own multi-hued
   palette so file types stay recognizable; do not recolour it with theme tokens.

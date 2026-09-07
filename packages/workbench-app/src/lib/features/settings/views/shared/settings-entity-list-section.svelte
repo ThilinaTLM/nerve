@@ -59,7 +59,7 @@ let {
       description={emptyDescription}
     />
   {:else}
-    <SettingsList ariaLabel={listAriaLabel} divided={false} gap="sm">
+    <SettingsList ariaLabel={listAriaLabel}>
       {#each items as item (itemKey(item))}
         {@render row(item)}
       {/each}

@@ -21,7 +21,7 @@ import {
   skillSourceLabels,
   skillSourceSectionIds,
 } from "$lib/features/settings/views/pages/skills/skills-filter";
-import AgentsSettingsPage from "./agents/AgentsSettingsPage.svelte";
+import CompactionSettingsPage from "$lib/features/settings/views/pages/compaction/CompactionSettingsPage.svelte";
 import ModelsPageActions from "$lib/features/settings/views/pages/models/ModelsPageActions.svelte";
 import ModelsSettingsPage from "$lib/features/settings/views/pages/models/ModelsSettingsPage.svelte";
 import { ModelsPageState } from "$lib/features/settings/views/pages/models/models-page-state.svelte";
@@ -207,13 +207,8 @@ function statusText(): string {
         <TranscriptionSettingsPage {settingsDraft} {onSettingsChange} />
       {:else if page.id === "shortcuts"}
         <ShortcutsSettingsPage />
-      {:else if page.id === "agents"}
-        <AgentsSettingsPage
-          {settingsDraft}
-          {models}
-          {authProviders}
-          {onSettingsChange}
-        />
+      {:else if page.id === "compaction"}
+        <CompactionSettingsPage {settingsDraft} {onSettingsChange} />
       {:else if page.id === "suggestions"}
         <SuggestionsSettingsPage
           pageState={suggestionsPageState}

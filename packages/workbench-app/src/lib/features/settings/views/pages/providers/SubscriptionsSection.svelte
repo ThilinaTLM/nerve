@@ -1,7 +1,9 @@
 <script lang="ts">
+import { subscriptionAccountLabel } from "./subscription-label";
+import LogOut from "@lucide/svelte/icons/log-out";
+import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type { AuthProviderMetadata } from "$lib/api";
 import { deleteProviderCredential } from "$lib/api";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import {
   SettingsInlineMessage,
@@ -56,21 +58,26 @@ async function confirmLogout(): Promise<void> {
 >
   {#snippet row(provider)}
     <SettingsListItem
-      variant="card"
       title={provider.displayName}
       tourId={provider.provider === "openai-codex"
         ? "setup-auth-openai-codex-connected"
         : undefined}
     >
       {#snippet meta()}
-        <span class="truncate">{provider.oauthName ?? provider.provider}</span>
+        {@const account = subscriptionAccountLabel(
+          provider.displayName,
+          provider.oauthName,
+        )}
+        {#if account}
+          <span class="truncate">{account}</span>
+        {/if}
       {/snippet}
       {#snippet actions()}
-        <Button
-          variant="ghost"
-          size="xs"
-          onclick={() => (pendingLogout = provider)}>Log out</Button
-        >
+        <IconAction
+          icon={LogOut}
+          label="Log out"
+          onclick={() => (pendingLogout = provider)}
+        />
       {/snippet}
     </SettingsListItem>
   {/snippet}

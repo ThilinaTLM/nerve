@@ -64,6 +64,22 @@ describe("control scale", () => {
     }
   });
 
+  it("keeps select popover rows as compact as the trigger they open from", () => {
+    /* A 28px trigger opening 32px rows made settings dropdowns look bolder than
+     * the page around them. */
+    const item = source("./select/select-item.svelte");
+    assert.match(
+      item,
+      /(?<![\w-])py-1(?![\w.])/,
+      "select item should use py-1 so its row height matches the sm trigger",
+    );
+    assert.doesNotMatch(
+      item,
+      /(?<![\w-])py-(1\.5|2|2\.5|3)(?![\w.])/,
+      "select item drifted off the compact scale",
+    );
+  });
+
   it("keeps square icon buttons on the same scale as their text sizes", () => {
     const button = source("./button/button.svelte");
     const sizes = [...button.matchAll(/(?<![\w-])size-(\d+)/g)].map(

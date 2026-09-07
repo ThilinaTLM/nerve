@@ -1,6 +1,6 @@
 import Bell from "@lucide/svelte/icons/bell";
 import CloudCog from "@lucide/svelte/icons/cloud-cog";
-import Bot from "@lucide/svelte/icons/bot";
+import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import HardDrive from "@lucide/svelte/icons/hard-drive";
 import Keyboard from "@lucide/svelte/icons/keyboard";
 import Library from "@lucide/svelte/icons/library";
@@ -38,20 +38,20 @@ export const settingsPages: SettingsPageDef[] = [
   },
   {
     id: "models",
-    label: "Scoped Models",
+    label: "Models",
     icon: ShieldCheck,
-    description: "Scoped models limit which models the composer offers.",
-    sections: [{ id: "models", label: "Scoped Models" }],
+    sections: [
+      { id: "default-model", label: "Default model" },
+      { id: "scoped-models", label: "Scoped models" },
+    ],
   },
   {
-    id: "agents",
-    label: "Agents",
-    icon: Bot,
-    sections: [
-      { id: "defaults", label: "Defaults" },
-      { id: "compaction", label: "Compaction" },
-      { id: "explore", label: "Explore agent" },
-    ],
+    id: "compaction",
+    label: "Compaction",
+    icon: FoldVertical,
+    description:
+      "Compaction checkpoints completed and remaining work before an agent runs out of context.",
+    sections: [{ id: "compaction", label: "Compaction" }],
   },
   {
     id: "permissions",
@@ -60,9 +60,8 @@ export const settingsPages: SettingsPageDef[] = [
     description:
       "Choose a simple default and manage focused allow or block exceptions.",
     sections: [
-      { id: "default-permission", label: "Default permission" },
-      { id: "project-exceptions", label: "Project Exceptions" },
-      { id: "user-exceptions", label: "User Exceptions" },
+      { id: "rule-sets", label: "Rule sets" },
+      { id: "overlays", label: "Overrides" },
     ],
   },
   {

@@ -200,7 +200,7 @@ function useFallback(): void {
               <VirtualScroller
                 items={listItems}
                 getKey={(item) => item.key}
-                estimateSize={() => 44}
+                estimateSize={() => 40}
                 gap={4}
                 viewportClass="h-full"
                 viewportAriaLabel="Available models"
@@ -216,7 +216,7 @@ function useFallback(): void {
                   {:else}
                     <Label
                       class={cn(
-                        "flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-md border bg-accent/90 px-2 py-2 text-left transition-colors hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70",
+                        "flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-md border bg-card px-2 py-2 text-left transition-colors hover:bg-accent/50 ",
                         selectedKey === ""
                           ? "border-primary"
                           : "border-transparent",

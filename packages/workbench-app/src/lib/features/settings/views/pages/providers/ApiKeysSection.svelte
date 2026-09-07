@@ -1,7 +1,8 @@
 <script lang="ts">
+import Trash2 from "@lucide/svelte/icons/trash-2";
+import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type { AuthProviderMetadata } from "$lib/api";
 import { deleteProviderCredential } from "$lib/api";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { SettingsListItem } from "$lib/presentation/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
@@ -65,18 +66,19 @@ async function confirmRemove(): Promise<void> {
   onAdd={() => (addOpen = true)}
 >
   {#snippet row(provider)}
-    <SettingsListItem variant="card" title={provider.displayName}>
+    <SettingsListItem title={provider.displayName}>
       {#snippet meta()}
         {#if provider.envVar}
           <span class="truncate font-mono">{provider.envVar}</span>
         {/if}
       {/snippet}
       {#snippet actions()}
-        <Button
-          variant="ghost"
-          size="xs"
-          onclick={() => (pendingRemove = provider)}>Remove</Button
-        >
+        <IconAction
+          icon={Trash2}
+          label="Remove API key"
+          tone="destructive"
+          onclick={() => (pendingRemove = provider)}
+        />
       {/snippet}
     </SettingsListItem>
   {/snippet}

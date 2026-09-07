@@ -62,6 +62,7 @@ let bashDialogOpen = $state(false);
 let pythonDialogOpen = $state(false);
 let visionModelDialogOpen = $state(false);
 let webDialogOpen = $state(false);
+let exploreDialogOpen = $state(false);
 
 const disabledTools = $derived(new Set(settingsDraft.tools?.disabled ?? []));
 const python = $derived(status?.runtime.python);
@@ -91,6 +92,16 @@ const configuredVisionModel = $derived(
     : undefined,
 );
 const visionReady = $derived(Boolean(configuredVisionModel));
+const usableExploreModels = $derived(usableModelOptions(models, authProviders));
+const configuredExploreModel = $derived(
+  settingsDraft.exploreAgent.model
+    ? usableExploreModels.find(
+        (model) =>
+          modelKey(model) ===
+          modelKey(settingsDraft.exploreAgent.model as ModelSelection),
+      )
+    : undefined,
+);
 
 function groupEnabled(group: ToolGroupDef): boolean {
   if (group.configurableTools.length === 0) return true;
@@ -113,6 +124,26 @@ function setToolsEnabled(
   const disabled = configurableToolOrder.filter((name) => next.has(name));
   tools.disabled = disabled;
   onSettingsChange?.({ tools: { disabled } }, { immediate: true });
+}
+
+function saveExploreModel(selection: {
+  model?: ModelSelection;
+  thinkingLevel: ThinkingLevel;
+}): void {
+  settingsDraft.exploreAgent = {
+    ...settingsDraft.exploreAgent,
+    model: selection.model,
+    thinkingLevel: selection.thinkingLevel,
+  };
+  onSettingsChange?.(
+    {
+      exploreAgent: {
+        model: selection.model ?? null,
+        thinkingLevel: selection.thinkingLevel,
+      },
+    },
+    { immediate: true },
+  );
 }
 
 function saveVisionModel(selection: {
@@ -184,6 +215,12 @@ function setTavilyProfile(profileId?: string): void {
             <ToolConfigureButton
               label="Configure Python"
               onclick={() => (pythonDialogOpen = true)}
+            />
+          {:else if group.id === "explore"}
+            <ToolConfigureButton
+              label="Configure Explore"
+              tourId="setup-agent-explore-model"
+              onclick={() => (exploreDialogOpen = true)}
             />
           {/if}
           {#if alwaysOn}
@@ -267,6 +304,23 @@ function setTavilyProfile(profileId?: string): void {
                 {/if}
               {/snippet}
             </SettingsSummaryRow>
+          {:else if group.id === "explore"}
+            <SettingsSummaryRow
+              class="mt-1"
+              title={configuredExploreModel
+                ? modelDisplayName(configuredExploreModel)
+                : "Parent agent model"}
+              status={configuredExploreModel ? "ok" : "muted"}
+            >
+              {#snippet meta()}
+                {#if configuredExploreModel}
+                  {providerDisplayName(configuredExploreModel.provider)} · Thinking
+                  {settingsDraft.exploreAgent.thinkingLevel}
+                {:else}
+                  Explore agents reuse the model of the agent that started them.
+                {/if}
+              {/snippet}
+            </SettingsSummaryRow>
           {:else if group.id === "python"}
             <SettingsSummaryRow
               class="mt-1"
@@ -318,6 +372,21 @@ function setTavilyProfile(profileId?: string): void {
   selectedThinkingLevel={settingsDraft.tools.imageExplanation.thinkingLevel}
   emptyMessage="No configured image-capable models are available."
   onSave={saveVisionModel}
+/>
+
+<SingleModelSelectionDialog
+  bind:open={exploreDialogOpen}
+  title="Choose explore model"
+  description="Explore agents run read-only research in coding mode with a fresh history."
+  models={usableExploreModels}
+  selectedModel={settingsDraft.exploreAgent.model}
+  selectedThinkingLevel={settingsDraft.exploreAgent.thinkingLevel}
+  fallbackOption={{
+    label: "Parent agent model",
+    detail: "Use the same model as the agent that started the explore",
+    actionLabel: "Use parent agent model",
+  }}
+  onSave={saveExploreModel}
 />
 
 <PythonRuntimeDialog

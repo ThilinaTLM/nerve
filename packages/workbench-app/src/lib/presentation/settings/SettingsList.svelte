@@ -4,16 +4,16 @@ import { cn } from "@nervekit/ui-kit/utils";
 
 let {
   ariaLabel,
-  divided = true,
-  gap = "md",
+  variant = "bordered",
   class: className,
   children,
 }: {
   ariaLabel?: string;
-  /** Render rows separated by hairlines (default) vs. spaced cards. */
-  divided?: boolean;
-  /** Vertical gap when `divided` is false. */
-  gap?: "sm" | "md";
+  /**
+   * `bordered` is one card surface holding hairline-separated rows. `plain` drops the
+   * frame for lists that already sit inside a surface.
+   */
+  variant?: "bordered" | "plain";
   class?: string;
   children: Snippet;
 } = $props();
@@ -23,11 +23,8 @@ let {
   role={ariaLabel ? "list" : undefined}
   aria-label={ariaLabel}
   class={cn(
-    divided
-      ? "divide-y divide-border/40"
-      : gap === "md"
-        ? "grid gap-2"
-        : "grid gap-1.5",
+    "divide-y divide-border",
+    variant === "bordered" && "overflow-hidden rounded-md border bg-card",
     className,
   )}
 >

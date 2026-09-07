@@ -227,7 +227,6 @@ export const transcriptionSettingsSchema = z.object({
 export type TranscriptionSettings = z.infer<typeof transcriptionSettingsSchema>;
 
 export const settingsSchema = z.object({
-  defaultMode: modeSchema,
   defaultPermissionLevel: permissionLevelSchema,
   defaultPermissionRuleSetId: permissionRuleSetIdSchema.optional(),
   defaultModel: modelSelectionSchema.optional(),
@@ -278,7 +277,6 @@ export const settingsSchema = z.object({
 export type Settings = z.infer<typeof settingsSchema>;
 
 export const defaultSettings: Settings = {
-  defaultMode: "coding",
   defaultPermissionLevel: "autonomous",
   defaultPermissionRuleSetId: "autonomous",
   defaultThinkingLevel: "off",
@@ -344,7 +342,6 @@ export const defaultSettings: Settings = {
 };
 
 export const updateSettingsRequestSchema = z.object({
-  defaultMode: modeSchema.optional(),
   defaultPermissionLevel: permissionLevelSchema.optional(),
   defaultPermissionRuleSetId: permissionRuleSetIdSchema.optional(),
   defaultModel: modelSelectionSchema.nullable().optional(),

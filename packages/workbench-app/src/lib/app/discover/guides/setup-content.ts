@@ -116,7 +116,11 @@ export const setupGuideSteps: Record<
         "Open the scoped-model catalog to limit which authenticated models appear in the composer.",
       targetId: "setup-scoped-models-add",
       fallback: "Open Settings → Models and choose Add models.",
-      preparation: { kind: "settings", pageId: "models", sectionId: "models" },
+      preparation: {
+        kind: "settings",
+        pageId: "models",
+        sectionId: "scoped-models",
+      },
       advanceByClickingTarget: true,
     },
     {
@@ -127,7 +131,11 @@ export const setupGuideSteps: Record<
       targetId: "setup-scoped-models-catalog",
       fallback:
         "Click Add models first; the search, filters, and model catalog will appear in the dialog.",
-      preparation: { kind: "settings", pageId: "models", sectionId: "models" },
+      preparation: {
+        kind: "settings",
+        pageId: "models",
+        sectionId: "scoped-models",
+      },
     },
     {
       id: "scoped-models-save",
@@ -136,7 +144,11 @@ export const setupGuideSteps: Record<
         "Save your choices. Leaving every model unchecked is valid and keeps all authenticated models available.",
       targetId: "setup-scoped-models-save",
       fallback: "In the Add models dialog, choose Save selection when ready.",
-      preparation: { kind: "settings", pageId: "models", sectionId: "models" },
+      preparation: {
+        kind: "settings",
+        pageId: "models",
+        sectionId: "scoped-models",
+      },
     },
   ],
   "web-search": [
@@ -300,18 +312,6 @@ export const setupGuideSteps: Record<
   ],
   "agent-defaults": [
     {
-      id: "agent-default-mode",
-      title: "Choose the default mode",
-      description: "Set whether new agents begin in coding or planning mode.",
-      targetId: "setup-agent-default-mode",
-      fallback: "Open Settings → Agents → Defaults to choose a mode.",
-      preparation: {
-        kind: "settings",
-        pageId: "agents",
-        sectionId: "defaults",
-      },
-    },
-    {
       id: "agent-default-permission",
       title: "Choose default permissions",
       description: "Set the approval level new agents use by default.",
@@ -319,8 +319,8 @@ export const setupGuideSteps: Record<
       fallback: "Open Settings → Permissions to choose a permission rule set.",
       preparation: {
         kind: "settings",
-        pageId: "agents",
-        sectionId: "defaults",
+        pageId: "permissions",
+        sectionId: "rule-sets",
       },
     },
     {
@@ -329,12 +329,11 @@ export const setupGuideSteps: Record<
       description:
         "Pick the model and thinking level used by Explore subagents.",
       targetId: "setup-agent-explore-model",
-      fallback:
-        "Open Settings → Agents → Explore agent and use the model picker.",
+      fallback: "Open Settings → Tools → Core and configure the Explore tool.",
       preparation: {
         kind: "settings",
-        pageId: "agents",
-        sectionId: "explore-agent",
+        pageId: "tools",
+        sectionId: "core",
       },
     },
     {
@@ -344,11 +343,11 @@ export const setupGuideSteps: Record<
         "Finish with the main agent model and its default thinking level—the settings you will use most often. Additional approval and compaction controls remain available nearby.",
       targetId: "setup-agent-default-model",
       fallback:
-        "Open Settings → Agents → Defaults and use the main model picker.",
+        "Open Settings → Models → Default model and use the model picker.",
       preparation: {
         kind: "settings",
-        pageId: "agents",
-        sectionId: "defaults",
+        pageId: "models",
+        sectionId: "default-model",
       },
     },
   ],

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import { SvelteSet } from "svelte/reactivity";
 import Copy from "@lucide/svelte/icons/copy";
 import type { AvailableSkill, Settings } from "$lib/api";
@@ -223,14 +224,11 @@ function copyPath(path: string): void {
                 <span class="truncate font-mono" title={entry.skill.filePath}
                   >{entry.skill.filePath}</span
                 >
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  ariaLabel="Copy skill path"
+                <IconAction
+                  icon={Copy}
+                  label="Copy skill path"
                   onclick={() => copyPath(entry.skill.filePath)}
-                >
-                  <Copy class="size-3.5" aria-hidden="true" />
-                </Button>
+                />
               </div>
             {/snippet}
           </SettingsDisclosureItem>
