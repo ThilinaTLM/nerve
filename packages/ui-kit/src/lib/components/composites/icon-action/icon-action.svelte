@@ -12,6 +12,8 @@ type Props = {
   label: string;
   onclick: () => void;
   tone?: "neutral" | "destructive";
+  /** Marks the action as the current state, e.g. the starred default. */
+  active?: boolean;
   size?: "xs" | "sm";
   disabled?: boolean;
   /** Swaps the icon for a spinner and blocks activation. */
@@ -26,6 +28,7 @@ let {
   label,
   onclick,
   tone = "neutral",
+  active = false,
   size = "xs",
   disabled = false,
   busy = false,
@@ -39,26 +42,33 @@ let {
   <Tooltip.Root>
     <Tooltip.Trigger>
       {#snippet child({ props })}
-        <Button
-          {...props}
-          variant="ghost"
-          size={size === "sm" ? "icon-sm" : "icon-xs"}
-          disabled={disabled || busy}
-          ariaLabel={label}
-          data-tour-id={tourId}
-          class={cn(
-            "text-muted-foreground hover:text-foreground",
-            tone === "destructive" && "hover:text-destructive",
-            className,
-          )}
-          onclick={() => onclick()}
-        >
-          {#if busy}
-            <Spinner class="size-3.5" />
-          {:else}
-            <Icon class="size-3.5" aria-hidden="true" />
-          {/if}
-        </Button>
+        <!-- The trigger props must land on a DOM element; spreading them onto a
+             component drops the attachment bits-ui uses to track the node. -->
+        <span {...props} class="inline-flex">
+          <Button
+            variant="ghost"
+            size={size === "sm" ? "icon-sm" : "icon-xs"}
+            disabled={disabled || busy}
+            ariaLabel={label}
+            data-tour-id={tourId}
+            class={cn(
+              "text-muted-foreground hover:text-foreground",
+              tone === "destructive" && "hover:text-destructive",
+              active && "text-primary hover:text-primary",
+              className,
+            )}
+            onclick={() => onclick()}
+          >
+            {#if busy}
+              <Spinner class="size-3.5" />
+            {:else}
+              <Icon
+                class={cn("size-3.5", active && "fill-current")}
+                aria-hidden="true"
+              />
+            {/if}
+          </Button>
+        </span>
       {/snippet}
     </Tooltip.Trigger>
     <Tooltip.Content {side}>{label}</Tooltip.Content>

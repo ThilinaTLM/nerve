@@ -40,10 +40,9 @@ export const settingsPages: SettingsPageDef[] = [
     id: "models",
     label: "Models",
     icon: ShieldCheck,
-    sections: [
-      { id: "default-model", label: "Default model" },
-      { id: "scoped-models", label: "Scoped models" },
-    ],
+    description:
+      "Limit which models the composer offers, and star the one new agents start with.",
+    sections: [{ id: "models", label: "Models" }],
   },
   {
     id: "compaction",

@@ -5,7 +5,6 @@ import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { clampThinkingLevelForModel } from "$lib/application/preferences/agent-selection";
-import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
 import type {
   AuthProviderMetadata,
   ModelInfo,
@@ -17,7 +16,6 @@ import {
   SettingsEmptyState,
   SettingsGroup,
   SettingsInlineMessage,
-  SettingsKeyValueRow,
   SettingsList,
   SettingsListItem,
   SettingsSection,
@@ -29,10 +27,8 @@ import {
   modelKey,
   parseModelKey,
   providerDisplayName,
-  scopedUsableModelOptions,
 } from "$lib/presentation/utils/model";
 import type { SettingsChange } from "../settings-change";
-import ModelPickerRow from "../../shared/ModelPickerRow.svelte";
 import AddScopedModelsDialog from "./AddScopedModelsDialog.svelte";
 import type { ModelsPageState } from "./models-page-state.svelte";
 
@@ -91,65 +87,22 @@ const staleCount = $derived(
   scopedEntries.filter((entry) => entry.stale).length,
 );
 
-const defaultModelCandidates = $derived(
-  scopedUsableModelOptions(models, authProviders, settingsDraft.scopedModels),
-);
-const savedDefaultModelInfo = $derived.by(() => {
-  const selection = settingsDraft.defaultModel;
-  return selection
-    ? defaultModelCandidates.find(
-        (model) => modelKey(model) === modelKey(selection),
-      )
-    : undefined;
-});
-const defaultModelInfo = $derived(
-  savedDefaultModelInfo ?? defaultModelCandidates[0],
-);
-const effectivePermissionRuleSetId = $derived(
-  settingsDraft.rememberLastAgentSelection
-    ? (settingsDraft.lastAgentSelection.permissionRuleSetId ??
-        settingsDraft.lastAgentSelection.permissionLevel)
-    : (settingsDraft.defaultPermissionRuleSetId ??
-        settingsDraft.defaultPermissionLevel),
-);
-const fallbackThinkingLevels = $derived<Settings["defaultThinkingLevel"][]>(
-  defaultModelInfo?.supportedThinkingLevels?.length
-    ? defaultModelInfo.supportedThinkingLevels
-    : ["off"],
-);
-const defaultThinkingLevel = $derived(
-  clampThinkingLevelForModel(
-    settingsDraft.defaultThinkingLevel,
-    defaultModelInfo,
-  ),
-);
 const defaultModelKey = $derived(
   settingsDraft.defaultModel ? modelKey(settingsDraft.defaultModel) : undefined,
 );
 
-function saveDefaultModel(selection: {
-  model?: Settings["defaultModel"];
-  thinkingLevel: Settings["defaultThinkingLevel"];
-}): void {
-  settingsDraft.defaultModel = selection.model;
-  settingsDraft.defaultThinkingLevel = selection.thinkingLevel;
+/** Starring a model makes it the default new agents start with. */
+function makeDefault(entry: ScopedEntry): void {
+  const thinkingLevel = clampThinkingLevelForModel(
+    settingsDraft.defaultThinkingLevel,
+    entry.model,
+  );
+  settingsDraft.defaultModel = entry.selection;
+  settingsDraft.defaultThinkingLevel = thinkingLevel;
   onSettingsChange?.(
-    {
-      defaultModel: selection.model ?? null,
-      defaultThinkingLevel: selection.thinkingLevel,
-    },
+    { defaultModel: entry.selection, defaultThinkingLevel: thinkingLevel },
     { immediate: true },
   );
-}
-
-function makeDefault(entry: ScopedEntry): void {
-  saveDefaultModel({
-    model: entry.selection,
-    thinkingLevel: clampThinkingLevelForModel(
-      settingsDraft.defaultThinkingLevel,
-      entry.model,
-    ),
-  });
 }
 
 function onRememberLastSelectionChange(checked: boolean): void {
@@ -194,66 +147,7 @@ function removeEntry(key: string): void {
 }
 </script>
 
-<SettingsSection
-  id="default-model"
-  title="Default model"
-  description="New agents start with this model unless they reuse your last composer selections."
->
-  <SettingsGroup>
-    <ModelPickerRow
-      label="Default model"
-      tourId="setup-agent-default-model"
-      description="Choose the model and thinking level together."
-      models={defaultModelCandidates}
-      selectedModel={settingsDraft.defaultModel}
-      selectedThinkingLevel={defaultThinkingLevel}
-      summaryTitle={savedDefaultModelInfo
-        ? modelDisplayName(savedDefaultModelInfo)
-        : "First available model"}
-      fallbackOption={{
-        label: "First available model",
-        detail: "Use the first model allowed by the scope below",
-        actionLabel: "Use first available",
-      }}
-      {fallbackThinkingLevels}
-      dialogTitle="Choose default model"
-      dialogDescription="Search available models, choose one model, then select its thinking level."
-      policyLabel="Default agent policy"
-      onSave={saveDefaultModel}
-    >
-      {#snippet summaryMeta()}
-        {#if savedDefaultModelInfo}
-          {providerDisplayName(savedDefaultModelInfo.provider)}
-        {:else if defaultModelInfo}
-          Currently {modelDisplayName(defaultModelInfo)} ·
-          {providerDisplayName(defaultModelInfo.provider)}
-        {:else}
-          No model available
-        {/if}
-      {/snippet}
-      {#snippet policy()}
-        <SettingsKeyValueRow
-          label="Permission rule set"
-          value={permissionRuleSetDisplayName(effectivePermissionRuleSetId)}
-        />
-        <SettingsKeyValueRow label="Mode" value="Coding" />
-      {/snippet}
-    </ModelPickerRow>
-
-    <SettingsToggleRow
-      label="Use last selections for new agents"
-      description="Reuse the last composer selections instead of the default model."
-      checked={settingsDraft.rememberLastAgentSelection}
-      onCheckedChange={onRememberLastSelectionChange}
-    />
-  </SettingsGroup>
-</SettingsSection>
-
-<SettingsSection
-  id="scoped-models"
-  title="Scoped models"
-  description="Scoped models limit which models the composer offers. Every authenticated model appears until you add one."
->
+<SettingsSection id="models" title="Scoped models">
   <SettingsGroup>
     {#if availableModels.length === 0}
       <SettingsInlineMessage
@@ -281,31 +175,31 @@ function removeEntry(key: string): void {
             ? modelDisplayName(entry.model)
             : entry.selection.modelId}
           {@const isDefault = entry.key === defaultModelKey}
-          <SettingsListItem title={label} description={entry.selection.modelId}>
-            {#snippet status()}
-              {#if isDefault}
-                <Badge variant="accent">Default</Badge>
-              {/if}
-              {#if entry.stale}
-                <Badge variant="warning">Unavailable</Badge>
-              {/if}
-            {/snippet}
-            {#snippet meta()}
-              <span class="truncate"
-                >{providerDisplayName(entry.selection.provider)}</span
-              >
+          <SettingsListItem revealActionsOnHover={false}>
+            {#snippet content()}
+              <div class="flex min-w-0 items-baseline gap-1.5">
+                <span class="truncate text-sm text-foreground">{label}</span>
+                <span class="truncate text-xs text-muted-foreground">
+                  ({entry.selection.provider}/{entry.selection.modelId})
+                </span>
+                {#if entry.stale}
+                  <Badge variant="warning">Unavailable</Badge>
+                {/if}
+              </div>
             {/snippet}
             {#snippet actions()}
-              {#if !isDefault && !entry.stale}
-                <IconAction
-                  icon={Star}
-                  label="Set as default model"
-                  onclick={() => makeDefault(entry)}
-                />
-              {/if}
+              <IconAction
+                icon={Star}
+                active={isDefault}
+                disabled={entry.stale}
+                label={isDefault
+                  ? `Default model for new agents`
+                  : `Make ${label} the default model`}
+                onclick={() => makeDefault(entry)}
+              />
               <IconAction
                 icon={Trash2}
-                label="Remove scoped model"
+                label={`Remove ${label} from the scope`}
                 tone="destructive"
                 onclick={() => removeEntry(entry.key)}
               />
@@ -321,6 +215,13 @@ function removeEntry(key: string): void {
         />
       {/if}
     {/if}
+
+    <SettingsToggleRow
+      label="Remember last selected model as default"
+      description="New agents reuse the model you last chose in the composer instead of the starred default."
+      checked={settingsDraft.rememberLastAgentSelection}
+      onCheckedChange={onRememberLastSelectionChange}
+    />
   </SettingsGroup>
 </SettingsSection>
 

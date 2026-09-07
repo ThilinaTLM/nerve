@@ -119,7 +119,7 @@ export const setupGuideSteps: Record<
       preparation: {
         kind: "settings",
         pageId: "models",
-        sectionId: "scoped-models",
+        sectionId: "models",
       },
       advanceByClickingTarget: true,
     },
@@ -134,7 +134,7 @@ export const setupGuideSteps: Record<
       preparation: {
         kind: "settings",
         pageId: "models",
-        sectionId: "scoped-models",
+        sectionId: "models",
       },
     },
     {
@@ -147,7 +147,7 @@ export const setupGuideSteps: Record<
       preparation: {
         kind: "settings",
         pageId: "models",
-        sectionId: "scoped-models",
+        sectionId: "models",
       },
     },
   ],
@@ -334,20 +334,6 @@ export const setupGuideSteps: Record<
         kind: "settings",
         pageId: "tools",
         sectionId: "core",
-      },
-    },
-    {
-      id: "agent-default-model",
-      title: "Choose the main model",
-      description:
-        "Finish with the main agent model and its default thinking level—the settings you will use most often. Additional approval and compaction controls remain available nearby.",
-      targetId: "setup-agent-default-model",
-      fallback:
-        "Open Settings → Models → Default model and use the model picker.",
-      preparation: {
-        kind: "settings",
-        pageId: "models",
-        sectionId: "default-model",
       },
     },
   ],
