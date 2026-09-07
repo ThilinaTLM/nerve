@@ -1,11 +1,11 @@
 <script lang="ts">
-import Star from "@lucide/svelte/icons/star";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { clampThinkingLevelForModel } from "$lib/application/preferences/agent-selection";
 import type {
+  AgentRecord,
   AuthProviderMetadata,
   ModelInfo,
   ModelSelection,
@@ -30,7 +30,10 @@ import {
 } from "$lib/presentation/utils/model";
 import type { SettingsChange } from "../settings-change";
 import AddScopedModelsDialog from "./AddScopedModelsDialog.svelte";
+import DefaultModelStar from "./DefaultModelStar.svelte";
 import type { ModelsPageState } from "./models-page-state.svelte";
+
+type ThinkingLevel = AgentRecord["thinkingLevel"];
 
 type ScopedEntry = {
   key: string;
@@ -92,11 +95,8 @@ const defaultModelKey = $derived(
 );
 
 /** Starring a model makes it the default new agents start with. */
-function makeDefault(entry: ScopedEntry): void {
-  const thinkingLevel = clampThinkingLevelForModel(
-    settingsDraft.defaultThinkingLevel,
-    entry.model,
-  );
+function makeDefault(entry: ScopedEntry, level: ThinkingLevel): void {
+  const thinkingLevel = clampThinkingLevelForModel(level, entry.model);
   settingsDraft.defaultModel = entry.selection;
   settingsDraft.defaultThinkingLevel = thinkingLevel;
   onSettingsChange?.(
@@ -187,14 +187,13 @@ function removeEntry(key: string): void {
               {/if}
             {/snippet}
             {#snippet actions()}
-              <IconAction
-                icon={Star}
-                active={isDefault}
+              <DefaultModelStar
+                {label}
+                model={entry.model}
+                {isDefault}
                 disabled={entry.stale}
-                label={isDefault
-                  ? `Default model for new agents`
-                  : `Make ${label} the default model`}
-                onclick={() => makeDefault(entry)}
+                currentThinkingLevel={settingsDraft.defaultThinkingLevel}
+                onSelect={(level) => makeDefault(entry, level)}
               />
               <IconAction
                 icon={Trash2}

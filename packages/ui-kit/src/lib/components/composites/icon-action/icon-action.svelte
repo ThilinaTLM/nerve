@@ -10,7 +10,9 @@ type Props = {
   icon: Component<{ class?: string; "aria-hidden"?: boolean | "true" }>;
   /** Tooltip text and accessible name. Required so icon-only actions stay labelled. */
   label: string;
-  onclick: () => void;
+  /** Optional when the action is driven by a wrapper, e.g. a popover trigger,
+   * whose own handler arrives here and needs its event forwarded. */
+  onclick?: (event: MouseEvent) => void;
   tone?: "neutral" | "destructive";
   /** Marks the action as the current state, e.g. the starred default. */
   active?: boolean;
@@ -21,6 +23,8 @@ type Props = {
   side?: "top" | "right" | "bottom" | "left";
   tourId?: string;
   class?: string;
+  /** Forwarded to the trigger element so wrappers like Popover can attach. */
+  [key: string]: unknown;
 };
 
 let {
@@ -35,6 +39,7 @@ let {
   side = "top",
   tourId,
   class: className,
+  ...rest
 }: Props = $props();
 </script>
 
@@ -44,7 +49,7 @@ let {
       {#snippet child({ props })}
         <!-- The trigger props must land on a DOM element; spreading them onto a
              component drops the attachment bits-ui uses to track the node. -->
-        <span {...props} class="inline-flex">
+        <span {...props} {...rest} class="inline-flex">
           <Button
             variant="ghost"
             size={size === "sm" ? "icon-sm" : "icon-xs"}
@@ -57,7 +62,7 @@ let {
               active && "text-primary hover:text-primary",
               className,
             )}
-            onclick={() => onclick()}
+            onclick={(event) => onclick?.(event)}
           >
             {#if busy}
               <Spinner class="size-3.5" />
