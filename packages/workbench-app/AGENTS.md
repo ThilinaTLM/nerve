@@ -34,14 +34,17 @@ Application `*Host` components are state/effect adapters around canonical featur
   `text-sm` semibold muted (subordinate by colour, not size), row title
   `text-sm` regular foreground, and all supporting text `text-xs` muted.
   Headings are sentence case — no uppercase eyebrows, which rank a section below
-  its own rows. Row titles stay regular weight so headings win.
+  its own rows. Row titles stay regular weight so headings win. Headings carry
+  no description paragraph; put the detail in a `SettingsInfoHint` tooltip
+  beside the title so section- and row-level grey text stay distinguishable.
   `settings-typography.test.ts` enforces this.
 - **Settings uses one set of list patterns.** Entity lists are a single
   `SettingsList` (bordered `card` surface, hairline-divided rows) holding
   `SettingsListItem` rows, never a stack of individually tinted cards. A row's
-  hierarchy is fixed: `title` (primary), `description` (secondary), `status`
-  (badges/dots), `meta` (tertiary, right-aligned), `actions`. Row actions are
-  icon-only `IconAction`s, which require a label and supply the tooltip and
+  hierarchy is fixed and all of it sits on the left: `title` (primary),
+  `detail` (inline secondary), `status` (badges), `description` (its own line).
+  The right column holds icon actions and nothing else, always visible. Row
+  actions are `IconAction`s, which require a label and supply the tooltip and
   accessible name; detail editing belongs in a dialog, not inline on the page.
 - **File-type icons are deliberately outside the token system.** The Material
   Icon Theme sprite in `$lib/features/filesystem/views` keeps its own multi-hued

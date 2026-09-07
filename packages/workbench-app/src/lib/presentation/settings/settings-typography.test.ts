@@ -69,22 +69,26 @@ describe("settings typography", () => {
     }
   });
 
-  it("keeps supporting text muted and below the titles it describes", () => {
-    for (const path of [
-      "./SettingsSection.svelte",
-      "./SettingsGroup.svelte",
-      "./SettingsListItem.svelte",
-    ]) {
-      assert.match(
-        source(path),
-        /\{description\}/,
-        `${path} should render a description`,
+  it("keeps row supporting text muted and under the title", () => {
+    assert.match(
+      source("./SettingsListItem.svelte"),
+      /class="truncate text-xs text-muted-foreground">\s*\{description\}/s,
+      "list item description should be text-xs muted",
+    );
+  });
+
+  it("keeps headings free of description paragraphs", () => {
+    /* Section detail belongs in an info tooltip beside the heading. A paragraph
+     * under every heading put section-level and row-level grey text in the same
+     * tier, so nothing said which one a line belonged to. */
+    for (const path of ["./SettingsSection.svelte", "./SettingsGroup.svelte"]) {
+      const text = source(path);
+      assert.doesNotMatch(
+        text,
+        /description/,
+        `${path} should expose an info tooltip, not a description`,
       );
-      assert.match(
-        source(path),
-        /class="[^"]*text-xs[^"]*text-muted-foreground[^"]*"[^>]*>\s*\{?\s*description/s,
-        `${path} description should be text-xs muted`,
-      );
+      assert.match(text, /SettingsInfoHint/, `${path} should offer info`);
     }
   });
 });

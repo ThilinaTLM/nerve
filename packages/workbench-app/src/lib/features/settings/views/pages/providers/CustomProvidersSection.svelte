@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
@@ -79,16 +80,18 @@ async function confirmDelete(): Promise<void> {
 >
   {#snippet row(provider)}
     <SettingsListItem title={provider.displayName}>
-      {#snippet meta()}
+      {#snippet detail()}
         <span class="truncate">
           <span class="font-mono">{provider.id}</span>
           · {provider.api} ·
           <span class="font-mono">{provider.baseUrl}</span>
-          {#if !keyConfigured(provider.id)}
-            · <span class="text-warning">No key</span>
-          {/if}
           · {modelCountByProvider.get(provider.id) ?? 0} models
         </span>
+      {/snippet}
+      {#snippet status()}
+        {#if !keyConfigured(provider.id)}
+          <Badge variant="warning">No key</Badge>
+        {/if}
       {/snippet}
       {#snippet actions()}
         <IconAction

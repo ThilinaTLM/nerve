@@ -133,7 +133,7 @@ async function save(): Promise<void> {
     <div class="grid gap-4">
       <SettingsGroup
         title="Project"
-        description="Repository-controlled rules for the active project. Project rules override user defaults but never user guardrails."
+        info="Repository-controlled rules for the active project. Project rules override user defaults but never user guardrails."
       >
         {#if trust}
           <div
@@ -193,7 +193,7 @@ async function save(): Promise<void> {
 
       <SettingsGroup
         title="User"
-        description="Stored in your Nerve home and applied across projects. A guardrail may prompt or deny and cannot be replaced by project rules."
+        info="Stored in your Nerve home and applied across projects. A guardrail may prompt or deny and cannot be replaced by project rules."
       >
         <PermissionExceptionList
           rules={userRules}

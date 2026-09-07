@@ -20,7 +20,8 @@ type Props = {
   leading?: Snippet;
   titleSuffix?: Snippet;
   badges?: Snippet;
-  meta?: Snippet;
+  /** Secondary information, inline after the title. */
+  titleDetail?: Snippet;
   actions?: Snippet;
   detail: Snippet;
   variant?: "plain" | "card";
@@ -34,7 +35,7 @@ let {
   leading,
   titleSuffix,
   badges,
-  meta,
+  titleDetail,
   actions,
   detail,
   variant = "plain",
@@ -51,9 +52,6 @@ let {
 >
   <SettingsListItem
     {leading}
-    status={badges}
-    {meta}
-    revealActionsOnHover={false}
     {actions}
     class={variant === "card" ? "px-3" : undefined}
   >
@@ -66,10 +64,20 @@ let {
           aria-hidden="true"
         />
         <span class="grid min-w-0 gap-0.5 text-left">
-          <span class="flex min-w-0 items-center gap-1.5">
+          <span class="flex min-w-0 items-baseline gap-1.5">
             <span class="truncate text-sm text-foreground">{title}</span>
             {#if titleSuffix}
               {@render titleSuffix()}
+            {/if}
+            {#if titleDetail}
+              <span class="truncate text-xs text-muted-foreground">
+                {@render titleDetail()}
+              </span>
+            {/if}
+            {#if badges}
+              <span class="flex flex-none items-center gap-1.5 self-center">
+                {@render badges()}
+              </span>
             {/if}
           </span>
           {#if description}

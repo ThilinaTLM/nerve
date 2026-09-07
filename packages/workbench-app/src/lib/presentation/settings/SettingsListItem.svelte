@@ -5,36 +5,30 @@ import { cn } from "@nervekit/ui-kit/utils";
 type Props = {
   /** Primary information. */
   title?: string;
-  /** Secondary information, rendered under the title. */
+  /** Secondary information, inline after the title. Keep it short. */
+  detail?: Snippet;
+  /** Supporting information on its own line under the title. */
   description?: string;
   class?: string;
   tourId?: string;
   leading?: Snippet;
   /** Status badges or dots shown beside the title. */
   status?: Snippet;
-  /** Tertiary information, right-aligned before the actions. */
-  meta?: Snippet;
-  /** Icon actions; revealed on hover and always shown on focus or touch. */
+  /** Icon actions. The right column holds nothing else. */
   actions?: Snippet;
-  /**
-   * Hover reveal suits secondary row actions (edit, remove). Turn it off when the
-   * slot holds controls that report state, such as an enable switch.
-   */
-  revealActionsOnHover?: boolean;
-  /** Replaces the default title/description block. */
+  /** Replaces the default title block. */
   content?: Snippet;
 };
 
 let {
   title,
+  detail,
   description,
   class: className,
   tourId,
   leading,
   status,
-  meta,
   actions,
-  revealActionsOnHover = true,
   content,
 }: Props = $props();
 </script>
@@ -43,7 +37,7 @@ let {
   role="listitem"
   data-tour-id={tourId}
   class={cn(
-    "settings-list-item group grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-1.5 transition-colors hover:bg-accent/40",
+    "grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-1.5 transition-colors hover:bg-accent/40",
     className,
   )}
 >
@@ -55,12 +49,21 @@ let {
       {@render content()}
     {:else}
       <div class="grid min-w-0 gap-0.5">
-        <div class="flex min-w-0 items-center gap-2">
+        <div class="flex min-w-0 items-baseline gap-1.5">
           {#if title}
             <span class="truncate text-sm text-foreground">{title}</span>
           {/if}
+          {#if detail}
+            <span
+              class="flex min-w-0 items-baseline gap-1 truncate text-xs text-muted-foreground"
+            >
+              {@render detail()}
+            </span>
+          {/if}
           {#if status}
-            {@render status()}
+            <span class="flex flex-none items-center gap-1.5 self-center">
+              {@render status()}
+            </span>
           {/if}
         </div>
         {#if description}
@@ -72,37 +75,9 @@ let {
     {/if}
   </div>
 
-  {#if meta || actions}
-    <div class="flex flex-none items-center gap-2">
-      {#if meta}
-        <div class="flex items-center gap-2 text-xs text-muted-foreground">
-          {@render meta()}
-        </div>
-      {/if}
-      {#if actions}
-        <div
-          class="flex items-center gap-0.5"
-          class:settings-list-actions={revealActionsOnHover}
-        >
-          {@render actions()}
-        </div>
-      {/if}
+  {#if actions}
+    <div class="flex flex-none items-center gap-0.5">
+      {@render actions()}
     </div>
   {/if}
 </div>
-
-<style>
-/* Actions stay out of the way until the row is engaged, but never hide from
- * keyboard users or on devices without hover. */
-@media (hover: hover) {
-  .settings-list-actions {
-    opacity: 0;
-    transition: opacity 120ms ease;
-  }
-
-  .settings-list-item:hover .settings-list-actions,
-  .settings-list-item:focus-within .settings-list-actions {
-    opacity: 1;
-  }
-}
-</style>

@@ -146,7 +146,7 @@ onMount(() => {
 
   <SettingsGroup
     title="What uses space"
-    description="Categories are ordered by current footprint."
+    info="Categories are ordered by current footprint."
   >
     <SettingsList ariaLabel="Storage categories">
       {#each categories as category, index (category.key)}
@@ -160,7 +160,7 @@ onMount(() => {
               aria-hidden="true"
             ></span>
           {/snippet}
-          {#snippet meta()}
+          {#snippet titleDetail()}
             <span class="font-mono">{formatBytes(category.bytes)}</span>
             <span>· {percentOfTotal(category.bytes, totalBytes)}%</span>
             {#if category.protected}

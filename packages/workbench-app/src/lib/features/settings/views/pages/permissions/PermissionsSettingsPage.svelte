@@ -85,7 +85,7 @@ function manageOverlays(ruleSetId: string, name: string): void {
 <SettingsSection
   id="rule-sets"
   title="Permission rule sets"
-  description="Choose the rule set new coding agents start with. Built-in sets are read-only; add user sets under <NERVE_HOME>/config/rule-sets/*.json."
+  info="Choose the rule set new coding agents start with. Built-in sets are read-only; add user sets under <NERVE_HOME>/config/rule-sets/*.json."
 >
   {#snippet actions()}
     <Button
@@ -142,7 +142,7 @@ function manageOverlays(ruleSetId: string, name: string): void {
                 <Badge variant="neutral">Disabled</Badge>
               {/if}
             {/snippet}
-            {#snippet meta()}
+            {#snippet detail()}
               <span class="whitespace-nowrap">{ruleSetRole(ruleSet)}</span>
             {/snippet}
           </SettingsListItem>
@@ -159,7 +159,7 @@ function manageOverlays(ruleSetId: string, name: string): void {
 <SettingsSection
   id="overlays"
   title="Overrides"
-  description="Project and user rules layered on top of a rule set. Open a rule set to review or edit its overrides."
+  info="Project and user rules layered on top of a rule set. Open a rule set to review or edit its overrides."
 >
   {#if overlayRows.length > 0 && controller.configuration}
     <SettingsList ariaLabel="Permission overrides">
@@ -171,7 +171,7 @@ function manageOverlays(ruleSetId: string, name: string): void {
               <Badge variant="warning">Untrusted</Badge>
             {/if}
           {/snippet}
-          {#snippet meta()}
+          {#snippet detail()}
             <span class="whitespace-nowrap">{summary.label}</span>
           {/snippet}
           {#snippet actions()}

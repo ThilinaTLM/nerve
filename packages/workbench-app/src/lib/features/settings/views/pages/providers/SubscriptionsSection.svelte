@@ -63,7 +63,7 @@ async function confirmLogout(): Promise<void> {
         ? "setup-auth-openai-codex-connected"
         : undefined}
     >
-      {#snippet meta()}
+      {#snippet detail()}
         {@const account = subscriptionAccountLabel(
           provider.displayName,
           provider.oauthName,

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
@@ -78,9 +79,9 @@ async function remove(): Promise<void> {
 >
   {#snippet row(profile)}
     <SettingsListItem title={profile.name}>
-      {#snippet meta()}
+      {#snippet status()}
         {#if !configured(profile)}
-          <span class="text-warning">Incomplete</span>
+          <Badge variant="warning">Incomplete</Badge>
         {/if}
       {/snippet}
       {#snippet actions()}

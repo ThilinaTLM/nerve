@@ -67,7 +67,7 @@ async function confirmRemove(): Promise<void> {
 >
   {#snippet row(provider)}
     <SettingsListItem title={provider.displayName}>
-      {#snippet meta()}
+      {#snippet detail()}
         {#if provider.envVar}
           <span class="truncate font-mono">{provider.envVar}</span>
         {/if}

@@ -66,8 +66,8 @@ const filteredGroups = $derived.by<ShortcutGroup[]>(() => {
     <SettingsList ariaLabel={`${group.category} shortcuts`}>
       {#each group.commands as command (command.id)}
         <SettingsListItem title={command.label}>
-          {#snippet meta()}
-            <span class="whitespace-nowrap text-xs text-muted-foreground"
+          {#snippet detail()}
+            <span class="whitespace-nowrap font-mono"
               >{formatShortcut(command.defaultBinding)}</span
             >
           {/snippet}

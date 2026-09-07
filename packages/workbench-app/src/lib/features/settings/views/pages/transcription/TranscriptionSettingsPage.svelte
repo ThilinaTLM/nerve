@@ -89,7 +89,7 @@ function saveVocabulary(): void {
 <SettingsSection
   id="model"
   title="Model"
-  description="Choose the OpenAI speech-to-text model used for voice input."
+  info="Choose the OpenAI speech-to-text model used for voice input."
 >
   <SettingsInlineMessage tone="info" class="border-primary/40 bg-primary/10">
     OpenAI Codex OAuth remains the transcription provider. Nerve uses ChatGPT's
@@ -116,7 +116,7 @@ function saveVocabulary(): void {
 <SettingsSection
   id="context"
   title="Context"
-  description={usesStructuredContext
+  info={usesStructuredContext
     ? "GPT Transcribe receives structured language and vocabulary hints."
     : "GPT-4o transcription models receive these hints as prompt context."}
 >

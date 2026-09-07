@@ -69,7 +69,7 @@ const decisionVariant = {
             <Badge variant="neutral">disabled</Badge>
           {/if}
         {/snippet}
-        {#snippet meta()}
+        {#snippet detail()}
           <span class="whitespace-nowrap">Priority {rule.priority}</span>
         {/snippet}
         {#snippet actions()}

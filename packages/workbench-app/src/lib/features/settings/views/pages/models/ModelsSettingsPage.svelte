@@ -175,17 +175,16 @@ function removeEntry(key: string): void {
             ? modelDisplayName(entry.model)
             : entry.selection.modelId}
           {@const isDefault = entry.key === defaultModelKey}
-          <SettingsListItem revealActionsOnHover={false}>
-            {#snippet content()}
-              <div class="flex min-w-0 items-baseline gap-1.5">
-                <span class="truncate text-sm text-foreground">{label}</span>
-                <span class="truncate text-xs text-muted-foreground">
-                  ({entry.selection.provider}/{entry.selection.modelId})
-                </span>
-                {#if entry.stale}
-                  <Badge variant="warning">Unavailable</Badge>
-                {/if}
-              </div>
+          <SettingsListItem title={label}>
+            {#snippet detail()}
+              <span class="truncate"
+                >({entry.selection.provider}/{entry.selection.modelId})</span
+              >
+            {/snippet}
+            {#snippet status()}
+              {#if entry.stale}
+                <Badge variant="warning">Unavailable</Badge>
+              {/if}
             {/snippet}
             {#snippet actions()}
               <IconAction

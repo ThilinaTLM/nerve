@@ -2,6 +2,7 @@ export { default as SettingsShell } from "./SettingsShell.svelte";
 export { default as SettingsSidebarStatus } from "./SettingsSidebarStatus.svelte";
 
 export { default as SettingsPageHeader } from "./SettingsPageHeader.svelte";
+export { default as SettingsInfoHint } from "./SettingsInfoHint.svelte";
 export { default as SettingsSection } from "./SettingsSection.svelte";
 export { settingsSectionDomId } from "./section-id";
 export { default as SettingsGroup } from "./SettingsGroup.svelte";

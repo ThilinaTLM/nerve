@@ -1,10 +1,12 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
+import SettingsInfoHint from "./SettingsInfoHint.svelte";
 
 type Props = {
   title?: string;
-  description?: string;
+  /** Detail shown in a tooltip beside the title, never as a paragraph. */
+  info?: string;
   divided?: boolean;
   class?: string;
   bodyClass?: string;
@@ -14,7 +16,7 @@ type Props = {
 
 let {
   title,
-  description,
+  info,
   divided = false,
   class: className,
   bodyClass,
@@ -24,14 +26,16 @@ let {
 </script>
 
 <section class={cn("grid min-w-0 gap-1.5", className)}>
-  {#if title || description || actions}
+  {#if title || actions}
     <header class="flex items-baseline justify-between gap-3">
-      <div class="grid min-w-0 gap-0.5">
+      <div class="flex min-w-0 items-center gap-1.5">
         {#if title}
-          <h4 class="text-sm font-semibold text-muted-foreground">{title}</h4>
+          <h4 class="truncate text-sm font-semibold text-muted-foreground">
+            {title}
+          </h4>
         {/if}
-        {#if description}
-          <p class="text-xs text-muted-foreground">{description}</p>
+        {#if info}
+          <SettingsInfoHint text={info} label={`About ${title}`} />
         {/if}
       </div>
       {#if actions}
