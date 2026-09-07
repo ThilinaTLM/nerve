@@ -136,7 +136,7 @@ function save(): void {
             getKey={(entry) => entry.key}
             estimateSize={() => 32}
             gap={0}
-            viewportClass="h-full px-3"
+            viewportClass="h-full"
             viewportAriaLabel="Authenticated models"
           >
             {#snippet row({ item: entry })}

@@ -202,7 +202,7 @@ function useFallback(): void {
                 getKey={(item) => item.key}
                 estimateSize={() => 32}
                 gap={0}
-                viewportClass="h-full px-3"
+                viewportClass="h-full"
                 viewportAriaLabel="Available models"
               >
                 {#snippet row({ item })}
@@ -216,7 +216,7 @@ function useFallback(): void {
                   {:else}
                     <Label
                       class={cn(
-                        "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2.5 border-b border-border/50 text-left transition-colors hover:bg-accent/50",
+                        "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2.5 border-b border-border/50 pr-1 pl-3 text-left transition-colors hover:bg-accent/50",
                         selectedKey === "" && "bg-accent/60",
                       )}
                     >
