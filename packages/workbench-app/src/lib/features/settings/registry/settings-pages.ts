@@ -29,11 +29,11 @@ export const settingsPages: SettingsPageDef[] = [
     icon: CloudCog,
     sections: [
       { id: "subscriptions", label: "Subscriptions" },
-      { id: "api-keys", label: "API Keys" },
-      { id: "custom-providers", label: "Custom Providers" },
-      { id: "custom-models", label: "Custom Models" },
-      { id: "tavily-profiles", label: "Tavily Profiles" },
-      { id: "atlassian-profiles", label: "Atlassian Profiles" },
+      { id: "api-keys", label: "API keys" },
+      { id: "custom-providers", label: "Custom providers" },
+      { id: "custom-models", label: "Custom models" },
+      { id: "tavily-profiles", label: "Tavily profiles" },
+      { id: "atlassian-profiles", label: "Atlassian profiles" },
     ],
   },
   {
@@ -70,7 +70,7 @@ export const settingsPages: SettingsPageDef[] = [
     icon: Wrench,
     sections: [
       { id: "core", label: "Core" },
-      { id: "third-party", label: "Third Party" },
+      { id: "third-party", label: "Third party" },
     ],
   },
   {

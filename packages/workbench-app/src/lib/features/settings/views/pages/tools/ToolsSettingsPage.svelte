@@ -38,7 +38,7 @@ let {
   />
 </SettingsSection>
 
-<SettingsSection id="third-party" title="Third Party">
+<SettingsSection id="third-party" title="Third party">
   <ToolCatalogSection
     {settingsDraft}
     {status}

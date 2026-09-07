@@ -58,7 +58,6 @@ const activePage = $derived(
   pages.find((page) => page.id === activePageId) ?? pages[0],
 );
 const activeSections = $derived(activePage?.sections ?? []);
-const hasSubmenu = $derived(activeSections.length > 1);
 
 $effect(() => {
   if (pages.length === 0) return;
@@ -268,7 +267,7 @@ async function selectSection(sectionId: string): Promise<void> {
             </SettingsPageHeader>
           {/if}
 
-          <div class={cn("grid min-w-0", hasSubmenu ? "gap-5" : "gap-3")}>
+          <div class="grid min-w-0 gap-5">
             {@render children(activePage)}
           </div>
         {/if}

@@ -28,6 +28,14 @@ Application `*Host` components are state/effect adapters around canonical featur
   `muted`/`default` are all spellings of tones that already exist). Domain
   vocabularies that are genuinely not status — diff line kinds, notification
   sounds — stay separate.
+- **Settings has one type ladder.** Three sizes only, with weight and colour
+  carrying the rest: page title `text-base` semibold foreground, page subtitle
+  `text-sm` muted, section heading `text-sm` semibold foreground, group heading
+  `text-sm` semibold muted (subordinate by colour, not size), row title
+  `text-sm` regular foreground, and all supporting text `text-xs` muted.
+  Headings are sentence case — no uppercase eyebrows, which rank a section below
+  its own rows. Row titles stay regular weight so headings win.
+  `settings-typography.test.ts` enforces this.
 - **Settings uses one set of list patterns.** Entity lists are a single
   `SettingsList` (bordered `card` surface, hairline-divided rows) holding
   `SettingsListItem` rows, never a stack of individually tinted cards. A row's

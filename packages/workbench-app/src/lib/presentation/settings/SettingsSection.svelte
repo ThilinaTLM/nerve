@@ -35,7 +35,7 @@ let {
       <h3
         id={`${settingsSectionDomId(id)}-title`}
         tabindex="-1"
-        class="text-xs font-semibold tracking-wide text-muted-foreground uppercase outline-none"
+        class="text-sm font-semibold text-foreground outline-none"
       >
         {title}
       </h3>

@@ -28,7 +28,7 @@ let {
     <header class="flex items-baseline justify-between gap-3">
       <div class="grid min-w-0 gap-0.5">
         {#if title}
-          <h4 class="text-xs font-semibold text-foreground">{title}</h4>
+          <h4 class="text-sm font-semibold text-muted-foreground">{title}</h4>
         {/if}
         {#if description}
           <p class="text-xs text-muted-foreground">{description}</p>
