@@ -44,6 +44,7 @@ const tokenNames = [
   "destructive-solid",
   "destructive-solid-foreground",
   "border",
+  "accent",
 ] as const;
 type TokenName = (typeof tokenNames)[number];
 
@@ -412,6 +413,36 @@ describe("theme text contrast", () => {
       radii.size >= 3,
       `only ${radii.size} distinct radii across ${colorThemes.length} themes; shape is part of a theme's character`,
     );
+  });
+
+  it("keeps the surface hierarchy legible in every theme", () => {
+    // Chrome-vs-workspace and the hover/selected fills are the steps a reader
+    // relies on to tell regions apart, and contrast ratio compresses badly at
+    // low luminance, so these are measured as perceptual lightness deltas.
+    // Rosé and Solar originally derived `muted` and `accent` from adjacent
+    // ladder steps, which flattened selected rows and panel edges.
+    const minimumStep: Record<string, number> = {
+      "panel/background": 0.025,
+      "background/muted": 0.028,
+      "background/accent": 0.045,
+      "background/card": 0.018,
+      "card/popover": 0.015,
+      "well/panel": 0.012,
+    };
+
+    for (const [themeName, tokens] of Object.entries(themes) as [
+      ThemeName,
+      Record<TokenName, Oklch>,
+    ][]) {
+      for (const [step, minimum] of Object.entries(minimumStep)) {
+        const [lower, upper] = step.split("/") as [TokenName, TokenName];
+        const delta = Math.abs(tokens[lower][0] - tokens[upper][0]);
+        assert.ok(
+          delta >= minimum,
+          `${themeName} ${step} lightness delta ${delta.toFixed(3)} is below ${minimum}; the two surfaces will read as one`,
+        );
+      }
+    }
   });
 
   it("keeps flat themes structured with visible hairlines", () => {
