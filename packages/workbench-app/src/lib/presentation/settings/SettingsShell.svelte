@@ -462,6 +462,8 @@ async function selectSection(sectionId: string): Promise<void> {
   gap: 0.85rem;
   width: min(100%, 44rem);
   min-width: 0;
+  /* Keep the capped content column centred in the wider settings pane. */
+  margin-inline: auto;
 }
 
 @container settings-page (max-width: 46rem) {
