@@ -4,14 +4,12 @@ import { ItemScrollRegion } from "$lib/presentation/items";
 
 let {
   viewport = $bindable(),
-  activeKey,
   ariaLabel,
   contentClass,
   topShadowClass,
   children,
 }: {
   viewport?: HTMLDivElement;
-  activeKey?: string;
   ariaLabel?: string;
   contentClass?: string;
   topShadowClass?: string;
@@ -19,12 +17,6 @@ let {
 } = $props();
 </script>
 
-<ItemScrollRegion
-  bind:viewport
-  {activeKey}
-  {ariaLabel}
-  {contentClass}
-  {topShadowClass}
->
+<ItemScrollRegion bind:viewport {ariaLabel} {contentClass} {topShadowClass}>
   {@render children()}
 </ItemScrollRegion>

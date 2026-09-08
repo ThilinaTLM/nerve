@@ -170,7 +170,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
 });
 </script>
 
-<PanelRowCard itemKey={entry.key} {menuItems}>
+<PanelRowCard selected={active} {menuItems}>
   <PanelRow
     label={label.text}
     title={tooltip}

@@ -1,11 +1,9 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
-import ItemCollection from "./ItemCollection.svelte";
 
 let {
   viewport = $bindable(),
-  activeKey,
   ariaLabel,
   class: className,
   viewportClass,
@@ -14,7 +12,6 @@ let {
   children,
 }: {
   viewport?: HTMLDivElement;
-  activeKey?: string;
   ariaLabel?: string;
   class?: string;
   viewportClass?: string;
@@ -56,10 +53,8 @@ $effect(() => {
     aria-label={ariaLabel}
     onscroll={updateShadows}
   >
-    <div bind:this={content} class="min-w-0">
-      <ItemCollection {activeKey} class={contentClass}>
-        {@render children()}
-      </ItemCollection>
+    <div bind:this={content} class={cn("min-w-0", contentClass)}>
+      {@render children()}
     </div>
   </div>
   <div

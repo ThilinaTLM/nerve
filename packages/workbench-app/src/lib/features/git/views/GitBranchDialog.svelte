@@ -26,6 +26,8 @@ type Props = {
   branchesEnabled: boolean;
   branchFilter?: string;
   newBranchName?: string;
+  /** Lets callers open the dialog straight into branch creation. */
+  view?: "switch" | "create";
   onSwitchBranch: (repo: string, branch: GitBranchSummary) => void;
   onDeleteBranch: (
     repo: string,
@@ -49,6 +51,7 @@ let {
   branchesEnabled,
   branchFilter = $bindable(""),
   newBranchName = $bindable(""),
+  view = $bindable("switch"),
   onSwitchBranch,
   onDeleteBranch,
   onOpenPullRequest,
@@ -56,7 +59,6 @@ let {
   onCreateBranch,
 }: Props = $props();
 
-let view = $state<"switch" | "create">("switch");
 let showRemoteBranches = $state(false);
 let deleteCandidate = $state<GitBranchSummary>();
 let searchInput = $state<HTMLInputElement | null>(null);

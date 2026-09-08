@@ -6,6 +6,7 @@ import CloudDownload from "@lucide/svelte/icons/cloud-download";
 import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
+import { SvelteSet } from "svelte/reactivity";
 import {
   PanelHeader,
   PanelToolbar,
@@ -20,6 +21,7 @@ import {
   groupBranchesForDialog,
   gitFileGroups,
   gitFilesInScope,
+  shouldLoadRepoBranches,
 } from "./git-panel-controller.js";
 import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";
 import {
@@ -41,9 +43,12 @@ let {
 } = $props();
 
 let branchDialogOpen = $state(false);
+let branchDialogView = $state<"switch" | "create">("switch");
 let stashDialogOpen = $state(false);
 let branchFilter = $state("");
 let newBranchName = $state("");
+/** Repositories whose branch list has already been requested this session. */
+const branchesRequested = new SvelteSet<string>();
 let discardCandidate = $state<
   | {
       kind: "file";
@@ -70,6 +75,51 @@ const branchGroups = $derived(
     model.prHeads,
   ),
 );
+function branchRowsFor(repository: string) {
+  const state = model.repoBranchState(repository);
+  return groupBranchesForDialog(
+    state.branches,
+    "",
+    state.repoSummary?.baseBranch,
+    state.prHeads,
+  ).local;
+}
+
+function loadingBranchesFor(repository: string): boolean {
+  return model.repoBranchState(repository).loadingBranches;
+}
+
+function switchingBranchFor(repository: string): string | undefined {
+  return model.repoBranchState(repository).switchingBranch;
+}
+
+/** Branch lists are per repository, so a picker loads its own on first open. */
+function loadBranches(repository: string): void {
+  const state = model.repoBranchState(repository);
+  if (
+    !shouldLoadRepoBranches(
+      branchesRequested,
+      repository,
+      state.branches.length,
+    )
+  )
+    return;
+  branchesRequested.add(repository);
+  refreshBranchDialog(repository);
+}
+
+/** The management dialog operates on the selected repository. */
+function openBranchManager(
+  repository: string,
+  view: "switch" | "create",
+): void {
+  selectRepository(repository);
+  branchDialogView = view;
+  branchDialogOpen = true;
+  resetRepositoryUi();
+  refreshBranchDialog(repository);
+}
+
 const remoteBusy = $derived(
   model.operations.fetching ||
     model.operations.pulling ||
@@ -115,17 +165,11 @@ async function createBranch(repository: string): Promise<void> {
   resetRepositoryUi();
 }
 
-function refreshBranchDialog(): void {
+function refreshBranchDialog(repository = model.selectedRepository): void {
   void Promise.all([
-    actions.refreshBranches(model.selectedRepository),
-    actions.refreshPrHeads(model.selectedRepository),
+    actions.refreshBranches(repository),
+    actions.refreshPrHeads(repository),
   ]);
-}
-
-function openBranchDialog(): void {
-  branchDialogOpen = true;
-  resetRepositoryUi();
-  refreshBranchDialog();
 }
 </script>
 
@@ -151,6 +195,9 @@ function openBranchDialog(): void {
       repos={[...model.repositories]}
       selectedRepo={model.selectedRepository}
       {branchGroups}
+      {branchRowsFor}
+      {loadingBranchesFor}
+      {switchingBranchFor}
       loadingBranches={model.loadingBranches}
       loadingPrHeads={model.loadingPrHeads}
       switchingBranch={model.operations.switchingBranch}
@@ -160,14 +207,18 @@ function openBranchDialog(): void {
       bind:branchFilter
       bind:newBranchName
       bind:branchDialogOpen
+      bind:branchDialogView
       onSelectRepo={selectRepository}
-      onOpenBranchDialog={openBranchDialog}
+      onLoadBranches={loadBranches}
+      onManageBranches={(repository) => openBranchManager(repository, "switch")}
+      onCreateBranchFlow={(repository) =>
+        openBranchManager(repository, "create")}
       onSwitchBranch={(repository, branch) =>
         void switchBranch(repository, branch)}
       onDeleteBranch={deleteBranch}
       onOpenPullRequest={(repository, number) =>
         void actions.openPullRequest(repository, number)}
-      onRefreshBranches={refreshBranchDialog}
+      onRefreshBranches={(repository) => refreshBranchDialog(repository)}
       onCreateBranch={(repository) => void createBranch(repository)}
     />
 

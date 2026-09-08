@@ -29,9 +29,10 @@ export const ALLOWED_STYLE_PARTIALS = new Map([
  * entry names its reason.
  */
 export const DYNAMIC_CLASS_ALLOWLIST = [
-  // Half of `.panel-row-card .panel-row-hoverable:hover`, a parent/child rule
-  // across PanelRowCard and PanelRow that Svelte scoping cannot express.
-  /^panel-row-card$/,
+  // Half of `.panel-row-card-selected .panel-row-hoverable:hover`, a
+  // parent/child rule across PanelRowCard and PanelRow that Svelte scoping
+  // cannot express.
+  /^panel-row-card-selected$/,
   /^panel-row-hoverable$/,
   // Emitted by packages/ui-kit/src/lib/components/ui/dialog-shell/dialog-shell.svelte.
   /^dialog-/,

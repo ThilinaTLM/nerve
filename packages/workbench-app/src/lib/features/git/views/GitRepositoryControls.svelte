@@ -1,9 +1,9 @@
 <script lang="ts">
-import ChevronDown from "@lucide/svelte/icons/chevron-down";
-import GitBranch from "@lucide/svelte/icons/git-branch";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts/git";
-import { cn } from "@nervekit/ui-kit/utils";
-import type { GitBranchDialogGroups } from "./git-panel-controller";
+import type {
+  GitBranchDialogGroups,
+  GitBranchDialogRow,
+} from "./git-panel-controller";
 import type { GitPanelCapabilities } from "./git-panel-types";
 import GitBranchDialog from "./GitBranchDialog.svelte";
 import GitRepositorySelector from "./GitRepositorySelector.svelte";
@@ -13,6 +13,9 @@ type Props = {
   repos: GitRepoSummary[];
   selectedRepo: string;
   branchGroups: GitBranchDialogGroups;
+  branchRowsFor: (repository: string) => readonly GitBranchDialogRow[];
+  loadingBranchesFor: (repository: string) => boolean;
+  switchingBranchFor: (repository: string) => string | undefined;
   loadingBranches: boolean;
   loadingPrHeads: boolean;
   switchingBranch?: string;
@@ -22,15 +25,18 @@ type Props = {
   branchFilter?: string;
   newBranchName?: string;
   branchDialogOpen?: boolean;
+  branchDialogView?: "switch" | "create";
   onSelectRepo: (value: string) => void;
-  onOpenBranchDialog: () => void;
+  onLoadBranches: (repository: string) => void;
+  onManageBranches: (repository: string) => void;
+  onCreateBranchFlow: (repository: string) => void;
   onSwitchBranch: (repo: string, branch: GitBranchSummary) => void;
   onDeleteBranch: (
     repo: string,
     branch: GitBranchSummary,
   ) => boolean | Promise<boolean>;
   onOpenPullRequest: (repo: string, number: number) => void;
-  onRefreshBranches: () => void;
+  onRefreshBranches: (repository: string) => void;
   onCreateBranch: (repo: string) => void;
 };
 
@@ -39,6 +45,9 @@ let {
   repos,
   selectedRepo,
   branchGroups,
+  branchRowsFor,
+  loadingBranchesFor,
+  switchingBranchFor,
   loadingBranches,
   loadingPrHeads,
   switchingBranch,
@@ -48,8 +57,11 @@ let {
   branchFilter = $bindable(""),
   newBranchName = $bindable(""),
   branchDialogOpen = $bindable(false),
+  branchDialogView = $bindable("switch"),
   onSelectRepo,
-  onOpenBranchDialog,
+  onLoadBranches,
+  onManageBranches,
+  onCreateBranchFlow,
   onSwitchBranch,
   onDeleteBranch,
   onOpenPullRequest,
@@ -64,32 +76,20 @@ let {
     {selectedRepo}
     selectCapability={capabilities.selectRepository}
     {onSelectRepo}
+    branches={{
+      capability: capabilities.branches,
+      rowsFor: branchRowsFor,
+      loadingFor: loadingBranchesFor,
+      switchingFor: switchingBranchFor,
+      onLoad: onLoadBranches,
+      onSwitch: onSwitchBranch,
+      onManage: onManageBranches,
+      onCreate: onCreateBranchFlow,
+    }}
   />
 
   {#if repoSummary}
     {@const repo = repoSummary}
-    <button
-      type="button"
-      disabled={!capabilities.branches.enabled}
-      title={capabilities.branches.enabled
-        ? "Switch or create a branch"
-        : capabilities.branches.reason}
-      class={cn(
-        "inline-flex max-w-full min-w-0 items-center gap-1.5 self-start rounded-md border bg-background px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
-        repo.detached && "text-muted-foreground",
-      )}
-      onclick={onOpenBranchDialog}
-    >
-      <GitBranch class="size-3 shrink-0" aria-hidden="true" />
-      <span class="truncate font-mono"
-        >{repo.currentBranch ?? "(detached)"}</span
-      >
-      <ChevronDown
-        class="size-3 shrink-0 text-muted-foreground"
-        aria-hidden="true"
-      />
-    </button>
-
     {#if !repo.hasRemote}
       <p class="text-xs text-muted-foreground">
         Remote actions are unavailable for local-only repositories.
@@ -109,10 +109,11 @@ let {
       branchesEnabled={capabilities.branches.enabled}
       bind:branchFilter
       bind:newBranchName
+      bind:view={branchDialogView}
       {onSwitchBranch}
       {onDeleteBranch}
       {onOpenPullRequest}
-      {onRefreshBranches}
+      onRefreshBranches={() => onRefreshBranches(selectedRepo)}
       {onCreateBranch}
     />
   {/if}

@@ -8,11 +8,7 @@ import Popover, {
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
-import {
-  ItemCollection,
-  ItemScrollRegion,
-  ItemSurface,
-} from "$lib/presentation";
+import { ItemScrollRegion, ItemSurface } from "$lib/presentation";
 import { getShortcutAriaLabel } from "$lib/application/commands/command-registry";
 import { tildePath } from "$lib/domain/filesystem/project-path";
 import {
@@ -167,7 +163,6 @@ function handleSubmit(event: Event) {
 
         <ItemScrollRegion
           bind:viewport={scrollEl}
-          {activeKey}
           viewportClass="max-h-[min(26rem,calc(100dvh-9rem))]"
           contentClass="grid gap-1 p-2 pt-0"
         >
@@ -189,7 +184,8 @@ function handleSubmit(event: Event) {
                     ariaLabel={`${item.project.name}${active ? ", current project" : ""}`}
                     ariaSelected={selected}
                     tabindex={-1}
-                    itemKey={item.key}
+                    tone="row"
+                    selected={active}
                     menuItems={buildMenuItems?.(item) ?? []}
                     menuDisabled={!buildMenuItems}
                     hover="default"
@@ -251,10 +247,7 @@ function handleSubmit(event: Event) {
     </PopoverBody>
   </Popover>
 
-  <ItemCollection
-    {activeKey}
-    class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden"
-  >
+  <div class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
     {#each items as item (item.key)}
       {@const signal = projectActivitySignal(item.activity, item.tasks)}
       {@const conversationActivityCount =
@@ -263,7 +256,8 @@ function handleSubmit(event: Event) {
         conversationActivityCount > 0 && item.tasks.running > 0}
       {@const active = item.key === activeKey}
       <ItemSurface
-        itemKey={item.key}
+        tone="row"
+        selected={active}
         menuItems={buildMenuItems?.(item) ?? []}
         menuDisabled={!buildMenuItems}
         hover="soft"
@@ -305,5 +299,5 @@ function handleSubmit(event: Event) {
         </Button>
       </ItemSurface>
     {/each}
-  </ItemCollection>
+  </div>
 </nav>

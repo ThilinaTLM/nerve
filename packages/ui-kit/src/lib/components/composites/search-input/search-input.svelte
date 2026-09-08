@@ -62,7 +62,15 @@ function setValue(next: string): void {
       {ariaLabel}
       {disabled}
       type="text"
-      class={cn("pl-7", clearable && value ? "pr-7" : undefined, inputClass)}
+      class={cn(
+        "pl-7",
+        clearable && value ? "pr-7" : undefined,
+        // Filter fields are usually focused the moment their popover or panel
+        // opens, so the full form-input focus halo fires unprompted and reads
+        // as an error state. The border alone still marks focus.
+        "focus-visible:border-ring focus-visible:ring-0",
+        inputClass,
+      )}
       oninput={(event) =>
         onValueChange?.((event.currentTarget as HTMLInputElement).value)}
     />
