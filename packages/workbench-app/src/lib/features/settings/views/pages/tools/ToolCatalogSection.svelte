@@ -182,165 +182,164 @@ function setTavilyProfile(profileId?: string): void {
 </script>
 
 {#each toolGroups.filter((group) => group.category === category) as group (group.id)}
-      {@const enabled = groupEnabled(group)}
-      {@const alwaysOn = group.configurableTools.length === 0}
-      <ToolGroupItem
-        title={group.label}
-        description={group.description}
-        tools={group.tools}
-      >
-        {#snippet actions()}
-          {#if group.id === "shell"}
-            <ToolConfigureButton
-              label="Configure Shell"
-              onclick={() => (bashDialogOpen = true)}
-            />
-          {:else if group.id === "web"}
-            <ToolConfigureButton
-              label="Configure Web access"
-              onclick={() => (webDialogOpen = true)}
-            />
-          {:else if group.id === "vision"}
-            <ToolConfigureButton
-              label="Configure Image explanation"
-              onclick={() => (visionModelDialogOpen = true)}
-            />
-          {:else if group.id === "python"}
-            <ToolConfigureButton
-              label="Configure Python"
-              onclick={() => (pythonDialogOpen = true)}
-            />
-          {:else if group.id === "explore"}
-            <ToolConfigureButton
-              label="Configure Explore"
-              tourId="setup-agent-explore-model"
-              onclick={() => (exploreDialogOpen = true)}
-            />
-          {/if}
-          {#if alwaysOn}
-            <Tooltip.Provider delayDuration={200}>
-              <Tooltip.Root>
-                <Tooltip.Trigger>
-                  {#snippet child({ props })}
-                    <span {...props}>
-                      <Switch
-                        checked
-                        disabled
-                        size="settings"
-                        aria-label={`${group.label} tools are always enabled`}
-                      />
-                    </span>
-                  {/snippet}
-                </Tooltip.Trigger>
-                <Tooltip.Content side="top">Always on</Tooltip.Content>
-              </Tooltip.Root>
-            </Tooltip.Provider>
-          {:else}
-            <Switch
-              size="settings"
-              checked={enabled}
-              disabled={(group.id === "vision" && !visionReady) ||
-                (group.id === "web" && !tavilyConfigured)}
-              aria-label={`Enable ${group.label} tools`}
-              onCheckedChange={(checked) =>
-                setToolsEnabled(group.configurableTools, checked)}
-            />
-          {/if}
-        {/snippet}
-        {#snippet extra()}
-          {#if group.id === "shell"}
-            <SettingsSummaryRow
-              class="mt-1"
-              title="Automatic backgrounding"
-              status={bashAutoPromotion.enabled ? "ok" : "muted"}
-            >
-              {#snippet meta()}
-                {bashAutoPromotion.enabled
-                  ? `After ${bashAutoPromotion.afterMs / 1000} seconds`
-                  : "Disabled"}
+  {@const enabled = groupEnabled(group)}
+  {@const alwaysOn = group.configurableTools.length === 0}
+  <ToolGroupItem
+    title={group.label}
+    description={group.description}
+    tools={group.tools}
+  >
+    {#snippet actions()}
+      {#if group.id === "shell"}
+        <ToolConfigureButton
+          label="Configure Shell"
+          onclick={() => (bashDialogOpen = true)}
+        />
+      {:else if group.id === "web"}
+        <ToolConfigureButton
+          label="Configure Web access"
+          onclick={() => (webDialogOpen = true)}
+        />
+      {:else if group.id === "vision"}
+        <ToolConfigureButton
+          label="Configure Image explanation"
+          onclick={() => (visionModelDialogOpen = true)}
+        />
+      {:else if group.id === "python"}
+        <ToolConfigureButton
+          label="Configure Python"
+          onclick={() => (pythonDialogOpen = true)}
+        />
+      {:else if group.id === "explore"}
+        <ToolConfigureButton
+          label="Configure Explore"
+          tourId="setup-agent-explore-model"
+          onclick={() => (exploreDialogOpen = true)}
+        />
+      {/if}
+      {#if alwaysOn}
+        <Tooltip.Provider delayDuration={200}>
+          <Tooltip.Root>
+            <Tooltip.Trigger>
+              {#snippet child({ props })}
+                <span {...props}>
+                  <Switch
+                    checked
+                    disabled
+                    size="settings"
+                    aria-label={`${group.label} tools are always enabled`}
+                  />
+                </span>
               {/snippet}
-            </SettingsSummaryRow>
-          {:else if group.id === "web"}
-            <SettingsSummaryRow
-              class="mt-1"
-              title="Tavily profile"
-              status={tavilyConfigured ? "ok" : "warning"}
-            >
-              {#snippet meta()}
-                {tavilyConfigured
-                  ? "Configured for web search."
-                  : "Select a configured profile to enable web access."}
-              {/snippet}
-            </SettingsSummaryRow>
-          {:else if group.id === "vision"}
-            <SettingsSummaryRow
-              class="mt-1"
-              title={configuredVisionModel
-                ? modelDisplayName(configuredVisionModel)
-                : configuredVisionSelection
-                  ? `${configuredVisionSelection.provider}/${configuredVisionSelection.modelId}`
-                  : "Vision model not configured"}
-              status={configuredVisionModel
-                ? "ok"
-                : configuredVisionSelection
-                  ? "warning"
-                  : "muted"}
-            >
-              {#snippet meta()}
-                {#if configuredVisionModel}
-                  {providerDisplayName(configuredVisionModel.provider)} · Image input
-                  · Thinking {settingsDraft.tools.imageExplanation
-                    .thinkingLevel}
-                {:else if configuredVisionSelection}
-                  Configured model is unavailable or does not support images.
-                {:else}
-                  Choose an image-capable model before enabling this tool.
-                {/if}
-              {/snippet}
-            </SettingsSummaryRow>
-          {:else if group.id === "explore"}
-            <SettingsSummaryRow
-              class="mt-1"
-              title={configuredExploreModel
-                ? modelDisplayName(configuredExploreModel)
-                : "Parent agent model"}
-              status={configuredExploreModel ? "ok" : "muted"}
-            >
-              {#snippet meta()}
-                {#if configuredExploreModel}
-                  {providerDisplayName(configuredExploreModel.provider)} · Thinking
-                  {settingsDraft.exploreAgent.thinkingLevel}
-                {:else}
-                  Explore agents reuse the model of the agent that started them.
-                {/if}
-              {/snippet}
-            </SettingsSummaryRow>
-          {:else if group.id === "python"}
-            <SettingsSummaryRow
-              class="mt-1"
-              title={python?.available
-                ? "Runtime available"
-                : "Runtime unavailable"}
-              status={python?.available ? "ok" : "warning"}
-            >
-              {#snippet meta()}
-                {#if python?.available}
-                  {python.version ?? "Unknown version"} · {sourceLabel} ·
-                  <span class="font-mono"
-                    >{python.executable ?? "No executable"}</span
-                  >
-                {:else}
-                  {python?.error ?? "No Python runtime was detected."}
-                {/if}
-              {/snippet}
-            </SettingsSummaryRow>
-            <SettingsInlineMessage
-              tone="info"
-              text="Planning-mode Python runs with file-write guardrails. This is not a hard security sandbox."
-            />
-          {/if}
-        {/snippet}
-      </ToolGroupItem>
+            </Tooltip.Trigger>
+            <Tooltip.Content side="top">Always on</Tooltip.Content>
+          </Tooltip.Root>
+        </Tooltip.Provider>
+      {:else}
+        <Switch
+          size="settings"
+          checked={enabled}
+          disabled={(group.id === "vision" && !visionReady) ||
+            (group.id === "web" && !tavilyConfigured)}
+          aria-label={`Enable ${group.label} tools`}
+          onCheckedChange={(checked) =>
+            setToolsEnabled(group.configurableTools, checked)}
+        />
+      {/if}
+    {/snippet}
+    {#snippet extra()}
+      {#if group.id === "shell"}
+        <SettingsSummaryRow
+          class="mt-1"
+          title="Automatic backgrounding"
+          status={bashAutoPromotion.enabled ? "ok" : "muted"}
+        >
+          {#snippet meta()}
+            {bashAutoPromotion.enabled
+              ? `After ${bashAutoPromotion.afterMs / 1000} seconds`
+              : "Disabled"}
+          {/snippet}
+        </SettingsSummaryRow>
+      {:else if group.id === "web"}
+        <SettingsSummaryRow
+          class="mt-1"
+          title="Tavily profile"
+          status={tavilyConfigured ? "ok" : "warning"}
+        >
+          {#snippet meta()}
+            {tavilyConfigured
+              ? "Configured for web search."
+              : "Select a configured profile to enable web access."}
+          {/snippet}
+        </SettingsSummaryRow>
+      {:else if group.id === "vision"}
+        <SettingsSummaryRow
+          class="mt-1"
+          title={configuredVisionModel
+            ? modelDisplayName(configuredVisionModel)
+            : configuredVisionSelection
+              ? `${configuredVisionSelection.provider}/${configuredVisionSelection.modelId}`
+              : "Vision model not configured"}
+          status={configuredVisionModel
+            ? "ok"
+            : configuredVisionSelection
+              ? "warning"
+              : "muted"}
+        >
+          {#snippet meta()}
+            {#if configuredVisionModel}
+              {providerDisplayName(configuredVisionModel.provider)} · Image input
+              · Thinking {settingsDraft.tools.imageExplanation.thinkingLevel}
+            {:else if configuredVisionSelection}
+              Configured model is unavailable or does not support images.
+            {:else}
+              Choose an image-capable model before enabling this tool.
+            {/if}
+          {/snippet}
+        </SettingsSummaryRow>
+      {:else if group.id === "explore"}
+        <SettingsSummaryRow
+          class="mt-1"
+          title={configuredExploreModel
+            ? modelDisplayName(configuredExploreModel)
+            : "Parent agent model"}
+          status={configuredExploreModel ? "ok" : "muted"}
+        >
+          {#snippet meta()}
+            {#if configuredExploreModel}
+              {providerDisplayName(configuredExploreModel.provider)} · Thinking
+              {settingsDraft.exploreAgent.thinkingLevel}
+            {:else}
+              Explore agents reuse the model of the agent that started them.
+            {/if}
+          {/snippet}
+        </SettingsSummaryRow>
+      {:else if group.id === "python"}
+        <SettingsSummaryRow
+          class="mt-1"
+          title={python?.available
+            ? "Runtime available"
+            : "Runtime unavailable"}
+          status={python?.available ? "ok" : "warning"}
+        >
+          {#snippet meta()}
+            {#if python?.available}
+              {python.version ?? "Unknown version"} · {sourceLabel} ·
+              <span class="font-mono"
+                >{python.executable ?? "No executable"}</span
+              >
+            {:else}
+              {python?.error ?? "No Python runtime was detected."}
+            {/if}
+          {/snippet}
+        </SettingsSummaryRow>
+        <SettingsInlineMessage
+          tone="info"
+          text="Planning-mode Python runs with file-write guardrails. This is not a hard security sandbox."
+        />
+      {/if}
+    {/snippet}
+  </ToolGroupItem>
 {/each}
 
 <BashToolDialog bind:open={bashDialogOpen} {settingsDraft} {onSettingsChange} />

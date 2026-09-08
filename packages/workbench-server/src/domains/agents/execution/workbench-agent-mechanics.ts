@@ -168,8 +168,7 @@ export class WorkbenchAgentMechanics {
         (name): name is UserConfigurableToolName =>
           name !== "jira" && name !== "confluence",
       ),
-      jiraEnabled:
-        settings.tools.jira.enabled && !disabled?.has("jira"),
+      jiraEnabled: settings.tools.jira.enabled && !disabled?.has("jira"),
       confluenceEnabled:
         settings.tools.confluence.enabled && !disabled?.has("confluence"),
       imageExplanationAvailable,

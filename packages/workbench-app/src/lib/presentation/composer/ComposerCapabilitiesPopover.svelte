@@ -130,7 +130,8 @@ const skillRows = $derived<Row[]>(
         : "Inherited from project and user settings",
     toggle: (enabled: boolean) =>
       onPatch?.({ skills: { [skill.kind]: { [skill.name]: enabled } } }),
-    reset: () => onPatch?.({ skills: { [skill.kind]: { [skill.name]: null } } }),
+    reset: () =>
+      onPatch?.({ skills: { [skill.kind]: { [skill.name]: null } } }),
   })),
 );
 

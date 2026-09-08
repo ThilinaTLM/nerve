@@ -53,31 +53,31 @@ function setProfile(id: IntegrationId, profileId: string): void {
 </script>
 
 {#each providerToolGroups as integration (integration.id)}
-      <ToolGroupItem
-        title={integration.label}
-        description={integration.description}
-        tools={integration.tools}
-      >
-        {#snippet actions()}
-          <ToolConfigureButton
-            label={`Configure ${integration.label}`}
-            tourId={`setup-atlassian-configure-${integration.id}`}
-            onclick={() => {
-              profileDialogIntegration = integration.id;
-              profileDialogOpen = true;
-            }}
-          />
-          <Switch
-            size="settings"
-            checked={settingsDraft.tools[integration.id].enabled &&
-              ready(integration.id)}
-            disabled={!ready(integration.id)}
-            aria-label={`Enable ${integration.label}`}
-            data-tour-id={`setup-atlassian-enable-${integration.id}`}
-            onCheckedChange={(checked) => setEnabled(integration.id, checked)}
-          />
-        {/snippet}
-      </ToolGroupItem>
+  <ToolGroupItem
+    title={integration.label}
+    description={integration.description}
+    tools={integration.tools}
+  >
+    {#snippet actions()}
+      <ToolConfigureButton
+        label={`Configure ${integration.label}`}
+        tourId={`setup-atlassian-configure-${integration.id}`}
+        onclick={() => {
+          profileDialogIntegration = integration.id;
+          profileDialogOpen = true;
+        }}
+      />
+      <Switch
+        size="settings"
+        checked={settingsDraft.tools[integration.id].enabled &&
+          ready(integration.id)}
+        disabled={!ready(integration.id)}
+        aria-label={`Enable ${integration.label}`}
+        data-tour-id={`setup-atlassian-enable-${integration.id}`}
+        onCheckedChange={(checked) => setEnabled(integration.id, checked)}
+      />
+    {/snippet}
+  </ToolGroupItem>
 {/each}
 
 {#if profileDialogIntegration}

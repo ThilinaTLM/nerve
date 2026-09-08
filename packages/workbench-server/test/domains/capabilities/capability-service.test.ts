@@ -70,12 +70,16 @@ test("untrusted project overrides are visible but inactive until trusted", async
 
   const untrusted = await service.configuration(project.id);
   assert.equal(untrusted.trust.status, "untrusted");
-  assert.deepEqual(untrusted.effective.disabledTools, ["python_exec"]);
+  assert.deepEqual(untrusted.effective.disabledTools, [
+    "python_exec",
+    "jira",
+    "confluence",
+  ]);
 
   await service.updateTrust(project.id, true, untrusted.projectDigest);
   const trusted = await service.configuration(project.id);
   assert.equal(trusted.trust.status, "trusted");
-  assert.deepEqual(trusted.effective.disabledTools, []);
+  assert.deepEqual(trusted.effective.disabledTools, ["jira", "confluence"]);
   assert.deepEqual(trusted.effective.disabledFileSkills, []);
   assert.deepEqual(trusted.effective.enabledAgentBrowserSkills, []);
 });
@@ -108,7 +112,10 @@ test("conversation overrides win and stale writes are rejected", async () => {
     patch: { tools: { python_exec: true } },
     expectedDigest: configuration.conversationDigest,
   });
-  assert.deepEqual(configuration.effective.disabledTools, []);
+  assert.deepEqual(configuration.effective.disabledTools, [
+    "jira",
+    "confluence",
+  ]);
 
   await assert.rejects(
     service.update({
