@@ -143,17 +143,16 @@ function copyPath(path: string): void {
         >
           {#snippet badges()}
             {#if status.overriddenBy}
-              <Badge variant="secondary" size="xs">
+              <Badge variant="neutral">
                 {status.overriddenBy === "project" ? "Project" : "User"} overrides
               </Badge>
             {/if}
             {#if status.requiresTrust}
               <Badge
-                size="xs"
-                tone={status.status === "allowed"
-                  ? "good"
+                variant={status.status === "allowed"
+                  ? "success"
                   : status.status === "denied"
-                    ? "danger"
+                    ? "destructive"
                     : "neutral"}>{trustLabel(status)}</Badge
               >
             {/if}
@@ -230,7 +229,7 @@ function copyPath(path: string): void {
 
 {#if promptSuggestionsState.error || mutationError}
   <SettingsInlineMessage
-    tone="error"
+    tone="destructive"
     text={mutationError ?? promptSuggestionsState.error}
   >
     {#snippet actions()}

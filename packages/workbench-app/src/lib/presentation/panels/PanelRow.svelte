@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Component, Snippet } from "svelte";
 import ContextMenuList, {
   type ContextMenuItem,
@@ -6,7 +7,6 @@ import ContextMenuList, {
 import {
   StatusDot,
   type StatusDotVariant,
-  type StatusTone,
 } from "@nervekit/ui-kit/components/composites/status-dot";
 import { cn } from "@nervekit/ui-kit/utils";
 
@@ -22,7 +22,7 @@ let {
   metaMono = false,
   title,
   mono = false,
-  tone = "default",
+  tone = "neutral",
   indent = 0,
   flush = false,
   selected = false,
@@ -70,7 +70,7 @@ let {
   metaMono?: boolean;
   title?: string;
   mono?: boolean;
-  tone?: "default" | "muted" | "destructive" | "success" | "warning" | "info";
+  tone?: StatusTone;
   /** Indentation steps for tree-like lists. */
   indent?: number;
   /** Drops the base row inset so the row aligns with the panel's outer padding. */
@@ -143,7 +143,7 @@ const toneClass = $derived(
         ? "text-warning"
         : tone === "info"
           ? "text-info"
-          : tone === "muted"
+          : tone === "neutral"
             ? "text-muted-foreground"
             : "text-foreground",
 );
@@ -157,9 +157,9 @@ const toneClass = $derived(
       hoverable && "panel-row-hoverable",
       actions && overlayActions && "relative",
       stacked
-        ? "min-h-11 gap-2 py-2.5 pr-3 text-xs"
+        ? "min-h-10 gap-2 py-2 pr-3 text-xs"
         : labelLines === 2
-          ? "h-10 gap-2 py-0.5 pr-3 text-xs"
+          ? "h-9 gap-2 py-0.5 pr-3 text-xs"
           : dense
             ? "h-5 gap-1 pr-1 text-xs"
             : "h-7 gap-1.5 pr-1.5 text-xs",

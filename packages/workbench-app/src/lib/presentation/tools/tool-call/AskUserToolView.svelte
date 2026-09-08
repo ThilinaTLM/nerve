@@ -322,7 +322,7 @@ function replyFieldKeydown(node: HTMLElement) {
       {#each QUICK_REPLIES as phrase (phrase)}
         <button
           type="button"
-          class="quick-reply rounded-full"
+          class="quick-reply"
           disabled={Boolean(submitting)}
           onclick={() => submitQuickReply(phrase)}
         >
@@ -376,7 +376,7 @@ function replyFieldKeydown(node: HTMLElement) {
             <Button
               variant={recording ? "destructive" : "ghost"}
               size="icon-sm"
-              class={`rounded-full ${recording ? "inset-ring-1 inset-ring-destructive/28" : ""}`}
+              class={`${recording ? "inset-ring-1 inset-ring-destructive/28" : ""}`}
               type="button"
               disabled={micDisabled}
               onclick={toggleRecording}
@@ -402,7 +402,7 @@ function replyFieldKeydown(node: HTMLElement) {
         {#snippet actions()}
           <Button
             size="sm"
-            variant="secondary"
+            variant="outline"
             type="button"
             disabled={Boolean(submitting)}
             onclick={() => void dismissQuestion()}
@@ -506,7 +506,7 @@ function replyFieldKeydown(node: HTMLElement) {
 
 .quick-reply {
   border: 1px solid var(--border);
-  background: var(--sidebar);
+  background: var(--well);
   color: var(--muted-foreground);
   padding: 0.1rem 0.6rem;
   font-size: var(--text-xs);
@@ -531,7 +531,7 @@ function replyFieldKeydown(node: HTMLElement) {
 
 .quick-reply:disabled:hover {
   border-color: var(--border);
-  background: var(--sidebar);
+  background: var(--well);
   color: var(--muted-foreground);
 }
 

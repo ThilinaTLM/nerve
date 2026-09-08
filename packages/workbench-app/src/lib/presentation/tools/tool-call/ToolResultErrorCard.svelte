@@ -16,7 +16,7 @@ const errorPreview = $derived(
 
 <article class="tool-result-error-card">
   <div class="tool-header">
-    <ToolStatusIcon tone="danger" size={14} class="mr-1.5 align-middle" />
+    <ToolStatusIcon tone="destructive" size={14} class="mr-1.5 align-middle" />
     <span class="badge">{toolName}</span>
   </div>
   <pre class="tool-error">{errorPreview}</pre>
@@ -46,7 +46,7 @@ const errorPreview = $derived(
   margin: 0;
   border: 1px solid color-mix(in oklab, var(--destructive) 40%, var(--border));
   border-radius: var(--radius-sm);
-  background: var(--sidebar);
+  background: var(--well);
   color: var(--destructive);
   padding: 0.48rem 0.58rem;
   font-family: var(--font-mono);

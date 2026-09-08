@@ -26,7 +26,7 @@ const visible = $derived(
 
 {#if view.events.length > 0}
   <div
-    class="terminal-output rounded-sm border bg-sidebar px-2.5 py-1.5 font-mono text-xs text-sidebar-foreground"
+    class="terminal-output rounded-sm border bg-well px-2.5 py-1.5 font-mono text-xs text-foreground"
   >
     {#each visible as event (event.seq)}
       <div

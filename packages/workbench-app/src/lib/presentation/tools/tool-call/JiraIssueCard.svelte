@@ -4,7 +4,7 @@ import ExternalLink from "@lucide/svelte/icons/external-link";
 import User from "@lucide/svelte/icons/user";
 import type { JiraIssueSummaryPayload } from "@nervekit/contracts/tools";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import {
   dateTimeLabel,
   relativeTimeLabel,
@@ -29,13 +29,13 @@ const hasChips = $derived(
   Boolean(issue.status || issue.priority || assignee || updatedRel),
 );
 
-const toneText: Record<NonNullable<BadgeTone>, string> = {
+const toneText: Record<StatusTone, string> = {
   neutral: "text-muted-foreground",
   accent: "text-foreground",
-  running: "text-info",
-  good: "text-success",
-  warn: "text-warning",
-  danger: "text-destructive",
+  info: "text-info",
+  success: "text-success",
+  warning: "text-warning",
+  destructive: "text-destructive",
 };
 const priorityColor = $derived(
   priority ? toneText[priority.tone ?? "neutral"] : "text-muted-foreground",
@@ -70,7 +70,7 @@ const priorityColor = $derived(
     </span>
     {#if issue.summary}
       <span
-        class="min-w-0 break-words text-xs font-medium leading-snug text-sidebar-foreground"
+        class="min-w-0 break-words text-xs font-medium leading-snug text-foreground"
         >{issue.summary}</span
       >
     {/if}
@@ -79,7 +79,7 @@ const priorityColor = $derived(
   {#if hasChips}
     <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
       {#if issue.status}
-        <Badge tone={statusTone} size="xs">{issue.status}</Badge>
+        <Badge variant={statusTone}>{issue.status}</Badge>
       {/if}
       {#if priority}
         {@const PriorityIcon = priority.icon}

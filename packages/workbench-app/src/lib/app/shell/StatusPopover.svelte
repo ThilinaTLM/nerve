@@ -30,12 +30,12 @@ let {
 
 const connectionTone = $derived<StatusTone>(
   live
-    ? "good"
+    ? "success"
     : connection === "error"
-      ? "danger"
+      ? "destructive"
       : connection === "closed"
-        ? "warn"
-        : "running",
+        ? "warning"
+        : "info",
 );
 const summary = $derived(live ? "Connected" : connection);
 
@@ -64,7 +64,7 @@ const uptime = $derived.by(() => {
   <PopoverBody>
     <PopoverHeader title="Nerve daemon">
       {#snippet action()}
-        <Badge size="xs" tone={connectionTone}>{summary}</Badge>
+        <Badge variant={connectionTone}>{summary}</Badge>
       {/snippet}
     </PopoverHeader>
 

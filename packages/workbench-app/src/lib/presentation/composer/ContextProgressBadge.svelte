@@ -10,11 +10,9 @@ import Popover, {
   PopoverProperty,
   PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { Progress } from "@nervekit/ui-kit/components/ui/progress";
-import {
-  ProgressRing,
-  type ProgressRingTone,
-} from "@nervekit/ui-kit/components/composites/progress-ring";
+import { ProgressRing } from "@nervekit/ui-kit/components/composites/progress-ring";
 import { cn } from "@nervekit/ui-kit/utils";
 import { formatTokens, usageTone } from "@nervekit/ui-kit/display/usage";
 import {
@@ -71,8 +69,8 @@ const remainingTokens = $derived(
     : null,
 );
 const tone = $derived(usageTone(percent));
-const ringTone = $derived<ProgressRingTone>(
-  tone === "error" ? "danger" : tone === "warning" ? "warn" : "neutral",
+const ringTone = $derived<StatusTone>(
+  tone === "error" ? "destructive" : tone === "warning" ? "warning" : "neutral",
 );
 const percentLabel = $derived(
   percent == null ? "?%" : `${Math.round(percent)}%`,

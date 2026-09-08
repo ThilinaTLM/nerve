@@ -41,7 +41,7 @@ const overflowClass = $derived(
     data-slot="scroll-area-viewport"
     data-orientation={orientation}
     class={cn(
-      "cn-scroll-area-viewport focus-visible:ring-ring/50 size-full rounded-[inherit] outline-none focus-visible:ring-[3px] focus-visible:outline-1",
+      "cn-scroll-area-viewport focus-visible:ring-ring/50 size-full rounded-[inherit] outline-none focus-visible:ring-3 focus-visible:outline-1",
       overflowClass,
       viewportClass,
     )}

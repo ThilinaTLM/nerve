@@ -32,7 +32,7 @@ const title = $derived(`Todos: ${completed} of ${total} complete`);
   >
     {#snippet trigger()}
       <span class="todo-tab-inner">
-        <ProgressRing {percent} tone={allDone ? "good" : "primary"} />
+        <ProgressRing {percent} tone={allDone ? "success" : "info"} />
         <span class="todo-count">{completed}/{total}</span>
       </span>
     {/snippet}

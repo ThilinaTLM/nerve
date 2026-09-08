@@ -296,7 +296,7 @@ function editPresentation(
   if (stats.additions > 0)
     secondary.push({ text: `+${stats.additions}`, tone: "success" });
   if (stats.deletions > 0)
-    secondary.push({ text: `-${stats.deletions}`, tone: "error" });
+    secondary.push({ text: `-${stats.deletions}`, tone: "destructive" });
   if (source.boolean("dryRun") === true)
     secondary.push({ text: "dry run", tone: "info" });
   return argumentPresentation({

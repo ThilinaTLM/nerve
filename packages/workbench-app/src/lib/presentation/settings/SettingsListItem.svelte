@@ -3,40 +3,41 @@ import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
 
 type Props = {
+  /** Primary information. */
   title?: string;
+  /** Secondary information, inline after the title. Keep it short. */
+  detail?: Snippet;
+  /** Supporting information on its own line under the title. */
   description?: string;
-  /** `card` applies the standard dashed-free bordered card surface used by entity lists. */
-  variant?: "plain" | "card";
   class?: string;
   tourId?: string;
   leading?: Snippet;
-  badges?: Snippet;
-  meta?: Snippet;
+  /** Status badges or dots shown beside the title. */
+  status?: Snippet;
+  /** Icon actions. The right column holds nothing else. */
   actions?: Snippet;
-  /** Replaces the default title/description block. */
+  /** Replaces the default title block. */
   content?: Snippet;
 };
 
 let {
   title,
+  detail,
   description,
-  variant = "plain",
   class: className,
   tourId,
   leading,
-  badges,
-  meta,
+  status,
   actions,
   content,
 }: Props = $props();
 </script>
 
 <div
+  role="listitem"
   data-tour-id={tourId}
   class={cn(
-    "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1.5",
-    variant === "card" &&
-      "rounded-md border border-transparent bg-accent/90 px-3 py-1.5 dark:bg-accent/60",
+    "grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-1.5 transition-colors hover:bg-accent/40",
     className,
   )}
 >
@@ -48,16 +49,25 @@ let {
       {@render content()}
     {:else}
       <div class="grid min-w-0 gap-0.5">
-        <div class="flex min-w-0 items-center gap-2">
+        <div class="flex min-w-0 items-baseline gap-1.5">
           {#if title}
             <span class="truncate text-sm text-foreground">{title}</span>
           {/if}
-          {#if badges}
-            {@render badges()}
+          {#if detail}
+            <span
+              class="flex min-w-0 items-baseline gap-1 truncate text-xs text-muted-foreground"
+            >
+              {@render detail()}
+            </span>
+          {/if}
+          {#if status}
+            <span class="flex flex-none items-center gap-1.5 self-center">
+              {@render status()}
+            </span>
           {/if}
         </div>
         {#if description}
-          <p class="text-xs text-muted-foreground">
+          <p class="truncate text-xs text-muted-foreground">
             {description}
           </p>
         {/if}
@@ -65,18 +75,9 @@ let {
     {/if}
   </div>
 
-  {#if meta || actions}
-    <div class="flex flex-none items-center gap-2.5">
-      {#if meta}
-        <div class="flex items-center gap-2 text-xs text-muted-foreground">
-          {@render meta()}
-        </div>
-      {/if}
-      {#if actions}
-        <div class="flex items-center gap-1.5">
-          {@render actions()}
-        </div>
-      {/if}
+  {#if actions}
+    <div class="flex flex-none items-center gap-0.5">
+      {@render actions()}
     </div>
   {/if}
 </div>

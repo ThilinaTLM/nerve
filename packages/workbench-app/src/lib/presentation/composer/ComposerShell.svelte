@@ -90,7 +90,6 @@ let {
           <Button
             variant="destructive"
             size="icon-sm"
-            class="rounded-full"
             type="button"
             disabled={stopDisabled || stopping}
             onclick={onAbort}
@@ -107,7 +106,7 @@ let {
         {/if}
         <Button
           size="icon-sm"
-          class="rounded-full inset-ring-1 inset-ring-primary-foreground/18"
+          class="inset-ring-1 inset-ring-primary-foreground/18"
           type="submit"
           disabled={submitDisabled}
           aria-label={sendAriaLabel}

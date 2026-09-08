@@ -13,7 +13,7 @@ let {
   bind:ref
   data-slot="collapsible-trigger"
   class={cn(
-    "text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+    "text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
     className,
   )}
   {...restProps}

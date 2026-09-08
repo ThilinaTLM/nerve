@@ -1,11 +1,14 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import Pencil from "@lucide/svelte/icons/pencil";
+import Trash2 from "@lucide/svelte/icons/trash-2";
+import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type {
   AuthProviderMetadata,
   ModelDefinition,
   ModelInfo,
 } from "$lib/api";
 import { deleteModelDefinition } from "$lib/api";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { SettingsListItem } from "$lib/presentation/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
@@ -121,28 +124,33 @@ async function confirmDelete(): Promise<void> {
   onAdd={openAdd}
 >
   {#snippet row(model)}
-    <SettingsListItem variant="card" title={model.name}>
-      {#snippet meta()}
+    <SettingsListItem title={model.name}>
+      {#snippet detail()}
         <span class="truncate">
           {providerLabel(model.provider)} ·
           <span class="font-mono">{model.modelId}</span>
-          {#if isUnavailable(model)}
-            · <span class="text-warning">Unavailable</span>
-          {/if}
-          {#if model.reasoning}
-            · <span class="text-info">Reasoning</span>
-          {/if}
         </span>
       {/snippet}
+      {#snippet status()}
+        {#if isUnavailable(model)}
+          <Badge variant="warning">Unavailable</Badge>
+        {/if}
+        {#if model.reasoning}
+          <Badge variant="info">Reasoning</Badge>
+        {/if}
+      {/snippet}
       {#snippet actions()}
-        <Button variant="ghost" size="xs" onclick={() => openEdit(model)}
-          >Edit</Button
-        >
-        <Button
-          variant="ghost"
-          size="xs"
-          onclick={() => (pendingDelete = model)}>Delete</Button
-        >
+        <IconAction
+          icon={Pencil}
+          label="Edit model"
+          onclick={() => openEdit(model)}
+        />
+        <IconAction
+          icon={Trash2}
+          label="Delete model"
+          tone="destructive"
+          onclick={() => (pendingDelete = model)}
+        />
       {/snippet}
     </SettingsListItem>
   {/snippet}

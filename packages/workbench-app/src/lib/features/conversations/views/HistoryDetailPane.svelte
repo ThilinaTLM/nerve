@@ -103,7 +103,7 @@ async function copyId(id: string) {
       {#each segment.parts as part, i (i)}
         {@const PartIcon = HISTORY_ICONS[part.icon]}
         <span
-          class="flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground"
+          class="flex items-center gap-1 rounded-md border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground"
         >
           <PartIcon class="size-3.5" strokeWidth={2} />
           <span class="font-medium text-foreground">{part.count}</span>
@@ -223,8 +223,7 @@ async function copyId(id: string) {
             <div class="flex items-center gap-2 text-xs text-muted-foreground">
               <span class="font-medium text-foreground">Tool</span>
               <span class="font-mono">{view.toolName}</span>
-              {#if record?.status}<span
-                  class="rounded-full border px-1.5 py-0.5"
+              {#if record?.status}<span class="rounded-md border px-1.5 py-0.5"
                   >{record.status}</span
                 >{/if}
               {#if view.timingText}<span>{view.timingText}</span>{/if}

@@ -1,51 +1,32 @@
-import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 
-export type ConfluenceTone =
-  | "default"
-  | "success"
-  | "warning"
-  | "info"
-  | "muted";
-
-const TONE_TO_BADGE: Record<ConfluenceTone, BadgeTone> = {
-  success: "good",
-  warning: "warn",
-  info: "running",
-  muted: "neutral",
-  default: "neutral",
-};
-
-export function confluenceStatusBadgeTone(
+export function confluenceStatusBadgeVariant(
   status: string | undefined,
-): BadgeTone {
-  return TONE_TO_BADGE[confluenceStatusTone(status)];
+): StatusTone {
+  return confluenceStatusTone(status);
 }
 
-export function confluenceOutcomeBadgeTone(
+export function confluenceOutcomeBadgeVariant(
   status: string | undefined,
-): BadgeTone {
-  return TONE_TO_BADGE[confluenceOutcomeTone(status)];
+): StatusTone {
+  return confluenceOutcomeTone(status);
 }
 
-export function confluenceStatusTone(
-  status: string | undefined,
-): ConfluenceTone {
+export function confluenceStatusTone(status: string | undefined): StatusTone {
   const normalized = status?.trim().toLowerCase();
-  if (!normalized) return "muted";
+  if (!normalized) return "neutral";
   if (normalized === "current") return "success";
   if (normalized === "draft") return "warning";
-  if (normalized === "archived" || normalized === "deleted") return "muted";
+  if (normalized === "archived" || normalized === "deleted") return "neutral";
   return "info";
 }
 
-export function confluenceOutcomeTone(
-  status: string | undefined,
-): ConfluenceTone {
+export function confluenceOutcomeTone(status: string | undefined): StatusTone {
   const normalized = status?.trim().toLowerCase();
   if (normalized === "created" || normalized === "updated") return "success";
   if (normalized === "dry_run" || normalized === "skipped") return "warning";
   if (normalized === "error") return "warning";
-  return "muted";
+  return "neutral";
 }
 
 export function confluencePageUrl(

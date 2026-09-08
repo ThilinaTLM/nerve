@@ -30,7 +30,7 @@ const visible = $derived(expanded ? sorted : sorted.slice(0, COLLAPSED_LINES));
   <p class="m-0 text-xs text-muted-foreground">Empty directory.</p>
 {:else if view.total > 0}
   <ul
-    class="m-0 list-none rounded-sm border bg-sidebar px-2.5 py-2 font-mono text-xs leading-normal text-sidebar-foreground"
+    class="m-0 list-none rounded-sm border bg-well px-2.5 py-2 font-mono text-xs leading-normal text-foreground"
   >
     {#each visible as entry (entry.path)}
       <li class="flex items-center gap-1.5">

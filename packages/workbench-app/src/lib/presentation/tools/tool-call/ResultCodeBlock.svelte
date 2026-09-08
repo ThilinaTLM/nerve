@@ -335,8 +335,8 @@ $effect(() => {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--sidebar);
-  color: var(--sidebar-foreground);
+  background: var(--well);
+  color: var(--foreground);
   padding: var(--code-block-padding-y) var(--code-block-padding-x);
   font-family: var(--font-mono);
   font-size: var(--text-xs);

@@ -1,6 +1,7 @@
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Snippet } from "svelte";
-import type { StatusTone } from "@nervekit/ui-kit/components/composites/status-dot";
+
 import type { MetaItem, PrimaryArg } from "../views/tool-presentation";
 import ToolFooter from "./ToolFooter.svelte";
 import ToolCardHeader from "./ToolCardHeader.svelte";
@@ -130,7 +131,7 @@ const activityVisible = $derived(
   margin: 0;
   border: 1px solid color-mix(in oklab, var(--destructive) 40%, var(--border));
   border-radius: var(--radius-sm);
-  background: var(--sidebar);
+  background: var(--panel);
   color: var(--destructive);
   padding: 0.48rem 0.58rem;
   font-family: var(--font-mono);

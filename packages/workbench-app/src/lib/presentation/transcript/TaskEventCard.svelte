@@ -34,16 +34,15 @@ const label = $derived(notice.event ? `task ${notice.event}` : "task update");
         {notice.commandPreview ?? ""}
       </div>
       {#if hasExit}
-        <Badge tone={notice.exitCode === 0 ? "neutral" : "danger"} size="xs"
+        <Badge variant={notice.exitCode === 0 ? "neutral" : "destructive"}
           >exit {notice.exitCode}</Badge
         >
       {:else if notice.signal}
-        <Badge tone="warn" size="xs">signal {notice.signal}</Badge>
+        <Badge variant="warning">signal {notice.signal}</Badge>
       {/if}
       {#if notice.status}
         <Badge
-          {tone}
-          size="xs"
+          variant={tone}
           class={tone === "neutral"
             ? "border-border bg-muted text-muted-foreground"
             : ""}>{notice.status}</Badge

@@ -54,7 +54,7 @@ export class ConversationLifecycleService {
     const defaultSelection = effectiveSettings.rememberLastAgentSelection
       ? effectiveSettings.lastAgentSelection
       : {
-          mode: effectiveSettings.defaultMode,
+          mode: "coding" as const,
           permissionLevel: effectiveSettings.defaultPermissionLevel,
         };
     const conversation: ConversationRecord = {

@@ -62,7 +62,7 @@ const summaryTitle = $derived(formatApplicationLog(log));
     {#if detail}
       <button
         type="button"
-        class="mr-1 inline-flex size-3.5 shrink-0 items-center justify-center text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        class="mr-1 inline-flex size-3.5 shrink-0 items-center justify-center text-muted-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         aria-expanded={open}
         aria-label={open ? "Collapse log details" : "Expand log details"}
         title={open ? "Collapse log details" : "Expand log details"}

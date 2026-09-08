@@ -89,7 +89,7 @@ $effect(() => {
 </script>
 
 <div
-  class="relative h-full min-h-0 bg-sidebar font-mono text-xs"
+  class="relative h-full min-h-0 bg-well font-mono text-xs"
   role="log"
   aria-label="Task output"
 >

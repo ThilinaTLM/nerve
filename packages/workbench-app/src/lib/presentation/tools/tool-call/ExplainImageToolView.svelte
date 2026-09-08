@@ -26,7 +26,7 @@ const liveText = $derived.by(() => {
 </script>
 
 {#if expanded && view.explanation}
-  <div class="min-w-0 rounded-sm border bg-sidebar p-3">
+  <div class="min-w-0 rounded-sm border bg-well p-3">
     <Markdown text={view.explanation} {onOpenFile} />
   </div>
 {:else if view.live && liveText}

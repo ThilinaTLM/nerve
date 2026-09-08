@@ -65,7 +65,7 @@ const timeline = $derived(prTimeline(conversation));
               >
             </span>
             {#if entry.kind === "review"}
-              <Badge tone={reviewTone(entry.value.state)} size="xs">
+              <Badge variant={reviewTone(entry.value.state)}>
                 <ShieldCheck class="size-3" />
                 {entry.value.state.replaceAll("_", " ").toLowerCase()}
               </Badge>

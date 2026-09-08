@@ -76,12 +76,12 @@ test("summarizes active conversations and ignores completed activity", () => {
   ];
   assert.deepEqual(
     summarizeProjectActivity(conversations, {
-      error: activity({ tone: "danger", busy: true }),
-      waiting: activity({ tone: "warn", needsUser: true }),
-      running: activity({ tone: "running", busy: true }),
-      "completed-error": activity({ tone: "danger", busy: true }),
-      "completed-waiting": activity({ tone: "warn", needsUser: true }),
-      "completed-running": activity({ tone: "running", busy: true }),
+      error: activity({ tone: "destructive", busy: true }),
+      waiting: activity({ tone: "warning", needsUser: true }),
+      running: activity({ tone: "info", busy: true }),
+      "completed-error": activity({ tone: "destructive", busy: true }),
+      "completed-waiting": activity({ tone: "warning", needsUser: true }),
+      "completed-running": activity({ tone: "info", busy: true }),
     }),
     { needsUser: 1, failed: 1, running: 1 },
   );
@@ -101,7 +101,7 @@ test("combines project activity and background tasks into one priority signal", 
       { running: 4 },
     ),
     {
-      tone: "warn",
+      tone: "warning",
       count: 10,
       summary:
         "1 waiting for you, 2 failed, 3 conversations running, 4 background tasks running",
@@ -113,7 +113,7 @@ test("combines project activity and background tasks into one priority signal", 
       { running: 0 },
     ),
     {
-      tone: "danger",
+      tone: "destructive",
       count: 3,
       summary: "1 failed, 2 conversations running",
     },
@@ -124,7 +124,7 @@ test("combines project activity and background tasks into one priority signal", 
       { running: 1 },
     ),
     {
-      tone: "running",
+      tone: "info",
       count: 2,
       summary: "1 conversation running, 1 background task running",
     },

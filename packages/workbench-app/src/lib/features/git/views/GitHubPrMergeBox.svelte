@@ -73,11 +73,10 @@ function confirmMerge() {
               : "Merge blocked"}
         </h3>
         <Badge
-          size="xs"
-          tone={readiness.status === "ready"
-            ? "good"
+          variant={readiness.status === "ready"
+            ? "success"
             : readiness.status === "blocked"
-              ? "warn"
+              ? "warning"
               : "neutral"}
         >
           {readiness.status}

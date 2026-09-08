@@ -103,7 +103,6 @@ export function settingsFromConfiguration(
 ): Settings {
   const { daemon, harness, ui, integrations } = configuration;
   return settingsSchema.parse({
-    defaultMode: harness.defaults.mode,
     defaultPermissionLevel: harness.defaults.permissionLevel,
     defaultPermissionRuleSetId: harness.defaults.permissionRuleSetId,
     defaultModel: harness.defaults.model,
@@ -176,7 +175,8 @@ export function configurationWithSettings(
     harness: {
       version: 1,
       defaults: {
-        mode: parsed.defaultMode,
+        // New agents always start in coding mode; planning is a per-agent choice.
+        mode: "coding",
         permissionLevel: parsed.defaultPermissionLevel,
         permissionRuleSetId: parsed.defaultPermissionRuleSetId,
         model: parsed.defaultModel,

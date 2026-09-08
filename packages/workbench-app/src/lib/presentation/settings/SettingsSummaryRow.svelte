@@ -1,9 +1,7 @@
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Snippet } from "svelte";
-import {
-  StatusDot,
-  type StatusTone,
-} from "@nervekit/ui-kit/components/composites/status-dot";
+import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import { cn } from "@nervekit/ui-kit/utils";
 import type { SettingsStatus } from "./settings-component-contracts";
 
@@ -18,16 +16,16 @@ type Props = {
 let { title, status, class: className, meta, actions }: Props = $props();
 
 const statusTones: Record<SettingsStatus, StatusTone> = {
-  ok: "good",
-  warning: "warn",
-  error: "danger",
+  ok: "success",
+  warning: "warning",
+  error: "destructive",
   muted: "neutral",
 };
 </script>
 
 <div
   class={cn(
-    "flex items-center justify-between gap-2 rounded-sm border border-border/50 bg-accent/20 px-2 py-1.5",
+    "flex items-center justify-between gap-2 rounded-sm border border-border/60 bg-well px-2 py-1.5",
     className,
   )}
 >

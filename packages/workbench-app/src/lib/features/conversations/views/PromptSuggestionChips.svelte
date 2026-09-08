@@ -1,5 +1,6 @@
 <script lang="ts">
 import Lightbulb from "@lucide/svelte/icons/lightbulb";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ComposerSuggestion } from "./composer-suggestion";
 
 type Props = {
@@ -20,9 +21,11 @@ let { suggestions = [], disabled = false, onSend, onDraft }: Props = $props();
   >
     {#each suggestions as suggestion (suggestion.id)}
       {@const Icon = suggestion.icon ?? Lightbulb}
-      <button
+      <Button
         type="button"
-        class="inline-flex h-7 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default disabled:opacity-55"
+        variant="outline"
+        size="sm"
+        class="text-muted-foreground hover:border-primary/40 hover:text-foreground"
         {disabled}
         title={`Click to send. Right-click to insert into composer.\n\n${suggestion.prompt}`}
         aria-label={`${suggestion.label}. Click to send. Right-click to insert into composer.`}
@@ -38,7 +41,7 @@ let { suggestions = [], disabled = false, onSend, onDraft }: Props = $props();
           aria-hidden="true"
         />
         <span>{suggestion.label}</span>
-      </button>
+      </Button>
     {/each}
   </div>
 {/if}

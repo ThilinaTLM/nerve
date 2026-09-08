@@ -1,6 +1,6 @@
 import Bell from "@lucide/svelte/icons/bell";
 import CloudCog from "@lucide/svelte/icons/cloud-cog";
-import Bot from "@lucide/svelte/icons/bot";
+import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import HardDrive from "@lucide/svelte/icons/hard-drive";
 import Keyboard from "@lucide/svelte/icons/keyboard";
 import Library from "@lucide/svelte/icons/library";
@@ -29,29 +29,28 @@ export const settingsPages: SettingsPageDef[] = [
     icon: CloudCog,
     sections: [
       { id: "subscriptions", label: "Subscriptions" },
-      { id: "api-keys", label: "API Keys" },
-      { id: "custom-providers", label: "Custom Providers" },
-      { id: "custom-models", label: "Custom Models" },
-      { id: "tavily-profiles", label: "Tavily Profiles" },
-      { id: "atlassian-profiles", label: "Atlassian Profiles" },
+      { id: "api-keys", label: "API keys" },
+      { id: "custom-providers", label: "Custom providers" },
+      { id: "custom-models", label: "Custom models" },
+      { id: "tavily-profiles", label: "Tavily profiles" },
+      { id: "atlassian-profiles", label: "Atlassian profiles" },
     ],
   },
   {
     id: "models",
-    label: "Scoped Models",
+    label: "Models",
     icon: ShieldCheck,
-    description: "Scoped models limit which models the composer offers.",
-    sections: [{ id: "models", label: "Scoped Models" }],
+    description:
+      "Limit which models the composer offers, and star the one new agents start with.",
+    sections: [{ id: "models", label: "Models" }],
   },
   {
-    id: "agents",
-    label: "Agents",
-    icon: Bot,
-    sections: [
-      { id: "defaults", label: "Defaults" },
-      { id: "compaction", label: "Compaction" },
-      { id: "explore", label: "Explore agent" },
-    ],
+    id: "compaction",
+    label: "Compaction",
+    icon: FoldVertical,
+    description:
+      "Compaction checkpoints completed and remaining work before an agent runs out of context.",
+    sections: [{ id: "compaction", label: "Compaction" }],
   },
   {
     id: "permissions",
@@ -60,9 +59,8 @@ export const settingsPages: SettingsPageDef[] = [
     description:
       "Choose a simple default and manage focused allow or block exceptions.",
     sections: [
-      { id: "default-permission", label: "Default permission" },
-      { id: "project-exceptions", label: "Project Exceptions" },
-      { id: "user-exceptions", label: "User Exceptions" },
+      { id: "rule-sets", label: "Rule sets" },
+      { id: "overlays", label: "Overrides" },
     ],
   },
   {
@@ -71,7 +69,7 @@ export const settingsPages: SettingsPageDef[] = [
     icon: Wrench,
     sections: [
       { id: "core", label: "Core" },
-      { id: "third-party", label: "Third Party" },
+      { id: "third-party", label: "Third party" },
     ],
   },
   {

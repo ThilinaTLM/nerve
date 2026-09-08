@@ -96,7 +96,8 @@ async function copySession(): Promise<void> {
       {/snippet}
     </PanelHeader>
     {#if !activeProject}
-      <PanelBanner tone="muted">Select a project to view context.</PanelBanner>
+      <PanelBanner tone="neutral">Select a project to view context.</PanelBanner
+      >
     {/if}
   {/snippet}
 

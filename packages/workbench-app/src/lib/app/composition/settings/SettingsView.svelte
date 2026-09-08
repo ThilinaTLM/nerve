@@ -17,11 +17,13 @@ import {
   SettingsSidebarStatus,
 } from "$lib/presentation/settings";
 import { settingsPages } from "$lib/features/settings/registry/settings-pages";
+import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { parseModelKey } from "$lib/presentation/utils/model";
 import {
   skillSourceLabels,
   skillSourceSectionIds,
 } from "$lib/features/settings/views/pages/skills/skills-filter";
-import AgentsSettingsPage from "./agents/AgentsSettingsPage.svelte";
+import CompactionSettingsPage from "$lib/features/settings/views/pages/compaction/CompactionSettingsPage.svelte";
 import ModelsPageActions from "$lib/features/settings/views/pages/models/ModelsPageActions.svelte";
 import ModelsSettingsPage from "$lib/features/settings/views/pages/models/ModelsSettingsPage.svelte";
 import { ModelsPageState } from "$lib/features/settings/views/pages/models/models-page-state.svelte";
@@ -152,6 +154,18 @@ const modelsPageState = new ModelsPageState();
 const suggestionsPageState = new SuggestionsPageState();
 const storageController = new StoragePageController();
 
+/** The composer's live selection is what "remember my last selection" saves. */
+function readComposerSelection(): Settings["lastAgentSelection"] {
+  const model = parseModelKey(conversationState.selectedModelKey);
+  return {
+    mode: conversationState.selectedMode,
+    permissionLevel: conversationState.selectedPermissionLevel,
+    permissionRuleSetId: conversationState.selectedPermissionRuleSetId,
+    ...(model ? { model } : {}),
+    thinkingLevel: conversationState.selectedThinkingLevel,
+  };
+}
+
 function statusText(): string {
   if (settingsMessage) return settingsMessage;
   if (settingsSaveStatus === "saving") return "Saving…";
@@ -207,13 +221,8 @@ function statusText(): string {
         <TranscriptionSettingsPage {settingsDraft} {onSettingsChange} />
       {:else if page.id === "shortcuts"}
         <ShortcutsSettingsPage />
-      {:else if page.id === "agents"}
-        <AgentsSettingsPage
-          {settingsDraft}
-          {models}
-          {authProviders}
-          {onSettingsChange}
-        />
+      {:else if page.id === "compaction"}
+        <CompactionSettingsPage {settingsDraft} {onSettingsChange} />
       {:else if page.id === "suggestions"}
         <SuggestionsSettingsPage
           pageState={suggestionsPageState}
@@ -225,6 +234,7 @@ function statusText(): string {
           {settingsDraft}
           {models}
           {authProviders}
+          {readComposerSelection}
           {onSettingsChange}
         />
       {:else if page.id === "providers"}

@@ -96,15 +96,14 @@ let {
             >
             {#if isOpened(entry.path) || signals.length}
               <span class="flex items-center justify-end gap-1.5">
-                {#if isOpened(entry.path)}<Badge tone="good" size="xs"
+                {#if isOpened(entry.path)}<Badge variant="success"
                     ><CheckCircle2 size={11} />Opened</Badge
                   >{/if}
                 {#each signals as signal (signal)}
                   {@const meta = signalMeta[signal]}
                   {@const Icon = meta.icon}
                   <Badge
-                    tone={meta.tone ?? "neutral"}
-                    size="xs"
+                    variant={meta.tone ?? "neutral"}
                     title={meta.title}
                     class="max-[520px]:hidden"
                     ><Icon size={11} strokeWidth={2.2} />{meta.label}</Badge

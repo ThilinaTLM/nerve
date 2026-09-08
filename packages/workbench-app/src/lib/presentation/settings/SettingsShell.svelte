@@ -58,7 +58,6 @@ const activePage = $derived(
   pages.find((page) => page.id === activePageId) ?? pages[0],
 );
 const activeSections = $derived(activePage?.sections ?? []);
-const hasSubmenu = $derived(activeSections.length > 1);
 
 $effect(() => {
   if (pages.length === 0) return;
@@ -268,7 +267,7 @@ async function selectSection(sectionId: string): Promise<void> {
             </SettingsPageHeader>
           {/if}
 
-          <div class={cn("grid min-w-0", hasSubmenu ? "gap-5" : "gap-3")}>
+          <div class="grid min-w-0 gap-5">
             {@render children(activePage)}
           </div>
         {/if}
@@ -308,8 +307,8 @@ async function selectSection(sectionId: string): Promise<void> {
   min-height: 0;
   grid-template-rows: auto minmax(0, 1fr) auto;
   border-right: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  background: var(--sidebar);
-  color: var(--sidebar-foreground);
+  background: var(--panel);
+  color: var(--foreground);
   padding: 0.9rem 0.7rem;
 }
 
@@ -370,13 +369,13 @@ async function selectSection(sectionId: string): Promise<void> {
 }
 
 .settings-nav button:hover {
-  background: color-mix(in oklab, var(--sidebar-accent) 60%, transparent);
-  color: var(--sidebar-foreground);
+  background: color-mix(in oklab, var(--accent) 60%, transparent);
+  color: var(--foreground);
 }
 
 .settings-nav button.active {
-  background: var(--sidebar-accent);
-  color: var(--sidebar-accent-foreground);
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .settings-nav-label {
@@ -431,13 +430,13 @@ async function selectSection(sectionId: string): Promise<void> {
 }
 
 .settings-subnav a:hover {
-  background: color-mix(in oklab, var(--sidebar-accent) 35%, transparent);
-  color: var(--sidebar-foreground);
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+  color: var(--foreground);
 }
 
 .settings-subnav a.active {
-  background: color-mix(in oklab, var(--sidebar-accent) 45%, transparent);
-  color: var(--sidebar-accent-foreground);
+  background: color-mix(in oklab, var(--accent) 45%, transparent);
+  color: var(--accent-foreground);
   font-weight: 500;
 }
 
@@ -463,6 +462,8 @@ async function selectSection(sectionId: string): Promise<void> {
   gap: 0.85rem;
   width: min(100%, 44rem);
   min-width: 0;
+  /* Keep the capped content column centred in the wider settings pane. */
+  margin-inline: auto;
 }
 
 @container settings-page (max-width: 46rem) {
@@ -522,18 +523,18 @@ async function selectSection(sectionId: string): Promise<void> {
   }
 
   .settings-nav-arrow:hover {
-    color: var(--sidebar-foreground);
+    color: var(--foreground);
   }
 
   .settings-nav-arrow-back {
     left: 0;
-    background: linear-gradient(to right, var(--sidebar) 55%, transparent);
+    background: linear-gradient(to right, var(--panel) 55%, transparent);
     justify-items: start;
   }
 
   .settings-nav-arrow-forward {
     right: 0;
-    background: linear-gradient(to left, var(--sidebar) 55%, transparent);
+    background: linear-gradient(to left, var(--panel) 55%, transparent);
     justify-items: end;
   }
 
@@ -586,7 +587,7 @@ async function selectSection(sectionId: string): Promise<void> {
   }
 
   .settings-subnav-row a {
-    background: color-mix(in oklab, var(--sidebar-accent) 25%, transparent);
+    background: color-mix(in oklab, var(--accent) 25%, transparent);
     padding: 0.3rem 0.65rem;
     scroll-snap-align: start;
   }

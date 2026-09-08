@@ -19,7 +19,7 @@ let { title, description, class: className, actions, below }: Props = $props();
     <div class="grid min-w-0 gap-0.5">
       <h2 class="text-base font-semibold text-foreground">{title}</h2>
       {#if description}
-        <p class="text-xs text-muted-foreground">{description}</p>
+        <p class="text-sm text-muted-foreground">{description}</p>
       {/if}
     </div>
     {#if actions}

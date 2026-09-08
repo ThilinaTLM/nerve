@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { tick, type Component, type Snippet } from "svelte";
 import { ItemSurface } from "$lib/presentation/items";
 
@@ -74,13 +75,14 @@ function cancel(): void {
       <Icon class="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
     {/if}
     {#if titleEditing}
-      <input
-        bind:this={titleInput}
+      <Input
+        bind:ref={titleInput}
         type="text"
         value={title}
+        size="xs"
         maxlength={titleMaxLength}
         aria-label="Note title"
-        class="h-5 min-w-0 flex-1 rounded-sm border border-input bg-background px-1 text-xs font-normal text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        class="min-w-0 flex-1 font-normal shadow-none"
         onkeydown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();

@@ -13,6 +13,47 @@ Application `*Host` components are state/effect adapters around canonical featur
   opaque destructive fills use `destructive-solid` /
   `destructive-solid-foreground`. No hard-coded colors, font sizes, spacing, or
   one-off visual constants.
+- **Surfaces are a four-step ladder**, deepest to highest: `well` (recessed
+  output — terminal, logs, tool results, code blocks), `panel` (movable panel and
+  shell chrome), `background` (workspace), `card` (raised content), `popover`
+  (floating layers). `well` and `panel` are Nerve-specific and pair with the
+  global `foreground` / `muted-foreground`; they deliberately have no foreground
+  tokens of their own. Never reach for a surface to get a shade you like — pick
+  the one that matches the role.
+- **Status colour has one vocabulary**: `neutral`, `accent`, `info`, `success`,
+  `warning`, `destructive` (`StatusTone` in `@nervekit/ui-kit/display/status`).
+  `StatusDot`, `Badge`, `ProgressRing`, `PanelRow`, `PanelBanner`, and the
+  status helpers all speak it, so a tone computed once can drive any of them.
+  Never invent a parallel set of tone names (`good`/`warn`/`danger`/`error`/
+  `muted`/`default` are all spellings of tones that already exist). Domain
+  vocabularies that are genuinely not status — diff line kinds, notification
+  sounds — stay separate.
+- **Settings has one type ladder.** Three sizes only, with weight and colour
+  carrying the rest: page title `text-base` semibold foreground, page subtitle
+  `text-sm` muted, section heading `text-sm` semibold foreground, group heading
+  `text-sm` semibold muted (subordinate by colour, not size), row title
+  `text-sm` regular foreground, and all supporting text `text-xs` muted.
+  Headings are sentence case — no uppercase eyebrows, which rank a section below
+  its own rows. Row titles stay regular weight so headings win. Headings carry
+  no description paragraph; put the detail in a `SettingsInfoHint` tooltip
+  beside the title so section- and row-level grey text stay distinguishable.
+  `settings-typography.test.ts` enforces this.
+- **Settings uses one set of list patterns.** Entity lists are a single
+  `SettingsList` (bordered `card` surface, hairline-divided rows) holding
+  `SettingsListItem` rows, never a stack of individually tinted cards. A row's
+  hierarchy is fixed and all of it sits on the left: `title` (primary),
+  `detail` (inline secondary), `status` (badges), `description` (its own line).
+  The right column holds icon actions and nothing else, always visible. Row
+  actions are `IconAction`s, which require a label and supply the tooltip and
+  accessible name; detail editing belongs in a dialog, not inline on the page.
+- **File-type icons are deliberately outside the token system.** The Material
+  Icon Theme sprite in `$lib/features/filesystem/views` keeps its own multi-hued
+  palette so file types stay recognizable; do not recolour it with theme tokens.
+- **Controls share one compact height scale** — 24 / 28 / 32 / 36px, exposed as
+  `xs` / `sm` / `default` / `lg` on Button, Toggle, Input, and Select. Pick a
+  size; never patch a control's height or padding through `class`, and never add
+  a new size level. If a size feels wrong, fix the core component in `ui-kit`
+  (`control-scale.test.ts` enforces this).
 - **Tier 2 (escape hatch): a scoped `<style>` block in the component** — allowed
   ONLY for things utilities cannot express (see the list below). Use theme tokens
   inside it too.

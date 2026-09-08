@@ -8,10 +8,10 @@ export const statusDotVariants = tv({
       neutral:
         "bg-muted-foreground border-muted-foreground text-muted-foreground",
       accent: "bg-foreground border-foreground text-foreground",
-      running: "bg-info border-info text-info",
-      good: "bg-success border-success text-success",
-      warn: "bg-warning border-warning text-warning",
-      danger:
+      info: "bg-info border-info text-info",
+      success: "bg-success border-success text-success",
+      warning: "bg-warning border-warning text-warning",
+      destructive:
         "bg-destructive-solid border-destructive-solid text-destructive-solid",
     },
     size: {
@@ -31,9 +31,8 @@ export const statusDotVariants = tv({
   },
 });
 
-export type StatusTone = NonNullable<
-  VariantProps<typeof statusDotVariants>["tone"]
->;
+/* `tone` intentionally mirrors StatusTone from display/status, which is the
+ * single source of the vocabulary; this keeps the two in lockstep. */
 export type StatusDotSize = NonNullable<
   VariantProps<typeof statusDotVariants>["size"]
 >;
@@ -43,6 +42,7 @@ export type StatusDotVariant = NonNullable<
 </script>
 
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { cn } from "@nervekit/ui-kit/utils";
 
 let {

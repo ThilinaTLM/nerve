@@ -25,7 +25,7 @@ function hostname(url: string): string {
 </script>
 
 {#if view.answer}
-  <div class="grid gap-1 rounded-sm border bg-sidebar px-2.5 py-2">
+  <div class="grid gap-1 rounded-sm border bg-well px-2.5 py-2">
     <span
       class="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
     >
@@ -33,7 +33,7 @@ function hostname(url: string): string {
       Answer
     </span>
     <p
-      class="m-0 text-xs leading-normal text-sidebar-foreground"
+      class="m-0 text-xs leading-normal text-foreground"
       class:line-clamp-6={!expanded}
     >
       {view.answer}
@@ -43,7 +43,7 @@ function hostname(url: string): string {
 
 {#if results.length > 0}
   <ul
-    class="m-0 grid list-none gap-0 divide-y overflow-hidden rounded-sm border bg-sidebar p-0"
+    class="m-0 grid list-none gap-0 divide-y overflow-hidden rounded-sm border bg-well p-0"
   >
     {#each results as result, index (result.url)}
       <li>

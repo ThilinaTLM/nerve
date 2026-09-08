@@ -12,8 +12,7 @@ const allowed = $derived(field.allowedValues ?? []);
 <div class="grid gap-1 px-2.5 py-2">
   <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
     {#if field.name}
-      <span
-        class="min-w-0 break-words text-xs font-medium text-sidebar-foreground"
+      <span class="min-w-0 break-words text-xs font-medium text-foreground"
         >{field.name}</span
       >
     {/if}
@@ -22,13 +21,13 @@ const allowed = $derived(field.allowedValues ?? []);
   {#if field.type || field.required || field.custom || allowed.length > 0}
     <div class="flex flex-wrap items-center gap-1.5">
       {#if field.type}
-        <Badge tone="neutral" size="xs">{field.type}</Badge>
+        <Badge variant="neutral">{field.type}</Badge>
       {/if}
       {#if field.required}
-        <Badge tone="warn" size="xs">required</Badge>
+        <Badge variant="warning">required</Badge>
       {/if}
       {#if field.custom}
-        <Badge tone="accent" size="xs">custom</Badge>
+        <Badge variant="accent">custom</Badge>
       {/if}
       {#if allowed.length > 0}
         <span

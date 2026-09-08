@@ -272,7 +272,7 @@ function handleOpenChange(next: boolean) {
           {#if !scroll.atEnd}
             <Button
               size="icon-sm"
-              variant="secondary"
+              variant="outline"
               class="absolute right-5 bottom-4 rounded-full shadow-md"
               onclick={() => scroll.jumpToBottom()}
               aria-label="Jump to latest subagent activity"

@@ -1,3 +1,4 @@
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { relativePathForDisplay } from "@nervekit/ui-kit/display/path-links";
 import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts/conversations";
 
@@ -14,16 +15,9 @@ import { COLLAPSED_LINES } from "./tool-view-helpers";
 import type { PrimaryArg } from "./tool-presentation-types";
 export { hasMeaningfulToolDraftBody } from "./tool-draft-body";
 
-export type DraftMetaTone =
-  | "default"
-  | "success"
-  | "warning"
-  | "error"
-  | "info";
-
 export type DraftMetaItem = {
   text: string;
-  tone?: DraftMetaTone;
+  tone?: StatusTone;
   mono?: boolean;
 };
 
@@ -521,7 +515,7 @@ function summarizeEditDraft(
     meta.push({ text: `+${additions}`, tone: "success" });
   }
   if (stats.estimatedDeletions !== undefined && stats.estimatedDeletions > 0) {
-    meta.push({ text: `-${stats.estimatedDeletions}`, tone: "error" });
+    meta.push({ text: `-${stats.estimatedDeletions}`, tone: "destructive" });
   }
   return {
     kind: "edit",

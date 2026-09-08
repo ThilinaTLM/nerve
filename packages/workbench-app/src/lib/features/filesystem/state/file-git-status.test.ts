@@ -44,9 +44,9 @@ describe("file Git decorations", () => {
     ]);
     assert.equal(
       fileTreeGitDecoration(decorations, "release/npm/archive.tgz")?.tone,
-      "muted",
+      "neutral",
     );
-    assert.equal(fileTreeGitDecoration(decorations, ".git")?.tone, "muted");
+    assert.equal(fileTreeGitDecoration(decorations, ".git")?.tone, "neutral");
     assert.equal(
       fileTreeGitDecoration(decorations, ".github/workflows/ci.yml"),
       undefined,

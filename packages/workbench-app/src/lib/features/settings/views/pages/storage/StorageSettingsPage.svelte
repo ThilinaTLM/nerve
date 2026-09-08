@@ -71,7 +71,7 @@ onMount(() => {
 </script>
 
 {#if controller.errorMessage}
-  <SettingsInlineMessage tone="error" text={controller.errorMessage} />
+  <SettingsInlineMessage tone="destructive" text={controller.errorMessage} />
 {/if}
 
 {#if operation}
@@ -146,12 +146,11 @@ onMount(() => {
 
   <SettingsGroup
     title="What uses space"
-    description="Categories are ordered by current footprint."
+    info="Categories are ordered by current footprint."
   >
-    <SettingsList ariaLabel="Storage categories" divided={false} gap="sm">
+    <SettingsList ariaLabel="Storage categories">
       {#each categories as category, index (category.key)}
         <SettingsDisclosureItem
-          variant="card"
           title={category.label}
           description={category.description}
         >
@@ -161,7 +160,7 @@ onMount(() => {
               aria-hidden="true"
             ></span>
           {/snippet}
-          {#snippet meta()}
+          {#snippet titleDetail()}
             <span class="font-mono">{formatBytes(category.bytes)}</span>
             <span>· {percentOfTotal(category.bytes, totalBytes)}%</span>
             {#if category.protected}

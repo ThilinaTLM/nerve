@@ -32,7 +32,7 @@ const canContinue = $derived(
     Boolean(onContinueFromFailure),
 );
 
-const dotTone = $derived(notice.state === "retrying" ? "running" : "warn");
+const dotTone = $derived(notice.state === "retrying" ? "info" : "warning");
 const badgeText = $derived(notice.state === "retrying" ? "retrying" : "run");
 const headerText = $derived.by(() => {
   switch (notice.state) {

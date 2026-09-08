@@ -33,7 +33,7 @@ let { response }: Props = $props();
             {commit.authorName ?? "Unknown author"}{#if commit.authoredDate}
               · {formatPrDate(commit.authoredDate)}{/if}
           </span>
-          <code class="shrink-0 rounded bg-muted px-1 py-0.5 font-mono"
+          <code class="shrink-0 rounded-sm bg-muted px-1 py-0.5 font-mono"
             >{commit.abbrev}</code
           >
         </li>

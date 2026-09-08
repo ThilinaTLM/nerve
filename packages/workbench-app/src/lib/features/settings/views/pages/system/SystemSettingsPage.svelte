@@ -165,7 +165,7 @@ const diagnostics = $derived<SettingsStat[]>([
   <SettingsSection
     id="network"
     title="Network"
-    description="Configure the daemon listener and optional LAN/PWA access."
+    info="Configure the daemon listener and optional LAN/PWA access."
   >
     <SettingsToggleRow
       label="Allow remote connections"
@@ -373,7 +373,7 @@ const diagnostics = $derived<SettingsStat[]>([
   <SettingsSection
     id="desktop-rendering"
     title="Desktop rendering"
-    description="Linux Electron startup options. Restart Nerve after changing them."
+    info="Linux Electron startup options. Restart Nerve after changing them."
   >
     {#if configuration.context.platform === "linux"}
       <SettingsSelectRow

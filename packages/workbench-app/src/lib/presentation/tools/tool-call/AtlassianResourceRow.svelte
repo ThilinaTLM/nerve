@@ -12,7 +12,7 @@ import Tags from "@lucide/svelte/icons/tags";
 import Timer from "@lucide/svelte/icons/timer";
 import User from "@lucide/svelte/icons/user";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
+import type { BadgeVariant } from "@nervekit/ui-kit/components/ui/badge";
 
 type ResourceIcon =
   | "board"
@@ -33,7 +33,7 @@ type Props = {
   detail?: string;
   href?: string;
   status?: string;
-  statusTone?: BadgeTone;
+  statusTone?: BadgeVariant;
 };
 
 let {
@@ -97,12 +97,12 @@ const Icon = $derived(
       {/if}
       {#if title}
         <span
-          class="min-w-0 break-words text-xs font-medium leading-snug text-sidebar-foreground"
+          class="min-w-0 break-words text-xs font-medium leading-snug text-foreground"
           >{title}</span
         >
       {/if}
       {#if status}
-        <Badge tone={statusTone} size="xs" class="ml-auto">{status}</Badge>
+        <Badge variant={statusTone} class="ml-auto">{status}</Badge>
       {/if}
     </div>
     {#if detail}

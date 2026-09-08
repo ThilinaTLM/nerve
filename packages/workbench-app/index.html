@@ -36,6 +36,20 @@
         }
       })();
     </script>
+    <script>
+      // Applies the stored theme before the stylesheet loads so the startup
+      // splash matches the workspace. Without this a Midnight user sees a much
+      // lighter flash, which is exactly what the theme exists to avoid.
+      (() => {
+        try {
+          const theme = window.localStorage.getItem("nerve-color-theme");
+          if (!["nerve", "ocean", "forest", "midnight"].includes(theme)) return;
+          document.documentElement.dataset.theme = theme;
+        } catch {
+          // The default theme still applies when storage is unavailable.
+        }
+      })();
+    </script>
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
@@ -70,6 +84,24 @@
           --startup-primary: oklch(0.6724 0.1308 38.7559);
           --startup-muted: oklch(0.7713 0.0169 99.0657);
           --startup-border: oklch(0.3618 0.0101 106.8928);
+        }
+      }
+      /* Midnight sits far darker than the other themes, so the splash needs its
+         own values; the remaining themes are close enough to share the above. */
+      :root[data-theme="midnight"] {
+        --startup-background: oklch(0.995 0.001 265);
+        --startup-foreground: oklch(0.175 0.008 265);
+        --startup-primary: oklch(0.52 0.163 40);
+        --startup-muted: oklch(0.42 0.012 265);
+        --startup-border: oklch(0.8 0.006 265);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root[data-theme="midnight"] {
+          --startup-background: oklch(0.145 0.005 265);
+          --startup-foreground: oklch(0.972 0.003 265);
+          --startup-primary: oklch(0.78 0.145 62);
+          --startup-muted: oklch(0.79 0.01 265);
+          --startup-border: oklch(0.325 0.011 265);
         }
       }
       html,

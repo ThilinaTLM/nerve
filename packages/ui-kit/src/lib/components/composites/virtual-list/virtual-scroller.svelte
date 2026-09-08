@@ -434,6 +434,9 @@ $effect(() => {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  /* Reserve the scrollbar lane like every other scroll viewport, so rows keep
+     the same gutter whether or not the list currently overflows. */
+  scrollbar-gutter: stable;
   overflow-anchor: none;
 }
 

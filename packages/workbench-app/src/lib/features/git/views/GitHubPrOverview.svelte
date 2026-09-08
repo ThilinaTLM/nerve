@@ -16,17 +16,16 @@ let { overview }: Props = $props();
     <span class="w-20 shrink-0 pt-0.5 text-muted-foreground">Mergeability</span>
     <div class="flex min-w-0 flex-wrap gap-1">
       <Badge
-        size="xs"
-        tone={overview.mergeable === "MERGEABLE"
-          ? "good"
+        variant={overview.mergeable === "MERGEABLE"
+          ? "success"
           : overview.mergeable === "CONFLICTING"
-            ? "danger"
+            ? "destructive"
             : "neutral"}
       >
         {overview.mergeable?.toLowerCase() ?? "calculating"}
       </Badge>
       {#if overview.reviewDecision}
-        <Badge size="xs" tone={reviewTone(overview.reviewDecision)}>
+        <Badge variant={reviewTone(overview.reviewDecision)}>
           {overview.reviewDecision.replaceAll("_", " ").toLowerCase()}
         </Badge>
       {/if}
@@ -36,7 +35,7 @@ let { overview }: Props = $props();
   <div class="flex min-h-5 items-start gap-2">
     <span class="w-20 shrink-0 pt-0.5 text-muted-foreground">Base branch</span>
     <div class="flex min-w-0 flex-wrap gap-1">
-      <Badge size="xs" tone={divergenceTone(overview)}>
+      <Badge variant={divergenceTone(overview)}>
         {divergenceLabel(overview)}
       </Badge>
     </div>
@@ -60,7 +59,7 @@ let { overview }: Props = $props();
     {#if overview.labels.length > 0}
       <div class="flex min-w-0 flex-1 flex-wrap gap-1">
         {#each overview.labels as label (label.name)}
-          <Badge variant="outline" size="xs">{label.name}</Badge>
+          <Badge variant="outline">{label.name}</Badge>
         {/each}
       </div>
     {:else}

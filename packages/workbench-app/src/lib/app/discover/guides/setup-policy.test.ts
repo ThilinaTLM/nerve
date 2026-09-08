@@ -126,10 +126,13 @@ describe("setup guide policy", () => {
         ?.targetId,
       "setup-scoped-models-save",
     );
+    // The main-model step retired with the standalone Default model picker;
+    // choosing a model now lives in the scoped-models guide, and the default is
+    // the starred entry in that same list.
     assert.equal(
       setupStepsForArea("agent-defaults", { codexConnected: false }).at(-1)
         ?.targetId,
-      "setup-agent-default-model",
+      "setup-agent-explore-model",
     );
   });
 

@@ -323,7 +323,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
         {/snippet}
       </PanelHeader>
       {#if !model.availability.available}
-        <PanelBanner tone="muted">{model.availability.message}</PanelBanner>
+        <PanelBanner tone="neutral">{model.availability.message}</PanelBanner>
       {:else if model.notice}
         <PanelBanner tone="info">{model.notice}</PanelBanner>
       {/if}

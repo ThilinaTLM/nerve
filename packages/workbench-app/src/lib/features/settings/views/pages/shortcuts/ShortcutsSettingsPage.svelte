@@ -63,15 +63,11 @@ const filteredGroups = $derived.by<ShortcutGroup[]>(() => {
 
 {#each filteredGroups as group (group.category)}
   <SettingsGroup title={group.category}>
-    <SettingsList
-      ariaLabel={`${group.category} shortcuts`}
-      divided={false}
-      gap="sm"
-    >
+    <SettingsList ariaLabel={`${group.category} shortcuts`}>
       {#each group.commands as command (command.id)}
-        <SettingsListItem variant="card" title={command.label}>
-          {#snippet meta()}
-            <span class="whitespace-nowrap text-xs text-muted-foreground"
+        <SettingsListItem title={command.label}>
+          {#snippet detail()}
+            <span class="whitespace-nowrap font-mono"
               >{formatShortcut(command.defaultBinding)}</span
             >
           {/snippet}

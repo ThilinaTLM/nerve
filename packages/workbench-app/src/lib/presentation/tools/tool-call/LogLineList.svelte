@@ -43,7 +43,7 @@ const items = $derived<LineItem[]>(
     estimateSize={() => 16}
     anchor={followOutput ? "end" : "start"}
     {followOutput}
-    viewportClass="max-h-(--log-max-height) rounded-sm border border-border bg-sidebar px-2 py-1.5 font-mono text-xs leading-[1.22] text-sidebar-foreground"
+    viewportClass="max-h-(--log-max-height) rounded-sm border border-border bg-well px-2 py-1.5 font-mono text-xs leading-[1.22] text-foreground"
   >
     {#snippet row({ item })}
       <div

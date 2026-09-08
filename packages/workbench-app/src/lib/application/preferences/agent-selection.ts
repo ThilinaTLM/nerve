@@ -32,7 +32,7 @@ export function effectiveNewAgentDefaults(settings: Settings) {
   return settings.rememberLastAgentSelection
     ? settings.lastAgentSelection
     : {
-        mode: settings.defaultMode,
+        mode: "coding" as const,
         permissionLevel: settings.defaultPermissionLevel,
         permissionRuleSetId:
           settings.defaultPermissionRuleSetId ??

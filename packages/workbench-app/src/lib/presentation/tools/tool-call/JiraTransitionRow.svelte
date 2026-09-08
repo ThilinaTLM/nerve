@@ -22,11 +22,11 @@ const showTarget = $derived(
     class="rounded-sm border bg-muted/40 px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
     >{transition.id}</span
   >
-  <span class="text-xs font-medium text-sidebar-foreground">{name}</span>
+  <span class="text-xs font-medium text-foreground">{name}</span>
   {#if showTarget}
     <ArrowRight size={13} strokeWidth={2} class="text-muted-foreground" />
-    <Badge tone={toTone} size="xs">{transition.to}</Badge>
+    <Badge variant={toTone}>{transition.to}</Badge>
   {:else if transition.to}
-    <Badge tone={toTone} size="xs">{transition.to}</Badge>
+    <Badge variant={toTone}>{transition.to}</Badge>
   {/if}
 </div>

@@ -1,7 +1,10 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import Pencil from "@lucide/svelte/icons/pencil";
+import Trash2 from "@lucide/svelte/icons/trash-2";
+import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type { AuthProviderMetadata, CustomProvider } from "$lib/api";
 import { deleteCustomProvider } from "$lib/api";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { SettingsListItem } from "$lib/presentation/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
@@ -76,27 +79,32 @@ async function confirmDelete(): Promise<void> {
   onAdd={openAdd}
 >
   {#snippet row(provider)}
-    <SettingsListItem variant="card" title={provider.displayName}>
-      {#snippet meta()}
+    <SettingsListItem title={provider.displayName}>
+      {#snippet detail()}
         <span class="truncate">
           <span class="font-mono">{provider.id}</span>
           · {provider.api} ·
           <span class="font-mono">{provider.baseUrl}</span>
-          {#if !keyConfigured(provider.id)}
-            · <span class="text-warning">No key</span>
-          {/if}
           · {modelCountByProvider.get(provider.id) ?? 0} models
         </span>
       {/snippet}
+      {#snippet status()}
+        {#if !keyConfigured(provider.id)}
+          <Badge variant="warning">No key</Badge>
+        {/if}
+      {/snippet}
       {#snippet actions()}
-        <Button variant="ghost" size="xs" onclick={() => openEdit(provider)}
-          >Edit</Button
-        >
-        <Button
-          variant="ghost"
-          size="xs"
-          onclick={() => (pendingDelete = provider)}>Delete</Button
-        >
+        <IconAction
+          icon={Pencil}
+          label="Edit provider"
+          onclick={() => openEdit(provider)}
+        />
+        <IconAction
+          icon={Trash2}
+          label="Delete provider"
+          tone="destructive"
+          onclick={() => (pendingDelete = provider)}
+        />
       {/snippet}
     </SettingsListItem>
   {/snippet}

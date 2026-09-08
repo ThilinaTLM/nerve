@@ -175,7 +175,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     label={label.text}
     title={tooltip}
     mono={label.isCommand}
-    tone={label.isCommand ? "muted" : "default"}
+    tone={label.isCommand ? "neutral" : undefined}
     disabled={!latest}
     indent={0}
     alwaysShowActions
@@ -187,10 +187,10 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     {/snippet}
     {#snippet badges()}
       {#if entry.activeRuns.length > 1}
-        <Badge tone="accent" size="xs">{entry.activeRuns.length} running</Badge>
+        <Badge variant="accent">{entry.activeRuns.length} running</Badge>
       {/if}
       {#if entry.runs.length > 1}
-        <Badge tone="neutral" size="xs">
+        <Badge variant="neutral">
           <History class="mr-1 size-3" />{entry.runs.length}
         </Badge>
       {/if}

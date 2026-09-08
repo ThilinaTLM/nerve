@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import Check from "@lucide/svelte/icons/check";
 import X from "@lucide/svelte/icons/x";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -7,7 +8,7 @@ import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { SplitButton } from "@nervekit/ui-kit/components/composites/split-button";
 import type { ApprovalWithToolCall } from "../../state/tool-types";
 import type { ToolArgumentPresentation } from "../lifecycle/registry";
-import type { MetaItem, MetaTone } from "../views/tool-presentation";
+import type { MetaItem } from "../views/tool-presentation";
 import ToolFooter from "./ToolFooter.svelte";
 
 type Props = {
@@ -70,13 +71,13 @@ async function decide(
   }
 }
 
-function riskTone(risk: string | undefined): MetaTone {
+function riskTone(risk: string | undefined): StatusTone {
   if (risk === "destructive" || risk === "secret" || risk === "deployment")
-    return "error";
+    return "destructive";
   if (risk === "command" || risk === "network" || risk === "workspace_write")
     return "warning";
   if (risk === "agent_spawn") return "info";
-  return "default";
+  return "neutral";
 }
 
 function reviewedRuleLabel(): string {
@@ -194,7 +195,7 @@ const permissionRuleSetLabel = $derived(
       {/if}
       <Button
         size="sm"
-        variant="secondary"
+        variant="outline"
         disabled={Boolean(decision)}
         onclick={() => void decide("deny")}
       >

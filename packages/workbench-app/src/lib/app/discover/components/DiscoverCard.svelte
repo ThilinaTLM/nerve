@@ -102,9 +102,9 @@ const cardTone = $derived(
             {guide?.title ?? editorial?.title}
           </h3>
           {#if editorial?.new}
-            <Badge tone="running" size="xs">New</Badge>
+            <Badge variant="info">New</Badge>
           {:else if guide?.lifecycle === "new"}
-            <Badge tone="running" size="xs">New</Badge>
+            <Badge variant="info">New</Badge>
           {/if}
         </div>
         <div

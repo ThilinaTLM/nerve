@@ -51,7 +51,7 @@ function formatElapsed(ms: number): string {
 
 {#if visible}
   <div
-    class={`transcription-activity rounded-full ${className}`}
+    class={`transcription-activity ${className}`}
     data-state={recording ? "recording" : "transcribing"}
     data-near-limit={nearLimit ? "true" : undefined}
     aria-live="polite"
@@ -67,7 +67,10 @@ function formatElapsed(ms: number): string {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 2rem;
+  /* Sits inline with the composer's `icon-sm` mic/send buttons, so it tracks
+   * the shared control scale instead of carrying its own height. */
+  height: calc(var(--spacing) * 7);
+  border-radius: var(--radius-md);
   max-width: 9rem;
   border: 1px solid
     color-mix(in oklab, var(--activity-accent) 28%, var(--border));

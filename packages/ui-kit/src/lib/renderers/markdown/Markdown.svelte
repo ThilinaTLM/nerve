@@ -550,7 +550,7 @@ $effect(() => () => streamingScheduler.destroy());
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--sidebar);
+  background: var(--well);
 }
 
 .markdown :global(.code-copy) {
@@ -593,7 +593,7 @@ $effect(() => () => streamingScheduler.destroy());
   overflow: visible;
   border: 0;
   border-radius: 0;
-  background: var(--sidebar) !important;
+  background: var(--well) !important;
   margin: 0;
   padding: 0.55rem 0.6rem;
   font-size: var(--text-xs);

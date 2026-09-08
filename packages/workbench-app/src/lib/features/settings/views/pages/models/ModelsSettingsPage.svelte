@@ -1,5 +1,10 @@
 <script lang="ts">
+import Trash2 from "@lucide/svelte/icons/trash-2";
+import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { clampThinkingLevelForModel } from "$lib/application/preferences/agent-selection";
 import type {
+  AgentRecord,
   AuthProviderMetadata,
   ModelInfo,
   ModelSelection,
@@ -12,6 +17,8 @@ import {
   SettingsInlineMessage,
   SettingsList,
   SettingsListItem,
+  SettingsSection,
+  SettingsToggleRow,
 } from "$lib/presentation/settings";
 import {
   authenticatedRealModelOptions,
@@ -21,7 +28,10 @@ import {
 } from "$lib/presentation/utils/model";
 import type { SettingsChange } from "../settings-change";
 import AddScopedModelsDialog from "./AddScopedModelsDialog.svelte";
+import DefaultModelStar from "./DefaultModelStar.svelte";
 import type { ModelsPageState } from "./models-page-state.svelte";
+
+type ThinkingLevel = AgentRecord["thinkingLevel"];
 
 type ScopedEntry = {
   key: string;
@@ -35,6 +45,8 @@ type Props = {
   settingsDraft: Settings;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
+  /** Reads the composer's live selection; owned by app composition. */
+  readComposerSelection?: () => Settings["lastAgentSelection"];
   onSettingsChange?: SettingsChange;
 };
 
@@ -43,6 +55,7 @@ let {
   settingsDraft,
   models = [],
   authProviders = [],
+  readComposerSelection,
   onSettingsChange,
 }: Props = $props();
 
@@ -78,6 +91,53 @@ const staleCount = $derived(
   scopedEntries.filter((entry) => entry.stale).length,
 );
 
+const defaultModelKey = $derived(
+  settingsDraft.defaultModel ? modelKey(settingsDraft.defaultModel) : undefined,
+);
+
+/** Starring a model makes it the default new agents start with. */
+function makeDefault(entry: ScopedEntry, level: ThinkingLevel): void {
+  const thinkingLevel = clampThinkingLevelForModel(level, entry.model);
+  settingsDraft.defaultModel = entry.selection;
+  settingsDraft.defaultThinkingLevel = thinkingLevel;
+  onSettingsChange?.(
+    { defaultModel: entry.selection, defaultThinkingLevel: thinkingLevel },
+    { immediate: true },
+  );
+}
+
+function onRememberLastSelectionChange(checked: boolean): void {
+  settingsDraft.rememberLastAgentSelection = checked;
+  if (!checked) {
+    onSettingsChange?.(
+      { rememberLastAgentSelection: false },
+      { immediate: true },
+    );
+    return;
+  }
+
+  const lastAgentSelection = readComposerSelection?.();
+  if (!lastAgentSelection) {
+    onSettingsChange?.(
+      { rememberLastAgentSelection: true },
+      { immediate: true },
+    );
+    return;
+  }
+
+  settingsDraft.lastAgentSelection = lastAgentSelection;
+  onSettingsChange?.(
+    {
+      rememberLastAgentSelection: true,
+      lastAgentSelection: {
+        ...lastAgentSelection,
+        model: lastAgentSelection.model ?? null,
+      },
+    },
+    { immediate: true },
+  );
+}
+
 function commitScopedModels(next: ModelSelection[]): void {
   settingsDraft.scopedModels = next;
   onSettingsChange?.({ scopedModels: next }, { immediate: true });
@@ -92,60 +152,81 @@ function removeEntry(key: string): void {
 }
 </script>
 
-<SettingsGroup>
-  {#if availableModels.length === 0}
-    <SettingsInlineMessage
-      tone="info"
-      text="Authenticate a provider before choosing scoped models."
-    />
-  {:else if !scopeActive}
-    <SettingsEmptyState
-      title="No scope set"
-      description="Scoped models limit which models the composer offers. Every authenticated model appears until you add one."
-    >
-      {#snippet actions()}
-        <Button
-          size="xs"
-          data-tour-id="setup-scoped-models-add"
-          onclick={() => (pageState.addDialogOpen = true)}>Add models</Button
-        >
-      {/snippet}
-    </SettingsEmptyState>
-  {:else}
-    <SettingsList ariaLabel="Scoped models" divided={false} gap="sm">
-      {#each scopedEntries as entry (entry.key)}
-        {@const label = entry.model
-          ? modelDisplayName(entry.model)
-          : entry.selection.modelId}
-        <SettingsListItem variant="card" title={label}>
-          {#snippet meta()}
-            <span class="truncate">
-              {providerDisplayName(entry.selection.provider)} ·
-              <span class="font-mono">{entry.selection.modelId}</span>
-              {#if entry.stale}
-                · <span class="text-warning">Unavailable</span>
-              {/if}
-            </span>
-          {/snippet}
-          {#snippet actions()}
-            <Button
-              variant="ghost"
-              size="xs"
-              onclick={() => removeEntry(entry.key)}>Remove</Button
-            >
-          {/snippet}
-        </SettingsListItem>
-      {/each}
-    </SettingsList>
-
-    {#if staleCount > 0}
+<SettingsSection id="models" title="Scoped models">
+  <SettingsGroup>
+    {#if availableModels.length === 0}
       <SettingsInlineMessage
-        tone="warning"
-        text={`${staleCount} scoped ${staleCount === 1 ? "model is" : "models are"} no longer available and will be ignored by the picker.`}
+        tone="info"
+        text="Authenticate a provider before choosing scoped models."
       />
+    {:else if !scopeActive}
+      <SettingsEmptyState
+        variant="card"
+        title="No scope set"
+        description="Add models to limit what the composer offers."
+      >
+        {#snippet actions()}
+          <Button
+            size="xs"
+            data-tour-id="setup-scoped-models-add"
+            onclick={() => (pageState.addDialogOpen = true)}>Add models</Button
+          >
+        {/snippet}
+      </SettingsEmptyState>
+    {:else}
+      <SettingsList ariaLabel="Scoped models">
+        {#each scopedEntries as entry (entry.key)}
+          {@const label = entry.model
+            ? modelDisplayName(entry.model)
+            : entry.selection.modelId}
+          {@const isDefault = entry.key === defaultModelKey}
+          <SettingsListItem title={label}>
+            {#snippet detail()}
+              <span class="truncate"
+                >({entry.selection.provider}/{entry.selection.modelId})</span
+              >
+            {/snippet}
+            {#snippet status()}
+              {#if entry.stale}
+                <Badge variant="warning">Unavailable</Badge>
+              {/if}
+            {/snippet}
+            {#snippet actions()}
+              <DefaultModelStar
+                {label}
+                model={entry.model}
+                {isDefault}
+                disabled={entry.stale}
+                currentThinkingLevel={settingsDraft.defaultThinkingLevel}
+                onSelect={(level) => makeDefault(entry, level)}
+              />
+              <IconAction
+                icon={Trash2}
+                label={`Remove ${label} from the scope`}
+                tone="destructive"
+                onclick={() => removeEntry(entry.key)}
+              />
+            {/snippet}
+          </SettingsListItem>
+        {/each}
+      </SettingsList>
+
+      {#if staleCount > 0}
+        <SettingsInlineMessage
+          tone="warning"
+          text={`${staleCount} scoped ${staleCount === 1 ? "model is" : "models are"} no longer available and will be ignored by the picker.`}
+        />
+      {/if}
     {/if}
-  {/if}
-</SettingsGroup>
+
+    <SettingsToggleRow
+      label="Remember last selected model as default"
+      description="New agents reuse the model you last chose in the composer instead of the starred default."
+      checked={settingsDraft.rememberLastAgentSelection}
+      onCheckedChange={onRememberLastSelectionChange}
+    />
+  </SettingsGroup>
+</SettingsSection>
 
 <AddScopedModelsDialog
   bind:open={pageState.addDialogOpen}

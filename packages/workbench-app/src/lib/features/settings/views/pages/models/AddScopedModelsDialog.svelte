@@ -121,21 +121,21 @@ function save(): void {
     </div>
 
     <Tooltip.Provider delayDuration={200} disableHoverableContent>
-      <div class="h-[min(60vh,32rem)] p-1.5">
+      <div class="h-[min(60vh,32rem)]">
         {#if availableModels.length === 0}
-          <p class="px-1 py-2 text-sm text-muted-foreground">
+          <p class="px-3 py-2 text-sm text-muted-foreground">
             Authenticate a provider before choosing scoped models.
           </p>
         {:else if filteredModels.length === 0}
-          <p class="px-1 py-2 text-sm text-muted-foreground">
+          <p class="px-3 py-2 text-sm text-muted-foreground">
             No models match the current filters.
           </p>
         {:else}
           <VirtualScroller
             items={filteredModels}
             getKey={(entry) => entry.key}
-            estimateSize={() => 44}
-            gap={4}
+            estimateSize={() => 32}
+            gap={0}
             viewportClass="h-full"
             viewportAriaLabel="Authenticated models"
           >

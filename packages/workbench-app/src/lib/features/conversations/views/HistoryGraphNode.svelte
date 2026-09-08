@@ -99,19 +99,19 @@ function branch(data: HistoryFlowNodeData) {
         {#if data.kind === "entry"}
           {@const OverviewIcon = HISTORY_ICONS[data.view.descriptor.icon]}
           <span
-            class={`flex size-10 items-center justify-center rounded-full border bg-card ${HISTORY_TONE_TEXT[data.view.descriptor.tone]}`}
+            class={`flex size-10 items-center justify-center rounded-md border bg-card ${HISTORY_TONE_TEXT[data.view.descriptor.tone]}`}
           >
             <OverviewIcon class="size-5" strokeWidth={2} />
           </span>
         {:else if data.kind === "segment"}
           <span
-            class="flex size-10 items-center justify-center rounded-full border border-dashed bg-card text-muted-foreground"
+            class="flex size-10 items-center justify-center rounded-md border border-dashed bg-card text-muted-foreground"
           >
             <UnfoldVertical class="size-5" strokeWidth={2} />
           </span>
         {:else}
           <span
-            class="flex size-10 items-center justify-center rounded-full border bg-card text-primary"
+            class="flex size-10 items-center justify-center rounded-md border bg-card text-primary"
           >
             <GitBranch class="size-5" strokeWidth={2} />
           </span>
@@ -135,7 +135,7 @@ function branch(data: HistoryFlowNodeData) {
       <div class="flex h-full flex-col justify-center gap-2 px-4 py-3">
         <div class="flex items-center gap-2">
           <span
-            class="flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed text-muted-foreground"
+            class="flex size-7 shrink-0 items-center justify-center rounded-md border border-dashed text-muted-foreground"
           >
             <UnfoldVertical class="size-4" strokeWidth={2} />
           </span>
@@ -167,7 +167,7 @@ function branch(data: HistoryFlowNodeData) {
           <div class="flex flex-wrap gap-1 overflow-hidden">
             {#each data.segment.parts.slice(0, 4) as part (part.label)}
               <span
-                class="rounded-full border bg-muted/40 px-1.5 py-0.5 text-xs text-muted-foreground"
+                class="rounded-md border bg-muted/40 px-1.5 py-0.5 text-xs text-muted-foreground"
                 >{part.count} {part.label}</span
               >
             {/each}

@@ -1,10 +1,8 @@
-import type { StatusTone } from "@nervekit/ui-kit/components/composites/status-dot";
-
-export type MetaTone = "default" | "success" | "warning" | "error" | "info";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 
 export type MetaItem = {
   text: string;
-  tone?: MetaTone;
+  tone?: StatusTone;
   mono?: boolean;
   openPath?: string;
   href?: string;

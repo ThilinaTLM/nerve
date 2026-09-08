@@ -272,12 +272,12 @@ async function rejectPlan() {
   <div class="grid gap-2" aria-label="Plan review">
     {#if preview.trim()}
       {#if expanded}
-        <div class="min-w-0 rounded-sm border bg-sidebar p-3">
+        <div class="min-w-0 rounded-sm border bg-well p-3">
           <Markdown text={preview} {onOpenFile} />
         </div>
       {:else}
         <div
-          class="whitespace-pre-wrap rounded-sm border bg-sidebar p-2.5 font-mono text-xs leading-relaxed text-foreground [overflow-wrap:anywhere]"
+          class="whitespace-pre-wrap rounded-sm border bg-well p-2.5 font-mono text-xs leading-relaxed text-foreground [overflow-wrap:anywhere]"
         >
           {preview}
         </div>
@@ -353,7 +353,7 @@ async function rejectPlan() {
 
         <Button
           size="sm"
-          variant="secondary"
+          variant="outline"
           disabled={actionsDisabled}
           onclick={rejectPlan}
         >

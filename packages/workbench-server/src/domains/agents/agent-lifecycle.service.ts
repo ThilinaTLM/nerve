@@ -91,7 +91,7 @@ export class AgentLifecycleService {
     const defaultSelection = effectiveSettings.rememberLastAgentSelection
       ? effectiveSettings.lastAgentSelection
       : {
-          mode: effectiveSettings.defaultMode,
+          mode: "coding" as const,
           permissionLevel: effectiveSettings.defaultPermissionLevel,
           permissionRuleSetId:
             effectiveSettings.defaultPermissionRuleSetId ??

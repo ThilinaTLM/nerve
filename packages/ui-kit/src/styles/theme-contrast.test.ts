@@ -17,19 +17,20 @@ const badgeSource = readFileSync(
 
 type Oklch = readonly [lightness: number, chroma: number, hue: number];
 type LinearRgb = readonly [red: number, green: number, blue: number];
-type ColorTheme = "nerve" | "ocean" | "forest";
+type ColorTheme = "nerve" | "ocean" | "forest" | "midnight";
 type ColorMode = "light" | "dark";
 type ThemeName = `${ColorTheme}-${ColorMode}`;
 
 const tokenNames = [
   "background",
   "card",
+  "card-foreground",
   "popover",
-  "sidebar",
+  "popover-foreground",
+  "panel",
+  "well",
   "primary",
   "primary-foreground",
-  "secondary",
-  "secondary-foreground",
   "muted",
   "foreground",
   "success",
@@ -124,7 +125,7 @@ function assertContrast(
 }
 
 const themes = Object.fromEntries(
-  (["nerve", "ocean", "forest"] as const).flatMap((theme) =>
+  (["nerve", "ocean", "forest", "midnight"] as const).flatMap((theme) =>
     (["light", "dark"] as const).map((mode) => [
       `${theme}-${mode}`,
       parseTokens(theme, mode),
@@ -134,7 +135,6 @@ const themes = Object.fromEntries(
 
 const filledPairs = [
   ["primary", "primary-foreground"],
-  ["secondary", "secondary-foreground"],
   ["muted", "foreground"],
   ["success", "success-foreground"],
   ["warning", "warning-foreground"],
@@ -143,7 +143,16 @@ const filledPairs = [
   ["destructive-solid", "destructive-solid-foreground"],
 ] as const;
 const semanticTokens = ["success", "warning", "info", "destructive"] as const;
-const surfaceTokens = ["background", "card", "popover", "sidebar"] as const;
+/* Every surface an app chrome or content layer can sit on. `panel` is the
+ * movable-panel chrome and `well` is the recessed output surface; both pair with
+ * the global foreground tokens rather than owning their own. */
+const surfaceTokens = [
+  "background",
+  "card",
+  "popover",
+  "panel",
+  "well",
+] as const;
 const subtleSurfaceAlpha = 0.08;
 const maximumSurfaceChroma: Record<ColorMode, number> = {
   light: 0.018,
@@ -210,6 +219,65 @@ describe("theme text contrast", () => {
       assert.ok(
         tokens.primary[1] >= minimumPrimaryChroma,
         `${themeName} primary chroma ${tokens.primary[1]} is below the identifiable accent minimum ${minimumPrimaryChroma}`,
+      );
+    }
+  });
+
+  it("keeps surface tokens on the correct side of their foreground", () => {
+    // A surface that is lighter than its own foreground in dark mode (or darker
+    // in light mode) is semantically inverted: it reads as an emphasized fill
+    // rather than a subdued one, even though it still passes contrast.
+    const surfacePairs = [
+      ["background", "foreground"],
+      ["card", "card-foreground"],
+      ["popover", "popover-foreground"],
+      ["panel", "foreground"],
+      ["well", "foreground"],
+    ] as const;
+
+    for (const [themeName, tokens] of Object.entries(themes) as [
+      ThemeName,
+      Record<TokenName, Oklch>,
+    ][]) {
+      const mode: ColorMode = themeName.endsWith("-light") ? "light" : "dark";
+      for (const [surfaceName, foregroundName] of surfacePairs) {
+        const surface = tokens[surfaceName][0];
+        const foreground = tokens[foregroundName][0];
+        const inverted =
+          mode === "dark" ? surface > foreground : surface < foreground;
+        assert.ok(
+          !inverted,
+          `${themeName} ${surfaceName} lightness ${surface} is inverted against ${foregroundName} ${foreground} for ${mode} mode`,
+        );
+      }
+    }
+  });
+
+  it("keeps midnight darker and higher contrast than the default theme", () => {
+    const maximumMidnightSurfaceLightness = 0.21;
+    const minimumMidnightTextContrast = 15;
+
+    for (const surfaceName of surfaceTokens) {
+      const lightness = themes["midnight-dark"][surfaceName][0];
+      assert.ok(
+        lightness <= maximumMidnightSurfaceLightness,
+        `midnight-dark ${surfaceName} lightness ${lightness} exceeds the low-light maximum ${maximumMidnightSurfaceLightness}`,
+      );
+      assert.ok(
+        lightness < themes["nerve-dark"][surfaceName][0],
+        `midnight-dark ${surfaceName} is not darker than nerve-dark`,
+      );
+    }
+
+    for (const mode of ["light", "dark"] as const) {
+      const tokens = themes[`midnight-${mode}`];
+      const ratio = contrast(
+        oklchToLinearRgb(tokens.foreground),
+        oklchToLinearRgb(tokens.background),
+      );
+      assert.ok(
+        ratio >= minimumMidnightTextContrast,
+        `midnight-${mode} foreground on background contrast ${ratio.toFixed(2)}:1 is below the high-contrast minimum ${minimumMidnightTextContrast}:1`,
       );
     }
   });

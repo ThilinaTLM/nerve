@@ -179,13 +179,13 @@ function useFallback(): void {
     </div>
 
     <Tooltip.Provider delayDuration={200} disableHoverableContent>
-      <div class="flex flex-col gap-1.5 overflow-hidden px-3 py-2">
+      <div class="flex flex-col overflow-hidden">
         {#if models.length === 0}
-          <p class="py-1 text-sm text-muted-foreground">
+          <p class="px-3 py-2 text-sm text-muted-foreground">
             {emptyMessage}
           </p>
         {:else if listItems.length === 0}
-          <p class="py-1 text-sm text-muted-foreground">
+          <p class="px-3 py-2 text-sm text-muted-foreground">
             No models match the current filters.
           </p>
         {:else}
@@ -200,8 +200,8 @@ function useFallback(): void {
               <VirtualScroller
                 items={listItems}
                 getKey={(item) => item.key}
-                estimateSize={() => 44}
-                gap={4}
+                estimateSize={() => 32}
+                gap={0}
                 viewportClass="h-full"
                 viewportAriaLabel="Available models"
               >
@@ -216,10 +216,8 @@ function useFallback(): void {
                   {:else}
                     <Label
                       class={cn(
-                        "flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-md border bg-accent/90 px-2 py-2 text-left transition-colors hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70",
-                        selectedKey === ""
-                          ? "border-primary"
-                          : "border-transparent",
+                        "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2.5 border-b border-border/50 pr-1 pl-3 text-left transition-colors hover:bg-accent/50",
+                        selectedKey === "" && "bg-accent/60",
                       )}
                     >
                       <RadioGroup.Item
@@ -227,9 +225,8 @@ function useFallback(): void {
                         size="sm"
                         aria-label={fallbackOption!.label}
                       />
-                      <span class="grid min-w-0 flex-1 gap-0.5">
-                        <span
-                          class="truncate text-xs font-medium text-foreground"
+                      <span class="flex min-w-0 flex-1 items-baseline gap-1.5">
+                        <span class="truncate text-sm text-foreground"
                           >{fallbackOption!.label}</span
                         >
                         <span class="truncate text-xs text-muted-foreground"

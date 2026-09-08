@@ -27,5 +27,3 @@ export type SettingsChoice = {
 };
 
 export type SettingsStatus = "ok" | "warning" | "error" | "muted";
-
-export type SettingsTone = "info" | "success" | "warning" | "error";

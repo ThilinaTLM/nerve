@@ -186,7 +186,7 @@ const aggregateLabel = $derived.by(() => {
             {/if}
             {#if modelThinking}
               <span
-                class="shrink-0 rounded border px-1.5 py-0.5 text-xs leading-none text-muted-foreground"
+                class="shrink-0 rounded-sm border px-1.5 py-0.5 text-xs leading-none text-muted-foreground"
                 >{modelThinking}</span
               >
             {/if}
@@ -225,7 +225,7 @@ const aggregateLabel = $derived.by(() => {
               <Button
                 size="xs"
                 variant="outline"
-                class="h-5 gap-1 rounded px-1.5 text-xs shadow-none"
+                class="h-5 gap-1 rounded-sm px-1.5 text-xs shadow-none"
                 onclick={() => openTranscript(task)}
                 aria-label={`View transcript for ${taskTitle(task)}`}
               >
@@ -237,7 +237,7 @@ const aggregateLabel = $derived.by(() => {
               <Button
                 size="xs"
                 variant="outline"
-                class="h-5 gap-1 rounded px-1.5 text-xs shadow-none"
+                class="h-5 gap-1 rounded-sm px-1.5 text-xs shadow-none"
                 onclick={() =>
                   task.report?.reportPath &&
                   onOpenFile?.(task.report.reportPath)}
@@ -250,7 +250,7 @@ const aggregateLabel = $derived.by(() => {
             {/if}
             {#each usageChips(task) as chip (chip)}
               <span
-                class="inline-flex min-h-5 items-center rounded border bg-muted/30 px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground"
+                class="inline-flex min-h-5 items-center rounded-sm border bg-muted/30 px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground"
                 >{chip}</span
               >
             {/each}

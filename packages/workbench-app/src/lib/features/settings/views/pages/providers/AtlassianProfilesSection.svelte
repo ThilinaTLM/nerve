@@ -1,4 +1,8 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import Pencil from "@lucide/svelte/icons/pencil";
+import Trash2 from "@lucide/svelte/icons/trash-2";
+import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type {
   AtlassianProfile,
   AuthProviderMetadata,
@@ -6,7 +10,6 @@ import type {
 } from "$lib/api";
 import { deleteProviderCredential, getAuthProviders } from "$lib/api";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { SettingsListItem } from "$lib/presentation/settings";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
@@ -86,31 +89,31 @@ async function remove(): Promise<void> {
 >
   {#snippet row(profile)}
     <SettingsListItem
-      variant="card"
       title={profile.name}
       description={[profile.siteUrl, profile.email]
         .filter(Boolean)
         .join(" · ") || "Connection details incomplete"}
     >
-      {#snippet meta()}
+      {#snippet status()}
         {#if !atlassianProfileReady(profile, authProviders)}
-          <span class="text-warning">Incomplete</span>
+          <Badge variant="warning">Incomplete</Badge>
         {/if}
       {/snippet}
       {#snippet actions()}
-        <Button
-          variant="ghost"
-          size="xs"
+        <IconAction
+          icon={Pencil}
+          label="Edit profile"
           onclick={() => {
             editing = profile;
             dialogOpen = true;
-          }}>Edit</Button
-        >
-        <Button
-          variant="ghost"
-          size="xs"
-          onclick={() => (pendingDelete = profile)}>Delete</Button
-        >
+          }}
+        />
+        <IconAction
+          icon={Trash2}
+          label="Delete profile"
+          tone="destructive"
+          onclick={() => (pendingDelete = profile)}
+        />
       {/snippet}
     </SettingsListItem>
   {/snippet}
