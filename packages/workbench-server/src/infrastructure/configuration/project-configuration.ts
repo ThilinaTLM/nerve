@@ -30,6 +30,7 @@ export async function resolveProjectConfiguration(
     optionalJson(join(root, "providers.json")),
     optionalJson(join(root, "integrations.json")),
   ]);
+  assertNoLegacyCapabilitySelection(harnessRaw);
   const user = storage.configuration;
   let harness = harnessConfigSchema.parse(deepMerge(user.harness, harnessRaw));
   harness = applyHarnessEnvironment(harness, input.env ?? process.env);
@@ -59,6 +60,29 @@ export async function resolveProjectSettings(
   return settingsFromConfiguration(
     await resolveProjectConfiguration(storage, projectDir, input),
   );
+}
+
+function assertNoLegacyCapabilitySelection(
+  harness: Record<string, unknown>,
+): void {
+  const tools = asOptionalRecord(harness.tools);
+  const skills = asOptionalRecord(harness.skills);
+  const agentBrowser = asOptionalRecord(skills?.agentBrowser);
+  if (
+    (tools && Object.hasOwn(tools, "disabled")) ||
+    (skills && Object.hasOwn(skills, "disabled")) ||
+    (agentBrowser && Object.hasOwn(agentBrowser, "enabled"))
+  ) {
+    throw new Error(
+      "Project tool and skill selections in .nerve/config/harness.json must be migrated to .nerve/config/capabilities.json.",
+    );
+  }
+}
+
+function asOptionalRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 async function optionalJson(path: string): Promise<Record<string, unknown>> {

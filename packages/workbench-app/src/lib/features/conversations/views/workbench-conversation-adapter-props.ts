@@ -88,6 +88,7 @@ export type WorkbenchConversationAdapterProps = {
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
+  onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
   onGrantApproval?: (
     id: string,
     scope?:

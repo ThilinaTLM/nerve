@@ -511,6 +511,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   }}
   onOpenPermissionSettings={() =>
     void openSettingsPane("permissions", "default-permission")}
+  onOpenCapabilitySettings={(page) => void openSettingsPane(page)}
   onGrantApproval={grantApproval}
   onDenyApproval={denyApproval}
   onAcceptPlanReview={(id, options) => acceptPendingPlanReview(id, options)}

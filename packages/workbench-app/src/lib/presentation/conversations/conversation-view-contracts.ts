@@ -1,3 +1,7 @@
+import type {
+  CapabilityConfiguration,
+  CapabilityPatch,
+} from "@nervekit/contracts/capabilities";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import type {
   ContextUsage,
@@ -89,6 +93,10 @@ export type ConversationComposerModel = {
   slashCompletions?: CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   capabilities?: ConversationComposerCapabilities;
+  capabilityConfiguration?: CapabilityConfiguration;
+  capabilitySkills?: Array<{ name: string; kind: "file" | "agentBrowser" }>;
+  capabilityLoading?: boolean;
+  capabilityError?: string;
 };
 
 export type ConversationTimelineSections = {
@@ -132,6 +140,10 @@ export type ConversationPaneActions = {
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
+  onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
+  onCapabilityPatch?: (patch: CapabilityPatch) => void;
+  onResetCapabilities?: () => void;
+  onRefreshCapabilities?: () => void;
   onPasteImage?: (file: File) => Promise<string>;
   onDropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
   onOpenFile?: (path: string, line?: number) => void;

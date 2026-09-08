@@ -182,6 +182,7 @@ async function sendPendingPrompt(
         title: deriveConversationTitle(text),
         mode: pending.mode,
         permissionLevel: pending.permissionLevel,
+        capabilityOverrides: pending.capabilityOverrides,
       })
     ).result;
     createdConversationId = conversation.id;

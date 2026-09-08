@@ -99,6 +99,7 @@ export function createServerAdapterContexts(
       fileCompletions: services.fileCompletions,
       permissionExceptions: services.permissionExceptions,
       permissionPolicy: services.permissionPolicy,
+      capabilities: services.capabilities,
       projectLifecycle: services.projectLifecycle,
       maintenance: infrastructure.maintenance,
       promptSuggestions: services.promptSuggestions,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { capabilityOverridesDocumentSchema } from "../capabilities/capabilities.js";
 import { permissionLevelSchema } from "../permissions/permissions.js";
 import { modeSchema } from "../settings/settings.js";
 
@@ -41,6 +42,7 @@ export const createConversationRequestSchema = z.object({
   title: z.string().min(1).optional(),
   mode: modeSchema.optional(),
   permissionLevel: permissionLevelSchema.optional(),
+  capabilityOverrides: capabilityOverridesDocumentSchema.optional(),
 });
 export type CreateConversationRequest = z.infer<
   typeof createConversationRequestSchema

@@ -25,7 +25,11 @@ import { type ContextUsage } from "@nervekit/contracts/models";
 import { type ConversationRecord } from "@nervekit/contracts/conversations";
 import { type RunRecord } from "@nervekit/contracts/runs";
 import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
-import { type ToolCallRecord, type ToolName } from "@nervekit/contracts/tools";
+import {
+  type ToolCallRecord,
+  type ToolName,
+  type UserConfigurableToolName,
+} from "@nervekit/contracts/tools";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";
@@ -38,6 +42,7 @@ import type { CompactionService } from "../../conversations/operations/index.js"
 import type { PythonRuntimeService } from "../../tools/execution/python-runtime.js";
 import type { PlanService } from "../../plans/plan-service.js";
 import type { WorkbenchTaskService } from "../../tasks/adapters/workbench-task-service.js";
+import type { CapabilityService } from "../../capabilities/capability.service.js";
 import { activeToolNamesForAgent } from "../../tools/orchestration/agent-tool-adapter.js";
 import type {
   ExploreProgressUpdate,
@@ -83,6 +88,7 @@ export interface WorkbenchAgentMechanicsDeps {
   subagentExecutions: WorkbenchSubagentExecutions;
   exploreAdmission: WorkbenchExploreAdmission;
   agentBrowserSkills: AgentBrowserSkillCatalog;
+  capabilities: CapabilityService;
   subagentTranscriptLive: SubagentTranscriptLiveService;
   customModels?: (projectDir?: string) => Promise<AgentCustomModel[]>;
 }
@@ -106,6 +112,7 @@ export class WorkbenchAgentMechanics {
       executions: deps.subagentExecutions,
       exploreAdmission: deps.exploreAdmission,
       agentBrowserSkills: deps.agentBrowserSkills,
+      capabilities: deps.capabilities,
       transcriptLive: deps.subagentTranscriptLive,
       customModels: deps.customModels,
     });
@@ -121,7 +128,10 @@ export class WorkbenchAgentMechanics {
     return resolveProjectSettings(this.deps.storage, projectDir);
   }
 
-  async activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]> {
+  async activeToolNamesFor(
+    agent: AgentRecord,
+    disabledToolNames?: readonly UserConfigurableToolName[],
+  ): Promise<ToolName[]> {
     const pythonAvailable = await this.deps.pythonRuntime.isAvailableForProject(
       agent.projectDir,
     );
@@ -150,7 +160,7 @@ export class WorkbenchAgentMechanics {
     );
     return activeToolNamesForAgent(agent, {
       pythonAvailable,
-      disabledToolNames: settings.tools.disabled,
+      disabledToolNames: disabledToolNames ?? settings.tools.disabled,
       jiraEnabled: settings.tools.jira.enabled,
       confluenceEnabled: settings.tools.confluence.enabled,
       imageExplanationAvailable,

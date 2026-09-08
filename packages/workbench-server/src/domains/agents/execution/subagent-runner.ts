@@ -40,6 +40,7 @@ import type { SubscriptionUsageService } from "../../usage/subscription-usage-se
 import type { WorkbenchExploreAdmission } from "./workbench-explore-admission.js";
 import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
 import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills.js";
+import type { CapabilityService } from "../../capabilities/capability.service.js";
 import type { SubagentTranscriptLiveService } from "../subagent-transcript-live.service.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
 
@@ -166,6 +167,7 @@ export interface SubagentRunnerDeps {
   executions: WorkbenchSubagentExecutions;
   exploreAdmission: WorkbenchExploreAdmission;
   agentBrowserSkills: AgentBrowserSkillCatalog;
+  capabilities: CapabilityService;
   transcriptLive: SubagentTranscriptLiveService;
   customModels?: (projectDir?: string) => Promise<AgentCustomModel[]>;
 }
@@ -443,6 +445,10 @@ export class SubagentRunner {
         this.deps.storage,
         child.projectDir,
       );
+      const capabilitySelection = await this.deps.capabilities.resolve(
+        child.projectId,
+        child.conversationId,
+      );
       const model = resolveAgentModel(
         child.model,
         (await this.deps.customModels?.(child.projectDir)) ?? [],
@@ -454,8 +460,9 @@ export class SubagentRunner {
       });
       const resources = await loadHarnessResources(child.projectDir, {
         storageHome: this.deps.storage.paths.home,
-        disabledSkillNames: settings.skills.disabled,
-        enabledAgentBrowserSkillNames: settings.skills.agentBrowser.enabled,
+        disabledSkillNames: capabilitySelection.disabledFileSkills,
+        enabledAgentBrowserSkillNames:
+          capabilitySelection.enabledAgentBrowserSkills,
         agentBrowserSkills: this.deps.agentBrowserSkills.skills,
       });
       const activeToolNames = activeToolNamesForExploreAgent();

@@ -1,5 +1,12 @@
 <script lang="ts">
 import { untrack } from "svelte";
+import {
+  applyCapabilityPatch,
+  emptyCapabilityOverrides,
+  resolveCapabilitySelection,
+  type CapabilityConfiguration,
+  type CapabilityPatch,
+} from "@nervekit/contracts/capabilities";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
@@ -25,6 +32,12 @@ import {
 import type { PromptComposerProps } from "$lib/features/conversations/views/prompt-composer-props";
 import { deriveComposerAvailability } from "$lib/features/conversations/adapters/composer-availability";
 import { resolveDroppedPaths } from "$lib/features/conversations/adapters/dropped-paths";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import {
+  getCapabilityConfiguration,
+  updateCapabilities,
+} from "$lib/features/projects/api/projects.api";
+import { listAvailableSkills } from "$lib/features/skills/api/skills.api";
 
 let {
   text = "",
@@ -69,6 +82,7 @@ let {
   onPermissionRuleSetChange,
   onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
+  onOpenCapabilitySettings,
 }: PromptComposerProps = $props();
 
 // A newly created pending conversation opens directly into its first prompt,
@@ -81,6 +95,139 @@ let lastFocusToken: number | undefined;
 let lastComposerEscapeToken: number | undefined;
 let lastMicShortcutToken: number | undefined;
 let audioAuthDialogOpen = $state(false);
+let capabilityConfiguration = $state<CapabilityConfiguration>();
+let capabilitySkills = $state<
+  Array<{ name: string; kind: "file" | "agentBrowser" }>
+>([]);
+let capabilityLoading = $state(false);
+let capabilityError = $state<string>();
+let capabilityRequest = 0;
+
+async function loadCapabilities(): Promise<void> {
+  const projectId = activeProject?.id;
+  const conversationId = activeConversation?.id;
+  const request = ++capabilityRequest;
+  capabilityError = undefined;
+  if (!projectId) {
+    capabilityConfiguration = undefined;
+    capabilitySkills = [];
+    return;
+  }
+  capabilityLoading = true;
+  try {
+    const [base, available] = await Promise.all([
+      getCapabilityConfiguration(projectId, conversationId),
+      listAvailableSkills(projectId),
+    ]);
+    if (request !== capabilityRequest) return;
+    capabilitySkills = [
+      ...available.projectSkills.map((skill) => ({
+        name: skill.name,
+        kind: "file" as const,
+      })),
+      ...available.globalSkills.map((skill) => ({
+        name: skill.name,
+        kind: "file" as const,
+      })),
+      ...available.agentBrowserSkills.map((skill) => ({
+        name: skill.name,
+        kind: "agentBrowser" as const,
+      })),
+    ].filter(
+      (skill, index, all) =>
+        all.findIndex((item) => item.name === skill.name) === index,
+    );
+    const pendingOverrides = !conversationId
+      ? activePendingConversation?.capabilityOverrides
+      : undefined;
+    capabilityConfiguration = pendingOverrides
+      ? {
+          ...base,
+          conversation: pendingOverrides,
+          effective: resolveCapabilitySelection({
+            user: base.effective,
+            conversation: pendingOverrides,
+          }),
+        }
+      : base;
+  } catch (error) {
+    if (request === capabilityRequest)
+      capabilityError = error instanceof Error ? error.message : String(error);
+  } finally {
+    if (request === capabilityRequest) capabilityLoading = false;
+  }
+}
+
+$effect(() => {
+  const progressive = workbenchStartupState.progressiveActive;
+  const scopeKey =
+    activeConversation?.id ??
+    activePendingConversation?.id ??
+    activeProject?.id;
+  if (progressive && scopeKey) void loadCapabilities();
+});
+
+/** Failed mutations reload, then surface the message in the popover. */
+async function runCapabilityMutation(
+  mutation: () => Promise<CapabilityConfiguration>,
+): Promise<void> {
+  try {
+    capabilityConfiguration = await mutation();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await loadCapabilities();
+    capabilityError = message;
+  }
+}
+
+async function patchCapabilities(patch: CapabilityPatch): Promise<void> {
+  const project = activeProject;
+  const conversation = activeConversation;
+  const current = capabilityConfiguration;
+  if (!project || !current) return;
+  if (!conversation && activePendingConversation) {
+    activePendingConversation.capabilityOverrides = applyCapabilityPatch(
+      activePendingConversation.capabilityOverrides ??
+        emptyCapabilityOverrides(),
+      patch,
+    );
+    await loadCapabilities();
+    return;
+  }
+  if (!conversation) return;
+  await runCapabilityMutation(() =>
+    updateCapabilities({
+      projectId: project.id,
+      conversationId: conversation.id,
+      origin: "conversation",
+      patch,
+      expectedDigest: current.conversationDigest,
+    }),
+  );
+}
+
+async function resetCapabilities(): Promise<void> {
+  const project = activeProject;
+  const conversation = activeConversation;
+  const current = capabilityConfiguration;
+  if (!project || !current) return;
+  const empty = emptyCapabilityOverrides();
+  if (!conversation && activePendingConversation) {
+    activePendingConversation.capabilityOverrides = empty;
+    await loadCapabilities();
+    return;
+  }
+  if (!conversation) return;
+  await runCapabilityMutation(() =>
+    updateCapabilities({
+      projectId: project.id,
+      conversationId: conversation.id,
+      origin: "conversation",
+      replace: empty,
+      expectedDigest: current.conversationDigest,
+    }),
+  );
+}
 
 const micShortcut = getShortcutLabel("composer.toggleMic");
 const micShortcutAria = getShortcutAriaLabel("composer.toggleMic");
@@ -387,6 +534,10 @@ function handleMicContextMenu(event: MouseEvent) {
     todos,
     slashCompletions,
     fileCompletions,
+    capabilityConfiguration,
+    capabilitySkills,
+    capabilityLoading,
+    capabilityError,
     capabilities: {
       voice: true,
       imagePaste: true,
@@ -409,6 +560,10 @@ function handleMicContextMenu(event: MouseEvent) {
     onPermissionRuleSetChange,
     onRefreshPermissionRuleSets,
     onOpenPermissionSettings,
+    onOpenCapabilitySettings,
+    onCapabilityPatch: (patch) => void patchCapabilities(patch),
+    onResetCapabilities: () => void resetCapabilities(),
+    onRefreshCapabilities: () => void loadCapabilities(),
     onPasteImage: pasteImage,
     onDropFiles: fileDropSupported ? dropFiles : undefined,
   }}

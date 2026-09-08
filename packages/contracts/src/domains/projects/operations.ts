@@ -1,3 +1,10 @@
+import {
+  capabilityConfigurationSchema,
+  capabilityOriginSchema,
+  capabilityOverridesDocumentSchema,
+  capabilityPatchSchema,
+  capabilityTrustSchema,
+} from "../capabilities/capabilities.js";
 import { maintenanceStartResponseSchema } from "../maintenance/maintenance.js";
 import {
   createProjectRequestSchema,
@@ -112,6 +119,51 @@ export const projectsOperationDefinitions = [
     "required",
     ["workbench_server"] as const,
     "operation.project.permissionTrust.update",
+  ),
+  defineOperation(
+    "project.capabilities.get",
+    projectIdParamsSchema.extend({
+      conversationId: z.string().startsWith("conv_").optional(),
+    }),
+    z.object({ configuration: capabilityConfigurationSchema }),
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.project.capabilities.get",
+  ),
+  defineOperation(
+    "project.capabilities.update",
+    projectIdParamsSchema
+      .extend({
+        conversationId: z.string().startsWith("conv_").optional(),
+        origin: capabilityOriginSchema,
+        patch: capabilityPatchSchema.optional(),
+        replace: capabilityOverridesDocumentSchema.optional(),
+        expectedDigest: z.string().optional(),
+      })
+      .refine(
+        (value) => value.patch !== undefined || value.replace !== undefined,
+        {
+          message: "A capability patch or replacement is required.",
+        },
+      ),
+    z.object({ configuration: capabilityConfigurationSchema }),
+    "mutation",
+    "required",
+    ["workbench_server"] as const,
+    "operation.project.capabilities.update",
+  ),
+  defineOperation(
+    "project.capabilityTrust.update",
+    projectIdParamsSchema.extend({
+      trusted: z.boolean(),
+      expectedDigest: z.string().optional(),
+    }),
+    z.object({ trust: capabilityTrustSchema }),
+    "mutation",
+    "required",
+    ["workbench_server"] as const,
+    "operation.project.capabilityTrust.update",
   ),
   defineOperation(
     "project.openEditor",

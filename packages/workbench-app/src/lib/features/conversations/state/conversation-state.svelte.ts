@@ -1,3 +1,4 @@
+import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
 import type {
   AgentRecord,
   CompletionItem,
@@ -53,6 +54,7 @@ export type PendingConversationState = {
   mode: AgentRecord["mode"];
   permissionLevel: AgentRecord["permissionLevel"];
   permissionRuleSetId: NonNullable<AgentRecord["permissionRuleSetId"]>;
+  capabilityOverrides?: CapabilityOverridesDocument;
   sending: boolean;
   error?: string;
   createdAt: string;

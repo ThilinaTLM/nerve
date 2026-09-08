@@ -130,6 +130,14 @@ function submit(): void {
       onPermissionRuleSetChange={actions.onPermissionRuleSetChange}
       onRefreshPermissionRuleSets={actions.onRefreshPermissionRuleSets}
       onOpenPermissionSettings={actions.onOpenPermissionSettings}
+      onOpenCapabilitySettings={actions.onOpenCapabilitySettings}
+      capabilityConfiguration={model.capabilityConfiguration}
+      capabilitySkills={model.capabilitySkills}
+      capabilityLoading={model.capabilityLoading}
+      capabilityError={model.capabilityError}
+      onCapabilityPatch={actions.onCapabilityPatch}
+      onResetCapabilities={actions.onResetCapabilities}
+      onRefreshCapabilities={actions.onRefreshCapabilities}
     />
   {/snippet}
 

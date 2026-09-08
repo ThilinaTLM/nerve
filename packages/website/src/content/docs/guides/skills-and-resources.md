@@ -25,7 +25,26 @@ A skill needs a nonempty `description`. A directory-based skill's lowercase, hyp
 
 First definition by skill name wins. Effective discovery favors project Nerve skills and ancestor portable project skills before global Nerve and global portable skills. Disabled names are removed. Review the exact [resource precedence table](/reference/resources/) when two definitions share a name.
 
-Use **Settings → Skills** to inspect discovered scope and toggle a skill without deleting its file.
+Use **Settings → Skills** to inspect discovered scope and toggle a skill without deleting its file. The **User** scope supplies defaults for every project. The **Project** scope writes sparse, shareable overrides to `.nerve/config/capabilities.json`; settings without an override continue to follow the user default.
+
+Project capability files are locally trusted by exact content digest. A new or externally changed file remains visible for review but inactive until trusted. Conversation overrides are local to the conversation and take precedence over trusted project values. Capability changes apply when the next agent run is prepared.
+
+## Capability file format
+
+A project capability file contains only values the project pins:
+
+```json
+{
+  "schemaVersion": 1,
+  "tools": { "web_search": true, "python_exec": false },
+  "skills": {
+    "file": { "release": false },
+    "agentBrowser": { "core": true }
+  }
+}
+```
+
+Missing entries inherit. Unknown tool names are rejected; skill names unavailable on one machine remain dormant so a shared project remains portable. Tool and skill selection fields formerly placed in project `.nerve/config/harness.json` must be moved to `capabilities.json`; unrelated harness settings remain in `harness.json`.
 
 ## Trust
 
