@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { Component } from "svelte";
+import type { Component, Snippet } from "svelte";
 import Check from "@lucide/svelte/icons/check";
 import { cn } from "@nervekit/ui-kit/utils";
 
@@ -20,6 +20,7 @@ let {
   value = $bindable(""),
   ariaLabel,
   previewForegroundClass = "bg-foreground/30",
+  previewBody,
   previewAttrs,
   class: className,
   onValueChange,
@@ -29,6 +30,11 @@ let {
   ariaLabel: string;
   /** Class for the emphasized preview bar (e.g. "bg-foreground/30" or "bg-primary"). */
   previewForegroundClass?: string;
+  /**
+   * Replaces the default two-bar swatch content. Themes use this to show the
+   * radius and elevation they carry, which plain color bars cannot express.
+   */
+  previewBody?: Snippet;
   /**
    * Data attributes (data-theme-preview / data-color-mode) placed on each
    * preview strip; these drive the theme swatch colors via theme.css.
@@ -79,13 +85,17 @@ function choose(next: string): void {
               index === 1 && "border-l border-border/40",
             )}
           >
-            <span class="w-1.5 flex-none rounded-sm bg-panel"></span>
-            <span class="grid min-w-0 flex-1 content-start gap-1">
-              <span
-                class={cn("h-1 w-full rounded-full", previewForegroundClass)}
-              ></span>
-              <span class="h-1 w-2/3 rounded-full bg-foreground/30"></span>
-            </span>
+            {#if previewBody}
+              {@render previewBody()}
+            {:else}
+              <span class="w-1.5 flex-none rounded-sm bg-panel"></span>
+              <span class="grid min-w-0 flex-1 content-start gap-1">
+                <span
+                  class={cn("h-1 w-full rounded-full", previewForegroundClass)}
+                ></span>
+                <span class="h-1 w-2/3 rounded-full bg-foreground/30"></span>
+              </span>
+            {/if}
           </span>
         {/each}
       </span>

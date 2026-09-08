@@ -4,6 +4,7 @@ import {
   createHighlightQueue,
   type HighlightQueueLease,
 } from "./highlight-queue";
+import { SYNTAX_THEME_NAME, syntaxTheme } from "./syntax-theme";
 
 const languageLoaders = {
   bash: () => import("@shikijs/langs/bash"),
@@ -24,9 +25,11 @@ const languageLoaders = {
   yaml: () => import("@shikijs/langs/yaml"),
 } as const;
 
+// One theme for every colour theme and mode: its colours are `--syntax-*` CSS
+// variables, so the palette is chosen at paint time rather than at tokenize
+// time. Nothing here has to reload when the user switches themes.
 const themeLoaders = {
-  "github-light": () => import("@shikijs/themes/github-light"),
-  "github-dark-dimmed": () => import("@shikijs/themes/github-dark-dimmed"),
+  [SYNTAX_THEME_NAME]: () => Promise.resolve(syntaxTheme),
 } as const;
 
 type HighlightLanguage = keyof typeof languageLoaders;
@@ -34,11 +37,7 @@ type HighlightTheme = keyof typeof themeLoaders;
 type HighlighterLike = {
   codeToHtml: (
     code: string,
-    options: {
-      lang: HighlightLanguage;
-      themes: { light: HighlightTheme; dark: HighlightTheme };
-      defaultColor: false;
-    },
+    options: { lang: HighlightLanguage; theme: HighlightTheme },
   ) => Promise<string>;
 };
 
@@ -142,14 +141,7 @@ async function performHighlight(
   lang: HighlightLanguage,
 ): Promise<string> {
   const highlighter = await getHighlighter();
-  return highlighter.codeToHtml(code, {
-    lang,
-    themes: {
-      light: "github-light",
-      dark: "github-dark-dimmed",
-    },
-    defaultColor: false,
-  });
+  return highlighter.codeToHtml(code, { lang, theme: SYNTAX_THEME_NAME });
 }
 
 export async function highlightCode(
@@ -161,7 +153,14 @@ export async function highlightCode(
   return runWhenIdle(() => performHighlight(code, lang));
 }
 
-function highlightCacheKey(code: string, lang: HighlightLanguage): string {
+/**
+ * Highlighted markup carries CSS variables rather than resolved colours, so a
+ * cached result stays valid under every theme and colour mode.
+ */
+export function highlightCacheKey(
+  code: string,
+  lang: HighlightLanguage,
+): string {
   return `${lang}\0${code}`;
 }
 
@@ -169,10 +168,10 @@ function splitHighlightCacheKey(key: string): {
   code: string;
   lang: HighlightLanguage;
 } {
-  const separator = key.indexOf("\0");
+  const langEnd = key.indexOf("\0");
   return {
-    lang: key.slice(0, separator) as HighlightLanguage,
-    code: key.slice(separator + 1),
+    lang: key.slice(0, langEnd) as HighlightLanguage,
+    code: key.slice(langEnd + 1),
   };
 }
 

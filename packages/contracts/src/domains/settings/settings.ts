@@ -16,12 +16,17 @@ import { userConfigurableToolNameSchema } from "../tools/tool-name.js";
 export const modeSchema = z.enum(["planning", "coding"]);
 export type Mode = z.infer<typeof modeSchema>;
 
-export const colorThemeSchema = z.enum([
-  "nerve",
-  "ocean",
-  "forest",
-  "midnight",
-]);
+export const colorThemeSchema = z.enum(["nerve", "rose", "solar", "midnight"]);
+
+/**
+ * Themes that shipped once and were replaced. Stored settings are migrated to
+ * the successor that best preserves the user's original intent, so an old value
+ * never fails schema validation.
+ */
+export const retiredColorThemes = {
+  ocean: "solar",
+  forest: "rose",
+} as const satisfies Record<string, z.infer<typeof colorThemeSchema>>;
 export type ColorTheme = z.infer<typeof colorThemeSchema>;
 
 export const colorModeSchema = z.enum(["system", "light", "dark"]);

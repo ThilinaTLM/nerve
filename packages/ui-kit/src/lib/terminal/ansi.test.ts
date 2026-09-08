@@ -67,6 +67,21 @@ describe("ansiToHtml", () => {
     assert.match(html, />ready<\/span>/);
   });
 
+  it("routes the low 256-color indices through the themed palette", () => {
+    // 0-15 are the same palette slots as the basic SGR colors, so they must
+    // follow the theme; 16+ are explicit color choices and stay literal.
+    assert.match(ansiToHtml("\x1b[38;5;1mred"), /class="ansi-fg-red"/);
+    assert.match(
+      ansiToHtml("\x1b[38;5;12mblue"),
+      /class="ansi-fg-bright-blue"/,
+    );
+    assert.match(ansiToHtml("\x1b[48;5;2mbg"), /class="ansi-bg-green"/);
+
+    const literal = ansiToHtml("\x1b[38;5;208morange");
+    assert.match(literal, /rgb\(/);
+    assert.equal(literal.includes("ansi-fg-"), false);
+  });
+
   it("strips unsupported CSI and OSC controls", () => {
     const html = ansiToHtml("a\x1b[2Kb\x1b]0;title\x07c\x1b[31md");
 

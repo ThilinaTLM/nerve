@@ -17,7 +17,7 @@ const badgeSource = readFileSync(
 
 type Oklch = readonly [lightness: number, chroma: number, hue: number];
 type LinearRgb = readonly [red: number, green: number, blue: number];
-type ColorTheme = "nerve" | "ocean" | "forest" | "midnight";
+type ColorTheme = "nerve" | "rose" | "solar" | "midnight";
 type ColorMode = "light" | "dark";
 type ThemeName = `${ColorTheme}-${ColorMode}`;
 
@@ -43,6 +43,8 @@ const tokenNames = [
   "destructive-foreground",
   "destructive-solid",
   "destructive-solid-foreground",
+  "border",
+  "accent",
 ] as const;
 type TokenName = (typeof tokenNames)[number];
 
@@ -124,12 +126,12 @@ function assertContrast(
   );
 }
 
+const colorThemes = ["nerve", "rose", "solar", "midnight"] as const;
+const colorModes = ["light", "dark"] as const;
+
 const themes = Object.fromEntries(
-  (["nerve", "ocean", "forest", "midnight"] as const).flatMap((theme) =>
-    (["light", "dark"] as const).map((mode) => [
-      `${theme}-${mode}`,
-      parseTokens(theme, mode),
-    ]),
+  colorThemes.flatMap((theme) =>
+    colorModes.map((mode) => [`${theme}-${mode}`, parseTokens(theme, mode)]),
   ),
 ) as Record<ThemeName, Record<TokenName, Oklch>>;
 
@@ -154,11 +156,171 @@ const surfaceTokens = [
   "well",
 ] as const;
 const subtleSurfaceAlpha = 0.08;
+/* Surfaces stay subdued, but a theme's hue has to be visible in its chrome to
+ * be a theme rather than an accent swap; these are the ceilings that keep the
+ * commitment from tipping into a tint bath. */
 const maximumSurfaceChroma: Record<ColorMode, number> = {
-  light: 0.018,
-  dark: 0.025,
+  light: 0.03,
+  dark: 0.05,
 };
 const minimumPrimaryChroma = 0.09;
+
+type CharacterTokens = {
+  radiusRem: number;
+  elevationLightness: number;
+  elevationStrength: number;
+};
+
+function parseCharacter(theme: ColorTheme, mode: ColorMode): CharacterTokens {
+  const block = themeBlock(theme, mode);
+  const radius = block.match(/--radius:\s*([\d.]+)rem/);
+  const elevation = block.match(
+    /--elevation-hsl:\s*[\d.-]+\s+[\d.]+%\s+([\d.]+)%/,
+  );
+  const strength = block.match(/--elevation-strength:\s*([\d.]+)/);
+  assert.ok(radius, `Missing --radius in ${theme} ${mode}`);
+  assert.ok(elevation, `Missing --elevation-hsl in ${theme} ${mode}`);
+  assert.ok(strength, `Missing --elevation-strength in ${theme} ${mode}`);
+  return {
+    radiusRem: Number(radius[1]),
+    elevationLightness: Number(elevation[1]),
+    elevationStrength: Number(strength[1]),
+  };
+}
+
+const characters = Object.fromEntries(
+  colorThemes.flatMap((theme) =>
+    colorModes.map((mode) => [`${theme}-${mode}`, parseCharacter(theme, mode)]),
+  ),
+) as Record<ThemeName, CharacterTokens>;
+
+function oklabOf([lightness, chroma, hue]: Oklch): readonly [
+  number,
+  number,
+  number,
+] {
+  const radians = (hue * Math.PI) / 180;
+  return [lightness, chroma * Math.cos(radians), chroma * Math.sin(radians)];
+}
+
+function oklabDistance(left: Oklch, right: Oklch): number {
+  const a = oklabOf(left);
+  const b = oklabOf(right);
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+
+/* Code role tokens are shared by the transcript's Shiki theme and the editor's
+ * CodeMirror highlight style, so they are held to the same readability bar as
+ * chrome text. Every theme must define a complete light/dark palette. */
+const syntaxRoles = [
+  "plain",
+  "variable",
+  "punctuation",
+  "comment",
+  "keyword",
+  "string",
+  "number",
+  "function",
+  "type",
+  "property",
+  "added",
+  "removed",
+  "changed",
+  "link",
+] as const;
+type SyntaxRole = (typeof syntaxRoles)[number];
+/* Roles that colour ordinary code side by side. Diff and link roles are excluded:
+ * they carry their own meaning and never compete for identification. */
+const distinguishableSyntaxRoles = [
+  "keyword",
+  "string",
+  "number",
+  "function",
+  "type",
+  "property",
+  "comment",
+] as const;
+const minimumSyntaxRoleDistance = 0.08;
+
+function parseSyntaxRoles(
+  theme: ColorTheme,
+  mode: ColorMode,
+): Record<SyntaxRole, Oklch> {
+  const block = themeBlock(theme, mode);
+  return Object.fromEntries(
+    syntaxRoles.map((role) => {
+      const match = block.match(
+        new RegExp(
+          `--syntax-${role}:\\s*oklch\\(\\s*([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)\\s*\\)`,
+        ),
+      );
+      assert.ok(match, `Missing --syntax-${role} in ${theme} ${mode}`);
+      return [role, match.slice(1, 4).map(Number) as unknown as Oklch];
+    }),
+  ) as Record<SyntaxRole, Oklch>;
+}
+
+function textContrastOf(tokens: Record<TokenName, Oklch>): number {
+  return contrast(
+    oklchToLinearRgb(tokens.foreground),
+    oklchToLinearRgb(tokens.background),
+  );
+}
+
+describe("syntax palette", () => {
+  it("keeps every code role readable on the surfaces code blocks sit on", () => {
+    for (const theme of colorThemes) {
+      for (const mode of colorModes) {
+        const roles = parseSyntaxRoles(theme, mode);
+        const tokens = themes[`${theme}-${mode}`];
+        for (const role of syntaxRoles) {
+          for (const surfaceName of ["well", "card", "background"] as const) {
+            assertContrast(
+              `${theme}-${mode}`,
+              `syntax-${role}`,
+              oklchToLinearRgb(roles[role]),
+              surfaceName,
+              oklchToLinearRgb(tokens[surfaceName]),
+            );
+          }
+        }
+      }
+    }
+  });
+
+  it("keeps code roles telling apart at a glance", () => {
+    for (const theme of colorThemes) {
+      for (const mode of colorModes) {
+        const roles = parseSyntaxRoles(theme, mode);
+        for (const [index, left] of distinguishableSyntaxRoles.entries()) {
+          for (const right of distinguishableSyntaxRoles.slice(index + 1)) {
+            const distance = oklabDistance(roles[left], roles[right]);
+            assert.ok(
+              distance >= minimumSyntaxRoleDistance,
+              `${theme}-${mode} syntax roles ${left} and ${right} differ by ${distance.toFixed(3)}, below the ${minimumSyntaxRoleDistance} needed to read as different roles`,
+            );
+          }
+        }
+      }
+    }
+  });
+
+  it("reserves hue for meaningful tokens", () => {
+    // Identifiers and punctuation are the most common tokens on screen; giving
+    // them chroma turns a code block into noise no matter how good the hues are.
+    for (const theme of colorThemes) {
+      for (const mode of colorModes) {
+        const roles = parseSyntaxRoles(theme, mode);
+        for (const role of ["plain", "variable", "punctuation"] as const) {
+          assert.ok(
+            roles[role][1] <= 0.04,
+            `${theme}-${mode} syntax-${role} chroma ${roles[role][1]} is too saturated for a token this frequent`,
+          );
+        }
+      }
+    }
+  });
+});
 
 describe("theme text contrast", () => {
   it("keeps filled semantic token pairs at WCAG AA contrast", () => {
@@ -278,6 +440,135 @@ describe("theme text contrast", () => {
       assert.ok(
         ratio >= minimumMidnightTextContrast,
         `midnight-${mode} foreground on background contrast ${ratio.toFixed(2)}:1 is below the high-contrast minimum ${minimumMidnightTextContrast}:1`,
+      );
+    }
+  });
+
+  it("keeps every theme pair perceptibly different, not a hue swap", () => {
+    // A theme earns its slot by differing in the chrome the user stares at
+    // (surface color) or in overall contrast personality. Matching accents on
+    // one shared grey is exactly the failure this guards against.
+    const minimumBackgroundDistance = 0.03;
+    const minimumContrastRatioSpread = 1.4;
+
+    for (const mode of colorModes) {
+      for (const [index, theme] of colorThemes.entries()) {
+        for (const other of colorThemes.slice(index + 1)) {
+          const left = themes[`${theme}-${mode}`];
+          const right = themes[`${other}-${mode}`];
+          const distance = oklabDistance(left.background, right.background);
+          const contrasts = [textContrastOf(left), textContrastOf(right)];
+          const spread = Math.max(...contrasts) / Math.min(...contrasts);
+          assert.ok(
+            distance >= minimumBackgroundDistance ||
+              spread >= minimumContrastRatioSpread,
+            `${theme} and ${other} are too alike in ${mode}: background distance ${distance.toFixed(4)} < ${minimumBackgroundDistance} and contrast spread ${spread.toFixed(2)} < ${minimumContrastRatioSpread}`,
+          );
+        }
+      }
+    }
+  });
+
+  it("gives every theme its own semantic palette", () => {
+    for (const mode of colorModes) {
+      for (const token of semanticTokens) {
+        const seen = new Map<string, ColorTheme>();
+        for (const theme of colorThemes) {
+          const value = themes[`${theme}-${mode}`][token].join(" ");
+          const owner = seen.get(value);
+          assert.ok(
+            owner === undefined,
+            `${theme}-${mode} shares its --${token} value with ${owner}-${mode}; status color is where a theme's identity is most visible`,
+          );
+          seen.set(value, theme);
+        }
+      }
+    }
+  });
+
+  it("declares character tokens that actually vary between themes", () => {
+    const maximumRadiusRem = 0.75;
+    const maximumElevationStrength = 1.5;
+    const maximumElevationLightnessPercent = 30;
+
+    for (const [themeName, character] of Object.entries(characters) as [
+      ThemeName,
+      CharacterTokens,
+    ][]) {
+      assert.ok(
+        character.radiusRem >= 0 && character.radiusRem <= maximumRadiusRem,
+        `${themeName} --radius ${character.radiusRem}rem is outside [0, ${maximumRadiusRem}]`,
+      );
+      assert.ok(
+        character.elevationStrength >= 0 &&
+          character.elevationStrength <= maximumElevationStrength,
+        `${themeName} --elevation-strength ${character.elevationStrength} is outside [0, ${maximumElevationStrength}]`,
+      );
+      if (character.elevationStrength > 0) {
+        assert.ok(
+          character.elevationLightness <= maximumElevationLightnessPercent,
+          `${themeName} elevation lightness ${character.elevationLightness}% would wash surfaces out instead of shading them`,
+        );
+      }
+    }
+
+    const radii = new Set(
+      colorThemes.map((theme) => characters[`${theme}-dark`].radiusRem),
+    );
+    assert.ok(
+      radii.size >= 3,
+      `only ${radii.size} distinct radii across ${colorThemes.length} themes; shape is part of a theme's character`,
+    );
+  });
+
+  it("keeps the surface hierarchy legible in every theme", () => {
+    // Chrome-vs-workspace and the hover/selected fills are the steps a reader
+    // relies on to tell regions apart, and contrast ratio compresses badly at
+    // low luminance, so these are measured as perceptual lightness deltas.
+    // Rosé and Solar originally derived `muted` and `accent` from adjacent
+    // ladder steps, which flattened selected rows and panel edges.
+    const minimumStep: Record<string, number> = {
+      "panel/background": 0.025,
+      "background/muted": 0.028,
+      "background/accent": 0.045,
+      "background/card": 0.018,
+      "card/popover": 0.015,
+      "well/panel": 0.012,
+    };
+
+    for (const [themeName, tokens] of Object.entries(themes) as [
+      ThemeName,
+      Record<TokenName, Oklch>,
+    ][]) {
+      for (const [step, minimum] of Object.entries(minimumStep)) {
+        const [lower, upper] = step.split("/") as [TokenName, TokenName];
+        const delta = Math.abs(tokens[lower][0] - tokens[upper][0]);
+        assert.ok(
+          delta >= minimum,
+          `${themeName} ${step} lightness delta ${delta.toFixed(3)} is below ${minimum}; the two surfaces will read as one`,
+        );
+      }
+    }
+  });
+
+  it("keeps flat themes structured with visible hairlines", () => {
+    // A theme that opts out of shadows has only its borders left to separate
+    // surfaces, so those borders have to carry more contrast than usual.
+    const minimumFlatBorderContrast = 1.35;
+
+    for (const [themeName, character] of Object.entries(characters) as [
+      ThemeName,
+      CharacterTokens,
+    ][]) {
+      if (character.elevationStrength > 0) continue;
+      const tokens = themes[themeName];
+      const ratio = contrast(
+        oklchToLinearRgb(tokens.border),
+        oklchToLinearRgb(tokens.card),
+      );
+      assert.ok(
+        ratio >= minimumFlatBorderContrast,
+        `${themeName} is flat but its border/card contrast ${ratio.toFixed(2)}:1 is below ${minimumFlatBorderContrast}:1`,
       );
     }
   });

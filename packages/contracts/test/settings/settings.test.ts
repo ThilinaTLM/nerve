@@ -110,7 +110,7 @@ describe("settings schema", () => {
         shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
       },
       ui: {
-        theme: "ocean",
+        theme: "solar",
         colorMode: "dark",
       },
       desktop: { headerType: "macos" },
@@ -184,7 +184,7 @@ describe("settings schema", () => {
       );
     }
     assert.deepEqual(parsed.ui, {
-      theme: "ocean",
+      theme: "solar",
       colorMode: "dark",
     });
     assert.deepEqual(parsed.desktop, { headerType: "macos" });

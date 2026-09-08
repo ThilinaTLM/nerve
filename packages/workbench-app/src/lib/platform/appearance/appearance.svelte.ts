@@ -1,5 +1,6 @@
 import {
   colorThemeSchema,
+  retiredColorThemes,
   type ColorMode,
   type ColorTheme,
 } from "@nervekit/contracts/settings";
@@ -90,7 +91,13 @@ export function loadAppearancePreference(): {
 } {
   const storedTheme =
     typeof localStorage === "undefined" ? undefined : storedColorTheme();
-  const parsedTheme = colorThemeSchema.safeParse(storedTheme);
+  // The mirror is written before settings load, so it can still hold a retired
+  // id; map it the same way the server migration does to avoid a theme flash.
+  const parsedTheme = colorThemeSchema.safeParse(
+    retiredColorThemes[
+      String(storedTheme) as keyof typeof retiredColorThemes
+    ] ?? storedTheme,
+  );
   return {
     theme: parsedTheme.success ? parsedTheme.data : "nerve",
     // mode-watcher restores the persisted mode on mount; mirror it into state.

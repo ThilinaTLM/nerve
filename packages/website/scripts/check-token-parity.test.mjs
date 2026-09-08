@@ -21,10 +21,14 @@ test("website shared theme tokens match the UI-kit Nerve palette", () => {
 });
 
 test("theme token drift is reported with its mode and token", () => {
-  const drifted = websiteCss.replace(
-    "--primary: oklch(0.57 0.1375 39.0427);",
-    "--primary: oklch(0.1 0 0);",
-  );
+  // Matched by pattern so repainting the palette does not silently disarm this.
+  const lightBlockStart = websiteCss.indexOf(':root[data-theme="light"]');
+  const drifted =
+    websiteCss.slice(0, lightBlockStart) +
+    websiteCss
+      .slice(lightBlockStart)
+      .replace(/--primary: [^;]+;/, "--primary: oklch(0.1 0 0);");
+  assert.notEqual(drifted, websiteCss);
   assert.match(
     compareTokenParity(uiKitCss, drifted).join("\n"),
     /light --primary/,

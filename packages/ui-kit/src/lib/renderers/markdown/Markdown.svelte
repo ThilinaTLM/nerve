@@ -613,14 +613,6 @@ $effect(() => () => streamingScheduler.destroy());
   word-break: inherit;
 }
 
-.markdown :global(.code-block span) {
-  color: var(--shiki-light, inherit);
-}
-
-:global(.dark) .markdown :global(.code-block span) {
-  color: var(--shiki-dark, inherit);
-}
-
 .markdown :global(blockquote) {
   border-left: 2px solid var(--primary);
   padding-left: 0.85rem;

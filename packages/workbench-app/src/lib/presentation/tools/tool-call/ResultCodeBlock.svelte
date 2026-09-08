@@ -412,16 +412,6 @@ $effect(() => {
   font-size: var(--text-xs);
 }
 
-.code-block__content:not(.code-block__content--diff) :global(span) {
-  color: var(--shiki-light, inherit);
-}
-
-:global(.dark)
-  .code-block__content:not(.code-block__content--diff)
-  :global(span) {
-  color: var(--shiki-dark, inherit);
-}
-
 .code-block__content--diff {
   display: block;
 }

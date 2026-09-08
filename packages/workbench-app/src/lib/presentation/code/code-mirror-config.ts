@@ -278,20 +278,76 @@ async function loadLanguage(id: CodeLanguageId): Promise<Extension> {
   }
 }
 
+/* The editor paints from the same `--syntax-*` role tokens the transcript's
+ * Shiki theme uses, so a snippet keeps its colours when it moves between the
+ * two surfaces. Semantic tokens are deliberately absent: `--success` and
+ * `--destructive` mean added/removed and error elsewhere in the app, including
+ * in the diff views rendered right next to code. */
 const codeHighlightStyle = HighlightStyle.define([
-  { tag: [tags.keyword, tags.modifier], color: "var(--primary)" },
-  { tag: [tags.propertyName, tags.attributeName], color: "var(--primary)" },
-  { tag: [tags.string, tags.inserted], color: "var(--success)" },
-  { tag: [tags.number, tags.bool, tags.null], color: "var(--info)" },
-  { tag: [tags.comment, tags.meta], color: "var(--muted-foreground)" },
-  { tag: [tags.typeName, tags.className], color: "var(--warning)" },
   {
-    tag: [tags.function(tags.variableName), tags.labelName],
-    color: "var(--foreground)",
+    tag: [
+      tags.keyword,
+      tags.modifier,
+      tags.controlKeyword,
+      tags.operatorKeyword,
+    ],
+    color: "var(--syntax-keyword)",
   },
-  { tag: [tags.deleted, tags.invalid], color: "var(--destructive)" },
-  { tag: tags.heading, color: "var(--primary)", fontWeight: "600" },
-  { tag: tags.link, color: "var(--info)", textDecoration: "underline" },
+  {
+    tag: [tags.propertyName, tags.attributeName],
+    color: "var(--syntax-property)",
+  },
+  {
+    tag: [tags.string, tags.special(tags.string), tags.character],
+    color: "var(--syntax-string)",
+  },
+  {
+    tag: [tags.number, tags.bool, tags.null, tags.regexp, tags.escape],
+    color: "var(--syntax-number)",
+  },
+  {
+    tag: [tags.comment, tags.lineComment, tags.blockComment, tags.docComment],
+    color: "var(--syntax-comment)",
+    fontStyle: "italic",
+  },
+  {
+    tag: [tags.typeName, tags.className, tags.namespace, tags.tagName],
+    color: "var(--syntax-type)",
+  },
+  {
+    tag: [tags.function(tags.variableName), tags.function(tags.propertyName)],
+    color: "var(--syntax-function)",
+  },
+  {
+    tag: [
+      tags.variableName,
+      tags.labelName,
+      tags.definition(tags.variableName),
+    ],
+    color: "var(--syntax-variable)",
+  },
+  {
+    tag: [
+      tags.punctuation,
+      tags.separator,
+      tags.bracket,
+      tags.operator,
+      tags.derefOperator,
+      tags.meta,
+    ],
+    color: "var(--syntax-punctuation)",
+  },
+  { tag: tags.inserted, color: "var(--syntax-added)" },
+  { tag: [tags.deleted, tags.invalid], color: "var(--syntax-removed)" },
+  { tag: tags.changed, color: "var(--syntax-changed)" },
+  { tag: tags.heading, color: "var(--syntax-keyword)", fontWeight: "600" },
+  {
+    tag: [tags.link, tags.url],
+    color: "var(--syntax-link)",
+    textDecoration: "underline",
+  },
+  { tag: tags.strong, fontWeight: "600" },
+  { tag: tags.emphasis, fontStyle: "italic" },
 ]);
 
 export const codeMirrorTheme = EditorView.theme({
