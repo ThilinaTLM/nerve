@@ -1,3 +1,10 @@
+import type {
+  CapabilityConfiguration,
+  CapabilityOrigin,
+  CapabilityOverridesDocument,
+  CapabilityPatch,
+  CapabilityTrust,
+} from "@nervekit/contracts/capabilities";
 import type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
 import { taskDefinitionSchema } from "@nervekit/contracts/task-definitions";
 import type {
@@ -89,6 +96,47 @@ export async function updateProjectPermissionTrust(
       projectId,
       trusted,
     })
+  ).result.trust;
+}
+
+export async function getCapabilityConfiguration(
+  projectId: string,
+  conversationId?: string,
+): Promise<CapabilityConfiguration> {
+  return (
+    await protocolRequest("project.capabilities.get", {
+      projectId,
+      conversationId,
+    })
+  ).result.configuration;
+}
+
+export async function updateCapabilities(input: {
+  projectId: string;
+  conversationId?: string;
+  origin: CapabilityOrigin;
+  patch?: CapabilityPatch;
+  replace?: CapabilityOverridesDocument;
+  expectedDigest?: string;
+}): Promise<CapabilityConfiguration> {
+  return (
+    await protocolRequest("project.capabilities.update", input, {
+      idempotencyKey: crypto.randomUUID(),
+    })
+  ).result.configuration;
+}
+
+export async function updateCapabilityTrust(
+  projectId: string,
+  trusted: boolean,
+  expectedDigest?: string,
+): Promise<CapabilityTrust> {
+  return (
+    await protocolRequest(
+      "project.capabilityTrust.update",
+      { projectId, trusted, expectedDigest },
+      { idempotencyKey: crypto.randomUUID() },
+    )
   ).result.trust;
 }
 

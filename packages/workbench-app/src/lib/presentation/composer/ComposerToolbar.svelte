@@ -7,6 +7,10 @@ import Settings from "@lucide/svelte/icons/settings";
 import Shield from "@lucide/svelte/icons/shield";
 import Zap from "@lucide/svelte/icons/zap";
 import type {
+  CapabilityConfiguration,
+  CapabilityPatch,
+} from "@nervekit/contracts/capabilities";
+import type {
   ContextUsage,
   ModelInfo,
   ThinkingLevel,
@@ -26,6 +30,7 @@ import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import TodoProgressChip from "./TodoProgressChip.svelte";
+import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
 
 type Props = {
   controlsDisabled: boolean;
@@ -62,6 +67,14 @@ type Props = {
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
+  capabilityConfiguration?: CapabilityConfiguration;
+  capabilitySkills?: Array<{ name: string; kind: "file" | "agentBrowser" }>;
+  capabilityLoading?: boolean;
+  capabilityError?: string;
+  onCapabilityPatch?: (patch: CapabilityPatch) => void;
+  onResetCapabilities?: () => void;
+  onRefreshCapabilities?: () => void;
+  onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
 };
 
 let {
@@ -97,6 +110,14 @@ let {
   onPermissionRuleSetChange,
   onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
+  capabilityConfiguration,
+  capabilitySkills = [],
+  capabilityLoading = false,
+  capabilityError,
+  onCapabilityPatch,
+  onResetCapabilities,
+  onRefreshCapabilities,
+  onOpenCapabilitySettings,
 }: Props = $props();
 
 const activePermission = $derived(
@@ -258,6 +279,18 @@ function permissionDetail(option: PermissionRuleSetSummary): string {
       {compacting}
       {compactDisabled}
       {onCompact}
+    />
+
+    <ComposerCapabilitiesPopover
+      configuration={capabilityConfiguration}
+      skills={capabilitySkills}
+      loading={capabilityLoading}
+      error={capabilityError}
+      disabled={controlsDisabled}
+      onPatch={onCapabilityPatch}
+      onReset={onResetCapabilities}
+      onRefresh={onRefreshCapabilities}
+      onOpenSettings={onOpenCapabilitySettings}
     />
 
     <ComposerModelPicker

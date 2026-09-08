@@ -4,6 +4,7 @@ import { tick } from "svelte";
 import ChevronLeft from "@lucide/svelte/icons/chevron-left";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
+import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import { cn } from "@nervekit/ui-kit/utils";
 import SettingsPageHeader from "./SettingsPageHeader.svelte";
 import { settingsSectionDomId } from "./section-id";
@@ -25,6 +26,11 @@ type Props = {
   class?: string;
   mainClass?: string;
   showHeader?: boolean;
+  /** Shows the persistent User/Project scope switch when a handler is given. */
+  scope?: "user" | "project";
+  projectScopeLabel?: string;
+  projectScopeDisabled?: boolean;
+  onScopeChange?: (scope: "user" | "project") => void;
   sidebarFooter?: Snippet;
   pageActions?: Snippet<[SettingsPageDef]>;
   children: Snippet<[SettingsPageDef]>;
@@ -41,6 +47,10 @@ let {
   class: className,
   mainClass,
   showHeader = true,
+  scope = "user",
+  projectScopeLabel = "Project",
+  projectScopeDisabled = false,
+  onScopeChange,
   sidebarFooter,
   pageActions,
   children,
@@ -160,6 +170,35 @@ async function selectSection(sectionId: string): Promise<void> {
     <aside class="settings-sidebar" aria-label={ariaLabel}>
       <div class="settings-sidebar-title">
         <strong>{title}</strong>
+
+        {#if onScopeChange}
+          <ToggleGroup.Root
+            type="single"
+            size="xs"
+            variant="outline"
+            value={scope}
+            aria-label="Settings scope"
+            class="w-full max-w-56"
+            onValueChange={(value) => {
+              if (value) onScopeChange(value as "user" | "project");
+            }}
+          >
+            <ToggleGroup.Item
+              value="user"
+              class="flex-1"
+              title="Settings for you on this machine">User</ToggleGroup.Item
+            >
+            <ToggleGroup.Item
+              value="project"
+              class="flex-1"
+              disabled={projectScopeDisabled}
+              title={projectScopeDisabled
+                ? "Select a project to edit project settings"
+                : `Shared overrides for ${projectScopeLabel}`}
+              >Project</ToggleGroup.Item
+            >
+          </ToggleGroup.Root>
+        {/if}
       </div>
 
       <div class="settings-nav-carousel">
@@ -314,8 +353,9 @@ async function selectSection(sectionId: string): Promise<void> {
 
 .settings-sidebar-title {
   display: grid;
-  gap: 0.12rem;
+  gap: 0.45rem;
   padding: 0 0.35rem 0.7rem;
+  justify-items: stretch;
 }
 
 .settings-sidebar-title strong {

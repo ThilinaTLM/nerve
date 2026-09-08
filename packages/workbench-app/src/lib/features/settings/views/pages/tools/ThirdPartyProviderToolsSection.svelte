@@ -1,7 +1,6 @@
 <script lang="ts">
 import type { AuthProviderMetadata, Settings } from "$lib/api";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import { SettingsGroup, SettingsList } from "$lib/presentation/settings";
 import type { SettingsChange } from "../settings-change";
 import { atlassianProfileReady } from "../providers/provider-profiles";
 import ToolConfigureButton from "./ToolConfigureButton.svelte";
@@ -53,40 +52,33 @@ function setProfile(id: IntegrationId, profileId: string): void {
 }
 </script>
 
-<SettingsGroup>
-  <SettingsList
-    ariaLabel="Third-party provider tools"
-    class="border-t border-border/40"
+{#each providerToolGroups as integration (integration.id)}
+  <ToolGroupItem
+    title={integration.label}
+    description={integration.description}
+    tools={integration.tools}
   >
-    {#each providerToolGroups as integration (integration.id)}
-      <ToolGroupItem
-        title={integration.label}
-        description={integration.description}
-        tools={integration.tools}
-      >
-        {#snippet actions()}
-          <ToolConfigureButton
-            label={`Configure ${integration.label}`}
-            tourId={`setup-atlassian-configure-${integration.id}`}
-            onclick={() => {
-              profileDialogIntegration = integration.id;
-              profileDialogOpen = true;
-            }}
-          />
-          <Switch
-            size="settings"
-            checked={settingsDraft.tools[integration.id].enabled &&
-              ready(integration.id)}
-            disabled={!ready(integration.id)}
-            aria-label={`Enable ${integration.label}`}
-            data-tour-id={`setup-atlassian-enable-${integration.id}`}
-            onCheckedChange={(checked) => setEnabled(integration.id, checked)}
-          />
-        {/snippet}
-      </ToolGroupItem>
-    {/each}
-  </SettingsList>
-</SettingsGroup>
+    {#snippet actions()}
+      <ToolConfigureButton
+        label={`Configure ${integration.label}`}
+        tourId={`setup-atlassian-configure-${integration.id}`}
+        onclick={() => {
+          profileDialogIntegration = integration.id;
+          profileDialogOpen = true;
+        }}
+      />
+      <Switch
+        size="settings"
+        checked={settingsDraft.tools[integration.id].enabled &&
+          ready(integration.id)}
+        disabled={!ready(integration.id)}
+        aria-label={`Enable ${integration.label}`}
+        data-tour-id={`setup-atlassian-enable-${integration.id}`}
+        onCheckedChange={(checked) => setEnabled(integration.id, checked)}
+      />
+    {/snippet}
+  </ToolGroupItem>
+{/each}
 
 {#if profileDialogIntegration}
   <ToolProfileDialog

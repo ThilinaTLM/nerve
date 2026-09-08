@@ -1,3 +1,4 @@
+import { capabilityOverridesDocumentSchema } from "@nervekit/contracts/capabilities";
 import { handleScratchNoteMethod } from "../scratch-note-method-handler.js";
 import {
   defineWorkbenchMethodHandlersFor,
@@ -37,6 +38,27 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
     }),
     "project.permissionTrust.update": async (state, params) => ({
       trust: await updateProjectPermissionTrust(state, params),
+    }),
+    "project.capabilities.get": async (state, params) => ({
+      configuration: await state.capabilities.configuration(
+        params.projectId,
+        params.conversationId,
+      ),
+    }),
+    "project.capabilities.update": async (state, params) => ({
+      configuration: await state.capabilities.update({
+        ...params,
+        replace: params.replace
+          ? capabilityOverridesDocumentSchema.parse(params.replace)
+          : undefined,
+      }),
+    }),
+    "project.capabilityTrust.update": async (state, params) => ({
+      trust: await state.capabilities.updateTrust(
+        params.projectId,
+        params.trusted,
+        params.expectedDigest,
+      ),
     }),
     "project.openEditor": (state, params) =>
       state.editors.openProject(params.projectId, params),

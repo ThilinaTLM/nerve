@@ -26,11 +26,18 @@ type Props = {
   settingsDraft: Settings;
   activeProject?: ProjectRecord;
   controller: PermissionsPageState;
+  /** Project scope hides the user-wide default rule set selection. */
+  scope?: "user" | "project";
   onSettingsChange?: SettingsChange;
 };
 
-let { settingsDraft, activeProject, controller, onSettingsChange }: Props =
-  $props();
+let {
+  settingsDraft,
+  activeProject,
+  controller,
+  scope = "user",
+  onSettingsChange,
+}: Props = $props();
 
 let overlaysOpen = $state(false);
 let overlayRuleSetName = $state("");
@@ -82,79 +89,81 @@ function manageOverlays(ruleSetId: string, name: string): void {
 }
 </script>
 
-<SettingsSection
-  id="rule-sets"
-  title="Permission rule sets"
-  info="Choose the rule set new coding agents start with. Built-in sets are read-only; add user sets under <NERVE_HOME>/config/rule-sets/*.json."
->
-  {#snippet actions()}
-    <Button
-      size="xs"
-      variant="outline"
-      disabled={!activeProject || controller.loading}
-      onclick={() => controller.refresh()}
-    >
-      <RefreshCw
-        class={`size-3.5 ${controller.loading ? "animate-spin" : ""}`}
-      />Refresh
-    </Button>
-  {/snippet}
+{#if scope === "user"}
+  <SettingsSection
+    id="rule-sets"
+    title="Permission rule sets"
+    info="Choose the rule set new coding agents start with. Built-in sets are read-only; add user sets under <NERVE_HOME>/config/rule-sets/*.json."
+  >
+    {#snippet actions()}
+      <Button
+        size="xs"
+        variant="outline"
+        disabled={!activeProject || controller.loading}
+        onclick={() => controller.refresh()}
+      >
+        <RefreshCw
+          class={`size-3.5 ${controller.loading ? "animate-spin" : ""}`}
+        />Refresh
+      </Button>
+    {/snippet}
 
-  {#if ruleSets.length > 0}
-    <RadioGroup.Root
-      value={defaultRuleSetId}
-      onValueChange={setDefaultPermission}
-    >
-      <SettingsList ariaLabel="Permission rule sets">
-        {#each ruleSets as ruleSet (ruleSet.id)}
-          {@const eligible = isDefaultEligible(ruleSet)}
-          <SettingsListItem
-            title={ruleSet.name}
-            description={ruleSet.description}
-            class={ruleSet.enabled && ruleSet.available
-              ? undefined
-              : "opacity-55"}
-          >
-            {#snippet leading()}
-              {#if eligible}
-                <RadioGroup.Item
-                  value={ruleSet.id}
-                  id={`rule-set-${ruleSet.id}`}
-                  aria-label={`Make ${ruleSet.name} the default rule set`}
-                  data-tour-id={ruleSet.id === defaultRuleSetId
-                    ? "setup-agent-default-permission"
-                    : undefined}
-                />
-              {:else}
-                <span class="size-4 flex-none" aria-hidden="true"></span>
-              {/if}
-            {/snippet}
-            {#snippet status()}
-              {#if ruleSet.id === defaultRuleSetId}
-                <Badge variant="accent">Default</Badge>
-              {/if}
-              {#if ruleSet.source === "user"}
-                <Badge variant="neutral">User</Badge>
-              {/if}
-              {#if !ruleSet.available}
-                <Badge variant="warning">Unavailable</Badge>
-              {:else if !ruleSet.enabled}
-                <Badge variant="neutral">Disabled</Badge>
-              {/if}
-            {/snippet}
-            {#snippet detail()}
-              <span class="whitespace-nowrap">{ruleSetRole(ruleSet)}</span>
-            {/snippet}
-          </SettingsListItem>
-        {/each}
-      </SettingsList>
-    </RadioGroup.Root>
-  {:else if controller.loading}
-    <div class="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-      <Spinner class="size-4" />Loading permission rule sets…
-    </div>
-  {/if}
-</SettingsSection>
+    {#if ruleSets.length > 0}
+      <RadioGroup.Root
+        value={defaultRuleSetId}
+        onValueChange={setDefaultPermission}
+      >
+        <SettingsList ariaLabel="Permission rule sets">
+          {#each ruleSets as ruleSet (ruleSet.id)}
+            {@const eligible = isDefaultEligible(ruleSet)}
+            <SettingsListItem
+              title={ruleSet.name}
+              description={ruleSet.description}
+              class={ruleSet.enabled && ruleSet.available
+                ? undefined
+                : "opacity-55"}
+            >
+              {#snippet leading()}
+                {#if eligible}
+                  <RadioGroup.Item
+                    value={ruleSet.id}
+                    id={`rule-set-${ruleSet.id}`}
+                    aria-label={`Make ${ruleSet.name} the default rule set`}
+                    data-tour-id={ruleSet.id === defaultRuleSetId
+                      ? "setup-agent-default-permission"
+                      : undefined}
+                  />
+                {:else}
+                  <span class="size-4 flex-none" aria-hidden="true"></span>
+                {/if}
+              {/snippet}
+              {#snippet status()}
+                {#if ruleSet.id === defaultRuleSetId}
+                  <Badge variant="accent">Default</Badge>
+                {/if}
+                {#if ruleSet.source === "user"}
+                  <Badge variant="neutral">User</Badge>
+                {/if}
+                {#if !ruleSet.available}
+                  <Badge variant="warning">Unavailable</Badge>
+                {:else if !ruleSet.enabled}
+                  <Badge variant="neutral">Disabled</Badge>
+                {/if}
+              {/snippet}
+              {#snippet detail()}
+                <span class="whitespace-nowrap">{ruleSetRole(ruleSet)}</span>
+              {/snippet}
+            </SettingsListItem>
+          {/each}
+        </SettingsList>
+      </RadioGroup.Root>
+    {:else if controller.loading}
+      <div class="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+        <Spinner class="size-4" />Loading permission rule sets…
+      </div>
+    {/if}
+  </SettingsSection>
+{/if}
 
 <SettingsSection
   id="overlays"

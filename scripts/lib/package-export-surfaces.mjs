@@ -11,6 +11,7 @@ export const packageExportSurfaces = Object.freeze({
     "./snapshots",
     "./agents",
     "./auth",
+    "./capabilities",
     "./completions",
     "./conversations",
     "./filesystem",

@@ -46,6 +46,10 @@
       "types": "./dist/domains/auth/index.d.ts",
       "import": "./dist/domains/auth/index.js"
     },
+    "./capabilities": {
+      "types": "./dist/domains/capabilities/index.d.ts",
+      "import": "./dist/domains/capabilities/index.js"
+    },
     "./completions": {
       "types": "./dist/domains/completions/index.d.ts",
       "import": "./dist/domains/completions/index.js"

@@ -106,13 +106,20 @@ export async function executeWorkbenchHarness(
     });
     const conversation = this.deps.state.getConversation(agent.conversationId);
     const settings = await this.effectiveSettings(agent.projectDir);
+    const capabilitySelection = await this.deps.capabilities.resolve(
+      agent.projectId,
+      agent.conversationId,
+    );
     const project = this.deps.state.getProject(agent.projectId);
     const storage = await this.deps.harnessStorage.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
     const initialHarnessEntryIds = new Set(
       (await storage.getEntries()).map((entry) => entry.id),
     );
-    let activeToolNames = await this.activeToolNamesFor(agent);
+    let activeToolNames = await this.activeToolNamesFor(
+      agent,
+      capabilitySelection.disabledTools,
+    );
     const model = resolveAgentModel(
       agent.model,
       await this.customModels(agent.projectDir),
@@ -122,8 +129,9 @@ export async function executeWorkbenchHarness(
     const env = new NodeExecutionEnv({ cwd: agent.projectDir, shellPath });
     const resources = await loadHarnessResources(agent.projectDir, {
       storageHome: this.deps.storage.paths.home,
-      disabledSkillNames: settings.skills.disabled,
-      enabledAgentBrowserSkillNames: settings.skills.agentBrowser.enabled,
+      disabledSkillNames: capabilitySelection.disabledFileSkills,
+      enabledAgentBrowserSkillNames:
+        capabilitySelection.enabledAgentBrowserSkills,
       agentBrowserSkills: this.deps.agentBrowserSkills.skills,
     });
     const latestAgent = () => this.deps.state.agents.get(agent.id) ?? agent;
@@ -624,7 +632,10 @@ export async function executeWorkbenchHarness(
       harness.requestAbort();
     };
     const updateAgentRuntimeConfig = async (updatedAgent: AgentRecord) => {
-      const nextActiveToolNames = await this.activeToolNamesFor(updatedAgent);
+      const nextActiveToolNames = await this.activeToolNamesFor(
+        updatedAgent,
+        capabilitySelection.disabledTools,
+      );
       if (!sameStringList(nextActiveToolNames, activeToolNames)) {
         activeToolNames = nextActiveToolNames;
         await harness.setActiveTools(nextActiveToolNames);
@@ -644,8 +655,6 @@ export async function executeWorkbenchHarness(
         await harness.setThinkingLevel(updatedAgent.thinkingLevel);
       }
     };
-    // Expand `!!!` command blocks at harness-delivery time so steered and
-    // queued prompts get the same command semantics as run-starting prompts.
     const expandBlocks = (text: string, images?: PromptRequest["images"]) =>
       expandExecutablePromptBlocks(
         (command, opts) =>

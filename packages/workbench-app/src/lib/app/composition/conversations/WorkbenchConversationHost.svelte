@@ -83,6 +83,7 @@ let {
   onPermissionRuleSetChange,
   onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
+  onOpenCapabilitySettings,
   onGrantApproval,
   onDenyApproval,
   onAcceptPlanReview,
@@ -345,6 +346,7 @@ function menuForTranscript(
       {onPermissionRuleSetChange}
       {onRefreshPermissionRuleSets}
       {onOpenPermissionSettings}
+      {onOpenCapabilitySettings}
     />
   {/snippet}
 

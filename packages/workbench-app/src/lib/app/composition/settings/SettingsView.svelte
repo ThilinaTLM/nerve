@@ -1,5 +1,9 @@
 <script lang="ts">
 import type {
+  CapabilityConfiguration,
+  CapabilityPatch,
+} from "@nervekit/contracts/capabilities";
+import type {
   ApplicationConfigurationSnapshot,
   AuthProviderMetadata,
   AvailableSkill,
@@ -35,6 +39,9 @@ import {
   getPermissionPolicyConfiguration,
   updatePermissionOverlay,
   updateProjectPermissionTrust,
+  getCapabilityConfiguration,
+  updateCapabilities,
+  updateCapabilityTrust,
 } from "$lib/features/projects/api/projects.api";
 import ProvidersSettingsPage from "$lib/features/settings/views/pages/providers/ProvidersSettingsPage.svelte";
 import ShortcutsSettingsPage from "$lib/features/settings/views/pages/shortcuts/ShortcutsSettingsPage.svelte";
@@ -49,6 +56,11 @@ import SystemSettingsPage from "$lib/features/settings/views/pages/system/System
 import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
 import TranscriptionSettingsPage from "$lib/features/settings/views/pages/transcription/TranscriptionSettingsPage.svelte";
 import WorkbenchSettingsPage from "$lib/features/settings/views/pages/workbench/WorkbenchSettingsPage.svelte";
+import ProjectSkillsSettingsPage from "$lib/features/settings/views/pages/capabilities/ProjectSkillsSettingsPage.svelte";
+import ProjectToolsSettingsPage from "$lib/features/settings/views/pages/capabilities/ProjectToolsSettingsPage.svelte";
+import { SettingsEmptyState } from "$lib/presentation/settings";
+import UserCog from "@lucide/svelte/icons/user-cog";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 
 type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 
@@ -115,6 +127,92 @@ let {
   onSkillsRetry,
 }: Props = $props();
 
+let settingsScope = $state<"user" | "project">("user");
+let capabilityConfiguration = $state<CapabilityConfiguration>();
+let capabilityLoading = $state(false);
+let capabilityError = $state<string>();
+let capabilityRequest = 0;
+
+async function loadProjectCapabilities(): Promise<void> {
+  const projectId = activeProject?.id;
+  const request = ++capabilityRequest;
+  capabilityConfiguration = undefined;
+  capabilityError = undefined;
+  if (!projectId) return;
+  capabilityLoading = true;
+  try {
+    const configuration = await getCapabilityConfiguration(projectId);
+    if (request === capabilityRequest) capabilityConfiguration = configuration;
+  } catch (error) {
+    if (request === capabilityRequest)
+      capabilityError = error instanceof Error ? error.message : String(error);
+  } finally {
+    if (request === capabilityRequest) capabilityLoading = false;
+  }
+}
+
+$effect(() => {
+  const projectId = activeProject?.id;
+  const scope = settingsScope;
+  if (scope === "project" && projectId) void loadProjectCapabilities();
+});
+
+/** Mutations reload on failure, so the message is re-applied afterwards. */
+async function runCapabilityMutation(
+  mutation: () => Promise<CapabilityConfiguration | void>,
+): Promise<void> {
+  try {
+    const configuration = await mutation();
+    if (configuration) capabilityConfiguration = configuration;
+    else await loadProjectCapabilities();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await loadProjectCapabilities();
+    capabilityError = message;
+  }
+}
+
+async function patchProjectCapabilities(patch: CapabilityPatch): Promise<void> {
+  const project = activeProject;
+  const current = capabilityConfiguration;
+  if (!project || !current) return;
+  await runCapabilityMutation(() =>
+    updateCapabilities({
+      projectId: project.id,
+      origin: "project",
+      patch,
+      expectedDigest: current.projectDigest,
+    }),
+  );
+}
+
+async function resetProjectCapabilities(): Promise<void> {
+  const project = activeProject;
+  const current = capabilityConfiguration;
+  if (!project || !current) return;
+  await runCapabilityMutation(() =>
+    updateCapabilities({
+      projectId: project.id,
+      origin: "project",
+      replace: {
+        schemaVersion: 1,
+        tools: {},
+        skills: { file: {}, agentBrowser: {} },
+      },
+      expectedDigest: current.projectDigest,
+    }),
+  );
+}
+
+async function setProjectCapabilityTrust(trusted: boolean): Promise<void> {
+  const project = activeProject;
+  const current = capabilityConfiguration;
+  if (!project || !current) return;
+  await runCapabilityMutation(async () => {
+    await updateCapabilityTrust(project.id, trusted, current.projectDigest);
+  });
+}
+
 const permissionsPageState = new PermissionsPageState({
   getConfiguration: getPermissionPolicyConfiguration,
   updateOverlay: updatePermissionOverlay,
@@ -142,12 +240,24 @@ const skillSections = $derived(
     })),
 );
 
+/** Pages that hold project-scoped controls; the rest stay user-only. */
+const projectScopedPageIds = new Set(["tools", "skills", "permissions"]);
+
 const pages = $derived(
-  settingsPages.map((page) =>
-    page.id === "skills" && skillSections.length > 0
-      ? { ...page, sections: skillSections }
-      : page,
-  ),
+  settingsPages.map((page) => {
+    const sections =
+      page.id === "skills" && skillSections.length > 0
+        ? skillSections
+        : page.sections;
+    if (settingsScope === "user") return { ...page, sections };
+    if (page.id === "permissions")
+      return {
+        ...page,
+        sections: sections.filter((section) => section.id === "overlays"),
+      };
+    if (!projectScopedPageIds.has(page.id)) return { ...page, sections: [] };
+    return { ...page, sections };
+  }),
 );
 
 const modelsPageState = new ModelsPageState();
@@ -183,6 +293,10 @@ function statusText(): string {
   title="Settings"
   ariaLabel="Settings pages"
   showHeader={!!settingsDraft}
+  scope={settingsScope}
+  projectScopeLabel={activeProject?.name ?? "Project"}
+  projectScopeDisabled={!activeProject}
+  onScopeChange={(scope) => (settingsScope = scope)}
 >
   {#snippet sidebarFooter()}
     <SettingsSidebarStatus status={settingsSaveStatus} text={statusText()} />
@@ -208,7 +322,52 @@ function statusText(): string {
 
   {#snippet children(page)}
     {#if settingsDraft}
-      {#if page.id === "workbench"}
+      {#if settingsScope === "project" && page.id === "tools"}
+        <ProjectToolsSettingsPage
+          configuration={capabilityConfiguration}
+          {settingsDraft}
+          loading={capabilityLoading}
+          error={capabilityError}
+          onPatch={(patch) => void patchProjectCapabilities(patch)}
+          onReset={() => void resetProjectCapabilities()}
+          onTrust={(trusted) => void setProjectCapabilityTrust(trusted)}
+          onRetry={() => void loadProjectCapabilities()}
+        />
+      {:else if settingsScope === "project" && page.id === "skills"}
+        <ProjectSkillsSettingsPage
+          configuration={capabilityConfiguration}
+          {settingsDraft}
+          {agentBrowserSkills}
+          {globalSkills}
+          {projectSkills}
+          loading={capabilityLoading || skillsLoading}
+          error={capabilityError ?? skillsError}
+          onPatch={(patch) => void patchProjectCapabilities(patch)}
+          onReset={() => void resetProjectCapabilities()}
+          onTrust={(trusted) => void setProjectCapabilityTrust(trusted)}
+          onRetry={() => {
+            onSkillsRetry?.();
+            void loadProjectCapabilities();
+          }}
+        />
+      {:else if settingsScope === "project" && page.id !== "permissions"}
+        <SettingsEmptyState
+          variant="card"
+          icon={UserCog}
+          title={`${page.label} is configured per user`}
+          description={`${page.label} applies to every project on this machine.`}
+        >
+          {#snippet actions()}
+            <Button
+              size="xs"
+              variant="outline"
+              onclick={() => (settingsScope = "user")}
+            >
+              Open user settings
+            </Button>
+          {/snippet}
+        </SettingsEmptyState>
+      {:else if page.id === "workbench"}
         <WorkbenchSettingsPage
           {settingsDraft}
           {onColorThemeChange}
@@ -246,6 +405,7 @@ function statusText(): string {
         />
       {:else if page.id === "permissions"}
         <PermissionsSettingsPage
+          scope={settingsScope}
           {settingsDraft}
           {activeProject}
           controller={permissionsPageState}

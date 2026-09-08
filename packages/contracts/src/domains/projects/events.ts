@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { capabilityOriginSchema } from "../capabilities/capabilities.js";
 import { definePublicEvent } from "../../events/definition.js";
 import {
   projectRecordSchema,
@@ -26,6 +27,18 @@ export const projectEventDefinitions = [
       permissions: projectPermissionsSchema,
     }),
     { allowedSourceRoles: workbenchRoles, scope: ["projectId"] },
+  ),
+  definePublicEvent(
+    "project.capabilities.changed",
+    z.object({
+      projectId: z.string().startsWith("proj_"),
+      conversationId: z.string().startsWith("conv_").optional(),
+      origin: capabilityOriginSchema,
+    }),
+    {
+      allowedSourceRoles: workbenchRoles,
+      scope: ["projectId", "conversationId"],
+    },
   ),
   definePublicEvent(
     "project.conversations.pruned",

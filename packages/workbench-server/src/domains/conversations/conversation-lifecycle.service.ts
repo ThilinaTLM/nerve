@@ -24,6 +24,7 @@ import type { ConversationRepository } from "./conversation.repository.js";
 import type { EntryRepository } from "./entry.repository.js";
 import type { ConversationHarnessStorage } from "./conversation-harness-storage.js";
 import type { ToolResultPayloadStore } from "../tools/artifacts/tool-result-payload-store.js";
+import type { CapabilityService } from "../capabilities/capability.service.js";
 
 export class ConversationLifecycleService {
   private readonly entryLoads = new Map<string, Promise<ConversationEntry[]>>();
@@ -39,6 +40,7 @@ export class ConversationLifecycleService {
     private readonly harnessStorage: ConversationHarnessStorage,
     private readonly removeAgent: (agentId: string) => Promise<void>,
     private readonly resultPayloads: ToolResultPayloadStore,
+    private readonly capabilities?: CapabilityService,
   ) {}
 
   async createConversation(
@@ -68,14 +70,29 @@ export class ConversationLifecycleService {
       updatedAt: now,
     };
     this.state.maintenanceScopes.assertProject(request.projectId);
-    this.state.conversations.set(conversation.id, conversation);
-    this.queryCache.upsertConversation(conversation);
-    this.state.setConversationEntries(conversation.id, []);
-    this.touchConversationEntries(conversation.id, []);
-    await this.writeConversation(conversation);
-    await this.harnessStorage.createConversation(conversation);
-    await this.events.publish("conversation.created", { conversation });
-    return conversation;
+    if (request.capabilityOverrides) {
+      await this.capabilities?.writeInitialConversation(
+        conversation.projectId,
+        conversation.id,
+        request.capabilityOverrides,
+      );
+    }
+    try {
+      this.state.conversations.set(conversation.id, conversation);
+      this.queryCache.upsertConversation(conversation);
+      this.state.setConversationEntries(conversation.id, []);
+      this.touchConversationEntries(conversation.id, []);
+      await this.writeConversation(conversation);
+      await this.harnessStorage.createConversation(conversation);
+      await this.events.publish("conversation.created", { conversation });
+      return conversation;
+    } catch (error) {
+      this.state.removeConversation(conversation.id);
+      this.queryCache.removeConversation(conversation.id);
+      this.entryResidency.delete(conversation.id);
+      await this.capabilities?.removeConversation(conversation.id);
+      throw error;
+    }
   }
 
   listConversations(): ConversationRecord[] {
@@ -132,6 +149,7 @@ export class ConversationLifecycleService {
           await this.events.removeConversationStream(conversationId);
           await report("payloads");
           await this.resultPayloads.removeConversation(conversationId);
+          await this.capabilities?.removeConversation(conversationId);
           await this.publishDeletion(intent);
         },
       });
@@ -145,6 +163,7 @@ export class ConversationLifecycleService {
       async (intent) => {
         await this.events.removeConversationStream(intent.conversationId);
         await this.resultPayloads.removeConversation(intent.conversationId);
+        await this.capabilities?.removeConversation(intent.conversationId);
         await this.publishDeletion(intent);
       },
       (conversationId, progress) => {

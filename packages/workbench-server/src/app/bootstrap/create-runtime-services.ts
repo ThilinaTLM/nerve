@@ -22,6 +22,7 @@ import { SubagentTranscriptLiveService } from "../../domains/agents/subagent-tra
 import type { AuthManager } from "../../domains/auth/index.js";
 import { WorkbenchExploreAdmission } from "../../domains/agents/execution/workbench-explore-admission.js";
 import { WorkbenchSubagentExecutions } from "../../domains/agents/execution/workbench-subagent-executions.js";
+import { CapabilityService } from "../../domains/capabilities/capability.service.js";
 import { FileCompletionService } from "../../domains/completions/index.js";
 import { ProjectFilesystemWatcher } from "../../domains/filesystem/project-filesystem-watcher.js";
 import { ConversationService } from "../../domains/conversations/conversation-service.js";
@@ -128,6 +129,7 @@ export interface RuntimeServices {
   toolInteractions: ToolInteractionResolutionService;
   permissionExceptions: PermissionExceptionService;
   permissionPolicy: PermissionPolicyService;
+  capabilities: CapabilityService;
   git: GitService;
   gitRepositoryWatcher: GitRepositoryWatcher;
   projectFilesystemWatcher: ProjectFilesystemWatcher;
@@ -237,6 +239,12 @@ export function composeRuntime(
     events,
   );
   services.permissionPolicy = new PermissionPolicyService(storage, getProject);
+  services.capabilities = new CapabilityService(
+    storage,
+    getProject,
+    getConversation,
+    events,
+  );
   services.taskDefinitions = new TaskDefinitionService(
     new TaskDefinitionRepository(storage),
     getProject,
@@ -418,6 +426,7 @@ export function composeRuntime(
     services.harnessStorage,
     removeAgentInternal,
     resultPayloads,
+    services.capabilities,
   );
   services.conversationQuery = new ConversationQueryService({
     events,
@@ -618,6 +627,7 @@ export function composeRuntime(
     subscriptionUsage,
     logger: logger.child({ component: "workbench-agent-execution" }),
     agentBrowserSkills: deps.agentBrowserSkills,
+    capabilities: services.capabilities,
     subagentTranscriptLive: services.subagentTranscriptLive,
     exploreAdmission,
     subagentExecutions,

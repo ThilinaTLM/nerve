@@ -1,3 +1,4 @@
+import { createConversationRequestSchema } from "@nervekit/contracts/conversations";
 import {
   defineWorkbenchMethodHandlersFor,
   type WorkbenchMethodHandlerMapFor,
@@ -12,8 +13,9 @@ const defineConversationMethodHandlers =
 export const conversationMethodHandlers: WorkbenchMethodHandlerMapFor<ConversationMethodContext> =
   defineConversationMethodHandlers({
     "conversation.create": async (state, params) => ({
-      conversation:
-        await state.conversationLifecycle.createConversation(params),
+      conversation: await state.conversationLifecycle.createConversation(
+        createConversationRequestSchema.parse(params),
+      ),
     }),
     "conversation.import": (state, params) =>
       state.importService.importConversation(params as never),
