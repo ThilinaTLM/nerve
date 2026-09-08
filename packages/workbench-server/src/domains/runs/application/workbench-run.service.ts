@@ -339,6 +339,27 @@ export class WorkbenchRunService {
     };
   }
 
+  async cancelStaleApprovalBatch(
+    batch: ApprovalInteractionBatch,
+    reason: string,
+  ) {
+    const result = await this.coordinator.cancelWaitingCheckpoint({
+      runId: batch.runId,
+      checkpointId: batch.checkpointId,
+      interactionIds: batch.interactions.map((interaction) => interaction.id),
+      reason,
+    });
+    if (result.run.status === "cancellation_failed") {
+      throw new ApplicationError(
+        500,
+        "CANCELLATION_UNCONFIRMED",
+        result.run.failure?.message ??
+          "Stale approval recovery could not confirm run cancellation.",
+      );
+    }
+    return result;
+  }
+
   async assertApprovalBatchContextUnchanged(
     batch: ApprovalInteractionBatch,
   ): Promise<void> {

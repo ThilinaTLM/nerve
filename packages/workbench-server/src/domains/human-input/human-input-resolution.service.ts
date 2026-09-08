@@ -86,6 +86,7 @@ export class HumanInputResolutionService {
     this.approvalBatches = new ApprovalBatchResolutionService({
       tools: deps.tools,
       runs: deps.runs,
+      logger: deps.logger,
       appendToolResult: (toolCall, isError) =>
         this.appendToolResultForToolCall(toolCall, isError),
       existingToolResultEntry: async (toolCall) =>

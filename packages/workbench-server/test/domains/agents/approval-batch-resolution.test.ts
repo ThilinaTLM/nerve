@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ApprovalRecord, ToolCallRecord } from "@nervekit/contracts/tools";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import { ApplicationError } from "../../../src/core/application-error.js";
 import { ApprovalBatchResolutionService } from "../../../src/domains/human-input/approval-batch-resolution.js";
 import type {
   ApprovalInteractionBatch,
@@ -93,4 +94,135 @@ test("startup recovery loads evicted terminal approval tool calls asynchronously
   assert.equal(finalizations, 0, "terminal tools must not execute again");
   assert.ok(canonicalLoads.includes(decided.id));
   assert.ok(canonicalLoads.includes(policyTerminal.id));
+});
+
+for (const code of [
+  "RUN_CHECKPOINT_STALE",
+  "RUN_TOOL_REVISION_STALE",
+] as const) {
+  test(`startup recovery cancels a stale approval batch for ${code} without executing tools`, async () => {
+    const decided = {
+      ...terminalToolCall("tool_decided"),
+      status: "approved",
+      settledAt: undefined,
+    } as unknown as ToolCallRecord;
+    const approval = {
+      id: "approval_decided_0",
+      toolCallId: decided.id,
+      status: "granted",
+    } as unknown as ApprovalRecord;
+    const batch = {
+      runId: "run_test",
+      checkpointId: "checkpoint_test",
+      batchToolCallIds: [decided.id],
+      interactions: [
+        {
+          id: "interaction_test",
+          toolCallId: decided.id,
+          status: "pending",
+        },
+      ],
+    } as unknown as ApprovalInteractionBatch;
+    let finalizations = 0;
+    let appended = 0;
+    let resolutions = 0;
+    let cancellations = 0;
+    const warnings: Array<{ message: string; context: unknown }> = [];
+    const tools = {
+      listApprovals: (status?: ApprovalRecord["status"]) =>
+        status === "pending" ? [] : [approval],
+      getToolCallDetails: async () => decided,
+      getApprovalForToolCallDetails: async () => approval,
+      finalizeDecidedApproval: async () => {
+        finalizations += 1;
+        return terminalToolCall(decided.id);
+      },
+    } as unknown as ToolService;
+    const runs = {
+      listPendingApprovalInteractions: async () => batch.interactions,
+      approvalBatchForToolCall: async () => batch,
+      assertApprovalBatchContextUnchanged: async () => {
+        throw new ApplicationError(409, code, "stale");
+      },
+      cancelStaleApprovalBatch: async () => {
+        cancellations += 1;
+        return {
+          outcome: "cancelled",
+          run: {
+            runId: batch.runId,
+            conversationId: "conv_test",
+            agentId: "agent_test",
+            status: "cancelled",
+          },
+        };
+      },
+      resolveInteractionBatchForToolCalls: async () => {
+        resolutions += 1;
+      },
+    } as unknown as WorkbenchRunService;
+    const service = new ApprovalBatchResolutionService({
+      tools,
+      runs,
+      logger: {
+        warn: async (message: string, context: unknown) => {
+          warnings.push({ message, context });
+        },
+      } as never,
+      appendToolResult: async () => {
+        appended += 1;
+        return {} as ConversationEntry;
+      },
+      existingToolResultEntry: () => undefined,
+    });
+
+    await service.recoverReadyBatches();
+
+    assert.equal(cancellations, 1);
+    assert.equal(finalizations, 0);
+    assert.equal(appended, 0);
+    assert.equal(resolutions, 0);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0]!.message, /no tools were executed/);
+    assert.deepEqual(
+      (warnings[0]!.context as { context: { errorCode: string } }).context
+        .errorCode,
+      code,
+    );
+  });
+}
+
+test("startup recovery propagates unexpected context validation failures", async () => {
+  const decided = terminalToolCall("tool_decided");
+  const approval = {
+    id: "approval_decided_0",
+    toolCallId: decided.id,
+    status: "denied",
+  } as unknown as ApprovalRecord;
+  const batch = {
+    runId: "run_test",
+    checkpointId: "checkpoint_test",
+    batchToolCallIds: [decided.id],
+    interactions: [
+      { id: "interaction_test", toolCallId: decided.id, status: "pending" },
+    ],
+  } as unknown as ApprovalInteractionBatch;
+  const service = new ApprovalBatchResolutionService({
+    tools: {
+      listApprovals: (status?: ApprovalRecord["status"]) =>
+        status === "pending" ? [] : [approval],
+      getToolCallDetails: async () => decided,
+      getApprovalForToolCallDetails: async () => approval,
+    } as unknown as ToolService,
+    runs: {
+      listPendingApprovalInteractions: async () => batch.interactions,
+      approvalBatchForToolCall: async () => batch,
+      assertApprovalBatchContextUnchanged: async () => {
+        throw new Error("storage unavailable");
+      },
+    } as unknown as WorkbenchRunService,
+    appendToolResult: async () => ({}) as ConversationEntry,
+    existingToolResultEntry: () => undefined,
+  });
+
+  await assert.rejects(service.recoverReadyBatches(), /storage unavailable/);
 });
