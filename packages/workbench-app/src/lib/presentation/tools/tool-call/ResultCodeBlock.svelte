@@ -1,5 +1,6 @@
 <script lang="ts">
 import { acquireHighlightCode } from "@nervekit/ui-kit/highlighting/highlight";
+import { syntaxTheme } from "@nervekit/ui-kit/highlighting/syntax-theme";
 import { ansiToHtml } from "@nervekit/ui-kit/terminal/ansi";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
 import {
@@ -51,7 +52,11 @@ let contentEl = $state<HTMLElement | undefined>(undefined);
 const measureState: { frame: number | undefined } = { frame: undefined };
 
 const preview = $derived(trim ? trimTextPreview(code) : { text: code });
-const signature = $derived(`${language ?? ""}\0${preview.text}`);
+// The theme is part of the signature because Shiki colors are baked into the
+// highlighted HTML, so switching themes must re-tokenize this block.
+const signature = $derived(
+  `${$syntaxTheme}\0${language ?? ""}\0${preview.text}`,
+);
 const hasFixedRows = $derived(fixedRows !== undefined && fixedRows > 0);
 const terminalHtml = $derived(ansiToHtml(preview.text));
 const isDiff = $derived(

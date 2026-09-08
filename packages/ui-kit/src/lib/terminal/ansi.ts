@@ -77,6 +77,18 @@ function colorClass(prefix: "fg" | "bg", code: number): string | undefined {
   return undefined;
 }
 
+/**
+ * Indices 0-15 of the xterm-256 table are the same sixteen palette slots as the
+ * basic SGR colors, so they resolve to the themed classes. Indices 16+ and
+ * truecolor stay literal: those are explicit color choices by the program that
+ * emitted them, not palette references.
+ */
+function paletteClass(prefix: "fg" | "bg", index: number): string | undefined {
+  if (!Number.isInteger(index) || index < 0 || index > 15) return undefined;
+  const name = ANSI_COLOR_NAMES[index % 8];
+  return index < 8 ? `ansi-${prefix}-${name}` : `ansi-${prefix}-bright-${name}`;
+}
+
 function clampByte(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(255, Math.round(value)));
@@ -144,8 +156,9 @@ function applyColor(
   if (code === 5) {
     const color = params[index + 1];
     if (Number.isFinite(color)) {
-      state[classKey] = undefined;
-      state[colorKey] = xterm256ToRgb(color);
+      const themed = paletteClass(target, color);
+      state[classKey] = themed;
+      state[colorKey] = themed ? undefined : xterm256ToRgb(color);
       return index + 1;
     }
     return index;

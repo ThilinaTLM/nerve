@@ -43,6 +43,7 @@ const tokenNames = [
   "destructive-foreground",
   "destructive-solid",
   "destructive-solid-foreground",
+  "border",
 ] as const;
 type TokenName = (typeof tokenNames)[number];
 
@@ -124,12 +125,12 @@ function assertContrast(
   );
 }
 
+const colorThemes = ["nerve", "ocean", "forest", "midnight"] as const;
+const colorModes = ["light", "dark"] as const;
+
 const themes = Object.fromEntries(
-  (["nerve", "ocean", "forest", "midnight"] as const).flatMap((theme) =>
-    (["light", "dark"] as const).map((mode) => [
-      `${theme}-${mode}`,
-      parseTokens(theme, mode),
-    ]),
+  colorThemes.flatMap((theme) =>
+    colorModes.map((mode) => [`${theme}-${mode}`, parseTokens(theme, mode)]),
   ),
 ) as Record<ThemeName, Record<TokenName, Oklch>>;
 
@@ -154,11 +155,65 @@ const surfaceTokens = [
   "well",
 ] as const;
 const subtleSurfaceAlpha = 0.08;
+/* Surfaces stay subdued, but a theme's hue has to be visible in its chrome to
+ * be a theme rather than an accent swap; these are the ceilings that keep the
+ * commitment from tipping into a tint bath. */
 const maximumSurfaceChroma: Record<ColorMode, number> = {
-  light: 0.018,
-  dark: 0.025,
+  light: 0.03,
+  dark: 0.05,
 };
 const minimumPrimaryChroma = 0.09;
+
+type CharacterTokens = {
+  radiusRem: number;
+  elevationLightness: number;
+  elevationStrength: number;
+};
+
+function parseCharacter(theme: ColorTheme, mode: ColorMode): CharacterTokens {
+  const block = themeBlock(theme, mode);
+  const radius = block.match(/--radius:\s*([\d.]+)rem/);
+  const elevation = block.match(
+    /--elevation-hsl:\s*[\d.-]+\s+[\d.]+%\s+([\d.]+)%/,
+  );
+  const strength = block.match(/--elevation-strength:\s*([\d.]+)/);
+  assert.ok(radius, `Missing --radius in ${theme} ${mode}`);
+  assert.ok(elevation, `Missing --elevation-hsl in ${theme} ${mode}`);
+  assert.ok(strength, `Missing --elevation-strength in ${theme} ${mode}`);
+  return {
+    radiusRem: Number(radius[1]),
+    elevationLightness: Number(elevation[1]),
+    elevationStrength: Number(strength[1]),
+  };
+}
+
+const characters = Object.fromEntries(
+  colorThemes.flatMap((theme) =>
+    colorModes.map((mode) => [`${theme}-${mode}`, parseCharacter(theme, mode)]),
+  ),
+) as Record<ThemeName, CharacterTokens>;
+
+function oklabOf([lightness, chroma, hue]: Oklch): readonly [
+  number,
+  number,
+  number,
+] {
+  const radians = (hue * Math.PI) / 180;
+  return [lightness, chroma * Math.cos(radians), chroma * Math.sin(radians)];
+}
+
+function oklabDistance(left: Oklch, right: Oklch): number {
+  const a = oklabOf(left);
+  const b = oklabOf(right);
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+
+function textContrastOf(tokens: Record<TokenName, Oklch>): number {
+  return contrast(
+    oklchToLinearRgb(tokens.foreground),
+    oklchToLinearRgb(tokens.background),
+  );
+}
 
 describe("theme text contrast", () => {
   it("keeps filled semantic token pairs at WCAG AA contrast", () => {
@@ -278,6 +333,105 @@ describe("theme text contrast", () => {
       assert.ok(
         ratio >= minimumMidnightTextContrast,
         `midnight-${mode} foreground on background contrast ${ratio.toFixed(2)}:1 is below the high-contrast minimum ${minimumMidnightTextContrast}:1`,
+      );
+    }
+  });
+
+  it("keeps every theme pair perceptibly different, not a hue swap", () => {
+    // A theme earns its slot by differing in the chrome the user stares at
+    // (surface color) or in overall contrast personality. Matching accents on
+    // one shared grey is exactly the failure this guards against.
+    const minimumBackgroundDistance = 0.03;
+    const minimumContrastRatioSpread = 1.4;
+
+    for (const mode of colorModes) {
+      for (const [index, theme] of colorThemes.entries()) {
+        for (const other of colorThemes.slice(index + 1)) {
+          const left = themes[`${theme}-${mode}`];
+          const right = themes[`${other}-${mode}`];
+          const distance = oklabDistance(left.background, right.background);
+          const contrasts = [textContrastOf(left), textContrastOf(right)];
+          const spread = Math.max(...contrasts) / Math.min(...contrasts);
+          assert.ok(
+            distance >= minimumBackgroundDistance ||
+              spread >= minimumContrastRatioSpread,
+            `${theme} and ${other} are too alike in ${mode}: background distance ${distance.toFixed(4)} < ${minimumBackgroundDistance} and contrast spread ${spread.toFixed(2)} < ${minimumContrastRatioSpread}`,
+          );
+        }
+      }
+    }
+  });
+
+  it("gives every theme its own semantic palette", () => {
+    for (const mode of colorModes) {
+      for (const token of semanticTokens) {
+        const seen = new Map<string, ColorTheme>();
+        for (const theme of colorThemes) {
+          const value = themes[`${theme}-${mode}`][token].join(" ");
+          const owner = seen.get(value);
+          assert.ok(
+            owner === undefined,
+            `${theme}-${mode} shares its --${token} value with ${owner}-${mode}; status color is where a theme's identity is most visible`,
+          );
+          seen.set(value, theme);
+        }
+      }
+    }
+  });
+
+  it("declares character tokens that actually vary between themes", () => {
+    const maximumRadiusRem = 0.75;
+    const maximumElevationStrength = 1.5;
+    const maximumElevationLightnessPercent = 30;
+
+    for (const [themeName, character] of Object.entries(characters) as [
+      ThemeName,
+      CharacterTokens,
+    ][]) {
+      assert.ok(
+        character.radiusRem >= 0 && character.radiusRem <= maximumRadiusRem,
+        `${themeName} --radius ${character.radiusRem}rem is outside [0, ${maximumRadiusRem}]`,
+      );
+      assert.ok(
+        character.elevationStrength >= 0 &&
+          character.elevationStrength <= maximumElevationStrength,
+        `${themeName} --elevation-strength ${character.elevationStrength} is outside [0, ${maximumElevationStrength}]`,
+      );
+      if (character.elevationStrength > 0) {
+        assert.ok(
+          character.elevationLightness <= maximumElevationLightnessPercent,
+          `${themeName} elevation lightness ${character.elevationLightness}% would wash surfaces out instead of shading them`,
+        );
+      }
+    }
+
+    const radii = new Set(
+      colorThemes.map((theme) => characters[`${theme}-dark`].radiusRem),
+    );
+    assert.ok(
+      radii.size >= 3,
+      `only ${radii.size} distinct radii across ${colorThemes.length} themes; shape is part of a theme's character`,
+    );
+  });
+
+  it("keeps flat themes structured with visible hairlines", () => {
+    // A theme that opts out of shadows has only its borders left to separate
+    // surfaces, so those borders have to carry more contrast than usual.
+    const minimumFlatBorderContrast = 1.35;
+
+    for (const [themeName, character] of Object.entries(characters) as [
+      ThemeName,
+      CharacterTokens,
+    ][]) {
+      if (character.elevationStrength > 0) continue;
+      const tokens = themes[themeName];
+      const ratio = contrast(
+        oklchToLinearRgb(tokens.border),
+        oklchToLinearRgb(tokens.card),
+      );
+      assert.ok(
+        ratio >= minimumFlatBorderContrast,
+        `${themeName} is flat but its border/card contrast ${ratio.toFixed(2)}:1 is below ${minimumFlatBorderContrast}:1`,
       );
     }
   });

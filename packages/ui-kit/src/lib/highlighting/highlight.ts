@@ -4,6 +4,11 @@ import {
   createHighlightQueue,
   type HighlightQueueLease,
 } from "./highlight-queue";
+import {
+  currentSyntaxTheme,
+  SYNTAX_THEME_PAIRS,
+  type SyntaxTheme,
+} from "./syntax-theme";
 
 const languageLoaders = {
   bash: () => import("@shikijs/langs/bash"),
@@ -25,9 +30,21 @@ const languageLoaders = {
 } as const;
 
 const themeLoaders = {
-  "github-light": () => import("@shikijs/themes/github-light"),
-  "github-dark-dimmed": () => import("@shikijs/themes/github-dark-dimmed"),
+  "vitesse-light": () => import("@shikijs/themes/vitesse-light"),
+  "vitesse-dark": () => import("@shikijs/themes/vitesse-dark"),
+  "catppuccin-latte": () => import("@shikijs/themes/catppuccin-latte"),
+  "tokyo-night": () => import("@shikijs/themes/tokyo-night"),
+  "everforest-light": () => import("@shikijs/themes/everforest-light"),
+  "everforest-dark": () => import("@shikijs/themes/everforest-dark"),
+  "github-light-high-contrast": () =>
+    import("@shikijs/themes/github-light-high-contrast"),
+  "github-dark-high-contrast": () =>
+    import("@shikijs/themes/github-dark-high-contrast"),
 } as const;
+
+export const SHIKI_THEME_NAMES = Object.keys(
+  themeLoaders,
+) as (keyof typeof themeLoaders)[];
 
 type HighlightLanguage = keyof typeof languageLoaders;
 type HighlightTheme = keyof typeof themeLoaders;
@@ -140,14 +157,15 @@ async function getHighlighter(): Promise<HighlighterLike> {
 async function performHighlight(
   code: string,
   lang: HighlightLanguage,
+  theme: SyntaxTheme,
 ): Promise<string> {
   const highlighter = await getHighlighter();
+  const pair = SYNTAX_THEME_PAIRS[theme];
   return highlighter.codeToHtml(code, {
     lang,
-    themes: {
-      light: "github-light",
-      dark: "github-dark-dimmed",
-    },
+    // Both variants are always emitted as --shiki-light/--shiki-dark, so the
+    // color mode still switches in CSS; only the theme forces a re-highlight.
+    themes: { light: pair.light, dark: pair.dark },
     defaultColor: false,
   });
 }
@@ -158,28 +176,40 @@ export async function highlightCode(
 ): Promise<string | undefined> {
   const lang = normalizeHighlightLanguage(language);
   if (!lang || !isWithinHighlightBudget(code)) return undefined;
-  return runWhenIdle(() => performHighlight(code, lang));
+  const theme = currentSyntaxTheme();
+  return runWhenIdle(() => performHighlight(code, lang, theme));
 }
 
-function highlightCacheKey(code: string, lang: HighlightLanguage): string {
-  return `${lang}\0${code}`;
+/**
+ * The active theme is part of the key so a cached result is never replayed
+ * under a palette it was not tokenized for.
+ */
+export function highlightCacheKey(
+  code: string,
+  lang: HighlightLanguage,
+  theme: SyntaxTheme,
+): string {
+  return `${theme}\0${lang}\0${code}`;
 }
 
 function splitHighlightCacheKey(key: string): {
   code: string;
   lang: HighlightLanguage;
+  theme: SyntaxTheme;
 } {
-  const separator = key.indexOf("\0");
+  const themeEnd = key.indexOf("\0");
+  const langEnd = key.indexOf("\0", themeEnd + 1);
   return {
-    lang: key.slice(0, separator) as HighlightLanguage,
-    code: key.slice(separator + 1),
+    theme: key.slice(0, themeEnd) as SyntaxTheme,
+    lang: key.slice(themeEnd + 1, langEnd) as HighlightLanguage,
+    code: key.slice(langEnd + 1),
   };
 }
 
 const highlightQueue = createHighlightQueue<string>({
   load: (key) => {
-    const { code, lang } = splitHighlightCacheKey(key);
-    return performHighlight(code, lang);
+    const { code, lang, theme } = splitHighlightCacheKey(key);
+    return performHighlight(code, lang, theme);
   },
   schedule: scheduleWhenIdle,
   lookup: (key) => ({
@@ -201,7 +231,9 @@ export function acquireHighlightCode(
   if (!lang || !isWithinHighlightBudget(code)) {
     return { result: undefined, release: () => undefined };
   }
-  return highlightQueue.acquire(highlightCacheKey(code, lang));
+  return highlightQueue.acquire(
+    highlightCacheKey(code, lang, currentSyntaxTheme()),
+  );
 }
 
 /** Cached highlighting for non-cancellable consumers such as Markdown. */

@@ -71,29 +71,61 @@
     <style>
       :root {
         color-scheme: light dark;
-        --startup-background: oklch(0.9818 0.0054 95.0986);
-        --startup-foreground: oklch(0.3438 0.0269 95.7226);
-        --startup-primary: oklch(0.57 0.1375 39.0427);
-        --startup-muted: oklch(0.5341 0.0078 97.4503);
-        --startup-border: oklch(0.8847 0.0069 97.3627);
+        --startup-background: oklch(0.979 0.012 92);
+        --startup-foreground: oklch(0.3438 0.0269 95.7);
+        --startup-primary: oklch(0.57 0.1375 39);
+        --startup-muted: oklch(0.5341 0.0078 97.5);
+        --startup-border: oklch(0.872 0.017 95);
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --startup-background: oklch(0.2679 0.0036 106.6427);
-          --startup-foreground: oklch(0.9576 0.0027 106.4494);
-          --startup-primary: oklch(0.6724 0.1308 38.7559);
-          --startup-muted: oklch(0.7713 0.0169 99.0657);
-          --startup-border: oklch(0.3618 0.0101 106.8928);
+          --startup-background: oklch(0.264 0.018 80);
+          --startup-foreground: oklch(0.9 0.012 95);
+          --startup-primary: oklch(0.6724 0.1308 38.8);
+          --startup-muted: oklch(0.7713 0.017 99);
+          --startup-border: oklch(0.353 0.022 82);
         }
       }
-      /* Midnight sits far darker than the other themes, so the splash needs its
-         own values; the remaining themes are close enough to share the above. */
+      /* Each theme now diverges enough that sharing one splash palette would
+         flash the wrong background before the stylesheet loads. */
+      :root[data-theme="ocean"] {
+        --startup-background: oklch(0.966 0.022 262);
+        --startup-foreground: oklch(0.3 0.035 265);
+        --startup-primary: oklch(0.52 0.17 262);
+        --startup-muted: oklch(0.48 0.035 265);
+        --startup-border: oklch(0.845 0.03 262);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root[data-theme="ocean"] {
+          --startup-background: oklch(0.205 0.032 265);
+          --startup-foreground: oklch(0.93 0.02 265);
+          --startup-primary: oklch(0.72 0.16 255);
+          --startup-muted: oklch(0.76 0.03 265);
+          --startup-border: oklch(0.34 0.045 265);
+        }
+      }
+      :root[data-theme="forest"] {
+        --startup-background: oklch(0.93 0.022 100);
+        --startup-foreground: oklch(0.35 0.028 130);
+        --startup-primary: oklch(0.5 0.11 142);
+        --startup-muted: oklch(0.475 0.026 120);
+        --startup-border: oklch(0.805 0.03 100);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root[data-theme="forest"] {
+          --startup-background: oklch(0.285 0.03 150);
+          --startup-foreground: oklch(0.88 0.022 100);
+          --startup-primary: oklch(0.8 0.125 140);
+          --startup-muted: oklch(0.72 0.02 110);
+          --startup-border: oklch(0.405 0.04 150);
+        }
+      }
       :root[data-theme="midnight"] {
         --startup-background: oklch(0.995 0.001 265);
         --startup-foreground: oklch(0.175 0.008 265);
         --startup-primary: oklch(0.52 0.163 40);
         --startup-muted: oklch(0.42 0.012 265);
-        --startup-border: oklch(0.8 0.006 265);
+        --startup-border: oklch(0.78 0.006 265);
       }
       @media (prefers-color-scheme: dark) {
         :root[data-theme="midnight"] {
@@ -101,7 +133,7 @@
           --startup-foreground: oklch(0.972 0.003 265);
           --startup-primary: oklch(0.78 0.145 62);
           --startup-muted: oklch(0.79 0.01 265);
-          --startup-border: oklch(0.325 0.011 265);
+          --startup-border: oklch(0.36 0.012 265);
         }
       }
       html,
