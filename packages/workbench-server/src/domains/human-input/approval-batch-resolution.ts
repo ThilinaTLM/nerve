@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { ApprovalRecord, ToolCallRecord } from "@nervekit/contracts/tools";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import { ApplicationError } from "../../core/application-error.js";
+import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging.js";
 import type {
   ApprovalInteractionBatch,
   WorkbenchRunService,
@@ -12,6 +13,7 @@ import { toToolCallTranscriptRecord } from "../tools/artifacts/tool-call-transcr
 interface ApprovalBatchResolutionDeps {
   tools: ToolService;
   runs: WorkbenchRunService;
+  logger?: ApplicationLogger;
   appendToolResult(
     toolCall: ToolCallRecord,
     isError: boolean,
@@ -162,7 +164,7 @@ export class ApprovalBatchResolutionService {
           ) &&
           (await this.batchReady(current))
         ) {
-          await this.drain(current, interaction.toolCallId);
+          await this.recoverValidatedBatch(current, interaction.toolCallId);
         }
       });
     }
@@ -227,6 +229,46 @@ export class ApprovalBatchResolutionService {
     // Validate the branch before any approved side effect starts. Continuation
     // validation is intentionally not sufficient because it runs after tools.
     await this.deps.runs.assertApprovalBatchContextUnchanged(batch);
+    return this.drainValidated(batch, targetToolCallId);
+  }
+
+  private async recoverValidatedBatch(
+    batch: ApprovalInteractionBatch,
+    targetToolCallId: string,
+  ): Promise<ToolCallRecord> {
+    try {
+      await this.deps.runs.assertApprovalBatchContextUnchanged(batch);
+    } catch (error) {
+      if (!isStaleApprovalContextError(error)) throw error;
+      const result = await this.deps.runs.cancelStaleApprovalBatch(
+        batch,
+        `saved approval context became stale (${error.code})`,
+      );
+      if (result.outcome === "cancelled") {
+        await this.deps.logger?.warn(
+          "Saved approval recovery was cancelled because its context changed; no tools were executed by this recovery attempt. Review the conversation before starting a new turn",
+          {
+            conversationId: result.run.conversationId,
+            agentId: result.run.agentId,
+            runId: batch.runId,
+            context: {
+              errorCode: error.code,
+              checkpointId: batch.checkpointId,
+              toolCallIds: batch.batchToolCallIds,
+              outcome: result.outcome,
+            },
+          },
+        );
+      }
+      return this.deps.tools.getToolCallDetails(targetToolCallId);
+    }
+    return this.drainValidated(batch, targetToolCallId);
+  }
+
+  private async drainValidated(
+    batch: ApprovalInteractionBatch,
+    targetToolCallId: string,
+  ): Promise<ToolCallRecord> {
     const toolCalls: ToolCallRecord[] = [];
     const approvalsByToolCallId = new Map<string, ApprovalRecord>();
     for (const toolCallId of batch.batchToolCallIds) {
@@ -296,6 +338,16 @@ export class ApprovalBatchResolutionService {
       if (this.locks.get(key) === tail) this.locks.delete(key);
     });
   }
+}
+
+function isStaleApprovalContextError(
+  error: unknown,
+): error is ApplicationError {
+  return (
+    error instanceof ApplicationError &&
+    (error.code === "RUN_CHECKPOINT_STALE" ||
+      error.code === "RUN_TOOL_REVISION_STALE")
+  );
 }
 
 function resolutionRequestId(

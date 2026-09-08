@@ -1425,6 +1425,74 @@ test("cancellation terminalizes every pending approval batch member", async () =
   );
 });
 
+test("checkpoint-scoped cancellation only settles the expected pending approval batch", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  await harness.coordinator.waitMany(run.runId, [
+    {
+      kind: "approval",
+      toolCallId: "tool_first",
+      interactionOrdinal: 0,
+      toolCallRevision: 1,
+      batchToolCallIds: ["tool_first", "tool_second"],
+      prompt: "Approve first",
+      risk: ["write"],
+      normalizedArgs: {},
+      offeredScopes: ["single_call"],
+      checkpoint: suspensionCheckpoint(),
+    },
+    {
+      kind: "approval",
+      toolCallId: "tool_second",
+      interactionOrdinal: 0,
+      toolCallRevision: 1,
+      batchToolCallIds: ["tool_first", "tool_second"],
+      prompt: "Approve second",
+      risk: ["write"],
+      normalizedArgs: {},
+      offeredScopes: ["single_call"],
+      checkpoint: suspensionCheckpoint(),
+    },
+  ]);
+  const waiting = await harness.coordinator.get(run.runId);
+  const interactionIds = waiting!.interactions.map((item) => item.id);
+  const checkpointId = waiting!.run.lastCheckpointId!;
+
+  const superseded = await harness.coordinator.cancelWaitingCheckpoint({
+    runId: run.runId,
+    checkpointId: "checkpoint_superseded",
+    interactionIds,
+  });
+  assert.equal(superseded.outcome, "not_applicable");
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "waiting",
+  );
+
+  const cancelled = await harness.coordinator.cancelWaitingCheckpoint({
+    runId: run.runId,
+    checkpointId,
+    interactionIds,
+    reason: "stale saved approval",
+  });
+  assert.equal(cancelled.outcome, "cancelled");
+  assert.equal(cancelled.run.status, "cancelled");
+  assert.deepEqual(
+    (await harness.coordinator.get(run.runId))?.interactions.map(
+      (interaction) => interaction.status,
+    ),
+    ["cancelled", "cancelled"],
+  );
+
+  const repeated = await harness.coordinator.cancelWaitingCheckpoint({
+    runId: run.runId,
+    checkpointId,
+    interactionIds,
+  });
+  assert.equal(repeated.outcome, "not_applicable");
+  assert.equal(repeated.run.status, "cancelled");
+});
+
 test("atomically resolves and completes an interaction without waking execution", async () => {
   const harness = fixture();
   const run = await start(harness.coordinator);

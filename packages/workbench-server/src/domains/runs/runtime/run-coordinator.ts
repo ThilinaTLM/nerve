@@ -116,6 +116,10 @@ async function withCancellationDeadline<T>(
   }
 }
 
+export type GuardedRunCancellationResult =
+  | { outcome: "cancelled"; run: RunRecord }
+  | { outcome: "not_applicable"; run: RunRecord };
+
 export class RunCoordinator {
   private readonly locks = new KeyedSerialLock();
   private readonly live = new LiveExecutionRegistry();
@@ -393,24 +397,81 @@ export class RunCoordinator {
     );
   }
   async cancel(runId: string, reason?: string): Promise<RunRecord> {
-    const targets = CANCELLATION_TARGETS;
-    const requested = await this.exclusive(`run:${runId}`, async () => {
+    const requested = await this.requestRunCancellation(runId);
+    if (TERMINAL_STATUSES.has(requested.status)) return requested;
+    return this.finishRunCancellation(requested, reason);
+  }
+
+  async cancelWaitingCheckpoint(input: {
+    runId: string;
+    checkpointId: string;
+    interactionIds: readonly string[];
+    reason?: string;
+  }): Promise<GuardedRunCancellationResult> {
+    const requested = await this.exclusive(`run:${input.runId}`, async () => {
+      const state = await this.require(input.runId);
+      if (TERMINAL_STATUSES.has(state.run.status)) {
+        return { outcome: "not_applicable" as const, run: state.run };
+      }
+      const expectedInteractionsRemainPending = input.interactionIds.every(
+        (interactionId) =>
+          state.interactions.some(
+            (interaction) =>
+              interaction.id === interactionId &&
+              interaction.kind === "approval" &&
+              interaction.status === "pending" &&
+              interaction.checkpointId === input.checkpointId,
+          ),
+      );
+      if (
+        state.run.status !== "waiting" ||
+        state.run.lastCheckpointId !== input.checkpointId ||
+        !expectedInteractionsRemainPending
+      ) {
+        return { outcome: "not_applicable" as const, run: state.run };
+      }
+      return {
+        outcome: "requested" as const,
+        run: await this.commitCancellationRequest(state),
+      };
+    });
+    if (requested.outcome === "not_applicable") return requested;
+    return {
+      outcome: "cancelled",
+      run: await this.finishRunCancellation(requested.run, input.reason),
+    };
+  }
+
+  private async requestRunCancellation(runId: string): Promise<RunRecord> {
+    return this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
       if (TERMINAL_STATUSES.has(state.run.status)) return state.run;
-      const request = requestCancellation(state, this.now());
-      await this.commit(state, request.run, "cancellation_requested", {
-        ...request.changes,
-        events: request.changes.prompts?.map((prompt) =>
-          this.events.cancelledPrompt(request.run, prompt),
-        ),
-      });
-      return request.run;
+      return this.commitCancellationRequest(state);
     });
-    if (TERMINAL_STATUSES.has(requested.status)) return requested;
+  }
+
+  private async commitCancellationRequest(
+    state: RunHydratedState,
+  ): Promise<RunRecord> {
+    const request = requestCancellation(state, this.now());
+    await this.commit(state, request.run, "cancellation_requested", {
+      ...request.changes,
+      events: request.changes.prompts?.map((prompt) =>
+        this.events.cancelledPrompt(request.run, prompt),
+      ),
+    });
+    return request.run;
+  }
+
+  private async finishRunCancellation(
+    requested: RunRecord,
+    reason?: string,
+  ): Promise<RunRecord> {
+    const runId = requested.runId;
     this.live.get(runId)?.abort.abort(reason);
     const execution = this.live.get(runId)?.execution;
     const evidence = await Promise.all(
-      targets.map(async (target) => {
+      CANCELLATION_TARGETS.map(async (target) => {
         try {
           const status = await withCancellationDeadline(
             cancelRunTarget(
