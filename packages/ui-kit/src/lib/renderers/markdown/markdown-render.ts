@@ -1,5 +1,4 @@
 import { highlightCodeCached } from "@nervekit/ui-kit/highlighting/highlight";
-import { currentSyntaxTheme } from "@nervekit/ui-kit/highlighting/syntax-theme";
 import { isMermaidLanguage } from "../mermaid/mermaid-render.js";
 import { LruCache } from "@nervekit/ui-kit/collections/lru-cache";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
@@ -42,18 +41,6 @@ function signatureFor(
   preserveLineBreaks: boolean,
 ): string {
   return `${trimCodeBlocks ? "t" : "f"}\0${sourceSignatureFor(source, preserveLineBreaks)}`;
-}
-
-/**
- * Highlighted HTML carries baked-in Shiki colors, so it is only reusable for
- * the theme it was tokenized under. The decorated cache needs no such key.
- */
-function highlightSignatureFor(
-  source: string,
-  trimCodeBlocks: boolean,
-  preserveLineBreaks: boolean,
-): string {
-  return `${currentSyntaxTheme()}\0${signatureFor(source, trimCodeBlocks, preserveLineBreaks)}`;
 }
 
 function escapeHtml(source: string): string {
@@ -267,7 +254,7 @@ export function getHighlightedMarkdownSync(
   preserveLineBreaks = false,
 ): string | undefined {
   return highlightedCache.get(
-    highlightSignatureFor(source, trimCodeBlocks, preserveLineBreaks),
+    signatureFor(source, trimCodeBlocks, preserveLineBreaks),
   );
 }
 
@@ -295,7 +282,7 @@ export function renderHighlightedMarkdown(
   trimCodeBlocks: boolean,
   preserveLineBreaks = false,
 ): Promise<string> {
-  const key = highlightSignatureFor(source, trimCodeBlocks, preserveLineBreaks);
+  const key = signatureFor(source, trimCodeBlocks, preserveLineBreaks);
   const cached = highlightedCache.get(key);
   if (cached !== undefined) return Promise.resolve(cached);
   const inflight = highlightInflight.get(key);

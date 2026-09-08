@@ -17,7 +17,6 @@ import {
   appendedNewline,
   splitStreamingMarkdown,
 } from "@nervekit/ui-kit/renderers/markdown/streaming-markdown";
-import { syntaxTheme } from "@nervekit/ui-kit/highlighting/syntax-theme";
 import { LatestPresentationScheduler } from "@nervekit/ui-kit/scheduling/latest-presentation-scheduler";
 import {
   parseLocalFileHref,
@@ -352,8 +351,6 @@ $effect(() => {
   const source = text;
   const trim = trimCodeBlocks;
   const preserveBreaks = preserveLineBreaks;
-  // Read so a theme switch re-tokenizes: Shiki colors are baked into the HTML.
-  void $syntaxTheme;
   if (!streaming) {
     if (showingStreaming) {
       streamingScheduler.flushNow({
@@ -614,14 +611,6 @@ $effect(() => () => streamingScheduler.destroy());
   font-size: inherit;
   white-space: inherit;
   word-break: inherit;
-}
-
-.markdown :global(.code-block span) {
-  color: var(--shiki-light, inherit);
-}
-
-:global(.dark) .markdown :global(.code-block span) {
-  color: var(--shiki-dark, inherit);
 }
 
 .markdown :global(blockquote) {

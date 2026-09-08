@@ -1,68 +1,66 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import {
-  currentSyntaxTheme,
-  setSyntaxTheme,
-  SYNTAX_THEME_PAIRS,
+  SYNTAX_TOKEN_ROLES,
   syntaxTheme,
-  type SyntaxTheme,
+  type SyntaxTokenRole,
 } from "./syntax-theme";
-import { highlightCacheKey, SHIKI_THEME_NAMES } from "./highlight";
 
-const themeNames = Object.keys(SYNTAX_THEME_PAIRS) as SyntaxTheme[];
+const themeCss = readFileSync(
+  fileURLToPath(new URL("../../styles/theme.css", import.meta.url)),
+  "utf8",
+);
 
-describe("syntax theme binding", () => {
-  it("loads every palette a theme names", () => {
-    for (const theme of themeNames) {
-      const pair = SYNTAX_THEME_PAIRS[theme];
-      for (const name of [pair.light, pair.dark]) {
-        assert.ok(
-          SHIKI_THEME_NAMES.includes(name),
-          `${theme} references Shiki theme '${name}', which has no loader`,
-        );
-      }
-    }
-  });
+function themeColorValues(): string[] {
+  return [
+    ...Object.values(syntaxTheme.colors),
+    ...syntaxTheme.tokenColors.flatMap((token) =>
+      token.settings.foreground ? [token.settings.foreground] : [],
+    ),
+  ];
+}
 
-  it("gives every theme its own syntax palette", () => {
-    const seen = new Map<string, SyntaxTheme>();
-    for (const theme of themeNames) {
-      const pair = SYNTAX_THEME_PAIRS[theme];
-      const key = `${pair.light}/${pair.dark}`;
-      const owner = seen.get(key);
-      assert.ok(
-        owner === undefined,
-        `${theme} shares its syntax palette with ${owner}; code blocks would look identical in both themes`,
+describe("syntax theme", () => {
+  it("paints only with CSS variables so a theme switch never re-tokenizes", () => {
+    for (const value of themeColorValues()) {
+      if (value === "transparent") continue;
+      assert.match(
+        value,
+        /^var\(--syntax-[a-z-]+\)$/,
+        `Shiki theme uses the fixed colour '${value}'; baked colours would need a re-highlight on every theme change`,
       );
-      seen.set(key, theme);
     }
   });
 
-  it("keys cached highlight output by theme", () => {
-    // Highlighted HTML has Shiki colors baked in, so replaying a cached result
-    // under a different theme would show the previous palette.
-    const keys = new Set(
-      themeNames.map((theme) =>
-        highlightCacheKey("const a = 1", "typescript", theme),
-      ),
-    );
-    assert.equal(keys.size, themeNames.length);
+  it("references only roles that theme.css defines", () => {
+    const roles = new Set<string>(SYNTAX_TOKEN_ROLES);
+    for (const value of themeColorValues()) {
+      const role = value.match(/^var\(--syntax-([a-z-]+)\)$/)?.[1];
+      if (!role) continue;
+      assert.ok(
+        roles.has(role),
+        `Shiki theme paints undeclared role '${role}'`,
+      );
+    }
+
+    for (const role of SYNTAX_TOKEN_ROLES) {
+      assert.ok(
+        themeCss.includes(`--syntax-${role}:`),
+        `theme.css defines no --syntax-${role}; code painted with it would fall back to inherited colour`,
+      );
+    }
   });
 
-  it("notifies subscribers when the active theme changes", () => {
-    const seen: SyntaxTheme[] = [];
-    const unsubscribe = syntaxTheme.subscribe((theme) => seen.push(theme));
-
-    setSyntaxTheme("rose");
-    setSyntaxTheme("rose");
-    setSyntaxTheme("not-a-theme");
-    setSyntaxTheme("solar");
-
-    assert.deepEqual(seen, ["nerve", "rose", "solar"]);
-    assert.equal(currentSyntaxTheme(), "solar");
-
-    unsubscribe();
-    setSyntaxTheme("nerve");
-    assert.equal(seen.length, 3);
+  it("assigns every declared role to at least one scope", () => {
+    const used = new Set<SyntaxTokenRole>();
+    for (const value of themeColorValues()) {
+      const role = value.match(/^var\(--syntax-([a-z-]+)\)$/)?.[1];
+      if (role) used.add(role as SyntaxTokenRole);
+    }
+    for (const role of SYNTAX_TOKEN_ROLES) {
+      assert.ok(used.has(role), `--syntax-${role} is declared but unused`);
+    }
   });
 });

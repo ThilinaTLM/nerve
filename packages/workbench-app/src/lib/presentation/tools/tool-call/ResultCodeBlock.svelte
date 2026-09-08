@@ -1,6 +1,5 @@
 <script lang="ts">
 import { acquireHighlightCode } from "@nervekit/ui-kit/highlighting/highlight";
-import { syntaxTheme } from "@nervekit/ui-kit/highlighting/syntax-theme";
 import { ansiToHtml } from "@nervekit/ui-kit/terminal/ansi";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
 import {
@@ -52,11 +51,7 @@ let contentEl = $state<HTMLElement | undefined>(undefined);
 const measureState: { frame: number | undefined } = { frame: undefined };
 
 const preview = $derived(trim ? trimTextPreview(code) : { text: code });
-// The theme is part of the signature because Shiki colors are baked into the
-// highlighted HTML, so switching themes must re-tokenize this block.
-const signature = $derived(
-  `${$syntaxTheme}\0${language ?? ""}\0${preview.text}`,
-);
+const signature = $derived(`${language ?? ""}\0${preview.text}`);
 const hasFixedRows = $derived(fixedRows !== undefined && fixedRows > 0);
 const terminalHtml = $derived(ansiToHtml(preview.text));
 const isDiff = $derived(
@@ -415,16 +410,6 @@ $effect(() => {
 .code-block :global(code) {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-}
-
-.code-block__content:not(.code-block__content--diff) :global(span) {
-  color: var(--shiki-light, inherit);
-}
-
-:global(.dark)
-  .code-block__content:not(.code-block__content--diff)
-  :global(span) {
-  color: var(--shiki-dark, inherit);
 }
 
 .code-block__content--diff {

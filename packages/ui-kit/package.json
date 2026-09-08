@@ -40,7 +40,6 @@
     "@shikijs/core": "^4.1.0",
     "@shikijs/engine-javascript": "^4.1.0",
     "@shikijs/langs": "^4.1.0",
-    "@shikijs/themes": "^4.1.0",
     "@tanstack/svelte-virtual": "^3.13.29",
     "bits-ui": "^2.18.1",
     "clsx": "^2.1.1",

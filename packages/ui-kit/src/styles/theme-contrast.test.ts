@@ -209,12 +209,118 @@ function oklabDistance(left: Oklch, right: Oklch): number {
   return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 }
 
+/* Code role tokens are shared by the transcript's Shiki theme and the editor's
+ * CodeMirror highlight style, so they are held to the same readability bar as
+ * chrome text. Every theme must define a complete light/dark palette. */
+const syntaxRoles = [
+  "plain",
+  "variable",
+  "punctuation",
+  "comment",
+  "keyword",
+  "string",
+  "number",
+  "function",
+  "type",
+  "property",
+  "added",
+  "removed",
+  "changed",
+  "link",
+] as const;
+type SyntaxRole = (typeof syntaxRoles)[number];
+/* Roles that colour ordinary code side by side. Diff and link roles are excluded:
+ * they carry their own meaning and never compete for identification. */
+const distinguishableSyntaxRoles = [
+  "keyword",
+  "string",
+  "number",
+  "function",
+  "type",
+  "property",
+  "comment",
+] as const;
+const minimumSyntaxRoleDistance = 0.08;
+
+function parseSyntaxRoles(
+  theme: ColorTheme,
+  mode: ColorMode,
+): Record<SyntaxRole, Oklch> {
+  const block = themeBlock(theme, mode);
+  return Object.fromEntries(
+    syntaxRoles.map((role) => {
+      const match = block.match(
+        new RegExp(
+          `--syntax-${role}:\\s*oklch\\(\\s*([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)\\s*\\)`,
+        ),
+      );
+      assert.ok(match, `Missing --syntax-${role} in ${theme} ${mode}`);
+      return [role, match.slice(1, 4).map(Number) as unknown as Oklch];
+    }),
+  ) as Record<SyntaxRole, Oklch>;
+}
+
 function textContrastOf(tokens: Record<TokenName, Oklch>): number {
   return contrast(
     oklchToLinearRgb(tokens.foreground),
     oklchToLinearRgb(tokens.background),
   );
 }
+
+describe("syntax palette", () => {
+  it("keeps every code role readable on the surfaces code blocks sit on", () => {
+    for (const theme of colorThemes) {
+      for (const mode of colorModes) {
+        const roles = parseSyntaxRoles(theme, mode);
+        const tokens = themes[`${theme}-${mode}`];
+        for (const role of syntaxRoles) {
+          for (const surfaceName of ["well", "card", "background"] as const) {
+            assertContrast(
+              `${theme}-${mode}`,
+              `syntax-${role}`,
+              oklchToLinearRgb(roles[role]),
+              surfaceName,
+              oklchToLinearRgb(tokens[surfaceName]),
+            );
+          }
+        }
+      }
+    }
+  });
+
+  it("keeps code roles telling apart at a glance", () => {
+    for (const theme of colorThemes) {
+      for (const mode of colorModes) {
+        const roles = parseSyntaxRoles(theme, mode);
+        for (const [index, left] of distinguishableSyntaxRoles.entries()) {
+          for (const right of distinguishableSyntaxRoles.slice(index + 1)) {
+            const distance = oklabDistance(roles[left], roles[right]);
+            assert.ok(
+              distance >= minimumSyntaxRoleDistance,
+              `${theme}-${mode} syntax roles ${left} and ${right} differ by ${distance.toFixed(3)}, below the ${minimumSyntaxRoleDistance} needed to read as different roles`,
+            );
+          }
+        }
+      }
+    }
+  });
+
+  it("reserves hue for meaningful tokens", () => {
+    // Identifiers and punctuation are the most common tokens on screen; giving
+    // them chroma turns a code block into noise no matter how good the hues are.
+    for (const theme of colorThemes) {
+      for (const mode of colorModes) {
+        const roles = parseSyntaxRoles(theme, mode);
+        for (const role of ["plain", "variable", "punctuation"] as const) {
+          assert.ok(
+            roles[role][1] <= 0.04,
+            `${theme}-${mode} syntax-${role} chroma ${roles[role][1]} is too saturated for a token this frequent`,
+          );
+        }
+      }
+    }
+  });
+});
 
 describe("theme text contrast", () => {
   it("keeps filled semantic token pairs at WCAG AA contrast", () => {

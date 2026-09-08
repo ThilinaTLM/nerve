@@ -4,7 +4,6 @@ import {
   type ColorMode,
   type ColorTheme,
 } from "@nervekit/contracts/settings";
-import { setSyntaxTheme } from "@nervekit/ui-kit/highlighting/syntax-theme";
 import { setMode, userPrefersMode } from "mode-watcher";
 
 const COLOR_THEME_STORAGE_KEY = "nerve-color-theme";
@@ -43,9 +42,6 @@ export function applyColorTheme(theme = appearanceState.theme): void {
   if (typeof document !== "undefined") {
     document.documentElement.dataset.theme = theme;
   }
-  // Code blocks carry a large share of the workspace's color, so the syntax
-  // palette follows the theme rather than only the light/dark mode.
-  setSyntaxTheme(theme);
   if (typeof localStorage !== "undefined") storeColorTheme(theme);
 }
 

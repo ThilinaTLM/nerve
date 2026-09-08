@@ -4,11 +4,7 @@ import {
   createHighlightQueue,
   type HighlightQueueLease,
 } from "./highlight-queue";
-import {
-  currentSyntaxTheme,
-  SYNTAX_THEME_PAIRS,
-  type SyntaxTheme,
-} from "./syntax-theme";
+import { SYNTAX_THEME_NAME, syntaxTheme } from "./syntax-theme";
 
 const languageLoaders = {
   bash: () => import("@shikijs/langs/bash"),
@@ -29,33 +25,19 @@ const languageLoaders = {
   yaml: () => import("@shikijs/langs/yaml"),
 } as const;
 
+// One theme for every colour theme and mode: its colours are `--syntax-*` CSS
+// variables, so the palette is chosen at paint time rather than at tokenize
+// time. Nothing here has to reload when the user switches themes.
 const themeLoaders = {
-  "vitesse-light": () => import("@shikijs/themes/vitesse-light"),
-  "vitesse-dark": () => import("@shikijs/themes/vitesse-dark"),
-  "rose-pine-dawn": () => import("@shikijs/themes/rose-pine-dawn"),
-  "rose-pine": () => import("@shikijs/themes/rose-pine"),
-  "solarized-light": () => import("@shikijs/themes/solarized-light"),
-  "solarized-dark": () => import("@shikijs/themes/solarized-dark"),
-  "github-light-high-contrast": () =>
-    import("@shikijs/themes/github-light-high-contrast"),
-  "github-dark-high-contrast": () =>
-    import("@shikijs/themes/github-dark-high-contrast"),
+  [SYNTAX_THEME_NAME]: () => Promise.resolve(syntaxTheme),
 } as const;
-
-export const SHIKI_THEME_NAMES = Object.keys(
-  themeLoaders,
-) as (keyof typeof themeLoaders)[];
 
 type HighlightLanguage = keyof typeof languageLoaders;
 type HighlightTheme = keyof typeof themeLoaders;
 type HighlighterLike = {
   codeToHtml: (
     code: string,
-    options: {
-      lang: HighlightLanguage;
-      themes: { light: HighlightTheme; dark: HighlightTheme };
-      defaultColor: false;
-    },
+    options: { lang: HighlightLanguage; theme: HighlightTheme },
   ) => Promise<string>;
 };
 
@@ -157,17 +139,9 @@ async function getHighlighter(): Promise<HighlighterLike> {
 async function performHighlight(
   code: string,
   lang: HighlightLanguage,
-  theme: SyntaxTheme,
 ): Promise<string> {
   const highlighter = await getHighlighter();
-  const pair = SYNTAX_THEME_PAIRS[theme];
-  return highlighter.codeToHtml(code, {
-    lang,
-    // Both variants are always emitted as --shiki-light/--shiki-dark, so the
-    // color mode still switches in CSS; only the theme forces a re-highlight.
-    themes: { light: pair.light, dark: pair.dark },
-    defaultColor: false,
-  });
+  return highlighter.codeToHtml(code, { lang, theme: SYNTAX_THEME_NAME });
 }
 
 export async function highlightCode(
@@ -176,40 +150,35 @@ export async function highlightCode(
 ): Promise<string | undefined> {
   const lang = normalizeHighlightLanguage(language);
   if (!lang || !isWithinHighlightBudget(code)) return undefined;
-  const theme = currentSyntaxTheme();
-  return runWhenIdle(() => performHighlight(code, lang, theme));
+  return runWhenIdle(() => performHighlight(code, lang));
 }
 
 /**
- * The active theme is part of the key so a cached result is never replayed
- * under a palette it was not tokenized for.
+ * Highlighted markup carries CSS variables rather than resolved colours, so a
+ * cached result stays valid under every theme and colour mode.
  */
 export function highlightCacheKey(
   code: string,
   lang: HighlightLanguage,
-  theme: SyntaxTheme,
 ): string {
-  return `${theme}\0${lang}\0${code}`;
+  return `${lang}\0${code}`;
 }
 
 function splitHighlightCacheKey(key: string): {
   code: string;
   lang: HighlightLanguage;
-  theme: SyntaxTheme;
 } {
-  const themeEnd = key.indexOf("\0");
-  const langEnd = key.indexOf("\0", themeEnd + 1);
+  const langEnd = key.indexOf("\0");
   return {
-    theme: key.slice(0, themeEnd) as SyntaxTheme,
-    lang: key.slice(themeEnd + 1, langEnd) as HighlightLanguage,
+    lang: key.slice(0, langEnd) as HighlightLanguage,
     code: key.slice(langEnd + 1),
   };
 }
 
 const highlightQueue = createHighlightQueue<string>({
   load: (key) => {
-    const { code, lang, theme } = splitHighlightCacheKey(key);
-    return performHighlight(code, lang, theme);
+    const { code, lang } = splitHighlightCacheKey(key);
+    return performHighlight(code, lang);
   },
   schedule: scheduleWhenIdle,
   lookup: (key) => ({
@@ -231,9 +200,7 @@ export function acquireHighlightCode(
   if (!lang || !isWithinHighlightBudget(code)) {
     return { result: undefined, release: () => undefined };
   }
-  return highlightQueue.acquire(
-    highlightCacheKey(code, lang, currentSyntaxTheme()),
-  );
+  return highlightQueue.acquire(highlightCacheKey(code, lang));
 }
 
 /** Cached highlighting for non-cancellable consumers such as Markdown. */
