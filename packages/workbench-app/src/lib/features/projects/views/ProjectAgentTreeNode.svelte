@@ -57,7 +57,7 @@ const tooltip = $derived(
 </script>
 
 <PanelRowCard
-  itemKey={row.conversation.id}
+  selected={isActive}
   {menuItems}
   onclick={() => onOpenConversation?.(row.conversation.id)}
 >

@@ -152,6 +152,19 @@ export function createWorkbenchGitPanelAdapter(
           creatingBranch: false,
         },
         capabilities,
+        repoBranchState: (repository: string) => {
+          const state = projectState?.repoStates[gitRepoStateKey(repository)];
+          return {
+            repoSummary:
+              state?.repoSummary ??
+              repositories.find((repo) => repo.relativePath === repository),
+            branches: state?.branches ?? [],
+            prHeads: state?.prHeads,
+            loadingBranches: state?.loadingBranches ?? false,
+            loadingPrHeads: state?.loadingPrHeads ?? false,
+            switchingBranch: state?.operations?.switchingBranch,
+          };
+        },
       };
     },
     actions: undefined as unknown as GitPanelActions,

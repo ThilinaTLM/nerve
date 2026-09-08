@@ -97,11 +97,7 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
   />
 </form>
 
-<ItemScrollRegion
-  bind:viewport={scrollEl}
-  activeKey={activeProjectKey}
-  contentClass="p-2"
->
+<ItemScrollRegion bind:viewport={scrollEl} contentClass="p-2">
   {#if pathQuery}
     <button
       type="button"
@@ -141,7 +137,8 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
             role="option"
             ariaSelected={selected}
             tabindex={-1}
-            itemKey={item.key}
+            tone="row"
+            selected={item.key === activeProjectKey}
             menuItems={projectMenu(item)}
             hover="default"
             class={`group w-full cursor-pointer items-center gap-2.5 border border-transparent px-2.5 py-1.5 text-left focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none ${

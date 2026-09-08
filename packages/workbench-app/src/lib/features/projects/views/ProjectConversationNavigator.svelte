@@ -184,7 +184,6 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     {:else}
       <PanelScrollRegion
         ariaLabel="Conversations"
-        activeKey={selectedConversationId}
         topShadowClass="top-7 h-2"
         contentClass="pb-2"
       >

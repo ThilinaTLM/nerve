@@ -6,6 +6,8 @@ import { cn } from "@nervekit/ui-kit/utils";
 
 type SurfaceElement = "div" | "section";
 type SurfaceHover = "none" | "soft" | "default";
+/** `card` keeps the recessed content slab; `row` stays flat so selection reads. */
+type SurfaceTone = "card" | "row";
 
 let {
   element = "div",
@@ -14,7 +16,8 @@ let {
   tabindex,
   ariaLabel,
   ariaSelected,
-  itemKey,
+  tone = "card",
+  selected = false,
   hover = "none",
   focusWithin = false,
   menuItems,
@@ -34,7 +37,9 @@ let {
   tabindex?: number;
   ariaLabel?: string;
   ariaSelected?: boolean;
-  itemKey?: string;
+  tone?: SurfaceTone;
+  /** Marks the surface as the collection's current item. */
+  selected?: boolean;
   hover?: SurfaceHover;
   focusWithin?: boolean;
   menuItems?: ContextMenuItem[];
@@ -51,10 +56,13 @@ let {
 
 const surfaceClass = $derived(
   cn(
-    "flex min-w-0 rounded-md bg-accent/60 transition-colors dark:bg-accent/35",
+    "flex min-w-0 rounded-md transition-colors",
+    tone === "card" && "bg-accent/60 dark:bg-accent/35",
     hover === "soft" && "hover:bg-accent/80 dark:hover:bg-accent/40",
     hover === "default" && "hover:bg-accent/90 dark:hover:bg-accent/60",
     focusWithin && "focus-within:bg-accent/90 dark:focus-within:bg-accent/60",
+    // Selection wins over both tones and any hover step.
+    selected && "bg-primary/15 font-medium text-foreground hover:bg-primary/15",
     className,
   ),
 );
@@ -68,7 +76,6 @@ const surfaceClass = $derived(
     {tabindex}
     aria-label={ariaLabel}
     aria-selected={ariaSelected}
-    data-active-outline-key={itemKey}
     class={surfaceClass}
     {onclick}
     {onkeydown}

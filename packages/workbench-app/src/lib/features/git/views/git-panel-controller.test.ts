@@ -12,6 +12,7 @@ import {
   gitFilesInScope,
   gitPathspecs,
   groupBranchesForDialog,
+  shouldLoadRepoBranches,
 } from "./git-panel-controller.js";
 
 function change(
@@ -200,4 +201,18 @@ test("deduplicates current and previous rename pathspecs", () => {
     ]),
     ["new/name.ts", "old/name.ts"],
   );
+});
+
+test("loads a repository's branches once per picker, retrying empty results", () => {
+  const requested = new Set<string>();
+  // First open of any repository always fetches.
+  assert.equal(shouldLoadRepoBranches(requested, "api", 0), true);
+  requested.add("api");
+  // A cached list is not refetched on reopen.
+  assert.equal(shouldLoadRepoBranches(requested, "api", 4), false);
+  // An earlier request that yielded nothing is retried instead of stranding
+  // the picker on a permanently empty list.
+  assert.equal(shouldLoadRepoBranches(requested, "api", 0), true);
+  // Requesting one repository never satisfies another.
+  assert.equal(shouldLoadRepoBranches(requested, "web-app", 7), true);
 });

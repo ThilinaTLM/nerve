@@ -168,6 +168,20 @@ export function groupBranchesForDialog(
   };
 }
 
+/**
+ * Branch lists are fetched per repository, so each repo's branch picker loads
+ * its own on first open. A repository is re-requested when a previous request
+ * produced nothing, so an empty or failed load can still recover.
+ */
+export function shouldLoadRepoBranches(
+  requested: ReadonlySet<string>,
+  repository: string,
+  cachedBranchCount: number,
+): boolean {
+  if (!requested.has(repository)) return true;
+  return cachedBranchCount === 0;
+}
+
 export const defaultGitPrFilterConfig: GitPrFilterConfig = {
   author: "any",
   username: "",

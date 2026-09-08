@@ -1,48 +1,55 @@
 <script lang="ts">
-import type { GitRepoSummary } from "@nervekit/contracts/git";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { ItemCollection, ItemSurface } from "$lib/presentation";
-import { repoButtonLabel, repoPathLabel } from "./git-change-format";
+import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts/git";
+import type { GitBranchDialogRow } from "./git-panel-controller";
 import type { FeatureCapability } from "./git-panel-types";
+import GitRepoBranchRow from "./GitRepoBranchRow.svelte";
 
 type Props = {
   repos: GitRepoSummary[];
   selectedRepo: string;
   selectCapability: FeatureCapability;
-  onSelectRepo: (value: string) => void;
+  onSelectRepo: (repository: string) => void;
+  /** Omitted by surfaces that only choose a repository, such as the PR panel. */
+  branches?: {
+    readonly capability: FeatureCapability;
+    readonly rowsFor: (repository: string) => readonly GitBranchDialogRow[];
+    readonly loadingFor: (repository: string) => boolean;
+    readonly switchingFor: (repository: string) => string | undefined;
+    readonly onLoad: (repository: string) => void;
+    readonly onSwitch: (repository: string, branch: GitBranchSummary) => void;
+    readonly onManage: (repository: string) => void;
+    readonly onCreate: (repository: string) => void;
+  };
 };
 
-let { repos, selectedRepo, selectCapability, onSelectRepo }: Props = $props();
+let { repos, selectedRepo, selectCapability, onSelectRepo, branches }: Props =
+  $props();
+
+/* With a single repository there is nothing to choose between, so the
+ * selection tint would be noise rather than information. */
+const selectable = $derived(repos.length > 1);
 </script>
 
-{#if repos.length > 1}
-  <ItemCollection
-    activeKey={selectedRepo}
-    class="flex w-full flex-wrap items-start gap-1"
-  >
-    {#each repos as candidate (candidate.relativePath)}
-      {@const active = candidate.relativePath === selectedRepo}
-      <ItemSurface
-        itemKey={candidate.relativePath}
-        hover="soft"
-        class="min-w-0 max-w-28 overflow-hidden"
-      >
-        <Button
-          variant="ghost"
-          size="xs"
-          disabled={!selectCapability.enabled}
-          pressed={active}
-          aria-current={active ? "page" : undefined}
-          aria-label={`Switch to ${repoPathLabel(candidate)}`}
-          title={repoPathLabel(candidate)}
-          class={`w-full min-w-0 rounded-md bg-transparent px-2 hover:bg-transparent dark:hover:bg-transparent ${active ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          onclick={() => onSelectRepo(candidate.relativePath)}
-        >
-          <span class="block truncate font-mono"
-            >{repoButtonLabel(candidate, repos)}</span
-          >
-        </Button>
-      </ItemSurface>
-    {/each}
-  </ItemCollection>
-{/if}
+<div class="flex w-full min-w-0 flex-col gap-0.5">
+  {#each repos as repo (repo.relativePath)}
+    <GitRepoBranchRow
+      {repo}
+      {repos}
+      selected={selectable && repo.relativePath === selectedRepo}
+      selectEnabled={selectable && selectCapability.enabled}
+      {onSelectRepo}
+      branchPicker={branches
+        ? {
+            rows: branches.rowsFor(repo.relativePath),
+            loading: branches.loadingFor(repo.relativePath),
+            enabled: branches.capability.enabled,
+            switchingBranch: branches.switchingFor(repo.relativePath),
+            onLoad: branches.onLoad,
+            onSwitch: branches.onSwitch,
+            onManage: branches.onManage,
+            onCreate: branches.onCreate,
+          }
+        : undefined}
+    />
+  {/each}
+</div>

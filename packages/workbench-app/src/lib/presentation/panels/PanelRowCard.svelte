@@ -5,7 +5,7 @@ import { ItemSurface } from "$lib/presentation/items";
 
 let {
   role = "none",
-  itemKey,
+  selected = false,
   menuItems,
   menuDisabled = false,
   class: className,
@@ -14,7 +14,8 @@ let {
 }: {
   /** Outer semantics; rows inside already carry `listitem` where needed. */
   role?: "listitem" | "none";
-  itemKey?: string;
+  /** Marks this card as the list's current item. */
+  selected?: boolean;
   menuItems?: ContextMenuItem[];
   menuDisabled?: boolean;
   class?: string;
@@ -25,10 +26,11 @@ let {
 
 <ItemSurface
   {role}
-  {itemKey}
+  tone="row"
+  {selected}
   {menuItems}
   {menuDisabled}
-  class={`panel-row-card flex-col px-1 py-0.5 ${className ?? ""}`}
+  class={`${selected ? "panel-row-card-selected " : ""}flex-col px-1 py-0.5 ${className ?? ""}`}
   {onclick}
 >
   {@render children()}

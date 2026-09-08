@@ -24,7 +24,6 @@ import {
   PanelView,
   createPanelRowFit,
 } from "$lib/presentation/panels";
-import { ItemCollection } from "$lib/presentation/items";
 import TaskDefinitionDialog from "./TaskDefinitionDialog.svelte";
 import TaskDefinitionRow from "./TaskDefinitionRow.svelte";
 import TaskOutputPane from "./TaskOutputPane.svelte";
@@ -190,10 +189,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
 </script>
 
 {#snippet taskList()}
-  <ItemCollection
-    activeKey={activeItemKey}
-    class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-  >
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
     <div
       class="flex min-w-0 flex-col overflow-y-auto"
       class:flex-1={!model.definitionsLoading &&
@@ -299,7 +295,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
         {/if}
       </div>
     {/if}
-  </ItemCollection>
+  </div>
 {/snippet}
 
 <div class="h-full min-h-0" bind:clientWidth={panelWidth}>

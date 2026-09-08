@@ -84,6 +84,16 @@ export interface GitPanelOperationState {
   readonly stashMutation?: StashMutation;
 }
 
+/** Branch-picker state for one repository, selected or not. */
+export interface GitRepoBranchState {
+  readonly repoSummary?: GitRepoSummary;
+  readonly branches: readonly GitBranchSummary[];
+  readonly prHeads?: GithubPrHeadsResponse;
+  readonly loadingBranches: boolean;
+  readonly loadingPrHeads: boolean;
+  readonly switchingBranch?: string;
+}
+
 export interface GitPanelModel {
   readonly availability:
     | { readonly available: true }
@@ -111,6 +121,8 @@ export interface GitPanelModel {
   readonly pullRequestError?: string;
   readonly operations: GitPanelOperationState;
   readonly capabilities: GitPanelCapabilities;
+  /** Per-repository branch state so every repo can show and switch branches. */
+  readonly repoBranchState: (repository: string) => GitRepoBranchState;
 }
 
 export interface GitPanelActions {
