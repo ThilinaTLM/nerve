@@ -17,6 +17,8 @@ import {
   SettingsSidebarStatus,
 } from "$lib/presentation/settings";
 import { settingsPages } from "$lib/features/settings/registry/settings-pages";
+import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { parseModelKey } from "$lib/presentation/utils/model";
 import {
   skillSourceLabels,
   skillSourceSectionIds,
@@ -152,6 +154,18 @@ const modelsPageState = new ModelsPageState();
 const suggestionsPageState = new SuggestionsPageState();
 const storageController = new StoragePageController();
 
+/** The composer's live selection is what "remember my last selection" saves. */
+function readComposerSelection(): Settings["lastAgentSelection"] {
+  const model = parseModelKey(conversationState.selectedModelKey);
+  return {
+    mode: conversationState.selectedMode,
+    permissionLevel: conversationState.selectedPermissionLevel,
+    permissionRuleSetId: conversationState.selectedPermissionRuleSetId,
+    ...(model ? { model } : {}),
+    thinkingLevel: conversationState.selectedThinkingLevel,
+  };
+}
+
 function statusText(): string {
   if (settingsMessage) return settingsMessage;
   if (settingsSaveStatus === "saving") return "Saving…";
@@ -220,6 +234,7 @@ function statusText(): string {
           {settingsDraft}
           {models}
           {authProviders}
+          {readComposerSelection}
           {onSettingsChange}
         />
       {:else if page.id === "providers"}

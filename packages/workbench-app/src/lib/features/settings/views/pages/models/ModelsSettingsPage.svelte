@@ -2,7 +2,6 @@
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { clampThinkingLevelForModel } from "$lib/application/preferences/agent-selection";
 import type {
   AgentRecord,
@@ -25,7 +24,6 @@ import {
   authenticatedRealModelOptions,
   modelDisplayName,
   modelKey,
-  parseModelKey,
   providerDisplayName,
 } from "$lib/presentation/utils/model";
 import type { SettingsChange } from "../settings-change";
@@ -47,6 +45,8 @@ type Props = {
   settingsDraft: Settings;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
+  /** Reads the composer's live selection; owned by app composition. */
+  readComposerSelection?: () => Settings["lastAgentSelection"];
   onSettingsChange?: SettingsChange;
 };
 
@@ -55,6 +55,7 @@ let {
   settingsDraft,
   models = [],
   authProviders = [],
+  readComposerSelection,
   onSettingsChange,
 }: Props = $props();
 
@@ -115,19 +116,23 @@ function onRememberLastSelectionChange(checked: boolean): void {
     return;
   }
 
-  const model = parseModelKey(conversationState.selectedModelKey);
-  const lastAgentSelection = {
-    mode: conversationState.selectedMode,
-    permissionLevel: conversationState.selectedPermissionLevel,
-    permissionRuleSetId: conversationState.selectedPermissionRuleSetId,
-    ...(model ? { model } : {}),
-    thinkingLevel: conversationState.selectedThinkingLevel,
-  } satisfies Settings["lastAgentSelection"];
+  const lastAgentSelection = readComposerSelection?.();
+  if (!lastAgentSelection) {
+    onSettingsChange?.(
+      { rememberLastAgentSelection: true },
+      { immediate: true },
+    );
+    return;
+  }
+
   settingsDraft.lastAgentSelection = lastAgentSelection;
   onSettingsChange?.(
     {
       rememberLastAgentSelection: true,
-      lastAgentSelection: { ...lastAgentSelection, model: model ?? null },
+      lastAgentSelection: {
+        ...lastAgentSelection,
+        model: lastAgentSelection.model ?? null,
+      },
     },
     { immediate: true },
   );

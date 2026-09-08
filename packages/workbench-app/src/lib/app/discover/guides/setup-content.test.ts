@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
-import { setupGuideSteps } from "$lib/app/discover/guides/setup-content";
+import { setupGuideSteps } from "./setup-content";
 
 /* Guide steps navigate Settings by page and section id. Those ids are plain
  * strings, so moving a page silently strands a step on a target that no longer
@@ -13,7 +13,12 @@ import { setupGuideSteps } from "$lib/app/discover/guides/setup-content";
  * test runner cannot load, so the page shape is read from source the same way
  * the theme drift guards read `theme.css`. */
 const registrySource = readFileSync(
-  fileURLToPath(new URL("./settings-pages.ts", import.meta.url)),
+  fileURLToPath(
+    new URL(
+      "../../../features/settings/registry/settings-pages.ts",
+      import.meta.url,
+    ),
+  ),
   "utf8",
 );
 
@@ -32,7 +37,7 @@ function parseRegistry(): Map<string, Set<string>> {
   return pages;
 }
 
-describe("settings page registry", () => {
+describe("setup guide settings targets", () => {
   const sectionsByPage = parseRegistry();
 
   it("parses every registered page", () => {
