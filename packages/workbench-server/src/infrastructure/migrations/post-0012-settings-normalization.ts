@@ -1,6 +1,7 @@
 import {
   defaultNotificationEventSounds,
   defaultSettings,
+  retiredColorThemes,
   type Settings,
   settingsSchema,
 } from "@nervekit/contracts/settings";
@@ -113,6 +114,27 @@ function migrateRemovedNotificationTones(value: unknown): {
     : { value, changed: false };
 }
 
+/**
+ * Ocean and Forest were replaced by Solar and Rosé. Map each retired id to its
+ * closest successor so an existing choice survives instead of failing schema
+ * validation and silently resetting to the default theme.
+ */
+function migrateRetiredColorThemes(value: unknown): {
+  value: unknown;
+  changed: boolean;
+} {
+  const settings = objectRecord(value);
+  const ui = objectRecord(settings?.ui);
+  if (!settings || !ui) return { value, changed: false };
+  const successor =
+    retiredColorThemes[String(ui.theme) as keyof typeof retiredColorThemes];
+  if (!successor) return { value, changed: false };
+  return {
+    value: { ...settings, ui: { ...ui, theme: successor } },
+    changed: true,
+  };
+}
+
 function migrateLegacyPermissionSettings(value: unknown): {
   value: unknown;
   changed: boolean;
@@ -131,6 +153,7 @@ export function normalizeSettings(value: unknown): {
   const steps = [
     migrateApplicationConfiguration,
     migrateLegacyAppearanceSettings,
+    migrateRetiredColorThemes,
     migrateLegacyToolNames,
     migrateLegacyPermissionSettings,
     migrateImageExplanationTool,

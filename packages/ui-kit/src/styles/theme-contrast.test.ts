@@ -17,7 +17,7 @@ const badgeSource = readFileSync(
 
 type Oklch = readonly [lightness: number, chroma: number, hue: number];
 type LinearRgb = readonly [red: number, green: number, blue: number];
-type ColorTheme = "nerve" | "ocean" | "forest" | "midnight";
+type ColorTheme = "nerve" | "rose" | "solar" | "midnight";
 type ColorMode = "light" | "dark";
 type ThemeName = `${ColorTheme}-${ColorMode}`;
 
@@ -125,7 +125,7 @@ function assertContrast(
   );
 }
 
-const colorThemes = ["nerve", "ocean", "forest", "midnight"] as const;
+const colorThemes = ["nerve", "rose", "solar", "midnight"] as const;
 const colorModes = ["light", "dark"] as const;
 
 const themes = Object.fromEntries(

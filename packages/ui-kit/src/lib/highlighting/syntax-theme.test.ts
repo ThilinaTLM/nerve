@@ -53,13 +53,13 @@ describe("syntax theme binding", () => {
     const seen: SyntaxTheme[] = [];
     const unsubscribe = syntaxTheme.subscribe((theme) => seen.push(theme));
 
-    setSyntaxTheme("forest");
-    setSyntaxTheme("forest");
+    setSyntaxTheme("rose");
+    setSyntaxTheme("rose");
     setSyntaxTheme("not-a-theme");
-    setSyntaxTheme("ocean");
+    setSyntaxTheme("solar");
 
-    assert.deepEqual(seen, ["nerve", "forest", "ocean"]);
-    assert.equal(currentSyntaxTheme(), "ocean");
+    assert.deepEqual(seen, ["nerve", "rose", "solar"]);
+    assert.equal(currentSyntaxTheme(), "solar");
 
     unsubscribe();
     setSyntaxTheme("nerve");

@@ -32,10 +32,10 @@ const languageLoaders = {
 const themeLoaders = {
   "vitesse-light": () => import("@shikijs/themes/vitesse-light"),
   "vitesse-dark": () => import("@shikijs/themes/vitesse-dark"),
-  "catppuccin-latte": () => import("@shikijs/themes/catppuccin-latte"),
-  "tokyo-night": () => import("@shikijs/themes/tokyo-night"),
-  "everforest-light": () => import("@shikijs/themes/everforest-light"),
-  "everforest-dark": () => import("@shikijs/themes/everforest-dark"),
+  "rose-pine-dawn": () => import("@shikijs/themes/rose-pine-dawn"),
+  "rose-pine": () => import("@shikijs/themes/rose-pine"),
+  "solarized-light": () => import("@shikijs/themes/solarized-light"),
+  "solarized-dark": () => import("@shikijs/themes/solarized-dark"),
   "github-light-high-contrast": () =>
     import("@shikijs/themes/github-light-high-contrast"),
   "github-dark-high-contrast": () =>

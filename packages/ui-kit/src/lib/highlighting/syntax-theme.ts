@@ -12,8 +12,8 @@
 
 export const SYNTAX_THEME_PAIRS = {
   nerve: { light: "vitesse-light", dark: "vitesse-dark" },
-  ocean: { light: "catppuccin-latte", dark: "tokyo-night" },
-  forest: { light: "everforest-light", dark: "everforest-dark" },
+  rose: { light: "rose-pine-dawn", dark: "rose-pine" },
+  solar: { light: "solarized-light", dark: "solarized-dark" },
   midnight: {
     light: "github-light-high-contrast",
     dark: "github-dark-high-contrast",

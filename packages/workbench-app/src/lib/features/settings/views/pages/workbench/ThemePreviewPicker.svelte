@@ -1,8 +1,8 @@
 <script lang="ts">
-import Droplets from "@lucide/svelte/icons/droplets";
-import Leaf from "@lucide/svelte/icons/leaf";
+import Flower2 from "@lucide/svelte/icons/flower-2";
 import Moon from "@lucide/svelte/icons/moon";
 import Palette from "@lucide/svelte/icons/palette";
+import Sun from "@lucide/svelte/icons/sun";
 import {
   SettingsPreviewCards,
   type SettingsPreviewOption,
@@ -10,8 +10,8 @@ import {
 
 const options: SettingsPreviewOption[] = [
   { value: "nerve", label: "Nerve", icon: Palette },
-  { value: "ocean", label: "Ocean", icon: Droplets },
-  { value: "forest", label: "Forest", icon: Leaf },
+  { value: "rose", label: "Rosé", icon: Flower2 },
+  { value: "solar", label: "Solar", icon: Sun },
   { value: "midnight", label: "Midnight", icon: Moon },
 ];
 
