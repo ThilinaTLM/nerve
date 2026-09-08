@@ -30,6 +30,7 @@ import {
   type ToolName,
   type UserConfigurableToolName,
 } from "@nervekit/contracts/tools";
+import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";
@@ -130,8 +131,11 @@ export class WorkbenchAgentMechanics {
 
   async activeToolNamesFor(
     agent: AgentRecord,
-    disabledToolNames?: readonly UserConfigurableToolName[],
+    disabledToolNames?: readonly CapabilityToolName[],
   ): Promise<ToolName[]> {
+    const disabled = disabledToolNames
+      ? new Set<CapabilityToolName>(disabledToolNames)
+      : undefined;
     const pythonAvailable = await this.deps.pythonRuntime.isAvailableForProject(
       agent.projectDir,
     );
@@ -160,9 +164,14 @@ export class WorkbenchAgentMechanics {
     );
     return activeToolNamesForAgent(agent, {
       pythonAvailable,
-      disabledToolNames: disabledToolNames ?? settings.tools.disabled,
-      jiraEnabled: settings.tools.jira.enabled,
-      confluenceEnabled: settings.tools.confluence.enabled,
+      disabledToolNames: (disabledToolNames ?? settings.tools.disabled).filter(
+        (name): name is UserConfigurableToolName =>
+          name !== "jira" && name !== "confluence",
+      ),
+      jiraEnabled:
+        settings.tools.jira.enabled && !disabled?.has("jira"),
+      confluenceEnabled:
+        settings.tools.confluence.enabled && !disabled?.has("confluence"),
       imageExplanationAvailable,
       primaryModelSupportsImages: (primaryModel.input ?? ["text"]).includes(
         "image",

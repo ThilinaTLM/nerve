@@ -5,7 +5,7 @@ import type {
   Settings,
   StatusResponse,
 } from "$lib/api";
-import { SettingsSection } from "$lib/presentation/settings";
+import { SettingsList, SettingsSection } from "$lib/presentation/settings";
 import type { SettingsChange } from "../settings-change";
 import ToolCatalogSection from "./ToolCatalogSection.svelte";
 import ThirdPartyProviderToolsSection from "./ThirdPartyProviderToolsSection.svelte";
@@ -28,29 +28,33 @@ let {
 </script>
 
 <SettingsSection id="core" title="Core">
-  <ToolCatalogSection
-    {settingsDraft}
-    {status}
-    {authProviders}
-    {models}
-    {onSettingsChange}
-    category="core"
-  />
+  <SettingsList ariaLabel="Core tool groups">
+    <ToolCatalogSection
+      {settingsDraft}
+      {status}
+      {authProviders}
+      {models}
+      {onSettingsChange}
+      category="core"
+    />
+  </SettingsList>
 </SettingsSection>
 
 <SettingsSection id="third-party" title="Third party">
-  <ToolCatalogSection
-    {settingsDraft}
-    {status}
-    {authProviders}
-    {models}
-    {onSettingsChange}
-    category="third-party"
-  />
+  <SettingsList ariaLabel="Third-party tool groups">
+    <ToolCatalogSection
+      {settingsDraft}
+      {status}
+      {authProviders}
+      {models}
+      {onSettingsChange}
+      category="third-party"
+    />
 
-  <ThirdPartyProviderToolsSection
-    {settingsDraft}
-    {authProviders}
-    {onSettingsChange}
-  />
+    <ThirdPartyProviderToolsSection
+      {settingsDraft}
+      {authProviders}
+      {onSettingsChange}
+    />
+  </SettingsList>
 </SettingsSection>

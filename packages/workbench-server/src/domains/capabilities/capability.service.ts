@@ -12,8 +12,10 @@ import {
   type CapabilityOverridesDocument,
   type CapabilityPatch,
   type CapabilitySelection,
+  type CapabilityToolName,
   type CapabilityTrust,
 } from "@nervekit/contracts/capabilities";
+import { userConfigurableToolNameSchema } from "@nervekit/contracts/tools";
 import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { z } from "zod";
@@ -23,6 +25,7 @@ import {
   type InitializedStorage,
 } from "../../infrastructure/storage-bootstrap/index.js";
 
+const userConfigurableToolNames = userConfigurableToolNameSchema.options;
 const TRUST_NAMESPACE = "project-capability-trust";
 const TRUST_SCOPE = "projects";
 const trustRecordSchema = z.object({
@@ -78,6 +81,7 @@ export class CapabilityService {
         project: trustedProject,
         conversation: conversationRead?.document,
       }),
+      availableTools: this.availableTools(),
       trust: projectRead.trust,
       projectDigest: projectRead.digest ?? "missing",
       ...(conversationId
@@ -199,9 +203,27 @@ export class CapabilityService {
     await rm(this.conversationPath(conversationId), { force: true });
   }
 
+  /**
+   * Integration tools are only offered once their provider profile is picked,
+   * because a project cannot supply the credentials behind them.
+   */
+  private availableTools(): CapabilityToolName[] {
+    const tools = this.storage.settings.tools;
+    return [
+      ...userConfigurableToolNames,
+      ...(tools.jira.profileId ? (["jira"] as const) : []),
+      ...(tools.confluence.profileId ? (["confluence"] as const) : []),
+    ];
+  }
+
   private userSelection(): CapabilitySelection {
+    const tools = this.storage.settings.tools;
     return {
-      disabledTools: this.storage.settings.tools.disabled,
+      disabledTools: [
+        ...tools.disabled,
+        ...(tools.jira.enabled ? [] : (["jira"] as const)),
+        ...(tools.confluence.enabled ? [] : (["confluence"] as const)),
+      ],
       disabledFileSkills: this.storage.settings.skills.disabled,
       enabledAgentBrowserSkills:
         this.storage.settings.skills.agentBrowser.enabled,

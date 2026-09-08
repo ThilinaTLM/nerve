@@ -76,7 +76,7 @@ let {
   </div>
 
   {#if actions}
-    <div class="flex flex-none items-center gap-0.5">
+    <div class="flex flex-none items-center gap-2">
       {@render actions()}
     </div>
   {/if}

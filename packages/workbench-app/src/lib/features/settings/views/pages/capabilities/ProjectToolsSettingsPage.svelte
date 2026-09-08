@@ -3,6 +3,7 @@ import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import type {
   CapabilityConfiguration,
   CapabilityPatch,
+  CapabilityToolName,
 } from "@nervekit/contracts/capabilities";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
@@ -18,12 +19,8 @@ import {
   SettingsSection,
   SettingsToolbar,
 } from "$lib/presentation/settings";
-import {
-  toolGroups,
-  type ConfigurableToolName,
-  type ToolCategory,
-  type ToolGroupDef,
-} from "../tools/tool-catalog";
+import { providerToolGroups } from "../tools/provider-tool-catalog";
+import { toolGroups, type ToolGroupDef } from "../tools/tool-catalog";
 import ToolGroupItem from "../tools/ToolGroupItem.svelte";
 import ProjectCapabilityTrustNotice from "./ProjectCapabilityTrustNotice.svelte";
 
@@ -49,50 +46,85 @@ let {
   onRetry,
 }: Props = $props();
 
+/** One toggle row: a catalog group, or an integration toggled as a whole. */
+type ToolRow = {
+  id: string;
+  label: string;
+  description: string;
+  tools: { name: string; description: string }[];
+  names: CapabilityToolName[];
+};
+
 const overrides = $derived(configuration?.project.tools ?? {});
+const available = $derived(new Set(configuration?.availableTools ?? []));
 const locked = $derived(
   configuration?.trust.status === "untrusted" ||
     configuration?.trust.status === "invalid",
 );
 const overrideCount = $derived(Object.keys(overrides).length);
 
-function userEnabled(name: ConfigurableToolName): boolean {
+function catalogRow(group: ToolGroupDef): ToolRow {
+  return {
+    id: group.id,
+    label: group.label,
+    description: group.description,
+    tools: group.tools,
+    names: group.configurableTools,
+  };
+}
+
+const coreRows = $derived(
+  toolGroups.filter((group) => group.category === "core").map(catalogRow),
+);
+const thirdPartyRows = $derived([
+  ...toolGroups
+    .filter((group) => group.category === "third-party")
+    .map(catalogRow),
+  ...providerToolGroups
+    .filter((integration) => available.has(integration.id))
+    .map((integration) => ({
+      id: integration.id,
+      label: integration.label,
+      description: integration.description,
+      tools: integration.tools,
+      names: [integration.id] as CapabilityToolName[],
+    })),
+]);
+
+function userEnabled(name: CapabilityToolName): boolean {
+  if (name === "jira") return settingsDraft.tools.jira.enabled;
+  if (name === "confluence") return settingsDraft.tools.confluence.enabled;
   return !settingsDraft.tools.disabled.includes(name);
 }
 
-function groupEnabled(group: ToolGroupDef): boolean {
-  return group.configurableTools.every(
-    (name) => overrides[name] ?? userEnabled(name),
-  );
+function rowEnabled(row: ToolRow): boolean {
+  return row.names.every((name) => overrides[name] ?? userEnabled(name));
 }
 
-function groupOverridden(group: ToolGroupDef): boolean {
-  return group.configurableTools.some((name) => overrides[name] !== undefined);
+function rowOverridden(row: ToolRow): boolean {
+  return row.names.some((name) => overrides[name] !== undefined);
 }
 
-function setGroup(group: ToolGroupDef, enabled: boolean): void {
+function inheritedLabel(row: ToolRow): string {
+  return row.names.every((name) => userEnabled(name)) ? "On" : "Off";
+}
+
+function setRow(row: ToolRow, enabled: boolean): void {
   const tools: Record<string, boolean> = {};
-  for (const name of group.configurableTools) tools[name] = enabled;
+  for (const name of row.names) tools[name] = enabled;
   onPatch?.({ tools });
 }
 
-function resetGroup(group: ToolGroupDef): void {
+function resetRow(row: ToolRow): void {
   const tools: Record<string, null> = {};
-  for (const name of group.configurableTools) tools[name] = null;
+  for (const name of row.names) tools[name] = null;
   onPatch?.({ tools });
 }
 
-function inheritedLabel(group: ToolGroupDef): string {
-  return group.configurableTools.every((name) => userEnabled(name))
-    ? "On"
-    : "Off";
-}
-
-const categories: Array<{ id: string; category: ToolCategory; title: string }> =
-  [
-    { id: "core", category: "core", title: "Core" },
-    { id: "third-party", category: "third-party", title: "Third party" },
-  ];
+const sections = $derived([
+  { id: "core", title: "Core", rows: coreRows },
+  { id: "third-party", title: "Third party", rows: thirdPartyRows },
+]);
 </script>
 
 {#if error}
@@ -135,67 +167,64 @@ const categories: Array<{ id: string; category: ToolCategory; title: string }> =
     {/snippet}
   </SettingsToolbar>
 
-  {#each categories as section (section.id)}
+  {#each sections as section (section.id)}
     <SettingsSection
       id={section.id}
       title={section.title}
-      info="Groups without an override follow your user settings. Provider and model setup stays in user settings."
+      info="Groups without an override follow your user settings. Provider credentials and model setup stay in user settings."
     >
-      <SettingsGroup>
-        <SettingsList ariaLabel={`${section.title} tool groups`}>
-          {#each toolGroups.filter((group) => group.category === section.category) as group (group.id)}
-            {@const alwaysOn = group.configurableTools.length === 0}
-            {@const overridden = groupOverridden(group)}
-            <ToolGroupItem
-              title={group.label}
-              description={group.description}
-              tools={group.tools}
-            >
-              {#snippet actions()}
-                {#if alwaysOn}
-                  <Tooltip.Provider delayDuration={200}>
-                    <Tooltip.Root>
-                      <Tooltip.Trigger>
-                        {#snippet child({ props })}
-                          <span {...props}>
-                            <Switch
-                              checked
-                              disabled
-                              size="settings"
-                              aria-label={`${group.label} tools are always enabled`}
-                            />
-                          </span>
-                        {/snippet}
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side="top">Always on</Tooltip.Content>
-                    </Tooltip.Root>
-                  </Tooltip.Provider>
-                {:else}
-                  {#if overridden}
-                    <Badge variant="neutral">Project</Badge>
-                    <IconAction
-                      icon={RotateCcw}
-                      label={`Reset ${group.label} to your user setting`}
-                      onclick={() => resetGroup(group)}
-                    />
-                  {:else}
-                    <span class="text-xs text-muted-foreground"
-                      >User · {inheritedLabel(group)}</span
-                    >
-                  {/if}
-                  <Switch
-                    size="settings"
-                    checked={groupEnabled(group)}
-                    disabled={locked || loading}
-                    aria-label={`Enable ${group.label} tools for this project`}
-                    onCheckedChange={(checked) => setGroup(group, checked)}
+      <SettingsList ariaLabel={`${section.title} tool groups`}>
+        {#each section.rows as row (row.id)}
+          {@const alwaysOn = row.names.length === 0}
+          <ToolGroupItem
+            title={row.label}
+            description={row.description}
+            tools={row.tools}
+          >
+            {#snippet actions()}
+              {#if alwaysOn}
+                <Tooltip.Provider delayDuration={200}>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger>
+                      {#snippet child({ props })}
+                        <span {...props}>
+                          <Switch
+                            checked
+                            disabled
+                            size="settings"
+                            aria-label={`${row.label} tools are always enabled`}
+                          />
+                        </span>
+                      {/snippet}
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side="top">Always on</Tooltip.Content>
+                  </Tooltip.Root>
+                </Tooltip.Provider>
+              {:else}
+                {#if rowOverridden(row)}
+                  <Badge variant="neutral">Project</Badge>
+                  <IconAction
+                    icon={RotateCcw}
+                    label={`Reset ${row.label} to your user setting`}
+                    onclick={() => resetRow(row)}
                   />
+                {:else}
+                  <span class="text-xs text-muted-foreground"
+                    >User · {inheritedLabel(row)}</span
+                  >
                 {/if}
-              {/snippet}
-            </ToolGroupItem>
-          {/each}
-        </SettingsList>
-      </SettingsGroup>
+                <Switch
+                  size="settings"
+                  checked={rowEnabled(row)}
+                  disabled={locked || loading}
+                  aria-label={`Enable ${row.label} tools for this project`}
+                  onCheckedChange={(checked) => setRow(row, checked)}
+                />
+              {/if}
+            {/snippet}
+          </ToolGroupItem>
+        {/each}
+      </SettingsList>
     </SettingsSection>
   {/each}
 {:else}

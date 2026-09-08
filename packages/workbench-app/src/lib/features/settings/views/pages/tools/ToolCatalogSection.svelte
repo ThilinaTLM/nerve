@@ -11,9 +11,7 @@ import type {
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import {
-  SettingsGroup,
   SettingsInlineMessage,
-  SettingsList,
   SettingsSummaryRow,
 } from "$lib/presentation/settings";
 import {
@@ -183,11 +181,7 @@ function setTavilyProfile(profileId?: string): void {
 }
 </script>
 
-<SettingsGroup>
-  <SettingsList
-    ariaLabel={`${category === "core" ? "Core" : "Third-party"} tool groups`}
-  >
-    {#each toolGroups.filter((group) => group.category === category) as group (group.id)}
+{#each toolGroups.filter((group) => group.category === category) as group (group.id)}
       {@const enabled = groupEnabled(group)}
       {@const alwaysOn = group.configurableTools.length === 0}
       <ToolGroupItem
@@ -347,9 +341,7 @@ function setTavilyProfile(profileId?: string): void {
           {/if}
         {/snippet}
       </ToolGroupItem>
-    {/each}
-  </SettingsList>
-</SettingsGroup>
+{/each}
 
 <BashToolDialog bind:open={bashDialogOpen} {settingsDraft} {onSettingsChange} />
 

@@ -5,18 +5,19 @@ import Settings from "@lucide/svelte/icons/settings";
 import type {
   CapabilityConfiguration,
   CapabilityPatch,
+  CapabilityToolName,
 } from "@nervekit/contracts/capabilities";
-import type { UserConfigurableToolName } from "@nervekit/contracts/tools";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import Popover, {
   PopoverBody,
   PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
-import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
+import { ItemScrollRegion } from "$lib/presentation/items";
+import { capabilityToolLabels } from "./capability-tool-labels";
 
 type CapabilitySkill = { name: string; kind: "file" | "agentBrowser" };
 type Row = {
@@ -28,16 +29,6 @@ type Row = {
   toggle: (enabled: boolean) => void;
   reset: () => void;
 };
-
-const SEARCH_THRESHOLD = 8;
-
-const tools: Array<{ name: UserConfigurableToolName; label: string }> = [
-  { name: "explore", label: "Explore" },
-  { name: "web_search", label: "Web search" },
-  { name: "web_fetch", label: "Web fetch" },
-  { name: "explain_image", label: "Image explanation" },
-  { name: "python_exec", label: "Python" },
-];
 
 type Props = {
   configuration?: CapabilityConfiguration;
@@ -64,20 +55,21 @@ let {
 
 let open = $state(false);
 let tab = $state<"tools" | "skills">("tools");
-let query = $state("");
 
 function handleOpenChange(next: boolean): void {
   open = disabled ? false : next;
-  if (!open) return;
-  query = "";
-  onRefresh?.();
+  if (open) onRefresh?.();
 }
 
 $effect(() => {
   if (disabled) open = false;
 });
 
-function toolEnabled(name: UserConfigurableToolName): boolean {
+const tools = $derived<CapabilityToolName[]>(
+  configuration?.availableTools ?? [],
+);
+
+function toolEnabled(name: CapabilityToolName): boolean {
   return !configuration?.effective.disabledTools.includes(name);
 }
 
@@ -98,7 +90,7 @@ const overrideCount = $derived(
     : 0,
 );
 const enabledTools = $derived(
-  configuration ? tools.filter((tool) => toolEnabled(tool.name)).length : 0,
+  configuration ? tools.filter((name) => toolEnabled(name)).length : 0,
 );
 const enabledSkills = $derived(
   configuration ? skills.filter((skill) => skillEnabled(skill)).length : 0,
@@ -108,46 +100,38 @@ const triggerTitle = $derived(
     ? "Tools and skills: loading"
     : error
       ? `Tools and skills unavailable: ${error}`
-      : `Tools and skills: ${enabledTools} of ${tools.length} optional tools, ${enabledSkills} of ${skills.length} skills${overrideCount > 0 ? " · conversation overrides" : ""}`,
+      : `Tools and skills: ${enabledTools} of ${tools.length} optional tools, ${enabledSkills} of ${skills.length} skills enabled${overrideCount > 0 ? " · conversation overrides" : ""}`,
 );
 
 const toolRows = $derived<Row[]>(
-  tools.map((tool) => ({
-    key: tool.name,
-    label: tool.label,
-    enabled: toolEnabled(tool.name),
-    overridden: conversation?.tools[tool.name] !== undefined,
+  tools.map((name) => ({
+    key: name,
+    label: capabilityToolLabels[name],
+    enabled: toolEnabled(name),
+    overridden: conversation?.tools[name] !== undefined,
     detail:
-      conversation?.tools[tool.name] !== undefined
+      conversation?.tools[name] !== undefined
         ? "Set for this conversation"
         : "Inherited from project and user settings",
-    toggle: (enabled: boolean) =>
-      onPatch?.({ tools: { [tool.name]: enabled } }),
-    reset: () => onPatch?.({ tools: { [tool.name]: null } }),
+    toggle: (enabled: boolean) => onPatch?.({ tools: { [name]: enabled } }),
+    reset: () => onPatch?.({ tools: { [name]: null } }),
   })),
 );
 
 const skillRows = $derived<Row[]>(
-  skills
-    .filter((skill) =>
-      query.trim()
-        ? skill.name.toLowerCase().includes(query.trim().toLowerCase())
-        : true,
-    )
-    .map((skill) => ({
-      key: `${skill.kind}:${skill.name}`,
-      label: skill.name,
-      enabled: skillEnabled(skill),
-      overridden: conversation?.skills[skill.kind][skill.name] !== undefined,
-      detail:
-        conversation?.skills[skill.kind][skill.name] !== undefined
-          ? "Set for this conversation"
-          : "Inherited from project and user settings",
-      toggle: (enabled: boolean) =>
-        onPatch?.({ skills: { [skill.kind]: { [skill.name]: enabled } } }),
-      reset: () =>
-        onPatch?.({ skills: { [skill.kind]: { [skill.name]: null } } }),
-    })),
+  skills.map((skill) => ({
+    key: `${skill.kind}:${skill.name}`,
+    label: skill.name,
+    enabled: skillEnabled(skill),
+    overridden: conversation?.skills[skill.kind][skill.name] !== undefined,
+    detail:
+      conversation?.skills[skill.kind][skill.name] !== undefined
+        ? "Set for this conversation"
+        : "Inherited from project and user settings",
+    toggle: (enabled: boolean) =>
+      onPatch?.({ skills: { [skill.kind]: { [skill.name]: enabled } } }),
+    reset: () => onPatch?.({ skills: { [skill.kind]: { [skill.name]: null } } }),
+  })),
 );
 
 const rows = $derived(tab === "tools" ? toolRows : skillRows);
@@ -162,7 +146,7 @@ function openSettings(): void {
   {open}
   onOpenChange={handleOpenChange}
   size="lg"
-  triggerClass="composer-tab w-7 p-0 max-sm:w-7.5"
+  triggerClass="composer-tab gap-1 px-1.5 max-sm:px-1"
   ariaLabel="Tools and skills"
   {triggerTitle}
   side="top"
@@ -171,10 +155,11 @@ function openSettings(): void {
 >
   {#snippet trigger()}
     <span
-      class={`relative inline-flex items-center justify-center ${disabled ? "opacity-60" : ""}`}
+      class={`relative inline-flex items-center gap-1 ${disabled ? "opacity-60" : ""}`}
       data-tour-id="composer-capabilities"
     >
-      <Blocks size={13} strokeWidth={2.2} />
+      <Blocks size={13} strokeWidth={2.2} aria-hidden="true" />
+      <span>{enabledTools}/{enabledSkills}</span>
       {#if overrideCount > 0}
         <span
           class="absolute -top-1 -right-1.5 size-1.5 rounded-full bg-primary"
@@ -245,58 +230,50 @@ function openSettings(): void {
             <Skeleton class="h-6 w-full" />
             <Skeleton class="h-6 w-full" />
           </div>
-        {:else}
-          {#if tab === "skills" && skills.length > SEARCH_THRESHOLD}
-            <SearchInput
-              bind:value={query}
-              placeholder="Search skills"
-              ariaLabel="Search skills"
-            />
-          {/if}
-
-          {#if rows.length === 0}
-            <p class="text-muted-foreground">
-              {tab === "skills" && skills.length > 0
-                ? "No skills match."
-                : "No skills are available for this project."}
-            </p>
-          {:else}
-            <div
-              class="grid max-h-[min(40vh,15rem)] gap-0.5 overflow-x-hidden overflow-y-auto"
-            >
-              {#each rows as row (row.key)}
-                <div
-                  class="flex min-h-7 items-center gap-2 rounded-sm px-1.5 py-1 hover:bg-accent/60"
-                >
-                  <span class="min-w-0 flex-1 truncate" title={row.detail}
-                    >{row.label}</span
-                  >
-                  {#if row.overridden}
-                    <IconAction
-                      icon={RotateCcw}
-                      size="xs"
-                      label={`Reset ${row.label} to the inherited setting`}
-                      onclick={row.reset}
-                    />
-                  {/if}
-                  <Switch
-                    size="sm"
-                    checked={row.enabled}
-                    disabled={disabled || loading}
-                    aria-label={`Enable ${row.label} for this conversation`}
-                    onCheckedChange={row.toggle}
-                  />
-                </div>
-              {/each}
-            </div>
-          {/if}
-
+        {:else if rows.length === 0}
           <p class="text-muted-foreground">
-            {overrideCount > 0
-              ? `${overrideCount} conversation override${overrideCount === 1 ? "" : "s"} · applies to the next run.`
-              : "Changes apply to the next run."}
+            {tab === "skills"
+              ? "No skills are available for this project."
+              : "No optional tools are available."}
           </p>
+        {:else}
+          <ItemScrollRegion
+            class="max-h-[min(40vh,15rem)]"
+            ariaLabel={tab === "tools" ? "Optional tools" : "Available skills"}
+            contentClass="grid gap-0.5"
+          >
+            {#each rows as row (row.key)}
+              <div
+                class="flex min-h-7 items-center gap-2 rounded-sm px-1.5 py-1 hover:bg-accent/60"
+              >
+                <span class="min-w-0 flex-1 truncate" title={row.detail}
+                  >{row.label}</span
+                >
+                {#if row.overridden}
+                  <IconAction
+                    icon={RotateCcw}
+                    size="xs"
+                    label={`Reset ${row.label} to the inherited setting`}
+                    onclick={row.reset}
+                  />
+                {/if}
+                <Switch
+                  size="sm"
+                  checked={row.enabled}
+                  disabled={disabled || loading}
+                  aria-label={`Enable ${row.label} for this conversation`}
+                  onCheckedChange={row.toggle}
+                />
+              </div>
+            {/each}
+          </ItemScrollRegion>
         {/if}
+
+        <p class="text-muted-foreground">
+          {overrideCount > 0
+            ? `${overrideCount} conversation override${overrideCount === 1 ? "" : "s"} · applies to the next run.`
+            : "Changes apply to the next run."}
+        </p>
       </div>
     </PopoverSection>
   </PopoverBody>

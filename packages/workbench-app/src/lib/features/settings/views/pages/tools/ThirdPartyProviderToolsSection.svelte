@@ -1,7 +1,6 @@
 <script lang="ts">
 import type { AuthProviderMetadata, Settings } from "$lib/api";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import { SettingsGroup, SettingsList } from "$lib/presentation/settings";
 import type { SettingsChange } from "../settings-change";
 import { atlassianProfileReady } from "../providers/provider-profiles";
 import ToolConfigureButton from "./ToolConfigureButton.svelte";
@@ -53,12 +52,7 @@ function setProfile(id: IntegrationId, profileId: string): void {
 }
 </script>
 
-<SettingsGroup>
-  <SettingsList
-    ariaLabel="Third-party provider tools"
-    class="border-t border-border/40"
-  >
-    {#each providerToolGroups as integration (integration.id)}
+{#each providerToolGroups as integration (integration.id)}
       <ToolGroupItem
         title={integration.label}
         description={integration.description}
@@ -84,9 +78,7 @@ function setProfile(id: IntegrationId, profileId: string): void {
           />
         {/snippet}
       </ToolGroupItem>
-    {/each}
-  </SettingsList>
-</SettingsGroup>
+{/each}
 
 {#if profileDialogIntegration}
   <ToolProfileDialog

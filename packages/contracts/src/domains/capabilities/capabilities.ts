@@ -1,6 +1,17 @@
 import { z } from "zod";
 import { userConfigurableToolNameSchema } from "../tools/tool-name.js";
 
+/**
+ * Tools that can be pinned per project or conversation. Integration families
+ * are toggled as a whole because their credentials stay user-owned.
+ */
+export const capabilityToolNameSchema = z.enum([
+  ...userConfigurableToolNameSchema.options,
+  "jira",
+  "confluence",
+]);
+export type CapabilityToolName = z.infer<typeof capabilityToolNameSchema>;
+
 const skillNameSchema = z.string().trim().min(1).max(256);
 const skillOverridesSchema = z
   .record(skillNameSchema, z.boolean())
@@ -15,9 +26,7 @@ const skillOverridesSchema = z
 export const capabilityOverridesDocumentSchema = z
   .object({
     schemaVersion: z.literal(1),
-    tools: z
-      .partialRecord(userConfigurableToolNameSchema, z.boolean())
-      .default({}),
+    tools: z.partialRecord(capabilityToolNameSchema, z.boolean()).default({}),
     skills: z
       .object({
         file: skillOverridesSchema.default({}),
@@ -43,7 +52,7 @@ export type CapabilityOrigin = z.infer<typeof capabilityOriginSchema>;
 export const capabilityPatchSchema = z
   .object({
     tools: z
-      .partialRecord(userConfigurableToolNameSchema, z.boolean().nullable())
+      .partialRecord(capabilityToolNameSchema, z.boolean().nullable())
       .optional(),
     skills: z
       .object({
@@ -78,7 +87,7 @@ export const capabilityTrustSchema = z.discriminatedUnion("status", [
 export type CapabilityTrust = z.infer<typeof capabilityTrustSchema>;
 
 export const capabilitySelectionSchema = z.object({
-  disabledTools: z.array(userConfigurableToolNameSchema),
+  disabledTools: z.array(capabilityToolNameSchema),
   disabledFileSkills: z.array(skillNameSchema),
   enabledAgentBrowserSkills: z.array(skillNameSchema),
 });
@@ -88,6 +97,8 @@ export const capabilityConfigurationSchema = z.object({
   project: capabilityOverridesDocumentSchema,
   conversation: capabilityOverridesDocumentSchema.optional(),
   effective: capabilitySelectionSchema,
+  /** Tools this machine can actually offer; unconfigured integrations are omitted. */
+  availableTools: z.array(capabilityToolNameSchema),
   trust: capabilityTrustSchema,
   projectDigest: z.string().optional(),
   conversationDigest: z.string().optional(),
