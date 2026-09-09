@@ -10,7 +10,7 @@ import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-c
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import {
-  composeRuntime,
+  createRuntimeServices,
   type RuntimeServices,
 } from "../bootstrap/create-runtime-services.js";
 import { RuntimeState } from "./runtime-projections.js";
@@ -82,7 +82,7 @@ export class RuntimeLifecycle {
     providerCatalog: ProviderCatalogStore,
     performanceDiagnostics: PerformanceDiagnosticsPort,
   ) {
-    this.services = composeRuntime(this.state, {
+    this.services = createRuntimeServices(this.state, {
       storage,
       events,
       queryCache,

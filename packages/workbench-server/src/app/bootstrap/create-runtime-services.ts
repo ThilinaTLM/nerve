@@ -163,7 +163,7 @@ export interface RuntimeServices {
   conversationJournal: ConversationJournalRepository;
 }
 
-export function composeRuntime(
+export function createRuntimeServices(
   state: RuntimeState,
   deps: RuntimeDeps,
 ): RuntimeServices {
@@ -178,53 +178,50 @@ export function composeRuntime(
     logger,
     performanceDiagnostics,
   } = deps;
-  const services = {} as RuntimeServices;
-  services.maintenanceScopes = state.maintenanceScopes;
+  const maintenanceScopes: RuntimeState["maintenanceScopes"] =
+    state.maintenanceScopes;
   const subagentExecutions = new WorkbenchSubagentExecutions();
   const exploreAdmission = new WorkbenchExploreAdmission();
 
+  // Lifecycle callbacks are deferred until construction completes; they bridge
+  // genuine service cycles without exposing a partially initialized service graph.
   const getProject = (projectId: string) =>
-    services.projectLifecycle.getProject(projectId);
-  const listProjects = () => services.projectLifecycle.listProjects();
+    projectLifecycle.getProject(projectId);
+  const listProjects = () => projectLifecycle.listProjects();
   const getConversation = (conversationId: string) =>
-    services.conversationLifecycle.getConversation(conversationId);
-  const listConversations = () =>
-    services.conversationLifecycle.listConversations();
-  const getAgent = (agentId: string) =>
-    services.agentLifecycle.getAgent(agentId);
-  const listAgents = () => services.agentLifecycle.listAgents();
+    conversationLifecycle.getConversation(conversationId);
+  const listConversations = () => conversationLifecycle.listConversations();
+  const getAgent = (agentId: string) => agentLifecycle.getAgent(agentId);
+  const listAgents = () => agentLifecycle.listAgents();
   const createProject = (
     request: Parameters<ProjectLifecycleService["createProject"]>[0],
-  ) => services.projectLifecycle.createProject(request);
+  ) => projectLifecycle.createProject(request);
   const createConversation = (
     request: Parameters<ConversationLifecycleService["createConversation"]>[0],
-  ) => services.conversationLifecycle.createConversation(request);
+  ) => conversationLifecycle.createConversation(request);
   const createAgent = (
     request: Parameters<AgentLifecycleService["createAgent"]>[0],
     options?: Parameters<AgentLifecycleService["createAgent"]>[1],
-  ) => services.agentLifecycle.createAgent(request, options);
+  ) => agentLifecycle.createAgent(request, options);
   const removeConversation = (
     conversationId: string,
     options?: Parameters<ConversationLifecycleService["removeConversation"]>[1],
-  ) =>
-    services.conversationLifecycle.removeConversation(conversationId, options);
+  ) => conversationLifecycle.removeConversation(conversationId, options);
   const removeAgentInternal = (agentId: string) =>
-    services.agentLifecycle.removeAgentInternal(agentId);
+    agentLifecycle.removeAgentInternal(agentId);
   const updateConversation = (
     conversation: Parameters<
       ConversationLifecycleService["updateConversation"]
     >[0],
-  ) => services.conversationLifecycle.updateConversation(conversation);
+  ) => conversationLifecycle.updateConversation(conversation);
   const appendEntry = (input: AppendEntryInput, options?: AppendEntryOptions) =>
-    services.conversationLifecycle.appendEntry(input, options);
+    conversationLifecycle.appendEntry(input, options);
   const rebuildConversation = async (conversationId: string) => {
     const conversation = getConversation(conversationId);
     const project = getProject(conversation.projectId);
     const entries =
-      await services.conversationLifecycle.ensureConversationEntries(
-        conversationId,
-      );
-    await services.conversationService.rebuildConversation(
+      await conversationLifecycle.ensureConversationEntries(conversationId);
+    await conversationService.rebuildConversation(
       project,
       conversation,
       state.agents.values(),
@@ -232,20 +229,21 @@ export function composeRuntime(
     );
   };
   const projectRepository = new ProjectRepository(storage);
-  services.permissionExceptions = new PermissionExceptionService(
-    storage,
-    new ProjectPermissionsRepository(storage),
-    getProject,
-    events,
-  );
-  services.permissionPolicy = new PermissionPolicyService(storage, getProject);
-  services.capabilities = new CapabilityService(
+  const permissionExceptions: PermissionExceptionService =
+    new PermissionExceptionService(
+      storage,
+      new ProjectPermissionsRepository(storage),
+      getProject,
+      events,
+    );
+  const permissionPolicy = new PermissionPolicyService(storage, getProject);
+  const capabilities = new CapabilityService(
     storage,
     getProject,
     getConversation,
     events,
   );
-  services.taskDefinitions = new TaskDefinitionService(
+  const taskDefinitions = new TaskDefinitionService(
     new TaskDefinitionRepository(storage),
     getProject,
     async (type, data) => {
@@ -253,7 +251,7 @@ export function composeRuntime(
     },
   );
   const scratchNoteRepository = new ScratchNoteRepository(storage);
-  services.scratchNotes = new ScratchNoteService(
+  const scratchNotes = new ScratchNoteService(
     scratchNoteRepository,
     getProject,
   );
@@ -261,7 +259,6 @@ export function composeRuntime(
     storage,
     performanceDiagnostics,
   );
-  services.conversationJournal = conversationJournal;
   const resultPayloads = new ToolResultPayloadStore(storage.paths.home);
   events.setConversationRevisionResolver(
     (conversationId) => conversationJournal.state(conversationId)?.revision,
@@ -271,17 +268,18 @@ export function composeRuntime(
   );
   const agentRepository = new AgentRepository(storage);
   const entryRepository = new EntryRepository(conversationJournal);
-  services.harnessStorage = new ConversationHarnessStorage(
-    conversationRepository,
-    getConversation,
-    performanceDiagnostics,
-  );
-  services.conversationService = new ConversationService(
-    services.harnessStorage,
+  const harnessStorage: ConversationHarnessStorage =
+    new ConversationHarnessStorage(
+      conversationRepository,
+      getConversation,
+      performanceDiagnostics,
+    );
+  const conversationService = new ConversationService(
+    harnessStorage,
     entryRepository,
   );
   state.useAgentConversationMessages(
-    services.conversationService.agentConversationCache,
+    conversationService.agentConversationCache,
   );
   const compactionSummarizer: CompactionSummarizer = async ({
     conversationId,
@@ -331,39 +329,39 @@ export function composeRuntime(
       ? { text: result.value, generatedBy: "model" as const }
       : undefined;
   };
-  services.compactionService = new CompactionService(
+  const compactionService = new CompactionService(
     getConversation,
     getProject,
     appendEntry,
-    services.harnessStorage,
+    harnessStorage,
     rebuildConversation,
     events,
     compactionSummarizer,
     {},
     (input, modelEntry) =>
-      services.conversationLifecycle.appendCompactionAtomic(input, modelEntry),
+      conversationLifecycle.appendCompactionAtomic(input, modelEntry),
   );
-  services.navigationService = new NavigationService(
+  const navigationService = new NavigationService(
     getConversation,
     getProject,
     (conversationId) =>
-      services.conversationLifecycle.ensureConversationEntries(conversationId),
+      conversationLifecycle.ensureConversationEntries(conversationId),
     updateConversation,
     appendEntry,
-    services.harnessStorage,
+    harnessStorage,
     rebuildConversation,
     events,
     async (conversationId) =>
-      (await services.runQuery.activeForConversation(conversationId))?.status,
+      (await runQuery.activeForConversation(conversationId))?.status,
   );
-  services.exportService = new ExportService(
+  const exportService = new ExportService(
     getConversation,
     getProject,
     listAgents,
     (conversationId) =>
-      services.conversationLifecycle.ensureConversationEntries(conversationId),
+      conversationLifecycle.ensureConversationEntries(conversationId),
   );
-  services.importService = new ImportService(
+  const importService = new ImportService(
     createProject,
     createConversation,
     createAgent,
@@ -372,16 +370,16 @@ export function composeRuntime(
     rebuildConversation,
     events,
   );
-  services.messageMirror = new MessageMirror({
+  const messageMirror = new MessageMirror({
     state,
     ensureConversationEntries: (conversationId) =>
-      services.conversationLifecycle.ensureConversationEntries(conversationId),
+      conversationLifecycle.ensureConversationEntries(conversationId),
     appendEntry,
     updateConversation,
     events,
   });
   const taskLaunchConfigs = new SecretTaskLaunchConfigStore(secrets);
-  services.tasks = new WorkbenchTaskService(
+  const tasks = new WorkbenchTaskService(
     storage,
     events,
     queryCache,
@@ -393,83 +391,79 @@ export function composeRuntime(
         : undefined,
     },
   );
-  services.pythonRuntime = new PythonRuntimeService(storage);
-  services.editors = new ProjectEditorService(getProject);
-  services.terminal = new ProjectTerminalService(getProject);
-  services.projectLifecycle = new ProjectLifecycleService(
+  const pythonRuntime = new PythonRuntimeService(storage);
+  const editors = new ProjectEditorService(getProject);
+  const terminal = new ProjectTerminalService(getProject);
+  const projectLifecycle = new ProjectLifecycleService(
     projectRepository,
     events,
     queryCache,
     state,
     removeConversation,
   );
-  services.taskDefinitionOperations = new TaskDefinitionOperations(
-    services.taskDefinitions,
-    services.tasks,
-    listProjects,
-  );
-  services.projectIcons = new ProjectIconService(getProject);
-  services.fileCompletions = new FileCompletionService(getProject);
+  const taskDefinitionOperations: TaskDefinitionOperations =
+    new TaskDefinitionOperations(taskDefinitions, tasks, listProjects);
+  const projectIcons = new ProjectIconService(getProject);
+  const fileCompletions = new FileCompletionService(getProject);
   const filesystemLogger = logger.child({ component: "filesystem" });
-  services.projectFilesystemWatcher = new ProjectFilesystemWatcher(events, {
-    onWarning: (message, error) => {
-      void filesystemLogger.warn(message, { error });
-    },
-  });
-  services.conversationLifecycle = new ConversationLifecycleService(
-    storage,
-    events,
-    queryCache,
-    state,
-    conversationRepository,
-    entryRepository,
-    services.harnessStorage,
-    removeAgentInternal,
-    resultPayloads,
-    services.capabilities,
-  );
-  services.conversationQuery = new ConversationQueryService({
-    events,
-    state,
-    getConversationEntries: async (conversationId) => {
-      await services.conversationLifecycle.ensureConversationEntries(
-        conversationId,
-      );
-      return services.conversationLifecycle.getConversationEntries(
-        conversationId,
-      );
-    },
-    getConversationRevision: (conversationId) =>
-      conversationJournal.readConversationRevision(conversationId),
-    getConversationTree: (conversationId) =>
-      services.conversationLifecycle.getConversationTree(conversationId),
-    getContextUsage: (conversationId) =>
-      services.workbenchRun.getContextUsage(conversationId),
-    listToolCallPreviews: (conversationId) =>
-      services.tools.listToolCallPreviews({ conversationId, limit: 1_000 }),
-    getActiveRun: (conversationId, activeEntryIds) =>
-      services.runQuery.activeForConversation(conversationId, activeEntryIds),
-  });
-  services.agentLifecycle = new AgentLifecycleService(
+  const projectFilesystemWatcher: ProjectFilesystemWatcher =
+    new ProjectFilesystemWatcher(events, {
+      onWarning: (message, error) => {
+        void filesystemLogger.warn(message, { error });
+      },
+    });
+  const conversationLifecycle: ConversationLifecycleService =
+    new ConversationLifecycleService(
+      storage,
+      events,
+      queryCache,
+      state,
+      conversationRepository,
+      entryRepository,
+      harnessStorage,
+      removeAgentInternal,
+      resultPayloads,
+      capabilities,
+    );
+  const conversationQuery: ConversationQueryService =
+    new ConversationQueryService({
+      events,
+      state,
+      getConversationEntries: async (conversationId) => {
+        await conversationLifecycle.ensureConversationEntries(conversationId);
+        return conversationLifecycle.getConversationEntries(conversationId);
+      },
+      getConversationRevision: (conversationId) =>
+        conversationJournal.readConversationRevision(conversationId),
+      getConversationTree: (conversationId) =>
+        conversationLifecycle.getConversationTree(conversationId),
+      getContextUsage: (conversationId) =>
+        workbenchRun.getContextUsage(conversationId),
+      listToolCallPreviews: (conversationId) =>
+        tools.listToolCallPreviews({ conversationId, limit: 1_000 }),
+      getActiveRun: (conversationId, activeEntryIds) =>
+        runQuery.activeForConversation(conversationId, activeEntryIds),
+    });
+  const agentLifecycle: AgentLifecycleService = new AgentLifecycleService(
     storage,
     events,
     queryCache,
     state,
     agentRepository,
-    services.conversationService,
+    conversationService,
     updateConversation,
-    (agentId) => services.workbenchRun.abortAgent(agentId),
+    (agentId) => workbenchRun.abortAgent(agentId),
     async (agent) =>
       (
-        await services.runRuntime.unitOfWork.findActive(
+        await runRuntime.unitOfWork.findActive(
           `${agent.conversationId}:${agent.id}`,
         )
       )?.run.runId,
     async (runId, agent) =>
-      services.runRuntime.live.get(runId)?.updateAgentRuntimeConfig?.(agent),
+      runRuntime.live.get(runId)?.updateAgentRuntimeConfig?.(agent),
   );
-  services.plans = new PlanService(storage, getAgent, (agentId, mode, reason) =>
-    services.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
+  const plans = new PlanService(storage, getAgent, (agentId, mode, reason) =>
+    agentLifecycle.setAgentModeInternal(agentId, mode, reason),
   );
   const gitLogger = logger.child({ component: "git" });
   const writeGitDiagnostic = (
@@ -488,7 +482,7 @@ export function composeRuntime(
     onOverviewCompleted: (observation) =>
       writeGitDiagnostic(gitOverviewDiagnostic(observation)),
   });
-  services.gitRepositoryWatcher = new GitRepositoryWatcher(events, {
+  const gitRepositoryWatcher = new GitRepositoryWatcher(events, {
     diagnostics: performanceDiagnostics.enabled
       ? performanceDiagnostics
       : undefined,
@@ -498,36 +492,36 @@ export function composeRuntime(
       void gitLogger.warn(message, { error });
     },
   });
-  services.git = withGitMutationEvents(
-    withGitRepositoryWatching(gitService, services.gitRepositoryWatcher),
+  const git: GitService = withGitMutationEvents(
+    withGitRepositoryWatching(gitService, gitRepositoryWatcher),
     events,
   );
   const promptSuggestionTrustRepository = new PromptSuggestionTrustRepository(
     storage,
     queryCache,
   );
-  services.promptSuggestions = new PromptSuggestionService({
+  const promptSuggestions: PromptSuggestionService =
+    new PromptSuggestionService({
+      storage,
+      events,
+      trustRepository: promptSuggestionTrustRepository,
+      enablementRepository: new PromptSuggestionEnablementRepository(storage),
+      git: git,
+      getProject,
+      listProjects,
+      getConversation,
+      getAgent,
+    });
+  const tools: ToolService = new ToolService(
     storage,
     events,
-    trustRepository: promptSuggestionTrustRepository,
-    enablementRepository: new PromptSuggestionEnablementRepository(storage),
-    git: services.git,
-    getProject,
-    listProjects,
-    getConversation,
-    getAgent,
-  });
-  services.tools = new ToolService(
-    storage,
-    events,
-    services.tasks,
-    services.pythonRuntime,
-    (request) => services.tasks.startTask(request),
+    tasks,
+    pythonRuntime,
+    (request) => tasks.startTask(request),
     getAgent,
     // Tool execution can spawn explore agents; the closure is only invoked after
-    // composition completes, so reading services.workbenchRun here is safe.
-    (parent, args, options) =>
-      services.workbenchRun.runExplore(parent, args, options),
+    // composition completes, so reading workbenchRun here is safe.
+    (parent, args, options) => workbenchRun.runExplore(parent, args, options),
     (provider) => auth.getApiKey(provider),
     async (request) => {
       const selection = storage.settings.tools.imageExplanation.model;
@@ -586,49 +580,51 @@ export function composeRuntime(
       });
       return { explanation, model: selection };
     },
-    services.plans,
+    plans,
     (agentId, mode, reason) =>
-      services.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
+      agentLifecycle.setAgentModeInternal(agentId, mode, reason),
     state.conversationRuntime,
     logger.child({ component: "tool" }),
-    services.permissionExceptions,
+    permissionExceptions,
     conversationJournal,
     resultPayloads,
     performanceDiagnostics.enabled ? performanceDiagnostics : undefined,
-    services.permissionPolicy,
+    permissionPolicy,
   );
-  services.subagentTranscriptLive = new SubagentTranscriptLiveService(events);
-  services.subagentTranscripts = new SubagentTranscriptService({
-    storage,
-    harnessStorage: services.harnessStorage,
-    tools: services.tools,
-    getAgent,
-    events,
-    live: services.subagentTranscriptLive,
-  });
-  services.agentMechanics = new WorkbenchAgentMechanics({
+  const subagentTranscriptLive: SubagentTranscriptLiveService =
+    new SubagentTranscriptLiveService(events);
+  const subagentTranscripts: SubagentTranscriptService =
+    new SubagentTranscriptService({
+      storage,
+      harnessStorage: harnessStorage,
+      tools: tools,
+      getAgent,
+      events,
+      live: subagentTranscriptLive,
+    });
+  const agentMechanics: WorkbenchAgentMechanics = new WorkbenchAgentMechanics({
     storage,
     events,
     auth,
-    tools: services.tools,
-    tasks: services.tasks,
-    pythonRuntime: services.pythonRuntime,
-    plans: services.plans,
-    harnessStorage: services.harnessStorage,
-    conversationService: services.conversationService,
-    compactionService: services.compactionService,
+    tools: tools,
+    tasks: tasks,
+    pythonRuntime: pythonRuntime,
+    plans: plans,
+    harnessStorage: harnessStorage,
+    conversationService: conversationService,
+    compactionService: compactionService,
     state,
     createAgent,
     setAgentStatus: (agent, status) =>
-      services.agentLifecycle.setAgentStatus(agent, status),
+      agentLifecycle.setAgentStatus(agent, status),
     appendEntry,
     updateConversation,
-    messageMirror: services.messageMirror,
+    messageMirror: messageMirror,
     subscriptionUsage,
     logger: logger.child({ component: "workbench-agent-execution" }),
     agentBrowserSkills: deps.agentBrowserSkills,
-    capabilities: services.capabilities,
-    subagentTranscriptLive: services.subagentTranscriptLive,
+    capabilities: capabilities,
+    subagentTranscriptLive: subagentTranscriptLive,
     exploreAdmission,
     subagentExecutions,
     customModels: (projectDir) =>
@@ -637,18 +633,18 @@ export function composeRuntime(
         projectDir,
       ),
   });
-  services.runRuntime = createWorkbenchRunRuntime({
+  const runRuntime: WorkbenchRunRuntime = createWorkbenchRunRuntime({
     home: storage.paths.home,
     journal: conversationJournal,
     state,
     events,
-    tools: services.tools,
-    tasks: services.tasks,
-    harnessStorage: services.harnessStorage,
+    tools: tools,
+    tasks: tasks,
+    harnessStorage: harnessStorage,
     subagentExecutions,
     exploreAdmission,
     execution: (references) =>
-      new WorkbenchAgentExecutionAdapter(services.agentMechanics, references),
+      new WorkbenchAgentExecutionAdapter(agentMechanics, references),
     retryPolicy: {
       get enabled() {
         return storage.settings.retry.enabled;
@@ -661,98 +657,138 @@ export function composeRuntime(
       },
     },
     setAgentStatus: (agent, status) =>
-      services.agentLifecycle.setAgentStatus(agent, status),
+      agentLifecycle.setAgentStatus(agent, status),
     logger: logger.child({ component: "run-coordinator" }),
   });
-  services.runQuery = new WorkbenchRunQuery(
-    services.runRuntime.unitOfWork,
+  const runQuery = new WorkbenchRunQuery(runRuntime.unitOfWork, state);
+  const workbenchRun: WorkbenchRunService = new WorkbenchRunService(
     state,
-  );
-  services.workbenchRun = new WorkbenchRunService(
-    state,
-    services.runRuntime.coordinator,
-    services.runRuntime.unitOfWork,
+    runRuntime.coordinator,
+    runRuntime.unitOfWork,
     {
-      activeToolNamesFor: (agent) =>
-        services.agentMechanics.activeToolNamesFor(agent),
+      activeToolNamesFor: (agent) => agentMechanics.activeToolNamesFor(agent),
       getContextUsage: (conversationId) =>
-        services.agentMechanics.getContextUsage(conversationId),
+        agentMechanics.getContextUsage(conversationId),
       getConversationEntries: (conversationId) =>
-        services.conversationLifecycle.ensureConversationEntries(
-          conversationId,
-        ),
+        conversationLifecycle.ensureConversationEntries(conversationId),
       runExplore: (parent, args, options) =>
-        services.agentMechanics.runExplore(parent, args, options),
+        agentMechanics.runExplore(parent, args, options),
     },
   );
-  services.taskNotifications = new TaskNotificationService({
-    tasks: services.tasks,
-    events,
-    liveRuns: services.runRuntime.live,
-    runUnitOfWork: services.runRuntime.unitOfWork,
-    appendEntry,
-    harnessStorage: services.harnessStorage,
-    getAgent,
-    getConversationEntries: (conversationId) =>
-      services.conversationLifecycle.ensureConversationEntries(conversationId),
-    continueAgent: (agentId) => services.workbenchRun.continueAgent(agentId),
-    logger: logger.child({ component: "task-notification" }),
-  });
-  services.taskNotifications.start();
-  services.humanInput = new HumanInputResolutionService({
-    tools: services.tools,
-    plans: services.plans,
-    runs: services.workbenchRun,
-    continueAgent: (agentId) => services.workbenchRun.continueAgent(agentId),
-    createConversation,
-    createAgent,
-    getAgent,
-    configureAgent: (agentId, request) =>
-      services.agentLifecycle.configureAgent(agentId, request),
-    setAgentStatus: (agent, status) =>
-      services.agentLifecycle.setAgentStatus(agent, status),
-    appendEntry,
-    getConversationEntries: (conversationId) =>
-      services.conversationLifecycle.ensureConversationEntries(conversationId),
-    harnessStorage: services.harnessStorage,
-    logger: logger.child({ component: "human-input" }),
-    compactPlanConversation: async (input) => {
-      await services.compactionService.compactConversation(
-        input.conversationId,
-        { keepRecentTokens: 1 },
-        {
-          reason: "manual",
-          agentId: input.agentId,
-          runId: input.runId,
-          keepRecentTokens: 1,
-          summaryReserveTokens: 4_000,
-          summaryProfile: {
-            kind: "plan-implementation",
-            planPath: input.planPath,
+  const taskNotifications: TaskNotificationService =
+    new TaskNotificationService({
+      tasks: tasks,
+      events,
+      liveRuns: runRuntime.live,
+      runUnitOfWork: runRuntime.unitOfWork,
+      appendEntry,
+      harnessStorage: harnessStorage,
+      getAgent,
+      getConversationEntries: (conversationId) =>
+        conversationLifecycle.ensureConversationEntries(conversationId),
+      continueAgent: (agentId) => workbenchRun.continueAgent(agentId),
+      logger: logger.child({ component: "task-notification" }),
+    });
+  taskNotifications.start();
+  const humanInput: HumanInputResolutionService =
+    new HumanInputResolutionService({
+      tools: tools,
+      plans: plans,
+      runs: workbenchRun,
+      continueAgent: (agentId) => workbenchRun.continueAgent(agentId),
+      createConversation,
+      createAgent,
+      getAgent,
+      configureAgent: (agentId, request) =>
+        agentLifecycle.configureAgent(agentId, request),
+      setAgentStatus: (agent, status) =>
+        agentLifecycle.setAgentStatus(agent, status),
+      appendEntry,
+      getConversationEntries: (conversationId) =>
+        conversationLifecycle.ensureConversationEntries(conversationId),
+      harnessStorage: harnessStorage,
+      logger: logger.child({ component: "human-input" }),
+      compactPlanConversation: async (input) => {
+        await compactionService.compactConversation(
+          input.conversationId,
+          { keepRecentTokens: 1 },
+          {
+            reason: "manual",
+            agentId: input.agentId,
+            runId: input.runId,
+            keepRecentTokens: 1,
+            summaryReserveTokens: 4_000,
+            summaryProfile: {
+              kind: "plan-implementation",
+              planPath: input.planPath,
+            },
           },
-        },
-      );
-    },
-  });
-  services.toolInteractions = new ToolInteractionResolutionService(
-    services.tools,
-    services.plans,
-    services.humanInput,
-    services.permissionPolicy,
-    services.permissionExceptions,
-  );
-  services.pruneConversations = new PruneProjectConversationsService({
-    getProject,
-    listConversations,
-    agents: state.agents,
-    tasks: services.tasks,
-    tools: services.tools,
-    plans: services.plans,
-    conversationRepository,
-    removeConversation,
-    events,
-    logger,
-  });
+        );
+      },
+    });
+  const toolInteractions: ToolInteractionResolutionService =
+    new ToolInteractionResolutionService(
+      tools,
+      plans,
+      humanInput,
+      permissionPolicy,
+      permissionExceptions,
+    );
+  const pruneConversations: PruneProjectConversationsService =
+    new PruneProjectConversationsService({
+      getProject,
+      listConversations,
+      agents: state.agents,
+      tasks: tasks,
+      tools: tools,
+      plans: plans,
+      conversationRepository,
+      removeConversation,
+      events,
+      logger,
+    });
 
-  return services;
+  return {
+    maintenanceScopes,
+    tasks,
+    taskNotifications,
+    pythonRuntime,
+    plans,
+    tools,
+    toolInteractions,
+    permissionExceptions,
+    permissionPolicy,
+    capabilities,
+    git,
+    gitRepositoryWatcher,
+    projectFilesystemWatcher,
+    fileCompletions,
+    promptSuggestions,
+    taskDefinitions,
+    taskDefinitionOperations,
+    scratchNotes,
+    harnessStorage,
+    conversationService,
+    compactionService,
+    navigationService,
+    exportService,
+    importService,
+    messageMirror,
+    agentMechanics,
+    runRuntime,
+    runQuery,
+    workbenchRun,
+    editors,
+    terminal,
+    projectIcons,
+    projectLifecycle,
+    conversationLifecycle,
+    conversationQuery,
+    agentLifecycle,
+    subagentTranscriptLive,
+    subagentTranscripts,
+    humanInput,
+    pruneConversations,
+    conversationJournal,
+  };
 }
