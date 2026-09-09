@@ -124,6 +124,9 @@ async function runElectron(driverPath, oversizedPath, smallPath) {
   const env = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: "1",
+    // GitHub's Linux runners cannot use Electron's unprivileged or SUID sandbox.
+    // This is inherited by the native-image subprocess launched by the driver.
+    ELECTRON_DISABLE_SANDBOX: "1",
     NERVE_HOME: join(root, "nerve-home"),
     HOME: join(root, "home"),
     XDG_CONFIG_HOME: join(root, "xdg-config"),
