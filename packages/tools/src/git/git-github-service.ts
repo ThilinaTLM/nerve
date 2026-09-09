@@ -105,7 +105,8 @@ type GithubPrDetailRaw = {
   closedAt?: string | null;
   mergedBy?: { login?: string } | null;
   mergeCommit?: { abbreviatedOid?: string; oid?: string } | null;
-  totalCommentCount?: number;
+  /* Aliased so the count can coexist with the conversation's comment nodes. */
+  commentCount?: { totalCount?: number } | null;
   comments?: {
     nodes?: Array<{
       id?: string;
@@ -155,7 +156,8 @@ type RepositoryResponse = { repository?: GithubRepoRaw | null };
 const CORE_FIELDS = `
   number title url state isDraft headRefName baseRefName headRefOid baseRefOid
   headRepository { nameWithOwner }
-  updatedAt createdAt additions deletions changedFiles totalCommentCount
+  updatedAt createdAt additions deletions changedFiles
+  commentCount: comments { totalCount }
   author { login avatarUrl }
 `;
 const CONVERSATION_FIELDS = `
@@ -332,7 +334,8 @@ const PR_LIST_QUERY = `query PullRequests($query: String!) {
     nodes {
       ... on PullRequest {
         number title url state isDraft headRefName baseRefName updatedAt
-        additions deletions totalCommentCount author { login }
+        additions deletions author { login }
+        commentCount: comments { totalCount }
         ${CHECK_FIELDS}
       }
     }
@@ -371,7 +374,7 @@ export async function listOpenPrs(
               baseRefName: raw.baseRefName,
               updatedAt: raw.updatedAt,
               author: raw.author?.login ?? null,
-              commentCount: raw.totalCommentCount ?? 0,
+              commentCount: raw.commentCount?.totalCount ?? 0,
               additions: raw.additions ?? 0,
               deletions: raw.deletions ?? 0,
               checks: summarizeStatusCheckRollup(checkRollup(raw)),
@@ -476,7 +479,7 @@ function mapPrCore(raw: GithubPrDetailRaw): GithubPrCore {
     updatedAt: raw.updatedAt,
     createdAt: raw.createdAt,
     author: raw.author?.login ?? null,
-    commentCount: raw.totalCommentCount ?? 0,
+    commentCount: raw.commentCount?.totalCount ?? 0,
     additions: raw.additions ?? 0,
     deletions: raw.deletions ?? 0,
     changedFiles: raw.changedFiles ?? 0,

@@ -140,7 +140,7 @@ async function createBranch(repository: string): Promise<void> {
     value={repo.relativePath}
     disabled={!selectEnabled}
     title={`Switch to ${repoPathLabel(repo)}`}
-    class="max-w-full gap-1.5 font-mono text-xs"
+    class="max-w-full gap-1.5 px-2 font-mono text-xs data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-foreground"
   >
     <span class="min-w-0 truncate">{repoButtonLabel(repo, repos)}</span>
     {#if count}
@@ -151,13 +151,15 @@ async function createBranch(repository: string): Promise<void> {
   </ToggleGroup.Item>
 {/snippet}
 
-<div class="flex shrink-0 flex-col gap-1 px-2 pt-1.5">
+<!-- The panel shell owns horizontal padding, so chips line up with the
+     toolbar buttons below them. -->
+<div class="flex shrink-0 flex-col gap-1 pt-1.5">
   {#if repos.length > 1}
     <div class="flex min-w-0 flex-wrap items-center gap-1">
       <ToggleGroup.Root
         type="single"
         size="xs"
-        variant="chip"
+        variant="outline"
         spacing={1}
         value={selectedRepo}
         aria-label="Repository"
@@ -178,7 +180,7 @@ async function createBranch(repository: string): Promise<void> {
           align="start"
           sideOffset={4}
           class="p-1"
-          triggerClass="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-transparent bg-accent/90 px-2 text-xs text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none dark:bg-accent/60"
+          triggerClass="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground shadow-xs hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
           triggerTitle={`${overflowRepos.length} more repositories`}
           ariaLabel="More repositories"
         >
@@ -229,7 +231,7 @@ async function createBranch(repository: string): Promise<void> {
         loading={model.repoBranchState(selectedRepo).loadingBranches}
         enabled={model.capabilities.branches.enabled}
         switchingBranch={model.repoBranchState(selectedRepo).switchingBranch}
-        triggerClass={`flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-xs transition-colors hover:bg-accent/70 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 ${
+        triggerClass={`flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors hover:bg-accent/70 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 ${
           repoSummary.detached ? "text-muted-foreground" : "text-foreground"
         }`}
         triggerTitle={`Switch branch in ${repoPathLabel(repoSummary)}`}
