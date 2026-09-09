@@ -81,7 +81,8 @@ const StateIcon = $derived(
         {/if}
       </div>
 
-      <!-- One meta line: who and when, the branch relationship, and size. -->
+      <!-- Authorship first, then the branch relationship on its own line so
+           long branch names stay readable instead of being truncated. -->
       <div
         class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
       >
@@ -96,34 +97,8 @@ const StateIcon = $derived(
           <Skeleton class="h-3 w-40" />
         {/if}
 
-        <span aria-hidden="true" class="text-muted-foreground/55">·</span>
-
-        {#if display}
-          <span
-            class="inline-flex min-w-0 items-center gap-1"
-            aria-label={`Merges ${display.headRefName} into ${display.baseRefName}`}
-          >
-            <Badge variant="outline" class="max-w-52 font-mono">
-              <span class="truncate">{display.headRefName}</span>
-            </Badge>
-            <ArrowRight class="size-3 shrink-0" aria-hidden="true" />
-            <Badge variant="outline" class="font-mono"
-              >{display.baseRefName}</Badge
-            >
-          </span>
-          {#if checkedOut}
-            <Badge variant="info" title="This branch is checked out locally">
-              <Check aria-hidden="true" />
-              checked out
-            </Badge>
-          {/if}
-        {:else}
-          <Skeleton class="h-5 w-40 rounded-full" />
-        {/if}
-
-        <span aria-hidden="true" class="text-muted-foreground/55">·</span>
-
         {#if commitCount !== undefined}
+          <span aria-hidden="true" class="text-muted-foreground/55">·</span>
           <span
             class="inline-flex items-center gap-1"
             title={`${commitCount} commits`}
@@ -135,6 +110,7 @@ const StateIcon = $derived(
           <Skeleton class="h-3 w-10" />
         {/if}
         {#if detail}
+          <span aria-hidden="true" class="text-muted-foreground/55">·</span>
           <span
             class="inline-flex items-center gap-1"
             title={`${detail.changedFiles} changed files`}
@@ -151,6 +127,33 @@ const StateIcon = $derived(
           </span>
         {:else}
           <Skeleton class="h-3 w-24" />
+        {/if}
+      </div>
+
+      <div
+        class="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
+      >
+        {#if display}
+          <span
+            class="inline-flex min-w-0 items-center gap-1"
+            aria-label={`Merges ${display.headRefName} into ${display.baseRefName}`}
+          >
+            <Badge variant="outline" class="font-mono"
+              >{display.headRefName}</Badge
+            >
+            <ArrowRight class="size-3 shrink-0" aria-hidden="true" />
+            <Badge variant="outline" class="font-mono"
+              >{display.baseRefName}</Badge
+            >
+          </span>
+          {#if checkedOut}
+            <Badge variant="info" title="This branch is checked out locally">
+              <Check aria-hidden="true" />
+              checked out
+            </Badge>
+          {/if}
+        {:else}
+          <Skeleton class="h-5 w-40 rounded-full" />
         {/if}
       </div>
     </div>

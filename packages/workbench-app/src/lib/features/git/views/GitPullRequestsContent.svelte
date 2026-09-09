@@ -112,7 +112,11 @@ function toggleChecks(pr: GithubPr) {
     trailing={headerActions}
   />
 
-  <GitRepoSwitcher {model} {actions} />
+  <!-- The Git tab gets this breathing room from its remote-action toolbar; the
+       PR list follows the switcher directly, so it adds the gap itself. -->
+  <div class="shrink-0 pb-1">
+    <GitRepoSwitcher {model} {actions} />
+  </div>
 
   {#if refreshError}
     <PanelBanner tone="destructive" icon={TriangleAlert}>

@@ -15,6 +15,8 @@ const unchangedResize = async (buffer: Buffer, mimeType: string) => ({
   buffer,
   mimeType,
   changed: false,
+  width: 1,
+  height: 1,
 });
 
 function png(label: string): Buffer {
@@ -197,7 +199,7 @@ describe("ProjectIconService", () => {
         resize: async (buffer, mimeType) => {
           resizeCalls += 1;
           await new Promise((resolve) => setTimeout(resolve, 10));
-          return { buffer, mimeType, changed: false };
+          return { buffer, mimeType, changed: false, width: 1, height: 1 };
         },
       },
     );

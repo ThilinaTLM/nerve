@@ -1,6 +1,4 @@
 <script lang="ts">
-import ArrowDown from "@lucide/svelte/icons/arrow-down";
-import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Settings2 from "@lucide/svelte/icons/settings-2";
@@ -71,8 +69,6 @@ const branchGroups = $derived(
     model.prHeads,
   ),
 );
-const ahead = $derived(repoSummary?.ahead ?? 0);
-const behind = $derived(repoSummary?.behind ?? 0);
 const branchLabel = $derived(repoSummary?.currentBranch ?? "(detached)");
 
 function selectRepository(repository: string): void {
@@ -231,7 +227,7 @@ async function createBranch(repository: string): Promise<void> {
         loading={model.repoBranchState(selectedRepo).loadingBranches}
         enabled={model.capabilities.branches.enabled}
         switchingBranch={model.repoBranchState(selectedRepo).switchingBranch}
-        triggerClass={`flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors hover:bg-accent/70 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 ${
+        triggerClass={`flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-well px-2 text-xs transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 ${
           repoSummary.detached ? "text-muted-foreground" : "text-foreground"
         }`}
         triggerTitle={`Switch branch in ${repoPathLabel(repoSummary)}`}
@@ -252,24 +248,8 @@ async function createBranch(repository: string): Promise<void> {
         {/snippet}
       </GitBranchPopover>
 
-      {#if ahead > 0 || behind > 0}
-        <span
-          class="flex shrink-0 items-center gap-1 text-xs text-muted-foreground tabular-nums"
-          title={`${ahead} ahead, ${behind} behind ${repoSummary.baseBranch}`}
-        >
-          {#if ahead > 0}
-            <span class="inline-flex items-center"
-              ><ArrowUp class="size-3" aria-hidden="true" />{ahead}</span
-            >
-          {/if}
-          {#if behind > 0}
-            <span class="inline-flex items-center"
-              ><ArrowDown class="size-3" aria-hidden="true" />{behind}</span
-            >
-          {/if}
-        </span>
-      {/if}
-
+      <!-- Ahead/behind counts live on the Pull and Push buttons below; the
+           branch control only picks a branch. -->
       <Button
         size="icon-xs"
         variant="ghost"

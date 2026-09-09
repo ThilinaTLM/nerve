@@ -85,7 +85,7 @@ async function copyLink() {
     <span class="shrink-0 font-mono font-medium text-foreground"
       >#{pr.number}</span
     >
-    <span class="min-w-0 flex-1 truncate text-muted-foreground">
+    <span class="min-w-0 shrink truncate text-muted-foreground">
       {pr.author ?? "unknown"}{age ? ` · ${age}` : ""}
     </span>
     {#if checkedOut}
@@ -94,6 +94,8 @@ async function copyLink() {
         checked out
       </Badge>
     {/if}
+    <!-- Metadata stays left-aligned; only the actions hug the right edge. -->
+    <span class="min-w-0 flex-1"></span>
     <span
       class="flex shrink-0 items-center opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
     >
