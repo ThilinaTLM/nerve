@@ -14,6 +14,7 @@ import Popover, {
   PopoverHeader,
   PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
+import { STATUS_BAR_CHIP_BUTTON } from "$lib/presentation/shell";
 
 type Props = {
   usages?: SubscriptionUsageEntry[];
@@ -186,30 +187,32 @@ const title = $derived.by(() => {
 {#if hasData}
   <Popover
     size="md"
-    triggerClass="h-5.5 rounded-sm px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+    triggerClass={STATUS_BAR_CHIP_BUTTON}
     ariaLabel="Open subscription usage details"
     side="top"
     align="end"
   >
     {#snippet trigger()}
-      <span class="usage-trigger" {title}>
+      <span class="inline-flex items-center gap-1.5 whitespace-nowrap" {title}>
         {#each triggerWindows as item (item.slot)}
           {@const percent = item.window.usedPercent}
-          <span class="usage-meter">
-            <span class="usage-meter-label">{item.abbreviation}</span>
-            <span class="usage-meter-track">
+          <span class="inline-flex items-center gap-1">
+            <span>{item.abbreviation}</span>
+            <span
+              class="h-1 w-6 overflow-hidden rounded-full bg-muted-foreground/30"
+            >
               <span
-                class={cn("usage-meter-fill", toneBarClass(percent))}
+                class={cn("block h-full rounded-full", toneBarClass(percent))}
                 style="width: {clampPercent(percent)}%"
               ></span>
             </span>
-            <span class={cn("usage-meter-value", toneTextClass(percent))}
+            <span class={cn("tabular-nums", toneTextClass(percent))}
               >{percentLabel(percent)}</span
             >
           </span>
         {/each}
         {#if triggerReset}
-          <span class="usage-reset">{triggerReset}</span>
+          <span class="tabular-nums">{triggerReset}</span>
         {/if}
       </span>
     {/snippet}
@@ -253,46 +256,3 @@ const title = $derived.by(() => {
     </PopoverBody>
   </Popover>
 {/if}
-
-<style>
-.usage-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  white-space: nowrap;
-}
-
-.usage-meter {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.usage-meter-label {
-  color: var(--muted-foreground);
-}
-
-.usage-meter-track {
-  position: relative;
-  overflow: hidden;
-  width: 1.5rem;
-  height: 0.25rem;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--muted-foreground) 28%, transparent);
-}
-
-.usage-meter-fill {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-}
-
-.usage-meter-value,
-.usage-reset {
-  font-variant-numeric: tabular-nums;
-}
-
-.usage-reset {
-  color: var(--muted-foreground);
-}
-</style>

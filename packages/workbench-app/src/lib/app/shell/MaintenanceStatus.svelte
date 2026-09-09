@@ -5,6 +5,7 @@ import * as Popover from "@nervekit/ui-kit/components/ui/popover";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import MaintenanceProgressView from "$lib/presentation/maintenance/MaintenanceProgressView.svelte";
 import { maintenance } from "$lib/application/maintenance/maintenance-state.svelte";
+import { STATUS_BAR_CHIP_BUTTON } from "$lib/presentation/shell";
 let { operation }: { operation: MaintenanceOperation } = $props();
 const label = $derived(
   operation.totalItems === undefined
@@ -19,7 +20,7 @@ const label = $derived(
         {...props}
         variant="ghost"
         size="xs"
-        class="h-5 min-w-0 gap-1 px-1.5 text-xs"
+        class={`${STATUS_BAR_CHIP_BUTTON} min-w-0`}
         ariaLabel={`${label}. Show progress`}
         title={label}
       >

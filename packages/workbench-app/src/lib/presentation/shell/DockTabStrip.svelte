@@ -230,7 +230,7 @@ const tourIdByView: Record<string, string> = {
 </script>
 
 <div
-  class="dock-tab-strip"
+  class="dock-tab-strip chrome-tab-track"
   class:drag-active={dragActive}
   data-tour-id={dock === "left" ? "panel-layout" : undefined}
   bind:this={strip}
@@ -251,14 +251,14 @@ const tourIdByView: Record<string, string> = {
       )}
       {#if view.id !== shellDrag.viewId && dropIndex === remainingIndex}
         <span
-          class="inline-block h-8 w-8 flex-none rounded-t-md border border-b-0 border-primary/55 bg-primary/10 shadow-inner"
+          class="inline-block h-8 w-8 flex-none border-t-2 border-t-primary/55 bg-primary/10"
           aria-hidden="true"
         ></span>
       {/if}
       <ContextMenu items={menuItems(view, index)} triggerClass="contents">
         <button
           type="button"
-          class={`dock-tab ${index > 0 ? "-ml-px" : ""}`}
+          class="dock-tab"
           class:active={view.id === activeViewId}
           class:dragging={collapsedDragViewId === view.id}
           data-view-id={view.id}
@@ -301,7 +301,7 @@ const tourIdByView: Record<string, string> = {
     {/each}
     {#if dragActive && dropIndex !== undefined && dropIndex >= remainingViews.length}
       <span
-        class="inline-block h-8 w-8 flex-none rounded-t-md border border-b-0 border-primary/55 bg-primary/10 shadow-inner"
+        class="inline-block h-8 w-8 flex-none border-t-2 border-t-primary/55 bg-primary/10"
         aria-hidden="true"
       ></span>
     {/if}
@@ -316,7 +316,9 @@ const tourIdByView: Record<string, string> = {
   align-items: stretch;
   min-width: 0;
   height: 2rem;
-  background: var(--card);
+  /* Surface comes from the shared `.chrome-tab-track` shade: a short step under
+   * the dock `card`, so the active tab reads as that panel surface filling the
+   * track. */
 }
 
 /* Keep the rail divider behind the active tab so that tab joins the panel. */
@@ -328,7 +330,7 @@ const tourIdByView: Record<string, string> = {
   left: 0;
   z-index: 1;
   height: 1px;
-  background: color-mix(in oklab, var(--primary) 60%, transparent);
+  background: var(--border);
   pointer-events: none;
 }
 
@@ -354,21 +356,21 @@ const tourIdByView: Record<string, string> = {
   flex: none;
   width: 2rem;
   height: 2rem;
-  border: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
-  border-bottom: 0;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-top: 2px solid transparent;
   color: var(--muted-foreground);
   cursor: pointer;
 }
 
-.dock-tab:hover {
-  background: color-mix(in oklab, var(--accent) 60%, transparent);
+.dock-tab:hover:not(.active) {
+  background: color-mix(in oklab, var(--accent) 45%, transparent);
   color: var(--foreground);
 }
 
+/* The active tab is the panel surface filling the track, marked by the same
+ * `primary` top rule the editor tabs use. */
 .dock-tab.active {
   z-index: 2;
-  border-color: color-mix(in oklab, var(--primary) 60%, transparent);
+  border-top-color: var(--primary);
   background: var(--card);
   color: var(--foreground);
 }

@@ -21,6 +21,7 @@ import {
 } from "$lib/application/commands/command-registry";
 import {
   DOCK_LABELS,
+  STATUS_BAR_CHIP_BUTTON,
   type DockId,
   type DockToggle,
 } from "$lib/presentation/shell";
@@ -73,13 +74,16 @@ function changeZoomLevel(delta: number) {
 
 <Popover
   size="md"
-  triggerClass="h-5.5 rounded-sm px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+  triggerClass={STATUS_BAR_CHIP_BUTTON}
   ariaLabel="Open layout controls"
   side="top"
   align="end"
 >
   {#snippet trigger()}
-    <span class="layout-trigger" title={`Layout · Zoom ${zoomPercent}%`}>
+    <span
+      class="inline-flex items-center gap-1.5 tabular-nums"
+      title={`Layout · Zoom ${zoomPercent}%`}
+    >
       <PanelsTopLeft size={12} strokeWidth={2.1} aria-hidden="true" />
       <span>{zoomPercent}%</span>
     </span>
@@ -155,12 +159,3 @@ function changeZoomLevel(delta: number) {
     </PopoverSection>
   </PopoverBody>
 </Popover>
-
-<style>
-.layout-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-variant-numeric: tabular-nums;
-}
-</style>

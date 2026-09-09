@@ -52,19 +52,19 @@ const trailingToggles = $derived(
     : icons[toggle.dock].closed}
   <Button
     variant="ghost"
-    size="icon-sm"
-    class="size-5.5 rounded-sm max-sm:size-9"
+    size="icon-xs"
+    class="rounded-sm text-muted-foreground max-sm:size-9"
     ariaLabel={`Toggle ${toggle.label}`}
     title={toggle.open ? `Hide ${toggle.label}` : `Show ${toggle.label}`}
     pressed={toggle.open}
     onclick={toggle.onToggle}
   >
-    <Icon size={13} strokeWidth={2.1} aria-hidden="true" />
+    <Icon size={12} strokeWidth={2.1} aria-hidden="true" />
   </Button>
 {/snippet}
 
 <footer
-  class="flex h-full min-w-0 items-center justify-between gap-3 border-t border-border bg-card px-1.5 text-xs text-muted-foreground select-none max-sm:pb-[env(safe-area-inset-bottom)]"
+  class="flex h-full min-w-0 items-center justify-between gap-2 border-t border-border bg-panel px-1.5 text-xs text-muted-foreground select-none max-sm:pb-[env(safe-area-inset-bottom)]"
 >
   <div class="flex min-w-0 flex-auto items-center gap-0.5 overflow-hidden">
     {#each leadingToggles as toggle (toggle.dock)}

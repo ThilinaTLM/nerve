@@ -10,6 +10,7 @@ import Popover, {
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import { type StatusTone } from "@nervekit/ui-kit/display/status";
+import { STATUS_BAR_CHIP_BUTTON } from "$lib/presentation/shell";
 
 type Props = {
   connection?: string;
@@ -49,13 +50,16 @@ const uptime = $derived.by(() => {
 
 <Popover
   size="sm"
-  triggerClass="h-5.5 rounded-sm px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+  triggerClass={STATUS_BAR_CHIP_BUTTON}
   ariaLabel="Open daemon status"
   {side}
   align="end"
 >
   {#snippet trigger()}
-    <span class="status-trigger" title={`Nerve daemon · ${summary}`}>
+    <span
+      class="inline-flex items-center gap-1.5"
+      title={`Nerve daemon · ${summary}`}
+    >
       <StatusDot tone={connectionTone} pulse={live} />
       {#if !compact}<span>{summary}</span>{/if}
     </span>
@@ -100,11 +104,3 @@ const uptime = $derived.by(() => {
     </PopoverProperties>
   </PopoverBody>
 </Popover>
-
-<style>
-.status-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-</style>
