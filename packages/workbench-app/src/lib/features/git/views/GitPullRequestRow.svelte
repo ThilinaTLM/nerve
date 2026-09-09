@@ -1,5 +1,6 @@
 <script lang="ts">
 import Check from "@lucide/svelte/icons/check";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import CircleSlash from "@lucide/svelte/icons/circle-slash";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import GitMerge from "@lucide/svelte/icons/git-merge";
@@ -89,10 +90,14 @@ async function copyLink() {
       {pr.author ?? "unknown"}{age ? ` · ${age}` : ""}
     </span>
     {#if checkedOut}
-      <Badge variant="info" class="shrink-0">
-        <Check aria-hidden="true" />
-        checked out
-      </Badge>
+      <span
+        class="inline-flex shrink-0 text-foreground"
+        role="img"
+        aria-label="Checked out locally"
+        title="Checked out locally"
+      >
+        <CircleCheck class="size-3.5" aria-hidden="true" />
+      </span>
     {/if}
     <!-- Metadata stays left-aligned; only the actions hug the right edge. -->
     <span class="min-w-0 flex-1"></span>

@@ -2,7 +2,7 @@
 import { ContextMenu as ContextMenuPrimitive } from "bits-ui";
 import { cn, type WithoutChildrenOrChild } from "@nervekit/ui-kit/utils";
 import type { Snippet } from "svelte";
-import CheckIcon from "@lucide/svelte/icons/check";
+import CircleCheckIcon from "@lucide/svelte/icons/circle-check";
 
 let {
   ref = $bindable(null),
@@ -33,7 +33,7 @@ let {
   {#snippet children({ checked })}
     <span class="absolute right-2 pointer-events-none">
       {#if checked}
-        <CheckIcon />
+        <CircleCheckIcon />
       {/if}
     </span>
     {@render childrenProp?.()}

@@ -1,5 +1,5 @@
 <script lang="ts">
-import Check from "@lucide/svelte/icons/check";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronUp from "@lucide/svelte/icons/chevron-up";
 import RotateCw from "@lucide/svelte/icons/rotate-cw";
@@ -183,8 +183,8 @@ function selectRun(taskId: string): void {
               {formatTaskRunTime(run.startedAt)}
             </span>
             {#if run.id === currentTaskId}
-              <Check
-                class="size-3.5 shrink-0 text-primary"
+              <CircleCheck
+                class="size-3.5 shrink-0 text-foreground"
                 aria-hidden="true"
               />
             {/if}

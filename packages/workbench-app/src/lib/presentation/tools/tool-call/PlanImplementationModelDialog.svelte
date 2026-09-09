@@ -1,5 +1,5 @@
 <script lang="ts">
-import Check from "@lucide/svelte/icons/check";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import type {
   AgentRecord,
   ModelInfo,
@@ -208,7 +208,10 @@ $effect(() => {
                   <span class="min-w-0 truncate font-medium"
                     >{entry.contextualLabel}</span
                   >
-                  {#if active}<Check class="size-4" strokeWidth={2.4} />{/if}
+                  {#if active}<CircleCheck
+                      class="size-4"
+                      strokeWidth={2.4}
+                    />{/if}
                 </button>
               {/snippet}
             </VirtualScroller>

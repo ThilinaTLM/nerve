@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { Component, Snippet } from "svelte";
-import Check from "@lucide/svelte/icons/check";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import { cn } from "@nervekit/ui-kit/utils";
 
 type PreviewMode = "light" | "dark";
@@ -104,7 +104,10 @@ function choose(next: string): void {
 
       <span class="flex min-w-0 items-center gap-1.5">
         {#if active}
-          <Check class="size-3.5 flex-none text-primary" aria-hidden="true" />
+          <CircleCheck
+            class="size-3.5 flex-none text-foreground"
+            aria-hidden="true"
+          />
         {:else}
           <span class="size-3.5 flex-none rounded-full border border-border/70"
           ></span>

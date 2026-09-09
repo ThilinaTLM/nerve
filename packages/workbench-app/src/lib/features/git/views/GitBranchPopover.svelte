@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import Check from "@lucide/svelte/icons/check";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Plus from "@lucide/svelte/icons/plus";
 import Settings2 from "@lucide/svelte/icons/settings-2";
@@ -168,7 +168,10 @@ function handleSearchKeydown(event: KeyboardEvent): void {
             {row.updatedLabel.replace(/^Updated /, "")}
           </span>
           {#if branch.current}
-            <Check class="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+            <CircleCheck
+              class="size-3.5 shrink-0 text-foreground"
+              aria-hidden="true"
+            />
           {/if}
         </button>
       {/each}

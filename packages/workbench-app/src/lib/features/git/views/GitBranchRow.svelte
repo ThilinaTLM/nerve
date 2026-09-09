@@ -1,5 +1,5 @@
 <script lang="ts">
-import Check from "@lucide/svelte/icons/check";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -53,7 +53,7 @@ const canDelete = $derived(
     {#if switching}
       <Spinner class="size-3.5 text-muted-foreground" />
     {:else if branch.current}
-      <Check class="size-3.5 text-success" aria-hidden="true" />
+      <CircleCheck class="size-3.5 text-foreground" aria-hidden="true" />
     {:else}
       <GitBranch class="size-3.5 text-muted-foreground" aria-hidden="true" />
     {/if}

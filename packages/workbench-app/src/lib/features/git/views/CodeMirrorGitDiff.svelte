@@ -14,7 +14,7 @@ import { onDestroy } from "svelte";
 import { mount } from "svelte";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
-import Check from "@lucide/svelte/icons/check";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import Copy from "@lucide/svelte/icons/copy";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import ScanText from "@lucide/svelte/icons/scan-text";
@@ -250,13 +250,13 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     { type: "separator" },
     {
       label: "Wrap long lines",
-      icon: wrap ? Check : WrapText,
+      icon: wrap ? CircleCheck : WrapText,
       disabled: !onToggleWrap,
       onSelect: onToggleWrap,
     },
     {
       label: "Highlight occurrences",
-      icon: highlightSelectionMatches ? Check : ScanText,
+      icon: highlightSelectionMatches ? CircleCheck : ScanText,
       disabled: !onToggleSelectionMatches,
       onSelect: onToggleSelectionMatches,
     },

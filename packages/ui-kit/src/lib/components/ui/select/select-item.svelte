@@ -1,7 +1,7 @@
 <script lang="ts">
 import { Select as SelectPrimitive } from "bits-ui";
 import { cn, type WithoutChild } from "@nervekit/ui-kit/utils";
-import CheckIcon from "@lucide/svelte/icons/check";
+import CircleCheckIcon from "@lucide/svelte/icons/circle-check";
 
 let {
   ref = $bindable(null),
@@ -26,7 +26,7 @@ let {
   {#snippet children({ selected, highlighted })}
     <span class="absolute end-2 flex size-3 items-center justify-center">
       {#if selected}
-        <CheckIcon class="cn-select-item-indicator-icon" />
+        <CircleCheckIcon class="cn-select-item-indicator-icon" />
       {/if}
     </span>
     {#if childrenProp}

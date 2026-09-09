@@ -7,11 +7,10 @@ export const toggleVariants = tv({
     variant: {
       default: "bg-transparent",
       outline: "border-input hover:bg-muted border bg-transparent shadow-xs",
-      // Segmented chip: the one control for "pick from a short set", optionally
-      // carrying a count. Square corners tie a chip row to the option rows it
-      // sits with, and the on-state is the same tint + primary edge a selected
-      // row uses, so selection means one thing across the app.
-      chip: "cursor-pointer border border-input bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground data-[state=on]:border-primary data-[state=on]:bg-selected data-[state=on]:text-foreground data-[state=on]:hover:bg-selected",
+      // Segmented chip: pick from a short set, optionally carrying a count.
+      // Selection uses the shared fill without a border; keyboard focus keeps
+      // the base focus-visible ring.
+      chip: "cursor-pointer bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground data-[state=on]:bg-selected data-[state=on]:text-foreground data-[state=on]:hover:bg-selected",
     },
     size: {
       default:

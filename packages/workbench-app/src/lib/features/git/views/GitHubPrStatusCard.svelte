@@ -1,5 +1,6 @@
 <script lang="ts">
 import Check from "@lucide/svelte/icons/check";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import CircleSlash from "@lucide/svelte/icons/circle-slash";
 import GitMerge from "@lucide/svelte/icons/git-merge";
 import GitPullRequestDraft from "@lucide/svelte/icons/git-pull-request-draft";
@@ -196,7 +197,9 @@ function confirmMerge() {
           {#each detail.mergeSettings.allowedMethods as option (option)}
             <DropdownMenu.Item onSelect={() => onMethodChange?.(option)}>
               <span class="w-4"
-                >{#if option === method}<Check class="size-4" />{/if}</span
+                >{#if option === method}<CircleCheck
+                    class="size-4"
+                  />{/if}</span
               >
               {mergeMethodLabel(option)}
             </DropdownMenu.Item>

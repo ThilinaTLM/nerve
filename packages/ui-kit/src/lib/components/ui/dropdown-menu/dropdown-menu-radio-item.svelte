@@ -1,6 +1,6 @@
 <script lang="ts">
 import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
-import CheckIcon from "@lucide/svelte/icons/check";
+import CircleCheckIcon from "@lucide/svelte/icons/circle-check";
 import { cn, type WithoutChild } from "@nervekit/ui-kit/utils";
 
 let {
@@ -26,7 +26,7 @@ let {
       data-slot="dropdown-menu-radio-item-indicator"
     >
       {#if checked}
-        <CheckIcon />
+        <CircleCheckIcon />
       {/if}
     </span>
     {@render childrenProp?.({ checked })}

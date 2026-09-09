@@ -1,5 +1,5 @@
 <script lang="ts">
-import Check from "@lucide/svelte/icons/check";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
 
@@ -64,6 +64,9 @@ let {
   </span>
   {@render trailing?.()}
   {#if selected}
-    <Check class="size-3.5 flex-none text-primary" aria-hidden="true" />
+    <CircleCheck
+      class="size-3.5 flex-none text-foreground"
+      aria-hidden="true"
+    />
   {/if}
 </button>
