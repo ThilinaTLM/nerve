@@ -5,6 +5,7 @@ export { default as EditorArea } from "./EditorArea.svelte";
 export { default as EditorTabStrip } from "./EditorTabStrip.svelte";
 export * from "./shell-drag.svelte.js";
 export * from "./shell-layout.js";
+export * from "./status-bar-chip.js";
 export type {
   DockId,
   DockState,

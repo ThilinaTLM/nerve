@@ -328,7 +328,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
 />
 
 <nav
-  class="relative flex min-h-8 min-w-0 bg-card after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-1 after:h-px after:bg-primary/60 after:content-['']"
+  class="chrome-tab-track relative flex min-h-8 min-w-0 after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-1 after:h-px after:bg-border after:content-['']"
   aria-label="Open editor tabs"
 >
   {#if canScrollLeft || canScrollRight}
@@ -354,10 +354,10 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
       {@const ToggleIcon = tab.toggle?.icon}
       <ContextMenu
         items={menuItems(tab, index)}
-        triggerClass={`h-8 min-w-0 flex-none ${index > 0 ? "-ml-px" : ""} ${tab.active ? "relative z-2" : ""} ${tab.wide ? "w-54 basis-54" : "w-50 basis-50"}`}
+        triggerClass={`h-8 min-w-0 flex-none ${tab.active ? "relative z-2" : ""} ${tab.wide ? "w-54 basis-54" : "w-50 basis-50"}`}
       >
         <div
-          class="editor-tab group relative inline-grid h-8 w-full touch-pan-y grid-cols-[auto_minmax(0,1fr)_auto] rounded-t-md border border-b-0 border-border/62 bg-card text-muted-foreground data-[active]:border-primary/60 data-[active]:bg-background data-[active]:text-foreground data-[placeholder]:border data-[placeholder]:border-primary/55 data-[placeholder]:bg-primary/10 data-[placeholder]:text-transparent data-[placeholder]:shadow-inner data-[placeholder]:[&>*]:invisible not-data-[active]:not-data-[placeholder]:hover:bg-accent/60 not-data-[active]:not-data-[placeholder]:hover:text-foreground"
+          class="editor-tab group relative inline-grid h-8 w-full touch-pan-y grid-cols-[auto_minmax(0,1fr)_auto] border-t-2 border-r border-t-transparent border-r-border/45 text-muted-foreground data-[active]:border-t-primary data-[active]:bg-background data-[active]:text-foreground data-[placeholder]:bg-primary/10 data-[placeholder]:text-transparent data-[placeholder]:[&>*]:invisible not-data-[active]:not-data-[placeholder]:hover:bg-accent/45 not-data-[active]:not-data-[placeholder]:hover:text-foreground"
           data-active={tab.active ? "" : undefined}
           data-running={tab.running ? "" : undefined}
           data-errored={tab.error ? "" : undefined}
@@ -477,7 +477,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
   {@const PreviewIcon = draggedTab.icon}
   {@const PreviewSelectIcon = draggedTab.selectIcon}
   <div
-    class="pointer-events-none fixed z-50 inline-grid h-8 grid-cols-[auto_minmax(0,1fr)_auto] border border-border bg-background text-foreground opacity-90 shadow-lg"
+    class="pointer-events-none fixed z-50 inline-grid h-8 grid-cols-[auto_minmax(0,1fr)_auto] border-t-2 border-t-primary bg-background text-foreground opacity-90 shadow-lg"
     style:top={`${pointerDrag.top}px`}
     style:left={`${previewLeft}px`}
     style:width={`${pointerDrag.width}px`}

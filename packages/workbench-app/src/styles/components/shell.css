@@ -1,3 +1,17 @@
+/* Shell chrome is flat and hairline-separated, never shaded: the titlebar and
+ * status bar bracket the window in `panel` behind a 1px border, and every tab
+ * row shares one `--chrome-track` shade a short step under the content it opens
+ * onto. Tabs carry no outline of their own — an active tab is the content
+ * surface filling the track, marked by a `primary` top rule. */
+:root {
+  --chrome-track: color-mix(in oklab, var(--muted) 45%, var(--card));
+}
+
+/* Tab track shared by EditorTabStrip and DockTabStrip. */
+.chrome-tab-track {
+  background-color: var(--chrome-track);
+}
+
 /* Dock layout contract shared by WorkbenchShell and DockPanel: WorkbenchShell
  * renders a `.dock-panel` of its own inside the compact sheet, and reuses
  * DockPanel elsewhere, so these classes cannot belong to either component. */
