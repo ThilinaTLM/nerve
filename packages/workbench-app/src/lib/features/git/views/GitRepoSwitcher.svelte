@@ -226,7 +226,7 @@ async function createBranch(repository: string): Promise<void> {
         loading={model.repoBranchState(selectedRepo).loadingBranches}
         enabled={model.capabilities.branches.enabled}
         switchingBranch={model.repoBranchState(selectedRepo).switchingBranch}
-        triggerClass={`flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-transparent px-2 text-xs transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 ${
+        triggerClass={`flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md bg-transparent px-2 text-xs transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 ${
           repoSummary.detached ? "text-muted-foreground" : "text-foreground"
         }`}
         triggerTitle={`Switch branch in ${repoPathLabel(repoSummary)}`}

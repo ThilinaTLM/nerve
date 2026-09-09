@@ -237,7 +237,7 @@ function openSettings(): void {
     </ToggleGroup.Root>
   </PopoverSearch>
 
-  <PopoverBody>
+  <PopoverBody class="gap-0">
     {#if error}
       <p class="px-1.5 text-warning" role="alert">{error}</p>
     {:else if loading && !configuration}
