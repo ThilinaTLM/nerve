@@ -1,7 +1,9 @@
 <script lang="ts">
 import type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import * as Popover from "@nervekit/ui-kit/components/ui/popover";
+import Popover, {
+  PopoverBody,
+  PopoverHeader,
+} from "@nervekit/ui-kit/components/composites/popover-panel";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import MaintenanceProgressView from "$lib/presentation/maintenance/MaintenanceProgressView.svelte";
 import { maintenance } from "$lib/application/maintenance/maintenance-state.svelte";
@@ -13,25 +15,27 @@ const label = $derived(
     : `Cleaning up ${operation.completedItems}/${operation.totalItems}`,
 );
 </script>
-<Popover.Root>
-  <Popover.Trigger>
-    {#snippet child({ props })}
-      <Button
-        {...props}
-        variant="ghost"
-        size="xs"
-        class={`${STATUS_BAR_CHIP_BUTTON} min-w-0`}
-        ariaLabel={`${label}. Show progress`}
-        title={label}
-      >
-        <Spinner class="size-3" /><span class="max-w-40 truncate">{label}</span>
-      </Button>
-    {/snippet}
-  </Popover.Trigger>
-  <Popover.Content side="top" align="end" class="w-80 max-w-full p-3">
+
+<Popover
+  size="lg"
+  side="top"
+  align="end"
+  triggerClass={`${STATUS_BAR_CHIP_BUTTON} min-w-0`}
+  ariaLabel={`${label}. Show progress`}
+  triggerTitle={label}
+>
+  {#snippet trigger()}
+    <span class="inline-flex min-w-0 items-center gap-1.5">
+      <Spinner class="size-3" />
+      <span class="max-w-40 truncate">{label}</span>
+    </span>
+  {/snippet}
+
+  <PopoverHeader title="Maintenance" />
+  <PopoverBody>
     <MaintenanceProgressView
       {operation}
       onCancel={() => void maintenance.cancel()}
     />
-  </Popover.Content>
-</Popover.Root>
+  </PopoverBody>
+</Popover>

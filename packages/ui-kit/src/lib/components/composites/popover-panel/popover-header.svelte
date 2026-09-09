@@ -5,23 +5,28 @@ import { cn } from "@nervekit/ui-kit/utils";
 let {
   title,
   meta,
-  action,
+  actions,
   class: className,
 }: {
   title: string;
-  /** Muted trailing text (e.g. "Updated 02:00 AM"). */
+  /** Muted trailing text or status (e.g. "4/7", "Updated 11:20 PM"). */
   meta?: string;
-  /** Trailing element (badge, link, tone-colored value). Wins over `meta`. */
-  action?: Snippet;
+  /** Trailing controls: icon actions, or a badge when status needs a tone. */
+  actions?: Snippet;
   class?: string;
 } = $props();
 </script>
 
-<div class={cn("flex items-baseline justify-between gap-3", className)}>
-  <strong class="text-sm font-semibold">{title}</strong>
-  {#if action}
-    {@render action()}
-  {:else if meta}
-    <span class="flex-none text-xs text-muted-foreground">{meta}</span>
+<header
+  class={cn("flex min-h-8 flex-none items-center gap-3 px-2.5 py-1", className)}
+>
+  <h2 class="min-w-0 truncate text-sm font-semibold">{title}</h2>
+  {#if meta}
+    <span class="ml-auto flex-none text-xs text-muted-foreground">{meta}</span>
   {/if}
-</div>
+  {#if actions}
+    <div class={cn("flex flex-none items-center gap-0.5", !meta && "ml-auto")}>
+      {@render actions()}
+    </div>
+  {/if}
+</header>

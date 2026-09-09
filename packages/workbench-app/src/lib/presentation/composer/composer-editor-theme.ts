@@ -31,12 +31,15 @@ export const composerEditorTheme = EditorView.theme({
     maxHeight: "min(40vh, 320px)",
     overflow: "auto",
   },
+  // Same surface contract as `.floating-surface` in ui-kit's popover.css:
+  // CodeMirror renders these tooltips itself, so the recipe is restated here
+  // rather than shared through a class.
   ".cm-tooltip": {
     border: "1px solid var(--border)",
-    borderRadius: "var(--radius-md)",
+    borderRadius: "var(--radius-lg)",
     background: "var(--popover)",
     color: "var(--popover-foreground)",
-    boxShadow: "var(--shadow-lg)",
+    boxShadow: "var(--shadow-overlay), inset 0 1px 0 var(--overlay-highlight)",
     overflow: "hidden",
   },
   ".cm-tooltip-autocomplete.nerve-composer-completions": {
@@ -56,17 +59,15 @@ export const composerEditorTheme = EditorView.theme({
       color: "var(--muted-foreground)",
       fontFamily: "var(--font-sans)",
       fontSize: "var(--text-xs)",
-      fontWeight: "500",
-      letterSpacing: "0.02em",
-      padding: "0.25rem 0.4rem 0.15rem",
-      textTransform: "uppercase",
+      fontWeight: "400",
+      padding: "0.3rem 0.375rem 0.15rem",
     },
   ".cm-tooltip-autocomplete.nerve-composer-completions > ul > li": {
     display: "flex",
     alignItems: "center",
-    minHeight: "1.55rem",
-    borderRadius: "var(--radius-sm)",
-    padding: "0.18rem 0.4rem",
+    minHeight: "1.75rem",
+    borderRadius: "var(--radius-md)",
+    padding: "0.25rem 0.375rem",
     color: "var(--popover-foreground)",
   },
   ".cm-tooltip-autocomplete.nerve-composer-completions > ul > li[aria-selected]":
@@ -120,7 +121,7 @@ export const composerEditorTheme = EditorView.theme({
     flexShrink: "0",
     whiteSpace: "nowrap",
     fontFamily: "var(--font-mono)",
-    fontSize: "var(--text-sm)",
+    fontSize: "var(--text-xs)",
     fontWeight: "500",
     color: "var(--popover-foreground)",
   },

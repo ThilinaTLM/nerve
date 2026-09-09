@@ -7,6 +7,7 @@ let {
   label,
   detail,
   selected = false,
+  active = false,
   disabled = false,
   title,
   icon,
@@ -17,7 +18,10 @@ let {
   label: string | Snippet;
   /** Secondary line: plain text, or a snippet for richer markup (e.g. mono ids). */
   detail?: string | Snippet;
+  /** The current value. Reads as a tint plus a trailing check. */
   selected?: boolean;
+  /** Keyboard highlight in a navigable list. Distinct from `selected`. */
+  active?: boolean;
   disabled?: boolean;
   /** Native tooltip (e.g. the raw model id shown on hover). */
   title?: string;
@@ -35,8 +39,9 @@ let {
   {title}
   aria-pressed={selected}
   class={cn(
-    "flex w-full cursor-pointer items-center gap-2.5 rounded-md border bg-accent/90 px-2 py-2 text-left transition-colors hover:bg-accent/95 dark:bg-accent/60 dark:hover:bg-accent/70",
-    selected ? "border-primary" : "border-transparent",
+    "flex min-h-7 w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-accent",
+    selected && "bg-selected hover:bg-selected",
+    active && "outline outline-1 -outline-offset-1 outline-ring/55",
     disabled && "pointer-events-none opacity-55",
     className,
   )}
@@ -45,12 +50,14 @@ let {
   {@render icon?.()}
   <span class="grid min-w-0 flex-1 gap-0.5">
     {#if typeof label === "string"}
-      <span class="truncate text-xs font-medium text-foreground">{label}</span>
+      <span class={cn("truncate text-foreground", selected && "font-medium")}>
+        {label}
+      </span>
     {:else}
       {@render label()}
     {/if}
     {#if typeof detail === "string"}
-      <span class="truncate text-xs text-muted-foreground">{detail}</span>
+      <span class="line-clamp-2 text-muted-foreground">{detail}</span>
     {:else if detail}
       {@render detail()}
     {/if}

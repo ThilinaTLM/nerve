@@ -50,6 +50,28 @@
     0 8px 10px -1px hsl(var(--elevation-hsl) / var(--elevation-2));
   --shadow-2xl: 0 1px 3px 0px
     hsl(var(--elevation-hsl) / calc(0.25 * var(--elevation-strength)));
+
+  /* Overlay elevation. Floating layers (popover, dropdown, context menu,
+   * select, and pane-positioned floating panels) sit above every inline
+   * surface, so they get their own recipe instead of borrowing a card's
+   * `--shadow-lg`: a hairline ring, a tight contact shadow, and a wide ambient
+   * one. It scales with `--elevation-strength`, so a deliberately flat theme
+   * keeps separating its layers with hairlines rather than a fake shadow. */
+  --elevation-overlay: calc(0.22 * var(--elevation-strength));
+  --shadow-overlay:
+    0 0 0 1px hsl(var(--elevation-hsl) / var(--elevation-2)),
+    0 2px 4px -2px hsl(var(--elevation-hsl) / var(--elevation-2)),
+    0 12px 28px -8px hsl(var(--elevation-hsl) / var(--elevation-overlay));
+
+  /* A shadow cannot lift a surface off a near-black background, so dark themes
+   * separate an overlay with a 1px top light edge instead. Light themes leave
+   * it transparent and let the shadow do the work. */
+  --overlay-highlight: transparent;
+}
+
+.dark,
+[data-theme-preview][data-color-mode="dark"] {
+  --overlay-highlight: color-mix(in oklab, var(--foreground) 7%, transparent);
 }
 
 /* Nerve: warm paper and ember. Layered surfaces with a soft warm shadow;
@@ -70,6 +92,7 @@
   --muted-foreground: oklch(0.5341 0.0078 97.5);
   --accent: oklch(0.918 0.026 92);
   --accent-foreground: oklch(0.2671 0.0196 98.9);
+  --selected: color-mix(in oklab, var(--primary) 14%, transparent);
   --destructive: oklch(0.5 0.19 27);
   --destructive-foreground: oklch(1 0 0);
   --destructive-solid: oklch(0.55 0.21 27.5);
@@ -134,6 +157,7 @@
   --muted-foreground: oklch(0.7713 0.017 99);
   --accent: oklch(0.21 0.022 78);
   --accent-foreground: oklch(0.9663 0.008 98.9);
+  --selected: color-mix(in oklab, var(--primary) 22%, transparent);
   --destructive: oklch(0.8 0.114 25.5);
   --destructive-foreground: oklch(0.147 0.004 49.3);
   --destructive-solid: oklch(0.58 0.21 27.5);
@@ -194,6 +218,7 @@
   --muted-foreground: oklch(0.545 0.05 300);
   --accent: oklch(0.894 0.026 340);
   --accent-foreground: oklch(0.42 0.055 300);
+  --selected: color-mix(in oklab, var(--primary) 14%, transparent);
   --destructive: oklch(0.5 0.14 10);
   --destructive-foreground: oklch(1 0 0);
   --destructive-solid: oklch(0.53 0.17 12);
@@ -249,6 +274,7 @@
   --muted-foreground: oklch(0.745 0.03 295);
   --accent: oklch(0.186 0.033 300);
   --accent-foreground: oklch(0.9 0.03 295);
+  --selected: color-mix(in oklab, var(--primary) 22%, transparent);
   --destructive: oklch(0.78 0.14 5);
   --destructive-foreground: oklch(0.19 0.02 5);
   --destructive-solid: oklch(0.58 0.19 8);
@@ -308,6 +334,7 @@
   --muted-foreground: oklch(0.525 0.03 200);
   --accent: oklch(0.891 0.026 190);
   --accent-foreground: oklch(0.4 0.03 200);
+  --selected: color-mix(in oklab, var(--primary) 14%, transparent);
   --destructive: oklch(0.478 0.165 28);
   --destructive-foreground: oklch(1 0 0);
   --destructive-solid: oklch(0.52 0.19 28);
@@ -363,6 +390,7 @@
   --muted-foreground: oklch(0.705 0.03 200);
   --accent: oklch(0.216 0.044 205);
   --accent-foreground: oklch(0.865 0.025 200);
+  --selected: color-mix(in oklab, var(--primary) 22%, transparent);
   --destructive: oklch(0.855 0.15 25);
   --destructive-foreground: oklch(0.19 0.02 25);
   --destructive-solid: oklch(0.56 0.19 28);
@@ -421,6 +449,7 @@
   --muted-foreground: oklch(0.42 0.012 265);
   --accent: oklch(0.925 0.006 265);
   --accent-foreground: oklch(0.175 0.008 265);
+  --selected: color-mix(in oklab, var(--primary) 14%, transparent);
   --destructive: oklch(0.45 0.183 27);
   --destructive-foreground: oklch(1 0 0);
   --destructive-solid: oklch(0.48 0.195 27.5);
@@ -476,6 +505,7 @@
   --muted-foreground: oklch(0.79 0.01 265);
   --accent: oklch(0.245 0.009 265);
   --accent-foreground: oklch(0.985 0.003 265);
+  --selected: color-mix(in oklab, var(--primary) 18%, transparent);
   --destructive: oklch(0.75 0.145 25.5);
   --destructive-foreground: oklch(0.14 0.005 25.5);
   --destructive-solid: oklch(0.55 0.215 27.5);
@@ -551,6 +581,8 @@
   --color-warning: var(--warning);
   --color-success-foreground: var(--success-foreground);
   --color-success: var(--success);
+  /* Persistent selection: primary tint, distinct from hover/focus accent. */
+  --color-selected: var(--selected);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -579,6 +611,7 @@
   --shadow-lg: var(--shadow-lg);
   --shadow-xl: var(--shadow-xl);
   --shadow-2xl: var(--shadow-2xl);
+  --shadow-overlay: var(--shadow-overlay);
   /* Keyframes live in animation.css; these expose Tailwind animate-* utilities. */
   --animate-collapsible-down: collapsible-down 150ms ease-out;
   --animate-collapsible-up: collapsible-up 150ms ease-in;

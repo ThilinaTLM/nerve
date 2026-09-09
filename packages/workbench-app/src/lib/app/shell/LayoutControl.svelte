@@ -73,7 +73,7 @@ function changeZoomLevel(delta: number) {
 </script>
 
 <Popover
-  size="md"
+  size="sm"
   triggerClass={STATUS_BAR_CHIP_BUTTON}
   ariaLabel="Open layout controls"
   side="top"
@@ -89,16 +89,10 @@ function changeZoomLevel(delta: number) {
     </span>
   {/snippet}
 
-  <PopoverBody>
-    <PopoverHeader title="Layout">
-      {#snippet action()}
-        <span class="flex-none text-sm font-semibold tabular-nums"
-          >{zoomPercent}%</span
-        >
-      {/snippet}
-    </PopoverHeader>
+  <PopoverHeader title="Layout" meta={`Zoom ${zoomPercent}%`} />
 
-    <div class="flex items-center justify-between gap-2">
+  <PopoverBody>
+    <div class="flex items-center justify-between gap-2 px-1.5">
       <div class="flex items-center gap-1" aria-label="Zoom controls">
         <Button
           variant="ghost"

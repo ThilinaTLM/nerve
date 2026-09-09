@@ -23,8 +23,8 @@ import type { TodoItem } from "@nervekit/contracts/tools";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Popover, {
   PopoverBody,
+  PopoverHeader,
   PopoverRow,
-  PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
@@ -154,7 +154,10 @@ function openPermissionSettings(): void {
   onOpenPermissionSettings?.();
 }
 
-function permissionDetail(option: PermissionRuleSetSummary): string {
+/* The picker chooses between a handful of known modes, so a rule set is one
+ * line: its name, plus a marker when it is not one of the built-ins. The prose
+ * stays available on hover and in Settings, where rules are actually edited. */
+function permissionTitle(option: PermissionRuleSetSummary): string {
   const source = option.source === "builtin" ? "Built-in" : "User";
   return option.description ? `${source} · ${option.description}` : source;
 }
@@ -199,7 +202,6 @@ function permissionDetail(option: PermissionRuleSetSummary): string {
     triggerAriaKeyShortcuts={permissionShortcutAria}
     side="top"
     align="start"
-    sideOffset={9}
   >
     {#snippet trigger()}
       <span
@@ -215,57 +217,63 @@ function permissionDetail(option: PermissionRuleSetSummary): string {
         {/if}
       </span>
     {/snippet}
+    <PopoverHeader title="Permissions">
+      {#snippet actions()}
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          disabled={permissionRuleSetsLoading}
+          ariaLabel="Refresh permission rule sets"
+          title="Refresh permission rule sets"
+          onclick={() => onRefreshPermissionRuleSets?.()}
+        >
+          <RefreshCw
+            class={`size-3.5 ${permissionRuleSetsLoading ? "animate-spin" : ""}`}
+            aria-hidden="true"
+          />
+        </Button>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          ariaLabel="Open permission settings"
+          title="Open permission settings"
+          onclick={openPermissionSettings}
+        >
+          <Settings class="size-3.5" aria-hidden="true" />
+        </Button>
+      {/snippet}
+    </PopoverHeader>
     <PopoverBody>
-      <PopoverSection label="Permission rule set">
-        {#snippet action()}
-          <div class="flex items-center gap-0.5 self-center">
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              disabled={permissionRuleSetsLoading}
-              ariaLabel="Refresh permission rule sets"
-              title="Refresh permission rule sets"
-              onclick={() => onRefreshPermissionRuleSets?.()}
-            >
-              <RefreshCw
-                class={`size-3.5 ${permissionRuleSetsLoading ? "animate-spin" : ""}`}
-                aria-hidden="true"
-              />
-            </Button>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              ariaLabel="Open permission settings"
-              title="Open permission settings"
-              onclick={openPermissionSettings}
-            >
-              <Settings class="size-3.5" aria-hidden="true" />
-            </Button>
-          </div>
-        {/snippet}
-        <div class="grid gap-2">
-          {#if permissionRuleSetsError}
-            <p class="text-xs text-warning">{permissionRuleSetsError}</p>
-          {/if}
-          {#if !activePermission.available}
-            <PopoverRow
-              label={activePermission.name}
-              detail={activePermission.description}
-              selected
-              disabled
-            />
-          {/if}
-          {#each permissionRuleSets as option (option.id)}
-            <PopoverRow
-              label={option.name}
-              detail={permissionDetail(option)}
-              selected={option.id === permissionRuleSetId}
-              disabled={controlsDisabled || modePlanning}
-              onclick={() => selectPermission(option.id)}
-            />
-          {/each}
-        </div>
-      </PopoverSection>
+      {#if permissionRuleSetsError}
+        <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
+      {/if}
+      {#if !activePermission.available}
+        <PopoverRow
+          label={activePermission.name}
+          title={activePermission.description}
+          selected
+          disabled
+        >
+          {#snippet trailing()}
+            <span class="flex-none text-muted-foreground">Unavailable</span>
+          {/snippet}
+        </PopoverRow>
+      {/if}
+      {#each permissionRuleSets as option (option.id)}
+        <PopoverRow
+          label={option.name}
+          title={permissionTitle(option)}
+          selected={option.id === permissionRuleSetId}
+          disabled={controlsDisabled || modePlanning}
+          onclick={() => selectPermission(option.id)}
+        >
+          {#snippet trailing()}
+            {#if option.source !== "builtin"}
+              <span class="flex-none text-muted-foreground">Custom</span>
+            {/if}
+          {/snippet}
+        </PopoverRow>
+      {/each}
     </PopoverBody>
   </Popover>
 

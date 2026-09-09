@@ -1,7 +1,6 @@
 <script lang="ts">
 import type { StatusResponse } from "$lib/api";
 import { formatDurationMinutes } from "@nervekit/ui-kit/display/usage";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Popover, {
   PopoverBody,
   PopoverHeader,
@@ -38,7 +37,12 @@ const connectionTone = $derived<StatusTone>(
         ? "warning"
         : "info",
 );
+// The status-bar chip that opens this panel is the connection indicator, so
+// the panel states version and health instead of repeating it.
 const summary = $derived(live ? "Connected" : connection);
+const versionLabel = $derived(
+  status?.version ? `v${status.version}` : undefined,
+);
 
 const uptime = $derived.by(() => {
   if (!status?.startedAt) return null;
@@ -65,32 +69,18 @@ const uptime = $derived.by(() => {
     </span>
   {/snippet}
 
-  <PopoverBody>
-    <PopoverHeader title="Nerve daemon">
-      {#snippet action()}
-        <Badge variant={connectionTone}>{summary}</Badge>
-      {/snippet}
-    </PopoverHeader>
+  <PopoverHeader title="Nerve daemon" meta={versionLabel} />
 
+  <PopoverBody>
     <PopoverProperties>
-      <PopoverProperty label="Connection">
-        <span class="flex items-center gap-1.5">
-          <StatusDot tone={connectionTone} size="xs" />{connection}
-        </span>
-      </PopoverProperty>
-      <PopoverProperty
-        label="Version"
-        value={status?.version}
-        valueClass="font-mono"
-      />
       <PopoverProperty label="Uptime" value={uptime ?? undefined} />
       <PopoverProperty
         label="Index"
         value={status == null
           ? undefined
           : status.storage.indexHealthy
-            ? "healthy"
-            : "rebuilding"}
+            ? "Healthy"
+            : "Rebuilding"}
         valueClass={status?.storage.indexHealthy
           ? "text-success"
           : "text-warning"}

@@ -5,15 +5,15 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import Popover, {
   PopoverBody,
+  PopoverFooter,
   PopoverHeader,
+  PopoverMeter,
   PopoverProperties,
   PopoverProperty,
   PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
-import { Progress } from "@nervekit/ui-kit/components/ui/progress";
 import { ProgressRing } from "@nervekit/ui-kit/components/composites/progress-ring";
-import { cn } from "@nervekit/ui-kit/utils";
 import { formatTokens, usageTone } from "@nervekit/ui-kit/display/usage";
 import {
   conversationUsageMetrics,
@@ -75,9 +75,6 @@ const ringTone = $derived<StatusTone>(
 const percentLabel = $derived(
   percent == null ? "?%" : `${Math.round(percent)}%`,
 );
-const usageLabel = $derived(
-  percent == null ? "Usage unavailable" : `${percentLabel} used`,
-);
 const title = $derived.by(() => {
   if (tokens != null && contextLimit > 0) {
     return `Context: ${tokens.toLocaleString()} / ${contextLimit.toLocaleString()} tokens`;
@@ -93,12 +90,8 @@ const windowLabel = $derived(
 const compactActionDisabled = $derived(
   compacting || compactDisabled || !onCompact,
 );
-const progressClass = $derived(
-  tone === "error"
-    ? "[&_[data-slot=progress-indicator]]:bg-destructive-solid"
-    : tone === "warning"
-      ? "[&_[data-slot=progress-indicator]]:bg-warning"
-      : "",
+const meterTone = $derived<"accent" | "warning" | "destructive">(
+  tone === "error" ? "destructive" : tone === "warning" ? "warning" : "accent",
 );
 
 function requestCompact(): void {
@@ -111,13 +104,12 @@ function requestCompact(): void {
 {#if contextLimit > 0 || percent != null}
   <Popover
     bind:open
-    size="md"
+    size="sm"
     triggerClass="composer-tab context-usage-tab"
     ariaLabel="Context usage"
     triggerTitle={title}
     side="top"
     align="end"
-    sideOffset={9}
   >
     {#snippet trigger()}
       <span
@@ -133,68 +125,24 @@ function requestCompact(): void {
       </span>
     {/snippet}
 
+    <PopoverHeader title="Context" />
+
     <PopoverBody>
-      <PopoverHeader title="Context window">
-        {#snippet action()}
-          <span
-            class={cn(
-              "flex-none text-xs font-medium",
-              tone === "error"
-                ? "text-destructive"
-                : tone === "warning"
-                  ? "text-warning"
-                  : "text-foreground",
-            )}>{usageLabel}</span
-          >
-        {/snippet}
-      </PopoverHeader>
-
-      <PopoverSection>
-        <Progress
-          value={ringPercent}
-          class={cn("h-1", progressClass)}
-          aria-label={percent == null
-            ? "Context usage unavailable"
-            : `${percentLabel} of context window used`}
-        />
-        {#if percent == null}
-          <p class="text-muted-foreground">
-            Usage will be available after the next response.
-          </p>
-        {/if}
-      </PopoverSection>
-
-      <PopoverSection separated>
-        <PopoverProperties>
-          <PopoverProperty
-            label="Used"
-            value={tokens == null
-              ? "Unavailable"
-              : `${formatTokens(tokens)} tokens`}
-            title={tokens == null
-              ? undefined
-              : `${tokens.toLocaleString()} tokens`}
-          />
-          <PopoverProperty
-            label="Remaining"
-            value={remainingTokens == null
-              ? "Unavailable"
-              : `${formatTokens(remainingTokens)} tokens`}
-            title={remainingTokens == null
-              ? undefined
-              : `${remainingTokens.toLocaleString()} tokens`}
-          />
-          <PopoverProperty
-            label="Window"
-            value={contextLimit > 0
-              ? `${formatTokens(contextLimit)} tokens`
-              : "Unknown"}
-            title={contextLimit > 0
-              ? `${contextLimit.toLocaleString()} tokens`
-              : undefined}
-          />
-        </PopoverProperties>
-      </PopoverSection>
+      <PopoverMeter
+        label="Used"
+        value={tokens == null
+          ? "—"
+          : `${formatTokens(tokens)} / ${formatTokens(contextLimit)}`}
+        percent={percent ?? undefined}
+        tone={meterTone}
+        caption={percent == null
+          ? `Available after the next response · ${windowLabel} window`
+          : `${percentLabel} used · ${
+              remainingTokens == null
+                ? "remaining unknown"
+                : `${formatTokens(remainingTokens)} remaining`
+            }`}
+      />
 
       <PopoverSection label="Token usage" separated>
         {#if conversationMetrics.hasUsage}
@@ -216,16 +164,17 @@ function requestCompact(): void {
             />
           </PopoverProperties>
         {:else}
-          <p class="text-muted-foreground">
+          <p class="px-1.5 text-muted-foreground">
             Available after the first response.
           </p>
         {/if}
       </PopoverSection>
+    </PopoverBody>
 
+    <PopoverFooter>
       <Button
         size="xs"
-        variant="outline"
-        class="w-full"
+        variant="ghost"
         disabled={compactActionDisabled}
         title={compacting
           ? "Conversation compaction is in progress"
@@ -235,7 +184,7 @@ function requestCompact(): void {
         <FoldVertical />
         {compacting ? "Compacting…" : "Compact context"}
       </Button>
-    </PopoverBody>
+    </PopoverFooter>
   </Popover>
 {/if}
 

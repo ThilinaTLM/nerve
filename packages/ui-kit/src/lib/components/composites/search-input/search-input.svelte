@@ -22,6 +22,12 @@ type Props = {
   /** Rendered after the field, e.g. a result count. */
   trailing?: Snippet;
   onValueChange?: (value: string) => void;
+  /** Lets a caller drive a result list from the field (arrow keys, Enter). */
+  onkeydown?: (event: KeyboardEvent) => void;
+  /** Id of the list this field drives; pairs with `activeDescendant`. */
+  controls?: string;
+  /** Id of the highlighted row, announced while focus stays in the field. */
+  activeDescendant?: string;
 };
 
 let {
@@ -37,6 +43,9 @@ let {
   ref = $bindable(null),
   trailing,
   onValueChange,
+  onkeydown,
+  controls,
+  activeDescendant,
 }: Props = $props();
 
 function setValue(next: string): void {
@@ -73,6 +82,9 @@ function setValue(next: string): void {
       )}
       oninput={(event) =>
         onValueChange?.((event.currentTarget as HTMLInputElement).value)}
+      {onkeydown}
+      aria-controls={controls}
+      aria-activedescendant={activeDescendant}
     />
     {#if clearable && value}
       <Button

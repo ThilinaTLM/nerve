@@ -1,8 +1,11 @@
 <script lang="ts">
 import Star from "@lucide/svelte/icons/star";
-import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
-import * as Popover from "@nervekit/ui-kit/components/ui/popover";
+import Popover, {
+  PopoverBody,
+  PopoverHeader,
+} from "@nervekit/ui-kit/components/composites/popover-panel";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
+import { cn } from "@nervekit/ui-kit/utils";
 import { supportedThinkingLevelsForModel } from "$lib/application/preferences/agent-selection";
 import type { AgentRecord, ModelInfo } from "$lib/api";
 
@@ -36,6 +39,11 @@ const activeLevel = $derived(
     ? currentThinkingLevel
     : undefined,
 );
+const triggerLabel = $derived(
+  isDefault
+    ? "Default model for new agents"
+    : `Make ${label} the default model`,
+);
 
 function choose(level: ThinkingLevel): void {
   onSelect(level);
@@ -43,24 +51,27 @@ function choose(level: ThinkingLevel): void {
 }
 </script>
 
-<Popover.Root bind:open>
-  <Popover.Trigger>
-    {#snippet child({ props })}
-      <IconAction
-        {...props}
-        icon={Star}
-        active={isDefault}
-        {disabled}
-        label={isDefault
-          ? "Default model for new agents"
-          : `Make ${label} the default model`}
-      />
-    {/snippet}
-  </Popover.Trigger>
-  <Popover.Content align="end" class="w-auto max-w-72 gap-1.5 p-2">
-    <p class="text-xs text-muted-foreground">
-      Thinking level new agents start on
-    </p>
+<Popover
+  bind:open
+  size="sm"
+  align="end"
+  ariaLabel={triggerLabel}
+  triggerTitle={triggerLabel}
+  triggerClass={cn(
+    "size-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground",
+    isDefault && "text-primary",
+    disabled && "pointer-events-none opacity-50",
+  )}
+>
+  {#snippet trigger()}
+    <Star
+      class={cn("size-4", isDefault && "fill-primary")}
+      aria-hidden="true"
+    />
+  {/snippet}
+
+  <PopoverHeader title="Default thinking level" />
+  <PopoverBody>
     <ToggleGroup.Root
       type="single"
       size="xs"
@@ -68,18 +79,16 @@ function choose(level: ThinkingLevel): void {
       variant="chip"
       value={activeLevel}
       aria-label={`Default thinking level for ${label}`}
-      class="flex-wrap justify-start"
+      class="flex-wrap justify-start px-1.5"
       onValueChange={(value) => {
         if (value) choose(value as ThinkingLevel);
       }}
     >
       {#each levels as level (level)}
-        <ToggleGroup.Item
-          value={level}
-          class="flex-none text-xs capitalize data-[state=on]:text-primary"
-          >{level}</ToggleGroup.Item
-        >
+        <ToggleGroup.Item value={level} class="flex-none capitalize">
+          {level}
+        </ToggleGroup.Item>
       {/each}
     </ToggleGroup.Root>
-  </Popover.Content>
-</Popover.Root>
+  </PopoverBody>
+</Popover>

@@ -4,7 +4,11 @@ import GitBranch from "@lucide/svelte/icons/git-branch";
 import Settings2 from "@lucide/svelte/icons/settings-2";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts/git";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import PopoverPanel from "@nervekit/ui-kit/components/composites/popover-panel";
+import PopoverPanel, {
+  PopoverBody,
+  PopoverHeader,
+  PopoverRow,
+} from "@nervekit/ui-kit/components/composites/popover-panel";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import { SvelteSet } from "svelte/reactivity";
 import GitBranchDialog from "./GitBranchDialog.svelte";
@@ -136,13 +140,11 @@ async function createBranch(repository: string): Promise<void> {
     value={repo.relativePath}
     disabled={!selectEnabled}
     title={`Switch to ${repoPathLabel(repo)}`}
-    class="max-w-full gap-1.5 px-2 font-mono text-xs data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-foreground"
+    class="max-w-full gap-1.5 px-2 font-mono text-xs"
   >
     <span class="min-w-0 truncate">{repoButtonLabel(repo, repos)}</span>
     {#if count}
-      <span class="text-[0.6875rem] text-muted-foreground tabular-nums"
-        >{count}</span
-      >
+      <span data-slot="toggle-count">{count}</span>
     {/if}
   </ToggleGroup.Item>
 {/snippet}
@@ -155,7 +157,7 @@ async function createBranch(repository: string): Promise<void> {
       <ToggleGroup.Root
         type="single"
         size="xs"
-        variant="outline"
+        variant="chip"
         spacing={1}
         value={selectedRepo}
         aria-label="Repository"
@@ -174,8 +176,6 @@ async function createBranch(repository: string): Promise<void> {
           bind:open={overflowOpen}
           size="sm"
           align="start"
-          sideOffset={4}
-          class="p-1"
           triggerClass="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground shadow-xs hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
           triggerTitle={`${overflowRepos.length} more repositories`}
           ariaLabel="More repositories"
@@ -184,34 +184,33 @@ async function createBranch(repository: string): Promise<void> {
             +{overflowRepos.length}
             <ChevronDown class="size-3" aria-hidden="true" />
           {/snippet}
-          <div
-            class="grid max-h-64 min-w-0 gap-0.5 overflow-y-auto"
-            role="listbox"
-            aria-label="More repositories"
-          >
+          <PopoverHeader title="Repositories" meta={`${repos.length}`} />
+          <PopoverBody role="listbox" ariaLabel="More repositories">
             {#each overflowRepos as repo (repo.relativePath)}
-              <button
-                type="button"
-                role="option"
-                aria-selected={repo.relativePath === selectedRepo}
+              {@const count = chipCount?.(repo)}
+              <PopoverRow
+                selected={repo.relativePath === selectedRepo}
                 disabled={!selectEnabled}
-                class="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-xs text-foreground transition-colors hover:bg-accent/60 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                 onclick={() => {
                   overflowOpen = false;
                   selectRepository(repo.relativePath);
                 }}
               >
-                <span class="min-w-0 flex-1 truncate"
-                  >{repoPathLabel(repo)}</span
-                >
-                {#if chipCount?.(repo)}
-                  <span class="shrink-0 text-muted-foreground tabular-nums"
-                    >{chipCount(repo)}</span
-                  >
-                {/if}
-              </button>
+                {#snippet label()}
+                  <span class="min-w-0 truncate font-mono">
+                    {repoPathLabel(repo)}
+                  </span>
+                {/snippet}
+                {#snippet trailing()}
+                  {#if count}
+                    <span class="shrink-0 text-muted-foreground tabular-nums">
+                      {count}
+                    </span>
+                  {/if}
+                {/snippet}
+              </PopoverRow>
             {/each}
-          </div>
+          </PopoverBody>
         </PopoverPanel>
       {/if}
     </div>

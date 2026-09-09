@@ -35,7 +35,7 @@ const hasAmount = $derived(amount !== undefined);
 <div
   class={cn(
     "flex items-center gap-2 px-2 py-1.5 transition-colors hover:bg-accent/40",
-    checked && "bg-primary/10",
+    checked && "bg-selected hover:bg-selected",
   )}
 >
   <Checkbox {id} bind:checked aria-label={title} />

@@ -46,7 +46,7 @@ let {
 >
   {#each items as item (item.value)}
     <Label
-      class="flex cursor-pointer items-start gap-2.5 rounded-md border border-border bg-input/30 p-3 transition-colors hover:bg-accent/50 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-accent"
+      class="flex cursor-pointer items-start gap-2.5 rounded-md border border-border bg-input/30 p-3 transition-colors hover:bg-accent/50 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-selected"
     >
       <RadioGroup.Item
         value={item.value}

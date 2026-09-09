@@ -414,8 +414,8 @@ async function selectSection(sectionId: string): Promise<void> {
 }
 
 .settings-nav button.active {
-  background: var(--accent);
-  color: var(--accent-foreground);
+  background: var(--selected);
+  color: var(--foreground);
 }
 
 .settings-nav-label {
@@ -475,8 +475,8 @@ async function selectSection(sectionId: string): Promise<void> {
 }
 
 .settings-subnav a.active {
-  background: color-mix(in oklab, var(--accent) 45%, transparent);
-  color: var(--accent-foreground);
+  background: color-mix(in oklab, var(--selected) 60%, transparent);
+  color: var(--foreground);
   font-weight: 500;
 }
 

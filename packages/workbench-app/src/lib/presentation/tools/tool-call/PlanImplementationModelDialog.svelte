@@ -198,7 +198,7 @@ $effect(() => {
                   type="button"
                   class={`flex w-full items-center justify-between gap-3 rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors ${
                     active
-                      ? "border-primary/40 bg-primary/10 text-primary"
+                      ? "border-primary/40 bg-selected text-foreground"
                       : "border-transparent text-foreground hover:bg-accent"
                   }`}
                   aria-selected={active}
@@ -235,7 +235,7 @@ $effect(() => {
               type="button"
               class={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
                 active
-                  ? "border-primary bg-primary/10 text-primary"
+                  ? "border-primary bg-selected text-foreground"
                   : "border-border bg-input text-muted-foreground hover:border-primary/40 hover:text-foreground"
               }`}
               aria-pressed={active}
