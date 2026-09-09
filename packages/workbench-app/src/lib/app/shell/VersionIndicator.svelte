@@ -5,6 +5,7 @@ import Copy from "@lucide/svelte/icons/copy";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Popover, {
   PopoverBody,
+  PopoverFooter,
   PopoverHeader,
   PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
@@ -75,28 +76,20 @@ onDestroy(() => {
   >
     {#snippet trigger()}{currentLabel}{/snippet}
 
-    <PopoverBody>
-      <PopoverHeader title={`Nerve ${currentLabel}`}>
-        {#snippet action()}
-          {#if latestLabel && latestRelease}
-            <a
-              href={latestRelease.releaseUrl}
-              target="_blank"
-              rel="noreferrer"
-              class="flex-none cursor-pointer text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
-              >Latest {latestLabel}</a
-            >
-          {/if}
-        {/snippet}
-      </PopoverHeader>
+    <PopoverHeader
+      title="Nerve"
+      meta={latestLabel
+        ? `${currentLabel} · latest ${latestLabel}`
+        : currentLabel}
+    />
 
+    <PopoverBody>
       {#if outdated && latestLabel && latestRelease}
-        <p class="text-warning">
+        <p class="px-1.5 text-warning">
           This version is out of date. Update to {latestLabel} to use the latest stable
           release.
         </p>
-        <PopoverSection separated>
-          <span class="text-muted-foreground">Run the latest release</span>
+        <PopoverSection label="Run the latest release" separated>
           <div class="flex items-center rounded-sm bg-muted pl-2 pr-1">
             <code class="min-w-0 flex-1 select-text py-1.5 text-foreground"
               >{latestCommand}</code
@@ -129,7 +122,9 @@ onDestroy(() => {
               {/key}
             </Button>
           </div>
-          <span class="mt-1 text-muted-foreground">Or pin this release</span>
+          <span class="mt-1 px-1.5 text-muted-foreground">
+            Or pin this release
+          </span>
           <div class="flex items-center rounded-sm bg-muted pl-2 pr-1">
             <code class="min-w-0 flex-1 select-text py-1.5 text-foreground"
               >{pinnedCommand}</code
@@ -163,21 +158,31 @@ onDestroy(() => {
             </Button>
           </div>
         </PopoverSection>
-        <span class="text-muted-foreground"
-          >Select the latest version above to open the release notes.</span
-        >
       {:else if latestLabel}
-        <p class="text-muted-foreground">
-          No newer stable release is available. Select the latest version above
-          to open the release notes.
+        <p class="px-1.5 text-muted-foreground">
+          No newer stable release is available.
         </p>
       {:else}
-        <p class="text-muted-foreground">
+        <p class="px-1.5 text-muted-foreground">
           The latest release could not be checked. Nerve will retry
           automatically.
         </p>
       {/if}
     </PopoverBody>
+
+    {#if latestRelease}
+      <PopoverFooter>
+        <Button
+          variant="ghost"
+          size="xs"
+          href={latestRelease.releaseUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Release notes
+        </Button>
+      </PopoverFooter>
+    {/if}
   </Popover>
 </span>
 

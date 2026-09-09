@@ -16,6 +16,10 @@ const pendingPr = (number: number): GithubPr => ({
   headRefName: `feature-${number}`,
   baseRefName: "main",
   updatedAt: "2026-07-30T00:00:00Z",
+  author: "octocat",
+  commentCount: 0,
+  additions: 1,
+  deletions: 1,
   checks: {
     status: "pending",
     total: 1,

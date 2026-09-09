@@ -33,7 +33,7 @@ $effect(() => {
 </script>
 
 <div
-  class="absolute top-3 right-3 left-3 z-20 grid gap-1 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-sm sm:left-auto sm:w-96"
+  class="floating-surface absolute top-3 right-3 left-3 z-20 grid gap-1 p-1 sm:left-auto sm:w-96"
   role="search"
   aria-label="Find in logs"
 >

@@ -25,12 +25,12 @@ const hasHeader = $derived(Boolean(title) || Boolean(header));
 
 <section
   class={cn(
-    "min-w-0 rounded-md bg-accent/35 text-xs ring-1 ring-border ring-inset",
+    "min-w-0 rounded-md border border-border bg-card text-xs",
     className,
   )}
 >
   {#if hasHeader}
-    <div class="flex min-h-7 items-center gap-2 px-3 py-1.5">
+    <div class="flex min-h-7 items-center gap-2 px-3 pt-2">
       {#if header}
         {@render header()}
       {:else}
@@ -45,12 +45,9 @@ const hasHeader = $derived(Boolean(title) || Boolean(header));
       {/if}
     </div>
   {/if}
-  <div
-    class={cn(
-      hasHeader && "border-t border-border/60",
-      contentClass ?? "px-3 py-2.5",
-    )}
-  >
+  <!-- Sections separate by surface and spacing; a rule under every header
+       turned the pane into a stack of lines. -->
+  <div class={cn(contentClass ?? "px-3 py-2.5", hasHeader && "pt-1.5")}>
     {@render children()}
   </div>
 </section>

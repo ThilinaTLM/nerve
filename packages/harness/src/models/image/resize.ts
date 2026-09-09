@@ -11,12 +11,16 @@ export interface ResizedImage {
   buffer: Buffer;
   mimeType: string;
   changed: boolean;
+  width: number;
+  height: number;
 }
 
 interface ResizeWorkerHeader {
   mimeType: string;
   changed: boolean;
   length: number;
+  width: number;
+  height: number;
 }
 
 /**
@@ -43,10 +47,16 @@ export async function resizeImageWithSharp(
   const image = sharp(source);
   const metadata = await image.metadata();
   if (!metadata.width || !metadata.height) {
-    return { buffer: source, mimeType, changed: false };
+    throw new Error("Could not determine image dimensions.");
   }
   if (metadata.width <= maxDimension && metadata.height <= maxDimension) {
-    return { buffer: source, mimeType, changed: false };
+    return {
+      buffer: source,
+      mimeType,
+      changed: false,
+      width: metadata.width,
+      height: metadata.height,
+    };
   }
 
   const resized = image.resize({
@@ -65,7 +75,7 @@ async function resizeImageInSubprocess(
   maxDimension: number,
 ): Promise<ResizedImage> {
   const workerPath = fileURLToPath(
-    new URL("./image-resize-worker.js", import.meta.url),
+    new URL("./resize-worker.js", import.meta.url),
   );
 
   return await new Promise<ResizedImage>((resolve, reject) => {
@@ -166,7 +176,11 @@ function parseWorkerOutput(output: Buffer): ResizedImage {
     typeof header.mimeType !== "string" ||
     typeof header.changed !== "boolean" ||
     !Number.isSafeInteger(header.length) ||
-    header.length < 1
+    header.length < 1 ||
+    !Number.isSafeInteger(header.width) ||
+    header.width < 1 ||
+    !Number.isSafeInteger(header.height) ||
+    header.height < 1
   ) {
     throw new Error("Image resize helper returned an invalid header.");
   }
@@ -175,22 +189,45 @@ function parseWorkerOutput(output: Buffer): ResizedImage {
   if (buffer.length !== header.length) {
     throw new Error("Image resize helper returned an incomplete image.");
   }
-  return { buffer, mimeType: header.mimeType, changed: header.changed };
+  return {
+    buffer,
+    mimeType: header.mimeType,
+    changed: header.changed,
+    width: header.width,
+    height: header.height,
+  };
 }
 
 async function encodeResizedImage(
   image: Sharp,
   mimeType: string,
-): Promise<{ buffer: Buffer; mimeType: string }> {
-  switch (mimeType.toLowerCase()) {
-    case "image/jpeg":
-    case "image/jpg":
-      return { buffer: await image.jpeg().toBuffer(), mimeType: "image/jpeg" };
-    case "image/png":
-      return { buffer: await image.png().toBuffer(), mimeType: "image/png" };
-    case "image/webp":
-      return { buffer: await image.webp().toBuffer(), mimeType: "image/webp" };
-    default:
-      return { buffer: await image.png().toBuffer(), mimeType: "image/png" };
+): Promise<{
+  buffer: Buffer;
+  mimeType: string;
+  width: number;
+  height: number;
+}> {
+  const normalizedMimeType = mimeType.toLowerCase();
+  const encoder =
+    normalizedMimeType === "image/jpeg" || normalizedMimeType === "image/jpg"
+      ? image.jpeg()
+      : normalizedMimeType === "image/webp"
+        ? image.webp()
+        : image.png();
+  const outputMimeType =
+    normalizedMimeType === "image/jpeg" || normalizedMimeType === "image/jpg"
+      ? "image/jpeg"
+      : normalizedMimeType === "image/webp"
+        ? "image/webp"
+        : "image/png";
+  const { data, info } = await encoder.toBuffer({ resolveWithObject: true });
+  if (!info.width || !info.height) {
+    throw new Error("Could not determine resized image dimensions.");
   }
+  return {
+    buffer: data,
+    mimeType: outputMimeType,
+    width: info.width,
+    height: info.height,
+  };
 }

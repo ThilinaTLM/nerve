@@ -62,7 +62,7 @@ const surfaceClass = $derived(
     hover === "default" && "hover:bg-accent/90 dark:hover:bg-accent/60",
     focusWithin && "focus-within:bg-accent/90 dark:focus-within:bg-accent/60",
     // Selection wins over both tones and any hover step.
-    selected && "bg-primary/15 font-medium text-foreground hover:bg-primary/15",
+    selected && "bg-selected font-medium text-foreground hover:bg-selected",
     className,
   ),
 );

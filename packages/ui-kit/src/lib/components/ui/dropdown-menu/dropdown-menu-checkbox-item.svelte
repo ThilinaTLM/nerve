@@ -1,7 +1,7 @@
 <script lang="ts">
 import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 import MinusIcon from "@lucide/svelte/icons/minus";
-import CheckIcon from "@lucide/svelte/icons/check";
+import CircleCheckIcon from "@lucide/svelte/icons/circle-check";
 import { cn, type WithoutChildrenOrChild } from "@nervekit/ui-kit/utils";
 import type { Snippet } from "svelte";
 
@@ -36,7 +36,7 @@ let {
       {#if indeterminate}
         <MinusIcon />
       {:else if checked}
-        <CheckIcon />
+        <CircleCheckIcon />
       {/if}
     </span>
     {@render childrenProp?.()}

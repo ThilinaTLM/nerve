@@ -1,7 +1,11 @@
-/* PopoverPanel primitive chrome. Bits UI portals the content out of the
- * component tree, so these rules cannot live in a Svelte-scoped <style> block.
- * Layered under `components` so consumer utilities passed through
- * `class`/`triggerClass` always win regardless of bundle order. */
+/* PopoverPanel chrome. Bits UI portals the content out of the component tree,
+ * so these rules cannot live in a Svelte-scoped <style> block. Layered under
+ * `components` so consumer utilities passed through `class`/`triggerClass`
+ * always win regardless of bundle order.
+ *
+ * A panel is a fixed vertical stack — header, optional search, one scrolling
+ * body, optional footer — and owns its own width, padding, and scroll bounds.
+ * Consumers fill regions; they never restate them. */
 
 @layer components {
   .popover-trigger {
@@ -20,39 +24,56 @@
     outline-offset: 2px;
   }
 
-  .popover-content {
-    z-index: 70;
-    max-height: min(32rem, var(--bits-popover-content-available-height, 32rem));
-    overflow: hidden;
+  /* The floating surface. `--popover` is the top of the surface ladder and
+   * `--shadow-overlay` its matching elevation; the inset highlight is what
+   * separates the panel from a dark workspace, where a shadow cannot. */
+  .floating-surface {
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    background: var(--card);
-    color: var(--foreground);
-    box-shadow: var(--shadow-lg);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    box-shadow:
+      var(--shadow-overlay),
+      inset 0 1px 0 var(--overlay-highlight);
+  }
+
+  .popover-content {
+    z-index: 70;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: min(32rem, var(--bits-popover-content-available-height, 32rem));
+    overflow: hidden;
   }
 
   .popover-content:focus-visible {
     outline: none;
   }
 
+  /* The panel grows out of its trigger. This is the job the old arrow was
+   * doing badly: it stated the anchor with a borderless triangle that rarely
+   * pointed at anything, since every status-bar panel aligns to its end. */
+  .popover-content[data-open] {
+    animation: popover-enter 120ms var(--motion-enter-easing);
+    transform-origin: var(--bits-popover-content-transform-origin, center);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .popover-content[data-open] {
+      animation: none;
+    }
+  }
+
   /* Panel widths, selected through PopoverPanel's `size` prop. */
   .popover-content.popover-sm {
-    width: min(15rem, calc(100vw - 1.5rem));
+    width: min(16rem, calc(100vw - 1.5rem));
   }
 
   .popover-content.popover-md {
-    width: min(17.5rem, calc(100vw - 1.5rem));
-  }
-
-  .popover-content.popover-lg {
     width: min(20rem, calc(100vw - 1.5rem));
   }
 
-  .popover-content.popover-xl {
+  .popover-content.popover-lg {
     width: min(24rem, calc(100vw - 1.5rem));
-  }
-
-  .popover-arrow {
-    fill: var(--card);
   }
 }

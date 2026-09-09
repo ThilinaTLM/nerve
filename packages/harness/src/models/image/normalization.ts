@@ -29,7 +29,7 @@ export async function normalizeImagesForModel(
 
   let changed = false;
   const normalizedMessages: Message[] = [];
-  for (const message of messages) {
+  for (const [messageIndex, message] of messages.entries()) {
     if (message.role === "user") {
       if (typeof message.content === "string") {
         normalizedMessages.push(message);
@@ -38,6 +38,7 @@ export async function normalizeImagesForModel(
       const normalized = await normalizeContentBlocks(
         message.content,
         maxDimension,
+        messageIndex,
       );
       if (normalized.changed) {
         changed = true;
@@ -52,6 +53,7 @@ export async function normalizeImagesForModel(
       const normalized = await normalizeContentBlocks(
         message.content,
         maxDimension,
+        messageIndex,
       );
       if (normalized.changed) {
         changed = true;
@@ -98,17 +100,23 @@ function countImages(messages: Message[]): number {
 async function normalizeContentBlocks(
   blocks: readonly (TextContent | ImageContent)[],
   maxDimension: number,
+  messageIndex: number,
 ): Promise<NormalizedContentBlocks> {
   let changed = false;
   const normalizedBlocks: Array<TextContent | ImageContent> = [];
 
-  for (const block of blocks) {
+  for (const [blockIndex, block] of blocks.entries()) {
     if (!isImageContent(block)) {
       normalizedBlocks.push(block);
       continue;
     }
 
-    const normalized = await normalizeImageBlock(block, maxDimension);
+    const normalized = await normalizeImageBlock(
+      block,
+      maxDimension,
+      messageIndex,
+      blockIndex,
+    );
     if (normalized !== block) changed = true;
     normalizedBlocks.push(normalized);
   }
@@ -119,27 +127,59 @@ async function normalizeContentBlocks(
 async function normalizeImageBlock(
   image: ImageContent,
   maxDimension: number,
+  messageIndex: number,
+  blockIndex: number,
 ): Promise<ImageContent> {
-  try {
-    const source = Buffer.from(image.data, "base64");
-    const dimensions = readImageDimensions(source);
-    if (
-      dimensions &&
-      dimensions.width <= maxDimension &&
-      dimensions.height <= maxDimension
-    ) {
-      return image;
-    }
+  const source = Buffer.from(image.data, "base64");
+  const dimensions = readImageDimensions(source);
+  if (
+    dimensions &&
+    dimensions.width <= maxDimension &&
+    dimensions.height <= maxDimension
+  ) {
+    return image;
+  }
 
+  try {
     const resized = await resizeImage(source, image.mimeType, maxDimension);
+    validateResizedImage(resized, maxDimension);
     if (!resized.changed) return image;
     return {
       type: "image",
       data: resized.buffer.toString("base64"),
       mimeType: resized.mimeType,
     };
-  } catch {
-    return image;
+  } catch (error) {
+    const size = dimensions
+      ? ` (${dimensions.width}x${dimensions.height})`
+      : "";
+    const mimeType = image.mimeType.slice(0, 100);
+    throw new Error(
+      `Could not prepare image at message ${messageIndex}, content ${blockIndex}${size} with MIME type ${mimeType} for the ${maxDimension}px model limit.`,
+      { cause: error },
+    );
+  }
+}
+
+function validateResizedImage(
+  image: Awaited<ReturnType<typeof resizeImage>>,
+  maxDimension: number,
+): void {
+  if (image.buffer.length === 0) {
+    throw new Error("Image resize returned no data.");
+  }
+  if (
+    !Number.isSafeInteger(image.width) ||
+    image.width < 1 ||
+    !Number.isSafeInteger(image.height) ||
+    image.height < 1
+  ) {
+    throw new Error("Image resize returned invalid dimensions.");
+  }
+  if (image.width > maxDimension || image.height > maxDimension) {
+    throw new Error(
+      `Image resize returned ${image.width}x${image.height}, exceeding the ${maxDimension}px limit.`,
+    );
   }
 }
 

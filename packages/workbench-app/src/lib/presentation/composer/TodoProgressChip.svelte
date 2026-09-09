@@ -22,13 +22,12 @@ const title = $derived(`Todos: ${completed} of ${total} complete`);
 {#if total > 0}
   <Popover
     bind:open
-    size="xl"
+    size="lg"
     triggerClass="composer-tab todo-progress-tab"
     ariaLabel="Todo progress"
     triggerTitle={title}
     side="top"
     align="end"
-    sideOffset={9}
   >
     {#snippet trigger()}
       <span class="todo-tab-inner">
@@ -37,8 +36,8 @@ const title = $derived(`Todos: ${completed} of ${total} complete`);
       </span>
     {/snippet}
 
-    <PopoverBody class="max-h-[min(48vh,20rem)] overflow-y-auto">
-      <PopoverHeader title="Todo list" meta={`${completed}/${total}`} />
+    <PopoverHeader title="Todo list" meta={`${completed}/${total}`} />
+    <PopoverBody>
       <TodoChecklist items={todos} dense />
     </PopoverBody>
   </Popover>

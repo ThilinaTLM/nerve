@@ -4,6 +4,7 @@ import type {
   GithubPr,
   GithubPrHeadSummary,
   GithubPrHeadsResponse,
+  GitRepoSummary,
   GitStashArea,
 } from "@nervekit/contracts/git";
 import type {
@@ -24,6 +25,31 @@ export function gitFileGroups(files: readonly GitFileChange[]): {
   return {
     staged: files.filter((file) => file.staged),
     unstaged: files.filter((file) => file.untracked || file.worktree !== " "),
+  };
+}
+
+/**
+ * Splits repositories into the chips shown inline and the ones that move into
+ * the overflow menu. The selected repository is always visible, so the active
+ * chip can never hide behind the overflow trigger.
+ */
+export function gitRepoChipSplit(
+  repos: readonly GitRepoSummary[],
+  selected: string,
+  maxVisible: number,
+): { visible: GitRepoSummary[]; overflow: GitRepoSummary[] } {
+  if (repos.length <= maxVisible) return { visible: [...repos], overflow: [] };
+  const head = repos.slice(0, maxVisible);
+  const visible = head.some((repo) => repo.relativePath === selected)
+    ? head
+    : [
+        ...head.slice(0, maxVisible - 1),
+        ...repos.filter((repo) => repo.relativePath === selected).slice(0, 1),
+      ];
+  const visiblePaths = new Set(visible.map((repo) => repo.relativePath));
+  return {
+    visible,
+    overflow: repos.filter((repo) => !visiblePaths.has(repo.relativePath)),
   };
 }
 

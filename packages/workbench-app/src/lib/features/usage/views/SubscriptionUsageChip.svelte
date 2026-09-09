@@ -12,6 +12,7 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Popover, {
   PopoverBody,
   PopoverHeader,
+  PopoverMeter,
   PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import { STATUS_BAR_CHIP_BUTTON } from "$lib/presentation/shell";
@@ -94,12 +95,22 @@ function toneTextClass(percent: number | null | undefined): string {
   return "";
 }
 
-/** Tailwind fill color for a usage progress bar. */
+/** Tailwind fill color for the trigger's inline usage bar. */
 function toneBarClass(percent: number | null | undefined): string {
   const tone = usageTone(percent);
   if (tone === "error") return "bg-destructive-solid";
   if (tone === "warning") return "bg-warning";
   return "bg-success";
+}
+
+/** Meter tone for a usage percent. */
+function meterTone(
+  percent: number | null | undefined,
+): "success" | "warning" | "destructive" {
+  const tone = usageTone(percent);
+  if (tone === "error") return "destructive";
+  if (tone === "warning") return "warning";
+  return "success";
 }
 
 function updatedLabel(value: string | undefined): string | null {
@@ -165,23 +176,13 @@ const title = $derived.by(() => {
 {#snippet usageRow(item: DisplayWindow)}
   {@const percent = item.window.usedPercent ?? null}
   {@const reset = windowReset(item.window)}
-  <div class="flex flex-col gap-1">
-    <div class="flex items-center justify-between gap-2 text-xs">
-      <span class="text-muted-foreground">{item.label}</span>
-      <span class={cn("font-medium tabular-nums", toneTextClass(percent))}
-        >{percentLabel(percent)}</span
-      >
-    </div>
-    <div class="h-1 overflow-hidden rounded-full bg-muted">
-      <div
-        class={cn("h-full rounded-full", toneBarClass(percent))}
-        style="width: {clampPercent(percent)}%"
-      ></div>
-    </div>
-    {#if reset}
-      <span class="text-xs text-muted-foreground">resets in {reset}</span>
-    {/if}
-  </div>
+  <PopoverMeter
+    label={item.label}
+    value={percentLabel(percent)}
+    percent={percent ?? undefined}
+    tone={meterTone(percent)}
+    caption={reset ? `resets in ${reset}` : undefined}
+  />
 {/snippet}
 
 {#if hasData}
@@ -217,27 +218,22 @@ const title = $derived.by(() => {
       </span>
     {/snippet}
 
-    <PopoverBody>
-      <PopoverHeader
-        title="Subscription usage"
-        meta={lastUpdated ? `Updated ${lastUpdated}` : undefined}
-      />
+    <PopoverHeader
+      title="Subscription usage"
+      meta={lastUpdated ? `Updated ${lastUpdated}` : undefined}
+    />
 
+    <PopoverBody>
       {#each entries as entry, index (entry.provider)}
-        <PopoverSection separated={index > 0}>
-          <div class="flex items-baseline justify-between gap-2">
-            <span class="flex items-baseline gap-1.5 text-xs font-medium">
-              {providerLabel(entry.provider)}
-              {#if entry.usage?.planType}
-                <span class="font-normal text-muted-foreground"
-                  >· {entry.usage.planType}</span
-                >
-              {/if}
-            </span>
+        <PopoverSection
+          label={`${providerLabel(entry.provider)}${entry.usage?.planType ? ` · ${entry.usage.planType}` : ""}`}
+          separated={index > 0}
+        >
+          {#snippet action()}
             {#if entry.active}
               <Badge variant="neutral">Active</Badge>
             {/if}
-          </div>
+          {/snippet}
 
           {#if entry.usage}
             {@const windows = displayWindows(entry.usage)}
@@ -246,10 +242,10 @@ const title = $derived.by(() => {
                 {@render usageRow(item)}
               {/each}
             {:else}
-              <span class="text-muted-foreground">No data</span>
+              <span class="px-1.5 text-muted-foreground">No data</span>
             {/if}
           {:else}
-            <span class="text-muted-foreground">No data</span>
+            <span class="px-1.5 text-muted-foreground">No data</span>
           {/if}
         </PopoverSection>
       {/each}

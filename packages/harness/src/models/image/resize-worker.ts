@@ -44,6 +44,14 @@ interface CanvasResizeResult {
   height: number;
 }
 
+interface WorkerImage {
+  buffer: Buffer;
+  mimeType: string;
+  changed: boolean;
+  width: number;
+  height: number;
+}
+
 const require = createRequire(import.meta.url);
 const electron = require("electron") as ElectronApi;
 
@@ -64,6 +72,8 @@ async function main(): Promise<void> {
       mimeType: resized.mimeType,
       changed: resized.changed,
       length: resized.buffer.length,
+      width: resized.width,
+      height: resized.height,
     })}\n`,
   );
   await writeOutput(Buffer.concat([header, resized.buffer]));
@@ -90,24 +100,39 @@ async function resizeWithElectron(
   source: Buffer,
   mimeType: string,
   maxDimension: number,
-): Promise<{ buffer: Buffer; mimeType: string; changed: boolean }> {
+): Promise<WorkerImage> {
   const image = electron.nativeImage.createFromBuffer(source);
   if (!image.isEmpty()) {
     const size = image.getSize();
     if (size.width <= maxDimension && size.height <= maxDimension) {
-      return { buffer: source, mimeType, changed: false };
+      return {
+        buffer: source,
+        mimeType,
+        changed: false,
+        width: size.width,
+        height: size.height,
+      };
     }
 
     const target = fitInside(size.width, size.height, maxDimension);
     const resized = image.resize({ ...target, quality: "best" });
+    const resizedSize = resized.getSize();
     if (mimeType.toLowerCase() === "image/jpeg") {
       return {
         buffer: resized.toJPEG(JPEG_QUALITY),
         mimeType: "image/jpeg",
         changed: true,
+        width: resizedSize.width,
+        height: resizedSize.height,
       };
     }
-    return { buffer: resized.toPNG(), mimeType: "image/png", changed: true };
+    return {
+      buffer: resized.toPNG(),
+      mimeType: "image/png",
+      changed: true,
+      width: resizedSize.width,
+      height: resizedSize.height,
+    };
   }
 
   return await resizeWithCanvas(source, mimeType, maxDimension);
@@ -117,7 +142,7 @@ async function resizeWithCanvas(
   source: Buffer,
   mimeType: string,
   maxDimension: number,
-): Promise<{ buffer: Buffer; mimeType: string; changed: boolean }> {
+): Promise<WorkerImage> {
   const window = new electron.BrowserWindow({
     show: false,
     webPreferences: { contextIsolation: true, sandbox: true },
@@ -157,13 +182,23 @@ async function resizeWithCanvas(
     if (!isCanvasResizeResult(result)) {
       throw new Error("Image canvas returned an invalid result.");
     }
-    if (!result.data) return { buffer: source, mimeType, changed: false };
+    if (!result.data) {
+      return {
+        buffer: source,
+        mimeType,
+        changed: false,
+        width: result.width,
+        height: result.height,
+      };
+    }
     const separator = result.data.indexOf(",");
     if (separator < 0) throw new Error("Image canvas returned invalid data.");
     return {
       buffer: Buffer.from(result.data.slice(separator + 1), "base64"),
       mimeType: "image/png",
       changed: true,
+      width: result.width,
+      height: result.height,
     };
   } finally {
     window.destroy();

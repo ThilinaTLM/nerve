@@ -12,8 +12,8 @@ type Props = {
   triggerAriaKeyShortcuts?: string;
   class?: string;
   triggerClass?: string;
-  /** Panel width preset: sm 15rem, md 17.5rem, lg 20rem, xl 24rem. */
-  size?: "sm" | "md" | "lg" | "xl";
+  /** Panel width preset: sm 16rem, md 20rem, lg 24rem. */
+  size?: "sm" | "md" | "lg";
   side?: "top" | "right" | "bottom" | "left";
   align?: "start" | "center" | "end";
   sideOffset?: number;
@@ -31,10 +31,10 @@ let {
   triggerAriaKeyShortcuts,
   class: className = "",
   triggerClass = "",
-  size = "xl",
+  size = "md",
   side = "bottom",
   align = "end",
-  sideOffset = 7,
+  sideOffset = 6,
   collisionPadding = 8,
   trapFocus = true,
   onOpenChange,
@@ -57,7 +57,11 @@ function handleOpenChange(next: boolean) {
   </PopoverPrimitive.Trigger>
   <PopoverPrimitive.Portal>
     <PopoverPrimitive.Content
-      class={cn("popover-content", `popover-${size}`, className)}
+      class={cn(
+        "floating-surface popover-content",
+        `popover-${size}`,
+        className,
+      )}
       {side}
       {align}
       {sideOffset}
@@ -65,7 +69,6 @@ function handleOpenChange(next: boolean) {
       {trapFocus}
     >
       {@render children?.()}
-      <PopoverPrimitive.Arrow class="popover-arrow" width={9} height={5} />
     </PopoverPrimitive.Content>
   </PopoverPrimitive.Portal>
 </PopoverPrimitive.Root>

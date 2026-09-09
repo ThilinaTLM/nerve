@@ -2,7 +2,9 @@
 import type { ModelInfo, ThinkingLevel } from "@nervekit/contracts/models";
 import Popover, {
   PopoverBody,
+  PopoverHeader,
   PopoverRow,
+  PopoverSearch,
   PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
@@ -45,14 +47,20 @@ let open = $state(false);
 let query = $state("");
 let providerFilter = $state("all");
 
+const showSearch = $derived(models.length > SEARCH_THRESHOLD);
 const catalog = $derived(buildModelCatalog(models));
 const providerChips = $derived(modelProviderFacets(catalog));
 const filteredModels = $derived(
   filterModelCatalog(
     catalog,
-    models.length > SEARCH_THRESHOLD ? query : "",
-    models.length > SEARCH_THRESHOLD ? providerFilter : "all",
+    showSearch ? query : "",
+    showSearch ? providerFilter : "all",
   ),
+);
+const modelCountLabel = $derived(
+  filteredModels.length === models.length
+    ? `${models.length}`
+    : `${filteredModels.length} of ${models.length}`,
 );
 const selectedModel = $derived(
   models.find((model) => modelKey(model) === selectedModelKey),
@@ -144,13 +152,12 @@ $effect(() => {
 <Popover
   {open}
   onOpenChange={handleOpenChange}
-  size="lg"
+  size="md"
   triggerClass="composer-tab model-tab"
   ariaLabel="Model and thinking level"
   {triggerTitle}
   side="top"
   align="end"
-  sideOffset={9}
 >
   {#snippet trigger()}
     <span
@@ -168,71 +175,66 @@ $effect(() => {
     </span>
   {/snippet}
 
-  <PopoverBody>
-    <PopoverSection label="Model">
-      {#if models.length === 0}
-        <p class="text-muted-foreground">{emptyMessage}</p>
-      {:else}
-        <div class="grid gap-2">
-          {#if models.length > SEARCH_THRESHOLD}
-            {#if providerChips.length > 2}
-              <ToggleGroup.Root
-                type="single"
-                size="xs"
-                spacing={1}
-                variant="chip"
-                value={providerFilter}
-                aria-label="Filter by provider"
-                class="flex-nowrap overflow-x-auto"
-                onValueChange={(value) => {
-                  if (value) providerFilter = value;
-                }}
-              >
-                {#each providerChips as chip (chip.id)}
-                  <ToggleGroup.Item
-                    value={chip.id}
-                    class="flex-none gap-1.5 text-xs"
-                  >
-                    {chip.label}
-                    <span class="text-muted-foreground">{chip.count}</span>
-                  </ToggleGroup.Item>
-                {/each}
-              </ToggleGroup.Root>
-            {/if}
-            <SearchInput
-              bind:value={query}
-              placeholder="Search models"
-              ariaLabel="Search models"
-            />
-          {/if}
-          {#if filteredModels.length === 0}
-            <p class="text-muted-foreground">No models match.</p>
-          {:else}
-            <VirtualScroller
-              items={filteredModels}
-              getKey={(entry) => entry.key}
-              estimateSize={() => 36}
-              gap={8}
-              paddingEnd={4}
-              viewportClass="max-h-[min(44vh,18rem)]"
-              viewportAriaLabel="Available models"
-            >
-              {#snippet row({ item: entry })}
-                <PopoverRow
-                  label={entry.contextualLabel}
-                  selected={entry.key === selectedModelKey}
-                  {disabled}
-                  onclick={() => selectModel(entry.model)}
-                />
-              {/snippet}
-            </VirtualScroller>
-          {/if}
-        </div>
+  <PopoverHeader title="Model" meta={modelCountLabel} />
+
+  {#if showSearch}
+    <PopoverSearch class={providerChips.length > 2 ? "grid gap-2" : undefined}>
+      {#if providerChips.length > 2}
+        <ToggleGroup.Root
+          type="single"
+          size="xs"
+          spacing={1}
+          variant="chip"
+          value={providerFilter}
+          aria-label="Filter by provider"
+          class="flex-nowrap overflow-x-auto"
+          onValueChange={(value) => {
+            if (value) providerFilter = value;
+          }}
+        >
+          {#each providerChips as chip (chip.id)}
+            <ToggleGroup.Item value={chip.id} class="flex-none">
+              {chip.label}
+              <span data-slot="toggle-count">{chip.count}</span>
+            </ToggleGroup.Item>
+          {/each}
+        </ToggleGroup.Root>
       {/if}
-    </PopoverSection>
+      <SearchInput
+        bind:value={query}
+        placeholder="Search models"
+        ariaLabel="Search models"
+      />
+    </PopoverSearch>
+  {/if}
+
+  <PopoverBody>
+    {#if models.length === 0}
+      <p class="px-1.5 text-muted-foreground">{emptyMessage}</p>
+    {:else if filteredModels.length === 0}
+      <p class="px-1.5 text-muted-foreground">No models match.</p>
+    {:else}
+      <VirtualScroller
+        items={filteredModels}
+        getKey={(entry) => entry.key}
+        estimateSize={() => 28}
+        gap={2}
+        viewportClass="max-h-[min(44vh,18rem)]"
+        viewportAriaLabel="Available models"
+      >
+        {#snippet row({ item: entry })}
+          <PopoverRow
+            label={entry.contextualLabel}
+            selected={entry.key === selectedModelKey}
+            {disabled}
+            onclick={() => selectModel(entry.model)}
+          />
+        {/snippet}
+      </VirtualScroller>
+    {/if}
 
     {#if hasThinking}
-      <PopoverSection separated>
+      <PopoverSection label="Reasoning effort" separated>
         <ToggleGroup.Root
           type="single"
           size="xs"
@@ -240,7 +242,7 @@ $effect(() => {
           variant="chip"
           value={thinkingLevel}
           aria-label="Thinking level"
-          class="flex-wrap justify-start"
+          class="flex-wrap justify-start px-1.5"
           onValueChange={(value) => {
             if (value) selectThinking(value as ThinkingLevel);
           }}
@@ -248,7 +250,7 @@ $effect(() => {
           {#each thinkingLevels as level (level)}
             <ToggleGroup.Item
               value={level}
-              class="flex-none rounded-full text-xs data-[state=on]:text-primary"
+              class="flex-none"
               title={thinkingLevelDetails[level]}
               {disabled}
             >

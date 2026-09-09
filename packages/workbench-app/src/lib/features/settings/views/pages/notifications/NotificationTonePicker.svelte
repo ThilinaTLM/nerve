@@ -7,8 +7,11 @@ import {
   previewNotificationSound,
 } from "$lib/application/notifications/state/notification-sounds";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import * as Popover from "@nervekit/ui-kit/components/ui/popover";
-import { SelectRow } from "@nervekit/ui-kit/components/composites/select-row";
+import Popover, {
+  PopoverBody,
+  PopoverHeader,
+  PopoverRow,
+} from "@nervekit/ui-kit/components/composites/popover-panel";
 import { cn } from "@nervekit/ui-kit/utils";
 
 let {
@@ -42,42 +45,39 @@ function previewTone(tone: NotificationTone): void {
 }
 </script>
 
-<Popover.Root bind:open>
-  <Popover.Trigger>
-    {#snippet child({ props })}
-      <Button
-        {...props}
-        variant="outline"
-        size="sm"
-        {disabled}
-        class={cn("w-full min-w-0 justify-between", className)}
-        {ariaLabel}
-      >
-        <span class="truncate">{selectedOption?.label ?? "Select sound"}</span>
-        <ChevronsUpDown
-          class="size-4 text-muted-foreground"
-          aria-hidden="true"
-        />
-      </Button>
-    {/snippet}
-  </Popover.Trigger>
-  <Popover.Content
-    align="end"
-    class="max-h-80 w-(--bits-popover-anchor-width) min-w-72 gap-0 overflow-y-auto p-1"
-  >
-    <div class="sr-only">Choose and preview a notification sound</div>
+<Popover
+  bind:open
+  size="md"
+  align="end"
+  {ariaLabel}
+  triggerClass={cn("w-full min-w-0", className)}
+>
+  {#snippet trigger()}
+    <span
+      class={cn(
+        "flex h-7 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-input px-2 text-xs",
+        disabled && "pointer-events-none opacity-50",
+      )}
+    >
+      <span class="truncate">{selectedOption?.label ?? "Select sound"}</span>
+      <ChevronsUpDown class="size-4 text-muted-foreground" aria-hidden="true" />
+    </span>
+  {/snippet}
+
+  <PopoverHeader title="Notification sound" />
+  <PopoverBody>
     {#each notificationToneOptions as option (option.value)}
       <div class="flex min-w-0 items-center gap-1">
-        <SelectRow
+        <PopoverRow
           label={option.label}
           detail={option.detail}
-          class="flex-1 rounded-sm border-transparent bg-transparent px-2 py-1.5 hover:bg-accent/60 dark:bg-transparent dark:hover:bg-accent/60"
+          class="flex-1"
           selected={option.value === value}
           onclick={() => selectTone(option.value)}
         />
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon-xs"
           ariaLabel={`Preview ${option.label}`}
           title={`Preview ${option.label}`}
           disabled={option.value === "none"}
@@ -87,5 +87,5 @@ function previewTone(tone: NotificationTone): void {
         </Button>
       </div>
     {/each}
-  </Popover.Content>
-</Popover.Root>
+  </PopoverBody>
+</Popover>

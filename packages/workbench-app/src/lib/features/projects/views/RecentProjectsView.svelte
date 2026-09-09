@@ -143,7 +143,7 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
             hover="default"
             class={`group w-full cursor-pointer items-center gap-2.5 border border-transparent px-2.5 py-1.5 text-left focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none ${
               selected
-                ? "bg-accent/90 hover:bg-accent dark:bg-accent/80 dark:hover:bg-accent/80"
+                ? "bg-selected hover:bg-selected"
                 : "hover:bg-accent/90 dark:hover:bg-accent/70"
             }`}
             onclick={() => onOpen(item)}

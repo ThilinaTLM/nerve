@@ -54,6 +54,7 @@ jobs:
               - '.github/workflows/ci.yml'
               - 'packages/workbench-server/**'
               - 'packages/workbench-app/**'
+              - 'packages/desktop-shell/**'
               - 'packages/ui-kit/**'
               - 'packages/contracts/**'
               - 'packages/protocol/**'
@@ -62,6 +63,7 @@ jobs:
               - 'packages/native/**'
               - 'scripts/copy-workbench-app-dist-to-workbench-server.mjs'
               - 'scripts/smoke-workbench-release.mjs'
+              - 'scripts/smoke-electron-image-resize.mjs'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -141,6 +143,10 @@ jobs:
       - name: Build workbench runtime
         if: github.event_name != 'pull_request' || needs.paths.outputs.workbench == 'true'
         run: pnpm build:workbench-runtime
+
+      - name: Smoke Electron image normalization
+        if: github.event_name != 'pull_request' || needs.paths.outputs.workbench == 'true'
+        run: xvfb-run -a node scripts/smoke-electron-image-resize.mjs
 
       - name: Smoke built workbench HTTP and WebSocket parity
         if: github.event_name != 'pull_request' || needs.paths.outputs.workbench == 'true'

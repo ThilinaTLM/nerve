@@ -9,6 +9,7 @@ let {
   class: className,
   children,
 }: {
+  /** Subgroup label. Never the panel's title — that belongs to PopoverHeader. */
   label?: string;
   action?: Snippet;
   /** Adds the single hairline rule used between peer sections. */
@@ -18,18 +19,18 @@ let {
 } = $props();
 </script>
 
-<div
+<section
   class={cn(
-    "grid gap-1.5",
-    separated && "border-t border-border/60 pt-3",
+    "grid gap-1",
+    separated && "border-t border-border/60 pt-2",
     className,
   )}
 >
   {#if label || action}
-    <div class="flex items-baseline justify-between gap-3">
+    <div class="flex items-center justify-between gap-3 px-1.5 py-0.5">
       {#if label}<span class="text-xs text-muted-foreground">{label}</span>{/if}
       {#if action}{@render action()}{/if}
     </div>
   {/if}
   {@render children?.()}
-</div>
+</section>

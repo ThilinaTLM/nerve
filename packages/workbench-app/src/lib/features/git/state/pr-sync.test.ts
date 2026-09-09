@@ -33,6 +33,7 @@ const core: GithubPrCore = {
   updatedAt: "2026-07-29T02:10:00Z",
   createdAt: "2026-07-29T02:00:00Z",
   author: "octocat",
+  commentCount: 4,
   additions: 10,
   deletions: 2,
   changedFiles: 3,
@@ -49,6 +50,10 @@ describe("pull request summary sync", () => {
       headRefName: core.headRefName,
       baseRefName: core.baseRefName,
       updatedAt: core.updatedAt,
+      author: core.author,
+      commentCount: core.commentCount,
+      additions: core.additions,
+      deletions: core.deletions,
       checks: passingChecks,
     });
   });

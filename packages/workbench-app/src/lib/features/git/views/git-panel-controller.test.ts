@@ -4,10 +4,12 @@ import type {
   GitBranchSummary,
   GitFileChange,
   GithubPrHeadsResponse,
+  GitRepoSummary,
 } from "@nervekit/contracts/git";
 import { buildPanelTree } from "$lib/presentation/panels/panel-tree";
 import {
   gitChangeTreeFolderKey,
+  gitRepoChipSplit,
   gitExpandedGroupIds,
   gitFilesInScope,
   gitPathspecs,
@@ -215,4 +217,61 @@ test("loads a repository's branches once per picker, retrying empty results", ()
   assert.equal(shouldLoadRepoBranches(requested, "api", 0), true);
   // Requesting one repository never satisfies another.
   assert.equal(shouldLoadRepoBranches(requested, "web-app", 7), true);
+});
+
+function repoSummary(relativePath: string): GitRepoSummary {
+  return {
+    relativePath,
+    absDir: `/tmp/${relativePath}`,
+    name: relativePath,
+    isRepo: true,
+    currentBranch: "main",
+    detached: false,
+    ahead: 0,
+    behind: 0,
+    hasUpstream: true,
+    hasRemote: true,
+    hasGithubRemote: true,
+    baseBranch: "main",
+    onBaseBranch: true,
+    mergedToBase: true,
+    dirty: false,
+    changeCount: 0,
+  };
+}
+
+test("repository chips keep every repo inline while they fit", () => {
+  const repos = ["a", "b", "c"].map(repoSummary);
+  const split = gitRepoChipSplit(repos, "b", 4);
+  assert.deepEqual(
+    split.visible.map((repo) => repo.relativePath),
+    ["a", "b", "c"],
+  );
+  assert.deepEqual(split.overflow, []);
+});
+
+test("repository chips move the tail into the overflow menu", () => {
+  const repos = ["a", "b", "c", "d", "e"].map(repoSummary);
+  const split = gitRepoChipSplit(repos, "a", 3);
+  assert.deepEqual(
+    split.visible.map((repo) => repo.relativePath),
+    ["a", "b", "c"],
+  );
+  assert.deepEqual(
+    split.overflow.map((repo) => repo.relativePath),
+    ["d", "e"],
+  );
+});
+
+test("repository chips always keep the selected repository visible", () => {
+  const repos = ["a", "b", "c", "d", "e"].map(repoSummary);
+  const split = gitRepoChipSplit(repos, "e", 3);
+  assert.deepEqual(
+    split.visible.map((repo) => repo.relativePath),
+    ["a", "b", "e"],
+  );
+  assert.deepEqual(
+    split.overflow.map((repo) => repo.relativePath),
+    ["c", "d"],
+  );
 });

@@ -6,7 +6,6 @@ import CloudDownload from "@lucide/svelte/icons/cloud-download";
 import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import { SvelteSet } from "svelte/reactivity";
 import {
   PanelHeader,
   PanelToolbar,
@@ -15,14 +14,9 @@ import {
 } from "$lib/presentation/panels";
 import GitChangesArea from "./GitChangesArea.svelte";
 import GitPanelBanner from "./GitPanelBanner.svelte";
-import GitRepositoryControls from "./GitRepositoryControls.svelte";
+import GitRepoSwitcher from "./GitRepoSwitcher.svelte";
 import GitStashDialog from "./GitStashDialog.svelte";
-import {
-  groupBranchesForDialog,
-  gitFileGroups,
-  gitFilesInScope,
-  shouldLoadRepoBranches,
-} from "./git-panel-controller.js";
+import { gitFileGroups, gitFilesInScope } from "./git-panel-controller.js";
 import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";
 import {
   basePullDisabled,
@@ -42,13 +36,7 @@ let {
   actions: GitPanelActions;
 } = $props();
 
-let branchDialogOpen = $state(false);
-let branchDialogView = $state<"switch" | "create">("switch");
 let stashDialogOpen = $state(false);
-let branchFilter = $state("");
-let newBranchName = $state("");
-/** Repositories whose branch list has already been requested this session. */
-const branchesRequested = new SvelteSet<string>();
 let discardCandidate = $state<
   | {
       kind: "file";
@@ -67,58 +55,6 @@ let discardCandidate = $state<
 
 const fileGroups = $derived(gitFileGroups(model.changes?.files ?? []));
 const changeCount = $derived(model.changes?.files.length ?? 0);
-const branchGroups = $derived(
-  groupBranchesForDialog(
-    model.branches,
-    branchFilter,
-    model.repositorySummary?.baseBranch,
-    model.prHeads,
-  ),
-);
-function branchRowsFor(repository: string) {
-  const state = model.repoBranchState(repository);
-  return groupBranchesForDialog(
-    state.branches,
-    "",
-    state.repoSummary?.baseBranch,
-    state.prHeads,
-  ).local;
-}
-
-function loadingBranchesFor(repository: string): boolean {
-  return model.repoBranchState(repository).loadingBranches;
-}
-
-function switchingBranchFor(repository: string): string | undefined {
-  return model.repoBranchState(repository).switchingBranch;
-}
-
-/** Branch lists are per repository, so a picker loads its own on first open. */
-function loadBranches(repository: string): void {
-  const state = model.repoBranchState(repository);
-  if (
-    !shouldLoadRepoBranches(
-      branchesRequested,
-      repository,
-      state.branches.length,
-    )
-  )
-    return;
-  branchesRequested.add(repository);
-  refreshBranchDialog(repository);
-}
-
-/** The management dialog operates on the selected repository. */
-function openBranchManager(
-  repository: string,
-  view: "switch" | "create",
-): void {
-  selectRepository(repository);
-  branchDialogView = view;
-  branchDialogOpen = true;
-  resetRepositoryUi();
-  refreshBranchDialog(repository);
-}
 
 const remoteBusy = $derived(
   model.operations.fetching ||
@@ -127,50 +63,6 @@ const remoteBusy = $derived(
     model.operations.syncing ||
     model.operations.switchingBaseAndPulling,
 );
-
-function resetRepositoryUi(): void {
-  branchFilter = "";
-  newBranchName = "";
-}
-
-function selectRepository(repository: string): void {
-  if (repository === model.selectedRepository) return;
-  resetRepositoryUi();
-  void actions.selectRepository(repository);
-}
-
-async function switchBranch(
-  repository: string,
-  branch: (typeof model.branches)[number],
-): Promise<void> {
-  const switched = await actions.switchBranch(repository, branch);
-  if (switched === false) return;
-  branchDialogOpen = false;
-  resetRepositoryUi();
-}
-
-async function deleteBranch(
-  repository: string,
-  branch: (typeof model.branches)[number],
-): Promise<boolean> {
-  return (await actions.deleteBranch(repository, branch)) !== false;
-}
-
-async function createBranch(repository: string): Promise<void> {
-  const name = newBranchName.trim();
-  if (!name) return;
-  const created = await actions.createBranch(repository, name);
-  if (created === false) return;
-  branchDialogOpen = false;
-  resetRepositoryUi();
-}
-
-function refreshBranchDialog(repository = model.selectedRepository): void {
-  void Promise.all([
-    actions.refreshBranches(repository),
-    actions.refreshPrHeads(repository),
-  ]);
-}
 </script>
 
 <PanelView padded={false} scroll={false}>
@@ -190,37 +82,7 @@ function refreshBranchDialog(repository = model.selectedRepository): void {
       {/snippet}
     </PanelHeader>
 
-    <GitRepositoryControls
-      repoSummary={model.repositorySummary}
-      repos={[...model.repositories]}
-      selectedRepo={model.selectedRepository}
-      {branchGroups}
-      {branchRowsFor}
-      {loadingBranchesFor}
-      {switchingBranchFor}
-      loadingBranches={model.loadingBranches}
-      loadingPrHeads={model.loadingPrHeads}
-      switchingBranch={model.operations.switchingBranch}
-      deletingBranch={model.operations.deletingBranch}
-      creatingBranch={model.operations.creatingBranch}
-      capabilities={model.capabilities}
-      bind:branchFilter
-      bind:newBranchName
-      bind:branchDialogOpen
-      bind:branchDialogView
-      onSelectRepo={selectRepository}
-      onLoadBranches={loadBranches}
-      onManageBranches={(repository) => openBranchManager(repository, "switch")}
-      onCreateBranchFlow={(repository) =>
-        openBranchManager(repository, "create")}
-      onSwitchBranch={(repository, branch) =>
-        void switchBranch(repository, branch)}
-      onDeleteBranch={deleteBranch}
-      onOpenPullRequest={(repository, number) =>
-        void actions.openPullRequest(repository, number)}
-      onRefreshBranches={(repository) => refreshBranchDialog(repository)}
-      onCreateBranch={(repository) => void createBranch(repository)}
-    />
+    <GitRepoSwitcher {model} {actions} chipCount={(repo) => repo.changeCount} />
 
     {#if model.repositorySummary}
       {@const repo = model.repositorySummary}

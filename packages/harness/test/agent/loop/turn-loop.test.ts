@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import { describe, it } from "node:test";
 import {
   type AssistantMessage,
   type Context,
   createAssistantMessageEventStream,
+  type ImageContent,
   type Message,
   type Usage,
 } from "@earendil-works/pi-ai";
@@ -90,6 +92,45 @@ function textOf(message: Message): string {
     .map((part) => part.text)
     .join("\n");
 }
+
+describe("agent loop image normalization", () => {
+  it("does not invoke the provider when an oversized image cannot be normalized", async () => {
+    const malformed = Buffer.alloc(24);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(
+      malformed,
+    );
+    malformed.writeUInt32BE(190, 16);
+    malformed.writeUInt32BE(8_101, 20);
+    const image: ImageContent = {
+      type: "image",
+      data: malformed.toString("base64"),
+      mimeType: "image/png",
+    };
+    let providerCalls = 0;
+    const streamFn: StreamFn = () => {
+      providerCalls += 1;
+      return streamMessage(assistant([{ type: "text", text: "unexpected" }]));
+    };
+
+    await assert.rejects(
+      runAgentLoop(
+        [{ role: "user", content: [image], timestamp: Date.now() }],
+        { systemPrompt: "", messages: [] },
+        {
+          model,
+          convertToLlm,
+          getSteeringMessages: async () => [],
+          getFollowUpMessages: async () => [],
+        },
+        async () => undefined,
+        undefined,
+        streamFn,
+      ),
+      /Could not prepare image.*8101.*8000px/,
+    );
+    assert.equal(providerCalls, 0);
+  });
+});
 
 describe("agent loop follow-up queue", () => {
   it("runs a follow-up only after a response would otherwise finish", async () => {
