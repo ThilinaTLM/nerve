@@ -38,7 +38,9 @@ type PrStateSummary = Pick<GithubPrCore, "isDraft" | "state">;
 export function stateTone(detail: PrStateSummary | undefined): StatusTone {
   if (!detail) return "neutral";
   if (detail.isDraft) return "neutral";
-  if (detail.state === "MERGED") return "accent";
+  /* Merged is an outcome, not an error or a success to act on: it reads as
+   * informational everywhere it appears (badge, row icon, status card). */
+  if (detail.state === "MERGED") return "info";
   if (detail.state === "CLOSED") return "destructive";
   return "success";
 }
@@ -80,6 +82,24 @@ export function formatPrDateCompact(value?: string): string {
         hour: "numeric",
         minute: "2-digit",
       });
+}
+
+/** Compact age for dense rows: "3m", "2h", "6d", "4mo", "2y". */
+export function formatCompactAge(value?: string, now = Date.now()): string {
+  if (!value) return "";
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return "";
+  const seconds = Math.max(0, Math.floor((now - timestamp) / 1_000));
+  if (seconds < 60) return "now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo`;
+  return `${Math.floor(months / 12)}y`;
 }
 
 export function defaultMergeMethod(

@@ -1,0 +1,1349 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nerve — Git / PR panel mockups</title>
+    <style>
+      /* Nerve theme tokens (dark), copied from packages/ui-kit/src/styles/theme.css */
+      :root {
+        --background: oklch(0.264 0.018 80);
+        --foreground: oklch(0.9 0.012 95);
+        --card: oklch(0.289 0.02 82);
+        --popover: oklch(0.305 0.02 82);
+        --primary: oklch(0.6724 0.1308 38.8);
+        --primary-foreground: oklch(0.1908 0.008 80);
+        --muted: oklch(0.218 0.018 78);
+        --muted-foreground: oklch(0.7713 0.017 99);
+        --accent: oklch(0.21 0.022 78);
+        --destructive: oklch(0.8 0.114 25.5);
+        --success: oklch(0.78 0.176 149.2);
+        --warning: oklch(0.828 0.16 70.1);
+        --info: oklch(0.8 0.134 254.1);
+        --border: oklch(0.353 0.022 82);
+        --ring: oklch(0.6724 0.1308 38.8);
+        --panel: oklch(0.228 0.02 70);
+        --well: oklch(0.205 0.018 78);
+        --radius: 0.375rem;
+        --purple: oklch(0.78 0.12 310);
+        --font-sans:
+          ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          sans-serif;
+        --font-mono:
+          ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: var(--font-sans);
+        font-size: 13px;
+        line-height: 1.45;
+        -webkit-font-smoothing: antialiased;
+      }
+      h1 {
+        font-size: 16px;
+        margin: 0;
+      }
+      h2 {
+        font-size: 13px;
+        margin: 0 0 8px;
+        color: var(--muted-foreground);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 600;
+      }
+      .note {
+        color: var(--muted-foreground);
+        font-size: 12px;
+        max-width: 70ch;
+      }
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.92em;
+      }
+
+      /* ---------- page chrome ---------- */
+      header.top {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 10px 16px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .tabs {
+        display: flex;
+        gap: 2px;
+        padding: 2px;
+        background: var(--well);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+      .tabs button {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: var(--muted-foreground);
+        font: inherit;
+        font-size: 12px;
+        padding: 3px 10px;
+        border-radius: calc(var(--radius) - 2px);
+        cursor: pointer;
+      }
+      .tabs button[aria-selected="true"] {
+        background: var(--card);
+        color: var(--foreground);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+      }
+      main {
+        padding: 20px 16px 80px;
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+      }
+      .variants {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        align-items: flex-start;
+      }
+      .variant {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .variant > .label {
+        font-size: 11px;
+        color: var(--muted-foreground);
+        display: flex;
+        gap: 6px;
+        align-items: baseline;
+      }
+      .variant > .label b {
+        color: var(--foreground);
+        font-size: 12px;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .panel-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: 600;
+        border-bottom: 1px solid var(--border);
+      }
+      .panel-head .count {
+        color: var(--muted-foreground);
+        font-weight: 400;
+      }
+      .panel-body {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 6px;
+      }
+
+      /* ---------- primitives ---------- */
+      svg {
+        flex: none;
+      }
+      .icon {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .icon.sm {
+        width: 12px;
+        height: 12px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 6px;
+        height: 18px;
+        border-radius: calc(var(--radius) - 2px);
+        font-size: 11px;
+        font-weight: 500;
+        border: 1px solid transparent;
+        white-space: nowrap;
+      }
+      .badge.neutral {
+        background: color-mix(in oklab, var(--muted) 80%, transparent);
+        color: var(--muted-foreground);
+        border-color: var(--border);
+      }
+      .badge.outline {
+        border-color: var(--border);
+        color: var(--muted-foreground);
+      }
+      .badge.success {
+        background: color-mix(in oklab, var(--success) 14%, transparent);
+        color: var(--success);
+        border-color: color-mix(in oklab, var(--success) 30%, transparent);
+      }
+      .badge.danger {
+        background: color-mix(in oklab, var(--destructive) 14%, transparent);
+        color: var(--destructive);
+        border-color: color-mix(in oklab, var(--destructive) 30%, transparent);
+      }
+      .badge.warn {
+        background: color-mix(in oklab, var(--warning) 14%, transparent);
+        color: var(--warning);
+        border-color: color-mix(in oklab, var(--warning) 30%, transparent);
+      }
+      .badge.info {
+        background: color-mix(in oklab, var(--info) 14%, transparent);
+        color: var(--info);
+        border-color: color-mix(in oklab, var(--info) 30%, transparent);
+      }
+      .badge.primary {
+        background: color-mix(in oklab, var(--primary) 18%, transparent);
+        color: var(--primary);
+        border-color: color-mix(in oklab, var(--primary) 35%, transparent);
+      }
+      .mono {
+        font-family: var(--font-mono);
+      }
+      .muted {
+        color: var(--muted-foreground);
+      }
+      .sep {
+        color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+      }
+      .iconbtn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border: 0;
+        border-radius: calc(var(--radius) - 2px);
+        background: transparent;
+        color: var(--muted-foreground);
+        cursor: pointer;
+      }
+      .iconbtn:hover {
+        background: var(--muted);
+        color: var(--foreground);
+      }
+      .iconbtn.active {
+        color: var(--success);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 24px;
+        padding: 0 8px;
+        font-size: 12px;
+        border-radius: calc(var(--radius) - 1px);
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--foreground);
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .btn:hover {
+        background: var(--muted);
+      }
+      .btn.ghost {
+        background: transparent;
+        border-color: transparent;
+        color: var(--muted-foreground);
+      }
+      .btn.ghost:hover {
+        background: var(--muted);
+        color: var(--foreground);
+      }
+      .btn.primary {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-color: transparent;
+        font-weight: 500;
+      }
+
+      /* ---------- PR rows ---------- */
+      .pr {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 7px 8px;
+        border-radius: var(--radius);
+        background: var(--card);
+        border: 1px solid transparent;
+        cursor: pointer;
+      }
+      .pr:hover {
+        border-color: var(--border);
+        background: color-mix(in oklab, var(--card) 70%, var(--muted));
+      }
+      .pr .title {
+        font-size: 12.5px;
+        color: var(--foreground);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .pr .title.one {
+        -webkit-line-clamp: 1;
+      }
+      .pr .num {
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        color: var(--muted-foreground);
+      }
+      .meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--muted-foreground);
+        min-width: 0;
+      }
+      .meta .grow {
+        flex: 1;
+        min-width: 0;
+      }
+      .truncate {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .state-open {
+        color: var(--success);
+      }
+      .state-draft {
+        color: var(--muted-foreground);
+      }
+      .state-merged {
+        color: var(--purple);
+      }
+      .state-closed {
+        color: var(--destructive);
+      }
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 1px;
+      }
+      .hover-actions {
+        opacity: 0;
+        transition: opacity 90ms ease;
+      }
+      .pr:hover .hover-actions,
+      .pr:focus-within .hover-actions {
+        opacity: 1;
+      }
+      .float-actions {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        display: flex;
+        gap: 1px;
+        padding: 2px;
+        border-radius: var(--radius);
+        background: color-mix(in oklab, var(--popover) 92%, transparent);
+        border: 1px solid var(--border);
+        box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+      }
+      .stat-add {
+        color: var(--success);
+        font-family: var(--font-mono);
+      }
+      .stat-del {
+        color: var(--destructive);
+        font-family: var(--font-mono);
+      }
+      .current-rail {
+        position: absolute;
+        left: 0;
+        top: 6px;
+        bottom: 6px;
+        width: 2px;
+        border-radius: 2px;
+        background: var(--primary);
+      }
+
+      /* ---------- repo switcher ---------- */
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 22px;
+        padding: 0 7px;
+        border-radius: calc(var(--radius) - 1px);
+        border: 1px solid transparent;
+        background: color-mix(in oklab, var(--well) 80%, transparent);
+        color: var(--muted-foreground);
+        font-size: 11.5px;
+        font-family: var(--font-mono);
+        cursor: pointer;
+      }
+      .chip:hover {
+        background: var(--muted);
+        color: var(--foreground);
+      }
+      .chip[aria-pressed="true"] {
+        background: color-mix(in oklab, var(--primary) 18%, transparent);
+        border-color: color-mix(in oklab, var(--primary) 45%, transparent);
+        color: var(--foreground);
+        font-weight: 500;
+      }
+      .chip .dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--warning);
+      }
+      .chip .cnt {
+        font-size: 10px;
+        color: var(--muted-foreground);
+      }
+      .branchrow {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 4px;
+        border-radius: var(--radius);
+      }
+      .branchbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+        height: 24px;
+        padding: 0 6px;
+        border-radius: calc(var(--radius) - 1px);
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--foreground);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .branchbtn:hover {
+        background: var(--muted);
+      }
+      .toolrow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 2px 4px 6px;
+      }
+      .divider {
+        height: 1px;
+        background: var(--border);
+        opacity: 0.6;
+      }
+
+      /* ---------- PR detail ---------- */
+      .detail {
+        width: 100%;
+        max-width: 1100px;
+        background: var(--background);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+      .detail-head {
+        padding: 12px 14px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .detail-title {
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 1.3;
+      }
+      .segmented {
+        display: inline-flex;
+        gap: 2px;
+        padding: 2px;
+        background: var(--well);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+      .segmented button {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border: 0;
+        background: transparent;
+        color: var(--muted-foreground);
+        font: inherit;
+        font-size: 12px;
+        height: 24px;
+        padding: 0 9px;
+        border-radius: calc(var(--radius) - 2px);
+        cursor: pointer;
+      }
+      .segmented button[aria-selected="true"] {
+        background: var(--card);
+        color: var(--foreground);
+      }
+      .segmented .pill {
+        font-size: 10.5px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: var(--muted);
+        color: var(--muted-foreground);
+      }
+      .detail-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 260px;
+        gap: 16px;
+        padding: 14px;
+        background: var(--well);
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 10px 12px;
+      }
+      .side-block {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 2px 0 10px;
+      }
+      .side-block h3 {
+        margin: 0;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted-foreground);
+        font-weight: 600;
+      }
+      .status-card {
+        border-radius: var(--radius);
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .status-card.merged {
+        background: color-mix(in oklab, var(--purple) 12%, transparent);
+        border: 1px solid color-mix(in oklab, var(--purple) 30%, transparent);
+      }
+      .status-card.ready {
+        background: color-mix(in oklab, var(--success) 10%, transparent);
+        border: 1px solid color-mix(in oklab, var(--success) 28%, transparent);
+      }
+      .status-card.blocked {
+        background: color-mix(in oklab, var(--destructive) 10%, transparent);
+        border: 1px solid
+          color-mix(in oklab, var(--destructive) 28%, transparent);
+      }
+      .status-card .row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+      }
+      .avatar {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: linear-gradient(
+          135deg,
+          var(--primary),
+          color-mix(in oklab, var(--info) 70%, var(--primary))
+        );
+        font-size: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--primary-foreground);
+        font-weight: 700;
+      }
+      .kbd-hint {
+        font-size: 11px;
+        color: var(--muted-foreground);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <h1>Nerve · Git &amp; PR panel mockups</h1>
+      <div class="tabs" role="tablist" id="pageTabs">
+        <button role="tab" aria-selected="true" data-page="prlist">
+          PR list card
+        </button>
+        <button role="tab" aria-selected="false" data-page="switcher">
+          Repo switcher
+        </button>
+        <button role="tab" aria-selected="false" data-page="detail">
+          PR detail
+        </button>
+      </div>
+      <div class="toolbar">
+        <label
+          >panel width
+          <input
+            id="width"
+            type="range"
+            min="260"
+            max="520"
+            value="340"
+            step="10"
+        /></label>
+        <span id="widthLabel" class="mono">340px</span>
+        <label
+          ><input id="forceHover" type="checkbox" /> show hover actions</label
+        >
+      </div>
+    </header>
+
+    <main>
+      <section id="page-prlist"></section>
+      <section id="page-switcher" hidden></section>
+      <section id="page-detail" hidden></section>
+    </main>
+
+    <script>
+      /* ------------------------------------------------------------------ */
+      /* icons (lucide paths)                                                */
+      /* ------------------------------------------------------------------ */
+      const P = {
+        "git-pull-request":
+          '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" x2="6" y1="9" y2="21"/>',
+        "git-pull-request-draft":
+          '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M18 6V5"/><path d="M18 11v-1"/><line x1="6" x2="6" y1="9" y2="21"/>',
+        "git-merge":
+          '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/>',
+        "circle-slash":
+          '<circle cx="12" cy="12" r="10"/><line x1="9" x2="15" y1="15" y2="9"/>',
+        check: '<path d="M20 6 9 17l-5-5"/>',
+        x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+        dot: '<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>',
+        clock:
+          '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+        "message-square":
+          '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+        "external-link":
+          '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+        link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+        "git-branch":
+          '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+        "git-branch-plus":
+          '<path d="M6 3v12"/><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M15 6a9 9 0 0 0-9 9"/><path d="M18 15v6"/><path d="M21 18h-6"/>',
+        "arrow-down-to-line":
+          '<path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/>',
+        "more-horizontal":
+          '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+        "refresh-cw":
+          '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+        folder:
+          '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+        "chevron-down": '<path d="m6 9 6 6 6-6"/>',
+        "arrow-left": '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+        "arrow-right": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+        "file-diff":
+          '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 12v6"/><path d="M9 15h6"/>',
+        "arrow-down-up":
+          '<path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/>',
+        download:
+          '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+        upload:
+          '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+        "circle-check":
+          '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+        "circle-alert":
+          '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+        eye: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+        tag: '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+        users:
+          '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>',
+        history:
+          '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+      };
+      const ico = (n, cls = "icon") =>
+        `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[n] ?? ""}</svg>`;
+
+      /* ------------------------------------------------------------------ */
+      /* sample data                                                         */
+      /* ------------------------------------------------------------------ */
+      const PRS = [
+        {
+          n: 303,
+          title: "chore(deps): bump actions/deploy-pages from 5.0.0 to 5.0.1",
+          state: "open",
+          author: "dependabot",
+          head: "dependabot/github_actions/actions/deploy-pages-5.0.1",
+          base: "main",
+          age: "2h",
+          comments: 0,
+          add: 1,
+          del: 1,
+          checks: { status: "passing", passed: 9, total: 9 },
+          labels: ["dependencies"],
+        },
+        {
+          n: 302,
+          title: "chore(deps): bump pnpm/action-setup from 6.0.10 to 6.1.0",
+          state: "open",
+          author: "dependabot",
+          head: "dependabot/github_actions/pnpm/action-setup-6.1.0",
+          base: "main",
+          age: "5h",
+          comments: 2,
+          add: 1,
+          del: 1,
+          checks: { status: "passing", passed: 12, total: 12 },
+          labels: ["dependencies"],
+        },
+        {
+          n: 286,
+          title: "Add experimental GPUI workbench alpha",
+          state: "draft",
+          author: "tlm",
+          head: "feat/gpui-workbench-alpha",
+          base: "main",
+          age: "3d",
+          comments: 14,
+          add: 4821,
+          del: 1290,
+          checks: { status: "failing", passed: 13, total: 15 },
+          labels: ["feature", "desktop"],
+          current: true,
+        },
+        {
+          n: 281,
+          title:
+            "fix(workbench): keep transcript scroll anchored while streaming long tool output",
+          state: "open",
+          author: "aditya",
+          head: "fix/transcript-scroll-anchor",
+          base: "main",
+          age: "6d",
+          comments: 5,
+          add: 132,
+          del: 47,
+          checks: { status: "pending", passed: 4, total: 11 },
+          labels: [],
+        },
+        {
+          n: 270,
+          title: "Refactor git panel state slices",
+          state: "merged",
+          author: "tlm",
+          head: "refactor/git-slices",
+          base: "main",
+          age: "1w",
+          comments: 3,
+          add: 640,
+          del: 812,
+          checks: { status: "passing", passed: 15, total: 15 },
+          labels: [],
+        },
+      ];
+
+      const stateIcon = (s) =>
+        s === "draft"
+          ? ["git-pull-request-draft", "state-draft"]
+          : s === "merged"
+            ? ["git-merge", "state-merged"]
+            : s === "closed"
+              ? ["circle-slash", "state-closed"]
+              : ["git-pull-request", "state-open"];
+
+      const checksBadge = (c, compact) => {
+        const tone =
+          c.status === "passing"
+            ? "success"
+            : c.status === "failing"
+              ? "danger"
+              : "warn";
+        const glyph =
+          c.status === "passing"
+            ? "check"
+            : c.status === "failing"
+              ? "x"
+              : "dot";
+        const text = compact
+          ? c.status === "passing"
+            ? `${c.total}`
+            : `${c.passed}/${c.total}`
+          : `${c.passed}/${c.total} checks`;
+        return `<span class="badge ${tone}">${ico(glyph, "icon sm")}${text}</span>`;
+      };
+
+      const checksGlyph = (c) => {
+        const tone =
+          c.status === "passing"
+            ? "state-open"
+            : c.status === "failing"
+              ? "state-closed"
+              : "";
+        const glyph =
+          c.status === "passing"
+            ? "circle-check"
+            : c.status === "failing"
+              ? "circle-alert"
+              : "clock";
+        const style =
+          c.status === "pending" ? 'style="color:var(--warning)"' : "";
+        return `<span class="${tone}" ${style} title="${c.passed}/${c.total} checks">${ico(glyph, "icon sm")}</span>`;
+      };
+
+      const actionBtns = (extra = "") =>
+        `<button class="iconbtn" title="Copy link">${ico("link", "icon sm")}</button>
+         <button class="iconbtn" title="Open on GitHub">${ico("external-link", "icon sm")}</button>
+         <button class="iconbtn" title="Check out branch">${ico("git-branch-plus", "icon sm")}</button>${extra}`;
+
+      /* ------------------------------------------------------------------ */
+      /* PR list card variants                                               */
+      /* ------------------------------------------------------------------ */
+      const variants = {
+        A: {
+          name: "A · Title owns line 1, meta+actions share line 2",
+          note: "Actions replace nothing; they sit at the end of the meta row and only appear on hover. Title never competes with buttons.",
+          render: (pr) => `
+        <div class="pr">
+          <div class="meta" style="gap:6px">
+            <span class="${stateIcon(pr.state)[1]}">${ico(stateIcon(pr.state)[0], "icon sm")}</span>
+            <span class="title one grow" style="font-size:12.5px;color:var(--foreground)">${pr.title}</span>
+          </div>
+          <div class="meta">
+            <span class="num">#${pr.n}</span>
+            <span class="sep">·</span>
+            <span class="truncate grow">${pr.author} · ${pr.age}</span>
+            <span class="actions hover-actions">${actionBtns()}</span>
+            ${checksBadge(pr.checks, true)}
+          </div>
+        </div>`,
+        },
+        B: {
+          name: "B · Two-line title, meta row, hover actions overlay",
+          note: "Title gets the full width for up to 2 lines. Actions float over the top-right corner only on hover (like GitHub's comment toolbar).",
+          render: (pr) => `
+        <div class="pr">
+          <div style="display:flex;gap:6px;min-width:0">
+            <span class="${stateIcon(pr.state)[1]}" style="margin-top:2px">${ico(stateIcon(pr.state)[0], "icon sm")}</span>
+            <span class="title">${pr.title}</span>
+          </div>
+          <div class="meta">
+            <span class="num">#${pr.n}</span>
+            <span class="sep">·</span>
+            <span class="truncate">${pr.author}</span>
+            <span class="sep">·</span>
+            <span>${pr.age}</span>
+            ${pr.comments ? `<span class="sep">·</span><span style="display:inline-flex;gap:3px;align-items:center">${ico("message-square", "icon sm")}${pr.comments}</span>` : ""}
+            <span class="grow"></span>
+            ${checksBadge(pr.checks, true)}
+          </div>
+          <div class="float-actions hover-actions">${actionBtns()}</div>
+        </div>`,
+        },
+        C: {
+          name: "C · Header line (num + time + actions), title below",
+          note: "Actions live on a dedicated top line next to #number and age, so they never eat title width. Costs one extra line of height.",
+          render: (pr) => `
+        <div class="pr">
+          <div class="meta">
+            <span class="${stateIcon(pr.state)[1]}">${ico(stateIcon(pr.state)[0], "icon sm")}</span>
+            <span class="num">#${pr.n}</span>
+            <span class="truncate">${pr.author} · ${pr.age}</span>
+            <span class="grow"></span>
+            <span class="actions hover-actions">${actionBtns()}</span>
+          </div>
+          <div class="title">${pr.title}</div>
+          <div class="meta">
+            ${checksBadge(pr.checks, false)}
+            ${pr.comments ? `<span style="display:inline-flex;gap:3px;align-items:center">${ico("message-square", "icon sm")}${pr.comments}</span>` : ""}
+            <span class="grow"></span>
+            <span class="stat-add">+${pr.add}</span><span class="stat-del">−${pr.del}</span>
+          </div>
+        </div>`,
+        },
+        D: {
+          name: "D · Minimal: icon gutter, title, single meta line, ⋯ menu",
+          note: "Only one always-visible affordance (⋯ overflow menu). Densest option; every secondary action is one extra click.",
+          render: (pr) => `
+        <div class="pr" style="flex-direction:row;gap:7px;align-items:flex-start">
+          <span class="${stateIcon(pr.state)[1]}" style="margin-top:2px">${ico(stateIcon(pr.state)[0], "icon sm")}</span>
+          <span style="min-width:0;flex:1;display:flex;flex-direction:column;gap:3px">
+            <span class="title">${pr.title}</span>
+            <span class="meta">
+              <span class="num">#${pr.n}</span>
+              <span class="truncate">${pr.author} · ${pr.age}</span>
+              <span class="grow"></span>
+              ${checksGlyph(pr.checks)}
+            </span>
+          </span>
+          <button class="iconbtn hover-actions" title="More actions">${ico("more-horizontal", "icon sm")}</button>
+        </div>`,
+        },
+        E: {
+          name: "E · Rich: branch chip + stats, actions on hover row swap",
+          note: "Meta row shows head branch; on hover the meta row is *replaced* by the action row, so nothing shifts and no width is reserved.",
+          render: (pr) => `
+        <div class="pr swap">
+          <div style="display:flex;gap:6px;min-width:0">
+            <span class="${stateIcon(pr.state)[1]}" style="margin-top:2px">${ico(stateIcon(pr.state)[0], "icon sm")}</span>
+            <span class="title">${pr.title}</span>
+          </div>
+          <div class="meta swap-meta">
+            <span class="num">#${pr.n}</span>
+            <span class="badge outline mono truncate" style="max-width:45%">${pr.head.split("/").pop()}</span>
+            <span class="truncate grow">${pr.age}</span>
+            ${checksBadge(pr.checks, true)}
+          </div>
+          <div class="meta swap-actions" hidden>
+            <span class="actions">${actionBtns()}</span>
+            <span class="grow"></span>
+            <span class="stat-add">+${pr.add}</span><span class="stat-del">−${pr.del}</span>
+            ${checksBadge(pr.checks, true)}
+          </div>
+        </div>`,
+        },
+        F: {
+          name: "F · Selected-only actions (list-detail model)",
+          note: "No hover buttons at all: the selected row expands a compact action bar. Zero title cost, one click to select.",
+          render: (pr, i) => `
+        <div class="pr" ${i === 0 ? 'style="border-color:color-mix(in oklab,var(--primary) 45%,transparent);background:color-mix(in oklab,var(--primary) 10%,var(--card))"' : ""}>
+          ${pr.current ? '<span class="current-rail"></span>' : ""}
+          <div style="display:flex;gap:6px;min-width:0">
+            <span class="${stateIcon(pr.state)[1]}" style="margin-top:2px">${ico(stateIcon(pr.state)[0], "icon sm")}</span>
+            <span class="title">${pr.title}</span>
+          </div>
+          <div class="meta">
+            <span class="num">#${pr.n}</span>
+            <span class="truncate grow">${pr.author} · ${pr.age}</span>
+            ${pr.current ? '<span class="badge primary">checked out</span>' : ""}
+            ${checksBadge(pr.checks, true)}
+          </div>
+          ${
+            i === 0
+              ? `<div class="meta" style="margin-top:2px;padding-top:5px;border-top:1px solid var(--border)">
+                   <button class="btn ghost" style="height:22px">${ico("git-branch-plus", "icon sm")} Checkout</button>
+                   <button class="btn ghost" style="height:22px">${ico("link", "icon sm")} Copy</button>
+                   <button class="btn ghost" style="height:22px">${ico("external-link", "icon sm")} GitHub</button>
+                 </div>`
+              : ""
+          }
+        </div>`,
+        },
+      };
+
+      /* ------------------------------------------------------------------ */
+      /* renderers                                                           */
+      /* ------------------------------------------------------------------ */
+      const state = { width: 340, hover: false };
+
+      function renderPrList() {
+        const el = document.getElementById("page-prlist");
+        el.innerHTML = `
+          <p class="note">Six candidate layouts for the pull-request row, rendered at the current panel width.
+          The question is where the <b>secondary actions</b> (copy link · open on GitHub · checkout) can live without
+          stealing horizontal space from the title.</p>
+          <div class="variants">
+            ${Object.entries(variants)
+              .map(
+                ([key, v]) => `
+              <div class="variant">
+                <div class="label"><b>${v.name}</b></div>
+                <div class="note" style="max-width:${state.width}px;font-size:11px">${v.note}</div>
+                <div class="panel" style="width:${state.width}px">
+                  <div class="panel-head">${ico("git-pull-request", "icon sm")} Pull requests <span class="count">5</span>
+                    <span style="flex:1"></span>
+                    <button class="iconbtn" title="Filter">${ico("more-horizontal", "icon sm")}</button>
+                    <button class="iconbtn" title="Refresh">${ico("refresh-cw", "icon sm")}</button>
+                  </div>
+                  <div class="panel-body">${PRS.map((pr, i) => v.render(pr, i)).join("")}</div>
+                </div>
+              </div>`,
+              )
+              .join("")}
+          </div>`;
+        applyHover();
+      }
+
+      function applyHover() {
+        document.querySelectorAll(".hover-actions").forEach((n) => {
+          n.style.opacity = state.hover ? "1" : "";
+        });
+        document.querySelectorAll(".pr.swap").forEach((row) => {
+          const meta = row.querySelector(".swap-meta");
+          const act = row.querySelector(".swap-actions");
+          const on = (v) => {
+            meta.hidden = v;
+            act.hidden = !v;
+          };
+          on(state.hover);
+          row.onmouseenter = () => on(true);
+          row.onmouseleave = () => on(state.hover);
+        });
+      }
+
+      function renderSwitcher() {
+        const repos = [
+          { name: "admin-app", changes: 3, prs: 2 },
+          { name: "api", changes: 0, prs: 5 },
+          { name: "iac", changes: 12, prs: 0 },
+          { name: "web-app", changes: 0, prs: 1 },
+        ];
+        const many = [
+          ...repos,
+          { name: "docs", changes: 0 },
+          { name: "mobile-app", changes: 1 },
+          { name: "shared-ui", changes: 0 },
+          { name: "workers", changes: 0 },
+          { name: "analytics", changes: 4 },
+        ];
+        const chip = (r, active, showCount) =>
+          `<button class="chip" aria-pressed="${active}">${r.name}${
+            showCount && r.changes ? `<span class="dot"></span>` : ""
+          }${showCount && r.changes ? `<span class="cnt">${r.changes}</span>` : ""}</button>`;
+
+        const branchRow = `
+          <div class="branchrow">
+            <button class="branchbtn">${ico("git-branch", "icon sm")}<span class="truncate">main</span>${ico("chevron-down", "icon sm")}</button>
+            <span class="badge outline mono" title="2 ahead, 0 behind">${ico("arrow-down-up", "icon sm")} 2↑</span>
+            <span class="grow" style="flex:1"></span>
+            <button class="iconbtn" title="All branches">${ico("more-horizontal", "icon sm")}</button>
+          </div>`;
+
+        const tools = `
+          <div class="toolrow">
+            <button class="btn">${ico("refresh-cw", "icon sm")} Fetch</button>
+            <button class="btn">${ico("arrow-down-up", "icon sm")} Sync</button>
+            <button class="btn ghost">${ico("download", "icon sm")} Pull</button>
+            <button class="btn ghost">${ico("upload", "icon sm")} Push</button>
+          </div>`;
+
+        const el = document.getElementById("page-switcher");
+        el.innerHTML = `
+        <p class="note">Repo chips replace one-row-per-repo. Branch, remote actions and changes all follow the
+        <b>selected</b> repo, so vertical cost is constant regardless of repo count.</p>
+        <div class="variants">
+          <div class="variant">
+            <div class="label"><b>1 · Chips + branch row + actions (Git changes)</b></div>
+            <div class="panel" style="width:${state.width}px">
+              <div class="panel-head">${ico("git-branch", "icon sm")} Git changes <span class="count">3</span><span style="flex:1"></span><button class="iconbtn">${ico("refresh-cw", "icon sm")}</button></div>
+              <div class="panel-body">
+                <div class="chips">${repos.map((r, i) => chip(r, i === 0, true)).join("")}</div>
+                ${branchRow}
+                ${tools}
+                <div class="divider"></div>
+                <div class="meta" style="padding:6px 4px">${ico("file-diff", "icon sm")} 3 changed files in <span class="mono">admin-app</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="variant">
+            <div class="label"><b>2 · Many repos: wrap + overflow</b></div>
+            <div class="panel" style="width:${state.width}px">
+              <div class="panel-head">${ico("git-branch", "icon sm")} Git changes <span class="count">17</span></div>
+              <div class="panel-body">
+                <div class="chips">${many
+                  .slice(0, 5)
+                  .map((r, i) => chip(r, i === 2, true))
+                  .join(
+                    "",
+                  )}<button class="chip">+${many.length - 5} more ${ico("chevron-down", "icon sm")}</button></div>
+                ${branchRow}
+                ${tools}
+              </div>
+            </div>
+          </div>
+
+          <div class="variant">
+            <div class="label"><b>3 · Single repo (chips hidden)</b></div>
+            <div class="panel" style="width:${state.width}px">
+              <div class="panel-head">${ico("git-branch", "icon sm")} Git changes <span class="count">0</span></div>
+              <div class="panel-body">
+                ${branchRow}
+                ${tools}
+                <div class="divider"></div>
+                <div class="meta" style="padding:6px 4px">Working tree clean.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="variant">
+            <div class="label"><b>4 · Same switcher in the PR tab</b></div>
+            <div class="panel" style="width:${state.width}px">
+              <div class="panel-head">${ico("git-pull-request", "icon sm")} Pull requests <span class="count">3</span><span style="flex:1"></span><button class="iconbtn">${ico("refresh-cw", "icon sm")}</button></div>
+              <div class="panel-body">
+                <div class="chips">${repos.map((r, i) => `<button class="chip" aria-pressed="${i === 0}">${r.name}${r.prs ? `<span class="cnt">${r.prs}</span>` : ""}</button>`).join("")}</div>
+                ${branchRow}
+                <div class="divider"></div>
+                ${PRS.slice(0, 2)
+                  .map((pr, i) => variants.B.render(pr, i))
+                  .join("")}
+              </div>
+            </div>
+          </div>
+
+          <div class="variant">
+            <div class="label"><b>5 · Alternative: dropdown instead of chips</b></div>
+            <div class="panel" style="width:${state.width}px">
+              <div class="panel-head">${ico("git-branch", "icon sm")} Git changes <span class="count">3</span></div>
+              <div class="panel-body">
+                <div class="branchrow" style="background:var(--well)">
+                  <button class="branchbtn" style="flex:1">${ico("folder", "icon sm")}<span class="truncate">admin-app</span>${ico("chevron-down", "icon sm")}</button>
+                  <span class="sep">/</span>
+                  <button class="branchbtn" style="flex:1">${ico("git-branch", "icon sm")}<span class="truncate">main</span>${ico("chevron-down", "icon sm")}</button>
+                </div>
+                ${tools}
+              </div>
+            </div>
+          </div>
+        </div>`;
+        applyHover();
+      }
+
+      function renderDetail() {
+        const tabs = (active) =>
+          `<div class="segmented">
+            ${[
+              ["Conversation", "message-square", 3],
+              ["Commits", "history", 4],
+              ["Checks", "circle-check", 9],
+              ["Files", "file-diff", 12],
+            ]
+              .map(
+                ([label, icon, count]) =>
+                  `<button aria-selected="${label === active}">${ico(icon, "icon sm")}${label}<span class="pill">${count}</span></button>`,
+              )
+              .join("")}
+          </div>`;
+
+        const head = (opts) => `
+        <div class="detail-head">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="min-width:0;flex:1">
+              <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                <span class="badge ${opts.tone}">${ico(opts.icon, "icon sm")}${opts.state}</span>
+                <span class="detail-title truncate">${opts.title}</span>
+                <span class="muted" style="font-size:15px">#${opts.n}</span>
+              </div>
+              <div class="meta" style="margin-top:6px">
+                <span class="avatar">${opts.author[0].toUpperCase()}</span>
+                <span><b style="color:var(--foreground)">${opts.author}</b> ${opts.verb} ${opts.when}</span>
+                <span class="sep">·</span>
+                <span class="badge outline mono">${opts.head}</span>
+                ${ico("arrow-right", "icon sm")}
+                <span class="badge outline mono">${opts.base}</span>
+                ${opts.checkedOut ? `<span class="badge primary">${ico("check", "icon sm")}checked out</span>` : ""}
+                <span class="sep">·</span>
+                <span class="stat-add">+${opts.add}</span><span class="stat-del">−${opts.del}</span>
+                <span class="muted">${opts.files} files</span>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="iconbtn" title="Refresh">${ico("refresh-cw")}</button>
+              <button class="iconbtn" title="Copy link">${ico("link")}</button>
+              <button class="iconbtn" title="Open on GitHub">${ico("external-link")}</button>
+              ${
+                opts.checkedOut
+                  ? `<button class="iconbtn active" title="This branch is checked out" disabled>${ico("check")}</button>`
+                  : `<button class="iconbtn" title="Check out this branch">${ico("git-branch-plus")}</button>`
+              }
+            </div>
+          </div>
+          ${tabs("Conversation")}
+        </div>`;
+
+        const el = document.getElementById("page-detail");
+        el.innerHTML = `
+        <p class="note">Header, state-aware status card and sidebar. No section borders — separation is by surface and spacing.
+        Compare the old icon set (⬇ download) with <b>git-branch-plus</b> + an explicit “checked out” state.</p>
+
+        <h2>Open PR — ready to merge</h2>
+        <div class="detail">
+          ${head({
+            n: 281,
+            title:
+              "fix(workbench): keep transcript scroll anchored while streaming",
+            state: "open",
+            tone: "success",
+            icon: "git-pull-request",
+            author: "aditya",
+            verb: "opened this pull request",
+            when: "6 days ago",
+            head: "fix/transcript-scroll-anchor",
+            base: "main",
+            add: 132,
+            del: 47,
+            files: 6,
+            checkedOut: false,
+          })}
+          <div class="detail-body">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div class="card">
+                <div class="meta" style="margin-bottom:6px"><span class="avatar">A</span><b style="color:var(--foreground)">aditya</b> commented 6 days ago</div>
+                <div>Anchors the transcript scroller to the last visible message while tool output streams in, so the viewport no longer jumps.</div>
+              </div>
+              <div class="card muted" style="display:flex;gap:8px;align-items:center">${ico("message-square", "icon sm")} No comments or reviews yet.</div>
+            </div>
+            <div>
+              <div class="status-card ready">
+                <div class="row" style="color:var(--success);font-weight:600">${ico("circle-check", "icon sm")} Ready to merge</div>
+                <div class="row muted">All 9 checks passed · no conflicts with <code>main</code></div>
+                <div style="display:flex;gap:6px"><button class="btn primary">${ico("git-merge", "icon sm")} Squash and merge</button><button class="btn ghost">${ico("chevron-down", "icon sm")}</button></div>
+              </div>
+              <div class="side-block" style="margin-top:12px">
+                <h3>Reviewers</h3>
+                <div class="meta"><span class="avatar">T</span> tlm <span class="badge success">${ico("check", "icon sm")}approved</span></div>
+                <div class="meta"><span class="avatar">M</span> maya <span class="badge warn">${ico("clock", "icon sm")}pending</span></div>
+              </div>
+              <div class="side-block">
+                <h3>Labels</h3>
+                <div style="display:flex;flex-wrap:wrap;gap:4px"><span class="badge info">bug</span><span class="badge neutral">workbench</span></div>
+              </div>
+              <div class="side-block">
+                <h3>Base</h3>
+                <div class="meta">${ico("git-branch", "icon sm")} <code>main</code> <span class="badge success">up to date</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h2 style="margin-top:20px">Merged PR — no merge controls, clear outcome</h2>
+        <div class="detail">
+          ${head({
+            n: 270,
+            title: "Refactor git panel state slices",
+            state: "merged",
+            tone: "primary",
+            icon: "git-merge",
+            author: "tlm",
+            verb: "merged this pull request",
+            when: "on Sep 2, 2026",
+            head: "refactor/git-slices",
+            base: "main",
+            add: 640,
+            del: 812,
+            files: 24,
+            checkedOut: true,
+          })}
+          <div class="detail-body">
+            <div class="card muted">Conversation timeline …</div>
+            <div>
+              <div class="status-card merged">
+                <div class="row" style="color:var(--purple);font-weight:600">${ico("git-merge", "icon sm")} Merged</div>
+                <div class="row muted"><b style="color:var(--foreground)">tlm</b> merged 12 commits into <code>main</code> on Sep 2</div>
+                <div class="row muted">Merge commit <code>a91f3c2</code></div>
+                <div style="display:flex;gap:6px"><button class="btn ghost">${ico("git-branch", "icon sm")} Delete branch</button><button class="btn ghost">${ico("external-link", "icon sm")} View on GitHub</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h2 style="margin-top:20px">Blocked PR — reasons instead of “unknown”</h2>
+        <div class="detail">
+          ${head({
+            n: 286,
+            title: "Add experimental GPUI workbench alpha",
+            state: "draft",
+            tone: "neutral",
+            icon: "git-pull-request-draft",
+            author: "tlm",
+            verb: "opened this draft",
+            when: "3 days ago",
+            head: "feat/gpui-workbench-alpha",
+            base: "main",
+            add: 4821,
+            del: 1290,
+            files: 96,
+            checkedOut: false,
+          })}
+          <div class="detail-body">
+            <div class="card muted">Conversation timeline …</div>
+            <div>
+              <div class="status-card blocked">
+                <div class="row" style="color:var(--destructive);font-weight:600">${ico("circle-alert", "icon sm")} Not ready to merge</div>
+                <div class="row muted">${ico("x", "icon sm")} 2 of 15 checks failing</div>
+                <div class="row muted">${ico("git-pull-request-draft", "icon sm")} Still a draft</div>
+                <div class="row muted">${ico("arrow-down-up", "icon sm")} 8 commits behind <code>main</code></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+        applyHover();
+      }
+
+      /* ------------------------------------------------------------------ */
+      const pages = {
+        prlist: renderPrList,
+        switcher: renderSwitcher,
+        detail: renderDetail,
+      };
+      let page =
+        location.hash.slice(1) in pages ? location.hash.slice(1) : "prlist";
+      document
+        .querySelectorAll("#pageTabs button")
+        .forEach((b) =>
+          b.setAttribute("aria-selected", String(b.dataset.page === page)),
+        );
+      function render() {
+        for (const key of Object.keys(pages)) {
+          document.getElementById(`page-${key}`).hidden = key !== page;
+        }
+        pages[page]();
+      }
+      document.getElementById("pageTabs").addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-page]");
+        if (!btn) return;
+        page = btn.dataset.page;
+        document
+          .querySelectorAll("#pageTabs button")
+          .forEach((b) => b.setAttribute("aria-selected", String(b === btn)));
+        render();
+      });
+      document.getElementById("width").addEventListener("input", (e) => {
+        state.width = Number(e.target.value);
+        document.getElementById("widthLabel").textContent = `${state.width}px`;
+        render();
+      });
+      document.getElementById("forceHover").addEventListener("change", (e) => {
+        state.hover = e.target.checked;
+        applyHover();
+      });
+      render();
+    </script>
+  </body>
+</html>

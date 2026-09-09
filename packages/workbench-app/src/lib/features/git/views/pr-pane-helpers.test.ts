@@ -8,6 +8,7 @@ import type {
 } from "@nervekit/contracts/git";
 import {
   defaultMergeMethod,
+  formatCompactAge,
   divergenceLabel,
   fileStatusLetter,
   mergeReadiness,
@@ -33,11 +34,16 @@ function detail(overrides: Partial<MergeDetail> = {}): MergeDetail {
     updatedAt: "2026-07-22T00:00:00Z",
     createdAt: "2026-07-20T00:00:00Z",
     author: "octocat",
+    commentCount: 0,
     additions: 1,
     deletions: 1,
     changedFiles: 1,
     mergeable: "MERGEABLE",
     mergeStateStatus: "CLEAN",
+    mergedAt: null,
+    mergedBy: null,
+    mergeCommitOid: null,
+    closedAt: null,
     reviewDecision: "APPROVED",
     behindBy: 0,
     labels: [],
@@ -127,5 +133,22 @@ describe("PR pane helpers", () => {
     );
     assert.equal(fileStatusLetter("renamed"), "R");
     assert.equal(fileStatusLetter("modified"), "M");
+  });
+});
+
+describe("compact age", () => {
+  const now = Date.parse("2026-07-30T12:00:00Z");
+  it("scales the unit with the elapsed time", () => {
+    assert.equal(formatCompactAge("2026-07-30T11:59:30Z", now), "now");
+    assert.equal(formatCompactAge("2026-07-30T11:20:00Z", now), "40m");
+    assert.equal(formatCompactAge("2026-07-30T04:00:00Z", now), "8h");
+    assert.equal(formatCompactAge("2026-07-24T12:00:00Z", now), "6d");
+    assert.equal(formatCompactAge("2026-05-01T12:00:00Z", now), "3mo");
+    assert.equal(formatCompactAge("2023-05-01T12:00:00Z", now), "3y");
+  });
+
+  it("returns nothing for missing or unparsable timestamps", () => {
+    assert.equal(formatCompactAge(undefined, now), "");
+    assert.equal(formatCompactAge("not-a-date", now), "");
   });
 });

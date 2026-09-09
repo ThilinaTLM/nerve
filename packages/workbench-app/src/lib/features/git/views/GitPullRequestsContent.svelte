@@ -17,9 +17,11 @@ import {
 } from "$lib/presentation/panels";
 import GitPullRequestRow from "./GitPullRequestRow.svelte";
 import GitPullRequestRowSkeleton from "./GitPullRequestRowSkeleton.svelte";
-import GitRepositorySelector from "./GitRepositorySelector.svelte";
+import GitRepoSwitcher from "./GitRepoSwitcher.svelte";
 import type {
+  GitPanelActions,
   GitPanelCapabilities,
+  GitPanelModel,
   GitPrFilterConfig,
 } from "./git-panel-types";
 import {
@@ -28,11 +30,11 @@ import {
 } from "./git-panel-controller.js";
 
 type Props = {
+  model: GitPanelModel;
+  actions: GitPanelActions;
   displayedPrs: GithubPr[];
   prs: GithubPr[];
   filters: GitPrFilterConfig;
-  repositories: GitRepoSummary[];
-  selectedRepository: string;
   selectedRepoSummary?: GitRepoSummary;
   github?: GithubStatusResponse;
   selectedRepoHasGithubRemote: boolean;
@@ -42,17 +44,16 @@ type Props = {
   expandedPr?: number;
   onExpandedPrChange?: (number: number | undefined) => void;
   onRefreshPrs: () => void;
-  onSelectRepo: (repository: string) => void;
   onOpenFilters: () => void;
   onOpenPr: (prNumber: number) => void;
 };
 
 let {
+  model,
+  actions,
   displayedPrs,
   prs,
   filters,
-  repositories,
-  selectedRepository,
   selectedRepoSummary,
   github,
   selectedRepoHasGithubRemote,
@@ -62,12 +63,12 @@ let {
   expandedPr = $bindable(undefined),
   onExpandedPrChange,
   onRefreshPrs,
-  onSelectRepo,
   onOpenFilters,
   onOpenPr,
 }: Props = $props();
 
 const activeFilterCount = $derived(activeGitPrFilterCount(filters));
+const currentBranch = $derived(selectedRepoSummary?.currentBranch ?? undefined);
 
 function toggleChecks(pr: GithubPr) {
   expandedPr = expandedPr === pr.number ? undefined : pr.number;
@@ -111,16 +112,7 @@ function toggleChecks(pr: GithubPr) {
     trailing={headerActions}
   />
 
-  {#if repositories.length > 1}
-    <div class="shrink-0 py-1.5">
-      <GitRepositorySelector
-        repos={repositories}
-        selectedRepo={selectedRepository}
-        selectCapability={capabilities.selectRepository}
-        {onSelectRepo}
-      />
-    </div>
-  {/if}
+  <GitRepoSwitcher {model} {actions} />
 
   {#if refreshError}
     <PanelBanner tone="destructive" icon={TriangleAlert}>
@@ -173,6 +165,7 @@ function toggleChecks(pr: GithubPr) {
           <GitPullRequestRow
             {pr}
             expanded={expandedPr === pr.number}
+            checkedOut={pr.headRefName === currentBranch}
             disabled={!capabilities.openPullRequest.enabled}
             disabledReason={capabilities.openPullRequest.enabled
               ? undefined

@@ -101,6 +101,11 @@ type GithubPrDetailRaw = {
   mergeable?: string | null;
   mergeStateStatus?: string | null;
   reviewDecision?: string | null;
+  mergedAt?: string | null;
+  closedAt?: string | null;
+  mergedBy?: { login?: string } | null;
+  mergeCommit?: { abbreviatedOid?: string; oid?: string } | null;
+  totalCommentCount?: number;
   comments?: {
     nodes?: Array<{
       id?: string;
@@ -150,7 +155,7 @@ type RepositoryResponse = { repository?: GithubRepoRaw | null };
 const CORE_FIELDS = `
   number title url state isDraft headRefName baseRefName headRefOid baseRefOid
   headRepository { nameWithOwner }
-  updatedAt createdAt additions deletions changedFiles
+  updatedAt createdAt additions deletions changedFiles totalCommentCount
   author { login avatarUrl }
 `;
 const CONVERSATION_FIELDS = `
@@ -164,6 +169,7 @@ const CONVERSATION_FIELDS = `
 `;
 const OVERVIEW_FIELDS = `
   headRefOid baseRefOid mergeable mergeStateStatus reviewDecision
+  mergedAt closedAt mergedBy { login } mergeCommit { oid abbreviatedOid }
   labels(first: 100) { nodes { name color } }
   reviewRequests(first: 100) {
     nodes {
@@ -326,6 +332,7 @@ const PR_LIST_QUERY = `query PullRequests($query: String!) {
     nodes {
       ... on PullRequest {
         number title url state isDraft headRefName baseRefName updatedAt
+        additions deletions totalCommentCount author { login }
         ${CHECK_FIELDS}
       }
     }
@@ -363,6 +370,10 @@ export async function listOpenPrs(
               headRefName: raw.headRefName,
               baseRefName: raw.baseRefName,
               updatedAt: raw.updatedAt,
+              author: raw.author?.login ?? null,
+              commentCount: raw.totalCommentCount ?? 0,
+              additions: raw.additions ?? 0,
+              deletions: raw.deletions ?? 0,
               checks: summarizeStatusCheckRollup(checkRollup(raw)),
             } satisfies GithubPr,
           ]
@@ -465,6 +476,7 @@ function mapPrCore(raw: GithubPrDetailRaw): GithubPrCore {
     updatedAt: raw.updatedAt,
     createdAt: raw.createdAt,
     author: raw.author?.login ?? null,
+    commentCount: raw.totalCommentCount ?? 0,
     additions: raw.additions ?? 0,
     deletions: raw.deletions ?? 0,
     changedFiles: raw.changedFiles ?? 0,
@@ -509,6 +521,11 @@ function mapPrOverview(
     mergeStateStatus: raw.mergeStateStatus ?? null,
     reviewDecision: raw.reviewDecision ?? null,
     behindBy,
+    mergedAt: raw.mergedAt ?? null,
+    mergedBy: raw.mergedBy?.login ?? null,
+    mergeCommitOid:
+      raw.mergeCommit?.abbreviatedOid ?? raw.mergeCommit?.oid ?? null,
+    closedAt: raw.closedAt ?? null,
     labels: compact(raw.labels?.nodes).flatMap((label) =>
       label.name ? [{ name: label.name, color: label.color }] : [],
     ),

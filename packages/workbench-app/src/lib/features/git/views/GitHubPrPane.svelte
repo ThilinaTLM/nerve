@@ -7,6 +7,7 @@ import type {
   GithubPrMergeMethod,
 } from "@nervekit/contracts/git";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import * as Tabs from "@nervekit/ui-kit/components/ui/tabs";
@@ -16,8 +17,8 @@ import GitHubPrConversation from "./GitHubPrConversation.svelte";
 import GitHubPrFiles from "./GitHubPrFiles.svelte";
 import GitHubPrHeader from "./GitHubPrHeader.svelte";
 import GitHubPrLoadingPane from "./GitHubPrLoadingPane.svelte";
-import GitHubPrMergeBox from "./GitHubPrMergeBox.svelte";
 import GitHubPrOverview from "./GitHubPrOverview.svelte";
+import GitHubPrStatusCard from "./GitHubPrStatusCard.svelte";
 import GitHubPrSectionSkeleton from "./GitHubPrSectionSkeleton.svelte";
 import type {
   GithubPrTab,
@@ -35,8 +36,11 @@ type PrSection =
 
 type Props = {
   view?: PrViewState;
+  /** Current branch of the repository the PR belongs to. */
+  currentBranch?: string;
   onRefresh?: () => void;
   onCheckout?: () => void;
+  onCopyLink?: () => void;
   onOpenExternal?: () => void;
   onTabChange?: (tab: GithubPrTab) => void;
   onSectionRetry?: (section: PrSection) => void;
@@ -49,8 +53,10 @@ type Props = {
 
 let {
   view,
+  currentBranch,
   onRefresh,
   onCheckout,
+  onCopyLink,
   onOpenExternal,
   onTabChange,
   onSectionRetry,
@@ -66,9 +72,13 @@ const overview = $derived(view?.overview.data);
 const commits = $derived(view?.commits.data);
 const checks = $derived(view?.checks.data?.checks);
 const files = $derived(view?.files.data);
+const checkedOut = $derived(
+  Boolean(currentBranch) && core?.headRefName === currentBranch,
+);
+let checkoutOpen = $state(false);
 
-const tabTriggerClass =
-  "h-full flex-none gap-1.5 rounded-sm px-2.5 text-xs font-medium data-active:bg-background data-active:shadow-xs data-active:ring-1 data-active:ring-border";
+/* Tabs match the rest of the workbench: an underline strip, not a pill group. */
+const tabTriggerClass = "h-full flex-none gap-1.5 px-0 text-xs font-medium";
 
 function changeTab(value: string) {
   if (
@@ -79,17 +89,14 @@ function changeTab(value: string) {
   )
     onTabChange?.(value);
 }
-
-function confirmCheckout() {
-  if (!core) return;
-  if (
-    window.confirm(
-      `Check out PR #${core.number} (${core.headRefName}) in this repo?`,
-    )
-  )
-    onCheckout?.();
-}
 </script>
+
+{#snippet tabCount(count: number)}
+  <span
+    class="rounded-full bg-muted px-1.5 text-[0.6875rem] text-muted-foreground tabular-nums"
+    >{count}</span
+  >
+{/snippet}
 
 {#snippet sectionError(error: string, section: PrSection)}
   <div
@@ -152,8 +159,10 @@ function confirmCheckout() {
       summary={view.summary}
       loading={view.refreshing}
       commitCount={commits?.commits.length}
+      {checkedOut}
       {onRefresh}
-      onCheckout={confirmCheckout}
+      onCheckout={() => (checkoutOpen = true)}
+      {onCopyLink}
       {onOpenExternal}
     />
 
@@ -176,32 +185,24 @@ function confirmCheckout() {
       onValueChange={changeTab}
       class="min-h-0 flex-1 gap-0"
     >
-      <div class="shrink-0 px-4 pt-3 pb-2">
-        <Tabs.List
-          class="h-8 gap-1 rounded-md bg-accent/35 p-1 ring-1 ring-border ring-inset"
-        >
+      <div class="shrink-0 border-b px-4">
+        <Tabs.List variant="line" class="h-9 gap-3 p-0">
           <Tabs.Trigger value="conversation" class={tabTriggerClass}>
             Conversation
-            {#if conversation}<span class="text-muted-foreground"
-                >{conversation.comments.length +
-                  conversation.reviews.length}</span
-              >{/if}
+            {#if conversation}{@render tabCount(
+                conversation.comments.length + conversation.reviews.length,
+              )}{/if}
           </Tabs.Trigger>
           <Tabs.Trigger value="commits" class={tabTriggerClass}>
             Commits
-            {#if commits}<span class="text-muted-foreground"
-                >{commits.commits.length}</span
-              >{/if}
+            {#if commits}{@render tabCount(commits.commits.length)}{/if}
           </Tabs.Trigger>
           <Tabs.Trigger value="checks" class={tabTriggerClass}>
             Checks
-            {#if checks}<span class="text-muted-foreground">{checks.total}</span
-              >{/if}
+            {#if checks}{@render tabCount(checks.total)}{/if}
           </Tabs.Trigger>
           <Tabs.Trigger value="files" class={tabTriggerClass}>
-            Files changed <span class="text-muted-foreground"
-              >{core.changedFiles}</span
-            >
+            Files changed {@render tabCount(core.changedFiles)}
           </Tabs.Trigger>
         </Tabs.List>
       </div>
@@ -224,19 +225,10 @@ function confirmCheckout() {
                 label="Loading conversation"
               />
             {/if}
+            <!-- Outcome first: what to do about this PR outranks its metadata. -->
             <aside class="flex flex-col gap-2">
-              {#if overview}
-                <GitHubPrOverview {overview} />
-              {:else if view.overview.error}
-                {@render sectionError(view.overview.error, "overview")}
-              {:else}
-                <GitHubPrSectionSkeleton
-                  variant="overview"
-                  label="Loading overview"
-                />
-              {/if}
               {#if overview && checks}
-                <GitHubPrMergeBox
+                <GitHubPrStatusCard
                   detail={{ ...core, ...overview, checks }}
                   selectedMethod={view.selectedMergeMethod}
                   merging={view.merging}
@@ -248,6 +240,16 @@ function confirmCheckout() {
                 <GitHubPrSectionSkeleton
                   variant="merge"
                   label="Loading merge status"
+                />
+              {/if}
+              {#if overview}
+                <GitHubPrOverview {overview} open={core.state === "OPEN"} />
+              {:else if view.overview.error}
+                {@render sectionError(view.overview.error, "overview")}
+              {:else}
+                <GitHubPrSectionSkeleton
+                  variant="overview"
+                  label="Loading overview"
                 />
               {/if}
             </aside>
@@ -309,3 +311,16 @@ function confirmCheckout() {
     </Tabs.Root>
   {/if}
 </section>
+
+<ConfirmDialog
+  bind:open={checkoutOpen}
+  title={`Check out PR #${view?.number ?? ""}?`}
+  description={core
+    ? `This switches the repository to ${core.headRefName}. Uncommitted changes stay in the working tree.`
+    : ""}
+  confirmLabel="Check out branch"
+  onConfirm={() => {
+    checkoutOpen = false;
+    onCheckout?.();
+  }}
+/>

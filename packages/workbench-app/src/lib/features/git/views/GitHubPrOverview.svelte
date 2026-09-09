@@ -1,61 +1,75 @@
 <script lang="ts">
+import GitBranch from "@lucide/svelte/icons/git-branch";
+import GitMerge from "@lucide/svelte/icons/git-merge";
+import Tag from "@lucide/svelte/icons/tag";
+import Users from "@lucide/svelte/icons/users";
 import type { GithubPrOverview } from "@nervekit/contracts/git";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import GitHubPrSection from "./GitHubPrSection.svelte";
 import { divergenceLabel, divergenceTone, reviewTone } from "./pr-pane-helpers";
 
-type Props = { overview: GithubPrOverview };
-let { overview }: Props = $props();
+type Props = {
+  overview: GithubPrOverview;
+  /** Mergeability only means something while the pull request is open. */
+  open: boolean;
+};
+let { overview, open }: Props = $props();
+
+const mergeableTone = $derived(
+  overview.mergeable === "MERGEABLE"
+    ? "success"
+    : overview.mergeable === "CONFLICTING"
+      ? "destructive"
+      : "neutral",
+);
+const mergeableLabel = $derived(
+  overview.mergeable === "MERGEABLE"
+    ? "No conflicts"
+    : overview.mergeable === "CONFLICTING"
+      ? "Conflicts with base"
+      : "Calculating mergeability",
+);
 </script>
 
-<GitHubPrSection
-  title="Overview"
-  contentClass="flex flex-col gap-1.5 px-3 py-2.5"
->
-  <div class="flex min-h-5 items-start gap-2">
-    <span class="w-20 shrink-0 pt-0.5 text-muted-foreground">Mergeability</span>
-    <div class="flex min-w-0 flex-wrap gap-1">
-      <Badge
-        variant={overview.mergeable === "MERGEABLE"
-          ? "success"
-          : overview.mergeable === "CONFLICTING"
-            ? "destructive"
-            : "neutral"}
-      >
-        {overview.mergeable?.toLowerCase() ?? "calculating"}
-      </Badge>
-      {#if overview.reviewDecision}
-        <Badge variant={reviewTone(overview.reviewDecision)}>
-          {overview.reviewDecision.replaceAll("_", " ").toLowerCase()}
+<GitHubPrSection contentClass="flex flex-col gap-2.5 px-3 py-2.5">
+  <!-- Grouped facts, each with its own icon, instead of a label/value table. -->
+  {#if open}
+    <div class="flex flex-col gap-1.5">
+      <div class="flex min-w-0 items-center gap-2">
+        <GitMerge class="size-3.5 shrink-0 text-muted-foreground" />
+        <Badge variant={mergeableTone}>{mergeableLabel}</Badge>
+        {#if overview.reviewDecision}
+          <Badge variant={reviewTone(overview.reviewDecision)}>
+            {overview.reviewDecision.replaceAll("_", " ").toLowerCase()}
+          </Badge>
+        {/if}
+      </div>
+      <div class="flex min-w-0 items-center gap-2">
+        <GitBranch class="size-3.5 shrink-0 text-muted-foreground" />
+        <Badge variant={divergenceTone(overview)}>
+          {divergenceLabel(overview)}
         </Badge>
-      {/if}
+      </div>
     </div>
-  </div>
+  {/if}
 
-  <div class="flex min-h-5 items-start gap-2">
-    <span class="w-20 shrink-0 pt-0.5 text-muted-foreground">Base branch</span>
-    <div class="flex min-w-0 flex-wrap gap-1">
-      <Badge variant={divergenceTone(overview)}>
-        {divergenceLabel(overview)}
-      </Badge>
-    </div>
-  </div>
-
-  <div class="flex min-h-5 items-start gap-2">
-    <span class="w-20 shrink-0 text-muted-foreground">Reviewers</span>
+  <div class="flex min-w-0 items-start gap-2">
+    <Users class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
     {#if overview.reviewRequests.length > 0}
-      <span class="min-w-0 flex-1 text-foreground">
-        {overview.reviewRequests.map((reviewer) => reviewer.login).join(", ")}
-      </span>
+      <div class="flex min-w-0 flex-1 flex-wrap gap-1">
+        {#each overview.reviewRequests as reviewer (reviewer.login)}
+          <Badge variant="neutral">{reviewer.login}</Badge>
+        {/each}
+      </div>
     {:else}
       <span class="min-w-0 flex-1 text-muted-foreground"
-        >No pending review requests</span
+        >No review requests</span
       >
     {/if}
   </div>
 
-  <div class="flex min-h-5 items-start gap-2">
-    <span class="w-20 shrink-0 text-muted-foreground">Labels</span>
+  <div class="flex min-w-0 items-start gap-2">
+    <Tag class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
     {#if overview.labels.length > 0}
       <div class="flex min-w-0 flex-1 flex-wrap gap-1">
         {#each overview.labels as label (label.name)}

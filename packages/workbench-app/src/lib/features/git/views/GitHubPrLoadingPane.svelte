@@ -11,8 +11,7 @@ type Props = {
   onOpenExternal?: () => void;
 };
 let { view, onRefresh, onOpenExternal }: Props = $props();
-const tabTriggerClass =
-  "h-full flex-none gap-1.5 rounded-sm px-2.5 text-xs font-medium data-active:bg-background data-active:shadow-xs data-active:ring-1 data-active:ring-border";
+const tabTriggerClass = "h-full flex-none gap-1.5 px-0 text-xs font-medium";
 </script>
 
 <GitHubPrHeader
@@ -23,10 +22,8 @@ const tabTriggerClass =
   {onOpenExternal}
 />
 <Tabs.Root value="conversation" class="min-h-0 flex-1 gap-0">
-  <div class="shrink-0 px-4 pt-3 pb-2">
-    <Tabs.List
-      class="h-8 gap-1 rounded-md bg-accent/35 p-1 ring-1 ring-border ring-inset"
-    >
+  <div class="shrink-0 border-b px-4">
+    <Tabs.List variant="line" class="h-9 gap-3 p-0">
       <Tabs.Trigger value="conversation" class={tabTriggerClass}
         >Conversation</Tabs.Trigger
       >

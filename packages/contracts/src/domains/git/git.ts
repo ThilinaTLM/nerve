@@ -266,6 +266,12 @@ export const githubPrSchema = z.object({
   headRefName: z.string(),
   baseRefName: z.string(),
   updatedAt: z.string(),
+  /* Summary metadata the list rows render directly, so a row never needs the
+   * heavier detail payload to show who opened a PR and how large it is. */
+  author: z.string().nullable().default(null),
+  commentCount: z.number().int().nonnegative().default(0),
+  additions: z.number().int().nonnegative().default(0),
+  deletions: z.number().int().nonnegative().default(0),
   checks: githubChecksSummarySchema,
 });
 export type GithubPr = z.infer<typeof githubPrSchema>;
@@ -458,6 +464,12 @@ export const githubPrOverviewSchema = z.object({
   mergeStateStatus: z.string().nullable(),
   reviewDecision: z.string().nullable(),
   behindBy: z.number().int().nonnegative().nullable(),
+  /* Outcome metadata: a merged or closed PR has no merge controls, so the pane
+   * reports what happened instead. */
+  mergedAt: z.string().nullable().default(null),
+  mergedBy: z.string().nullable().default(null),
+  mergeCommitOid: z.string().nullable().default(null),
+  closedAt: z.string().nullable().default(null),
   labels: z.array(githubPrLabelSchema),
   reviewRequests: z.array(githubPrReviewerSchema),
   mergeSettings: githubPrMergeSettingsSchema,

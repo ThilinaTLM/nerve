@@ -11,7 +11,11 @@ import {
   setActivePrRefreshDemand,
 } from "$lib/features/git/state/git-refresh-coordinator.svelte";
 import { refreshPrs } from "$lib/features/git/state/git-panel-refresh.svelte";
-import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
+import {
+  gitCurrentBranch,
+  gitSelectors,
+} from "$lib/features/git/state/git-selectors.svelte";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
   refreshPrPane,
   retrySelectedPrFile,
@@ -27,6 +31,23 @@ import { notify } from "$lib/application/notifications/notify.svelte";
 
 const activeCenterPrView = $derived(gitSelectors.activeCenterPrView);
 const activeFileDiff = $derived(selectedPrFileDiffResource(activeCenterPrView));
+const currentBranch = $derived(
+  activeCenterPrView
+    ? gitCurrentBranch(activeCenterPrView.projectId, activeCenterPrView.repo)
+    : undefined,
+);
+
+async function copyActivePrLink() {
+  const url =
+    activeCenterPrView?.core.data?.url ?? activeCenterPrView?.summary?.url;
+  if (!url) return;
+  try {
+    await writeClipboardText(url);
+    notify.success(`Copied link to PR #${activeCenterPrView?.number}`);
+  } catch {
+    notify.error("Could not copy to clipboard");
+  }
+}
 
 async function checkoutActivePr() {
   const view = activeCenterPrView;
@@ -101,6 +122,8 @@ $effect(() => {
 
 <GitHubPrPane
   view={activeCenterPrView}
+  {currentBranch}
+  onCopyLink={() => void copyActivePrLink()}
   onRefresh={() =>
     activeCenterPrView && void refreshPrPane(activeCenterPrView.id)}
   onCheckout={() => void checkoutActivePr()}

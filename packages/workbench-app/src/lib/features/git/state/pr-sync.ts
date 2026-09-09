@@ -13,6 +13,10 @@ export function prSummaryFromCore(
     headRefName: core.headRefName,
     baseRefName: core.baseRefName,
     updatedAt: core.updatedAt,
+    author: core.author,
+    commentCount: core.commentCount,
+    additions: core.additions,
+    deletions: core.deletions,
     checks,
   };
 }
@@ -41,6 +45,10 @@ export function prSummaryFingerprint(pr: GithubPr): string {
     pr.headRefName,
     pr.baseRefName,
     pr.updatedAt,
+    pr.author,
+    pr.commentCount,
+    pr.additions,
+    pr.deletions,
     checksFingerprint(pr.checks),
   ].join("\u0000");
 }

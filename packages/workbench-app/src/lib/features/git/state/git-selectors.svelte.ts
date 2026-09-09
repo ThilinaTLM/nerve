@@ -86,6 +86,19 @@ export const gitSelectors = {
   },
 };
 
+/** Checked-out branch of one repository, used to detect PR checkout state. */
+export function gitCurrentBranch(
+  projectId: string,
+  relativePath: string,
+): string | undefined {
+  const state = gitPanelState.projects[gitProjectStateKey(projectId)];
+  if (!state) return undefined;
+  const repo =
+    state.repoStates[gitRepoStateKey(relativePath)]?.repoSummary ??
+    state.repos.find((candidate) => candidate.relativePath === relativePath);
+  return repo?.currentBranch ?? undefined;
+}
+
 export function activeModelKeyForGit(): string {
   return modelKey(
     workspaceReadModel.agents.find(
