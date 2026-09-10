@@ -24,7 +24,7 @@ import {
 } from "$lib/platform/desktop";
 import { releaseSelectors } from "$lib/features/releases";
 import { openLogsPane } from "$lib/features/logs";
-import { discoverTitlebarCount, openDiscoverPane } from "$lib/app/discover";
+import { discoverTitlebarBadge, openDiscoverPane } from "$lib/app/discover";
 import { guideState } from "$lib/app/discover/guides";
 import { settingsSelectors } from "$lib/features/settings";
 import { openSettingsPane } from "$lib/application/settings";
@@ -68,7 +68,7 @@ const headerType = $derived(
     desktopRuntime.platform,
   ),
 );
-const discoverAttention = $derived(discoverTitlebarCount());
+const discoverAttention = $derived(discoverTitlebarBadge());
 const desktopQuitting = $derived(
   desktopRuntime.quitting || desktopShutdownState.quitRequested,
 );
@@ -149,7 +149,7 @@ async function handleDesktopClose() {
   settingsActive={activeCenterTab?.kind === "settings"}
   discoverActive={activeCenterTab?.kind === "discover" ||
     guideState.mode !== "closed"}
-  discoverAttentionCount={discoverAttention}
+  discoverBadge={discoverAttention}
   logsActive={activeCenterTab?.kind === "logs"}
   applicationLogsEnabled={status?.capabilities.applicationLogs ?? false}
   currentVersion={status?.version}

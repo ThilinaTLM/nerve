@@ -3,30 +3,33 @@ import { openSettingsPane } from "$lib/application/settings";
 import { workspaceSelectors } from "$lib/application/workspace";
 import {
   DiscoverView,
-  discoverSections,
+  discoverPageModel,
   markDiscoverSeen,
-  type DiscoverEditorialAction,
+  setDiscoverAutoOpen,
+  type DiscoverAction,
 } from "$lib/app/discover";
 import { markGuideCompleted, startGuide } from "$lib/app/discover/guides";
 
-const sections = $derived(discoverSections());
+const model = $derived(discoverPageModel());
 $effect(() => {
   markDiscoverSeen();
 });
 
-function handleEditorialAction(action: DiscoverEditorialAction): void {
+function handleAction(action: DiscoverAction): void {
   if (action.kind === "guide") {
     startGuide(action.guideId);
     return;
   }
-  void openSettingsPane(action.pageId, action.sectionId);
+  if (action.kind === "settings")
+    void openSettingsPane(action.pageId, action.sectionId);
 }
 </script>
 
 <DiscoverView
-  {sections}
+  {model}
   workbenchBlocked={!workspaceSelectors.activeProject}
   onStartGuide={startGuide}
   onMarkCompleted={markGuideCompleted}
-  onEditorialAction={handleEditorialAction}
+  onAction={handleAction}
+  onSetAutoOpen={setDiscoverAutoOpen}
 />

@@ -15,6 +15,7 @@ import type { LatestRelease } from "@nervekit/contracts/status";
 import VersionIndicator from "$lib/app/shell/VersionIndicator.svelte";
 import WindowControls from "$lib/app/shell/WindowControls.svelte";
 import type { ResolvedHeaderType } from "$lib/app/shell/header-type";
+import type { DiscoverBadge } from "$lib/app/discover";
 
 type Props = {
   projects?: ProjectSwitcherItem[];
@@ -28,7 +29,7 @@ type Props = {
   quitting?: boolean;
   settingsActive?: boolean;
   discoverActive?: boolean;
-  discoverAttentionCount?: number;
+  discoverBadge?: DiscoverBadge;
   logsActive?: boolean;
   applicationLogsEnabled?: boolean;
   currentVersion?: string;
@@ -56,7 +57,7 @@ let {
   quitting = false,
   settingsActive = false,
   discoverActive = false,
-  discoverAttentionCount = 0,
+  discoverBadge = { kind: "none" },
   logsActive = false,
   applicationLogsEnabled = false,
   currentVersion,
@@ -115,22 +116,29 @@ let {
         size="icon-sm"
         class="relative max-sm:hidden"
         data-tour-id="help"
-        ariaLabel={discoverAttentionCount > 0
-          ? `Open Discover, ${discoverAttentionCount} items need attention`
-          : "Open Discover"}
+        ariaLabel={discoverBadge.kind === "count"
+          ? `Open Discover, ${discoverBadge.value} unread updates`
+          : discoverBadge.kind === "dot"
+            ? "Open Discover, setup is unfinished"
+            : "Open Discover"}
         title="Open Discover"
         active={discoverActive}
         pressed={discoverActive}
         onclick={() => onOpenDiscover?.()}
       >
         <Compass size={16} strokeWidth={2.1} />
-        {#if discoverAttentionCount > 0}
+        {#if discoverBadge.kind === "count"}
           <span
             class="absolute -right-1 -top-1 inline-flex min-w-4 items-center justify-center rounded-full bg-info px-1 text-xs font-medium text-info-foreground"
             aria-hidden="true"
           >
-            {discoverAttentionCount}
+            {discoverBadge.value}
           </span>
+        {:else if discoverBadge.kind === "dot"}
+          <span
+            class="absolute right-0 top-0 size-1.5 rounded-full bg-muted-foreground"
+            aria-hidden="true"
+          ></span>
         {/if}
       </Button>
       {#if applicationLogsEnabled}
