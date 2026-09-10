@@ -44,7 +44,7 @@
     "@nervekit/tools": "workspace:*",
     "@peculiar/x509": "^2.0.0",
     "fdir": "6.5.0",
-    "hono": "4.12.34",
+    "hono": "4.13.5",
     "reflect-metadata": "^0.2.2",
     "ws": "8.21.0",
     "yaml": "2.9.0",
