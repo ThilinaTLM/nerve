@@ -1,112 +1,109 @@
 <script lang="ts">
-import CircleCheck from "@lucide/svelte/icons/circle-check";
-import Lightbulb from "@lucide/svelte/icons/lightbulb";
+import Ellipsis from "@lucide/svelte/icons/ellipsis";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import type { DiscoverEditorialAction } from "../catalog.js";
+import { buttonVariants } from "@nervekit/ui-kit/components/ui/button";
+import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
+import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
+import { displayVersion, isVersionOutdated } from "$lib/features/releases";
+import type { DiscoverAction } from "../content/entries.js";
 import type { GuideId } from "../guides/catalog.js";
-import type { DiscoverSections } from "../policy.js";
-import DiscoverCard from "./DiscoverCard.svelte";
-import DiscoverNewsCarousel from "./DiscoverNewsCarousel.svelte";
+import type { DiscoverPageModel } from "../state.svelte.js";
+import DiscoverNewsSection from "./DiscoverNewsSection.svelte";
+import DiscoverResourceLinks from "./DiscoverResourceLinks.svelte";
+import DiscoverSetupSection from "./DiscoverSetupSection.svelte";
+import DiscoverTipsSection from "./DiscoverTipsSection.svelte";
+import DiscoverWalkthroughSection from "./DiscoverWalkthroughSection.svelte";
 
 type Props = {
-  sections: DiscoverSections;
+  model: DiscoverPageModel;
   workbenchBlocked: boolean;
   onStartGuide: (id: GuideId) => void;
   onMarkCompleted: (id: GuideId) => void;
-  onEditorialAction: (action: DiscoverEditorialAction) => void;
+  onAction: (action: DiscoverAction) => void;
+  onSetAutoOpen: (enabled: boolean) => void;
 };
 
 let {
-  sections,
+  model,
   workbenchBlocked,
   onStartGuide,
   onMarkCompleted,
-  onEditorialAction,
+  onAction,
+  onSetAutoOpen,
 }: Props = $props();
+
+const versionLabel = $derived(
+  model.currentVersion ? displayVersion(model.currentVersion) : undefined,
+);
+const outdated = $derived(
+  isVersionOutdated(model.currentVersion, model.latestVersion),
+);
 </script>
 
-<div class="h-full min-h-0 overflow-y-auto bg-background">
-  <main class="mx-auto grid w-full max-w-5xl gap-5 px-4 py-5 sm:px-6 sm:py-6">
-    {#if sections.highlights.length > 0}
-      <DiscoverNewsCarousel items={sections.highlights} {onEditorialAction} />
-    {/if}
+<div class="h-full min-h-0 bg-background">
+  <ScrollArea class="h-full">
+    <main class="mx-auto grid w-full max-w-4xl gap-6 px-4 py-5 sm:px-6">
+      <header class="flex flex-wrap items-start justify-between gap-3">
+        <div class="grid gap-0.5">
+          <h1 class="text-base font-semibold text-foreground">Discover</h1>
+          <p class="text-sm text-muted-foreground">
+            What's new in Nerve, plus setup guides and everyday tips.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5">
+          {#if versionLabel}
+            <Badge variant="outline">{versionLabel}</Badge>
+          {/if}
+          {#if outdated && model.latestVersion}
+            <Badge variant="warning" href={model.latestReleaseUrl}>
+              Update to {displayVersion(model.latestVersion)}
+            </Badge>
+          {/if}
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger
+              class={buttonVariants({ variant: "ghost", size: "icon-xs" })}
+              aria-label="Discover options"
+              title="Discover options"
+            >
+              <Ellipsis class="size-4" aria-hidden="true" />
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content align="end" class="w-60">
+              <DropdownMenu.CheckboxItem
+                checked={model.autoOpenEnabled}
+                onCheckedChange={(checked) => onSetAutoOpen(checked)}
+              >
+                Open Discover after updates
+              </DropdownMenu.CheckboxItem>
+            </DropdownMenu.Content>
+          </DropdownMenu.Root>
+        </div>
+      </header>
 
-    {#if sections.startHere.length > 0}
-      <section class="grid gap-2.5" aria-labelledby="discover-start-title">
-        <div class="flex items-center justify-between gap-3">
-          <div class="grid gap-0.5">
-            <h2 id="discover-start-title" class="text-sm font-semibold">
-              Recommended next
-            </h2>
-            <p class="text-xs text-muted-foreground">
-              Based on the setup and walkthroughs you have not completed yet.
-            </p>
-          </div>
-          <Badge variant="warning">
-            {sections.startHere.length} remaining
-          </Badge>
-        </div>
-        <div class="grid gap-2.5 lg:grid-cols-2">
-          {#each sections.startHere as guide (guide.id)}
-            <DiscoverCard
-              {guide}
-              {workbenchBlocked}
-              {onStartGuide}
-              {onMarkCompleted}
-              {onEditorialAction}
-            />
-          {/each}
-        </div>
-      </section>
-    {/if}
+      <DiscoverNewsSection
+        news={model.sections.news}
+        currentVersion={versionLabel}
+        {onAction}
+      />
 
-    {#if sections.tips.length > 0}
-      <section class="grid gap-2.5" aria-labelledby="discover-tips-title">
-        <div class="flex items-center gap-1.5">
-          <Lightbulb class="size-3.5 text-warning" aria-hidden="true" />
-          <div class="grid gap-0.5">
-            <h2 id="discover-tips-title" class="text-sm font-semibold">
-              Tips & tricks
-            </h2>
-            <p class="text-xs text-muted-foreground">
-              Small adjustments that can make everyday work more efficient.
-            </p>
-          </div>
-        </div>
-        <div class="grid gap-2.5 lg:grid-cols-2">
-          {#each sections.tips as editorial (editorial.id)}
-            <DiscoverCard
-              {editorial}
-              {onStartGuide}
-              {onMarkCompleted}
-              {onEditorialAction}
-            />
-          {/each}
-        </div>
-      </section>
-    {/if}
+      <DiscoverSetupSection
+        setup={model.sections.setup}
+        {onStartGuide}
+        {onMarkCompleted}
+      />
 
-    {#if sections.completed.length > 0}
-      <section class="grid gap-2" aria-labelledby="discover-completed-title">
-        <div class="flex items-center gap-1.5 text-muted-foreground">
-          <CircleCheck class="size-3.5" aria-hidden="true" />
-          <h2 id="discover-completed-title" class="text-xs font-medium">
-            Completed guides
-          </h2>
-        </div>
-        <div class="grid gap-2 lg:grid-cols-2">
-          {#each sections.completed as guide (guide.id)}
-            <DiscoverCard
-              {guide}
-              subdued
-              {workbenchBlocked}
-              {onStartGuide}
-              {onMarkCompleted}
-              {onEditorialAction}
-            />
-          {/each}
-        </div>
-      </section>
-    {/if}
-  </main>
+      {#if model.sections.walkthroughs.length > 0}
+        <DiscoverWalkthroughSection
+          walkthroughs={model.sections.walkthroughs}
+          {workbenchBlocked}
+          {onStartGuide}
+        />
+      {/if}
+
+      {#if model.sections.tips.length > 0}
+        <DiscoverTipsSection tips={model.sections.tips} {onAction} />
+      {/if}
+
+      <DiscoverResourceLinks />
+    </main>
+  </ScrollArea>
 </div>

@@ -1,8 +1,8 @@
 <script lang="ts">
-import type { DiscoverNewsArtwork } from "../catalog.js";
+import type { DiscoverArtwork } from "../content/entries.js";
 
 type Props = {
-  artwork: DiscoverNewsArtwork;
+  artwork: DiscoverArtwork;
 };
 
 let { artwork }: Props = $props();
