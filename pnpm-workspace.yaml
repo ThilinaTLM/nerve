@@ -1,7 +1,8 @@
 packages:
   - "packages/*"
 overrides:
-  js-yaml: 4.3.1
+  js-yaml: 4.3.2
+  svgo: 4.1.0
 allowBuilds:
   "@google/genai": true
   electron: true
@@ -14,6 +15,10 @@ minimumReleaseAgeExclude:
   - "@earendil-works/pi-ai@0.85.1"
   - "@astrojs/internal-helpers@0.10.2"
   - "@astrojs/markdown-satteri@0.3.5"
-  - astro@7.1.5
+  - astro@7.2.8
+  - sharp@0.35.4
+  - hono@4.13.5
+  - js-yaml@4.3.2
+  - svgo@4.1.0
   - mermaid@11.16.1
   - "@earendil-works/pi-telemetry@0.85.1"
