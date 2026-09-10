@@ -1,3 +1,4 @@
+import type { GitPrFilterConfig } from "../pr-filters";
 import type {
   GitBranchSummary,
   GitDiffArea,
@@ -41,16 +42,6 @@ export type GitRemoteOperation =
   | "push"
   | "sync"
   | "switch-base-and-pull";
-
-export type GitPrFilterConfig = {
-  readonly author: "any" | "me" | "username";
-  readonly username: string;
-  readonly drafts: "include" | "exclude" | "only";
-  readonly title: string;
-  readonly currentBranchOnly: boolean;
-  readonly labels: readonly string[];
-  readonly sort: "updated-desc" | "updated-asc";
-};
 
 export interface GitPanelCapabilities {
   readonly refresh: FeatureCapability;

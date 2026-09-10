@@ -1,5 +1,42 @@
 import { measureBlocks } from "../measure.js";
 import { profileBudget } from "../profiles.js";
+import { sanitizeUrl } from "../terminal-resource.js";
+import { fallbackText } from "../fallback.js";
+import type { CandidateContext, ProjectionCandidate } from "../types.js";
+import { artifacts, artifactNoticeLines } from "../candidate-artifacts.js";
+import { record } from "../candidate-values.js";
+
+export function webFetchCandidate(
+  context: CandidateContext,
+): ProjectionCandidate {
+  const result = record(context.result);
+  const details = record(result.details);
+  const validated = artifacts(context);
+  const primaryLines = artifactNoticeLines(validated, "primary_result");
+  const body =
+    primaryLines.length > 0
+      ? primaryLines.join("\n")
+      : typeof details.savedTo === "string"
+        ? "Saved response artifact is unavailable for agent inspection."
+        : typeof result.content === "string"
+          ? result.content
+          : fallbackText(result);
+  const canonical = formatWebFetchCandidateText(details, body);
+  const metadata = formatWebFetchCandidateText(details, "")
+    .trimEnd()
+    .split("\n\n")
+    .filter(Boolean);
+  return {
+    blocks: [{ type: "text", text: canonical }],
+    status: [
+      {
+        type: "text",
+        text: [...metadata, ...primaryLines].join("\n"),
+      },
+    ],
+    artifacts: validated,
+  };
+}
 
 export type WebFetchCandidateDetails = {
   url?: unknown;
@@ -38,19 +75,4 @@ export function webFetchCandidateFitsInline(
   ]);
   const budget = profileBudget("network_prose", "inline");
   return measured.bytes <= budget.maxBytes && measured.lines <= budget.maxLines;
-}
-
-function sanitizeUrl(value: string): string {
-  try {
-    const url = new URL(value);
-    url.username = "";
-    url.password = "";
-    for (const key of [...url.searchParams.keys()]) {
-      if (/token|key|auth|signature|credential|password|secret/i.test(key))
-        url.searchParams.delete(key);
-    }
-    return url.toString();
-  } catch {
-    return value;
-  }
 }

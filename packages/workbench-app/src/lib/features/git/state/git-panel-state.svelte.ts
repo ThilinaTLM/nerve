@@ -1,4 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import type {
   GitBranchSummary,
   GithubChecksSummary,
@@ -10,20 +11,21 @@ import type {
   GitRecentCommit,
   GitRepoSummary,
   GitStashEntry,
-  ProjectRecord,
-} from "$lib/api";
+} from "@nervekit/contracts/git";
 import {
   gitProjectStateKey,
   gitRepoStateKey,
 } from "$lib/domain/navigation/view-keys";
 import type { GitContext } from "$lib/features/git/state/git-state.svelte";
 import {
+  type ScopedFileMutation,
+  type StashMutation,
+} from "../views/git-panel-types";
+import {
   defaultGitPrFilterConfig,
   normalizeGitPrFilterConfig,
   type GitPrFilterConfig,
-  type ScopedFileMutation,
-  type StashMutation,
-} from "$lib/features/git";
+} from "../pr-filters";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { gitContextFingerprint } from "./git-context-helpers";
 import {
@@ -67,6 +69,17 @@ export type GitPanelOperationsState = {
 export type GitPanelLoadStatus = "idle" | "loading" | "refreshing" | "error";
 
 export type GitPanelRepoState = {
+  overviewRequest: {
+    inFlight: boolean;
+    refreshQueued: boolean;
+    sequence: number;
+  };
+  prsRequest: {
+    inFlight: boolean;
+    refreshQueued: boolean;
+    queuedVisible: boolean;
+    sequence: number;
+  };
   repoSummary?: GitRepoSummary;
   changes?: GitChangesState;
   recentCommits: GitRecentCommit[];
@@ -83,12 +96,7 @@ export type GitPanelRepoState = {
   loadingPrHeads: boolean;
   prsError?: string;
   loadingBranches: boolean;
-  prsRequestInFlight: boolean;
-  prsRefreshQueued: boolean;
-  prsQueuedVisible: boolean;
-  prsRequestSeq: number;
-  overviewRequestInFlight: boolean;
-  overviewRefreshQueued: boolean;
+
   overviewInvalidated: boolean;
   lastRepoSummaryFingerprint?: string;
   lastChangesFingerprint?: string;
@@ -101,10 +109,16 @@ export type GitPanelRepoState = {
   loaded: boolean;
   loadedAt?: number;
   prsLoadedAt?: number;
-  requestSeq: number;
 };
 
 export type GitPanelProjectState = {
+  discoveryRequest: {
+    inFlight: boolean;
+    loadsDetails: boolean;
+    refreshQueued: boolean;
+    queuedLoadsDetails: boolean;
+    sequence: number;
+  };
   projectId: string;
   projectDir: string;
   projectIsRepo: boolean;
@@ -114,14 +128,11 @@ export type GitPanelProjectState = {
   discoverError?: string;
   loadingRepos: boolean;
   refreshingRepos: boolean;
-  reposRequestInFlight: boolean;
-  activeRequestLoadsDetails: boolean;
-  projectRefreshQueued: boolean;
-  queuedRefreshLoadsDetails: boolean;
+
   lastReposFingerprint?: string;
   loaded: boolean;
   loadedAt?: number;
-  requestSeq: number;
+
   touchedAt: number;
 };
 
@@ -185,6 +196,13 @@ function createOperationsState(): GitPanelOperationsState {
 
 function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
   return {
+    overviewRequest: { inFlight: false, refreshQueued: false, sequence: 0 },
+    prsRequest: {
+      inFlight: false,
+      refreshQueued: false,
+      queuedVisible: false,
+      sequence: 0,
+    },
     repoSummary: undefined,
     changes: undefined,
     recentCommits: [],
@@ -206,12 +224,7 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     loadingPrHeads: false,
     prsError: undefined,
     loadingBranches: false,
-    prsRequestInFlight: false,
-    prsRefreshQueued: false,
-    prsQueuedVisible: false,
-    prsRequestSeq: 0,
-    overviewRequestInFlight: false,
-    overviewRefreshQueued: false,
+
     overviewInvalidated: false,
     lastRepoSummaryFingerprint: undefined,
     lastChangesFingerprint: undefined,
@@ -224,12 +237,18 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     loaded: false,
     loadedAt: undefined,
     prsLoadedAt: undefined,
-    requestSeq: 0,
   };
 }
 
 function createProjectState(project: ProjectRecord): GitPanelProjectState {
   return {
+    discoveryRequest: {
+      inFlight: false,
+      loadsDetails: false,
+      refreshQueued: false,
+      queuedLoadsDetails: false,
+      sequence: 0,
+    },
     projectId: project.id,
     projectDir: project.dir,
     projectIsRepo: false,
@@ -239,14 +258,11 @@ function createProjectState(project: ProjectRecord): GitPanelProjectState {
     discoverError: undefined,
     loadingRepos: false,
     refreshingRepos: false,
-    reposRequestInFlight: false,
-    activeRequestLoadsDetails: false,
-    projectRefreshQueued: false,
-    queuedRefreshLoadsDetails: false,
+
     lastReposFingerprint: undefined,
     loaded: false,
     loadedAt: undefined,
-    requestSeq: 0,
+
     touchedAt: Date.now(),
   };
 }
@@ -701,16 +717,16 @@ export function clearGithubState(
     state.loadingPrs = false;
     changed = true;
   }
-  if (state.prsRequestInFlight) {
-    state.prsRequestInFlight = false;
+  if (state.prsRequest.inFlight) {
+    state.prsRequest.inFlight = false;
     changed = true;
   }
-  if (state.prsRefreshQueued) {
-    state.prsRefreshQueued = false;
+  if (state.prsRequest.refreshQueued) {
+    state.prsRequest.refreshQueued = false;
     changed = true;
   }
-  if (state.prsQueuedVisible) {
-    state.prsQueuedVisible = false;
+  if (state.prsRequest.queuedVisible) {
+    state.prsRequest.queuedVisible = false;
     changed = true;
   }
   if (state.prsError) {

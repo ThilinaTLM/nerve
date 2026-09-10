@@ -1,14 +1,16 @@
+import { createGitPanelActions } from "../views/git-panel-controller";
 import {
-  createGitPanelActions,
-  defaultGitPrFilterConfig,
   disabledCapability,
-  normalizeGitPrFilterConfig,
   enabledCapability,
   type GitPanelActions,
   type GitPanelModel,
   type GitRemoteOperation,
-} from "$lib/features/git";
-import type { ProjectRecord } from "$lib/api";
+} from "../views/git-panel-types";
+import {
+  defaultGitPrFilterConfig,
+  normalizeGitPrFilterConfig,
+} from "../pr-filters";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { openDiffPane } from "$lib/features/git/state/diff-tabs.svelte";
 import { openPrPane } from "$lib/features/git/state/pr-tabs.svelte";
 import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
@@ -127,7 +129,7 @@ export function createWorkbenchGitPanelAdapter(
           Boolean(project && !projectState) ||
           Boolean(projectState?.loadingRepos) ||
           Boolean(
-            projectState?.reposRequestInFlight &&
+            projectState?.discoveryRequest.inFlight &&
             !projectState.loaded &&
             repositories.length === 0,
           ),

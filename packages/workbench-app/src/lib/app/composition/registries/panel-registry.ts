@@ -9,89 +9,94 @@ import type { GitPanelActions, GitPanelModel } from "$lib/features/git";
 import type { PanelViewDescriptor } from "$lib/presentation/shell";
 import type { Component } from "svelte";
 
-export type WorkbenchPanelProps = {
+export type GitWorkbenchPanelProps = {
   gitModel: GitPanelModel;
   gitActions: GitPanelActions;
 };
 
-type WorkbenchPanelComponent = Component<WorkbenchPanelProps>;
-export type WorkbenchPanelDescriptor = PanelViewDescriptor & {
-  load: () => Promise<{ default: WorkbenchPanelComponent }>;
-};
+export type LoadedWorkbenchPanel =
+  | { propsKind: "none"; component: Component }
+  | { propsKind: "git"; component: Component<GitWorkbenchPanelProps> };
 
-function loadPanel(
-  loader: () => Promise<unknown>,
-): () => Promise<{ default: WorkbenchPanelComponent }> {
-  return loader as () => Promise<{ default: WorkbenchPanelComponent }>;
-}
+export type WorkbenchPanelDescriptor = PanelViewDescriptor &
+  (
+    | { propsKind: "none"; load: () => Promise<{ default: Component }> }
+    | {
+        propsKind: "git";
+        load: () => Promise<{ default: Component<GitWorkbenchPanelProps> }>;
+      }
+  );
 
 /**
  * The panel view registry is the authority for what can live in a dock. Ids are
  * persisted in `nerve.layout.v1`; unknown ids are dropped on hydration and new
  * entries join their default dock automatically.
  */
-export const panelViewDescriptors: WorkbenchPanelDescriptor[] = [
+export const panelViewDescriptors = [
   {
     id: "conversations",
+    propsKind: "none",
     title: "Conversations",
     icon: MessagesSquare,
     defaultDock: "left",
     defaultOrder: 0,
     hideable: false,
-    load: loadPanel(
-      () => import("../panels/ConversationsWorkbenchPanel.svelte"),
-    ),
+    load: () => import("../panels/ConversationsWorkbenchPanel.svelte"),
   },
   {
     id: "files",
+    propsKind: "none",
     title: "Files",
     icon: FolderTree,
     defaultDock: "left",
     defaultOrder: 1,
-    load: loadPanel(() => import("../panels/FilesWorkbenchPanel.svelte")),
+    load: () => import("../panels/FilesWorkbenchPanel.svelte"),
   },
   {
     id: "git",
+    propsKind: "git",
     title: "Git Changes",
     icon: GitBranch,
     defaultDock: "right",
     defaultOrder: 0,
-    load: loadPanel(() => import("../panels/GitWorkbenchPanel.svelte")),
+    load: () => import("../panels/GitWorkbenchPanel.svelte"),
   },
   {
     id: "pull-requests",
+    propsKind: "git",
     title: "Pull Requests",
     icon: GitPullRequest,
     defaultDock: "right",
     defaultOrder: 1,
-    load: loadPanel(
-      () => import("../panels/PullRequestsWorkbenchPanel.svelte"),
-    ),
+    load: () => import("../panels/PullRequestsWorkbenchPanel.svelte"),
   },
   {
     id: "context",
+    propsKind: "none",
     title: "Context",
     icon: Info,
     defaultDock: "right",
     defaultOrder: 2,
-    load: loadPanel(() => import("../panels/ContextWorkbenchPanel.svelte")),
+    load: () => import("../panels/ContextWorkbenchPanel.svelte"),
   },
   {
     id: "tasks",
+    propsKind: "none",
     title: "Tasks",
     icon: Terminal,
     defaultDock: "left",
     defaultOrder: 2,
-    load: loadPanel(() => import("../panels/TasksWorkbenchPanel.svelte")),
+    load: () => import("../panels/TasksWorkbenchPanel.svelte"),
   },
   {
     id: "notes",
+    propsKind: "none",
     title: "Scratch Notes",
     icon: NotebookPen,
     defaultDock: "left",
     defaultOrder: 3,
-    load: loadPanel(() => import("../panels/NotesWorkbenchPanel.svelte")),
+    load: () => import("../panels/NotesWorkbenchPanel.svelte"),
   },
-];
+] as const satisfies WorkbenchPanelDescriptor[];
 
 export type PanelViewId = (typeof panelViewDescriptors)[number]["id"];

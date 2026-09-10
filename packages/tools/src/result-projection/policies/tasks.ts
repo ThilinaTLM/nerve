@@ -1,4 +1,6 @@
-import { lifecycleCandidate, policy, taskLogsCandidate } from "./common.js";
+import { lifecycleCandidate, taskLogsCandidate } from "../candidates/tasks.js";
+import { policy } from "./define-policy.js";
+
 export const taskLifecycleAgentResultPolicy = policy(
   "lifecycle_state",
   "item_aware",

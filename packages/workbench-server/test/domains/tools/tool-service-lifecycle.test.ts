@@ -8,6 +8,9 @@ import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { defaultSettings } from "@nervekit/contracts/settings";
 import { ToolService } from "../../../src/domains/tools/execution/tool-service.js";
+import { ToolResultPayloadStore } from "../../../src/domains/tools/artifacts/tool-result-payload-store.js";
+import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
+import { ToolCallRepository } from "../../../src/domains/tools/artifacts/tool-call.repository.js";
 import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
 describe("tool service lifecycle", () => {
@@ -15,18 +18,20 @@ describe("tool service lifecycle", () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-error-"));
     const events: Array<{ type: string; data: unknown }> = [];
     const testAgent = agent("autonomous");
-    const service = new ToolService(
-      {
-        paths: storagePaths(home),
-        settings: defaultSettings,
-        localToken: "test",
-      },
-      {
+    const storage = {
+      paths: storagePaths(home),
+      settings: defaultSettings,
+      localToken: "test",
+    };
+    const journal = new ConversationJournalRepository(storage);
+    const resultPayloads = new ToolResultPayloadStore(home);
+    const service = new ToolService({
+      events: {
         publish: async (type: string, data: unknown) =>
           events.push({ type, data }),
       } as never,
-      {} as never,
-      {
+      tasks: {} as never,
+      pythonRuntime: {
         runtimeForProject: async () => undefined,
         isAvailableForProject: async () => false,
         statusSnapshot: () => ({
@@ -40,18 +45,23 @@ describe("tool service lifecycle", () => {
           error: "not used",
         }),
       } as never,
-      async () => {
+      startTask: async () => {
         throw new Error("not used");
       },
-      () => testAgent,
-      async () => {
+      getAgent: () => testAgent,
+      runExplore: async () => {
         throw new Error("not used");
       },
-      async () => undefined,
-      {} as never,
-      async () => testAgent,
-      {} as never,
-    );
+      getApiKey: async () => undefined,
+      explainImage: {} as never,
+      storage,
+      plans: {} as never,
+      setAgentMode: async () => testAgent,
+      conversationRuntime: {} as never,
+      journal,
+      resultPayloads,
+      toolCallRepository: new ToolCallRepository(journal, resultPayloads),
+    });
 
     const toolCall = await service.recordProviderToolCallError(
       testAgent,
@@ -303,18 +313,20 @@ function buildToolService(
   },
 ) {
   const events: Array<{ type: string; data: unknown }> = [];
-  const service = new ToolService(
-    {
-      paths: storagePaths(home),
-      settings: defaultSettings,
-      localToken: "test",
-    },
-    (publisher ?? {
+  const storage = {
+    paths: storagePaths(home),
+    settings: defaultSettings,
+    localToken: "test",
+  };
+  const journal = new ConversationJournalRepository(storage);
+  const resultPayloads = new ToolResultPayloadStore(home);
+  const service = new ToolService({
+    events: (publisher ?? {
       publish: async (type: string, data: unknown) =>
         events.push({ type, data }),
     }) as never,
-    {} as never,
-    (pythonRuntime ?? {
+    tasks: {} as never,
+    pythonRuntime: (pythonRuntime ?? {
       runtimeForProject: async () => undefined,
       isAvailableForProject: async () => false,
       statusSnapshot: () => ({
@@ -328,18 +340,23 @@ function buildToolService(
         error: "not used",
       }),
     }) as never,
-    async () => {
+    startTask: async () => {
       throw new Error("not used");
     },
-    () => testAgent,
-    async () => {
+    getAgent: () => testAgent,
+    runExplore: async () => {
       throw new Error("not used");
     },
-    async () => undefined,
-    {} as never,
-    async () => testAgent,
-    {} as never,
-  );
+    getApiKey: async () => undefined,
+    explainImage: {} as never,
+    storage,
+    plans: {} as never,
+    setAgentMode: async () => testAgent,
+    conversationRuntime: {} as never,
+    journal,
+    resultPayloads,
+    toolCallRepository: new ToolCallRepository(journal, resultPayloads),
+  });
   return { service, events };
 }
 

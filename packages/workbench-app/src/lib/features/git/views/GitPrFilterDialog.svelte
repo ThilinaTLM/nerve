@@ -11,8 +11,8 @@ import {
   createGitPrFilterDraft,
   defaultGitPrFilterConfig,
   gitPrFilterConfigsEqual,
-} from "./git-panel-controller.js";
-import type { GitPrFilterConfig } from "./git-panel-types.js";
+} from "../pr-filters";
+import type { GitPrFilterConfig } from "../pr-filters";
 
 type Props = {
   open?: boolean;

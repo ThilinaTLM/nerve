@@ -3,7 +3,7 @@ import type { GitPanelActions, GitPanelModel } from "$lib/features/git";
 import LazyViewPending from "$lib/app/shell/LazyViewPending.svelte";
 import {
   panelViewDescriptors,
-  type WorkbenchPanelDescriptor,
+  type LoadedWorkbenchPanel,
 } from "$lib/app/composition/registries/panel-registry";
 
 let {
@@ -20,7 +20,7 @@ let {
 // mutating reactive state would trigger `state_unsafe_mutation`.
 const moduleCache = Object.create(null) as Record<
   string,
-  ReturnType<WorkbenchPanelDescriptor["load"]>
+  Promise<LoadedWorkbenchPanel>
 >;
 const descriptor = $derived(
   panelViewDescriptors.find((candidate) => candidate.id === viewId),
@@ -29,7 +29,20 @@ const panelModule = $derived.by(() => {
   if (!descriptor) return undefined;
   let loaded = moduleCache[descriptor.id];
   if (!loaded) {
-    loaded = descriptor.load();
+    loaded =
+      descriptor.propsKind === "git"
+        ? descriptor.load().then(
+            ({ default: component }): LoadedWorkbenchPanel => ({
+              propsKind: "git",
+              component,
+            }),
+          )
+        : descriptor.load().then(
+            ({ default: component }): LoadedWorkbenchPanel => ({
+              propsKind: "none",
+              component,
+            }),
+          );
     moduleCache[descriptor.id] = loaded;
   }
   return loaded;
@@ -40,7 +53,12 @@ const panelModule = $derived.by(() => {
   {#await panelModule}
     <LazyViewPending />
   {:then module}
-    {@const Panel = module.default}
-    <Panel {gitModel} {gitActions} />
+    {#if module.propsKind === "git"}
+      {@const Panel = module.component}
+      <Panel {gitModel} {gitActions} />
+    {:else}
+      {@const Panel = module.component}
+      <Panel />
+    {/if}
   {/await}
 {/if}

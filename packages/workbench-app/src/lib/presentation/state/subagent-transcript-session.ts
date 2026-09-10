@@ -1,7 +1,7 @@
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type { EventEnvelope } from "@nervekit/contracts/events";
 import type { SubagentTranscriptSnapshot } from "@nervekit/contracts/agents";
-import { applyConversationEvent } from "./adapters.js";
+import { applyConversationEvent } from "./conversation-event-reducer.js";
 import type { ConversationRenderState } from "./conversation-render-state.js";
 
 const PREFIX = "agent.subagent_transcript.";

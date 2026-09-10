@@ -20,3 +20,4 @@ export { createWorkbenchGitPanelAdapter } from "./state/workbench-git-panel-adap
 export { default as GitPanel } from "./views/GitPanel.svelte";
 export * from "./views/git-panel-controller";
 export * from "./views/git-panel-types";
+export * from "./pr-filters";

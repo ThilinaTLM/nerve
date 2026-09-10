@@ -2,7 +2,7 @@
 import { WorkbenchShell } from "$lib/presentation/shell";
 import DesktopShutdownOverlay from "$lib/app/shell/DesktopShutdownOverlay.svelte";
 import WorkbenchEditorHost from "$lib/app/shell/WorkbenchEditorHost.svelte";
-import PanelViewHost from "$lib/app/composition/hosts/WorkbenchPanelHost.svelte";
+import WorkbenchPanelHost from "$lib/app/composition/hosts/WorkbenchPanelHost.svelte";
 import ProjectDialogHost from "$lib/app/shell/ProjectDialogHost.svelte";
 import WorkbenchStatusBarHost from "$lib/app/shell/WorkbenchStatusBarHost.svelte";
 import WorkbenchTitlebarHost from "$lib/app/shell/WorkbenchTitlebarHost.svelte";
@@ -96,7 +96,7 @@ $effect(() => {
   {#snippet titlebar()}<WorkbenchTitlebarHost />{/snippet}
   {#snippet editor()}<WorkbenchEditorHost />{/snippet}
   {#snippet panelView(viewId)}
-    <PanelViewHost
+    <WorkbenchPanelHost
       {viewId}
       gitModel={gitPanel.model}
       gitActions={gitPanel.actions}

@@ -1,6 +1,5 @@
 export type GitProjectRefreshRequestState = {
-  reposRequestInFlight: boolean;
-  activeRequestLoadsDetails: boolean;
+  discoveryRequest: { inFlight: boolean; loadsDetails: boolean };
 };
 
 /** Join an active discovery request, promoting it when repo details are needed. */
@@ -8,7 +7,7 @@ export function joinGitProjectRefresh(
   state: GitProjectRefreshRequestState,
   loadDetails: boolean,
 ): boolean {
-  if (!state.reposRequestInFlight) return false;
-  state.activeRequestLoadsDetails ||= loadDetails;
+  if (!state.discoveryRequest.inFlight) return false;
+  state.discoveryRequest.loadsDetails ||= loadDetails;
   return true;
 }

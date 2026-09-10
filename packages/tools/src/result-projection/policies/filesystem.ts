@@ -1,10 +1,11 @@
+import { policy } from "./define-policy.js";
 import {
-  policy,
   grepCandidate,
   listingCandidate,
-  mutationCandidate,
   sourceCandidate,
-} from "./common.js";
+} from "../candidates/filesystem.js";
+
+import { mutationCandidate } from "../candidates/mutation.js";
 
 export const readAgentResultPolicy = policy(
   "source_text",
