@@ -438,6 +438,9 @@ importers:
       '@tailwindcss/vite':
         specifier: 4.3.1
         version: 4.3.1(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+      '@tanstack/query-core':
+        specifier: 5.90.2
+        version: 5.90.2
       '@tanstack/svelte-query':
         specifier: 6.0.0
         version: 6.0.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))

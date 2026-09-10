@@ -2,7 +2,7 @@ import type { ConversationSnapshot } from "@nervekit/contracts/conversations";
 import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { fromConversationSnapshot } from "./adapters.js";
+import { fromConversationSnapshot } from "./conversation-snapshot.js";
 import { buildConversationRenderProjection } from "./render.js";
 import type { ConversationRenderState } from "./conversation-render-state.js";
 

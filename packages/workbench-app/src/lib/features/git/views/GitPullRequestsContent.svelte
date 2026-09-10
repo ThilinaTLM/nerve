@@ -22,12 +22,9 @@ import type {
   GitPanelActions,
   GitPanelCapabilities,
   GitPanelModel,
-  GitPrFilterConfig,
 } from "./git-panel-types";
-import {
-  activeGitPrFilterCount,
-  hasActiveGitPrFilters,
-} from "./git-panel-controller.js";
+import type { GitPrFilterConfig } from "../pr-filters";
+import { activeGitPrFilterCount, hasActiveGitPrFilters } from "../pr-filters";
 
 type Props = {
   model: GitPanelModel;

@@ -97,7 +97,23 @@ export function agentResultPolicyForTool(name: ToolName): AgentResultPolicy {
   return map[name];
 }
 
-export * from "./common.js";
+export { defineAgentResultPolicy, policy } from "./define-policy.js";
+export { safeTerminalResource } from "../terminal-resource.js";
+export { textCandidate } from "../candidates/text.js";
+export {
+  sourceCandidate,
+  listingCandidate,
+  grepCandidate,
+} from "../candidates/filesystem.js";
+export { processCandidate } from "../candidates/process.js";
+export { searchCandidate } from "../candidates/search.js";
+export { mutationCandidate } from "../candidates/mutation.js";
+export { resourceCandidate } from "../candidates/resources.js";
+export { webFetchCandidate } from "../candidates/web.js";
+export { humanCandidate } from "../candidates/interaction.js";
+export { lifecycleCandidate, taskLogsCandidate } from "../candidates/tasks.js";
+export { exploreCandidate } from "../candidates/explore.js";
+export { primaryFileCandidate } from "../candidates/primary-file.js";
 export * from "./confluence.js";
 export * from "./explore.js";
 export * from "./filesystem.js";

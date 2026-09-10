@@ -1,4 +1,11 @@
-/* eslint-disable max-lines -- Tool lifecycle orchestration remains centralized pending a follow-up service split. */
+import {
+  projectApproval,
+  projectApprovals,
+  projectQuestions,
+} from "../orchestration/tool-interaction-projection.js";
+import { reconcileToolResultPayloads } from "../artifacts/tool-result-reconciliation.js";
+import { reconcileInterruptedToolCalls } from "./tool-call-recovery.js";
+/* eslint-disable max-lines -- Durable transitions and lifecycle-local execution wiring retain one coordinator; projections and maintenance have separate owners. */
 import { realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { allToolDescriptors, toolRiskForName } from "@nervekit/tools/catalog";
@@ -22,7 +29,6 @@ import {
 } from "@nervekit/contracts/tools";
 import {
   assertTransition,
-  INTERRUPTED_TOOL_ERROR_CODE,
   isTerminalToolStatus,
   toolCallTransitions,
 } from "@nervekit/contracts/events";
@@ -47,25 +53,20 @@ import type { InitializedStorage } from "../../../infrastructure/storage-bootstr
 import type { PlanService } from "../../plans/plan-service.js";
 import type { PythonRuntimeService } from "./python-runtime.js";
 import type { WorkbenchTaskService } from "../../tasks/adapters/workbench-task-service.js";
-import {
-  evaluateWorkbenchToolPermission,
-  TodoStateService,
-  ToolCallRepository,
-} from "../index.js";
+import { evaluateWorkbenchToolPermission } from "../permission/index.js";
+import { TodoStateService } from "../orchestration/todo-state.service.js";
+import type { ToolCallRepository } from "../artifacts/tool-call.repository.js";
 import { InteractionSessionService } from "../orchestration/interaction-session.service.js";
-import { ConversationJournalRepository } from "../../conversations/conversation-journal.repository.js";
+import type { ConversationJournalRepository } from "../../conversations/conversation-journal.repository.js";
 import { OrchestrationToolDispatcher } from "../orchestration/dispatcher.js";
 import { toToolCallTranscriptRecord } from "../artifacts/tool-call-transcript-preview.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
 import { prepareTerminalProjection } from "../artifacts/tool-result-preparation.js";
-import { ToolResultPayloadStore } from "../artifacts/tool-result-payload-store.js";
+import type { ToolResultPayloadStore } from "../artifacts/tool-result-payload-store.js";
 import {
   toolTerminationPatch,
   type ToolTerminationOutcome,
 } from "./tool-termination.js";
-
-const HOST_RESTART_TOOL_ERROR =
-  "Tool execution was interrupted because the host restarted.";
 
 export interface ToolExecutionResponse {
   toolCall: ToolCallRecord;
@@ -223,82 +224,51 @@ async function assertWriteTargetBoundaries(
   }
 }
 
-function durableApprovalScopes(
-  scopes: readonly string[],
-): Array<
-  "single_call" | "always_conversation" | "always_project" | "always_user"
-> {
-  const mapped = scopes.map((scope) =>
-    scope === "always" ? "always_user" : scope,
-  );
-  return [...new Set(mapped)].filter(
-    (
-      scope,
-    ): scope is
-      | "single_call"
-      | "always_conversation"
-      | "always_project"
-      | "always_user" =>
-      scope === "single_call" ||
-      scope === "always_conversation" ||
-      scope === "always_project" ||
-      scope === "always_user",
-  );
+export interface ToolServiceDependencies {
+  readonly storage: InitializedStorage;
+  readonly events: StreamLogRegistry;
+  readonly tasks: WorkbenchTaskService;
+  readonly pythonRuntime: PythonRuntimeService;
+  readonly startTask: TaskStarter;
+  readonly getAgent: (agentId: string) => AgentRecord;
+  /** Invoked only during execution, after host composition has completed. */
+  readonly runExplore: ExploreRunner;
+  readonly getApiKey: (provider: string) => Promise<string | undefined>;
+  readonly explainImage: (
+    request: ExplainImageRequest,
+  ) => Promise<ExplainImageResponse>;
+  readonly plans: PlanService;
+  readonly setAgentMode: (
+    agentId: string,
+    mode: Mode,
+    reason: string,
+  ) => Promise<AgentRecord>;
+  readonly conversationRuntime: ConversationRuntime;
+  readonly logger?: ApplicationLogger;
+  readonly permissionExceptions?: PermissionExceptionService;
+  readonly journal: ConversationJournalRepository;
+  readonly resultPayloads: ToolResultPayloadStore;
+  readonly performanceDiagnostics?: PerformanceDiagnosticsPort;
+  readonly permissionPolicy?: PermissionPolicyService;
+  readonly toolCallRepository: ToolCallRepository;
 }
 
 export class ToolService {
-  readonly toolCalls: Map<string, ToolCallRecord>;
-  private readonly toolCallRepository: ToolCallRepository;
   private readonly todoState = new TodoStateService();
   private readonly interactionSessions: InteractionSessionService;
   private readonly dispatcher: OrchestrationToolDispatcher;
   private readonly executor: ToolExecutorService;
-  private readonly conversationJournal: ConversationJournalRepository;
+
   readonly resultPayloads: ToolResultPayloadStore;
   private readonly waiters = new Map<
     string,
     Set<(toolCall: ToolCallRecord) => void>
   >();
 
-  constructor(
-    private readonly storage: InitializedStorage,
-    private readonly events: StreamLogRegistry,
-    private readonly tasks: WorkbenchTaskService,
-    private readonly pythonRuntime: PythonRuntimeService,
-    private readonly startTask: TaskStarter,
-    private readonly getAgent: (agentId: string) => AgentRecord,
-    private readonly runExplore: ExploreRunner,
-    private readonly getApiKey: (
-      provider: string,
-    ) => Promise<string | undefined>,
-    private readonly explainImage: (
-      request: ExplainImageRequest,
-    ) => Promise<ExplainImageResponse>,
-    private readonly plans: PlanService,
-    private readonly setAgentMode: (
-      agentId: string,
-      mode: Mode,
-      reason: string,
-    ) => Promise<AgentRecord>,
-    private readonly conversationRuntime: ConversationRuntime,
-    private readonly logger?: ApplicationLogger,
-    private readonly permissionExceptions?: PermissionExceptionService,
-    journal?: ConversationJournalRepository,
-    resultPayloads?: ToolResultPayloadStore,
-    private readonly performanceDiagnostics?: PerformanceDiagnosticsPort,
-    private readonly permissionPolicy?: PermissionPolicyService,
-  ) {
-    this.conversationJournal =
-      journal ?? new ConversationJournalRepository(storage);
-    this.resultPayloads =
-      resultPayloads ?? new ToolResultPayloadStore(storage.paths.home);
-    this.toolCallRepository = new ToolCallRepository(
-      this.conversationJournal,
-      this.resultPayloads,
-    );
-    this.toolCalls = this.toolCallRepository.records;
+  constructor(private readonly dependencies: ToolServiceDependencies) {
+    this.resultPayloads = dependencies.resultPayloads;
     this.interactionSessions = new InteractionSessionService({
-      events: this.events,
+      events: this.dependencies.events,
       getToolCall: (id) => this.getToolCall(id),
       listToolCalls: () => this.listToolCalls(),
       updateToolCall: (id, patch) => this.updateToolCall(id, patch),
@@ -306,18 +276,18 @@ export class ToolService {
         this.publishToolCallUpdated(toolCall),
     });
     this.dispatcher = new OrchestrationToolDispatcher({
-      storage: this.storage,
-      events: this.events,
-      tasks: this.tasks,
-      pythonRuntime: this.pythonRuntime,
-      startTask: this.startTask,
-      getAgent: this.getAgent,
-      runExplore: this.runExplore,
-      getApiKey: this.getApiKey,
-      explainImage: this.explainImage,
-      plans: this.plans,
-      setAgentMode: this.setAgentMode,
-      conversationRuntime: this.conversationRuntime,
+      storage: this.dependencies.storage,
+      events: this.dependencies.events,
+      tasks: this.dependencies.tasks,
+      pythonRuntime: this.dependencies.pythonRuntime,
+      startTask: this.dependencies.startTask,
+      getAgent: this.dependencies.getAgent,
+      runExplore: this.dependencies.runExplore,
+      getApiKey: this.dependencies.getApiKey,
+      explainImage: this.dependencies.explainImage,
+      plans: this.dependencies.plans,
+      setAgentMode: this.dependencies.setAgentMode,
+      conversationRuntime: this.dependencies.conversationRuntime,
       todoState: this.todoState,
       interactionSessions: this.interactionSessions,
       updateToolCall: (id, patch) => this.updateToolCall(id, patch),
@@ -336,43 +306,31 @@ export class ToolService {
         this.assertExecutionBoundary(toolCall),
 
       payloads: this.resultPayloads,
-      logger: this.logger,
-      diagnostics: this.performanceDiagnostics,
+      logger: this.dependencies.logger,
+      diagnostics: this.dependencies.performanceDiagnostics,
     });
   }
 
   async hydrate(): Promise<void> {
     await this.resultPayloads.initialize();
-    this.plans.resetToolCallHydration();
+    this.dependencies.plans.resetToolCallHydration();
     this.todoState.resetToolCallHydration();
-    await this.toolCallRepository.hydrate((toolCall) => {
-      this.plans.hydrateFromToolCall(toolCall);
+    await this.dependencies.toolCallRepository.hydrate((toolCall) => {
+      this.dependencies.plans.hydrateFromToolCall(toolCall);
       this.todoState.hydrateFromToolCall(toolCall);
     });
-    await this.reconcileInterruptedToolCallsOnStartup();
+    await reconcileInterruptedToolCalls(
+      this.dependencies.toolCallRepository.listActive(),
+      (id, patch) => this.updateToolCall(id, patch),
+      (record) => this.publishToolCallUpdated(record),
+    );
   }
 
   async reconcileResultPayloads(): Promise<void> {
-    const referenced = new Set<string>();
-    let afterId: string | undefined;
-    for (;;) {
-      const page = await this.conversationJournal.scanToolCalls({
-        ...(afterId ? { afterId } : {}),
-        maxRows: 256,
-        maxBytes: 8 * 1024 * 1024,
-      });
-      for (const toolCall of page.records) {
-        if (toolCall.resultPayload) {
-          referenced.add(this.resultPayloads.path(toolCall.resultPayload));
-        }
-      }
-      if (page.done) break;
-      if (!page.nextCursor) {
-        throw new Error("Canonical tool-call scan did not advance.");
-      }
-      afterId = page.nextCursor;
-    }
-    await this.resultPayloads.reconcile(referenced);
+    await reconcileToolResultPayloads(
+      this.dependencies.journal,
+      this.resultPayloads,
+    );
   }
 
   listTools() {
@@ -380,140 +338,56 @@ export class ToolService {
   }
 
   listToolCalls(): ToolCallRecord[] {
-    return this.toolCallRepository.listActive();
+    return this.dependencies.toolCallRepository.listActive();
   }
 
   async listToolCallPreviews(
     query: Parameters<ToolCallRepository["listPreviews"]>[0] = {},
   ): Promise<ToolCallTranscriptRecord[]> {
-    return this.toolCallRepository.listPreviews(query);
+    return this.dependencies.toolCallRepository.listPreviews(query);
   }
 
   queryToolCallPreviews(
     query: Parameters<ToolCallRepository["queryPreviews"]>[0] = {},
   ): ReturnType<ToolCallRepository["queryPreviews"]> {
-    return this.toolCallRepository.queryPreviews(query);
+    return this.dependencies.toolCallRepository.queryPreviews(query);
   }
 
   countToolCalls(): number {
-    return this.toolCallRepository.count();
+    return this.dependencies.toolCallRepository.count();
   }
 
   /** Whether the tool-call records were loaded from the persisted snapshot. */
   get toolCallHydrationSource(): "canonical_projection" {
-    return this.toolCallRepository.hydrationSource;
+    return this.dependencies.toolCallRepository.hydrationSource;
   }
 
   listApprovals(status?: ApprovalRecord["status"]): ApprovalRecord[] {
-    return this.projectApprovals(status);
+    return projectApprovals(
+      status === "pending"
+        ? this.listToolCalls()
+        : this.dependencies.toolCallRepository.listInteractionRecords(),
+      (record, ordinal) =>
+        this.dependencies.journal.isActionableToolInteraction(
+          record as ToolCallRecord,
+          ordinal,
+        ),
+      status,
+    );
   }
 
   listUserQuestions(status?: UserQuestionStatus): UserQuestionRecord[] {
-    return this.projectQuestions(status);
-  }
-
-  private projectApprovals(
-    status?: ApprovalRecord["status"],
-  ): ApprovalRecord[] {
-    const toolCalls =
+    return projectQuestions(
       status === "pending"
         ? this.listToolCalls()
-        : this.toolCallRepository.listInteractionRecords();
-    return toolCalls
-      .flatMap((toolCall) =>
-        toolCall.interactions.flatMap((interaction) =>
-          interaction.kind === "approval" &&
-          (interaction.status !== "pending" ||
-            this.conversationJournal.isActionableToolInteraction(
-              toolCall as ToolCallRecord,
-              interaction.ordinal,
-            ))
-            ? [this.projectApproval(toolCall, interaction.ordinal)]
-            : [],
+        : this.dependencies.toolCallRepository.listInteractionRecords(),
+      (record, ordinal) =>
+        this.dependencies.journal.isActionableToolInteraction(
+          record as ToolCallRecord,
+          ordinal,
         ),
-      )
-      .filter((approval) => status === undefined || approval.status === status);
-  }
-
-  private projectApproval(
-    toolCall: ToolCallRecord | ToolCallTranscriptRecord,
-    ordinal: number,
-  ): ApprovalRecord {
-    const interaction = toolCall.interactions[ordinal];
-    if (!interaction || interaction.kind !== "approval")
-      throw new Error("Approval interaction not found.");
-    return {
-      id: `approval_${toolCall.id}_${ordinal}`,
-      toolCallId: toolCall.id,
-      agentId: toolCall.agentId,
-      conversationId: toolCall.conversationId,
-      projectId: toolCall.projectId,
-      risk: interaction.request.risk,
-      reason: interaction.request.reason,
-      status:
-        interaction.status === "pending"
-          ? "pending"
-          : interaction.resolution?.action === "allow"
-            ? "granted"
-            : "denied",
-      requestedAt: interaction.requestedAt,
-      resolvedAt: interaction.resolvedAt,
-      resolutionNote: interaction.resolution?.note,
-      offeredScopes: durableApprovalScopes(interaction.request.offeredScopes),
-      suggestedExceptions: interaction.request.suggestedExceptions,
-      suggestedRules: interaction.request.suggestedRules,
-      permissionRuleSetId: interaction.request.permissionRuleSetId,
-    };
-  }
-
-  private projectQuestions(status?: UserQuestionStatus): UserQuestionRecord[] {
-    const toolCalls =
-      status === "pending"
-        ? this.listToolCalls()
-        : this.toolCallRepository.listInteractionRecords();
-    return toolCalls
-      .flatMap((toolCall) =>
-        toolCall.interactions.flatMap((interaction) => {
-          if (
-            interaction.kind !== "user_input" ||
-            (interaction.status === "pending" &&
-              !this.conversationJournal.isActionableToolInteraction(
-                toolCall as ToolCallRecord,
-                interaction.ordinal,
-              ))
-          )
-            return [];
-          const projected: UserQuestionRecord = {
-            id: `question_${toolCall.id}_${interaction.ordinal}`,
-            toolCallId: toolCall.id,
-            agentId: toolCall.agentId,
-            conversationId: toolCall.conversationId,
-            projectId: toolCall.projectId,
-            question: interaction.request.question,
-            context: interaction.request.context,
-            recommendation: interaction.request.recommendation,
-            status:
-              interaction.status === "pending"
-                ? "pending"
-                : interaction.resolution?.action === "answer"
-                  ? "answered"
-                  : "dismissed",
-            answer:
-              interaction.resolution?.action === "answer"
-                ? interaction.resolution.answer
-                : undefined,
-            dismissedReason:
-              interaction.resolution?.action === "dismiss"
-                ? interaction.resolution.reason
-                : undefined,
-            requestedAt: interaction.requestedAt,
-            resolvedAt: interaction.resolvedAt,
-            updatedAt: interaction.updatedAt,
-          };
-          return [projected];
-        }),
-      )
-      .filter((question) => status === undefined || question.status === status);
+      status,
+    );
   }
 
   async removeRecordsForConversations(
@@ -523,13 +397,13 @@ export class ToolService {
     const conversations = new Set(conversationIds);
     if (conversations.size === 0) return;
     const agents = new Set(agentIds);
-    for (const toolCall of this.toolCalls.values()) {
+    for (const toolCall of this.dependencies.toolCallRepository.records.values()) {
       if (conversations.has(toolCall.conversationId))
         agents.add(toolCall.agentId);
     }
-    await Promise.all([
-      this.toolCallRepository.removeForConversations(conversations),
-    ]);
+    await this.dependencies.toolCallRepository.removeForConversations(
+      conversations,
+    );
     for (const agentId of agents) this.todoState.delete(agentId);
   }
 
@@ -540,24 +414,29 @@ export class ToolService {
     options: ToolRequestOptions = {},
   ): Promise<ToolExecutionResponse> {
     const now = new Date().toISOString();
-    const latestAgent = this.getAgent(agent.id);
-    const resolvedPolicy = await this.permissionPolicy?.resolve(latestAgent);
+    const latestAgent = this.dependencies.getAgent(agent.id);
+    const resolvedPolicy =
+      await this.dependencies.permissionPolicy?.resolve(latestAgent);
     const exceptions = resolvedPolicy
       ? []
-      : this.permissionExceptions
-        ? await this.permissionExceptions.effective(latestAgent.projectId)
-        : this.storage.settings.permissions.exceptions;
+      : this.dependencies.permissionExceptions
+        ? await this.dependencies.permissionExceptions.effective(
+            latestAgent.projectId,
+          )
+        : this.dependencies.storage.settings.permissions.exceptions;
     const rules = resolvedPolicy
       ? undefined
-      : this.permissionExceptions
-        ? await this.permissionExceptions.effectiveRules(latestAgent.projectId)
+      : this.dependencies.permissionExceptions
+        ? await this.dependencies.permissionExceptions.effectiveRules(
+            latestAgent.projectId,
+          )
         : undefined;
     const evaluation = evaluateWorkbenchToolPermission(
       latestAgent,
       toolName,
       args,
       {
-        dataDir: this.storage.paths.home,
+        dataDir: this.dependencies.storage.paths.home,
         exceptions,
         rules,
         policy: resolvedPolicy?.policy,
@@ -627,9 +506,9 @@ export class ToolService {
       createdAt: now,
       updatedAt: now,
     };
-    await this.toolCallRepository.create(toolCall);
+    await this.dependencies.toolCallRepository.create(toolCall);
     await this.emitToolCallLifecycle(toolCall, options);
-    await this.events.publish("policy.evaluated", {
+    await this.dependencies.events.publish("policy.evaluated", {
       toolCallId: toolCall.id,
       agentId: agent.id,
       conversationId: agent.conversationId,
@@ -639,7 +518,7 @@ export class ToolService {
       decision,
       reason: evaluation.reason,
     });
-    await this.logger?.info("Tool policy evaluated", {
+    await this.dependencies.logger?.info("Tool policy evaluated", {
       toolCallId: toolCall.id,
       agentId: agent.id,
       conversationId: agent.conversationId,
@@ -660,7 +539,7 @@ export class ToolService {
         ...denialProjection(toolCall, evaluation.reason, "policy"),
       });
       await this.emitToolCallLifecycle(denied, options);
-      await this.logger?.warn("Tool denied by policy", {
+      await this.dependencies.logger?.warn("Tool denied by policy", {
         toolCallId: denied.id,
         agentId: denied.agentId,
         conversationId: denied.conversationId,
@@ -705,7 +584,7 @@ export class ToolService {
           },
         ],
       });
-      const approval = this.projectApproval(pending, 0);
+      const approval = projectApproval(pending, 0);
       try {
         await this.emitToolCallLifecycle(pending, options);
       } catch (error) {
@@ -725,7 +604,7 @@ export class ToolService {
         );
         throw error;
       }
-      await this.logger?.info("Tool approval requested", {
+      await this.dependencies.logger?.info("Tool approval requested", {
         toolCallId: pending.id,
         agentId: pending.agentId,
         conversationId: pending.conversationId,
@@ -790,7 +669,9 @@ export class ToolService {
     providerToolCallId: string | undefined,
   ): ToolCallRecord | undefined {
     if (!providerToolCallId) return undefined;
-    return this.toolCallRepository.findByProviderToolCallId(providerToolCallId);
+    return this.dependencies.toolCallRepository.findByProviderToolCallId(
+      providerToolCallId,
+    );
   }
 
   async recordProviderToolCallError(
@@ -806,7 +687,7 @@ export class ToolService {
     if (existing) return existing;
 
     const now = new Date().toISOString();
-    const latestAgent = this.getAgent(agent.id);
+    const latestAgent = this.dependencies.getAgent(agent.id);
     const anchor = options.anchor;
     const cwd =
       typeof args.cwd === "string" && args.cwd.trim().length > 0
@@ -845,9 +726,9 @@ export class ToolService {
       updatedAt: now,
       settledAt: now,
     };
-    await this.toolCallRepository.create(toolCall);
+    await this.dependencies.toolCallRepository.create(toolCall);
     await this.publishToolCallUpdated(toolCall);
-    await this.logger?.warn("Tool call failed before execution", {
+    await this.dependencies.logger?.warn("Tool call failed before execution", {
       toolCallId: toolCall.id,
       agentId: toolCall.agentId,
       conversationId: toolCall.conversationId,
@@ -864,7 +745,7 @@ export class ToolService {
     outcome: ToolTerminationOutcome,
   ): Promise<ToolCallRecord[]> {
     if (!runId) return [];
-    const stale = this.toolCallRepository
+    const stale = this.dependencies.toolCallRepository
       .listActive()
       .filter(
         (toolCall) => toolCall.runId === runId && !isTerminalToolCall(toolCall),
@@ -877,41 +758,24 @@ export class ToolService {
         });
         if (settlement.owned) {
           await this.publishToolCallUpdated(settlement.record);
-          await this.logger?.warn("Tool call terminated after run ended", {
-            toolCallId: settlement.record.id,
-            agentId: settlement.record.agentId,
-            conversationId: settlement.record.conversationId,
-            projectId: settlement.record.projectId,
-            runId: settlement.record.runId,
-            context: {
-              toolName: settlement.record.toolName,
-              outcome: settlement.record.status,
+          await this.dependencies.logger?.warn(
+            "Tool call terminated after run ended",
+            {
+              toolCallId: settlement.record.id,
+              agentId: settlement.record.agentId,
+              conversationId: settlement.record.conversationId,
+              projectId: settlement.record.projectId,
+              runId: settlement.record.runId,
+              context: {
+                toolName: settlement.record.toolName,
+                outcome: settlement.record.status,
+              },
             },
-          });
+          );
         }
         return settlement.record;
       }),
     );
-  }
-
-  private async reconcileInterruptedToolCallsOnStartup(): Promise<void> {
-    const interrupted = this.toolCallRepository
-      .listActive()
-      .filter(
-        (toolCall) =>
-          toolCall.status === "committed" || toolCall.status === "running",
-      );
-    for (const toolCall of interrupted) {
-      const failed = await this.updateToolCall(
-        toolCall.id,
-        toolTerminationPatch(toolCall, {
-          status: "failed",
-          code: INTERRUPTED_TOOL_ERROR_CODE,
-          message: HOST_RESTART_TOOL_ERROR,
-        }),
-      );
-      await this.publishToolCallUpdated(failed);
-    }
   }
 
   async decideApproval(
@@ -928,7 +792,7 @@ export class ToolService {
       | "always_project"
       | "always_user",
   ): Promise<ApprovalRecord> {
-    const approval = this.projectApprovals().find(
+    const approval = this.listApprovals().find(
       (candidate) => candidate.id === approvalId,
     );
     if (!approval || approval.status !== "pending")
@@ -966,12 +830,12 @@ export class ToolService {
           }
         : {}),
     });
-    const decided = this.projectApproval(updated, ordinal);
+    const decided = projectApproval(updated, ordinal);
     return decided;
   }
 
   async finalizeDecidedApproval(approvalId: string): Promise<ToolCallRecord> {
-    const approval = this.projectApprovals().find(
+    const approval = this.listApprovals().find(
       (candidate) => candidate.id === approvalId,
     );
     if (!approval) throw new Error("Approval not found.");
@@ -1102,7 +966,7 @@ export class ToolService {
     const interactions = pending
       ? current.interactions.map((interaction) =>
           interaction.ordinal === pending.ordinal
-            ? resolvePendingForResume(interaction, now, this.plans)
+            ? resolvePendingForResume(interaction, now, this.dependencies.plans)
             : interaction,
         )
       : current.interactions;
@@ -1128,11 +992,11 @@ export class ToolService {
   }
 
   getToolCall(toolCallId: string): ToolCallRecord {
-    return this.toolCallRepository.get(toolCallId);
+    return this.dependencies.toolCallRepository.get(toolCallId);
   }
 
   async getToolCallDetails(toolCallId: string): Promise<ToolCallRecord> {
-    return await this.toolCallRepository.getCanonical(toolCallId);
+    return await this.dependencies.toolCallRepository.getCanonical(toolCallId);
   }
 
   async getApprovalForToolCallDetails(
@@ -1143,12 +1007,12 @@ export class ToolService {
       (candidate) => candidate.kind === "approval",
     );
     return interaction
-      ? this.projectApproval(toolCall, interaction.ordinal)
+      ? projectApproval(toolCall, interaction.ordinal)
       : undefined;
   }
 
   async getToolCallUiDetails(toolCallId: string): Promise<ToolCallDetails> {
-    return await this.toolCallRepository.getDetails(toolCallId);
+    return await this.dependencies.toolCallRepository.getDetails(toolCallId);
   }
 
   async readToolCallResult(
@@ -1156,7 +1020,7 @@ export class ToolService {
     byteOffset: number,
     byteLimit: number,
   ) {
-    return await this.toolCallRepository.readResult(
+    return await this.dependencies.toolCallRepository.readResult(
       toolCallId,
       byteOffset,
       byteLimit,
@@ -1210,24 +1074,29 @@ export class ToolService {
   private async assertExecutionBoundary(
     toolCall: ToolCallRecord,
   ): Promise<void> {
-    const agent = this.getAgent(toolCall.agentId);
-    const resolvedPolicy = await this.permissionPolicy?.resolve(agent);
+    const agent = this.dependencies.getAgent(toolCall.agentId);
+    const resolvedPolicy =
+      await this.dependencies.permissionPolicy?.resolve(agent);
     const exceptions = resolvedPolicy
       ? []
-      : this.permissionExceptions
-        ? await this.permissionExceptions.effective(agent.projectId)
-        : this.storage.settings.permissions.exceptions;
+      : this.dependencies.permissionExceptions
+        ? await this.dependencies.permissionExceptions.effective(
+            agent.projectId,
+          )
+        : this.dependencies.storage.settings.permissions.exceptions;
     const rules = resolvedPolicy
       ? undefined
-      : this.permissionExceptions
-        ? await this.permissionExceptions.effectiveRules(agent.projectId)
+      : this.dependencies.permissionExceptions
+        ? await this.dependencies.permissionExceptions.effectiveRules(
+            agent.projectId,
+          )
         : undefined;
     const evaluation = evaluateWorkbenchToolPermission(
       agent,
       toolCall.toolName as ToolName,
       toolCall.args as Record<string, unknown>,
       {
-        dataDir: this.storage.paths.home,
+        dataDir: this.dependencies.storage.paths.home,
         exceptions,
         rules,
         policy: resolvedPolicy?.policy,
@@ -1303,7 +1172,7 @@ export class ToolService {
     const terminal =
       patch.status &&
       ["completed", "denied", "failed", "cancelled"].includes(patch.status);
-    const next = await this.toolCallRepository.replace(
+    const next = await this.dependencies.toolCallRepository.replace(
       toolCallId,
       expectedRevision,
       (record) => {
@@ -1371,9 +1240,9 @@ export class ToolService {
     toolCall: ToolCallRecord,
   ): Promise<void> {
     const conversationRevision = (
-      await this.conversationJournal.load(toolCall.conversationId)
+      await this.dependencies.journal.load(toolCall.conversationId)
     ).revision;
-    await this.events.publish("toolCall.updated", {
+    await this.dependencies.events.publish("toolCall.updated", {
       conversationId: toolCall.conversationId,
       conversationRevision,
       agentId: toolCall.agentId,

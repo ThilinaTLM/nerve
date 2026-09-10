@@ -1,3 +1,4 @@
+import type { PrResourceState } from "./pr-resource-loader";
 import type { GitDiffArea, GitFileDiffResponse } from "@nervekit/contracts/git";
 import type {
   GithubPr,
@@ -13,13 +14,6 @@ import type {
 } from "$lib/api";
 
 export type GithubPrTab = "conversation" | "commits" | "checks" | "files";
-
-export type PrResourceState<T> = {
-  data?: T;
-  loading: boolean;
-  refreshing: boolean;
-  error?: string;
-};
 
 export type PrViewState = {
   /** `${projectId}:${encodeURIComponent(repo)}:${number}` */

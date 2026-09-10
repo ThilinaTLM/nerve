@@ -1,10 +1,8 @@
-import {
-  mutationCandidate,
-  policy,
-  primaryFileCandidate,
-  resourceCandidate,
-  searchCandidate,
-} from "./common.js";
+import { mutationCandidate } from "../candidates/mutation.js";
+import { policy } from "./define-policy.js";
+import { primaryFileCandidate } from "../candidates/primary-file.js";
+import { resourceCandidate } from "../candidates/resources.js";
+import { searchCandidate } from "../candidates/search.js";
 export const jiraSearchAgentResultPolicy = policy(
   "search_summaries",
   "item_aware",

@@ -3,7 +3,7 @@ import type {
   GitFileChange,
   GitStashArea,
   GitStashEntry,
-} from "$lib/api";
+} from "@nervekit/contracts/git";
 import {
   applyGitStash,
   createGitBranch,
@@ -19,13 +19,13 @@ import {
   switchGitBranch,
   syncGitBranch,
   unstageGitFile,
-} from "$lib/api";
+} from "../api/git.api";
 import {
   errorDetails,
   showCriticalError,
 } from "$lib/application/notifications/critical-errors.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
-import { gitFilesInScope, gitPathspecs } from "$lib/features/git";
+import { gitFilesInScope, gitPathspecs } from "../views/git-panel-controller";
 import {
   refreshBranches,
   refreshGitOverview,

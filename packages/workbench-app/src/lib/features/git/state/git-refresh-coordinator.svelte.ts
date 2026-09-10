@@ -1,4 +1,5 @@
-import { SvelteMap } from "svelte/reactivity";
+import type { PrResourceState } from "./pr-resource-loader";
+import { PrResourceLoader, type PrLoadOptions } from "./pr-resource-loader";
 import type {
   GithubPrChecksResponse,
   GithubPrCommitsResponse,
@@ -9,7 +10,7 @@ import type {
   GithubPrInitial,
   GithubPrListResponse,
   GithubPrOverview,
-} from "$lib/api";
+} from "@nervekit/contracts/git";
 import {
   getGithubPrChecks,
   getGithubPrCommits,
@@ -19,15 +20,11 @@ import {
   getGithubPrFiles,
   getGithubPrInitial,
   getGithubPrOverview,
-} from "$lib/api";
+} from "../api/git.api";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
 import { prViewKey } from "$lib/domain/navigation/view-keys";
-import {
-  gitState,
-  type PrResourceState,
-  type PrViewState,
-} from "./git-state.svelte";
+import { gitState, type PrViewState } from "./git-state.svelte";
 import {
   applyPrChecks,
   applyPrCore,
@@ -39,114 +36,42 @@ import { prFileDiffStateKey } from "./pr-file-diff";
 export const GIT_RESOURCE_STALE_MS = GIT_STALE_MS;
 export const PR_CONVERSATION_STALE_MS = 60_000;
 const IMMUTABLE_HEAD_STALE_MS = Number.POSITIVE_INFINITY;
-const PR_DETAIL_CACHE_MS = 5 * 60_000;
 
-type LoadOptions = {
-  force?: boolean;
-  silent?: boolean;
-  criticalErrorTitle?: string;
-};
+const prResources = new PrResourceLoader({
+  queryClient,
+  now: Date.now,
+  reportError: showCriticalError,
+});
+
+export function loadPrInitial(
+  view: PrViewState,
+  options: PrLoadOptions = {},
+): Promise<GithubPrInitial | undefined> {
+  const sectionKey = (section: "core" | "conversation" | "overview") =>
+    queryKeys.git.prSection(view.projectId, view.repo, view.number, section);
+  return prResources.loadInitial({
+    key: queryKeys.git.prInitial(view.projectId, view.repo, view.number),
+    query: () => getGithubPrInitial(view.projectId, view.repo, view.number),
+    staleTime: GIT_RESOURCE_STALE_MS,
+    options,
+    core: {
+      key: sectionKey("core"),
+      resource: view.core,
+      apply: (core) => applyCore(view, core),
+    },
+    conversation: {
+      key: sectionKey("conversation"),
+      resource: view.conversation,
+    },
+    overview: {
+      key: sectionKey("overview"),
+      resource: view.overview,
+      apply: (overview) => applyOverview(view, overview),
+    },
+  });
+}
+
 type Section = "conversation" | "overview" | "commits" | "checks" | "files";
-
-const resourceRequests = new SvelteMap<string, Promise<unknown>>();
-const resourceVersions = new SvelteMap<string, number>();
-
-function claimResource(key: readonly unknown[]): number {
-  const requestKey = JSON.stringify(key);
-  const version = (resourceVersions.get(requestKey) ?? 0) + 1;
-  resourceVersions.set(requestKey, version);
-  return version;
-}
-
-function ownsResource(key: readonly unknown[], version: number): boolean {
-  return resourceVersions.get(JSON.stringify(key)) === version;
-}
-
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-async function fetchResource<T>(input: {
-  key: readonly unknown[];
-  query: () => Promise<T>;
-  staleTime: number;
-  resource: PrResourceState<T>;
-  options?: LoadOptions;
-  apply?: (data: T) => void;
-}): Promise<T | undefined> {
-  const requestKey = JSON.stringify(input.key);
-  const existing = resourceRequests.get(requestKey) as
-    | Promise<T | undefined>
-    | undefined;
-  if (existing) return existing;
-
-  const version = claimResource(input.key);
-  if (!input.options?.force) {
-    const queryState = queryClient.getQueryState<T>(input.key);
-    const cached = queryClient.getQueryData<T>(input.key);
-    if (cached !== undefined && ownsResource(input.key, version)) {
-      if (input.resource.data !== cached) {
-        input.resource.data = cached;
-        input.apply?.(cached);
-      }
-      input.resource.error = undefined;
-    }
-    if (
-      cached !== undefined &&
-      queryState?.dataUpdatedAt !== undefined &&
-      Date.now() - queryState.dataUpdatedAt < input.staleTime
-    )
-      return cached;
-  }
-
-  const request = (async (): Promise<T | undefined> => {
-    const hadData = input.resource.data !== undefined;
-    input.resource.loading = !hadData;
-    input.resource.refreshing = hadData;
-    if (!input.options?.silent) input.resource.error = undefined;
-    try {
-      if (input.options?.force) {
-        await queryClient.invalidateQueries({ queryKey: input.key });
-      }
-      const data = await queryClient.fetchQuery({
-        queryKey: input.key,
-        queryFn: input.query,
-        staleTime: input.staleTime,
-        gcTime: PR_DETAIL_CACHE_MS,
-      });
-      if (ownsResource(input.key, version)) {
-        if (input.resource.data !== data) {
-          input.resource.data = data;
-          input.apply?.(data);
-        }
-        input.resource.error = undefined;
-      }
-      return data;
-    } catch (error) {
-      const details = message(error);
-      if (
-        ownsResource(input.key, version) &&
-        (!input.options?.silent || !hadData)
-      )
-        input.resource.error = details;
-      if (input.options?.criticalErrorTitle)
-        showCriticalError(input.options.criticalErrorTitle, details);
-      return undefined;
-    } finally {
-      if (ownsResource(input.key, version)) {
-        input.resource.loading = false;
-        input.resource.refreshing = false;
-      }
-    }
-  })();
-  resourceRequests.set(requestKey, request);
-  try {
-    return await request;
-  } finally {
-    if (resourceRequests.get(requestKey) === request)
-      resourceRequests.delete(requestKey);
-  }
-}
 
 export function selectedPrFileDiffResource(
   view: PrViewState | undefined,
@@ -164,7 +89,7 @@ export function selectedPrFileDiffResource(
 export async function loadPrFileDiff(
   view: PrViewState,
   path: string,
-  options?: LoadOptions,
+  options?: PrLoadOptions,
 ): Promise<GithubPrFileDiffResponse | undefined> {
   const core = view.core.data;
   const file = view.files.data?.files.find(
@@ -177,7 +102,7 @@ export async function loadPrFileDiff(
     refreshing: false,
   };
   const resource = view.fileDiffs[stateKey];
-  return fetchResource({
+  return prResources.load({
     key: queryKeys.git.prFileDiff(
       view.projectId,
       view.repo,
@@ -208,18 +133,6 @@ export async function loadPrFileDiff(
   });
 }
 
-function prSectionKey(
-  view: PrViewState,
-  section: "core" | "conversation" | "overview",
-): readonly unknown[] {
-  return queryKeys.git.prSection(
-    view.projectId,
-    view.repo,
-    view.number,
-    section,
-  );
-}
-
 function applyCore(view: PrViewState, core: GithubPrCore): void {
   applyPrCore(view.projectId, view.repo, core);
   selectAllowedMergeMethod(view);
@@ -243,155 +156,11 @@ function selectAllowedMergeMethod(
   }
 }
 
-function hydrateInitialSection<T>(input: {
-  key: readonly unknown[];
-  version: number;
-  initialUpdatedAt: number;
-  resource: PrResourceState<T>;
-  data: T;
-  apply?: (data: T) => void;
-}): void {
-  if (!ownsResource(input.key, input.version)) return;
-  const sectionUpdatedAt =
-    queryClient.getQueryState<T>(input.key)?.dataUpdatedAt ?? 0;
-  if (sectionUpdatedAt > input.initialUpdatedAt) return;
-  const cached =
-    queryClient.setQueryData<T>(input.key, input.data) ?? input.data;
-  if (input.resource.data !== cached) {
-    input.resource.data = cached;
-    input.apply?.(cached);
-  }
-  input.resource.error = undefined;
-}
-
-export async function loadPrInitial(
-  view: PrViewState,
-  options: LoadOptions = {},
-): Promise<GithubPrInitial | undefined> {
-  const initialKey = queryKeys.git.prInitial(
-    view.projectId,
-    view.repo,
-    view.number,
-  );
-  const requestKey = JSON.stringify(initialKey);
-  const existing = resourceRequests.get(requestKey) as
-    | Promise<GithubPrInitial | undefined>
-    | undefined;
-  if (existing) return existing;
-
-  const coreKey = prSectionKey(view, "core");
-  const conversationKey = prSectionKey(view, "conversation");
-  const overviewKey = prSectionKey(view, "overview");
-  const versions = {
-    core: claimResource(coreKey),
-    conversation: claimResource(conversationKey),
-    overview: claimResource(overviewKey),
-  };
-  const applyInitial = (data: GithubPrInitial): void => {
-    const initialUpdatedAt =
-      queryClient.getQueryState<GithubPrInitial>(initialKey)?.dataUpdatedAt ??
-      Date.now();
-    hydrateInitialSection({
-      key: coreKey,
-      version: versions.core,
-      initialUpdatedAt,
-      resource: view.core,
-      data: data.core,
-      apply: (core) => applyCore(view, core),
-    });
-    hydrateInitialSection({
-      key: conversationKey,
-      version: versions.conversation,
-      initialUpdatedAt,
-      resource: view.conversation,
-      data: data.conversation,
-    });
-    hydrateInitialSection({
-      key: overviewKey,
-      version: versions.overview,
-      initialUpdatedAt,
-      resource: view.overview,
-      data: data.overview,
-      apply: (overview) => applyOverview(view, overview),
-    });
-  };
-
-  if (!options.force) {
-    const queryState = queryClient.getQueryState<GithubPrInitial>(initialKey);
-    const cached = queryClient.getQueryData<GithubPrInitial>(initialKey);
-    if (cached !== undefined) applyInitial(cached);
-    if (
-      cached !== undefined &&
-      queryState?.dataUpdatedAt !== undefined &&
-      Date.now() - queryState.dataUpdatedAt < GIT_RESOURCE_STALE_MS
-    )
-      return cached;
-  }
-
-  const resources = [view.core, view.conversation, view.overview] as const;
-  for (const resource of resources) {
-    const hadData = resource.data !== undefined;
-    resource.loading = !hadData;
-    resource.refreshing = hadData;
-    if (!options.silent) resource.error = undefined;
-  }
-
-  const request = (async (): Promise<GithubPrInitial | undefined> => {
-    try {
-      if (options.force)
-        await queryClient.invalidateQueries({ queryKey: initialKey });
-      const data = await queryClient.fetchQuery({
-        queryKey: initialKey,
-        queryFn: () =>
-          getGithubPrInitial(view.projectId, view.repo, view.number),
-        staleTime: GIT_RESOURCE_STALE_MS,
-        gcTime: PR_DETAIL_CACHE_MS,
-      });
-      applyInitial(data);
-      return data;
-    } catch (error) {
-      const errorMessage = message(error);
-      if (options.criticalErrorTitle)
-        showCriticalError(options.criticalErrorTitle, errorMessage);
-      for (const [resource, key, version] of [
-        [view.core, coreKey, versions.core],
-        [view.conversation, conversationKey, versions.conversation],
-        [view.overview, overviewKey, versions.overview],
-      ] as const) {
-        if (
-          ownsResource(key, version) &&
-          (!options.silent || resource.data === undefined)
-        )
-          resource.error = errorMessage;
-      }
-      return undefined;
-    } finally {
-      for (const [resource, key, version] of [
-        [view.core, coreKey, versions.core],
-        [view.conversation, conversationKey, versions.conversation],
-        [view.overview, overviewKey, versions.overview],
-      ] as const) {
-        if (ownsResource(key, version)) {
-          resource.loading = false;
-          resource.refreshing = false;
-        }
-      }
-    }
-  })();
-  resourceRequests.set(requestKey, request);
-  try {
-    return await request;
-  } finally {
-    if (resourceRequests.get(requestKey) === request)
-      resourceRequests.delete(requestKey);
-  }
-}
-
 export async function loadPrCore(
   view: PrViewState,
-  options: LoadOptions = {},
+  options: PrLoadOptions = {},
 ): Promise<GithubPrCore | undefined> {
-  return fetchResource({
+  return prResources.load({
     key: queryKeys.git.prSection(
       view.projectId,
       view.repo,
@@ -409,10 +178,10 @@ export async function loadPrCore(
 export async function loadPrSection(
   view: PrViewState,
   section: Section,
-  options: LoadOptions = {},
+  options: PrLoadOptions = {},
 ): Promise<unknown> {
   if (section === "conversation") {
-    return fetchResource<GithubPrConversation>({
+    return prResources.load<GithubPrConversation>({
       key: queryKeys.git.prSection(
         view.projectId,
         view.repo,
@@ -427,7 +196,7 @@ export async function loadPrSection(
     });
   }
   if (section === "overview") {
-    return fetchResource<GithubPrOverview>({
+    return prResources.load<GithubPrOverview>({
       key: queryKeys.git.prSection(
         view.projectId,
         view.repo,
@@ -442,7 +211,7 @@ export async function loadPrSection(
     });
   }
   if (section === "checks") {
-    return fetchResource<GithubPrChecksResponse>({
+    return prResources.load<GithubPrChecksResponse>({
       key: queryKeys.git.prSection(
         view.projectId,
         view.repo,
@@ -465,7 +234,7 @@ export async function loadPrSection(
   const headOid = view.core.data?.headRefOid;
   if (!baseOid || !headOid) return undefined;
   if (section === "commits") {
-    return fetchResource<GithubPrCommitsResponse>({
+    return prResources.load<GithubPrCommitsResponse>({
       key: queryKeys.git.prHeadSection(
         view.projectId,
         view.repo,
@@ -479,7 +248,7 @@ export async function loadPrSection(
       options,
     });
   }
-  return fetchResource<GithubPrFilesResponse>({
+  return prResources.load<GithubPrFilesResponse>({
     key: queryKeys.git.prFiles(
       view.projectId,
       view.repo,

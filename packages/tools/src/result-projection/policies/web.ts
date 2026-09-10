@@ -1,4 +1,6 @@
-import { policy, searchCandidate, webFetchCandidate } from "./common.js";
+import { policy } from "./define-policy.js";
+import { searchCandidate } from "../candidates/search.js";
+import { webFetchCandidate } from "../candidates/web.js";
 import type { CandidateContext } from "../types.js";
 
 export const webSearchAgentResultPolicy = policy(

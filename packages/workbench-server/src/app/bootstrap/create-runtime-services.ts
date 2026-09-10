@@ -72,6 +72,7 @@ import {
 } from "../../domains/tasks/index.js";
 import { WorkbenchTaskService } from "../../domains/tasks/adapters/workbench-task-service.js";
 import { ToolService } from "../../domains/tools/execution/tool-service.js";
+import { ToolCallRepository } from "../../domains/tools/artifacts/tool-call.repository.js";
 import { ToolInteractionResolutionService } from "../../domains/tools/orchestration/tool-interaction-resolution.service.js";
 import { ToolResultPayloadStore } from "../../domains/tools/artifacts/tool-result-payload-store.js";
 import {
@@ -512,18 +513,17 @@ export function createRuntimeServices(
       getConversation,
       getAgent,
     });
-  const tools: ToolService = new ToolService(
+  const tools: ToolService = new ToolService({
     storage,
     events,
     tasks,
     pythonRuntime,
-    (request) => tasks.startTask(request),
+    startTask: (request) => tasks.startTask(request),
     getAgent,
-    // Tool execution can spawn explore agents; the closure is only invoked after
-    // composition completes, so reading workbenchRun here is safe.
-    (parent, args, options) => workbenchRun.runExplore(parent, args, options),
-    (provider) => auth.getApiKey(provider),
-    async (request) => {
+    runExplore: (parent, args, options) =>
+      workbenchRun.runExplore(parent, args, options),
+    getApiKey: (provider) => auth.getApiKey(provider),
+    explainImage: async (request) => {
       const selection = storage.settings.tools.imageExplanation.model;
       if (!selection) {
         throw new Error(
@@ -581,16 +581,22 @@ export function createRuntimeServices(
       return { explanation, model: selection };
     },
     plans,
-    (agentId, mode, reason) =>
+    setAgentMode: (agentId, mode, reason) =>
       agentLifecycle.setAgentModeInternal(agentId, mode, reason),
-    state.conversationRuntime,
-    logger.child({ component: "tool" }),
+    conversationRuntime: state.conversationRuntime,
+    logger: logger.child({ component: "tool" }),
     permissionExceptions,
-    conversationJournal,
+    journal: conversationJournal,
     resultPayloads,
-    performanceDiagnostics.enabled ? performanceDiagnostics : undefined,
+    performanceDiagnostics: performanceDiagnostics.enabled
+      ? performanceDiagnostics
+      : undefined,
     permissionPolicy,
-  );
+    toolCallRepository: new ToolCallRepository(
+      conversationJournal,
+      resultPayloads,
+    ),
+  });
   const subagentTranscriptLive: SubagentTranscriptLiveService =
     new SubagentTranscriptLiveService(events);
   const subagentTranscripts: SubagentTranscriptService =

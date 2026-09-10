@@ -1,3 +1,4 @@
+import type { PrResourceState } from "./pr-resource-loader";
 import type { GithubPr, GithubPrMergeMethod } from "@nervekit/contracts/git";
 import { prViewKey } from "$lib/domain/navigation/view-keys";
 import {
@@ -11,7 +12,6 @@ import {
 import { openPrSummary } from "$lib/features/git/state/git-panel-state.svelte";
 import {
   gitState,
-  type PrResourceState,
   type PrViewState,
 } from "$lib/features/git/state/git-state.svelte";
 import {
