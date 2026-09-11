@@ -471,30 +471,25 @@ export class WorkbenchRunService {
         "The approval interaction batch is empty.",
       );
     }
-    if (input.toolCalls.length) {
-      await this.coordinator.upsertToolCalls(first.runId, input.toolCalls);
-    }
-    if (input.entries.length) {
-      const state = await this.unitOfWork.load(first.runId);
-      const existingEntryIds = new Set(
-        state?.transitions.flatMap((transition) =>
-          transition.entries.map((entry) => entry.id),
-        ),
-      );
-      const missingEntries = input.entries.filter(
-        (entry) => !existingEntryIds.has(entry.id),
-      );
-      if (missingEntries.length) {
-        await this.coordinator.appendEntries(first.runId, missingEntries);
-      }
-    }
+    const state = await this.unitOfWork.load(first.runId);
+    const existingEntryIds = new Set(
+      state?.transitions.flatMap((transition) =>
+        transition.entries.map((entry) => entry.id),
+      ),
+    );
+    const missingEntries = input.entries.filter(
+      (entry) => !existingEntryIds.has(entry.id),
+    );
     const commands = input.members.map(({ interaction, resolution }) => ({
       interactionId: interaction.id,
       resolutionRequestId: input.resolutionRequestId,
       resolution,
     }));
     if (first.batchToolCallIds) {
-      await this.coordinator.resolveInteractionBatch(first.runId, commands);
+      await this.coordinator.resolveInteractionBatch(first.runId, commands, {
+        entries: missingEntries,
+        toolCalls: [...input.toolCalls],
+      });
     } else {
       await this.coordinator.resolveInteraction(first.runId, commands[0]!);
     }
@@ -524,16 +519,14 @@ export class WorkbenchRunService {
         "The pending run interaction was not found.",
       );
     }
-    // Commit the resolved tool result and entries before resolving the
-    // interaction. Checkpoint validation for a resolved interaction accepts a
-    // forward-only transcript (see run-checkpoints), so the continue below
-    // resumes from the suspension checkpoint idempotently.
-    if (input.toolCalls?.length) {
-      await this.coordinator.upsertToolCalls(state.run.runId, input.toolCalls);
-    }
-    if (input.entries?.length) {
-      await this.coordinator.appendEntries(state.run.runId, input.entries);
-    }
+    const existingEntryIds = new Set(
+      state.transitions.flatMap((transition) =>
+        transition.entries.map((entry) => entry.id),
+      ),
+    );
+    const entries = (input.entries ?? []).filter(
+      (entry) => !existingEntryIds.has(entry.id),
+    );
     const command = {
       interactionId: interaction.id,
       resolutionRequestId: input.resolutionRequestId,
@@ -543,12 +536,18 @@ export class WorkbenchRunService {
       await this.coordinator.resolveAndCompleteInteraction(
         state.run.runId,
         command,
+        {},
+        { entries, toolCalls: [...(input.toolCalls ?? [])] },
       );
       return;
     }
     const resolved = await this.coordinator.resolveInteraction(
       state.run.runId,
       command,
+      {
+        entries,
+        toolCalls: [...(input.toolCalls ?? [])],
+      },
     );
     if (input.continueRun) {
       const latest = await this.unitOfWork.load(state.run.runId);

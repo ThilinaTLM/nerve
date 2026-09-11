@@ -1,6 +1,6 @@
 import type { ConversationDeletionCursor } from "./conversation-deletion.js";
 import type { ConversationJournalCommit } from "@nervekit/contracts/conversations";
-import type { LifecycleWork } from "@nervekit/contracts/runs";
+import type { LifecycleWork, RecoveryIssue } from "@nervekit/contracts/runs";
 import type {
   ClaimLifecycleWorkInput,
   LifecycleAtomicCommitInput,
@@ -26,6 +26,8 @@ export type CanonicalCommand =
   | { kind: "claim_lifecycle_work"; input: ClaimLifecycleWorkInput }
   | { kind: "renew_lifecycle_work"; input: RenewLifecycleWorkInput }
   | { kind: "settle_lifecycle_work"; input: SettleLifecycleWorkInput }
+  | { kind: "persist_recovery_issue"; issue: RecoveryIssue }
+  | { kind: "list_recovery_issues"; conversationId: string }
   | {
       kind: "read_lifecycle_command_receipt";
       scopeId: string;

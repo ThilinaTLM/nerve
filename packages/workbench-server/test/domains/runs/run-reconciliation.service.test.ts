@@ -95,6 +95,19 @@ test("expired unproven tool work becomes an explicit unknown outcome", async () 
           updatedAt: "2026-01-01T00:00:00.000Z",
         },
       ],
+      listRecoveryIssues: async () => [
+        {
+          id: "recovery_expired",
+          conversationId: "conv_test",
+          runId: "run_test",
+          workId: "work_expired",
+          code: "outcome_unknown",
+          message: "Unknown outcome",
+          actions: ["inspect", "cancel_run", "authorize_retry"],
+          createdAt: "2026-01-01T00:01:00.000Z",
+        },
+      ],
+      persistRecoveryIssue: async () => undefined,
       settleLifecycleWork: async (input) => {
         settledState = input.state;
         return undefined;
@@ -157,6 +170,8 @@ test("startup and explicit refresh invoke the same recovery rules", async () => 
 function emptyWorkStore() {
   return {
     listExpiredLifecycleWork: async () => [],
+    listRecoveryIssues: async () => [],
+    persistRecoveryIssue: async () => undefined,
     settleLifecycleWork: async () => undefined,
   };
 }

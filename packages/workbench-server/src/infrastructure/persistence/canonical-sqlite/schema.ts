@@ -1,4 +1,4 @@
-export const CANONICAL_SCHEMA_VERSION = 3;
+export const CANONICAL_SCHEMA_VERSION = 4;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -318,6 +318,22 @@ CREATE TABLE lifecycle_recovery_issues (
 CREATE INDEX lifecycle_recovery_open
   ON lifecycle_recovery_issues(conversation_id, resolved, issue_id);`;
 
+const LIFECYCLE_RUN_CONVERSION_V4_SQL = `INSERT INTO run_lifecycle_records (
+  run_id, conversation_id, lifecycle_state, branch_epoch, revision,
+  payload_version, data, updated_at_ms
+)
+SELECT id, conversation_id,
+  CASE
+    WHEN status = 'completed' THEN 'completed'
+    WHEN status = 'cancelled' THEN 'cancelled'
+    WHEN status = 'failed' THEN 'failed'
+    ELSE 'open'
+  END,
+  1, revision, payload_version, data, updated_at_ms
+FROM conversation_records
+WHERE kind = 'run'
+ON CONFLICT(run_id) DO NOTHING;`;
+
 export interface CanonicalMigration {
   version: number;
   name: string;
@@ -339,5 +355,12 @@ export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
     checksum:
       "903cc4597ae995ce01312150eb0168e8b4e2313f833b160fd2015bea273d1fe5",
     sql: LIFECYCLE_AUTHORITY_V3_SQL,
+  },
+  {
+    version: 4,
+    name: "convert-run-lifecycle-v4",
+    checksum:
+      "496cd5027ff354aee6aed213f19bb6c6771d5c847cc799d85e1cc4fd5781b28a",
+    sql: LIFECYCLE_RUN_CONVERSION_V4_SQL,
   },
 ];

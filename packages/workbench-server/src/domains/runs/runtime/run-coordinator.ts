@@ -374,26 +374,34 @@ export class RunCoordinator {
   async resolveInteraction(
     runId: string,
     command: ResolveInteractionCommand,
+    accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
   ): Promise<RunInteractionRecord> {
-    return this.interactions.resolveInteraction(runId, command);
+    return this.interactions.resolveInteraction(runId, command, accompanying);
   }
 
   async resolveInteractionBatch(
     runId: string,
     commands: readonly ResolveInteractionCommand[],
+    accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
   ): Promise<readonly RunInteractionRecord[]> {
-    return this.interactions.resolveInteractionBatch(runId, commands);
+    return this.interactions.resolveInteractionBatch(
+      runId,
+      commands,
+      accompanying,
+    );
   }
 
   async resolveAndCompleteInteraction(
     runId: string,
     command: ResolveInteractionCommand,
     result: Readonly<Record<string, unknown>> = {},
+    accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
   ): Promise<RunRecord> {
     return this.interactions.resolveAndCompleteInteraction(
       runId,
       command,
       result,
+      accompanying,
     );
   }
   async cancel(runId: string, reason?: string): Promise<RunRecord> {

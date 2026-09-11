@@ -102,6 +102,7 @@ export class RunInteractionCoordinator {
   async resolveInteraction(
     runId: string,
     command: ResolveInteractionCommand,
+    accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
   ): Promise<RunInteractionRecord> {
     const { resolved, wake } = await this.options.exclusive(
       `run:${runId}`,
@@ -174,6 +175,7 @@ export class RunInteractionCoordinator {
           now,
         );
         await this.options.commit(state, next, "interaction_resolved", {
+          ...accompanying,
           interactions: [record],
         });
         return { resolved: record, wake };
@@ -186,6 +188,7 @@ export class RunInteractionCoordinator {
   async resolveInteractionBatch(
     runId: string,
     commands: readonly ResolveInteractionCommand[],
+    accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
   ): Promise<readonly RunInteractionRecord[]> {
     if (commands.length === 0) {
       throw new InvalidRunStateError("Interaction batch must not be empty");
@@ -253,6 +256,7 @@ export class RunInteractionCoordinator {
           now,
         );
         await this.options.commit(state, next, "interaction_batch_resolved", {
+          ...accompanying,
           interactions: [...records],
         });
         return { resolved: records, wake: true };
@@ -266,6 +270,7 @@ export class RunInteractionCoordinator {
     runId: string,
     command: ResolveInteractionCommand,
     result: Readonly<Record<string, unknown>> = {},
+    accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
   ): Promise<RunRecord> {
     const { run: completed, cleanupLive } = await this.options.exclusive(
       `run:${runId}`,
@@ -324,7 +329,17 @@ export class RunInteractionCoordinator {
           state,
           settled.run,
           "interaction_resolved_completed",
-          settled.changes,
+          {
+            ...settled.changes,
+            entries: [
+              ...(accompanying.entries ?? []),
+              ...(settled.changes.entries ?? []),
+            ],
+            toolCalls: [
+              ...(accompanying.toolCalls ?? []),
+              ...(settled.changes.toolCalls ?? []),
+            ],
+          },
         );
         return { run: settled.run, cleanupLive: true };
       },

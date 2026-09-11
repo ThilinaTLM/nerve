@@ -5,7 +5,11 @@ import type {
 } from "./conversation-deletion.js";
 import { Worker } from "node:worker_threads";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
-import type { LifecycleWork, RunRecord } from "@nervekit/contracts/runs";
+import type {
+  LifecycleWork,
+  RecoveryIssue,
+  RunRecord,
+} from "@nervekit/contracts/runs";
 import type {
   ClaimLifecycleWorkInput,
   LifecycleAtomicCommitInput,
@@ -184,6 +188,15 @@ export class CanonicalStore {
       { kind: "renew_lifecycle_work", input },
       true,
     );
+  }
+  listRecoveryIssues(conversationId: string) {
+    return this.request<RecoveryIssue[]>({
+      kind: "list_recovery_issues",
+      conversationId,
+    });
+  }
+  persistRecoveryIssue(issue: RecoveryIssue) {
+    return this.request<void>({ kind: "persist_recovery_issue", issue }, true);
   }
   settleLifecycleWork(input: SettleLifecycleWorkInput) {
     return this.request<LifecycleWork | undefined>(

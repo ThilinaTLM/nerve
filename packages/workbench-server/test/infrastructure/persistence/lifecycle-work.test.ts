@@ -84,6 +84,22 @@ test("lifecycle work uses fenced claims and terminal settlement", async (t) => {
   });
   assert.equal(settled?.state, "succeeded");
   assert.equal((await store.readLifecycleWork(work.id))?.leaseOwner, undefined);
+  await store.persistRecoveryIssue({
+    id: "recovery_test",
+    conversationId: work.conversationId,
+    runId: work.runId,
+    workId: work.id,
+    code: "outcome_unknown",
+    message: "Execution outcome is unknown.",
+    actions: ["inspect", "cancel_run", "authorize_retry"],
+    createdAt: now,
+  });
+  assert.deepEqual(
+    (await store.listRecoveryIssues(work.conversationId)).map(
+      (issue) => issue.id,
+    ),
+    ["recovery_test"],
+  );
   await store.close();
 });
 

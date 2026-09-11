@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import {
   lifecycleWorkSchema,
+  recoveryIssueSchema,
   type ExecutionAttempt,
   type LifecycleInteraction,
   type LifecycleWork,
@@ -516,6 +517,48 @@ export class CanonicalLifecycleDatabase {
     return this.transaction((database) =>
       renewLifecycleWorkInTransaction(database, input),
     );
+  }
+
+  listRecoveryIssues(conversationId: string): RecoveryIssue[] {
+    return this.database
+      .prepare(
+        `SELECT data FROM lifecycle_recovery_issues
+         WHERE conversation_id = ? AND resolved = 0
+         ORDER BY created_at_ms, issue_id`,
+      )
+      .all(conversationId)
+      .map((row) =>
+        recoveryIssueSchema.parse(decode((row as { data: Uint8Array }).data)),
+      );
+  }
+
+  persistRecoveryIssue(issue: RecoveryIssue): void {
+    this.transaction((database) => {
+      database
+        .prepare(
+          `INSERT INTO lifecycle_recovery_issues (
+             issue_id, conversation_id, run_id, work_id, code, resolved,
+             payload_version, data, created_at_ms, updated_at_ms
+           ) VALUES (
+             ?, ?,
+             (SELECT run_id FROM run_lifecycle_records WHERE run_id = ?),
+             (SELECT id FROM lifecycle_work WHERE id = ?),
+             ?, 0, 1, ?, ?, ?
+           )
+           ON CONFLICT(issue_id) DO UPDATE SET
+             data = excluded.data, updated_at_ms = excluded.updated_at_ms`,
+        )
+        .run(
+          issue.id,
+          issue.conversationId,
+          issue.runId ?? null,
+          issue.workId ?? null,
+          issue.code,
+          encode(issue),
+          Date.parse(issue.createdAt),
+          Date.parse(issue.createdAt),
+        );
+    });
   }
 
   settle(input: SettleLifecycleWorkInput): LifecycleWork | undefined {

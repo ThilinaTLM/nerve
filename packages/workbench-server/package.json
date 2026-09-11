@@ -32,7 +32,8 @@
     "dev": "tsx src/main.ts",
     "test": "tsx --test --test-concurrency=1 \"test/**/*.test.ts\"",
     "test:migrations": "tsx --test \"test/infrastructure/persistence/*.test.ts\" test/domains/projects/project-permissions.test.ts",
-    "test:native": "tsx --test test/infrastructure/persistence/file-mutations.test.ts test/domains/tasks/process-runtime-driver.test.ts test/domains/tasks/task-port-inspector.test.ts test/domains/tasks/task-scope.test.ts test/domains/tasks/task-supervisor.test.ts"
+    "test:native": "tsx --test test/infrastructure/persistence/file-mutations.test.ts test/domains/tasks/process-runtime-driver.test.ts test/domains/tasks/task-port-inspector.test.ts test/domains/tasks/task-scope.test.ts test/domains/tasks/task-supervisor.test.ts",
+    "benchmark:lifecycle": "tsx test/benchmarks/lifecycle-work.benchmark.ts"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.85.1",

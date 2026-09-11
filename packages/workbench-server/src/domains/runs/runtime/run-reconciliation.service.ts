@@ -43,6 +43,8 @@ export interface RunReconciliationDependencies {
       now: string,
       limit: number,
     ): Promise<LifecycleWork[]>;
+    listRecoveryIssues(conversationId: string): Promise<RecoveryIssue[]>;
+    persistRecoveryIssue(issue: RecoveryIssue): Promise<void>;
     settleLifecycleWork(input: {
       workId: string;
       expectedGeneration: number;
@@ -92,7 +94,7 @@ export class RunReconciliationService {
   }
 
   async reconcileStartup(): Promise<void> {
-    await this.reconcileScope();
+    await this.reconcileScope(undefined, undefined, true);
   }
 
   private async reconcileDurably(
@@ -145,6 +147,7 @@ export class RunReconciliationService {
   private async reconcileScope(
     conversationId?: string,
     operationId?: string,
+    distrustExistingLeases = false,
   ): Promise<ReconcileConversationResult | undefined> {
     const repairedApprovals =
       await this.deps.humanInput.recoverReadyApprovalBatches(conversationId);
@@ -152,8 +155,10 @@ export class RunReconciliationService {
       await this.deps.humanInput.recoverResolvedUserQuestions(conversationId);
     const repairedPlans =
       await this.deps.humanInput.recoverAcceptedPlanReviews(conversationId);
-    const classified = await this.classifyExpiredToolWork(conversationId);
+    await this.classifyExpiredToolWork(conversationId, distrustExistingLeases);
     if (!conversationId || !operationId) return;
+    const recoveryIssues =
+      await this.deps.work.listRecoveryIssues(conversationId);
     const pending = await this.deps.tools.listToolCallPreviews({
       conversationId,
       status: "waiting",
@@ -177,17 +182,23 @@ export class RunReconciliationService {
       repairedTransitions:
         repairedApprovals + repairedQuestions + repairedPlans,
       requeuedWork: 0,
-      unknownOutcomes: classified.unknownOutcomes,
-      recoveryIssues: classified.recoveryIssues,
+      unknownOutcomes: recoveryIssues.length,
+      recoveryIssues,
     });
   }
 
-  private async classifyExpiredToolWork(conversationId?: string): Promise<{
+  private async classifyExpiredToolWork(
+    conversationId?: string,
+    distrustExistingLeases = false,
+  ): Promise<{
     unknownOutcomes: number;
     recoveryIssues: RecoveryIssue[];
   }> {
     const now = (this.deps.now ?? (() => new Date()))().toISOString();
-    const expired = await this.deps.work.listExpiredLifecycleWork(now, 100);
+    const expired = await this.deps.work.listExpiredLifecycleWork(
+      distrustExistingLeases ? "9999-12-31T23:59:59.999Z" : now,
+      100,
+    );
     const recoveryIssues: RecoveryIssue[] = [];
     for (const work of expired) {
       if (
@@ -217,7 +228,7 @@ export class RunReconciliationService {
           : {}),
       });
       if (!terminal) {
-        recoveryIssues.push({
+        const issue: RecoveryIssue = {
           id: `recovery_${work.id.slice("work_".length)}`,
           conversationId: work.conversationId,
           ...(work.runId ? { runId: work.runId } : {}),
@@ -227,7 +238,9 @@ export class RunReconciliationService {
             "Tool execution may have produced an external side effect, but no terminal result was proven.",
           actions: ["inspect", "cancel_run", "authorize_retry"],
           createdAt: now,
-        });
+        };
+        await this.deps.work.persistRecoveryIssue(issue);
+        recoveryIssues.push(issue);
       }
     }
     return { unknownOutcomes: recoveryIssues.length, recoveryIssues };
