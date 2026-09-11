@@ -21,8 +21,21 @@ export function executeCanonicalCommand(
       return database.lifecycle.listExpired(command.now, command.limit);
     case "claim_lifecycle_work":
       return database.lifecycle.claim(command.input);
+    case "renew_lifecycle_work":
+      return database.lifecycle.renew(command.input);
     case "settle_lifecycle_work":
       return database.lifecycle.settle(command.input);
+    case "read_reconciliation_operation":
+      return database.lifecycle.readReconciliationOperation(
+        command.conversationId,
+        command.requestId,
+      );
+    case "begin_reconciliation_operation":
+      return database.lifecycle.beginReconciliationOperation(command.operation);
+    case "settle_reconciliation_operation":
+      return database.lifecycle.settleReconciliationOperation(
+        command.operation,
+      );
     case "read_rpc_idempotency":
       return database.readRpcIdempotency(
         command.scope,

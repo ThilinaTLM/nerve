@@ -87,6 +87,8 @@ import {
 import { WorkbenchAgentExecutionAdapter } from "../../domains/runs/adapters/workbench-agent-execution.js";
 import { WorkbenchRunService } from "../../domains/runs/application/workbench-run.service.js";
 import { WorkbenchRunQuery } from "../../domains/runs/application/workbench-run-query.js";
+import { RunReconciliationService } from "../../domains/runs/runtime/run-reconciliation.service.js";
+import { reconciliationOperationId } from "../../domains/runs/adapters/reconciliation-operation-id.js";
 import type { SubscriptionUsageService } from "../../domains/usage/subscription-usage-service.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
@@ -120,54 +122,9 @@ export interface RuntimeDeps {
   performanceDiagnostics: PerformanceDiagnosticsPort;
 }
 
-export interface RuntimeServices {
-  maintenanceScopes: RuntimeState["maintenanceScopes"];
-  tasks: WorkbenchTaskService;
-  taskNotifications: TaskNotificationService;
-  pythonRuntime: PythonRuntimeService;
-  plans: PlanService;
-  tools: ToolService;
-  toolInteractions: ToolInteractionResolutionService;
-  permissionExceptions: PermissionExceptionService;
-  permissionPolicy: PermissionPolicyService;
-  capabilities: CapabilityService;
-  git: GitService;
-  gitRepositoryWatcher: GitRepositoryWatcher;
-  projectFilesystemWatcher: ProjectFilesystemWatcher;
-  fileCompletions: FileCompletionService;
-  promptSuggestions: PromptSuggestionService;
-  taskDefinitions: TaskDefinitionService;
-  taskDefinitionOperations: TaskDefinitionOperations;
-  scratchNotes: ScratchNoteService;
-  harnessStorage: ConversationHarnessStorage;
-  conversationService: ConversationService;
-  compactionService: CompactionService;
-  navigationService: NavigationService;
-  exportService: ExportService;
-  importService: ImportService;
-  messageMirror: MessageMirror;
-  agentMechanics: WorkbenchAgentMechanics;
-  runRuntime: WorkbenchRunRuntime;
-  runQuery: WorkbenchRunQuery;
-  workbenchRun: WorkbenchRunService;
-  editors: ProjectEditorService;
-  terminal: ProjectTerminalService;
-  projectIcons: ProjectIconService;
-  projectLifecycle: ProjectLifecycleService;
-  conversationLifecycle: ConversationLifecycleService;
-  conversationQuery: ConversationQueryService;
-  agentLifecycle: AgentLifecycleService;
-  subagentTranscriptLive: SubagentTranscriptLiveService;
-  subagentTranscripts: SubagentTranscriptService;
-  humanInput: HumanInputResolutionService;
-  pruneConversations: PruneProjectConversationsService;
-  conversationJournal: ConversationJournalRepository;
-}
+export type RuntimeServices = ReturnType<typeof createRuntimeServices>;
 
-export function createRuntimeServices(
-  state: RuntimeState,
-  deps: RuntimeDeps,
-): RuntimeServices {
+export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
   const {
     storage,
     events,
@@ -732,6 +689,13 @@ export function createRuntimeServices(
         );
       },
     });
+  const runReconciliation = new RunReconciliationService({
+    humanInput,
+    tools,
+    conversationQuery,
+    operations: storage.canonicalStore,
+    operationId: reconciliationOperationId,
+  });
   const toolInteractions: ToolInteractionResolutionService =
     new ToolInteractionResolutionService(
       tools,
@@ -794,6 +758,7 @@ export function createRuntimeServices(
     subagentTranscriptLive,
     subagentTranscripts,
     humanInput,
+    runReconciliation,
     pruneConversations,
     conversationJournal,
   };

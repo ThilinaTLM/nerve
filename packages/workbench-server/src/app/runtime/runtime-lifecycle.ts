@@ -120,10 +120,8 @@ export class RuntimeLifecycle {
       recoverRuns: async () => {
         await this.services.runRuntime.coordinator.recover();
       },
-      recoverHumanInput: async () => {
-        await this.services.humanInput.recoverReadyApprovalBatches();
-        await this.services.humanInput.recoverAcceptedPlanReviews();
-      },
+      recoverHumanInput: () =>
+        this.services.runReconciliation.reconcileStartup(),
       rebuildProjector: async () => {
         const activeStates =
           await this.services.runRuntime.unitOfWork.listActive();

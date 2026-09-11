@@ -43,6 +43,7 @@ test("wake claims and settles work without a polling delay", async () => {
           leaseDeadline: input.leaseDeadline,
         };
       },
+      renewLifecycleWork: async () => ready,
       settleLifecycleWork: async () => {
         calls.push("settle");
         return { ...ready, state: "succeeded" };
@@ -83,6 +84,7 @@ test("coalesced wakes cannot claim the same work twice", async () => {
           leaseDeadline: now.toISOString(),
         };
       },
+      renewLifecycleWork: async () => ready,
       settleLifecycleWork: async () => ({ ...ready, state: "succeeded" }),
     },
     handlers: { continue_model: async () => ({ state: "succeeded" }) },

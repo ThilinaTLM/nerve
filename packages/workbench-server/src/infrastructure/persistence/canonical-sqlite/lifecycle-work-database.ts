@@ -9,6 +9,17 @@ import { appendDurableEventInTransaction } from "./canonical-database-helpers.js
 import { persistConversationCommitInTransaction } from "./conversation-journal-database.js";
 import { decode, encode } from "./payload-codecs.js";
 
+export interface ReconciliationOperationRecord {
+  id: string;
+  conversationId: string;
+  requestId: string;
+  status: "running" | "completed" | "failed";
+  result?: unknown;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface LifecycleAtomicCommitInput {
   delta: ConversationPersistenceDelta;
   work: readonly LifecycleWork[];
@@ -70,6 +81,14 @@ export function insertLifecycleCommandReceiptInTransaction(
 }
 
 export interface ClaimLifecycleWorkInput {
+  workId: string;
+  expectedGeneration: number;
+  leaseOwner: string;
+  leaseDeadline: string;
+  now: string;
+}
+
+export interface RenewLifecycleWorkInput {
   workId: string;
   expectedGeneration: number;
   leaseOwner: string;
@@ -223,6 +242,76 @@ export function claimLifecycleWorkInTransaction(
 export class CanonicalLifecycleDatabase {
   constructor(private readonly database: DatabaseSync) {}
 
+  readReconciliationOperation(
+    conversationId: string,
+    requestId: string,
+  ): ReconciliationOperationRecord | undefined {
+    const row = this.database
+      .prepare(
+        `SELECT data FROM reconciliation_operations
+         WHERE conversation_id = ? AND request_id = ?`,
+      )
+      .get(conversationId, requestId) as
+      | { data: Uint8Array | string }
+      | undefined;
+    return row
+      ? (decode(row.data) as ReconciliationOperationRecord)
+      : undefined;
+  }
+
+  beginReconciliationOperation(
+    operation: ReconciliationOperationRecord,
+  ): ReconciliationOperationRecord {
+    return this.transaction((database) => {
+      database
+        .prepare(
+          `INSERT INTO reconciliation_operations (
+             id, conversation_id, request_id, status, payload_version, data,
+             created_at_ms, updated_at_ms
+           ) VALUES (?, ?, ?, 'running', 1, ?, ?, ?)
+           ON CONFLICT(conversation_id, request_id) DO NOTHING`,
+        )
+        .run(
+          operation.id,
+          operation.conversationId,
+          operation.requestId,
+          encode(operation),
+          Date.parse(operation.createdAt),
+          Date.parse(operation.updatedAt),
+        );
+      return (
+        this.readReconciliationOperation(
+          operation.conversationId,
+          operation.requestId,
+        ) ?? operation
+      );
+    });
+  }
+
+  settleReconciliationOperation(
+    operation: ReconciliationOperationRecord,
+  ): ReconciliationOperationRecord {
+    return this.transaction((database) => {
+      const changed = database
+        .prepare(
+          `UPDATE reconciliation_operations
+           SET status = ?, data = ?, updated_at_ms = ?
+           WHERE conversation_id = ? AND request_id = ?`,
+        )
+        .run(
+          operation.status,
+          encode(operation),
+          Date.parse(operation.updatedAt),
+          operation.conversationId,
+          operation.requestId,
+        ).changes;
+      if (changed !== 1) {
+        throw new Error(`Reconciliation operation not found: ${operation.id}`);
+      }
+      return operation;
+    });
+  }
+
   persistAtomicCommit(
     input: LifecycleAtomicCommitInput,
   ): LifecycleAtomicCommitResult {
@@ -275,6 +364,12 @@ export class CanonicalLifecycleDatabase {
     );
   }
 
+  renew(input: RenewLifecycleWorkInput): LifecycleWork | undefined {
+    return this.transaction((database) =>
+      renewLifecycleWorkInTransaction(database, input),
+    );
+  }
+
   settle(input: SettleLifecycleWorkInput): LifecycleWork | undefined {
     return this.transaction((database) =>
       settleLifecycleWorkInTransaction(database, input),
@@ -296,6 +391,43 @@ export class CanonicalLifecycleDatabase {
       throw error;
     }
   }
+}
+
+export function renewLifecycleWorkInTransaction(
+  database: DatabaseSync,
+  input: RenewLifecycleWorkInput,
+): LifecycleWork | undefined {
+  const current = readLifecycleWork(database, input.workId);
+  if (
+    !current ||
+    current.state !== "leased" ||
+    current.generation !== input.expectedGeneration ||
+    current.leaseOwner !== input.leaseOwner ||
+    Date.parse(current.leaseDeadline ?? "") <= Date.parse(input.now)
+  ) {
+    return undefined;
+  }
+  const next = lifecycleWorkSchema.parse({
+    ...current,
+    leaseDeadline: input.leaseDeadline,
+    updatedAt: input.now,
+  });
+  const changed = database
+    .prepare(
+      `UPDATE lifecycle_work
+       SET lease_deadline_ms = ?, data = ?, updated_at_ms = ?
+       WHERE id = ? AND state = 'leased' AND generation = ?
+         AND lease_owner = ?`,
+    )
+    .run(
+      Date.parse(input.leaseDeadline),
+      encode(next),
+      Date.parse(input.now),
+      input.workId,
+      input.expectedGeneration,
+      input.leaseOwner,
+    ).changes;
+  return changed === 1 ? next : undefined;
 }
 
 export function settleLifecycleWorkInTransaction(

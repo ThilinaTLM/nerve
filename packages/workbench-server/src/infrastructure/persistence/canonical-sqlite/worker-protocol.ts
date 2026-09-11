@@ -4,6 +4,8 @@ import type { LifecycleWork } from "@nervekit/contracts/runs";
 import type {
   ClaimLifecycleWorkInput,
   LifecycleAtomicCommitInput,
+  ReconciliationOperationRecord,
+  RenewLifecycleWorkInput,
   SettleLifecycleWorkInput,
 } from "./lifecycle-work-database.js";
 import type {
@@ -22,7 +24,21 @@ export type CanonicalCommand =
   | { kind: "list_due_lifecycle_work"; now: string; limit: number }
   | { kind: "list_expired_lifecycle_work"; now: string; limit: number }
   | { kind: "claim_lifecycle_work"; input: ClaimLifecycleWorkInput }
+  | { kind: "renew_lifecycle_work"; input: RenewLifecycleWorkInput }
   | { kind: "settle_lifecycle_work"; input: SettleLifecycleWorkInput }
+  | {
+      kind: "read_reconciliation_operation";
+      conversationId: string;
+      requestId: string;
+    }
+  | {
+      kind: "begin_reconciliation_operation";
+      operation: ReconciliationOperationRecord;
+    }
+  | {
+      kind: "settle_reconciliation_operation";
+      operation: ReconciliationOperationRecord;
+    }
   | { kind: "read_rpc_idempotency"; scope: string; key: string; now: number }
   | {
       kind: "write_rpc_idempotency";
@@ -166,6 +182,7 @@ export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "read_lifecycle_work",
   "list_due_lifecycle_work",
   "list_expired_lifecycle_work",
+  "read_reconciliation_operation",
   "read_document",
   "list_documents",
   "read_conversation_revision",

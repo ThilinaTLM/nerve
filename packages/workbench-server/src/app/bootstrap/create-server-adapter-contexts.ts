@@ -88,8 +88,7 @@ export function createServerAdapterContexts(
       navigationService: services.navigationService,
       compactionService: services.compactionService,
       workbenchRun: services.workbenchRun,
-      humanInput: services.humanInput,
-      tools: services.tools,
+      runReconciliation: services.runReconciliation,
     },
     agents: {
       agentLifecycle: services.agentLifecycle,

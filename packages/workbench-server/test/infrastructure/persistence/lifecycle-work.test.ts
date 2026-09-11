@@ -46,6 +46,14 @@ test("lifecycle work uses fenced claims and terminal settlement", async (t) => {
   assert.equal(claimed?.state, "leased");
   assert.equal(claimed?.generation, 1);
   assert.equal(claimed?.attemptCount, 1);
+  const renewed = await store.renewLifecycleWork({
+    workId: work.id,
+    expectedGeneration: 1,
+    leaseOwner: "boot_one",
+    leaseDeadline: "2026-01-01T00:00:40.000Z",
+    now: "2026-01-01T00:00:10.000Z",
+  });
+  assert.equal(renewed?.leaseDeadline, "2026-01-01T00:00:40.000Z");
   assert.equal(
     await store.claimLifecycleWork({
       workId: work.id,
@@ -190,6 +198,41 @@ test("failed successor insertion rolls back its conversation commit and receipt"
   };
   await assert.rejects(store.persistLifecycleAtomicCommit(input), /UNIQUE/);
   assert.equal(await store.readConversationRevision(conversation.id), 0);
+  await store.close();
+});
+
+test("reconciliation operation results are durable and request-scoped", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-reconciliation-operation-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const store = new CanonicalStore(join(home, "nerve.sqlite"));
+  await store.initialize();
+  const running = {
+    id: "reconcile_test",
+    conversationId: "conv_test",
+    requestId: "request_test",
+    status: "running" as const,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  assert.deepEqual(await store.beginReconciliationOperation(running), running);
+  assert.deepEqual(
+    await store.beginReconciliationOperation({
+      ...running,
+      id: "reconcile_conflict",
+    }),
+    running,
+  );
+  const completed = {
+    ...running,
+    status: "completed" as const,
+    result: { changed: true },
+  };
+  await store.settleReconciliationOperation(completed);
+  assert.deepEqual(
+    await store.readReconciliationOperation("conv_test", "request_test"),
+    completed,
+  );
   await store.close();
 });
 

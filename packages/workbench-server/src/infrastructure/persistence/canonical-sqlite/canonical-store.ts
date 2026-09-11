@@ -10,6 +10,8 @@ import type {
   ClaimLifecycleWorkInput,
   LifecycleAtomicCommitInput,
   LifecycleAtomicCommitResult,
+  ReconciliationOperationRecord,
+  RenewLifecycleWorkInput,
   SettleLifecycleWorkInput,
 } from "./lifecycle-work-database.js";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
@@ -177,9 +179,33 @@ export class CanonicalStore {
       true,
     );
   }
+  renewLifecycleWork(input: RenewLifecycleWorkInput) {
+    return this.request<LifecycleWork | undefined>(
+      { kind: "renew_lifecycle_work", input },
+      true,
+    );
+  }
   settleLifecycleWork(input: SettleLifecycleWorkInput) {
     return this.request<LifecycleWork | undefined>(
       { kind: "settle_lifecycle_work", input },
+      true,
+    );
+  }
+  readReconciliationOperation(conversationId: string, requestId: string) {
+    return this.request<ReconciliationOperationRecord | undefined>(
+      { kind: "read_reconciliation_operation", conversationId, requestId },
+      true,
+    );
+  }
+  beginReconciliationOperation(operation: ReconciliationOperationRecord) {
+    return this.request<ReconciliationOperationRecord>(
+      { kind: "begin_reconciliation_operation", operation },
+      true,
+    );
+  }
+  settleReconciliationOperation(operation: ReconciliationOperationRecord) {
+    return this.request<ReconciliationOperationRecord>(
+      { kind: "settle_reconciliation_operation", operation },
       true,
     );
   }

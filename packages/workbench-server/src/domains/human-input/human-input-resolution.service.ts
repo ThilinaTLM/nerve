@@ -370,10 +370,15 @@ export class HumanInputResolutionService {
     return this.approvalBatches.recoverReadyBatches(conversationId);
   }
 
-  async recoverAcceptedPlanReviews(): Promise<void> {
+  async recoverAcceptedPlanReviews(conversationId?: string): Promise<number> {
     const reviews = this.deps.plans
       .listPlanReviews()
-      .filter((review) => review.status === "accepted");
+      .filter(
+        (review) =>
+          review.status === "accepted" &&
+          (!conversationId || review.conversationId === conversationId),
+      );
+    let repaired = 0;
     for (const review of reviews) {
       let toolCall;
       try {
@@ -409,6 +414,7 @@ export class HumanInputResolutionService {
               finalSuspensionStatus: "resumed",
             },
           );
+          repaired += 1;
           continue;
         } catch (error) {
           const latest = await this.planReviewSource(review);
@@ -417,7 +423,9 @@ export class HumanInputResolutionService {
       }
       await this.reconcileTerminalPlanReview(review);
       await this.startAcceptedPlanImplementation(review);
+      repaired += 1;
     }
+    return repaired;
   }
 
   async answerUserQuestion(
