@@ -2,7 +2,9 @@ import { DatabaseSync } from "node:sqlite";
 import type { CanonicalDocument } from "./canonical-database.js";
 import { decode, encode } from "./payload-codecs.js";
 import {
-  CANONICAL_SCHEMA_CHECKSUM,
+  CANONICAL_BASELINE_CHECKSUM,
+  CANONICAL_BASELINE_VERSION,
+  CANONICAL_MIGRATIONS,
   CANONICAL_SCHEMA_VERSION,
 } from "./schema.js";
 
@@ -23,22 +25,72 @@ export interface DurableEventRow {
   occurred_at_ms: number;
 }
 
-export function assertCanonicalSchemaCompatible(
+function expectedCanonicalSchemaRows() {
+  return [
+    {
+      version: CANONICAL_BASELINE_VERSION,
+      checksum: CANONICAL_BASELINE_CHECKSUM,
+    },
+    ...CANONICAL_MIGRATIONS.map(({ version, checksum }) => ({
+      version,
+      checksum,
+    })),
+  ];
+}
+
+export function assertCanonicalSchemaPrefixCompatible(
   rows: Array<{ version: number; checksum: string }>,
 ): void {
   if (rows.length === 0) {
     throw new Error("Storage schema migration ledger is empty.");
   }
-  if (rows.length !== 1 || rows[0]?.version !== CANONICAL_SCHEMA_VERSION) {
+  const expected = expectedCanonicalSchemaRows();
+  if (
+    rows.length > expected.length ||
+    (rows.at(-1)?.version ?? 0) > CANONICAL_SCHEMA_VERSION
+  ) {
+    throw new Error(
+      `Storage schema ${rows.at(-1)?.version ?? "unknown"} is unsupported; expected schema ${CANONICAL_SCHEMA_VERSION}.`,
+    );
+  }
+  for (const [index, actual] of rows.entries()) {
+    const expectedRow = expected[index];
+    if (
+      !expectedRow ||
+      actual.version !== expectedRow.version ||
+      actual.checksum !== expectedRow.checksum
+    ) {
+      throw new Error(
+        `Storage schema checksum drift at version ${actual.version}.`,
+      );
+    }
+  }
+}
+
+export function assertCanonicalSchemaCompatible(
+  rows: Array<{ version: number; checksum: string }>,
+): void {
+  assertCanonicalSchemaPrefixCompatible(rows);
+  const expected = expectedCanonicalSchemaRows();
+  if (
+    rows.length !== expected.length ||
+    rows.at(-1)?.version !== CANONICAL_SCHEMA_VERSION
+  ) {
     const version = rows.at(-1)?.version;
     throw new Error(
       `Storage schema ${version ?? "unknown"} is unsupported; expected schema ${CANONICAL_SCHEMA_VERSION}.`,
     );
   }
-  if (rows[0].checksum !== CANONICAL_SCHEMA_CHECKSUM) {
-    throw new Error(
-      `Storage schema checksum drift at version ${CANONICAL_SCHEMA_VERSION}.`,
-    );
+  for (const [index, expectedRow] of expected.entries()) {
+    const actual = rows[index];
+    if (
+      actual?.version !== expectedRow.version ||
+      actual.checksum !== expectedRow.checksum
+    ) {
+      throw new Error(
+        `Storage schema checksum drift at version ${expectedRow.version}.`,
+      );
+    }
   }
 }
 

@@ -99,7 +99,8 @@ export class ApprovalBatchResolutionService {
     );
   }
 
-  async recoverReadyBatches(conversationId?: string): Promise<void> {
+  async recoverReadyBatches(conversationId?: string): Promise<number> {
+    let repaired = 0;
     for (const approval of this.deps.tools.listApprovals("pending")) {
       if (conversationId && approval.conversationId !== conversationId)
         continue;
@@ -121,6 +122,7 @@ export class ApprovalBatchResolutionService {
             toolCall.id,
             "Approval was cancelled because its source run did not suspend.",
           );
+          repaired += 1;
           continue;
         }
         throw error;
@@ -137,7 +139,7 @@ export class ApprovalBatchResolutionService {
       if (!approval || approval.status === "pending") continue;
       let batch: ApprovalInteractionBatch;
       try {
-        batch = await this.deps.runs.approvalBatchForToolCall(
+        batch = await this.deps.runs.recoverableApprovalBatchForToolCall(
           interaction.toolCallId,
           interaction.runId,
         );
@@ -151,7 +153,7 @@ export class ApprovalBatchResolutionService {
       await this.exclusive(key, async () => {
         let current: ApprovalInteractionBatch;
         try {
-          current = await this.deps.runs.approvalBatchForToolCall(
+          current = await this.deps.runs.recoverableApprovalBatchForToolCall(
             interaction.toolCallId,
             interaction.runId,
           );
@@ -165,9 +167,11 @@ export class ApprovalBatchResolutionService {
           (await this.batchReady(current))
         ) {
           await this.recoverValidatedBatch(current, interaction.toolCallId);
+          repaired += 1;
         }
       });
     }
+    return repaired;
   }
 
   private approval(approvalId: string): ApprovalRecord {
@@ -237,7 +241,7 @@ export class ApprovalBatchResolutionService {
     targetToolCallId: string,
   ): Promise<ToolCallRecord> {
     try {
-      await this.deps.runs.assertApprovalBatchContextUnchanged(batch);
+      await this.deps.runs.assertApprovalBatchRecoveryContextUnchanged(batch);
     } catch (error) {
       if (!isStaleApprovalContextError(error)) throw error;
       const result = await this.deps.runs.cancelStaleApprovalBatch(

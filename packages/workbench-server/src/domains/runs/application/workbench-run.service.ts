@@ -339,6 +339,50 @@ export class WorkbenchRunService {
     };
   }
 
+  async recoverableApprovalBatchForToolCall(
+    toolCallId: string,
+    runId: string,
+  ): Promise<ApprovalInteractionBatch> {
+    const state = await this.unitOfWork.loadFresh(runId);
+    const target = state?.interactions.find(
+      (interaction) =>
+        interaction.toolCallId === toolCallId &&
+        interaction.kind === "approval" &&
+        interaction.status === "pending",
+    );
+    if (!state || state.run.status !== "waiting" || !target) {
+      throw new ApplicationError(
+        409,
+        "RUN_INTERACTION_NOT_FOUND",
+        "The pending run interaction was not found.",
+      );
+    }
+    const batchToolCallIds = target.batchToolCallIds ?? [target.toolCallId];
+    const interactions = batchToolCallIds.flatMap((memberToolCallId) => {
+      const interaction = state.interactions.find(
+        (candidate) =>
+          candidate.checkpointId === target.checkpointId &&
+          candidate.toolCallId === memberToolCallId &&
+          candidate.kind === "approval" &&
+          candidate.status === "pending",
+      );
+      return interaction ? [interaction] : [];
+    });
+    if (!interactions.some((item) => item.toolCallId === toolCallId)) {
+      throw new ApplicationError(
+        409,
+        "RUN_APPROVAL_BATCH_INVALID",
+        "The pending approval interaction was not found in the run batch.",
+      );
+    }
+    return {
+      runId: state.run.runId,
+      checkpointId: target.checkpointId,
+      batchToolCallIds: interactions.map((item) => item.toolCallId),
+      interactions,
+    };
+  }
+
   async cancelStaleApprovalBatch(
     batch: ApprovalInteractionBatch,
     reason: string,
@@ -363,17 +407,7 @@ export class WorkbenchRunService {
   async assertApprovalBatchContextUnchanged(
     batch: ApprovalInteractionBatch,
   ): Promise<void> {
-    const state = await this.unitOfWork.loadFresh(batch.runId);
-    const checkpoint = state?.checkpoints.find(
-      (candidate) => candidate.checkpointId === batch.checkpointId,
-    );
-    if (!state || !checkpoint || state.run.status !== "waiting") {
-      throw new ApplicationError(
-        409,
-        "RUN_CHECKPOINT_STALE",
-        "The approval checkpoint is no longer active.",
-      );
-    }
+    await this.activeApprovalCheckpoint(batch);
     for (const toolCallId of batch.batchToolCallIds) {
       if (
         !(await this.unitOfWork.hasActionableInteraction(
@@ -388,6 +422,26 @@ export class WorkbenchRunService {
         );
       }
     }
+  }
+
+  async assertApprovalBatchRecoveryContextUnchanged(
+    batch: ApprovalInteractionBatch,
+  ): Promise<void> {
+    await this.activeApprovalCheckpoint(batch);
+  }
+
+  private async activeApprovalCheckpoint(batch: ApprovalInteractionBatch) {
+    const state = await this.unitOfWork.loadFresh(batch.runId);
+    const checkpoint = state?.checkpoints.find(
+      (candidate) => candidate.checkpointId === batch.checkpointId,
+    );
+    if (!state || !checkpoint || state.run.status !== "waiting") {
+      throw new ApplicationError(
+        409,
+        "RUN_CHECKPOINT_STALE",
+        "The approval checkpoint is no longer active.",
+      );
+    }
     const conversation = this.state.getConversation(state.run.conversationId);
     const currentEntryIds = activeBranchEntryIds(
       await this.features.getConversationEntries(conversation.id),
@@ -400,6 +454,7 @@ export class WorkbenchRunService {
         "The conversation changed after this approval was requested. No tool was executed.",
       );
     }
+    return { state, checkpoint };
   }
 
   async resolveInteractionBatchForToolCalls(input: {

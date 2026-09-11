@@ -9,6 +9,20 @@ export function executeCanonicalCommand(
     case "initialize":
       database.initialize();
       return undefined;
+    case "persist_lifecycle_atomic_commit":
+      return database.lifecycle.persistAtomicCommit(command.input);
+    case "insert_lifecycle_work":
+      return database.lifecycle.insert(command.work);
+    case "read_lifecycle_work":
+      return database.lifecycle.read(command.workId);
+    case "list_due_lifecycle_work":
+      return database.lifecycle.listDue(command.now, command.limit);
+    case "list_expired_lifecycle_work":
+      return database.lifecycle.listExpired(command.now, command.limit);
+    case "claim_lifecycle_work":
+      return database.lifecycle.claim(command.input);
+    case "settle_lifecycle_work":
+      return database.lifecycle.settle(command.input);
     case "read_rpc_idempotency":
       return database.readRpcIdempotency(
         command.scope,

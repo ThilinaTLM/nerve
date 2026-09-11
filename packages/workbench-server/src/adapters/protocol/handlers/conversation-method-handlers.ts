@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createConversationRequestSchema } from "@nervekit/contracts/conversations";
 import {
   defineWorkbenchMethodHandlersFor,
@@ -70,6 +71,42 @@ export const conversationMethodHandlers: WorkbenchMethodHandlerMapFor<Conversati
         params,
       ),
     }),
+    "conversation.reconcile": async (state, params) => {
+      state.conversationLifecycle.getConversation(params.conversationId);
+      const repairedTransitions =
+        await state.humanInput.recoverReadyApprovalBatches(
+          params.conversationId,
+        );
+      const pending = await state.tools.listToolCallPreviews({
+        conversationId: params.conversationId,
+        status: "waiting",
+        limit: 1_000,
+      });
+      const snapshot = await state.conversationQuery.getConversationSnapshot(
+        params.conversationId,
+      );
+      return {
+        operationId: `reconcile_${createHash("sha256")
+          .update(`${params.conversationId}:${params.requestId}`)
+          .digest("hex")
+          .slice(0, 24)}`,
+        status: "completed" as const,
+        changed: repairedTransitions > 0,
+        observedRevision: snapshot.conversationRevision,
+        preservedInputs: pending.reduce(
+          (count, toolCall) =>
+            count +
+            toolCall.interactions.filter(
+              (interaction) => interaction.status === "pending",
+            ).length,
+          0,
+        ),
+        repairedTransitions,
+        requeuedWork: 0,
+        unknownOutcomes: 0,
+        recoveryIssues: [],
+      };
+    },
     "conversation.compact": (state, params) =>
       state.compactionService.compactConversation(
         params.conversationId,

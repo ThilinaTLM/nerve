@@ -366,7 +366,7 @@ export class HumanInputResolutionService {
     );
   }
 
-  recoverReadyApprovalBatches(conversationId?: string): Promise<void> {
+  recoverReadyApprovalBatches(conversationId?: string): Promise<number> {
     return this.approvalBatches.recoverReadyBatches(conversationId);
   }
 

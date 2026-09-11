@@ -5,7 +5,13 @@ import type {
 } from "./conversation-deletion.js";
 import { Worker } from "node:worker_threads";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
-import type { RunRecord } from "@nervekit/contracts/runs";
+import type { LifecycleWork, RunRecord } from "@nervekit/contracts/runs";
+import type {
+  ClaimLifecycleWorkInput,
+  LifecycleAtomicCommitInput,
+  LifecycleAtomicCommitResult,
+  SettleLifecycleWorkInput,
+} from "./lifecycle-work-database.js";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import {
   encode,
@@ -130,6 +136,52 @@ export class CanonicalStore {
       return reader!.request<T>(command, transferList);
     }
     return this.writer.request<T>(command, transferList);
+  }
+
+  persistLifecycleAtomicCommit(input: LifecycleAtomicCommitInput) {
+    return this.request<LifecycleAtomicCommitResult>(
+      { kind: "persist_lifecycle_atomic_commit", input },
+      true,
+    );
+  }
+
+  insertLifecycleWork(work: LifecycleWork) {
+    return this.request<LifecycleWork>(
+      { kind: "insert_lifecycle_work", work },
+      true,
+    );
+  }
+  readLifecycleWork(workId: string) {
+    return this.request<LifecycleWork | undefined>(
+      { kind: "read_lifecycle_work", workId },
+      true,
+    );
+  }
+  listDueLifecycleWork(now: string, limit = 100) {
+    return this.request<LifecycleWork[]>({
+      kind: "list_due_lifecycle_work",
+      now,
+      limit,
+    });
+  }
+  listExpiredLifecycleWork(now: string, limit = 100) {
+    return this.request<LifecycleWork[]>({
+      kind: "list_expired_lifecycle_work",
+      now,
+      limit,
+    });
+  }
+  claimLifecycleWork(input: ClaimLifecycleWorkInput) {
+    return this.request<LifecycleWork | undefined>(
+      { kind: "claim_lifecycle_work", input },
+      true,
+    );
+  }
+  settleLifecycleWork(input: SettleLifecycleWorkInput) {
+    return this.request<LifecycleWork | undefined>(
+      { kind: "settle_lifecycle_work", input },
+      true,
+    );
   }
 
   readRpcIdempotency<T>(scope: string, key: string, now = Date.now()) {

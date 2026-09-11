@@ -98,7 +98,7 @@ export function conversationActivityForRecord(input: {
       clearableFailure: true,
     };
   }
-  if (pending || waiting || input.agent?.status === "awaiting_user") {
+  if (pending) {
     return {
       indicator: "needs-user",
       tone: "warning",
@@ -106,7 +106,20 @@ export function conversationActivityForRecord(input: {
       label: "Needs user action",
       busy: false,
       needsUser: true,
-      source: pending ? "pending-input" : waiting ? "live-view" : "agent",
+      source: "pending-input",
+      clearableFailure: false,
+    };
+  }
+
+  if (waiting || input.agent?.status === "awaiting_user") {
+    return {
+      indicator: "error",
+      tone: "warning",
+      pulse: false,
+      label: "Refresh required",
+      busy: false,
+      needsUser: false,
+      source: waiting ? "live-view" : "agent",
       clearableFailure: false,
     };
   }

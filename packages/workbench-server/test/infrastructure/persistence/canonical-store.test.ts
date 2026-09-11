@@ -10,7 +10,10 @@ import {
   encode,
 } from "../../../src/infrastructure/persistence/canonical-sqlite/index.js";
 import {
+  CANONICAL_BASELINE_CHECKSUM,
   CANONICAL_BASELINE_NAME,
+  CANONICAL_BASELINE_VERSION,
+  CANONICAL_MIGRATIONS,
   CANONICAL_SCHEMA_CHECKSUM,
   CANONICAL_SCHEMA_SQL,
   CANONICAL_SCHEMA_VERSION,
@@ -23,7 +26,17 @@ test("canonical schema checksum matches the v1 baseline SQL", () => {
   );
 });
 
-test("fresh canonical stores create the complete v1 baseline directly", async (t) => {
+test("canonical migration checksums match their immutable SQL", () => {
+  for (const migration of CANONICAL_MIGRATIONS) {
+    assert.equal(
+      createHash("sha256").update(migration.sql).digest("hex"),
+      migration.checksum,
+      migration.name,
+    );
+  }
+});
+
+test("fresh canonical stores create the baseline and ordered migrations", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v1-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const path = join(home, "data", "nerve.sqlite");
@@ -38,7 +51,8 @@ test("fresh canonical stores create the complete v1 baseline directly", async (t
        WHERE name IN (
          'canonical_meta', 'permission_rules',
          'conversation_record_projections', 'tool_call_projections',
-         'rpc_idempotency'
+         'rpc_idempotency', 'lifecycle_work',
+         'lifecycle_command_receipts', 'reconciliation_operations'
        ) ORDER BY name`,
     )
     .all()
@@ -57,15 +71,23 @@ test("fresh canonical stores create the complete v1 baseline directly", async (t
 
   assert.deepEqual(objects, [
     "conversation_record_projections",
+    "lifecycle_command_receipts",
+    "lifecycle_work",
+    "reconciliation_operations",
     "rpc_idempotency",
     "tool_call_projections",
   ]);
   assert.deepEqual(migrations, [
     {
-      version: CANONICAL_SCHEMA_VERSION,
+      version: CANONICAL_BASELINE_VERSION,
       name: CANONICAL_BASELINE_NAME,
-      checksum: CANONICAL_SCHEMA_CHECKSUM,
+      checksum: CANONICAL_BASELINE_CHECKSUM,
     },
+    ...CANONICAL_MIGRATIONS.map(({ version, name, checksum }) => ({
+      version,
+      name,
+      checksum,
+    })),
   ]);
 });
 
@@ -104,7 +126,12 @@ test("current v1 stores reopen without changing data or migration history", asyn
     .all()
     .map((row) => ({ version: Number((row as { version: unknown }).version) }));
   database.close();
-  assert.deepEqual(versions, [{ version: 1 }]);
+  assert.deepEqual(
+    versions,
+    Array.from({ length: CANONICAL_SCHEMA_VERSION }, (_, index) => ({
+      version: index + 1,
+    })),
+  );
 });
 
 test("canonical documents use revision compare-and-swap", async (t) => {
@@ -214,9 +241,10 @@ test("unreleased canonical schema versions are refused", async (t) => {
   const database = new DatabaseSync(path);
   database
     .prepare(
-      `UPDATE schema_migrations SET version = 6, name = 'development-v6'`,
+      `UPDATE schema_migrations SET version = 6, name = 'development-v6'
+       WHERE version = ?`,
     )
-    .run();
+    .run(CANONICAL_SCHEMA_VERSION);
   database.close();
   const future = new CanonicalStore(path);
   await assert.rejects(future.initialize(), /schema 6 is unsupported/i);
@@ -252,13 +280,13 @@ test("v1 deletion index repair preserves data and ledger and prevents child scan
   seed
     .prepare("INSERT INTO schema_migrations VALUES (?, ?, ?, ?, ?)")
     .run(
-      CANONICAL_SCHEMA_VERSION,
+      CANONICAL_BASELINE_VERSION,
       CANONICAL_BASELINE_NAME,
-      CANONICAL_SCHEMA_CHECKSUM,
+      CANONICAL_BASELINE_CHECKSUM,
       123,
       456,
     );
-  const ledger = seed.prepare("SELECT * FROM schema_migrations").all();
+  let ledger: unknown[] | undefined;
   seed
     .prepare(`INSERT INTO domain_documents VALUES (
     'test', 'global', 'preserved', 1, 1, ?, 123, 123
@@ -275,10 +303,12 @@ test("v1 deletion index repair preserves data and ledger and prevents child scan
     await store.close();
     const database = new DatabaseSync(path);
     database.exec("PRAGMA foreign_keys = ON");
-    assert.deepEqual(
-      database.prepare("SELECT * FROM schema_migrations").all(),
-      ledger,
-    );
+    const actualLedger = database
+      .prepare("SELECT * FROM schema_migrations ORDER BY version")
+      .all();
+    if (ledger) assert.deepEqual(actualLedger, ledger);
+    else ledger = actualLedger;
+    assert.equal(actualLedger.length, CANONICAL_SCHEMA_VERSION);
     const plan = database
       .prepare(
         "EXPLAIN QUERY PLAN DELETE FROM conversation_records WHERE id = ?",
@@ -308,9 +338,9 @@ test("deletion index repair fails transactionally for an incorrectly named index
   seed
     .prepare("INSERT INTO schema_migrations VALUES (?, ?, ?, ?, ?)")
     .run(
-      CANONICAL_SCHEMA_VERSION,
+      CANONICAL_BASELINE_VERSION,
       CANONICAL_BASELINE_NAME,
-      CANONICAL_SCHEMA_CHECKSUM,
+      CANONICAL_BASELINE_CHECKSUM,
       123,
       0,
     );
@@ -336,7 +366,7 @@ test("deletion index repair fails transactionally for an incorrectly named index
   assert.equal(
     database.prepare("SELECT count(*) AS count FROM schema_migrations").get()
       ?.count,
-    1,
+    CANONICAL_SCHEMA_VERSION,
   );
   database.close();
 });

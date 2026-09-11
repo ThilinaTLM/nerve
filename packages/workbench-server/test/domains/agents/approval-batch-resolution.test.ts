@@ -75,8 +75,8 @@ test("startup recovery loads evicted terminal approval tool calls asynchronously
   } as unknown as ToolService;
   const runs = {
     listPendingApprovalInteractions: async () => batch.interactions,
-    approvalBatchForToolCall: async () => batch,
-    assertApprovalBatchContextUnchanged: async () => undefined,
+    recoverableApprovalBatchForToolCall: async () => batch,
+    assertApprovalBatchRecoveryContextUnchanged: async () => undefined,
     resolveInteractionBatchForToolCalls: async () => {
       resolutions += 1;
     },
@@ -140,8 +140,8 @@ for (const code of [
     } as unknown as ToolService;
     const runs = {
       listPendingApprovalInteractions: async () => batch.interactions,
-      approvalBatchForToolCall: async () => batch,
-      assertApprovalBatchContextUnchanged: async () => {
+      recoverableApprovalBatchForToolCall: async () => batch,
+      assertApprovalBatchRecoveryContextUnchanged: async () => {
         throw new ApplicationError(409, code, "stale");
       },
       cancelStaleApprovalBatch: async () => {
@@ -192,7 +192,11 @@ for (const code of [
 }
 
 test("startup recovery propagates unexpected context validation failures", async () => {
-  const decided = terminalToolCall("tool_decided");
+  const decided = {
+    ...terminalToolCall("tool_decided"),
+    status: "approved",
+    settledAt: undefined,
+  } as unknown as ToolCallRecord;
   const approval = {
     id: "approval_decided_0",
     toolCallId: decided.id,
@@ -215,8 +219,8 @@ test("startup recovery propagates unexpected context validation failures", async
     } as unknown as ToolService,
     runs: {
       listPendingApprovalInteractions: async () => batch.interactions,
-      approvalBatchForToolCall: async () => batch,
-      assertApprovalBatchContextUnchanged: async () => {
+      recoverableApprovalBatchForToolCall: async () => batch,
+      assertApprovalBatchRecoveryContextUnchanged: async () => {
         throw new Error("storage unavailable");
       },
     } as unknown as WorkbenchRunService,

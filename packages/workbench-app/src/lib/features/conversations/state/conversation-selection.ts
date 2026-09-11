@@ -1,4 +1,5 @@
 import { modelKey } from "$lib/presentation/utils/model";
+import { protocolRequest } from "@nervekit/protocol/adapters";
 import { fromConversationSnapshot } from "$lib/presentation/state";
 import {
   type AgentRecord,
@@ -9,6 +10,7 @@ import {
 } from "$lib/api";
 import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
 import { installEventCursors } from "$lib/application/event-routing/stream-cursors.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { stoppingAfterConversationSnapshot } from "$lib/features/conversations/state/conversation-terminal-state";
@@ -77,6 +79,32 @@ export async function applyActiveConversationSelection(
 }
 
 const conversationSnapshotRefreshes = new KeyedSingleFlight<string, void>();
+const conversationRecoveryRefreshes = new KeyedSingleFlight<string, void>();
+
+export function recoverAndRefreshConversation(
+  conversationId: string,
+): Promise<void> {
+  return conversationRecoveryRefreshes.run(conversationId, async () => {
+    const view = ensureConversationView(conversationId);
+    view.loading = true;
+    view.error = undefined;
+    try {
+      const requestId = crypto.randomUUID();
+      await protocolRequest(
+        "conversation.reconcile",
+        { conversationId, requestId },
+        { idempotencyKey: requestId },
+      );
+      await refreshConversationView(conversationId);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      view.error = message;
+      notify.error("Conversation recovery failed", { description: message });
+    } finally {
+      view.loading = false;
+    }
+  });
+}
 
 export function refreshConversationView(conversationId: string): Promise<void> {
   return conversationSnapshotRefreshes.run(conversationId, async () => {
