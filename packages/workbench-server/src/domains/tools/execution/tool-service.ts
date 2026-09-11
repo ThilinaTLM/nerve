@@ -272,7 +272,8 @@ export class ToolService {
       events: this.dependencies.events,
       getToolCall: (id) => this.getToolCall(id),
       listToolCalls: () => this.listToolCalls(),
-      updateToolCall: (id, patch) => this.updateToolCall(id, patch),
+      updateToolCall: (id, patch, commit) =>
+        this.updateToolCall(id, patch, commit),
       publishToolCallUpdated: (toolCall) =>
         this.publishToolCallUpdated(toolCall),
     });
@@ -873,6 +874,10 @@ export class ToolService {
 
   async resolveInteraction(
     request: ResolveToolInteractionRequest,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<ToolCallRecord> {
     const current = this.getToolCall(request.toolCallId);
     const interaction = current.interactions[request.interactionOrdinal];
@@ -911,28 +916,32 @@ export class ToolService {
       request.resolution.kind === "approval"
         ? request.resolution.note
         : undefined;
-    const next = await this.updateToolCall(current.id, {
-      interactions,
-      status: denied ? "denied" : "running",
-      ...(denied
-        ? {
-            error: denialNote ?? "Denied by user.",
-            supervision: current.supervision
-              ? {
-                  ...current.supervision,
-                  status: "denied" as const,
-                  source: "user" as const,
-                  decidedAt: now,
-                }
-              : undefined,
-            ...denialProjection(
-              current,
-              denialNote ?? "Denied by user.",
-              "user",
-            ),
-          }
-        : {}),
-    });
+    const next = await this.updateToolCall(
+      current.id,
+      {
+        interactions,
+        status: denied ? "denied" : "running",
+        ...(denied
+          ? {
+              error: denialNote ?? "Denied by user.",
+              supervision: current.supervision
+                ? {
+                    ...current.supervision,
+                    status: "denied" as const,
+                    source: "user" as const,
+                    decidedAt: now,
+                  }
+                : undefined,
+              ...denialProjection(
+                current,
+                denialNote ?? "Denied by user.",
+                "user",
+              ),
+            }
+          : {}),
+      },
+      commit,
+    );
     await this.publishToolCallUpdated(next);
     return next;
   }
@@ -941,11 +950,16 @@ export class ToolService {
     questionId: string,
     answer: string,
     resolutionRequestId?: string,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<UserQuestionRecord> {
     return this.interactionSessions.answerUserQuestion(
       questionId,
       answer,
       resolutionRequestId,
+      commit,
     );
   }
 
@@ -953,11 +967,16 @@ export class ToolService {
     questionId: string,
     reason?: string,
     resolutionRequestId?: string,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<UserQuestionRecord> {
     return this.interactionSessions.dismissUserQuestion(
       questionId,
       reason,
       resolutionRequestId,
+      commit,
     );
   }
 

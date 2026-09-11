@@ -24,6 +24,7 @@ test("repeated explicit reconciliation returns one durable operation result", as
         return 1;
       },
       recoverAcceptedPlanReviews: async () => 0,
+      recoverResolvedUserQuestions: async () => 0,
     },
     tools: {
       listToolCallPreviews: async () => [
@@ -68,6 +69,10 @@ test("startup and explicit refresh invoke the same recovery rules", async () => 
         scopes.push(conversationId);
         return 0;
       },
+      recoverResolvedUserQuestions: async (conversationId) => {
+        scopes.push(conversationId);
+        return 0;
+      },
     },
     tools: { listToolCallPreviews: async () => [] },
     conversationQuery: {
@@ -79,7 +84,14 @@ test("startup and explicit refresh invoke the same recovery rules", async () => 
 
   await service.reconcileStartup();
   await service.reconcileConversation("conv_test", "request_test");
-  assert.deepEqual(scopes, [undefined, undefined, "conv_test", "conv_test"]);
+  assert.deepEqual(scopes, [
+    undefined,
+    undefined,
+    undefined,
+    "conv_test",
+    "conv_test",
+    "conv_test",
+  ]);
 });
 
 function operationStore(operations: Map<string, TestOperation>) {

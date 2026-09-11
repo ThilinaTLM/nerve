@@ -9,6 +9,7 @@ import type {
 } from "@nervekit/contracts/agents";
 import type {
   ConversationEntry,
+  ConversationJournalEvent,
   ConversationRecord,
   CreateConversationRequest,
 } from "@nervekit/contracts/conversations";
@@ -431,6 +432,35 @@ export class HumanInputResolutionService {
     return repaired;
   }
 
+  async recoverResolvedUserQuestions(conversationId?: string): Promise<number> {
+    const questions = [
+      ...this.deps.tools.listUserQuestions("answered"),
+      ...this.deps.tools.listUserQuestions("dismissed"),
+    ];
+    let repaired = 0;
+    for (const question of questions) {
+      if (conversationId && question.conversationId !== conversationId) {
+        continue;
+      }
+      const toolCall = await this.deps.tools.getToolCallDetails(
+        question.toolCallId,
+      );
+      if (!toolCall.runId) continue;
+      const state = await this.deps.runs.interactionResolutionStateForToolCall(
+        toolCall.id,
+        toolCall.runId,
+      );
+      if (state !== "pending") continue;
+      await this.resolveSuspensionForToolCall(
+        toolCall.id,
+        this.deps.tools.userQuestionResult(question),
+        { continueAgent: true, finalSuspensionStatus: "resumed" },
+      );
+      repaired += 1;
+    }
+    return repaired;
+  }
+
   async answerUserQuestion(
     questionId: string,
     answer: string,
@@ -448,6 +478,12 @@ export class HumanInputResolutionService {
         questionId,
         answer,
         resolutionRequestId,
+        this.interactionLifecycleCommit(
+          pendingQuestion,
+          "answer",
+          { answer },
+          resolutionRequestId,
+        ),
       );
       await this.resolveSuspensionForToolCall(
         question.toolCallId,
@@ -481,6 +517,12 @@ export class HumanInputResolutionService {
         questionId,
         reason,
         resolutionRequestId,
+        this.interactionLifecycleCommit(
+          pendingQuestion,
+          "dismiss",
+          { reason },
+          resolutionRequestId,
+        ),
       );
       await this.resolveSuspensionForToolCall(
         question.toolCallId,
@@ -495,6 +537,57 @@ export class HumanInputResolutionService {
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+
+  private interactionLifecycleCommit(
+    question: UserQuestionRecord & { runId?: string },
+    action: "answer" | "dismiss",
+    resolution: Record<string, unknown>,
+    resolutionRequestId?: string,
+  ):
+    | ((
+        next: ToolCallRecord,
+        events: ConversationJournalEvent[],
+      ) => Promise<void>)
+    | undefined {
+    const lifecycle = this.deps.lifecycle;
+    if (!lifecycle) return undefined;
+    const requestId =
+      resolutionRequestId ?? `question:${question.id}:${action}`;
+    const inputHash = `sha256:${createHash("sha256")
+      .update(JSON.stringify({ questionId: question.id, action, resolution }))
+      .digest("hex")}`;
+    return async (next, events) => {
+      const timestamp = new Date().toISOString();
+      const workHash = createHash("sha256")
+        .update(`${next.id}:${requestId}`)
+        .digest("hex");
+      await lifecycle.commit({
+        conversationId: next.conversationId,
+        requestId,
+        inputHash,
+        kind: "run.question_resolved",
+        events,
+        work: [
+          {
+            id: `work_${workHash.slice(0, 24)}`,
+            deduplicationKey: `question:${question.id}:${requestId}`,
+            conversationId: next.conversationId,
+            ...(question.runId ? { runId: question.runId } : {}),
+            proposalId: next.id,
+            kind: "reconcile_conversation",
+            state: "ready",
+            inputHash,
+            generation: 0,
+            attemptCount: 0,
+            notBefore: timestamp,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+        outcome: { questionId: question.id, action },
+      });
+    };
   }
 
   private pendingQuestion(questionId: string): UserQuestionRecord & {

@@ -662,6 +662,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       reconcile_conversation: async (work) => {
         if (work.runId) {
           await humanInput.recoverReadyApprovalBatches(work.conversationId);
+          await humanInput.recoverResolvedUserQuestions(work.conversationId);
         } else if (work.proposalId) {
           const approval = await tools.getApprovalForToolCallDetails(
             work.proposalId,

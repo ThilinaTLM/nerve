@@ -18,6 +18,7 @@ export interface RunReconciliationDependencies {
   humanInput: {
     recoverReadyApprovalBatches(conversationId?: string): Promise<number>;
     recoverAcceptedPlanReviews(conversationId?: string): Promise<number>;
+    recoverResolvedUserQuestions(conversationId?: string): Promise<number>;
   };
   tools: {
     listToolCallPreviews(query: {
@@ -131,6 +132,8 @@ export class RunReconciliationService {
   ): Promise<ReconcileConversationResult | undefined> {
     const repairedApprovals =
       await this.deps.humanInput.recoverReadyApprovalBatches(conversationId);
+    const repairedQuestions =
+      await this.deps.humanInput.recoverResolvedUserQuestions(conversationId);
     const repairedPlans =
       await this.deps.humanInput.recoverAcceptedPlanReviews(conversationId);
     if (!conversationId || !operationId) return;
@@ -144,7 +147,7 @@ export class RunReconciliationService {
     return reconcileConversationResultSchema.parse({
       operationId,
       status: "completed",
-      changed: repairedApprovals + repairedPlans > 0,
+      changed: repairedApprovals + repairedQuestions + repairedPlans > 0,
       observedRevision: snapshot.conversationRevision,
       preservedInputs: pending.reduce(
         (count, toolCall) =>
@@ -154,7 +157,8 @@ export class RunReconciliationService {
           ).length,
         0,
       ),
-      repairedTransitions: repairedApprovals + repairedPlans,
+      repairedTransitions:
+        repairedApprovals + repairedQuestions + repairedPlans,
       requeuedWork: 0,
       unknownOutcomes: 0,
       recoveryIssues: [],
