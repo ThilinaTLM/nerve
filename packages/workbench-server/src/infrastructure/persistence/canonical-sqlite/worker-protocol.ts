@@ -5,6 +5,7 @@ import type {
   ClaimLifecycleWorkInput,
   LifecycleAtomicCommitInput,
   ReconciliationOperationRecord,
+  RequeueLifecycleWorkInput,
   RenewLifecycleWorkInput,
   SettleLifecycleWorkInput,
 } from "./lifecycle-work-database.js";
@@ -25,9 +26,11 @@ export type CanonicalCommand =
   | { kind: "list_expired_lifecycle_work"; now: string; limit: number }
   | { kind: "claim_lifecycle_work"; input: ClaimLifecycleWorkInput }
   | { kind: "renew_lifecycle_work"; input: RenewLifecycleWorkInput }
+  | { kind: "requeue_lifecycle_work"; input: RequeueLifecycleWorkInput }
   | { kind: "settle_lifecycle_work"; input: SettleLifecycleWorkInput }
   | { kind: "persist_recovery_issue"; issue: RecoveryIssue }
   | { kind: "list_recovery_issues"; conversationId: string }
+  | { kind: "resolve_recovery_issues_for_run"; runId: string; now: string }
   | {
       kind: "read_lifecycle_command_receipt";
       scopeId: string;

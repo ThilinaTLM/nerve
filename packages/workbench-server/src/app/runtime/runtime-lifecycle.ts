@@ -123,6 +123,7 @@ export class RuntimeLifecycle {
       recoverHumanInput: async () => {
         await this.services.runReconciliation.reconcileStartup();
         await this.services.lifecycleDispatcher.wake();
+        this.services.lifecycleDispatcher.startPolling();
       },
       rebuildProjector: async () => {
         const activeStates =
@@ -163,11 +164,13 @@ export class RuntimeLifecycle {
    */
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
+    this.services.lifecycleDispatcher.stopPolling();
     this.services.gitRepositoryWatcher.close();
     this.services.projectFilesystemWatcher.close();
     await this.services.tasks.shutdown();
     this.services.taskNotifications.stop();
     await Promise.allSettled([...this.backgroundOperations]);
+    await this.services.lifecycleDispatcher.settled();
     await this.services.runRuntime.coordinator.settled();
     await this.services.runRuntime.delivery.settled();
     await this.events.settled();

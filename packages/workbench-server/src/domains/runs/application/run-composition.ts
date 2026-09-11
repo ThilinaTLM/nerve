@@ -54,6 +54,8 @@ export function createWorkbenchRunRuntime(input: {
     | WorkbenchRunExecutionAdapter
     | ((references: WorkbenchRunReferences) => WorkbenchRunExecutionAdapter);
   logger?: ApplicationLogger;
+  wakeLifecycleWork?(): Promise<void>;
+  durableContinuation?: boolean;
   retryPolicy: {
     readonly enabled: boolean;
     readonly maxRetries: number;
@@ -108,6 +110,8 @@ export function createWorkbenchRunRuntime(input: {
     publisher,
     notify,
     retryPolicy: input.retryPolicy,
+    wakeLifecycleWork: input.wakeLifecycleWork,
+    durableContinuation: input.durableContinuation,
     transitionObserver: projector,
     diagnostics: diagnostics(input.logger),
   });

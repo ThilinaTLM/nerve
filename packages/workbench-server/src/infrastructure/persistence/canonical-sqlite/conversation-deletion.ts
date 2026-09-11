@@ -6,6 +6,11 @@ const phases = [
   "parent_links",
   "record_projections",
   "tool_projections",
+  "lifecycle_issues",
+  "lifecycle_work",
+  "reconciliation_operations",
+  "lifecycle_receipts",
+  "lifecycle_runs",
   "records",
   "snapshots",
   "journal_heads",
@@ -72,6 +77,10 @@ export function deleteConversationChunk(
       leaves: "agent_context_leaves",
       record_projections: "conversation_record_projections",
       tool_projections: "tool_call_projections",
+      lifecycle_issues: "lifecycle_recovery_issues",
+      lifecycle_work: "lifecycle_work",
+      reconciliation_operations: "reconciliation_operations",
+      lifecycle_runs: "run_lifecycle_records",
       records: "conversation_records",
     } as const;
     if (
@@ -79,6 +88,10 @@ export function deleteConversationChunk(
       phase === "leaves" ||
       phase === "record_projections" ||
       phase === "tool_projections" ||
+      phase === "lifecycle_issues" ||
+      phase === "lifecycle_work" ||
+      phase === "reconciliation_operations" ||
+      phase === "lifecycle_runs" ||
       phase === "records"
     ) {
       const table = tables[phase as keyof typeof tables];
@@ -88,6 +101,17 @@ export function deleteConversationChunk(
         SELECT rowid FROM ${table} WHERE conversation_id = ? LIMIT ?
       )`)
           .run(conversationId, limit).changes,
+      );
+    } else if (phase === "lifecycle_receipts") {
+      removed = Number(
+        database
+          .prepare(`DELETE FROM lifecycle_command_receipts WHERE rowid IN (
+        SELECT receipt.rowid FROM lifecycle_command_receipts receipt
+        WHERE receipt.scope_id = ? OR receipt.scope_id IN (
+          SELECT run_id FROM run_lifecycle_records WHERE conversation_id = ?
+        ) LIMIT ?
+      )`)
+          .run(conversationId, conversationId, limit).changes,
       );
     } else if (phase === "metadata") {
       removed = Number(

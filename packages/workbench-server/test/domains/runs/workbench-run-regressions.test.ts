@@ -710,6 +710,7 @@ describe("workbench coordinator behavior regressions", () => {
         ...input,
         id: String(input.id),
       }),
+      getConversationEntries: async () => [],
       harnessStorage: {
         appendAgentMessage: async () => ({
           id: "entry_plan_result",

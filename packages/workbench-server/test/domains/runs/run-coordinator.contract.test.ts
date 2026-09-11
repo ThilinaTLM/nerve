@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   RUN_FAILURE_MESSAGE_MAX_LENGTH,
+  type LifecycleWork,
   type RunEventDeliveryRecord,
   type RunPublicEventIntent,
   type RunRecord,
@@ -29,6 +30,7 @@ class MemoryUnitOfWork implements RunUnitOfWorkPort {
   transitions = new Map<string, RunTransitionRecord[]>();
   deliveries = new Map<string, RunEventDeliveryRecord[]>();
   materializeFailure?: Error;
+  lifecycleWork: LifecycleWork[] = [];
 
   async load(runId: string): Promise<RunHydratedState | undefined> {
     return reduceRunTransitions(
@@ -68,9 +70,14 @@ class MemoryUnitOfWork implements RunUnitOfWorkPort {
       await Promise.all([...this.transitions.keys()].map((id) => this.load(id)))
     ).filter((item): item is RunHydratedState => Boolean(item));
   }
-  async commit(expectedRevision: number, transition: RunTransitionRecord) {
+  async commit(
+    expectedRevision: number,
+    transition: RunTransitionRecord,
+    lifecycleWork: readonly LifecycleWork[] = [],
+  ) {
     const current = await this.load(transition.runId);
     assert.equal(current?.run.revision ?? 0, expectedRevision);
+    this.lifecycleWork.push(...structuredClone(lifecycleWork));
     const committed = structuredClone(transition);
     const next = applyRunTransition(current, committed);
     this.transitions.set(transition.runId, [
@@ -134,6 +141,7 @@ function fixture(
     retryDelay?: (delayMs: number, signal: AbortSignal) => Promise<void>;
     removeQueuedPrompt?: (promptId: string) => boolean | Promise<boolean>;
     terminalizationFails?: boolean;
+    durableContinuation?: boolean;
   } = {},
 ) {
   const unitOfWork = new MemoryUnitOfWork();
@@ -152,6 +160,7 @@ function fixture(
   const executionInputs: Parameters<RunExecution["execute"]>[0][] = [];
   const observed: RunTransitionRecord[] = [];
   const terminalized: RunRecord[] = [];
+  let lifecycleWakes = 0;
   let id = 0;
   let finishExecution!: (value: { status: "completed" }) => void;
   const executeResult = new Promise<{ status: "completed" }>((resolve) => {
@@ -180,6 +189,10 @@ function fixture(
   );
   const coordinator = new RunCoordinator({
     unitOfWork,
+    durableContinuation: options.durableContinuation,
+    wakeLifecycleWork: async () => {
+      lifecycleWakes += 1;
+    },
     sourceRole: options.sourceRole ?? "workbench_server",
     notify: { publish: (event) => notifyEvents.push(event) },
     execution: {
@@ -297,6 +310,9 @@ function fixture(
     executionInputs,
     observed,
     terminalized,
+    get lifecycleWakes() {
+      return lifecycleWakes;
+    },
     finishExecution,
     flushEvents: () => delivery.flush(),
     setTranscript(value: typeof transcript) {
@@ -1294,6 +1310,44 @@ test("resolves an interaction once and rejects conflicting resolution", async ()
   assert.deepEqual(
     state?.transitions.at(-1)?.events.map((event) => event.type),
     ["run.resumed"],
+  );
+});
+
+test("atomically queues durable model continuation when input resolves", async () => {
+  const harness = fixture({ durableContinuation: true });
+  const run = await start(harness.coordinator);
+  assert.equal(harness.unitOfWork.lifecycleWork.length, 1);
+  assert.equal(
+    harness.unitOfWork.lifecycleWork[0]?.modelRequest?.command,
+    "start",
+  );
+  assert.deepEqual(harness.executionInputs, []);
+  const interaction = await harness.coordinator.wait(run.runId, {
+    kind: "user_input",
+    toolCallId: "tool_durable_question",
+    interactionOrdinal: 0,
+    toolCallRevision: 1,
+    prompt: "Choose",
+    required: true,
+    checkpoint: suspensionCheckpoint(),
+  });
+
+  await harness.coordinator.resolveInteraction(run.runId, {
+    interactionId: interaction.id,
+    resolutionRequestId: "request_durable",
+    resolution: { answer: "yes" },
+  });
+
+  assert.equal(harness.unitOfWork.lifecycleWork.length, 2);
+  const continuation = harness.unitOfWork.lifecycleWork.at(-1);
+  assert.equal(continuation?.kind, "continue_model");
+  assert.equal(continuation?.modelRequest?.command, "continue");
+  assert.equal(continuation?.runId, run.runId);
+  assert.equal(harness.lifecycleWakes, 2);
+  assert.deepEqual(harness.controlContinues, []);
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "suspended",
   );
 });
 

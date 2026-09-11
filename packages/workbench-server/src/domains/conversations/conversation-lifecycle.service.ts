@@ -45,9 +45,19 @@ export class ConversationLifecycleService {
 
   async createConversation(
     request: CreateConversationRequest,
+    options: { id?: string } = {},
   ): Promise<ConversationRecord> {
     this.state.maintenanceScopes.assertProject(request.projectId);
     const project = this.state.getProject(request.projectId);
+    if (options.id) {
+      const existing = this.state.conversations.get(options.id);
+      if (existing) {
+        if (existing.projectId !== request.projectId) {
+          throw new Error(`Conversation identity conflict: ${options.id}`);
+        }
+        return existing;
+      }
+    }
     const now = new Date().toISOString();
     const effectiveSettings = await resolveProjectSettings(
       this.storage,
@@ -60,7 +70,7 @@ export class ConversationLifecycleService {
           permissionLevel: effectiveSettings.defaultPermissionLevel,
         };
     const conversation: ConversationRecord = {
-      id: createId("conv"),
+      id: options.id ?? createId("conv"),
       projectId: project.id,
       title: request.title ?? "New Conversation",
       mode: request.mode ?? defaultSelection.mode,

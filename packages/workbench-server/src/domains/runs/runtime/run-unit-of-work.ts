@@ -2,6 +2,7 @@ import type {
   RunCheckpointRecord,
   RunEventDeliveryRecord,
   RunInteractionRecord,
+  LifecycleWork,
   RunPromptRecord,
   RunPublicEventIntent,
   RunRecord,
@@ -73,6 +74,7 @@ export interface RunUnitOfWorkPort {
   commit(
     expectedRevision: number,
     transition: RunTransitionRecord,
+    lifecycleWork?: readonly LifecycleWork[],
   ): Promise<RunHydratedState>;
   pendingEventIntents(): Promise<
     readonly {

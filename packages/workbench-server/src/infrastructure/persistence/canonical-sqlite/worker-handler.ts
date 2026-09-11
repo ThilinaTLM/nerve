@@ -23,12 +23,19 @@ export function executeCanonicalCommand(
       return database.lifecycle.claim(command.input);
     case "renew_lifecycle_work":
       return database.lifecycle.renew(command.input);
+    case "requeue_lifecycle_work":
+      return database.lifecycle.requeue(command.input);
     case "settle_lifecycle_work":
       return database.lifecycle.settle(command.input);
     case "persist_recovery_issue":
       return database.lifecycle.persistRecoveryIssue(command.issue);
     case "list_recovery_issues":
       return database.lifecycle.listRecoveryIssues(command.conversationId);
+    case "resolve_recovery_issues_for_run":
+      return database.lifecycle.resolveRecoveryIssuesForRun(
+        command.runId,
+        command.now,
+      );
     case "read_lifecycle_command_receipt":
       return database.lifecycle.readCommandReceipt(
         command.scopeId,

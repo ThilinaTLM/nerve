@@ -44,6 +44,7 @@ let {
   activeRun,
   transient,
   queuedPrompts = [],
+  recoveryIssues = [],
   sending = false,
   stopping: stoppingRequested = false,
   composerText = "",
@@ -255,6 +256,13 @@ function menuForTranscript(
     planReviewModels,
     planReviewModelKey,
     planReviewThinkingLevel,
+    banner: recoveryIssues.length
+      ? {
+          tone: "warning",
+          title: "Recovery needs review",
+          message: `${recoveryIssues.length} external operation outcome${recoveryIssues.length === 1 ? " is" : "s are"} unknown. Nerve did not repeat the operation. Inspect the transcript, then cancel or explicitly authorize another attempt.`,
+        }
+      : undefined,
     emptyTitle: "Open a conversation or start a new one.",
     composer: {
       text: composerText,

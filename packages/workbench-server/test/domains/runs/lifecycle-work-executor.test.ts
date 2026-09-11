@@ -53,6 +53,49 @@ test("an unclassified tool execution failure becomes outcome_unknown", async () 
   ]);
 });
 
+test("an unclassified non-replayable provider failure becomes outcome_unknown", async () => {
+  let settledState: string | undefined;
+  let reportedUnknown = false;
+  const modelWork: LifecycleWork = {
+    ...ready,
+    id: "work_model",
+    proposalId: undefined,
+    kind: "continue_model",
+    modelRequest: {
+      command: "continue",
+      replayCapability: "non_replayable",
+    },
+  };
+  const executor = new LifecycleWorkExecutor({
+    bootId: "boot_test",
+    now: () => now,
+    onOutcomeUnknown: () => {
+      reportedUnknown = true;
+    },
+    store: {
+      claimLifecycleWork: async () => ({
+        ...modelWork,
+        state: "leased",
+        generation: 1,
+        attemptCount: 1,
+        leaseOwner: "boot_test",
+        leaseDeadline: "2026-01-01T00:00:30.000Z",
+      }),
+      renewLifecycleWork: async () => undefined,
+      settleLifecycleWork: async (input) => {
+        settledState = input.state;
+        return { ...modelWork, state: input.state };
+      },
+    },
+  });
+
+  await executor.execute(modelWork, async () => {
+    throw new Error("response received but settlement failed");
+  });
+  assert.equal(settledState, "outcome_unknown");
+  assert.equal(reportedUnknown, true);
+});
+
 test("a stale fenced settlement is reported as lost ownership", async () => {
   let leaseLosses = 0;
   const executor = new LifecycleWorkExecutor({

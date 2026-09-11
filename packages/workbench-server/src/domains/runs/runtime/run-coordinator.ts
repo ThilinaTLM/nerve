@@ -2,6 +2,7 @@
 import type { PeerRole } from "@nervekit/contracts/wire";
 import type { PromptImage } from "@nervekit/contracts/agents";
 import type {
+  LifecycleWork,
   RunCheckpointRecord,
   RunFailureRecord,
   RunInteractionRecord,
@@ -87,6 +88,8 @@ export interface RunCoordinatorPorts {
   retryPolicy?: RunRetryPolicyPort;
   retryDelay?(delayMs: number, signal: AbortSignal): Promise<void>;
   transitionObserver?: RunTransitionObserverPort;
+  wakeLifecycleWork?(): Promise<void>;
+  durableContinuation?: boolean;
 }
 
 const CANCELLATION_TARGET_DEADLINE_MS = 2_000;
@@ -155,6 +158,7 @@ export class RunCoordinator {
       continueLive: async (runId) => {
         await this.live.get(runId)?.execution.control.continue();
       },
+      durableContinuation: ports.durableContinuation,
       cancelLive: async (runId, reason) => {
         const live = this.live.get(runId);
         if (!live) return;
@@ -183,25 +187,27 @@ export class RunCoordinator {
       }
       const now = this.now();
       const run = newRun(command, scopeId, now, this.ports.ids);
-      let execution: RunExecution;
-      try {
-        execution = await this.ports.execution.create(
-          run,
-          this.sink(run.runId),
-        );
-      } catch (error) {
-        const failed = {
-          ...run,
-          status: "failed" as const,
-          recoverability: "retryable" as const,
-          failure: failure("RUN_CONSTRUCTION_FAILED", error, true),
-          terminalAt: now,
-        };
-        await this.commit(undefined, failed, "construction_failed", {
-          execution: executionRecord(failed, "failed", now),
-          events: [this.events.failed(failed, now, false)],
-        });
-        return failed;
+      let execution: RunExecution | undefined;
+      if (!this.ports.durableContinuation) {
+        try {
+          execution = await this.ports.execution.create(
+            run,
+            this.sink(run.runId),
+          );
+        } catch (error) {
+          const failed = {
+            ...run,
+            status: "failed" as const,
+            recoverability: "retryable" as const,
+            failure: failure("RUN_CONSTRUCTION_FAILED", error, true),
+            terminalAt: now,
+          };
+          await this.commit(undefined, failed, "construction_failed", {
+            execution: executionRecord(failed, "failed", now),
+            events: [this.events.failed(failed, now, false)],
+          });
+          return failed;
+        }
       }
       const running = {
         ...run,
@@ -211,8 +217,29 @@ export class RunCoordinator {
       await this.commit(undefined, running, "started", {
         execution: executionRecord(running, "streaming", now),
         events: [this.events.started(running, now)],
+        ...(this.ports.durableContinuation
+          ? {
+              lifecycleWork: [
+                this.modelWork(
+                  running,
+                  now,
+                  "start",
+                  command.prompt,
+                  command.images,
+                ),
+              ],
+            }
+          : {}),
       });
-      this.launch(running, execution, "start", command.prompt, command.images);
+      if (execution) {
+        this.launch(
+          running,
+          execution,
+          "start",
+          command.prompt,
+          command.images,
+        );
+      }
       return running;
     });
   }
@@ -305,6 +332,105 @@ export class RunCoordinator {
       this.launch(next, execution, "continue");
       return next;
     });
+  }
+
+  async scheduleContinuation(runId: string): Promise<RunRecord> {
+    if (!this.ports.durableContinuation) return this.continue(runId);
+    return this.exclusive(`run:${runId}`, async () => {
+      const state = await this.require(runId);
+      if (state.interactions.some((item) => item.status === "pending")) {
+        throw new InvalidRunStateError(
+          "All interactions must be resolved before continuation",
+        );
+      }
+      if (
+        state.run.status !== "suspended" &&
+        state.run.status !== "interrupted"
+      ) {
+        throw invalid(state.run, "schedule continuation");
+      }
+      await assertCheckpoint(
+        state,
+        this.ports.references,
+        this.ports.integrity,
+      );
+      const now = this.now();
+      const next = revise(state.run, {}, now);
+      await this.commit(state, next, "continuation_scheduled", {
+        lifecycleWork: [this.modelWork(next, now, "continue")],
+      });
+      return next;
+    });
+  }
+
+  async continueAndWait(runId: string): Promise<RunRecord> {
+    const run = await this.continue(runId);
+    await this.live.get(runId)?.promise;
+    return run;
+  }
+
+  async executeModelWork(work: LifecycleWork): Promise<void> {
+    if (!work.runId || !work.modelRequest) {
+      throw new InvalidRunStateError(
+        "Model work is missing its durable request",
+      );
+    }
+    if (work.modelRequest.command === "continue") {
+      const continuationState = await this.require(work.runId);
+      if (continuationState.run.status !== "retrying") {
+        await this.continueAndWait(work.runId);
+        return;
+      }
+      let retryExecution: RunExecution;
+      try {
+        retryExecution = await this.ports.execution.create(
+          continuationState.run,
+          this.sink(continuationState.run.runId),
+        );
+      } catch (error) {
+        await this.fail(
+          continuationState.run.runId,
+          continuationState.run.executionId,
+          failure("RUN_CONSTRUCTION_FAILED", error, true),
+          new AbortController().signal,
+        );
+        return;
+      }
+      await this.launch(continuationState.run, retryExecution, "continue");
+      return;
+    }
+    const state = await this.require(work.runId);
+    if (
+      TERMINAL_STATUSES.has(state.run.status) ||
+      state.run.status === "waiting"
+    ) {
+      return;
+    }
+    if (state.run.status !== "running") {
+      throw invalid(state.run, "execute model work");
+    }
+    let execution: RunExecution;
+    try {
+      execution = await this.ports.execution.create(
+        state.run,
+        this.sink(state.run.runId),
+      );
+    } catch (error) {
+      await this.fail(
+        state.run.runId,
+        state.run.executionId,
+        failure("RUN_CONSTRUCTION_FAILED", error, true),
+        new AbortController().signal,
+      );
+      return;
+    }
+    await this.launch(
+      state.run,
+      execution,
+      "start",
+      work.modelRequest.prompt,
+      work.modelRequest.images,
+    );
   }
 
   async checkpoint(
@@ -640,13 +766,52 @@ export class RunCoordinator {
     });
   }
 
+  private modelWork(
+    run: RunRecord,
+    now: string,
+    command: "start" | "continue",
+    prompt?: string,
+    images?: PromptImage[],
+    notBefore = now,
+  ): LifecycleWork {
+    const identity = {
+      runId: run.runId,
+      executionId: run.executionId,
+      revision: run.revision,
+      command,
+    };
+    return {
+      id: `work_${this.ports.ids.next()}`,
+      deduplicationKey: `${run.runId}:continue_model:${run.revision}`,
+      conversationId: run.conversationId,
+      runId: run.runId,
+      kind: "continue_model",
+      state: "ready",
+      inputHash: this.ports.integrity.checksum(identity),
+      generation: 0,
+      attemptCount: 0,
+      notBefore,
+      modelRequest:
+        command === "start"
+          ? {
+              command,
+              prompt: prompt!,
+              ...(images?.length ? { images } : {}),
+              replayCapability: "non_replayable",
+            }
+          : { command, replayCapability: "non_replayable" },
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
   private launch(
     run: RunRecord,
     execution: RunExecution,
     command: "start" | "continue",
     prompt?: string,
     images?: PromptImage[],
-  ): void {
+  ): Promise<void> {
     const abort = new AbortController();
     const promise = (async () => {
       try {
@@ -694,6 +859,7 @@ export class RunCoordinator {
               runId: run.runId,
               error: errorMessage(settlementError),
             });
+            throw settlementError;
           }
         }
       } finally {
@@ -707,6 +873,7 @@ export class RunCoordinator {
       () => this.pendingExecutions.delete(promise),
     );
     this.live.set(run.runId, { execution, abort, promise });
+    return promise;
   }
 
   private async complete(
@@ -775,6 +942,20 @@ export class RunCoordinator {
         );
         await this.commit(state, retrying, "retrying", {
           execution: executionRecord(retrying, "starting", now),
+          ...(this.ports.durableContinuation
+            ? {
+                lifecycleWork: [
+                  this.modelWork(
+                    retrying,
+                    now,
+                    "continue",
+                    undefined,
+                    undefined,
+                    new Date(Date.parse(now) + decision.delayMs).toISOString(),
+                  ),
+                ],
+              }
+            : {}),
           events: [
             this.events.retrying(retrying, now, {
               attempt: decision.retryAttempt,
@@ -810,7 +991,7 @@ export class RunCoordinator {
       );
       return undefined;
     });
-    if (!retryRun) return;
+    if (!retryRun || this.ports.durableContinuation) return;
     try {
       await (this.ports.retryDelay ?? cancellableRetryDelay)(
         retryRun.delayMs,
@@ -881,7 +1062,17 @@ export class RunCoordinator {
       const committed = await this.ports.unitOfWork.commit(
         expectedRevision,
         transition,
+        changes.lifecycleWork,
       );
+      if (changes.lifecycleWork?.length) {
+        void this.ports.wakeLifecycleWork?.().catch((error) => {
+          this.ports.diagnostics?.warn("lifecycle work wake deferred", {
+            runId: run.runId,
+            revision: transition.revision,
+            error: errorMessage(error),
+          });
+        });
+      }
       try {
         await this.ports.transitionObserver?.committed(transition);
       } catch (error) {

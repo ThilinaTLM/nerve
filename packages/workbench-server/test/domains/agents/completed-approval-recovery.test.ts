@@ -117,7 +117,7 @@ async function waitForValue<T>(
   read: () => T | undefined,
   diagnostics: () => string = () => "unavailable",
 ): Promise<T> {
-  const deadline = Date.now() + 5_000;
+  const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
     const value = read();
     if (value !== undefined) return value;

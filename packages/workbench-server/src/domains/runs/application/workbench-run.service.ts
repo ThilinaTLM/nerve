@@ -29,6 +29,7 @@ export interface WorkbenchRunFeatureMechanics {
   activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]>;
   getContextUsage(conversationId: string): Promise<ContextUsage>;
   getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
+  resolveRecoveryIssuesForRun?(runId: string): Promise<unknown>;
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
@@ -173,7 +174,7 @@ export class WorkbenchRunService {
 
   async continueAgent(agentId: string): Promise<void> {
     const state = await this.requireCurrentRun(agentId);
-    await this.coordinator.continue(state.run.runId);
+    await this.coordinator.scheduleContinuation(state.run.runId);
   }
 
   async continueRun(agentId: string, runId: string): Promise<void> {
@@ -184,7 +185,8 @@ export class WorkbenchRunService {
     }
     this.state.maintenanceScopes.assertConversation(agent.conversationId);
     this.state.maintenanceScopes.assertProject(agent.projectId);
-    await this.coordinator.continue(runId);
+    await this.coordinator.scheduleContinuation(runId);
+    await this.features.resolveRecoveryIssuesForRun?.(runId);
   }
 
   async abortRun(input: {
@@ -211,6 +213,7 @@ export class WorkbenchRunService {
       state.run.runId,
       input.reason ?? "user requested abort",
     );
+    await this.features.resolveRecoveryIssuesForRun?.(state.run.runId);
   }
 
   async abortAgent(agentId: string): Promise<void> {
@@ -493,7 +496,6 @@ export class WorkbenchRunService {
     } else {
       await this.coordinator.resolveInteraction(first.runId, commands[0]!);
     }
-    await this.coordinator.continue(first.runId);
   }
 
   async resolveInteractionForToolCall(input: {
@@ -541,24 +543,10 @@ export class WorkbenchRunService {
       );
       return;
     }
-    const resolved = await this.coordinator.resolveInteraction(
-      state.run.runId,
-      command,
-      {
-        entries,
-        toolCalls: [...(input.toolCalls ?? [])],
-      },
-    );
-    if (input.continueRun) {
-      const latest = await this.unitOfWork.load(state.run.runId);
-      const hasPendingSibling = latest?.interactions.some(
-        (candidate) =>
-          candidate.id !== resolved.id &&
-          candidate.checkpointId === resolved.checkpointId &&
-          candidate.status === "pending",
-      );
-      if (!hasPendingSibling) await this.coordinator.continue(state.run.runId);
-    }
+    await this.coordinator.resolveInteraction(state.run.runId, command, {
+      entries,
+      toolCalls: [...(input.toolCalls ?? [])],
+    });
   }
 
   getContextUsage(conversationId: string): Promise<ContextUsage> {

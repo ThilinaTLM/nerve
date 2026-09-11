@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -57,6 +57,8 @@ try {
   database.close();
 
   const started = performance.now();
+  const claimLatencies: number[] = [];
+  const settlementLatencies: number[] = [];
   let completed = 0;
   while (completed < count) {
     const due = await store.listDueLifecycleWork(
@@ -64,6 +66,7 @@ try {
       Math.min(64, count - completed),
     );
     for (const candidate of due) {
+      const claimStarted = performance.now();
       const work = await store.claimLifecycleWork({
         workId: candidate.id,
         expectedGeneration: candidate.generation,
@@ -71,7 +74,9 @@ try {
         now: "2026-01-01T00:00:00.000Z",
         leaseDeadline: "2026-01-01T00:01:00.000Z",
       });
+      claimLatencies.push(performance.now() - claimStarted);
       if (!work) continue;
+      const settlementStarted = performance.now();
       await store.settleLifecycleWork({
         workId: work.id,
         expectedGeneration: work.generation,
@@ -79,6 +84,7 @@ try {
         state: "succeeded",
         now: "2026-01-01T00:00:01.000Z",
       });
+      settlementLatencies.push(performance.now() - settlementStarted);
       completed += 1;
     }
   }
@@ -88,6 +94,11 @@ try {
     durationMs,
     operationsPerSecond: (count / durationMs) * 1_000,
     averageClaimAndSettleMs: durationMs / count,
+    claimP95Ms: percentile(claimLatencies, 0.95),
+    settlementP95Ms: percentile(settlementLatencies, 0.95),
+    walBytes: await stat(`${databasePath}-wal`)
+      .then((value) => value.size)
+      .catch(() => 0),
   };
   const artifactDir =
     process.env.NERVE_BENCHMARK_ARTIFACT_DIR ??
@@ -101,4 +112,9 @@ try {
 } finally {
   await store.close().catch(() => undefined);
   await rm(home, { recursive: true, force: true });
+}
+
+function percentile(values: readonly number[], ratio: number): number {
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.max(0, Math.ceil(sorted.length * ratio) - 1)] ?? 0;
 }

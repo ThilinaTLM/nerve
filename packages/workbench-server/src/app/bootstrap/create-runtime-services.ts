@@ -157,7 +157,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
   ) => projectLifecycle.createProject(request);
   const createConversation = (
     request: Parameters<ConversationLifecycleService["createConversation"]>[0],
-  ) => conversationLifecycle.createConversation(request);
+    options?: Parameters<ConversationLifecycleService["createConversation"]>[1],
+  ) => conversationLifecycle.createConversation(request, options);
   const createAgent = (
     request: Parameters<AgentLifecycleService["createAgent"]>[0],
     options?: Parameters<AgentLifecycleService["createAgent"]>[1],
@@ -597,6 +598,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         projectDir,
       ),
   });
+  let wakeLifecycleWork = async (): Promise<void> => undefined;
   const runRuntime: WorkbenchRunRuntime = createWorkbenchRunRuntime({
     home: storage.paths.home,
     journal: conversationJournal,
@@ -609,6 +611,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     exploreAdmission,
     execution: (references) =>
       new WorkbenchAgentExecutionAdapter(agentMechanics, references),
+    wakeLifecycleWork: () => wakeLifecycleWork(),
+    durableContinuation: true,
     retryPolicy: {
       get enabled() {
         return storage.settings.retry.enabled;
@@ -635,6 +639,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         agentMechanics.getContextUsage(conversationId),
       getConversationEntries: (conversationId) =>
         conversationLifecycle.ensureConversationEntries(conversationId),
+      resolveRecoveryIssuesForRun: (runId) =>
+        storage.canonicalStore.resolveRecoveryIssuesForRun(runId),
       runExplore: (parent, args, options) =>
         agentMechanics.runExplore(parent, args, options),
     },
@@ -654,15 +660,21 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       logger: logger.child({ component: "task-notification" }),
     });
   taskNotifications.start();
-  const { dispatcher: lifecycleDispatcher, lifecycle } = createLifecycleRuntime(
-    {
-      store: storage.canonicalStore,
-      journal: conversationJournal,
-      tools,
-      humanInput: () => humanInput,
-      logger,
+  const {
+    dispatcher: lifecycleDispatcher,
+    lifecycle,
+    bootId: lifecycleBootId,
+  } = createLifecycleRuntime({
+    store: storage.canonicalStore,
+    journal: conversationJournal,
+    tools,
+    humanInput: () => humanInput,
+    continueModel: async (work) => {
+      await runRuntime.coordinator.executeModelWork(work);
     },
-  );
+    logger,
+  });
+  wakeLifecycleWork = () => lifecycleDispatcher.wake();
   const humanInput = new HumanInputResolutionService({
     tools: tools,
     plans: plans,
@@ -702,10 +714,15 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
   const runReconciliation = new RunReconciliationService({
     humanInput,
     tools,
+    runs: {
+      getRunStatus: async (runId) =>
+        (await runRuntime.unitOfWork.load(runId))?.run.status,
+    },
     conversationQuery,
     operations: storage.canonicalStore,
     work: storage.canonicalStore,
     operationId: reconciliationOperationId,
+    currentLeaseOwner: lifecycleBootId,
   });
   const toolInteractions: ToolInteractionResolutionService =
     new ToolInteractionResolutionService(

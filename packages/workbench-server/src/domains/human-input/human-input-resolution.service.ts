@@ -55,8 +55,12 @@ export interface HumanInputResolutionDeps {
   continueAgent(agentId: string): Promise<void>;
   createConversation(
     request: CreateConversationRequest,
+    options?: { id?: string },
   ): Promise<ConversationRecord>;
-  createAgent(request: CreateAgentRequest): Promise<AgentRecord>;
+  createAgent(
+    request: CreateAgentRequest,
+    options?: { id?: string },
+  ): Promise<AgentRecord>;
   getAgent(agentId: string): AgentRecord;
   configureAgent(
     agentId: string,
@@ -120,25 +124,8 @@ export class HumanInputResolutionService {
       implementation,
     );
     if (implementation?.compactBeforeImplementation) {
-      try {
-        await this.deps.compactPlanConversation({
-          conversationId: pendingReview.conversationId,
-          agentId: pendingReview.agentId,
-          runId: source.toolCall.runId,
-          planPath: pendingReview.planPath,
-        });
-      } catch (error) {
-        if (
-          !(
-            error instanceof ApplicationError &&
-            error.code === "NOTHING_TO_COMPACT"
-          )
-        ) {
-          throw error;
-        }
-      }
+      await this.compactPlanBeforeAcceptance(pendingReview, source.toolCall);
     }
-
     await this.persistPlanReviewDecision(
       pendingReview,
       "accept",
@@ -151,7 +138,6 @@ export class HumanInputResolutionService {
     } catch (error) {
       throw this.planReviewNotFound(error);
     }
-
     if (source.state === "terminal") {
       await this.reconcileTerminalPlanReview(review);
       await this.startAcceptedPlanImplementation(review);
@@ -184,26 +170,6 @@ export class HumanInputResolutionService {
     implementation?: PlanImplementationSelection,
   ): Promise<AcceptPlanReviewInNewChatResult> {
     const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
-    const source = await this.planReviewSource(pendingReview);
-    const sourceAgent = this.deps.getAgent(pendingReview.agentId);
-    const conversation = await this.deps.createConversation({
-      projectId: pendingReview.projectId,
-      title: implementationConversationTitle(pendingReview),
-      mode: "coding",
-      permissionLevel: sourceAgent.permissionLevel,
-    });
-    const agent = await this.deps.createAgent({
-      projectId: pendingReview.projectId,
-      conversationId: conversation.id,
-      projectDir: sourceAgent.projectDir,
-      mode: "coding",
-      permissionLevel: sourceAgent.permissionLevel,
-      workspaceScope: sourceAgent.workspaceScope,
-      model: implementation?.implementationModel ?? sourceAgent.model,
-      thinkingLevel:
-        implementation?.implementationThinkingLevel ??
-        sourceAgent.thinkingLevel,
-    });
     await this.persistPlanReviewDecision(
       pendingReview,
       "accept_in_new_chat",
@@ -219,29 +185,10 @@ export class HumanInputResolutionService {
     } catch (error) {
       throw this.planReviewNotFound(error);
     }
-    if (source.state === "terminal") {
-      await this.reconcileTerminalPlanReview(review);
-    } else {
-      try {
-        await this.resolveSuspensionForToolCall(
-          review.toolCallId,
-          this.deps.plans.planReviewResult(review),
-          {
-            continueAgent: false,
-            completeRun: true,
-            finalSuspensionStatus: "cancelled",
-          },
-        );
-      } catch (error) {
-        if (source.state === "detached") throw error;
-        const latest = await this.planReviewSource(review);
-        if (latest.state !== "terminal") throw error;
-        await this.reconcileTerminalPlanReview(review);
-      }
-    }
-    await this.deps.runs.promptAgent(agent.id, {
-      text: acceptedPlanInNewChatInstruction(pendingReview.planPath),
-    });
+    const { conversation, agent } = await this.recoverAcceptedPlanInNewChat(
+      review,
+      implementation,
+    );
     return { planReview: review, conversation, agent };
   }
 
@@ -398,11 +345,17 @@ export class HumanInputResolutionService {
       .listPlanReviews()
       .filter(
         (review) =>
-          review.status === "accepted" &&
+          (review.status === "accepted" ||
+            review.status === "accepted_in_new_chat") &&
           (!conversationId || review.conversationId === conversationId),
       );
     let repaired = 0;
     for (const review of reviews) {
+      if (review.status === "accepted_in_new_chat") {
+        await this.recoverAcceptedPlanInNewChat(review);
+        repaired += 1;
+        continue;
+      }
       let toolCall;
       try {
         toolCall = await this.deps.tools.getToolCallDetails(review.toolCallId);
@@ -758,6 +711,29 @@ export class HumanInputResolutionService {
     );
   }
 
+  private async compactPlanBeforeAcceptance(
+    review: PlanReviewRecord,
+    toolCall: ToolCallRecord,
+  ): Promise<void> {
+    try {
+      await this.deps.compactPlanConversation({
+        conversationId: review.conversationId,
+        agentId: review.agentId,
+        runId: toolCall.runId,
+        planPath: review.planPath,
+      });
+    } catch (error) {
+      if (
+        !(
+          error instanceof ApplicationError &&
+          error.code === "NOTHING_TO_COMPACT"
+        )
+      ) {
+        throw error;
+      }
+    }
+  }
+
   private async applyImplementationSelectionToSourceAgent(
     agentId: string,
     implementation?: PlanImplementationSelection,
@@ -784,6 +760,75 @@ export class HumanInputResolutionService {
     await this.deps.configureAgent(agentId, {
       thinkingLevel: implementationThinkingLevel,
     });
+  }
+
+  private async recoverAcceptedPlanInNewChat(
+    review: PlanReviewRecord,
+    selected?: PlanImplementationSelection,
+  ): Promise<{ conversation: ConversationRecord; agent: AgentRecord }> {
+    const sourceAgent = this.deps.getAgent(review.agentId);
+    const toolCall = this.deps.tools.getToolCallDetails
+      ? await this.deps.tools.getToolCallDetails(review.toolCallId)
+      : this.deps.tools.getToolCall(review.toolCallId);
+    const resolution = toolCall.interactions?.find(
+      (interaction) => interaction.kind === "plan_review",
+    )?.resolution as
+      | {
+          implementationModel?: AgentRecord["model"];
+          implementationThinkingLevel?: AgentRecord["thinkingLevel"];
+        }
+      | undefined;
+    const destination = planImplementationIdentity(review.id);
+    const conversation = await this.deps.createConversation(
+      {
+        projectId: review.projectId,
+        title: implementationConversationTitle(review),
+        mode: "coding",
+        permissionLevel: sourceAgent.permissionLevel,
+      },
+      { id: destination.conversationId },
+    );
+    const agent = await this.deps.createAgent(
+      {
+        projectId: review.projectId,
+        conversationId: conversation.id,
+        projectDir: sourceAgent.projectDir,
+        mode: "coding",
+        permissionLevel: sourceAgent.permissionLevel,
+        workspaceScope: sourceAgent.workspaceScope,
+        model:
+          selected?.implementationModel ??
+          resolution?.implementationModel ??
+          sourceAgent.model,
+        thinkingLevel:
+          selected?.implementationThinkingLevel ??
+          resolution?.implementationThinkingLevel ??
+          sourceAgent.thinkingLevel,
+      },
+      { id: destination.agentId },
+    );
+    const source = await this.planReviewSource(review);
+    if (source.state === "terminal") {
+      await this.reconcileTerminalPlanReview(review);
+    } else if (source.state !== "detached") {
+      await this.resolveSuspensionForToolCall(
+        review.toolCallId,
+        this.deps.plans.planReviewResult(review),
+        {
+          continueAgent: false,
+          completeRun: true,
+          finalSuspensionStatus: "cancelled",
+        },
+      );
+    }
+    const instruction = acceptedPlanInNewChatInstruction(review.planPath);
+    const alreadyPrompted = (
+      await this.deps.getConversationEntries(conversation.id)
+    ).some((entry) => entry.role === "user" && entry.text === instruction);
+    if (!alreadyPrompted) {
+      await this.deps.runs.promptAgent(agent.id, { text: instruction });
+    }
+    return { conversation, agent };
   }
 
   private async startAcceptedPlanImplementation(
@@ -1034,4 +1079,18 @@ export class HumanInputResolutionService {
       return undefined;
     }
   }
+}
+
+function planImplementationIdentity(reviewId: string): {
+  conversationId: string;
+  agentId: string;
+} {
+  const suffix = createHash("sha256")
+    .update(reviewId)
+    .digest("hex")
+    .slice(0, 32);
+  return {
+    conversationId: `conv_${suffix}`,
+    agentId: `agent_${suffix}`,
+  };
 }

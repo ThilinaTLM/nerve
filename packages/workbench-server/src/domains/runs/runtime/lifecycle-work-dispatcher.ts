@@ -1,6 +1,7 @@
 import type { LifecycleWork } from "@nervekit/contracts/runs";
 import {
   LifecycleWorkExecutor,
+  type LifecycleWorkExecutionResult,
   type LifecycleWorkHandler,
   type LifecycleWorkLeaseStore,
 } from "./lifecycle-work-executor.js";
@@ -19,6 +20,10 @@ export interface LifecycleWorkDispatcherOptions {
   concurrency?: number;
   onError?: (error: unknown, work: LifecycleWork) => void;
   onLeaseLost?: (work: LifecycleWork) => void;
+  onOutcomeUnknown?: (
+    work: LifecycleWork,
+    result: LifecycleWorkExecutionResult,
+  ) => void | Promise<void>;
 }
 
 /**
@@ -28,10 +33,27 @@ export interface LifecycleWorkDispatcherOptions {
 export class LifecycleWorkDispatcher {
   private draining?: Promise<void>;
   private pendingWake = false;
+  private pollTimer?: NodeJS.Timeout;
   private readonly executor: LifecycleWorkExecutor;
 
   constructor(private readonly options: LifecycleWorkDispatcherOptions) {
     this.executor = new LifecycleWorkExecutor(options);
+  }
+
+  startPolling(intervalMs = 5_000): void {
+    if (this.pollTimer) return;
+    this.pollTimer = setInterval(() => void this.wake(), intervalMs);
+    this.pollTimer.unref();
+  }
+
+  stopPolling(): void {
+    if (!this.pollTimer) return;
+    clearInterval(this.pollTimer);
+    this.pollTimer = undefined;
+  }
+
+  settled(): Promise<void> {
+    return this.draining ?? Promise.resolve();
   }
 
   wake(): Promise<void> {

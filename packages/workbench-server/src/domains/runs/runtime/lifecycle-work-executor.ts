@@ -49,6 +49,10 @@ export interface LifecycleWorkExecutorOptions {
   leaseDurationMs?: number;
   heartbeatIntervalMs?: number;
   onLeaseLost?: (work: LifecycleWork) => void;
+  onOutcomeUnknown?: (
+    work: LifecycleWork,
+    result: LifecycleWorkExecutionResult,
+  ) => void | Promise<void>;
 }
 
 /** Owns one claim/heartbeat/effect/fenced-settlement cycle. */
@@ -98,8 +102,12 @@ export class LifecycleWorkExecutor {
     try {
       result = await handler(claimed);
     } catch (error) {
+      const ambiguousExternalEffect =
+        work.kind === "execute_tool" ||
+        (work.kind === "continue_model" &&
+          work.modelRequest?.replayCapability === "non_replayable");
       result = {
-        state: work.kind === "execute_tool" ? "outcome_unknown" : "failed",
+        state: ambiguousExternalEffect ? "outcome_unknown" : "failed",
         lastError: error instanceof Error ? error.message : String(error),
       };
     } finally {
@@ -119,7 +127,11 @@ export class LifecycleWorkExecutor {
       lastError: result.lastError,
       externalLocator: result.externalLocator,
     });
-    if (!settled) this.options.onLeaseLost?.(claimed);
+    if (!settled) {
+      this.options.onLeaseLost?.(claimed);
+    } else if (result.state === "outcome_unknown") {
+      await this.options.onOutcomeUnknown?.(settled, result);
+    }
   }
 
   private now(): Date {

@@ -15,6 +15,7 @@ import type {
   LifecycleAtomicCommitInput,
   LifecycleAtomicCommitResult,
   ReconciliationOperationRecord,
+  RequeueLifecycleWorkInput,
   RenewLifecycleWorkInput,
   SettleLifecycleWorkInput,
 } from "./lifecycle-work-database.js";
@@ -183,9 +184,21 @@ export class CanonicalStore {
       true,
     );
   }
+  requeueLifecycleWork(input: RequeueLifecycleWorkInput) {
+    return this.request<LifecycleWork | undefined>(
+      { kind: "requeue_lifecycle_work", input },
+      true,
+    );
+  }
   renewLifecycleWork(input: RenewLifecycleWorkInput) {
     return this.request<LifecycleWork | undefined>(
       { kind: "renew_lifecycle_work", input },
+      true,
+    );
+  }
+  resolveRecoveryIssuesForRun(runId: string, now = new Date().toISOString()) {
+    return this.request<number>(
+      { kind: "resolve_recovery_issues_for_run", runId, now },
       true,
     );
   }

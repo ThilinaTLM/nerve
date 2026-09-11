@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/index.js";
 import type { ConversationJournalRepository } from "../../domains/conversations/conversation-journal.repository.js";
@@ -11,11 +12,32 @@ export function createLifecycleRuntime(input: {
   journal: ConversationJournalRepository;
   tools: ToolService;
   humanInput(): HumanInputResolutionService;
+  continueModel(
+    work: import("@nervekit/contracts/runs").LifecycleWork,
+  ): Promise<void>;
   logger: ApplicationLogger;
 }) {
+  const bootId = `boot_${randomUUID()}`;
   const dispatcher = new LifecycleWorkDispatcher({
     store: input.store,
-    bootId: `boot_${Date.now().toString(36)}`,
+    bootId,
+    onOutcomeUnknown: async (work, result) => {
+      const createdAt = new Date().toISOString();
+      await input.store.persistRecoveryIssue({
+        id: `recovery_${work.id.slice("work_".length)}`,
+        conversationId: work.conversationId,
+        ...(work.runId ? { runId: work.runId } : {}),
+        workId: work.id,
+        code: "outcome_unknown",
+        message:
+          result.lastError ??
+          (work.kind === "continue_model"
+            ? "A provider request may have been sent, but no durable response was proven."
+            : "A tool may have produced an external side effect, but no durable result was proven."),
+        actions: ["inspect", "cancel_run", "authorize_retry"],
+        createdAt,
+      });
+    },
     handlers: {
       execute_tool: async (work) => {
         if (!work.proposalId) {
@@ -31,6 +53,13 @@ export function createLifecycleRuntime(input: {
         await input
           .humanInput()
           .recoverReadyApprovalBatches(work.conversationId);
+        return { state: "succeeded" };
+      },
+      continue_model: async (work) => {
+        if (!work.runId) {
+          return { state: "failed", lastError: "Model work has no run." };
+        }
+        await input.continueModel(work);
         return { state: "succeeded" };
       },
       reconcile_conversation: async (work) => {
@@ -60,5 +89,5 @@ export function createLifecycleRuntime(input: {
       void input.logger.warn("Lifecycle dispatcher wake failed", { error });
     },
   });
-  return { dispatcher, lifecycle };
+  return { dispatcher, lifecycle, bootId };
 }

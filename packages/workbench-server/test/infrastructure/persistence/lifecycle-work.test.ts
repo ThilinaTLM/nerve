@@ -100,6 +100,38 @@ test("lifecycle work uses fenced claims and terminal settlement", async (t) => {
     ),
     ["recovery_test"],
   );
+  assert.equal(await store.resolveRecoveryIssuesForRun(work.runId!), 1);
+  assert.deepEqual(await store.listRecoveryIssues(work.conversationId), []);
+  await store.close();
+});
+
+test("safe replay recovery can fenced-requeue an abandoned lease", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-lifecycle-requeue-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const store = new CanonicalStore(join(home, "nerve.sqlite"));
+  await store.initialize();
+  await store.insertLifecycleWork(work);
+  const claimed = await store.claimLifecycleWork({
+    workId: work.id,
+    expectedGeneration: 0,
+    leaseOwner: "boot_old",
+    leaseDeadline: "2026-01-01T00:00:30.000Z",
+    now,
+  });
+  assert.equal(claimed?.state, "leased");
+  const requeued = await store.requeueLifecycleWork({
+    workId: work.id,
+    expectedGeneration: 1,
+    leaseOwner: "boot_old",
+    now: "2026-01-01T00:01:00.000Z",
+  });
+  assert.equal(requeued?.state, "ready");
+  assert.equal(requeued?.leaseOwner, undefined);
+  assert.equal(requeued?.generation, 1);
+  assert.equal(
+    (await store.listDueLifecycleWork("2026-01-01T00:01:00.000Z"))[0]?.id,
+    work.id,
+  );
   await store.close();
 });
 

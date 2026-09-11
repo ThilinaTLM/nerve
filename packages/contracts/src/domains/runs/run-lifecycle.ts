@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { promptImageSchema } from "../agents/prompt.js";
 
 const isoDateTimeSchema = z.string().datetime();
 const runIdSchema = z.string().startsWith("run_");
@@ -129,6 +130,20 @@ export const lifecycleWorkSchema = z.object({
   leaseOwner: z.string().min(1).max(256).optional(),
   leaseDeadline: isoDateTimeSchema.optional(),
   externalLocator: z.string().min(1).max(1_024).optional(),
+  modelRequest: z
+    .discriminatedUnion("command", [
+      z.object({
+        command: z.literal("start"),
+        prompt: z.string().min(1),
+        images: z.array(promptImageSchema).max(16).optional(),
+        replayCapability: replayCapabilitySchema,
+      }),
+      z.object({
+        command: z.literal("continue"),
+        replayCapability: replayCapabilitySchema,
+      }),
+    ])
+    .optional(),
   lastError: z.string().max(2_000).optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,

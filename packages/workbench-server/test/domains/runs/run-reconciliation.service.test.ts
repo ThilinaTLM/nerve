@@ -32,6 +32,7 @@ test("repeated explicit reconciliation returns one durable operation result", as
         { interactions: [{ status: "pending" }, { status: "resolved" }] },
       ],
     },
+    runs: { getRunStatus: async () => undefined },
     conversationQuery: {
       getConversationSnapshot: async () => ({ conversationRevision: 12 }),
     },
@@ -71,6 +72,7 @@ test("expired unproven tool work becomes an explicit unknown outcome", async () 
       getToolCallDetails: async () => ({ status: "running" }),
       listToolCallPreviews: async () => [],
     },
+    runs: { getRunStatus: async () => "running" },
     conversationQuery: {
       getConversationSnapshot: async () => ({ conversationRevision: 4 }),
     },
@@ -108,6 +110,7 @@ test("expired unproven tool work becomes an explicit unknown outcome", async () 
         },
       ],
       persistRecoveryIssue: async () => undefined,
+      requeueLifecycleWork: async () => undefined,
       settleLifecycleWork: async (input) => {
         settledState = input.state;
         return undefined;
@@ -124,6 +127,64 @@ test("expired unproven tool work becomes an explicit unknown outcome", async () 
   assert.equal(settledState, "outcome_unknown");
   assert.equal(result.unknownOutcomes, 1);
   assert.equal(result.recoveryIssues[0]?.code, "outcome_unknown");
+});
+
+test("expired read-only tool work is fenced and requeued", async () => {
+  let requeued = false;
+  const service = new RunReconciliationService({
+    humanInput: {
+      recoverReadyApprovalBatches: async () => 0,
+      recoverAcceptedPlanReviews: async () => 0,
+      recoverResolvedUserQuestions: async () => 0,
+    },
+    tools: {
+      getToolCallDetails: async () => ({ status: "running", risk: "read" }),
+      listToolCallPreviews: async () => [],
+    },
+    runs: { getRunStatus: async () => "running" },
+    conversationQuery: {
+      getConversationSnapshot: async () => ({ conversationRevision: 4 }),
+    },
+    operations: operationStore(new Map()),
+    work: {
+      listExpiredLifecycleWork: async () => [
+        {
+          id: "work_safe_replay",
+          deduplicationKey: "run_test:read",
+          conversationId: "conv_test",
+          runId: "run_test",
+          proposalId: "tool_read",
+          kind: "execute_tool",
+          state: "leased",
+          inputHash: `sha256:${"b".repeat(64)}`,
+          generation: 2,
+          attemptCount: 2,
+          notBefore: "2026-01-01T00:00:00.000Z",
+          leaseOwner: "boot_old",
+          leaseDeadline: "2026-01-01T00:00:30.000Z",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      listRecoveryIssues: async () => [],
+      persistRecoveryIssue: async () => undefined,
+      requeueLifecycleWork: async () => {
+        requeued = true;
+        return undefined;
+      },
+      settleLifecycleWork: async () => {
+        throw new Error("safe replay must not settle as unknown");
+      },
+    },
+    operationId: () => "reconcile_safe_replay",
+  });
+
+  const result = await service.reconcileConversation(
+    "conv_test",
+    "request_safe_replay",
+  );
+  assert.equal(requeued, true);
+  assert.equal(result.unknownOutcomes, 0);
 });
 
 test("startup and explicit refresh invoke the same recovery rules", async () => {
@@ -147,6 +208,7 @@ test("startup and explicit refresh invoke the same recovery rules", async () => 
       getToolCallDetails: async () => ({ status: "completed" }),
       listToolCallPreviews: async () => [],
     },
+    runs: { getRunStatus: async () => undefined },
     conversationQuery: {
       getConversationSnapshot: async () => ({ conversationRevision: 1 }),
     },
@@ -172,6 +234,7 @@ function emptyWorkStore() {
     listExpiredLifecycleWork: async () => [],
     listRecoveryIssues: async () => [],
     persistRecoveryIssue: async () => undefined,
+    requeueLifecycleWork: async () => undefined,
     settleLifecycleWork: async () => undefined,
   };
 }

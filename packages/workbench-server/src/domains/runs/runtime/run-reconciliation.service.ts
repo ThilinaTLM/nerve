@@ -22,7 +22,11 @@ export interface RunReconciliationDependencies {
     recoverResolvedUserQuestions(conversationId?: string): Promise<number>;
   };
   tools: {
-    getToolCallDetails(toolCallId: string): Promise<{ status: string }>;
+    getToolCallDetails(toolCallId: string): Promise<{
+      status: string;
+      risk?: string;
+      execution?: { hostHandle?: string };
+    }>;
     listToolCallPreviews(query: {
       conversationId: string;
       status: "waiting";
@@ -32,6 +36,9 @@ export interface RunReconciliationDependencies {
         interactions: Array<{ status: string }>;
       }>
     >;
+  };
+  runs: {
+    getRunStatus(runId: string): Promise<string | undefined>;
   };
   conversationQuery: {
     getConversationSnapshot(
@@ -45,6 +52,12 @@ export interface RunReconciliationDependencies {
     ): Promise<LifecycleWork[]>;
     listRecoveryIssues(conversationId: string): Promise<RecoveryIssue[]>;
     persistRecoveryIssue(issue: RecoveryIssue): Promise<void>;
+    requeueLifecycleWork(input: {
+      workId: string;
+      expectedGeneration: number;
+      leaseOwner: string;
+      now: string;
+    }): Promise<LifecycleWork | undefined>;
     settleLifecycleWork(input: {
       workId: string;
       expectedGeneration: number;
@@ -67,6 +80,7 @@ export interface RunReconciliationDependencies {
     ): Promise<ReconciliationOperation>;
   };
   operationId(conversationId: string, requestId: string): string;
+  currentLeaseOwner?: string;
   now?: () => Date;
 }
 
@@ -155,7 +169,10 @@ export class RunReconciliationService {
       await this.deps.humanInput.recoverResolvedUserQuestions(conversationId);
     const repairedPlans =
       await this.deps.humanInput.recoverAcceptedPlanReviews(conversationId);
-    await this.classifyExpiredToolWork(conversationId, distrustExistingLeases);
+    const classified = await this.classifyExpiredToolWork(
+      conversationId,
+      distrustExistingLeases,
+    );
     if (!conversationId || !operationId) return;
     const recoveryIssues =
       await this.deps.work.listRecoveryIssues(conversationId);
@@ -181,7 +198,7 @@ export class RunReconciliationService {
       ),
       repairedTransitions:
         repairedApprovals + repairedQuestions + repairedPlans,
-      requeuedWork: 0,
+      requeuedWork: classified.requeuedWork,
       unknownOutcomes: recoveryIssues.length,
       recoveryIssues,
     });
@@ -191,6 +208,7 @@ export class RunReconciliationService {
     conversationId?: string,
     distrustExistingLeases = false,
   ): Promise<{
+    requeuedWork: number;
     unknownOutcomes: number;
     recoveryIssues: RecoveryIssue[];
   }> {
@@ -200,34 +218,56 @@ export class RunReconciliationService {
       100,
     );
     const recoveryIssues: RecoveryIssue[] = [];
+    let requeuedWork = 0;
     for (const work of expired) {
       if (
-        work.kind !== "execute_tool" ||
-        !work.proposalId ||
+        !["execute_tool", "continue_model"].includes(work.kind) ||
         !work.leaseOwner ||
+        (distrustExistingLeases &&
+          work.leaseOwner === this.deps.currentLeaseOwner) ||
         (conversationId && work.conversationId !== conversationId)
       ) {
         continue;
       }
-      const toolCall = await this.deps.tools.getToolCallDetails(
-        work.proposalId,
-      );
-      const terminal = ["completed", "failed", "denied", "cancelled"].includes(
-        toolCall.status,
-      );
+      let proven = false;
+      let safeReplay = false;
+      if (work.kind === "execute_tool" && work.proposalId) {
+        const toolCall = await this.deps.tools.getToolCallDetails(
+          work.proposalId,
+        );
+        proven = ["completed", "failed", "denied", "cancelled"].includes(
+          toolCall.status,
+        );
+        safeReplay = toolCall.risk === "read";
+      } else if (work.kind === "continue_model" && work.runId) {
+        const runStatus = await this.deps.runs.getRunStatus(work.runId);
+        proven = ["waiting", "completed", "failed", "cancelled"].includes(
+          runStatus ?? "",
+        );
+      }
+      if (!proven && safeReplay) {
+        const requeued = await this.deps.work.requeueLifecycleWork({
+          workId: work.id,
+          expectedGeneration: work.generation,
+          leaseOwner: work.leaseOwner,
+          now,
+        });
+        if (requeued) requeuedWork += 1;
+        continue;
+      }
       await this.deps.work.settleLifecycleWork({
         workId: work.id,
         expectedGeneration: work.generation,
         leaseOwner: work.leaseOwner,
-        state: terminal ? "succeeded" : "outcome_unknown",
+        state: proven ? "succeeded" : "outcome_unknown",
         now,
-        ...(!terminal
+        ...(!proven
           ? {
               lastError: "Execution ownership expired without a proven result.",
             }
           : {}),
       });
-      if (!terminal) {
+      if (!proven) {
         const issue: RecoveryIssue = {
           id: `recovery_${work.id.slice("work_".length)}`,
           conversationId: work.conversationId,
@@ -235,7 +275,9 @@ export class RunReconciliationService {
           workId: work.id,
           code: "outcome_unknown",
           message:
-            "Tool execution may have produced an external side effect, but no terminal result was proven.",
+            work.kind === "execute_tool"
+              ? "Tool execution may have produced an external side effect, but no terminal result was proven."
+              : "A provider request may have been sent, but no durable response was proven.",
           actions: ["inspect", "cancel_run", "authorize_retry"],
           createdAt: now,
         };
@@ -243,6 +285,10 @@ export class RunReconciliationService {
         recoveryIssues.push(issue);
       }
     }
-    return { unknownOutcomes: recoveryIssues.length, recoveryIssues };
+    return {
+      requeuedWork,
+      unknownOutcomes: recoveryIssues.length,
+      recoveryIssues,
+    };
   }
 }

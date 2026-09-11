@@ -1,4 +1,8 @@
-import type { RunInteractionRecord, RunRecord } from "@nervekit/contracts/runs";
+import type {
+  LifecycleWork,
+  RunInteractionRecord,
+  RunRecord,
+} from "@nervekit/contracts/runs";
 import type { IdPort } from "../../../core/ports/ids.js";
 import { RunEventFactory } from "./run-events.js";
 import {
@@ -36,6 +40,7 @@ export interface RunInteractionCoordinatorOptions {
   ) => Promise<void>;
   readonly continueLive: (runId: string) => Promise<void>;
   readonly cancelLive: (runId: string, reason: string) => Promise<void>;
+  readonly durableContinuation?: boolean;
 }
 
 /** Owns durable wait/resolution state while RunCoordinator owns execution lifecycle. */
@@ -102,7 +107,10 @@ export class RunInteractionCoordinator {
   async resolveInteraction(
     runId: string,
     command: ResolveInteractionCommand,
-    accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
+    accompanying: Pick<
+      TransitionChanges,
+      "entries" | "toolCalls" | "lifecycleWork"
+    > = {},
   ): Promise<RunInteractionRecord> {
     const { resolved, wake } = await this.options.exclusive(
       `run:${runId}`,
@@ -177,18 +185,27 @@ export class RunInteractionCoordinator {
         await this.options.commit(state, next, "interaction_resolved", {
           ...accompanying,
           interactions: [record],
+          lifecycleWork:
+            wake && this.options.durableContinuation
+              ? [this.continuationWork(next, now)]
+              : accompanying.lifecycleWork,
         });
         return { resolved: record, wake };
       },
     );
-    if (wake) await this.options.continueLive(runId);
+    if (wake && !this.options.durableContinuation) {
+      await this.options.continueLive(runId);
+    }
     return resolved;
   }
 
   async resolveInteractionBatch(
     runId: string,
     commands: readonly ResolveInteractionCommand[],
-    accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
+    accompanying: Pick<
+      TransitionChanges,
+      "entries" | "toolCalls" | "lifecycleWork"
+    > = {},
   ): Promise<readonly RunInteractionRecord[]> {
     if (commands.length === 0) {
       throw new InvalidRunStateError("Interaction batch must not be empty");
@@ -258,11 +275,16 @@ export class RunInteractionCoordinator {
         await this.options.commit(state, next, "interaction_batch_resolved", {
           ...accompanying,
           interactions: [...records],
+          lifecycleWork: this.options.durableContinuation
+            ? [this.continuationWork(next, now)]
+            : accompanying.lifecycleWork,
         });
         return { resolved: records, wake: true };
       },
     );
-    if (wake) await this.options.continueLive(runId);
+    if (wake && !this.options.durableContinuation) {
+      await this.options.continueLive(runId);
+    }
     return resolved;
   }
 
@@ -270,7 +292,10 @@ export class RunInteractionCoordinator {
     runId: string,
     command: ResolveInteractionCommand,
     result: Readonly<Record<string, unknown>> = {},
-    accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
+    accompanying: Pick<
+      TransitionChanges,
+      "entries" | "toolCalls" | "lifecycleWork"
+    > = {},
   ): Promise<RunRecord> {
     const { run: completed, cleanupLive } = await this.options.exclusive(
       `run:${runId}`,
@@ -411,6 +436,33 @@ export class RunInteractionCoordinator {
     ) {
       throw new InvalidRunStateError("Duplicate batch tool-call ID");
     }
+  }
+
+  private continuationWork(run: RunRecord, now: string): LifecycleWork {
+    const identity = {
+      runId: run.runId,
+      executionId: run.executionId,
+      revision: run.revision,
+      checkpointId: run.lastCheckpointId,
+    };
+    return {
+      id: `work_${this.options.ids.next()}`,
+      deduplicationKey: `${run.runId}:continue_model:${identity.revision}`,
+      conversationId: run.conversationId,
+      runId: run.runId,
+      kind: "continue_model",
+      state: "ready",
+      modelRequest: {
+        command: "continue",
+        replayCapability: "non_replayable",
+      },
+      inputHash: this.options.integrity.checksum(identity),
+      generation: 0,
+      attemptCount: 0,
+      notBefore: now,
+      createdAt: now,
+      updatedAt: now,
+    };
   }
 
   private assertResolutionBatch(

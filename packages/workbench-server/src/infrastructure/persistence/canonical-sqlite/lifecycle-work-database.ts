@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   lifecycleWorkSchema,
   recoveryIssueSchema,
+  toolProposalSchema,
   type ExecutionAttempt,
   type LifecycleInteraction,
   type LifecycleWork,
@@ -106,6 +107,13 @@ export interface RenewLifecycleWorkInput {
   expectedGeneration: number;
   leaseOwner: string;
   leaseDeadline: string;
+  now: string;
+}
+
+export interface RequeueLifecycleWorkInput {
+  workId: string;
+  expectedGeneration: number;
+  leaseOwner: string;
   now: string;
 }
 
@@ -301,6 +309,18 @@ function persistLifecycleAggregateInTransaction(
         encode(proposal),
         Date.parse(proposal.createdAt),
       );
+    const stored = database
+      .prepare(
+        `SELECT data FROM lifecycle_tool_proposals WHERE proposal_id = ?`,
+      )
+      .get(proposal.id) as { data: Uint8Array };
+    const immutable = toolProposalSchema.parse(decode(stored.data));
+    if (
+      JSON.stringify(immutable) !==
+      JSON.stringify(toolProposalSchema.parse(proposal))
+    ) {
+      throw new Error(`Lifecycle proposal identity conflict: ${proposal.id}`);
+    }
   }
   for (const interaction of aggregate.interactions) {
     database
@@ -519,6 +539,20 @@ export class CanonicalLifecycleDatabase {
     );
   }
 
+  resolveRecoveryIssuesForRun(runId: string, now: string): number {
+    return Number(
+      this.database
+        .prepare(
+          `UPDATE lifecycle_recovery_issues
+           SET resolved = 1, updated_at_ms = ?
+           WHERE resolved = 0 AND (
+             run_id = ? OR json_extract(data, '$.runId') = ?
+           )`,
+        )
+        .run(Date.parse(now), runId, runId).changes,
+    );
+  }
+
   listRecoveryIssues(conversationId: string): RecoveryIssue[] {
     return this.database
       .prepare(
@@ -559,6 +593,12 @@ export class CanonicalLifecycleDatabase {
           Date.parse(issue.createdAt),
         );
     });
+  }
+
+  requeue(input: RequeueLifecycleWorkInput): LifecycleWork | undefined {
+    return this.transaction((database) =>
+      requeueLifecycleWorkInTransaction(database, input),
+    );
   }
 
   settle(input: SettleLifecycleWorkInput): LifecycleWork | undefined {
@@ -619,6 +659,46 @@ export function renewLifecycleWorkInTransaction(
       input.leaseOwner,
     ).changes;
   return changed === 1 ? next : undefined;
+}
+
+export function requeueLifecycleWorkInTransaction(
+  database: DatabaseSync,
+  input: RequeueLifecycleWorkInput,
+): LifecycleWork | undefined {
+  const current = readLifecycleWork(database, input.workId);
+  if (
+    !current ||
+    current.state !== "leased" ||
+    current.generation !== input.expectedGeneration ||
+    current.leaseOwner !== input.leaseOwner
+  ) {
+    return undefined;
+  }
+  const next = lifecycleWorkSchema.parse({
+    ...current,
+    state: "ready",
+    leaseOwner: undefined,
+    leaseDeadline: undefined,
+    notBefore: input.now,
+    lastError: undefined,
+    updatedAt: input.now,
+  });
+  const updated = database
+    .prepare(
+      `UPDATE lifecycle_work SET state = 'ready', lease_owner = NULL,
+       lease_deadline_ms = NULL, not_before_ms = ?, last_error = NULL, data = ?,
+       updated_at_ms = ? WHERE id = ? AND state = 'leased'
+       AND generation = ? AND lease_owner = ?`,
+    )
+    .run(
+      Date.parse(input.now),
+      encode(next),
+      Date.parse(input.now),
+      input.workId,
+      input.expectedGeneration,
+      input.leaseOwner,
+    );
+  return Number(updated.changes) === 1 ? next : undefined;
 }
 
 export function settleLifecycleWorkInTransaction(

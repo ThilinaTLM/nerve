@@ -5,6 +5,7 @@ import type {
   RunExecutionRecord,
   RunFailureRecord,
   RunInteractionRecord,
+  LifecycleWork,
   RunPromptRecord,
   RunPublicEventIntent,
   RunTransitionRecord,
@@ -94,6 +95,8 @@ export interface TransitionChanges {
   entries?: ConversationEntry[];
   toolCalls?: ToolCallTranscriptRecord[];
   events?: RunPublicEventIntent[];
+  /** Durable external work committed atomically with this transition. */
+  lifecycleWork?: LifecycleWork[];
 }
 
 /** Assembles one revision-checked transition and stamps its integrity hash. */
