@@ -5,6 +5,7 @@ import type {
   ConversationTreeNode,
   QueuedPromptRecord,
 } from "$lib/api";
+import type { RecoveryIssue } from "@nervekit/contracts/runs";
 import type {
   ConversationRenderState,
   TranscriptItem,
@@ -41,6 +42,7 @@ export interface ConversationViewState extends ConversationRenderState {
   stopping: boolean;
   composerText: string;
   loading: boolean;
+  recoveryIssues: RecoveryIssue[];
 }
 
 export type PendingConversationState = {

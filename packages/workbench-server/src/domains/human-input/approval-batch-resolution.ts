@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ApprovalRecord, ToolCallRecord } from "@nervekit/contracts/tools";
+import type { LifecycleWork } from "@nervekit/contracts/runs";
 import type {
   ConversationEntry,
   ConversationJournalEvent,
@@ -61,8 +62,12 @@ export class ApprovalBatchResolutionService {
         note,
         resolutionRequestId,
         scope,
+        undefined,
+        true,
       );
-      return this.deps.tools.finalizeDecidedApproval(approvalId);
+      return this.deps.lifecycle
+        ? this.deps.tools.getToolCallDetails(pendingToolCall.id)
+        : this.deps.tools.finalizeDecidedApproval(approvalId);
     }
     const initialBatch = await this.deps.runs.approvalBatchForToolCall(
       pendingToolCall.id,
@@ -90,6 +95,13 @@ export class ApprovalBatchResolutionService {
           currentToolCall.id,
           currentToolCall.runId,
         );
+        if (this.deps.lifecycle) {
+          await this.deps.runs.assertApprovalBatchContextUnchanged(batch);
+        }
+        const releaseBatch = await this.batchReadyAfterDecision(
+          batch,
+          currentToolCall.id,
+        );
         await this.decideApprovalDurably(
           currentApproval,
           currentToolCall,
@@ -97,8 +109,10 @@ export class ApprovalBatchResolutionService {
           note,
           resolutionRequestId,
           scope,
+          batch,
+          releaseBatch,
         );
-        if (!(await this.batchReady(batch))) {
+        if (this.deps.lifecycle || !(await this.batchReady(batch))) {
           return this.deps.tools.getToolCall(currentToolCall.id);
         }
         return this.drain(batch, currentToolCall.id);
@@ -113,6 +127,8 @@ export class ApprovalBatchResolutionService {
     note: string | undefined,
     resolutionRequestId: string | undefined,
     scope: Parameters<ToolService["decideApproval"]>[4],
+    batch: ApprovalInteractionBatch | undefined,
+    releaseBatch: boolean,
   ): Promise<void> {
     const lifecycle = this.deps.lifecycle;
     if (!lifecycle) {
@@ -140,41 +156,118 @@ export class ApprovalBatchResolutionService {
       scope,
       async (_next, events: ConversationJournalEvent[]) => {
         const timestamp = new Date().toISOString();
-        const workHash = createHash("sha256")
-          .update(`${toolCall.id}:${requestId}`)
-          .digest("hex");
+        const work = await this.approvalDecisionWork({
+          approval,
+          toolCall,
+          decision,
+          batch,
+          releaseBatch,
+          requestId,
+          inputHash,
+          timestamp,
+        });
         await lifecycle.commit({
           conversationId: toolCall.conversationId,
           requestId,
           inputHash,
           kind: "run.approval_decided",
           events,
-          work: [
-            {
-              id: `work_${workHash.slice(0, 24)}`,
-              deduplicationKey: `approval:${approval.id}:${requestId}`,
-              conversationId: toolCall.conversationId,
-              ...(toolCall.runId ? { runId: toolCall.runId } : {}),
-              proposalId: toolCall.id,
-              kind: "reconcile_conversation",
-              state: "ready",
-              inputHash,
-              generation: 0,
-              attemptCount: 0,
-              notBefore: timestamp,
-              createdAt: timestamp,
-              updatedAt: timestamp,
-            },
-          ],
+          work,
           outcome: { approvalId: approval.id, decision },
         });
       },
     );
   }
 
+  private async batchReadyAfterDecision(
+    batch: ApprovalInteractionBatch,
+    targetToolCallId: string,
+  ): Promise<boolean> {
+    for (const toolCallId of batch.batchToolCallIds) {
+      if (toolCallId === targetToolCallId) continue;
+      const approval =
+        await this.deps.tools.getApprovalForToolCallDetails(toolCallId);
+      if (approval) {
+        if (approval.status === "pending") return false;
+        continue;
+      }
+      if (
+        !isTerminalToolCall(
+          await this.deps.tools.getToolCallDetails(toolCallId),
+        )
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private async approvalDecisionWork(input: {
+    approval: ApprovalRecord;
+    toolCall: ToolCallRecord;
+    decision: "allow" | "deny";
+    batch?: ApprovalInteractionBatch;
+    releaseBatch: boolean;
+    requestId: string;
+    inputHash: string;
+    timestamp: string;
+  }): Promise<LifecycleWork[]> {
+    const members: Array<{ toolCallId: string; execute: boolean }> = [];
+    if (!input.batch) {
+      members.push({
+        toolCallId: input.toolCall.id,
+        execute: input.decision === "allow",
+      });
+    } else if (input.releaseBatch) {
+      for (const toolCallId of input.batch.batchToolCallIds) {
+        const approval =
+          await this.deps.tools.getApprovalForToolCallDetails(toolCallId);
+        members.push({
+          toolCallId,
+          execute:
+            toolCallId === input.toolCall.id
+              ? input.decision === "allow"
+              : approval?.status === "granted",
+        });
+      }
+    }
+    const executable = members.filter((member) => member.execute);
+    const selected =
+      executable.length > 0
+        ? executable
+        : [
+            {
+              toolCallId: input.toolCall.id,
+              execute: false,
+            },
+          ];
+    return selected.map((member) => {
+      const logical = `${member.toolCallId}:${input.requestId}`;
+      const workHash = createHash("sha256").update(logical).digest("hex");
+      return {
+        id: `work_${workHash.slice(0, 24)}`,
+        deduplicationKey: `approval:${logical}`,
+        conversationId: input.toolCall.conversationId,
+        ...(input.toolCall.runId ? { runId: input.toolCall.runId } : {}),
+        proposalId: member.toolCallId,
+        kind: member.execute ? "execute_tool" : "reconcile_conversation",
+        state: "ready",
+        inputHash: input.inputHash,
+        generation: 0,
+        attemptCount: 0,
+        notBefore: input.timestamp,
+        createdAt: input.timestamp,
+        updatedAt: input.timestamp,
+      } satisfies LifecycleWork;
+    });
+  }
+
   async recoverReadyBatches(conversationId?: string): Promise<number> {
     let repaired = 0;
-    for (const approval of this.deps.tools.listApprovals("pending")) {
+    const pendingApprovalHistory =
+      this.deps.tools.listApprovalHistoryIncludingNonActionable?.("pending") ??
+      this.deps.tools.listApprovals("pending");
+    for (const approval of pendingApprovalHistory) {
       if (conversationId && approval.conversationId !== conversationId)
         continue;
       const toolCall = await this.deps.tools.getToolCallDetails(
@@ -186,7 +279,24 @@ export class ApprovalBatchResolutionService {
           toolCall.id,
           toolCall.runId,
         );
+        const batch = await this.deps.runs.approvalBatchForToolCall(
+          toolCall.id,
+          toolCall.runId,
+        );
+        await this.deps.runs.assertApprovalBatchContextUnchanged(batch);
       } catch (error) {
+        if (isStaleApprovalContextError(error)) {
+          const batch = await this.deps.runs.approvalBatchForToolCall(
+            toolCall.id,
+            toolCall.runId,
+          );
+          await this.deps.runs.cancelStaleApprovalBatch(
+            batch,
+            `saved approval context became stale (${error.code})`,
+          );
+          repaired += 1;
+          continue;
+        }
         if (
           error instanceof ApplicationError &&
           error.code === "RUN_INTERACTION_NOT_PENDING"
@@ -339,7 +449,25 @@ export class ApprovalBatchResolutionService {
       }
       return this.deps.tools.getToolCallDetails(targetToolCallId);
     }
+    if (!(await this.batchTerminal(batch))) {
+      return this.deps.tools.getToolCallDetails(targetToolCallId);
+    }
     return this.drainValidated(batch, targetToolCallId);
+  }
+
+  private async batchTerminal(
+    batch: ApprovalInteractionBatch,
+  ): Promise<boolean> {
+    for (const toolCallId of batch.batchToolCallIds) {
+      if (
+        !isTerminalToolCall(
+          await this.deps.tools.getToolCallDetails(toolCallId),
+        )
+      ) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private async drainValidated(

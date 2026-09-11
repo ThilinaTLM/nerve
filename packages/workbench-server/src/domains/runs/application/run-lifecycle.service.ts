@@ -2,7 +2,14 @@ import type {
   ConversationJournalEvent,
   ConversationJournalCommit,
 } from "@nervekit/contracts/conversations";
-import type { LifecycleWork } from "@nervekit/contracts/runs";
+import type {
+  ExecutionAttempt,
+  LifecycleInteraction,
+  LifecycleWork,
+  RecoveryIssue,
+  RunLifecycleRecord,
+  ToolProposal,
+} from "@nervekit/contracts/runs";
 
 export interface RunLifecycleCommand {
   conversationId: string;
@@ -10,6 +17,13 @@ export interface RunLifecycleCommand {
   inputHash: string;
   kind: string;
   events: ConversationJournalEvent[];
+  aggregate?: {
+    run: RunLifecycleRecord;
+    proposals: readonly ToolProposal[];
+    interactions: readonly LifecycleInteraction[];
+    attempts: readonly ExecutionAttempt[];
+    recoveryIssues: readonly RecoveryIssue[];
+  };
   work: readonly LifecycleWork[];
   outcome: unknown;
   expectedRevision?: number;
@@ -32,6 +46,7 @@ export interface RunLifecycleServiceDependencies {
         committedAt?: string;
         idempotencyKey?: string;
         lifecycle?: {
+          aggregate?: RunLifecycleCommand["aggregate"];
           work: readonly LifecycleWork[];
           inputHash: string;
           outcome: unknown;
@@ -74,6 +89,7 @@ export class RunLifecycleService {
         committedAt: command.committedAt,
         idempotencyKey: command.requestId,
         lifecycle: {
+          aggregate: command.aggregate,
           work: command.work,
           inputHash: command.inputHash,
           outcome: command.outcome,

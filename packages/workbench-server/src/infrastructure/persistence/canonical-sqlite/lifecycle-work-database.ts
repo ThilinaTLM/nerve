@@ -1,8 +1,13 @@
 import { DatabaseSync } from "node:sqlite";
 import {
   lifecycleWorkSchema,
+  type ExecutionAttempt,
+  type LifecycleInteraction,
   type LifecycleWork,
   type LifecycleWorkState,
+  type RecoveryIssue,
+  type RunLifecycleRecord,
+  type ToolProposal,
 } from "@nervekit/contracts/runs";
 import type { ConversationPersistenceDelta } from "../../../domains/conversations/conversation-state-materializer.js";
 import { appendDurableEventInTransaction } from "./canonical-database-helpers.js";
@@ -22,6 +27,13 @@ export interface ReconciliationOperationRecord {
 
 export interface LifecycleAtomicCommitInput {
   delta: ConversationPersistenceDelta;
+  aggregate?: {
+    run: RunLifecycleRecord;
+    proposals: readonly ToolProposal[];
+    interactions: readonly LifecycleInteraction[];
+    attempts: readonly ExecutionAttempt[];
+    recoveryIssues: readonly RecoveryIssue[];
+  };
   work: readonly LifecycleWork[];
   receipt: LifecycleCommandReceiptInput;
 }
@@ -239,6 +251,132 @@ export function claimLifecycleWorkInTransaction(
   return Number(updated.changes) === 1 ? next : undefined;
 }
 
+function persistLifecycleAggregateInTransaction(
+  database: DatabaseSync,
+  aggregate: NonNullable<LifecycleAtomicCommitInput["aggregate"]>,
+): void {
+  const run = aggregate.run;
+  const runChanged = database
+    .prepare(
+      `INSERT INTO run_lifecycle_records (
+         run_id, conversation_id, lifecycle_state, branch_epoch, revision,
+         payload_version, data, updated_at_ms
+       ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+       ON CONFLICT(run_id) DO UPDATE SET
+         lifecycle_state = excluded.lifecycle_state,
+         branch_epoch = excluded.branch_epoch,
+         revision = excluded.revision,
+         data = excluded.data,
+         updated_at_ms = excluded.updated_at_ms
+       WHERE run_lifecycle_records.revision = excluded.revision - 1`,
+    )
+    .run(
+      run.runId,
+      run.conversationId,
+      run.state,
+      run.branchEpoch,
+      run.revision,
+      encode(run),
+      Date.parse(run.updatedAt),
+    ).changes;
+  if (runChanged !== 1) {
+    throw new Error(`Lifecycle run revision conflict: ${run.runId}`);
+  }
+  for (const proposal of aggregate.proposals) {
+    database
+      .prepare(
+        `INSERT INTO lifecycle_tool_proposals (
+           proposal_id, run_id, conversation_id, invocation_id,
+           arguments_hash, payload_version, data, created_at_ms
+         ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+         ON CONFLICT(proposal_id) DO NOTHING`,
+      )
+      .run(
+        proposal.id,
+        proposal.runId,
+        proposal.conversationId,
+        proposal.providerToolCallId,
+        proposal.argumentsHash,
+        encode(proposal),
+        Date.parse(proposal.createdAt),
+      );
+  }
+  for (const interaction of aggregate.interactions) {
+    database
+      .prepare(
+        `INSERT INTO lifecycle_interactions (
+           interaction_id, proposal_id, run_id, conversation_id, state,
+           resolution_request_id, payload_version, data, updated_at_ms
+         ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+         ON CONFLICT(interaction_id) DO UPDATE SET
+           state = excluded.state,
+           resolution_request_id = excluded.resolution_request_id,
+           data = excluded.data,
+           updated_at_ms = excluded.updated_at_ms`,
+      )
+      .run(
+        interaction.id,
+        interaction.proposalId,
+        interaction.runId,
+        run.conversationId,
+        interaction.status,
+        interaction.resolutionRequestId ?? null,
+        encode(interaction),
+        Date.parse(
+          interaction.resolvedAt ??
+            interaction.cancelledAt ??
+            interaction.requestedAt,
+        ),
+      );
+  }
+  for (const attempt of aggregate.attempts) {
+    database
+      .prepare(
+        `INSERT INTO lifecycle_execution_attempts (
+           attempt_id, proposal_id, run_id, state, generation,
+           result_entry_id, payload_version, data, updated_at_ms
+         ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+         ON CONFLICT(attempt_id) DO UPDATE SET
+           state = excluded.state,
+           generation = excluded.generation,
+           result_entry_id = excluded.result_entry_id,
+           data = excluded.data,
+           updated_at_ms = excluded.updated_at_ms`,
+      )
+      .run(
+        attempt.id,
+        attempt.proposalId,
+        attempt.runId,
+        attempt.state,
+        attempt.generation,
+        attempt.resultEntryId ?? null,
+        encode(attempt),
+        Date.parse(attempt.settledAt ?? attempt.startedAt ?? run.updatedAt),
+      );
+  }
+  for (const issue of aggregate.recoveryIssues) {
+    database
+      .prepare(
+        `INSERT INTO lifecycle_recovery_issues (
+           issue_id, conversation_id, run_id, work_id, code, resolved,
+           payload_version, data, created_at_ms, updated_at_ms
+         ) VALUES (?, ?, ?, ?, ?, 0, 1, ?, ?, ?)
+         ON CONFLICT(issue_id) DO UPDATE SET
+           data = excluded.data, updated_at_ms = excluded.updated_at_ms`,
+      )
+      .run(
+        issue.id,
+        issue.conversationId,
+        issue.runId ?? null,
+        issue.workId ?? null,
+        issue.code,
+        encode(issue),
+        Date.parse(issue.createdAt),
+        Date.parse(issue.createdAt),
+      );
+  }
+}
+
 export class CanonicalLifecycleDatabase {
   constructor(private readonly database: DatabaseSync) {}
 
@@ -339,6 +477,9 @@ export class CanonicalLifecycleDatabase {
       persistConversationCommitInTransaction(database, input.delta, (event) =>
         appendDurableEventInTransaction(database, event),
       );
+      if (input.aggregate) {
+        persistLifecycleAggregateInTransaction(database, input.aggregate);
+      }
       for (const work of input.work) {
         insertLifecycleWorkInTransaction(database, work);
       }

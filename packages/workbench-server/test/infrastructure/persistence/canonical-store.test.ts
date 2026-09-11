@@ -52,7 +52,10 @@ test("fresh canonical stores create the baseline and ordered migrations", async 
          'canonical_meta', 'permission_rules',
          'conversation_record_projections', 'tool_call_projections',
          'rpc_idempotency', 'lifecycle_work',
-         'lifecycle_command_receipts', 'reconciliation_operations'
+         'lifecycle_command_receipts', 'reconciliation_operations',
+         'run_lifecycle_records', 'lifecycle_tool_proposals',
+         'lifecycle_interactions', 'lifecycle_execution_attempts',
+         'lifecycle_recovery_issues'
        ) ORDER BY name`,
     )
     .all()
@@ -72,9 +75,14 @@ test("fresh canonical stores create the baseline and ordered migrations", async 
   assert.deepEqual(objects, [
     "conversation_record_projections",
     "lifecycle_command_receipts",
+    "lifecycle_execution_attempts",
+    "lifecycle_interactions",
+    "lifecycle_recovery_issues",
+    "lifecycle_tool_proposals",
     "lifecycle_work",
     "reconciliation_operations",
     "rpc_idempotency",
+    "run_lifecycle_records",
     "tool_call_projections",
   ]);
   assert.deepEqual(migrations, [

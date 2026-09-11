@@ -245,6 +245,7 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
   assert.deepEqual(schemaMigrations, [
     { version: 1, name: "nerve-home-v1" },
     { version: 2, name: "atomic-run-lifecycle-work-v2" },
+    { version: 3, name: "authoritative-run-lifecycle-v3" },
   ]);
   const homeMigrations = JSON.parse(
     await readFile(storage.paths.migrationLedgerPath, "utf8"),

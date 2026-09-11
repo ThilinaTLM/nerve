@@ -2,6 +2,7 @@ import {
   reconcileConversationResultSchema,
   type ReconcileConversationResult,
 } from "@nervekit/contracts/conversations";
+import type { LifecycleWork, RecoveryIssue } from "@nervekit/contracts/runs";
 
 interface ReconciliationOperation {
   id: string;
@@ -21,6 +22,7 @@ export interface RunReconciliationDependencies {
     recoverResolvedUserQuestions(conversationId?: string): Promise<number>;
   };
   tools: {
+    getToolCallDetails(toolCallId: string): Promise<{ status: string }>;
     listToolCallPreviews(query: {
       conversationId: string;
       status: "waiting";
@@ -35,6 +37,20 @@ export interface RunReconciliationDependencies {
     getConversationSnapshot(
       conversationId: string,
     ): Promise<{ conversationRevision: number }>;
+  };
+  work: {
+    listExpiredLifecycleWork(
+      now: string,
+      limit: number,
+    ): Promise<LifecycleWork[]>;
+    settleLifecycleWork(input: {
+      workId: string;
+      expectedGeneration: number;
+      leaseOwner: string;
+      state: "succeeded" | "outcome_unknown";
+      now: string;
+      lastError?: string;
+    }): Promise<LifecycleWork | undefined>;
   };
   operations: {
     readReconciliationOperation(
@@ -136,6 +152,7 @@ export class RunReconciliationService {
       await this.deps.humanInput.recoverResolvedUserQuestions(conversationId);
     const repairedPlans =
       await this.deps.humanInput.recoverAcceptedPlanReviews(conversationId);
+    const classified = await this.classifyExpiredToolWork(conversationId);
     if (!conversationId || !operationId) return;
     const pending = await this.deps.tools.listToolCallPreviews({
       conversationId,
@@ -160,8 +177,59 @@ export class RunReconciliationService {
       repairedTransitions:
         repairedApprovals + repairedQuestions + repairedPlans,
       requeuedWork: 0,
-      unknownOutcomes: 0,
-      recoveryIssues: [],
+      unknownOutcomes: classified.unknownOutcomes,
+      recoveryIssues: classified.recoveryIssues,
     });
+  }
+
+  private async classifyExpiredToolWork(conversationId?: string): Promise<{
+    unknownOutcomes: number;
+    recoveryIssues: RecoveryIssue[];
+  }> {
+    const now = (this.deps.now ?? (() => new Date()))().toISOString();
+    const expired = await this.deps.work.listExpiredLifecycleWork(now, 100);
+    const recoveryIssues: RecoveryIssue[] = [];
+    for (const work of expired) {
+      if (
+        work.kind !== "execute_tool" ||
+        !work.proposalId ||
+        !work.leaseOwner ||
+        (conversationId && work.conversationId !== conversationId)
+      ) {
+        continue;
+      }
+      const toolCall = await this.deps.tools.getToolCallDetails(
+        work.proposalId,
+      );
+      const terminal = ["completed", "failed", "denied", "cancelled"].includes(
+        toolCall.status,
+      );
+      await this.deps.work.settleLifecycleWork({
+        workId: work.id,
+        expectedGeneration: work.generation,
+        leaseOwner: work.leaseOwner,
+        state: terminal ? "succeeded" : "outcome_unknown",
+        now,
+        ...(!terminal
+          ? {
+              lastError: "Execution ownership expired without a proven result.",
+            }
+          : {}),
+      });
+      if (!terminal) {
+        recoveryIssues.push({
+          id: `recovery_${work.id.slice("work_".length)}`,
+          conversationId: work.conversationId,
+          ...(work.runId ? { runId: work.runId } : {}),
+          workId: work.id,
+          code: "outcome_unknown",
+          message:
+            "Tool execution may have produced an external side effect, but no terminal result was proven.",
+          actions: ["inspect", "cancel_run", "authorize_retry"],
+          createdAt: now,
+        });
+      }
+    }
+    return { unknownOutcomes: recoveryIssues.length, recoveryIssues };
   }
 }

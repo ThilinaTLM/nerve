@@ -88,8 +88,6 @@ import { WorkbenchAgentExecutionAdapter } from "../../domains/runs/adapters/work
 import { WorkbenchRunService } from "../../domains/runs/application/workbench-run.service.js";
 import { WorkbenchRunQuery } from "../../domains/runs/application/workbench-run-query.js";
 import { RunReconciliationService } from "../../domains/runs/runtime/run-reconciliation.service.js";
-import { LifecycleWorkDispatcher } from "../../domains/runs/runtime/lifecycle-work-dispatcher.js";
-import { RunLifecycleService } from "../../domains/runs/application/run-lifecycle.service.js";
 import { reconciliationOperationId } from "../../domains/runs/adapters/reconciliation-operation-id.js";
 import type { SubscriptionUsageService } from "../../domains/usage/subscription-usage-service.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
@@ -106,6 +104,7 @@ import {
   gitReadDiagnostic,
 } from "../runtime/git-logging.js";
 import type { RuntimeState } from "../runtime/runtime-projections.js";
+import { createLifecycleRuntime } from "./create-lifecycle-runtime.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
@@ -655,34 +654,15 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       logger: logger.child({ component: "task-notification" }),
     });
   taskNotifications.start();
-  const lifecycleDispatcher = new LifecycleWorkDispatcher({
-    store: storage.canonicalStore,
-    bootId: `boot_${Date.now().toString(36)}`,
-    handlers: {
-      reconcile_conversation: async (work) => {
-        if (work.runId) {
-          await humanInput.recoverReadyApprovalBatches(work.conversationId);
-          await humanInput.recoverResolvedUserQuestions(work.conversationId);
-        } else if (work.proposalId) {
-          const approval = await tools.getApprovalForToolCallDetails(
-            work.proposalId,
-          );
-          if (approval) await tools.finalizeDecidedApproval(approval.id);
-        }
-        return { state: "succeeded" };
-      },
+  const { dispatcher: lifecycleDispatcher, lifecycle } = createLifecycleRuntime(
+    {
+      store: storage.canonicalStore,
+      journal: conversationJournal,
+      tools,
+      humanInput: () => humanInput,
+      logger,
     },
-  });
-  const lifecycle = new RunLifecycleService({
-    journal: conversationJournal,
-    receipts: storage.canonicalStore,
-    wakeWork: () => {
-      setImmediate(() => void lifecycleDispatcher.wake());
-    },
-    onWakeError: (error) => {
-      void logger.warn("Lifecycle dispatcher wake failed", { error });
-    },
-  });
+  );
   const humanInput = new HumanInputResolutionService({
     tools: tools,
     plans: plans,
@@ -724,6 +704,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     tools,
     conversationQuery,
     operations: storage.canonicalStore,
+    work: storage.canonicalStore,
     operationId: reconciliationOperationId,
   });
   const toolInteractions: ToolInteractionResolutionService =

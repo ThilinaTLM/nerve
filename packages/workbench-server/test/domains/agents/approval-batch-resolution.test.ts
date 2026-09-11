@@ -81,6 +81,7 @@ test("approval decision atomically commits a durable reconciliation intent", asy
   const runs = {
     approvalBatchForToolCall: async () => batch,
     assertPendingInteractionForToolCall: async () => undefined,
+    assertApprovalBatchContextUnchanged: async () => undefined,
   } as unknown as WorkbenchRunService;
   const service = new ApprovalBatchResolutionService({
     tools,

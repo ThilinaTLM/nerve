@@ -187,6 +187,33 @@ test("failed successor insertion rolls back its conversation commit and receipt"
       records: [],
       leaves: [],
     },
+    aggregate: {
+      run: {
+        runId: "run_rollback",
+        conversationId: conversation.id,
+        projectId: "proj_test",
+        agentId: "agent_test",
+        branchEpoch: 1,
+        revision: 1,
+        state: "open" as const,
+        createdAt: now,
+        updatedAt: now,
+      },
+      proposals: [],
+      interactions: [
+        {
+          id: "interaction_missing_proposal",
+          proposalId: "proposal_missing",
+          runId: "run_rollback",
+          kind: "approval" as const,
+          status: "pending" as const,
+          request: {},
+          requestedAt: now,
+        },
+      ],
+      attempts: [],
+      recoveryIssues: [],
+    },
     work: [{ ...work, id: "work_conflict", conversationId: conversation.id }],
     receipt: {
       scopeId: conversation.id,
@@ -196,7 +223,10 @@ test("failed successor insertion rolls back its conversation commit and receipt"
       createdAt: now,
     },
   };
-  await assert.rejects(store.persistLifecycleAtomicCommit(input), /UNIQUE/);
+  await assert.rejects(
+    store.persistLifecycleAtomicCommit(input),
+    /FOREIGN KEY|UNIQUE/,
+  );
   assert.equal(await store.readConversationRevision(conversation.id), 0);
   await store.close();
 });

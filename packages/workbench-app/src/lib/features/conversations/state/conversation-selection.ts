@@ -90,11 +90,17 @@ export function recoverAndRefreshConversation(
     view.error = undefined;
     try {
       const requestId = crypto.randomUUID();
-      await protocolRequest(
+      const recovery = await protocolRequest(
         "conversation.reconcile",
         { conversationId, requestId },
         { idempotencyKey: requestId },
       );
+      view.recoveryIssues = recovery.result.recoveryIssues;
+      if (recovery.result.unknownOutcomes > 0) {
+        notify.message("Recovery needs review", {
+          description: `${recovery.result.unknownOutcomes} external operation outcome${recovery.result.unknownOutcomes === 1 ? " is" : "s are"} unknown. No operation was repeated.`,
+        });
+      }
       await refreshConversationView(conversationId);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);

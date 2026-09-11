@@ -33,6 +33,7 @@ export function ensureConversationView(
     stopping: false,
     composerText: "",
     loading: false,
+    recoveryIssues: [],
   };
   return conversationState.conversationViews[key];
 }

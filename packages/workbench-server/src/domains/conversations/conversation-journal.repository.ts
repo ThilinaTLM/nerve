@@ -42,7 +42,12 @@ import {
   type RunPromptRecord,
   type RunRecord,
   type RunTransitionRecord,
+  type ExecutionAttempt,
+  type LifecycleInteraction,
   type LifecycleWork,
+  type RecoveryIssue,
+  type RunLifecycleRecord,
+  type ToolProposal,
 } from "@nervekit/contracts/runs";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import {
@@ -354,6 +359,13 @@ export class ConversationJournalRepository {
       committedAt?: string;
       idempotencyKey?: string;
       lifecycle?: {
+        aggregate?: {
+          run: RunLifecycleRecord;
+          proposals: readonly ToolProposal[];
+          interactions: readonly LifecycleInteraction[];
+          attempts: readonly ExecutionAttempt[];
+          recoveryIssues: readonly RecoveryIssue[];
+        };
         work: readonly LifecycleWork[];
         inputHash: string;
         outcome: unknown;
@@ -426,6 +438,7 @@ export class ConversationJournalRepository {
         }
         const persisted = await this.canonical.persistLifecycleAtomicCommit({
           delta,
+          aggregate: input.lifecycle.aggregate,
           work: input.lifecycle.work,
           receipt: {
             scopeId: conversationId,

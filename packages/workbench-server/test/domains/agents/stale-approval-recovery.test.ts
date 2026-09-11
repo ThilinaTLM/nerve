@@ -104,7 +104,7 @@ test("a stale decided approval is cancelled durably across restarts without tool
     );
     assert.equal(
       (await runtime.services.tools.getToolCallDetails(toolCallId)).status,
-      "failed",
+      "cancelled",
     );
     await assertNoFile(marker);
     const entriesAfterRecovery =

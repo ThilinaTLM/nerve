@@ -364,6 +364,16 @@ export class ToolService {
     return this.dependencies.toolCallRepository.hydrationSource;
   }
 
+  listApprovalHistoryIncludingNonActionable(
+    status?: ApprovalRecord["status"],
+  ): ApprovalRecord[] {
+    return projectApprovals(
+      this.dependencies.toolCallRepository.listInteractionRecords(),
+      () => true,
+      status,
+    );
+  }
+
   listApprovals(status?: ApprovalRecord["status"]): ApprovalRecord[] {
     return projectApprovals(
       status === "pending"
