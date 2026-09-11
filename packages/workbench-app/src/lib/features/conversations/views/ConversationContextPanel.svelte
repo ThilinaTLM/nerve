@@ -19,7 +19,7 @@ import type {
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
-import ContextAgentsTree from "./ContextAgentsTree.svelte";
+import ContextAgentsSection from "./ContextAgentsSection.svelte";
 import ContextConversationUsage from "./ContextConversationUsage.svelte";
 import ContextExportMenu from "./ContextExportMenu.svelte";
 import ContextSessionSection from "./ContextSessionSection.svelte";
@@ -120,7 +120,11 @@ async function copySession(): Promise<void> {
         <ContextSessionSection {fields} />
       </div>
       <ContextConversationUsage {conversationUsage} />
-      <ContextAgentsTree {conversationAgents} {activeAgent} {onSelectAgent} />
+      <ContextAgentsSection
+        {conversationAgents}
+        {activeAgent}
+        {onSelectAgent}
+      />
     </div>
   {/if}
 </PanelView>
