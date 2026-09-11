@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import type { ApprovalRecord, ToolCallRecord } from "@nervekit/contracts/tools";
-import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type {
+  ConversationEntry,
+  ConversationJournalEvent,
+} from "@nervekit/contracts/conversations";
 import { ApplicationError } from "../../core/application-error.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging.js";
 import type {
@@ -9,11 +12,13 @@ import type {
 } from "../runs/application/workbench-run.service.js";
 import type { ToolService } from "../tools/execution/tool-service.js";
 import { toToolCallTranscriptRecord } from "../tools/artifacts/tool-call-transcript-preview.js";
+import type { RunLifecycleService } from "../runs/application/run-lifecycle.service.js";
 
 interface ApprovalBatchResolutionDeps {
   tools: ToolService;
   runs: WorkbenchRunService;
   logger?: ApplicationLogger;
+  lifecycle?: RunLifecycleService;
   appendToolResult(
     toolCall: ToolCallRecord,
     isError: boolean,
@@ -49,8 +54,9 @@ export class ApprovalBatchResolutionService {
     const approval = projected;
     const pendingToolCall = this.deps.tools.getToolCall(approval.toolCallId);
     if (!pendingToolCall.runId) {
-      await this.deps.tools.decideApproval(
-        approvalId,
+      await this.decideApprovalDurably(
+        approval,
+        pendingToolCall,
         decision,
         note,
         resolutionRequestId,
@@ -84,8 +90,9 @@ export class ApprovalBatchResolutionService {
           currentToolCall.id,
           currentToolCall.runId,
         );
-        await this.deps.tools.decideApproval(
-          approvalId,
+        await this.decideApprovalDurably(
+          currentApproval,
+          currentToolCall,
           decision,
           note,
           resolutionRequestId,
@@ -95,6 +102,72 @@ export class ApprovalBatchResolutionService {
           return this.deps.tools.getToolCall(currentToolCall.id);
         }
         return this.drain(batch, currentToolCall.id);
+      },
+    );
+  }
+
+  private async decideApprovalDurably(
+    approval: ApprovalRecord,
+    toolCall: ToolCallRecord,
+    decision: "allow" | "deny",
+    note: string | undefined,
+    resolutionRequestId: string | undefined,
+    scope: Parameters<ToolService["decideApproval"]>[4],
+  ): Promise<void> {
+    const lifecycle = this.deps.lifecycle;
+    if (!lifecycle) {
+      await this.deps.tools.decideApproval(
+        approval.id,
+        decision,
+        note,
+        resolutionRequestId,
+        scope,
+      );
+      return;
+    }
+    const requestId =
+      resolutionRequestId ?? `approval:${approval.id}:${decision}`;
+    const inputHash = `sha256:${createHash("sha256")
+      .update(
+        JSON.stringify({ approvalId: approval.id, decision, note, scope }),
+      )
+      .digest("hex")}`;
+    await this.deps.tools.decideApproval(
+      approval.id,
+      decision,
+      note,
+      resolutionRequestId,
+      scope,
+      async (_next, events: ConversationJournalEvent[]) => {
+        const timestamp = new Date().toISOString();
+        const workHash = createHash("sha256")
+          .update(`${toolCall.id}:${requestId}`)
+          .digest("hex");
+        await lifecycle.commit({
+          conversationId: toolCall.conversationId,
+          requestId,
+          inputHash,
+          kind: "run.approval_decided",
+          events,
+          work: [
+            {
+              id: `work_${workHash.slice(0, 24)}`,
+              deduplicationKey: `approval:${approval.id}:${requestId}`,
+              conversationId: toolCall.conversationId,
+              ...(toolCall.runId ? { runId: toolCall.runId } : {}),
+              proposalId: toolCall.id,
+              kind: "reconcile_conversation",
+              state: "ready",
+              inputHash,
+              generation: 0,
+              attemptCount: 0,
+              notBefore: timestamp,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            },
+          ],
+          outcome: { approvalId: approval.id, decision },
+        });
       },
     );
   }

@@ -32,6 +32,74 @@ function terminalToolCall(id: string): ToolCallRecord {
   } as unknown as ToolCallRecord;
 }
 
+test("approval decision atomically commits a durable reconciliation intent", async () => {
+  const pending = {
+    ...terminalToolCall("tool_decided"),
+    status: "waiting",
+    revision: 1,
+    settledAt: undefined,
+  } as ToolCallRecord;
+  const approval = {
+    id: "approval_decided_0",
+    toolCallId: pending.id,
+    conversationId: pending.conversationId,
+    status: "pending",
+  } as unknown as ApprovalRecord;
+  const otherApproval = {
+    id: "approval_other_0",
+    toolCallId: "tool_other",
+    status: "pending",
+  } as unknown as ApprovalRecord;
+  let command: { work: Array<{ kind: string }>; events: unknown[] } | undefined;
+  const tools = {
+    listApprovals: () => [approval],
+    getToolCall: () => pending,
+    decideApproval: async (
+      _id: string,
+      _decision: string,
+      _note: string | undefined,
+      _requestId: string | undefined,
+      _scope: string | undefined,
+      commit: (
+        next: ToolCallRecord,
+        events: Array<{ kind: "tool_call.upserted" }>,
+      ) => Promise<void>,
+    ) => {
+      await commit(pending, [{ kind: "tool_call.upserted" }]);
+      return { ...approval, status: "granted" };
+    },
+    getApprovalForToolCallDetails: async (toolCallId: string) =>
+      toolCallId === pending.id
+        ? ({ ...approval, status: "granted" } as ApprovalRecord)
+        : otherApproval,
+  } as unknown as ToolService;
+  const batch = {
+    runId: "run_test",
+    checkpointId: "checkpoint_test",
+    batchToolCallIds: [pending.id, "tool_other"],
+  } as unknown as ApprovalInteractionBatch;
+  const runs = {
+    approvalBatchForToolCall: async () => batch,
+    assertPendingInteractionForToolCall: async () => undefined,
+  } as unknown as WorkbenchRunService;
+  const service = new ApprovalBatchResolutionService({
+    tools,
+    runs,
+    lifecycle: {
+      commit: async (input: typeof command) => {
+        command = input;
+        return { replayed: false, outcome: {} };
+      },
+    } as never,
+    appendToolResult: async () => ({}) as ConversationEntry,
+    existingToolResultEntry: async () => undefined,
+  });
+
+  await service.resolve(approval.id, "allow", undefined, "request_test");
+  assert.equal(command?.work[0]?.kind, "reconcile_conversation");
+  assert.deepEqual(command?.events, [{ kind: "tool_call.upserted" }]);
+});
+
 test("startup recovery loads evicted terminal approval tool calls asynchronously", async () => {
   const decided = terminalToolCall("tool_decided");
   const policyTerminal = terminalToolCall("tool_policy_terminal");

@@ -82,6 +82,32 @@ describe("canonical ToolCallRepository", () => {
     );
   });
 
+  it("installs an externally committed replacement only after commit success", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-repository-"));
+    roots.push(home);
+    const value = await repository(home);
+    await value.repository.create(toolCall("tool_test"));
+
+    await assert.rejects(
+      value.repository.replaceWithCommit(
+        "tool_test",
+        1,
+        (current) => ({
+          ...current,
+          status: "completed",
+          result: "ok",
+          settledAt: current.updatedAt,
+        }),
+        async () => {
+          throw new Error("atomic commit failed");
+        },
+      ),
+      /atomic commit failed/,
+    );
+    assert.equal(value.repository.get("tool_test").revision, 1);
+    assert.equal(value.repository.get("tool_test").status, "running");
+  });
+
   it("hydrates terminal history into previews without retaining full records", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-repository-"));
     roots.push(home);

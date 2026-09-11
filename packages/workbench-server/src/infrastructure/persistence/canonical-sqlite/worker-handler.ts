@@ -25,6 +25,11 @@ export function executeCanonicalCommand(
       return database.lifecycle.renew(command.input);
     case "settle_lifecycle_work":
       return database.lifecycle.settle(command.input);
+    case "read_lifecycle_command_receipt":
+      return database.lifecycle.readCommandReceipt(
+        command.scopeId,
+        command.requestId,
+      );
     case "read_reconciliation_operation":
       return database.lifecycle.readReconciliationOperation(
         command.conversationId,

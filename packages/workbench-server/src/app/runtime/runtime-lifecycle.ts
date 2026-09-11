@@ -120,8 +120,10 @@ export class RuntimeLifecycle {
       recoverRuns: async () => {
         await this.services.runRuntime.coordinator.recover();
       },
-      recoverHumanInput: () =>
-        this.services.runReconciliation.reconcileStartup(),
+      recoverHumanInput: async () => {
+        await this.services.runReconciliation.reconcileStartup();
+        await this.services.lifecycleDispatcher.wake();
+      },
       rebuildProjector: async () => {
         const activeStates =
           await this.services.runRuntime.unitOfWork.listActive();

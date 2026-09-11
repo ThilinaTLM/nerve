@@ -242,6 +242,13 @@ export function claimLifecycleWorkInTransaction(
 export class CanonicalLifecycleDatabase {
   constructor(private readonly database: DatabaseSync) {}
 
+  readCommandReceipt(
+    scopeId: string,
+    requestId: string,
+  ): { inputHash: string; outcome: unknown } | undefined {
+    return readLifecycleCommandReceipt(this.database, scopeId, requestId);
+  }
+
   readReconciliationOperation(
     conversationId: string,
     requestId: string,

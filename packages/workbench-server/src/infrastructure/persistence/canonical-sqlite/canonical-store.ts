@@ -191,6 +191,12 @@ export class CanonicalStore {
       true,
     );
   }
+  readLifecycleCommandReceipt(scopeId: string, requestId: string) {
+    return this.request<{ inputHash: string; outcome: unknown } | undefined>(
+      { kind: "read_lifecycle_command_receipt", scopeId, requestId },
+      true,
+    );
+  }
   readReconciliationOperation(conversationId: string, requestId: string) {
     return this.request<ReconciliationOperationRecord | undefined>(
       { kind: "read_reconciliation_operation", conversationId, requestId },

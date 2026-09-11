@@ -26,6 +26,7 @@ import type {
   AppendEntryInput,
   AppendEntryOptions,
 } from "../conversations/append-entry-contracts.js";
+import type { RunLifecycleService } from "../runs/application/run-lifecycle.service.js";
 import type { WorkbenchRunService } from "../runs/application/workbench-run.service.js";
 import { agentMessageText } from "../agents/execution/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
@@ -71,6 +72,7 @@ export interface HumanInputResolutionDeps {
   getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
   harnessStorage: ConversationHarnessStorage;
   logger: ApplicationLogger;
+  lifecycle?: RunLifecycleService;
   compactPlanConversation(input: {
     conversationId: string;
     agentId: string;
@@ -87,6 +89,7 @@ export class HumanInputResolutionService {
       tools: deps.tools,
       runs: deps.runs,
       logger: deps.logger,
+      lifecycle: deps.lifecycle,
       appendToolResult: (toolCall, isError) =>
         this.appendToolResultForToolCall(toolCall, isError),
       existingToolResultEntry: async (toolCall) =>

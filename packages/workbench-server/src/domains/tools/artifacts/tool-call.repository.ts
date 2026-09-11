@@ -338,6 +338,28 @@ export class ToolCallRepository {
     expectedRevision: number,
     mutate: (current: ToolCallRecord) => ToolCallRecord,
   ): Promise<ToolCallRecord> {
+    return this.replaceWithCommit(
+      toolCallId,
+      expectedRevision,
+      mutate,
+      async (record, events) => {
+        await this.journal.commit(record.conversationId, {
+          kind: "tool_call.revised",
+          events,
+        });
+      },
+    );
+  }
+
+  async replaceWithCommit(
+    toolCallId: string,
+    expectedRevision: number,
+    mutate: (current: ToolCallRecord) => ToolCallRecord,
+    commit: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
+  ): Promise<ToolCallRecord> {
     return this.serialize(toolCallId, async () => {
       const current = this.get(toolCallId);
       if (current.revision !== expectedRevision) {
@@ -402,10 +424,7 @@ export class ToolCallRepository {
           },
         });
       }
-      await this.journal.commit(next.conversationId, {
-        kind: "tool_call.revised",
-        events,
-      });
+      await commit(next, events);
       this.observe(next);
       return next;
     });

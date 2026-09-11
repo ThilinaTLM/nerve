@@ -27,6 +27,11 @@ export type CanonicalCommand =
   | { kind: "renew_lifecycle_work"; input: RenewLifecycleWorkInput }
   | { kind: "settle_lifecycle_work"; input: SettleLifecycleWorkInput }
   | {
+      kind: "read_lifecycle_command_receipt";
+      scopeId: string;
+      requestId: string;
+    }
+  | {
       kind: "read_reconciliation_operation";
       conversationId: string;
       requestId: string;
@@ -183,6 +188,7 @@ export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "list_due_lifecycle_work",
   "list_expired_lifecycle_work",
   "read_reconciliation_operation",
+  "read_lifecycle_command_receipt",
   "read_document",
   "list_documents",
   "read_conversation_revision",

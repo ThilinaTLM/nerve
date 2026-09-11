@@ -2,7 +2,7 @@ import {
   ConversationJournalDeletion,
   type JournalDeletionOptions,
 } from "./conversation-journal-deletion.js";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import { noopPerformanceDiagnostics } from "../../infrastructure/diagnostics/performance-metrics.js";
 import {
@@ -42,11 +42,14 @@ import {
   type RunPromptRecord,
   type RunRecord,
   type RunTransitionRecord,
+  type LifecycleWork,
 } from "@nervekit/contracts/runs";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import {
-  normalizeLegacyToolCallRecord,
-  type ToolCallRecord,
-} from "@nervekit/contracts/tools";
+  journalChecksum,
+  normalizeLegacyToolCalls,
+  verifyConversationJournalCommit,
+} from "./conversation-journal-integrity.js";
 
 export interface ConversationJournalState {
   conversationId: string;
@@ -350,6 +353,11 @@ export class ConversationJournalRepository {
       events: ConversationJournalEvent[];
       committedAt?: string;
       idempotencyKey?: string;
+      lifecycle?: {
+        work: readonly LifecycleWork[];
+        inputHash: string;
+        outcome: unknown;
+      };
     },
     expectedRevision?: number,
   ): Promise<ConversationJournalCommit> {
@@ -412,7 +420,29 @@ export class ConversationJournalRepository {
         delta.records.length,
       );
       const persistStartedAt = performance.now();
-      await this.persistCommit(delta);
+      if (input.lifecycle) {
+        if (!input.idempotencyKey) {
+          throw new Error("Lifecycle commits require an idempotency key.");
+        }
+        const persisted = await this.canonical.persistLifecycleAtomicCommit({
+          delta,
+          work: input.lifecycle.work,
+          receipt: {
+            scopeId: conversationId,
+            requestId: input.idempotencyKey,
+            inputHash: input.lifecycle.inputHash,
+            outcome: input.lifecycle.outcome,
+            createdAt: parsed.committedAt,
+          },
+        });
+        if (persisted.replayed) {
+          throw new Error(
+            `Lifecycle receipt ${input.idempotencyKey} replayed without its journal commit.`,
+          );
+        }
+      } else {
+        await this.persistCommit(delta);
+      }
       this.diagnostics.duration(
         "conversation.commitPersist",
         performance.now() - persistStartedAt,
@@ -452,7 +482,7 @@ export class ConversationJournalRepository {
       const commit = conversationJournalCommitSchema.parse(
         normalizeLegacyToolCalls(decoded),
       );
-      verifyCommit(state, commit, decoded);
+      verifyConversationJournalCommit(state, commit, decoded);
       applyCommit(state, commit);
     }
     if (
@@ -558,55 +588,6 @@ export class ConversationJournalRepository {
       }
     }
   }
-}
-
-export function journalChecksum(value: unknown): string {
-  return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
-}
-
-function normalizeLegacyToolCalls(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(normalizeLegacyToolCalls);
-  if (typeof value !== "object" || value === null) return value;
-  const record = value as Record<string, unknown>;
-  const normalized = Object.hasOwn(record, "permissionEvaluation")
-    ? (normalizeLegacyToolCallRecord(record as ToolCallRecord) as Record<
-        string,
-        unknown
-      >)
-    : record;
-  return Object.fromEntries(
-    Object.entries(normalized).map(([key, child]) => [
-      key,
-      normalizeLegacyToolCalls(child),
-    ]),
-  );
-}
-
-function verifyCommit(
-  state: ConversationJournalState,
-  commit: ConversationJournalCommit,
-  checksumSource: Record<string, unknown> = commit,
-): void {
-  if (
-    commit.epoch !== CONVERSATION_JOURNAL_EPOCH ||
-    commit.conversationId !== state.conversationId ||
-    commit.previousRevision !== state.revision ||
-    commit.revision !== state.revision + 1 ||
-    commit.previousChecksum !== state.checksum
-  ) {
-    throw new Error(
-      `Conversation journal '${state.conversationId}' has an invalid commit chain.`,
-    );
-  }
-  const base = Object.fromEntries(
-    Object.entries(checksumSource).filter(([key]) => key !== "checksum"),
-  );
-  if (journalChecksum(base) !== commit.checksum) {
-    throw new Error(
-      `Conversation journal '${state.conversationId}' has a checksum mismatch.`,
-    );
-  }
-  validateCommitEvents(state, commit.events, state.conversationId);
 }
 
 function interactionOrdinalKey(toolCallId: string, ordinal: number): string {
