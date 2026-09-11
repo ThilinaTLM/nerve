@@ -139,6 +139,12 @@ export class HumanInputResolutionService {
       }
     }
 
+    await this.persistPlanReviewDecision(
+      pendingReview,
+      "accept",
+      feedback,
+      implementation,
+    );
     let review: PlanReviewRecord;
     try {
       review = await this.deps.plans.acceptPlanReview(reviewId, feedback);
@@ -198,6 +204,12 @@ export class HumanInputResolutionService {
         implementation?.implementationThinkingLevel ??
         sourceAgent.thinkingLevel,
     });
+    await this.persistPlanReviewDecision(
+      pendingReview,
+      "accept_in_new_chat",
+      feedback,
+      implementation,
+    );
     let review: PlanReviewRecord;
     try {
       review = await this.deps.plans.acceptPlanReviewInNewChat(
@@ -238,6 +250,7 @@ export class HumanInputResolutionService {
     feedback?: string,
   ): Promise<PlanReviewRecord> {
     const rejectableReview = this.getRejectablePlanReviewOrThrow(reviewId);
+    await this.persistPlanReviewDecision(rejectableReview, "reject", feedback);
     let review: PlanReviewRecord;
     try {
       review = await this.deps.plans.rejectPlanReview(reviewId, feedback);
@@ -298,6 +311,11 @@ export class HumanInputResolutionService {
       pendingReview.toolCallId,
       this.deps.tools.getToolCall(pendingReview.toolCallId).runId,
     );
+    await this.persistPlanReviewDecision(
+      pendingReview,
+      "request_changes",
+      feedback,
+    );
     try {
       const review = await this.deps.plans.requestPlanChanges(
         reviewId,
@@ -327,6 +345,7 @@ export class HumanInputResolutionService {
       pendingReview.toolCallId,
       this.deps.tools.getToolCall(pendingReview.toolCallId).runId,
     );
+    await this.persistPlanReviewDecision(pendingReview, "discard", feedback);
     try {
       const review = await this.deps.plans.discardPlanReview(
         reviewId,
@@ -537,6 +556,79 @@ export class HumanInputResolutionService {
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+
+  private async persistPlanReviewDecision(
+    review: PlanReviewRecord,
+    action:
+      | "accept"
+      | "accept_in_new_chat"
+      | "request_changes"
+      | "reject"
+      | "discard",
+    feedback?: string,
+    implementation?: PlanImplementationSelection,
+  ): Promise<void> {
+    const lifecycle = this.deps.lifecycle;
+    if (!lifecycle) return;
+    const toolCall = this.deps.tools.getToolCall(review.toolCallId);
+    const interaction = toolCall.interactions.find(
+      (candidate) =>
+        candidate.kind === "plan_review" && candidate.status === "pending",
+    );
+    if (!interaction) return;
+    const requestId = `plan-review:${review.id}:${action}`;
+    const resolution = {
+      kind: "plan_review" as const,
+      action,
+      feedback,
+      implementationModel: implementation?.implementationModel,
+      implementationThinkingLevel: implementation?.implementationThinkingLevel,
+      compactBeforeImplementation: implementation?.compactBeforeImplementation,
+    };
+    const inputHash = `sha256:${createHash("sha256")
+      .update(JSON.stringify({ reviewId: review.id, resolution }))
+      .digest("hex")}`;
+    await this.deps.tools.resolveInteraction(
+      {
+        toolCallId: toolCall.id,
+        interactionOrdinal: interaction.ordinal,
+        expectedRevision: toolCall.revision,
+        resolutionRequestId: requestId,
+        resolution,
+      },
+      async (_next, events) => {
+        const timestamp = new Date().toISOString();
+        const workHash = createHash("sha256")
+          .update(`${toolCall.id}:${requestId}`)
+          .digest("hex");
+        await lifecycle.commit({
+          conversationId: toolCall.conversationId,
+          requestId,
+          inputHash,
+          kind: "run.plan_review_resolved",
+          events,
+          work: [
+            {
+              id: `work_${workHash.slice(0, 24)}`,
+              deduplicationKey: `plan-review:${review.id}:${requestId}`,
+              conversationId: toolCall.conversationId,
+              ...(toolCall.runId ? { runId: toolCall.runId } : {}),
+              proposalId: toolCall.id,
+              kind: "reconcile_conversation",
+              state: "ready",
+              inputHash,
+              generation: 0,
+              attemptCount: 0,
+              notBefore: timestamp,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            },
+          ],
+          outcome: { reviewId: review.id, action },
+        });
+      },
+    );
   }
 
   private interactionLifecycleCommit(
