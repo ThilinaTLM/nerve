@@ -30,6 +30,10 @@ export class CanonicalTimelinePageProvider {
     return (await this.services).timeline.page(request);
   }
 
+  projectionStatus(conversationId: string) {
+    return this.store.readTimelineTranscriptProjectionStatus(conversationId);
+  }
+
   async treePage(request: unknown) {
     this.services ??= this.createServices();
     return (await this.services).tree.page(request);

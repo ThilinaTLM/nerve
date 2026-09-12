@@ -15,6 +15,7 @@ import { defineOperation } from "../../operations/definition.js";
 import {
   timelinePageRequestSchema,
   timelineTreePageRequestSchema,
+  transcriptProjectionStatusSchema,
 } from "./timeline.js";
 import { timelineViewOutcomeSchema } from "./timeline-outcomes.js";
 
@@ -113,6 +114,15 @@ export const conversationsOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.conversation.timeline.page",
+  ),
+  defineOperation(
+    "conversation.timeline.projectionStatus",
+    conversationIdParamsSchema,
+    transcriptProjectionStatusSchema.nullable(),
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.conversation.timeline.projectionStatus",
   ),
   defineOperation(
     "conversation.timeline.treePage",

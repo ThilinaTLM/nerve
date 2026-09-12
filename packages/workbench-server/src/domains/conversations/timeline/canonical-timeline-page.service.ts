@@ -33,11 +33,15 @@ export class CanonicalTimelinePageService {
         actualVersion: 0,
       };
     }
-    const [identity, currentHead, deletionState] = await Promise.all([
-      this.store.readTimelineStateIdentity(),
-      this.store.readTimelineConversationHead(request.conversationId),
-      this.store.readTimelineDeletionState(request.conversationId),
-    ]);
+    const [identity, currentHead, deletionState, projection] =
+      await Promise.all([
+        this.store.readTimelineStateIdentity(),
+        this.store.readTimelineConversationHead(request.conversationId),
+        this.store.readTimelineDeletionState(request.conversationId),
+        this.store.readTimelineTranscriptProjectionStatus(
+          request.conversationId,
+        ),
+      ]);
     if (!identity) return { kind: "restore_invalidated" };
     if (!currentHead || deletionState !== "active") {
       return { kind: "deleted_owner", ownerId: request.conversationId };
@@ -63,6 +67,20 @@ export class CanonicalTimelinePageService {
       decoded.view.executionIncarnationId !== identity.executionIncarnationId
     ) {
       return { kind: "restore_invalidated" };
+    }
+    if (
+      decoded &&
+      projection &&
+      (decoded.view.projection.schemaVersion !== projection.schemaVersion ||
+        decoded.view.projection.policyVersion !== projection.policyVersion ||
+        decoded.view.projection.rebuildGeneration !==
+          projection.rebuildGeneration)
+    ) {
+      return {
+        kind: "reconciliation_required",
+        reason: "projection_rebuilt",
+        freshViewAvailable: true,
+      };
     }
     if (
       decoded &&
@@ -93,10 +111,13 @@ export class CanonicalTimelinePageService {
         sourceRevision,
         projection: {
           canonicalRevision: sourceRevision,
-          appliedRevision: sourceRevision,
-          schemaVersion: PROJECTION_SCHEMA_VERSION,
-          policyVersion: PROJECTION_POLICY_VERSION,
-          rebuildGeneration: REBUILD_GENERATION,
+          appliedRevision: projection
+            ? Math.min(projection.appliedRevision, sourceRevision)
+            : sourceRevision,
+          schemaVersion: projection?.schemaVersion ?? PROJECTION_SCHEMA_VERSION,
+          policyVersion: projection?.policyVersion ?? PROJECTION_POLICY_VERSION,
+          rebuildGeneration:
+            projection?.rebuildGeneration ?? REBUILD_GENERATION,
         },
         visibilityId: request.visibilityId,
         filterId: request.filterId,
@@ -106,14 +127,27 @@ export class CanonicalTimelinePageService {
     const beforeDepth = decoded
       ? decodeDisplayOrderKey(decoded.lastDisplayOrderKey)
       : undefined;
-    const slice = sourceHeadEntryId
-      ? await this.store.readTimelineFixedAncestryPage(
-          request.conversationId,
-          sourceHeadEntryId,
-          beforeDepth,
-          request.pageSize,
-        )
-      : { entries: [] };
+    const projected =
+      sourceHeadEntryId &&
+      projection?.rebuildState === "ready" &&
+      projection.appliedRevision >= sourceRevision
+        ? await this.store.readTimelineTranscriptProjectionPage(
+            request.conversationId,
+            sourceRevision,
+            beforeDepth,
+            request.pageSize,
+          )
+        : undefined;
+    const slice =
+      projected ??
+      (sourceHeadEntryId
+        ? await this.store.readTimelineFixedAncestryPage(
+            request.conversationId,
+            sourceHeadEntryId,
+            beforeDepth,
+            request.pageSize,
+          )
+        : { entries: [] });
     const nextCursor =
       slice.nextBeforeDepth === undefined
         ? undefined

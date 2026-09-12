@@ -35,7 +35,7 @@ interface RunControlRow {
   revision: number;
 }
 
-interface EntryRow {
+export interface EntryRow {
   entry_id: string;
   conversation_id: string;
   transition_id: string;
@@ -436,7 +436,7 @@ export function readTimelineFixedAncestryPage(
   };
 }
 
-function entryFromRow(row: EntryRow): CanonicalConversationEntry {
+export function entryFromRow(row: EntryRow): CanonicalConversationEntry {
   return canonicalConversationEntrySchema.parse({
     schemaVersion: 1,
     entryId: row.entry_id,

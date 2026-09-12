@@ -305,6 +305,21 @@ export const timelinePageRequestSchema = z.object({
   cursor: z.string().min(1).max(8_192).optional(),
 });
 
+export const transcriptProjectionStatusSchema = z.object({
+  conversationId,
+  appliedRevision: safeInteger,
+  canonicalRevision: safeInteger,
+  schemaVersion: z.number().int().positive().safe(),
+  policyVersion: z.number().int().positive().safe(),
+  rebuildGeneration: z.number().int().positive().safe(),
+  rebuildState: z.enum(["ready", "rebuilding", "failed"]),
+  oldestPendingAt: z.string().datetime().optional(),
+  lastError: z.unknown().optional(),
+});
+export type TranscriptProjectionStatus = z.infer<
+  typeof transcriptProjectionStatusSchema
+>;
+
 export const timelineTreePageRequestSchema = z.object({
   conversationId,
   sourceRevision: safeInteger.optional(),

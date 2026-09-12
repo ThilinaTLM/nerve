@@ -4,13 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { CanonicalTimelineIdentityService } from "../../../src/domains/conversations/timeline/canonical-timeline-identity.service.js";
+import { CanonicalTranscriptProjectionService } from "../../../src/domains/conversations/timeline/canonical-transcript-projection.service.js";
 import { CanonicalTimelinePageProvider } from "../../../src/domains/conversations/timeline/canonical-timeline-page-provider.js";
 import { buildAppendTransition } from "../../../src/domains/conversations/timeline/transition-builders.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
 
 const hash = `sha256:${"c".repeat(64)}`;
 
-test("INV-PAGE-01 keeps pagination on its signed source view", async (t) => {
+test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-page-"));
   const store = new CanonicalStore(join(home, "nerve.sqlite"));
   await store.initialize();
@@ -77,6 +78,14 @@ test("INV-PAGE-01 keeps pagination on its signed source view", async (t) => {
     },
     list: () => Promise.resolve([...secretValues.keys()]),
   };
+  const projections = new CanonicalTranscriptProjectionService(store);
+  const rebuilt = await projections.rebuild(
+    "conv_page",
+    "2026-09-12T00:00:01.000Z",
+  );
+  assert.equal(rebuilt?.appliedRevision, 1);
+  assert.equal(rebuilt?.rebuildGeneration, 1);
+
   const pages = new CanonicalTimelinePageProvider(store, secrets);
   const first = await pages.page({ conversationId: "conv_page", pageSize: 2 });
   assert.equal(first.kind, "page");
@@ -118,6 +127,10 @@ test("INV-PAGE-01 keeps pagination on its signed source view", async (t) => {
     now: "2026-09-12T00:00:01.000Z",
   });
   const reopenedPages = new CanonicalTimelinePageProvider(store, secrets);
+  const lagging = await projections.status("conv_page");
+  assert.equal(lagging?.appliedRevision, 1);
+  assert.equal(lagging?.canonicalRevision, 2);
+
   const second = await reopenedPages.page({
     conversationId: "conv_page",
     pageSize: 2,
@@ -164,5 +177,21 @@ test("INV-PAGE-01 keeps pagination on its signed source view", async (t) => {
   assert.equal(
     treeSecond.kind === "page" && treeSecond.page.currentHead.revision,
     2,
+  );
+  const caughtUp = await projections.rebuild(
+    "conv_page",
+    "2026-09-12T00:00:02.000Z",
+  );
+  assert.equal(caughtUp?.appliedRevision, 2);
+  assert.equal(caughtUp?.rebuildGeneration, 2);
+  const invalidatedByRebuild = await pages.page({
+    conversationId: "conv_page",
+    cursor: first.kind === "page" ? first.page.nextCursor : undefined,
+  });
+  assert.equal(invalidatedByRebuild.kind, "reconciliation_required");
+  assert.equal(
+    invalidatedByRebuild.kind === "reconciliation_required" &&
+      invalidatedByRebuild.reason,
+    "projection_rebuilt",
   );
 });

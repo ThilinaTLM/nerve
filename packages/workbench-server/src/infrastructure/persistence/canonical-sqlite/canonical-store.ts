@@ -5,6 +5,7 @@ import type {
   ConversationHead,
   MutationOutcome,
   TimelineStateIdentity,
+  TranscriptProjectionStatus,
 } from "@nervekit/contracts/conversations";
 import type {
   ConversationDeletionChunk,
@@ -184,6 +185,42 @@ export class CanonicalStore {
   readTimelineConversationHead(conversationId: string) {
     return this.request<ConversationHead | undefined>({
       kind: "read_timeline_conversation_head",
+      conversationId,
+    });
+  }
+
+  rebuildTimelineTranscriptProjection(conversationId: string, now: string) {
+    return this.request<TranscriptProjectionStatus | undefined>({
+      kind: "rebuild_timeline_transcript_projection",
+      conversationId,
+      now,
+    });
+  }
+
+  readTimelineTranscriptProjectionPage(
+    conversationId: string,
+    sourceRevision: number,
+    beforeDepth: number | undefined,
+    limit: number,
+  ) {
+    return this.request<
+      | {
+          entries: CanonicalConversationEntry[];
+          nextBeforeDepth?: number;
+        }
+      | undefined
+    >({
+      kind: "read_timeline_transcript_projection_page",
+      conversationId,
+      sourceRevision,
+      ...(beforeDepth === undefined ? {} : { beforeDepth }),
+      limit,
+    });
+  }
+
+  readTimelineTranscriptProjectionStatus(conversationId: string) {
+    return this.request<TranscriptProjectionStatus | undefined>({
+      kind: "read_timeline_transcript_projection_status",
       conversationId,
     });
   }

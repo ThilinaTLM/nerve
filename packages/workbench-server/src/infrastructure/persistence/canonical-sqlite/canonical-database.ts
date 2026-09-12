@@ -52,6 +52,7 @@ import {
 import { CanonicalLifecycleDatabase } from "./lifecycle-work-database.js";
 import { applyCanonicalMigrations } from "./canonical-migrations.js";
 import { CanonicalTimelineDatabase } from "./timeline-database.js";
+import { CanonicalProjectionDatabase } from "./timeline-projection-database.js";
 import {
   CANONICAL_BASELINE_CHECKSUM,
   CANONICAL_BASELINE_NAME,
@@ -89,6 +90,7 @@ export class CanonicalDatabase {
   private readonly database: DatabaseSync;
   readonly lifecycle: CanonicalLifecycleDatabase;
   readonly timeline: CanonicalTimelineDatabase;
+  readonly projections: CanonicalProjectionDatabase;
 
   constructor(
     readonly path: string,
@@ -99,6 +101,7 @@ export class CanonicalDatabase {
     this.database = new DatabaseSync(path);
     this.lifecycle = new CanonicalLifecycleDatabase(this.database);
     this.timeline = new CanonicalTimelineDatabase(this.database);
+    this.projections = new CanonicalProjectionDatabase(this.database);
     this.database.exec("PRAGMA foreign_keys = ON");
     this.database.exec("PRAGMA busy_timeout = 5000");
     if (options.queryOnly) {

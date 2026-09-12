@@ -17,6 +17,22 @@ export function executeCanonicalCommand(
       return database.timeline.readStateIdentity();
     case "read_timeline_conversation_head":
       return database.timeline.readHead(command.conversationId);
+    case "rebuild_timeline_transcript_projection":
+      return database.projections.rebuildTranscript(
+        command.conversationId,
+        command.now,
+      );
+    case "read_timeline_transcript_projection_page":
+      return database.projections.readTranscriptPage({
+        conversationId: command.conversationId,
+        sourceRevision: command.sourceRevision,
+        ...(command.beforeDepth === undefined
+          ? {}
+          : { beforeDepth: command.beforeDepth }),
+        limit: command.limit,
+      });
+    case "read_timeline_transcript_projection_status":
+      return database.projections.readTranscriptStatus(command.conversationId);
     case "read_timeline_deletion_state":
       return database.timeline.readDeletionState(command.conversationId);
     case "read_timeline_head_at_revision":
