@@ -48,6 +48,9 @@ export const immutableExecutionSnapshotSchema = z.object({
   opaqueProviderStateManifestId: z.string().startsWith("manifest_").optional(),
   createdAt: z.string().datetime(),
 });
+export type ImmutableExecutionSnapshot = z.infer<
+  typeof immutableExecutionSnapshotSchema
+>;
 
 export const canonicalCheckpointSchema = z.object({
   schemaVersion: z.literal(1),
@@ -70,32 +73,69 @@ export const canonicalCheckpointSchema = z.object({
 });
 export type CanonicalCheckpoint = z.infer<typeof canonicalCheckpointSchema>;
 
-export const waitGroupMemberStateSchema = z.enum([
+export const waitGroupMemberExecutionStateSchema = z.enum([
   "drafted",
   "awaiting_approval",
   "authorized",
   "executing",
-  "succeeded_attached",
-  "known_failed_attached",
+  "succeeded",
+  "known_failed",
+  "denied",
+  "cancelled",
+  "outcome_unknown",
+  "result_unavailable",
+  "closed",
+]);
+
+export const waitGroupAttachmentDispositionSchema = z.enum([
+  "pending",
+  "attached",
   "not_executed",
   "outcome_unknown",
   "result_unavailable",
-  "closed_detached",
+  "detached",
 ]);
 
-export const waitGroupMemberSchema = z.object({
-  schemaVersion: z.literal(1),
-  memberId: z.string().startsWith("member_"),
-  waitGroupId: z.string().startsWith("wait_group_"),
-  memberKind: z.enum(["tool", "interaction", "child_agent"]),
-  ownerId: z.string().min(1).max(256),
-  inputFingerprint: digest,
-  policyFingerprint: digest.optional(),
-  state: waitGroupMemberStateSchema,
-  resultEntryId: entryId.optional(),
-  contributesToBarrier: z.boolean(),
-  revision: z.number().int().positive().safe(),
-});
+export const waitGroupMemberSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    memberId: z.string().startsWith("member_"),
+    waitGroupId: z.string().startsWith("wait_group_"),
+    memberKind: z.enum(["tool", "interaction", "child_agent"]),
+    ownerId: z.string().min(1).max(256),
+    inputFingerprint: digest,
+    policyFingerprint: digest.optional(),
+    executionState: waitGroupMemberExecutionStateSchema,
+    attachmentDisposition: waitGroupAttachmentDispositionSchema,
+    resultEntryId: entryId.optional(),
+    nonDispatchEvidenceId: z.string().startsWith("evidence_").optional(),
+    contributesToBarrier: z.boolean(),
+    revision: z.number().int().positive().safe(),
+  })
+  .superRefine((member, context) => {
+    const attachedOutcome =
+      (member.executionState === "succeeded" ||
+        member.executionState === "known_failed") &&
+      member.attachmentDisposition === "attached" &&
+      member.resultEntryId !== undefined;
+    const provenNonExecution =
+      (member.executionState === "denied" ||
+        member.executionState === "cancelled") &&
+      member.attachmentDisposition === "not_executed" &&
+      member.resultEntryId === undefined &&
+      member.nonDispatchEvidenceId !== undefined;
+    if (
+      member.contributesToBarrier !== (attachedOutcome || provenNonExecution)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["contributesToBarrier"],
+        message:
+          "Barrier contribution requires an attached outcome or proven non-execution.",
+      });
+    }
+  });
+export type WaitGroupMember = z.infer<typeof waitGroupMemberSchema>;
 
 export const waitGroupSchema = z.object({
   schemaVersion: z.literal(1),
@@ -134,6 +174,7 @@ export const executionClaimSchema = z.object({
   leaseDeadline: z.string().datetime(),
   state: z.enum(["active", "consumed", "revoked", "expired"]),
 });
+export type ExecutionClaim = z.infer<typeof executionClaimSchema>;
 
 export const providerPhaseSchema = z.object({
   schemaVersion: z.literal(1),

@@ -2,7 +2,11 @@ import type {
   ConversationTransition,
   MutationOutcome,
 } from "@nervekit/contracts/conversations";
-import type { RunControl } from "@nervekit/contracts/runs";
+import type {
+  ProviderPhase,
+  RunControl,
+  WaitGroup,
+} from "@nervekit/contracts/runs";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import type {
   TimelineExpectedHead,
@@ -21,6 +25,8 @@ export interface CommitConversationTransitionCommand {
   expectedHeads: TimelineExpectedHead[];
   transitions: ConversationTransition[];
   runControls?: RunControl[];
+  waitGroups?: WaitGroup[];
+  providerPhases?: ProviderPhase[];
   outcome: unknown;
   publicationIntents: TimelinePublicationIntent[];
   now: string;

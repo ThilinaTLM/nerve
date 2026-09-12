@@ -205,6 +205,7 @@ CREATE TABLE wait_group_members (
   execution_state TEXT NOT NULL,
   attachment_disposition TEXT NOT NULL,
   result_entry_id TEXT,
+  non_dispatch_evidence_id TEXT,
   barrier_contribution INTEGER NOT NULL CHECK(barrier_contribution IN (0,1)),
   revision INTEGER NOT NULL CHECK(revision > 0),
   FOREIGN KEY(wait_group_id) REFERENCES wait_groups(wait_group_id) ON DELETE RESTRICT,

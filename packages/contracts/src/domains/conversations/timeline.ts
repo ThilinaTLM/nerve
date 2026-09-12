@@ -7,6 +7,15 @@ const entryId = z.string().startsWith("entry_");
 const transitionId = z.string().startsWith("transition_");
 const commandId = z.string().min(1).max(256);
 
+export const timelineStateIdentitySchema = z.object({
+  schemaVersion: z.literal(1),
+  namespaceId: z.string().startsWith("namespace_"),
+  executionIncarnationId: z.string().startsWith("incarnation_"),
+  formatVersion: z.number().int().positive(),
+  promotedAt: z.string().datetime(),
+});
+export type TimelineStateIdentity = z.infer<typeof timelineStateIdentitySchema>;
+
 export const conversationTransitionKindSchema = z.enum([
   "entries_appended",
   "selection_changed",
@@ -167,8 +176,10 @@ export const contextSourceManifestSchema = z.object({
   schemaVersion: z.literal(1),
   conversationId,
   sourceTipEntryId: entryId.nullable(),
-  entryIds: z.array(entryId).max(100_000),
-  transitiveBoundaryIds: z.array(z.string().startsWith("boundary_")).max(1_024),
+  entryCount: safeInteger,
+  entriesManifest: artifactReferenceSchema,
+  transitiveBoundaryCount: safeInteger,
+  transitiveBoundariesManifest: artifactReferenceSchema.optional(),
   digest,
 });
 

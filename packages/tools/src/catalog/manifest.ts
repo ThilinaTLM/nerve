@@ -84,9 +84,17 @@ function withAgentResultPolicy(definition: ToolDefinition): ToolDefinition {
 function withExecutionRecovery(
   definition: ToolDefinition,
 ): ResolvedToolDefinition {
+  const contract = executionRecoveryForTool(definition.name);
+  const executionRecovery =
+    contract.executionClass === "internal_command"
+      ? Object.freeze({ ...contract })
+      : Object.freeze({
+          ...contract,
+          capability: Object.freeze({ ...contract.capability }),
+        });
   return Object.freeze({
     ...definition,
-    executionRecovery: Object.freeze(executionRecoveryForTool(definition.name)),
+    executionRecovery,
   }) as ResolvedToolDefinition;
 }
 

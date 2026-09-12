@@ -107,4 +107,5 @@ export type ToolDefinitionMetadata = {
   executionKind: ToolExecutionKind;
   baseRisk: ToolRisk;
   traits: readonly ToolTrait[];
+  executionRecovery: ToolExecutionRecoveryContract;
 };

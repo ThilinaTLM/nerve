@@ -125,6 +125,210 @@ test("INV-COMMIT-01 commits multiple conversation transitions and publication in
   );
 });
 
+test("INV-COMMIT-01 starts a foreground run and provider obligation atomically", async (t) => {
+  const store = await fixture(t);
+  const started = transition("conv_run", 1, "command_start");
+  started.resultingHead.foregroundRunId = "run_one";
+  const result = await store.commitConversationCommand({
+    namespaceId: "namespace_test",
+    executionIncarnationId: "incarnation_test",
+    operationKind: "start_run",
+    ownerKind: "conversation",
+    ownerId: "conv_run",
+    commandId: "command_start",
+    fingerprintVersion: 1,
+    fingerprint: hash,
+    expectedHeads: [
+      {
+        conversationId: "conv_run",
+        revision: 0,
+        selectionEpoch: 0,
+        createIfMissing: true,
+      },
+    ],
+    transitions: [started],
+    runControls: [
+      {
+        schemaVersion: 1,
+        conversationId: "conv_run",
+        runId: "run_one",
+        generation: 1,
+        boundSelectionEpoch: 0,
+        continuationEntryId: "entry_conv_run_1",
+        checkpointId: null,
+        waitGroupId: null,
+        providerPhaseId: "provider_phase_one",
+        state: "preparing",
+        foregroundOwned: true,
+        revision: 1,
+      },
+    ],
+    providerPhases: [
+      {
+        schemaVersion: 1,
+        phaseId: "provider_phase_one",
+        runId: "run_one",
+        runGeneration: 1,
+        selectionEpoch: 0,
+        sourceEntryId: "entry_conv_run_1",
+        contextRecipeId: "context_recipe_one",
+        providerIdentity: { provider: "test", model: "one" },
+        capability: "stateless_generation",
+        state: "preparing",
+      },
+    ],
+    outcome: { runId: "run_one" },
+    publicationIntents: [],
+    now: "2026-09-12T00:00:00.000Z",
+  });
+  assert.equal(result.kind, "committed");
+  assert.equal(
+    (await store.readTimelineConversationHead("conv_run"))?.foregroundRunId,
+    "run_one",
+  );
+
+  const waiting: ConversationTransition = {
+    ...started,
+    transitionId: "transition_conv_run_2",
+    revision: 2,
+    kind: "run_changed",
+    commandId: "command_wait",
+    entries: [],
+    resultingHead: { ...started.resultingHead, revision: 2 },
+  };
+  const pendingMember = {
+    schemaVersion: 1 as const,
+    memberId: "member_one",
+    waitGroupId: "wait_group_one",
+    memberKind: "tool" as const,
+    ownerId: "tool_one",
+    inputFingerprint: hash,
+    executionState: "awaiting_approval" as const,
+    attachmentDisposition: "pending" as const,
+    contributesToBarrier: false,
+    revision: 1,
+  };
+  assert.equal(
+    (
+      await store.commitConversationCommand({
+        namespaceId: "namespace_test",
+        executionIncarnationId: "incarnation_test",
+        operationKind: "wait",
+        ownerKind: "conversation",
+        ownerId: "conv_run",
+        commandId: "command_wait",
+        fingerprintVersion: 1,
+        fingerprint: hash,
+        expectedHeads: [
+          { conversationId: "conv_run", revision: 1, selectionEpoch: 0 },
+        ],
+        transitions: [waiting],
+        runControls: [
+          {
+            schemaVersion: 1,
+            conversationId: "conv_run",
+            runId: "run_one",
+            generation: 1,
+            boundSelectionEpoch: 0,
+            continuationEntryId: "entry_conv_run_1",
+            checkpointId: null,
+            waitGroupId: "wait_group_one",
+            providerPhaseId: "provider_phase_one",
+            state: "waiting",
+            foregroundOwned: true,
+            revision: 2,
+          },
+        ],
+        waitGroups: [
+          {
+            schemaVersion: 1,
+            waitGroupId: "wait_group_one",
+            runId: "run_one",
+            membershipManifestId: "manifest_wait_group_one",
+            continuationEntryId: "entry_conv_run_1",
+            continuationConsumed: false,
+            state: "open",
+            revision: 1,
+            members: [pendingMember],
+          },
+        ],
+        outcome: {},
+        publicationIntents: [],
+        now: "2026-09-12T00:00:01.000Z",
+      })
+    ).kind,
+    "committed",
+  );
+
+  const resolved: ConversationTransition = {
+    ...waiting,
+    transitionId: "transition_conv_run_3",
+    revision: 3,
+    commandId: "command_resolve",
+    resultingHead: { ...waiting.resultingHead, revision: 3 },
+  };
+  assert.equal(
+    (
+      await store.commitConversationCommand({
+        namespaceId: "namespace_test",
+        executionIncarnationId: "incarnation_test",
+        operationKind: "resolve",
+        ownerKind: "conversation",
+        ownerId: "conv_run",
+        commandId: "command_resolve",
+        fingerprintVersion: 1,
+        fingerprint: hash,
+        expectedHeads: [
+          { conversationId: "conv_run", revision: 2, selectionEpoch: 0 },
+        ],
+        transitions: [resolved],
+        runControls: [
+          {
+            schemaVersion: 1,
+            conversationId: "conv_run",
+            runId: "run_one",
+            generation: 1,
+            boundSelectionEpoch: 0,
+            continuationEntryId: "entry_conv_run_1",
+            checkpointId: null,
+            waitGroupId: "wait_group_one",
+            providerPhaseId: "provider_phase_one",
+            state: "waiting",
+            foregroundOwned: true,
+            revision: 3,
+          },
+        ],
+        waitGroups: [
+          {
+            schemaVersion: 1,
+            waitGroupId: "wait_group_one",
+            runId: "run_one",
+            membershipManifestId: "manifest_wait_group_one",
+            continuationEntryId: "entry_conv_run_1",
+            continuationConsumed: false,
+            state: "ready",
+            revision: 2,
+            members: [
+              {
+                ...pendingMember,
+                executionState: "denied",
+                attachmentDisposition: "not_executed",
+                nonDispatchEvidenceId: "evidence_denied",
+                contributesToBarrier: true,
+                revision: 2,
+              },
+            ],
+          },
+        ],
+        outcome: {},
+        publicationIntents: [],
+        now: "2026-09-12T00:00:02.000Z",
+      })
+    ).kind,
+    "committed",
+  );
+});
+
 test("INV-RECEIPT-01 replays before stale CAS and rejects changed fingerprints", async (t) => {
   const store = await fixture(t);
   const base = {
@@ -193,6 +397,61 @@ test("INV-RECEIPT-01 replays before stale CAS and rejects changed fingerprints",
     ),
     false,
   );
+});
+
+test("INV-COMMIT-01 does not create one owner when another CAS precondition fails", async (t) => {
+  const store = await fixture(t);
+  await store.commitConversationCommand({
+    namespaceId: "namespace_test",
+    executionIncarnationId: "incarnation_test",
+    operationKind: "seed",
+    ownerKind: "conversation",
+    ownerId: "conv_existing",
+    commandId: "command_seed",
+    fingerprintVersion: 1,
+    fingerprint: hash,
+    expectedHeads: [
+      {
+        conversationId: "conv_existing",
+        revision: 0,
+        selectionEpoch: 0,
+        createIfMissing: true,
+      },
+    ],
+    transitions: [transition("conv_existing", 1, "command_seed")],
+    outcome: {},
+    publicationIntents: [],
+    now: "2026-09-12T00:00:00.000Z",
+  });
+  const result = await store.commitConversationCommand({
+    namespaceId: "namespace_test",
+    executionIncarnationId: "incarnation_test",
+    operationKind: "cross_conflict",
+    ownerKind: "state",
+    ownerId: "namespace_test",
+    commandId: "command_conflict",
+    fingerprintVersion: 1,
+    fingerprint: `sha256:${"d".repeat(64)}`,
+    expectedHeads: [
+      {
+        conversationId: "conv_new",
+        revision: 0,
+        selectionEpoch: 0,
+        createIfMissing: true,
+      },
+      {
+        conversationId: "conv_existing",
+        revision: 0,
+        selectionEpoch: 0,
+      },
+    ],
+    transitions: [],
+    outcome: {},
+    publicationIntents: [],
+    now: "2026-09-12T00:00:01.000Z",
+  });
+  assert.equal(result.kind, "cas_conflict");
+  assert.equal(await store.readTimelineConversationHead("conv_new"), undefined);
 });
 
 test("INV-ID-01 rolls back a command with an invalid cross-owner parent", async (t) => {

@@ -4,17 +4,27 @@ import type {
   ConversationTransition,
   MutationOutcome,
 } from "@nervekit/contracts/conversations";
-import type { RunControl } from "@nervekit/contracts/runs";
-import { runControlSchema } from "@nervekit/contracts/runs";
+import type {
+  ProviderPhase,
+  RunControl,
+  WaitGroup,
+} from "@nervekit/contracts/runs";
+import {
+  providerPhaseSchema,
+  runControlSchema,
+  waitGroupSchema,
+} from "@nervekit/contracts/runs";
 import {
   conversationTransitionSchema,
   mutationOutcomeSchema,
+  timelineStateIdentitySchema,
 } from "@nervekit/contracts/conversations";
 import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { validateTransitionHeadChange } from "../../../domains/conversations/timeline/transition-validation.js";
 import { appendDurableEventInTransaction } from "./canonical-database-helpers.js";
 import { decode, encode } from "./payload-codecs.js";
+import { persistTimelineWaitGroup } from "./timeline-wait-group-database.js";
 
 export interface TimelineExpectedHead {
   conversationId: string;
@@ -44,6 +54,8 @@ export interface CommitConversationCommandInput {
   expectedHeads: TimelineExpectedHead[];
   transitions: ConversationTransition[];
   runControls?: RunControl[];
+  waitGroups?: WaitGroup[];
+  providerPhases?: ProviderPhase[];
   outcome: unknown;
   publicationIntents: TimelinePublicationIntent[];
   now: string;
@@ -163,6 +175,19 @@ export function commitConversationCommandInTransaction(
   database: DatabaseSync,
   input: CommitConversationCommandInput,
 ): MutationOutcome {
+  timelineStateIdentitySchema.parse({
+    schemaVersion: 1,
+    namespaceId: input.namespaceId,
+    executionIncarnationId: input.executionIncarnationId,
+    formatVersion: 1,
+    promotedAt: input.now,
+  });
+  if (input.commandId.length < 1 || input.commandId.length > 256) {
+    throw new Error("Command identity is invalid.");
+  }
+  if (!/^sha256:[a-f0-9]{64}$/.test(input.fingerprint)) {
+    throw new Error("Command fingerprint is invalid.");
+  }
   return withImmediateTransaction(database, () => {
     const receipt = database
       .prepare(
@@ -206,6 +231,7 @@ export function commitConversationCommandInTransaction(
     }
 
     const conflicts: Array<{ conversationId: string; revision: number }> = [];
+    const conversationsToCreate: string[] = [];
     for (const expected of input.expectedHeads) {
       let current = database
         .prepare(
@@ -225,15 +251,7 @@ export function commitConversationCommandInTransaction(
           });
           continue;
         }
-        const nowMs = Date.parse(input.now);
-        database
-          .prepare(
-            `INSERT INTO conversations (
-               conversation_id, revision, active_entry_id, selection_epoch,
-               foreground_run_id, deletion_state, created_at_ms, updated_at_ms
-             ) VALUES (?, 0, NULL, 0, NULL, 'active', ?, ?)`,
-          )
-          .run(expected.conversationId, nowMs, nowMs);
+        conversationsToCreate.push(expected.conversationId);
         current = { revision: 0, selection_epoch: 0 };
       }
       if (
@@ -253,6 +271,16 @@ export function commitConversationCommandInTransaction(
         current: conflicts,
         retry: "reload_and_revalidate",
       };
+    }
+    const nowMs = Date.parse(input.now);
+    const insertConversation = database.prepare(
+      `INSERT INTO conversations (
+         conversation_id, revision, active_entry_id, selection_epoch,
+         foreground_run_id, deletion_state, created_at_ms, updated_at_ms
+       ) VALUES (?, 0, NULL, 0, NULL, 'active', ?, ?)`,
+    );
+    for (const conversationId of conversationsToCreate) {
+      insertConversation.run(conversationId, nowMs, nowMs);
     }
 
     const ordered = [...input.transitions].sort(
@@ -293,6 +321,20 @@ export function commitConversationCommandInTransaction(
 
     for (const control of input.runControls ?? []) {
       upsertRunControl(database, runControlSchema.parse(control), input.now);
+    }
+    for (const group of input.waitGroups ?? []) {
+      persistTimelineWaitGroup(
+        database,
+        waitGroupSchema.parse(group),
+        input.now,
+      );
+    }
+    for (const phase of input.providerPhases ?? []) {
+      insertProviderPhase(
+        database,
+        providerPhaseSchema.parse(phase),
+        input.now,
+      );
     }
     for (const expected of input.expectedHeads) {
       validateForegroundOwnership(
@@ -528,6 +570,41 @@ function assertSelectedEntry(
   if (!entry || entry.conversation_id !== head.conversationId) {
     throw new Error("Active entry must exist in the same conversation.");
   }
+}
+
+function insertProviderPhase(
+  database: DatabaseSync,
+  phase: ProviderPhase,
+  now: string,
+): void {
+  database
+    .prepare(
+      `INSERT INTO provider_phases (
+         phase_id, run_id, generation, selection_epoch, source_entry_id,
+         context_recipe_id, request_manifest_id, request_hash,
+         provider_identity_json, capability_version, capability_kind,
+         opaque_state_manifest_id, state, committed_response_id,
+         recovery_admission_id, created_at_ms, updated_at_ms
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      phase.phaseId,
+      phase.runId,
+      phase.runGeneration,
+      phase.selectionEpoch,
+      phase.sourceEntryId,
+      phase.contextRecipeId,
+      phase.requestManifestId ?? null,
+      phase.requestHash ?? null,
+      encode(phase.providerIdentity),
+      phase.capability,
+      phase.opaqueStateManifestId ?? null,
+      phase.state,
+      phase.committedResponseId ?? null,
+      phase.recoveryAdmissionId ?? null,
+      Date.parse(now),
+      Date.parse(now),
+    );
 }
 
 function upsertRunControl(

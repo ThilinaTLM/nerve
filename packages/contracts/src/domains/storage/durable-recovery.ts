@@ -1,0 +1,104 @@
+import { z } from "zod";
+
+const digestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
+const isoDateTimeSchema = z.string().datetime();
+
+export const backupManifestEntrySchema = z.object({
+  kind: z.enum([
+    "database",
+    "artifact",
+    "permission_file",
+    "trust_evidence",
+    "execution_snapshot",
+  ]),
+  ownerId: z.string().min(1).max(768).optional(),
+  relativeLocator: z.string().min(1).max(2_048),
+  digest: digestSchema,
+  byteLength: z.number().int().nonnegative().safe(),
+  schemaVersion: z.string().min(1).max(128).optional(),
+});
+
+export const portableBackupManifestSchema = z.object({
+  schemaVersion: z.literal(1),
+  backupId: z.string().startsWith("backup_"),
+  namespaceId: z.string().startsWith("namespace_"),
+  sourceExecutionIncarnationId: z.string().startsWith("incarnation_"),
+  storageFormatVersion: z.number().int().positive(),
+  entryCount: z.number().int().positive().safe(),
+  entriesManifestLocator: z.string().min(1).max(2_048),
+  entriesManifestDigest: digestSchema,
+  manifestDigest: digestSchema,
+  capturedAt: isoDateTimeSchema,
+});
+export type PortableBackupManifest = z.infer<
+  typeof portableBackupManifestSchema
+>;
+
+export const restorePromotionSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    restoreId: z.string().startsWith("restore_"),
+    backupId: z.string().startsWith("backup_"),
+    namespaceId: z.string().startsWith("namespace_"),
+    priorExecutionIncarnationId: z.string().startsWith("incarnation_"),
+    promotedExecutionIncarnationId: z.string().startsWith("incarnation_"),
+    oldRuntimeIsolation: z.enum(["proven", "unproven"]),
+    dispatchState: z.enum(["quarantined", "disabled", "admitted"]),
+    quarantinedRunCount: z.number().int().nonnegative().safe(),
+    quarantineManifestDigest: digestSchema,
+    promotedAt: isoDateTimeSchema,
+  })
+  .superRefine((value, context) => {
+    if (
+      value.priorExecutionIncarnationId === value.promotedExecutionIncarnationId
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["promotedExecutionIncarnationId"],
+        message: "Restore must promote a fresh execution incarnation.",
+      });
+    }
+    if (
+      value.oldRuntimeIsolation === "unproven" &&
+      value.dispatchState !== "disabled"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["dispatchState"],
+        message: "Dispatch must remain disabled until isolation is proven.",
+      });
+    }
+  });
+export type RestorePromotion = z.infer<typeof restorePromotionSchema>;
+
+export const deletionIntentSchema = z.object({
+  schemaVersion: z.literal(1),
+  conversationId: z.string().startsWith("conv_"),
+  commandId: z.string().min(1).max(256),
+  fenceRevision: z.number().int().nonnegative().safe(),
+  phase: z.enum([
+    "fenced",
+    "settling_execution",
+    "removing_payloads",
+    "removing_history",
+    "retaining_replay_evidence",
+    "finalized",
+  ]),
+  cleanupCursor: z.string().min(1).max(2_048).optional(),
+  uncertaintyAcknowledged: z.boolean(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type DeletionIntent = z.infer<typeof deletionIntentSchema>;
+
+export const ownerTombstoneSchema = z.object({
+  schemaVersion: z.literal(1),
+  ownerKind: z.enum(["conversation", "state"]),
+  ownerId: z.string().min(1).max(768),
+  namespaceId: z.string().startsWith("namespace_"),
+  commandReservationCount: z.number().int().nonnegative().safe(),
+  effectReservationCount: z.number().int().nonnegative().safe(),
+  replayEvidenceDigest: digestSchema,
+  deletedAt: isoDateTimeSchema,
+});
+export type OwnerTombstone = z.infer<typeof ownerTombstoneSchema>;

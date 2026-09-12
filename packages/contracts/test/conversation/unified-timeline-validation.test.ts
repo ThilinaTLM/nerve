@@ -93,7 +93,8 @@ test("INV-BARRIER-01 bounds wait groups before commitment", () => {
     memberKind: "tool",
     ownerId: `tool_${index}`,
     inputFingerprint: hash,
-    state: "drafted",
+    executionState: "drafted",
+    attachmentDisposition: "pending",
     contributesToBarrier: false,
     revision: 1,
   });
