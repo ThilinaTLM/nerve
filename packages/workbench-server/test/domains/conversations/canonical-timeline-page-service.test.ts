@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { CanonicalTimelineIdentityService } from "../../../src/domains/conversations/timeline/canonical-timeline-identity.service.js";
+import { CanonicalProjectionDispatcher } from "../../../src/domains/conversations/timeline/canonical-projection-dispatcher.js";
 import { CanonicalTranscriptProjectionService } from "../../../src/domains/conversations/timeline/canonical-transcript-projection.service.js";
 import { CanonicalTimelinePageProvider } from "../../../src/domains/conversations/timeline/canonical-timeline-page-provider.js";
 import { buildAppendTransition } from "../../../src/domains/conversations/timeline/transition-builders.js";
@@ -179,10 +180,12 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
     treeSecond.kind === "page" && treeSecond.page.currentHead.revision,
     2,
   );
-  const [caughtUp] = await projections.rebuildPending(
-    10,
-    "2026-09-12T00:00:02.000Z",
-  );
+  const dispatcher = new CanonicalProjectionDispatcher(projections, {
+    warn: () => Promise.resolve(),
+  });
+  dispatcher.wake();
+  await dispatcher.settled();
+  const caughtUp = await projections.status("conv_page");
   assert.equal(caughtUp?.appliedRevision, 2);
   assert.equal(caughtUp?.rebuildGeneration, 2);
   const invalidatedByRebuild = await pages.page({

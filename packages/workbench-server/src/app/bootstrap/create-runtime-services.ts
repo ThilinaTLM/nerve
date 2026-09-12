@@ -110,7 +110,7 @@ import type {
   AppendEntryOptions,
 } from "../../domains/conversations/append-entry-contracts.js";
 import type { ResourceLimits } from "@nervekit/contracts/settings";
-import { createTimelinePages } from "../../domains/conversations/timeline/canonical-timeline-page-provider.js";
+import { timelineRuntime } from "./create-canonical-timeline-runtime.js";
 
 export interface RuntimeDeps {
   storage: InitializedStorage;
@@ -388,7 +388,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       resultPayloads,
       capabilities,
     );
-  const timelinePages = createTimelinePages(storage.canonicalStore, secrets);
+  const timeline = timelineRuntime(storage.canonicalStore, secrets, logger);
   const conversationQuery = new ConversationQueryService({
     events,
     state,
@@ -735,19 +735,18 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     permissionPolicy,
     permissionExceptions,
   );
-  const pruneConversations: PruneProjectConversationsService =
-    new PruneProjectConversationsService({
-      getProject,
-      listConversations,
-      agents: state.agents,
-      tasks: tasks,
-      tools: tools,
-      plans: plans,
-      conversationRepository,
-      removeConversation,
-      events,
-      logger,
-    });
+  const pruneConversations = new PruneProjectConversationsService({
+    getProject,
+    listConversations,
+    agents: state.agents,
+    tasks: tasks,
+    tools: tools,
+    plans: plans,
+    conversationRepository,
+    removeConversation,
+    events,
+    logger,
+  });
 
   return {
     maintenanceScopes,
@@ -785,7 +784,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     projectLifecycle,
     conversationLifecycle,
     conversationQuery,
-    timelinePages,
+    timelinePages: timeline.pages,
+    projectionDispatcher: timeline.dispatcher,
     agentLifecycle,
     subagentTranscriptLive,
     subagentTranscripts,

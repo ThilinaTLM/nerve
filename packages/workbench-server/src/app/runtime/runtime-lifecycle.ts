@@ -168,6 +168,7 @@ export class RuntimeLifecycle {
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
     this.services.lifecycleDispatcher.stopPolling();
+    await this.services.projectionDispatcher.stop();
     this.services.gitRepositoryWatcher.close();
     this.services.projectFilesystemWatcher.close();
     await this.services.tasks.shutdown();
