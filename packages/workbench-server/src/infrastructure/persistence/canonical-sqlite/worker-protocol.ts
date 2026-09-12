@@ -23,6 +23,17 @@ export type CanonicalCommand =
     }
   | { kind: "read_timeline_conversation_head"; conversationId: string }
   | {
+      kind: "read_timeline_run_control";
+      conversationId: string;
+      runId: string;
+    }
+  | {
+      kind: "read_timeline_ancestry_segment";
+      conversationId: string;
+      sourceEntryId: string;
+      limit: number;
+    }
+  | {
       kind: "timeline_entry_is_ancestor";
       conversationId: string;
       ancestorEntryId: string | null;
@@ -202,6 +213,8 @@ export type CanonicalWorkerResponse =
 
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "read_timeline_conversation_head",
+  "read_timeline_run_control",
+  "read_timeline_ancestry_segment",
   "timeline_entry_is_ancestor",
   "read_lifecycle_work",
   "list_due_lifecycle_work",

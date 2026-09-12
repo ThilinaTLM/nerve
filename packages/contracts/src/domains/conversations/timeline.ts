@@ -172,30 +172,65 @@ export type CanonicalCommandReceipt = z.infer<
   typeof canonicalCommandReceiptSchema
 >;
 
-export const contextSourceManifestSchema = z.object({
-  schemaVersion: z.literal(1),
-  conversationId,
-  sourceTipEntryId: entryId.nullable(),
-  entryCount: safeInteger,
-  entriesManifest: artifactReferenceSchema,
-  transitiveBoundaryCount: safeInteger,
-  transitiveBoundariesManifest: artifactReferenceSchema.optional(),
-  digest,
-});
+export const contextSourceManifestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    conversationId,
+    sourceTipEntryId: entryId.nullable(),
+    entryCount: safeInteger,
+    entriesManifest: artifactReferenceSchema,
+    transitiveBoundaryCount: safeInteger,
+    transitiveBoundariesManifest: artifactReferenceSchema.optional(),
+    digest,
+  })
+  .superRefine((manifest, context) => {
+    if ((manifest.sourceTipEntryId === null) !== (manifest.entryCount === 0)) {
+      context.addIssue({
+        code: "custom",
+        path: ["entryCount"],
+        message: "A non-empty source has a tip and at least one entry.",
+      });
+    }
+    if (
+      manifest.transitiveBoundaryCount > 0 !==
+      (manifest.transitiveBoundariesManifest !== undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["transitiveBoundariesManifest"],
+        message:
+          "Transitive boundary provenance requires a manifest exactly when non-empty.",
+      });
+    }
+  });
+export type ContextSourceManifest = z.infer<typeof contextSourceManifestSchema>;
 
-export const contextBoundarySchema = z.object({
-  schemaVersion: z.literal(1),
-  boundaryId: z.string().startsWith("boundary_"),
-  conversationId,
-  transitionId,
-  anchorEntryId: entryId.nullable(),
-  sourceTipEntryId: entryId.nullable(),
-  sourceManifest: contextSourceManifestSchema,
-  policyVersion: z.number().int().positive(),
-  providerAdapterVersion: z.string().min(1).max(128),
-  recipeVersion: z.number().int().positive(),
-  visibleSummaryEntryId: entryId.optional(),
-});
+export const contextBoundarySchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    boundaryId: z.string().startsWith("boundary_"),
+    conversationId,
+    transitionId,
+    anchorEntryId: entryId.nullable(),
+    sourceTipEntryId: entryId.nullable(),
+    sourceManifest: contextSourceManifestSchema,
+    policyVersion: z.number().int().positive(),
+    providerAdapterVersion: z.string().min(1).max(128),
+    recipeVersion: z.number().int().positive(),
+    visibleSummaryEntryId: entryId.optional(),
+  })
+  .superRefine((boundary, context) => {
+    if (
+      boundary.sourceManifest.conversationId !== boundary.conversationId ||
+      boundary.sourceManifest.sourceTipEntryId !== boundary.sourceTipEntryId
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["sourceManifest"],
+        message: "Source manifest must describe this boundary source.",
+      });
+    }
+  });
 export type ContextBoundary = z.infer<typeof contextBoundarySchema>;
 
 export const projectionPositionSchema = z.object({
@@ -218,6 +253,17 @@ export const timelineViewDescriptorSchema = z.object({
 });
 export type TimelineViewDescriptor = z.infer<
   typeof timelineViewDescriptorSchema
+>;
+
+export const canonicalAncestrySegmentSchema = z.object({
+  conversationId,
+  sourceEntryId: entryId,
+  entries: z.array(canonicalConversationEntrySchema).max(512),
+  nextAncestorEntryId: entryId.optional(),
+  ordering: z.literal("ancestry_descending"),
+});
+export type CanonicalAncestrySegment = z.infer<
+  typeof canonicalAncestrySegmentSchema
 >;
 
 export const timelinePageRequestSchema = z.object({

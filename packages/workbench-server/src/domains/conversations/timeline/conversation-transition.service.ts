@@ -1,4 +1,5 @@
 import type {
+  ContextBoundary,
   ConversationTransition,
   MutationOutcome,
 } from "@nervekit/contracts/conversations";
@@ -10,6 +11,7 @@ import type {
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import type {
   TimelineExpectedHead,
+  TimelineExpectedRunFence,
   TimelinePublicationIntent,
 } from "../../../infrastructure/persistence/canonical-sqlite/timeline-database.js";
 
@@ -23,7 +25,9 @@ export interface CommitConversationTransitionCommand {
   fingerprintVersion: number;
   fingerprint: string;
   expectedHeads: TimelineExpectedHead[];
+  expectedRunFences?: TimelineExpectedRunFence[];
   transitions: ConversationTransition[];
+  contextBoundaries?: ContextBoundary[];
   runControls?: RunControl[];
   waitGroups?: WaitGroup[];
   providerPhases?: ProviderPhase[];

@@ -13,6 +13,17 @@ export function executeCanonicalCommand(
       return database.timeline.commit(command.input);
     case "read_timeline_conversation_head":
       return database.timeline.readHead(command.conversationId);
+    case "read_timeline_run_control":
+      return database.timeline.readRunControl(
+        command.conversationId,
+        command.runId,
+      );
+    case "read_timeline_ancestry_segment":
+      return database.timeline.readAncestrySegment({
+        conversationId: command.conversationId,
+        sourceEntryId: command.sourceEntryId,
+        limit: command.limit,
+      });
     case "timeline_entry_is_ancestor":
       return database.timeline.isAncestor(
         command.conversationId,

@@ -1,5 +1,6 @@
 import type { CommitConversationCommandInput } from "./timeline-database.js";
 import type {
+  CanonicalAncestrySegment,
   ConversationHead,
   MutationOutcome,
 } from "@nervekit/contracts/conversations";
@@ -13,6 +14,7 @@ import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type {
   LifecycleWork,
   RecoveryIssue,
+  RunControl,
   RunRecord,
 } from "@nervekit/contracts/runs";
 import type {
@@ -161,6 +163,27 @@ export class CanonicalStore {
     return this.request<ConversationHead | undefined>({
       kind: "read_timeline_conversation_head",
       conversationId,
+    });
+  }
+
+  readTimelineRunControl(conversationId: string, runId: string) {
+    return this.request<RunControl | undefined>({
+      kind: "read_timeline_run_control",
+      conversationId,
+      runId,
+    });
+  }
+
+  readTimelineAncestrySegment(
+    conversationId: string,
+    sourceEntryId: string,
+    limit: number,
+  ) {
+    return this.request<CanonicalAncestrySegment>({
+      kind: "read_timeline_ancestry_segment",
+      conversationId,
+      sourceEntryId,
+      limit,
     });
   }
 

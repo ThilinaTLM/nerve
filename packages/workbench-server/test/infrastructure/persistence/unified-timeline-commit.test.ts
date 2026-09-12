@@ -503,3 +503,92 @@ test("INV-ID-01 rolls back a command with an invalid cross-owner parent", async 
     undefined,
   );
 });
+
+test("INV-CONTEXT-01 reads bounded canonical ancestry with artifact provenance", async (t) => {
+  const store = await fixture(t);
+  const value = transition("conv_context", 1, "command_context");
+  value.entries = [
+    {
+      ...value.entries[0]!,
+      entryId: "entry_context_one",
+      ordinal: 0,
+      inlineContent: { text: "one" },
+    },
+    {
+      ...value.entries[0]!,
+      entryId: "entry_context_two",
+      ordinal: 1,
+      parentEntryId: "entry_context_one",
+      inlineContent: { text: "two" },
+      artifacts: [
+        {
+          artifactId: "artifact_context_two",
+          ownerKind: "entry",
+          ownerId: "entry_context_two",
+          relativeLocator: "artifacts/context-two.json",
+          digest: hash,
+          byteLength: 12,
+          mediaType: "application/json",
+          semanticRole: "context_input",
+          availability: "available",
+        },
+      ],
+    },
+    {
+      ...value.entries[0]!,
+      entryId: "entry_context_three",
+      ordinal: 2,
+      parentEntryId: "entry_context_two",
+      inlineContent: { text: "three" },
+    },
+  ];
+  value.resultingHead.activeEntryId = "entry_context_three";
+  await store.commitConversationCommand({
+    namespaceId: "namespace_test",
+    executionIncarnationId: "incarnation_test",
+    operationKind: "append",
+    ownerKind: "conversation",
+    ownerId: "conv_context",
+    commandId: "command_context",
+    fingerprintVersion: 1,
+    fingerprint: hash,
+    expectedHeads: [
+      {
+        conversationId: "conv_context",
+        revision: 0,
+        selectionEpoch: 0,
+        createIfMissing: true,
+      },
+    ],
+    transitions: [value],
+    outcome: {},
+    publicationIntents: [],
+    now: "2026-09-12T00:00:00.000Z",
+  });
+
+  const latest = await store.readTimelineAncestrySegment(
+    "conv_context",
+    "entry_context_three",
+    2,
+  );
+  assert.deepEqual(
+    latest.entries.map((entry) => entry.entryId),
+    ["entry_context_three", "entry_context_two"],
+  );
+  assert.equal(latest.nextAncestorEntryId, "entry_context_one");
+  assert.equal(
+    latest.entries[1]?.artifacts[0]?.artifactId,
+    "artifact_context_two",
+  );
+
+  const root = await store.readTimelineAncestrySegment(
+    "conv_context",
+    latest.nextAncestorEntryId!,
+    2,
+  );
+  assert.deepEqual(
+    root.entries.map((entry) => entry.entryId),
+    ["entry_context_one"],
+  );
+  assert.equal(root.nextAncestorEntryId, undefined);
+});

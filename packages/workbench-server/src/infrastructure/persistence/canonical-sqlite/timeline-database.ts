@@ -1,5 +1,7 @@
 import type {
+  CanonicalAncestrySegment,
   CanonicalConversationEntry,
+  ContextBoundary,
   ConversationHead,
   ConversationTransition,
   MutationOutcome,
@@ -15,6 +17,7 @@ import {
   waitGroupSchema,
 } from "@nervekit/contracts/runs";
 import {
+  contextBoundarySchema,
   conversationTransitionSchema,
   mutationOutcomeSchema,
   timelineStateIdentitySchema,
@@ -24,13 +27,32 @@ import type { DatabaseSync } from "node:sqlite";
 import { validateTransitionHeadChange } from "../../../domains/conversations/timeline/transition-validation.js";
 import { appendDurableEventInTransaction } from "./canonical-database-helpers.js";
 import { decode, encode } from "./payload-codecs.js";
+import { insertTimelineContextBoundary } from "./timeline-context-database.js";
+import {
+  insertTimelineProviderPhase,
+  upsertTimelineRunControl,
+} from "./timeline-execution-database.js";
 import { persistTimelineWaitGroup } from "./timeline-wait-group-database.js";
+import {
+  readTimelineAncestrySegment,
+  readTimelineRunControl,
+} from "./timeline-query-database.js";
 
 export interface TimelineExpectedHead {
   conversationId: string;
   revision: number;
   selectionEpoch: number;
   createIfMissing?: boolean;
+}
+
+export interface TimelineExpectedRunFence {
+  conversationId: string;
+  runId: string;
+  generation: number;
+  revision: number;
+  selectionEpoch: number;
+  continuationEntryId: string | null;
+  requireForegroundOwnership: boolean;
 }
 
 export interface TimelinePublicationIntent {
@@ -52,7 +74,9 @@ export interface CommitConversationCommandInput {
   fingerprintVersion: number;
   fingerprint: string;
   expectedHeads: TimelineExpectedHead[];
+  expectedRunFences?: TimelineExpectedRunFence[];
   transitions: ConversationTransition[];
+  contextBoundaries?: ContextBoundary[];
   runControls?: RunControl[];
   waitGroups?: WaitGroup[];
   providerPhases?: ProviderPhase[];
@@ -80,6 +104,21 @@ export class CanonicalTimelineDatabase {
 
   readHead(conversationId: string): ConversationHead | undefined {
     return readTimelineConversationHead(this.database, conversationId);
+  }
+
+  readRunControl(
+    conversationId: string,
+    runId: string,
+  ): RunControl | undefined {
+    return readTimelineRunControl(this.database, conversationId, runId);
+  }
+
+  readAncestrySegment(input: {
+    conversationId: string;
+    sourceEntryId: string;
+    limit: number;
+  }): CanonicalAncestrySegment {
+    return readTimelineAncestrySegment(this.database, input);
   }
 
   isAncestor(
@@ -272,6 +311,41 @@ export function commitConversationCommandInTransaction(
         retry: "reload_and_revalidate",
       };
     }
+    for (const expected of input.expectedRunFences ?? []) {
+      const current = database
+        .prepare(
+          `SELECT generation, bound_selection_epoch, continuation_entry_id,
+                  foreground_owned, revision
+           FROM run_controls
+           WHERE conversation_id = ? AND run_id = ?`,
+        )
+        .get(expected.conversationId, expected.runId) as
+        | {
+            generation: number;
+            bound_selection_epoch: number;
+            continuation_entry_id: string | null;
+            foreground_owned: number;
+            revision: number;
+          }
+        | undefined;
+      if (
+        !current ||
+        current.generation !== expected.generation ||
+        current.revision !== expected.revision ||
+        current.bound_selection_epoch !== expected.selectionEpoch ||
+        current.continuation_entry_id !== expected.continuationEntryId ||
+        (expected.requireForegroundOwnership && current.foreground_owned !== 1)
+      ) {
+        return {
+          kind: "superseded",
+          reason: "run_fence_changed",
+          position: readTimelineConversationHead(
+            database,
+            expected.conversationId,
+          ),
+        };
+      }
+    }
     const nowMs = Date.parse(input.now);
     const insertConversation = database.prepare(
       `INSERT INTO conversations (
@@ -319,8 +393,19 @@ export function commitConversationCommandInTransaction(
       currentRevision.set(parsed.conversationId, parsed.revision);
     }
 
+    for (const boundary of input.contextBoundaries ?? []) {
+      insertTimelineContextBoundary(
+        database,
+        contextBoundarySchema.parse(boundary),
+        input.now,
+      );
+    }
     for (const control of input.runControls ?? []) {
-      upsertRunControl(database, runControlSchema.parse(control), input.now);
+      upsertTimelineRunControl(
+        database,
+        runControlSchema.parse(control),
+        input.now,
+      );
     }
     for (const group of input.waitGroups ?? []) {
       persistTimelineWaitGroup(
@@ -330,7 +415,7 @@ export function commitConversationCommandInTransaction(
       );
     }
     for (const phase of input.providerPhases ?? []) {
-      insertProviderPhase(
+      insertTimelineProviderPhase(
         database,
         providerPhaseSchema.parse(phase),
         input.now,
@@ -496,8 +581,8 @@ function insertEntry(
       `INSERT INTO conversation_entries (
          entry_id, conversation_id, transition_id, ordinal, parent_entry_id,
          ancestry_depth, kind, inline_content_json, artifact_manifest_id,
-         provenance_json
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         run_id, tool_call_id, interaction_id, provenance_json
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       entry.entryId,
@@ -509,6 +594,9 @@ function insertEntry(
       entry.kind,
       entry.inlineContent === undefined ? null : encode(entry.inlineContent),
       artifactManifestId,
+      entry.runId ?? null,
+      entry.toolCallId ?? null,
+      entry.interactionId ?? null,
       encode(entry.provenance),
     );
   insertAncestorJumps(database, entry.entryId, entry.parentEntryId);
@@ -569,93 +657,6 @@ function assertSelectedEntry(
     .get(head.activeEntryId) as { conversation_id: string } | undefined;
   if (!entry || entry.conversation_id !== head.conversationId) {
     throw new Error("Active entry must exist in the same conversation.");
-  }
-}
-
-function insertProviderPhase(
-  database: DatabaseSync,
-  phase: ProviderPhase,
-  now: string,
-): void {
-  database
-    .prepare(
-      `INSERT INTO provider_phases (
-         phase_id, run_id, generation, selection_epoch, source_entry_id,
-         context_recipe_id, request_manifest_id, request_hash,
-         provider_identity_json, capability_version, capability_kind,
-         opaque_state_manifest_id, state, committed_response_id,
-         recovery_admission_id, created_at_ms, updated_at_ms
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      phase.phaseId,
-      phase.runId,
-      phase.runGeneration,
-      phase.selectionEpoch,
-      phase.sourceEntryId,
-      phase.contextRecipeId,
-      phase.requestManifestId ?? null,
-      phase.requestHash ?? null,
-      encode(phase.providerIdentity),
-      phase.capability,
-      phase.opaqueStateManifestId ?? null,
-      phase.state,
-      phase.committedResponseId ?? null,
-      phase.recoveryAdmissionId ?? null,
-      Date.parse(now),
-      Date.parse(now),
-    );
-}
-
-function upsertRunControl(
-  database: DatabaseSync,
-  control: RunControl,
-  now: string,
-): void {
-  database
-    .prepare(
-      `INSERT INTO run_controls (
-         run_id, conversation_id, generation, bound_selection_epoch,
-         continuation_entry_id, checkpoint_id, wait_group_id,
-         provider_phase_id, effective_state, foreground_owned, revision,
-         recovery_reason, created_at_ms, updated_at_ms
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(run_id) DO UPDATE SET
-         generation = excluded.generation,
-         bound_selection_epoch = excluded.bound_selection_epoch,
-         continuation_entry_id = excluded.continuation_entry_id,
-         checkpoint_id = excluded.checkpoint_id,
-         wait_group_id = excluded.wait_group_id,
-         provider_phase_id = excluded.provider_phase_id,
-         effective_state = excluded.effective_state,
-         foreground_owned = excluded.foreground_owned,
-         revision = excluded.revision,
-         recovery_reason = excluded.recovery_reason,
-         updated_at_ms = excluded.updated_at_ms
-       WHERE run_controls.conversation_id = excluded.conversation_id
-         AND excluded.revision = run_controls.revision + 1`,
-    )
-    .run(
-      control.runId,
-      control.conversationId,
-      control.generation,
-      control.boundSelectionEpoch,
-      control.continuationEntryId,
-      control.checkpointId,
-      control.waitGroupId,
-      control.providerPhaseId,
-      control.state,
-      control.foregroundOwned ? 1 : 0,
-      control.revision,
-      control.recoveryReason ?? null,
-      Date.parse(now),
-      Date.parse(now),
-    );
-  const persisted = database
-    .prepare(`SELECT revision FROM run_controls WHERE run_id = ?`)
-    .get(control.runId) as { revision: number } | undefined;
-  if (persisted?.revision !== control.revision) {
-    throw new Error(`Run control ${control.runId} revision conflict.`);
   }
 }
 
