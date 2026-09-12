@@ -422,6 +422,7 @@ CREATE TABLE policy_save_intents (
 
 CREATE TABLE artifact_preparations (
   preparation_id TEXT PRIMARY KEY,
+  artifact_id TEXT NOT NULL UNIQUE,
   owner_kind TEXT NOT NULL,
   owner_id TEXT NOT NULL,
   relative_locator TEXT NOT NULL UNIQUE,

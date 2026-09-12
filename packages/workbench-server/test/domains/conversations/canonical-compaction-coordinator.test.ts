@@ -146,6 +146,37 @@ test("INV-CONTEXT-01 commits a prepared boundary before admitting continuation",
   assert.equal(replay.kind, "receipt_replay");
 });
 
+test("INV-CONTEXT-01 rejects incomplete source ancestry manifests", async (t) => {
+  const { store, run, head } = await fixture(t);
+  const coordinator = new CanonicalCompactionCoordinator(store);
+  await assert.rejects(
+    coordinator.commitPrepared({
+      namespaceId: "namespace_test",
+      executionIncarnationId: "incarnation_test",
+      commandId: "command_incomplete_compact",
+      transitionId: "transition_incomplete_compact",
+      boundaryId: "boundary_incomplete_compact",
+      sourceHead: head,
+      run,
+      anchorEntryId: "entry_prompt",
+      sourceManifest: { ...manifest(), entryCount: 2 },
+      summary: "Incomplete summary",
+      summaryEntryId: "entry_incomplete_summary",
+      policyVersion: 1,
+      providerAdapterVersion: "test-v1",
+      recipeVersion: 1,
+      actor: { kind: "system" },
+      cause: { kind: "automatic_compaction" },
+      preparedAt: "2026-09-12T00:00:01.000Z",
+    }),
+    /completely cover canonical ancestry/,
+  );
+  assert.equal(
+    (await store.readTimelineConversationHead("conv_one"))?.revision,
+    1,
+  );
+});
+
 test("INV-CONTEXT-01 discards a stale prepared summary after ownership changes", async (t) => {
   const { store, run, head } = await fixture(t);
   const coordinator = new CanonicalCompactionCoordinator(store);

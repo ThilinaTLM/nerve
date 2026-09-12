@@ -1,4 +1,5 @@
 import type {
+  ArtifactReference,
   ContextBoundary,
   ConversationTransition,
 } from "@nervekit/contracts/conversations";
@@ -61,6 +62,7 @@ export interface CommitConversationCommandInput {
   expectedRunFences?: TimelineExpectedRunFence[];
   transitions: ConversationTransition[];
   contextBoundaries?: ContextBoundary[];
+  finalizedArtifacts?: ArtifactReference[];
   artifactManifests?: TimelineArtifactManifestWrite[];
   runControls?: RunControl[];
   executionSnapshots?: ImmutableExecutionSnapshot[];

@@ -21,6 +21,7 @@ export type CanonicalCommand =
       kind: "commit_conversation_command";
       input: CommitConversationCommandInput;
     }
+  | { kind: "read_timeline_state_identity" }
   | { kind: "read_timeline_conversation_head"; conversationId: string }
   | {
       kind: "read_timeline_run_control";
@@ -212,6 +213,7 @@ export type CanonicalWorkerResponse =
     };
 
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
+  "read_timeline_state_identity",
   "read_timeline_conversation_head",
   "read_timeline_run_control",
   "read_timeline_ancestry_segment",

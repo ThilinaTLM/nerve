@@ -3,6 +3,7 @@ import type {
   CanonicalAncestrySegment,
   ConversationHead,
   MutationOutcome,
+  TimelineStateIdentity,
 } from "@nervekit/contracts/conversations";
 import type {
   ConversationDeletionChunk,
@@ -157,6 +158,12 @@ export class CanonicalStore {
       { kind: "commit_conversation_command", input },
       true,
     );
+  }
+
+  readTimelineStateIdentity() {
+    return this.request<TimelineStateIdentity | undefined>({
+      kind: "read_timeline_state_identity",
+    });
   }
 
   readTimelineConversationHead(conversationId: string) {

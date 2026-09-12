@@ -3,8 +3,10 @@ import {
   artifactReferenceSchema,
   canonicalAncestrySegmentSchema,
   canonicalConversationEntrySchema,
+  timelineStateIdentitySchema,
   type CanonicalAncestrySegment,
   type CanonicalConversationEntry,
+  type TimelineStateIdentity,
 } from "@nervekit/contracts/conversations";
 import { runControlSchema, type RunControl } from "@nervekit/contracts/runs";
 import { z } from "zod";
@@ -43,6 +45,32 @@ interface EntryRow {
   provenance: Uint8Array;
   chain_index: number;
   artifact_manifest_data: Uint8Array | null;
+}
+
+export function readTimelineStateIdentity(
+  database: DatabaseSync,
+): TimelineStateIdentity | undefined {
+  const row = database
+    .prepare(
+      `SELECT namespace_id, execution_incarnation_id, format_version,
+              promoted_at_ms FROM state_identity WHERE singleton = 1`,
+    )
+    .get() as
+    | {
+        namespace_id: string;
+        execution_incarnation_id: string;
+        format_version: number;
+        promoted_at_ms: number;
+      }
+    | undefined;
+  if (!row) return undefined;
+  return timelineStateIdentitySchema.parse({
+    schemaVersion: 1,
+    namespaceId: row.namespace_id,
+    executionIncarnationId: row.execution_incarnation_id,
+    formatVersion: row.format_version,
+    promotedAt: new Date(row.promoted_at_ms).toISOString(),
+  });
 }
 
 export function readTimelineRunControl(

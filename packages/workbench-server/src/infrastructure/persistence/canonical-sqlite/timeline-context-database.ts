@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { ContextBoundary } from "@nervekit/contracts/conversations";
 import { encode } from "./payload-codecs.js";
+import { assertTimelineArtifactFinalized } from "./timeline-artifact-database.js";
 
 export function insertTimelineContextBoundary(
   database: DatabaseSync,
@@ -70,6 +71,30 @@ export function insertTimelineContextBoundary(
       );
     }
   }
+  assertTimelineArtifactFinalized(
+    database,
+    boundary.sourceManifest.entriesManifest,
+  );
+  if (boundary.sourceManifest.transitiveBoundariesManifest) {
+    assertTimelineArtifactFinalized(
+      database,
+      boundary.sourceManifest.transitiveBoundariesManifest,
+    );
+  }
+  const sourceCounts = countContextSourceProvenance(
+    database,
+    boundary.conversationId,
+    boundary.sourceTipEntryId,
+  );
+  if (
+    sourceCounts.entryCount !== boundary.sourceManifest.entryCount ||
+    sourceCounts.transitiveBoundaryCount !==
+      boundary.sourceManifest.transitiveBoundaryCount
+  ) {
+    throw new Error(
+      "Context source manifest does not completely cover canonical ancestry.",
+    );
+  }
   const manifestId = `manifest_context_${boundary.boundaryId}`;
   const manifestData = encode(boundary.sourceManifest);
   const manifestDigest = `sha256:${createHash("sha256")
@@ -108,6 +133,42 @@ export function insertTimelineContextBoundary(
       boundary.recipeVersion,
       boundary.visibleSummaryEntryId ?? null,
     );
+}
+
+function countContextSourceProvenance(
+  database: DatabaseSync,
+  conversationId: string,
+  sourceTipEntryId: string | null,
+): { entryCount: number; transitiveBoundaryCount: number } {
+  if (sourceTipEntryId === null) {
+    return { entryCount: 0, transitiveBoundaryCount: 0 };
+  }
+  const row = database
+    .prepare(
+      `WITH RECURSIVE ancestry(entry_id, parent_entry_id) AS (
+         SELECT entry_id, parent_entry_id FROM conversation_entries
+          WHERE conversation_id = ? AND entry_id = ?
+         UNION ALL
+         SELECT parent.entry_id, parent.parent_entry_id
+           FROM conversation_entries parent
+           JOIN ancestry child ON parent.entry_id = child.parent_entry_id
+          WHERE parent.conversation_id = ?
+       )
+       SELECT COUNT(DISTINCT ancestry.entry_id) AS entry_count,
+              COUNT(DISTINCT boundaries.boundary_id) AS boundary_count
+       FROM ancestry
+       LEFT JOIN context_boundaries boundaries
+         ON boundaries.conversation_id = ?
+        AND boundaries.visible_summary_entry_id = ancestry.entry_id`,
+    )
+    .get(conversationId, sourceTipEntryId, conversationId, conversationId) as {
+    entry_count: number;
+    boundary_count: number;
+  };
+  return {
+    entryCount: row.entry_count,
+    transitiveBoundaryCount: row.boundary_count,
+  };
 }
 
 function entryIsAncestor(

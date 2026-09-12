@@ -177,6 +177,12 @@ export class CanonicalCompactionCoordinator {
         },
       ],
       transitions: [transition],
+      finalizedArtifacts: [
+        boundary.sourceManifest.entriesManifest,
+        ...(boundary.sourceManifest.transitiveBoundariesManifest
+          ? [boundary.sourceManifest.transitiveBoundariesManifest]
+          : []),
+      ],
       contextBoundaries: [boundary],
       runControls: [nextRun],
       outcome: intendedSnapshot,

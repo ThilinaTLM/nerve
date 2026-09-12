@@ -3,17 +3,21 @@ import { createHash } from "node:crypto";
 /** Stable semantic fingerprint; callers omit transport IDs and retry-only CAS. */
 export function conversationCommandFingerprint(value: unknown): string {
   return `sha256:${createHash("sha256")
-    .update(canonicalJson(value, new Set()))
+    .update(canonicalConversationJson(value))
     .digest("hex")}`;
 }
 
-function canonicalJson(value: unknown, ancestors: Set<object>): string {
+export function canonicalConversationJson(value: unknown): string {
+  return canonicalJsonValue(value, new Set());
+}
+
+function canonicalJsonValue(value: unknown, ancestors: Set<object>): string {
   if (value === null) return "null";
   if (Array.isArray(value)) {
     assertAcyclic(value, ancestors);
     const encoded = `[${value
       .map((item) =>
-        item === undefined ? "null" : canonicalJson(item, ancestors),
+        item === undefined ? "null" : canonicalJsonValue(item, ancestors),
       )
       .join(",")}]`;
     ancestors.delete(value);
@@ -26,7 +30,7 @@ function canonicalJson(value: unknown, ancestors: Set<object>): string {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(
         ([key, item]) =>
-          `${JSON.stringify(key)}:${canonicalJson(item, ancestors)}`,
+          `${JSON.stringify(key)}:${canonicalJsonValue(item, ancestors)}`,
       )
       .join(",")}}`;
     ancestors.delete(value);

@@ -8,6 +8,7 @@ export function assertTimelineCommandBudgets(
     ["run fences", input.expectedRunFences ?? [], 64],
     ["transitions", input.transitions, 64],
     ["context boundaries", input.contextBoundaries ?? [], 64],
+    ["finalized artifacts", input.finalizedArtifacts ?? [], 128],
     ["artifact manifests", input.artifactManifests ?? [], 128],
     ["run controls", input.runControls ?? [], 64],
     ["execution snapshots", input.executionSnapshots ?? [], 64],

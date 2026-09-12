@@ -4,6 +4,7 @@ import type {
   ConversationHead,
   ConversationTransition,
   MutationOutcome,
+  TimelineStateIdentity,
 } from "@nervekit/contracts/conversations";
 import type { RunControl } from "@nervekit/contracts/runs";
 import {
@@ -25,6 +26,7 @@ import {
   waitGroupSchema,
 } from "@nervekit/contracts/runs";
 import {
+  artifactReferenceSchema,
   contextBoundarySchema,
   conversationTransitionSchema,
   mutationOutcomeSchema,
@@ -35,6 +37,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { validateTransitionHeadChange } from "../../../domains/conversations/timeline/transition-validation.js";
 import { appendDurableEventInTransaction } from "./canonical-database-helpers.js";
 import { decode, encode } from "./payload-codecs.js";
+import { insertTimelineFinalizedArtifact } from "./timeline-artifact-database.js";
 import { assertTimelineCommandBudgets } from "./timeline-command-budget.js";
 import {
   insertTimelineArtifactManifest,
@@ -65,6 +68,7 @@ import { persistTimelineWaitGroup } from "./timeline-wait-group-database.js";
 import {
   readTimelineAncestrySegment,
   readTimelineRunControl,
+  readTimelineStateIdentity,
 } from "./timeline-query-database.js";
 
 import type { CommitConversationCommandInput } from "./timeline-command-contracts.js";
@@ -90,6 +94,10 @@ export class CanonicalTimelineDatabase {
 
   commit(input: CommitConversationCommandInput): MutationOutcome {
     return commitConversationCommandInTransaction(this.database, input);
+  }
+
+  readStateIdentity(): TimelineStateIdentity | undefined {
+    return readTimelineStateIdentity(this.database);
   }
 
   readHead(conversationId: string): ConversationHead | undefined {
@@ -384,6 +392,12 @@ export function commitConversationCommandInTransaction(
       currentRevision.set(parsed.conversationId, parsed.revision);
     }
 
+    for (const artifact of input.finalizedArtifacts ?? []) {
+      insertTimelineFinalizedArtifact(
+        database,
+        artifactReferenceSchema.parse(artifact),
+      );
+    }
     for (const manifest of input.artifactManifests ?? []) {
       insertTimelineArtifactManifest(database, manifest, input.now);
     }
