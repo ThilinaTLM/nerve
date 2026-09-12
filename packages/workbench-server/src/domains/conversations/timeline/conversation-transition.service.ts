@@ -5,8 +5,13 @@ import type {
 } from "@nervekit/contracts/conversations";
 import type {
   CanonicalCheckpoint,
+  CanonicalExecutionAttempt,
+  ExactCallAuthorization,
+  ExecutionClaim,
   ImmutableExecutionSnapshot,
+  LogicalEffect,
   ProviderPhase,
+  RecoveryAction,
   RunControl,
   WaitGroup,
 } from "@nervekit/contracts/runs";
@@ -36,7 +41,12 @@ export interface CommitConversationTransitionCommand {
   executionSnapshots?: ImmutableExecutionSnapshot[];
   waitGroups?: WaitGroup[];
   checkpoints?: CanonicalCheckpoint[];
+  authorizations?: ExactCallAuthorization[];
+  logicalEffects?: LogicalEffect[];
   providerPhases?: ProviderPhase[];
+  executionAttempts?: CanonicalExecutionAttempt[];
+  executionClaims?: ExecutionClaim[];
+  recoveryActions?: RecoveryAction[];
   outcome: unknown;
   publicationIntents: TimelinePublicationIntent[];
   now: string;

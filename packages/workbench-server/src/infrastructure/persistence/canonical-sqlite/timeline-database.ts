@@ -8,15 +8,25 @@ import type {
 } from "@nervekit/contracts/conversations";
 import type {
   CanonicalCheckpoint,
+  CanonicalExecutionAttempt,
+  ExactCallAuthorization,
+  ExecutionClaim,
   ImmutableExecutionSnapshot,
+  LogicalEffect,
   ProviderPhase,
+  RecoveryAction,
   RunControl,
   WaitGroup,
 } from "@nervekit/contracts/runs";
 import {
   canonicalCheckpointSchema,
+  canonicalExecutionAttemptSchema,
+  exactCallAuthorizationSchema,
+  executionClaimSchema,
   immutableExecutionSnapshotSchema,
+  logicalEffectSchema,
   providerPhaseSchema,
+  recoveryActionSchema,
   runControlSchema,
   waitGroupSchema,
 } from "@nervekit/contracts/runs";
@@ -31,6 +41,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { validateTransitionHeadChange } from "../../../domains/conversations/timeline/transition-validation.js";
 import { appendDurableEventInTransaction } from "./canonical-database-helpers.js";
 import { decode, encode } from "./payload-codecs.js";
+import { assertTimelineCommandBudgets } from "./timeline-command-budget.js";
 import {
   insertTimelineArtifactManifest,
   insertTimelineCheckpoint,
@@ -39,9 +50,18 @@ import {
 } from "./timeline-checkpoint-database.js";
 import { insertTimelineContextBoundary } from "./timeline-context-database.js";
 import {
+  insertTimelineAuthorization,
+  insertTimelineLogicalEffect,
+  insertTimelineRecoveryAction,
+  persistTimelineExecutionAttempt,
+  persistTimelineExecutionClaim,
+  validateTimelineAttemptClaims,
+} from "./timeline-effect-database.js";
+import {
   persistTimelineProviderPhase,
   upsertTimelineRunControl,
 } from "./timeline-execution-database.js";
+import { withTimelineImmediateTransaction } from "./timeline-transaction.js";
 import { persistTimelineWaitGroup } from "./timeline-wait-group-database.js";
 import {
   readTimelineAncestrySegment,
@@ -92,7 +112,12 @@ export interface CommitConversationCommandInput {
   executionSnapshots?: ImmutableExecutionSnapshot[];
   waitGroups?: WaitGroup[];
   checkpoints?: CanonicalCheckpoint[];
+  authorizations?: ExactCallAuthorization[];
+  logicalEffects?: LogicalEffect[];
   providerPhases?: ProviderPhase[];
+  executionAttempts?: CanonicalExecutionAttempt[];
+  executionClaims?: ExecutionClaim[];
+  recoveryActions?: RecoveryAction[];
   outcome: unknown;
   publicationIntents: TimelinePublicationIntent[];
   now: string;
@@ -240,7 +265,8 @@ export function commitConversationCommandInTransaction(
   if (!/^sha256:[a-f0-9]{64}$/.test(input.fingerprint)) {
     throw new Error("Command fingerprint is invalid.");
   }
-  return withImmediateTransaction(database, () => {
+  assertTimelineCommandBudgets(input);
+  return withTimelineImmediateTransaction(database, () => {
     const receipt = database
       .prepare(
         `SELECT fingerprint_hash, outcome_json FROM command_receipts
@@ -442,11 +468,43 @@ export function commitConversationCommandInTransaction(
         canonicalCheckpointSchema.parse(checkpoint),
       );
     }
+    for (const authorization of input.authorizations ?? []) {
+      insertTimelineAuthorization(
+        database,
+        exactCallAuthorizationSchema.parse(authorization),
+      );
+    }
+    for (const effect of input.logicalEffects ?? []) {
+      insertTimelineLogicalEffect(database, logicalEffectSchema.parse(effect));
+    }
     for (const phase of input.providerPhases ?? []) {
       persistTimelineProviderPhase(
         database,
         providerPhaseSchema.parse(phase),
         input.now,
+      );
+    }
+    for (const attempt of input.executionAttempts ?? []) {
+      persistTimelineExecutionAttempt(
+        database,
+        canonicalExecutionAttemptSchema.parse(attempt),
+      );
+    }
+    for (const claim of input.executionClaims ?? []) {
+      persistTimelineExecutionClaim(
+        database,
+        executionClaimSchema.parse(claim),
+        input.now,
+      );
+    }
+    validateTimelineAttemptClaims(database, [
+      ...(input.executionAttempts ?? []).map((attempt) => attempt.attemptId),
+      ...(input.executionClaims ?? []).map((claim) => claim.attemptId),
+    ]);
+    for (const action of input.recoveryActions ?? []) {
+      insertTimelineRecoveryAction(
+        database,
+        recoveryActionSchema.parse(action),
       );
     }
     for (const expected of input.expectedHeads) {
@@ -730,24 +788,5 @@ function validateForegroundOwnership(
     throw new Error(
       "Foreground run and active continuation head must agree atomically.",
     );
-  }
-}
-
-function withImmediateTransaction<T>(
-  database: DatabaseSync,
-  operation: () => T,
-): T {
-  database.exec("BEGIN IMMEDIATE");
-  try {
-    const result = operation();
-    database.exec("COMMIT");
-    return result;
-  } catch (error) {
-    try {
-      database.exec("ROLLBACK");
-    } catch {
-      // Preserve the original failure.
-    }
-    throw error;
   }
 }

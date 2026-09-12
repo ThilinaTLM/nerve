@@ -369,7 +369,7 @@ export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
     version: 5,
     name: "unified-conversation-timeline-v5",
     checksum:
-      "03bd035d3e7bd3b1793b5b0b0dc341f4baf59fef6b379440f982ea60e464d98a",
+      "e0502231419f208353518340feabebaa8ee4befa470cdb0ecce6cf8fa2cb6e67",
     sql: UNIFIED_TIMELINE_V5_SQL,
   },
 ];

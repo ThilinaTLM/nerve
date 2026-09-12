@@ -261,7 +261,10 @@ CREATE TABLE logical_effects (
   external_scope_json BLOB,
   external_key TEXT,
   authorization_id TEXT NOT NULL,
-  state TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN (
+    'authorized','dispatching','settled','outcome_unknown',
+    'result_unavailable','closed'
+  )),
   created_at_ms INTEGER NOT NULL,
   FOREIGN KEY(member_id) REFERENCES wait_group_members(member_id) ON DELETE RESTRICT,
   FOREIGN KEY(authorization_id) REFERENCES exact_call_authorizations(authorization_id) ON DELETE RESTRICT
@@ -299,7 +302,10 @@ CREATE TABLE execution_attempts (
   provider_phase_id TEXT,
   attempt_number INTEGER NOT NULL CHECK(attempt_number > 0),
   incarnation_id TEXT NOT NULL,
-  state TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN (
+    'ready','claimed','dispatched','succeeded','known_failed','cancelled',
+    'outcome_unknown','result_unavailable'
+  )),
   outcome_json BLOB,
   prepared_manifest_id TEXT,
   external_locator TEXT,
@@ -332,10 +338,16 @@ CREATE TABLE recovery_actions (
   run_id TEXT,
   member_id TEXT,
   effect_id TEXT,
-  action_kind TEXT NOT NULL,
+  action_kind TEXT NOT NULL CHECK(action_kind IN (
+    'retry_after_non_dispatch','retry_safe_observation','contractual_replay',
+    'reconcile_external_effect','attach_verified_result','close_unavailable',
+    'cancel_tree'
+  )),
   evidence_json BLOB,
   evidence_manifest_id TEXT,
-  status TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN (
+    'prepared','admitted','applied','rejected','superseded'
+  )),
   command_id TEXT NOT NULL,
   created_at_ms INTEGER NOT NULL,
   FOREIGN KEY(conversation_id) REFERENCES conversations(conversation_id) ON DELETE RESTRICT,
