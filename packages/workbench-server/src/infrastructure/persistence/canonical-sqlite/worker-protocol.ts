@@ -40,6 +40,13 @@ export type CanonicalCommand =
       runId: string;
     }
   | {
+      kind: "read_timeline_fixed_ancestry_page";
+      conversationId: string;
+      sourceEntryId: string;
+      beforeDepth?: number;
+      limit: number;
+    }
+  | {
       kind: "read_timeline_ancestry_segment";
       conversationId: string;
       sourceEntryId: string;
@@ -228,6 +235,7 @@ export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "read_timeline_state_identity",
   "read_timeline_conversation_head",
   "read_timeline_run_control",
+  "read_timeline_fixed_ancestry_page",
   "read_timeline_ancestry_segment",
   "timeline_entry_is_ancestor",
   "read_lifecycle_work",

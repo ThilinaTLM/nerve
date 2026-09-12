@@ -22,6 +22,13 @@ export function executeCanonicalCommand(
         command.conversationId,
         command.runId,
       );
+    case "read_timeline_fixed_ancestry_page":
+      return database.timeline.readFixedAncestryPage({
+        conversationId: command.conversationId,
+        sourceEntryId: command.sourceEntryId,
+        beforeDepth: command.beforeDepth,
+        limit: command.limit,
+      });
     case "read_timeline_ancestry_segment":
       return database.timeline.readAncestrySegment({
         conversationId: command.conversationId,

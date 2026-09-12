@@ -68,8 +68,10 @@ import { persistTimelineWaitGroup } from "./timeline-wait-group-database.js";
 import {
   readTimelineAncestrySegment,
   readTimelineCommandReceipt,
+  readTimelineFixedAncestryPage,
   readTimelineRunControl,
   readTimelineStateIdentity,
+  timelineEntryIsAncestor,
 } from "./timeline-query-database.js";
 
 import type { CommitConversationCommandInput } from "./timeline-command-contracts.js";
@@ -123,6 +125,15 @@ export class CanonicalTimelineDatabase {
     return readTimelineRunControl(this.database, conversationId, runId);
   }
 
+  readFixedAncestryPage(input: {
+    conversationId: string;
+    sourceEntryId: string;
+    beforeDepth?: number;
+    limit: number;
+  }) {
+    return readTimelineFixedAncestryPage(this.database, input);
+  }
+
   readAncestrySegment(input: {
     conversationId: string;
     sourceEntryId: string;
@@ -143,53 +154,6 @@ export class CanonicalTimelineDatabase {
       descendantEntryId,
     );
   }
-}
-
-export function timelineEntryIsAncestor(
-  database: DatabaseSync,
-  conversationId: string,
-  ancestorEntryId: string | null,
-  descendantEntryId: string | null,
-): boolean {
-  if (ancestorEntryId === null) return true;
-  if (descendantEntryId === null) return false;
-  const rows = database
-    .prepare(
-      `SELECT entry_id, conversation_id, ancestry_depth
-       FROM conversation_entries WHERE entry_id IN (?, ?)`,
-    )
-    .all(ancestorEntryId, descendantEntryId) as unknown as Array<{
-    entry_id: string;
-    conversation_id: string;
-    ancestry_depth: number;
-  }>;
-  const ancestor = rows.find((row) => row.entry_id === ancestorEntryId);
-  const descendant = rows.find((row) => row.entry_id === descendantEntryId);
-  if (
-    !ancestor ||
-    !descendant ||
-    ancestor.conversation_id !== conversationId ||
-    descendant.conversation_id !== conversationId ||
-    ancestor.ancestry_depth > descendant.ancestry_depth
-  ) {
-    return false;
-  }
-  let cursor = descendant.entry_id;
-  let distance = descendant.ancestry_depth - ancestor.ancestry_depth;
-  for (let power = 0; distance > 0 && power < 63; power += 1) {
-    if (distance % 2 === 1) {
-      const jump = database
-        .prepare(
-          `SELECT ancestor_entry_id FROM entry_ancestor_jumps
-           WHERE entry_id = ? AND power = ?`,
-        )
-        .get(cursor, power) as { ancestor_entry_id: string } | undefined;
-      if (!jump) return false;
-      cursor = jump.ancestor_entry_id;
-    }
-    distance = Math.floor(distance / 2);
-  }
-  return cursor === ancestorEntryId;
 }
 
 export function readTimelineConversationHead(

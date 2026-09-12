@@ -1,6 +1,7 @@
 import type { CommitConversationCommandInput } from "./timeline-database.js";
 import type {
   CanonicalAncestrySegment,
+  CanonicalConversationEntry,
   ConversationHead,
   MutationOutcome,
   TimelineStateIdentity,
@@ -192,6 +193,24 @@ export class CanonicalStore {
       kind: "read_timeline_run_control",
       conversationId,
       runId,
+    });
+  }
+
+  readTimelineFixedAncestryPage(
+    conversationId: string,
+    sourceEntryId: string,
+    beforeDepth: number | undefined,
+    limit: number,
+  ) {
+    return this.request<{
+      entries: CanonicalConversationEntry[];
+      nextBeforeDepth?: number;
+    }>({
+      kind: "read_timeline_fixed_ancestry_page",
+      conversationId,
+      sourceEntryId,
+      ...(beforeDepth === undefined ? {} : { beforeDepth }),
+      limit,
     });
   }
 

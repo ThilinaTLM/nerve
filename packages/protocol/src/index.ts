@@ -23,6 +23,10 @@ export {
 } from "./runtime/system-runtime.js";
 export { SessionStateError } from "./runtime/session-errors.js";
 export {
+  SignedTimelineCursorCodec,
+  type TimelineCursorPayload,
+} from "./cursors/signed-timeline-cursor.js";
+export {
   type DecodeFailureCode,
   ProtocolCodec,
   type ProtocolCodecOptions,

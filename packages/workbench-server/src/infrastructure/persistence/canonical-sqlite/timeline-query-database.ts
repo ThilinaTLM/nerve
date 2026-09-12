@@ -49,6 +49,53 @@ interface EntryRow {
   artifact_manifest_data: Uint8Array | null;
 }
 
+export function timelineEntryIsAncestor(
+  database: DatabaseSync,
+  conversationId: string,
+  ancestorEntryId: string | null,
+  descendantEntryId: string | null,
+): boolean {
+  if (ancestorEntryId === null) return true;
+  if (descendantEntryId === null) return false;
+  const rows = database
+    .prepare(
+      `SELECT entry_id, conversation_id, ancestry_depth
+       FROM conversation_entries WHERE entry_id IN (?, ?)`,
+    )
+    .all(ancestorEntryId, descendantEntryId) as unknown as Array<{
+    entry_id: string;
+    conversation_id: string;
+    ancestry_depth: number;
+  }>;
+  const ancestor = rows.find((row) => row.entry_id === ancestorEntryId);
+  const descendant = rows.find((row) => row.entry_id === descendantEntryId);
+  if (
+    !ancestor ||
+    !descendant ||
+    ancestor.conversation_id !== conversationId ||
+    descendant.conversation_id !== conversationId ||
+    ancestor.ancestry_depth > descendant.ancestry_depth
+  ) {
+    return false;
+  }
+  let cursor = descendant.entry_id;
+  let distance = descendant.ancestry_depth - ancestor.ancestry_depth;
+  for (let power = 0; distance > 0 && power < 63; power += 1) {
+    if (distance % 2 === 1) {
+      const jump = database
+        .prepare(
+          `SELECT ancestor_entry_id FROM entry_ancestor_jumps
+           WHERE entry_id = ? AND power = ?`,
+        )
+        .get(cursor, power) as { ancestor_entry_id: string } | undefined;
+      if (!jump) return false;
+      cursor = jump.ancestor_entry_id;
+    }
+    distance = Math.floor(distance / 2);
+  }
+  return cursor === ancestorEntryId;
+}
+
 export function readTimelineCommandReceipt(
   database: DatabaseSync,
   input: {
@@ -187,28 +234,7 @@ export function readTimelineAncestrySegment(
   if (rows.length === 0) {
     throw new Error(`Timeline entry '${input.sourceEntryId}' was not found.`);
   }
-  const entries = rows.map((row) =>
-    canonicalConversationEntrySchema.parse({
-      schemaVersion: 1,
-      entryId: row.entry_id,
-      conversationId: row.conversation_id,
-      transitionId: row.transition_id,
-      ordinal: row.ordinal,
-      parentEntryId: row.parent_entry_id,
-      kind: row.entry_kind,
-      ...(row.inline_content
-        ? { inlineContent: decode(row.inline_content) }
-        : {}),
-      artifacts: row.artifact_manifest_data
-        ? entryArtifactManifestSchema.parse(decode(row.artifact_manifest_data))
-            .artifacts
-        : [],
-      ...(row.run_id ? { runId: row.run_id } : {}),
-      ...(row.tool_call_id ? { toolCallId: row.tool_call_id } : {}),
-      ...(row.interaction_id ? { interactionId: row.interaction_id } : {}),
-      provenance: decode(row.provenance),
-    }),
-  );
+  const entries = rows.map(entryFromRow);
   const oldest = entries.at(-1)!;
   const nextAncestorEntryId =
     entries.length === input.limit
@@ -220,5 +246,91 @@ export function readTimelineAncestrySegment(
     entries,
     ...(nextAncestorEntryId ? { nextAncestorEntryId } : {}),
     ordering: "ancestry_descending",
+  });
+}
+
+export function readTimelineFixedAncestryPage(
+  database: DatabaseSync,
+  input: {
+    conversationId: string;
+    sourceEntryId: string;
+    beforeDepth?: number;
+    limit: number;
+  },
+): { entries: CanonicalConversationEntry[]; nextBeforeDepth?: number } {
+  if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 200) {
+    throw new RangeError("Timeline page limit must be between 1 and 200.");
+  }
+  if (
+    input.beforeDepth !== undefined &&
+    (!Number.isSafeInteger(input.beforeDepth) || input.beforeDepth < 1)
+  ) {
+    throw new RangeError("Timeline page depth is invalid.");
+  }
+  const rows = database
+    .prepare(
+      `WITH RECURSIVE chain AS (
+         SELECT e.*, 0 AS chain_index
+         FROM conversation_entries e
+         WHERE e.conversation_id = ? AND e.entry_id = ?
+         UNION ALL
+         SELECT parent.*, chain.chain_index + 1
+         FROM conversation_entries parent
+         JOIN chain ON parent.entry_id = chain.parent_entry_id
+         WHERE parent.conversation_id = ?
+       )
+       SELECT chain.entry_id, chain.conversation_id, chain.transition_id,
+              chain.ordinal, chain.parent_entry_id, chain.kind AS entry_kind,
+              chain.inline_content_json AS inline_content, chain.run_id,
+              chain.tool_call_id, chain.interaction_id,
+              chain.provenance_json AS provenance, chain.chain_index,
+              artifact_manifests.data AS artifact_manifest_data
+       FROM chain
+       LEFT JOIN artifact_manifests
+         ON artifact_manifests.manifest_id = chain.artifact_manifest_id
+       WHERE (? IS NULL OR chain.chain_index < ?)
+       ORDER BY chain.chain_index DESC
+       LIMIT ?`,
+    )
+    .all(
+      input.conversationId,
+      input.sourceEntryId,
+      input.conversationId,
+      input.beforeDepth ?? null,
+      input.beforeDepth ?? null,
+      input.limit + 1,
+    ) as unknown as EntryRow[];
+  if (rows.length === 0 && input.beforeDepth === undefined) {
+    throw new Error(`Timeline entry '${input.sourceEntryId}' was not found.`);
+  }
+  const hasMore = rows.length > input.limit;
+  const pageRows = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = pageRows.at(-1);
+  return {
+    entries: pageRows.map(entryFromRow),
+    ...(hasMore && last ? { nextBeforeDepth: last.chain_index } : {}),
+  };
+}
+
+function entryFromRow(row: EntryRow): CanonicalConversationEntry {
+  return canonicalConversationEntrySchema.parse({
+    schemaVersion: 1,
+    entryId: row.entry_id,
+    conversationId: row.conversation_id,
+    transitionId: row.transition_id,
+    ordinal: row.ordinal,
+    parentEntryId: row.parent_entry_id,
+    kind: row.entry_kind,
+    ...(row.inline_content
+      ? { inlineContent: decode(row.inline_content) }
+      : {}),
+    artifacts: row.artifact_manifest_data
+      ? entryArtifactManifestSchema.parse(decode(row.artifact_manifest_data))
+          .artifacts
+      : [],
+    ...(row.run_id ? { runId: row.run_id } : {}),
+    ...(row.tool_call_id ? { toolCallId: row.tool_call_id } : {}),
+    ...(row.interaction_id ? { interactionId: row.interaction_id } : {}),
+    provenance: decode(row.provenance),
   });
 }
