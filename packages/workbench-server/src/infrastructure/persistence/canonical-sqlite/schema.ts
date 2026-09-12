@@ -1,4 +1,6 @@
-export const CANONICAL_SCHEMA_VERSION = 4;
+import { UNIFIED_TIMELINE_V5_SQL } from "./unified-timeline-schema.js";
+
+export const CANONICAL_SCHEMA_VERSION = 5;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -362,5 +364,12 @@ export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
     checksum:
       "496cd5027ff354aee6aed213f19bb6c6771d5c847cc799d85e1cc4fd5781b28a",
     sql: LIFECYCLE_RUN_CONVERSION_V4_SQL,
+  },
+  {
+    version: 5,
+    name: "unified-conversation-timeline-v5",
+    checksum:
+      "db4e7bdbe17a0004066970e135e6753220c9f8c2a04777ba007e417d84a85b44",
+    sql: UNIFIED_TIMELINE_V5_SQL,
   },
 ];

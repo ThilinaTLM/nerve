@@ -1,3 +1,8 @@
+import type { CommitConversationCommandInput } from "./timeline-database.js";
+import type {
+  ConversationHead,
+  MutationOutcome,
+} from "@nervekit/contracts/conversations";
 import type {
   ConversationDeletionChunk,
   ConversationDeletionCursor,
@@ -143,6 +148,33 @@ export class CanonicalStore {
       return reader!.request<T>(command, transferList);
     }
     return this.writer.request<T>(command, transferList);
+  }
+
+  commitConversationCommand(input: CommitConversationCommandInput) {
+    return this.request<MutationOutcome>(
+      { kind: "commit_conversation_command", input },
+      true,
+    );
+  }
+
+  readTimelineConversationHead(conversationId: string) {
+    return this.request<ConversationHead | undefined>({
+      kind: "read_timeline_conversation_head",
+      conversationId,
+    });
+  }
+
+  timelineEntryIsAncestor(
+    conversationId: string,
+    ancestorEntryId: string | null,
+    descendantEntryId: string | null,
+  ) {
+    return this.request<boolean>({
+      kind: "timeline_entry_is_ancestor",
+      conversationId,
+      ancestorEntryId,
+      descendantEntryId,
+    });
   }
 
   persistLifecycleAtomicCommit(input: LifecycleAtomicCommitInput) {

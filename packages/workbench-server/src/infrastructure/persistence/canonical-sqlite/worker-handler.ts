@@ -9,6 +9,16 @@ export function executeCanonicalCommand(
     case "initialize":
       database.initialize();
       return undefined;
+    case "commit_conversation_command":
+      return database.timeline.commit(command.input);
+    case "read_timeline_conversation_head":
+      return database.timeline.readHead(command.conversationId);
+    case "timeline_entry_is_ancestor":
+      return database.timeline.isAncestor(
+        command.conversationId,
+        command.ancestorEntryId,
+        command.descendantEntryId,
+      );
     case "persist_lifecycle_atomic_commit":
       return database.lifecycle.persistAtomicCommit(command.input);
     case "insert_lifecycle_work":

@@ -9,6 +9,7 @@ import type {
   RenewLifecycleWorkInput,
   SettleLifecycleWorkInput,
 } from "./lifecycle-work-database.js";
+import type { CommitConversationCommandInput } from "./timeline-database.js";
 import type {
   ConversationPersistenceDelta,
   SerializedConversationState,
@@ -16,6 +17,17 @@ import type {
 
 export type CanonicalCommand =
   | { kind: "initialize" }
+  | {
+      kind: "commit_conversation_command";
+      input: CommitConversationCommandInput;
+    }
+  | { kind: "read_timeline_conversation_head"; conversationId: string }
+  | {
+      kind: "timeline_entry_is_ancestor";
+      conversationId: string;
+      ancestorEntryId: string | null;
+      descendantEntryId: string | null;
+    }
   | {
       kind: "persist_lifecycle_atomic_commit";
       input: LifecycleAtomicCommitInput;
@@ -189,6 +201,8 @@ export type CanonicalWorkerResponse =
     };
 
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
+  "read_timeline_conversation_head",
+  "timeline_entry_is_ancestor",
   "read_lifecycle_work",
   "list_due_lifecycle_work",
   "list_expired_lifecycle_work",

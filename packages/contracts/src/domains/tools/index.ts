@@ -4,3 +4,4 @@ export * from "./events.js";
 export * from "./operations.js";
 export * from "./tool-results.js";
 export * from "./task-tool-previews.js";
+export * from "./replay-capability.js";

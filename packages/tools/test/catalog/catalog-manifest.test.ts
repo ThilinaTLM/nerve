@@ -142,6 +142,30 @@ describe("model-facing tool schema compatibility", () => {
     });
   });
 
+  it("declares an explicit execution recovery contract for every tool", () => {
+    for (const definition of allToolDefinitions) {
+      assert.ok(definition.executionRecovery, definition.name);
+      if (definition.executionRecovery.executionClass === "external_effect") {
+        assert.ok(
+          definition.executionRecovery.capability.version > 0,
+          definition.name,
+        );
+      }
+    }
+    assert.equal(
+      requireToolDefinition("read").executionRecovery.executionClass,
+      "external_effect",
+    );
+    assert.deepEqual(requireToolDefinition("write").executionRecovery, {
+      executionClass: "external_effect",
+      capability: { kind: "non_repeatable_or_unknown", version: 1 },
+    });
+    assert.deepEqual(requireToolDefinition("ask_user").executionRecovery, {
+      executionClass: "internal_command",
+      version: 1,
+    });
+  });
+
   it("uses a JSON object root for every tool definition", () => {
     for (const definition of allToolDefinitions) {
       const serialized = JSON.parse(JSON.stringify(definition.parameters)) as {
