@@ -35,14 +35,34 @@ export function insertTimelineAuthorization(
   database: DatabaseSync,
   authorization: ExactCallAuthorization,
 ): void {
-  const member = database
+  const evidence = database
     .prepare(
-      `SELECT input_fingerprint FROM wait_group_members WHERE member_id = ?`,
+      `SELECT members.input_fingerprint,
+              observations.normalized_input_hash AS observed_input_hash,
+              runs.generation AS run_generation,
+              runs.bound_selection_epoch AS selection_epoch
+       FROM wait_group_members members
+       JOIN wait_groups groups ON groups.wait_group_id = members.wait_group_id
+       JOIN run_controls runs ON runs.run_id = groups.run_id
+       JOIN policy_observations observations ON observations.observation_id = ?
+       WHERE members.member_id = ?`,
     )
-    .get(authorization.memberId) as { input_fingerprint: string } | undefined;
-  if (member?.input_fingerprint !== authorization.normalizedInputFingerprint) {
+    .get(authorization.policyObservationId, authorization.memberId) as
+    | {
+        input_fingerprint: string;
+        observed_input_hash: string;
+        run_generation: number;
+        selection_epoch: number;
+      }
+    | undefined;
+  if (
+    evidence?.input_fingerprint !== authorization.normalizedInputFingerprint ||
+    evidence.observed_input_hash !== authorization.normalizedInputFingerprint ||
+    evidence.run_generation !== authorization.runGeneration ||
+    evidence.selection_epoch !== authorization.selectionEpoch
+  ) {
     throw new Error(
-      "Authorization input does not match its wait-group member.",
+      "Authorization does not match its input, observation, or run fence.",
     );
   }
   database

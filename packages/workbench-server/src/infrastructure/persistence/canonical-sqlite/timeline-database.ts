@@ -1,23 +1,17 @@
 import type {
   CanonicalAncestrySegment,
   CanonicalConversationEntry,
-  ContextBoundary,
   ConversationHead,
   ConversationTransition,
   MutationOutcome,
 } from "@nervekit/contracts/conversations";
-import type {
-  CanonicalCheckpoint,
-  CanonicalExecutionAttempt,
-  ExactCallAuthorization,
-  ExecutionClaim,
-  ImmutableExecutionSnapshot,
-  LogicalEffect,
-  ProviderPhase,
-  RecoveryAction,
-  RunControl,
-  WaitGroup,
-} from "@nervekit/contracts/runs";
+import type { RunControl } from "@nervekit/contracts/runs";
+import {
+  policyDiagnosticSchema,
+  policyDocumentObservationSchema,
+  policyFallbackDecisionSchema,
+  policySaveIntentSchema,
+} from "@nervekit/contracts/permissions";
 import {
   canonicalCheckpointSchema,
   canonicalExecutionAttemptSchema,
@@ -46,7 +40,6 @@ import {
   insertTimelineArtifactManifest,
   insertTimelineCheckpoint,
   insertTimelineExecutionSnapshot,
-  type TimelineArtifactManifestWrite,
 } from "./timeline-checkpoint-database.js";
 import { insertTimelineContextBoundary } from "./timeline-context-database.js";
 import {
@@ -61,6 +54,12 @@ import {
   persistTimelineProviderPhase,
   upsertTimelineRunControl,
 } from "./timeline-execution-database.js";
+import {
+  insertTimelinePolicyFallbackDecision,
+  insertTimelinePolicyObservation,
+  persistTimelinePolicyDiagnostic,
+  persistTimelinePolicySaveIntent,
+} from "./timeline-policy-database.js";
 import { withTimelineImmediateTransaction } from "./timeline-transaction.js";
 import { persistTimelineWaitGroup } from "./timeline-wait-group-database.js";
 import {
@@ -68,60 +67,13 @@ import {
   readTimelineRunControl,
 } from "./timeline-query-database.js";
 
-export interface TimelineExpectedHead {
-  conversationId: string;
-  revision: number;
-  selectionEpoch: number;
-  createIfMissing?: boolean;
-}
-
-export interface TimelineExpectedRunFence {
-  conversationId: string;
-  runId: string;
-  generation: number;
-  revision: number;
-  selectionEpoch: number;
-  continuationEntryId: string | null;
-  requireForegroundOwnership: boolean;
-}
-
-export interface TimelinePublicationIntent {
-  intentId: string;
-  stream: string;
-  eventType: string;
-  occurredAt: string;
-  conversationId?: string;
-  data: unknown;
-}
-
-export interface CommitConversationCommandInput {
-  namespaceId: string;
-  executionIncarnationId: string;
-  operationKind: string;
-  ownerKind: "state" | "conversation" | "policy_scope";
-  ownerId: string;
-  commandId: string;
-  fingerprintVersion: number;
-  fingerprint: string;
-  expectedHeads: TimelineExpectedHead[];
-  expectedRunFences?: TimelineExpectedRunFence[];
-  transitions: ConversationTransition[];
-  contextBoundaries?: ContextBoundary[];
-  artifactManifests?: TimelineArtifactManifestWrite[];
-  runControls?: RunControl[];
-  executionSnapshots?: ImmutableExecutionSnapshot[];
-  waitGroups?: WaitGroup[];
-  checkpoints?: CanonicalCheckpoint[];
-  authorizations?: ExactCallAuthorization[];
-  logicalEffects?: LogicalEffect[];
-  providerPhases?: ProviderPhase[];
-  executionAttempts?: CanonicalExecutionAttempt[];
-  executionClaims?: ExecutionClaim[];
-  recoveryActions?: RecoveryAction[];
-  outcome: unknown;
-  publicationIntents: TimelinePublicationIntent[];
-  now: string;
-}
+import type { CommitConversationCommandInput } from "./timeline-command-contracts.js";
+export type {
+  CommitConversationCommandInput,
+  TimelineExpectedHead,
+  TimelineExpectedRunFence,
+  TimelinePublicationIntent,
+} from "./timeline-command-contracts.js";
 
 interface ReceiptRow {
   fingerprint_hash: string;
@@ -466,6 +418,30 @@ export function commitConversationCommandInTransaction(
       insertTimelineCheckpoint(
         database,
         canonicalCheckpointSchema.parse(checkpoint),
+      );
+    }
+    for (const observation of input.policyObservations ?? []) {
+      insertTimelinePolicyObservation(
+        database,
+        policyDocumentObservationSchema.parse(observation),
+      );
+    }
+    for (const diagnostic of input.policyDiagnostics ?? []) {
+      persistTimelinePolicyDiagnostic(
+        database,
+        policyDiagnosticSchema.parse(diagnostic),
+      );
+    }
+    for (const decision of input.policyFallbackDecisions ?? []) {
+      insertTimelinePolicyFallbackDecision(
+        database,
+        policyFallbackDecisionSchema.parse(decision),
+      );
+    }
+    for (const saveIntent of input.policySaveIntents ?? []) {
+      persistTimelinePolicySaveIntent(
+        database,
+        policySaveIntentSchema.parse(saveIntent),
       );
     }
     for (const authorization of input.authorizations ?? []) {

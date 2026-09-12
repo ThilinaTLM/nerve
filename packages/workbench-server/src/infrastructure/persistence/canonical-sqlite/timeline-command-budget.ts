@@ -1,4 +1,4 @@
-import type { CommitConversationCommandInput } from "./timeline-database.js";
+import type { CommitConversationCommandInput } from "./timeline-command-contracts.js";
 
 export function assertTimelineCommandBudgets(
   input: CommitConversationCommandInput,
@@ -13,6 +13,10 @@ export function assertTimelineCommandBudgets(
     ["execution snapshots", input.executionSnapshots ?? [], 64],
     ["wait groups", input.waitGroups ?? [], 64],
     ["checkpoints", input.checkpoints ?? [], 64],
+    ["policy observations", input.policyObservations ?? [], 128],
+    ["policy diagnostics", input.policyDiagnostics ?? [], 128],
+    ["policy fallback decisions", input.policyFallbackDecisions ?? [], 128],
+    ["policy save intents", input.policySaveIntents ?? [], 128],
     ["authorizations", input.authorizations ?? [], 128],
     ["logical effects", input.logicalEffects ?? [], 128],
     ["provider phases", input.providerPhases ?? [], 64],

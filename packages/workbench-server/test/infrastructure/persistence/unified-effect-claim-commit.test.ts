@@ -107,6 +107,21 @@ test("INV-EFFECT-01 atomically authorizes an effect and claims its attempt", asy
         ],
       },
     ],
+    policyObservations: [
+      {
+        schemaVersion: 1,
+        observationId: "policy_observation_effect",
+        scope: { kind: "conversation", ownerId: "conv_effect" },
+        documentIdentity: "permissions/project.json",
+        completeDocumentDigest: hash,
+        selectedRuleSetId: "baseline",
+        selectedRuleSetDigest: hash,
+        applicableOverlayDigests: [],
+        normalizedInputFingerprint: hash,
+        trustEvidence: { trusted: true },
+        observedAt: now,
+      },
+    ],
     authorizations: [
       {
         schemaVersion: 1,

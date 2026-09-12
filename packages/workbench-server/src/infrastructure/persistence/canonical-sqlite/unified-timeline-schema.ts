@@ -247,7 +247,8 @@ CREATE TABLE exact_call_authorizations (
   state TEXT NOT NULL CHECK(state IN ('active','consumed','revoked','superseded')),
   data BLOB NOT NULL,
   created_at_ms INTEGER NOT NULL,
-  FOREIGN KEY(member_id) REFERENCES wait_group_members(member_id) ON DELETE RESTRICT
+  FOREIGN KEY(member_id) REFERENCES wait_group_members(member_id) ON DELETE RESTRICT,
+  FOREIGN KEY(policy_observation_id) REFERENCES policy_observations(observation_id) ON DELETE RESTRICT
 ) STRICT;
 
 CREATE TABLE logical_effects (
@@ -359,33 +360,62 @@ CREATE TABLE recovery_actions (
 
 CREATE TABLE policy_observations (
   observation_id TEXT PRIMARY KEY,
-  scope_id TEXT NOT NULL,
+  scope_json BLOB NOT NULL,
   document_identity TEXT NOT NULL,
   complete_digest TEXT NOT NULL,
   rule_set_id TEXT NOT NULL,
+  rule_set_digest TEXT NOT NULL,
+  overlay_digests_json BLOB NOT NULL,
   normalized_input_hash TEXT NOT NULL,
   trust_evidence_json BLOB NOT NULL,
   observed_at_ms INTEGER NOT NULL
 ) STRICT;
+CREATE TABLE policy_diagnostics (
+  diagnostic_id TEXT PRIMARY KEY,
+  scope_json BLOB NOT NULL,
+  document_identity TEXT NOT NULL,
+  failure_fingerprint TEXT NOT NULL,
+  failure_kind TEXT NOT NULL CHECK(failure_kind IN (
+    'malformed_overlay','unsupported_overlay','unreadable_overlay',
+    'missing_rule_set','invalid_rule_set','incompatible_rule_set',
+    'quarantine_failed'
+  )),
+  affected_member_ids_json BLOB NOT NULL,
+  state TEXT NOT NULL CHECK(state IN (
+    'unresolved','repaired','reset','fallback_selected'
+  )),
+  observed_at_ms INTEGER NOT NULL,
+  resolved_at_ms INTEGER
+) STRICT;
 CREATE TABLE policy_decisions (
   decision_id TEXT PRIMARY KEY,
-  observation_id TEXT NOT NULL,
-  decision_kind TEXT NOT NULL,
-  data BLOB NOT NULL,
-  created_at_ms INTEGER NOT NULL,
-  FOREIGN KEY(observation_id) REFERENCES policy_observations(observation_id) ON DELETE RESTRICT
+  diagnostic_id TEXT NOT NULL,
+  requested_rule_set_id TEXT NOT NULL,
+  effective_rule_set_id TEXT NOT NULL CHECK(effective_rule_set_id = 'baseline'),
+  overlays_enabled INTEGER NOT NULL CHECK(overlays_enabled = 0),
+  confirmation_fingerprint TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('active','replaced')),
+  decided_at_ms INTEGER NOT NULL,
+  FOREIGN KEY(diagnostic_id) REFERENCES policy_diagnostics(diagnostic_id) ON DELETE RESTRICT
 ) STRICT;
 CREATE TABLE policy_save_intents (
   save_intent_id TEXT PRIMARY KEY,
-  scope_id TEXT NOT NULL,
+  scope_json BLOB NOT NULL,
   command_id TEXT NOT NULL,
   document_identity TEXT NOT NULL,
   observed_digest TEXT,
   intended_digest TEXT NOT NULL,
-  rule_json BLOB NOT NULL,
-  state TEXT NOT NULL,
-  file_result_json BLOB,
-  finalization_result_json BLOB,
+  rule_fingerprint TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN (
+    'recorded','writing','saved_pending_finalization','save_failed',
+    'conflicted','finalized','finalization_superseded'
+  )),
+  file_outcome TEXT NOT NULL CHECK(file_outcome IN (
+    'not_attempted','saved','failed','external_conflict'
+  )),
+  approval_outcome TEXT NOT NULL CHECK(approval_outcome IN (
+    'not_attempted','committed','superseded','failed'
+  )),
   created_at_ms INTEGER NOT NULL,
   updated_at_ms INTEGER NOT NULL
 ) STRICT;
