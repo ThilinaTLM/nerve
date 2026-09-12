@@ -12,6 +12,8 @@ import {
 } from "./conversation-state.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
+import { timelinePageRequestSchema } from "./timeline.js";
+import { timelineViewOutcomeSchema } from "./timeline-outcomes.js";
 
 const emptyParamsSchema = z.object({}).optional();
 const okResultSchema = z.object({ ok: z.literal(true) });
@@ -99,6 +101,15 @@ export const conversationsOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.conversation.state.update",
+  ),
+  defineOperation(
+    "conversation.timeline.page",
+    timelinePageRequestSchema,
+    timelineViewOutcomeSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.conversation.timeline.page",
   ),
   defineOperation(
     "conversation.entries.list",

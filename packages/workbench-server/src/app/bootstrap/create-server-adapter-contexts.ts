@@ -84,6 +84,7 @@ export function createServerAdapterContexts(
     conversations: {
       conversationLifecycle: services.conversationLifecycle,
       conversationQuery: services.conversationQuery,
+      timelinePages: services.timelinePages,
       importService: services.importService,
       navigationService: services.navigationService,
       compactionService: services.compactionService,

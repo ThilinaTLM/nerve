@@ -39,6 +39,8 @@ export const conversationMethodHandlers: WorkbenchMethodHandlerMapFor<Conversati
         params,
       ),
     }),
+    "conversation.timeline.page": (state, params) =>
+      state.timelinePages.page(params),
     "conversation.entries.list": async (state, params) => {
       await state.conversationLifecycle.ensureConversationEntries(
         params.conversationId,

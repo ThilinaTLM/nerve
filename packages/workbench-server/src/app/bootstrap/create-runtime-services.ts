@@ -110,6 +110,7 @@ import type {
   AppendEntryOptions,
 } from "../../domains/conversations/append-entry-contracts.js";
 import type { ResourceLimits } from "@nervekit/contracts/settings";
+import { createTimelinePages } from "../../domains/conversations/timeline/canonical-timeline-page-provider.js";
 
 export interface RuntimeDeps {
   storage: InitializedStorage;
@@ -190,13 +191,12 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     );
   };
   const projectRepository = new ProjectRepository(storage);
-  const permissionExceptions: PermissionExceptionService =
-    new PermissionExceptionService(
-      storage,
-      new ProjectPermissionsRepository(storage),
-      getProject,
-      events,
-    );
+  const permissionExceptions = new PermissionExceptionService(
+    storage,
+    new ProjectPermissionsRepository(storage),
+    getProject,
+    events,
+  );
   const permissionPolicy = new PermissionPolicyService(storage, getProject);
   const capabilities = new CapabilityService(
     storage,
@@ -362,17 +362,19 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     state,
     removeConversation,
   );
-  const taskDefinitionOperations: TaskDefinitionOperations =
-    new TaskDefinitionOperations(taskDefinitions, tasks, listProjects);
+  const taskDefinitionOperations = new TaskDefinitionOperations(
+    taskDefinitions,
+    tasks,
+    listProjects,
+  );
   const projectIcons = new ProjectIconService(getProject);
   const fileCompletions = new FileCompletionService(getProject);
   const filesystemLogger = logger.child({ component: "filesystem" });
-  const projectFilesystemWatcher: ProjectFilesystemWatcher =
-    new ProjectFilesystemWatcher(events, {
-      onWarning: (message, error) => {
-        void filesystemLogger.warn(message, { error });
-      },
-    });
+  const projectFilesystemWatcher = new ProjectFilesystemWatcher(events, {
+    onWarning: (message, error) => {
+      void filesystemLogger.warn(message, { error });
+    },
+  });
   const conversationLifecycle: ConversationLifecycleService =
     new ConversationLifecycleService(
       storage,
@@ -386,25 +388,25 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       resultPayloads,
       capabilities,
     );
-  const conversationQuery: ConversationQueryService =
-    new ConversationQueryService({
-      events,
-      state,
-      getConversationEntries: async (conversationId) => {
-        await conversationLifecycle.ensureConversationEntries(conversationId);
-        return conversationLifecycle.getConversationEntries(conversationId);
-      },
-      getConversationRevision: (conversationId) =>
-        conversationJournal.readConversationRevision(conversationId),
-      getConversationTree: (conversationId) =>
-        conversationLifecycle.getConversationTree(conversationId),
-      getContextUsage: (conversationId) =>
-        workbenchRun.getContextUsage(conversationId),
-      listToolCallPreviews: (conversationId) =>
-        tools.listToolCallPreviews({ conversationId, limit: 1_000 }),
-      getActiveRun: (conversationId, activeEntryIds) =>
-        runQuery.activeForConversation(conversationId, activeEntryIds),
-    });
+  const timelinePages = createTimelinePages(storage.canonicalStore, secrets);
+  const conversationQuery = new ConversationQueryService({
+    events,
+    state,
+    getConversationEntries: async (conversationId) => {
+      await conversationLifecycle.ensureConversationEntries(conversationId);
+      return conversationLifecycle.getConversationEntries(conversationId);
+    },
+    getConversationRevision: (conversationId) =>
+      conversationJournal.readConversationRevision(conversationId),
+    getConversationTree: (conversationId) =>
+      conversationLifecycle.getConversationTree(conversationId),
+    getContextUsage: (conversationId) =>
+      workbenchRun.getContextUsage(conversationId),
+    listToolCallPreviews: (conversationId) =>
+      tools.listToolCallPreviews({ conversationId, limit: 1_000 }),
+    getActiveRun: (conversationId, activeEntryIds) =>
+      runQuery.activeForConversation(conversationId, activeEntryIds),
+  });
   const agentLifecycle: AgentLifecycleService = new AgentLifecycleService(
     storage,
     events,
@@ -461,18 +463,17 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     storage,
     queryCache,
   );
-  const promptSuggestions: PromptSuggestionService =
-    new PromptSuggestionService({
-      storage,
-      events,
-      trustRepository: promptSuggestionTrustRepository,
-      enablementRepository: new PromptSuggestionEnablementRepository(storage),
-      git: git,
-      getProject,
-      listProjects,
-      getConversation,
-      getAgent,
-    });
+  const promptSuggestions = new PromptSuggestionService({
+    storage,
+    events,
+    trustRepository: promptSuggestionTrustRepository,
+    enablementRepository: new PromptSuggestionEnablementRepository(storage),
+    git: git,
+    getProject,
+    listProjects,
+    getConversation,
+    getAgent,
+  });
   const tools: ToolService = new ToolService({
     storage,
     events,
@@ -558,15 +559,14 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     ),
   });
   const subagentTranscriptLive = new SubagentTranscriptLiveService(events);
-  const subagentTranscripts: SubagentTranscriptService =
-    new SubagentTranscriptService({
-      storage,
-      harnessStorage: harnessStorage,
-      tools: tools,
-      getAgent,
-      events,
-      live: subagentTranscriptLive,
-    });
+  const subagentTranscripts = new SubagentTranscriptService({
+    storage,
+    harnessStorage: harnessStorage,
+    tools: tools,
+    getAgent,
+    events,
+    live: subagentTranscriptLive,
+  });
   const agentMechanics: WorkbenchAgentMechanics = new WorkbenchAgentMechanics({
     storage,
     events,
@@ -646,20 +646,19 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         agentMechanics.runExplore(parent, args, options),
     },
   );
-  const taskNotifications: TaskNotificationService =
-    new TaskNotificationService({
-      tasks: tasks,
-      events,
-      liveRuns: runRuntime.live,
-      runUnitOfWork: runRuntime.unitOfWork,
-      appendEntry,
-      harnessStorage: harnessStorage,
-      getAgent,
-      getConversationEntries: (conversationId) =>
-        conversationLifecycle.ensureConversationEntries(conversationId),
-      continueAgent: (agentId) => workbenchRun.continueAgent(agentId),
-      logger: logger.child({ component: "task-notification" }),
-    });
+  const taskNotifications = new TaskNotificationService({
+    tasks: tasks,
+    events,
+    liveRuns: runRuntime.live,
+    runUnitOfWork: runRuntime.unitOfWork,
+    appendEntry,
+    harnessStorage: harnessStorage,
+    getAgent,
+    getConversationEntries: (conversationId) =>
+      conversationLifecycle.ensureConversationEntries(conversationId),
+    continueAgent: (agentId) => workbenchRun.continueAgent(agentId),
+    logger: logger.child({ component: "task-notification" }),
+  });
   taskNotifications.start();
   const {
     dispatcher: lifecycleDispatcher,
@@ -729,14 +728,13 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     operationId: reconciliationOperationId,
     currentLeaseOwner: lifecycleBootId,
   });
-  const toolInteractions: ToolInteractionResolutionService =
-    new ToolInteractionResolutionService(
-      tools,
-      plans,
-      humanInput,
-      permissionPolicy,
-      permissionExceptions,
-    );
+  const toolInteractions = new ToolInteractionResolutionService(
+    tools,
+    plans,
+    humanInput,
+    permissionPolicy,
+    permissionExceptions,
+  );
   const pruneConversations: PruneProjectConversationsService =
     new PruneProjectConversationsService({
       getProject,
@@ -787,6 +785,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     projectLifecycle,
     conversationLifecycle,
     conversationQuery,
+    timelinePages,
     agentLifecycle,
     subagentTranscriptLive,
     subagentTranscripts,

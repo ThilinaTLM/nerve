@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { CanonicalTimelineIdentityService } from "../../../src/domains/conversations/timeline/canonical-timeline-identity.service.js";
-import { CanonicalTimelinePageService } from "../../../src/domains/conversations/timeline/canonical-timeline-page.service.js";
+import { CanonicalTimelinePageProvider } from "../../../src/domains/conversations/timeline/canonical-timeline-page-provider.js";
 import { buildAppendTransition } from "../../../src/domains/conversations/timeline/transition-builders.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
 
@@ -64,10 +64,20 @@ test("INV-PAGE-01 keeps pagination on its signed source view", async (t) => {
     publicationIntents: [],
     now: "2026-09-12T00:00:00.000Z",
   });
-  const pages = new CanonicalTimelinePageService(
-    store,
-    new Uint8Array(32).fill(9),
-  );
+  const secretValues = new Map<string, string>();
+  const secrets = {
+    get: (name: string) => Promise.resolve(secretValues.get(name)),
+    set: (name: string, value: string) => {
+      secretValues.set(name, value);
+      return Promise.resolve();
+    },
+    delete: (name: string) => {
+      secretValues.delete(name);
+      return Promise.resolve();
+    },
+    list: () => Promise.resolve([...secretValues.keys()]),
+  };
+  const pages = new CanonicalTimelinePageProvider(store, secrets);
   const first = await pages.page({ conversationId: "conv_page", pageSize: 2 });
   assert.equal(first.kind, "page");
   assert.deepEqual(
@@ -107,7 +117,8 @@ test("INV-PAGE-01 keeps pagination on its signed source view", async (t) => {
     publicationIntents: [],
     now: "2026-09-12T00:00:01.000Z",
   });
-  const second = await pages.page({
+  const reopenedPages = new CanonicalTimelinePageProvider(store, secrets);
+  const second = await reopenedPages.page({
     conversationId: "conv_page",
     pageSize: 2,
     cursor,
