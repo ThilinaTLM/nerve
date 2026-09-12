@@ -13,6 +13,7 @@ import {
   policyFallbackDecisionSchema,
   policySaveIntentSchema,
 } from "@nervekit/contracts/permissions";
+import { deletionIntentSchema } from "@nervekit/contracts/storage";
 import {
   canonicalCheckpointSchema,
   canonicalExecutionAttemptSchema,
@@ -45,6 +46,7 @@ import {
   insertTimelineExecutionSnapshot,
 } from "./timeline-checkpoint-database.js";
 import { insertTimelineContextBoundary } from "./timeline-context-database.js";
+import { persistTimelineDeletionIntent } from "./timeline-deletion-database.js";
 import {
   insertTimelineAuthorization,
   insertTimelineLogicalEffect,
@@ -90,6 +92,7 @@ interface ReceiptRow {
 interface HeadRow {
   revision: number;
   selection_epoch: number;
+  deletion_state: string;
 }
 
 export class CanonicalTimelineDatabase {
@@ -249,7 +252,7 @@ export function commitConversationCommandInTransaction(
     for (const expected of input.expectedHeads) {
       let current = database
         .prepare(
-          `SELECT revision, selection_epoch FROM conversations
+          `SELECT revision, selection_epoch, deletion_state FROM conversations
            WHERE conversation_id = ?`,
         )
         .get(expected.conversationId) as HeadRow | undefined;
@@ -266,7 +269,13 @@ export function commitConversationCommandInTransaction(
           continue;
         }
         conversationsToCreate.push(expected.conversationId);
-        current = { revision: 0, selection_epoch: 0 };
+        current = { revision: 0, selection_epoch: 0, deletion_state: "active" };
+      }
+      if (current?.deletion_state !== "active") {
+        return {
+          kind: "deleted_owner",
+          ownerId: expected.conversationId,
+        };
       }
       if (
         !current ||
@@ -408,6 +417,12 @@ export function commitConversationCommandInTransaction(
       insertTimelineCheckpoint(
         database,
         canonicalCheckpointSchema.parse(checkpoint),
+      );
+    }
+    for (const deletionIntent of input.deletionIntents ?? []) {
+      persistTimelineDeletionIntent(
+        database,
+        deletionIntentSchema.parse(deletionIntent),
       );
     }
     for (const observation of input.policyObservations ?? []) {

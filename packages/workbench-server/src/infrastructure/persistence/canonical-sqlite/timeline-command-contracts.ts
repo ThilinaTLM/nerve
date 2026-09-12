@@ -9,6 +9,7 @@ import type {
   PolicyFallbackDecision,
   PolicySaveIntent,
 } from "@nervekit/contracts/permissions";
+import type { DeletionIntent } from "@nervekit/contracts/storage";
 import type {
   CanonicalCheckpoint,
   CanonicalExecutionAttempt,
@@ -72,6 +73,7 @@ export interface CommitConversationCommandInput {
   policyDiagnostics?: PolicyDiagnostic[];
   policyFallbackDecisions?: PolicyFallbackDecision[];
   policySaveIntents?: PolicySaveIntent[];
+  deletionIntents?: DeletionIntent[];
   authorizations?: ExactCallAuthorization[];
   logicalEffects?: LogicalEffect[];
   providerPhases?: ProviderPhase[];

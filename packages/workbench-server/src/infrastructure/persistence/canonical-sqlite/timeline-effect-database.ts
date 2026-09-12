@@ -252,13 +252,32 @@ export function persistTimelineExecutionClaim(
     return;
   }
   const attempt = readAttempt(database, claim.attemptId);
+  const owner = database
+    .prepare(
+      `SELECT COALESCE(effect_owner.deletion_state, provider_owner.deletion_state)
+                AS deletion_state
+       FROM execution_attempts attempts
+       LEFT JOIN logical_effects effects ON effects.effect_id = attempts.effect_id
+       LEFT JOIN wait_group_members members ON members.member_id = effects.member_id
+       LEFT JOIN wait_groups groups ON groups.wait_group_id = members.wait_group_id
+       LEFT JOIN run_controls effect_run ON effect_run.run_id = groups.run_id
+       LEFT JOIN conversations effect_owner
+         ON effect_owner.conversation_id = effect_run.conversation_id
+       LEFT JOIN provider_phases phases ON phases.phase_id = attempts.provider_phase_id
+       LEFT JOIN run_controls provider_run ON provider_run.run_id = phases.run_id
+       LEFT JOIN conversations provider_owner
+         ON provider_owner.conversation_id = provider_run.conversation_id
+       WHERE attempts.attempt_id = ?`,
+    )
+    .get(claim.attemptId) as { deletion_state: string | null } | undefined;
   if (
     claim.state !== "active" ||
+    owner?.deletion_state !== "active" ||
     attempt?.state !== "claimed" ||
     Date.parse(claim.leaseDeadline) <= Date.parse(now)
   ) {
     throw new Error(
-      "An active claim requires a claimed attempt and live lease.",
+      "An active claim requires an unfenced owner, claimed attempt, and live lease.",
     );
   }
   database

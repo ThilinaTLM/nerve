@@ -18,6 +18,7 @@ export function assertTimelineCommandBudgets(
     ["policy diagnostics", input.policyDiagnostics ?? [], 128],
     ["policy fallback decisions", input.policyFallbackDecisions ?? [], 128],
     ["policy save intents", input.policySaveIntents ?? [], 128],
+    ["deletion intents", input.deletionIntents ?? [], 64],
     ["authorizations", input.authorizations ?? [], 128],
     ["logical effects", input.logicalEffects ?? [], 128],
     ["provider phases", input.providerPhases ?? [], 64],
