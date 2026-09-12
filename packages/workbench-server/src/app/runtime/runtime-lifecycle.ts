@@ -1,4 +1,5 @@
 import type { Message } from "@earendil-works/pi-ai";
+import type { ResourceLimits } from "@nervekit/contracts/settings";
 import type { AuthManager } from "../../domains/auth/index.js";
 import type { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/agent-browser-skills.js";
 import type { ProviderCatalogStore } from "../../domains/providers/index.js";
@@ -54,6 +55,7 @@ export class RuntimeLifecycle {
     agentBrowserSkills: AgentBrowserSkillCatalog,
     providerCatalog: ProviderCatalogStore,
     performanceDiagnostics: PerformanceDiagnosticsPort,
+    resources: ResourceLimits & { controlWorkConcurrency: number },
   ): { lifecycle: RuntimeLifecycle; services: RuntimeServices } {
     const lifecycle = new RuntimeLifecycle(
       storage,
@@ -66,6 +68,7 @@ export class RuntimeLifecycle {
       agentBrowserSkills,
       providerCatalog,
       performanceDiagnostics,
+      resources,
     );
     return { lifecycle, services: lifecycle.services };
   }
@@ -81,6 +84,7 @@ export class RuntimeLifecycle {
     agentBrowserSkills: AgentBrowserSkillCatalog,
     providerCatalog: ProviderCatalogStore,
     performanceDiagnostics: PerformanceDiagnosticsPort,
+    resources: ResourceLimits & { controlWorkConcurrency: number },
   ) {
     this.services = createRuntimeServices(this.state, {
       storage,
@@ -93,6 +97,7 @@ export class RuntimeLifecycle {
       logger,
       agentBrowserSkills,
       performanceDiagnostics,
+      resources,
     });
     this.hydrator = new RuntimeHydrator({
       withUpdatesDeferred: (operation) =>

@@ -16,11 +16,13 @@ export function createLifecycleRuntime(input: {
     work: import("@nervekit/contracts/runs").LifecycleWork,
   ): Promise<void>;
   logger: ApplicationLogger;
+  concurrency: { model: number; control: number };
 }) {
   const bootId = `boot_${randomUUID()}`;
   const dispatcher = new LifecycleWorkDispatcher({
     store: input.store,
     bootId,
+    concurrencyByLane: input.concurrency,
     onDrainError: (error) => {
       void input.logger.warn("Lifecycle dispatcher drain failed", { error });
     },

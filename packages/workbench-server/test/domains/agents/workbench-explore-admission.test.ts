@@ -42,6 +42,38 @@ describe("WorkbenchExploreAdmission", () => {
     second.finish();
   });
 
+  it("enforces global capacity and gives a waiting parent the next slot", async () => {
+    const admission = new WorkbenchExploreAdmission(2);
+    const first = admission.reserveBatch("run_first", 3);
+    const second = admission.reserveBatch("run_second", 1);
+    const firstReleases = await Promise.all([first.acquire(), first.acquire()]);
+    let thirdFirstAdmitted = false;
+    const thirdFirst = first.acquire().then((release) => {
+      thirdFirstAdmitted = true;
+      return release;
+    });
+    let secondAdmitted = false;
+    const waitingSecond = second.acquire().then((release) => {
+      secondAdmitted = true;
+      return release;
+    });
+
+    await tick();
+    assert.equal(thirdFirstAdmitted, false);
+    assert.equal(secondAdmitted, false);
+    firstReleases[0]!();
+    const secondRelease = await waitingSecond;
+    assert.equal(secondAdmitted, true);
+    assert.equal(thirdFirstAdmitted, false);
+
+    secondRelease();
+    const thirdRelease = await thirdFirst;
+    thirdRelease();
+    firstReleases[1]!();
+    first.finish();
+    second.finish();
+  });
+
   it("rejects a batch atomically when the parent run allowance is insufficient", () => {
     const admission = new WorkbenchExploreAdmission();
     admission.reserveBatch("run_parent", 8).finish();

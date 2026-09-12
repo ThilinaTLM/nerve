@@ -9,7 +9,11 @@ import { join } from "node:path";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { registerManagedProvider } from "@nervekit/harness/models";
 import { allOperationDefinitions } from "@nervekit/contracts/operations";
-import { type ApplicationConfigurationSnapshot } from "@nervekit/contracts/settings";
+import {
+  DEFAULT_RESOURCE_LIMITS,
+  type ApplicationConfigurationSnapshot,
+  type ResourceLimits,
+} from "@nervekit/contracts/settings";
 import { createId } from "@nervekit/contracts";
 import {
   type DaemonFile,
@@ -90,6 +94,7 @@ export interface ServerRuntimeOptions {
   performanceDiagnosticsEnabled?: boolean;
   applicationConfiguration?: ApplicationConfigurationSnapshot;
   resourceContainment?: ManagedResourceContainmentStatus;
+  resources?: ResourceLimits & { controlWorkConcurrency: number };
 }
 
 export function createServerRuntime(
@@ -222,6 +227,10 @@ export function composeServerRuntime(
     agentBrowserSkills,
     providerCatalog,
     performanceDiagnostics,
+    options.resources ?? {
+      ...DEFAULT_RESOURCE_LIMITS,
+      controlWorkConcurrency: 4,
+    },
   );
   const storageUsage = new StorageUsageService({
     paths: storage.paths,

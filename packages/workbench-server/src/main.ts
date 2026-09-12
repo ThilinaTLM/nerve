@@ -119,7 +119,6 @@ async function main() {
         !delegatedScope &&
         !process.env.NERVE_CGROUP_ROOT),
   });
-  configureManagedProcessRuntime({ maxActiveProcesses: 64 });
   const dataDir = resolveDataDir();
   const reportStartupProgress = (progress: DaemonStartupProgress) => {
     process.stderr.write(
@@ -147,7 +146,12 @@ async function main() {
     httpsPort,
     loggingEnabled,
     performanceEnabled: performanceDiagnosticsEnabled,
+    resources,
+    controlWorkConcurrency,
   } = resolvedConfiguration.values;
+  configureManagedProcessRuntime({
+    maxActiveProcesses: resources.maxActiveProcesses,
+  });
   if (!allowRemote && !isLoopbackHost(host)) {
     throw new Error(
       `Refusing to bind Nerve daemon to ${host}. Enable remote connections in Settings or set NERVE_ALLOW_REMOTE=1.`,
@@ -158,9 +162,13 @@ async function main() {
     performanceDiagnosticsEnabled,
     applicationConfiguration: resolvedConfiguration.snapshot,
     resourceContainment,
+    resources: { ...resources, controlWorkConcurrency },
   });
   const loggerHydrateStartedAt = performance.now();
   await state.logger.hydrate();
+  await state.logger.info("Resource concurrency policy resolved", {
+    context: resolvedConfiguration.snapshot.context.resources,
+  });
   const loggerHydrateDurationMs = Math.round(
     performance.now() - loggerHydrateStartedAt,
   );

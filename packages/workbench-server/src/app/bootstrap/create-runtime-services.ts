@@ -109,6 +109,7 @@ import type {
   AppendEntryInput,
   AppendEntryOptions,
 } from "../../domains/conversations/append-entry-contracts.js";
+import type { ResourceLimits } from "@nervekit/contracts/settings";
 
 export interface RuntimeDeps {
   storage: InitializedStorage;
@@ -121,6 +122,7 @@ export interface RuntimeDeps {
   logger: ApplicationLogger;
   agentBrowserSkills: AgentBrowserSkillCatalog;
   performanceDiagnostics: PerformanceDiagnosticsPort;
+  resources: ResourceLimits & { controlWorkConcurrency: number };
 }
 
 export type RuntimeServices = ReturnType<typeof createRuntimeServices>;
@@ -137,13 +139,12 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     logger,
     performanceDiagnostics,
   } = deps;
-  const maintenanceScopes: RuntimeState["maintenanceScopes"] =
-    state.maintenanceScopes;
+  const maintenanceScopes = state.maintenanceScopes;
   const subagentExecutions = new WorkbenchSubagentExecutions();
-  const exploreAdmission = new WorkbenchExploreAdmission();
+  const exploreAdmission = new WorkbenchExploreAdmission(
+    deps.resources.maxActiveExploreAgents,
+  );
 
-  // Lifecycle callbacks are deferred until construction completes; they bridge
-  // genuine service cycles without exposing a partially initialized service graph.
   const getProject = (projectId: string) =>
     projectLifecycle.getProject(projectId);
   const listProjects = () => projectLifecycle.listProjects();
@@ -556,8 +557,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       resultPayloads,
     ),
   });
-  const subagentTranscriptLive: SubagentTranscriptLiveService =
-    new SubagentTranscriptLiveService(events);
+  const subagentTranscriptLive = new SubagentTranscriptLiveService(events);
   const subagentTranscripts: SubagentTranscriptService =
     new SubagentTranscriptService({
       storage,
@@ -592,6 +592,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     subagentTranscriptLive: subagentTranscriptLive,
     exploreAdmission,
     subagentExecutions,
+    maxParallelToolsPerRun: deps.resources.maxParallelToolsPerRun,
     customModels: (projectDir) =>
       providerCatalog.resolvedModelsWithCredentials(
         (name) => secrets.get(name),
@@ -673,6 +674,10 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       await runRuntime.coordinator.executeModelWork(work);
     },
     logger,
+    concurrency: {
+      model: deps.resources.maxConcurrentModelRuns,
+      control: deps.resources.controlWorkConcurrency,
+    },
   });
   wakeLifecycleWork = () => lifecycleDispatcher.wake();
   const humanInput = new HumanInputResolutionService({

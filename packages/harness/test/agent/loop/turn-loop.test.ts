@@ -494,3 +494,71 @@ describe("agent loop steering queue", () => {
     assert.equal(providerRequests[1]?.reasoning, "high");
   });
 });
+
+describe("agent loop tool concurrency", () => {
+  it("bounds a parallel tool batch while preserving progress", async () => {
+    let providerCalls = 0;
+    const streamFn: StreamFn = () => {
+      providerCalls += 1;
+      if (providerCalls === 1) {
+        return streamMessage(
+          assistant(
+            Array.from({ length: 5 }, (_, index) => ({
+              type: "toolCall" as const,
+              id: `call_${index}`,
+              name: "blocking-tool",
+              arguments: {},
+            })),
+            "toolUse",
+          ),
+        );
+      }
+      return streamMessage(assistant([{ type: "text", text: "done" }]));
+    };
+    let active = 0;
+    let maximumActive = 0;
+    let executions = 0;
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let firstPairStarted!: () => void;
+    const firstPair = new Promise<void>((resolve) => {
+      firstPairStarted = resolve;
+    });
+    const tool: AgentTool = {
+      name: "blocking-tool",
+      label: "blocking-tool",
+      description: "Concurrency test tool",
+      parameters: Type.Object({}, { additionalProperties: false }),
+      execute: async () => {
+        executions += 1;
+        active += 1;
+        maximumActive = Math.max(maximumActive, active);
+        if (active === 2) firstPairStarted();
+        await blocked;
+        active -= 1;
+        return {
+          content: [{ type: "text", text: "tool result" }],
+          details: {},
+        };
+      },
+    };
+
+    const running = runAgentLoop(
+      [{ role: "user", content: "start", timestamp: Date.now() }],
+      { systemPrompt: "", messages: [], tools: [tool] },
+      { model, convertToLlm, maxParallelToolCalls: 2 },
+      async () => undefined,
+      undefined,
+      streamFn,
+    );
+    await firstPair;
+    assert.equal(executions, 2);
+    assert.equal(maximumActive, 2);
+    release();
+    await running;
+    assert.equal(executions, 5);
+    assert.equal(maximumActive, 2);
+  });
+});

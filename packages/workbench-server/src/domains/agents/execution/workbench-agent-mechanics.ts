@@ -91,6 +91,7 @@ export interface WorkbenchAgentMechanicsDeps {
   agentBrowserSkills: AgentBrowserSkillCatalog;
   capabilities: CapabilityService;
   subagentTranscriptLive: SubagentTranscriptLiveService;
+  maxParallelToolsPerRun: number;
   customModels?: (projectDir?: string) => Promise<AgentCustomModel[]>;
 }
 
@@ -115,6 +116,7 @@ export class WorkbenchAgentMechanics {
       agentBrowserSkills: deps.agentBrowserSkills,
       capabilities: deps.capabilities,
       transcriptLive: deps.subagentTranscriptLive,
+      maxParallelToolsPerRun: deps.maxParallelToolsPerRun,
       customModels: deps.customModels,
     });
     this.inlineCommands = new InlineCommandRunner(deps);

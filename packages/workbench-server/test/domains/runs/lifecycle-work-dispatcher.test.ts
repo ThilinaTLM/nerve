@@ -114,6 +114,135 @@ test("start drains recovery work without awaiting its execution", async () => {
   await dispatcher.settled();
 });
 
+test("a wake refills free slots while an earlier handler is still running", async () => {
+  const queued = new Map<string, LifecycleWork>([[ready.id, ready]]);
+  let releaseFirst!: () => void;
+  const firstBlocked = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  let firstStarted!: () => void;
+  const firstStart = new Promise<void>((resolve) => {
+    firstStarted = resolve;
+  });
+  let secondStarted!: () => void;
+  const secondStart = new Promise<void>((resolve) => {
+    secondStarted = resolve;
+  });
+  const second = {
+    ...ready,
+    id: "work_second",
+    runId: "run_second",
+    deduplicationKey: "run_second:continue",
+  };
+  const dispatcher = new LifecycleWorkDispatcher({
+    bootId: "boot_test",
+    concurrency: 2,
+    now: () => now,
+    store: {
+      listDueLifecycleWork: async () => [...queued.values()],
+      claimLifecycleWork: async (input) => {
+        const work = queued.get(input.workId);
+        if (!work) return undefined;
+        queued.delete(input.workId);
+        return {
+          ...work,
+          state: "leased",
+          generation: 1,
+          attemptCount: 1,
+          leaseOwner: input.leaseOwner,
+          leaseDeadline: input.leaseDeadline,
+        };
+      },
+      renewLifecycleWork: async () => ready,
+      settleLifecycleWork: async () => ({ ...ready, state: "succeeded" }),
+    },
+    handlers: {
+      continue_model: async (work) => {
+        if (work.id === ready.id) {
+          firstStarted();
+          await firstBlocked;
+        } else {
+          secondStarted();
+        }
+        return { state: "succeeded" };
+      },
+    },
+  });
+
+  void dispatcher.wake();
+  await firstStart;
+  queued.set(second.id, second);
+  void dispatcher.wake();
+  await secondStart;
+  releaseFirst();
+  await dispatcher.settled();
+});
+
+test("model and control work use independent concurrency lanes", async () => {
+  const control = {
+    ...ready,
+    id: "work_control",
+    kind: "reconcile_conversation" as const,
+    runId: undefined,
+    deduplicationKey: "conv_test:reconcile",
+  };
+  const queued = new Map<string, LifecycleWork>([[ready.id, ready]]);
+  let releaseModel!: () => void;
+  const modelBlocked = new Promise<void>((resolve) => {
+    releaseModel = resolve;
+  });
+  let modelStarted!: () => void;
+  const modelStart = new Promise<void>((resolve) => {
+    modelStarted = resolve;
+  });
+  let controlStarted!: () => void;
+  const controlStart = new Promise<void>((resolve) => {
+    controlStarted = resolve;
+  });
+  const dispatcher = new LifecycleWorkDispatcher({
+    bootId: "boot_test",
+    concurrencyByLane: { model: 1, control: 1 },
+    now: () => now,
+    store: {
+      listDueLifecycleWork: async () => [...queued.values()],
+      claimLifecycleWork: async (input) => {
+        const work = queued.get(input.workId);
+        if (!work) return undefined;
+        queued.delete(input.workId);
+        return {
+          ...work,
+          state: "leased",
+          generation: 1,
+          attemptCount: 1,
+          leaseOwner: input.leaseOwner,
+          leaseDeadline: input.leaseDeadline,
+        };
+      },
+      renewLifecycleWork: async () => ready,
+      settleLifecycleWork: async () => ({ ...ready, state: "succeeded" }),
+    },
+    handlers: {
+      continue_model: async () => {
+        modelStarted();
+        await modelBlocked;
+        return { state: "succeeded" };
+      },
+      reconcile_conversation: async () => {
+        controlStarted();
+        return { state: "succeeded" };
+      },
+    },
+  });
+
+  void dispatcher.wake();
+  await modelStart;
+  queued.set(control.id, control);
+  void dispatcher.wake();
+  await controlStart;
+  releaseModel();
+  await dispatcher.settled();
+});
+
 test("coalesced wakes cannot claim the same work twice", async () => {
   let claims = 0;
   let listed = false;

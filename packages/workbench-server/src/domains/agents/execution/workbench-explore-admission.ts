@@ -9,6 +9,8 @@ export interface ExploreAdmissionBatch {
 }
 
 type Waiter = {
+  key: string;
+  state: AdmissionState;
   signal?: AbortSignal;
   onAbort?: () => void;
   resolve: (release: () => void) => void;
@@ -20,7 +22,6 @@ type AdmissionState = {
   used: number;
   batches: number;
   local: boolean;
-  queue: Waiter[];
 };
 
 export class ExploreRunLimitError extends Error {
@@ -34,10 +35,19 @@ export class ExploreRunLimitError extends Error {
   }
 }
 
-/** Runtime-only Explore limits keyed by the owning parent run. */
+/** Per-parent semantic limits plus fair, global active-child admission. */
 export class WorkbenchExploreAdmission {
   private readonly states = new Map<string, AdmissionState>();
+  private readonly queues = new Map<string, Waiter[]>();
+  private readonly queueOrder: string[] = [];
+  private globalActive = 0;
   private nextLocalId = 0;
+
+  constructor(private readonly maxGlobalActive = 8) {
+    if (!Number.isInteger(maxGlobalActive) || maxGlobalActive < 1) {
+      throw new Error("Explore global concurrency must be a positive integer.");
+    }
+  }
 
   reserveBatch(
     parentRunId: string | undefined,
@@ -50,7 +60,6 @@ export class WorkbenchExploreAdmission {
       used: 0,
       batches: 0,
       local: parentRunId === undefined,
-      queue: [],
     };
     const remaining = EXPLORE_MAX_CHILDREN_PER_RUN - state.used;
     if (taskCount > remaining) {
@@ -76,10 +85,13 @@ export class WorkbenchExploreAdmission {
     const state = this.states.get(parentRunId);
     if (!state) return;
     this.states.delete(parentRunId);
-    for (const waiter of state.queue.splice(0)) {
+    const queue = this.queues.get(parentRunId) ?? [];
+    this.removeQueue(parentRunId);
+    for (const waiter of queue) {
       this.detachAbort(waiter);
       waiter.reject(abortError());
     }
+    this.drain();
   }
 
   private acquire(
@@ -89,31 +101,72 @@ export class WorkbenchExploreAdmission {
     onQueued?: () => void,
   ): Promise<() => void> {
     if (signal?.aborted) return Promise.reject(abortError());
-    if (
-      this.states.get(key) === state &&
-      state.active < EXPLORE_MAX_ACTIVE_CHILDREN_PER_RUN &&
-      state.queue.length === 0
-    ) {
-      state.active += 1;
-      return Promise.resolve(this.releaseHandle(key, state));
-    }
 
-    onQueued?.();
     return new Promise<() => void>((resolve, reject) => {
-      const waiter: Waiter = { signal, resolve, reject };
+      const waiter: Waiter = { key, state, signal, resolve, reject };
       if (signal) {
         waiter.onAbort = () => {
-          const index = state.queue.indexOf(waiter);
-          if (index >= 0) state.queue.splice(index, 1);
+          this.removeWaiter(waiter);
           this.detachAbort(waiter);
           reject(abortError());
           this.deleteLocalStateIfIdle(key, state);
+          this.drain();
         };
         signal.addEventListener("abort", waiter.onAbort, { once: true });
       }
-      state.queue.push(waiter);
-      this.drain(key, state);
+      const queue = this.queues.get(key);
+      if (queue) {
+        queue.push(waiter);
+      } else {
+        this.queues.set(key, [waiter]);
+        this.queueOrder.push(key);
+      }
+      const admittedImmediately =
+        this.globalActive < this.maxGlobalActive &&
+        state.active < EXPLORE_MAX_ACTIVE_CHILDREN_PER_RUN &&
+        this.queueOrder[0] === key;
+      if (!admittedImmediately) onQueued?.();
+      this.drain();
     });
+  }
+
+  private drain(): void {
+    while (
+      this.globalActive < this.maxGlobalActive &&
+      this.queueOrder.length > 0
+    ) {
+      let selectedIndex = -1;
+      let selectedActive = Number.POSITIVE_INFINITY;
+      for (const [index, candidateKey] of this.queueOrder.entries()) {
+        const candidate = this.queues.get(candidateKey)?.[0];
+        if (
+          !candidate ||
+          this.states.get(candidateKey) !== candidate.state ||
+          candidate.state.active >= EXPLORE_MAX_ACTIVE_CHILDREN_PER_RUN
+        ) {
+          continue;
+        }
+        if (candidate.state.active < selectedActive) {
+          selectedIndex = index;
+          selectedActive = candidate.state.active;
+        }
+      }
+      if (selectedIndex < 0) return;
+
+      const key = this.queueOrder.splice(selectedIndex, 1)[0]!;
+      const queue = this.queues.get(key)!;
+      const waiter = queue.shift()!;
+      if (queue.length > 0) this.queueOrder.push(key);
+      else this.queues.delete(key);
+      this.detachAbort(waiter);
+      if (waiter.signal?.aborted) {
+        waiter.reject(abortError());
+        continue;
+      }
+      waiter.state.active += 1;
+      this.globalActive += 1;
+      waiter.resolve(this.releaseHandle(key, waiter.state));
+    }
   }
 
   private releaseHandle(key: string, state: AdmissionState): () => void {
@@ -122,25 +175,24 @@ export class WorkbenchExploreAdmission {
       if (released) return;
       released = true;
       state.active = Math.max(0, state.active - 1);
-      this.drain(key, state);
+      this.globalActive = Math.max(0, this.globalActive - 1);
+      this.drain();
       this.deleteLocalStateIfIdle(key, state);
     };
   }
 
-  private drain(key: string, state: AdmissionState): void {
-    if (this.states.get(key) !== state) return;
-    while (
-      state.active < EXPLORE_MAX_ACTIVE_CHILDREN_PER_RUN &&
-      state.queue.length > 0
-    ) {
-      const waiter = state.queue.shift()!;
-      this.detachAbort(waiter);
-      if (waiter.signal?.aborted) {
-        waiter.reject(abortError());
-        continue;
-      }
-      state.active += 1;
-      waiter.resolve(this.releaseHandle(key, state));
+  private removeWaiter(waiter: Waiter): void {
+    const queue = this.queues.get(waiter.key);
+    if (!queue) return;
+    const index = queue.indexOf(waiter);
+    if (index >= 0) queue.splice(index, 1);
+    if (queue.length === 0) this.removeQueue(waiter.key);
+  }
+
+  private removeQueue(key: string): void {
+    this.queues.delete(key);
+    for (let index = this.queueOrder.length - 1; index >= 0; index -= 1) {
+      if (this.queueOrder[index] === key) this.queueOrder.splice(index, 1);
     }
   }
 
@@ -154,7 +206,7 @@ export class WorkbenchExploreAdmission {
     if (
       state.local &&
       state.active === 0 &&
-      state.queue.length === 0 &&
+      !this.queues.has(key) &&
       state.batches === 0
     ) {
       this.states.delete(key);

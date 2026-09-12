@@ -221,6 +221,9 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
    */
   toolExecution?: ToolExecutionMode;
 
+  /** Maximum allowed executions in one parallel tool batch. */
+  maxParallelToolCalls?: number;
+
   /**
    * Called before a tool is executed, after arguments have been validated.
    *

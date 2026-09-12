@@ -169,6 +169,7 @@ export interface SubagentRunnerDeps {
   agentBrowserSkills: AgentBrowserSkillCatalog;
   capabilities: CapabilityService;
   transcriptLive: SubagentTranscriptLiveService;
+  maxParallelToolsPerRun: number;
   customModels?: (projectDir?: string) => Promise<AgentCustomModel[]>;
 }
 
@@ -478,6 +479,7 @@ export class SubagentRunner {
         activeToolNames,
         model,
         thinkingLevel: child.thinkingLevel,
+        maxParallelToolCalls: this.deps.maxParallelToolsPerRun,
         getApiKeyAndHeaders: (requestModel) =>
           this.deps.auth.requestAuthForPiModel(requestModel),
         systemPrompt: () => spec.systemPrompt,

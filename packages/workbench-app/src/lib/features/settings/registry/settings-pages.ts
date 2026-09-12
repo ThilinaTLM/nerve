@@ -131,6 +131,7 @@ export const settingsPages: SettingsPageDef[] = [
     sections: [
       { id: "network", label: "Network" },
       { id: "diagnostics", label: "Diagnostics" },
+      { id: "resource-concurrency", label: "Resource concurrency" },
       { id: "daemon", label: "Daemon" },
       { id: "desktop-rendering", label: "Desktop rendering" },
       { id: "launch-context", label: "Launch context" },
