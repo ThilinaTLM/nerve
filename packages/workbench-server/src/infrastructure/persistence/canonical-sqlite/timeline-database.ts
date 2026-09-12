@@ -70,8 +70,12 @@ import { persistTimelineWaitGroup } from "./timeline-wait-group-database.js";
 import {
   readTimelineAncestrySegment,
   readTimelineCommandReceipt,
+  readTimelineDeletionState,
   readTimelineFixedAncestryPage,
+  readTimelineFixedTreePage,
+  readTimelineHeadAtRevision,
   readTimelineRunControl,
+  type TimelineTreePageKey,
   readTimelineStateIdentity,
   timelineEntryIsAncestor,
 } from "./timeline-query-database.js";
@@ -117,6 +121,17 @@ export class CanonicalTimelineDatabase {
     return readTimelineStateIdentity(this.database);
   }
 
+  readDeletionState(conversationId: string) {
+    return readTimelineDeletionState(this.database, conversationId);
+  }
+
+  readHeadAtRevision(
+    conversationId: string,
+    revision: number,
+  ): ConversationHead | undefined {
+    return readTimelineHeadAtRevision(this.database, conversationId, revision);
+  }
+
   readHead(conversationId: string): ConversationHead | undefined {
     return readTimelineConversationHead(this.database, conversationId);
   }
@@ -126,6 +141,15 @@ export class CanonicalTimelineDatabase {
     runId: string,
   ): RunControl | undefined {
     return readTimelineRunControl(this.database, conversationId, runId);
+  }
+
+  readFixedTreePage(input: {
+    conversationId: string;
+    sourceRevision: number;
+    after?: TimelineTreePageKey;
+    limit: number;
+  }) {
+    return readTimelineFixedTreePage(this.database, input);
   }
 
   readFixedAncestryPage(input: {

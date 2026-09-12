@@ -70,7 +70,8 @@ function assertPayload(value: unknown): asserts value is TimelineCursorPayload {
     typeof view.sourceRevision !== "number" ||
     typeof view.visibilityId !== "string" ||
     typeof view.filterId !== "string" ||
-    view.ordering !== "ancestry_ascending" ||
+    (view.ordering !== "ancestry_ascending" &&
+      view.ordering !== "tree_commit_order") ||
     typeof view.executionIncarnationId !== "string" ||
     !view.projection ||
     typeof view.projection.appliedRevision !== "number" ||

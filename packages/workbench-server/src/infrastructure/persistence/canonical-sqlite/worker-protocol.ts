@@ -34,10 +34,23 @@ export type CanonicalCommand =
     }
   | { kind: "read_timeline_state_identity" }
   | { kind: "read_timeline_conversation_head"; conversationId: string }
+  | { kind: "read_timeline_deletion_state"; conversationId: string }
+  | {
+      kind: "read_timeline_head_at_revision";
+      conversationId: string;
+      revision: number;
+    }
   | {
       kind: "read_timeline_run_control";
       conversationId: string;
       runId: string;
+    }
+  | {
+      kind: "read_timeline_fixed_tree_page";
+      conversationId: string;
+      sourceRevision: number;
+      after?: { revision: number; ordinal: number; entryId: string };
+      limit: number;
     }
   | {
       kind: "read_timeline_fixed_ancestry_page";
@@ -234,7 +247,10 @@ export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "read_timeline_command_receipt",
   "read_timeline_state_identity",
   "read_timeline_conversation_head",
+  "read_timeline_deletion_state",
+  "read_timeline_head_at_revision",
   "read_timeline_run_control",
+  "read_timeline_fixed_tree_page",
   "read_timeline_fixed_ancestry_page",
   "read_timeline_ancestry_segment",
   "timeline_entry_is_ancestor",

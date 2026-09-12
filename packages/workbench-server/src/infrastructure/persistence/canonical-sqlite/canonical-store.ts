@@ -188,11 +188,44 @@ export class CanonicalStore {
     });
   }
 
+  readTimelineDeletionState(conversationId: string) {
+    return this.request<"active" | "pending" | "finalized" | undefined>({
+      kind: "read_timeline_deletion_state",
+      conversationId,
+    });
+  }
+
+  readTimelineHeadAtRevision(conversationId: string, revision: number) {
+    return this.request<ConversationHead | undefined>({
+      kind: "read_timeline_head_at_revision",
+      conversationId,
+      revision,
+    });
+  }
+
   readTimelineRunControl(conversationId: string, runId: string) {
     return this.request<RunControl | undefined>({
       kind: "read_timeline_run_control",
       conversationId,
       runId,
+    });
+  }
+
+  readTimelineFixedTreePage(
+    conversationId: string,
+    sourceRevision: number,
+    after: { revision: number; ordinal: number; entryId: string } | undefined,
+    limit: number,
+  ) {
+    return this.request<{
+      entries: CanonicalConversationEntry[];
+      nextAfter?: { revision: number; ordinal: number; entryId: string };
+    }>({
+      kind: "read_timeline_fixed_tree_page",
+      conversationId,
+      sourceRevision,
+      ...(after ? { after } : {}),
+      limit,
     });
   }
 

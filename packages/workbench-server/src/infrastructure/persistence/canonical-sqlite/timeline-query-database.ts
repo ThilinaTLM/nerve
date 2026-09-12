@@ -3,10 +3,12 @@ import {
   artifactReferenceSchema,
   canonicalAncestrySegmentSchema,
   canonicalConversationEntrySchema,
+  conversationHeadSchema,
   timelineStateIdentitySchema,
   type CanonicalAncestrySegment,
   type CanonicalConversationEntry,
   mutationOutcomeSchema,
+  type ConversationHead,
   type MutationOutcome,
   type TimelineStateIdentity,
 } from "@nervekit/contracts/conversations";
@@ -134,6 +136,56 @@ export function readTimelineCommandReceipt(
     : outcome;
 }
 
+export function readTimelineDeletionState(
+  database: DatabaseSync,
+  conversationId: string,
+): "active" | "pending" | "finalized" | undefined {
+  return (
+    database
+      .prepare(
+        `SELECT deletion_state FROM conversations WHERE conversation_id = ?`,
+      )
+      .get(conversationId) as
+      | { deletion_state: "active" | "pending" | "finalized" }
+      | undefined
+  )?.deletion_state;
+}
+
+export function readTimelineHeadAtRevision(
+  database: DatabaseSync,
+  conversationId: string,
+  revision: number,
+): ConversationHead | undefined {
+  if (revision === 0) {
+    const exists = database
+      .prepare(
+        `SELECT 1 AS present FROM conversations WHERE conversation_id = ?`,
+      )
+      .get(conversationId) as { present: number } | undefined;
+    return exists
+      ? {
+          schemaVersion: 1,
+          conversationId,
+          revision: 0,
+          activeEntryId: null,
+          selectionEpoch: 0,
+          foregroundRunId: null,
+        }
+      : undefined;
+  }
+  const row = database
+    .prepare(
+      `SELECT resulting_control_json FROM conversation_transitions
+       WHERE conversation_id = ? AND revision = ?`,
+    )
+    .get(conversationId, revision) as
+    | { resulting_control_json: Uint8Array }
+    | undefined;
+  return row
+    ? conversationHeadSchema.parse(decode(row.resulting_control_json))
+    : undefined;
+}
+
 export function readTimelineStateIdentity(
   database: DatabaseSync,
 ): TimelineStateIdentity | undefined {
@@ -247,6 +299,78 @@ export function readTimelineAncestrySegment(
     ...(nextAncestorEntryId ? { nextAncestorEntryId } : {}),
     ordering: "ancestry_descending",
   });
+}
+
+export interface TimelineTreePageKey {
+  revision: number;
+  ordinal: number;
+  entryId: string;
+}
+
+export function readTimelineFixedTreePage(
+  database: DatabaseSync,
+  input: {
+    conversationId: string;
+    sourceRevision: number;
+    after?: TimelineTreePageKey;
+    limit: number;
+  },
+): { entries: CanonicalConversationEntry[]; nextAfter?: TimelineTreePageKey } {
+  if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 200) {
+    throw new RangeError("Timeline tree page limit must be between 1 and 200.");
+  }
+  const rows = database
+    .prepare(
+      `SELECT entries.entry_id, entries.conversation_id, entries.transition_id,
+              entries.ordinal, entries.parent_entry_id,
+              entries.kind AS entry_kind,
+              entries.inline_content_json AS inline_content, entries.run_id,
+              entries.tool_call_id, entries.interaction_id,
+              entries.provenance_json AS provenance,
+              transitions.revision AS chain_index,
+              artifact_manifests.data AS artifact_manifest_data
+       FROM conversation_entries entries
+       JOIN conversation_transitions transitions
+         ON transitions.conversation_id = entries.conversation_id
+        AND transitions.transition_id = entries.transition_id
+       LEFT JOIN artifact_manifests
+         ON artifact_manifests.manifest_id = entries.artifact_manifest_id
+       WHERE entries.conversation_id = ? AND transitions.revision <= ?
+         AND (
+           ? IS NULL OR transitions.revision > ?
+           OR (transitions.revision = ? AND entries.ordinal > ?)
+           OR (transitions.revision = ? AND entries.ordinal = ? AND entries.entry_id > ?)
+         )
+       ORDER BY transitions.revision, entries.ordinal, entries.entry_id
+       LIMIT ?`,
+    )
+    .all(
+      input.conversationId,
+      input.sourceRevision,
+      input.after?.revision ?? null,
+      input.after?.revision ?? null,
+      input.after?.revision ?? null,
+      input.after?.ordinal ?? null,
+      input.after?.revision ?? null,
+      input.after?.ordinal ?? null,
+      input.after?.entryId ?? null,
+      input.limit + 1,
+    ) as unknown as EntryRow[];
+  const hasMore = rows.length > input.limit;
+  const pageRows = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = pageRows.at(-1);
+  return {
+    entries: pageRows.map(entryFromRow),
+    ...(hasMore && last
+      ? {
+          nextAfter: {
+            revision: last.chain_index,
+            ordinal: last.ordinal,
+            entryId: last.entry_id,
+          },
+        }
+      : {}),
+  };
 }
 
 export function readTimelineFixedAncestryPage(

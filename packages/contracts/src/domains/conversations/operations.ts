@@ -12,7 +12,10 @@ import {
 } from "./conversation-state.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
-import { timelinePageRequestSchema } from "./timeline.js";
+import {
+  timelinePageRequestSchema,
+  timelineTreePageRequestSchema,
+} from "./timeline.js";
 import { timelineViewOutcomeSchema } from "./timeline-outcomes.js";
 
 const emptyParamsSchema = z.object({}).optional();
@@ -110,6 +113,15 @@ export const conversationsOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.conversation.timeline.page",
+  ),
+  defineOperation(
+    "conversation.timeline.treePage",
+    timelineTreePageRequestSchema,
+    timelineViewOutcomeSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.conversation.timeline.treePage",
   ),
   defineOperation(
     "conversation.entries.list",

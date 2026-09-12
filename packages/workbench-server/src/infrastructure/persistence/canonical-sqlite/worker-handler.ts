@@ -17,11 +17,25 @@ export function executeCanonicalCommand(
       return database.timeline.readStateIdentity();
     case "read_timeline_conversation_head":
       return database.timeline.readHead(command.conversationId);
+    case "read_timeline_deletion_state":
+      return database.timeline.readDeletionState(command.conversationId);
+    case "read_timeline_head_at_revision":
+      return database.timeline.readHeadAtRevision(
+        command.conversationId,
+        command.revision,
+      );
     case "read_timeline_run_control":
       return database.timeline.readRunControl(
         command.conversationId,
         command.runId,
       );
+    case "read_timeline_fixed_tree_page":
+      return database.timeline.readFixedTreePage({
+        conversationId: command.conversationId,
+        sourceRevision: command.sourceRevision,
+        after: command.after,
+        limit: command.limit,
+      });
     case "read_timeline_fixed_ancestry_page":
       return database.timeline.readFixedAncestryPage({
         conversationId: command.conversationId,

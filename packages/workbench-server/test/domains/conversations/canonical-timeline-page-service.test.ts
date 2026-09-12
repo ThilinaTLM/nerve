@@ -132,4 +132,37 @@ test("INV-PAGE-01 keeps pagination on its signed source view", async (t) => {
   );
   assert.equal(second.kind === "page" && second.page.view.sourceRevision, 1);
   assert.equal(second.kind === "page" && second.page.currentHead.revision, 2);
+
+  const treeFirst = await pages.treePage({
+    conversationId: "conv_page",
+    sourceRevision: 1,
+    pageSize: 2,
+  });
+  assert.equal(treeFirst.kind, "page");
+  assert.deepEqual(
+    treeFirst.kind === "page"
+      ? treeFirst.page.entries.map((entry) => entry.entryId)
+      : [],
+    ["entry_1", "entry_2"],
+  );
+  const treeSecond = await reopenedPages.treePage({
+    conversationId: "conv_page",
+    pageSize: 2,
+    cursor: treeFirst.kind === "page" ? treeFirst.page.nextCursor : undefined,
+  });
+  assert.equal(treeSecond.kind, "page");
+  assert.deepEqual(
+    treeSecond.kind === "page"
+      ? treeSecond.page.entries.map((entry) => entry.entryId)
+      : [],
+    ["entry_3", "entry_4"],
+  );
+  assert.equal(
+    treeSecond.kind === "page" && treeSecond.page.view.sourceRevision,
+    1,
+  );
+  assert.equal(
+    treeSecond.kind === "page" && treeSecond.page.currentHead.revision,
+    2,
+  );
 });

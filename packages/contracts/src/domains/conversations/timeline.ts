@@ -277,7 +277,7 @@ export const timelineViewDescriptorSchema = z.object({
   projection: projectionPositionSchema,
   visibilityId: z.string().min(1).max(128),
   filterId: z.string().min(1).max(128),
-  ordering: z.literal("ancestry_ascending"),
+  ordering: z.enum(["ancestry_ascending", "tree_commit_order"]),
   executionIncarnationId: z.string().startsWith("incarnation_"),
 });
 export type TimelineViewDescriptor = z.infer<
@@ -305,6 +305,16 @@ export const timelinePageRequestSchema = z.object({
   cursor: z.string().min(1).max(8_192).optional(),
 });
 
+export const timelineTreePageRequestSchema = z.object({
+  conversationId,
+  sourceRevision: safeInteger.optional(),
+  minimumRevision: safeInteger.optional(),
+  visibilityId: z.string().min(1).max(128).default("default"),
+  filterId: z.string().min(1).max(128).default("tree"),
+  pageSize: z.number().int().min(1).max(200).default(50),
+  cursor: z.string().min(1).max(8_192).optional(),
+});
+
 export const timelinePageSchema = z.object({
   view: timelineViewDescriptorSchema,
   entries: z.array(canonicalConversationEntrySchema).max(200),
@@ -312,3 +322,11 @@ export const timelinePageSchema = z.object({
   currentHead: conversationHeadSchema,
 });
 export type TimelinePage = z.infer<typeof timelinePageSchema>;
+
+export const timelineTreePageSchema = z.object({
+  view: timelineViewDescriptorSchema,
+  entries: z.array(canonicalConversationEntrySchema).max(200),
+  nextCursor: z.string().min(1).max(8_192).optional(),
+  currentHead: conversationHeadSchema,
+});
+export type TimelineTreePage = z.infer<typeof timelineTreePageSchema>;

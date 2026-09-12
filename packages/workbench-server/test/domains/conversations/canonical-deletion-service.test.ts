@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { CanonicalDeletionService } from "../../../src/domains/conversations/timeline/canonical-deletion.service.js";
+import { CanonicalTimelinePageService } from "../../../src/domains/conversations/timeline/canonical-timeline-page.service.js";
 import { CanonicalRunStartService } from "../../../src/domains/conversations/timeline/canonical-run-start.service.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
 
@@ -40,6 +41,15 @@ test("INV-DELETE-01 fences dispatch and foreground ownership before cleanup", as
     null,
   );
   assert.equal((await deletion.fence(input)).kind, "receipt_replay");
+  assert.equal(
+    (
+      await new CanonicalTimelinePageService(
+        store,
+        new Uint8Array(32).fill(3),
+      ).page({ conversationId: "conv_delete" })
+    ).kind,
+    "deleted_owner",
+  );
   const restarted = await new CanonicalRunStartService(store).start({
     conversationId: "conv_delete",
     runId: "run_after_delete",

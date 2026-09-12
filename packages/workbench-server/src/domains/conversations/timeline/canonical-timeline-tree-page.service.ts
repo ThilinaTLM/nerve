@@ -1,17 +1,12 @@
 import {
-  timelinePageRequestSchema,
-  timelinePageSchema,
+  timelineTreePageRequestSchema,
+  timelineTreePageSchema,
   type TimelineViewOutcome,
 } from "@nervekit/contracts/conversations";
 import { SignedTimelineCursorCodec } from "@nervekit/protocol";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 
-const PROJECTION_SCHEMA_VERSION = 1;
-const PROJECTION_POLICY_VERSION = 1;
-const REBUILD_GENERATION = 1;
-
-/** Serves fixed-view pages from canonical ancestry when projection lag exists. */
-export class CanonicalTimelinePageService {
+export class CanonicalTimelineTreePageService {
   private readonly cursors: SignedTimelineCursorCodec;
 
   constructor(
@@ -22,11 +17,8 @@ export class CanonicalTimelinePageService {
   }
 
   async page(rawRequest: unknown): Promise<TimelineViewOutcome> {
-    const request = timelinePageRequestSchema.parse(rawRequest);
-    if (
-      request.visibilityId !== "default" ||
-      request.filterId !== "transcript"
-    ) {
+    const request = timelineTreePageRequestSchema.parse(rawRequest);
+    if (request.visibilityId !== "default" || request.filterId !== "tree") {
       return {
         kind: "incompatible_view",
         expectedVersion: 1,
@@ -53,7 +45,6 @@ export class CanonicalTimelinePageService {
         canonicalRevision: currentHead.revision,
       };
     }
-
     const decoded = request.cursor
       ? await this.cursors.decode(request.cursor)
       : undefined;
@@ -66,11 +57,12 @@ export class CanonicalTimelinePageService {
     }
     if (
       decoded &&
-      (decoded.view.conversationId !== request.conversationId ||
+      (decoded.view.ordering !== "tree_commit_order" ||
+        decoded.view.conversationId !== request.conversationId ||
         decoded.view.visibilityId !== request.visibilityId ||
         decoded.view.filterId !== request.filterId ||
-        (request.sourceHeadEntryId !== undefined &&
-          request.sourceHeadEntryId !== decoded.view.sourceHeadEntryId))
+        (request.sourceRevision !== undefined &&
+          request.sourceRevision !== decoded.view.sourceRevision))
     ) {
       return {
         kind: "reconciliation_required",
@@ -78,53 +70,61 @@ export class CanonicalTimelinePageService {
         freshViewAvailable: true,
       };
     }
-
-    const sourceHeadEntryId = decoded
-      ? decoded.view.sourceHeadEntryId
-      : (request.sourceHeadEntryId ?? currentHead.activeEntryId);
     const sourceRevision = decoded
       ? decoded.view.sourceRevision
-      : currentHead.revision;
+      : (request.sourceRevision ?? currentHead.revision);
+    if (sourceRevision > currentHead.revision) {
+      return {
+        kind: "reconciliation_required",
+        reason: "snapshot_unavailable",
+        freshViewAvailable: true,
+      };
+    }
+    const sourceHead = await this.store.readTimelineHeadAtRevision(
+      request.conversationId,
+      sourceRevision,
+    );
+    if (!sourceHead) {
+      return {
+        kind: "reconciliation_required",
+        reason: "snapshot_unavailable",
+        freshViewAvailable: true,
+      };
+    }
     const view =
       decoded?.view ??
       ({
         conversationId: request.conversationId,
-        sourceHeadEntryId,
+        sourceHeadEntryId: sourceHead.activeEntryId,
         sourceRevision,
         projection: {
           canonicalRevision: sourceRevision,
           appliedRevision: sourceRevision,
-          schemaVersion: PROJECTION_SCHEMA_VERSION,
-          policyVersion: PROJECTION_POLICY_VERSION,
-          rebuildGeneration: REBUILD_GENERATION,
+          schemaVersion: 1,
+          policyVersion: 1,
+          rebuildGeneration: 1,
         },
         visibilityId: request.visibilityId,
         filterId: request.filterId,
-        ordering: "ancestry_ascending" as const,
+        ordering: "tree_commit_order" as const,
         executionIncarnationId: identity.executionIncarnationId,
       } as const);
-    const beforeDepth = decoded
-      ? decodeDisplayOrderKey(decoded.lastDisplayOrderKey)
+    const slice = await this.store.readTimelineFixedTreePage(
+      request.conversationId,
+      sourceRevision,
+      decoded ? decodeTreeKey(decoded.lastDisplayOrderKey) : undefined,
+      request.pageSize,
+    );
+    const nextCursor = slice.nextAfter
+      ? await this.cursors.encode({
+          version: 1,
+          view,
+          lastDisplayOrderKey: encodeTreeKey(slice.nextAfter),
+        })
       : undefined;
-    const slice = sourceHeadEntryId
-      ? await this.store.readTimelineFixedAncestryPage(
-          request.conversationId,
-          sourceHeadEntryId,
-          beforeDepth,
-          request.pageSize,
-        )
-      : { entries: [] };
-    const nextCursor =
-      slice.nextBeforeDepth === undefined
-        ? undefined
-        : await this.cursors.encode({
-            version: 1,
-            view,
-            lastDisplayOrderKey: encodeDisplayOrderKey(slice.nextBeforeDepth),
-          });
     return {
       kind: "page",
-      page: timelinePageSchema.parse({
+      page: timelineTreePageSchema.parse({
         view,
         entries: slice.entries,
         ...(nextCursor ? { nextCursor } : {}),
@@ -134,17 +134,25 @@ export class CanonicalTimelinePageService {
   }
 }
 
-function encodeDisplayOrderKey(depth: number): string {
-  return `depth:${depth.toString().padStart(16, "0")}`;
+function encodeTreeKey(key: {
+  revision: number;
+  ordinal: number;
+  entryId: string;
+}): string {
+  return `tree:${key.revision}:${key.ordinal}:${key.entryId}`;
 }
 
-function decodeDisplayOrderKey(value: string): number {
-  if (!/^depth:\d{16}$/.test(value)) {
-    throw new Error("Timeline cursor display key is invalid.");
+function decodeTreeKey(value: string): {
+  revision: number;
+  ordinal: number;
+  entryId: string;
+} {
+  const match = /^tree:(\d+):(\d+):(entry_.+)$/.exec(value);
+  if (!match) throw new Error("Timeline tree cursor key is invalid.");
+  const revision = Number(match[1]);
+  const ordinal = Number(match[2]);
+  if (!Number.isSafeInteger(revision) || !Number.isSafeInteger(ordinal)) {
+    throw new Error("Timeline tree cursor position is invalid.");
   }
-  const depth = Number(value.slice("depth:".length));
-  if (!Number.isSafeInteger(depth) || depth < 1) {
-    throw new Error("Timeline cursor display depth is invalid.");
-  }
-  return depth;
+  return { revision, ordinal, entryId: match[3]! };
 }
