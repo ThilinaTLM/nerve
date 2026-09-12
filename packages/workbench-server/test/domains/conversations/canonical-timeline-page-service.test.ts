@@ -79,8 +79,8 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
     list: () => Promise.resolve([...secretValues.keys()]),
   };
   const projections = new CanonicalTranscriptProjectionService(store);
-  const rebuilt = await projections.rebuild(
-    "conv_page",
+  const [rebuilt] = await projections.rebuildPending(
+    10,
     "2026-09-12T00:00:01.000Z",
   );
   assert.equal(rebuilt?.appliedRevision, 1);
@@ -130,6 +130,7 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
   const lagging = await projections.status("conv_page");
   assert.equal(lagging?.appliedRevision, 1);
   assert.equal(lagging?.canonicalRevision, 2);
+  assert.equal(lagging?.oldestPendingAt, "2026-09-12T00:00:01.000Z");
 
   const second = await reopenedPages.page({
     conversationId: "conv_page",
@@ -178,8 +179,8 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
     treeSecond.kind === "page" && treeSecond.page.currentHead.revision,
     2,
   );
-  const caughtUp = await projections.rebuild(
-    "conv_page",
+  const [caughtUp] = await projections.rebuildPending(
+    10,
     "2026-09-12T00:00:02.000Z",
   );
   assert.equal(caughtUp?.appliedRevision, 2);

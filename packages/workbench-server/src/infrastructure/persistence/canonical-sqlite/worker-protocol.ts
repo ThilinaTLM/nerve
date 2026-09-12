@@ -48,6 +48,10 @@ export type CanonicalCommand =
       limit: number;
     }
   | {
+      kind: "read_pending_timeline_transcript_projections";
+      limit: number;
+    }
+  | {
       kind: "read_timeline_transcript_projection_status";
       conversationId: string;
     }
@@ -264,6 +268,7 @@ export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "read_timeline_state_identity",
   "read_timeline_conversation_head",
   "read_timeline_deletion_state",
+  "read_pending_timeline_transcript_projections",
   "read_timeline_transcript_projection_page",
   "read_timeline_transcript_projection_status",
   "read_timeline_head_at_revision",

@@ -67,6 +67,7 @@ import {
 } from "./timeline-policy-database.js";
 import { withTimelineImmediateTransaction } from "./timeline-transaction.js";
 import { persistTimelineWaitGroup } from "./timeline-wait-group-database.js";
+import { markTimelineTranscriptProjectionPending } from "./timeline-projection-database.js";
 import {
   readTimelineAncestrySegment,
   readTimelineCommandReceipt,
@@ -81,23 +82,13 @@ import {
 } from "./timeline-query-database.js";
 
 import type { CommitConversationCommandInput } from "./timeline-command-contracts.js";
+import type { HeadRow, ReceiptRow } from "./timeline-row-types.js";
 export type {
   CommitConversationCommandInput,
   TimelineExpectedHead,
   TimelineExpectedRunFence,
   TimelinePublicationIntent,
 } from "./timeline-command-contracts.js";
-
-interface ReceiptRow {
-  fingerprint_hash: string;
-  outcome_json: Uint8Array;
-}
-
-interface HeadRow {
-  revision: number;
-  selection_epoch: number;
-  deletion_state: string;
-}
 
 export class CanonicalTimelineDatabase {
   constructor(private readonly database: DatabaseSync) {}
@@ -400,6 +391,14 @@ export function commitConversationCommandInTransaction(
       insertTransition(database, parsed);
       currentRevision.set(parsed.conversationId, parsed.revision);
     }
+    for (const conversationId of new Set(
+      ordered.map((item) => item.conversationId),
+    ))
+      markTimelineTranscriptProjectionPending(
+        database,
+        conversationId,
+        input.now,
+      );
 
     for (const artifact of input.finalizedArtifacts ?? []) {
       insertTimelineFinalizedArtifact(

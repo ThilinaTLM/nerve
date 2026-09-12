@@ -22,6 +22,10 @@ export function executeCanonicalCommand(
         command.conversationId,
         command.now,
       );
+    case "read_pending_timeline_transcript_projections":
+      return database.projections.readPendingTranscriptConversationIds(
+        command.limit,
+      );
     case "read_timeline_transcript_projection_page":
       return database.projections.readTranscriptPage({
         conversationId: command.conversationId,

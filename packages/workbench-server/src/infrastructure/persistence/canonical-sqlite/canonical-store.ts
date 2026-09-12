@@ -197,6 +197,13 @@ export class CanonicalStore {
     });
   }
 
+  readPendingTimelineTranscriptProjections(limit: number) {
+    return this.request<string[]>({
+      kind: "read_pending_timeline_transcript_projections",
+      limit,
+    });
+  }
+
   readTimelineTranscriptProjectionPage(
     conversationId: string,
     sourceRevision: number,

@@ -7,6 +7,27 @@ import {
 import { decode, encode } from "./payload-codecs.js";
 import { entryFromRow, type EntryRow } from "./timeline-query-database.js";
 
+export function markTimelineTranscriptProjectionPending(
+  database: DatabaseSync,
+  conversationId: string,
+  now: string,
+): void {
+  database
+    .prepare(
+      `INSERT INTO projection_state (
+         projection_name, conversation_id, schema_version, policy_version,
+         rebuild_generation, applied_revision, oldest_pending_at_ms,
+         last_error_json, rebuild_state
+       ) VALUES ('transcript', ?, 1, 1, 1, 0, ?, NULL, 'ready')
+       ON CONFLICT(projection_name, conversation_id) DO UPDATE SET
+         oldest_pending_at_ms = COALESCE(
+           projection_state.oldest_pending_at_ms,
+           excluded.oldest_pending_at_ms
+         )`,
+    )
+    .run(conversationId, Date.parse(now));
+}
+
 export class CanonicalProjectionDatabase {
   constructor(private readonly database: DatabaseSync) {}
 
@@ -25,6 +46,21 @@ export class CanonicalProjectionDatabase {
     limit: number;
   }) {
     return readTimelineTranscriptProjectionPage(this.database, input);
+  }
+
+  readPendingTranscriptConversationIds(limit: number): string[] {
+    return (
+      this.database
+        .prepare(
+          `SELECT conversation_id FROM projection_state
+           WHERE projection_name = 'transcript'
+             AND oldest_pending_at_ms IS NOT NULL
+             AND rebuild_state <> 'rebuilding'
+           ORDER BY oldest_pending_at_ms, conversation_id
+           LIMIT ?`,
+        )
+        .all(limit) as unknown as { conversation_id: string }[]
+    ).map((row) => row.conversation_id);
   }
 
   readTranscriptStatus(conversationId: string) {
@@ -57,11 +93,15 @@ export function rebuildTimelineTranscriptProjection(
     }
     const previous = database
       .prepare(
-        `SELECT rebuild_generation FROM projection_state
+        `SELECT rebuild_generation, applied_revision FROM projection_state
          WHERE projection_name = 'transcript' AND conversation_id = ?`,
       )
-      .get(conversationId) as { rebuild_generation: number } | undefined;
-    const generation = (previous?.rebuild_generation ?? 0) + 1;
+      .get(conversationId) as
+      | { rebuild_generation: number; applied_revision: number }
+      | undefined;
+    const generation = previous
+      ? previous.rebuild_generation + (previous.applied_revision > 0 ? 1 : 0)
+      : 1;
     database
       .prepare(
         `INSERT INTO projection_state (
