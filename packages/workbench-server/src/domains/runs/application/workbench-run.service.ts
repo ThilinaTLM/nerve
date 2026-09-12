@@ -593,17 +593,24 @@ export class WorkbenchRunService {
   }
 }
 
-// Checkpoints contain this run's transcript, while the active branch also
-// contains entries from earlier runs. The run transcript must remain its tail.
+// Checkpoints contain entries committed through the run transition journal.
+// Other durable paths can append entries to the same model transcript between
+// those transitions (for example, a completed tool result). The checkpoint
+// must therefore be an ordered subsequence of the active branch and still own
+// its tip; requiring a contiguous suffix incorrectly marks those runs stale.
 export function activeBranchEndsWithCheckpoint(
   activeBranchEntryIds: readonly string[],
   checkpointEntryIds: readonly string[],
 ): boolean {
-  if (checkpointEntryIds.length > activeBranchEntryIds.length) return false;
-  const offset = activeBranchEntryIds.length - checkpointEntryIds.length;
-  return checkpointEntryIds.every(
-    (entryId, index) => activeBranchEntryIds[offset + index] === entryId,
-  );
+  if (checkpointEntryIds.length === 0 || activeBranchEntryIds.length === 0)
+    return false;
+  if (checkpointEntryIds.at(-1) !== activeBranchEntryIds.at(-1)) return false;
+
+  let checkpointIndex = 0;
+  for (const entryId of activeBranchEntryIds) {
+    if (entryId === checkpointEntryIds[checkpointIndex]) checkpointIndex += 1;
+  }
+  return checkpointIndex === checkpointEntryIds.length;
 }
 
 function activeBranchEntryIds(
