@@ -61,6 +61,59 @@ test("wake claims and settles work without a polling delay", async () => {
   assert.deepEqual(calls, ["list", "claim", "execute", "settle"]);
 });
 
+test("start drains recovery work without awaiting its execution", async () => {
+  let listed = false;
+  let releaseExecution!: () => void;
+  const executionBlocked = new Promise<void>((resolve) => {
+    releaseExecution = resolve;
+  });
+  let executionStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    executionStarted = resolve;
+  });
+  const dispatcher = new LifecycleWorkDispatcher({
+    bootId: "boot_test",
+    now: () => now,
+    store: {
+      listDueLifecycleWork: async () => {
+        if (listed) return [];
+        listed = true;
+        return [ready];
+      },
+      claimLifecycleWork: async (input) => ({
+        ...ready,
+        state: "leased",
+        generation: 1,
+        attemptCount: 1,
+        leaseOwner: input.leaseOwner,
+        leaseDeadline: input.leaseDeadline,
+      }),
+      renewLifecycleWork: async () => ready,
+      settleLifecycleWork: async () => ({ ...ready, state: "succeeded" }),
+    },
+    handlers: {
+      continue_model: async () => {
+        executionStarted();
+        await executionBlocked;
+        return { state: "succeeded" };
+      },
+    },
+  });
+
+  dispatcher.start(60_000);
+  await started;
+  let settled = false;
+  void dispatcher.settled().then(() => {
+    settled = true;
+  });
+  await Promise.resolve();
+  assert.equal(settled, false);
+
+  dispatcher.stopPolling();
+  releaseExecution();
+  await dispatcher.settled();
+});
+
 test("coalesced wakes cannot claim the same work twice", async () => {
   let claims = 0;
   let listed = false;

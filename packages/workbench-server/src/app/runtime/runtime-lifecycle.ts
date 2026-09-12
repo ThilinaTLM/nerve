@@ -122,8 +122,6 @@ export class RuntimeLifecycle {
       },
       recoverHumanInput: async () => {
         await this.services.runReconciliation.reconcileStartup();
-        await this.services.lifecycleDispatcher.wake();
-        this.services.lifecycleDispatcher.startPolling();
       },
       rebuildProjector: async () => {
         const activeStates =
@@ -191,7 +189,11 @@ export class RuntimeLifecycle {
   ): Promise<RuntimeHydrationTimings> {
     reportStage?.("recovering-conversation-deletions");
     await this.services.conversationLifecycle.recoverDeletions();
-    return this.hydrator.hydrate(reportStage);
+    const timings = await this.hydrator.hydrate(reportStage);
+    // Provider and tool work can be arbitrarily long-running. Start its drain
+    // only after canonical hydration, and never gate daemon readiness on it.
+    this.services.lifecycleDispatcher.start();
+    return timings;
   }
   async refreshRuntimeCapabilities(): Promise<void> {
     if (this.shuttingDown) return;

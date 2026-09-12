@@ -21,6 +21,9 @@ export function createLifecycleRuntime(input: {
   const dispatcher = new LifecycleWorkDispatcher({
     store: input.store,
     bootId,
+    onDrainError: (error) => {
+      void input.logger.warn("Lifecycle dispatcher drain failed", { error });
+    },
     onOutcomeUnknown: async (work, result) => {
       const createdAt = new Date().toISOString();
       await input.store.persistRecoveryIssue({
@@ -83,7 +86,7 @@ export function createLifecycleRuntime(input: {
     journal: input.journal,
     receipts: input.store,
     wakeWork: () => {
-      setImmediate(() => void dispatcher.wake());
+      setImmediate(() => dispatcher.trigger());
     },
     onWakeError: (error) => {
       void input.logger.warn("Lifecycle dispatcher wake failed", { error });

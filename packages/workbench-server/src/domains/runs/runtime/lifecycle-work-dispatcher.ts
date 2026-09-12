@@ -19,6 +19,7 @@ export interface LifecycleWorkDispatcherOptions {
   heartbeatIntervalMs?: number;
   concurrency?: number;
   onError?: (error: unknown, work: LifecycleWork) => void;
+  onDrainError?: (error: unknown) => void;
   onLeaseLost?: (work: LifecycleWork) => void;
   onOutcomeUnknown?: (
     work: LifecycleWork,
@@ -40,10 +41,21 @@ export class LifecycleWorkDispatcher {
     this.executor = new LifecycleWorkExecutor(options);
   }
 
+  /** Starts recovery work without making daemon readiness depend on its duration. */
+  start(intervalMs = 5_000): void {
+    this.startPolling(intervalMs);
+    this.trigger();
+  }
+
   startPolling(intervalMs = 5_000): void {
     if (this.pollTimer) return;
-    this.pollTimer = setInterval(() => void this.wake(), intervalMs);
+    this.pollTimer = setInterval(() => this.trigger(), intervalMs);
     this.pollTimer.unref();
+  }
+
+  /** Requests a drain and reports infrastructure failures without an unhandled rejection. */
+  trigger(): void {
+    void this.wake().catch((error) => this.options.onDrainError?.(error));
   }
 
   stopPolling(): void {
