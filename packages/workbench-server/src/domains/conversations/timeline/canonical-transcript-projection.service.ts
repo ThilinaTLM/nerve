@@ -4,8 +4,21 @@ import type { CanonicalStore } from "../../../infrastructure/persistence/canonic
 export class CanonicalTranscriptProjectionService {
   constructor(private readonly store: CanonicalStore) {}
 
-  rebuild(conversationId: string, now = new Date().toISOString()) {
-    return this.store.rebuildTimelineTranscriptProjection(conversationId, now);
+  async rebuild(conversationId: string, now = new Date().toISOString()) {
+    try {
+      return await this.store.rebuildTimelineTranscriptProjection(
+        conversationId,
+        now,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.store.recordTimelineTranscriptProjectionFailure(
+        conversationId,
+        message,
+        now,
+      );
+      throw error;
+    }
   }
 
   async rebuildPending(limit = 10, now = new Date().toISOString()) {

@@ -7,6 +7,22 @@ import {
 import { decode, encode } from "./payload-codecs.js";
 import { entryFromRow, type EntryRow } from "./timeline-query-database.js";
 
+export function recordTimelineTranscriptProjectionFailure(
+  database: DatabaseSync,
+  conversationId: string,
+  message: string,
+  now: string,
+): void {
+  database
+    .prepare(
+      `UPDATE projection_state
+       SET rebuild_state = 'failed', last_error_json = ?,
+           oldest_pending_at_ms = COALESCE(oldest_pending_at_ms, ?)
+       WHERE projection_name = 'transcript' AND conversation_id = ?`,
+    )
+    .run(encode({ message }), Date.parse(now), conversationId);
+}
+
 export function markTimelineTranscriptProjectionPending(
   database: DatabaseSync,
   conversationId: string,
@@ -30,6 +46,19 @@ export function markTimelineTranscriptProjectionPending(
 
 export class CanonicalProjectionDatabase {
   constructor(private readonly database: DatabaseSync) {}
+
+  recordTranscriptFailure(
+    conversationId: string,
+    message: string,
+    now: string,
+  ): void {
+    recordTimelineTranscriptProjectionFailure(
+      this.database,
+      conversationId,
+      message,
+      now,
+    );
+  }
 
   rebuildTranscript(conversationId: string, now: string) {
     return rebuildTimelineTranscriptProjection(

@@ -36,6 +36,12 @@ export type CanonicalCommand =
   | { kind: "read_timeline_conversation_head"; conversationId: string }
   | { kind: "read_timeline_deletion_state"; conversationId: string }
   | {
+      kind: "record_timeline_transcript_projection_failure";
+      conversationId: string;
+      message: string;
+      now: string;
+    }
+  | {
       kind: "rebuild_timeline_transcript_projection";
       conversationId: string;
       now: string;

@@ -132,6 +132,14 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
   assert.equal(lagging?.appliedRevision, 1);
   assert.equal(lagging?.canonicalRevision, 2);
   assert.equal(lagging?.oldestPendingAt, "2026-09-12T00:00:01.000Z");
+  await store.recordTimelineTranscriptProjectionFailure(
+    "conv_page",
+    "injected rebuild failure",
+    "2026-09-12T00:00:01.000Z",
+  );
+  const failed = await projections.status("conv_page");
+  assert.equal(failed?.rebuildState, "failed");
+  assert.deepEqual(failed?.lastError, { message: "injected rebuild failure" });
 
   const second = await reopenedPages.page({
     conversationId: "conv_page",

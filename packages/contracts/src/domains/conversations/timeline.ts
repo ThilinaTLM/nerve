@@ -304,6 +304,7 @@ export const timelinePageRequestSchema = z.object({
   pageSize: z.number().int().min(1).max(200).default(50),
   cursor: z.string().min(1).max(8_192).optional(),
 });
+export type TimelinePageRequest = z.input<typeof timelinePageRequestSchema>;
 
 export const transcriptProjectionStatusSchema = z.object({
   conversationId,
@@ -329,6 +330,9 @@ export const timelineTreePageRequestSchema = z.object({
   pageSize: z.number().int().min(1).max(200).default(50),
   cursor: z.string().min(1).max(8_192).optional(),
 });
+export type TimelineTreePageRequest = z.input<
+  typeof timelineTreePageRequestSchema
+>;
 
 export const timelinePageSchema = z.object({
   view: timelineViewDescriptorSchema,

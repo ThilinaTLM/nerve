@@ -17,6 +17,12 @@ export function executeCanonicalCommand(
       return database.timeline.readStateIdentity();
     case "read_timeline_conversation_head":
       return database.timeline.readHead(command.conversationId);
+    case "record_timeline_transcript_projection_failure":
+      return database.projections.recordTranscriptFailure(
+        command.conversationId,
+        command.message,
+        command.now,
+      );
     case "rebuild_timeline_transcript_projection":
       return database.projections.rebuildTranscript(
         command.conversationId,

@@ -3,6 +3,10 @@ import type {
   ConversationEntry,
   ConversationRecord,
   ConversationSnapshot,
+  TimelinePageRequest,
+  TimelineTreePageRequest,
+  TimelineViewOutcome,
+  TranscriptProjectionStatus,
   UpdateConversationStateRequest,
 } from "@nervekit/contracts/conversations";
 import type { SnapshotCursor } from "@nervekit/contracts/snapshots";
@@ -20,6 +24,29 @@ export async function getConversationSnapshotWithCursor(
     conversationId,
   });
   return result;
+}
+
+export async function getConversationTimelinePage(
+  request: TimelinePageRequest,
+): Promise<TimelineViewOutcome> {
+  return (await protocolRequest("conversation.timeline.page", request)).result;
+}
+
+export async function getConversationTimelineTreePage(
+  request: TimelineTreePageRequest,
+): Promise<TimelineViewOutcome> {
+  return (await protocolRequest("conversation.timeline.treePage", request))
+    .result;
+}
+
+export async function getConversationProjectionStatus(
+  conversationId: string,
+): Promise<TranscriptProjectionStatus | null> {
+  return (
+    await protocolRequest("conversation.timeline.projectionStatus", {
+      conversationId,
+    })
+  ).result;
 }
 
 export async function getConversationContextUsage(

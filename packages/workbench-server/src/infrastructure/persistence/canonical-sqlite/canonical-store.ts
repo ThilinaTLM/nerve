@@ -189,6 +189,19 @@ export class CanonicalStore {
     });
   }
 
+  recordTimelineTranscriptProjectionFailure(
+    conversationId: string,
+    message: string,
+    now: string,
+  ) {
+    return this.request<void>({
+      kind: "record_timeline_transcript_projection_failure",
+      conversationId,
+      message,
+      now,
+    });
+  }
+
   rebuildTimelineTranscriptProjection(conversationId: string, now: string) {
     return this.request<TranscriptProjectionStatus | undefined>({
       kind: "rebuild_timeline_transcript_projection",
