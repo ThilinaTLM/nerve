@@ -184,6 +184,35 @@ export const contextSourceManifestSchema = z
     digest,
   })
   .superRefine((manifest, context) => {
+    if (
+      manifest.entriesManifest.ownerKind !== "conversation" ||
+      manifest.entriesManifest.ownerId !== manifest.conversationId ||
+      manifest.entriesManifest.availability !== "available" ||
+      manifest.entriesManifest.semanticRole !== "context_source_manifest"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["entriesManifest"],
+        message:
+          "Context source manifest must be finalized and conversation-owned.",
+      });
+    }
+    if (
+      manifest.transitiveBoundariesManifest &&
+      (manifest.transitiveBoundariesManifest.ownerKind !== "conversation" ||
+        manifest.transitiveBoundariesManifest.ownerId !==
+          manifest.conversationId ||
+        manifest.transitiveBoundariesManifest.availability !== "available" ||
+        manifest.transitiveBoundariesManifest.semanticRole !==
+          "context_transitive_boundary_manifest")
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["transitiveBoundariesManifest"],
+        message:
+          "Transitive boundary manifest must be finalized and conversation-owned.",
+      });
+    }
     if ((manifest.sourceTipEntryId === null) !== (manifest.entryCount === 0)) {
       context.addIssue({
         code: "custom",

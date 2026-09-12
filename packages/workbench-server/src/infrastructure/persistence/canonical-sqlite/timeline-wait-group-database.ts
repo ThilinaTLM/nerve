@@ -16,6 +16,25 @@ export function persistTimelineWaitGroup(
   if (effectiveWaitGroupState(group) !== group.state) {
     throw new Error("Wait-group state does not match its member dispositions.");
   }
+  const ownership = database
+    .prepare(
+      `SELECT run_controls.conversation_id AS run_conversation_id,
+              conversation_entries.conversation_id AS entry_conversation_id
+       FROM run_controls
+       LEFT JOIN conversation_entries
+         ON conversation_entries.entry_id = ?
+       WHERE run_controls.run_id = ?`,
+    )
+    .get(group.continuationEntryId, group.runId) as
+    | { run_conversation_id: string; entry_conversation_id: string | null }
+    | undefined;
+  if (
+    !ownership ||
+    (group.continuationEntryId !== null &&
+      ownership.entry_conversation_id !== ownership.run_conversation_id)
+  ) {
+    throw new Error("Wait-group continuation must belong to its owning run.");
+  }
   const existing = database
     .prepare(
       `SELECT membership_manifest_id, revision FROM wait_groups

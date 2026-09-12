@@ -176,33 +176,55 @@ export const executionClaimSchema = z.object({
 });
 export type ExecutionClaim = z.infer<typeof executionClaimSchema>;
 
-export const providerPhaseSchema = z.object({
-  schemaVersion: z.literal(1),
-  phaseId: z.string().startsWith("provider_phase_"),
-  runId,
-  runGeneration: z.number().int().positive().safe(),
-  selectionEpoch: safeInteger,
-  sourceEntryId: entryId.nullable(),
-  contextRecipeId: z.string().startsWith("context_recipe_"),
-  requestManifestId: z.string().startsWith("manifest_").optional(),
-  requestHash: digest.optional(),
-  providerIdentity: z.record(z.string(), z.unknown()),
-  capability: z.enum([
-    "stateless_generation",
-    "contractually_replay_safe",
-    "non_repeatable_or_unknown",
-  ]),
-  opaqueStateManifestId: z.string().startsWith("manifest_").optional(),
-  state: z.enum([
-    "preparing",
-    "ready",
-    "active",
-    "response_prepared",
-    "recovery_required",
-    "committed",
-    "closed",
-  ]),
-  committedResponseId: z.string().startsWith("response_").optional(),
-  recoveryAdmissionId: z.string().startsWith("recovery_").optional(),
-});
+export const providerPhaseSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    phaseId: z.string().startsWith("provider_phase_"),
+    runId,
+    runGeneration: z.number().int().positive().safe(),
+    selectionEpoch: safeInteger,
+    sourceEntryId: entryId.nullable(),
+    contextRecipeId: z.string().startsWith("context_recipe_"),
+    requestManifestId: z.string().startsWith("manifest_").optional(),
+    requestHash: digest.optional(),
+    providerIdentity: z.record(z.string(), z.unknown()),
+    capability: z.enum([
+      "stateless_generation",
+      "contractually_replay_safe",
+      "non_repeatable_or_unknown",
+    ]),
+    opaqueStateManifestId: z.string().startsWith("manifest_").optional(),
+    state: z.enum([
+      "preparing",
+      "ready",
+      "active",
+      "response_prepared",
+      "recovery_required",
+      "committed",
+      "closed",
+    ]),
+    committedResponseId: z.string().startsWith("response_").optional(),
+    recoveryAdmissionId: z.string().startsWith("recovery_").optional(),
+  })
+  .superRefine((phase, context) => {
+    if (
+      phase.state !== "preparing" &&
+      phase.state !== "closed" &&
+      (!phase.requestManifestId || !phase.requestHash)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["requestManifestId"],
+        message:
+          "A prepared provider request requires its frozen manifest and hash.",
+      });
+    }
+    if ((phase.state === "committed") !== Boolean(phase.committedResponseId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["committedResponseId"],
+        message: "Exactly a committed phase has a committed response identity.",
+      });
+    }
+  });
 export type ProviderPhase = z.infer<typeof providerPhaseSchema>;

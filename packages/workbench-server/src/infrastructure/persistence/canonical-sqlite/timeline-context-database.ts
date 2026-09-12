@@ -10,24 +10,26 @@ export function insertTimelineContextBoundary(
 ): void {
   const transition = database
     .prepare(
-      `SELECT kind FROM conversation_transitions
+      `SELECT kind, revision FROM conversation_transitions
        WHERE transition_id = ? AND conversation_id = ?`,
     )
     .get(boundary.transitionId, boundary.conversationId) as
-    | { kind: string }
+    | { kind: string; revision: number }
     | undefined;
   if (transition?.kind !== "context_boundary_committed") {
     throw new Error("Context boundary requires its canonical transition.");
   }
   const head = database
     .prepare(
-      `SELECT active_entry_id FROM conversations WHERE conversation_id = ?`,
+      `SELECT active_entry_id, revision FROM conversations
+       WHERE conversation_id = ?`,
     )
     .get(boundary.conversationId) as
-    | { active_entry_id: string | null }
+    | { active_entry_id: string | null; revision: number }
     | undefined;
   if (
     !head ||
+    head.revision !== transition.revision ||
     !entryIsAncestor(
       database,
       boundary.conversationId,
@@ -37,9 +39,12 @@ export function insertTimelineContextBoundary(
     !entryIsAncestor(
       database,
       boundary.conversationId,
+      boundary.anchorEntryId,
       boundary.sourceTipEntryId,
-      head.active_entry_id,
-    )
+    ) ||
+    (boundary.visibleSummaryEntryId
+      ? head.active_entry_id !== boundary.visibleSummaryEntryId
+      : head.active_entry_id !== boundary.sourceTipEntryId)
   ) {
     throw new Error(
       "Context boundary source must belong to selected ancestry.",
@@ -48,17 +53,20 @@ export function insertTimelineContextBoundary(
   if (boundary.visibleSummaryEntryId) {
     const visible = database
       .prepare(
-        `SELECT 1 AS present FROM conversation_entries
+        `SELECT kind, parent_entry_id FROM conversation_entries
          WHERE entry_id = ? AND conversation_id = ? AND transition_id = ?`,
       )
       .get(
         boundary.visibleSummaryEntryId,
         boundary.conversationId,
         boundary.transitionId,
-      ) as { present?: number } | undefined;
-    if (visible?.present !== 1) {
+      ) as { kind: string; parent_entry_id: string | null } | undefined;
+    if (
+      visible?.kind !== "summary" ||
+      visible.parent_entry_id !== boundary.sourceTipEntryId
+    ) {
       throw new Error(
-        "Visible summary entry must belong to the boundary transition.",
+        "Visible summary entry must extend the source tip in the boundary transition.",
       );
     }
   }

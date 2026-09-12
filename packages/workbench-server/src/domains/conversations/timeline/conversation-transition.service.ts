@@ -4,6 +4,8 @@ import type {
   MutationOutcome,
 } from "@nervekit/contracts/conversations";
 import type {
+  CanonicalCheckpoint,
+  ImmutableExecutionSnapshot,
   ProviderPhase,
   RunControl,
   WaitGroup,
@@ -14,6 +16,7 @@ import type {
   TimelineExpectedRunFence,
   TimelinePublicationIntent,
 } from "../../../infrastructure/persistence/canonical-sqlite/timeline-database.js";
+import type { TimelineArtifactManifestWrite } from "../../../infrastructure/persistence/canonical-sqlite/timeline-checkpoint-database.js";
 
 export interface CommitConversationTransitionCommand {
   namespaceId: string;
@@ -28,8 +31,11 @@ export interface CommitConversationTransitionCommand {
   expectedRunFences?: TimelineExpectedRunFence[];
   transitions: ConversationTransition[];
   contextBoundaries?: ContextBoundary[];
+  artifactManifests?: TimelineArtifactManifestWrite[];
   runControls?: RunControl[];
+  executionSnapshots?: ImmutableExecutionSnapshot[];
   waitGroups?: WaitGroup[];
+  checkpoints?: CanonicalCheckpoint[];
   providerPhases?: ProviderPhase[];
   outcome: unknown;
   publicationIntents: TimelinePublicationIntent[];

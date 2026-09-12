@@ -15,7 +15,9 @@ CREATE TABLE conversations (
   foreground_run_id TEXT,
   deletion_state TEXT NOT NULL CHECK(deletion_state IN ('active','pending','finalized')),
   created_at_ms INTEGER NOT NULL,
-  updated_at_ms INTEGER NOT NULL
+  updated_at_ms INTEGER NOT NULL,
+  FOREIGN KEY(conversation_id, active_entry_id)
+    REFERENCES conversation_entries(conversation_id, entry_id) ON DELETE RESTRICT
 ) STRICT;
 
 CREATE TABLE conversation_transitions (
@@ -34,6 +36,7 @@ CREATE TABLE conversation_transitions (
   committed_at_ms INTEGER NOT NULL,
   resulting_control_json BLOB NOT NULL,
   UNIQUE(conversation_id, revision),
+  UNIQUE(conversation_id, transition_id),
   FOREIGN KEY(conversation_id) REFERENCES conversations(conversation_id) ON DELETE RESTRICT
 ) STRICT;
 CREATE INDEX conversation_transitions_command
@@ -66,9 +69,12 @@ CREATE TABLE conversation_entries (
   interaction_id TEXT,
   provenance_json BLOB NOT NULL,
   UNIQUE(transition_id, ordinal),
+  UNIQUE(conversation_id, entry_id),
   FOREIGN KEY(conversation_id) REFERENCES conversations(conversation_id) ON DELETE RESTRICT,
-  FOREIGN KEY(transition_id) REFERENCES conversation_transitions(transition_id) ON DELETE RESTRICT,
-  FOREIGN KEY(parent_entry_id) REFERENCES conversation_entries(entry_id) ON DELETE RESTRICT,
+  FOREIGN KEY(conversation_id, transition_id)
+    REFERENCES conversation_transitions(conversation_id, transition_id) ON DELETE RESTRICT,
+  FOREIGN KEY(conversation_id, parent_entry_id)
+    REFERENCES conversation_entries(conversation_id, entry_id) ON DELETE RESTRICT,
   FOREIGN KEY(artifact_manifest_id) REFERENCES artifact_manifests(manifest_id) ON DELETE RESTRICT
 ) STRICT;
 CREATE INDEX conversation_entries_parent
@@ -98,11 +104,15 @@ CREATE TABLE context_boundaries (
   recipe_version INTEGER NOT NULL CHECK(recipe_version > 0),
   visible_summary_entry_id TEXT,
   FOREIGN KEY(conversation_id) REFERENCES conversations(conversation_id) ON DELETE RESTRICT,
-  FOREIGN KEY(transition_id) REFERENCES conversation_transitions(transition_id) ON DELETE RESTRICT,
-  FOREIGN KEY(anchor_entry_id) REFERENCES conversation_entries(entry_id) ON DELETE RESTRICT,
-  FOREIGN KEY(source_tip_entry_id) REFERENCES conversation_entries(entry_id) ON DELETE RESTRICT,
+  FOREIGN KEY(conversation_id, transition_id)
+    REFERENCES conversation_transitions(conversation_id, transition_id) ON DELETE RESTRICT,
+  FOREIGN KEY(conversation_id, anchor_entry_id)
+    REFERENCES conversation_entries(conversation_id, entry_id) ON DELETE RESTRICT,
+  FOREIGN KEY(conversation_id, source_tip_entry_id)
+    REFERENCES conversation_entries(conversation_id, entry_id) ON DELETE RESTRICT,
   FOREIGN KEY(source_manifest_id) REFERENCES artifact_manifests(manifest_id) ON DELETE RESTRICT,
-  FOREIGN KEY(visible_summary_entry_id) REFERENCES conversation_entries(entry_id) ON DELETE RESTRICT
+  FOREIGN KEY(conversation_id, visible_summary_entry_id)
+    REFERENCES conversation_entries(conversation_id, entry_id) ON DELETE RESTRICT
 ) STRICT;
 CREATE INDEX context_boundaries_candidate
   ON context_boundaries(conversation_id, policy_version, anchor_entry_id, transition_id);
@@ -139,8 +149,10 @@ CREATE TABLE run_controls (
   recovery_reason TEXT,
   created_at_ms INTEGER NOT NULL,
   updated_at_ms INTEGER NOT NULL,
+  UNIQUE(conversation_id, run_id),
   FOREIGN KEY(conversation_id) REFERENCES conversations(conversation_id) ON DELETE RESTRICT,
-  FOREIGN KEY(continuation_entry_id) REFERENCES conversation_entries(entry_id) ON DELETE RESTRICT
+  FOREIGN KEY(conversation_id, continuation_entry_id)
+    REFERENCES conversation_entries(conversation_id, entry_id) ON DELETE RESTRICT
 ) STRICT;
 CREATE UNIQUE INDEX run_controls_foreground_owner
   ON run_controls(conversation_id) WHERE foreground_owned = 1;
@@ -178,11 +190,16 @@ CREATE TABLE checkpoints (
   integrity_hash TEXT NOT NULL,
   created_at_ms INTEGER NOT NULL,
   FOREIGN KEY(conversation_id) REFERENCES conversations(conversation_id) ON DELETE RESTRICT,
-  FOREIGN KEY(run_id) REFERENCES run_controls(run_id) ON DELETE RESTRICT,
-  FOREIGN KEY(capture_transition_id) REFERENCES conversation_transitions(transition_id) ON DELETE RESTRICT,
-  FOREIGN KEY(anchor_entry_id) REFERENCES conversation_entries(entry_id) ON DELETE RESTRICT,
+  FOREIGN KEY(conversation_id, run_id)
+    REFERENCES run_controls(conversation_id, run_id) ON DELETE RESTRICT,
+  FOREIGN KEY(conversation_id, capture_transition_id)
+    REFERENCES conversation_transitions(conversation_id, transition_id) ON DELETE RESTRICT,
+  FOREIGN KEY(conversation_id, anchor_entry_id)
+    REFERENCES conversation_entries(conversation_id, entry_id) ON DELETE RESTRICT,
   FOREIGN KEY(snapshot_id) REFERENCES execution_snapshots(snapshot_id) ON DELETE RESTRICT,
-  FOREIGN KEY(pending_manifest_id) REFERENCES artifact_manifests(manifest_id) ON DELETE RESTRICT
+  FOREIGN KEY(pending_manifest_id) REFERENCES artifact_manifests(manifest_id) ON DELETE RESTRICT,
+  FOREIGN KEY(run_id, wait_group_id)
+    REFERENCES wait_groups(run_id, wait_group_id) ON DELETE RESTRICT
 ) STRICT;
 
 CREATE TABLE wait_groups (
@@ -193,6 +210,7 @@ CREATE TABLE wait_groups (
   continuation_consumed INTEGER NOT NULL CHECK(continuation_consumed IN (0,1)),
   effective_state TEXT NOT NULL CHECK(effective_state IN ('open','ready','closed','recovery_required')),
   revision INTEGER NOT NULL CHECK(revision > 0),
+  UNIQUE(run_id, wait_group_id),
   FOREIGN KEY(run_id) REFERENCES run_controls(run_id) ON DELETE RESTRICT,
   FOREIGN KEY(membership_manifest_id) REFERENCES artifact_manifests(manifest_id) ON DELETE RESTRICT,
   FOREIGN KEY(continuation_entry_id) REFERENCES conversation_entries(entry_id) ON DELETE RESTRICT
@@ -410,7 +428,10 @@ CREATE TABLE deletion_intents (
   conversation_id TEXT PRIMARY KEY,
   command_id TEXT NOT NULL,
   fence_revision INTEGER NOT NULL CHECK(fence_revision >= 0),
-  phase TEXT NOT NULL,
+  phase TEXT NOT NULL CHECK(phase IN (
+    'fenced','settling_execution','removing_payloads','removing_history',
+    'retaining_replay_evidence','finalized'
+  )),
   cleanup_cursor TEXT,
   uncertainty_acknowledged INTEGER NOT NULL CHECK(uncertainty_acknowledged IN (0,1)),
   created_at_ms INTEGER NOT NULL,
@@ -421,6 +442,8 @@ CREATE TABLE owner_tombstones (
   owner_kind TEXT NOT NULL,
   owner_id TEXT NOT NULL,
   namespace_id TEXT NOT NULL,
+  command_reservation_count INTEGER NOT NULL CHECK(command_reservation_count >= 0),
+  effect_reservation_count INTEGER NOT NULL CHECK(effect_reservation_count >= 0),
   deleted_at_ms INTEGER NOT NULL,
   replay_evidence_json BLOB NOT NULL,
   PRIMARY KEY(owner_kind, owner_id, namespace_id)

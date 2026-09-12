@@ -7,11 +7,15 @@ import type {
   MutationOutcome,
 } from "@nervekit/contracts/conversations";
 import type {
+  CanonicalCheckpoint,
+  ImmutableExecutionSnapshot,
   ProviderPhase,
   RunControl,
   WaitGroup,
 } from "@nervekit/contracts/runs";
 import {
+  canonicalCheckpointSchema,
+  immutableExecutionSnapshotSchema,
   providerPhaseSchema,
   runControlSchema,
   waitGroupSchema,
@@ -27,9 +31,15 @@ import type { DatabaseSync } from "node:sqlite";
 import { validateTransitionHeadChange } from "../../../domains/conversations/timeline/transition-validation.js";
 import { appendDurableEventInTransaction } from "./canonical-database-helpers.js";
 import { decode, encode } from "./payload-codecs.js";
+import {
+  insertTimelineArtifactManifest,
+  insertTimelineCheckpoint,
+  insertTimelineExecutionSnapshot,
+  type TimelineArtifactManifestWrite,
+} from "./timeline-checkpoint-database.js";
 import { insertTimelineContextBoundary } from "./timeline-context-database.js";
 import {
-  insertTimelineProviderPhase,
+  persistTimelineProviderPhase,
   upsertTimelineRunControl,
 } from "./timeline-execution-database.js";
 import { persistTimelineWaitGroup } from "./timeline-wait-group-database.js";
@@ -77,8 +87,11 @@ export interface CommitConversationCommandInput {
   expectedRunFences?: TimelineExpectedRunFence[];
   transitions: ConversationTransition[];
   contextBoundaries?: ContextBoundary[];
+  artifactManifests?: TimelineArtifactManifestWrite[];
   runControls?: RunControl[];
+  executionSnapshots?: ImmutableExecutionSnapshot[];
   waitGroups?: WaitGroup[];
+  checkpoints?: CanonicalCheckpoint[];
   providerPhases?: ProviderPhase[];
   outcome: unknown;
   publicationIntents: TimelinePublicationIntent[];
@@ -393,6 +406,9 @@ export function commitConversationCommandInTransaction(
       currentRevision.set(parsed.conversationId, parsed.revision);
     }
 
+    for (const manifest of input.artifactManifests ?? []) {
+      insertTimelineArtifactManifest(database, manifest, input.now);
+    }
     for (const boundary of input.contextBoundaries ?? []) {
       insertTimelineContextBoundary(
         database,
@@ -407,6 +423,12 @@ export function commitConversationCommandInTransaction(
         input.now,
       );
     }
+    for (const snapshot of input.executionSnapshots ?? []) {
+      insertTimelineExecutionSnapshot(
+        database,
+        immutableExecutionSnapshotSchema.parse(snapshot),
+      );
+    }
     for (const group of input.waitGroups ?? []) {
       persistTimelineWaitGroup(
         database,
@@ -414,8 +436,14 @@ export function commitConversationCommandInTransaction(
         input.now,
       );
     }
+    for (const checkpoint of input.checkpoints ?? []) {
+      insertTimelineCheckpoint(
+        database,
+        canonicalCheckpointSchema.parse(checkpoint),
+      );
+    }
     for (const phase of input.providerPhases ?? []) {
-      insertTimelineProviderPhase(
+      persistTimelineProviderPhase(
         database,
         providerPhaseSchema.parse(phase),
         input.now,
