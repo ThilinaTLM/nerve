@@ -165,7 +165,9 @@ describe("conversation activity", () => {
       completedAt: "2026-01-01T00:00:00.000Z",
       agent: agent("agent-1", "conversation-1", "awaiting_user"),
     });
-    assert.equal(waiting.needsUser, true);
+    assert.equal(waiting.indicator, "error");
+    assert.equal(waiting.label, "Refresh required");
+    assert.equal(waiting.needsUser, false);
     assert.equal(waiting.clearableFailure, false);
 
     const staleFailure = conversationActivityForRecord({

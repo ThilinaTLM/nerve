@@ -5,7 +5,20 @@ import type {
 } from "./conversation-deletion.js";
 import { Worker } from "node:worker_threads";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
-import type { RunRecord } from "@nervekit/contracts/runs";
+import type {
+  LifecycleWork,
+  RecoveryIssue,
+  RunRecord,
+} from "@nervekit/contracts/runs";
+import type {
+  ClaimLifecycleWorkInput,
+  LifecycleAtomicCommitInput,
+  LifecycleAtomicCommitResult,
+  ReconciliationOperationRecord,
+  RequeueLifecycleWorkInput,
+  RenewLifecycleWorkInput,
+  SettleLifecycleWorkInput,
+} from "./lifecycle-work-database.js";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import {
   encode,
@@ -130,6 +143,103 @@ export class CanonicalStore {
       return reader!.request<T>(command, transferList);
     }
     return this.writer.request<T>(command, transferList);
+  }
+
+  persistLifecycleAtomicCommit(input: LifecycleAtomicCommitInput) {
+    return this.request<LifecycleAtomicCommitResult>(
+      { kind: "persist_lifecycle_atomic_commit", input },
+      true,
+    );
+  }
+
+  insertLifecycleWork(work: LifecycleWork) {
+    return this.request<LifecycleWork>(
+      { kind: "insert_lifecycle_work", work },
+      true,
+    );
+  }
+  readLifecycleWork(workId: string) {
+    return this.request<LifecycleWork | undefined>(
+      { kind: "read_lifecycle_work", workId },
+      true,
+    );
+  }
+  listDueLifecycleWork(now: string, limit = 100) {
+    return this.request<LifecycleWork[]>({
+      kind: "list_due_lifecycle_work",
+      now,
+      limit,
+    });
+  }
+  listExpiredLifecycleWork(now: string, limit = 100) {
+    return this.request<LifecycleWork[]>({
+      kind: "list_expired_lifecycle_work",
+      now,
+      limit,
+    });
+  }
+  claimLifecycleWork(input: ClaimLifecycleWorkInput) {
+    return this.request<LifecycleWork | undefined>(
+      { kind: "claim_lifecycle_work", input },
+      true,
+    );
+  }
+  requeueLifecycleWork(input: RequeueLifecycleWorkInput) {
+    return this.request<LifecycleWork | undefined>(
+      { kind: "requeue_lifecycle_work", input },
+      true,
+    );
+  }
+  renewLifecycleWork(input: RenewLifecycleWorkInput) {
+    return this.request<LifecycleWork | undefined>(
+      { kind: "renew_lifecycle_work", input },
+      true,
+    );
+  }
+  resolveRecoveryIssuesForRun(runId: string, now = new Date().toISOString()) {
+    return this.request<number>(
+      { kind: "resolve_recovery_issues_for_run", runId, now },
+      true,
+    );
+  }
+  listRecoveryIssues(conversationId: string) {
+    return this.request<RecoveryIssue[]>({
+      kind: "list_recovery_issues",
+      conversationId,
+    });
+  }
+  persistRecoveryIssue(issue: RecoveryIssue) {
+    return this.request<void>({ kind: "persist_recovery_issue", issue }, true);
+  }
+  settleLifecycleWork(input: SettleLifecycleWorkInput) {
+    return this.request<LifecycleWork | undefined>(
+      { kind: "settle_lifecycle_work", input },
+      true,
+    );
+  }
+  readLifecycleCommandReceipt(scopeId: string, requestId: string) {
+    return this.request<{ inputHash: string; outcome: unknown } | undefined>(
+      { kind: "read_lifecycle_command_receipt", scopeId, requestId },
+      true,
+    );
+  }
+  readReconciliationOperation(conversationId: string, requestId: string) {
+    return this.request<ReconciliationOperationRecord | undefined>(
+      { kind: "read_reconciliation_operation", conversationId, requestId },
+      true,
+    );
+  }
+  beginReconciliationOperation(operation: ReconciliationOperationRecord) {
+    return this.request<ReconciliationOperationRecord>(
+      { kind: "begin_reconciliation_operation", operation },
+      true,
+    );
+  }
+  settleReconciliationOperation(operation: ReconciliationOperationRecord) {
+    return this.request<ReconciliationOperationRecord>(
+      { kind: "settle_reconciliation_operation", operation },
+      true,
+    );
   }
 
   readRpcIdempotency<T>(scope: string, key: string, now = Date.now()) {

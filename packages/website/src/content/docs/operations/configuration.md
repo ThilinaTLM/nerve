@@ -23,11 +23,14 @@ The System page persists safe application configuration for:
 - bind host, HTTP/HTTPS ports, remote access, and mobile HTTPS;
 - application logging and performance diagnostics;
 - log policy, owned-daemon startup timeout, and heap cap;
+- automatic or manually overridden model, tool-batch, process, and Explore concurrency;
 - Linux Electron Ozone platform and font rendering.
 
 Enabling **Allow remote connections** also changes a loopback bind host to `0.0.0.0`, so the next daemon launch can accept LAN clients. Disabling it restores `127.0.0.1` when the host is a wildcard. You can still enter a specific interface address in the advanced host field.
 
-The page distinguishes active and saved values. Network, diagnostics enablement, and heap changes need a daemon restart. Timeout and Electron rendering changes need the desktop app to restart. The page can restart an owned local daemon; browser clients and remote or adopted daemons show manual guidance instead.
+Resource concurrency defaults to automatic. At daemon startup, Nerve uses effective CPU capacity and total memory to choose separate limits; normal developer machines with at least 12 GiB RAM admit ten primary model runs, while tool batches, subprocesses, and Explore agents retain independent safety limits. The System page shows detected, recommended, and effective values. GPU capacity is intentionally not treated as generic concurrency because local-model memory requirements are model-specific.
+
+The page distinguishes active and saved values. Network, diagnostics enablement, heap, and resource-limit changes need a daemon restart. Timeout and Electron rendering changes need the desktop app to restart. The page can restart an owned local daemon; browser clients and remote or adopted daemons show manual guidance instead.
 
 ## Desktop flags
 
@@ -53,6 +56,8 @@ Common overrides include:
 - `NERVE_ALLOW_REMOTE`, `NERVE_MOBILE_HTTPS`
 - `NERVE_LOGGING_ENABLED`, `NERVE_PERFORMANCE_DIAGNOSTICS`
 - `NERVE_DAEMON_STARTUP_TIMEOUT_MS`, `NERVE_DAEMON_MAX_OLD_SPACE_MB`
+- `NERVE_MAX_CONCURRENT_MODEL_RUNS`, `NERVE_MAX_PARALLEL_TOOLS_PER_RUN`
+- `NERVE_MAX_ACTIVE_PROCESSES`, `NERVE_MAX_ACTIVE_EXPLORE_AGENTS`
 
 Owned daemons use a 4096 MB old-space limit by default. Legacy saved values or environment overrides below the supported 512 MB minimum are raised to 512 MB before launch.
 

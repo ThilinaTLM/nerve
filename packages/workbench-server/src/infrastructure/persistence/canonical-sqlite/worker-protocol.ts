@@ -1,5 +1,14 @@
 import type { ConversationDeletionCursor } from "./conversation-deletion.js";
 import type { ConversationJournalCommit } from "@nervekit/contracts/conversations";
+import type { LifecycleWork, RecoveryIssue } from "@nervekit/contracts/runs";
+import type {
+  ClaimLifecycleWorkInput,
+  LifecycleAtomicCommitInput,
+  ReconciliationOperationRecord,
+  RequeueLifecycleWorkInput,
+  RenewLifecycleWorkInput,
+  SettleLifecycleWorkInput,
+} from "./lifecycle-work-database.js";
 import type {
   ConversationPersistenceDelta,
   SerializedConversationState,
@@ -7,6 +16,39 @@ import type {
 
 export type CanonicalCommand =
   | { kind: "initialize" }
+  | {
+      kind: "persist_lifecycle_atomic_commit";
+      input: LifecycleAtomicCommitInput;
+    }
+  | { kind: "insert_lifecycle_work"; work: LifecycleWork }
+  | { kind: "read_lifecycle_work"; workId: string }
+  | { kind: "list_due_lifecycle_work"; now: string; limit: number }
+  | { kind: "list_expired_lifecycle_work"; now: string; limit: number }
+  | { kind: "claim_lifecycle_work"; input: ClaimLifecycleWorkInput }
+  | { kind: "renew_lifecycle_work"; input: RenewLifecycleWorkInput }
+  | { kind: "requeue_lifecycle_work"; input: RequeueLifecycleWorkInput }
+  | { kind: "settle_lifecycle_work"; input: SettleLifecycleWorkInput }
+  | { kind: "persist_recovery_issue"; issue: RecoveryIssue }
+  | { kind: "list_recovery_issues"; conversationId: string }
+  | { kind: "resolve_recovery_issues_for_run"; runId: string; now: string }
+  | {
+      kind: "read_lifecycle_command_receipt";
+      scopeId: string;
+      requestId: string;
+    }
+  | {
+      kind: "read_reconciliation_operation";
+      conversationId: string;
+      requestId: string;
+    }
+  | {
+      kind: "begin_reconciliation_operation";
+      operation: ReconciliationOperationRecord;
+    }
+  | {
+      kind: "settle_reconciliation_operation";
+      operation: ReconciliationOperationRecord;
+    }
   | { kind: "read_rpc_idempotency"; scope: string; key: string; now: number }
   | {
       kind: "write_rpc_idempotency";
@@ -147,6 +189,11 @@ export type CanonicalWorkerResponse =
     };
 
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
+  "read_lifecycle_work",
+  "list_due_lifecycle_work",
+  "list_expired_lifecycle_work",
+  "read_reconciliation_operation",
+  "read_lifecycle_command_receipt",
   "read_document",
   "list_documents",
   "read_conversation_revision",

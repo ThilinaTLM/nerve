@@ -2,6 +2,7 @@ import type {
   ToolCallRecord,
   UserQuestionRecord,
 } from "@nervekit/contracts/tools";
+import type { ConversationJournalEvent } from "@nervekit/contracts/conversations";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import { optionalStringArg, stringArg } from "../execution/tool-arguments.js";
 import { ToolExecutionSuspended } from "../execution/tool-execution-suspension.js";
@@ -14,6 +15,10 @@ export interface InteractionSessionDeps {
   updateToolCall(
     toolCallId: string,
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<ToolCallRecord>;
   publishToolCallUpdated(toolCall: ToolCallRecord): Promise<void>;
 }
@@ -81,11 +86,16 @@ export class InteractionSessionService {
     questionId: string,
     answer: string,
     resolutionRequestId?: string,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<UserQuestionRecord> {
     return this.resolve(
       questionId,
       { action: "answer", answer },
       resolutionRequestId,
+      commit,
     );
   }
 
@@ -93,6 +103,10 @@ export class InteractionSessionService {
     questionId: string,
     reason?: string,
     resolutionRequestId?: string,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<UserQuestionRecord> {
     return this.resolve(
       questionId,
@@ -101,6 +115,7 @@ export class InteractionSessionService {
         reason: reason ?? "Dismissed by user.",
       },
       resolutionRequestId,
+      commit,
     );
   }
 
@@ -132,6 +147,10 @@ export class InteractionSessionService {
       | { action: "answer"; answer: string }
       | { action: "dismiss"; reason: string },
     resolutionRequestId?: string,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<UserQuestionRecord> {
     const found = this.find(questionId);
     if (!found || found.question.status !== "pending")
@@ -149,10 +168,11 @@ export class InteractionSessionService {
           }
         : interaction,
     );
-    const updatedToolCall = await this.deps.updateToolCall(found.toolCall.id, {
-      interactions,
-      status: "running",
-    });
+    const updatedToolCall = await this.deps.updateToolCall(
+      found.toolCall.id,
+      { interactions, status: "running" },
+      commit,
+    );
     const question = projectQuestion(updatedToolCall, found.ordinal);
     this.questions.delete(questionId);
     await this.deps.publishToolCallUpdated(updatedToolCall);

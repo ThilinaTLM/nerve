@@ -242,7 +242,12 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
       name: String((row as { name: unknown }).name),
     }));
   schema.close();
-  assert.deepEqual(schemaMigrations, [{ version: 1, name: "nerve-home-v1" }]);
+  assert.deepEqual(schemaMigrations, [
+    { version: 1, name: "nerve-home-v1" },
+    { version: 2, name: "atomic-run-lifecycle-work-v2" },
+    { version: 3, name: "authoritative-run-lifecycle-v3" },
+    { version: 4, name: "convert-run-lifecycle-v4" },
+  ]);
   const homeMigrations = JSON.parse(
     await readFile(storage.paths.migrationLedgerPath, "utf8"),
   ) as { entries: Array<{ id: string }> };

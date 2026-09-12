@@ -9,6 +9,49 @@ export function executeCanonicalCommand(
     case "initialize":
       database.initialize();
       return undefined;
+    case "persist_lifecycle_atomic_commit":
+      return database.lifecycle.persistAtomicCommit(command.input);
+    case "insert_lifecycle_work":
+      return database.lifecycle.insert(command.work);
+    case "read_lifecycle_work":
+      return database.lifecycle.read(command.workId);
+    case "list_due_lifecycle_work":
+      return database.lifecycle.listDue(command.now, command.limit);
+    case "list_expired_lifecycle_work":
+      return database.lifecycle.listExpired(command.now, command.limit);
+    case "claim_lifecycle_work":
+      return database.lifecycle.claim(command.input);
+    case "renew_lifecycle_work":
+      return database.lifecycle.renew(command.input);
+    case "requeue_lifecycle_work":
+      return database.lifecycle.requeue(command.input);
+    case "settle_lifecycle_work":
+      return database.lifecycle.settle(command.input);
+    case "persist_recovery_issue":
+      return database.lifecycle.persistRecoveryIssue(command.issue);
+    case "list_recovery_issues":
+      return database.lifecycle.listRecoveryIssues(command.conversationId);
+    case "resolve_recovery_issues_for_run":
+      return database.lifecycle.resolveRecoveryIssuesForRun(
+        command.runId,
+        command.now,
+      );
+    case "read_lifecycle_command_receipt":
+      return database.lifecycle.readCommandReceipt(
+        command.scopeId,
+        command.requestId,
+      );
+    case "read_reconciliation_operation":
+      return database.lifecycle.readReconciliationOperation(
+        command.conversationId,
+        command.requestId,
+      );
+    case "begin_reconciliation_operation":
+      return database.lifecycle.beginReconciliationOperation(command.operation);
+    case "settle_reconciliation_operation":
+      return database.lifecycle.settleReconciliationOperation(
+        command.operation,
+      );
     case "read_rpc_idempotency":
       return database.readRpcIdempotency(
         command.scope,

@@ -117,6 +117,7 @@ export class AgentHarness<
     TPromptTemplate,
     TTool
   >;
+  private readonly maxParallelToolCalls: number | undefined;
   constructor(options: AgentHarnessOptions<TSkill, TPromptTemplate, TTool>) {
     this.env = options.env;
     this.conversation = options.conversation;
@@ -131,6 +132,7 @@ export class AgentHarness<
       ? [...options.activeToolNames]
       : [...this.tools.keys()];
     this.validateToolNames(this.activeToolNames);
+    this.maxParallelToolCalls = options.maxParallelToolCalls;
     this.runState = new HarnessRunState(
       options.steeringMode ?? "one-at-a-time",
       options.followUpMode ?? "one-at-a-time",
@@ -333,6 +335,7 @@ export class AgentHarness<
     const turnState = getTurnState();
     return {
       model: turnState.model,
+      maxParallelToolCalls: this.maxParallelToolCalls,
       reasoning:
         turnState.thinkingLevel === "off" ? undefined : turnState.thinkingLevel,
       convertToLlm,

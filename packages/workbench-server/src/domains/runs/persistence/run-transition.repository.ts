@@ -1,8 +1,13 @@
 import type { ConversationJournalEvent } from "@nervekit/contracts/conversations";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import type {
+  ExecutionAttempt,
+  LifecycleInteraction,
   RunEventDeliveryRecord,
+  RunLifecycleRecord,
   RunRecord,
   RunTransitionRecord,
+  ToolProposal,
 } from "@nervekit/contracts/runs";
 import {
   runEventDeliveryRecordSchema,
@@ -10,6 +15,7 @@ import {
 } from "@nervekit/contracts/runs";
 import { storagePaths } from "../../../infrastructure/storage-bootstrap/paths.js";
 import { ConversationJournalRepository } from "../../conversations/conversation-journal.repository.js";
+import { WorkbenchRunIntegrity } from "../adapters/workbench-run-integrity.js";
 import {
   ACTIVE_STATUSES,
   ActiveRunLookup,
@@ -33,6 +39,7 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   });
 
   private readonly journal: ConversationJournalRepository;
+  private readonly integrity = new WorkbenchRunIntegrity();
   private readonly refreshJournalReads: boolean;
 
   constructor(
@@ -171,6 +178,7 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   async commit(
     expectedRevision: number,
     transition: RunTransitionRecord,
+    lifecycleWork: readonly import("@nervekit/contracts/runs").LifecycleWork[] = [],
   ): Promise<RunHydratedState> {
     const parsed = runTransitionRecordSchema.parse(
       JSON.parse(JSON.stringify(transition)) as unknown,
@@ -192,10 +200,18 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
         },
         ...(await this.normalizedInteractionEvents(next, parsed)),
       ];
+      const aggregate = await this.lifecycleAggregate(next, parsed);
       await this.journal.commit(parsed.run.conversationId, {
         kind: `run.${parsed.kind}`,
         committedAt: parsed.committedAt,
         events,
+        idempotencyKey: parsed.transitionId,
+        lifecycle: {
+          aggregate,
+          work: lifecycleWork,
+          inputHash: parsed.checksum,
+          outcome: { transitionId: parsed.transitionId },
+        },
       });
       this.cache.set(next);
       this.lookup.observe(next);
@@ -287,6 +303,116 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
 
   async materialize(): Promise<void> {
     // Journal projections are materialized in memory; files are not authoritative.
+  }
+
+  private async lifecycleAggregate(
+    state: RunHydratedState,
+    transition: RunTransitionRecord,
+  ): Promise<{
+    run: RunLifecycleRecord;
+    proposals: ToolProposal[];
+    interactions: LifecycleInteraction[];
+    attempts: ExecutionAttempt[];
+    recoveryIssues: [];
+  }> {
+    const journalState = await this.journal.load(state.run.conversationId);
+    const proposalById = new Map<string, ToolProposal>();
+    const interactions: LifecycleInteraction[] = [];
+    const attempts: ExecutionAttempt[] = [];
+    for (const interaction of state.interactions) {
+      const toolCall = journalState.toolCalls.get(interaction.toolCallId);
+      const toolInteraction =
+        toolCall?.interactions[interaction.interactionOrdinal];
+      if (!toolCall || !toolInteraction) continue;
+      const checkpoint = state.checkpoints.find(
+        (candidate) => candidate.checkpointId === interaction.checkpointId,
+      );
+      proposalById.set(toolCall.id, {
+        id: toolCall.id,
+        conversationId: toolCall.conversationId,
+        projectId: toolCall.projectId,
+        agentId: toolCall.agentId,
+        runId: interaction.runId,
+        executionId: interaction.executionId,
+        batchId: interaction.checkpointId,
+        toolName: toolCall.toolName,
+        providerToolCallId:
+          toolCall.providerToolCallId ??
+          toolCall.sourceToolCallId ??
+          toolCall.id,
+        argumentsHash: this.integrity.checksum(toolCall.args),
+        contextFingerprint: this.integrity.checksum({
+          checkpointId: interaction.checkpointId,
+          checkpointChecksum: checkpoint?.checksum,
+          toolCallRevision: interaction.toolCallRevision,
+        }),
+        replayCapability: replayCapability(toolCall),
+        createdAt: toolCall.createdAt,
+      });
+      interactions.push({
+        id: interaction.id,
+        proposalId: toolCall.id,
+        runId: interaction.runId,
+        kind: interaction.kind,
+        status: interaction.status,
+        request: { ...toolInteraction.request },
+        ...(interaction.resolution
+          ? { resolution: interaction.resolution }
+          : {}),
+        ...(interaction.resolutionRequestId
+          ? { resolutionRequestId: interaction.resolutionRequestId }
+          : {}),
+        ...(interaction.resolutionHash
+          ? { resolutionHash: interaction.resolutionHash }
+          : {}),
+        requestedAt: interaction.createdAt,
+        ...(interaction.resolvedAt
+          ? { resolvedAt: interaction.resolvedAt }
+          : {}),
+        ...(interaction.cancelledAt
+          ? { cancelledAt: interaction.cancelledAt }
+          : {}),
+      });
+      if (toolCall.execution) {
+        attempts.push(
+          executionAttempt(
+            toolCall,
+            state.transitions.flatMap((item) => item.entries),
+          ),
+        );
+      }
+    }
+    const run: RunLifecycleRecord = {
+      runId: transition.runId,
+      conversationId: transition.run.conversationId,
+      projectId: transition.run.projectId,
+      agentId: transition.run.agentId,
+      branchEpoch: transition.stateEpoch,
+      revision: transition.revision,
+      state: terminalLifecycleState(transition.run),
+      ...(state.interactions.find((item) => item.status === "pending")
+        ? {
+            currentBatchId: state.interactions.find(
+              (item) => item.status === "pending",
+            )!.checkpointId,
+          }
+        : {}),
+      ...(transition.run.executionId
+        ? { currentModelAttemptId: transition.run.executionId }
+        : {}),
+      createdAt: transition.run.createdAt,
+      updatedAt: transition.run.updatedAt,
+      ...(transition.run.terminalAt
+        ? { terminalAt: transition.run.terminalAt }
+        : {}),
+    };
+    return {
+      run,
+      proposals: [...proposalById.values()],
+      interactions,
+      attempts,
+      recoveryIssues: [],
+    };
   }
 
   private async normalizedInteractionEvents(
@@ -400,6 +526,57 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function terminalLifecycleState(run: RunRecord): RunLifecycleRecord["state"] {
+  return ["completed", "failed", "cancelled"].includes(run.status)
+    ? (run.status as RunLifecycleRecord["state"])
+    : "open";
+}
+
+function replayCapability(
+  toolCall: ToolCallRecord,
+): ToolProposal["replayCapability"] {
+  if (toolCall.execution?.hostHandle) return "reattach_or_query";
+  if (toolCall.risk === "read") return "safe_replay";
+  return "non_replayable";
+}
+
+function executionAttempt(
+  toolCall: ToolCallRecord,
+  entries: readonly import("@nervekit/contracts/conversations").ConversationEntry[],
+): ExecutionAttempt {
+  const resultEntryId = entries.find(
+    (entry) =>
+      (entry.details as { toolRecordId?: string } | undefined)?.toolRecordId ===
+      toolCall.id,
+  )?.id;
+  const state: ExecutionAttempt["state"] =
+    toolCall.status === "completed"
+      ? "completed"
+      : toolCall.status === "failed"
+        ? "failed"
+        : toolCall.status === "cancelled" || toolCall.status === "denied"
+          ? "cancelled"
+          : toolCall.status === "running"
+            ? "running"
+            : "ready";
+  return {
+    id: `attempt_${toolCall.id.slice("tool_".length)}_${toolCall.attempt}`,
+    proposalId: toolCall.id,
+    runId: toolCall.runId!,
+    generation: toolCall.attempt,
+    state,
+    ...(resultEntryId ? { resultEntryId } : {}),
+    ...(toolCall.resultPayload
+      ? { resultRef: toolCall.resultPayload.logicalPath }
+      : {}),
+    ...(toolCall.execution?.hostHandle
+      ? { externalLocator: toolCall.execution.hostHandle }
+      : {}),
+    startedAt: toolCall.execution!.startedAt,
+    ...(toolCall.settledAt ? { settledAt: toolCall.settledAt } : {}),
+  };
 }
 
 function suspensionId(checkpointId: string): string {

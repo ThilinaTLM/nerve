@@ -449,6 +449,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   activeRun={view?.activeRun}
   transient={view?.transient}
   queuedPrompts={view?.queuedPrompts ?? []}
+  recoveryIssues={view?.recoveryIssues ?? []}
   sending={activePendingConversation?.sending ?? view?.sending ?? false}
   stopping={view?.stopping ?? false}
   composerText={activeComposerText}

@@ -41,5 +41,8 @@ export {
   restoreConversationTabs,
 } from "./state/conversation-flow.svelte";
 export { openConversation } from "./state/conversation-tabs";
-export { refreshConversationView } from "./state/conversation-selection";
+export {
+  recoverAndRefreshConversation,
+  refreshConversationView,
+} from "./state/conversation-selection";
 export { registerConversationEventHandlers } from "./state/conversation-events";

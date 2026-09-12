@@ -3,9 +3,21 @@ import type {
   ApplicationSettings,
   ConfigurationSource,
   Settings,
+  ResourceLimits,
   UpdateApplicationConfigurationRequest,
 } from "@nervekit/contracts/settings";
-import { MIN_DAEMON_MAX_OLD_SPACE_MB } from "@nervekit/contracts/settings";
+import {
+  MAX_ACTIVE_EXPLORE_AGENTS,
+  MAX_ACTIVE_PROCESSES,
+  MAX_CONCURRENT_MODEL_RUNS,
+  MAX_PARALLEL_TOOLS_PER_RUN,
+  MIN_DAEMON_MAX_OLD_SPACE_MB,
+} from "@nervekit/contracts/settings";
+import {
+  detectHostResourceFacts,
+  recommendResourcePolicy,
+  type HostResourceFacts,
+} from "./resource-policy.js";
 
 export interface ResolvedApplicationStartup {
   snapshot: ApplicationConfigurationSnapshot;
@@ -21,6 +33,8 @@ export interface ResolvedApplicationStartup {
     maxOldSpaceMb: number;
     ozonePlatform: ApplicationSettings["electron"]["ozonePlatform"];
     fontRenderHinting: ApplicationSettings["electron"]["fontRenderHinting"];
+    resources: ResourceLimits;
+    controlWorkConcurrency: number;
   };
 }
 
@@ -33,6 +47,7 @@ interface ResolveOptions {
   development?: boolean;
   packaged?: boolean;
   activeSnapshot?: ApplicationConfigurationSnapshot;
+  hostResources?: HostResourceFacts;
 }
 
 type RestartTarget = "none" | "daemon" | "desktop";
@@ -123,6 +138,14 @@ function select<T>(input: {
   return { value: input.saved, source: source("settings"), editable: true };
 }
 
+function automaticSelection<T>(value: T): {
+  value: T;
+  source: ConfigurationSource;
+  editable: boolean;
+} {
+  return { value, source: source("automatic"), editable: true };
+}
+
 function leaf<T>(input: {
   selected: { value: T; source: ConfigurationSource; editable: boolean };
   saved: T;
@@ -138,6 +161,7 @@ function leaf<T>(input: {
     restartTarget: input.restartTarget,
     pendingRestart:
       input.selected.editable &&
+      input.selected.source.kind !== "automatic" &&
       input.restartTarget !== "none" &&
       !Object.is(activeValue, input.saved),
   };
@@ -149,6 +173,9 @@ export function resolveApplicationConfiguration(
   const env = options.env ?? process.env;
   const argv = options.argv ?? process.argv.slice(2);
   const saved = options.settings.application;
+  const resourceRecommendation = recommendResourcePolicy(
+    options.hostResources ?? detectHostResourceFacts(),
+  );
 
   const cliAllowRemote = hasFlag(argv, "--allow-remote") ? true : undefined;
   const envAllowRemote = parseBooleanEnvironment(env, "NERVE_ALLOW_REMOTE");
@@ -288,6 +315,56 @@ export function resolveApplicationConfiguration(
     value: Math.max(MIN_DAEMON_MAX_OLD_SPACE_MB, requestedMaxOldSpaceMb.value),
   };
 
+  const resourceMode = select({ saved: saved.resources.mode });
+  const resolveResourceLimit = (
+    savedValue: number,
+    recommendedValue: number,
+    environmentName: string,
+    maximum: number,
+  ) => {
+    const environmentValue = envString(env, environmentName);
+    if (environmentValue) {
+      return select({
+        saved: savedValue,
+        environment: {
+          value: parsePositiveInteger(
+            environmentValue,
+            environmentName,
+            maximum,
+          ),
+          name: environmentName,
+        },
+      });
+    }
+    return resourceMode.value === "automatic"
+      ? automaticSelection(recommendedValue)
+      : select({ saved: savedValue });
+  };
+  const maxConcurrentModelRuns = resolveResourceLimit(
+    saved.resources.maxConcurrentModelRuns,
+    resourceRecommendation.limits.maxConcurrentModelRuns,
+    "NERVE_MAX_CONCURRENT_MODEL_RUNS",
+    MAX_CONCURRENT_MODEL_RUNS,
+  );
+  const maxParallelToolsPerRun = resolveResourceLimit(
+    saved.resources.maxParallelToolsPerRun,
+    resourceRecommendation.limits.maxParallelToolsPerRun,
+    "NERVE_MAX_PARALLEL_TOOLS_PER_RUN",
+    MAX_PARALLEL_TOOLS_PER_RUN,
+  );
+  const maxActiveProcesses = resolveResourceLimit(
+    saved.resources.maxActiveProcesses,
+    resourceRecommendation.limits.maxActiveProcesses,
+    "NERVE_MAX_ACTIVE_PROCESSES",
+    MAX_ACTIVE_PROCESSES,
+  );
+  const maxActiveExploreAgents = resolveResourceLimit(
+    saved.resources.maxActiveExploreAgents,
+    resourceRecommendation.limits.maxActiveExploreAgents,
+    "NERVE_MAX_ACTIVE_EXPLORE_AGENTS",
+    MAX_ACTIVE_EXPLORE_AGENTS,
+  );
+
   const ozoneEnvironment = envString(env, "NERVE_ELECTRON_OZONE_PLATFORM");
   if (
     ozoneEnvironment &&
@@ -408,6 +485,38 @@ export function resolveApplicationConfiguration(
           active: active?.daemon.maxOldSpaceMb.activeValue,
         }),
       },
+      resources: {
+        mode: leaf({
+          selected: resourceMode,
+          saved: saved.resources.mode,
+          restartTarget: "daemon",
+          active: active?.resources.mode.activeValue,
+        }),
+        maxConcurrentModelRuns: leaf({
+          selected: maxConcurrentModelRuns,
+          saved: saved.resources.maxConcurrentModelRuns,
+          restartTarget: "daemon",
+          active: active?.resources.maxConcurrentModelRuns.activeValue,
+        }),
+        maxParallelToolsPerRun: leaf({
+          selected: maxParallelToolsPerRun,
+          saved: saved.resources.maxParallelToolsPerRun,
+          restartTarget: "daemon",
+          active: active?.resources.maxParallelToolsPerRun.activeValue,
+        }),
+        maxActiveProcesses: leaf({
+          selected: maxActiveProcesses,
+          saved: saved.resources.maxActiveProcesses,
+          restartTarget: "daemon",
+          active: active?.resources.maxActiveProcesses.activeValue,
+        }),
+        maxActiveExploreAgents: leaf({
+          selected: maxActiveExploreAgents,
+          saved: saved.resources.maxActiveExploreAgents,
+          restartTarget: "daemon",
+          active: active?.resources.maxActiveExploreAgents.activeValue,
+        }),
+      },
       electron: {
         ozonePlatform: leaf({
           selected: ozonePlatform,
@@ -433,6 +542,25 @@ export function resolveApplicationConfiguration(
         env.HTTPS_PROXY ?? env.https_proxy ?? env.HTTP_PROXY ?? env.http_proxy,
       ),
       proxyDebugEnabled: env.NERVE_DEBUG_PROXY === "1",
+      resources: {
+        detected: resourceRecommendation.detected,
+        recommended: resourceRecommendation.limits,
+        effective: {
+          maxConcurrentModelRuns:
+            active?.resources.maxConcurrentModelRuns.activeValue ??
+            maxConcurrentModelRuns.value,
+          maxParallelToolsPerRun:
+            active?.resources.maxParallelToolsPerRun.activeValue ??
+            maxParallelToolsPerRun.value,
+          maxActiveProcesses:
+            active?.resources.maxActiveProcesses.activeValue ??
+            maxActiveProcesses.value,
+          maxActiveExploreAgents:
+            active?.resources.maxActiveExploreAgents.activeValue ??
+            maxActiveExploreAgents.value,
+        },
+        controlWorkConcurrency: resourceRecommendation.controlWorkConcurrency,
+      },
     },
   };
 
@@ -450,6 +578,13 @@ export function resolveApplicationConfiguration(
       maxOldSpaceMb: maxOldSpaceMb.value,
       ozonePlatform: ozonePlatform.value,
       fontRenderHinting: fontRenderHinting.value,
+      resources: {
+        maxConcurrentModelRuns: maxConcurrentModelRuns.value,
+        maxParallelToolsPerRun: maxParallelToolsPerRun.value,
+        maxActiveProcesses: maxActiveProcesses.value,
+        maxActiveExploreAgents: maxActiveExploreAgents.value,
+      },
+      controlWorkConcurrency: resourceRecommendation.controlWorkConcurrency,
     },
   };
 }
@@ -490,6 +625,23 @@ export function assertApplicationConfigurationEditable(
     [
       patch.application?.daemon?.maxOldSpaceMb,
       snapshot.application.daemon.maxOldSpaceMb,
+    ],
+    [patch.application?.resources?.mode, snapshot.application.resources.mode],
+    [
+      patch.application?.resources?.maxConcurrentModelRuns,
+      snapshot.application.resources.maxConcurrentModelRuns,
+    ],
+    [
+      patch.application?.resources?.maxParallelToolsPerRun,
+      snapshot.application.resources.maxParallelToolsPerRun,
+    ],
+    [
+      patch.application?.resources?.maxActiveProcesses,
+      snapshot.application.resources.maxActiveProcesses,
+    ],
+    [
+      patch.application?.resources?.maxActiveExploreAgents,
+      snapshot.application.resources.maxActiveExploreAgents,
     ],
     [
       patch.application?.electron?.ozonePlatform,

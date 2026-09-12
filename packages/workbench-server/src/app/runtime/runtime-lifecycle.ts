@@ -1,4 +1,5 @@
 import type { Message } from "@earendil-works/pi-ai";
+import type { ResourceLimits } from "@nervekit/contracts/settings";
 import type { AuthManager } from "../../domains/auth/index.js";
 import type { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/agent-browser-skills.js";
 import type { ProviderCatalogStore } from "../../domains/providers/index.js";
@@ -54,6 +55,7 @@ export class RuntimeLifecycle {
     agentBrowserSkills: AgentBrowserSkillCatalog,
     providerCatalog: ProviderCatalogStore,
     performanceDiagnostics: PerformanceDiagnosticsPort,
+    resources: ResourceLimits & { controlWorkConcurrency: number },
   ): { lifecycle: RuntimeLifecycle; services: RuntimeServices } {
     const lifecycle = new RuntimeLifecycle(
       storage,
@@ -66,6 +68,7 @@ export class RuntimeLifecycle {
       agentBrowserSkills,
       providerCatalog,
       performanceDiagnostics,
+      resources,
     );
     return { lifecycle, services: lifecycle.services };
   }
@@ -81,6 +84,7 @@ export class RuntimeLifecycle {
     agentBrowserSkills: AgentBrowserSkillCatalog,
     providerCatalog: ProviderCatalogStore,
     performanceDiagnostics: PerformanceDiagnosticsPort,
+    resources: ResourceLimits & { controlWorkConcurrency: number },
   ) {
     this.services = createRuntimeServices(this.state, {
       storage,
@@ -93,6 +97,7 @@ export class RuntimeLifecycle {
       logger,
       agentBrowserSkills,
       performanceDiagnostics,
+      resources,
     });
     this.hydrator = new RuntimeHydrator({
       withUpdatesDeferred: (operation) =>
@@ -121,8 +126,7 @@ export class RuntimeLifecycle {
         await this.services.runRuntime.coordinator.recover();
       },
       recoverHumanInput: async () => {
-        await this.services.humanInput.recoverReadyApprovalBatches();
-        await this.services.humanInput.recoverAcceptedPlanReviews();
+        await this.services.runReconciliation.reconcileStartup();
       },
       rebuildProjector: async () => {
         const activeStates =
@@ -163,11 +167,13 @@ export class RuntimeLifecycle {
    */
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
+    this.services.lifecycleDispatcher.stopPolling();
     this.services.gitRepositoryWatcher.close();
     this.services.projectFilesystemWatcher.close();
     await this.services.tasks.shutdown();
     this.services.taskNotifications.stop();
     await Promise.allSettled([...this.backgroundOperations]);
+    await this.services.lifecycleDispatcher.settled();
     await this.services.runRuntime.coordinator.settled();
     await this.services.runRuntime.delivery.settled();
     await this.events.settled();
@@ -188,7 +194,11 @@ export class RuntimeLifecycle {
   ): Promise<RuntimeHydrationTimings> {
     reportStage?.("recovering-conversation-deletions");
     await this.services.conversationLifecycle.recoverDeletions();
-    return this.hydrator.hydrate(reportStage);
+    const timings = await this.hydrator.hydrate(reportStage);
+    // Provider and tool work can be arbitrarily long-running. Start its drain
+    // only after canonical hydration, and never gate daemon readiness on it.
+    this.services.lifecycleDispatcher.start();
+    return timings;
   }
   async refreshRuntimeCapabilities(): Promise<void> {
     if (this.shuttingDown) return;

@@ -128,4 +128,6 @@ export interface AgentHarnessOptions<
   activeToolNames?: string[];
   steeringMode?: QueueMode;
   followUpMode?: QueueMode;
+  /** Maximum allowed executions in one parallel tool batch. */
+  maxParallelToolCalls?: number;
 }

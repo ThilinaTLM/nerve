@@ -13,6 +13,7 @@ Root `docs/` is for maintainers working across package boundaries. Public produc
 
 ## Active proposals
 
+- [Unified conversation timeline](proposals/unified-conversation-timeline/README.md) — decision overview and focused contracts for canonical history, execution, permissions, projections, durable recovery, and cutover.
 - [Permission rule sets](proposals/permission-rule-sets.md) — implemented permission architecture and rule-set-scoped overlay model.
 
 ## Maintainer runbooks

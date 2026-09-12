@@ -15,6 +15,7 @@ import {
 } from "@nervekit/tools/execution";
 import { type PermissionRootPaths } from "@nervekit/tools/policy";
 import { type AgentRecord } from "@nervekit/contracts/agents";
+import type { ConversationJournalEvent } from "@nervekit/contracts/conversations";
 import {
   type ApprovalRecord,
   type ExploreReportSummaryPayload,
@@ -271,7 +272,8 @@ export class ToolService {
       events: this.dependencies.events,
       getToolCall: (id) => this.getToolCall(id),
       listToolCalls: () => this.listToolCalls(),
-      updateToolCall: (id, patch) => this.updateToolCall(id, patch),
+      updateToolCall: (id, patch, commit) =>
+        this.updateToolCall(id, patch, commit),
       publishToolCallUpdated: (toolCall) =>
         this.publishToolCallUpdated(toolCall),
     });
@@ -360,6 +362,16 @@ export class ToolService {
   /** Whether the tool-call records were loaded from the persisted snapshot. */
   get toolCallHydrationSource(): "canonical_projection" {
     return this.dependencies.toolCallRepository.hydrationSource;
+  }
+
+  listApprovalHistoryIncludingNonActionable(
+    status?: ApprovalRecord["status"],
+  ): ApprovalRecord[] {
+    return projectApprovals(
+      this.dependencies.toolCallRepository.listInteractionRecords(),
+      () => true,
+      status,
+    );
   }
 
   listApprovals(status?: ApprovalRecord["status"]): ApprovalRecord[] {
@@ -791,6 +803,10 @@ export class ToolService {
       | "always_conversation"
       | "always_project"
       | "always_user",
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<ApprovalRecord> {
     const approval = this.listApprovals().find(
       (candidate) => candidate.id === approvalId,
@@ -812,24 +828,28 @@ export class ToolService {
           }
         : interaction,
     );
-    const updated = await this.updateToolCall(current.id, {
-      interactions,
-      status: decision === "allow" ? "committed" : "denied",
-      supervision: current.supervision
-        ? {
-            ...current.supervision,
-            status: decision === "allow" ? "approved" : "denied",
-            source: "user",
-            decidedAt: resolvedAt,
-          }
-        : undefined,
-      ...(decision === "deny"
-        ? {
-            error: note ?? "Denied by user.",
-            ...denialProjection(current, note ?? "Denied by user.", "user"),
-          }
-        : {}),
-    });
+    const updated = await this.updateToolCall(
+      current.id,
+      {
+        interactions,
+        status: decision === "allow" ? "committed" : "denied",
+        supervision: current.supervision
+          ? {
+              ...current.supervision,
+              status: decision === "allow" ? "approved" : "denied",
+              source: "user",
+              decidedAt: resolvedAt,
+            }
+          : undefined,
+        ...(decision === "deny"
+          ? {
+              error: note ?? "Denied by user.",
+              ...denialProjection(current, note ?? "Denied by user.", "user"),
+            }
+          : {}),
+      },
+      commit,
+    );
     const decided = projectApproval(updated, ordinal);
     return decided;
   }
@@ -864,6 +884,10 @@ export class ToolService {
 
   async resolveInteraction(
     request: ResolveToolInteractionRequest,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<ToolCallRecord> {
     const current = this.getToolCall(request.toolCallId);
     const interaction = current.interactions[request.interactionOrdinal];
@@ -902,28 +926,32 @@ export class ToolService {
       request.resolution.kind === "approval"
         ? request.resolution.note
         : undefined;
-    const next = await this.updateToolCall(current.id, {
-      interactions,
-      status: denied ? "denied" : "running",
-      ...(denied
-        ? {
-            error: denialNote ?? "Denied by user.",
-            supervision: current.supervision
-              ? {
-                  ...current.supervision,
-                  status: "denied" as const,
-                  source: "user" as const,
-                  decidedAt: now,
-                }
-              : undefined,
-            ...denialProjection(
-              current,
-              denialNote ?? "Denied by user.",
-              "user",
-            ),
-          }
-        : {}),
-    });
+    const next = await this.updateToolCall(
+      current.id,
+      {
+        interactions,
+        status: denied ? "denied" : "running",
+        ...(denied
+          ? {
+              error: denialNote ?? "Denied by user.",
+              supervision: current.supervision
+                ? {
+                    ...current.supervision,
+                    status: "denied" as const,
+                    source: "user" as const,
+                    decidedAt: now,
+                  }
+                : undefined,
+              ...denialProjection(
+                current,
+                denialNote ?? "Denied by user.",
+                "user",
+              ),
+            }
+          : {}),
+      },
+      commit,
+    );
     await this.publishToolCallUpdated(next);
     return next;
   }
@@ -932,11 +960,16 @@ export class ToolService {
     questionId: string,
     answer: string,
     resolutionRequestId?: string,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<UserQuestionRecord> {
     return this.interactionSessions.answerUserQuestion(
       questionId,
       answer,
       resolutionRequestId,
+      commit,
     );
   }
 
@@ -944,11 +977,16 @@ export class ToolService {
     questionId: string,
     reason?: string,
     resolutionRequestId?: string,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<UserQuestionRecord> {
     return this.interactionSessions.dismissUserQuestion(
       questionId,
       reason,
       resolutionRequestId,
+      commit,
     );
   }
 
@@ -1146,15 +1184,28 @@ export class ToolService {
   private async updateToolCall(
     toolCallId: string,
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<ToolCallRecord> {
     const current = this.getToolCall(toolCallId);
-    return this.updateToolCallAtRevision(toolCallId, current.revision, patch);
+    return this.updateToolCallAtRevision(
+      toolCallId,
+      current.revision,
+      patch,
+      commit,
+    );
   }
 
   private async updateToolCallAtRevision(
     toolCallId: string,
     expectedRevision: number,
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
   ): Promise<ToolCallRecord> {
     const current = this.getToolCall(toolCallId);
     if (current.revision !== expectedRevision) {
@@ -1172,48 +1223,56 @@ export class ToolService {
     const terminal =
       patch.status &&
       ["completed", "denied", "failed", "cancelled"].includes(patch.status);
-    const next = await this.dependencies.toolCallRepository.replace(
-      toolCallId,
-      expectedRevision,
-      (record) => {
-        const candidate: ToolCallRecord = {
-          ...record,
-          ...patch,
-          ...(patch.status ? { phase: phaseForStatus(patch.status) } : {}),
-          ...(patch.status === "running" && record.status !== "running"
-            ? { attempt: record.attempt + 1 }
-            : {}),
-          ...(terminal ? { settledAt: updatedAt } : {}),
-          ...(terminal && record.execution
-            ? {
-                execution: {
-                  ...record.execution,
-                  status:
-                    patch.status === "completed"
-                      ? ("completed" as const)
-                      : patch.status === "cancelled"
-                        ? ("cancelled" as const)
-                        : patch.status === "failed" || patch.status === "denied"
-                          ? ("failed" as const)
-                          : ("interrupted" as const),
-                  endedAt: updatedAt,
-                },
-              }
-            : {}),
-          updatedAt,
-        };
-        if (
-          Object.hasOwn(patch, "result") &&
-          !Object.hasOwn(patch, "resultPreview")
-        ) {
-          candidate.resultPreview = toToolCallTranscriptRecord({
-            ...candidate,
-            resultPreview: undefined,
-          }).resultPreview;
-        }
-        return candidate;
-      },
-    );
+    const mutate = (record: ToolCallRecord): ToolCallRecord => {
+      const candidate: ToolCallRecord = {
+        ...record,
+        ...patch,
+        ...(patch.status ? { phase: phaseForStatus(patch.status) } : {}),
+        ...(patch.status === "running" && record.status !== "running"
+          ? { attempt: record.attempt + 1 }
+          : {}),
+        ...(terminal ? { settledAt: updatedAt } : {}),
+        ...(terminal && record.execution
+          ? {
+              execution: {
+                ...record.execution,
+                status:
+                  patch.status === "completed"
+                    ? ("completed" as const)
+                    : patch.status === "cancelled"
+                      ? ("cancelled" as const)
+                      : patch.status === "failed" || patch.status === "denied"
+                        ? ("failed" as const)
+                        : ("interrupted" as const),
+                endedAt: updatedAt,
+              },
+            }
+          : {}),
+        updatedAt,
+      };
+      if (
+        Object.hasOwn(patch, "result") &&
+        !Object.hasOwn(patch, "resultPreview")
+      ) {
+        candidate.resultPreview = toToolCallTranscriptRecord({
+          ...candidate,
+          resultPreview: undefined,
+        }).resultPreview;
+      }
+      return candidate;
+    };
+    const next = commit
+      ? await this.dependencies.toolCallRepository.replaceWithCommit(
+          toolCallId,
+          expectedRevision,
+          mutate,
+          commit,
+        )
+      : await this.dependencies.toolCallRepository.replace(
+          toolCallId,
+          expectedRevision,
+          mutate,
+        );
     if (isTerminalToolCall(next)) this.notifyWaiters(next);
     return next;
   }

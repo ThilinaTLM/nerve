@@ -70,6 +70,13 @@ export const conversationMethodHandlers: WorkbenchMethodHandlerMapFor<Conversati
         params,
       ),
     }),
+    "conversation.reconcile": async (state, params) => {
+      state.conversationLifecycle.getConversation(params.conversationId);
+      return state.runReconciliation.reconcileConversation(
+        params.conversationId,
+        params.requestId,
+      );
+    },
     "conversation.compact": (state, params) =>
       state.compactionService.compactConversation(
         params.conversationId,

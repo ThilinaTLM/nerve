@@ -1,4 +1,5 @@
 import { contextUsageSchema } from "../models/models.js";
+import { recoveryIssueSchema } from "../runs/run-lifecycle.js";
 import {
   compactConversationRequestSchema,
   conversationEntrySchema,
@@ -17,6 +18,21 @@ const okResultSchema = z.object({ ok: z.literal(true) });
 const conversationIdSchema = z.string().startsWith("conv_");
 const conversationIdParamsSchema = z.object({
   conversationId: conversationIdSchema,
+});
+export const reconcileConversationParamsSchema =
+  conversationIdParamsSchema.extend({
+    requestId: z.string().min(1).max(256),
+  });
+export const reconcileConversationResultSchema = z.object({
+  operationId: z.string().startsWith("reconcile_"),
+  status: z.enum(["completed", "in_progress"]),
+  changed: z.boolean(),
+  observedRevision: z.number().int().nonnegative().safe(),
+  preservedInputs: z.number().int().nonnegative().safe(),
+  repairedTransitions: z.number().int().nonnegative().safe(),
+  requeuedWork: z.number().int().nonnegative().safe(),
+  unknownOutcomes: z.number().int().nonnegative().safe(),
+  recoveryIssues: z.array(recoveryIssueSchema),
 });
 const conversationNavigateParamsSchema = conversationIdParamsSchema.merge(
   navigateConversationRequestSchema,
@@ -121,6 +137,15 @@ export const conversationsOperationDefinitions = [
     "operation.conversation.navigate",
   ),
   defineOperation(
+    "conversation.reconcile",
+    reconcileConversationParamsSchema,
+    reconcileConversationResultSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.conversation.reconcile",
+  ),
+  defineOperation(
     "conversation.compact",
     conversationCompactParamsSchema,
     z.object({
@@ -142,3 +167,10 @@ export const conversationsOperationDefinitions = [
     "operation.conversation.compaction.cancel",
   ),
 ] as const;
+
+export type ReconcileConversationParams = z.infer<
+  typeof reconcileConversationParamsSchema
+>;
+export type ReconcileConversationResult = z.infer<
+  typeof reconcileConversationResultSchema
+>;

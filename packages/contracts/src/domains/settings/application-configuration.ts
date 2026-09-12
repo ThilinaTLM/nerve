@@ -2,6 +2,49 @@ import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/logs.js";
 
 export const MIN_DAEMON_MAX_OLD_SPACE_MB = 512;
+export const MAX_CONCURRENT_MODEL_RUNS = 32;
+export const MAX_PARALLEL_TOOLS_PER_RUN = 16;
+export const MAX_ACTIVE_PROCESSES = 256;
+export const MAX_ACTIVE_EXPLORE_AGENTS = 32;
+
+export const resourcePolicyModeSchema = z.enum(["automatic", "manual"]);
+export type ResourcePolicyMode = z.infer<typeof resourcePolicyModeSchema>;
+
+export const resourceLimitsSchema = z.object({
+  maxConcurrentModelRuns: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_CONCURRENT_MODEL_RUNS),
+  maxParallelToolsPerRun: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PARALLEL_TOOLS_PER_RUN),
+  maxActiveProcesses: z.number().int().min(1).max(MAX_ACTIVE_PROCESSES),
+  maxActiveExploreAgents: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_ACTIVE_EXPLORE_AGENTS),
+});
+export type ResourceLimits = z.infer<typeof resourceLimitsSchema>;
+
+export const detectedResourceCapacitySchema = z.object({
+  logicalCpuCount: z.number().int().positive(),
+  effectiveCpuCount: z.number().int().positive(),
+  totalMemoryMb: z.number().int().positive(),
+});
+export type DetectedResourceCapacity = z.infer<
+  typeof detectedResourceCapacitySchema
+>;
+
+export const DEFAULT_RESOURCE_LIMITS: ResourceLimits = {
+  maxConcurrentModelRuns: 10,
+  maxParallelToolsPerRun: 3,
+  maxActiveProcesses: 16,
+  maxActiveExploreAgents: 5,
+};
 
 export const electronOzonePlatformSchema = z.enum(["auto", "x11", "wayland"]);
 export type ElectronOzonePlatform = z.infer<typeof electronOzonePlatformSchema>;
@@ -33,6 +76,12 @@ export const applicationSettingsSchema = z.object({
     startupTimeoutMs: z.number().int().positive().default(60_000),
     maxOldSpaceMb: z.number().int().positive().default(4096),
   }),
+  resources: z
+    .object({
+      mode: resourcePolicyModeSchema.default("automatic"),
+      ...resourceLimitsSchema.shape,
+    })
+    .default({ mode: "automatic", ...DEFAULT_RESOURCE_LIMITS }),
   electron: z.object({
     ozonePlatform: electronOzonePlatformSchema.default("auto"),
     fontRenderHinting: electronFontRenderHintingSchema.default("slight"),
@@ -50,6 +99,7 @@ export const defaultApplicationSettings: ApplicationSettings = {
   },
   diagnostics: { loggingEnabled: false },
   daemon: { startupTimeoutMs: 60_000, maxOldSpaceMb: 4096 },
+  resources: { mode: "automatic", ...DEFAULT_RESOURCE_LIMITS },
   electron: { ozonePlatform: "auto", fontRenderHinting: "slight" },
 };
 
@@ -77,6 +127,19 @@ export const applicationSettingsPatchSchema = z.object({
         .int()
         .min(MIN_DAEMON_MAX_OLD_SPACE_MB)
         .optional(),
+    })
+    .optional(),
+  resources: z
+    .object({
+      mode: resourcePolicyModeSchema.optional(),
+      maxConcurrentModelRuns:
+        resourceLimitsSchema.shape.maxConcurrentModelRuns.optional(),
+      maxParallelToolsPerRun:
+        resourceLimitsSchema.shape.maxParallelToolsPerRun.optional(),
+      maxActiveProcesses:
+        resourceLimitsSchema.shape.maxActiveProcesses.optional(),
+      maxActiveExploreAgents:
+        resourceLimitsSchema.shape.maxActiveExploreAgents.optional(),
     })
     .optional(),
   electron: z
@@ -110,6 +173,7 @@ export const configurationSourceSchema = z.object({
     "environment",
     "command_line",
     "development_default",
+    "automatic",
   ]),
   name: z.string().optional(),
 });
@@ -153,6 +217,13 @@ export const applicationConfigurationSnapshotSchema = z.object({
       startupTimeoutMs: resolvedNumberSettingSchema,
       maxOldSpaceMb: resolvedNumberSettingSchema,
     }),
+    resources: z.object({
+      mode: resolvedSettingSchema(resourcePolicyModeSchema),
+      maxConcurrentModelRuns: resolvedNumberSettingSchema,
+      maxParallelToolsPerRun: resolvedNumberSettingSchema,
+      maxActiveProcesses: resolvedNumberSettingSchema,
+      maxActiveExploreAgents: resolvedNumberSettingSchema,
+    }),
     electron: z.object({
       ozonePlatform: resolvedSettingSchema(electronOzonePlatformSchema),
       fontRenderHinting: resolvedSettingSchema(electronFontRenderHintingSchema),
@@ -166,6 +237,12 @@ export const applicationConfigurationSnapshotSchema = z.object({
     webAssetsOverridden: z.boolean(),
     proxyConfigured: z.boolean(),
     proxyDebugEnabled: z.boolean(),
+    resources: z.object({
+      detected: detectedResourceCapacitySchema,
+      recommended: resourceLimitsSchema,
+      effective: resourceLimitsSchema,
+      controlWorkConcurrency: z.number().int().positive(),
+    }),
   }),
 });
 export type ApplicationConfigurationSnapshot = z.infer<

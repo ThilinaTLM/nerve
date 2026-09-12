@@ -87,6 +87,8 @@ import {
 import { WorkbenchAgentExecutionAdapter } from "../../domains/runs/adapters/workbench-agent-execution.js";
 import { WorkbenchRunService } from "../../domains/runs/application/workbench-run.service.js";
 import { WorkbenchRunQuery } from "../../domains/runs/application/workbench-run-query.js";
+import { RunReconciliationService } from "../../domains/runs/runtime/run-reconciliation.service.js";
+import { reconciliationOperationId } from "../../domains/runs/adapters/reconciliation-operation-id.js";
 import type { SubscriptionUsageService } from "../../domains/usage/subscription-usage-service.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
@@ -102,10 +104,12 @@ import {
   gitReadDiagnostic,
 } from "../runtime/git-logging.js";
 import type { RuntimeState } from "../runtime/runtime-projections.js";
+import { createLifecycleRuntime } from "./create-lifecycle-runtime.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
 } from "../../domains/conversations/append-entry-contracts.js";
+import type { ResourceLimits } from "@nervekit/contracts/settings";
 
 export interface RuntimeDeps {
   storage: InitializedStorage;
@@ -118,56 +122,12 @@ export interface RuntimeDeps {
   logger: ApplicationLogger;
   agentBrowserSkills: AgentBrowserSkillCatalog;
   performanceDiagnostics: PerformanceDiagnosticsPort;
+  resources: ResourceLimits & { controlWorkConcurrency: number };
 }
 
-export interface RuntimeServices {
-  maintenanceScopes: RuntimeState["maintenanceScopes"];
-  tasks: WorkbenchTaskService;
-  taskNotifications: TaskNotificationService;
-  pythonRuntime: PythonRuntimeService;
-  plans: PlanService;
-  tools: ToolService;
-  toolInteractions: ToolInteractionResolutionService;
-  permissionExceptions: PermissionExceptionService;
-  permissionPolicy: PermissionPolicyService;
-  capabilities: CapabilityService;
-  git: GitService;
-  gitRepositoryWatcher: GitRepositoryWatcher;
-  projectFilesystemWatcher: ProjectFilesystemWatcher;
-  fileCompletions: FileCompletionService;
-  promptSuggestions: PromptSuggestionService;
-  taskDefinitions: TaskDefinitionService;
-  taskDefinitionOperations: TaskDefinitionOperations;
-  scratchNotes: ScratchNoteService;
-  harnessStorage: ConversationHarnessStorage;
-  conversationService: ConversationService;
-  compactionService: CompactionService;
-  navigationService: NavigationService;
-  exportService: ExportService;
-  importService: ImportService;
-  messageMirror: MessageMirror;
-  agentMechanics: WorkbenchAgentMechanics;
-  runRuntime: WorkbenchRunRuntime;
-  runQuery: WorkbenchRunQuery;
-  workbenchRun: WorkbenchRunService;
-  editors: ProjectEditorService;
-  terminal: ProjectTerminalService;
-  projectIcons: ProjectIconService;
-  projectLifecycle: ProjectLifecycleService;
-  conversationLifecycle: ConversationLifecycleService;
-  conversationQuery: ConversationQueryService;
-  agentLifecycle: AgentLifecycleService;
-  subagentTranscriptLive: SubagentTranscriptLiveService;
-  subagentTranscripts: SubagentTranscriptService;
-  humanInput: HumanInputResolutionService;
-  pruneConversations: PruneProjectConversationsService;
-  conversationJournal: ConversationJournalRepository;
-}
+export type RuntimeServices = ReturnType<typeof createRuntimeServices>;
 
-export function createRuntimeServices(
-  state: RuntimeState,
-  deps: RuntimeDeps,
-): RuntimeServices {
+export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
   const {
     storage,
     events,
@@ -179,13 +139,12 @@ export function createRuntimeServices(
     logger,
     performanceDiagnostics,
   } = deps;
-  const maintenanceScopes: RuntimeState["maintenanceScopes"] =
-    state.maintenanceScopes;
+  const maintenanceScopes = state.maintenanceScopes;
   const subagentExecutions = new WorkbenchSubagentExecutions();
-  const exploreAdmission = new WorkbenchExploreAdmission();
+  const exploreAdmission = new WorkbenchExploreAdmission(
+    deps.resources.maxActiveExploreAgents,
+  );
 
-  // Lifecycle callbacks are deferred until construction completes; they bridge
-  // genuine service cycles without exposing a partially initialized service graph.
   const getProject = (projectId: string) =>
     projectLifecycle.getProject(projectId);
   const listProjects = () => projectLifecycle.listProjects();
@@ -199,7 +158,8 @@ export function createRuntimeServices(
   ) => projectLifecycle.createProject(request);
   const createConversation = (
     request: Parameters<ConversationLifecycleService["createConversation"]>[0],
-  ) => conversationLifecycle.createConversation(request);
+    options?: Parameters<ConversationLifecycleService["createConversation"]>[1],
+  ) => conversationLifecycle.createConversation(request, options);
   const createAgent = (
     request: Parameters<AgentLifecycleService["createAgent"]>[0],
     options?: Parameters<AgentLifecycleService["createAgent"]>[1],
@@ -597,8 +557,7 @@ export function createRuntimeServices(
       resultPayloads,
     ),
   });
-  const subagentTranscriptLive: SubagentTranscriptLiveService =
-    new SubagentTranscriptLiveService(events);
+  const subagentTranscriptLive = new SubagentTranscriptLiveService(events);
   const subagentTranscripts: SubagentTranscriptService =
     new SubagentTranscriptService({
       storage,
@@ -633,12 +592,14 @@ export function createRuntimeServices(
     subagentTranscriptLive: subagentTranscriptLive,
     exploreAdmission,
     subagentExecutions,
+    maxParallelToolsPerRun: deps.resources.maxParallelToolsPerRun,
     customModels: (projectDir) =>
       providerCatalog.resolvedModelsWithCredentials(
         (name) => secrets.get(name),
         projectDir,
       ),
   });
+  let wakeLifecycleWork = async (): Promise<void> => undefined;
   const runRuntime: WorkbenchRunRuntime = createWorkbenchRunRuntime({
     home: storage.paths.home,
     journal: conversationJournal,
@@ -651,6 +612,8 @@ export function createRuntimeServices(
     exploreAdmission,
     execution: (references) =>
       new WorkbenchAgentExecutionAdapter(agentMechanics, references),
+    wakeLifecycleWork: () => wakeLifecycleWork(),
+    durableContinuation: true,
     retryPolicy: {
       get enabled() {
         return storage.settings.retry.enabled;
@@ -677,6 +640,8 @@ export function createRuntimeServices(
         agentMechanics.getContextUsage(conversationId),
       getConversationEntries: (conversationId) =>
         conversationLifecycle.ensureConversationEntries(conversationId),
+      resolveRecoveryIssuesForRun: (runId) =>
+        storage.canonicalStore.resolveRecoveryIssuesForRun(runId),
       runExplore: (parent, args, options) =>
         agentMechanics.runExplore(parent, args, options),
     },
@@ -696,42 +661,74 @@ export function createRuntimeServices(
       logger: logger.child({ component: "task-notification" }),
     });
   taskNotifications.start();
-  const humanInput: HumanInputResolutionService =
-    new HumanInputResolutionService({
-      tools: tools,
-      plans: plans,
-      runs: workbenchRun,
-      continueAgent: (agentId) => workbenchRun.continueAgent(agentId),
-      createConversation,
-      createAgent,
-      getAgent,
-      configureAgent: (agentId, request) =>
-        agentLifecycle.configureAgent(agentId, request),
-      setAgentStatus: (agent, status) =>
-        agentLifecycle.setAgentStatus(agent, status),
-      appendEntry,
-      getConversationEntries: (conversationId) =>
-        conversationLifecycle.ensureConversationEntries(conversationId),
-      harnessStorage: harnessStorage,
-      logger: logger.child({ component: "human-input" }),
-      compactPlanConversation: async (input) => {
-        await compactionService.compactConversation(
-          input.conversationId,
-          { keepRecentTokens: 1 },
-          {
-            reason: "manual",
-            agentId: input.agentId,
-            runId: input.runId,
-            keepRecentTokens: 1,
-            summaryReserveTokens: 4_000,
-            summaryProfile: {
-              kind: "plan-implementation",
-              planPath: input.planPath,
-            },
+  const {
+    dispatcher: lifecycleDispatcher,
+    lifecycle,
+    bootId: lifecycleBootId,
+  } = createLifecycleRuntime({
+    store: storage.canonicalStore,
+    journal: conversationJournal,
+    tools,
+    humanInput: () => humanInput,
+    continueModel: async (work) => {
+      await runRuntime.coordinator.executeModelWork(work);
+    },
+    logger,
+    concurrency: {
+      model: deps.resources.maxConcurrentModelRuns,
+      control: deps.resources.controlWorkConcurrency,
+    },
+  });
+  wakeLifecycleWork = () => lifecycleDispatcher.wake();
+  const humanInput = new HumanInputResolutionService({
+    tools: tools,
+    plans: plans,
+    runs: workbenchRun,
+    continueAgent: (agentId) => workbenchRun.continueAgent(agentId),
+    createConversation,
+    createAgent,
+    getAgent,
+    configureAgent: (agentId, request) =>
+      agentLifecycle.configureAgent(agentId, request),
+    setAgentStatus: (agent, status) =>
+      agentLifecycle.setAgentStatus(agent, status),
+    appendEntry,
+    getConversationEntries: (conversationId) =>
+      conversationLifecycle.ensureConversationEntries(conversationId),
+    harnessStorage: harnessStorage,
+    logger: logger.child({ component: "human-input" }),
+    lifecycle,
+    compactPlanConversation: async (input) => {
+      await compactionService.compactConversation(
+        input.conversationId,
+        { keepRecentTokens: 1 },
+        {
+          reason: "manual",
+          agentId: input.agentId,
+          runId: input.runId,
+          keepRecentTokens: 1,
+          summaryReserveTokens: 4_000,
+          summaryProfile: {
+            kind: "plan-implementation",
+            planPath: input.planPath,
           },
-        );
-      },
-    });
+        },
+      );
+    },
+  });
+  const runReconciliation = new RunReconciliationService({
+    humanInput,
+    tools,
+    runs: {
+      getRunStatus: async (runId) =>
+        (await runRuntime.unitOfWork.load(runId))?.run.status,
+    },
+    conversationQuery,
+    operations: storage.canonicalStore,
+    work: storage.canonicalStore,
+    operationId: reconciliationOperationId,
+    currentLeaseOwner: lifecycleBootId,
+  });
   const toolInteractions: ToolInteractionResolutionService =
     new ToolInteractionResolutionService(
       tools,
@@ -794,6 +791,9 @@ export function createRuntimeServices(
     subagentTranscriptLive,
     subagentTranscripts,
     humanInput,
+    lifecycle,
+    lifecycleDispatcher,
+    runReconciliation,
     pruneConversations,
     conversationJournal,
   };

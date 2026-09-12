@@ -13,6 +13,11 @@ function resolve(env: NodeJS.ProcessEnv = {}, argv: string[] = []) {
     argv,
     dataDir: "/data/nerve",
     platform: "linux",
+    hostResources: {
+      logicalCpuCount: 20,
+      effectiveCpuCount: 4,
+      totalMemoryBytes: 38.8 * 1024 ** 3,
+    },
   });
 }
 
@@ -134,6 +139,82 @@ describe("application configuration resolution", () => {
     assert.equal(
       refreshed.snapshot.application.network.port.pendingRestart,
       true,
+    );
+  });
+
+  it("automatically recommends resource limits from host capacity", () => {
+    const result = resolve();
+    assert.deepEqual(result.values.resources, {
+      maxConcurrentModelRuns: 10,
+      maxParallelToolsPerRun: 3,
+      maxActiveProcesses: 16,
+      maxActiveExploreAgents: 5,
+    });
+    assert.equal(result.values.controlWorkConcurrency, 4);
+    assert.equal(
+      result.snapshot.application.resources.maxConcurrentModelRuns.source.kind,
+      "automatic",
+    );
+    assert.deepEqual(
+      result.snapshot.context.resources.effective,
+      result.values.resources,
+    );
+  });
+
+  it("uses saved manual resource limits and environment overrides", () => {
+    const settings = structuredClone(defaultSettings);
+    settings.application.resources = {
+      mode: "manual",
+      maxConcurrentModelRuns: 12,
+      maxParallelToolsPerRun: 4,
+      maxActiveProcesses: 24,
+      maxActiveExploreAgents: 6,
+    };
+    const manual = resolveApplicationConfiguration({
+      settings,
+      env: {},
+      argv: [],
+      dataDir: "/data/nerve",
+      hostResources: {
+        logicalCpuCount: 20,
+        effectiveCpuCount: 4,
+        totalMemoryBytes: 38.8 * 1024 ** 3,
+      },
+    });
+    assert.deepEqual(manual.values.resources, {
+      maxConcurrentModelRuns: 12,
+      maxParallelToolsPerRun: 4,
+      maxActiveProcesses: 24,
+      maxActiveExploreAgents: 6,
+    });
+
+    const overridden = resolve({
+      NERVE_MAX_CONCURRENT_MODEL_RUNS: "14",
+      NERVE_MAX_ACTIVE_PROCESSES: "32",
+    });
+    assert.equal(overridden.values.resources.maxConcurrentModelRuns, 14);
+    assert.equal(overridden.values.resources.maxActiveProcesses, 32);
+    assert.equal(
+      overridden.snapshot.application.resources.maxConcurrentModelRuns.editable,
+      false,
+    );
+    assert.throws(
+      () =>
+        assertApplicationConfigurationEditable(overridden.snapshot, {
+          application: { resources: { maxConcurrentModelRuns: 11 } },
+        }),
+      /NERVE_MAX_CONCURRENT_MODEL_RUNS/,
+    );
+  });
+
+  it("rejects invalid resource environment limits", () => {
+    assert.throws(
+      () => resolve({ NERVE_MAX_PARALLEL_TOOLS_PER_RUN: "17" }),
+      /NERVE_MAX_PARALLEL_TOOLS_PER_RUN/,
+    );
+    assert.throws(
+      () => resolve({ NERVE_MAX_ACTIVE_EXPLORE_AGENTS: "0" }),
+      /NERVE_MAX_ACTIVE_EXPLORE_AGENTS/,
     );
   });
 

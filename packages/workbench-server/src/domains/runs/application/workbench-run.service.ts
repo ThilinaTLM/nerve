@@ -29,6 +29,7 @@ export interface WorkbenchRunFeatureMechanics {
   activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]>;
   getContextUsage(conversationId: string): Promise<ContextUsage>;
   getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
+  resolveRecoveryIssuesForRun?(runId: string): Promise<unknown>;
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
@@ -173,7 +174,7 @@ export class WorkbenchRunService {
 
   async continueAgent(agentId: string): Promise<void> {
     const state = await this.requireCurrentRun(agentId);
-    await this.coordinator.continue(state.run.runId);
+    await this.coordinator.scheduleContinuation(state.run.runId);
   }
 
   async continueRun(agentId: string, runId: string): Promise<void> {
@@ -184,7 +185,8 @@ export class WorkbenchRunService {
     }
     this.state.maintenanceScopes.assertConversation(agent.conversationId);
     this.state.maintenanceScopes.assertProject(agent.projectId);
-    await this.coordinator.continue(runId);
+    await this.coordinator.scheduleContinuation(runId);
+    await this.features.resolveRecoveryIssuesForRun?.(runId);
   }
 
   async abortRun(input: {
@@ -211,6 +213,7 @@ export class WorkbenchRunService {
       state.run.runId,
       input.reason ?? "user requested abort",
     );
+    await this.features.resolveRecoveryIssuesForRun?.(state.run.runId);
   }
 
   async abortAgent(agentId: string): Promise<void> {
@@ -339,6 +342,50 @@ export class WorkbenchRunService {
     };
   }
 
+  async recoverableApprovalBatchForToolCall(
+    toolCallId: string,
+    runId: string,
+  ): Promise<ApprovalInteractionBatch> {
+    const state = await this.unitOfWork.loadFresh(runId);
+    const target = state?.interactions.find(
+      (interaction) =>
+        interaction.toolCallId === toolCallId &&
+        interaction.kind === "approval" &&
+        interaction.status === "pending",
+    );
+    if (!state || state.run.status !== "waiting" || !target) {
+      throw new ApplicationError(
+        409,
+        "RUN_INTERACTION_NOT_FOUND",
+        "The pending run interaction was not found.",
+      );
+    }
+    const batchToolCallIds = target.batchToolCallIds ?? [target.toolCallId];
+    const interactions = batchToolCallIds.flatMap((memberToolCallId) => {
+      const interaction = state.interactions.find(
+        (candidate) =>
+          candidate.checkpointId === target.checkpointId &&
+          candidate.toolCallId === memberToolCallId &&
+          candidate.kind === "approval" &&
+          candidate.status === "pending",
+      );
+      return interaction ? [interaction] : [];
+    });
+    if (!interactions.some((item) => item.toolCallId === toolCallId)) {
+      throw new ApplicationError(
+        409,
+        "RUN_APPROVAL_BATCH_INVALID",
+        "The pending approval interaction was not found in the run batch.",
+      );
+    }
+    return {
+      runId: state.run.runId,
+      checkpointId: target.checkpointId,
+      batchToolCallIds: interactions.map((item) => item.toolCallId),
+      interactions,
+    };
+  }
+
   async cancelStaleApprovalBatch(
     batch: ApprovalInteractionBatch,
     reason: string,
@@ -363,17 +410,7 @@ export class WorkbenchRunService {
   async assertApprovalBatchContextUnchanged(
     batch: ApprovalInteractionBatch,
   ): Promise<void> {
-    const state = await this.unitOfWork.loadFresh(batch.runId);
-    const checkpoint = state?.checkpoints.find(
-      (candidate) => candidate.checkpointId === batch.checkpointId,
-    );
-    if (!state || !checkpoint || state.run.status !== "waiting") {
-      throw new ApplicationError(
-        409,
-        "RUN_CHECKPOINT_STALE",
-        "The approval checkpoint is no longer active.",
-      );
-    }
+    await this.activeApprovalCheckpoint(batch);
     for (const toolCallId of batch.batchToolCallIds) {
       if (
         !(await this.unitOfWork.hasActionableInteraction(
@@ -388,6 +425,26 @@ export class WorkbenchRunService {
         );
       }
     }
+  }
+
+  async assertApprovalBatchRecoveryContextUnchanged(
+    batch: ApprovalInteractionBatch,
+  ): Promise<void> {
+    await this.activeApprovalCheckpoint(batch);
+  }
+
+  private async activeApprovalCheckpoint(batch: ApprovalInteractionBatch) {
+    const state = await this.unitOfWork.loadFresh(batch.runId);
+    const checkpoint = state?.checkpoints.find(
+      (candidate) => candidate.checkpointId === batch.checkpointId,
+    );
+    if (!state || !checkpoint || state.run.status !== "waiting") {
+      throw new ApplicationError(
+        409,
+        "RUN_CHECKPOINT_STALE",
+        "The approval checkpoint is no longer active.",
+      );
+    }
     const conversation = this.state.getConversation(state.run.conversationId);
     const currentEntryIds = activeBranchEntryIds(
       await this.features.getConversationEntries(conversation.id),
@@ -400,6 +457,7 @@ export class WorkbenchRunService {
         "The conversation changed after this approval was requested. No tool was executed.",
       );
     }
+    return { state, checkpoint };
   }
 
   async resolveInteractionBatchForToolCalls(input: {
@@ -416,34 +474,28 @@ export class WorkbenchRunService {
         "The approval interaction batch is empty.",
       );
     }
-    if (input.toolCalls.length) {
-      await this.coordinator.upsertToolCalls(first.runId, input.toolCalls);
-    }
-    if (input.entries.length) {
-      const state = await this.unitOfWork.load(first.runId);
-      const existingEntryIds = new Set(
-        state?.transitions.flatMap((transition) =>
-          transition.entries.map((entry) => entry.id),
-        ),
-      );
-      const missingEntries = input.entries.filter(
-        (entry) => !existingEntryIds.has(entry.id),
-      );
-      if (missingEntries.length) {
-        await this.coordinator.appendEntries(first.runId, missingEntries);
-      }
-    }
+    const state = await this.unitOfWork.load(first.runId);
+    const existingEntryIds = new Set(
+      state?.transitions.flatMap((transition) =>
+        transition.entries.map((entry) => entry.id),
+      ),
+    );
+    const missingEntries = input.entries.filter(
+      (entry) => !existingEntryIds.has(entry.id),
+    );
     const commands = input.members.map(({ interaction, resolution }) => ({
       interactionId: interaction.id,
       resolutionRequestId: input.resolutionRequestId,
       resolution,
     }));
     if (first.batchToolCallIds) {
-      await this.coordinator.resolveInteractionBatch(first.runId, commands);
+      await this.coordinator.resolveInteractionBatch(first.runId, commands, {
+        entries: missingEntries,
+        toolCalls: [...input.toolCalls],
+      });
     } else {
       await this.coordinator.resolveInteraction(first.runId, commands[0]!);
     }
-    await this.coordinator.continue(first.runId);
   }
 
   async resolveInteractionForToolCall(input: {
@@ -469,16 +521,14 @@ export class WorkbenchRunService {
         "The pending run interaction was not found.",
       );
     }
-    // Commit the resolved tool result and entries before resolving the
-    // interaction. Checkpoint validation for a resolved interaction accepts a
-    // forward-only transcript (see run-checkpoints), so the continue below
-    // resumes from the suspension checkpoint idempotently.
-    if (input.toolCalls?.length) {
-      await this.coordinator.upsertToolCalls(state.run.runId, input.toolCalls);
-    }
-    if (input.entries?.length) {
-      await this.coordinator.appendEntries(state.run.runId, input.entries);
-    }
+    const existingEntryIds = new Set(
+      state.transitions.flatMap((transition) =>
+        transition.entries.map((entry) => entry.id),
+      ),
+    );
+    const entries = (input.entries ?? []).filter(
+      (entry) => !existingEntryIds.has(entry.id),
+    );
     const command = {
       interactionId: interaction.id,
       resolutionRequestId: input.resolutionRequestId,
@@ -488,23 +538,15 @@ export class WorkbenchRunService {
       await this.coordinator.resolveAndCompleteInteraction(
         state.run.runId,
         command,
+        {},
+        { entries, toolCalls: [...(input.toolCalls ?? [])] },
       );
       return;
     }
-    const resolved = await this.coordinator.resolveInteraction(
-      state.run.runId,
-      command,
-    );
-    if (input.continueRun) {
-      const latest = await this.unitOfWork.load(state.run.runId);
-      const hasPendingSibling = latest?.interactions.some(
-        (candidate) =>
-          candidate.id !== resolved.id &&
-          candidate.checkpointId === resolved.checkpointId &&
-          candidate.status === "pending",
-      );
-      if (!hasPendingSibling) await this.coordinator.continue(state.run.runId);
-    }
+    await this.coordinator.resolveInteraction(state.run.runId, command, {
+      entries,
+      toolCalls: [...(input.toolCalls ?? [])],
+    });
   }
 
   getContextUsage(conversationId: string): Promise<ContextUsage> {
@@ -551,17 +593,24 @@ export class WorkbenchRunService {
   }
 }
 
-// Checkpoints contain this run's transcript, while the active branch also
-// contains entries from earlier runs. The run transcript must remain its tail.
+// Checkpoints contain entries committed through the run transition journal.
+// Other durable paths can append entries to the same model transcript between
+// those transitions (for example, a completed tool result). The checkpoint
+// must therefore be an ordered subsequence of the active branch and still own
+// its tip; requiring a contiguous suffix incorrectly marks those runs stale.
 export function activeBranchEndsWithCheckpoint(
   activeBranchEntryIds: readonly string[],
   checkpointEntryIds: readonly string[],
 ): boolean {
-  if (checkpointEntryIds.length > activeBranchEntryIds.length) return false;
-  const offset = activeBranchEntryIds.length - checkpointEntryIds.length;
-  return checkpointEntryIds.every(
-    (entryId, index) => activeBranchEntryIds[offset + index] === entryId,
-  );
+  if (checkpointEntryIds.length === 0 || activeBranchEntryIds.length === 0)
+    return false;
+  if (checkpointEntryIds.at(-1) !== activeBranchEntryIds.at(-1)) return false;
+
+  let checkpointIndex = 0;
+  for (const entryId of activeBranchEntryIds) {
+    if (entryId === checkpointEntryIds[checkpointIndex]) checkpointIndex += 1;
+  }
+  return checkpointIndex === checkpointEntryIds.length;
 }
 
 function activeBranchEntryIds(

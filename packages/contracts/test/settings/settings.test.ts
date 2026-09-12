@@ -12,6 +12,15 @@ describe("settings schema", () => {
     assert.deepEqual(settingsSchema.parse(defaultSettings), defaultSettings);
   });
 
+  it("adds automatic resource defaults to older persisted application settings", () => {
+    const legacy = structuredClone(defaultSettings);
+    const application: Record<string, unknown> = { ...legacy.application };
+    delete application.resources;
+    const parsed = settingsSchema.parse({ ...legacy, application });
+    assert.equal(parsed.application.resources.mode, "automatic");
+    assert.equal(parsed.application.resources.maxConcurrentModelRuns, 10);
+  });
+
   it("reads legacy low daemon heaps but rejects new unsafe updates", () => {
     const legacy = structuredClone(defaultSettings);
     legacy.application.daemon.maxOldSpaceMb = 128;

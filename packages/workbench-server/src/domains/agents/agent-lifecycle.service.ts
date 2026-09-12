@@ -65,12 +65,23 @@ export class AgentLifecycleService {
 
   async createAgent(
     request: CreateAgentRequest,
-    options: { allowChildAuthorityExceed?: boolean } = {},
+    options: { allowChildAuthorityExceed?: boolean; id?: string } = {},
   ): Promise<AgentRecord> {
     this.state.maintenanceScopes.assertConversation(request.conversationId);
     this.state.maintenanceScopes.assertProject(request.projectId);
     const conversation = this.state.getConversation(request.conversationId);
     const project = this.state.getProject(request.projectId);
+    if (options.id) {
+      const existing = this.state.agents.get(options.id);
+      if (
+        existing &&
+        existing.conversationId === request.conversationId &&
+        existing.projectId === request.projectId
+      ) {
+        return existing;
+      }
+      if (existing) throw new Error(`Agent identity conflict: ${options.id}`);
+    }
     const parent = request.parentAgentId
       ? this.state.agents.get(request.parentAgentId)
       : undefined;
@@ -82,7 +93,7 @@ export class AgentLifecycleService {
       );
 
     const now = new Date().toISOString();
-    const id = createId("agent");
+    const id = options.id ?? createId("agent");
     const projectDir = resolve(request.projectDir ?? project.dir);
     const effectiveSettings = await resolveProjectSettings(
       this.storage,

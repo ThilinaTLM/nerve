@@ -49,11 +49,13 @@ import {
   readCanonicalToolCall,
   type CanonicalToolCallProjectionQuery,
 } from "./canonical-tool-call-queries.js";
+import { CanonicalLifecycleDatabase } from "./lifecycle-work-database.js";
+import { applyCanonicalMigrations } from "./canonical-migrations.js";
 import {
+  CANONICAL_BASELINE_CHECKSUM,
   CANONICAL_BASELINE_NAME,
-  CANONICAL_SCHEMA_CHECKSUM,
+  CANONICAL_BASELINE_VERSION,
   CANONICAL_SCHEMA_SQL,
-  CANONICAL_SCHEMA_VERSION,
 } from "./schema.js";
 
 export interface RpcIdempotencyEntry<T = unknown> {
@@ -84,6 +86,7 @@ export interface CanonicalDocument<T = unknown> {
  */
 export class CanonicalDatabase {
   private readonly database: DatabaseSync;
+  readonly lifecycle: CanonicalLifecycleDatabase;
 
   constructor(
     readonly path: string,
@@ -92,6 +95,7 @@ export class CanonicalDatabase {
     if (path !== ":memory:")
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.database = new DatabaseSync(path);
+    this.lifecycle = new CanonicalLifecycleDatabase(this.database);
     this.database.exec("PRAGMA foreign_keys = ON");
     this.database.exec("PRAGMA busy_timeout = 5000");
     if (options.queryOnly) {
@@ -118,13 +122,14 @@ export class CanonicalDatabase {
            ) VALUES (?, ?, ?, ?, 0)`,
         )
         .run(
-          CANONICAL_SCHEMA_VERSION,
+          CANONICAL_BASELINE_VERSION,
           CANONICAL_BASELINE_NAME,
-          CANONICAL_SCHEMA_CHECKSUM,
+          CANONICAL_BASELINE_CHECKSUM,
           Date.now(),
         );
     }
 
+    applyCanonicalMigrations(this.database);
     this.assertSchemaCompatible();
     this.transaction(repairCanonicalDeletionIndexes);
   }

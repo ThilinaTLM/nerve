@@ -6,3 +6,4 @@ export * from "./runtime-event-catalog.js";
 export * from "./event-builders.js";
 export * from "./conversation-title.js";
 export * from "./conversation-state.js";
+export * from "./operations.js";

@@ -36,6 +36,10 @@ Pass app options after `--` when using `npx` or `pnpm dlx`.
 | `NERVE_WEB_DIST`                     | Override built Workbench asset directory                                   |
 | `NERVE_DAEMON_STARTUP_TIMEOUT_MS`    | Owned readiness timeout; 60000                                             |
 | `NERVE_DAEMON_MAX_OLD_SPACE_MB`      | Owned Node heap cap; 4096 default, values below 512 are raised to 512      |
+| `NERVE_MAX_CONCURRENT_MODEL_RUNS`    | Override automatic primary model-run concurrency; 1–32                     |
+| `NERVE_MAX_PARALLEL_TOOLS_PER_RUN`   | Override automatic parallel tools per conversation; 1–16                   |
+| `NERVE_MAX_ACTIVE_PROCESSES`         | Override automatic global managed-process capacity; 1–256                  |
+| `NERVE_MAX_ACTIVE_EXPLORE_AGENTS`    | Override automatic global Explore-agent capacity; 1–32                     |
 | `NERVE_API_TARGET`                   | Vite UI development daemon target                                          |
 | `NERVE_LOGGING_ENABLED=1\|0`         | Enable/disable persistent application logs                                 |
 | `NERVE_PERFORMANCE_DIAGNOSTICS=1\|0` | Enable/disable local performance sampling                                  |

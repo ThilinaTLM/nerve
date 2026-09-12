@@ -188,10 +188,10 @@ export async function executeToolCallsParallel(
     });
   }
 
-  const orderedFinalizedCalls = await Promise.all(
-    finalizedCalls.map((entry) =>
-      typeof entry === "function" ? entry() : Promise.resolve(entry),
-    ),
+  const orderedFinalizedCalls = await mapWithConcurrency(
+    finalizedCalls,
+    config.maxParallelToolCalls ?? finalizedCalls.length,
+    (entry) => (typeof entry === "function" ? entry() : Promise.resolve(entry)),
   );
   const messages: ToolResultMessage[] = [];
   for (const finalized of orderedFinalizedCalls) {
@@ -245,6 +245,29 @@ type FinalizedToolCallOutcome = {
 type FinalizedToolCallEntry =
   | FinalizedToolCallOutcome
   | (() => Promise<FinalizedToolCallOutcome>);
+
+async function mapWithConcurrency<T, R>(
+  values: readonly T[],
+  requestedConcurrency: number,
+  operation: (value: T) => Promise<R>,
+): Promise<R[]> {
+  if (values.length === 0) return [];
+  const concurrency = Math.max(
+    1,
+    Math.min(values.length, Math.floor(requestedConcurrency) || 1),
+  );
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+  await Promise.all(
+    Array.from({ length: concurrency }, async () => {
+      while (nextIndex < values.length) {
+        const index = nextIndex++;
+        results[index] = await operation(values[index]);
+      }
+    }),
+  );
+  return results;
+}
 
 function shouldTerminateToolBatch(
   finalizedCalls: FinalizedToolCallOutcome[],

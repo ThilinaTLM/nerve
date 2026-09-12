@@ -13,7 +13,13 @@ import {
   SettingsToggleRow,
   type SettingsStat,
 } from "$lib/presentation/settings";
-import { MIN_DAEMON_MAX_OLD_SPACE_MB } from "@nervekit/contracts/settings";
+import {
+  MAX_ACTIVE_EXPLORE_AGENTS,
+  MAX_ACTIVE_PROCESSES,
+  MAX_CONCURRENT_MODEL_RUNS,
+  MAX_PARALLEL_TOOLS_PER_RUN,
+  MIN_DAEMON_MAX_OLD_SPACE_MB,
+} from "@nervekit/contracts/settings";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 
@@ -126,6 +132,48 @@ const pendingDesktopRestart = $derived(
         ),
       )
     : false,
+);
+
+const automaticResources = $derived(
+  configuration?.application.resources.mode.savedValue === "automatic",
+);
+const resourceStats = $derived<SettingsStat[]>(
+  configuration
+    ? [
+        {
+          label: "Effective CPU",
+          value: `${configuration.context.resources.detected.effectiveCpuCount} workers`,
+        },
+        {
+          label: "System memory",
+          value: `${(configuration.context.resources.detected.totalMemoryMb / 1024).toFixed(1)} GB`,
+        },
+        {
+          label: "Model runs",
+          value: String(
+            configuration.context.resources.effective.maxConcurrentModelRuns,
+          ),
+        },
+        {
+          label: "Tools per conversation",
+          value: String(
+            configuration.context.resources.effective.maxParallelToolsPerRun,
+          ),
+        },
+        {
+          label: "Managed processes",
+          value: String(
+            configuration.context.resources.effective.maxActiveProcesses,
+          ),
+        },
+        {
+          label: "Explore agents",
+          value: String(
+            configuration.context.resources.effective.maxActiveExploreAgents,
+          ),
+        },
+      ]
+    : [],
 );
 
 const diagnostics = $derived<SettingsStat[]>([
@@ -322,6 +370,117 @@ const diagnostics = $derived<SettingsStat[]>([
         onValueChange={(value) =>
           saveNumber(value, 1, (maxBufferedLogs) => ({
             logging: { maxBufferedLogs },
+          }))}
+      />
+    </div>
+  </SettingsSection>
+
+  <SettingsSection
+    id="resource-concurrency"
+    title="Resource concurrency"
+    info="Nerve automatically chooses separate limits for model runs, tool batches, managed processes, and Explore agents. Manual overrides are intended for exceptional workloads."
+  >
+    <SettingsToggleRow
+      label="Automatic resource limits"
+      description={describe(
+        "Choose safe concurrency from the effective CPU and system memory detected when the daemon starts.",
+        configuration.application.resources.mode,
+      )}
+      checked={automaticResources}
+      disabled={!configuration.application.resources.mode.editable}
+      onCheckedChange={(automatic) =>
+        save({
+          application: {
+            resources: { mode: automatic ? "automatic" : "manual" },
+          },
+        })}
+    />
+    <SettingsStatGrid items={resourceStats} />
+    <div class="grid gap-3 sm:grid-cols-2">
+      <SettingsFieldRow
+        id="settings-model-concurrency"
+        label="Concurrent model runs"
+        type="number"
+        min={1}
+        max={MAX_CONCURRENT_MODEL_RUNS}
+        value={String(
+          controlValue(
+            configuration.application.resources.maxConcurrentModelRuns,
+          ),
+        )}
+        disabled={automaticResources ||
+          !configuration.application.resources.maxConcurrentModelRuns.editable}
+        hint={describe(
+          "Maximum primary conversation runs allowed to progress at once.",
+          configuration.application.resources.maxConcurrentModelRuns,
+        )}
+        onValueChange={(value) =>
+          saveNumber(value, 1, (maxConcurrentModelRuns) => ({
+            application: { resources: { maxConcurrentModelRuns } },
+          }))}
+      />
+      <SettingsFieldRow
+        id="settings-tool-concurrency"
+        label="Parallel tools per conversation"
+        type="number"
+        min={1}
+        max={MAX_PARALLEL_TOOLS_PER_RUN}
+        value={String(
+          controlValue(
+            configuration.application.resources.maxParallelToolsPerRun,
+          ),
+        )}
+        disabled={automaticResources ||
+          !configuration.application.resources.maxParallelToolsPerRun.editable}
+        hint={describe(
+          "Maximum tools from one model-generated batch that may execute together.",
+          configuration.application.resources.maxParallelToolsPerRun,
+        )}
+        onValueChange={(value) =>
+          saveNumber(value, 1, (maxParallelToolsPerRun) => ({
+            application: { resources: { maxParallelToolsPerRun } },
+          }))}
+      />
+      <SettingsFieldRow
+        id="settings-process-concurrency"
+        label="Managed processes"
+        type="number"
+        min={1}
+        max={MAX_ACTIVE_PROCESSES}
+        value={String(
+          controlValue(configuration.application.resources.maxActiveProcesses),
+        )}
+        disabled={automaticResources ||
+          !configuration.application.resources.maxActiveProcesses.editable}
+        hint={describe(
+          "Global ceiling for active shell, Python, and task subprocesses.",
+          configuration.application.resources.maxActiveProcesses,
+        )}
+        onValueChange={(value) =>
+          saveNumber(value, 1, (maxActiveProcesses) => ({
+            application: { resources: { maxActiveProcesses } },
+          }))}
+      />
+      <SettingsFieldRow
+        id="settings-explore-concurrency"
+        label="Explore agents"
+        type="number"
+        min={1}
+        max={MAX_ACTIVE_EXPLORE_AGENTS}
+        value={String(
+          controlValue(
+            configuration.application.resources.maxActiveExploreAgents,
+          ),
+        )}
+        disabled={automaticResources ||
+          !configuration.application.resources.maxActiveExploreAgents.editable}
+        hint={describe(
+          "Global ceiling for active Explore subagents across conversations.",
+          configuration.application.resources.maxActiveExploreAgents,
+        )}
+        onValueChange={(value) =>
+          saveNumber(value, 1, (maxActiveExploreAgents) => ({
+            application: { resources: { maxActiveExploreAgents } },
           }))}
       />
     </div>
