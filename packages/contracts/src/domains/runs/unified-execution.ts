@@ -150,6 +150,22 @@ export const waitGroupSchema = z.object({
 });
 export type WaitGroup = z.infer<typeof waitGroupSchema>;
 
+export const exactCallAuthorizationSchema = z.object({
+  schemaVersion: z.literal(1),
+  authorizationId: z.string().startsWith("authorization_"),
+  memberId: z.string().startsWith("member_"),
+  normalizedInputFingerprint: digest,
+  policyObservationId: z.string().startsWith("policy_observation_"),
+  runGeneration: z.number().int().positive().safe(),
+  selectionEpoch: safeInteger,
+  state: z.enum(["active", "consumed", "revoked", "superseded"]),
+  evidence: z.record(z.string(), z.unknown()),
+  createdAt: z.string().datetime(),
+});
+export type ExactCallAuthorization = z.infer<
+  typeof exactCallAuthorizationSchema
+>;
+
 export const logicalEffectSchema = z.object({
   schemaVersion: z.literal(1),
   effectId: z.string().startsWith("effect_"),
@@ -161,8 +177,58 @@ export const logicalEffectSchema = z.object({
   externalScope: z.record(z.string(), z.unknown()).optional(),
   externalKey: z.string().min(1).max(512).optional(),
   authorizationId: z.string().startsWith("authorization_"),
+  state: z.enum([
+    "authorized",
+    "dispatching",
+    "settled",
+    "outcome_unknown",
+    "result_unavailable",
+    "closed",
+  ]),
+  createdAt: z.string().datetime(),
 });
 export type LogicalEffect = z.infer<typeof logicalEffectSchema>;
+
+export const canonicalExecutionAttemptSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    attemptId: z.string().startsWith("attempt_"),
+    effectId: z.string().startsWith("effect_").optional(),
+    providerPhaseId: z.string().startsWith("provider_phase_").optional(),
+    attemptNumber: z.number().int().positive().safe(),
+    executionIncarnationId: z.string().startsWith("incarnation_"),
+    state: z.enum([
+      "ready",
+      "claimed",
+      "dispatched",
+      "succeeded",
+      "known_failed",
+      "cancelled",
+      "outcome_unknown",
+      "result_unavailable",
+    ]),
+    outcome: z.unknown().optional(),
+    preparedManifestId: z.string().startsWith("manifest_").optional(),
+    externalLocator: z.string().min(1).max(2_048).optional(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .superRefine((attempt, context) => {
+    if (
+      (attempt.effectId !== undefined) ===
+      (attempt.providerPhaseId !== undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["effectId"],
+        message:
+          "An execution attempt belongs to exactly one effect or provider phase.",
+      });
+    }
+  });
+export type CanonicalExecutionAttempt = z.infer<
+  typeof canonicalExecutionAttemptSchema
+>;
 
 export const executionClaimSchema = z.object({
   schemaVersion: z.literal(1),
@@ -175,6 +241,30 @@ export const executionClaimSchema = z.object({
   state: z.enum(["active", "consumed", "revoked", "expired"]),
 });
 export type ExecutionClaim = z.infer<typeof executionClaimSchema>;
+
+export const recoveryActionSchema = z.object({
+  schemaVersion: z.literal(1),
+  actionId: z.string().startsWith("recovery_"),
+  conversationId: z.string().startsWith("conv_"),
+  runId: runId.optional(),
+  memberId: z.string().startsWith("member_").optional(),
+  effectId: z.string().startsWith("effect_").optional(),
+  actionKind: z.enum([
+    "retry_after_non_dispatch",
+    "retry_safe_observation",
+    "contractual_replay",
+    "reconcile_external_effect",
+    "attach_verified_result",
+    "close_unavailable",
+    "cancel_tree",
+  ]),
+  evidence: z.record(z.string(), z.unknown()),
+  evidenceManifestId: z.string().startsWith("manifest_").optional(),
+  status: z.enum(["prepared", "admitted", "applied", "rejected", "superseded"]),
+  commandId: z.string().min(1).max(256),
+  createdAt: z.string().datetime(),
+});
+export type RecoveryAction = z.infer<typeof recoveryActionSchema>;
 
 export const providerPhaseSchema = z
   .object({

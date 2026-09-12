@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   canonicalCheckpointSchema,
+  canonicalExecutionAttemptSchema,
   waitGroupSchema,
 } from "../../src/domains/runs/unified-execution.js";
 import {
@@ -114,6 +115,34 @@ test("INV-BARRIER-01 bounds wait groups before commitment", () => {
     waitGroupSchema.safeParse({
       ...group,
       members: [...group.members, member(32)],
+    }).success,
+    false,
+  );
+});
+
+test("INV-EFFECT-01 binds an attempt to exactly one durable obligation", () => {
+  const base = {
+    schemaVersion: 1,
+    attemptId: "attempt_one",
+    attemptNumber: 1,
+    executionIncarnationId: "incarnation_one",
+    state: "ready",
+    createdAt: "2026-09-12T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  };
+  assert.equal(
+    canonicalExecutionAttemptSchema.safeParse({
+      ...base,
+      effectId: "effect_one",
+    }).success,
+    true,
+  );
+  assert.equal(canonicalExecutionAttemptSchema.safeParse(base).success, false);
+  assert.equal(
+    canonicalExecutionAttemptSchema.safeParse({
+      ...base,
+      effectId: "effect_one",
+      providerPhaseId: "provider_phase_one",
     }).success,
     false,
   );
