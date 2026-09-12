@@ -11,6 +11,8 @@ export function executeCanonicalCommand(
       return undefined;
     case "commit_conversation_command":
       return database.timeline.commit(command.input);
+    case "read_timeline_command_receipt":
+      return database.timeline.readCommandReceipt(command.input);
     case "read_timeline_state_identity":
       return database.timeline.readStateIdentity();
     case "read_timeline_conversation_head":

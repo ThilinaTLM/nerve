@@ -128,6 +128,7 @@ export function buildControlTransition(input: {
   >;
   identity: TransitionIdentity;
   evidenceReferences?: readonly string[];
+  foregroundRunId?: string | null;
 }): ConversationTransition {
   const revision = input.head.revision + 1;
   return {
@@ -143,6 +144,13 @@ export function buildControlTransition(input: {
     committedAt: input.identity.committedAt,
     entries: [],
     evidenceReferences: [...(input.evidenceReferences ?? [])],
-    resultingHead: { ...input.head, revision },
+    resultingHead: {
+      ...input.head,
+      revision,
+      foregroundRunId:
+        input.foregroundRunId === undefined
+          ? input.head.foregroundRunId
+          : input.foregroundRunId,
+    },
   };
 }

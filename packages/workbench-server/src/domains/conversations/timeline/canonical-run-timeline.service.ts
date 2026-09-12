@@ -1,0 +1,203 @@
+import type { MutationOutcome } from "@nervekit/contracts/conversations";
+import { runControlSchema, type RunControl } from "@nervekit/contracts/runs";
+import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
+import { CanonicalTimelineIdentityService } from "./canonical-timeline-identity.service.js";
+import { conversationCommandFingerprint } from "./command-fingerprint.js";
+import { ConversationTransitionService } from "./conversation-transition.service.js";
+import {
+  buildAppendTransition,
+  buildControlTransition,
+  type AppendEntryDraft,
+} from "./transition-builders.js";
+
+export interface CanonicalRunMutationIdentity {
+  conversationId: string;
+  runId: string;
+  commandId: string;
+  now: string;
+  actor: Record<string, unknown>;
+  cause: Record<string, unknown>;
+}
+
+export type CanonicalRunMutationResult =
+  | { kind: "committed" | "receipt_replay"; run: RunControl }
+  | { kind: "rejected"; outcome: MutationOutcome };
+
+const terminalStates = new Set<RunControl["state"]>([
+  "completed",
+  "failed",
+  "cancelled",
+  "abandoned",
+  "superseded",
+]);
+
+/** Owns canonical iteration appends and terminal foreground release. */
+export class CanonicalRunTimelineService {
+  private readonly identity: CanonicalTimelineIdentityService;
+  private readonly transitions: ConversationTransitionService;
+
+  constructor(
+    private readonly store: CanonicalStore,
+    identity?: CanonicalTimelineIdentityService,
+  ) {
+    this.identity = identity ?? new CanonicalTimelineIdentityService(store);
+    this.transitions = new ConversationTransitionService(store);
+  }
+
+  append(
+    input: CanonicalRunMutationIdentity & {
+      entries: readonly AppendEntryDraft[];
+    },
+  ): Promise<CanonicalRunMutationResult> {
+    return this.mutate(input, input.entries, undefined);
+  }
+
+  close(
+    input: CanonicalRunMutationIdentity & {
+      state: "completed" | "failed" | "cancelled" | "abandoned" | "superseded";
+      recoveryReason?: string;
+    },
+  ): Promise<CanonicalRunMutationResult> {
+    return this.mutate(input, [], {
+      state: input.state,
+      recoveryReason: input.recoveryReason,
+    });
+  }
+
+  private async mutate(
+    input: CanonicalRunMutationIdentity,
+    entries: readonly AppendEntryDraft[],
+    terminal:
+      | { state: RunControl["state"]; recoveryReason?: string }
+      | undefined,
+  ): Promise<CanonicalRunMutationResult> {
+    const [identity, head, run] = await Promise.all([
+      this.identity.resolve(),
+      this.store.readTimelineConversationHead(input.conversationId),
+      this.store.readTimelineRunControl(input.conversationId, input.runId),
+    ]);
+    const operation = terminal ? "close_foreground_run" : "append_run_entries";
+    const fingerprint = conversationCommandFingerprint({
+      operation,
+      conversationId: input.conversationId,
+      runId: input.runId,
+      entries,
+      terminal,
+      cause: input.cause,
+    });
+    if (
+      !head ||
+      !run ||
+      head.foregroundRunId !== input.runId ||
+      run.continuationEntryId !== head.activeEntryId ||
+      run.boundSelectionEpoch !== head.selectionEpoch ||
+      !run.foregroundOwned ||
+      terminalStates.has(run.state)
+    ) {
+      const receipt = await this.store.readTimelineCommandReceipt({
+        namespaceId: identity.namespaceId,
+        operationKind: operation,
+        ownerKind: "conversation",
+        ownerId: input.conversationId,
+        commandId: input.commandId,
+        fingerprint,
+      });
+      if (receipt?.kind === "receipt_replay") {
+        return {
+          kind: "receipt_replay",
+          run: runControlSchema.parse(receipt.value),
+        };
+      }
+      return {
+        kind: "rejected",
+        outcome:
+          receipt ??
+          ({ kind: "superseded", reason: "foreground_fence_changed" } as const),
+      };
+    }
+    const transition = terminal
+      ? buildControlTransition({
+          head,
+          kind: "run_changed",
+          identity: {
+            commandId: input.commandId,
+            inputFingerprint: fingerprint,
+            actor: input.actor,
+            cause: input.cause,
+            committedAt: input.now,
+          },
+          foregroundRunId: null,
+        })
+      : buildAppendTransition({
+          head,
+          kind: "entries_appended",
+          identity: {
+            commandId: input.commandId,
+            inputFingerprint: fingerprint,
+            actor: input.actor,
+            cause: input.cause,
+            committedAt: input.now,
+          },
+          entries: entries.map((entry) => ({ ...entry, runId: input.runId })),
+          foregroundRunId: input.runId,
+        });
+    const nextRun: RunControl = {
+      ...run,
+      continuationEntryId: transition.resultingHead.activeEntryId,
+      ...(terminal
+        ? {
+            state: terminal.state,
+            foregroundOwned: false,
+            waitGroupId: null,
+            providerPhaseId: null,
+            ...(terminal.recoveryReason
+              ? { recoveryReason: terminal.recoveryReason }
+              : {}),
+          }
+        : {}),
+      revision: run.revision + 1,
+    };
+    const outcome = await this.transitions.commit({
+      namespaceId: identity.namespaceId,
+      executionIncarnationId: identity.executionIncarnationId,
+      operationKind: operation,
+      ownerKind: "conversation",
+      ownerId: input.conversationId,
+      commandId: input.commandId,
+      fingerprintVersion: 1,
+      fingerprint,
+      expectedHeads: [
+        {
+          conversationId: input.conversationId,
+          revision: head.revision,
+          selectionEpoch: head.selectionEpoch,
+        },
+      ],
+      expectedRunFences: [
+        {
+          conversationId: input.conversationId,
+          runId: input.runId,
+          generation: run.generation,
+          revision: run.revision,
+          selectionEpoch: run.boundSelectionEpoch,
+          continuationEntryId: run.continuationEntryId,
+          requireForegroundOwnership: true,
+        },
+      ],
+      transitions: [transition],
+      runControls: [nextRun],
+      outcome: nextRun,
+      publicationIntents: [],
+      now: input.now,
+    });
+    if (outcome.kind === "committed")
+      return { kind: "committed", run: nextRun };
+    if (outcome.kind === "receipt_replay") {
+      return {
+        kind: "receipt_replay",
+        run: runControlSchema.parse(outcome.value),
+      };
+    }
+    return { kind: "rejected", outcome };
+  }
+}

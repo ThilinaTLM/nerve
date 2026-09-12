@@ -160,6 +160,20 @@ export class CanonicalStore {
     );
   }
 
+  readTimelineCommandReceipt(input: {
+    namespaceId: string;
+    operationKind: string;
+    ownerKind: "state" | "conversation" | "policy_scope";
+    ownerId: string;
+    commandId: string;
+    fingerprint: string;
+  }) {
+    return this.request<MutationOutcome | undefined>({
+      kind: "read_timeline_command_receipt",
+      input,
+    });
+  }
+
   readTimelineStateIdentity() {
     return this.request<TimelineStateIdentity | undefined>({
       kind: "read_timeline_state_identity",

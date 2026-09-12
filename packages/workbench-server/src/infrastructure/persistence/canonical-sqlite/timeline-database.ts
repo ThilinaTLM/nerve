@@ -67,6 +67,7 @@ import { withTimelineImmediateTransaction } from "./timeline-transaction.js";
 import { persistTimelineWaitGroup } from "./timeline-wait-group-database.js";
 import {
   readTimelineAncestrySegment,
+  readTimelineCommandReceipt,
   readTimelineRunControl,
   readTimelineStateIdentity,
 } from "./timeline-query-database.js";
@@ -94,6 +95,17 @@ export class CanonicalTimelineDatabase {
 
   commit(input: CommitConversationCommandInput): MutationOutcome {
     return commitConversationCommandInTransaction(this.database, input);
+  }
+
+  readCommandReceipt(input: {
+    namespaceId: string;
+    operationKind: string;
+    ownerKind: "state" | "conversation" | "policy_scope";
+    ownerId: string;
+    commandId: string;
+    fingerprint: string;
+  }): MutationOutcome | undefined {
+    return readTimelineCommandReceipt(this.database, input);
   }
 
   readStateIdentity(): TimelineStateIdentity | undefined {

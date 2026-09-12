@@ -21,6 +21,17 @@ export type CanonicalCommand =
       kind: "commit_conversation_command";
       input: CommitConversationCommandInput;
     }
+  | {
+      kind: "read_timeline_command_receipt";
+      input: {
+        namespaceId: string;
+        operationKind: string;
+        ownerKind: "state" | "conversation" | "policy_scope";
+        ownerId: string;
+        commandId: string;
+        fingerprint: string;
+      };
+    }
   | { kind: "read_timeline_state_identity" }
   | { kind: "read_timeline_conversation_head"; conversationId: string }
   | {
@@ -213,6 +224,7 @@ export type CanonicalWorkerResponse =
     };
 
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
+  "read_timeline_command_receipt",
   "read_timeline_state_identity",
   "read_timeline_conversation_head",
   "read_timeline_run_control",

@@ -6,6 +6,8 @@ import {
   timelineStateIdentitySchema,
   type CanonicalAncestrySegment,
   type CanonicalConversationEntry,
+  mutationOutcomeSchema,
+  type MutationOutcome,
   type TimelineStateIdentity,
 } from "@nervekit/contracts/conversations";
 import { runControlSchema, type RunControl } from "@nervekit/contracts/runs";
@@ -45,6 +47,44 @@ interface EntryRow {
   provenance: Uint8Array;
   chain_index: number;
   artifact_manifest_data: Uint8Array | null;
+}
+
+export function readTimelineCommandReceipt(
+  database: DatabaseSync,
+  input: {
+    namespaceId: string;
+    operationKind: string;
+    ownerKind: "state" | "conversation" | "policy_scope";
+    ownerId: string;
+    commandId: string;
+    fingerprint: string;
+  },
+): MutationOutcome | undefined {
+  const row = database
+    .prepare(
+      `SELECT fingerprint_hash, outcome_json FROM command_receipts
+       WHERE namespace_id = ? AND operation_kind = ? AND owner_kind = ?
+         AND owner_id = ? AND command_id = ?`,
+    )
+    .get(
+      input.namespaceId,
+      input.operationKind,
+      input.ownerKind,
+      input.ownerId,
+      input.commandId,
+    ) as { fingerprint_hash: string; outcome_json: Uint8Array } | undefined;
+  if (!row) return undefined;
+  if (row.fingerprint_hash !== input.fingerprint) {
+    return {
+      kind: "fingerprint_mismatch",
+      commandId: input.commandId,
+      retry: "never_with_same_command_id",
+    };
+  }
+  const outcome = mutationOutcomeSchema.parse(decode(row.outcome_json));
+  return outcome.kind === "committed"
+    ? { ...outcome, kind: "receipt_replay" }
+    : outcome;
 }
 
 export function readTimelineStateIdentity(

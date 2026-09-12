@@ -4,6 +4,72 @@ import { providerPhaseSchema } from "@nervekit/contracts/runs";
 import { assertProviderPhaseTransition } from "../../../domains/runs/runtime/provider-phase-state.js";
 import { decode, encode } from "./payload-codecs.js";
 
+const runTransitions: Readonly<
+  Record<RunControl["state"], readonly RunControl["state"][]>
+> = {
+  preparing: [
+    "preparing",
+    "running",
+    "partially_waiting",
+    "waiting",
+    "recovery_required",
+    "failed",
+    "cancelled",
+  ],
+  running: [
+    "running",
+    "partially_waiting",
+    "waiting",
+    "recovery_required",
+    "completed",
+    "failed",
+    "cancelled",
+    "abandoned",
+    "superseded",
+    "deletion_fenced",
+  ],
+  partially_waiting: [
+    "partially_waiting",
+    "running",
+    "waiting",
+    "recovery_required",
+    "completed",
+    "failed",
+    "cancelled",
+    "abandoned",
+    "superseded",
+    "deletion_fenced",
+  ],
+  waiting: [
+    "waiting",
+    "running",
+    "partially_waiting",
+    "recovery_required",
+    "completed",
+    "failed",
+    "cancelled",
+    "abandoned",
+    "superseded",
+    "deletion_fenced",
+  ],
+  recovery_required: [
+    "recovery_required",
+    "running",
+    "waiting",
+    "failed",
+    "cancelled",
+    "abandoned",
+    "superseded",
+    "deletion_fenced",
+  ],
+  completed: [],
+  failed: [],
+  cancelled: [],
+  abandoned: [],
+  superseded: [],
+  deletion_fenced: [],
+};
+
 export function persistTimelineProviderPhase(
   database: DatabaseSync,
   phase: ProviderPhase,
@@ -120,6 +186,48 @@ export function upsertTimelineRunControl(
   control: RunControl,
   now: string,
 ): void {
+  const current = database
+    .prepare(
+      `SELECT conversation_id, generation, bound_selection_epoch,
+              effective_state, foreground_owned, revision
+       FROM run_controls WHERE run_id = ?`,
+    )
+    .get(control.runId) as
+    | {
+        conversation_id: string;
+        generation: number;
+        bound_selection_epoch: number;
+        effective_state: RunControl["state"];
+        foreground_owned: number;
+        revision: number;
+      }
+    | undefined;
+  if (current) {
+    const terminal = [
+      "completed",
+      "failed",
+      "cancelled",
+      "abandoned",
+      "superseded",
+      "deletion_fenced",
+    ].includes(current.effective_state);
+    if (
+      current.conversation_id !== control.conversationId ||
+      current.bound_selection_epoch !== control.boundSelectionEpoch ||
+      control.revision !== current.revision + 1 ||
+      control.generation < current.generation ||
+      control.generation > current.generation + 1 ||
+      terminal ||
+      !runTransitions[current.effective_state].includes(control.state) ||
+      (current.foreground_owned === 0 && control.foregroundOwned)
+    ) {
+      throw new Error("Run control identity or state transition is invalid.");
+    }
+  } else if (control.revision !== 1 || control.generation !== 1) {
+    throw new Error(
+      "A new run control must begin at generation and revision 1.",
+    );
+  }
   database
     .prepare(
       `INSERT INTO run_controls (
