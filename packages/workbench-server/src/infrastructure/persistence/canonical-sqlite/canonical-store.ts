@@ -1,4 +1,5 @@
 import type { CommitConversationCommandInput } from "./timeline-database.js";
+import { CanonicalMigrationStore } from "./canonical-migration-store.js";
 import type {
   CanonicalAncestrySegment,
   CanonicalConversationEntry,
@@ -80,9 +81,7 @@ class WorkerEndpoint {
       if (!this.closed && code !== 0)
         fail(new Error(`Canonical SQLite worker exited with code ${code}.`));
     });
-    // The daemon's runtime workers are durable infrastructure and must keep the
-    // process alive. Test-created repositories may intentionally rely on
-    // process teardown instead of owning the application's shutdown lifecycle.
+    // Test workers may rely on process teardown; daemon workers remain durable.
     if (process.env.NODE_TEST_CONTEXT) worker.unref();
   }
 
@@ -114,9 +113,10 @@ export class CanonicalStore {
   private writer?: WorkerEndpoint;
   private readers: WorkerEndpoint[] = [];
   private nextReader = 0;
-  readonly deletion = new CanonicalDeletionStore(
-    <T>(command: CanonicalCommand) => this.request<T>(command),
-  );
+  private readonly requester = <T>(command: CanonicalCommand) =>
+    this.request<T>(command);
+  readonly migration = new CanonicalMigrationStore(this.requester);
+  readonly deletion = new CanonicalDeletionStore(this.requester);
 
   constructor(
     readonly path: string,

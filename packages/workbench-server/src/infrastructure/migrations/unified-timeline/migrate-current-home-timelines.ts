@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   ConversationEntry,
@@ -37,6 +37,12 @@ export async function migrateCurrentHomeConversationTimelines(input: {
     await input.store.listConversationMetadata<ConversationRecord>()
   ).sort((left, right) => left.id.localeCompare(right.id));
   await mkdir(input.proofDirectory, { recursive: true, mode: 0o700 });
+  if ((await input.store.migration.countLegacyRuntimeAuthority()) === 0) {
+    const retained = await readRetainedTimelineMigrationProofs(
+      input.proofDirectory,
+    );
+    if (retained) return retained;
+  }
   const importer = new LegacyConversationTimelineImporter(input.store);
   const proofs: LegacyConversationImportProof[] = [];
   for (const conversation of conversations) {
@@ -79,6 +85,10 @@ export async function migrateCurrentHomeConversationTimelines(input: {
     input.store,
     input.importedAt,
   );
+  const lifecycleRecovery = await importLegacyLifecycleRecovery(
+    input.store,
+    input.importedAt,
+  );
   await input.store.integrityCheck();
   const manifestFacts = {
     schemaVersion: 1 as const,
@@ -87,6 +97,8 @@ export async function migrateCurrentHomeConversationTimelines(input: {
     importedRunCount,
     importedToolRecordCount: toolRecovery.importedToolRecordCount,
     preparedToolRecoveryCount: toolRecovery.preparedToolRecoveryCount,
+    importedLifecycleAuthorityCount: lifecycleRecovery.importedCount,
+    preparedLifecycleRecoveryCount: lifecycleRecovery.preparedCount,
     conversationProofDigests: proofs.map((proof) => ({
       conversationId: proof.conversationId,
       proofDigest: proof.proofDigest,
@@ -103,6 +115,36 @@ export async function migrateCurrentHomeConversationTimelines(input: {
     0o600,
   );
   return proofs;
+}
+
+export async function readRetainedTimelineMigrationProofs(
+  proofDirectory: string,
+): Promise<LegacyConversationImportProof[] | undefined> {
+  try {
+    const manifest = JSON.parse(
+      await readFile(join(proofDirectory, "manifest.json"), "utf8"),
+    ) as { conversationProofDigests?: Array<{ conversationId?: unknown }> };
+    if (!Array.isArray(manifest.conversationProofDigests)) return undefined;
+    return Promise.all(
+      manifest.conversationProofDigests.map(async (reference) => {
+        if (
+          typeof reference.conversationId !== "string" ||
+          !reference.conversationId.startsWith("conv_")
+        ) {
+          throw new Error("Retained migration proof reference is invalid.");
+        }
+        return JSON.parse(
+          await readFile(
+            join(proofDirectory, `${reference.conversationId}.json`),
+            "utf8",
+          ),
+        ) as LegacyConversationImportProof;
+      }),
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
 }
 
 async function importLegacyRunControls(
@@ -159,6 +201,99 @@ async function importLegacyRunControls(
     }
   }
   return runs.length;
+}
+
+export async function retireMigratedLegacyRuntimeAuthority(
+  store: CanonicalStore,
+): Promise<number> {
+  return store.migration.retireLegacyRuntimeAuthority();
+}
+
+async function importLegacyLifecycleRecovery(
+  store: CanonicalStore,
+  importedAt: string,
+): Promise<{ importedCount: number; preparedCount: number }> {
+  const facts = await store.migration.readLegacyLifecycleAuthorityFacts();
+  const pendingStates = new Set([
+    "ready",
+    "leased",
+    "pending",
+    "running",
+    "open",
+    "proposed",
+  ]);
+  const pending = facts.filter((fact) => pendingStates.has(fact.state));
+  const byConversation = new Map<string, typeof pending>();
+  for (const fact of pending) {
+    const group = byConversation.get(fact.conversationId) ?? [];
+    group.push(fact);
+    byConversation.set(fact.conversationId, group);
+  }
+  const identity = await store.readTimelineStateIdentity();
+  if (!identity)
+    throw new Error("Canonical state identity is not initialized.");
+  const transitions = new ConversationTransitionService(store);
+  for (const [conversationId, conversationFacts] of byConversation) {
+    for (let offset = 0; offset < conversationFacts.length; offset += 64) {
+      const batch = conversationFacts.slice(offset, offset + 64);
+      const head = await store.readTimelineConversationHead(conversationId);
+      if (!head) {
+        throw new Error(
+          `Legacy lifecycle owner '${conversationId}' was not imported.`,
+        );
+      }
+      const actions: RecoveryAction[] = [];
+      for (const fact of batch) {
+        const run = fact.runId
+          ? await store.readTimelineRunControl(conversationId, fact.runId)
+          : undefined;
+        const suffix = createHash("sha256")
+          .update(`${fact.sourceTable}:${fact.sourceId}`)
+          .digest("hex");
+        actions.push({
+          schemaVersion: 1,
+          actionId: `recovery_legacy_lifecycle_${suffix.slice(0, 32)}`,
+          conversationId,
+          ...(run ? { runId: run.runId } : {}),
+          actionKind: "reconcile_external_effect",
+          evidence: { source: "legacy_lifecycle", ...fact },
+          status: "prepared",
+          commandId: `migrate-legacy-lifecycle:${suffix.slice(0, 32)}`,
+          createdAt: importedAt,
+        });
+      }
+      const commandId = `migration-unified-lifecycle:${conversationId}:${offset / 64}`;
+      const fingerprint = `sha256:${createHash("sha256")
+        .update(canonicalConversationJson(actions))
+        .digest("hex")}`;
+      const outcome = await transitions.commit({
+        namespaceId: identity.namespaceId,
+        executionIncarnationId: identity.executionIncarnationId,
+        operationKind: "migrate_legacy_lifecycle_recovery",
+        ownerKind: "conversation",
+        ownerId: conversationId,
+        commandId,
+        fingerprintVersion: 1,
+        fingerprint,
+        expectedHeads: [
+          {
+            conversationId,
+            revision: head.revision,
+            selectionEpoch: head.selectionEpoch,
+          },
+        ],
+        transitions: [],
+        recoveryActions: actions,
+        outcome: actions.map((action) => action.actionId),
+        publicationIntents: [],
+        now: importedAt,
+      });
+      if (outcome.kind !== "committed" && outcome.kind !== "receipt_replay") {
+        throw new Error("Legacy lifecycle recovery import was rejected.");
+      }
+    }
+  }
+  return { importedCount: facts.length, preparedCount: pending.length };
 }
 
 async function importLegacyToolRecovery(

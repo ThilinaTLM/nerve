@@ -12,6 +12,8 @@ interface MigrationManifest {
   importedRunCount: number;
   importedToolRecordCount: number;
   preparedToolRecoveryCount: number;
+  importedLifecycleAuthorityCount: number;
+  preparedLifecycleRecoveryCount: number;
   conversationProofDigests: Array<{
     conversationId: string;
     proofDigest: string;
@@ -41,6 +43,8 @@ export class CanonicalAuthorityPromotionService {
       importedRunCount: manifest.importedRunCount,
       importedToolRecordCount: manifest.importedToolRecordCount,
       preparedToolRecoveryCount: manifest.preparedToolRecoveryCount,
+      importedLifecycleAuthorityCount: manifest.importedLifecycleAuthorityCount,
+      preparedLifecycleRecoveryCount: manifest.preparedLifecycleRecoveryCount,
       conversationProofDigests: manifest.conversationProofDigests,
     };
     const digest = `sha256:${createHash("sha256")
@@ -130,6 +134,8 @@ function parseManifest(value: unknown): MigrationManifest {
     !Number.isSafeInteger(record.importedRunCount) ||
     !Number.isSafeInteger(record.importedToolRecordCount) ||
     !Number.isSafeInteger(record.preparedToolRecoveryCount) ||
+    !Number.isSafeInteger(record.importedLifecycleAuthorityCount) ||
+    !Number.isSafeInteger(record.preparedLifecycleRecoveryCount) ||
     !Array.isArray(record.conversationProofDigests) ||
     typeof record.manifestDigest !== "string" ||
     !/^sha256:[a-f0-9]{64}$/.test(record.manifestDigest)

@@ -9,6 +9,12 @@ export function executeCanonicalCommand(
     case "initialize":
       database.initialize();
       return undefined;
+    case "count_legacy_runtime_authority":
+      return database.timeline.countLegacy();
+    case "read_legacy_lifecycle_authority_facts":
+      return database.timeline.readLegacy();
+    case "retire_legacy_runtime_authority":
+      return database.timeline.retireLegacy();
     case "list_pending_canonical_deletions":
       return database.deletionCleanup.listPendingConversationIds(command.limit);
     case "read_canonical_deletion_intent":

@@ -1,3 +1,4 @@
+import * as legacyAuthority from "../../migrations/unified-timeline/legacy-authority-retirement-database.js";
 import type {
   CanonicalAncestrySegment,
   CanonicalConversationEntry,
@@ -96,18 +97,23 @@ export type {
 export class CanonicalTimelineDatabase {
   constructor(private readonly database: DatabaseSync) {}
 
+  countLegacy() {
+    return legacyAuthority.countLegacyRuntimeAuthority(this.database);
+  }
+  readLegacy() {
+    return legacyAuthority.readLegacyLifecycleAuthorityFacts(this.database);
+  }
+  retireLegacy() {
+    return legacyAuthority.retireLegacyRuntimeAuthority(this.database);
+  }
+
   commit(input: CommitConversationCommandInput): MutationOutcome {
     return commitConversationCommandInTransaction(this.database, input);
   }
 
-  readCommandReceipt(input: {
-    namespaceId: string;
-    operationKind: string;
-    ownerKind: "state" | "conversation" | "policy_scope";
-    ownerId: string;
-    commandId: string;
-    fingerprint: string;
-  }): MutationOutcome | undefined {
+  readCommandReceipt(
+    input: Parameters<typeof readTimelineCommandReceipt>[1],
+  ): MutationOutcome | undefined {
     return readTimelineCommandReceipt(this.database, input);
   }
 

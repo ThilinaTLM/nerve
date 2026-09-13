@@ -6,7 +6,10 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
 import { CanonicalAuthorityPromotionService } from "../../../src/domains/storage/canonical-authority-promotion.service.js";
-import { migrateCurrentHomeConversationTimelines } from "../../../src/infrastructure/migrations/unified-timeline/migrate-current-home-timelines.js";
+import {
+  migrateCurrentHomeConversationTimelines,
+  retireMigratedLegacyRuntimeAuthority,
+} from "../../../src/infrastructure/migrations/unified-timeline/migrate-current-home-timelines.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
 
 const now = "2026-09-14T00:00:00.000Z";
@@ -76,6 +79,26 @@ test("INV-MIGRATE-02 converts a quiesced current-home journal with proof", async
       },
     ],
   });
+  const seedDatabase = new DatabaseSync(sqlitePath);
+  seedDatabase
+    .prepare(
+      `INSERT INTO lifecycle_work (
+         id, deduplication_key, conversation_id, kind, state, input_hash,
+         generation, attempt_count, not_before_ms, payload_version, data,
+         created_at_ms, updated_at_ms
+       ) VALUES (?, ?, ?, 'continue_model', 'ready', ?, 0, 0, ?, 1, ?, ?, ?)`,
+    )
+    .run(
+      "work_current",
+      "work-current",
+      "conv_current",
+      `sha256:${"b".repeat(64)}`,
+      Date.parse(now),
+      Buffer.from("{}"),
+      Date.parse(now),
+      Date.parse(now),
+    );
+  seedDatabase.close();
 
   const proofDirectory = join(home, "migration-proofs");
   const first = await migrateCurrentHomeConversationTimelines({
@@ -127,11 +150,15 @@ test("INV-MIGRATE-02 converts a quiesced current-home journal with proof", async
     conversationCount: number;
     importedToolRecordCount: number;
     preparedToolRecoveryCount: number;
+    importedLifecycleAuthorityCount: number;
+    preparedLifecycleRecoveryCount: number;
     manifestDigest: string;
   };
   assert.equal(manifest.conversationCount, 1);
   assert.equal(manifest.importedToolRecordCount, 1);
   assert.equal(manifest.preparedToolRecoveryCount, 1);
+  assert.equal(manifest.importedLifecycleAuthorityCount, 1);
+  assert.equal(manifest.preparedLifecycleRecoveryCount, 1);
   assert.match(manifest.manifestDigest, /^sha256:[a-f0-9]{64}$/);
 
   const before = await store.readTimelineStateIdentity();
@@ -146,26 +173,35 @@ test("INV-MIGRATE-02 converts a quiesced current-home journal with proof", async
     /unresolved execution authority/,
   );
   const database = new DatabaseSync(sqlitePath);
-  const recovery = database
+  const recoveries = database
     .prepare(
       `SELECT action_kind, status, evidence_json IS NOT NULL AS has_evidence
-       FROM recovery_actions WHERE conversation_id = ?`,
+       FROM recovery_actions WHERE conversation_id = ? ORDER BY action_id`,
     )
-    .get("conv_current") as {
+    .all("conv_current") as unknown as Array<{
     action_kind: string;
     status: string;
     has_evidence: number;
-  };
-  assert.deepEqual(
-    { ...recovery },
-    {
-      action_kind: "reconcile_external_effect",
-      status: "prepared",
-      has_evidence: 1,
-    },
+  }>;
+  assert.equal(recoveries.length, 2);
+  assert.ok(
+    recoveries.every(
+      (item) =>
+        item.action_kind === "reconcile_external_effect" &&
+        item.status === "prepared" &&
+        item.has_evidence === 1,
+    ),
   );
-  database.exec("DELETE FROM conversation_records");
   database.close();
+  assert.ok((await retireMigratedLegacyRuntimeAuthority(store)) > 0);
+  assert.equal(await store.migration.countLegacyRuntimeAuthority(), 0);
+  const resumedAfterRetirement = await migrateCurrentHomeConversationTimelines({
+    store,
+    proofDirectory,
+    importedAt: "2026-09-14T00:00:01.000Z",
+    runtimeIsolation: "proven",
+  });
+  assert.deepEqual(resumedAfterRetirement, first);
   const promotion = await promotionService.promote({
     manifestPath: join(proofDirectory, "manifest.json"),
     oldRuntimeIsolation: "proven",

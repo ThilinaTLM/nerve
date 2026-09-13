@@ -18,6 +18,9 @@ import type {
 
 export type CanonicalCommand =
   | { kind: "initialize" }
+  | { kind: "read_legacy_lifecycle_authority_facts" }
+  | { kind: "retire_legacy_runtime_authority" }
+  | { kind: "count_legacy_runtime_authority" }
   | { kind: "create_timeline_backup_snapshot"; destination: string }
   | { kind: "count_compaction_provider_phases"; runId: string }
   | { kind: "list_pending_canonical_deletions"; limit: number }
