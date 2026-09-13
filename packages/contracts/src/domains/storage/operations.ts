@@ -30,6 +30,15 @@ export const storageOperationDefinitions = [
     "operation.storage.backup.create",
   ),
   defineOperation(
+    "storage.backup.inspect",
+    z.object({ backupId: z.string().startsWith("backup_").max(256) }),
+    z.object({ manifest: portableBackupManifestSchema }),
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.storage.backup.inspect",
+  ),
+  defineOperation(
     "storage.rebuildIndex",
     emptyParamsSchema,
     maintenanceStartResponseSchema,

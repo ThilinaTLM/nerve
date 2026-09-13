@@ -96,6 +96,9 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
     "storage.backup.create": async (state) => ({
       manifest: (await state.portableBackup.create()).manifest,
     }),
+    "storage.backup.inspect": async (state, params) => ({
+      manifest: await state.backupInspection.inspect(params.backupId),
+    }),
     "storage.rebuildIndex": async (state) => ({
       operation: await state.maintenance.start({
         kind: "storage_cleanup",

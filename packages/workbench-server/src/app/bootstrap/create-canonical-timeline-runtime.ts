@@ -4,6 +4,7 @@ import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import { CanonicalProjectionDispatcher } from "../../domains/conversations/timeline/canonical-projection-dispatcher.js";
 import { CanonicalTimelinePageProvider } from "../../domains/conversations/timeline/canonical-timeline-page-provider.js";
 import { CanonicalTranscriptProjectionService } from "../../domains/conversations/timeline/canonical-transcript-projection.service.js";
+import { CanonicalBackupInspectionService } from "../../domains/storage/canonical-backup-inspection.service.js";
 import { CanonicalPortableBackupService } from "../../domains/storage/canonical-portable-backup.service.js";
 
 export function timelineRuntime(
@@ -27,9 +28,11 @@ export function timelineRuntime(
     storage.canonicalStore,
     storage.paths,
   );
+  const backupInspection = new CanonicalBackupInspectionService(storage.paths);
   return {
     timelinePages,
     projectionDispatcher: dispatcher,
     portableBackup,
+    backupInspection,
   };
 }

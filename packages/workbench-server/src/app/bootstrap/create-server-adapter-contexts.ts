@@ -73,6 +73,7 @@ export function createServerAdapterContexts(
       maintenance: infrastructure.maintenance,
       storageUsage: infrastructure.storageUsage,
       portableBackup: services.portableBackup,
+      backupInspection: services.backupInspection,
       subscriptionUsage: infrastructure.subscriptionUsage,
       fileCompletions: services.fileCompletions,
       projectFilesystemWatcher: services.projectFilesystemWatcher,
