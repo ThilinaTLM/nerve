@@ -13,6 +13,18 @@ import { canonicalConversationJson } from "../../../domains/conversations/timeli
 
 const IMPORT_BATCH_SIZE = 64;
 
+export interface LegacyConversationImportProof {
+  schemaVersion: 1;
+  conversationId: string;
+  sourceDigest: string;
+  sourceEntryCount: number;
+  importedEntryCount: number;
+  rootCount: number;
+  batchCount: number;
+  activeEntryId: string | null;
+  proofDigest: string;
+}
+
 export interface LegacyConversationImportSource {
   conversationId: string;
   entries: readonly ConversationEntry[];
@@ -34,9 +46,10 @@ export class LegacyConversationTimelineImporter {
     this.transitions = new ConversationTransitionService(store);
   }
 
-  async import(
-    source: LegacyConversationImportSource,
-  ): Promise<ConversationHead> {
+  async import(source: LegacyConversationImportSource): Promise<{
+    head: ConversationHead;
+    proof: LegacyConversationImportProof;
+  }> {
     const entries = validateAndOrderSource(source);
     const identity = await new CanonicalTimelineIdentityService(
       this.store,
@@ -52,7 +65,10 @@ export class LegacyConversationTimelineImporter {
       if (result.kind === "rejected") {
         throw new Error(`Empty legacy conversation import was rejected.`);
       }
-      return result.head;
+      return {
+        head: result.head,
+        proof: buildProof(source, entries, 0),
+      };
     }
 
     let head: ConversationHead = {
@@ -142,7 +158,10 @@ export class LegacyConversationTimelineImporter {
       }
       head = resultingHead;
     }
-    return head;
+    return {
+      head,
+      proof: buildProof(source, entries, batches.length),
+    };
   }
 }
 
@@ -217,6 +236,27 @@ function validateAndOrderSource(
       sourceDigest: source.sourceDigest,
     },
   }));
+}
+
+function buildProof(
+  source: LegacyConversationImportSource,
+  entries: readonly CanonicalConversationEntry[],
+  batchCount: number,
+): LegacyConversationImportProof {
+  const facts = {
+    schemaVersion: 1 as const,
+    conversationId: source.conversationId,
+    sourceDigest: source.sourceDigest,
+    sourceEntryCount: source.entries.length,
+    importedEntryCount: entries.length,
+    rootCount: entries.filter((entry) => entry.parentEntryId === null).length,
+    batchCount,
+    activeEntryId: source.activeEntryId,
+  };
+  return {
+    ...facts,
+    proofDigest: `sha256:${stableHex(canonicalConversationJson(facts))}`,
+  };
 }
 
 function chunk<T>(values: readonly T[], size: number): T[][] {

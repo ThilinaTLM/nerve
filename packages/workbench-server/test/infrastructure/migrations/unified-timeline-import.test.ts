@@ -51,8 +51,13 @@ test("INV-MIGRATION-01 imports a branching legacy history in restart-safe bounde
   };
   const importer = new LegacyConversationTimelineImporter(store);
   const first = await importer.import(source);
-  assert.equal(first.revision, 2);
-  assert.equal(first.activeEntryId, "entry_legacy_100");
+  assert.equal(first.head.revision, 2);
+  assert.equal(first.head.activeEntryId, "entry_legacy_100");
+  assert.equal(first.proof.sourceEntryCount, 67);
+  assert.equal(first.proof.importedEntryCount, 67);
+  assert.equal(first.proof.rootCount, 1);
+  assert.equal(first.proof.batchCount, 2);
+  assert.match(first.proof.proofDigest, /^sha256:[a-f0-9]{64}$/);
 
   const replay = await importer.import(source);
   assert.deepEqual(replay, first);
