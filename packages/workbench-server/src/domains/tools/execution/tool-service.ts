@@ -47,7 +47,6 @@ import type {
 } from "../../runs/runtime/conversation-runtime.js";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics.js";
-import type { PermissionExceptionService } from "../../permissions/permission-exceptions.service.js";
 import type { PermissionPolicyService } from "../../permissions/permission-policy.service.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";
@@ -246,11 +245,10 @@ export interface ToolServiceDependencies {
   ) => Promise<AgentRecord>;
   readonly conversationRuntime: ConversationRuntime;
   readonly logger?: ApplicationLogger;
-  readonly permissionExceptions?: PermissionExceptionService;
   readonly journal: ConversationJournalRepository;
   readonly resultPayloads: ToolResultPayloadStore;
   readonly performanceDiagnostics?: PerformanceDiagnosticsPort;
-  readonly permissionPolicy?: PermissionPolicyService;
+  readonly permissionPolicy: PermissionPolicyService;
   readonly toolCallRepository: ToolCallRepository;
 }
 
@@ -428,32 +426,17 @@ export class ToolService {
     const now = new Date().toISOString();
     const latestAgent = this.dependencies.getAgent(agent.id);
     const resolvedPolicy =
-      await this.dependencies.permissionPolicy?.resolve(latestAgent);
-    const exceptions = resolvedPolicy
-      ? []
-      : this.dependencies.permissionExceptions
-        ? await this.dependencies.permissionExceptions.effective(
-            latestAgent.projectId,
-          )
-        : this.dependencies.storage.settings.permissions.exceptions;
-    const rules = resolvedPolicy
-      ? undefined
-      : this.dependencies.permissionExceptions
-        ? await this.dependencies.permissionExceptions.effectiveRules(
-            latestAgent.projectId,
-          )
-        : undefined;
+      await this.dependencies.permissionPolicy.resolve(latestAgent);
     const evaluation = evaluateWorkbenchToolPermission(
       latestAgent,
       toolName,
       args,
       {
         dataDir: this.dependencies.storage.paths.home,
-        exceptions,
-        rules,
-        policy: resolvedPolicy?.policy,
-        roots: resolvedPolicy?.roots,
-        policyDiagnostic: resolvedPolicy?.diagnostics.at(-1),
+        exceptions: [],
+        policy: resolvedPolicy.policy,
+        roots: resolvedPolicy.roots,
+        policyDiagnostic: resolvedPolicy.diagnostics.at(-1),
       },
     );
     const decision =
@@ -1114,35 +1097,20 @@ export class ToolService {
   ): Promise<void> {
     const agent = this.dependencies.getAgent(toolCall.agentId);
     const resolvedPolicy =
-      await this.dependencies.permissionPolicy?.resolve(agent);
-    const exceptions = resolvedPolicy
-      ? []
-      : this.dependencies.permissionExceptions
-        ? await this.dependencies.permissionExceptions.effective(
-            agent.projectId,
-          )
-        : this.dependencies.storage.settings.permissions.exceptions;
-    const rules = resolvedPolicy
-      ? undefined
-      : this.dependencies.permissionExceptions
-        ? await this.dependencies.permissionExceptions.effectiveRules(
-            agent.projectId,
-          )
-        : undefined;
+      await this.dependencies.permissionPolicy.resolve(agent);
     const evaluation = evaluateWorkbenchToolPermission(
       agent,
       toolCall.toolName as ToolName,
       toolCall.args as Record<string, unknown>,
       {
         dataDir: this.dependencies.storage.paths.home,
-        exceptions,
-        rules,
-        policy: resolvedPolicy?.policy,
-        roots: resolvedPolicy?.roots,
-        policyDiagnostic: resolvedPolicy?.diagnostics.at(-1),
+        exceptions: [],
+        policy: resolvedPolicy.policy,
+        roots: resolvedPolicy.roots,
+        policyDiagnostic: resolvedPolicy.diagnostics.at(-1),
       },
     );
-    if (evaluation.permissionEvaluation && resolvedPolicy) {
+    if (evaluation.permissionEvaluation) {
       await assertWriteTargetBoundaries(
         evaluation.permissionEvaluation.normalizedTargets,
         resolvedPolicy.roots,

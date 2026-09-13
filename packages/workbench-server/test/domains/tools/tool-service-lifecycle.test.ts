@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { defaultSettings } from "@nervekit/contracts/settings";
+import { PermissionPolicyService } from "../../../src/domains/permissions/permission-policy.service.js";
 import { ToolService } from "../../../src/domains/tools/execution/tool-service.js";
 import { ToolResultPayloadStore } from "../../../src/domains/tools/artifacts/tool-result-payload-store.js";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
@@ -58,6 +59,10 @@ describe("tool service lifecycle", () => {
       plans: {} as never,
       setAgentMode: async () => testAgent,
       conversationRuntime: {} as never,
+      permissionPolicy: new PermissionPolicyService(
+        storage as never,
+        () => ({ id: testAgent.projectId, dir: testAgent.projectDir }) as never,
+      ),
       journal,
       resultPayloads,
       toolCallRepository: new ToolCallRepository(journal, resultPayloads),
@@ -353,6 +358,10 @@ function buildToolService(
     plans: {} as never,
     setAgentMode: async () => testAgent,
     conversationRuntime: {} as never,
+    permissionPolicy: new PermissionPolicyService(
+      storage as never,
+      () => ({ id: testAgent.projectId, dir: testAgent.projectDir }) as never,
+    ),
     journal,
     resultPayloads,
     toolCallRepository: new ToolCallRepository(journal, resultPayloads),

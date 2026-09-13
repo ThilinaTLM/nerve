@@ -546,7 +546,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       agentLifecycle.setAgentModeInternal(agentId, mode, reason),
     conversationRuntime: state.conversationRuntime,
     logger: logger.child({ component: "tool" }),
-    permissionExceptions,
     journal: conversationJournal,
     resultPayloads,
     performanceDiagnostics: performanceDiagnostics.enabled
@@ -733,7 +732,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     plans,
     humanInput,
     permissionPolicy,
-    permissionExceptions,
   );
   const pruneConversations = new PruneProjectConversationsService({
     getProject,

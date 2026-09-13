@@ -49,7 +49,6 @@ function service(input: {
     {} as never,
     { resolveApproval: async () => input.toolCall } as never,
     { saveRule: input.saveRule } as never,
-    {} as never,
   );
 }
 
@@ -94,6 +93,20 @@ test("durable approvals persist to the evaluation-time permission rule set", asy
       ownerId: "proj_test",
     },
   ]);
+});
+
+test("legacy exception suggestions cannot become permission authority", async () => {
+  const toolCall = pendingToolCall("planning");
+  const approval = toolCall.interactions[0];
+  assert.ok(approval?.kind === "approval");
+  approval.request.suggestedRules = [];
+  approval.request.suggestedExceptions = ["bash"];
+  const resolver = service({ toolCall, saveRule: async () => undefined });
+
+  await assert.rejects(
+    resolver.resolve(durableProjectRequest),
+    /evaluated again.*current permission policy/,
+  );
 });
 
 test("historical approvals without rule-set evidence cannot create durable rules", async () => {

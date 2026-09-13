@@ -7,7 +7,6 @@ import type {
 import { ApplicationError } from "../../../core/application-error.js";
 import type { HumanInputResolutionService } from "../../human-input/index.js";
 import type { PlanService } from "../../plans/plan-service.js";
-import type { PermissionExceptionService } from "../../permissions/permission-exceptions.service.js";
 import type { PermissionPolicyService } from "../../permissions/permission-policy.service.js";
 import type { ToolService } from "../execution/tool-service.js";
 
@@ -17,7 +16,6 @@ export class ToolInteractionResolutionService {
     private readonly plans: PlanService,
     private readonly humanInput: HumanInputResolutionService,
     private readonly permissionPolicy: PermissionPolicyService,
-    private readonly permissionExceptions: PermissionExceptionService,
   ) {}
 
   async resolve(request: ResolveToolInteractionRequest): Promise<{
@@ -99,10 +97,10 @@ export class ToolInteractionResolutionService {
                 : undefined,
           );
         } else if (durableScope !== "conversation") {
-          await this.permissionExceptions.add(
-            current.projectId,
-            durableScope,
-            interaction.request.suggestedExceptions,
+          throw new ApplicationError(
+            409,
+            "LEGACY_PERMISSION_GRANT_UNSUPPORTED",
+            "This approval must be evaluated again before it can be saved to the current permission policy.",
           );
         }
       }
