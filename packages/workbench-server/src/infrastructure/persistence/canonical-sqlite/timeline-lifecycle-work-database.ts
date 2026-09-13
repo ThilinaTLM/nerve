@@ -141,6 +141,20 @@ export function readCanonicalLifecycleWork(
   return row ? decodeWork(row) : undefined;
 }
 
+export function listCanonicalLifecycleWorkForRun(
+  database: DatabaseSync,
+  runId: string,
+): CanonicalLifecycleWork[] {
+  return (
+    database
+      .prepare(
+        `SELECT * FROM canonical_lifecycle_work
+         WHERE run_id = ? ORDER BY created_at_ms, work_id`,
+      )
+      .all(runId) as unknown as WorkRow[]
+  ).map(decodeWork);
+}
+
 export function listReadyCanonicalLifecycleWork(
   database: DatabaseSync,
   now: string,

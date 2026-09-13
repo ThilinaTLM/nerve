@@ -5,6 +5,7 @@ import {
   type CanonicalLifecycleWork,
   type ExecutionClaim,
   type ProviderPhase,
+  type RecoveryAction,
   type RunControl,
 } from "@nervekit/contracts/runs";
 import type { TimelineArtifactManifestWrite } from "../../../infrastructure/persistence/canonical-sqlite/timeline-checkpoint-database.js";
@@ -77,12 +78,28 @@ export class CanonicalRunTimelineService {
     input: CanonicalRunMutationIdentity & {
       state: "completed" | "failed" | "cancelled" | "abandoned" | "superseded";
       recoveryReason?: string;
+      providerPhases?: readonly ProviderPhase[];
+      executionAttempts?: readonly CanonicalExecutionAttempt[];
+      executionClaims?: readonly ExecutionClaim[];
+      lifecycleWorks?: readonly CanonicalLifecycleWork[];
+      recoveryActions?: readonly RecoveryAction[];
     },
   ): Promise<CanonicalRunMutationResult> {
-    return this.mutate(input, [], {
-      state: input.state,
-      recoveryReason: input.recoveryReason,
-    });
+    return this.mutate(
+      input,
+      [],
+      {
+        state: input.state,
+        recoveryReason: input.recoveryReason,
+      },
+      {
+        providerPhases: input.providerPhases,
+        executionAttempts: input.executionAttempts,
+        executionClaims: input.executionClaims,
+        lifecycleWorks: input.lifecycleWorks,
+        recoveryActions: input.recoveryActions,
+      },
+    );
   }
 
   private async mutate(
@@ -98,6 +115,7 @@ export class CanonicalRunTimelineService {
       lifecycleWorks?: readonly CanonicalLifecycleWork[];
       artifactManifests?: readonly TimelineArtifactManifestWrite[];
       providerPhaseId?: string | null;
+      recoveryActions?: readonly RecoveryAction[];
     } = {},
   ): Promise<CanonicalRunMutationResult> {
     const [identity, head, run] = await Promise.all([
@@ -233,6 +251,9 @@ export class CanonicalRunTimelineService {
         : [],
       lifecycleWorks: execution.lifecycleWorks
         ? [...execution.lifecycleWorks]
+        : [],
+      recoveryActions: execution.recoveryActions
+        ? [...execution.recoveryActions]
         : [],
       outcome: nextRun,
       publicationIntents: [],

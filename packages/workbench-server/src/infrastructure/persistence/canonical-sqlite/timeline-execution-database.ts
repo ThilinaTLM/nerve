@@ -10,17 +10,48 @@ import { providerPhaseSchema } from "@nervekit/contracts/runs";
 import { assertProviderPhaseTransition } from "../../../domains/runs/runtime/provider-phase-state.js";
 import { decode, encode } from "./payload-codecs.js";
 import {
+  listTimelineExecutionAttemptsForProviderPhase,
+  listTimelineExecutionClaimsForAttempts,
   readTimelineExecutionAttempt,
   readTimelineExecutionClaim,
 } from "./timeline-effect-database.js";
 import {
   claimReadyCanonicalLifecycleWork,
+  listCanonicalLifecycleWorkForRun,
   listReadyCanonicalLifecycleWork,
   readCanonicalLifecycleWork,
 } from "./timeline-lifecycle-work-database.js";
 
+export interface CanonicalRunExecutionAuthority {
+  phase?: ProviderPhase;
+  attempts: CanonicalExecutionAttempt[];
+  claims: ExecutionClaim[];
+  work: CanonicalLifecycleWork[];
+}
+
 export class CanonicalExecutionQueryDatabase {
   constructor(private readonly database: DatabaseSync) {}
+
+  readRunExecutionAuthority(
+    runId: string,
+    phaseId?: string,
+  ): CanonicalRunExecutionAuthority {
+    const phase = phaseId
+      ? readProviderPhase(this.database, phaseId)
+      : undefined;
+    const attempts = phaseId
+      ? listTimelineExecutionAttemptsForProviderPhase(this.database, phaseId)
+      : [];
+    return {
+      phase,
+      attempts,
+      claims: listTimelineExecutionClaimsForAttempts(
+        this.database,
+        attempts.map((attempt) => attempt.attemptId),
+      ),
+      work: listCanonicalLifecycleWorkForRun(this.database, runId),
+    };
+  }
 
   readAttempt(attemptId: string): CanonicalExecutionAttempt | undefined {
     return readTimelineExecutionAttempt(this.database, attemptId);

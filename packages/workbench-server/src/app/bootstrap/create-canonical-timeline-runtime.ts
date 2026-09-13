@@ -15,6 +15,7 @@ import { CanonicalProviderPreparationService } from "../../domains/conversations
 import { CanonicalProviderDispatchService } from "../../domains/conversations/timeline/canonical-provider-dispatch.service.js";
 import { CanonicalProviderSettlementService } from "../../domains/conversations/timeline/canonical-provider-settlement.service.js";
 import { CanonicalRunStartService } from "../../domains/conversations/timeline/canonical-run-start.service.js";
+import { CanonicalRunTerminationService } from "../../domains/conversations/timeline/canonical-run-termination.service.js";
 import { CanonicalRunTimelineService } from "../../domains/conversations/timeline/canonical-run-timeline.service.js";
 import { CanonicalTimelinePageProvider } from "../../domains/conversations/timeline/canonical-timeline-page-provider.js";
 import { CanonicalTranscriptProjectionService } from "../../domains/conversations/timeline/canonical-transcript-projection.service.js";
@@ -49,10 +50,14 @@ export function timelineRuntime(
     storage.canonicalStore,
   );
   const navigation = new CanonicalNavigationService(storage.canonicalStore);
+  const runTermination = new CanonicalRunTerminationService(
+    storage.canonicalStore,
+  );
   const runExecutionBoundary = new CanonicalRunExecutionBoundary(
     runStart,
     conversationContext,
     runTimeline,
+    runTermination,
   );
   const autoCompaction = new CanonicalAutoCompactionService(
     storage.canonicalStore,
@@ -85,6 +90,7 @@ export function timelineRuntime(
     conversationContext,
     runStart,
     runTimeline,
+    runTermination,
     providerPreparation,
     providerDispatch,
     providerSettlement,

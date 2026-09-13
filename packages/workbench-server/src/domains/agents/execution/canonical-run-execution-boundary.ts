@@ -9,6 +9,7 @@ import type { MutationOutcome } from "@nervekit/contracts/conversations";
 import { CanonicalConversationContextService } from "../../conversations/timeline/canonical-conversation-context.service.js";
 import { CanonicalRunStartService } from "../../conversations/timeline/canonical-run-start.service.js";
 import { CanonicalRunTimelineService } from "../../conversations/timeline/canonical-run-timeline.service.js";
+import { CanonicalRunTerminationService } from "../../conversations/timeline/canonical-run-termination.service.js";
 import { canonicalConversationJson } from "../../conversations/timeline/command-fingerprint.js";
 import { createCanonicalHarnessContext } from "./canonical-harness-context.js";
 import { projectHarnessCanonicalEntry } from "./message-mirror.js";
@@ -35,6 +36,7 @@ export class CanonicalRunExecutionBoundary {
     private readonly starts: CanonicalRunStartService,
     private readonly contexts: CanonicalConversationContextService,
     private readonly timeline: CanonicalRunTimelineService,
+    private readonly termination: CanonicalRunTerminationService,
   ) {}
 
   async begin(input: {
@@ -131,13 +133,11 @@ export class CanonicalRunExecutionBoundary {
   ): Promise<CanonicalExecutionBoundaryResult<void>> {
     const flushed = await this.flush(session, input.now);
     if (flushed.kind === "rejected") return flushed;
-    const result = await this.timeline.close({
+    const result = await this.termination.close({
       conversationId: session.conversationId,
       runId: session.runId,
-      commandId: `close-canonical-run:${session.runId}:${input.state}`,
+      agentId: session.agentId,
       now: input.now,
-      actor: { kind: "worker", agentId: session.agentId },
-      cause: { kind: "harness_run_settled", state: input.state },
       state: input.state,
       recoveryReason: input.recoveryReason,
     });

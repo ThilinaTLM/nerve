@@ -4,6 +4,7 @@ import type {
   ExecutionClaim,
   ProviderPhase,
 } from "@nervekit/contracts/runs";
+import type { CanonicalRunExecutionAuthority } from "./timeline-execution-database.js";
 import type { CanonicalCommand } from "./worker-protocol.js";
 
 export class CanonicalExecutionStore {
@@ -19,6 +20,14 @@ export class CanonicalExecutionStore {
     return this.request<CanonicalLifecycleWork | undefined>({
       kind: "claim_ready_canonical_lifecycle_work",
       ...input,
+    });
+  }
+
+  readRunExecutionAuthority(runId: string, phaseId?: string) {
+    return this.request<CanonicalRunExecutionAuthority>({
+      kind: "read_canonical_run_execution_authority",
+      runId,
+      phaseId,
     });
   }
 

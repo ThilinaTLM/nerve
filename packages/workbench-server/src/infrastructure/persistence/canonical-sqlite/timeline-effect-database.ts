@@ -493,6 +493,44 @@ function assertCurrentIncarnation(
   }
 }
 
+export function listTimelineExecutionAttemptsForProviderPhase(
+  database: DatabaseSync,
+  phaseId: string,
+): CanonicalExecutionAttempt[] {
+  const rows = database
+    .prepare(
+      `SELECT attempt_id FROM execution_attempts
+       WHERE provider_phase_id = ? ORDER BY attempt_number`,
+    )
+    .all(phaseId) as unknown as Array<{ attempt_id: string }>;
+  return rows
+    .map((row) => readTimelineExecutionAttempt(database, row.attempt_id))
+    .filter((attempt): attempt is CanonicalExecutionAttempt =>
+      Boolean(attempt),
+    );
+}
+
+export function listTimelineExecutionClaimsForAttempts(
+  database: DatabaseSync,
+  attemptIds: readonly string[],
+): ExecutionClaim[] {
+  const claims: ExecutionClaim[] = [];
+  const statement = database.prepare(
+    `SELECT claim_id FROM execution_claims
+     WHERE attempt_id = ? ORDER BY generation, claim_id`,
+  );
+  for (const attemptId of attemptIds) {
+    const rows = statement.all(attemptId) as unknown as Array<{
+      claim_id: string;
+    }>;
+    for (const row of rows) {
+      const claim = readTimelineExecutionClaim(database, row.claim_id);
+      if (claim) claims.push(claim);
+    }
+  }
+  return claims;
+}
+
 export function readTimelineExecutionClaim(
   database: DatabaseSync,
   claimId: string,

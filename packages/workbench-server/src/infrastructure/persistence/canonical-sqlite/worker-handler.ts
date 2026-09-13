@@ -61,6 +61,11 @@ export function executeCanonicalCommand(
         now: command.now,
         leaseDurationMs: command.leaseDurationMs,
       });
+    case "read_canonical_run_execution_authority":
+      return database.executionQueries.readRunExecutionAuthority(
+        command.runId,
+        command.phaseId,
+      );
     case "read_canonical_execution_attempt":
       return database.executionQueries.readAttempt(command.attemptId);
     case "read_canonical_execution_claim":

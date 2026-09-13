@@ -8,6 +8,7 @@ import { CanonicalConversationContextService } from "../../../src/domains/conver
 import { CanonicalConversationCreationService } from "../../../src/domains/conversations/timeline/canonical-conversation-creation.service.js";
 import { CanonicalRunStartService } from "../../../src/domains/conversations/timeline/canonical-run-start.service.js";
 import { CanonicalRunTimelineService } from "../../../src/domains/conversations/timeline/canonical-run-timeline.service.js";
+import { CanonicalRunTerminationService } from "../../../src/domains/conversations/timeline/canonical-run-termination.service.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
 
 const now = "2026-09-14T00:00:00.000Z";
@@ -29,6 +30,7 @@ test("canonical execution boundary materializes exact messages and closes foregr
     new CanonicalRunStartService(store),
     new CanonicalConversationContextService(store),
     new CanonicalRunTimelineService(store),
+    new CanonicalRunTerminationService(store),
   );
   const begun = await boundary.begin({
     conversationId: "conv_boundary",
@@ -85,6 +87,19 @@ test("canonical execution boundary materializes exact messages and closes foregr
     "run_boundary",
   );
   assert.equal(run?.state, "completed");
+  assert.equal(
+    (await store.execution.readProviderPhase("provider_phase_boundary_1"))
+      ?.state,
+    "closed",
+  );
+  assert.equal(
+    (
+      await store.execution.readLifecycleWork(
+        "canonical_work_boundary_provider_1",
+      )
+    )?.state,
+    "cancelled",
+  );
   const segment = await store.readTimelineAncestrySegment(
     "conv_boundary",
     head!.activeEntryId!,
