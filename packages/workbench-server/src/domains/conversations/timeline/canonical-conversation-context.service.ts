@@ -24,7 +24,10 @@ export type CanonicalContextResult =
   | { kind: "ready"; snapshot: CanonicalContextSnapshot }
   | { kind: "stale"; outcome: MutationOutcome };
 
-/** Builds disposable provider context exclusively from selected canonical ancestry. */
+/**
+ * Builds the fenced ancestry input for a disposable context recipe. Boundary
+ * selection must be applied before this snapshot is transformed for a provider.
+ */
 export class CanonicalConversationContextService {
   constructor(private readonly store: CanonicalStore) {}
 
