@@ -18,6 +18,8 @@ export const backupManifestEntrySchema = z.object({
   schemaVersion: z.string().min(1).max(128).optional(),
 });
 
+export type BackupManifestEntry = z.infer<typeof backupManifestEntrySchema>;
+
 export const portableBackupManifestSchema = z.object({
   schemaVersion: z.literal(1),
   backupId: z.string().startsWith("backup_"),

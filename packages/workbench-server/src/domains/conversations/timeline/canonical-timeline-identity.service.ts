@@ -3,6 +3,7 @@ import type { TimelineStateIdentity } from "@nervekit/contracts/conversations";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import { conversationCommandFingerprint } from "./command-fingerprint.js";
 import { ConversationTransitionService } from "./conversation-transition.service.js";
+import { CANONICAL_SCHEMA_VERSION } from "../../../infrastructure/persistence/canonical-sqlite/schema.js";
 
 /** Establishes the stable namespace/restore-era incarnation before mutations. */
 export class CanonicalTimelineIdentityService {
@@ -25,7 +26,7 @@ export class CanonicalTimelineIdentityService {
       schemaVersion: 1,
       namespaceId: `namespace_${randomUUID()}`,
       executionIncarnationId: `incarnation_${randomUUID()}`,
-      formatVersion: 5,
+      formatVersion: CANONICAL_SCHEMA_VERSION,
       promotedAt: now,
     };
     const commandId = "initialize-canonical-timeline-identity";

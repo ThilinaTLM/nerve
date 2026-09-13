@@ -6,6 +6,7 @@ import {
   backupManifestEntrySchema,
   portableBackupManifestSchema,
   type PortableBackupManifest,
+  type BackupManifestEntry,
 } from "@nervekit/contracts/storage";
 import { z } from "zod";
 import { canonicalConversationJson } from "../conversations/timeline/command-fingerprint.js";
@@ -13,8 +14,18 @@ import { canonicalConversationJson } from "../conversations/timeline/command-fin
 const entriesSchema = z.array(backupManifestEntrySchema).min(1);
 
 /** Verifies a backup completely before any restore staging or promotion. */
+export interface VerifiedCanonicalBackup {
+  root: string;
+  manifest: PortableBackupManifest;
+  entries: BackupManifestEntry[];
+}
+
 export class CanonicalBackupVerifier {
   async verify(backupPath: string): Promise<PortableBackupManifest> {
+    return (await this.verifyBundle(backupPath)).manifest;
+  }
+
+  async verifyBundle(backupPath: string): Promise<VerifiedCanonicalBackup> {
     const root = await realpath(backupPath);
     const manifest = portableBackupManifestSchema.parse(
       JSON.parse(await readFile(resolveInside(root, "manifest.json"), "utf8")),
@@ -60,7 +71,7 @@ export class CanonicalBackupVerifier {
       resolveInside(root, databaseEntry.relativeLocator),
       manifest,
     );
-    return manifest;
+    return { root, manifest, entries };
   }
 }
 

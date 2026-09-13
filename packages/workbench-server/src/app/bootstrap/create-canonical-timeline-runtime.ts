@@ -8,6 +8,7 @@ import { CanonicalTimelinePageProvider } from "../../domains/conversations/timel
 import { CanonicalTranscriptProjectionService } from "../../domains/conversations/timeline/canonical-transcript-projection.service.js";
 import { CanonicalBackupInspectionService } from "../../domains/storage/canonical-backup-inspection.service.js";
 import { CanonicalPortableBackupService } from "../../domains/storage/canonical-portable-backup.service.js";
+import { CanonicalRestoreStagingService } from "../../domains/storage/canonical-restore-staging.service.js";
 
 export function timelineRuntime(
   storage: InitializedStorage,
@@ -37,11 +38,13 @@ export function timelineRuntime(
     storage.paths,
   );
   const backupInspection = new CanonicalBackupInspectionService(storage.paths);
+  const restoreStaging = new CanonicalRestoreStagingService(storage.paths);
   return {
     timelinePages,
     projectionDispatcher: dispatcher,
     deletionDispatcher,
     portableBackup,
     backupInspection,
+    restoreStaging,
   };
 }

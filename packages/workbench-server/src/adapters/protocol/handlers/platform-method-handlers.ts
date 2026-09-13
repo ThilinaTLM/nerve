@@ -99,6 +99,12 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
     "storage.backup.inspect": async (state, params) => ({
       manifest: await state.backupInspection.inspect(params.backupId),
     }),
+    "storage.restore.stage": async (state, params) => ({
+      promotion: (await state.restoreStaging.stage(params)).promotion,
+    }),
+    "storage.restore.admit": async (state, params) => ({
+      promotion: await state.restoreStaging.admit(params.restoreId),
+    }),
     "storage.rebuildIndex": async (state) => ({
       operation: await state.maintenance.start({
         kind: "storage_cleanup",

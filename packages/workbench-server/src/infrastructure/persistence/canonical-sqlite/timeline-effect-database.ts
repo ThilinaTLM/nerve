@@ -170,6 +170,7 @@ export function persistTimelineExecutionAttempt(
   if (attempt.state !== "ready") {
     throw new Error("A new execution attempt must begin ready.");
   }
+  assertDispatchAdmitted(database, attempt.executionIncarnationId);
   database
     .prepare(
       `INSERT INTO execution_attempts (
@@ -199,6 +200,9 @@ export function persistTimelineExecutionClaim(
   now: string,
 ): void {
   assertCurrentIncarnation(database, claim.executionIncarnationId);
+  if (claim.state === "active") {
+    assertDispatchAdmitted(database, claim.executionIncarnationId);
+  }
   const current = database
     .prepare(
       `SELECT attempt_id, token, generation, incarnation_id, state
@@ -349,6 +353,26 @@ export function insertTimelineRecoveryAction(
       action.commandId,
       Date.parse(action.createdAt),
     );
+}
+
+function assertDispatchAdmitted(
+  database: DatabaseSync,
+  incarnationId: string,
+): void {
+  const row = database
+    .prepare(
+      `SELECT execution_incarnation_id, dispatch_state
+       FROM runtime_admission WHERE singleton = 1`,
+    )
+    .get() as
+    | { execution_incarnation_id: string; dispatch_state: string }
+    | undefined;
+  if (
+    row?.execution_incarnation_id !== incarnationId ||
+    row.dispatch_state !== "admitted"
+  ) {
+    throw new Error("Execution dispatch is not admitted for this incarnation.");
+  }
 }
 
 function assertCurrentIncarnation(
