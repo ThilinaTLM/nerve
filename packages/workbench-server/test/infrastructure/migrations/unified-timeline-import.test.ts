@@ -48,6 +48,12 @@ test("INV-MIGRATE-01 imports a branching legacy history in restart-safe bounded 
     sourceLocator: "conversations/conv_legacy/journal.jsonl",
     sourceDigest: digest,
     importedAt: "2026-01-02T00:00:00.000Z",
+    exactMessagesByEntryId: {
+      entry_legacy_100: {
+        role: "assistant",
+        content: [{ type: "text", text: "exact branch response" }],
+      },
+    },
   };
   const importer = new LegacyConversationTimelineImporter(store);
   const first = await importer.import(source);
@@ -77,6 +83,22 @@ test("INV-MIGRATE-01 imports a branching legacy history in restart-safe bounded 
   assert.equal(counts.entries, 67);
   assert.equal(counts.transitions, 2);
   assert.equal(branch.parent_entry_id, "entry_legacy_0");
+  const selected = await store.readTimelineAncestrySegment(
+    "conv_legacy",
+    "entry_legacy_100",
+    1,
+  );
+  assert.deepEqual(
+    (
+      selected.entries[0]?.inlineContent as {
+        exactHarnessMessage?: unknown;
+      }
+    ).exactHarnessMessage,
+    {
+      role: "assistant",
+      content: [{ type: "text", text: "exact branch response" }],
+    },
+  );
 });
 
 test("INV-MIGRATE-02 rejects missing parents and cycles before mutation", async (t) => {
@@ -99,6 +121,14 @@ test("INV-MIGRATE-02 rejects missing parents and cycles before mutation", async 
       entries: [entry(0, "entry_legacy_1"), entry(1, "entry_legacy_0")],
     }),
     /contains a cycle/,
+  );
+  await assert.rejects(
+    importer.import({
+      ...base,
+      entries: [entry(0)],
+      exactMessagesByEntryId: { entry_orphan: { role: "user" } },
+    }),
+    /no matching conversation entry/,
   );
   assert.equal(
     await store.readTimelineConversationHead("conv_legacy"),

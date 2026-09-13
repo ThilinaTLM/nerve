@@ -1,9 +1,15 @@
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
+import { CanonicalConversationContextService } from "../../domains/conversations/timeline/canonical-conversation-context.service.js";
+import { CanonicalConversationCreationService } from "../../domains/conversations/timeline/canonical-conversation-creation.service.js";
 import { CanonicalDeletionCleanupService } from "../../domains/conversations/timeline/canonical-deletion-cleanup.service.js";
 import { CanonicalDeletionDispatcher } from "../../domains/conversations/timeline/canonical-deletion-dispatcher.js";
+import { CanonicalDeletionService } from "../../domains/conversations/timeline/canonical-deletion.service.js";
+import { CanonicalNavigationService } from "../../domains/conversations/timeline/canonical-navigation.service.js";
 import { CanonicalProjectionDispatcher } from "../../domains/conversations/timeline/canonical-projection-dispatcher.js";
+import { CanonicalRunStartService } from "../../domains/conversations/timeline/canonical-run-start.service.js";
+import { CanonicalRunTimelineService } from "../../domains/conversations/timeline/canonical-run-timeline.service.js";
 import { CanonicalTimelinePageProvider } from "../../domains/conversations/timeline/canonical-timeline-page-provider.js";
 import { CanonicalTranscriptProjectionService } from "../../domains/conversations/timeline/canonical-transcript-projection.service.js";
 import { CanonicalBackupInspectionService } from "../../domains/storage/canonical-backup-inspection.service.js";
@@ -19,6 +25,15 @@ export function timelineRuntime(
     storage.canonicalStore,
     secrets,
   );
+  const conversationCreation = new CanonicalConversationCreationService(
+    storage.canonicalStore,
+  );
+  const conversationContext = new CanonicalConversationContextService(
+    storage.canonicalStore,
+  );
+  const runStart = new CanonicalRunStartService(storage.canonicalStore);
+  const runTimeline = new CanonicalRunTimelineService(storage.canonicalStore);
+  const navigation = new CanonicalNavigationService(storage.canonicalStore);
   const projections = new CanonicalTranscriptProjectionService(
     storage.canonicalStore,
   );
@@ -27,6 +42,7 @@ export function timelineRuntime(
     logger.child({ component: "canonical-projections" }),
   );
   dispatcher.start();
+  const deletion = new CanonicalDeletionService(storage.canonicalStore);
   const deletionDispatcher = new CanonicalDeletionDispatcher(
     storage.canonicalStore,
     new CanonicalDeletionCleanupService(storage.canonicalStore, storage.paths),
@@ -41,6 +57,12 @@ export function timelineRuntime(
   const restoreStaging = new CanonicalRestoreStagingService(storage.paths);
   return {
     timelinePages,
+    conversationCreation,
+    conversationContext,
+    runStart,
+    runTimeline,
+    navigation,
+    deletion,
     projectionDispatcher: dispatcher,
     deletionDispatcher,
     portableBackup,

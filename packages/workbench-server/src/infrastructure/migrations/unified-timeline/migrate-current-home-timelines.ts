@@ -24,6 +24,9 @@ export async function migrateCurrentHomeConversationTimelines(input: {
   proofDirectory: string;
   importedAt: string;
   runtimeIsolation: "proven";
+  readExactMessages?: (
+    conversationId: string,
+  ) => Promise<Readonly<Record<string, unknown>>>;
 }): Promise<LegacyConversationImportProof[]> {
   const conversations = (
     await input.store.listConversationMetadata<ConversationRecord>()
@@ -34,12 +37,16 @@ export async function migrateCurrentHomeConversationTimelines(input: {
   for (const conversation of conversations) {
     const entries: ConversationEntry[] =
       await input.store.readConversationEntries(conversation.id);
+    const exactMessagesByEntryId = input.readExactMessages
+      ? await input.readExactMessages(conversation.id)
+      : undefined;
     const sourceDigest = `sha256:${createHash("sha256")
       .update(
         canonicalConversationJson({
           schemaVersion: 1,
           conversation,
           entries,
+          exactMessagesByEntryId,
         }),
       )
       .digest("hex")}`;
@@ -50,6 +57,7 @@ export async function migrateCurrentHomeConversationTimelines(input: {
       sourceLocator: `sqlite:legacy-conversation-journal/${conversation.id}`,
       sourceDigest,
       importedAt: input.importedAt,
+      exactMessagesByEntryId,
     });
     await atomicWriteJson(
       join(input.proofDirectory, `${conversation.id}.json`),

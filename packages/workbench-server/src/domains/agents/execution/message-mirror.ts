@@ -13,6 +13,7 @@ import { toolNameSchema } from "@nervekit/contracts/tools";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
 import { deriveConversationTitle } from "../../conversations/operations/index.js";
+import type { AppendEntryDraft } from "../../conversations/timeline/transition-builders.js";
 
 export interface AppendEntryInput {
   id?: string;
@@ -60,6 +61,40 @@ export function projectHarnessMessageEntry(input: {
     usage: extractEntryUsage(entry.message as AgentMessage),
     details: entryDetails(entry.message as AgentMessage),
     createdAt: entry.timestamp,
+  };
+}
+
+export function projectHarnessCanonicalEntry(input: {
+  entry: Extract<ConversationTreeEntry, { type: "message" }>;
+  agentId: string;
+}): AppendEntryDraft {
+  const { entry, agentId } = input;
+  const role = entry.message.role;
+  const kind: AppendEntryDraft["kind"] =
+    role === "user"
+      ? "user_message"
+      : role === "assistant"
+        ? "assistant_message"
+        : role === "toolResult"
+          ? "tool_result"
+          : "child_result";
+  const toolCallId =
+    role === "toolResult" && "toolCallId" in entry.message
+      ? String(entry.message.toolCallId)
+      : undefined;
+  return {
+    entryId: entry.id,
+    kind,
+    inlineContent: {
+      text: agentMessageText(entry.message),
+      exactHarnessMessage: entry.message,
+    },
+    ...(toolCallId ? { toolCallId } : {}),
+    provenance: {
+      agentId,
+      createdAt: entry.timestamp,
+      source: "live_harness",
+    },
   };
 }
 

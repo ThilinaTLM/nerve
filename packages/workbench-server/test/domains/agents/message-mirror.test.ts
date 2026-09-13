@@ -11,6 +11,7 @@ import {
   AssistantEntryMetaQueue,
   type AssistantMessageMeta,
   MessageMirror,
+  projectHarnessCanonicalEntry,
 } from "../../../src/domains/agents/execution/message-mirror.js";
 
 const agent = {
@@ -72,6 +73,23 @@ function toolResultStorageEntry(
     },
   };
 }
+
+it("projects exact harness tool messages for canonical persistence", () => {
+  const entry = toolResultStorageEntry("entry_exact", {
+    text: "exact result",
+  });
+  const projected = projectHarnessCanonicalEntry({
+    entry,
+    agentId: "agent_test",
+  });
+  assert.equal(projected.kind, "tool_result");
+  assert.equal(projected.toolCallId, "call_1");
+  assert.deepEqual(
+    (projected.inlineContent as { exactHarnessMessage: unknown })
+      .exactHarnessMessage,
+    entry.message,
+  );
+});
 
 function createMirror(
   storageEntries: unknown[],

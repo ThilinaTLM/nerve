@@ -32,6 +32,8 @@ export interface LegacyConversationImportSource {
   sourceLocator: string;
   sourceDigest: string;
   importedAt: string;
+  /** Exact harness message payloads, when retained by the source format. */
+  exactMessagesByEntryId?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -172,6 +174,13 @@ function validateAndOrderSource(
     throw new Error("Legacy conversation source digest is invalid.");
   }
   const byId = new Map<string, ConversationEntry>();
+  for (const entryId of Object.keys(source.exactMessagesByEntryId ?? {})) {
+    if (!source.entries.some((entry) => entry.id === entryId)) {
+      throw new Error(
+        `Exact legacy message '${entryId}' has no matching conversation entry.`,
+      );
+    }
+  }
   for (const entry of source.entries) {
     if (entry.conversationId !== source.conversationId) {
       throw new Error("Legacy entry belongs to a different conversation.");
@@ -224,6 +233,9 @@ function validateAndOrderSource(
       text: entry.text,
       ...(entry.summary ? { summary: entry.summary } : {}),
       ...(entry.details === undefined ? {} : { details: entry.details }),
+      ...(source.exactMessagesByEntryId?.[entry.id] === undefined
+        ? {}
+        : { exactHarnessMessage: source.exactMessagesByEntryId[entry.id] }),
     },
     artifacts: [],
     ...(entry.runId ? { runId: entry.runId } : {}),
