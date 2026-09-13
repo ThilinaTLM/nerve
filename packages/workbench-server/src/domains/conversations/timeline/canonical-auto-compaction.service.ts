@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { ProviderPhase } from "@nervekit/contracts/runs";
 import type {
   ArtifactReference,
   CanonicalConversationEntry,
@@ -45,6 +46,8 @@ export interface CanonicalAutoCompactionInput<T> {
   runId: string;
   policyVersion: number;
   providerAdapterVersion: string;
+  providerIdentity: Record<string, unknown>;
+  providerCapability: ProviderPhase["capability"];
   recipeVersion: number;
   preparedAt: string;
   prepareSummary(
@@ -128,6 +131,8 @@ export class CanonicalAutoCompactionService {
         summaryEntryId: `entry_${randomUUID()}`,
         policyVersion: input.policyVersion,
         providerAdapterVersion: input.providerAdapterVersion,
+        providerIdentity: input.providerIdentity,
+        providerCapability: input.providerCapability,
         recipeVersion: input.recipeVersion,
         actor: { kind: "system" },
         cause: { kind: "automatic_compaction" },

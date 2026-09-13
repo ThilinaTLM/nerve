@@ -5,10 +5,14 @@ import type {
   ConversationHead,
   MutationOutcome,
 } from "@nervekit/contracts/conversations";
-import type { RunControl } from "@nervekit/contracts/runs";
+import type { ProviderPhase, RunControl } from "@nervekit/contracts/runs";
 import { z } from "zod";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
-import { conversationCommandFingerprint } from "./command-fingerprint.js";
+import {
+  canonicalConversationJson,
+  conversationCommandFingerprint,
+} from "./command-fingerprint.js";
+import { createHash } from "node:crypto";
 import { ConversationTransitionService } from "./conversation-transition.service.js";
 import {
   buildAppendTransition,
@@ -29,6 +33,8 @@ export interface PreparedCanonicalCompaction {
   summaryEntryId?: string;
   policyVersion: number;
   providerAdapterVersion: string;
+  providerIdentity: Record<string, unknown>;
+  providerCapability: ProviderPhase["capability"];
   recipeVersion: number;
   actor: Record<string, unknown>;
   cause: Record<string, unknown>;
@@ -86,6 +92,8 @@ export class CanonicalCompactionCoordinator {
       summary: prepared.summary,
       policyVersion: prepared.policyVersion,
       providerAdapterVersion: prepared.providerAdapterVersion,
+      providerIdentity: prepared.providerIdentity,
+      providerCapability: prepared.providerCapability,
       recipeVersion: prepared.recipeVersion,
     });
     const identity = {
@@ -223,7 +231,29 @@ export class CanonicalCompactionCoordinator {
     const committed = await this.commitPrepared(prepared);
     if (committed.kind === "stale") return committed;
     const preparedPhase = await prepareProviderPhase(committed.snapshot);
-    if (!(await this.revalidateBeforeProviderDispatch(committed.snapshot))) {
+    const phaseCommit = await this.commitPreparedProviderPhase(
+      prepared,
+      committed.snapshot,
+      preparedPhase,
+    );
+    if (phaseCommit.kind === "stale") return phaseCommit;
+    return {
+      kind: "ready",
+      snapshot: phaseCommit.snapshot,
+      preparedPhase,
+    };
+  }
+
+  private async commitPreparedProviderPhase<T>(
+    prepared: PreparedCanonicalCompaction,
+    snapshot: CanonicalContinuationSnapshot,
+    preparedPhase: T,
+  ): Promise<CanonicalCompactionCommitResult> {
+    const run = await this.store.readTimelineRunControl(
+      snapshot.conversationId,
+      snapshot.runId,
+    );
+    if (!run || !(await this.revalidateBeforeProviderDispatch(snapshot))) {
       return {
         kind: "stale",
         outcome: {
@@ -232,11 +262,95 @@ export class CanonicalCompactionCoordinator {
         },
       };
     }
-    return {
-      kind: "ready",
-      snapshot: committed.snapshot,
-      preparedPhase,
+    const identitySuffix = snapshot.boundaryId.slice("boundary_".length);
+    const phaseId = `provider_phase_${identitySuffix}`;
+    const requestManifestId = `manifest_provider_request_${identitySuffix}`;
+    const requestData = { schemaVersion: 1, snapshot, preparedPhase };
+    const requestHash = `sha256:${createHash("sha256")
+      .update(canonicalConversationJson(requestData))
+      .digest("hex")}`;
+    const phase: ProviderPhase = {
+      schemaVersion: 1,
+      phaseId,
+      runId: snapshot.runId,
+      runGeneration: snapshot.runGeneration,
+      selectionEpoch: snapshot.selectionEpoch,
+      sourceEntryId: snapshot.headEntryId,
+      contextRecipeId: `context_recipe_${identitySuffix}`,
+      requestManifestId,
+      requestHash,
+      providerIdentity: prepared.providerIdentity,
+      capability: prepared.providerCapability,
+      state: "ready",
     };
+    const nextRun: RunControl = {
+      ...run,
+      providerPhaseId: phaseId,
+      revision: run.revision + 1,
+    };
+    const dispatchSnapshot: CanonicalContinuationSnapshot = {
+      ...snapshot,
+      runRevision: nextRun.revision,
+    };
+    const fingerprint = conversationCommandFingerprint({
+      operation: "prepare_provider_phase",
+      snapshot,
+      phase,
+      requestHash,
+    });
+    const outcome = await this.transitions.commit({
+      namespaceId: prepared.namespaceId,
+      executionIncarnationId: prepared.executionIncarnationId,
+      operationKind: "prepare_provider_phase",
+      ownerKind: "conversation",
+      ownerId: snapshot.conversationId,
+      commandId: `prepare-provider-phase:${snapshot.boundaryId}`,
+      fingerprintVersion: 1,
+      fingerprint,
+      expectedHeads: [
+        {
+          conversationId: snapshot.conversationId,
+          revision: snapshot.revision,
+          selectionEpoch: snapshot.selectionEpoch,
+        },
+      ],
+      expectedRunFences: [
+        {
+          conversationId: snapshot.conversationId,
+          runId: snapshot.runId,
+          generation: snapshot.runGeneration,
+          revision: snapshot.runRevision,
+          selectionEpoch: snapshot.selectionEpoch,
+          continuationEntryId: snapshot.headEntryId,
+          requireForegroundOwnership: true,
+        },
+      ],
+      transitions: [],
+      artifactManifests: [
+        { manifestId: requestManifestId, schemaVersion: 1, data: requestData },
+      ],
+      providerPhases: [phase],
+      runControls: [nextRun],
+      outcome: dispatchSnapshot,
+      publicationIntents: [],
+      now: prepared.preparedAt,
+    });
+    if (outcome.kind !== "committed" && outcome.kind !== "receipt_replay") {
+      return { kind: "stale", outcome };
+    }
+    const persistedSnapshot =
+      outcome.kind === "receipt_replay"
+        ? canonicalContinuationSnapshotSchema.parse(outcome.value)
+        : dispatchSnapshot;
+    return (await this.revalidateBeforeProviderDispatch(persistedSnapshot))
+      ? { kind: outcome.kind, snapshot: persistedSnapshot }
+      : {
+          kind: "stale",
+          outcome: {
+            kind: "superseded",
+            reason: "provider_phase_commit_fence_changed",
+          },
+        };
   }
 
   async revalidateBeforeProviderDispatch(

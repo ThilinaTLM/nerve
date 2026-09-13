@@ -105,6 +105,8 @@ test("INV-CONTEXT-01 prepares external evidence before committing and building t
     runId: "run_auto",
     policyVersion: 1,
     providerAdapterVersion: "test-v1",
+    providerIdentity: { provider: "test" },
+    providerCapability: "stateless_generation",
     recipeVersion: 1,
     preparedAt: "2026-09-12T00:00:01.000Z",
     async prepareSummary(entries) {
@@ -133,5 +135,15 @@ test("INV-CONTEXT-01 prepares external evidence before committing and building t
   assert.equal(
     result.kind === "ready" && result.preparedPhase.requestSourceEntryId,
     result.kind === "ready" ? result.snapshot.headEntryId : undefined,
+  );
+  const persistedRun = await store.readTimelineRunControl(
+    "conv_auto",
+    "run_auto",
+  );
+  assert.equal(persistedRun?.revision, 3);
+  assert.match(persistedRun?.providerPhaseId ?? "", /^provider_phase_/);
+  assert.equal(
+    result.kind === "ready" ? result.snapshot.runRevision : undefined,
+    persistedRun?.revision,
   );
 });

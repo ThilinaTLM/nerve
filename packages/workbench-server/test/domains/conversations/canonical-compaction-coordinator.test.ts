@@ -120,6 +120,8 @@ test("INV-CONTEXT-01 commits a prepared boundary before admitting continuation",
     summaryEntryId: "entry_summary",
     policyVersion: 1,
     providerAdapterVersion: "test-v1",
+    providerIdentity: { provider: "test" },
+    providerCapability: "stateless_generation",
     recipeVersion: 1,
     actor: { kind: "system" },
     cause: { kind: "automatic_compaction" },
@@ -164,6 +166,8 @@ test("INV-CONTEXT-01 rejects incomplete source ancestry manifests", async (t) =>
       summaryEntryId: "entry_incomplete_summary",
       policyVersion: 1,
       providerAdapterVersion: "test-v1",
+      providerIdentity: { provider: "test" },
+      providerCapability: "stateless_generation",
       recipeVersion: 1,
       actor: { kind: "system" },
       cause: { kind: "automatic_compaction" },
@@ -234,6 +238,8 @@ test("INV-CONTEXT-01 discards a stale prepared summary after ownership changes",
       summaryEntryId: "entry_stale_summary",
       policyVersion: 1,
       providerAdapterVersion: "test-v1",
+      providerIdentity: { provider: "test" },
+      providerCapability: "stateless_generation",
       recipeVersion: 1,
       actor: { kind: "system" },
       cause: { kind: "automatic_compaction" },
@@ -249,5 +255,112 @@ test("INV-CONTEXT-01 discards a stale prepared summary after ownership changes",
   await assert.rejects(
     store.readTimelineAncestrySegment("conv_one", "entry_stale_summary", 1),
     /not found/,
+  );
+});
+
+test("INV-PROVIDER-01 discards provider work when its committed snapshot is superseded", async (t) => {
+  const { store, run, head } = await fixture(t);
+  const coordinator = new CanonicalCompactionCoordinator(store);
+  const result = await coordinator.commitThenPrepareProviderPhase(
+    {
+      namespaceId: "namespace_test",
+      executionIncarnationId: "incarnation_test",
+      commandId: "command_provider_race_compact",
+      transitionId: "transition_provider_race_compact",
+      boundaryId: "boundary_provider_race_compact",
+      sourceHead: head,
+      run,
+      anchorEntryId: "entry_prompt",
+      sourceManifest: manifest(),
+      summary: "Committed summary",
+      summaryEntryId: "entry_provider_race_summary",
+      policyVersion: 1,
+      providerAdapterVersion: "test-v1",
+      providerIdentity: { provider: "test" },
+      providerCapability: "stateless_generation",
+      recipeVersion: 1,
+      actor: { kind: "system" },
+      cause: { kind: "automatic_compaction" },
+      preparedAt: "2026-09-12T00:00:01.000Z",
+    },
+    async (snapshot) => {
+      const currentHead = await store.readTimelineConversationHead("conv_one");
+      const currentRun = await store.readTimelineRunControl(
+        "conv_one",
+        "run_one",
+      );
+      assert.ok(currentHead && currentRun);
+      const transition = buildAppendTransition({
+        head: currentHead,
+        identity: {
+          commandId: "command_provider_race_advance",
+          inputFingerprint: hash,
+          actor: { kind: "user" },
+          cause: { kind: "race" },
+          committedAt: "2026-09-12T00:00:02.000Z",
+          transitionId: "transition_provider_race_advance",
+        },
+        entries: [
+          {
+            entryId: "entry_provider_race_advance",
+            kind: "user_message",
+            inlineContent: "new input",
+          },
+        ],
+        foregroundRunId: "run_one",
+      });
+      await store.commitConversationCommand({
+        namespaceId: "namespace_test",
+        executionIncarnationId: "incarnation_test",
+        operationKind: "advance",
+        ownerKind: "conversation",
+        ownerId: "conv_one",
+        commandId: "command_provider_race_advance",
+        fingerprintVersion: 1,
+        fingerprint: hash,
+        expectedHeads: [
+          {
+            conversationId: "conv_one",
+            revision: snapshot.revision,
+            selectionEpoch: snapshot.selectionEpoch,
+          },
+        ],
+        expectedRunFences: [
+          {
+            conversationId: "conv_one",
+            runId: "run_one",
+            generation: snapshot.runGeneration,
+            revision: snapshot.runRevision,
+            selectionEpoch: snapshot.selectionEpoch,
+            continuationEntryId: snapshot.headEntryId,
+            requireForegroundOwnership: true,
+          },
+        ],
+        transitions: [transition],
+        runControls: [
+          {
+            ...currentRun,
+            continuationEntryId: transition.resultingHead.activeEntryId,
+            revision: currentRun.revision + 1,
+          },
+        ],
+        outcome: {},
+        publicationIntents: [],
+        now: "2026-09-12T00:00:02.000Z",
+      });
+      return { request: "stale" };
+    },
+  );
+  assert.equal(result.kind, "stale");
+  assert.equal(
+    result.kind === "stale" && result.outcome.kind === "superseded"
+      ? result.outcome.reason
+      : undefined,
+    "provider_preparation_fence_changed",
+  );
+  assert.equal(
+    (await store.readTimelineRunControl("conv_one", "run_one"))
+      ?.providerPhaseId,
+    null,
   );
 });
