@@ -136,6 +136,21 @@ test("INV-MIGRATE-02 converts a quiesced current-home journal with proof", async
     (await store.readTimelineRuntimeAdmission())?.dispatchState,
     "admitted",
   );
+  const promotedDatabase = new DatabaseSync(sqlitePath, { readOnly: true });
+  const promotionEvidence = promotedDatabase
+    .prepare(
+      `SELECT proof_digest, old_runtime_isolated, state
+       FROM timeline_authority_promotions WHERE promotion_id = ?`,
+    )
+    .get(promotion.promotionId) as {
+    proof_digest: string;
+    old_runtime_isolated: number;
+    state: string;
+  };
+  promotedDatabase.close();
+  assert.equal(promotionEvidence.proof_digest, promotion.proofDigest);
+  assert.equal(promotionEvidence.old_runtime_isolated, 1);
+  assert.equal(promotionEvidence.state, "promoted");
   await assert.rejects(
     new CanonicalAuthorityPromotionService(store).promote({
       manifestPath: join(proofDirectory, "manifest.json"),
