@@ -118,6 +118,22 @@ export class CanonicalTimelineDatabase {
     return readTimelineRuntimeAdmission(this.database);
   }
 
+  disableRuntimeAdmission(now: string) {
+    return withTimelineImmediateTransaction(this.database, () => {
+      const result = this.database
+        .prepare(
+          `UPDATE runtime_admission
+           SET dispatch_state = 'disabled', updated_at_ms = ?
+           WHERE singleton = 1`,
+        )
+        .run(Date.parse(now));
+      if (result.changes !== 1) {
+        throw new Error("Canonical runtime admission is not initialized.");
+      }
+      return readTimelineRuntimeAdmission(this.database);
+    });
+  }
+
   readDeletionState(conversationId: string) {
     return readTimelineDeletionState(this.database, conversationId);
   }

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { AgentMessage } from "@nervekit/harness/agent";
 import {
   InMemoryConversationStorage,
@@ -23,6 +24,7 @@ export function createCanonicalHarnessContext(input: {
       createdAt: input.createdAt,
     },
     entries: input.snapshot.entries.map(toHarnessEntry),
+    entryIdFactory: () => `entry_${randomUUID()}`,
   });
 }
 

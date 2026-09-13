@@ -61,18 +61,37 @@ test("INV-MIGRATE-02 converts a quiesced current-home journal with proof", async
     proofDirectory,
     importedAt: "2026-09-14T00:00:01.000Z",
     runtimeIsolation: "proven",
+    readExactMessages: async () => ({
+      entry_current: { role: "user", content: "preserve me", timestamp: 1 },
+    }),
   });
   const replay = await migrateCurrentHomeConversationTimelines({
     store,
     proofDirectory,
     importedAt: "2026-09-14T00:00:01.000Z",
     runtimeIsolation: "proven",
+    readExactMessages: async () => ({
+      entry_current: { role: "user", content: "preserve me", timestamp: 1 },
+    }),
   });
   assert.deepEqual(replay, first);
   assert.equal(first[0]?.conversationId, "conv_current");
   assert.equal(
     (await store.readTimelineConversationHead("conv_current"))?.activeEntryId,
     "entry_current",
+  );
+  const ancestry = await store.readTimelineAncestrySegment(
+    "conv_current",
+    "entry_current",
+    1,
+  );
+  assert.deepEqual(
+    (
+      ancestry.entries[0]?.inlineContent as {
+        exactHarnessMessage?: unknown;
+      }
+    ).exactHarnessMessage,
+    { role: "user", content: "preserve me", timestamp: 1 },
   );
   assert.deepEqual(
     JSON.parse(

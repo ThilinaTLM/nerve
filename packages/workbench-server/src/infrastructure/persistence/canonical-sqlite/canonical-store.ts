@@ -193,6 +193,12 @@ export class CanonicalStore {
       kind: "read_timeline_runtime_admission",
     });
   }
+  disableTimelineRuntimeAdmission(now: string) {
+    return this.request<RuntimeAdmission>({
+      kind: "disable_timeline_runtime_admission",
+      now,
+    });
+  }
 
   readTimelineConversationHead(conversationId: string) {
     return this.request<ConversationHead | undefined>({

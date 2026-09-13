@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { CanonicalConversationCreationService } from "../../../src/domains/conversations/timeline/canonical-conversation-creation.service.js";
 import { CanonicalConversationContextService } from "../../../src/domains/conversations/timeline/canonical-conversation-context.service.js";
@@ -51,7 +50,7 @@ async function fixture(t: test.TestContext) {
 }
 
 test("INV-CONTEXT-01 builds provider context only from fenced canonical ancestry", async (t) => {
-  const { store, sqlitePath } = await fixture(t);
+  const { store } = await fixture(t);
   const service = new CanonicalConversationContextService(store);
   const result = await service.build({
     conversationId: "conv_context",
@@ -64,13 +63,7 @@ test("INV-CONTEXT-01 builds provider context only from fenced canonical ancestry
     ["user_message", "assistant_message"],
   );
 
-  const database = new DatabaseSync(sqlitePath);
-  database
-    .prepare(
-      "UPDATE runtime_admission SET dispatch_state = 'disabled' WHERE singleton = 1",
-    )
-    .run();
-  database.close();
+  await store.disableTimelineRuntimeAdmission("2026-09-14T00:00:03.000Z");
   assert.equal(await service.revalidate(result.snapshot), false);
 });
 

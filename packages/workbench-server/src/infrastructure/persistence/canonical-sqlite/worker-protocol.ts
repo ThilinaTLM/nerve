@@ -69,6 +69,7 @@ export type CanonicalCommand =
     }
   | { kind: "read_timeline_state_identity" }
   | { kind: "read_timeline_runtime_admission" }
+  | { kind: "disable_timeline_runtime_admission"; now: string }
   | { kind: "read_timeline_conversation_head"; conversationId: string }
   | { kind: "read_timeline_deletion_state"; conversationId: string }
   | {

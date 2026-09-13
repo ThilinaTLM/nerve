@@ -59,6 +59,8 @@ export function executeCanonicalCommand(
       return database.timeline.readStateIdentity();
     case "read_timeline_runtime_admission":
       return database.timeline.readRuntimeAdmission();
+    case "disable_timeline_runtime_admission":
+      return database.timeline.disableRuntimeAdmission(command.now);
     case "read_timeline_conversation_head":
       return database.timeline.readHead(command.conversationId);
     case "record_timeline_transcript_projection_failure":

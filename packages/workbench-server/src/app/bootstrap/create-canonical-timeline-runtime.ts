@@ -1,4 +1,5 @@
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
+import { CanonicalRunExecutionBoundary } from "../../domains/agents/execution/canonical-run-execution-boundary.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import { CanonicalConversationContextService } from "../../domains/conversations/timeline/canonical-conversation-context.service.js";
@@ -34,6 +35,11 @@ export function timelineRuntime(
   const runStart = new CanonicalRunStartService(storage.canonicalStore);
   const runTimeline = new CanonicalRunTimelineService(storage.canonicalStore);
   const navigation = new CanonicalNavigationService(storage.canonicalStore);
+  const runExecutionBoundary = new CanonicalRunExecutionBoundary(
+    runStart,
+    conversationContext,
+    runTimeline,
+  );
   const projections = new CanonicalTranscriptProjectionService(
     storage.canonicalStore,
   );
@@ -61,6 +67,7 @@ export function timelineRuntime(
     conversationContext,
     runStart,
     runTimeline,
+    runExecutionBoundary,
     navigation,
     deletion,
     projectionDispatcher: dispatcher,
