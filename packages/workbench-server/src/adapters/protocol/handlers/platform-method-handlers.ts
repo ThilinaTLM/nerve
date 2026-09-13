@@ -100,10 +100,12 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       manifest: await state.backupInspection.inspect(params.backupId),
     }),
     "storage.restore.stage": async (state, params) => ({
-      promotion: (await state.restoreStaging.stage(params)).promotion,
-    }),
-    "storage.restore.admit": async (state, params) => ({
-      promotion: await state.restoreStaging.admit(params.restoreId),
+      promotion: (
+        await state.restoreStaging.stage({
+          backupId: params.backupId,
+          oldRuntimeIsolation: "unproven",
+        })
+      ).promotion,
     }),
     "storage.rebuildIndex": async (state) => ({
       operation: await state.maintenance.start({

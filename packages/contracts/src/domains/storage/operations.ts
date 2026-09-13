@@ -45,22 +45,12 @@ export const storageOperationDefinitions = [
     "storage.restore.stage",
     z.object({
       backupId: z.string().startsWith("backup_").max(256),
-      oldRuntimeIsolation: z.enum(["proven", "unproven"]),
     }),
     z.object({ promotion: restorePromotionSchema }),
     "mutation",
     "recommended",
     ["workbench_server"] as const,
     "operation.storage.restore.stage",
-  ),
-  defineOperation(
-    "storage.restore.admit",
-    z.object({ restoreId: z.string().startsWith("restore_").max(256) }),
-    z.object({ promotion: restorePromotionSchema }),
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.storage.restore.admit",
   ),
   defineOperation(
     "storage.rebuildIndex",
