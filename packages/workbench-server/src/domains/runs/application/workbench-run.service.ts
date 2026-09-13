@@ -145,19 +145,14 @@ export class WorkbenchRunService {
           "Agent is already running.",
         );
       }
-      if (behavior === "follow-up") {
-        await this.coordinator.followUp(
-          active.run.runId,
-          request.text,
-          request.images,
-        );
-      } else {
-        await this.coordinator.steer(
-          active.run.runId,
-          request.text,
-          request.images,
-        );
-      }
+      // Active-run input is queued until the current foreground owner closes.
+      // Injecting a steer message into the running harness would create a
+      // competing non-canonical history writer.
+      await this.coordinator.followUp(
+        active.run.runId,
+        request.text,
+        request.images,
+      );
       return;
     }
     this.state.maintenanceScopes.assertConversation(agent.conversationId);
