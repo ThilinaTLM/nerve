@@ -1,6 +1,7 @@
 import type { ConversationDeletionCursor } from "./conversation-deletion.js";
 import type { ConversationJournalCommit } from "@nervekit/contracts/conversations";
 import type { LifecycleWork, RecoveryIssue } from "@nervekit/contracts/runs";
+import type { TimelineAuthorityPromotion } from "@nervekit/contracts/storage";
 import type {
   ClaimLifecycleWorkInput,
   LifecycleAtomicCommitInput,
@@ -70,6 +71,10 @@ export type CanonicalCommand =
   | { kind: "read_timeline_state_identity" }
   | { kind: "read_timeline_runtime_admission" }
   | { kind: "disable_timeline_runtime_admission"; now: string }
+  | {
+      kind: "promote_timeline_runtime_admission";
+      promotion: TimelineAuthorityPromotion;
+    }
   | { kind: "read_timeline_conversation_head"; conversationId: string }
   | { kind: "read_timeline_deletion_state"; conversationId: string }
   | {

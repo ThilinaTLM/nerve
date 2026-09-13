@@ -2,8 +2,9 @@ import { UNIFIED_TIMELINE_V5_SQL } from "./unified-timeline-schema.js";
 import { TIMELINE_DELETION_WORK_V6_SQL } from "./timeline-deletion-schema.js";
 import { TIMELINE_SEARCH_PROJECTION_V7_SQL } from "./timeline-search-schema.js";
 import { TIMELINE_RESTORE_V8_SQL } from "./timeline-restore-schema.js";
+import { TIMELINE_AUTHORITY_PROMOTION_V9_SQL } from "./timeline-authority-promotion-schema.js";
 
-export const CANONICAL_SCHEMA_VERSION = 8;
+export const CANONICAL_SCHEMA_VERSION = 9;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -395,5 +396,12 @@ export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
     checksum:
       "924aa2bdac347f2c9b4a47037905c5b8e5962f24e4d49fea29d2d6df73c4a5b2",
     sql: TIMELINE_RESTORE_V8_SQL,
+  },
+  {
+    version: 9,
+    name: "timeline-authority-promotion-v9",
+    checksum:
+      "552b03feb9d508e98fb64de98be2bc996b5c3abc3e8b2d1f21c12cfbbac434a3",
+    sql: TIMELINE_AUTHORITY_PROMOTION_V9_SQL,
   },
 ];

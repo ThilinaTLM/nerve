@@ -66,6 +66,7 @@ import {
   persistTimelinePolicySaveIntent,
 } from "./timeline-policy-database.js";
 import { withTimelineImmediateTransaction } from "./timeline-transaction.js";
+import { promoteTimelineRuntimeAdmission } from "./timeline-authority-promotion-database.js";
 import { persistTimelineWaitGroup } from "./timeline-wait-group-database.js";
 import { markTimelineTranscriptProjectionPending } from "./timeline-projection-database.js";
 import {
@@ -116,6 +117,12 @@ export class CanonicalTimelineDatabase {
 
   readRuntimeAdmission() {
     return readTimelineRuntimeAdmission(this.database);
+  }
+
+  promoteRuntimeAdmission(
+    promotion: Parameters<typeof promoteTimelineRuntimeAdmission>[1],
+  ) {
+    return promoteTimelineRuntimeAdmission(this.database, promotion);
   }
 
   disableRuntimeAdmission(now: string) {

@@ -30,7 +30,10 @@ import type {
   SettleLifecycleWorkInput,
 } from "./lifecycle-work-database.js";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
-import type { RuntimeAdmission } from "@nervekit/contracts/storage";
+import type {
+  RuntimeAdmission,
+  TimelineAuthorityPromotion,
+} from "@nervekit/contracts/storage";
 import {
   encode,
   type CanonicalDocument,
@@ -197,6 +200,12 @@ export class CanonicalStore {
     return this.request<RuntimeAdmission>({
       kind: "disable_timeline_runtime_admission",
       now,
+    });
+  }
+  promoteTimelineRuntimeAdmission(promotion: TimelineAuthorityPromotion) {
+    return this.request<TimelineAuthorityPromotion>({
+      kind: "promote_timeline_runtime_admission",
+      promotion,
     });
   }
 

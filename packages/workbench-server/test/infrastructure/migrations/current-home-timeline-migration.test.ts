@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
+import { CanonicalAuthorityPromotionService } from "../../../src/domains/storage/canonical-authority-promotion.service.js";
 import { migrateCurrentHomeConversationTimelines } from "../../../src/infrastructure/migrations/unified-timeline/migrate-current-home-timelines.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
 
@@ -104,4 +106,42 @@ test("INV-MIGRATE-02 converts a quiesced current-home journal with proof", async
   ) as { conversationCount: number; manifestDigest: string };
   assert.equal(manifest.conversationCount, 1);
   assert.match(manifest.manifestDigest, /^sha256:[a-f0-9]{64}$/);
+
+  const before = await store.readTimelineStateIdentity();
+  await store.disableTimelineRuntimeAdmission("2026-09-14T00:00:02.000Z");
+  const promotionService = new CanonicalAuthorityPromotionService(store);
+  await assert.rejects(
+    promotionService.promote({
+      manifestPath: join(proofDirectory, "manifest.json"),
+      oldRuntimeIsolation: "proven",
+      promotedAt: "2026-09-14T00:00:03.000Z",
+    }),
+    /unresolved execution authority/,
+  );
+  const database = new DatabaseSync(sqlitePath);
+  database.exec("DELETE FROM conversation_records");
+  database.close();
+  const promotion = await promotionService.promote({
+    manifestPath: join(proofDirectory, "manifest.json"),
+    oldRuntimeIsolation: "proven",
+    promotedAt: "2026-09-14T00:00:03.000Z",
+  });
+  const after = await store.readTimelineStateIdentity();
+  assert.equal(
+    promotion.priorExecutionIncarnationId,
+    before?.executionIncarnationId,
+  );
+  assert.equal(after?.executionIncarnationId, promotion.executionIncarnationId);
+  assert.equal(
+    (await store.readTimelineRuntimeAdmission())?.dispatchState,
+    "admitted",
+  );
+  await assert.rejects(
+    new CanonicalAuthorityPromotionService(store).promote({
+      manifestPath: join(proofDirectory, "manifest.json"),
+      oldRuntimeIsolation: "proven",
+      promotedAt: "2026-09-14T00:00:04.000Z",
+    }),
+    /not fenced/,
+  );
 });

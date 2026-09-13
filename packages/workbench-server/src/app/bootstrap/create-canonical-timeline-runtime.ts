@@ -1,7 +1,9 @@
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import { CanonicalRunExecutionBoundary } from "../../domains/agents/execution/canonical-run-execution-boundary.js";
+import { FilesystemCanonicalArtifactFinalizer } from "../../infrastructure/persistence/canonical-artifact-finalizer.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
+import { CanonicalAutoCompactionService } from "../../domains/conversations/timeline/canonical-auto-compaction.service.js";
 import { CanonicalConversationContextService } from "../../domains/conversations/timeline/canonical-conversation-context.service.js";
 import { CanonicalConversationCreationService } from "../../domains/conversations/timeline/canonical-conversation-creation.service.js";
 import { CanonicalDeletionCleanupService } from "../../domains/conversations/timeline/canonical-deletion-cleanup.service.js";
@@ -40,6 +42,10 @@ export function timelineRuntime(
     conversationContext,
     runTimeline,
   );
+  const autoCompaction = new CanonicalAutoCompactionService(
+    storage.canonicalStore,
+    new FilesystemCanonicalArtifactFinalizer(storage.paths.home),
+  );
   const projections = new CanonicalTranscriptProjectionService(
     storage.canonicalStore,
   );
@@ -68,6 +74,7 @@ export function timelineRuntime(
     runStart,
     runTimeline,
     runExecutionBoundary,
+    autoCompaction,
     navigation,
     deletion,
     projectionDispatcher: dispatcher,

@@ -1,5 +1,11 @@
 import type { MutationOutcome } from "@nervekit/contracts/conversations";
-import { runControlSchema, type RunControl } from "@nervekit/contracts/runs";
+import {
+  runControlSchema,
+  type CanonicalExecutionAttempt,
+  type ExecutionClaim,
+  type ProviderPhase,
+  type RunControl,
+} from "@nervekit/contracts/runs";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import { CanonicalTimelineIdentityService } from "./canonical-timeline-identity.service.js";
 import { conversationCommandFingerprint } from "./command-fingerprint.js";
@@ -47,9 +53,16 @@ export class CanonicalRunTimelineService {
   append(
     input: CanonicalRunMutationIdentity & {
       entries: readonly AppendEntryDraft[];
+      providerPhases?: readonly ProviderPhase[];
+      executionAttempts?: readonly CanonicalExecutionAttempt[];
+      executionClaims?: readonly ExecutionClaim[];
     },
   ): Promise<CanonicalRunMutationResult> {
-    return this.mutate(input, input.entries, undefined);
+    return this.mutate(input, input.entries, undefined, {
+      providerPhases: input.providerPhases,
+      executionAttempts: input.executionAttempts,
+      executionClaims: input.executionClaims,
+    });
   }
 
   close(
@@ -70,6 +83,11 @@ export class CanonicalRunTimelineService {
     terminal:
       | { state: RunControl["state"]; recoveryReason?: string }
       | undefined,
+    execution: {
+      providerPhases?: readonly ProviderPhase[];
+      executionAttempts?: readonly CanonicalExecutionAttempt[];
+      executionClaims?: readonly ExecutionClaim[];
+    } = {},
   ): Promise<CanonicalRunMutationResult> {
     const [identity, head, run] = await Promise.all([
       this.identity.resolve(),
@@ -83,6 +101,7 @@ export class CanonicalRunTimelineService {
       runId: input.runId,
       entries,
       terminal,
+      execution,
       cause: input.cause,
     });
     if (
@@ -186,6 +205,15 @@ export class CanonicalRunTimelineService {
       ],
       transitions: [transition],
       runControls: [nextRun],
+      providerPhases: execution.providerPhases
+        ? [...execution.providerPhases]
+        : [],
+      executionAttempts: execution.executionAttempts
+        ? [...execution.executionAttempts]
+        : [],
+      executionClaims: execution.executionClaims
+        ? [...execution.executionClaims]
+        : [],
       outcome: nextRun,
       publicationIntents: [],
       now: input.now,

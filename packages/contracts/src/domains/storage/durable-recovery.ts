@@ -82,6 +82,21 @@ export const runtimeAdmissionSchema = z.object({
 });
 export type RuntimeAdmission = z.infer<typeof runtimeAdmissionSchema>;
 
+export const timelineAuthorityPromotionSchema = z.object({
+  schemaVersion: z.literal(1),
+  promotionId: z.string().startsWith("promotion_"),
+  namespaceId: z.string().startsWith("namespace_"),
+  priorExecutionIncarnationId: z.string().startsWith("incarnation_"),
+  executionIncarnationId: z.string().startsWith("incarnation_"),
+  proofDigest: digestSchema,
+  oldRuntimeIsolated: z.literal(true),
+  state: z.literal("promoted"),
+  promotedAt: isoDateTimeSchema,
+});
+export type TimelineAuthorityPromotion = z.infer<
+  typeof timelineAuthorityPromotionSchema
+>;
+
 export const deletionIntentSchema = z.object({
   schemaVersion: z.literal(1),
   conversationId: z.string().startsWith("conv_"),

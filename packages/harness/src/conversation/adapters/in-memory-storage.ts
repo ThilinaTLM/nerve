@@ -11,12 +11,15 @@ export class InMemoryConversationStorage<
 > implements ConversationStorage<TMetadata> {
   readonly #metadata: TMetadata;
   readonly #tree: ConversationTreeState;
+  readonly #entryIdFactory?: () => string;
 
   constructor(options?: {
     entries?: ConversationTreeEntry[];
     metadata?: TMetadata;
+    entryIdFactory?: () => string;
   }) {
     this.#tree = new ConversationTreeState(options?.entries);
+    this.#entryIdFactory = options?.entryIdFactory;
     this.#metadata =
       options?.metadata ??
       ({ id: uuidv7(), createdAt: new Date().toISOString() } as TMetadata);
@@ -36,7 +39,7 @@ export class InMemoryConversationStorage<
   }
 
   async createEntryId(): Promise<string> {
-    return this.#tree.createEntryId("short");
+    return this.#entryIdFactory?.() ?? this.#tree.createEntryId("short");
   }
 
   async appendEntry(entry: ConversationTreeEntry): Promise<void> {
