@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type {
-  ContextBoundary,
-  ContextSourceManifest,
-  ConversationHead,
-  MutationOutcome,
+import {
+  canonicalContinuationSnapshotSchema,
+  type CanonicalContinuationSnapshot,
+  type ContextBoundary,
+  type ContextSourceManifest,
+  type ConversationHead,
+  type MutationOutcome,
 } from "@nervekit/contracts/conversations";
 import type { ProviderPhase, RunControl } from "@nervekit/contracts/runs";
-import { z } from "zod";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import {
   canonicalConversationJson,
@@ -40,20 +41,6 @@ export interface PreparedCanonicalCompaction {
   cause: Record<string, unknown>;
   preparedAt: string;
 }
-
-const canonicalContinuationSnapshotSchema = z.object({
-  conversationId: z.string().startsWith("conv_"),
-  headEntryId: z.string().startsWith("entry_").nullable(),
-  revision: z.number().int().nonnegative().safe(),
-  selectionEpoch: z.number().int().nonnegative().safe(),
-  runId: z.string().startsWith("run_"),
-  runGeneration: z.number().int().positive().safe(),
-  runRevision: z.number().int().positive().safe(),
-  boundaryId: z.string().startsWith("boundary_"),
-});
-export type CanonicalContinuationSnapshot = z.infer<
-  typeof canonicalContinuationSnapshotSchema
->;
 
 export type CanonicalCompactionCommitResult =
   | {
@@ -148,6 +135,9 @@ export class CanonicalCompactionCoordinator {
       revision: prepared.run.revision + 1,
     };
     const intendedSnapshot: CanonicalContinuationSnapshot = {
+      schemaVersion: 1,
+      namespaceId: prepared.namespaceId,
+      executionIncarnationId: prepared.executionIncarnationId,
       conversationId: prepared.sourceHead.conversationId,
       headEntryId: transition.resultingHead.activeEntryId,
       revision: transition.resultingHead.revision,
@@ -356,16 +346,22 @@ export class CanonicalCompactionCoordinator {
   async revalidateBeforeProviderDispatch(
     snapshot: CanonicalContinuationSnapshot,
   ): Promise<boolean> {
-    const [head, run] = await Promise.all([
+    const [head, run, identity, admission] = await Promise.all([
       this.store.readTimelineConversationHead(snapshot.conversationId),
       this.store.readTimelineRunControl(
         snapshot.conversationId,
         snapshot.runId,
       ),
+      this.store.readTimelineStateIdentity(),
+      this.store.readTimelineRuntimeAdmission(),
     ]);
     return Boolean(
       head &&
       run &&
+      identity?.namespaceId === snapshot.namespaceId &&
+      identity.executionIncarnationId === snapshot.executionIncarnationId &&
+      admission?.dispatchState === "admitted" &&
+      admission.executionIncarnationId === snapshot.executionIncarnationId &&
       head.revision === snapshot.revision &&
       head.activeEntryId === snapshot.headEntryId &&
       head.selectionEpoch === snapshot.selectionEpoch &&

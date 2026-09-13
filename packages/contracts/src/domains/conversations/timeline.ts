@@ -88,6 +88,23 @@ export const conversationHeadSchema = z.object({
 });
 export type ConversationHead = z.infer<typeof conversationHeadSchema>;
 
+export const canonicalContinuationSnapshotSchema = z.object({
+  schemaVersion: z.literal(1),
+  namespaceId: z.string().startsWith("namespace_"),
+  executionIncarnationId: z.string().startsWith("incarnation_"),
+  conversationId,
+  headEntryId: entryId.nullable(),
+  revision: safeInteger,
+  selectionEpoch: safeInteger,
+  runId: z.string().startsWith("run_"),
+  runGeneration: z.number().int().positive().safe(),
+  runRevision: z.number().int().positive().safe(),
+  boundaryId: z.string().startsWith("boundary_"),
+});
+export type CanonicalContinuationSnapshot = z.infer<
+  typeof canonicalContinuationSnapshotSchema
+>;
+
 export const conversationTransitionSchema = z
   .object({
     schemaVersion: z.literal(1),

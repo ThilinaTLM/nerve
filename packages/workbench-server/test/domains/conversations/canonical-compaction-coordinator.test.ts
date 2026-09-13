@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import type { RunControl } from "@nervekit/contracts/runs";
 import { CanonicalCompactionCoordinator } from "../../../src/domains/conversations/timeline/canonical-compaction-coordinator.js";
@@ -12,7 +13,8 @@ const hash = `sha256:${"a".repeat(64)}`;
 
 async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "nerve-compaction-boundary-"));
-  const store = new CanonicalStore(join(home, "nerve.sqlite"));
+  const sqlitePath = join(home, "nerve.sqlite");
+  const store = new CanonicalStore(sqlitePath);
   await store.initialize();
   t.after(async () => {
     await store.close();
@@ -78,7 +80,7 @@ async function fixture(t: test.TestContext) {
     publicationIntents: [],
     now: "2026-09-12T00:00:00.000Z",
   });
-  return { store, run, head: transition.resultingHead };
+  return { store, sqlitePath, run, head: transition.resultingHead };
 }
 
 function manifest() {
@@ -146,6 +148,48 @@ test("INV-CONTEXT-01 commits a prepared boundary before admitting continuation",
 
   const replay = await coordinator.commitPrepared(prepared);
   assert.equal(replay.kind, "receipt_replay");
+});
+
+test("INV-RESTORE-01 invalidates continuation snapshots when dispatch admission changes", async (t) => {
+  const { store, sqlitePath, run, head } = await fixture(t);
+  const coordinator = new CanonicalCompactionCoordinator(store);
+  const committed = await coordinator.commitPrepared({
+    namespaceId: "namespace_test",
+    executionIncarnationId: "incarnation_test",
+    commandId: "command_restore_fence",
+    transitionId: "transition_restore_fence",
+    boundaryId: "boundary_restore_fence",
+    sourceHead: head,
+    run,
+    anchorEntryId: "entry_prompt",
+    sourceManifest: manifest(),
+    summary: "Summary before restore",
+    summaryEntryId: "entry_restore_summary",
+    policyVersion: 1,
+    providerAdapterVersion: "test-v1",
+    providerIdentity: { provider: "test" },
+    providerCapability: "stateless_generation",
+    recipeVersion: 1,
+    actor: { kind: "system" },
+    cause: { kind: "automatic_compaction" },
+    preparedAt: "2026-09-12T00:00:01.000Z",
+  });
+  assert.notEqual(committed.kind, "stale");
+  if (committed.kind === "stale") return;
+
+  const database = new DatabaseSync(sqlitePath);
+  database
+    .prepare(
+      `UPDATE runtime_admission SET dispatch_state = 'disabled'
+       WHERE singleton = 1`,
+    )
+    .run();
+  database.close();
+
+  assert.equal(
+    await coordinator.revalidateBeforeProviderDispatch(committed.snapshot),
+    false,
+  );
 });
 
 test("INV-CONTEXT-01 rejects incomplete source ancestry manifests", async (t) => {

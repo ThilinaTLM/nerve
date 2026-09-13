@@ -135,6 +135,17 @@ export function persistTimelineExecutionAttempt(
 ): void {
   assertCurrentIncarnation(database, attempt.executionIncarnationId);
   const current = readAttempt(database, attempt.attemptId);
+  if (
+    [
+      "claimed",
+      "dispatched",
+      "succeeded",
+      "known_failed",
+      "result_unavailable",
+    ].includes(attempt.state)
+  ) {
+    assertDispatchAdmitted(database, attempt.executionIncarnationId);
+  }
   if (current) {
     if (
       current.effectId !== attempt.effectId ||
@@ -170,7 +181,6 @@ export function persistTimelineExecutionAttempt(
   if (attempt.state !== "ready") {
     throw new Error("A new execution attempt must begin ready.");
   }
-  assertDispatchAdmitted(database, attempt.executionIncarnationId);
   database
     .prepare(
       `INSERT INTO execution_attempts (

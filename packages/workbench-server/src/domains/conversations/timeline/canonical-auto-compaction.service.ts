@@ -2,16 +2,14 @@ import { createHash, randomUUID } from "node:crypto";
 import type { ProviderPhase } from "@nervekit/contracts/runs";
 import type {
   ArtifactReference,
+  CanonicalContinuationSnapshot,
   CanonicalConversationEntry,
   ContextSourceManifest,
   MutationOutcome,
 } from "@nervekit/contracts/conversations";
 import { artifactReferenceSchema } from "@nervekit/contracts/conversations";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
-import {
-  CanonicalCompactionCoordinator,
-  type CanonicalContinuationSnapshot,
-} from "./canonical-compaction-coordinator.js";
+import { CanonicalCompactionCoordinator } from "./canonical-compaction-coordinator.js";
 import {
   canonicalConversationJson,
   conversationCommandFingerprint,
