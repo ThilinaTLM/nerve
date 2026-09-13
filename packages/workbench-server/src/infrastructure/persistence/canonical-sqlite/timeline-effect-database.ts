@@ -8,6 +8,15 @@ import type {
 } from "@nervekit/contracts/runs";
 import { decode, encode } from "./payload-codecs.js";
 
+const legalEffectTransitions: Readonly<Record<string, readonly string[]>> = {
+  authorized: ["dispatching", "closed"],
+  dispatching: ["settled", "outcome_unknown", "result_unavailable"],
+  outcome_unknown: ["settled", "result_unavailable", "closed"],
+  result_unavailable: ["settled", "closed"],
+  settled: ["closed"],
+  closed: [],
+};
+
 const legalAttemptTransitions: Readonly<Record<string, readonly string[]>> = {
   ready: ["claimed", "cancelled"],
   claimed: ["dispatched", "cancelled", "outcome_unknown"],
@@ -35,6 +44,47 @@ export function insertTimelineAuthorization(
   database: DatabaseSync,
   authorization: ExactCallAuthorization,
 ): void {
+  const existing = database
+    .prepare(
+      `SELECT member_id, normalized_input_hash, policy_observation_id,
+              run_generation, selection_epoch, state
+       FROM exact_call_authorizations WHERE authorization_id = ?`,
+    )
+    .get(authorization.authorizationId) as
+    | {
+        member_id: string;
+        normalized_input_hash: string;
+        policy_observation_id: string;
+        run_generation: number;
+        selection_epoch: number;
+        state: ExactCallAuthorization["state"];
+      }
+    | undefined;
+  if (existing) {
+    if (
+      existing.member_id !== authorization.memberId ||
+      existing.normalized_input_hash !==
+        authorization.normalizedInputFingerprint ||
+      existing.policy_observation_id !== authorization.policyObservationId ||
+      existing.run_generation !== authorization.runGeneration ||
+      existing.selection_epoch !== authorization.selectionEpoch ||
+      existing.state !== "active" ||
+      authorization.state === "active"
+    ) {
+      throw new Error("Authorization identity or state transition is invalid.");
+    }
+    const changed = database
+      .prepare(
+        `UPDATE exact_call_authorizations SET state = ?
+         WHERE authorization_id = ? AND state = 'active'`,
+      )
+      .run(authorization.state, authorization.authorizationId);
+    if (changed.changes !== 1) throw new Error("Authorization state conflict.");
+    return;
+  }
+  if (authorization.state !== "active") {
+    throw new Error("A new authorization must begin active.");
+  }
   const evidence = database
     .prepare(
       `SELECT members.input_fingerprint,
@@ -90,6 +140,50 @@ export function insertTimelineLogicalEffect(
   database: DatabaseSync,
   effect: LogicalEffect,
 ): void {
+  const existing = database
+    .prepare(
+      `SELECT member_id, tool_name, capability_version, capability_kind,
+              normalized_input_hash, authorization_id, state
+       FROM logical_effects WHERE effect_id = ?`,
+    )
+    .get(effect.effectId) as
+    | {
+        member_id: string;
+        tool_name: string;
+        capability_version: number;
+        capability_kind: string;
+        normalized_input_hash: string;
+        authorization_id: string;
+        state: LogicalEffect["state"];
+      }
+    | undefined;
+  if (existing) {
+    if (
+      existing.member_id !== effect.memberId ||
+      existing.tool_name !== effect.toolName ||
+      existing.capability_version !== effect.capability.version ||
+      existing.capability_kind !== effect.capability.kind ||
+      existing.normalized_input_hash !== effect.normalizedInputFingerprint ||
+      existing.authorization_id !== effect.authorizationId ||
+      !legalEffectTransitions[existing.state]?.includes(effect.state)
+    ) {
+      throw new Error(
+        "Logical effect identity or state transition is invalid.",
+      );
+    }
+    const changed = database
+      .prepare(
+        `UPDATE logical_effects SET state = ?
+         WHERE effect_id = ? AND state = ?`,
+      )
+      .run(effect.state, effect.effectId, existing.state);
+    if (changed.changes !== 1)
+      throw new Error("Logical effect state conflict.");
+    return;
+  }
+  if (effect.state !== "authorized") {
+    throw new Error("A new logical effect must begin authorized.");
+  }
   const authorization = database
     .prepare(
       `SELECT member_id, normalized_input_hash FROM exact_call_authorizations
