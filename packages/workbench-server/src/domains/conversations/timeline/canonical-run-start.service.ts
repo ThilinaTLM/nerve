@@ -35,10 +35,20 @@ export class CanonicalRunStartService {
   }
 
   async start(input: CanonicalRunStartInput): Promise<CanonicalRunStartResult> {
-    const [identity, current] = await Promise.all([
-      this.identity.resolve(),
+    const identity = await this.identity.resolve();
+    const [current, admission] = await Promise.all([
       this.store.readTimelineConversationHead(input.conversationId),
+      this.store.readTimelineRuntimeAdmission(),
     ]);
+    if (!admission || admission.dispatchState !== "admitted") {
+      return {
+        kind: "rejected",
+        outcome: {
+          kind: "superseded",
+          reason: "runtime_dispatch_not_admitted",
+        },
+      };
+    }
     const head =
       current ??
       ({

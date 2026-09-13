@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import type { RuntimeAdmission } from "@nervekit/contracts/storage";
 import {
   artifactReferenceSchema,
   canonicalAncestrySegmentSchema,
@@ -134,6 +135,32 @@ export function readTimelineCommandReceipt(
   return outcome.kind === "committed"
     ? { ...outcome, kind: "receipt_replay" }
     : outcome;
+}
+
+export function readTimelineRuntimeAdmission(
+  database: DatabaseSync,
+): RuntimeAdmission | undefined {
+  const row = database
+    .prepare(
+      `SELECT execution_incarnation_id, dispatch_state, restore_id,
+              updated_at_ms FROM runtime_admission WHERE singleton = 1`,
+    )
+    .get() as
+    | {
+        execution_incarnation_id: string;
+        dispatch_state: RuntimeAdmission["dispatchState"];
+        restore_id: string | null;
+        updated_at_ms: number;
+      }
+    | undefined;
+  if (!row) return undefined;
+  return {
+    schemaVersion: 1,
+    executionIncarnationId: row.execution_incarnation_id,
+    dispatchState: row.dispatch_state,
+    ...(row.restore_id ? { restoreId: row.restore_id } : {}),
+    updatedAt: new Date(row.updated_at_ms).toISOString(),
+  };
 }
 
 export function readTimelineDeletionState(

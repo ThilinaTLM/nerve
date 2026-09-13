@@ -73,6 +73,15 @@ export const restorePromotionSchema = z
   });
 export type RestorePromotion = z.infer<typeof restorePromotionSchema>;
 
+export const runtimeAdmissionSchema = z.object({
+  schemaVersion: z.literal(1),
+  executionIncarnationId: z.string().startsWith("incarnation_"),
+  dispatchState: z.enum(["quarantined", "disabled", "admitted"]),
+  restoreId: z.string().startsWith("restore_").optional(),
+  updatedAt: isoDateTimeSchema,
+});
+export type RuntimeAdmission = z.infer<typeof runtimeAdmissionSchema>;
+
 export const deletionIntentSchema = z.object({
   schemaVersion: z.literal(1),
   conversationId: z.string().startsWith("conv_"),

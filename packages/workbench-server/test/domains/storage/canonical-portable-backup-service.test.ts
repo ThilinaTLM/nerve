@@ -151,6 +151,18 @@ test("INV-BACKUP-01 creates a verified canonical database and policy snapshot", 
     (await stagedStore.readTimelineConversationHead("conv_backup"))?.revision,
     1,
   );
+  const blockedStart = await new CanonicalRunStartService(stagedStore).start({
+    conversationId: "conv_restored_new",
+    runId: "run_restored_new",
+    agentId: "agent_restored_new",
+    prompt: "must not dispatch",
+    now: "2026-09-13T00:00:02.500Z",
+  });
+  assert.equal(blockedStart.kind, "rejected");
+  assert.equal(
+    blockedStart.kind === "rejected" && blockedStart.outcome.kind,
+    "superseded",
+  );
   const forbiddenContinuation = await new CanonicalRunTimelineService(
     stagedStore,
   ).append({

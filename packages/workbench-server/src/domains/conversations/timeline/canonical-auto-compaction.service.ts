@@ -82,11 +82,22 @@ export class CanonicalAutoCompactionService {
   async compactThenPrepareProviderPhase<T>(
     input: CanonicalAutoCompactionInput<T>,
   ): Promise<CanonicalAutoCompactionResult<T>> {
-    const [sourceHead, run, priorCompactionPhases] = await Promise.all([
-      this.store.readTimelineConversationHead(input.conversationId),
-      this.store.readTimelineRunControl(input.conversationId, input.runId),
-      this.store.countCompactionProviderPhases(input.runId),
-    ]);
+    const [sourceHead, run, priorCompactionPhases, admission] =
+      await Promise.all([
+        this.store.readTimelineConversationHead(input.conversationId),
+        this.store.readTimelineRunControl(input.conversationId, input.runId),
+        this.store.countCompactionProviderPhases(input.runId),
+        this.store.readTimelineRuntimeAdmission(),
+      ]);
+    if (!admission || admission.dispatchState !== "admitted") {
+      return {
+        kind: "stale",
+        outcome: {
+          kind: "superseded",
+          reason: "runtime_dispatch_not_admitted",
+        },
+      };
+    }
     if (
       !sourceHead ||
       !run ||

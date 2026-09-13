@@ -76,6 +76,7 @@ import {
   readTimelineFixedTreePage,
   readTimelineHeadAtRevision,
   readTimelineRunControl,
+  readTimelineRuntimeAdmission,
   type TimelineTreePageKey,
   readTimelineStateIdentity,
   timelineEntryIsAncestor,
@@ -111,6 +112,10 @@ export class CanonicalTimelineDatabase {
 
   readStateIdentity(): TimelineStateIdentity | undefined {
     return readTimelineStateIdentity(this.database);
+  }
+
+  readRuntimeAdmission() {
+    return readTimelineRuntimeAdmission(this.database);
   }
 
   readDeletionState(conversationId: string) {

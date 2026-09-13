@@ -68,6 +68,7 @@ export type CanonicalCommand =
       };
     }
   | { kind: "read_timeline_state_identity" }
+  | { kind: "read_timeline_runtime_admission" }
   | { kind: "read_timeline_conversation_head"; conversationId: string }
   | { kind: "read_timeline_deletion_state"; conversationId: string }
   | {
@@ -321,6 +322,7 @@ export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "read_canonical_deletion_tombstone",
   "read_timeline_command_receipt",
   "read_timeline_state_identity",
+  "read_timeline_runtime_admission",
   "read_timeline_conversation_head",
   "read_timeline_deletion_state",
   "read_pending_timeline_transcript_projections",

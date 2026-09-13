@@ -30,6 +30,7 @@ import type {
   SettleLifecycleWorkInput,
 } from "./lifecycle-work-database.js";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
+import type { RuntimeAdmission } from "@nervekit/contracts/storage";
 import {
   encode,
   type CanonicalDocument,
@@ -184,6 +185,12 @@ export class CanonicalStore {
   readTimelineStateIdentity() {
     return this.request<TimelineStateIdentity | undefined>({
       kind: "read_timeline_state_identity",
+    });
+  }
+
+  readTimelineRuntimeAdmission() {
+    return this.request<RuntimeAdmission | undefined>({
+      kind: "read_timeline_runtime_admission",
     });
   }
 
