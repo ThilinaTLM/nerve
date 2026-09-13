@@ -40,7 +40,7 @@ async function fixture(t: test.TestContext) {
   return { home, directory };
 }
 
-test("reads a strict digest-bound post-0012 timeline source", async (t) => {
+test("INV-MIGRATE-02 reads a strict digest-bound post-0012 timeline source", async (t) => {
   const { home } = await fixture(t);
   const source = await readPost0012ConversationTimeline({
     sourceHome: home,
@@ -52,7 +52,7 @@ test("reads a strict digest-bound post-0012 timeline source", async (t) => {
   assert.match(source.sourceDigest, /^sha256:[a-f0-9]{64}$/);
 });
 
-test("converts source timelines and publishes proof reports", async (t) => {
+test("INV-MIGRATE-01 converts source timelines and publishes proof reports", async (t) => {
   const { home } = await fixture(t);
   const target = await mkdtemp(join(tmpdir(), "nerve-post0012-target-"));
   const store = new CanonicalStore(join(target, "nerve.sqlite"));
@@ -81,7 +81,7 @@ test("converts source timelines and publishes proof reports", async (t) => {
   );
 });
 
-test("rejects malformed post-0012 entries instead of silently dropping them", async (t) => {
+test("INV-MIGRATE-02 rejects malformed source entries instead of dropping them", async (t) => {
   const { home, directory } = await fixture(t);
   await writeFile(join(directory, "entries.jsonl"), "not-json\n");
   await assert.rejects(

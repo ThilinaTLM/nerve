@@ -34,7 +34,7 @@ function entry(index: number, parentEntryId?: string): ConversationEntry {
   };
 }
 
-test("INV-MIGRATION-01 imports a branching legacy history in restart-safe bounded batches", async (t) => {
+test("INV-MIGRATE-01 imports a branching legacy history in restart-safe bounded batches", async (t) => {
   const { store, sqlitePath } = await fixture(t);
   const entries: ConversationEntry[] = [entry(0)];
   for (let index = 1; index < 66; index += 1) {
@@ -79,7 +79,7 @@ test("INV-MIGRATION-01 imports a branching legacy history in restart-safe bounde
   assert.equal(branch.parent_entry_id, "entry_legacy_0");
 });
 
-test("INV-MIGRATION-01 rejects missing parents and cycles before mutation", async (t) => {
+test("INV-MIGRATE-02 rejects missing parents and cycles before mutation", async (t) => {
   const { store } = await fixture(t);
   const importer = new LegacyConversationTimelineImporter(store);
   const base = {
