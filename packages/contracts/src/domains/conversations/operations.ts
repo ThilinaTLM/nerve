@@ -18,6 +18,7 @@ import {
   transcriptProjectionStatusSchema,
 } from "./timeline.js";
 import { timelineViewOutcomeSchema } from "./timeline-outcomes.js";
+import { deletionIntentSchema } from "../storage/durable-recovery.js";
 
 const emptyParamsSchema = z.object({}).optional();
 const okResultSchema = z.object({ ok: z.literal(true) });
@@ -114,6 +115,15 @@ export const conversationsOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.conversation.timeline.page",
+  ),
+  defineOperation(
+    "conversation.timeline.deletionStatus",
+    conversationIdParamsSchema,
+    deletionIntentSchema.nullable(),
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.conversation.timeline.deletionStatus",
   ),
   defineOperation(
     "conversation.timeline.projectionStatus",

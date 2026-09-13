@@ -91,6 +91,22 @@ export const deletionIntentSchema = z.object({
 });
 export type DeletionIntent = z.infer<typeof deletionIntentSchema>;
 
+export const artifactDeletionWorkSchema = z.object({
+  schemaVersion: z.literal(1),
+  workId: z.string().startsWith("artifact_delete_"),
+  conversationId: z.string().startsWith("conv_"),
+  preparationId: z.string().startsWith("preparation_"),
+  relativeLocator: z.string().min(1).max(2_048),
+  expectedDigest: digestSchema,
+  expectedByteLength: z.number().int().nonnegative().safe(),
+  state: z.enum(["planned", "deleting", "deleted", "missing", "failed"]),
+  attemptCount: z.number().int().nonnegative().safe(),
+  lastError: z.string().max(4_096).optional(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type ArtifactDeletionWork = z.infer<typeof artifactDeletionWorkSchema>;
+
 export const ownerTombstoneSchema = z.object({
   schemaVersion: z.literal(1),
   ownerKind: z.enum(["conversation", "state"]),

@@ -41,6 +41,8 @@ export const conversationMethodHandlers: WorkbenchMethodHandlerMapFor<Conversati
     }),
     "conversation.timeline.page": (state, params) =>
       state.timelinePages.page(params),
+    "conversation.timeline.deletionStatus": (state, params) =>
+      state.timelinePages.deletionStatus(params.conversationId),
     "conversation.timeline.projectionStatus": (state, params) =>
       state.timelinePages.projectionStatus(params.conversationId),
     "conversation.timeline.treePage": (state, params) =>

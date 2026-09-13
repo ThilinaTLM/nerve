@@ -19,6 +19,39 @@ export type CanonicalCommand =
   | { kind: "initialize" }
   | { kind: "create_timeline_backup_snapshot"; destination: string }
   | { kind: "count_compaction_provider_phases"; runId: string }
+  | { kind: "list_pending_canonical_deletions"; limit: number }
+  | { kind: "read_canonical_deletion_intent"; conversationId: string }
+  | { kind: "read_canonical_deletion_tombstone"; conversationId: string }
+  | {
+      kind: "settle_canonical_deletion_execution";
+      conversationId: string;
+      now: string;
+    }
+  | {
+      kind: "claim_canonical_artifact_deletion";
+      conversationId: string;
+      limit: number;
+      now: string;
+    }
+  | {
+      kind: "settle_canonical_artifact_deletion";
+      workId: string;
+      state: "deleted" | "missing" | "failed";
+      error?: string;
+      now: string;
+    }
+  | {
+      kind: "remove_canonical_deletion_history";
+      conversationId: string;
+      limit: number;
+      now: string;
+    }
+  | {
+      kind: "redact_canonical_deletion_payloads";
+      conversationId: string;
+      limit: number;
+      now: string;
+    }
   | {
       kind: "commit_conversation_command";
       input: CommitConversationCommandInput;
@@ -273,6 +306,9 @@ export type CanonicalWorkerResponse =
 
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "count_compaction_provider_phases",
+  "list_pending_canonical_deletions",
+  "read_canonical_deletion_intent",
+  "read_canonical_deletion_tombstone",
   "read_timeline_command_receipt",
   "read_timeline_state_identity",
   "read_timeline_conversation_head",

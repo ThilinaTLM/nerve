@@ -41,6 +41,7 @@ import type {
 } from "./worker-protocol.js";
 import { READ_COMMANDS } from "./worker-protocol.js";
 import type { BackupArtifactRecord } from "./timeline-backup-database.js";
+import { CanonicalDeletionStore } from "./canonical-deletion-store.js";
 
 interface PendingRequest {
   resolve(value: unknown): void;
@@ -109,6 +110,9 @@ export class CanonicalStore {
   private writer?: WorkerEndpoint;
   private readers: WorkerEndpoint[] = [];
   private nextReader = 0;
+  readonly deletion = new CanonicalDeletionStore(
+    <T>(command: CanonicalCommand) => this.request<T>(command),
+  );
 
   constructor(
     readonly path: string,

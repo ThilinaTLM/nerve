@@ -30,6 +30,10 @@ export class CanonicalTimelinePageProvider {
     return (await this.services).timeline.page(request);
   }
 
+  deletionStatus(conversationId: string) {
+    return this.store.deletion.readIntent(conversationId);
+  }
+
   projectionStatus(conversationId: string) {
     return this.store.readTimelineTranscriptProjectionStatus(conversationId);
   }

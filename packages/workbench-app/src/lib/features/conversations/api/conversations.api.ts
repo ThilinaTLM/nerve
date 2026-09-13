@@ -9,6 +9,7 @@ import type {
   TranscriptProjectionStatus,
   UpdateConversationStateRequest,
 } from "@nervekit/contracts/conversations";
+import type { DeletionIntent } from "@nervekit/contracts/storage";
 import type { SnapshotCursor } from "@nervekit/contracts/snapshots";
 import { protocolRequest } from "@nervekit/protocol/adapters";
 
@@ -37,6 +38,16 @@ export async function getConversationTimelineTreePage(
 ): Promise<TimelineViewOutcome> {
   return (await protocolRequest("conversation.timeline.treePage", request))
     .result;
+}
+
+export async function getConversationDeletionStatus(
+  conversationId: string,
+): Promise<DeletionIntent | null> {
+  return (
+    await protocolRequest("conversation.timeline.deletionStatus", {
+      conversationId,
+    })
+  ).result;
 }
 
 export async function getConversationProjectionStatus(

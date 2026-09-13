@@ -55,6 +55,7 @@ import { CanonicalTimelineDatabase } from "./timeline-database.js";
 import { CanonicalProjectionDatabase } from "./timeline-projection-database.js";
 import { CanonicalBackupDatabase } from "./timeline-backup-database.js";
 import { CanonicalExecutionQueryDatabase } from "./timeline-execution-database.js";
+import { CanonicalDeletionCleanupDatabase } from "./timeline-deletion-cleanup-database.js";
 import {
   CANONICAL_BASELINE_CHECKSUM,
   CANONICAL_BASELINE_NAME,
@@ -95,6 +96,7 @@ export class CanonicalDatabase {
   readonly projections: CanonicalProjectionDatabase;
   readonly backups: CanonicalBackupDatabase;
   readonly executionQueries: CanonicalExecutionQueryDatabase;
+  readonly deletionCleanup: CanonicalDeletionCleanupDatabase;
 
   constructor(
     readonly path: string,
@@ -108,6 +110,7 @@ export class CanonicalDatabase {
     this.projections = new CanonicalProjectionDatabase(this.database);
     this.backups = new CanonicalBackupDatabase(this.database);
     this.executionQueries = new CanonicalExecutionQueryDatabase(this.database);
+    this.deletionCleanup = new CanonicalDeletionCleanupDatabase(this.database);
     this.database.exec("PRAGMA foreign_keys = ON");
     this.database.exec("PRAGMA busy_timeout = 5000");
     if (options.queryOnly) {

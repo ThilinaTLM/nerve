@@ -4,6 +4,7 @@ import { fromConversationSnapshot } from "$lib/presentation/state";
 import {
   type AgentRecord,
   type ConversationRecord,
+  getConversationDeletionStatus,
   getConversationProjectionStatus,
   getConversationSnapshotWithCursor,
   getProject,
@@ -118,9 +119,10 @@ export function refreshConversationView(conversationId: string): Promise<void> {
     const view = ensureConversationView(conversationId);
     view.loading = true;
     try {
-      const [response, projectionStatus] = await Promise.all([
+      const [response, projectionStatus, deletionStatus] = await Promise.all([
         getConversationSnapshotWithCursor(conversationId),
         getConversationProjectionStatus(conversationId),
+        getConversationDeletionStatus(conversationId),
       ]);
       const snapshot = response.snapshot;
       // Canonical state comes straight from the shared snapshot ingestion
@@ -139,6 +141,7 @@ export function refreshConversationView(conversationId: string): Promise<void> {
       view.contextUsage = canonical.contextUsage;
       view.cursorSeq = canonical.cursorSeq;
       view.projectionStatus = projectionStatus ?? undefined;
+      view.deletionStatus = deletionStatus ?? undefined;
       view.stopping = stoppingAfterConversationSnapshot(
         view.stopping,
         previousRunId,

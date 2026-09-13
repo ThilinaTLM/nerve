@@ -249,13 +249,16 @@ test("unreleased canonical schema versions are refused", async (t) => {
   const database = new DatabaseSync(path);
   database
     .prepare(
-      `UPDATE schema_migrations SET version = 6, name = 'development-v6'
+      `UPDATE schema_migrations SET version = ?, name = 'future-development'
        WHERE version = ?`,
     )
-    .run(CANONICAL_SCHEMA_VERSION);
+    .run(CANONICAL_SCHEMA_VERSION + 1, CANONICAL_SCHEMA_VERSION);
   database.close();
   const future = new CanonicalStore(path);
-  await assert.rejects(future.initialize(), /schema 6 is unsupported/i);
+  await assert.rejects(
+    future.initialize(),
+    new RegExp(`schema ${CANONICAL_SCHEMA_VERSION + 1} is unsupported`, "i"),
+  );
   await future.close();
 });
 

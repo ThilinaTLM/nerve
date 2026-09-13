@@ -9,6 +9,42 @@ export function executeCanonicalCommand(
     case "initialize":
       database.initialize();
       return undefined;
+    case "list_pending_canonical_deletions":
+      return database.deletionCleanup.listPendingConversationIds(command.limit);
+    case "read_canonical_deletion_intent":
+      return database.deletionCleanup.readIntent(command.conversationId);
+    case "read_canonical_deletion_tombstone":
+      return database.deletionCleanup.readTombstone(command.conversationId);
+    case "settle_canonical_deletion_execution":
+      return database.deletionCleanup.settleExecution(
+        command.conversationId,
+        command.now,
+      );
+    case "claim_canonical_artifact_deletion":
+      return database.deletionCleanup.claimArtifactWork(
+        command.conversationId,
+        command.limit,
+        command.now,
+      );
+    case "settle_canonical_artifact_deletion":
+      return database.deletionCleanup.settleArtifactWork(
+        command.workId,
+        command.state,
+        command.error,
+        command.now,
+      );
+    case "remove_canonical_deletion_history":
+      return database.deletionCleanup.removeHistoryChunk(
+        command.conversationId,
+        command.limit,
+        command.now,
+      );
+    case "redact_canonical_deletion_payloads":
+      return database.deletionCleanup.redactPayloadChunk(
+        command.conversationId,
+        command.limit,
+        command.now,
+      );
     case "count_compaction_provider_phases":
       return database.executionQueries.countCompactionProviderPhases(
         command.runId,
