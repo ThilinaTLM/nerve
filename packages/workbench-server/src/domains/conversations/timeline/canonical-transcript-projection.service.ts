@@ -4,11 +4,20 @@ import type { CanonicalStore } from "../../../infrastructure/persistence/canonic
 export class CanonicalTranscriptProjectionService {
   constructor(private readonly store: CanonicalStore) {}
 
-  async rebuild(conversationId: string, now = new Date().toISOString()) {
+  rebuild(conversationId: string, now = new Date().toISOString()) {
+    return this.project(conversationId, now, true);
+  }
+
+  private async project(
+    conversationId: string,
+    now: string,
+    invalidateCursors: boolean,
+  ) {
     try {
       return await this.store.rebuildTimelineTranscriptProjection(
         conversationId,
         now,
+        invalidateCursors,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -31,7 +40,7 @@ export class CanonicalTranscriptProjectionService {
       await this.store.readPendingTimelineTranscriptProjections(limit);
     const rebuilt = [];
     for (const conversationId of conversationIds) {
-      const status = await this.rebuild(conversationId, now);
+      const status = await this.project(conversationId, now, false);
       if (status) rebuilt.push(status);
     }
     return rebuilt;

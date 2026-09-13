@@ -277,7 +277,11 @@ export const timelineViewDescriptorSchema = z.object({
   projection: projectionPositionSchema,
   visibilityId: z.string().min(1).max(128),
   filterId: z.string().min(1).max(128),
-  ordering: z.enum(["ancestry_ascending", "tree_commit_order"]),
+  ordering: z.enum([
+    "ancestry_ascending",
+    "tree_commit_order",
+    "search_ancestry",
+  ]),
   executionIncarnationId: z.string().startsWith("incarnation_"),
 });
 export type TimelineViewDescriptor = z.infer<
@@ -305,6 +309,16 @@ export const timelinePageRequestSchema = z.object({
   cursor: z.string().min(1).max(8_192).optional(),
 });
 export type TimelinePageRequest = z.input<typeof timelinePageRequestSchema>;
+
+export const timelineSearchRequestSchema = z.object({
+  conversationId,
+  query: z.string().trim().min(1).max(512),
+  minimumRevision: safeInteger.optional(),
+  visibilityId: z.string().min(1).max(128).default("default"),
+  pageSize: z.number().int().min(1).max(100).default(25),
+  cursor: z.string().min(1).max(8_192).optional(),
+});
+export type TimelineSearchRequest = z.input<typeof timelineSearchRequestSchema>;
 
 export const transcriptProjectionStatusSchema = z.object({
   conversationId,

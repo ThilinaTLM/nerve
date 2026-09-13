@@ -221,11 +221,16 @@ export class CanonicalStore {
     });
   }
 
-  rebuildTimelineTranscriptProjection(conversationId: string, now: string) {
+  rebuildTimelineTranscriptProjection(
+    conversationId: string,
+    now: string,
+    invalidateCursors = true,
+  ) {
     return this.request<TranscriptProjectionStatus | undefined>({
       kind: "rebuild_timeline_transcript_projection",
       conversationId,
       now,
+      invalidateCursors,
     });
   }
 
@@ -234,6 +239,23 @@ export class CanonicalStore {
       kind: "read_pending_timeline_transcript_projections",
       limit,
     });
+  }
+
+  readTimelineSearchProjectionPage(input: {
+    conversationId: string;
+    sourceRevision: number;
+    matchExpression: string;
+    afterDepth?: number;
+    afterEntryId?: string;
+    limit: number;
+  }) {
+    return this.request<
+      | {
+          entries: CanonicalConversationEntry[];
+          next?: { depth: number; entryId: string };
+        }
+      | undefined
+    >({ kind: "read_timeline_search_projection_page", ...input });
   }
 
   readTimelineTranscriptProjectionPage(

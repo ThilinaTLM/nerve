@@ -80,6 +80,16 @@ export type CanonicalCommand =
       kind: "rebuild_timeline_transcript_projection";
       conversationId: string;
       now: string;
+      invalidateCursors: boolean;
+    }
+  | {
+      kind: "read_timeline_search_projection_page";
+      conversationId: string;
+      sourceRevision: number;
+      matchExpression: string;
+      afterDepth?: number;
+      afterEntryId?: string;
+      limit: number;
     }
   | {
       kind: "read_timeline_transcript_projection_page";
@@ -314,6 +324,7 @@ export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "read_timeline_conversation_head",
   "read_timeline_deletion_state",
   "read_pending_timeline_transcript_projections",
+  "read_timeline_search_projection_page",
   "read_timeline_transcript_projection_page",
   "read_timeline_transcript_projection_status",
   "read_timeline_head_at_revision",

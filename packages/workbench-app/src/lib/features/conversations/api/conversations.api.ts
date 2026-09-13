@@ -4,6 +4,7 @@ import type {
   ConversationRecord,
   ConversationSnapshot,
   TimelinePageRequest,
+  TimelineSearchRequest,
   TimelineTreePageRequest,
   TimelineViewOutcome,
   TranscriptProjectionStatus,
@@ -31,6 +32,13 @@ export async function getConversationTimelinePage(
   request: TimelinePageRequest,
 ): Promise<TimelineViewOutcome> {
   return (await protocolRequest("conversation.timeline.page", request)).result;
+}
+
+export async function searchConversationTimeline(
+  request: TimelineSearchRequest,
+): Promise<TimelineViewOutcome> {
+  return (await protocolRequest("conversation.timeline.search", request))
+    .result;
 }
 
 export async function getConversationTimelineTreePage(

@@ -249,6 +249,7 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
     { version: 4, name: "convert-run-lifecycle-v4" },
     { version: 5, name: "unified-conversation-timeline-v5" },
     { version: 6, name: "timeline-deletion-work-v6" },
+    { version: 7, name: "timeline-search-projection-v7" },
   ]);
   const homeMigrations = JSON.parse(
     await readFile(storage.paths.migrationLedgerPath, "utf8"),

@@ -3,6 +3,7 @@ import type { SecretProvider } from "../../../infrastructure/secrets/index.js";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import { CanonicalTimelinePageService } from "./canonical-timeline-page.service.js";
 import { CanonicalTimelineTreePageService } from "./canonical-timeline-tree-page.service.js";
+import { CanonicalTimelineSearchService } from "./canonical-timeline-search.service.js";
 
 export function createTimelinePages(
   store: CanonicalStore,
@@ -18,6 +19,7 @@ export class CanonicalTimelinePageProvider {
   private services?: Promise<{
     timeline: CanonicalTimelinePageService;
     tree: CanonicalTimelineTreePageService;
+    search: CanonicalTimelineSearchService;
   }>;
 
   constructor(
@@ -38,6 +40,11 @@ export class CanonicalTimelinePageProvider {
     return this.store.readTimelineTranscriptProjectionStatus(conversationId);
   }
 
+  async search(request: unknown) {
+    this.services ??= this.createServices();
+    return (await this.services).search.search(request);
+  }
+
   async treePage(request: unknown) {
     this.services ??= this.createServices();
     return (await this.services).tree.page(request);
@@ -56,6 +63,7 @@ export class CanonicalTimelinePageProvider {
     return {
       timeline: new CanonicalTimelinePageService(this.store, key),
       tree: new CanonicalTimelineTreePageService(this.store, key),
+      search: new CanonicalTimelineSearchService(this.store, key),
     };
   }
 }

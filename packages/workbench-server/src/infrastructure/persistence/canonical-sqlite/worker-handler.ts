@@ -69,11 +69,25 @@ export function executeCanonicalCommand(
       return database.projections.rebuildTranscript(
         command.conversationId,
         command.now,
+        command.invalidateCursors,
       );
     case "read_pending_timeline_transcript_projections":
       return database.projections.readPendingTranscriptConversationIds(
         command.limit,
       );
+    case "read_timeline_search_projection_page":
+      return database.projections.readSearchPage({
+        conversationId: command.conversationId,
+        sourceRevision: command.sourceRevision,
+        matchExpression: command.matchExpression,
+        ...(command.afterDepth === undefined
+          ? {}
+          : { afterDepth: command.afterDepth }),
+        ...(command.afterEntryId === undefined
+          ? {}
+          : { afterEntryId: command.afterEntryId }),
+        limit: command.limit,
+      });
     case "read_timeline_transcript_projection_page":
       return database.projections.readTranscriptPage({
         conversationId: command.conversationId,

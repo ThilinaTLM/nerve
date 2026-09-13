@@ -15,6 +15,7 @@ const stages = [
   "wait_group_members",
   "wait_groups",
   "run_controls",
+  "search_projection_rows",
   "projection_rows",
   "projection_state",
   "context_boundaries",
@@ -248,6 +249,15 @@ function deleteStage(
       database,
       "run_controls",
       "run_id",
+      "conversation_id = ?1",
+      conversationId,
+      limit,
+    );
+  if (stage === "search_projection_rows")
+    return remove(
+      database,
+      "timeline_search_projection_rows",
+      "rowid",
       "conversation_id = ?1",
       conversationId,
       limit,

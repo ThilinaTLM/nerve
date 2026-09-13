@@ -1,7 +1,8 @@
 import { UNIFIED_TIMELINE_V5_SQL } from "./unified-timeline-schema.js";
 import { TIMELINE_DELETION_WORK_V6_SQL } from "./timeline-deletion-schema.js";
+import { TIMELINE_SEARCH_PROJECTION_V7_SQL } from "./timeline-search-schema.js";
 
-export const CANONICAL_SCHEMA_VERSION = 6;
+export const CANONICAL_SCHEMA_VERSION = 7;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -379,5 +380,12 @@ export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
     checksum:
       "66874fa2f977a0e18963f9557fc588d06d1136b49b7a725b81c55c55b6724ac9",
     sql: TIMELINE_DELETION_WORK_V6_SQL,
+  },
+  {
+    version: 7,
+    name: "timeline-search-projection-v7",
+    checksum:
+      "561fb0f1b3020fff645779ad8eeeae419e09d877f4efc4345747ebac1ca66ba1",
+    sql: TIMELINE_SEARCH_PROJECTION_V7_SQL,
   },
 ];

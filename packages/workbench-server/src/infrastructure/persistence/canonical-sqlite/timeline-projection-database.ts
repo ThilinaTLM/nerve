@@ -60,12 +60,28 @@ export class CanonicalProjectionDatabase {
     );
   }
 
-  rebuildTranscript(conversationId: string, now: string) {
+  rebuildTranscript(
+    conversationId: string,
+    now: string,
+    invalidateCursors: boolean,
+  ) {
     return rebuildTimelineTranscriptProjection(
       this.database,
       conversationId,
       now,
+      invalidateCursors,
     );
+  }
+
+  readSearchPage(input: {
+    conversationId: string;
+    sourceRevision: number;
+    matchExpression: string;
+    afterDepth?: number;
+    afterEntryId?: string;
+    limit: number;
+  }) {
+    return readTimelineSearchProjectionPage(this.database, input);
   }
 
   readTranscriptPage(input: {
@@ -105,6 +121,7 @@ export function rebuildTimelineTranscriptProjection(
   database: DatabaseSync,
   conversationId: string,
   now: string,
+  invalidateCursors = true,
 ): TranscriptProjectionStatus | undefined {
   database.exec("BEGIN IMMEDIATE");
   try {
@@ -129,7 +146,8 @@ export function rebuildTimelineTranscriptProjection(
       | { rebuild_generation: number; applied_revision: number }
       | undefined;
     const generation = previous
-      ? previous.rebuild_generation + (previous.applied_revision > 0 ? 1 : 0)
+      ? previous.rebuild_generation +
+        (invalidateCursors && previous.applied_revision > 0 ? 1 : 0)
       : 1;
     database
       .prepare(
@@ -179,6 +197,18 @@ export function rebuildTimelineTranscriptProjection(
          display_order_key, visibility_key, payload_version, data
        ) VALUES (?, ?, ?, ?, ?, 'default', 1, ?)`,
     );
+    database
+      .prepare(
+        `DELETE FROM timeline_search_projection_rows
+         WHERE conversation_id = ? AND source_revision = ?`,
+      )
+      .run(conversationId, head.revision);
+    const insertSearch = database.prepare(
+      `INSERT INTO timeline_search_projection_rows (
+         conversation_id, source_revision, entry_id, ancestry_depth,
+         searchable_text, entry_data
+       ) VALUES (?, ?, ?, ?, ?, ?)`,
+    );
     for (const row of rows) {
       const entry = entryFromRow(row);
       insert.run(
@@ -189,6 +219,17 @@ export function rebuildTimelineTranscriptProjection(
         displayOrderKey(sourceDepth - row.chain_index),
         encode(entry),
       );
+      const searchableText = searchableEntryText(entry);
+      if (searchableText.length > 0) {
+        insertSearch.run(
+          conversationId,
+          head.revision,
+          entry.entryId,
+          row.chain_index,
+          searchableText,
+          encode(entry),
+        );
+      }
     }
     database
       .prepare(
@@ -212,6 +253,65 @@ export function rebuildTimelineTranscriptProjection(
     database.exec("ROLLBACK");
     throw error;
   }
+}
+
+export function readTimelineSearchProjectionPage(
+  database: DatabaseSync,
+  input: {
+    conversationId: string;
+    sourceRevision: number;
+    matchExpression: string;
+    afterDepth?: number;
+    afterEntryId?: string;
+    limit: number;
+  },
+):
+  | {
+      entries: CanonicalConversationEntry[];
+      next?: { depth: number; entryId: string };
+    }
+  | undefined {
+  const afterDepth = input.afterDepth ?? null;
+  const afterEntryId = input.afterEntryId ?? null;
+  const rows = database
+    .prepare(
+      `SELECT entry_id, entry_data, ancestry_depth
+       FROM timeline_search_projection_rows
+       WHERE timeline_search_projection_rows MATCH ?
+         AND conversation_id = ? AND source_revision = ?
+         AND (
+           ? IS NULL OR CAST(ancestry_depth AS INTEGER) > ? OR
+           (CAST(ancestry_depth AS INTEGER) = ? AND entry_id > ?)
+         )
+       ORDER BY CAST(ancestry_depth AS INTEGER), entry_id
+       LIMIT ?`,
+    )
+    .all(
+      input.matchExpression,
+      input.conversationId,
+      input.sourceRevision,
+      afterDepth,
+      afterDepth,
+      afterDepth,
+      afterEntryId,
+      input.limit + 1,
+    ) as unknown as {
+    entry_id: string;
+    entry_data: Uint8Array;
+    ancestry_depth: number;
+  }[];
+  if (rows.length === 0 && afterDepth === null) return undefined;
+  const hasMore = rows.length > input.limit;
+  const pageRows = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = pageRows.at(-1);
+  return {
+    entries: pageRows.map((row) =>
+      canonicalConversationEntrySchema.parse(decode(row.entry_data)),
+    ),
+    ...(hasMore && last
+      ? { next: { depth: Number(last.ancestry_depth), entryId: last.entry_id } }
+      : {}),
+  };
 }
 
 export function readTimelineTranscriptProjectionPage(
@@ -303,6 +403,30 @@ export function readTimelineTranscriptProjectionStatus(
       ? {}
       : { lastError: decode(row.last_error_json) }),
   };
+}
+
+function searchableEntryText(entry: CanonicalConversationEntry): string {
+  const values: string[] = [];
+  let length = 0;
+  const visit = (value: unknown, depth: number): void => {
+    if (length >= 65_536 || depth > 8) return;
+    if (typeof value === "string") {
+      const remaining = 65_536 - length;
+      const text = value.slice(0, remaining);
+      values.push(text);
+      length += text.length + 1;
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item, depth + 1);
+      return;
+    }
+    if (value && typeof value === "object") {
+      for (const item of Object.values(value)) visit(item, depth + 1);
+    }
+  };
+  visit(entry.inlineContent, 0);
+  return values.join(" ");
 }
 
 function displayOrderKey(depth: number): string {

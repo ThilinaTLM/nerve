@@ -14,6 +14,7 @@ import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 import {
   timelinePageRequestSchema,
+  timelineSearchRequestSchema,
   timelineTreePageRequestSchema,
   transcriptProjectionStatusSchema,
 } from "./timeline.js";
@@ -133,6 +134,15 @@ export const conversationsOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.conversation.timeline.projectionStatus",
+  ),
+  defineOperation(
+    "conversation.timeline.search",
+    timelineSearchRequestSchema,
+    timelineViewOutcomeSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.conversation.timeline.search",
   ),
   defineOperation(
     "conversation.timeline.treePage",

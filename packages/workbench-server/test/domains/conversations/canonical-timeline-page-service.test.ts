@@ -41,7 +41,10 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
     entries: [1, 2, 3, 4, 5].map((number) => ({
       entryId: `entry_${number}`,
       kind: "user_message" as const,
-      inlineContent: { number },
+      inlineContent: {
+        number,
+        text: number <= 2 ? `alpha result ${number}` : `other result ${number}`,
+      },
     })),
   });
   await store.commitConversationCommand({
@@ -98,6 +101,21 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
   );
   const cursor = first.kind === "page" ? first.page.nextCursor : undefined;
   assert.ok(cursor);
+  const searchFirst = await pages.search({
+    conversationId: "conv_page",
+    query: "alpha",
+    pageSize: 1,
+  });
+  assert.equal(searchFirst.kind, "page");
+  assert.deepEqual(
+    searchFirst.kind === "page"
+      ? searchFirst.page.entries.map((entry) => entry.entryId)
+      : [],
+    ["entry_1"],
+  );
+  const searchCursor =
+    searchFirst.kind === "page" ? searchFirst.page.nextCursor : undefined;
+  assert.ok(searchCursor);
 
   const advanced = buildAppendTransition({
     head: initial.resultingHead,
@@ -108,7 +126,13 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
       cause: { kind: "advance" },
       committedAt: "2026-09-12T00:00:01.000Z",
     },
-    entries: [{ entryId: "entry_6", kind: "user_message", inlineContent: 6 }],
+    entries: [
+      {
+        entryId: "entry_6",
+        kind: "user_message",
+        inlineContent: { text: "alpha newest" },
+      },
+    ],
   });
   await store.commitConversationCommand({
     namespaceId: identity.namespaceId,
@@ -140,6 +164,21 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
   const failed = await projections.status("conv_page");
   assert.equal(failed?.rebuildState, "failed");
   assert.deepEqual(failed?.lastError, { message: "injected rebuild failure" });
+  const freshSearchWhileLagging = await pages.search({
+    conversationId: "conv_page",
+    query: "alpha",
+  });
+  assert.equal(freshSearchWhileLagging.kind, "projection_lag");
+  const changedSearch = await pages.search({
+    conversationId: "conv_page",
+    query: "other",
+    cursor: searchCursor,
+  });
+  assert.equal(changedSearch.kind, "reconciliation_required");
+  assert.equal(
+    changedSearch.kind === "reconciliation_required" && changedSearch.reason,
+    "filter_changed",
+  );
 
   const second = await reopenedPages.page({
     conversationId: "conv_page",
@@ -195,11 +234,37 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
   await dispatcher.settled();
   const caughtUp = await projections.status("conv_page");
   assert.equal(caughtUp?.appliedRevision, 2);
-  assert.equal(caughtUp?.rebuildGeneration, 2);
+  assert.equal(caughtUp?.rebuildGeneration, 1);
+  const searchSecond = await pages.search({
+    conversationId: "conv_page",
+    query: "alpha",
+    pageSize: 1,
+    cursor: searchCursor,
+  });
+  assert.equal(searchSecond.kind, "page");
+  assert.deepEqual(
+    searchSecond.kind === "page"
+      ? searchSecond.page.entries.map((entry) => entry.entryId)
+      : [],
+    ["entry_2"],
+  );
+  assert.equal(
+    searchSecond.kind === "page" && searchSecond.page.view.sourceRevision,
+    1,
+  );
+  await projections.rebuild("conv_page", "2026-09-12T00:00:02.000Z");
+  const explicitlyRebuilt = await projections.status("conv_page");
+  assert.equal(explicitlyRebuilt?.rebuildGeneration, 2);
   const invalidatedByRebuild = await pages.page({
     conversationId: "conv_page",
     cursor: first.kind === "page" ? first.page.nextCursor : undefined,
   });
+  const invalidatedSearch = await pages.search({
+    conversationId: "conv_page",
+    query: "alpha",
+    cursor: searchCursor,
+  });
+  assert.equal(invalidatedSearch.kind, "reconciliation_required");
   assert.equal(invalidatedByRebuild.kind, "reconciliation_required");
   assert.equal(
     invalidatedByRebuild.kind === "reconciliation_required" &&
