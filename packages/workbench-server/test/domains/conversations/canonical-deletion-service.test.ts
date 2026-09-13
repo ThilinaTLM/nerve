@@ -165,7 +165,12 @@ test("INV-DELETE-01 fences dispatch and foreground ownership before cleanup", as
     (await store.readTimelineConversationHead("conv_delete"))?.activeEntryId,
     null,
   );
-  assert.equal((await deletion.fence(input)).kind, "receipt_replay");
+  const afterFinalization = await deletion.fence(input);
+  assert.equal(afterFinalization.kind, "rejected");
+  assert.equal(
+    afterFinalization.kind === "rejected" && afterFinalization.outcome.kind,
+    "deleted_owner",
+  );
   const tombstone = await store.deletion.readTombstone("conv_delete");
   assert.ok((tombstone?.commandReservationCount ?? 0) >= 3);
   assert.match(tombstone?.replayEvidenceDigest ?? "", /^sha256:[a-f0-9]{64}$/);

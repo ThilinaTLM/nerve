@@ -306,11 +306,15 @@ function redactStage(
     );
   }
   if (stage === "receipts") {
+    const reducedOutcome = encode({
+      kind: "deleted_owner",
+      ownerId: conversationId,
+    });
     return Number(
       database
         .prepare(
           `UPDATE command_receipts
-           SET content_redacted_at_ms = ?
+           SET outcome_json = ?, content_redacted_at_ms = ?
            WHERE rowid IN (
              SELECT rowid FROM command_receipts
              WHERE owner_kind = 'conversation' AND owner_id = ?
@@ -318,7 +322,7 @@ function redactStage(
              ORDER BY rowid LIMIT ?
            )`,
         )
-        .run(Date.parse(now), conversationId, limit).changes,
+        .run(reducedOutcome, Date.parse(now), conversationId, limit).changes,
     );
   }
   if (stage === "manifests") {
