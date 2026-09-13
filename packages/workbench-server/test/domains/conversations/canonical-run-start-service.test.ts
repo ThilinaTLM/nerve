@@ -19,6 +19,8 @@ test("INV-HEAD-01 accepts a prompt and foreground owner in one transition", asyn
     conversationId: "conv_start",
     runId: "run_start",
     agentId: "agent_start",
+    providerIdentity: { provider: "test", model: "test" },
+    providerCapability: "stateless_generation" as const,
     prompt: "hello",
     commandId: "command-start",
     now: "2026-09-12T00:00:00.000Z",
@@ -34,6 +36,16 @@ test("INV-HEAD-01 accepts a prompt and foreground owner in one transition", asyn
   const head = await store.readTimelineConversationHead("conv_start");
   assert.equal(head?.revision, 1);
   assert.equal(head?.foregroundRunId, "run_start");
+  assert.equal(
+    started.kind === "started" && started.run.providerPhaseId,
+    "provider_phase_start_1",
+  );
+  const work = await store.execution.readLifecycleWork(
+    "canonical_work_start_provider_1",
+  );
+  assert.equal(work?.providerPhaseId, "provider_phase_start_1");
+  assert.equal(work?.kind, "prepare_provider_request");
+  assert.equal(work?.state, "ready");
   assert.equal(
     head?.activeEntryId,
     started.kind === "started" ? started.run.continuationEntryId : null,

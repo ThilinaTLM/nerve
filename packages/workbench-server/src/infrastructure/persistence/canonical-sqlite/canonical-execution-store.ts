@@ -1,0 +1,60 @@
+import type {
+  CanonicalExecutionAttempt,
+  CanonicalLifecycleWork,
+  ExecutionClaim,
+  ProviderPhase,
+} from "@nervekit/contracts/runs";
+import type { CanonicalCommand } from "./worker-protocol.js";
+
+export class CanonicalExecutionStore {
+  constructor(
+    private readonly request: <T>(command: CanonicalCommand) => Promise<T>,
+  ) {}
+
+  claimReadyLifecycleWork(input: {
+    workerId: string;
+    now: string;
+    leaseDurationMs: number;
+  }) {
+    return this.request<CanonicalLifecycleWork | undefined>({
+      kind: "claim_ready_canonical_lifecycle_work",
+      ...input,
+    });
+  }
+
+  readAttempt(attemptId: string) {
+    return this.request<CanonicalExecutionAttempt | undefined>({
+      kind: "read_canonical_execution_attempt",
+      attemptId,
+    });
+  }
+
+  readClaim(claimId: string) {
+    return this.request<ExecutionClaim | undefined>({
+      kind: "read_canonical_execution_claim",
+      claimId,
+    });
+  }
+
+  readProviderPhase(phaseId: string) {
+    return this.request<ProviderPhase | undefined>({
+      kind: "read_canonical_provider_phase",
+      phaseId,
+    });
+  }
+
+  readLifecycleWork(workId: string) {
+    return this.request<CanonicalLifecycleWork | undefined>({
+      kind: "read_canonical_lifecycle_work",
+      workId,
+    });
+  }
+
+  listReadyLifecycleWork(now: string, limit: number) {
+    return this.request<CanonicalLifecycleWork[]>({
+      kind: "list_ready_canonical_lifecycle_work",
+      now,
+      limit,
+    });
+  }
+}

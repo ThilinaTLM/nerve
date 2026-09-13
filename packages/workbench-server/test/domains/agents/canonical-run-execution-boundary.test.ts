@@ -34,6 +34,8 @@ test("canonical execution boundary materializes exact messages and closes foregr
     conversationId: "conv_boundary",
     runId: "run_boundary",
     agentId: "agent_boundary",
+    providerIdentity: { provider: "test", model: "test" },
+    providerCapability: "stateless_generation",
     prompt: "inspect",
     conversationCreatedAt: now,
     now: "2026-09-14T00:00:01.000Z",

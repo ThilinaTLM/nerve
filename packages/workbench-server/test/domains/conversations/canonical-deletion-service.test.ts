@@ -24,6 +24,8 @@ test("INV-DELETE-01 fences dispatch and foreground ownership before cleanup", as
     conversationId: "conv_delete",
     runId: "run_delete",
     agentId: "agent_delete",
+    providerIdentity: { provider: "test", model: "test" },
+    providerCapability: "stateless_generation",
     prompt: "delete me",
     now: "2026-09-12T00:00:00.000Z",
   });
@@ -93,6 +95,8 @@ test("INV-DELETE-01 fences dispatch and foreground ownership before cleanup", as
     conversationId: "conv_delete",
     runId: "run_after_delete",
     agentId: "agent_delete",
+    providerIdentity: { provider: "test", model: "test" },
+    providerCapability: "stateless_generation",
     prompt: "must fail",
     now: "2026-09-12T00:00:02.000Z",
   });

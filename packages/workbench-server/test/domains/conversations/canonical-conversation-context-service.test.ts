@@ -27,6 +27,8 @@ async function fixture(t: test.TestContext) {
     conversationId: "conv_context",
     runId: "run_context",
     agentId: "agent_context",
+    providerIdentity: { provider: "test", model: "test" },
+    providerCapability: "stateless_generation",
     prompt: "first",
     now: "2026-09-14T00:00:01.000Z",
   });

@@ -19,6 +19,8 @@ test("INV-HEAD-01 advances and releases one foreground continuation", async (t) 
     conversationId: "conv_run",
     runId: "run_one",
     agentId: "agent_one",
+    providerIdentity: { provider: "test", model: "test" },
+    providerCapability: "stateless_generation",
     prompt: "hello",
     now: "2026-09-12T00:00:00.000Z",
   });

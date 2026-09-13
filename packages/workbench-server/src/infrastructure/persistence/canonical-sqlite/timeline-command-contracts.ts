@@ -13,6 +13,7 @@ import type { DeletionIntent } from "@nervekit/contracts/storage";
 import type {
   CanonicalCheckpoint,
   CanonicalExecutionAttempt,
+  CanonicalLifecycleWork,
   ExactCallAuthorization,
   ExecutionClaim,
   ImmutableExecutionSnapshot,
@@ -79,6 +80,7 @@ export interface CommitConversationCommandInput {
   providerPhases?: ProviderPhase[];
   executionAttempts?: CanonicalExecutionAttempt[];
   executionClaims?: ExecutionClaim[];
+  lifecycleWorks?: CanonicalLifecycleWork[];
   recoveryActions?: RecoveryAction[];
   outcome: unknown;
   publicationIntents: TimelinePublicationIntent[];

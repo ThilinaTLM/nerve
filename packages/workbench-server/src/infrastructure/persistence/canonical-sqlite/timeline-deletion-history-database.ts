@@ -4,6 +4,7 @@ import type { DeletionIntent } from "@nervekit/contracts/storage";
 import { encode } from "./payload-codecs.js";
 
 const stages = [
+  "lifecycle_work",
   "recovery_actions",
   "execution_claims",
   "execution_attempts",
@@ -54,6 +55,8 @@ export function finalizeDeletionHistory(
          (SELECT COUNT(*) FROM conversation_entries WHERE conversation_id = ?1) +
          (SELECT COUNT(*) FROM conversation_transitions WHERE conversation_id = ?1) +
          (SELECT COUNT(*) FROM run_controls WHERE conversation_id = ?1) +
+         (SELECT COUNT(*) FROM canonical_lifecycle_work
+            WHERE conversation_id = ?1) +
          (SELECT COUNT(*) FROM context_boundaries WHERE conversation_id = ?1) +
          (SELECT COUNT(*) FROM artifact_deletion_work
             WHERE conversation_id = ?1 AND state NOT IN ('deleted','missing')) AS count`,
@@ -154,6 +157,15 @@ function deleteStage(
   stage: HistoryStage,
   limit: number,
 ): number {
+  if (stage === "lifecycle_work")
+    return remove(
+      database,
+      "canonical_lifecycle_work",
+      "work_id",
+      "conversation_id = ?1",
+      conversationId,
+      limit,
+    );
   if (stage === "recovery_actions")
     return remove(
       database,

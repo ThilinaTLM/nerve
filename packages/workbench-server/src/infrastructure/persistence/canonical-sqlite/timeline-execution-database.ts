@@ -1,11 +1,54 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { ProviderPhase, RunControl } from "@nervekit/contracts/runs";
+import type {
+  CanonicalExecutionAttempt,
+  CanonicalLifecycleWork,
+  ExecutionClaim,
+  ProviderPhase,
+  RunControl,
+} from "@nervekit/contracts/runs";
 import { providerPhaseSchema } from "@nervekit/contracts/runs";
 import { assertProviderPhaseTransition } from "../../../domains/runs/runtime/provider-phase-state.js";
 import { decode, encode } from "./payload-codecs.js";
+import {
+  readTimelineExecutionAttempt,
+  readTimelineExecutionClaim,
+} from "./timeline-effect-database.js";
+import {
+  claimReadyCanonicalLifecycleWork,
+  listReadyCanonicalLifecycleWork,
+  readCanonicalLifecycleWork,
+} from "./timeline-lifecycle-work-database.js";
 
 export class CanonicalExecutionQueryDatabase {
   constructor(private readonly database: DatabaseSync) {}
+
+  readAttempt(attemptId: string): CanonicalExecutionAttempt | undefined {
+    return readTimelineExecutionAttempt(this.database, attemptId);
+  }
+
+  readClaim(claimId: string): ExecutionClaim | undefined {
+    return readTimelineExecutionClaim(this.database, claimId);
+  }
+
+  claimLifecycleWork(input: {
+    workerId: string;
+    now: string;
+    leaseDurationMs: number;
+  }): CanonicalLifecycleWork | undefined {
+    return claimReadyCanonicalLifecycleWork(this.database, input);
+  }
+
+  readProviderPhase(phaseId: string): ProviderPhase | undefined {
+    return readProviderPhase(this.database, phaseId);
+  }
+
+  readLifecycleWork(workId: string): CanonicalLifecycleWork | undefined {
+    return readCanonicalLifecycleWork(this.database, workId);
+  }
+
+  listReadyLifecycleWork(now: string, limit: number): CanonicalLifecycleWork[] {
+    return listReadyCanonicalLifecycleWork(this.database, now, limit);
+  }
 
   countCompactionProviderPhases(runId: string): number {
     const row = this.database
@@ -144,7 +187,7 @@ export function persistTimelineProviderPhase(
     );
 }
 
-function readProviderPhase(
+export function readProviderPhase(
   database: DatabaseSync,
   phaseId: string,
 ): ProviderPhase | undefined {

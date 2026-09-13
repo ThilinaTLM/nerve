@@ -70,6 +70,7 @@ import { withTimelineImmediateTransaction } from "./timeline-transaction.js";
 import { promoteTimelineRuntimeAdmission } from "./timeline-authority-promotion-database.js";
 import { persistTimelineWaitGroup } from "./timeline-wait-group-database.js";
 import { markTimelineTranscriptProjectionPending } from "./timeline-projection-database.js";
+import { persistCanonicalLifecycleWork } from "./timeline-lifecycle-work-database.js";
 import {
   readTimelineAncestrySegment,
   readTimelineCommandReceipt,
@@ -540,6 +541,9 @@ export function commitConversationCommandInTransaction(
       ...(input.executionAttempts ?? []).map((attempt) => attempt.attemptId),
       ...(input.executionClaims ?? []).map((claim) => claim.attemptId),
     ]);
+    for (const work of input.lifecycleWorks ?? []) {
+      persistCanonicalLifecycleWork(database, work);
+    }
     for (const action of input.recoveryActions ?? []) {
       insertTimelineRecoveryAction(
         database,

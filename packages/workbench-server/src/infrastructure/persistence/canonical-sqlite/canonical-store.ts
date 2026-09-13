@@ -1,8 +1,12 @@
 import type { CommitConversationCommandInput } from "./timeline-database.js";
-import { CanonicalMigrationStore } from "./canonical-migration-store.js";
+import {
+  CanonicalExecutionStore,
+  CanonicalMigrationStore,
+} from "./store-facets.js";
 import type {
   CanonicalAncestrySegment,
   CanonicalConversationEntry,
+  ConversationEntry,
   ConversationHead,
   MutationOutcome,
   TimelineStateIdentity,
@@ -14,7 +18,6 @@ import type {
   ConversationDeletionProgress,
 } from "./conversation-deletion.js";
 import { Worker } from "node:worker_threads";
-import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type {
   LifecycleWork,
   RecoveryIssue,
@@ -42,21 +45,17 @@ import {
 } from "./canonical-database.js";
 import type {
   CanonicalCommand,
+  CanonicalPendingRequest,
   CanonicalWorkerResponse,
 } from "./worker-protocol.js";
 import { READ_COMMANDS } from "./worker-protocol.js";
 import type { BackupArtifactRecord } from "./timeline-backup-database.js";
 import { CanonicalDeletionStore } from "./canonical-deletion-store.js";
 
-interface PendingRequest {
-  resolve(value: unknown): void;
-  reject(error: Error): void;
-}
-
 class WorkerEndpoint {
   private nextId = 1;
   private closed = false;
-  private readonly pending = new Map<number, PendingRequest>();
+  private readonly pending = new Map<number, CanonicalPendingRequest>();
 
   constructor(private readonly worker: Worker) {
     worker.on("message", (response: CanonicalWorkerResponse) => {
@@ -116,6 +115,7 @@ export class CanonicalStore {
   private readonly requester = <T>(command: CanonicalCommand) =>
     this.request<T>(command);
   readonly migration = new CanonicalMigrationStore(this.requester);
+  readonly execution = new CanonicalExecutionStore(this.requester);
   readonly deletion = new CanonicalDeletionStore(this.requester);
 
   constructor(

@@ -2,10 +2,12 @@ import type { MutationOutcome } from "@nervekit/contracts/conversations";
 import {
   runControlSchema,
   type CanonicalExecutionAttempt,
+  type CanonicalLifecycleWork,
   type ExecutionClaim,
   type ProviderPhase,
   type RunControl,
 } from "@nervekit/contracts/runs";
+import type { TimelineArtifactManifestWrite } from "../../../infrastructure/persistence/canonical-sqlite/timeline-checkpoint-database.js";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import { CanonicalTimelineIdentityService } from "./canonical-timeline-identity.service.js";
 import { conversationCommandFingerprint } from "./command-fingerprint.js";
@@ -56,12 +58,18 @@ export class CanonicalRunTimelineService {
       providerPhases?: readonly ProviderPhase[];
       executionAttempts?: readonly CanonicalExecutionAttempt[];
       executionClaims?: readonly ExecutionClaim[];
+      lifecycleWorks?: readonly CanonicalLifecycleWork[];
+      artifactManifests?: readonly TimelineArtifactManifestWrite[];
+      providerPhaseId?: string | null;
     },
   ): Promise<CanonicalRunMutationResult> {
     return this.mutate(input, input.entries, undefined, {
       providerPhases: input.providerPhases,
       executionAttempts: input.executionAttempts,
       executionClaims: input.executionClaims,
+      lifecycleWorks: input.lifecycleWorks,
+      artifactManifests: input.artifactManifests,
+      providerPhaseId: input.providerPhaseId,
     });
   }
 
@@ -87,6 +95,9 @@ export class CanonicalRunTimelineService {
       providerPhases?: readonly ProviderPhase[];
       executionAttempts?: readonly CanonicalExecutionAttempt[];
       executionClaims?: readonly ExecutionClaim[];
+      lifecycleWorks?: readonly CanonicalLifecycleWork[];
+      artifactManifests?: readonly TimelineArtifactManifestWrite[];
+      providerPhaseId?: string | null;
     } = {},
   ): Promise<CanonicalRunMutationResult> {
     const [identity, head, run] = await Promise.all([
@@ -163,6 +174,9 @@ export class CanonicalRunTimelineService {
     const nextRun: RunControl = {
       ...run,
       continuationEntryId: transition.resultingHead.activeEntryId,
+      ...(execution.providerPhaseId !== undefined
+        ? { providerPhaseId: execution.providerPhaseId }
+        : {}),
       ...(terminal
         ? {
             state: terminal.state,
@@ -204,6 +218,9 @@ export class CanonicalRunTimelineService {
         },
       ],
       transitions: [transition],
+      artifactManifests: execution.artifactManifests
+        ? [...execution.artifactManifests]
+        : [],
       runControls: [nextRun],
       providerPhases: execution.providerPhases
         ? [...execution.providerPhases]
@@ -213,6 +230,9 @@ export class CanonicalRunTimelineService {
         : [],
       executionClaims: execution.executionClaims
         ? [...execution.executionClaims]
+        : [],
+      lifecycleWorks: execution.lifecycleWorks
+        ? [...execution.lifecycleWorks]
         : [],
       outcome: nextRun,
       publicationIntents: [],

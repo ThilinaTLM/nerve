@@ -43,6 +43,11 @@ export class CanonicalRunExecutionBoundary {
     agentId: string;
     prompt: string;
     images?: readonly unknown[];
+    providerIdentity: Record<string, unknown>;
+    providerCapability:
+      | "stateless_generation"
+      | "contractually_replay_safe"
+      | "non_repeatable_or_unknown";
     conversationCreatedAt: string;
     now: string;
   }): Promise<CanonicalExecutionBoundaryResult<CanonicalRunExecutionSession>> {

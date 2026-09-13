@@ -228,7 +228,7 @@ export function persistTimelineExecutionAttempt(
   attempt: CanonicalExecutionAttempt,
 ): void {
   assertCurrentIncarnation(database, attempt.executionIncarnationId);
-  const current = readAttempt(database, attempt.attemptId);
+  const current = readTimelineExecutionAttempt(database, attempt.attemptId);
   if (
     [
       "claimed",
@@ -322,7 +322,7 @@ export function persistTimelineExecutionClaim(
       }
     | undefined;
   if (current) {
-    const attempt = readAttempt(database, claim.attemptId);
+    const attempt = readTimelineExecutionAttempt(database, claim.attemptId);
     const terminalAttempt =
       attempt &&
       [
@@ -359,7 +359,7 @@ export function persistTimelineExecutionClaim(
     if (changed.changes !== 1) throw new Error("Execution claim conflict.");
     return;
   }
-  const attempt = readAttempt(database, claim.attemptId);
+  const attempt = readTimelineExecutionAttempt(database, claim.attemptId);
   const owner = database
     .prepare(
       `SELECT COALESCE(effect_owner.deletion_state, provider_owner.deletion_state)
@@ -493,7 +493,40 @@ function assertCurrentIncarnation(
   }
 }
 
-function readAttempt(
+export function readTimelineExecutionClaim(
+  database: DatabaseSync,
+  claimId: string,
+): ExecutionClaim | undefined {
+  const row = database
+    .prepare(
+      `SELECT attempt_id, token, generation, incarnation_id, lease_deadline_ms,
+              state FROM execution_claims WHERE claim_id = ?`,
+    )
+    .get(claimId) as
+    | {
+        attempt_id: string;
+        token: string;
+        generation: number;
+        incarnation_id: string;
+        lease_deadline_ms: number;
+        state: ExecutionClaim["state"];
+      }
+    | undefined;
+  return row
+    ? {
+        schemaVersion: 1,
+        claimId,
+        attemptId: row.attempt_id,
+        token: row.token,
+        generation: row.generation,
+        executionIncarnationId: row.incarnation_id,
+        leaseDeadline: new Date(row.lease_deadline_ms).toISOString(),
+        state: row.state,
+      }
+    : undefined;
+}
+
+export function readTimelineExecutionAttempt(
   database: DatabaseSync,
   attemptId: string,
 ): CanonicalExecutionAttempt | undefined {

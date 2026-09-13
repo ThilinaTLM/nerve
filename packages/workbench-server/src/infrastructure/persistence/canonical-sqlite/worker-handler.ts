@@ -55,6 +55,25 @@ export function executeCanonicalCommand(
       return database.executionQueries.countCompactionProviderPhases(
         command.runId,
       );
+    case "claim_ready_canonical_lifecycle_work":
+      return database.executionQueries.claimLifecycleWork({
+        workerId: command.workerId,
+        now: command.now,
+        leaseDurationMs: command.leaseDurationMs,
+      });
+    case "read_canonical_execution_attempt":
+      return database.executionQueries.readAttempt(command.attemptId);
+    case "read_canonical_execution_claim":
+      return database.executionQueries.readClaim(command.claimId);
+    case "read_canonical_provider_phase":
+      return database.executionQueries.readProviderPhase(command.phaseId);
+    case "read_canonical_lifecycle_work":
+      return database.executionQueries.readLifecycleWork(command.workId);
+    case "list_ready_canonical_lifecycle_work":
+      return database.executionQueries.listReadyLifecycleWork(
+        command.now,
+        command.limit,
+      );
     case "create_timeline_backup_snapshot":
       return database.backups.createSnapshot(command.destination);
     case "commit_conversation_command":

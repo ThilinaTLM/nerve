@@ -23,6 +23,17 @@ export type CanonicalCommand =
   | { kind: "count_legacy_runtime_authority" }
   | { kind: "create_timeline_backup_snapshot"; destination: string }
   | { kind: "count_compaction_provider_phases"; runId: string }
+  | {
+      kind: "claim_ready_canonical_lifecycle_work";
+      workerId: string;
+      now: string;
+      leaseDurationMs: number;
+    }
+  | { kind: "read_canonical_execution_attempt"; attemptId: string }
+  | { kind: "read_canonical_execution_claim"; claimId: string }
+  | { kind: "read_canonical_provider_phase"; phaseId: string }
+  | { kind: "read_canonical_lifecycle_work"; workId: string }
+  | { kind: "list_ready_canonical_lifecycle_work"; now: string; limit: number }
   | { kind: "list_pending_canonical_deletions"; limit: number }
   | { kind: "read_canonical_deletion_intent"; conversationId: string }
   | { kind: "read_canonical_deletion_tombstone"; conversationId: string }
@@ -311,6 +322,11 @@ export type CanonicalCommand =
   | { kind: "checkpoint" }
   | { kind: "close" };
 
+export interface CanonicalPendingRequest {
+  resolve(value: unknown): void;
+  reject(error: Error): void;
+}
+
 export interface CanonicalWorkerRequest {
   id: number;
   command: CanonicalCommand;
@@ -326,6 +342,11 @@ export type CanonicalWorkerResponse =
 
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "count_compaction_provider_phases",
+  "read_canonical_execution_attempt",
+  "read_canonical_execution_claim",
+  "read_canonical_provider_phase",
+  "read_canonical_lifecycle_work",
+  "list_ready_canonical_lifecycle_work",
   "list_pending_canonical_deletions",
   "read_canonical_deletion_intent",
   "read_canonical_deletion_tombstone",

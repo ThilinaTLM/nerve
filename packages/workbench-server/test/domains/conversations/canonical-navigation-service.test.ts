@@ -20,6 +20,8 @@ test("INV-HEAD-01 navigation fences ownership and never revives it", async (t) =
     conversationId: "conv_nav",
     runId: "run_nav",
     agentId: "agent_nav",
+    providerIdentity: { provider: "test", model: "test" },
+    providerCapability: "stateless_generation",
     prompt: "hello",
     now: "2026-09-12T00:00:00.000Z",
   });

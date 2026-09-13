@@ -24,6 +24,7 @@ export function assertTimelineCommandBudgets(
     ["provider phases", input.providerPhases ?? [], 64],
     ["execution attempts", input.executionAttempts ?? [], 256],
     ["execution claims", input.executionClaims ?? [], 128],
+    ["lifecycle works", input.lifecycleWorks ?? [], 128],
     ["recovery actions", input.recoveryActions ?? [], 128],
     ["publication intents", input.publicationIntents, 128],
   ];

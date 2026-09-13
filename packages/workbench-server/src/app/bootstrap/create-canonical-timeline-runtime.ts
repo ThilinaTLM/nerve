@@ -11,6 +11,9 @@ import { CanonicalDeletionDispatcher } from "../../domains/conversations/timelin
 import { CanonicalDeletionService } from "../../domains/conversations/timeline/canonical-deletion.service.js";
 import { CanonicalNavigationService } from "../../domains/conversations/timeline/canonical-navigation.service.js";
 import { CanonicalProjectionDispatcher } from "../../domains/conversations/timeline/canonical-projection-dispatcher.js";
+import { CanonicalProviderPreparationService } from "../../domains/conversations/timeline/canonical-provider-preparation.service.js";
+import { CanonicalProviderDispatchService } from "../../domains/conversations/timeline/canonical-provider-dispatch.service.js";
+import { CanonicalProviderSettlementService } from "../../domains/conversations/timeline/canonical-provider-settlement.service.js";
 import { CanonicalRunStartService } from "../../domains/conversations/timeline/canonical-run-start.service.js";
 import { CanonicalRunTimelineService } from "../../domains/conversations/timeline/canonical-run-timeline.service.js";
 import { CanonicalTimelinePageProvider } from "../../domains/conversations/timeline/canonical-timeline-page-provider.js";
@@ -36,6 +39,15 @@ export function timelineRuntime(
   );
   const runStart = new CanonicalRunStartService(storage.canonicalStore);
   const runTimeline = new CanonicalRunTimelineService(storage.canonicalStore);
+  const providerPreparation = new CanonicalProviderPreparationService(
+    storage.canonicalStore,
+  );
+  const providerDispatch = new CanonicalProviderDispatchService(
+    storage.canonicalStore,
+  );
+  const providerSettlement = new CanonicalProviderSettlementService(
+    storage.canonicalStore,
+  );
   const navigation = new CanonicalNavigationService(storage.canonicalStore);
   const runExecutionBoundary = new CanonicalRunExecutionBoundary(
     runStart,
@@ -73,6 +85,9 @@ export function timelineRuntime(
     conversationContext,
     runStart,
     runTimeline,
+    providerPreparation,
+    providerDispatch,
+    providerSettlement,
     runExecutionBoundary,
     autoCompaction,
     navigation,

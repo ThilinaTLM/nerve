@@ -1,6 +1,11 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { MutationOutcome } from "@nervekit/contracts/conversations";
-import { runControlSchema, type RunControl } from "@nervekit/contracts/runs";
+import {
+  runControlSchema,
+  type CanonicalLifecycleWork,
+  type ProviderPhase,
+  type RunControl,
+} from "@nervekit/contracts/runs";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import { conversationCommandFingerprint } from "./command-fingerprint.js";
 import { CanonicalTimelineIdentityService } from "./canonical-timeline-identity.service.js";
@@ -13,6 +18,11 @@ export interface CanonicalRunStartInput {
   agentId: string;
   prompt: string;
   images?: readonly unknown[];
+  providerIdentity: Record<string, unknown>;
+  providerCapability:
+    | "stateless_generation"
+    | "contractually_replay_safe"
+    | "non_repeatable_or_unknown";
   commandId?: string;
   now: string;
 }
@@ -82,7 +92,10 @@ export class CanonicalRunStartService {
       agentId: input.agentId,
       prompt: input.prompt,
       images: input.images,
+      providerIdentity: input.providerIdentity,
+      providerCapability: input.providerCapability,
     });
+    const entryId = `entry_${randomUUID()}`;
     const transition = buildAppendTransition({
       head,
       identity: {
@@ -95,7 +108,7 @@ export class CanonicalRunStartService {
       },
       entries: [
         {
-          entryId: `entry_${randomUUID()}`,
+          entryId,
           kind: "user_message",
           inlineContent: {
             text: input.prompt,
@@ -107,6 +120,37 @@ export class CanonicalRunStartService {
       ],
       foregroundRunId: input.runId,
     });
+    const phaseId = `provider_phase_${input.runId.slice("run_".length)}_1`;
+    const contextRecipeId = `context_recipe_${input.runId.slice("run_".length)}_1`;
+    const phase: ProviderPhase = {
+      schemaVersion: 1,
+      phaseId,
+      runId: input.runId,
+      runGeneration: 1,
+      selectionEpoch: head.selectionEpoch,
+      sourceEntryId: entryId,
+      contextRecipeId,
+      providerIdentity: input.providerIdentity,
+      capability: input.providerCapability,
+      state: "preparing",
+    };
+    const work: CanonicalLifecycleWork = {
+      schemaVersion: 1,
+      workId: `canonical_work_${input.runId.slice("run_".length)}_provider_1`,
+      conversationId: input.conversationId,
+      runId: input.runId,
+      kind: "prepare_provider_request",
+      providerPhaseId: phaseId,
+      state: "ready",
+      inputHash: `sha256:${createHash("sha256")
+        .update(fingerprint)
+        .digest("hex")}`,
+      generation: 0,
+      revision: 1,
+      notBefore: input.now,
+      createdAt: input.now,
+      updatedAt: input.now,
+    };
     const run: RunControl = {
       schemaVersion: 1,
       conversationId: input.conversationId,
@@ -116,7 +160,7 @@ export class CanonicalRunStartService {
       continuationEntryId: transition.resultingHead.activeEntryId,
       checkpointId: null,
       waitGroupId: null,
-      providerPhaseId: null,
+      providerPhaseId: phaseId,
       state: "running",
       foregroundOwned: true,
       revision: 1,
@@ -140,6 +184,8 @@ export class CanonicalRunStartService {
       ],
       transitions: [transition],
       runControls: [run],
+      providerPhases: [phase],
+      lifecycleWorks: [work],
       outcome: run,
       publicationIntents: [],
       now: input.now,
