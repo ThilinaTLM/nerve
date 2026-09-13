@@ -17,6 +17,7 @@ import type {
 
 export type CanonicalCommand =
   | { kind: "initialize" }
+  | { kind: "create_timeline_backup_snapshot"; destination: string }
   | {
       kind: "commit_conversation_command";
       input: CommitConversationCommandInput;

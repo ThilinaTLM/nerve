@@ -388,7 +388,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       resultPayloads,
       capabilities,
     );
-  const timeline = timelineRuntime(storage.canonicalStore, secrets, logger);
+  const timeline = timelineRuntime(storage, secrets, logger);
   const conversationQuery = new ConversationQueryService({
     events,
     state,
@@ -784,8 +784,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     projectLifecycle,
     conversationLifecycle,
     conversationQuery,
-    timelinePages: timeline.pages,
-    projectionDispatcher: timeline.dispatcher,
+    ...timeline,
     agentLifecycle,
     subagentTranscriptLive,
     subagentTranscripts,

@@ -9,6 +9,8 @@ export function executeCanonicalCommand(
     case "initialize":
       database.initialize();
       return undefined;
+    case "create_timeline_backup_snapshot":
+      return database.backups.createSnapshot(command.destination);
     case "commit_conversation_command":
       return database.timeline.commit(command.input);
     case "read_timeline_command_receipt":

@@ -93,6 +93,9 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       sqlitePath: state.storage.paths.sqlitePath,
       counts: state.queryCache.counts(),
     }),
+    "storage.backup.create": async (state) => ({
+      manifest: (await state.portableBackup.create()).manifest,
+    }),
     "storage.rebuildIndex": async (state) => ({
       operation: await state.maintenance.start({
         kind: "storage_cleanup",

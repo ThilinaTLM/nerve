@@ -40,6 +40,7 @@ import type {
   CanonicalWorkerResponse,
 } from "./worker-protocol.js";
 import { READ_COMMANDS } from "./worker-protocol.js";
+import type { BackupArtifactRecord } from "./timeline-backup-database.js";
 
 interface PendingRequest {
   resolve(value: unknown): void;
@@ -186,6 +187,13 @@ export class CanonicalStore {
     return this.request<ConversationHead | undefined>({
       kind: "read_timeline_conversation_head",
       conversationId,
+    });
+  }
+
+  createTimelineBackupSnapshot(destination: string) {
+    return this.request<BackupArtifactRecord[]>({
+      kind: "create_timeline_backup_snapshot",
+      destination,
     });
   }
 

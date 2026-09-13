@@ -5,6 +5,7 @@ import {
   storageUsageResponseSchema,
 } from "./storage.js";
 import { z } from "zod";
+import { portableBackupManifestSchema } from "./durable-recovery.js";
 import { defineOperation } from "../../operations/definition.js";
 
 const emptyParamsSchema = z.object({}).optional();
@@ -18,6 +19,15 @@ export const storageOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.storage.info",
+  ),
+  defineOperation(
+    "storage.backup.create",
+    emptyParamsSchema,
+    z.object({ manifest: portableBackupManifestSchema }),
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.storage.backup.create",
   ),
   defineOperation(
     "storage.rebuildIndex",
