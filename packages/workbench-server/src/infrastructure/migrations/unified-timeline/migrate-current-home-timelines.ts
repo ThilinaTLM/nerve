@@ -4,7 +4,12 @@ import type {
   ConversationEntry,
   ConversationRecord,
 } from "@nervekit/contracts/conversations";
-import type { RunControl, RunRecord } from "@nervekit/contracts/runs";
+import type {
+  RecoveryAction,
+  RunControl,
+  RunRecord,
+} from "@nervekit/contracts/runs";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { ConversationTransitionService } from "../../../domains/conversations/timeline/conversation-transition.service.js";
 import type { CanonicalStore } from "../../persistence/canonical-sqlite/canonical-store.js";
 import { atomicWriteJson } from "../../storage-bootstrap/json.js";
@@ -70,12 +75,18 @@ export async function migrateCurrentHomeConversationTimelines(input: {
     input.store,
     input.importedAt,
   );
+  const toolRecovery = await importLegacyToolRecovery(
+    input.store,
+    input.importedAt,
+  );
   await input.store.integrityCheck();
   const manifestFacts = {
     schemaVersion: 1 as const,
     sourceKind: "current_home_legacy_journal" as const,
     conversationCount: proofs.length,
     importedRunCount,
+    importedToolRecordCount: toolRecovery.importedToolRecordCount,
+    preparedToolRecoveryCount: toolRecovery.preparedToolRecoveryCount,
     conversationProofDigests: proofs.map((proof) => ({
       conversationId: proof.conversationId,
       proofDigest: proof.proofDigest,
@@ -148,6 +159,107 @@ async function importLegacyRunControls(
     }
   }
   return runs.length;
+}
+
+async function importLegacyToolRecovery(
+  store: CanonicalStore,
+  importedAt: string,
+): Promise<{
+  importedToolRecordCount: number;
+  preparedToolRecoveryCount: number;
+}> {
+  const records: ToolCallRecord[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await store.scanToolCalls({
+      ...(cursor ? { afterId: cursor } : {}),
+      maxRows: 500,
+    });
+    records.push(...page.records);
+    cursor = page.nextCursor;
+  } while (cursor);
+  const pending = records.filter((record) =>
+    ["committed", "waiting", "running"].includes(record.status),
+  );
+  const byConversation = new Map<string, ToolCallRecord[]>();
+  for (const record of pending) {
+    const group = byConversation.get(record.conversationId) ?? [];
+    group.push(record);
+    byConversation.set(record.conversationId, group);
+  }
+  const identity = await store.readTimelineStateIdentity();
+  if (!identity)
+    throw new Error("Canonical state identity is not initialized.");
+  const transitions = new ConversationTransitionService(store);
+  for (const [conversationId, conversationRecords] of byConversation) {
+    for (let offset = 0; offset < conversationRecords.length; offset += 64) {
+      const batch = conversationRecords.slice(offset, offset + 64);
+      const head = await store.readTimelineConversationHead(conversationId);
+      if (!head) {
+        throw new Error(
+          `Legacy tool recovery owner '${conversationId}' was not imported.`,
+        );
+      }
+      const actions: RecoveryAction[] = [];
+      for (const record of batch) {
+        const run = record.runId
+          ? await store.readTimelineRunControl(conversationId, record.runId)
+          : undefined;
+        const suffix = createHash("sha256").update(record.id).digest("hex");
+        actions.push({
+          schemaVersion: 1,
+          actionId: `recovery_legacy_tool_${suffix.slice(0, 32)}`,
+          conversationId,
+          ...(run ? { runId: run.runId } : {}),
+          actionKind: "reconcile_external_effect",
+          evidence: {
+            source: "legacy_tool_record",
+            toolCallId: record.id,
+            toolName: record.toolName,
+            status: record.status,
+            updatedAt: record.updatedAt,
+            record,
+          },
+          status: "prepared",
+          commandId: `migrate-legacy-tool-recovery:${record.id}`,
+          createdAt: importedAt,
+        });
+      }
+      const commandId = `migration-unified-tools:${conversationId}:${offset / 64}`;
+      const fingerprint = `sha256:${createHash("sha256")
+        .update(canonicalConversationJson(actions))
+        .digest("hex")}`;
+      const outcome = await transitions.commit({
+        namespaceId: identity.namespaceId,
+        executionIncarnationId: identity.executionIncarnationId,
+        operationKind: "migrate_legacy_tool_recovery",
+        ownerKind: "conversation",
+        ownerId: conversationId,
+        commandId,
+        fingerprintVersion: 1,
+        fingerprint,
+        expectedHeads: [
+          {
+            conversationId,
+            revision: head.revision,
+            selectionEpoch: head.selectionEpoch,
+          },
+        ],
+        transitions: [],
+        recoveryActions: actions,
+        outcome: actions.map((action) => action.actionId),
+        publicationIntents: [],
+        now: importedAt,
+      });
+      if (outcome.kind !== "committed" && outcome.kind !== "receipt_replay") {
+        throw new Error(`Legacy tool recovery import was rejected.`);
+      }
+    }
+  }
+  return {
+    importedToolRecordCount: records.length,
+    preparedToolRecoveryCount: pending.length,
+  };
 }
 
 function legacyRunControl(

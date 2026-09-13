@@ -54,6 +54,26 @@ test("INV-MIGRATE-02 converts a quiesced current-home journal with proof", async
           createdAt: now,
         },
       },
+      {
+        kind: "tool_call.upserted",
+        conversationId: "conv_current",
+        toolCall: {
+          id: "tool_current",
+          agentId: "agent_current",
+          conversationId: "conv_current",
+          projectId: "proj_current",
+          toolName: "write",
+          risk: "workspace_write",
+          args: { path: "README.md" },
+          cwd: "/tmp/project",
+          status: "running",
+          revision: 1,
+          attempt: 1,
+          interactions: [],
+          createdAt: now,
+          updatedAt: now,
+        },
+      },
     ],
   });
 
@@ -103,8 +123,15 @@ test("INV-MIGRATE-02 converts a quiesced current-home journal with proof", async
   );
   const manifest = JSON.parse(
     await readFile(join(proofDirectory, "manifest.json"), "utf8"),
-  ) as { conversationCount: number; manifestDigest: string };
+  ) as {
+    conversationCount: number;
+    importedToolRecordCount: number;
+    preparedToolRecoveryCount: number;
+    manifestDigest: string;
+  };
   assert.equal(manifest.conversationCount, 1);
+  assert.equal(manifest.importedToolRecordCount, 1);
+  assert.equal(manifest.preparedToolRecoveryCount, 1);
   assert.match(manifest.manifestDigest, /^sha256:[a-f0-9]{64}$/);
 
   const before = await store.readTimelineStateIdentity();
@@ -119,6 +146,24 @@ test("INV-MIGRATE-02 converts a quiesced current-home journal with proof", async
     /unresolved execution authority/,
   );
   const database = new DatabaseSync(sqlitePath);
+  const recovery = database
+    .prepare(
+      `SELECT action_kind, status, evidence_json IS NOT NULL AS has_evidence
+       FROM recovery_actions WHERE conversation_id = ?`,
+    )
+    .get("conv_current") as {
+    action_kind: string;
+    status: string;
+    has_evidence: number;
+  };
+  assert.deepEqual(
+    { ...recovery },
+    {
+      action_kind: "reconcile_external_effect",
+      status: "prepared",
+      has_evidence: 1,
+    },
+  );
   database.exec("DELETE FROM conversation_records");
   database.close();
   const promotion = await promotionService.promote({

@@ -34,7 +34,14 @@ export function promoteTimelineRuntimeAdmission(
                   WHERE state IN ('claimed','dispatched')) AS attempts,
            EXISTS(SELECT 1 FROM provider_phases
                   WHERE state IN ('active','response_prepared')) AS providers,
-           EXISTS(SELECT 1 FROM conversation_records) AS legacy_records`,
+           EXISTS(SELECT 1 FROM conversation_records) AS legacy_records,
+           EXISTS(SELECT 1 FROM lifecycle_work) AS legacy_work,
+           EXISTS(SELECT 1 FROM run_lifecycle_records) AS legacy_runs,
+           EXISTS(SELECT 1 FROM lifecycle_tool_proposals) AS legacy_proposals,
+           EXISTS(SELECT 1 FROM lifecycle_interactions) AS legacy_interactions,
+           EXISTS(SELECT 1 FROM lifecycle_execution_attempts) AS legacy_attempts,
+           EXISTS(SELECT 1 FROM lifecycle_recovery_issues) AS legacy_recovery,
+           EXISTS(SELECT 1 FROM reconciliation_operations) AS legacy_reconciliation`,
       )
       .get() as {
       foreground: number;
@@ -42,13 +49,27 @@ export function promoteTimelineRuntimeAdmission(
       attempts: number;
       providers: number;
       legacy_records: number;
+      legacy_work: number;
+      legacy_runs: number;
+      legacy_proposals: number;
+      legacy_interactions: number;
+      legacy_attempts: number;
+      legacy_recovery: number;
+      legacy_reconciliation: number;
     };
     if (
       unsafe.foreground ||
       unsafe.claims ||
       unsafe.attempts ||
       unsafe.providers ||
-      unsafe.legacy_records
+      unsafe.legacy_records ||
+      unsafe.legacy_work ||
+      unsafe.legacy_runs ||
+      unsafe.legacy_proposals ||
+      unsafe.legacy_interactions ||
+      unsafe.legacy_attempts ||
+      unsafe.legacy_recovery ||
+      unsafe.legacy_reconciliation
     ) {
       throw new Error("Timeline promotion has unresolved execution authority.");
     }
