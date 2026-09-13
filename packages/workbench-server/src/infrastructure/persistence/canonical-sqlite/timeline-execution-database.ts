@@ -4,6 +4,20 @@ import { providerPhaseSchema } from "@nervekit/contracts/runs";
 import { assertProviderPhaseTransition } from "../../../domains/runs/runtime/provider-phase-state.js";
 import { decode, encode } from "./payload-codecs.js";
 
+export class CanonicalExecutionQueryDatabase {
+  constructor(private readonly database: DatabaseSync) {}
+
+  countCompactionProviderPhases(runId: string): number {
+    const row = this.database
+      .prepare(
+        `SELECT COUNT(*) AS count FROM provider_phases
+         WHERE run_id = ? AND phase_id LIKE 'provider_phase_compaction_%'`,
+      )
+      .get(runId) as { count: number };
+    return row.count;
+  }
+}
+
 const runTransitions: Readonly<
   Record<RunControl["state"], readonly RunControl["state"][]>
 > = {

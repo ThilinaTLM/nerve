@@ -9,6 +9,10 @@ export function executeCanonicalCommand(
     case "initialize":
       database.initialize();
       return undefined;
+    case "count_compaction_provider_phases":
+      return database.executionQueries.countCompactionProviderPhases(
+        command.runId,
+      );
     case "create_timeline_backup_snapshot":
       return database.backups.createSnapshot(command.destination);
     case "commit_conversation_command":

@@ -18,6 +18,7 @@ import type {
 export type CanonicalCommand =
   | { kind: "initialize" }
   | { kind: "create_timeline_backup_snapshot"; destination: string }
+  | { kind: "count_compaction_provider_phases"; runId: string }
   | {
       kind: "commit_conversation_command";
       input: CommitConversationCommandInput;
@@ -271,6 +272,7 @@ export type CanonicalWorkerResponse =
     };
 
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
+  "count_compaction_provider_phases",
   "read_timeline_command_receipt",
   "read_timeline_state_identity",
   "read_timeline_conversation_head",

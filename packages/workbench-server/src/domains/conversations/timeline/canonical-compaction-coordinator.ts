@@ -263,7 +263,7 @@ export class CanonicalCompactionCoordinator {
       };
     }
     const identitySuffix = snapshot.boundaryId.slice("boundary_".length);
-    const phaseId = `provider_phase_${identitySuffix}`;
+    const phaseId = `provider_phase_compaction_${identitySuffix}`;
     const requestManifestId = `manifest_provider_request_${identitySuffix}`;
     const requestData = { schemaVersion: 1, snapshot, preparedPhase };
     const requestHash = `sha256:${createHash("sha256")

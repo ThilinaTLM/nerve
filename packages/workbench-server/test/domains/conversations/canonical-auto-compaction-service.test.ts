@@ -14,10 +14,12 @@ const now = "2026-09-12T00:00:00.000Z";
 
 test("INV-CONTEXT-01 prepares external evidence before committing and building the next request", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-auto-compact-"));
-  const store = new CanonicalStore(join(home, "nerve.sqlite"));
+  const databasePath = join(home, "nerve.sqlite");
+  const store = new CanonicalStore(databasePath);
+  let cleanupStore = store;
   await store.initialize();
   t.after(async () => {
-    await store.close();
+    await cleanupStore.close();
     await rm(home, { recursive: true, force: true });
   });
   const transition = buildAppendTransition({
@@ -146,4 +148,52 @@ test("INV-CONTEXT-01 prepares external evidence before committing and building t
     result.kind === "ready" ? result.snapshot.runRevision : undefined,
     persistedRun?.revision,
   );
+
+  for (let index = 0; index < 2; index += 1) {
+    const continued = await service.compactThenPrepareProviderPhase({
+      namespaceId: "namespace_test",
+      executionIncarnationId: "incarnation_test",
+      conversationId: "conv_auto",
+      runId: "run_auto",
+      policyVersion: 1,
+      providerAdapterVersion: "test-v1",
+      providerIdentity: { provider: "test" },
+      providerCapability: "stateless_generation",
+      recipeVersion: 1,
+      preparedAt: `2026-09-12T00:00:0${index + 2}.000Z`,
+      prepareSummary: async (entries) => ({
+        summary: `summary ${index + 2}`,
+        anchorEntryId: entries[0]?.entryId ?? null,
+      }),
+      prepareProviderPhase: async (snapshot) => ({
+        requestSourceEntryId: snapshot.headEntryId,
+      }),
+    });
+    assert.equal(continued.kind, "ready");
+  }
+  let fourthSummaryCalled = false;
+  const limited = await service.compactThenPrepareProviderPhase({
+    namespaceId: "namespace_test",
+    executionIncarnationId: "incarnation_test",
+    conversationId: "conv_auto",
+    runId: "run_auto",
+    policyVersion: 1,
+    providerAdapterVersion: "test-v1",
+    providerIdentity: { provider: "test" },
+    providerCapability: "stateless_generation",
+    recipeVersion: 1,
+    preparedAt: "2026-09-12T00:00:04.000Z",
+    prepareSummary: async () => {
+      fourthSummaryCalled = true;
+      return { summary: "must not commit", anchorEntryId: null };
+    },
+    prepareProviderPhase: async () => ({}),
+  });
+  assert.equal(limited.kind, "stale");
+  assert.equal(fourthSummaryCalled, false);
+  assert.equal(await store.countCompactionProviderPhases("run_auto"), 3);
+  await store.close();
+  cleanupStore = new CanonicalStore(databasePath);
+  await cleanupStore.initialize();
+  assert.equal(await cleanupStore.countCompactionProviderPhases("run_auto"), 3);
 });

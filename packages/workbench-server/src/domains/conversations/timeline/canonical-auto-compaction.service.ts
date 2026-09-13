@@ -19,6 +19,7 @@ import {
 
 const ANCESTRY_PAGE_SIZE = 512;
 const MAX_ANCESTRY_PAGES = 2_048;
+const MAX_AUTO_CONTINUATIONS_PER_RUN = 3;
 
 export interface CanonicalArtifactFinalizer {
   finalize(input: {
@@ -81,9 +82,10 @@ export class CanonicalAutoCompactionService {
   async compactThenPrepareProviderPhase<T>(
     input: CanonicalAutoCompactionInput<T>,
   ): Promise<CanonicalAutoCompactionResult<T>> {
-    const [sourceHead, run] = await Promise.all([
+    const [sourceHead, run, priorCompactionPhases] = await Promise.all([
       this.store.readTimelineConversationHead(input.conversationId),
       this.store.readTimelineRunControl(input.conversationId, input.runId),
+      this.store.countCompactionProviderPhases(input.runId),
     ]);
     if (
       !sourceHead ||
@@ -97,6 +99,13 @@ export class CanonicalAutoCompactionService {
       return {
         kind: "stale",
         outcome: { kind: "superseded", reason: "foreground_fence_missing" },
+      };
+    }
+
+    if (priorCompactionPhases >= MAX_AUTO_CONTINUATIONS_PER_RUN) {
+      return {
+        kind: "stale",
+        outcome: { kind: "superseded", reason: "continuation_limit_reached" },
       };
     }
 

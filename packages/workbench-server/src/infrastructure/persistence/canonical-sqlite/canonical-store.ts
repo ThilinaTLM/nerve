@@ -190,6 +190,13 @@ export class CanonicalStore {
     });
   }
 
+  countCompactionProviderPhases(runId: string) {
+    return this.request<number>({
+      kind: "count_compaction_provider_phases",
+      runId,
+    });
+  }
+
   createTimelineBackupSnapshot(destination: string) {
     return this.request<BackupArtifactRecord[]>({
       kind: "create_timeline_backup_snapshot",
