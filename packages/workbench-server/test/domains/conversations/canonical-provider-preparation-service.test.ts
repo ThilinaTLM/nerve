@@ -9,6 +9,7 @@ import { CanonicalProviderSettlementService } from "../../../src/domains/convers
 import { CanonicalRunStartService } from "../../../src/domains/conversations/timeline/canonical-run-start.service.js";
 import { CanonicalToolDispatchService } from "../../../src/domains/conversations/timeline/canonical-tool-dispatch.service.js";
 import { CanonicalToolSettlementService } from "../../../src/domains/conversations/timeline/canonical-tool-settlement.service.js";
+import { CanonicalContinuationService } from "../../../src/domains/conversations/timeline/canonical-continuation.service.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
 
 test("INV-PROVIDER-01 freezes the first request and schedules claim work atomically", async (t) => {
@@ -293,9 +294,43 @@ test("INV-PROVIDER-01 freezes the first request and schedules claim work atomica
     "conv_provider",
     "run_provider",
   );
-  assert.equal(settledRun?.state, "running");
-  assert.equal(settledRun?.waitGroupId, null);
-  assert.match(settledRun?.providerPhaseId ?? "", /^provider_phase_/);
+  assert.equal(settledRun?.state, "waiting");
+  assert.match(settledRun?.waitGroupId ?? "", /^wait_group_/);
+  assert.equal(settledRun?.providerPhaseId, null);
+  assert.equal(
+    (
+      await store.execution.readWaitGroup(
+        toolClaimed.snapshot.waitGroup.waitGroupId,
+      )
+    )?.state,
+    "ready",
+  );
+  const continuationWork = await store.execution.claimReadyLifecycleWork({
+    workerId: "continuation-worker-1",
+    now: "2026-09-14T00:00:15.000Z",
+    leaseDurationMs: 30_000,
+  });
+  assert.equal(continuationWork?.kind, "prepare_continuation");
+  const continued = await new CanonicalContinuationService(
+    store,
+  ).commitWithoutCompaction({
+    continuationWork: continuationWork!,
+    workerId: "continuation-worker-1",
+    preparedRequest: { messages: [{ role: "tool", content: "result" }] },
+    compactionDecisionEvidence: {
+      contextTokens: 100,
+      thresholdTokens: 1_000,
+    },
+    now: "2026-09-14T00:00:16.000Z",
+  });
+  assert.equal(continued.kind, "committed");
+  const continuedRun = await store.readTimelineRunControl(
+    "conv_provider",
+    "run_provider",
+  );
+  assert.equal(continuedRun?.state, "running");
+  assert.equal(continuedRun?.waitGroupId, null);
+  assert.match(continuedRun?.providerPhaseId ?? "", /^provider_phase_/);
   assert.equal(
     (
       await store.execution.readWaitGroup(

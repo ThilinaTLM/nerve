@@ -5,7 +5,6 @@ import type {
   CanonicalLifecycleWork,
   ExecutionClaim,
   LogicalEffect,
-  ProviderPhase,
   WaitGroup,
 } from "@nervekit/contracts/runs";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
@@ -142,37 +141,36 @@ export class CanonicalToolSettlementService {
     const nextGroup: WaitGroup = {
       ...group,
       members: settledMembers,
-      continuationConsumed: allSettled,
-      state: allSettled ? "closed" : "open",
+      continuationConsumed: false,
+      state: allSettled ? "ready" : "open",
       revision: group.revision + 1,
     };
-    const phaseSuffix = `${snapshot.runId.slice("run_".length)}_${run.generation}_${run.revision + 1}`;
-    const nextPhase: ProviderPhase | undefined = allSettled
+    const continuationSuffix = `${snapshot.runId.slice("run_".length)}_${run.generation}_${run.revision + 1}`;
+    const continuationManifestId = `manifest_continuation_${continuationSuffix}`;
+    const continuationData = {
+      schemaVersion: 1,
+      conversationId: snapshot.conversationId,
+      runId: snapshot.runId,
+      runGeneration: run.generation,
+      selectionEpoch: head.selectionEpoch,
+      sourceEntryId: input.resultEntryId,
+      waitGroupId: group.waitGroupId,
+      providerIdentity: input.providerIdentity,
+      providerCapability: input.providerCapability,
+    };
+    const continuationHash = `sha256:${createHash("sha256")
+      .update(canonicalConversationJson(continuationData))
+      .digest("hex")}`;
+    const continuationWork: CanonicalLifecycleWork | undefined = allSettled
       ? {
           schemaVersion: 1,
-          phaseId: `provider_phase_${phaseSuffix}`,
-          runId: snapshot.runId,
-          runGeneration: run.generation,
-          selectionEpoch: head.selectionEpoch,
-          sourceEntryId: input.resultEntryId,
-          contextRecipeId: `context_recipe_${phaseSuffix}`,
-          providerIdentity: input.providerIdentity,
-          capability: input.providerCapability,
-          state: "preparing",
-        }
-      : undefined;
-    const preparationWork: CanonicalLifecycleWork | undefined = nextPhase
-      ? {
-          schemaVersion: 1,
-          workId: `canonical_work_${phaseSuffix}_provider`,
+          workId: `canonical_work_${continuationSuffix}_continuation`,
           conversationId: snapshot.conversationId,
           runId: snapshot.runId,
-          kind: "prepare_provider_request",
-          providerPhaseId: nextPhase.phaseId,
+          kind: "prepare_continuation",
           state: "ready",
-          inputHash: `sha256:${createHash("sha256")
-            .update(`${nextPhase.phaseId}:${input.resultEntryId}`)
-            .digest("hex")}`,
+          inputHash: continuationHash,
+          inputManifestId: continuationManifestId,
           generation: 0,
           revision: 1,
           notBefore: input.now,
@@ -207,19 +205,29 @@ export class CanonicalToolSettlementService {
           },
         },
       ],
-      artifactManifests: [{ manifestId, schemaVersion: 1, data: resultData }],
+      artifactManifests: [
+        { manifestId, schemaVersion: 1, data: resultData },
+        ...(continuationWork
+          ? [
+              {
+                manifestId: continuationManifestId,
+                schemaVersion: 1,
+                data: continuationData,
+              },
+            ]
+          : []),
+      ],
       waitGroups: [nextGroup],
       logicalEffects: [settledEffect],
       executionAttempts: [settledAttempt],
       executionClaims: [consumedClaim],
-      providerPhases: nextPhase ? [nextPhase] : [],
       lifecycleWorks: [
         settledWork,
-        ...(preparationWork ? [preparationWork] : []),
+        ...(continuationWork ? [continuationWork] : []),
       ],
-      providerPhaseId: nextPhase?.phaseId ?? null,
-      waitGroupId: allSettled ? null : group.waitGroupId,
-      runState: allSettled ? "running" : "partially_waiting",
+      providerPhaseId: null,
+      waitGroupId: group.waitGroupId,
+      runState: allSettled ? "waiting" : "partially_waiting",
     });
     return result.kind === "rejected"
       ? result

@@ -255,6 +255,8 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
     { version: 10, name: "timeline-lifecycle-work-v10" },
     { version: 11, name: "timeline-tool-work-v11" },
     { version: 12, name: "timeline-effect-capability-v12" },
+    { version: 13, name: "timeline-continuation-work-v13" },
+    { version: 14, name: "timeline-work-manifest-v14" },
   ]);
   const homeMigrations = JSON.parse(
     await readFile(storage.paths.migrationLedgerPath, "utf8"),

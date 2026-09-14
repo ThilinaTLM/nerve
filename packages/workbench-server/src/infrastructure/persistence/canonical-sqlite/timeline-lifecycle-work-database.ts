@@ -67,10 +67,10 @@ export function persistCanonicalLifecycleWork(
     .prepare(
       `INSERT INTO canonical_lifecycle_work (
          work_id, conversation_id, run_id, kind, provider_phase_id, effect_id,
-         attempt_id, execution_claim_id, state, input_hash, generation,
-         revision, not_before_ms, lease_owner, lease_deadline_ms,
+         attempt_id, execution_claim_id, state, input_hash, input_manifest_id,
+         generation, revision, not_before_ms, lease_owner, lease_deadline_ms,
          created_at_ms, updated_at_ms
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       work.workId,
@@ -83,6 +83,7 @@ export function persistCanonicalLifecycleWork(
       work.executionClaimId ?? null,
       work.state,
       work.inputHash,
+      work.inputManifestId ?? null,
       work.generation,
       work.revision,
       Date.parse(work.notBefore),
@@ -194,6 +195,7 @@ function assertStableBinding(
     "attemptId",
     "executionClaimId",
     "inputHash",
+    "inputManifestId",
     "createdAt",
   ] as const) {
     if (current[field] !== next[field]) {
@@ -213,6 +215,7 @@ interface WorkRow {
   execution_claim_id: string | null;
   state: string;
   input_hash: string;
+  input_manifest_id: string | null;
   generation: number;
   revision: number;
   not_before_ms: number;
@@ -235,6 +238,7 @@ function decodeWork(row: WorkRow): CanonicalLifecycleWork {
     executionClaimId: row.execution_claim_id ?? undefined,
     state: row.state,
     inputHash: row.input_hash,
+    inputManifestId: row.input_manifest_id ?? undefined,
     generation: row.generation,
     revision: row.revision,
     notBefore: new Date(row.not_before_ms).toISOString(),

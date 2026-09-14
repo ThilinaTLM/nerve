@@ -35,6 +35,7 @@ export type CanonicalCommand =
       runId: string;
       phaseId?: string;
     }
+  | { kind: "read_canonical_artifact_manifest"; manifestId: string }
   | { kind: "read_canonical_wait_group"; waitGroupId: string }
   | { kind: "read_canonical_authorization"; authorizationId: string }
   | { kind: "read_canonical_logical_effect"; effectId: string }
@@ -352,6 +353,7 @@ export type CanonicalWorkerResponse =
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "count_compaction_provider_phases",
   "read_canonical_run_execution_authority",
+  "read_canonical_artifact_manifest",
   "read_canonical_wait_group",
   "read_canonical_authorization",
   "read_canonical_logical_effect",

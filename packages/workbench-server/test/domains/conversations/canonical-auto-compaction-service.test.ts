@@ -149,30 +149,14 @@ test("INV-CONTEXT-01 prepares external evidence before committing and building t
     persistedRun?.revision,
   );
 
-  for (let index = 0; index < 2; index += 1) {
-    const continued = await service.compactThenPrepareProviderPhase({
-      namespaceId: "namespace_test",
-      executionIncarnationId: "incarnation_test",
-      conversationId: "conv_auto",
-      runId: "run_auto",
-      policyVersion: 1,
-      providerAdapterVersion: "test-v1",
-      providerIdentity: { provider: "test" },
-      providerCapability: "stateless_generation",
-      recipeVersion: 1,
-      preparedAt: `2026-09-12T00:00:0${index + 2}.000Z`,
-      prepareSummary: async (entries) => ({
-        summary: `summary ${index + 2}`,
-        anchorEntryId: entries[0]?.entryId ?? null,
-      }),
-      prepareProviderPhase: async (snapshot) => ({
-        requestSourceEntryId: snapshot.headEntryId,
-      }),
-    });
-    assert.equal(continued.kind, "ready");
-  }
-  let fourthSummaryCalled = false;
-  const limited = await service.compactThenPrepareProviderPhase({
+  const providerWork = await store.execution.listReadyLifecycleWork(
+    "2026-09-12T00:00:02.000Z",
+    10,
+  );
+  assert.equal(providerWork.length, 1);
+  assert.equal(providerWork[0]?.kind, "claim_provider_attempt");
+  let staleSummaryCalled = false;
+  const stale = await service.compactThenPrepareProviderPhase({
     namespaceId: "namespace_test",
     executionIncarnationId: "incarnation_test",
     conversationId: "conv_auto",
@@ -182,18 +166,18 @@ test("INV-CONTEXT-01 prepares external evidence before committing and building t
     providerIdentity: { provider: "test" },
     providerCapability: "stateless_generation",
     recipeVersion: 1,
-    preparedAt: "2026-09-12T00:00:04.000Z",
+    preparedAt: "2026-09-12T00:00:02.000Z",
     prepareSummary: async () => {
-      fourthSummaryCalled = true;
+      staleSummaryCalled = true;
       return { summary: "must not commit", anchorEntryId: null };
     },
     prepareProviderPhase: async () => ({}),
   });
-  assert.equal(limited.kind, "stale");
-  assert.equal(fourthSummaryCalled, false);
-  assert.equal(await store.countCompactionProviderPhases("run_auto"), 3);
+  assert.equal(stale.kind, "stale");
+  assert.equal(staleSummaryCalled, false);
+  assert.equal(await store.countCompactionProviderPhases("run_auto"), 1);
   await store.close();
   cleanupStore = new CanonicalStore(databasePath);
   await cleanupStore.initialize();
-  assert.equal(await cleanupStore.countCompactionProviderPhases("run_auto"), 3);
+  assert.equal(await cleanupStore.countCompactionProviderPhases("run_auto"), 1);
 });

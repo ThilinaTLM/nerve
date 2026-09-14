@@ -20,22 +20,24 @@ export class CanonicalHarnessLifecycleExecutor {
 
   async execute(input: {
     agent: AgentRecord;
-    preparationWork: CanonicalLifecycleWork;
+    providerWork: CanonicalLifecycleWork;
     workerId: string;
     conversationCreatedAt: string;
     signal: AbortSignal;
     now(): string;
   }): Promise<void> {
     if (
-      input.preparationWork.kind !== "prepare_provider_request" ||
-      input.preparationWork.state !== "leased" ||
-      input.preparationWork.leaseOwner !== input.workerId
+      !["prepare_provider_request", "claim_provider_attempt"].includes(
+        input.providerWork.kind,
+      ) ||
+      input.providerWork.state !== "leased" ||
+      input.providerWork.leaseOwner !== input.workerId
     ) {
-      throw new Error("Canonical provider preparation work is not owned.");
+      throw new Error("Canonical provider work is not owned.");
     }
     const resumed = await this.deps.boundary.resume({
-      conversationId: input.preparationWork.conversationId,
-      runId: input.preparationWork.runId,
+      conversationId: input.providerWork.conversationId,
+      runId: input.providerWork.runId,
       agentId: input.agent.id,
       conversationCreatedAt: input.conversationCreatedAt,
     });
@@ -47,15 +49,15 @@ export class CanonicalHarnessLifecycleExecutor {
     const now = input.now();
     const run: RunRecord = {
       stateEpoch: RUN_STATE_EPOCH,
-      conversationId: input.preparationWork.conversationId,
+      conversationId: input.providerWork.conversationId,
       agentId: input.agent.id,
       projectId: input.agent.projectId,
-      runId: input.preparationWork.runId,
-      scopeId: `canonical:${input.preparationWork.conversationId}`,
+      runId: input.providerWork.runId,
+      scopeId: `canonical:${input.providerWork.conversationId}`,
       revision: 1,
       status: "running",
       recoverability: "checkpoint",
-      executionId: `exec_${input.preparationWork.runId.slice("run_".length)}`,
+      executionId: `exec_${input.providerWork.runId.slice("run_".length)}`,
       attempt: 1,
       createdAt: now,
       updatedAt: now,
@@ -80,7 +82,7 @@ export class CanonicalHarnessLifecycleExecutor {
         boundary: this.deps.boundary,
         providerInvocation: this.deps.providerInvocation,
         providerSettlement: this.deps.providerSettlement,
-        preparationWork: input.preparationWork,
+        providerWork: input.providerWork,
         workerId: input.workerId,
         now: input.now,
       },

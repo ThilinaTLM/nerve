@@ -10,12 +10,21 @@ export async function prepareCanonicalHarnessProviderDispatch(
   authority: CanonicalAuthority,
   request: unknown,
 ): Promise<void> {
-  const prepared = await authority.providerInvocation.prepareForDispatch({
-    preparationWork: authority.preparationWork,
+  const common = {
     workerId: authority.workerId,
     request,
     now: authority.now(),
-  });
+  };
+  const prepared =
+    authority.providerWork.kind === "prepare_provider_request"
+      ? await authority.providerInvocation.prepareForDispatch({
+          ...common,
+          preparationWork: authority.providerWork,
+        })
+      : await authority.providerInvocation.prepareReadyPhaseForDispatch({
+          ...common,
+          claimWork: authority.providerWork,
+        });
   if (prepared.kind === "rejected") {
     throw new Error(
       `Canonical provider dispatch rejected: ${prepared.outcome.kind}.`,

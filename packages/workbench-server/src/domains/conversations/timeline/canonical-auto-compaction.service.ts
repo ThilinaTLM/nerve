@@ -1,5 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { ProviderPhase } from "@nervekit/contracts/runs";
+import type {
+  CanonicalLifecycleWork,
+  ProviderPhase,
+} from "@nervekit/contracts/runs";
 import type {
   ArtifactReference,
   CanonicalContinuationSnapshot,
@@ -49,6 +52,7 @@ export interface CanonicalAutoCompactionInput<T> {
   providerCapability: ProviderPhase["capability"];
   recipeVersion: number;
   preparedAt: string;
+  continuationWork?: CanonicalLifecycleWork;
   prepareSummary(
     entriesDescending: readonly CanonicalConversationEntry[],
   ): Promise<CanonicalSummaryPreparation>;
@@ -87,6 +91,9 @@ export class CanonicalAutoCompactionService {
         this.store.countCompactionProviderPhases(input.runId),
         this.store.readTimelineRuntimeAdmission(),
       ]);
+    const waitGroup = run?.waitGroupId
+      ? await this.store.execution.readWaitGroup(run.waitGroupId)
+      : undefined;
     if (!admission || admission.dispatchState !== "admitted") {
       return {
         kind: "stale",
@@ -103,7 +110,16 @@ export class CanonicalAutoCompactionService {
       sourceHead.foregroundRunId !== run.runId ||
       run.continuationEntryId !== sourceHead.activeEntryId ||
       run.boundSelectionEpoch !== sourceHead.selectionEpoch ||
-      !run.foregroundOwned
+      !run.foregroundOwned ||
+      run.providerPhaseId !== null ||
+      (input.continuationWork !== undefined &&
+        (input.continuationWork.kind !== "prepare_continuation" ||
+          input.continuationWork.state !== "leased" ||
+          input.continuationWork.runId !== run.runId ||
+          input.continuationWork.conversationId !== run.conversationId ||
+          Date.parse(input.continuationWork.leaseDeadline ?? "") <=
+            Date.parse(input.preparedAt) ||
+          waitGroup?.state !== "ready"))
     ) {
       return {
         kind: "stale",
@@ -155,6 +171,8 @@ export class CanonicalAutoCompactionService {
         actor: { kind: "system" },
         cause: { kind: "automatic_compaction" },
         preparedAt: input.preparedAt,
+        continuationWork: input.continuationWork,
+        waitGroup,
       },
       input.prepareProviderPhase,
     );

@@ -6,8 +6,10 @@ import { TIMELINE_AUTHORITY_PROMOTION_V9_SQL } from "./timeline-authority-promot
 import { TIMELINE_LIFECYCLE_WORK_V10_SQL } from "./timeline-lifecycle-work-schema.js";
 import { TIMELINE_TOOL_WORK_V11_SQL } from "./timeline-tool-work-schema.js";
 import { TIMELINE_EFFECT_CAPABILITY_V12_SQL } from "./timeline-effect-capability-schema.js";
+import { TIMELINE_CONTINUATION_WORK_V13_SQL } from "./timeline-continuation-work-schema.js";
+import { TIMELINE_WORK_MANIFEST_V14_SQL } from "./timeline-work-manifest-schema.js";
 
-export const CANONICAL_SCHEMA_VERSION = 12;
+export const CANONICAL_SCHEMA_VERSION = 14;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -427,5 +429,19 @@ export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
     checksum:
       "ae5258cb0ad6c7a1ebade0c7a4abb9bc017fce90fbfa22a7e2bf3b1ea0d17fe5",
     sql: TIMELINE_EFFECT_CAPABILITY_V12_SQL,
+  },
+  {
+    version: 13,
+    name: "timeline-continuation-work-v13",
+    checksum:
+      "9ad52095c65c5dc1ff25c721ea7e30d8cdc43a82d9f6960ef907b7859ccfe12f",
+    sql: TIMELINE_CONTINUATION_WORK_V13_SQL,
+  },
+  {
+    version: 14,
+    name: "timeline-work-manifest-v14",
+    checksum:
+      "e5bbbd66201b150c302059b0e84b932a4eac1371fccf779121dce8fd4027a277",
+    sql: TIMELINE_WORK_MANIFEST_V14_SQL,
   },
 ];

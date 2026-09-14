@@ -7,7 +7,12 @@ import {
   type ConversationHead,
   type MutationOutcome,
 } from "@nervekit/contracts/conversations";
-import type { ProviderPhase, RunControl } from "@nervekit/contracts/runs";
+import type {
+  CanonicalLifecycleWork,
+  ProviderPhase,
+  RunControl,
+  WaitGroup,
+} from "@nervekit/contracts/runs";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import {
   canonicalConversationJson,
@@ -40,6 +45,8 @@ export interface PreparedCanonicalCompaction {
   actor: Record<string, unknown>;
   cause: Record<string, unknown>;
   preparedAt: string;
+  continuationWork?: CanonicalLifecycleWork;
+  waitGroup?: WaitGroup;
 }
 
 export type CanonicalCompactionCommitResult =
@@ -239,10 +246,17 @@ export class CanonicalCompactionCoordinator {
     snapshot: CanonicalContinuationSnapshot,
     preparedPhase: T,
   ): Promise<CanonicalCompactionCommitResult> {
-    const run = await this.store.readTimelineRunControl(
-      snapshot.conversationId,
-      snapshot.runId,
-    );
+    const [run, currentContinuationWork] = await Promise.all([
+      this.store.readTimelineRunControl(
+        snapshot.conversationId,
+        snapshot.runId,
+      ),
+      prepared.continuationWork
+        ? this.store.execution.readLifecycleWork(
+            prepared.continuationWork.workId,
+          )
+        : undefined,
+    ]);
     if (!run || !(await this.revalidateBeforeProviderDispatch(snapshot))) {
       return {
         kind: "stale",
@@ -273,9 +287,35 @@ export class CanonicalCompactionCoordinator {
       capability: prepared.providerCapability,
       state: "ready",
     };
+    const continuationWork = prepared.continuationWork;
+    const waitGroup = prepared.waitGroup;
+    if (
+      continuationWork &&
+      (continuationWork.state !== "leased" ||
+        currentContinuationWork?.state !== "leased" ||
+        currentContinuationWork.generation !== continuationWork.generation ||
+        currentContinuationWork.leaseOwner !== continuationWork.leaseOwner ||
+        Date.parse(currentContinuationWork.leaseDeadline ?? "") <=
+          Date.parse(prepared.preparedAt) ||
+        Date.parse(continuationWork.leaseDeadline ?? "") <=
+          Date.parse(prepared.preparedAt) ||
+        waitGroup?.state !== "ready" ||
+        waitGroup.continuationConsumed)
+    ) {
+      return {
+        kind: "stale",
+        outcome: {
+          kind: "superseded",
+          reason: "compaction_continuation_authority_changed",
+        },
+      };
+    }
     const nextRun: RunControl = {
       ...run,
       providerPhaseId: phaseId,
+      ...(continuationWork
+        ? { waitGroupId: null, state: "running" as const }
+        : {}),
       revision: run.revision + 1,
     };
     const dispatchSnapshot: CanonicalContinuationSnapshot = {
@@ -321,6 +361,45 @@ export class CanonicalCompactionCoordinator {
       ],
       providerPhases: [phase],
       runControls: [nextRun],
+      waitGroups: waitGroup
+        ? [
+            {
+              ...waitGroup,
+              continuationConsumed: true,
+              state: "closed",
+              revision: waitGroup.revision + 1,
+            },
+          ]
+        : [],
+      lifecycleWorks: [
+        ...(continuationWork
+          ? [
+              {
+                ...continuationWork,
+                state: "settled" as const,
+                revision: continuationWork.revision + 1,
+                leaseOwner: undefined,
+                leaseDeadline: undefined,
+                updatedAt: prepared.preparedAt,
+              },
+            ]
+          : []),
+        {
+          schemaVersion: 1,
+          workId: `canonical_work_compaction_${identitySuffix}_claim`,
+          conversationId: snapshot.conversationId,
+          runId: snapshot.runId,
+          kind: "claim_provider_attempt",
+          providerPhaseId: phaseId,
+          state: "ready",
+          inputHash: requestHash,
+          generation: 0,
+          revision: 1,
+          notBefore: prepared.preparedAt,
+          createdAt: prepared.preparedAt,
+          updatedAt: prepared.preparedAt,
+        },
+      ],
       outcome: dispatchSnapshot,
       publicationIntents: [],
       now: prepared.preparedAt,

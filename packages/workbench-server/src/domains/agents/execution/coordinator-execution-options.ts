@@ -31,7 +31,7 @@ export interface CoordinatorExecutionOptions {
     boundary: CanonicalRunExecutionBoundary;
     providerInvocation: CanonicalProviderInvocationService;
     providerSettlement: CanonicalProviderSettlementService;
-    preparationWork: CanonicalLifecycleWork;
+    providerWork: CanonicalLifecycleWork;
     workerId: string;
     activeProviderSnapshot?: CanonicalProviderDispatchSnapshot;
     now(): string;

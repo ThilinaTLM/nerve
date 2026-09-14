@@ -76,6 +76,13 @@ export class CanonicalExecutionQueryDatabase {
     };
   }
 
+  readArtifactManifest(manifestId: string): unknown | undefined {
+    const row = this.database
+      .prepare(`SELECT data FROM artifact_manifests WHERE manifest_id = ?`)
+      .get(manifestId) as { data: Uint8Array } | undefined;
+    return row ? decode(row.data) : undefined;
+  }
+
   readWaitGroup(waitGroupId: string): WaitGroup | undefined {
     return readTimelineWaitGroup(this.database, waitGroupId);
   }

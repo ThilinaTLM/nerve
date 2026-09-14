@@ -7,6 +7,7 @@ import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import { CanonicalAutoCompactionService } from "../../domains/conversations/timeline/canonical-auto-compaction.service.js";
 import { CanonicalConversationContextService } from "../../domains/conversations/timeline/canonical-conversation-context.service.js";
+import { CanonicalContinuationService } from "../../domains/conversations/timeline/canonical-continuation.service.js";
 import { CanonicalConversationCreationService } from "../../domains/conversations/timeline/canonical-conversation-creation.service.js";
 import { CanonicalDeletionCleanupService } from "../../domains/conversations/timeline/canonical-deletion-cleanup.service.js";
 import { CanonicalDeletionDispatcher } from "../../domains/conversations/timeline/canonical-deletion-dispatcher.js";
@@ -44,6 +45,7 @@ export function timelineRuntime(
   const conversationContext = new CanonicalConversationContextService(
     storage.canonicalStore,
   );
+  const continuation = new CanonicalContinuationService(storage.canonicalStore);
   const runStart = new CanonicalRunStartService(storage.canonicalStore);
   const runTimeline = new CanonicalRunTimelineService(storage.canonicalStore);
   const providerPreparation = new CanonicalProviderPreparationService(
@@ -104,6 +106,7 @@ export function timelineRuntime(
     timelinePages,
     conversationCreation,
     conversationContext,
+    continuation,
     runStart,
     runTimeline,
     runTermination,

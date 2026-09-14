@@ -67,6 +67,8 @@ export function executeCanonicalCommand(
         command.runId,
         command.phaseId,
       );
+    case "read_canonical_artifact_manifest":
+      return database.executionQueries.readArtifactManifest(command.manifestId);
     case "read_canonical_wait_group":
       return database.executionQueries.readWaitGroup(command.waitGroupId);
     case "read_canonical_authorization":

@@ -151,7 +151,11 @@ export class CanonicalRunTimelineService {
       this.store.readTimelineConversationHead(input.conversationId),
       this.store.readTimelineRunControl(input.conversationId, input.runId),
     ]);
-    const operation = terminal ? "close_foreground_run" : "append_run_entries";
+    const operation = terminal
+      ? "close_foreground_run"
+      : entries.length > 0
+        ? "append_run_entries"
+        : "advance_run_execution";
     const fingerprint = conversationCommandFingerprint({
       operation,
       conversationId: input.conversationId,
@@ -204,22 +208,25 @@ export class CanonicalRunTimelineService {
           },
           foregroundRunId: null,
         })
-      : buildAppendTransition({
-          head,
-          kind: "entries_appended",
-          identity: {
-            commandId: input.commandId,
-            inputFingerprint: fingerprint,
-            actor: input.actor,
-            cause: input.cause,
-            committedAt: input.now,
-          },
-          entries: entries.map((entry) => ({ ...entry, runId: input.runId })),
-          foregroundRunId: input.runId,
-        });
+      : entries.length > 0
+        ? buildAppendTransition({
+            head,
+            kind: "entries_appended",
+            identity: {
+              commandId: input.commandId,
+              inputFingerprint: fingerprint,
+              actor: input.actor,
+              cause: input.cause,
+              committedAt: input.now,
+            },
+            entries: entries.map((entry) => ({ ...entry, runId: input.runId })),
+            foregroundRunId: input.runId,
+          })
+        : undefined;
     const nextRun: RunControl = {
       ...run,
-      continuationEntryId: transition.resultingHead.activeEntryId,
+      continuationEntryId:
+        transition?.resultingHead.activeEntryId ?? run.continuationEntryId,
       ...(execution.providerPhaseId !== undefined
         ? { providerPhaseId: execution.providerPhaseId }
         : {}),
@@ -269,7 +276,7 @@ export class CanonicalRunTimelineService {
           requireForegroundOwnership: true,
         },
       ],
-      transitions: [transition],
+      transitions: transition ? [transition] : [],
       artifactManifests: execution.artifactManifests
         ? [...execution.artifactManifests]
         : [],

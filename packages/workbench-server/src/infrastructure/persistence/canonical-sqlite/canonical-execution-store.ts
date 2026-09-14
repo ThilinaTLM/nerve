@@ -35,6 +35,13 @@ export class CanonicalExecutionStore {
     });
   }
 
+  readArtifactManifest(manifestId: string) {
+    return this.request<unknown | undefined>({
+      kind: "read_canonical_artifact_manifest",
+      manifestId,
+    });
+  }
+
   readWaitGroup(waitGroupId: string) {
     return this.request<WaitGroup | undefined>({
       kind: "read_canonical_wait_group",

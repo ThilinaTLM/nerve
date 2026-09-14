@@ -10,6 +10,7 @@ export const canonicalLifecycleWorkSchema = z
     runId: z.string().startsWith("run_"),
     kind: z.enum([
       "prepare_provider_request",
+      "prepare_continuation",
       "claim_provider_attempt",
       "dispatch_provider_attempt",
       "claim_tool_attempt",
@@ -28,6 +29,7 @@ export const canonicalLifecycleWorkSchema = z
       "recovery_required",
     ]),
     inputHash: digest,
+    inputManifestId: z.string().startsWith("manifest_").optional(),
     generation: z.number().int().nonnegative().safe(),
     revision: z.number().int().positive().safe(),
     notBefore: z.string().datetime(),
