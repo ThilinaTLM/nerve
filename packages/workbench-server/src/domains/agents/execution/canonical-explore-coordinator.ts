@@ -130,6 +130,7 @@ export interface CanonicalExploreCoordinatorDeps {
     child: AgentRecord;
     prompt: string;
     runId: string;
+    signal?: AbortSignal;
   }): Promise<string>;
   createAgent: (
     request: CreateAgentRequest,
@@ -401,6 +402,7 @@ export class CanonicalExploreCoordinator {
           child,
           prompt: spec.prompt,
           runId,
+          signal: spec.signal,
         })
       ).trim();
       if (!report) throw new Error("Explore agent completed without a report.");

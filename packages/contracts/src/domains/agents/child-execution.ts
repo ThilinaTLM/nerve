@@ -7,10 +7,19 @@ export const childExecutionRelationshipSchema = z.object({
   parentConversationId: z.string().startsWith("conv_"),
   parentRunId: z.string().startsWith("run_"),
   parentToolCallId: z.string().startsWith("tool_"),
+  parentWaitGroupId: z.string().startsWith("wait_group_").optional(),
+  parentMemberId: z.string().startsWith("member_").optional(),
   childAgentId: z.string().startsWith("agent_"),
   childConversationId: z.string().startsWith("conv_"),
   childRunId: z.string().startsWith("run_"),
-  state: z.enum(["registered", "running", "completed", "failed", "detached"]),
+  state: z.enum([
+    "registered",
+    "running",
+    "completed",
+    "failed",
+    "cancelled",
+    "detached",
+  ]),
   resultDigest: z
     .string()
     .regex(/^sha256:[a-f0-9]{64}$/)

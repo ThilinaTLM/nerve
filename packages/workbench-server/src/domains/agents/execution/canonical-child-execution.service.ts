@@ -4,8 +4,13 @@ import {
   type AgentRecord,
   type ChildExecutionRelationship,
 } from "@nervekit/contracts/agents";
+import type { WaitGroup } from "@nervekit/contracts/runs";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
-import { canonicalConversationJson } from "../../conversations/timeline/command-fingerprint.js";
+import {
+  canonicalConversationJson,
+  conversationCommandFingerprint,
+} from "../../conversations/timeline/command-fingerprint.js";
+import { CanonicalTimelineIdentityService } from "../../conversations/timeline/canonical-timeline-identity.service.js";
 
 const NAMESPACE = "canonical_child_execution";
 
@@ -17,6 +22,7 @@ export class CanonicalChildExecutionService {
         agent: AgentRecord;
         prompt: string;
         runId: string;
+        signal?: AbortSignal;
       }): Promise<string>;
     },
   ) {}
@@ -28,9 +34,19 @@ export class CanonicalChildExecutionService {
     child: AgentRecord;
     childRunId: string;
     prompt: string;
+    signal?: AbortSignal;
   }): Promise<string> {
     const now = new Date().toISOString();
     const relationshipId = `childrel_${input.childRunId.slice("run_".length)}`;
+    const parentWait =
+      await this.deps.store.execution.findWaitGroupByMemberOwner(
+        input.parentToolCallId,
+      );
+    const parentMember = parentWait?.members.find(
+      (member) =>
+        member.ownerId === input.parentToolCallId &&
+        member.memberKind === "child_agent",
+    );
     const registered = childExecutionRelationshipSchema.parse({
       schemaVersion: 1,
       relationshipId,
@@ -38,6 +54,12 @@ export class CanonicalChildExecutionService {
       parentConversationId: input.parent.conversationId,
       parentRunId: input.parentRunId,
       parentToolCallId: input.parentToolCallId,
+      ...(parentWait && parentMember
+        ? {
+            parentWaitGroupId: parentWait.waitGroupId,
+            parentMemberId: parentMember.memberId,
+          }
+        : {}),
       childAgentId: input.child.id,
       childConversationId: input.child.conversationId,
       childRunId: input.childRunId,
@@ -46,7 +68,11 @@ export class CanonicalChildExecutionService {
       createdAt: now,
       updatedAt: now,
     });
-    await this.write(registered, 0);
+    if (parentWait && parentMember) {
+      await this.registerWithParent(registered, parentWait);
+    } else {
+      await this.write(registered, 0);
+    }
     await this.write(
       { ...registered, state: "running", revision: 2, updatedAt: now },
       1,
@@ -56,6 +82,7 @@ export class CanonicalChildExecutionService {
         agent: input.child,
         prompt: input.prompt,
         runId: input.childRunId,
+        signal: input.signal,
       });
       await this.write(
         {
@@ -72,7 +99,7 @@ export class CanonicalChildExecutionService {
       await this.write(
         {
           ...registered,
-          state: "failed",
+          state: input.signal?.aborted ? "cancelled" : "failed",
           errorMessage: error instanceof Error ? error.message : String(error),
           revision: 3,
           updatedAt: new Date().toISOString(),
@@ -138,6 +165,49 @@ export class CanonicalChildExecutionService {
     return (
       await this.deps.store.listDocuments<unknown>(NAMESPACE, parentRunId)
     ).map((document) => childExecutionRelationshipSchema.parse(document.data));
+  }
+
+  private async registerWithParent(
+    relationship: ChildExecutionRelationship,
+    waitGroup: WaitGroup,
+  ): Promise<void> {
+    const identity = await new CanonicalTimelineIdentityService(
+      this.deps.store,
+    ).resolve();
+    const outcome = await this.deps.store.commitConversationCommand({
+      namespaceId: identity.namespaceId,
+      executionIncarnationId: identity.executionIncarnationId,
+      operationKind: "register_child_execution",
+      ownerKind: "conversation",
+      ownerId: relationship.parentConversationId,
+      commandId: `register-child:${relationship.relationshipId}`,
+      fingerprintVersion: 1,
+      fingerprint: conversationCommandFingerprint({
+        operation: "register_child_execution",
+        relationship,
+      }),
+      expectedHeads: [],
+      transitions: [],
+      waitGroups: [{ ...waitGroup, revision: waitGroup.revision + 1 }],
+      domainDocuments: [
+        {
+          namespace: NAMESPACE,
+          scopeId: relationship.parentRunId,
+          documentId: relationship.relationshipId,
+          expectedRevision: 0,
+          payloadVersion: 1,
+          data: relationship,
+        },
+      ],
+      outcome: relationship,
+      publicationIntents: [],
+      now: relationship.updatedAt,
+    });
+    if (outcome.kind !== "committed" && outcome.kind !== "receipt_replay") {
+      throw new Error(
+        `Child relationship registration rejected: ${outcome.kind}.`,
+      );
+    }
   }
 
   private async write(

@@ -519,8 +519,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
   });
   const canonicalChildExecution = new CanonicalChildExecutionService({
     store: storage.canonicalStore,
-    run: ({ agent, prompt, runId }) =>
-      workbenchRun.runManagedAgent({ agent, prompt, runId }),
+    run: ({ agent, prompt, runId, signal }) =>
+      workbenchRun.runManagedAgent({ agent, prompt, runId, signal }),
   });
   const subagentTranscripts = new CanonicalSubagentTranscriptService({
     getAgent,
