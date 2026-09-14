@@ -45,10 +45,12 @@ export function timelineRuntime(
   secrets: SecretProvider,
   logger: ApplicationLogger,
   permissionPolicy: PermissionPolicyService,
+  canAccessConversation: (conversationId: string) => boolean,
 ) {
   const timelinePages = new CanonicalTimelinePageProvider(
     storage.canonicalStore,
     secrets,
+    canAccessConversation,
   );
   const conversationCreation = new CanonicalConversationCreationService(
     storage.canonicalStore,

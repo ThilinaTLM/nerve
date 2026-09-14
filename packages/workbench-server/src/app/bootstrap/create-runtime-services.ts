@@ -238,7 +238,20 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       void logger.warn(message, { error });
     },
   });
-  const timeline = timelineRuntime(storage, secrets, logger, permissionPolicy);
+  const timeline = timelineRuntime(
+    storage,
+    secrets,
+    logger,
+    permissionPolicy,
+    (conversationId) => {
+      try {
+        getConversation(conversationId);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  );
   const canonicalSummaryPreparer = new CanonicalCompactionSummaryPreparer({
     providerCatalog,
     secrets,

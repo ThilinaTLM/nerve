@@ -14,6 +14,8 @@ export class CanonicalTimelineSearchService {
   constructor(
     private readonly store: CanonicalStore,
     cursorSecret: Uint8Array,
+    private readonly canAccess: (conversationId: string) => boolean = () =>
+      true,
   ) {
     this.cursors = new SignedTimelineCursorCodec(cursorSecret);
   }
@@ -34,6 +36,9 @@ export class CanonicalTimelineSearchService {
     if (!identity) return { kind: "restore_invalidated" };
     if (!currentHead || deletionState !== "active") {
       return { kind: "deleted_owner", ownerId: request.conversationId };
+    }
+    if (!this.canAccess(request.conversationId)) {
+      return { kind: "access_denied", reason: "conversation_access_denied" };
     }
     if (projection?.rebuildState === "rebuilding") {
       return {

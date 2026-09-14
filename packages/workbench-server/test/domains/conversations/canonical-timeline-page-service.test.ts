@@ -90,6 +90,26 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
   assert.equal(rebuilt?.appliedRevision, 1);
   assert.equal(rebuilt?.rebuildGeneration, 1);
 
+  const deniedPages = new CanonicalTimelinePageProvider(
+    store,
+    secrets,
+    () => false,
+  );
+  for (const outcome of [
+    await deniedPages.page({ conversationId: "conv_page", pageSize: 2 }),
+    await deniedPages.treePage({ conversationId: "conv_page", pageSize: 2 }),
+    await deniedPages.search({
+      conversationId: "conv_page",
+      query: "alpha",
+      pageSize: 2,
+    }),
+  ]) {
+    assert.deepEqual(outcome, {
+      kind: "access_denied",
+      reason: "conversation_access_denied",
+    });
+  }
+
   const pages = new CanonicalTimelinePageProvider(store, secrets);
   const first = await pages.page({ conversationId: "conv_page", pageSize: 2 });
   assert.equal(first.kind, "page");

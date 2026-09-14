@@ -8,8 +8,9 @@ import { CanonicalTimelineSearchService } from "./canonical-timeline-search.serv
 export function createTimelinePages(
   store: CanonicalStore,
   secrets: SecretProvider,
+  canAccess?: (conversationId: string) => boolean,
 ): CanonicalTimelinePageProvider {
-  return new CanonicalTimelinePageProvider(store, secrets);
+  return new CanonicalTimelinePageProvider(store, secrets, canAccess);
 }
 
 const CURSOR_SECRET_NAME = "canonical-timeline-cursor-hmac-v1";
@@ -25,6 +26,8 @@ export class CanonicalTimelinePageProvider {
   constructor(
     private readonly store: CanonicalStore,
     private readonly secrets: SecretProvider,
+    private readonly canAccess: (conversationId: string) => boolean = () =>
+      true,
   ) {}
 
   async page(request: unknown) {
@@ -61,9 +64,21 @@ export class CanonicalTimelinePageProvider {
       throw new Error("Canonical timeline cursor secret is invalid.");
     }
     return {
-      timeline: new CanonicalTimelinePageService(this.store, key),
-      tree: new CanonicalTimelineTreePageService(this.store, key),
-      search: new CanonicalTimelineSearchService(this.store, key),
+      timeline: new CanonicalTimelinePageService(
+        this.store,
+        key,
+        this.canAccess,
+      ),
+      tree: new CanonicalTimelineTreePageService(
+        this.store,
+        key,
+        this.canAccess,
+      ),
+      search: new CanonicalTimelineSearchService(
+        this.store,
+        key,
+        this.canAccess,
+      ),
     };
   }
 }
