@@ -1,4 +1,6 @@
 import type { PromptRequest } from "@nervekit/contracts/agents";
+import type { AgentMessage, AgentTool } from "@nervekit/harness/agent";
+import type { CanonicalToolProposalInput } from "../../conversations/timeline/canonical-tool-batch.js";
 import type { RunRecord } from "@nervekit/contracts/runs";
 import type {
   CheckpointCommand,
@@ -32,6 +34,10 @@ export interface CoordinatorExecutionOptions {
     providerInvocation: CanonicalProviderInvocationService;
     providerSettlement: CanonicalProviderSettlementService;
     providerWork: CanonicalLifecycleWork;
+    tools: AgentTool[];
+    prepareToolProposals(
+      message: AgentMessage,
+    ): Promise<readonly CanonicalToolProposalInput[]>;
     workerId: string;
     activeProviderSnapshot?: CanonicalProviderDispatchSnapshot;
     now(): string;

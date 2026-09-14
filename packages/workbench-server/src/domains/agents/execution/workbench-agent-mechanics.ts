@@ -22,6 +22,7 @@ import { type ContextUsage } from "@nervekit/contracts/models";
 import { type ConversationRecord } from "@nervekit/contracts/conversations";
 import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
 import {
+  toolNameSchema,
   type ToolCallRecord,
   type ToolName,
   type UserConfigurableToolName,
@@ -50,6 +51,8 @@ import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills
 import type { SubagentTranscriptLiveService } from "../subagent-transcript-live.service.js";
 import { executeWorkbenchHarness } from "./workbench-harness-execution.js";
 import type { CoordinatorExecutionOptions } from "./coordinator-execution-options.js";
+import type { AgentMessage } from "@nervekit/harness/agent";
+import type { CanonicalToolProposalInput } from "../../conversations/timeline/canonical-tool-batch.js";
 import { AutoCompactionRunner } from "./auto-compaction-runner.js";
 import { InlineCommandRunner } from "./inline-command-runner.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
@@ -242,6 +245,27 @@ export class WorkbenchAgentMechanics {
         coordinator: input,
       },
     )) as RunExecutionOutcome;
+  }
+
+  async prepareCanonicalToolProposals(
+    agent: AgentRecord,
+    message: AgentMessage,
+  ): Promise<readonly CanonicalToolProposalInput[]> {
+    if (message.role !== "assistant") return [];
+    return Promise.all(
+      message.content.flatMap((content) =>
+        content.type === "toolCall"
+          ? [
+              this.deps.tools.prepareCanonicalToolProposal(
+                agent,
+                toolNameSchema.parse(content.name),
+                content.arguments,
+                content.id,
+              ),
+            ]
+          : [],
+      ),
+    );
   }
 
   async runHarnessAttempt(input: {

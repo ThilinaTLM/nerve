@@ -150,6 +150,9 @@ test("INV-PROVIDER-01 freezes the first request and schedules claim work atomica
         providerToolCallId: "provider-call-1",
         toolName: "read",
         normalizedInputFingerprint: `sha256:${"a".repeat(64)}`,
+        normalizedInput: { path: "README.md" },
+        cwd: "/tmp/project",
+        risk: "read",
         capability: {
           kind: "contractually_replay_safe_effect",
           version: 1,
@@ -214,6 +217,13 @@ test("INV-PROVIDER-01 freezes the first request and schedules claim work atomica
     leaseDurationMs: 30_000,
   });
   assert.equal(toolClaimWork?.kind, "claim_tool_attempt");
+  const toolInput = await store.execution.readArtifactManifest(
+    toolClaimWork!.inputManifestId!,
+  );
+  assert.deepEqual(
+    (toolInput as { normalizedInput?: unknown }).normalizedInput,
+    { path: "README.md" },
+  );
   const toolDispatch = new CanonicalToolDispatchService(store);
   const toolClaimed = await toolDispatch.authorizeFirstAttempt({
     workId: toolClaimWork!.workId,

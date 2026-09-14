@@ -204,6 +204,7 @@ export class CanonicalToolDispatchService {
       executionClaimId: claimId,
       state: "ready",
       inputHash: effect.normalizedInputFingerprint,
+      inputManifestId: work.inputManifestId,
       generation: 0,
       revision: 1,
       notBefore: input.now,

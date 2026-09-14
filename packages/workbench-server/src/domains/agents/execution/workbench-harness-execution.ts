@@ -173,18 +173,20 @@ export async function executeWorkbenchHarness(
       resolveCredentials: async () => (requestModel: AnyModel) =>
         this.deps.auth.requestAuthForPiModel(requestModel),
       resolvePolicy: async () => ({
-        tools: createAgentToolsForAgent(agent, this.deps.tools, {
-          runId,
-          resolveToolAnchor: (providerToolCallId) =>
-            this.deps.state.conversationRuntime.resolveToolAnchor(
-              runId,
-              providerToolCallId,
-            ),
-          onLifecycle: (toolCall) =>
-            coordinator.sink.upsertToolCalls([
-              toToolCallTranscriptRecord(toolCall),
-            ]),
-        }),
+        tools:
+          canonical?.tools ??
+          createAgentToolsForAgent(agent, this.deps.tools, {
+            runId,
+            resolveToolAnchor: (providerToolCallId) =>
+              this.deps.state.conversationRuntime.resolveToolAnchor(
+                runId,
+                providerToolCallId,
+              ),
+            onLifecycle: (toolCall) =>
+              coordinator.sink.upsertToolCalls([
+                toToolCallTranscriptRecord(toolCall),
+              ]),
+          }),
         activeToolNames,
       }),
       create: async ({ environment }) =>
@@ -197,6 +199,7 @@ export async function executeWorkbenchHarness(
           model: environment.model,
           thinkingLevel: agent.thinkingLevel,
           maxParallelToolCalls: this.deps.maxParallelToolsPerRun,
+          stopAfterToolIteration: Boolean(canonical),
           getApiKeyAndHeaders: environment.credentials,
           systemPrompt: composeLatestSystemPrompt,
         }),
@@ -244,7 +247,6 @@ export async function executeWorkbenchHarness(
         for (const promptId of event.messageIds) {
           await coordinator.sink.promptDelivered(promptId);
         }
-        return;
       }
       if (event.type === "before_provider_request") {
         currentProviderForResponse = event.model.provider;
@@ -253,7 +255,6 @@ export async function executeWorkbenchHarness(
       }
       if (event.type === "before_provider_payload" && canonical) {
         await prepareCanonicalHarnessProviderDispatch(canonical, event.payload);
-        return;
       }
       if (event.type === "after_provider_response") {
         const responseProvider = currentProviderForResponse;

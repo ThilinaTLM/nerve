@@ -1,8 +1,11 @@
 import type { AgentRecord } from "@nervekit/contracts/agents";
+import type { AgentMessage, AgentTool } from "@nervekit/harness/agent";
+import type { CanonicalToolProposalInput } from "../../conversations/timeline/canonical-tool-batch.js";
 import { RUN_STATE_EPOCH, type RunRecord } from "@nervekit/contracts/runs";
 import type { CanonicalLifecycleWork } from "@nervekit/contracts/runs";
 import type { RunExecutionSink } from "../../runs/runtime/index.js";
 import type { CanonicalProviderInvocationService } from "../../conversations/timeline/canonical-provider-invocation.service.js";
+import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import type { CanonicalProviderSettlementService } from "../../conversations/timeline/canonical-provider-settlement.service.js";
 import type { WorkbenchAgentMechanics } from "./workbench-agent-mechanics.js";
 import type { CanonicalRunExecutionBoundary } from "./canonical-run-execution-boundary.js";
@@ -15,6 +18,7 @@ export class CanonicalHarnessLifecycleExecutor {
       boundary: CanonicalRunExecutionBoundary;
       providerInvocation: CanonicalProviderInvocationService;
       providerSettlement: CanonicalProviderSettlementService;
+      store: CanonicalStore;
     },
   ) {}
 
@@ -24,6 +28,10 @@ export class CanonicalHarnessLifecycleExecutor {
     workerId: string;
     conversationCreatedAt: string;
     signal: AbortSignal;
+    tools: AgentTool[];
+    prepareToolProposals(
+      message: AgentMessage,
+    ): Promise<readonly CanonicalToolProposalInput[]>;
     now(): string;
   }): Promise<void> {
     if (
@@ -83,10 +91,22 @@ export class CanonicalHarnessLifecycleExecutor {
         providerInvocation: this.deps.providerInvocation,
         providerSettlement: this.deps.providerSettlement,
         providerWork: input.providerWork,
+        tools: input.tools,
+        prepareToolProposals: input.prepareToolProposals,
         workerId: input.workerId,
         now: input.now,
       },
     });
+    const canonicalRun = await this.deps.store.readTimelineRunControl(
+      run.conversationId,
+      run.runId,
+    );
+    if (
+      canonicalRun?.state === "waiting" ||
+      canonicalRun?.state === "partially_waiting"
+    ) {
+      return;
+    }
     await this.deps.boundary.close(resumed.value, {
       state:
         outcome.status === "completed"

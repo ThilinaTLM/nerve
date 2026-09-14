@@ -67,6 +67,34 @@ export function createAgentToolsForAgent(
   );
 }
 
+export function createAgentToolsWithExternalExecutor(input: {
+  allowedToolNames: readonly ToolName[];
+  execute(
+    toolName: ToolName,
+    providerToolCallId: string,
+    args: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+  ): Promise<ToolCallRecord>;
+}): AgentTool[] {
+  const allowed = new Set<string>(input.allowedToolNames);
+  return createAgentToolsFromDefinitions(
+    allToolDefinitions,
+    allowed,
+    async (definition, providerToolCallId, params, signal) => {
+      const terminal = await input.execute(
+        definition.name as ToolName,
+        providerToolCallId,
+        params,
+        signal,
+      );
+      if (terminal.status !== "completed") {
+        throw new Error(formatToolResultForModel(terminal));
+      }
+      return toolCallResultForModel(terminal);
+    },
+  );
+}
+
 export function activeToolNamesForExploreAgent(): ToolName[] {
   return resolveToolAvailability({
     permissionLevel: "read_only",

@@ -123,6 +123,8 @@ export class CanonicalProviderSettlementService {
           selectionEpoch: snapshot.selectionEpoch,
           continuationEntryId,
           phaseId: phase.phaseId,
+          providerIdentity: phase.providerIdentity,
+          providerCapability: phase.capability,
           proposals: toolProposals,
           now: input.now,
         })
@@ -146,6 +148,7 @@ export class CanonicalProviderSettlementService {
           schemaVersion: 1,
           data: responseData,
         },
+        ...(toolBatch?.inputManifests ?? []),
       ],
       providerPhases: [preparedPhase, committedPhase],
       executionAttempts: [succeededAttempt],

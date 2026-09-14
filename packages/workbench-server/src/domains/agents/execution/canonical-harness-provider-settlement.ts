@@ -18,15 +18,15 @@ export async function settleCanonicalHarnessProviderResponse(input: {
   workerId: string;
   response: AgentMessage;
   now: string;
+  prepareToolProposals(
+    message: AgentMessage,
+  ): Promise<
+    Parameters<
+      CanonicalProviderSettlementService["commitResponse"]
+    >[0]["toolProposals"]
+  >;
 }): Promise<ConversationEntry[]> {
-  if (
-    input.response.role === "assistant" &&
-    input.response.content.some((content) => content.type === "toolCall")
-  ) {
-    throw new Error(
-      "Canonical harness tool proposals require policy observations before response settlement.",
-    );
-  }
+  const toolProposals = await input.prepareToolProposals(input.response);
   const pending = (await input.session.storage.getEntries()).filter(
     (entry) =>
       entry.type === "message" &&
@@ -36,6 +36,7 @@ export async function settleCanonicalHarnessProviderResponse(input: {
     snapshot: input.snapshot,
     workerId: input.workerId,
     response: input.response,
+    toolProposals,
     entries: pending.flatMap((entry) =>
       entry.type === "message"
         ? [projectHarnessCanonicalEntry({ entry, agentId: input.agent.id })]

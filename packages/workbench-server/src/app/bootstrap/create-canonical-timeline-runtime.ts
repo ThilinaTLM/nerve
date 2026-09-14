@@ -1,5 +1,6 @@
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import { CanonicalRunExecutionBoundary } from "../../domains/agents/execution/canonical-run-execution-boundary.js";
+import { createCanonicalAgentTools } from "../../domains/agents/execution/canonical-agent-tools.js";
 import { CanonicalHarnessLifecycleExecutor } from "../../domains/agents/execution/canonical-harness-lifecycle-executor.js";
 import type { WorkbenchAgentMechanics } from "../../domains/agents/execution/workbench-agent-mechanics.js";
 import { FilesystemCanonicalArtifactFinalizer } from "../../infrastructure/persistence/canonical-artifact-finalizer.js";
@@ -27,6 +28,8 @@ import { CanonicalTranscriptProjectionService } from "../../domains/conversation
 import { CanonicalToolDispatchService } from "../../domains/conversations/timeline/canonical-tool-dispatch.service.js";
 import { CanonicalToolSettlementService } from "../../domains/conversations/timeline/canonical-tool-settlement.service.js";
 import { CanonicalToolInvocationService } from "../../domains/conversations/timeline/canonical-tool-invocation.service.js";
+import { CanonicalToolWorkerService } from "../../domains/conversations/timeline/canonical-tool-worker.service.js";
+import type { CanonicalToolExternalInvoker } from "../../domains/tools/execution/canonical-tool-external-invoker.js";
 import { CanonicalBackupInspectionService } from "../../domains/storage/canonical-backup-inspection.service.js";
 import { CanonicalPortableBackupService } from "../../domains/storage/canonical-portable-backup.service.js";
 import { CanonicalRestoreStagingService } from "../../domains/storage/canonical-restore-staging.service.js";
@@ -119,6 +122,11 @@ export function timelineRuntime(
     toolSettlement,
     toolInvocation,
     runExecutionBoundary,
+    createAgentTools: (
+      input: Omit<Parameters<typeof createCanonicalAgentTools>[0], "store">,
+    ) => createCanonicalAgentTools({ ...input, store: storage.canonicalStore }),
+    createToolWorker: (external: CanonicalToolExternalInvoker) =>
+      new CanonicalToolWorkerService(storage.canonicalStore, external),
     createLifecycleDispatcher: (
       workerId: string,
       handlers: ConstructorParameters<typeof CanonicalLifecycleDispatcher>[2],
@@ -135,6 +143,7 @@ export function timelineRuntime(
         boundary: runExecutionBoundary,
         providerInvocation,
         providerSettlement,
+        store: storage.canonicalStore,
       }),
     autoCompaction,
     navigation,

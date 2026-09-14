@@ -6,12 +6,18 @@ import type {
   LogicalEffect,
   WaitGroup,
 } from "@nervekit/contracts/runs";
-import type { ToolReplayCapability } from "@nervekit/contracts/tools";
+import type {
+  ToolCallRecord,
+  ToolReplayCapability,
+} from "@nervekit/contracts/tools";
 
 export interface CanonicalToolProposalInput {
   providerToolCallId: string;
   toolName: string;
   normalizedInputFingerprint: string;
+  normalizedInput: Record<string, unknown>;
+  cwd: string;
+  risk: ToolCallRecord["risk"];
   capability: ToolReplayCapability;
   policyObservation: PolicyDocumentObservation;
   authorizationEvidence: Record<string, unknown>;
@@ -26,6 +32,11 @@ export interface CanonicalToolBatchAuthority {
   authorizations: ExactCallAuthorization[];
   effects: LogicalEffect[];
   work: CanonicalLifecycleWork[];
+  inputManifests: Array<{
+    manifestId: string;
+    schemaVersion: 1;
+    data: unknown;
+  }>;
 }
 
 /** Builds immutable, pre-dispatch authority for one committed provider batch. */
@@ -36,6 +47,11 @@ export function buildCanonicalToolBatch(input: {
   selectionEpoch: number;
   continuationEntryId: string;
   phaseId: string;
+  providerIdentity: Record<string, unknown>;
+  providerCapability:
+    | "stateless_generation"
+    | "contractually_replay_safe"
+    | "non_repeatable_or_unknown";
   proposals: readonly CanonicalToolProposalInput[];
   now: string;
 }): CanonicalToolBatchAuthority | undefined {
@@ -120,7 +136,24 @@ export function buildCanonicalToolBatch(input: {
       createdAt: input.now,
     }),
   );
-  const work: CanonicalLifecycleWork[] = effects.map((effect) => ({
+  const inputManifests = effects.map((effect, index) => ({
+    manifestId: `manifest_tool_input_${effect.effectId.slice("effect_".length)}`,
+    schemaVersion: 1 as const,
+    data: {
+      schemaVersion: 1,
+      effectId: effect.effectId,
+      toolName: effect.toolName,
+      providerToolCallId: input.proposals[index]!.providerToolCallId,
+      normalizedInputFingerprint: effect.normalizedInputFingerprint,
+      normalizedInput: input.proposals[index]!.normalizedInput,
+      cwd: input.proposals[index]!.cwd,
+      risk: input.proposals[index]!.risk,
+      policyObservation: input.proposals[index]!.policyObservation,
+      providerIdentity: input.providerIdentity,
+      providerCapability: input.providerCapability,
+    },
+  }));
+  const work: CanonicalLifecycleWork[] = effects.map((effect, index) => ({
     schemaVersion: 1,
     workId: `canonical_work_${effect.effectId.slice("effect_".length)}_claim`,
     conversationId: input.conversationId,
@@ -129,6 +162,7 @@ export function buildCanonicalToolBatch(input: {
     effectId: effect.effectId,
     state: "ready",
     inputHash: effect.normalizedInputFingerprint,
+    inputManifestId: inputManifests[index]!.manifestId,
     generation: 0,
     revision: 1,
     notBefore: input.now,
@@ -143,5 +177,6 @@ export function buildCanonicalToolBatch(input: {
     authorizations,
     effects,
     work,
+    inputManifests,
   };
 }

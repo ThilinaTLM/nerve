@@ -77,6 +77,13 @@ test("conversation rules persist independently and compose at highest scope", as
   );
   assert.ok(winner);
   assert.equal(winner.precedence.scopeRank, 4);
+  assert.match(resolved.selectedRuleSetDigest, /^sha256:[a-f0-9]{64}$/);
+  assert.ok(resolved.sourceDocuments.length >= 1);
+  const conversationSource = resolved.sourceDocuments.find(
+    (source) => source.origin === "conversation",
+  );
+  assert.ok(conversationSource);
+  assert.match(conversationSource.digest, /^sha256:[a-f0-9]{64}$/);
   assert.deepEqual(
     (
       await service.readOverlay(

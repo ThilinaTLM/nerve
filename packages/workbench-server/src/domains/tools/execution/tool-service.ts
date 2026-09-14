@@ -6,9 +6,14 @@ import {
 import { reconcileToolResultPayloads } from "../artifacts/tool-result-reconciliation.js";
 import { reconcileInterruptedToolCalls } from "./tool-call-recovery.js";
 /* eslint-disable max-lines -- Durable transitions and lifecycle-local execution wiring retain one coordinator; projections and maintenance have separate owners. */
+import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { allToolDescriptors, toolRiskForName } from "@nervekit/tools/catalog";
+import {
+  allToolDescriptors,
+  requireToolDefinition,
+  toolRiskForName,
+} from "@nervekit/tools/catalog";
 import {
   type ExplainImageRequest,
   type ExplainImageResponse,
@@ -16,6 +21,8 @@ import {
 import { type PermissionRootPaths } from "@nervekit/tools/policy";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import type { ConversationJournalEvent } from "@nervekit/contracts/conversations";
+import type { CanonicalToolProposalInput } from "../../conversations/timeline/canonical-tool-batch.js";
+import { canonicalConversationJson } from "../../conversations/timeline/command-fingerprint.js";
 import {
   type ApprovalRecord,
   type ExploreReportSummaryPayload,
@@ -421,6 +428,132 @@ export class ToolService {
       conversations,
     );
     for (const agentId of agents) this.todoState.delete(agentId);
+  }
+
+  async prepareCanonicalToolProposal(
+    agent: AgentRecord,
+    toolName: ToolName,
+    args: Record<string, unknown>,
+    providerToolCallId: string,
+  ): Promise<CanonicalToolProposalInput> {
+    const latestAgent = this.dependencies.getAgent(agent.id);
+    const resolved =
+      await this.dependencies.permissionPolicy.resolve(latestAgent);
+    if (resolved.fallback) {
+      throw new Error(
+        "Canonical execution requires explicit confirmation of the Baseline permission fallback.",
+      );
+    }
+    const evaluation = evaluateWorkbenchToolPermission(
+      latestAgent,
+      toolName,
+      args,
+      {
+        dataDir: this.dependencies.storage.paths.home,
+        exceptions: [],
+        policy: resolved.policy,
+        roots: resolved.roots,
+        policyDiagnostic: resolved.diagnostics.at(-1),
+      },
+    );
+    if (evaluation.decision !== "allow") {
+      throw new Error(
+        `Canonical tool proposal requires interaction authority: ${evaluation.decision}.`,
+      );
+    }
+    const definition = requireToolDefinition(toolName);
+    if (definition.executionRecovery.executionClass !== "external_effect") {
+      throw new Error(
+        "Canonical internal commands require receipt settlement, not effect dispatch.",
+      );
+    }
+    const normalizedInputFingerprint = digest({
+      toolName,
+      args: evaluation.normalizedArgs,
+      cwd: evaluation.cwd,
+    });
+    const observedAt = new Date().toISOString();
+    const completeDocumentDigest = digest({
+      selectedRuleSetDigest: resolved.selectedRuleSetDigest,
+      sources: resolved.sourceDocuments,
+    });
+    const observationSuffix = createHash("sha256")
+      .update(
+        `${providerToolCallId}:${normalizedInputFingerprint}:${completeDocumentDigest}`,
+      )
+      .digest("hex")
+      .slice(0, 32);
+    return {
+      providerToolCallId,
+      toolName,
+      normalizedInputFingerprint,
+      normalizedInput: evaluation.normalizedArgs,
+      cwd: evaluation.cwd,
+      risk: evaluation.risk,
+      capability: definition.executionRecovery.capability,
+      policyObservation: {
+        schemaVersion: 1,
+        observationId: `policy_observation_${observationSuffix}`,
+        scope: { kind: "conversation", ownerId: agent.conversationId },
+        documentIdentity: `effective:${resolved.selectedRuleSetId}`,
+        completeDocumentDigest,
+        selectedRuleSetId: resolved.selectedRuleSetId,
+        selectedRuleSetDigest: resolved.selectedRuleSetDigest,
+        applicableOverlayDigests: resolved.sourceDocuments.map((source) => ({
+          scope: {
+            kind: source.origin,
+            ownerId:
+              source.origin === "user"
+                ? "user"
+                : source.origin === "project"
+                  ? agent.projectId
+                  : agent.conversationId,
+          },
+          documentIdentity: source.path,
+          digest: source.digest,
+        })),
+        normalizedInputFingerprint,
+        trustEvidence: {
+          fallback: resolved.fallback,
+          diagnostics: resolved.diagnostics,
+        },
+        observedAt,
+      },
+      authorizationEvidence: {
+        decision: evaluation.decision,
+        reason: evaluation.reason,
+        permissionEvaluation: evaluation.permissionEvaluation,
+      },
+      owner: {
+        conversationId: agent.conversationId,
+        projectId: agent.projectId,
+        agentId: agent.id,
+      },
+    };
+  }
+
+  async revalidateCanonicalToolProposal(input: {
+    agent: AgentRecord;
+    toolName: ToolName;
+    args: Record<string, unknown>;
+    providerToolCallId: string;
+    normalizedInputFingerprint: string;
+    completeDocumentDigest: string;
+    selectedRuleSetDigest: string;
+  }): Promise<boolean> {
+    const current = await this.prepareCanonicalToolProposal(
+      input.agent,
+      input.toolName,
+      input.args,
+      input.providerToolCallId,
+    );
+    return (
+      current.normalizedInputFingerprint === input.normalizedInputFingerprint &&
+      current.policyObservation.completeDocumentDigest ===
+        input.completeDocumentDigest &&
+      current.policyObservation.selectedRuleSetDigest ===
+        input.selectedRuleSetDigest
+    );
   }
 
   async requestTool(
@@ -1296,6 +1429,12 @@ export class ToolService {
     this.waiters.delete(toolCall.id);
     for (const waiter of waiters) waiter(toolCall);
   }
+}
+
+function digest(value: unknown): string {
+  return `sha256:${createHash("sha256")
+    .update(canonicalConversationJson(value))
+    .digest("hex")}`;
 }
 
 function resolvePendingForResume(

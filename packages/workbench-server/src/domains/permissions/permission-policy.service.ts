@@ -57,6 +57,12 @@ const legacyPermissionOverlaySchema = z
 
 export interface ResolvedPermissionPolicy {
   policy: EffectivePermissionPolicy;
+  selectedRuleSetDigest: string;
+  sourceDocuments: Array<{
+    origin: PermissionOverlayOrigin;
+    path: string;
+    digest: string;
+  }>;
   roots: PermissionRootPaths;
   selectedRuleSetId: string;
   fallback: boolean;
@@ -100,12 +106,14 @@ export class PermissionPolicyService {
     const effectiveSelected = selected ?? builtInPermissionRuleSet("baseline");
 
     const ignored: IgnoredPermissionSource[] = [];
+    const sourceDocuments: ResolvedPermissionPolicy["sourceDocuments"] = [];
     const knownRuleSetIds = this.knownRuleSetIds(custom.available);
     const userDocument = await this.loadOverlayDocument(
       "user",
       this.storage.paths.permissionsConfigPath,
       ignored,
       knownRuleSetIds,
+      sourceDocuments,
     );
     const projectPath = this.projectOverlayPath(project);
     const trust = await this.projectTrust(agent.projectId);
@@ -116,6 +124,7 @@ export class PermissionPolicyService {
             projectPath,
             ignored,
             knownRuleSetIds,
+            sourceDocuments,
           )
         : undefined;
     if (trust.status === "invalid" || trust.status === "untrusted") {
@@ -131,10 +140,13 @@ export class PermissionPolicyService {
       conversationPath,
       ignored,
       knownRuleSetIds,
+      sourceDocuments,
     );
     diagnostics.push(...ignored.map((item) => `${item.path}: ${item.reason}`));
     const overlaysEnabled = !subagent && !fallback;
     return {
+      selectedRuleSetDigest: digestJson(effectiveSelected),
+      sourceDocuments,
       policy: composeEffectivePermissionPolicy({
         selectedRuleSet: effectiveSelected,
         ...(overlaysEnabled
@@ -487,13 +499,17 @@ export class PermissionPolicyService {
     path: string,
     ignored: IgnoredPermissionSource[],
     knownRuleSetIds: readonly string[],
+    observations?: ResolvedPermissionPolicy["sourceDocuments"],
   ): Promise<PermissionOverlayDocument | undefined> {
     try {
-      return parseOverlayDocument(
+      const content = await readFile(path, "utf8");
+      const document = parseOverlayDocument(origin, content, knownRuleSetIds);
+      observations?.push({
         origin,
-        await readFile(path, "utf8"),
-        knownRuleSetIds,
-      );
+        path,
+        digest: `sha256:${createHash("sha256").update(content).digest("hex")}`,
+      });
+      return document;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
       ignored.push({ origin, path, reason: errorMessage(error) });
@@ -548,6 +564,12 @@ export class PermissionPolicyService {
       if (this.queues.get(key) === tail) this.queues.delete(key);
     });
   }
+}
+
+function digestJson(value: unknown): string {
+  return `sha256:${createHash("sha256")
+    .update(JSON.stringify(value))
+    .digest("hex")}`;
 }
 
 function parseOverlayDocument(
