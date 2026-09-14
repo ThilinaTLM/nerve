@@ -60,7 +60,6 @@ import {
   CanonicalExploreCoordinator,
 } from "./canonical-explore-coordinator.js";
 import type { WorkbenchExploreAdmission } from "./workbench-explore-admission.js";
-import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
 
 type WorkbenchToolPort = Pick<
   ToolService,
@@ -110,7 +109,6 @@ export interface WorkbenchAgentMechanicsDeps {
   messageMirror?: MessageMirror;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
-  subagentExecutions: WorkbenchSubagentExecutions;
   exploreAdmission: WorkbenchExploreAdmission;
   agentBrowserSkills: AgentBrowserSkillCatalog;
   capabilities: CapabilityService;

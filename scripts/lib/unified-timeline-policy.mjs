@@ -19,6 +19,9 @@ const retiredRuntimeImports = [
   "tool-call.repository",
   "ToolService",
   "MessageMirror",
+  "SubagentRunner",
+  "openChildStorage",
+  "WorkbenchSubagentExecutions",
 ];
 
 const retiredAuthoritySymbols = [
@@ -59,6 +62,21 @@ export function unifiedTimelinePolicyViolations(file, text) {
         violations.push(`canonical timeline uses retired authority: ${symbol}`);
       }
     }
+  }
+  if (
+    file.startsWith(serverRuntimeRoot) &&
+    !file.includes("/infrastructure/persistence/canonical-sqlite/") &&
+    !file.includes("/infrastructure/migrations/") &&
+    !file.includes("/infrastructure/persistence/query-cache/") &&
+    file !==
+      "packages/workbench-server/src/domains/storage/canonical-restore-staging.service.ts" &&
+    /\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(?:conversation_entries|conversation_transitions|conversations|run_controls|provider_phases|wait_groups|logical_effects|execution_attempts)\b/i.test(
+      text,
+    )
+  ) {
+    violations.push(
+      "canonical timeline tables may only be written by owner persistence modules",
+    );
   }
   if (file.startsWith(migrationPath) && /export\s+\*.*domains\//.test(text)) {
     violations.push(

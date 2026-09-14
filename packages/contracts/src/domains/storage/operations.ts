@@ -6,6 +6,7 @@ import {
 } from "./storage.js";
 import { z } from "zod";
 import {
+  homePromotionMarkerSchema,
   portableBackupManifestSchema,
   restorePromotionSchema,
 } from "./durable-recovery.js";
@@ -51,6 +52,30 @@ export const storageOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.storage.restore.stage",
+  ),
+  defineOperation(
+    "storage.restore.status",
+    z.object({ restoreId: z.string().startsWith("restore_").max(256) }),
+    z.object({ promotion: restorePromotionSchema }),
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.storage.restore.status",
+  ),
+  defineOperation(
+    "storage.restore.requestPromotion",
+    z.object({
+      restoreId: z.string().startsWith("restore_").max(256),
+      oldRuntimeIsolationProven: z.literal(true),
+    }),
+    z.object({
+      marker: homePromotionMarkerSchema,
+      restartRequired: z.literal(true),
+    }),
+    "mutation",
+    "required",
+    ["workbench_server"] as const,
+    "operation.storage.restore.requestPromotion",
   ),
   defineOperation(
     "storage.rebuildIndex",

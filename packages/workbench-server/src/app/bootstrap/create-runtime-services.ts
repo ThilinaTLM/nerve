@@ -21,7 +21,6 @@ import { CanonicalChildExecutionService } from "../../domains/agents/execution/c
 import { SubagentTranscriptLiveService } from "../../domains/agents/subagent-transcript-live.service.js";
 import type { AuthManager } from "../../domains/auth/index.js";
 import { WorkbenchExploreAdmission } from "../../domains/agents/execution/workbench-explore-admission.js";
-import { WorkbenchSubagentExecutions } from "../../domains/agents/execution/workbench-subagent-executions.js";
 import { CapabilityService } from "../../domains/capabilities/capability.service.js";
 import { FileCompletionService } from "../../domains/completions/index.js";
 import { ProjectFilesystemWatcher } from "../../domains/filesystem/project-filesystem-watcher.js";
@@ -113,7 +112,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     performanceDiagnostics,
   } = deps;
   const maintenanceScopes = state.maintenanceScopes;
-  const subagentExecutions = new WorkbenchSubagentExecutions();
   const exploreAdmission = new WorkbenchExploreAdmission(
     deps.resources.maxActiveExploreAgents,
   );
@@ -474,7 +472,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     capabilities: capabilities,
     subagentTranscriptLive: subagentTranscriptLive,
     exploreAdmission,
-    subagentExecutions,
     maxParallelToolsPerRun: deps.resources.maxParallelToolsPerRun,
     customModels: (projectDir) =>
       providerCatalog.resolvedModelsWithCredentials(

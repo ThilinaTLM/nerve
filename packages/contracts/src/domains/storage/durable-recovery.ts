@@ -73,6 +73,25 @@ export const restorePromotionSchema = z
   });
 export type RestorePromotion = z.infer<typeof restorePromotionSchema>;
 
+export const homePromotionMarkerSchema = z.object({
+  schemaVersion: z.literal(1),
+  restoreId: z.string().startsWith("restore_"),
+  backupId: z.string().startsWith("backup_"),
+  liveHomeName: z.string().min(1).max(255),
+  candidateHomeName: z.string().min(1).max(255),
+  rollbackHomeName: z.string().min(1).max(255),
+  candidatePromotionDigest: digestSchema,
+  state: z.enum([
+    "requested",
+    "old_home_renamed",
+    "candidate_promoted",
+    "verified",
+  ]),
+  requestedAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type HomePromotionMarker = z.infer<typeof homePromotionMarkerSchema>;
+
 export const runtimeAdmissionSchema = z.object({
   schemaVersion: z.literal(1),
   executionIncarnationId: z.string().startsWith("incarnation_"),

@@ -1,5 +1,6 @@
 import { createId } from "@nervekit/contracts";
 import { randomUUID } from "node:crypto";
+import { estimateTokens } from "@nervekit/harness/compaction";
 import type {
   CanonicalConversationEntry,
   ConversationEntry,
@@ -28,6 +29,15 @@ import { CanonicalNavigationService } from "./canonical-navigation.service.js";
 import { ConversationTransitionService } from "./conversation-transition.service.js";
 import { buildAppendTransition } from "./transition-builders.js";
 import type { CanonicalDeletionService } from "./canonical-deletion.service.js";
+
+function estimateCanonicalText(text: string): number {
+  return estimateTokens({
+    role: "harness",
+    eventType: "canonical_context_entry",
+    content: text,
+    timestamp: 0,
+  });
+}
 
 /** Production metadata facade whose history authority is the canonical timeline. */
 export class CanonicalConversationApplicationService {
@@ -465,7 +475,7 @@ export class CanonicalConversationApplicationService {
               generatedBy: this.deps.prepareCompactionSummary
                 ? "model"
                 : "orchestrator-extractive",
-              tokensAfter: Math.ceil(summaryText.length / 4),
+              tokensAfter: estimateCanonicalText(summaryText),
               freedTokens: Math.max(
                 0,
                 source.reduce((total, entry) => {
@@ -476,10 +486,10 @@ export class CanonicalConversationApplicationService {
                   return (
                     total +
                     (typeof content.text === "string"
-                      ? Math.ceil(content.text.length / 4)
+                      ? estimateCanonicalText(content.text)
                       : 0)
                   );
-                }, 0) - Math.ceil(summaryText.length / 4),
+                }, 0) - estimateCanonicalText(summaryText),
               ),
             },
           },
@@ -545,7 +555,7 @@ export class CanonicalConversationApplicationService {
             conversationId,
             reason,
             entryId: transition.entries[0]!.entryId,
-            tokensAfter: Math.ceil(summaryText.length / 4),
+            tokensAfter: estimateCanonicalText(summaryText),
           },
         },
       ],

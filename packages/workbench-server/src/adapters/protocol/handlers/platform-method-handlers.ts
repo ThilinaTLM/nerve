@@ -107,6 +107,18 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
         })
       ).promotion,
     }),
+    "storage.restore.status": async (state, params) => ({
+      promotion: await state.restoreStaging.status(params.restoreId),
+    }),
+    "storage.restore.requestPromotion": async (state, params) => {
+      void params.oldRuntimeIsolationProven;
+      return {
+        marker: await state.restoreStaging.requestPromotionById(
+          params.restoreId,
+        ),
+        restartRequired: true as const,
+      };
+    },
     "storage.rebuildIndex": async (state) => ({
       operation: await state.maintenance.start({
         kind: "storage_cleanup",

@@ -6,6 +6,12 @@ import { appendDurableEventInTransaction } from "./canonical-database-helpers.js
 
 const stages = [
   "canonical_metadata",
+  "owner_documents",
+  "durable_events",
+  "file_assets",
+  "tool_call_projections",
+  "agent_context_leaves",
+  "conversation_records",
   "lifecycle_work",
   "recovery_actions",
   "execution_claims",
@@ -61,7 +67,11 @@ export function finalizeDeletionHistory(
             WHERE conversation_id = ?1) +
          (SELECT COUNT(*) FROM context_boundaries WHERE conversation_id = ?1) +
          (SELECT COUNT(*) FROM artifact_deletion_work
-            WHERE conversation_id = ?1 AND state NOT IN ('deleted','missing')) AS count`,
+            WHERE conversation_id = ?1 AND state NOT IN ('deleted','missing')) +
+         (SELECT COUNT(*) FROM durable_events WHERE conversation_id = ?1) +
+         (SELECT COUNT(*) FROM file_assets WHERE conversation_id = ?1) +
+         (SELECT COUNT(*) FROM tool_call_projections WHERE conversation_id = ?1) +
+         (SELECT COUNT(*) FROM conversation_records WHERE conversation_id = ?1) AS count`,
     )
     .get(intent.conversationId) as { count: number };
   if (residual.count !== 0) {
@@ -173,6 +183,60 @@ function deleteStage(
       "domain_documents",
       "rowid",
       "namespace = 'canonical_conversation_metadata' AND document_id = ?1",
+      conversationId,
+      limit,
+    );
+  if (stage === "owner_documents")
+    return remove(
+      database,
+      "domain_documents",
+      "rowid",
+      "scope_id = ?1 OR document_id = ?1",
+      conversationId,
+      limit,
+    );
+  if (stage === "durable_events")
+    return remove(
+      database,
+      "durable_events",
+      "row_id",
+      "conversation_id = ?1",
+      conversationId,
+      limit,
+    );
+  if (stage === "file_assets")
+    return remove(
+      database,
+      "file_assets",
+      "rowid",
+      "conversation_id = ?1",
+      conversationId,
+      limit,
+    );
+  if (stage === "tool_call_projections")
+    return remove(
+      database,
+      "tool_call_projections",
+      "rowid",
+      "conversation_id = ?1",
+      conversationId,
+      limit,
+    );
+  if (stage === "agent_context_leaves")
+    return remove(
+      database,
+      "agent_context_leaves",
+      "rowid",
+      "conversation_id = ?1",
+      conversationId,
+      limit,
+    );
+  if (stage === "conversation_records")
+    return remove(
+      database,
+      "conversation_records",
+      "rowid",
+      "conversation_id = ?1",
       conversationId,
       limit,
     );

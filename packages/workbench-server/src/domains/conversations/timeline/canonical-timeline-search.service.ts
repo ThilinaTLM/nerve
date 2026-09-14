@@ -35,14 +35,21 @@ export class CanonicalTimelineSearchService {
     if (!currentHead || deletionState !== "active") {
       return { kind: "deleted_owner", ownerId: request.conversationId };
     }
+    if (projection?.rebuildState === "rebuilding") {
+      return {
+        kind: "rebuilding",
+        generation: projection.rebuildGeneration,
+        appliedRevision: projection.appliedRevision,
+      };
+    }
     if (
       request.minimumRevision !== undefined &&
-      currentHead.revision < request.minimumRevision
+      (projection?.appliedRevision ?? 0) < request.minimumRevision
     ) {
       return {
         kind: "projection_lag",
         requestedRevision: request.minimumRevision,
-        appliedRevision: currentHead.revision,
+        appliedRevision: projection?.appliedRevision ?? 0,
         canonicalRevision: currentHead.revision,
       };
     }
@@ -119,6 +126,7 @@ export class CanonicalTimelineSearchService {
     const after = decoded
       ? decodeSearchPosition(decoded.lastDisplayOrderKey)
       : undefined;
+    if (decoded && !after) return { kind: "expired_cursor" };
     const expression = toFtsExpression(request.query);
     const slice =
       expression.length === 0

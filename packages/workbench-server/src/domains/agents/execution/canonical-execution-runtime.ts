@@ -1,5 +1,6 @@
 import {
   deriveAutoCompactionPolicy,
+  estimateTokens,
   shouldAutoCompact,
 } from "@nervekit/harness/compaction";
 import { getModelContextWindow } from "@nervekit/harness/models";
@@ -178,8 +179,26 @@ export class CanonicalExecutionRuntime {
     );
     const contextTokens = entries.reduce((total, entry) => {
       const content = entry.inlineContent as Record<string, unknown>;
+      const exact = content.exactHarnessMessage;
+      if (exact && typeof exact === "object" && "role" in exact) {
+        return (
+          total +
+          estimateTokens(
+            exact as import("@nervekit/harness/agent").AgentMessage,
+          )
+        );
+      }
       const text = typeof content.text === "string" ? content.text : "";
-      return total + Math.ceil(text.length / 4) + 8;
+      if (!text) return total;
+      return (
+        total +
+        estimateTokens({
+          role: "harness",
+          eventType: "canonical_context_entry",
+          content: text,
+          timestamp: 0,
+        })
+      );
     }, 0);
     const now = new Date().toISOString();
     if (shouldAutoCompact(contextTokens, policy)) {

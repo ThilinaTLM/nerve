@@ -24,6 +24,7 @@ import {
 } from "../configuration/home-configuration.js";
 import { inspectNerveHome } from "./state-layout.js";
 import { acquireStorageStartupLock } from "./startup-lock.js";
+import { recoverHomePromotionAtStartup } from "./home-promotion.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
 import { CanonicalFreshHomeAdmissionService } from "../../domains/storage/canonical-fresh-home-admission.service.js";
 import { promoteCurrentHomeAtStartup } from "../migrations/unified-timeline/migrate-live-journal-to-canonical.js";
@@ -95,6 +96,7 @@ export async function initializeStorage(
 
   const startupLock = await acquireStorageStartupLock(home);
   try {
+    await recoverHomePromotionAtStartup(home);
     const homeInspectionStartedAt = performance.now();
     const inspection = await inspectNerveHome(home);
     const homeInspectionMs = Math.round(
@@ -167,10 +169,12 @@ export async function initializeStorage(
         promotedAt: new Date().toISOString(),
       });
     }
+    const runtimeAdmission =
+      await canonicalStore.readTimelineRuntimeAdmission();
     if (
       (await canonicalStore.migration.countLegacyRuntimeAuthority()) === 0 &&
-      (await canonicalStore.readTimelineRuntimeAdmission())?.dispatchState !==
-        "admitted"
+      !runtimeAdmission?.restoreId &&
+      runtimeAdmission?.dispatchState !== "admitted"
     ) {
       await new CanonicalFreshHomeAdmissionService(canonicalStore).admit();
     }

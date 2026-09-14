@@ -1,6 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import {
+  cp,
+  mkdir,
+  open,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
   restorePromotionSchema,
@@ -14,6 +22,10 @@ import {
 } from "../../infrastructure/persistence/canonical-sqlite/payload-codecs.js";
 import { canonicalConversationJson } from "../conversations/timeline/command-fingerprint.js";
 import { CanonicalBackupVerifier } from "./canonical-backup-verifier.js";
+import {
+  promotionEvidenceDigest,
+  requestHomePromotion,
+} from "../../infrastructure/storage-bootstrap/home-promotion.js";
 
 /** Builds an isolated, non-dispatching restore candidate without replacing live state. */
 export class CanonicalRestoreStagingService {
@@ -21,12 +33,20 @@ export class CanonicalRestoreStagingService {
 
   constructor(private readonly paths: StoragePaths) {}
 
-  async admit(restoreId: string): Promise<RestorePromotion> {
+  async admit(
+    restoreId: string,
+    options: { proveIsolation?: boolean } = {},
+  ): Promise<RestorePromotion> {
     if (!/^restore_[A-Za-z0-9-]+$/.test(restoreId)) {
       throw new Error("Restore ID is invalid.");
     }
     const database = new DatabaseSync(
-      join(this.paths.backupsPath, restoreId, "database.sqlite"),
+      join(
+        dirname(this.paths.home),
+        `${basename(this.paths.home)}.candidate-${restoreId}`,
+        "data",
+        "nerve.sqlite",
+      ),
     );
     try {
       database.exec("BEGIN IMMEDIATE");
@@ -37,18 +57,23 @@ export class CanonicalRestoreStagingService {
         ? restorePromotionSchema.parse(decode(row.data))
         : undefined;
       if (!current) throw new Error("Restore promotion does not exist.");
-      if (current.oldRuntimeIsolation !== "proven") {
+      if (
+        current.oldRuntimeIsolation !== "proven" &&
+        options.proveIsolation !== true
+      ) {
         throw new Error(
           "Restore dispatch cannot be admitted without proven isolation.",
         );
       }
       const admitted = restorePromotionSchema.parse({
         ...current,
+        oldRuntimeIsolation: "proven",
         dispatchState: "admitted",
       });
       database
         .prepare(
-          `UPDATE restore_promotions SET dispatch_state = 'admitted', data = ?
+          `UPDATE restore_promotions SET dispatch_state = 'admitted',
+               old_runtime_isolation = 'proven', data = ?
            WHERE restore_id = ?`,
         )
         .run(encode(admitted), restoreId);
@@ -59,6 +84,17 @@ export class CanonicalRestoreStagingService {
         )
         .run(Date.now(), restoreId);
       database.exec("COMMIT");
+      const candidate = join(
+        dirname(this.paths.home),
+        `${basename(this.paths.home)}.candidate-${restoreId}`,
+      );
+      await writeFile(
+        join(candidate, "promotion.json"),
+        canonicalConversationJson(admitted),
+        { mode: 0o600 },
+      );
+      await syncPath(join(candidate, "promotion.json"));
+      await syncPath(candidate);
       return admitted;
     } catch (error) {
       try {
@@ -84,8 +120,15 @@ export class CanonicalRestoreStagingService {
       join(this.paths.backupsPath, input.backupId),
     );
     const restoreId = `restore_${randomUUID()}`;
-    const staging = join(this.paths.backupsPath, `.${restoreId}.staging`);
-    const destination = join(this.paths.backupsPath, restoreId);
+    const parent = dirname(this.paths.home);
+    const staging = join(
+      parent,
+      `.${basename(this.paths.home)}.${restoreId}.staging`,
+    );
+    const destination = join(
+      parent,
+      `${basename(this.paths.home)}.candidate-${restoreId}`,
+    );
     const now = input.now ?? new Date().toISOString();
     await mkdir(staging, { recursive: false, mode: 0o700 });
     try {
@@ -93,7 +136,8 @@ export class CanonicalRestoreStagingService {
         (entry) => entry.kind === "database",
       );
       if (!databaseEntry) throw new Error("Verified backup has no database.");
-      const databasePath = join(staging, "database.sqlite");
+      await copyRuntimeShell(this.paths.home, staging);
+      const databasePath = join(staging, "data", "nerve.sqlite");
       await copyBytes(
         join(verified.root, databaseEntry.relativeLocator),
         databasePath,
@@ -106,16 +150,12 @@ export class CanonicalRestoreStagingService {
           }
           await copyBytes(
             join(verified.root, entry.relativeLocator),
-            join(
-              staging,
-              "payload",
-              entry.relativeLocator.slice(prefix.length),
-            ),
+            join(staging, entry.relativeLocator.slice(prefix.length)),
           );
         } else if (entry.kind === "permission_file") {
           await copyBytes(
             join(verified.root, entry.relativeLocator),
-            join(staging, "payload", "config", "permissions.json"),
+            join(staging, "config", "permissions.json"),
           );
         }
       }
@@ -141,11 +181,78 @@ export class CanonicalRestoreStagingService {
       await syncPath(join(staging, "promotion.json"));
       await syncPath(staging);
       await rename(staging, destination);
-      await syncPath(this.paths.backupsPath);
+      await syncPath(parent);
       return { promotion, restorePath: destination };
     } catch (error) {
       await rm(staging, { recursive: true, force: true });
       throw error;
+    }
+  }
+
+  async status(restoreId: string): Promise<RestorePromotion> {
+    return restorePromotionSchema.parse(
+      JSON.parse(
+        await readFile(
+          join(this.candidatePath(restoreId), "promotion.json"),
+          "utf8",
+        ),
+      ),
+    );
+  }
+
+  async requestPromotionById(restoreId: string) {
+    const promotion = await this.admit(restoreId, { proveIsolation: true });
+    return this.requestPromotion({
+      promotion,
+      restorePath: this.candidatePath(restoreId),
+    });
+  }
+
+  async requestPromotion(input: {
+    promotion: RestorePromotion;
+    restorePath: string;
+    now?: string;
+  }) {
+    return requestHomePromotion({
+      home: this.paths.home,
+      restoreId: input.promotion.restoreId,
+      backupId: input.promotion.backupId,
+      candidateHome: input.restorePath,
+      candidatePromotionDigest: promotionEvidenceDigest(input.promotion),
+      now: input.now,
+    });
+  }
+
+  private candidatePath(restoreId: string): string {
+    if (!/^restore_[A-Za-z0-9-]+$/.test(restoreId)) {
+      throw new Error("Restore ID is invalid.");
+    }
+    return join(
+      dirname(this.paths.home),
+      `${basename(this.paths.home)}.candidate-${restoreId}`,
+    );
+  }
+}
+
+async function copyRuntimeShell(home: string, staging: string): Promise<void> {
+  await mkdir(join(staging, "data"), { recursive: true, mode: 0o700 });
+  for (const relative of [
+    "manifest.json",
+    "config",
+    "secrets",
+    "daemon.json",
+    "tls",
+    "migrations",
+  ]) {
+    const source = join(home, relative);
+    try {
+      await cp(source, join(staging, relative), {
+        recursive: true,
+        errorOnExist: true,
+        force: false,
+      });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
 }

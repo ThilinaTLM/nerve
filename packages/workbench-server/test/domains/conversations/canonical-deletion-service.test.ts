@@ -82,6 +82,17 @@ test("INV-DELETE-01 fences dispatch and foreground ownership before cleanup", as
     null,
   );
   assert.equal((await deletion.fence(input)).kind, "receipt_replay");
+  await assert.rejects(
+    store.appendDurableEvent({
+      stream: "conversation:conv_delete",
+      intentId: "late-publication",
+      eventType: "conversation.entry.created",
+      data: { text: "must not publish" },
+      occurredAt: "2026-09-12T00:00:01.500Z",
+      conversationId: "conv_delete",
+    }),
+    /deleted_owner:conv_delete/,
+  );
   assert.equal(
     (
       await new CanonicalTimelinePageService(

@@ -36,7 +36,12 @@ export class CanonicalCompactionSummaryPreparer {
       .map(toMessage)
       .filter((message): message is AgentMessage => Boolean(message));
     const requestAuth = await this.deps.auth.requestAuthForPiModel(model);
-    if (model.provider !== "nerve-faux" && requestAuth) {
+    if (model.provider !== "nerve-faux") {
+      if (!requestAuth) {
+        throw new Error(
+          "Canonical compaction summary credentials are unavailable.",
+        );
+      }
       const result = await generateSummary({
         messages,
         model: requestAuth.baseUrl
@@ -51,6 +56,11 @@ export class CanonicalCompactionSummaryPreparer {
         customInstructions: input.instructions,
       });
       if (result.ok && result.value.trim()) return result.value.trim();
+      throw new Error(
+        result.ok
+          ? "Canonical compaction summary was empty."
+          : `Canonical compaction summary failed: ${result.error.message}`,
+      );
     }
     return [
       input.instructions ?? "",

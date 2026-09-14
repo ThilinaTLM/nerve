@@ -109,13 +109,13 @@ test("INV-BACKUP-01 creates a verified canonical database and policy snapshot", 
   );
   assert.equal(
     await readFile(
-      join(staged.restorePath, "payload", "config", "permissions.json"),
+      join(staged.restorePath, "config", "permissions.json"),
       "utf8",
     ),
     '{"version":1}\n',
   );
   const stagedDatabase = new DatabaseSync(
-    join(staged.restorePath, "database.sqlite"),
+    join(staged.restorePath, "data", "nerve.sqlite"),
     { readOnly: true },
   );
   const restoredIdentity = stagedDatabase
@@ -146,7 +146,7 @@ test("INV-BACKUP-01 creates a verified canonical database and policy snapshot", 
   assert.equal(restoredRun.effective_state, "recovery_required");
   assert.equal(restoredRun.foreground_owned, 0);
   const stagedStore = new CanonicalStore(
-    join(staged.restorePath, "database.sqlite"),
+    join(staged.restorePath, "data", "nerve.sqlite"),
   );
   await stagedStore.initialize();
   assert.equal(
