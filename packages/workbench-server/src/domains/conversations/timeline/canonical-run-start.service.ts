@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { QueuedPromptRecord } from "@nervekit/contracts/agents";
 import type { MutationOutcome } from "@nervekit/contracts/conversations";
 import {
   runControlSchema,
@@ -24,6 +25,7 @@ export interface CanonicalRunStartInput {
     | "contractually_replay_safe"
     | "non_repeatable_or_unknown";
   commandId?: string;
+  queuedPrompt?: { record: QueuedPromptRecord; expectedRevision: number };
   now: string;
 }
 
@@ -94,6 +96,7 @@ export class CanonicalRunStartService {
       images: input.images,
       providerIdentity: input.providerIdentity,
       providerCapability: input.providerCapability,
+      queuedPromptId: input.queuedPrompt?.record.id,
     });
     const entryId = `entry_${randomUUID()}`;
     const transition = buildAppendTransition({
@@ -183,6 +186,24 @@ export class CanonicalRunStartService {
         },
       ],
       transitions: [transition],
+      domainDocuments: input.queuedPrompt
+        ? [
+            {
+              namespace: "canonical_prompt_queue",
+              scopeId: input.agentId,
+              documentId: input.queuedPrompt.record.id,
+              expectedRevision: input.queuedPrompt.expectedRevision,
+              payloadVersion: 1,
+              data: {
+                ...input.queuedPrompt.record,
+                status: "delivered",
+                runId: input.runId,
+                deliveredEntryId: entryId,
+                updatedAt: input.now,
+              },
+            },
+          ]
+        : [],
       runControls: [run],
       providerPhases: [phase],
       lifecycleWorks: [work],

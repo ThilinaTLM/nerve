@@ -117,7 +117,8 @@ export class RuntimeLifecycle {
         },
         {
           name: "conversations",
-          run: () => this.services.conversationLifecycle.loadConversations(),
+          run: () =>
+            this.services.canonicalConversationLifecycle.loadConversations(),
         },
       ] as const satisfies readonly StoreHydrationOperation[],
       loadAgents: () => this.services.agentLifecycle.loadAgents(),
@@ -145,7 +146,8 @@ export class RuntimeLifecycle {
       counts: () => ({
         projects: this.services.projectLifecycle.listProjects().length,
         conversations:
-          this.services.conversationLifecycle.listConversations().length,
+          this.services.canonicalConversationLifecycle.listConversations()
+            .length,
         agents: this.services.agentLifecycle.listAgents().length,
         tasks: this.services.tasks.listTasks().length,
         toolCalls: this.services.tools.countToolCalls(),
@@ -171,6 +173,7 @@ export class RuntimeLifecycle {
     await Promise.all([
       this.services.projectionDispatcher.stop(),
       this.services.deletionDispatcher.stop(),
+      this.services.canonicalExecution.stop(),
     ]);
     this.services.gitRepositoryWatcher.close();
     this.services.projectFilesystemWatcher.close();
@@ -197,11 +200,11 @@ export class RuntimeLifecycle {
     reportStage?: (stage: RuntimeBootstrapStage) => void,
   ): Promise<RuntimeHydrationTimings> {
     reportStage?.("recovering-conversation-deletions");
-    await this.services.conversationLifecycle.recoverDeletions();
+    await this.services.canonicalConversationLifecycle.recoverDeletions();
     const timings = await this.hydrator.hydrate(reportStage);
     // Provider and tool work can be arbitrarily long-running. Start its drain
     // only after canonical hydration, and never gate daemon readiness on it.
-    this.services.lifecycleDispatcher.start();
+    this.services.canonicalExecution.start();
     return timings;
   }
   async refreshRuntimeCapabilities(): Promise<void> {
@@ -258,7 +261,8 @@ export class RuntimeLifecycle {
   async rebuildIndex(): Promise<void> {
     await this.queryCache.rebuildIncrementally(() => ({
       projects: this.services.projectLifecycle.listProjects(),
-      conversations: this.services.conversationLifecycle.listConversations(),
+      conversations:
+        this.services.canonicalConversationLifecycle.listConversations(),
       agents: this.services.agentLifecycle.listAgents(),
       tasks: this.services.tasks.listTasks(),
     }));

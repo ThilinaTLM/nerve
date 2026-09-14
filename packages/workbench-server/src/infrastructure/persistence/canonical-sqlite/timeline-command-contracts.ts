@@ -51,6 +51,15 @@ export interface TimelinePublicationIntent {
   data: unknown;
 }
 
+export interface TimelineDomainDocumentWrite {
+  namespace: string;
+  scopeId: string;
+  documentId: string;
+  expectedRevision: number;
+  payloadVersion: number;
+  data: unknown;
+}
+
 export interface CommitConversationCommandInput {
   namespaceId: string;
   executionIncarnationId: string;
@@ -63,6 +72,7 @@ export interface CommitConversationCommandInput {
   expectedHeads: TimelineExpectedHead[];
   expectedRunFences?: TimelineExpectedRunFence[];
   transitions: ConversationTransition[];
+  domainDocuments?: TimelineDomainDocumentWrite[];
   contextBoundaries?: ContextBoundary[];
   finalizedArtifacts?: ArtifactReference[];
   artifactManifests?: TimelineArtifactManifestWrite[];

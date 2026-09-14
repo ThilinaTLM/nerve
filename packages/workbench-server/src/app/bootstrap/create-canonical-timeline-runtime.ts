@@ -9,6 +9,7 @@ import { FilesystemCanonicalArtifactFinalizer } from "../../infrastructure/persi
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import { CanonicalAutoCompactionService } from "../../domains/conversations/timeline/canonical-auto-compaction.service.js";
+import { CanonicalConversationApplicationService } from "../../domains/conversations/timeline/canonical-conversation-application.service.js";
 import { CanonicalConversationContextService } from "../../domains/conversations/timeline/canonical-conversation-context.service.js";
 import { CanonicalContinuationService } from "../../domains/conversations/timeline/canonical-continuation.service.js";
 import { CanonicalConversationCreationService } from "../../domains/conversations/timeline/canonical-conversation-creation.service.js";
@@ -112,6 +113,19 @@ export function timelineRuntime(
   const restoreStaging = new CanonicalRestoreStagingService(storage.paths);
   return {
     timelinePages,
+    createConversationApplication: (
+      input: Omit<
+        ConstructorParameters<
+          typeof CanonicalConversationApplicationService
+        >[0],
+        "storage" | "deletion"
+      >,
+    ) =>
+      new CanonicalConversationApplicationService({
+        ...input,
+        storage,
+        deletion,
+      }),
     conversationCreation,
     conversationContext,
     continuation,
@@ -147,6 +161,7 @@ export function timelineRuntime(
         | Parameters<WorkbenchAgentMechanics["activeToolNamesFor"]>[0]
         | undefined;
       getConversationCreatedAt(conversationId: string): string;
+      onForegroundClosed?(conversationId: string): Promise<void>;
     }) => {
       const harness = new CanonicalHarnessLifecycleExecutor({
         mechanics: input.mechanics,
@@ -180,6 +195,7 @@ export function timelineRuntime(
       );
       return {
         start: () => lifecycle.start(),
+        wake: () => lifecycle.wake(),
         stop: () => lifecycle.stop(),
         settled: () => lifecycle.settled(),
       };

@@ -3,6 +3,7 @@ import {
   conversationHeadSchema,
   type CanonicalConversationEntry,
   type ConversationHead,
+  type ConversationRecord,
   type MutationOutcome,
 } from "@nervekit/contracts/conversations";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
@@ -29,6 +30,7 @@ export class CanonicalConversationCreationService {
     conversationId: string;
     commandId: string;
     now: string;
+    metadata?: ConversationRecord;
   }): Promise<CanonicalConversationCreationResult> {
     return this.create(input, []);
   }
@@ -45,13 +47,19 @@ export class CanonicalConversationCreationService {
       | "parentEntryId"
     >[];
     now: string;
+    metadata?: ConversationRecord;
   }): Promise<CanonicalConversationCreationResult> {
     if (input.entries.length === 0) return this.createEmpty(input);
     return this.create(input, input.entries);
   }
 
   private async create(
-    input: { conversationId: string; commandId: string; now: string },
+    input: {
+      conversationId: string;
+      commandId: string;
+      now: string;
+      metadata?: ConversationRecord;
+    },
     entries: readonly Omit<
       CanonicalConversationEntry,
       | "schemaVersion"
@@ -75,6 +83,7 @@ export class CanonicalConversationCreationService {
         entries.length === 0 ? "create_conversation" : "import_history",
       conversationId: input.conversationId,
       entries,
+      metadata: input.metadata,
     });
     const transition = entries.length
       ? buildAppendTransition({
@@ -112,6 +121,18 @@ export class CanonicalConversationCreationService {
         },
       ],
       transitions: transition ? [transition] : [],
+      domainDocuments: input.metadata
+        ? [
+            {
+              namespace: "canonical_conversation_metadata",
+              scopeId: "global",
+              documentId: input.conversationId,
+              expectedRevision: 0,
+              payloadVersion: 1,
+              data: input.metadata,
+            },
+          ]
+        : [],
       outcome: intendedHead,
       publicationIntents: [],
       now: input.now,

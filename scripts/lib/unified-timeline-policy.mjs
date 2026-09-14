@@ -19,6 +19,8 @@ export function unifiedTimelinePolicyViolations(file, text) {
     !file.startsWith(
       "packages/workbench-server/src/infrastructure/migrations/",
     ) &&
+    file !==
+      "packages/workbench-server/src/infrastructure/storage-bootstrap/initialize.ts" &&
     text.includes("infrastructure/migrations/unified-timeline")
   ) {
     violations.push(

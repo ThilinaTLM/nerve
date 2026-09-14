@@ -85,7 +85,7 @@ export function buildCanonicalToolBatch(input: {
         memberId: `member_${suffix}`,
         waitGroupId,
         memberKind: "tool" as const,
-        ownerId: proposal.providerToolCallId,
+        ownerId: `tool_${suffix}`,
         inputFingerprint: proposal.normalizedInputFingerprint,
         policyFingerprint: proposal.policyObservation.completeDocumentDigest,
         executionState:

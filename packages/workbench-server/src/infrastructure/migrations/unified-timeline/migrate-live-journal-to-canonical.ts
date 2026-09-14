@@ -1,5 +1,9 @@
 import { join } from "node:path";
-import type { ConversationHarnessStorage } from "../../../domains/conversations/conversation-harness-storage.js";
+import { ConversationHarnessStorage } from "../../../domains/conversations/conversation-harness-storage.js";
+import { ConversationJournalRepository } from "../../../domains/conversations/conversation-journal.repository.js";
+import { ConversationRepository } from "../../../domains/conversations/conversation.repository.js";
+import { CanonicalTimelineIdentityService } from "../../../domains/conversations/timeline/canonical-timeline-identity.service.js";
+import { CanonicalPortableBackupService } from "../../../domains/storage/canonical-portable-backup.service.js";
 import { CanonicalAuthorityPromotionService } from "../../../domains/storage/canonical-authority-promotion.service.js";
 import type { CanonicalStore } from "../../persistence/canonical-sqlite/canonical-store.js";
 import type { StoragePaths } from "../../storage-bootstrap/index.js";
@@ -40,6 +44,43 @@ export async function migrateLiveJournalToCanonical(input: {
       extractExactHarnessMessages(
         await input.legacyHarness.modelEntries(conversationId),
       ),
+  });
+}
+
+/** Runs the mandatory current-home cutover while startup still owns isolation. */
+export async function promoteCurrentHomeAtStartup(input: {
+  store: CanonicalStore;
+  paths: StoragePaths;
+  promotedAt: string;
+}) {
+  const legacyCount = await input.store.migration.countLegacyRuntimeAuthority();
+  if (legacyCount === 0) return undefined;
+  await new CanonicalTimelineIdentityService(input.store).resolve();
+  await new CanonicalPortableBackupService(input.store, input.paths).create(
+    input.promotedAt,
+  );
+  const journal = new ConversationJournalRepository({
+    paths: input.paths,
+    canonicalStore: input.store,
+  });
+  const metadata = await journal.listConversationMetadata();
+  const byId = new Map(
+    metadata.map((conversation) => [conversation.id, conversation]),
+  );
+  const legacyHarness = new ConversationHarnessStorage(
+    new ConversationRepository(journal),
+    (conversationId) => {
+      const conversation = byId.get(conversationId);
+      if (!conversation) {
+        throw new Error(`Legacy conversation '${conversationId}' is missing.`);
+      }
+      return conversation;
+    },
+  );
+  return promoteLiveJournalToCanonical({
+    ...input,
+    legacyHarness,
+    runtimeIsolation: "proven",
   });
 }
 

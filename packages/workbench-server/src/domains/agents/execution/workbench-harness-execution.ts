@@ -200,6 +200,7 @@ export async function executeWorkbenchHarness(
           thinkingLevel: agent.thinkingLevel,
           maxParallelToolCalls: this.deps.maxParallelToolsPerRun,
           stopAfterToolIteration: Boolean(canonical),
+          ...(canonical ? { streamOptions: { maxRetries: 0 } } : {}),
           getApiKeyAndHeaders: environment.credentials,
           systemPrompt: composeLatestSystemPrompt,
         }),
@@ -244,9 +245,8 @@ export async function executeWorkbenchHarness(
     };
     harness.subscribe(async (event) => {
       if (event.type === "queue_drained") {
-        for (const promptId of event.messageIds) {
+        for (const promptId of event.messageIds)
           await coordinator.sink.promptDelivered(promptId);
-        }
       }
       if (event.type === "before_provider_request") {
         currentProviderForResponse = event.model.provider;

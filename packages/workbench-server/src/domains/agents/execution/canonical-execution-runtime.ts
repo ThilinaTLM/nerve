@@ -31,6 +31,7 @@ export class CanonicalExecutionRuntime {
       workerId: string;
       getAgentForConversation(conversationId: string): AgentRecord | undefined;
       getConversationCreatedAt(conversationId: string): string;
+      onForegroundClosed?(conversationId: string): Promise<void>;
     },
   ) {}
 
@@ -67,6 +68,12 @@ export class CanonicalExecutionRuntime {
       ),
       signal: new AbortController().signal,
     });
+    const head = await this.deps.store.readTimelineConversationHead(
+      work.conversationId,
+    );
+    if (!head?.foregroundRunId) {
+      await this.deps.onForegroundClosed?.(work.conversationId);
+    }
   }
 
   private async executeTool(work: CanonicalLifecycleWork): Promise<void> {

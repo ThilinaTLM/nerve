@@ -69,7 +69,7 @@ export class CanonicalToolWorkerService {
       manifest.effectId !== authorized.snapshot.effect.effectId ||
       manifest.normalizedInputFingerprint !==
         authorized.snapshot.effect.normalizedInputFingerprint ||
-      manifest.providerToolCallId !==
+      `tool_${authorized.snapshot.effect.effectId.slice("effect_".length)}` !==
         authorized.snapshot.waitGroup.members.find(
           (member) => member.memberId === authorized.snapshot.effect.memberId,
         )?.ownerId

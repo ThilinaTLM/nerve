@@ -43,6 +43,21 @@ export async function migrateCurrentHomeConversationTimelines(input: {
     );
     if (retained) return retained;
   }
+  for (const conversation of conversations) {
+    const existing = await input.store.readDocument(
+      "canonical_conversation_metadata",
+      "global",
+      conversation.id,
+    );
+    await input.store.writeDocument({
+      namespace: "canonical_conversation_metadata",
+      scopeId: "global",
+      documentId: conversation.id,
+      data: conversation,
+      expectedRevision: existing?.revision ?? 0,
+      now: input.importedAt,
+    });
+  }
   const importer = new LegacyConversationTimelineImporter(input.store);
   const proofs: LegacyConversationImportProof[] = [];
   for (const conversation of conversations) {

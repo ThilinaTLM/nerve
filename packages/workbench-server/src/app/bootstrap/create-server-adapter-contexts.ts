@@ -51,7 +51,7 @@ export function createServerAdapterContexts(
   const snapshot = {
     events: infrastructure.events,
     projectLifecycle: services.projectLifecycle,
-    conversationLifecycle: services.conversationLifecycle,
+    conversationLifecycle: services.canonicalConversationLifecycle,
     conversationQuery: services.conversationQuery,
     humanInput: services.humanInput,
     agentLifecycle: services.agentLifecycle,
@@ -85,20 +85,20 @@ export function createServerAdapterContexts(
       toolInteractions: services.toolInteractions,
     },
     conversations: {
-      conversationLifecycle: services.conversationLifecycle,
+      conversationLifecycle: services.canonicalConversationLifecycle,
       conversationQuery: services.conversationQuery,
       timelinePages: services.timelinePages,
       importService: services.importService,
       navigationService: services.navigationService,
       compactionService: services.compactionService,
-      workbenchRun: services.workbenchRun,
+      workbenchRun: services.canonicalWorkbenchRun,
       runReconciliation: services.runReconciliation,
     },
     agents: {
       agentLifecycle: services.agentLifecycle,
       subagentTranscripts: services.subagentTranscripts,
       tools: services.tools,
-      workbenchRun: services.workbenchRun,
+      workbenchRun: services.canonicalWorkbenchRun,
     },
     projects: {
       editors: services.editors,
@@ -137,7 +137,7 @@ export function createServerAdapterContexts(
       port: infrastructure.port,
       events: infrastructure.events,
       logger: infrastructure.logger,
-      conversationLifecycle: services.conversationLifecycle,
+      conversationLifecycle: services.canonicalConversationLifecycle,
     },
     http: {
       status: {

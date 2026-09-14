@@ -3,7 +3,6 @@ import {
   explainImageWithModel,
   resolveAgentModel,
 } from "@nervekit/harness/models";
-import { generateSummary } from "@nervekit/harness/compaction";
 import { withGitMutationEvents } from "../../domains/git/git-mutation-publisher.js";
 import { GitRepositoryWatcher } from "../../domains/git/git-repository-watcher.js";
 import { withGitRepositoryWatching } from "../../domains/git/git-repository-watching.js";
@@ -36,7 +35,6 @@ import {
 } from "../../domains/conversations/index.js";
 import {
   CompactionService,
-  type CompactionSummarizer,
   ExportService,
   ImportService,
   NavigationService,
@@ -111,6 +109,8 @@ import type {
 } from "../../domains/conversations/append-entry-contracts.js";
 import type { ResourceLimits } from "@nervekit/contracts/settings";
 import { timelineRuntime } from "./create-canonical-timeline-runtime.js";
+import { createCanonicalProductionExecution } from "./create-canonical-production-execution.js";
+import { createCompactionSummarizer } from "./create-compaction-summarizer.js";
 
 export interface RuntimeDeps {
   storage: InitializedStorage;
@@ -125,9 +125,7 @@ export interface RuntimeDeps {
   performanceDiagnostics: PerformanceDiagnosticsPort;
   resources: ResourceLimits & { controlWorkConcurrency: number };
 }
-
 export type RuntimeServices = ReturnType<typeof createRuntimeServices>;
-
 export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
   const {
     storage,
@@ -221,9 +219,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     performanceDiagnostics,
   );
   const resultPayloads = new ToolResultPayloadStore(storage.paths.home);
-  events.setConversationRevisionResolver(
-    (conversationId) => conversationJournal.state(conversationId)?.revision,
-  );
   const conversationRepository = new ConversationRepository(
     conversationJournal,
   );
@@ -242,54 +237,13 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
   state.useAgentConversationMessages(
     conversationService.agentConversationCache,
   );
-  const compactionSummarizer: CompactionSummarizer = async ({
-    conversationId,
-    agentId,
-    messages,
-    previousSummary,
-    instructions,
-    summaryProfile,
-    summaryReserveTokens,
-    signal,
-    onProgress,
-  }) => {
-    const conversation = getConversation(conversationId);
-    const resolvedAgentId = agentId ?? conversation.activeAgentId;
-    const agent = resolvedAgentId
-      ? state.agents.get(resolvedAgentId)
-      : undefined;
-    if (!agent) return undefined;
-    const model = resolveAgentModel(
-      agent.model,
-      await providerCatalog.resolvedModelsWithCredentials(
-        (name) => secrets.get(name),
-        agent.projectDir,
-      ),
-    );
-    if (model.provider === "nerve-faux") return undefined;
-    const requestAuth = await auth.requestAuthForPiModel(model);
-    if (!requestAuth) return undefined;
-    const requestModel = requestAuth.baseUrl
-      ? { ...model, baseUrl: requestAuth.baseUrl }
-      : model;
-    const result = await generateSummary({
-      messages,
-      model: requestModel,
-      reserveTokens: summaryReserveTokens,
-      apiKey: requestAuth.apiKey ?? "",
-      headers: requestAuth.headers,
-      signal,
-      customInstructions: instructions,
-      previousSummary,
-      summaryProfile,
-      thinkingLevel: agent.thinkingLevel,
-      env: requestAuth.env,
-      onProgress,
-    });
-    return result.ok
-      ? { text: result.value, generatedBy: "model" as const }
-      : undefined;
-  };
+  const compactionSummarizer = createCompactionSummarizer({
+    getConversation,
+    state,
+    providerCatalog,
+    secrets,
+    auth,
+  });
   const compactionService = new CompactionService(
     getConversation,
     getProject,
@@ -389,17 +343,25 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       capabilities,
     );
   const timeline = timelineRuntime(storage, secrets, logger);
+  const canonicalConversationLifecycle = timeline.createConversationApplication(
+    { state, queryCache, events, projects: projectLifecycle, capabilities },
+  );
   const conversationQuery = new ConversationQueryService({
     events,
     state,
     getConversationEntries: async (conversationId) => {
-      await conversationLifecycle.ensureConversationEntries(conversationId);
-      return conversationLifecycle.getConversationEntries(conversationId);
+      return canonicalConversationLifecycle.ensureConversationEntries(
+        conversationId,
+      );
     },
-    getConversationRevision: (conversationId) =>
-      conversationJournal.readConversationRevision(conversationId),
+    getConversationRevision: async (conversationId) =>
+      (
+        await storage.canonicalStore.readTimelineConversationHead(
+          conversationId,
+        )
+      )?.revision ?? 0,
     getConversationTree: (conversationId) =>
-      conversationLifecycle.getConversationTree(conversationId),
+      canonicalConversationLifecycle.getConversationTree(conversationId),
     getContextUsage: (conversationId) =>
       workbenchRun.getContextUsage(conversationId),
     listToolCallPreviews: (conversationId) =>
@@ -629,7 +591,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     logger: logger.child({ component: "run-coordinator" }),
   });
   const runQuery = new WorkbenchRunQuery(runRuntime.unitOfWork, state);
-  const workbenchRun: WorkbenchRunService = new WorkbenchRunService(
+  const legacyWorkbenchRun: WorkbenchRunService = new WorkbenchRunService(
     state,
     runRuntime.coordinator,
     runRuntime.unitOfWork,
@@ -645,6 +607,15 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         agentMechanics.runExplore(parent, args, options),
     },
   );
+  const { execution: canonicalExecution, runs: workbenchRun } =
+    createCanonicalProductionExecution({
+      timeline,
+      state,
+      storage,
+      mechanics: agentMechanics,
+      tools,
+      conversations: canonicalConversationLifecycle,
+    });
   const taskNotifications = new TaskNotificationService({
     tasks: tasks,
     events,
@@ -655,7 +626,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     getAgent,
     getConversationEntries: (conversationId) =>
       conversationLifecycle.ensureConversationEntries(conversationId),
-    continueAgent: (agentId) => workbenchRun.continueAgent(agentId),
+    continueAgent: (agentId) => legacyWorkbenchRun.continueAgent(agentId),
     logger: logger.child({ component: "task-notification" }),
   });
   taskNotifications.start();
@@ -681,8 +652,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
   const humanInput = new HumanInputResolutionService({
     tools: tools,
     plans: plans,
-    runs: workbenchRun,
-    continueAgent: (agentId) => workbenchRun.continueAgent(agentId),
+    runs: legacyWorkbenchRun,
+    continueAgent: (agentId) => legacyWorkbenchRun.continueAgent(agentId),
     createConversation,
     createAgent,
     getAgent,
@@ -775,12 +746,15 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     agentMechanics,
     runRuntime,
     runQuery,
-    workbenchRun,
+    workbenchRun: legacyWorkbenchRun,
+    canonicalWorkbenchRun: workbenchRun,
+    canonicalExecution,
     editors,
     terminal,
     projectIcons,
     projectLifecycle,
     conversationLifecycle,
+    canonicalConversationLifecycle,
     conversationQuery,
     ...timeline,
     agentLifecycle,

@@ -236,7 +236,7 @@ export function composeServerRuntime(
     paths: storage.paths,
     getSource: () => ({
       listConversations: () =>
-        services.conversationLifecycle.listConversations(),
+        services.canonicalConversationLifecycle.listConversations(),
     }),
   });
   const latestRelease = new LatestReleaseService();

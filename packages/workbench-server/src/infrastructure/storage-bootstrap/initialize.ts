@@ -25,6 +25,7 @@ import {
 import { inspectNerveHome } from "./state-layout.js";
 import { acquireStorageStartupLock } from "./startup-lock.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
+import { promoteCurrentHomeAtStartup } from "../migrations/unified-timeline/migrate-live-journal-to-canonical.js";
 import {
   currentHomeMigrationEntries,
   migrateToolResultPayloadReferences,
@@ -153,6 +154,18 @@ export async function initializeStorage(
     const canonicalOpenStartedAt = performance.now();
     const canonicalStore = new CanonicalStore(paths.sqlitePath);
     await canonicalStore.initialize();
+    if (!fresh) {
+      options.reportStartupProgress?.({
+        type: "nerve.startup.progress",
+        phase: "storage-migration",
+        message: "Promoting the unified conversation timeline",
+      });
+      await promoteCurrentHomeAtStartup({
+        store: canonicalStore,
+        paths,
+        promotedAt: new Date().toISOString(),
+      });
+    }
     const canonicalOpenMs = Math.round(
       performance.now() - canonicalOpenStartedAt,
     );

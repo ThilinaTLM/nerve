@@ -23,8 +23,26 @@ export function createCanonicalAgentTools(input: {
       const authority = await input.store.execution.readRunExecutionAuthority(
         input.runId,
       );
+      const proposalManifest = authority.waitGroup
+        ? ((await input.store.execution.readArtifactManifest(
+            authority.waitGroup.membershipManifestId.replace(
+              "wait_members",
+              "wait_proposals",
+            ),
+          )) as
+            | {
+                proposals: Array<{
+                  memberId: string;
+                  providerToolCallId: string;
+                }>;
+              }
+            | undefined)
+        : undefined;
+      const proposal = proposalManifest?.proposals.find(
+        (candidate) => candidate.providerToolCallId === providerToolCallId,
+      );
       const member = authority.waitGroup?.members.find(
-        (candidate) => candidate.ownerId === providerToolCallId,
+        (candidate) => candidate.memberId === proposal?.memberId,
       );
       if (!member) {
         throw new Error("Canonical tool callback has no member authority.");

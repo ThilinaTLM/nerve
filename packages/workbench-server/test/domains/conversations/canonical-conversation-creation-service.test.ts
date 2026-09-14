@@ -73,6 +73,15 @@ test("INV-ID-01 creates an empty canonical conversation durably", async (t) => {
     conversationId: "conv_empty",
     commandId: "command_empty",
     now,
+    metadata: {
+      id: "conv_empty",
+      projectId: "proj_empty",
+      title: "Empty",
+      mode: "coding",
+      permissionLevel: "supervised",
+      createdAt: now,
+      updatedAt: now,
+    },
   });
   assert.equal(result.kind, "committed");
   await store.close();
@@ -82,6 +91,23 @@ test("INV-ID-01 creates an empty canonical conversation durably", async (t) => {
     await reopened.close();
     await rm(home, { recursive: true, force: true });
   });
+  assert.equal(
+    (
+      await reopened.readDocument(
+        "canonical_conversation_metadata",
+        "global",
+        "conv_empty",
+      )
+    )?.data &&
+      (
+        (await reopened.readDocument(
+          "canonical_conversation_metadata",
+          "global",
+          "conv_empty",
+        ))!.data as { title: string }
+      ).title,
+    "Empty",
+  );
   assert.deepEqual(await reopened.readTimelineConversationHead("conv_empty"), {
     schemaVersion: 1,
     conversationId: "conv_empty",
