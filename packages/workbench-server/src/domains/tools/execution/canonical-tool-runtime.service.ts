@@ -23,6 +23,7 @@ import type {
 import type { PlanService } from "../../plans/plan-service.js";
 import type { ConversationRuntime } from "../../runs/runtime/conversation-runtime.js";
 import type { PermissionPolicyService } from "../../permissions/permission-policy.service.js";
+import { policyFailureFingerprint } from "../../permissions/policy-fingerprints.js";
 import { evaluateWorkbenchToolPermission } from "../permission/index.js";
 import { TodoStateService } from "../orchestration/todo-state.service.js";
 import { OrchestrationToolDispatcher } from "../orchestration/dispatcher.js";
@@ -237,7 +238,7 @@ export class CanonicalToolRuntimeService {
               documentIdentity: resolved.fallback
                 ? `rule-set:${agent.permissionRuleSetId ?? agent.permissionLevel}`
                 : "applicable-permission-overlay",
-              failureFingerprint: digest({
+              failureFingerprint: policyFailureFingerprint({
                 selectedRuleSetId: resolved.selectedRuleSetId,
                 diagnostics: resolved.diagnostics,
               }),

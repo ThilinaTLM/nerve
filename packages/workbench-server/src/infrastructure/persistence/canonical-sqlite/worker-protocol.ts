@@ -107,6 +107,8 @@ export type CanonicalCommand =
   | { kind: "read_timeline_state_identity" }
   | { kind: "read_timeline_runtime_admission" }
   | { kind: "read_timeline_policy_save_intent"; saveIntentId: string }
+  | { kind: "read_timeline_policy_diagnostic"; diagnosticId: string }
+  | { kind: "read_timeline_active_policy_fallback"; requestedRuleSetId: string }
   | { kind: "list_pending_timeline_policy_save_intents"; limit: number }
   | { kind: "disable_timeline_runtime_admission"; now: string }
   | {

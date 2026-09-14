@@ -5,7 +5,11 @@ import type {
   PolicyFallbackDecision,
   PolicySaveIntent,
 } from "@nervekit/contracts/permissions";
-import { policySaveIntentSchema } from "@nervekit/contracts/permissions";
+import {
+  policyDiagnosticSchema,
+  policyFallbackDecisionSchema,
+  policySaveIntentSchema,
+} from "@nervekit/contracts/permissions";
 import { decode, encode } from "./payload-codecs.js";
 
 const diagnosticTerminalStates = new Set([
@@ -124,6 +128,92 @@ export function persistTimelinePolicyDiagnostic(
       encode(diagnostic.affectedMemberIds),
       Date.parse(diagnostic.observedAt),
     );
+}
+
+export function readTimelinePolicyDiagnostic(
+  database: DatabaseSync,
+  diagnosticId: string,
+): PolicyDiagnostic | undefined {
+  const row = database
+    .prepare(
+      `SELECT diagnostic_id, scope_json, document_identity,
+              failure_fingerprint, failure_kind, affected_member_ids_json,
+              state, observed_at_ms, resolved_at_ms
+       FROM policy_diagnostics WHERE diagnostic_id = ?`,
+    )
+    .get(diagnosticId) as
+    | {
+        diagnostic_id: string;
+        scope_json: Uint8Array;
+        document_identity: string;
+        failure_fingerprint: string;
+        failure_kind: string;
+        affected_member_ids_json: Uint8Array;
+        state: string;
+        observed_at_ms: number;
+        resolved_at_ms: number | null;
+      }
+    | undefined;
+  if (!row) return undefined;
+  return policyDiagnosticSchema.parse({
+    schemaVersion: 1,
+    diagnosticId: row.diagnostic_id,
+    scope: decode(row.scope_json),
+    documentIdentity: row.document_identity,
+    failureFingerprint: row.failure_fingerprint,
+    failureKind: row.failure_kind,
+    affectedMemberIds: decode(row.affected_member_ids_json),
+    state: row.state,
+    observedAt: new Date(row.observed_at_ms).toISOString(),
+    ...(row.resolved_at_ms === null
+      ? {}
+      : { resolvedAt: new Date(row.resolved_at_ms).toISOString() }),
+  });
+}
+
+export function readTimelineActivePolicyFallback(
+  database: DatabaseSync,
+  requestedRuleSetId: string,
+): Array<{ decision: PolicyFallbackDecision; diagnostic: PolicyDiagnostic }> {
+  const rows = database
+    .prepare(
+      `SELECT decision_id, diagnostic_id, requested_rule_set_id,
+              confirmation_fingerprint, state, decided_at_ms
+       FROM policy_decisions
+       WHERE requested_rule_set_id = ? AND state = 'active'
+       ORDER BY decided_at_ms DESC, decision_id DESC`,
+    )
+    .all(requestedRuleSetId) as Array<{
+    decision_id: string;
+    diagnostic_id: string;
+    requested_rule_set_id: string;
+    confirmation_fingerprint: string;
+    state: string;
+    decided_at_ms: number;
+  }>;
+  return rows.flatMap((row) => {
+    const diagnostic = readTimelinePolicyDiagnostic(
+      database,
+      row.diagnostic_id,
+    );
+    if (!diagnostic) return [];
+    return [
+      {
+        decision: policyFallbackDecisionSchema.parse({
+          schemaVersion: 1,
+          decisionId: row.decision_id,
+          diagnosticId: row.diagnostic_id,
+          requestedRuleSetId: row.requested_rule_set_id,
+          effectiveRuleSetId: "baseline",
+          overlaysEnabled: false,
+          confirmationFingerprint: row.confirmation_fingerprint,
+          state: row.state,
+          decidedAt: new Date(row.decided_at_ms).toISOString(),
+        }),
+        diagnostic,
+      },
+    ];
+  });
 }
 
 export function insertTimelinePolicyFallbackDecision(

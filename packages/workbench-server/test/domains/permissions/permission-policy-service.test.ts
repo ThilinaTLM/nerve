@@ -367,6 +367,71 @@ test("INV-POLICY-04 records prepared bytes before a remembered file save", async
   );
 });
 
+test("INV-POLICY-04 startup recovery fails closed when a prepared manifest is corrupt", async () => {
+  const { service, storage, agent } = await setup();
+  const identity = await storage.canonicalStore.readTimelineStateIdentity();
+  const admission = await storage.canonicalStore.readTimelineRuntimeAdmission();
+  assert.ok(identity);
+  assert.ok(admission);
+  const recorded = {
+    schemaVersion: 2 as const,
+    saveIntentId: "policy_save_missing_manifest",
+    commandId: "missing-manifest",
+    scope: { kind: "conversation" as const, ownerId: agent.conversationId },
+    documentIdentity: "conversation:permissions.json",
+    intendedDocumentDigest: `sha256:${"b".repeat(64)}`,
+    ruleFingerprint: `sha256:${"c".repeat(64)}`,
+    state: "recorded" as const,
+    fileOutcome: "not_attempted" as const,
+    approvalOutcome: "not_attempted" as const,
+    conversationId: agent.conversationId,
+    runId: "run_policy_missing",
+    memberId: "member_policy_missing",
+    approvalCommandId: "approval-policy-missing",
+    intendedDocumentManifestId: "manifest_missing_policy",
+    createdAt: "2026-09-14T00:00:00.000Z",
+    updatedAt: "2026-09-14T00:00:00.000Z",
+  };
+  assert.equal(
+    (
+      await storage.canonicalStore.commitConversationCommand({
+        namespaceId: identity.namespaceId,
+        executionIncarnationId: admission.executionIncarnationId,
+        operationKind: "seed_missing_policy_manifest",
+        ownerKind: "policy_scope",
+        ownerId: agent.conversationId,
+        commandId: recorded.commandId,
+        fingerprintVersion: 1,
+        fingerprint: `sha256:${"d".repeat(64)}`,
+        expectedHeads: [],
+        transitions: [],
+        artifactManifests: [
+          {
+            manifestId: recorded.intendedDocumentManifestId,
+            schemaVersion: 1,
+            data: { corrupted: true },
+          },
+        ],
+        policySaveIntents: [recorded],
+        outcome: recorded,
+        publicationIntents: [],
+        now: recorded.createdAt,
+      })
+    ).kind,
+    "committed",
+  );
+  const [recovered] = await new CanonicalPolicySaveCoordinator(
+    storage.canonicalStore,
+    service,
+  ).recoverPending({
+    approvalStillApplicable: async () => true,
+    finalizeApproval: async () => "committed",
+    now: () => "2026-09-14T00:00:01.000Z",
+  });
+  assert.equal(recovered?.state, "conflicted");
+  assert.equal(recovered?.fileOutcome, "external_conflict");
+});
+
 test("INV-POLICY-04 prepared remembered saves never overwrite external edits", async () => {
   const { service, storage } = await setup();
   const prepared = await service.prepareRuleSave(

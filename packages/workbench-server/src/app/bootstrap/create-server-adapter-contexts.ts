@@ -100,10 +100,12 @@ export function createServerAdapterContexts(
       workbenchRun: services.workbenchRun,
     },
     projects: {
+      agentLifecycle: services.agentLifecycle,
       editors: services.editors,
       fileCompletions: services.fileCompletions,
       permissionExceptions: services.permissionExceptions,
       permissionPolicy: services.permissionPolicy,
+      policyFallback: services.policyFallback,
       permissionOverlayRepair: services.permissionOverlayRepair,
       capabilities: services.capabilities,
       projectLifecycle: services.projectLifecycle,

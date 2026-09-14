@@ -1,4 +1,8 @@
-import type { PolicySaveIntent } from "@nervekit/contracts/permissions";
+import type {
+  PolicyDiagnostic,
+  PolicyFallbackDecision,
+  PolicySaveIntent,
+} from "@nervekit/contracts/permissions";
 import type { CanonicalCommand } from "./worker-protocol.js";
 
 export class CanonicalPolicyStore {
@@ -10,6 +14,22 @@ export class CanonicalPolicyStore {
     return this.request<PolicySaveIntent | undefined>({
       kind: "read_timeline_policy_save_intent",
       saveIntentId,
+    });
+  }
+
+  readDiagnostic(diagnosticId: string) {
+    return this.request<PolicyDiagnostic | undefined>({
+      kind: "read_timeline_policy_diagnostic",
+      diagnosticId,
+    });
+  }
+
+  readActiveFallbacks(requestedRuleSetId: string) {
+    return this.request<
+      Array<{ decision: PolicyFallbackDecision; diagnostic: PolicyDiagnostic }>
+    >({
+      kind: "read_timeline_active_policy_fallback",
+      requestedRuleSetId,
     });
   }
 

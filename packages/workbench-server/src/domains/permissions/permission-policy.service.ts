@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, join, relative } from "node:path";
 import type { AgentRecord } from "@nervekit/contracts/agents";
@@ -29,6 +28,12 @@ import {
   type PermissionRootPaths,
 } from "@nervekit/tools/policy";
 import { saveRuleInOverlay } from "./prepared-policy-save.js";
+import {
+  canonicalPermissionMatcher,
+  digestContent,
+  policyDigestJson,
+  policyFailureFingerprint,
+} from "./policy-fingerprints.js";
 import {
   atomicWriteJson,
   managedOwnerPathSegment,
@@ -80,7 +85,9 @@ export interface ResolvedPermissionPolicy {
   }>;
   roots: PermissionRootPaths;
   selectedRuleSetId: string;
+  requestedRuleSetId: string;
   fallback: boolean;
+  fallbackDecisionId?: string;
   executionBlocked: boolean;
   diagnostics: string[];
 }
@@ -159,9 +166,28 @@ export class PermissionPolicyService {
       sourceDocuments,
     );
     diagnostics.push(...ignored.map((item) => `${item.path}: ${item.reason}`));
+    const currentFailureFingerprint = fallback
+      ? policyFailureFingerprint({
+          selectedRuleSetId: effectiveSelected.id,
+          diagnostics,
+        })
+      : undefined;
+    const activeFallback = fallback
+      ? (
+          await this.storage.canonicalStore.policy.readActiveFallbacks(
+            selectedId,
+          )
+        ).find(
+          ({ decision, diagnostic }) =>
+            diagnostic.scope.kind === "conversation" &&
+            diagnostic.scope.ownerId === agent.conversationId &&
+            diagnostic.failureFingerprint === currentFailureFingerprint &&
+            decision.requestedRuleSetId === selectedId,
+        )
+      : undefined;
     const overlaysEnabled = !subagent && !fallback;
     return {
-      selectedRuleSetDigest: digestJson(effectiveSelected),
+      selectedRuleSetDigest: policyDigestJson(effectiveSelected),
       sourceDocuments,
       policy: composeEffectivePermissionPolicy({
         selectedRuleSet: effectiveSelected,
@@ -191,8 +217,14 @@ export class PermissionPolicyService {
         plans: this.storage.paths.plansPath,
       },
       selectedRuleSetId: effectiveSelected.id,
+      requestedRuleSetId: selectedId,
       fallback,
-      executionBlocked: fallback || (!subagent && ignored.length > 0),
+      ...(activeFallback
+        ? { fallbackDecisionId: activeFallback.decision.decisionId }
+        : {}),
+      executionBlocked: fallback
+        ? !activeFallback
+        : !subagent && ignored.length > 0,
       diagnostics,
     };
   }
@@ -351,11 +383,11 @@ export class PermissionPolicyService {
         ruleSetId,
         rules: [],
       };
-      const canonical = canonicalMatcher(rule);
+      const canonical = canonicalPermissionMatcher(rule);
       const duplicate = current.rules.findIndex(
         (candidate) =>
           candidate.enforcement === rule.enforcement &&
-          canonicalMatcher(candidate) === canonical,
+          canonicalPermissionMatcher(candidate) === canonical,
       );
       let remaining = current.rules.filter((_, index) => index !== duplicate);
       const desiredEnforcement =
@@ -436,7 +468,7 @@ export class PermissionPolicyService {
         : {}),
       intendedDocumentDigest: digestContent(intendedContent),
       intendedBytes: Buffer.from(intendedContent, "utf8"),
-      ruleFingerprint: digestJson(rule),
+      ruleFingerprint: policyDigestJson(rule),
     };
   }
 
@@ -640,7 +672,7 @@ export class PermissionPolicyService {
       observations?.push({
         origin,
         documentIdentity: `${origin}:permissions.json`,
-        digest: `sha256:${createHash("sha256").update(content).digest("hex")}`,
+        digest: digestContent(content),
       });
       return document;
     } catch (error) {
@@ -699,12 +731,6 @@ export class PermissionPolicyService {
   }
 }
 
-function digestJson(value: unknown): string {
-  return `sha256:${createHash("sha256")
-    .update(JSON.stringify(value))
-    .digest("hex")}`;
-}
-
 function parseOverlayDocument(
   origin: PermissionOverlayOrigin,
   content: string,
@@ -746,29 +772,6 @@ function replaceOverlayGroup(
   if (overlay.rules.length > 0) overlays.push(overlay);
   overlays.sort((left, right) => left.ruleSetId.localeCompare(right.ruleSetId));
   return { schemaVersion: 2, overlays };
-}
-
-function digestContent(content: string): string {
-  return `sha256:${createHash("sha256").update(content).digest("hex")}`;
-}
-
-function canonicalMatcher(rule: PermissionRule): string {
-  return JSON.stringify({
-    enforcement: rule.enforcement,
-    when: sort(rule.when),
-  });
-}
-
-function sort(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sort);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, child]) => [key, sort(child)]),
-    );
-  }
-  return value;
 }
 
 function errorMessage(error: unknown): string {

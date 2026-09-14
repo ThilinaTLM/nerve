@@ -58,6 +58,7 @@ import { WorkbenchTaskService } from "../../domains/tasks/adapters/workbench-tas
 import { CanonicalToolRuntimeService } from "../../domains/tools/execution/canonical-tool-runtime.service.js";
 import { ToolResultPayloadStore } from "../../domains/tools/artifacts/tool-result-payload-store.js";
 import {
+  CanonicalPolicyFallbackCoordinator,
   PermissionExceptionService,
   PermissionOverlayRepairService,
   PermissionPolicyService,
@@ -155,6 +156,10 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     events,
   );
   const permissionPolicy = new PermissionPolicyService(storage, getProject);
+  const policyFallback = new CanonicalPolicyFallbackCoordinator(
+    storage.canonicalStore,
+    permissionPolicy,
+  );
   const permissionOverlayRepair = new PermissionOverlayRepairService({
     storage,
     getProject,
@@ -534,6 +539,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     canonicalChildExecution,
     permissionExceptions,
     permissionPolicy,
+    policyFallback,
     permissionOverlayRepair,
     capabilities,
     git,

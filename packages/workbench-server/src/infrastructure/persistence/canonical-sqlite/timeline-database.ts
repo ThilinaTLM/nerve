@@ -71,6 +71,8 @@ import {
   listPendingTimelinePolicySaveIntents,
   persistTimelinePolicyDiagnostic,
   persistTimelinePolicySaveIntent,
+  readTimelineActivePolicyFallback,
+  readTimelinePolicyDiagnostic,
   readTimelinePolicySaveIntent,
 } from "./timeline-policy-database.js";
 import { withTimelineImmediateTransaction } from "./timeline-transaction.js";
@@ -135,6 +137,14 @@ export class CanonicalTimelineDatabase {
 
   readPolicySaveIntent(saveIntentId: string) {
     return readTimelinePolicySaveIntent(this.database, saveIntentId);
+  }
+
+  readPolicyDiagnostic(diagnosticId: string) {
+    return readTimelinePolicyDiagnostic(this.database, diagnosticId);
+  }
+
+  readActivePolicyFallback(requestedRuleSetId: string) {
+    return readTimelineActivePolicyFallback(this.database, requestedRuleSetId);
   }
 
   listPendingPolicySaveIntents(limit: number) {
