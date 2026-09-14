@@ -49,6 +49,13 @@ export class CanonicalExecutionStore {
     });
   }
 
+  listPendingWaitGroups(limit = 100) {
+    return this.request<WaitGroup[]>({
+      kind: "list_canonical_pending_wait_groups",
+      limit,
+    });
+  }
+
   findWaitGroupByMemberOwner(ownerId: string) {
     return this.request<WaitGroup | undefined>({
       kind: "find_canonical_wait_group_by_member_owner",

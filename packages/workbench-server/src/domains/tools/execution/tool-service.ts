@@ -457,7 +457,11 @@ export class ToolService {
       : evaluation.decision === "allow"
         ? definition.executionRecovery.executionClass === "external_effect"
           ? "authorized"
-          : "internal_command"
+          : toolName === "ask_user"
+            ? "user_input"
+            : toolName === "plan_mode_present"
+              ? "plan_review"
+              : "internal_command"
         : evaluation.decision === "approval"
           ? "awaiting_approval"
           : "denied";
@@ -525,9 +529,13 @@ export class ToolService {
           ? { interactionKind: "policy_fallback_confirmation" }
           : evaluation.decision === "approval"
             ? { interactionKind: "tool_approval" }
-            : definition.executionRecovery.executionClass !== "external_effect"
-              ? { interactionKind: "internal_command" }
-              : {}),
+            : admission === "user_input"
+              ? { interactionKind: "user_input" }
+              : admission === "plan_review"
+                ? { interactionKind: "plan_review" }
+                : admission === "internal_command"
+                  ? { interactionKind: "internal_command" }
+                  : {}),
       },
       owner: {
         conversationId: agent.conversationId,

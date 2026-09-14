@@ -77,6 +77,8 @@ export function executeCanonicalCommand(
       return database.executionQueries.findWaitGroupByMemberOwner(
         command.ownerId,
       );
+    case "list_canonical_pending_wait_groups":
+      return database.executionQueries.listPendingWaitGroups(command.limit);
     case "read_canonical_authorization":
       return database.executionQueries.readAuthorization(
         command.authorizationId,

@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { CanonicalWorkbenchRunService } from "../../domains/runs/application/canonical-workbench-run.service.js";
+import {
+  CanonicalToolApplicationService,
+  CanonicalToolInteractionApplicationService,
+} from "../../domains/tools/execution/canonical-tool-application.service.js";
+import { CanonicalToolQueryService } from "../../domains/tools/execution/canonical-tool-query.service.js";
 import type { ToolService } from "../../domains/tools/execution/tool-service.js";
 import type { WorkbenchAgentMechanics } from "../../domains/agents/execution/workbench-agent-mechanics.js";
 import type { RuntimeState } from "../runtime/runtime-projections.js";
@@ -38,5 +43,26 @@ export function createCanonicalProductionExecution(input: {
     mechanics: input.mechanics,
     execution,
   });
-  return { execution, runs };
+  const toolQueries = new CanonicalToolQueryService(
+    input.storage.canonicalStore,
+  );
+  const toolApplication = new CanonicalToolApplicationService(
+    input.tools,
+    toolQueries,
+  );
+  const toolInteractions = new CanonicalToolInteractionApplicationService(
+    input.timeline.createInteractionResolution(input.tools, (conversationId) =>
+      [...input.state.agents.values()].find(
+        (agent) =>
+          agent.conversationId === conversationId && !agent.parentAgentId,
+      ),
+    ),
+    toolQueries,
+  );
+  return {
+    execution,
+    runs,
+    toolApplication,
+    toolInteractions,
+  };
 }

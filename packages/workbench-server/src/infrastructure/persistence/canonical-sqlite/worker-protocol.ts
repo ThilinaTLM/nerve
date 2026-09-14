@@ -43,6 +43,7 @@ export type CanonicalCommand =
   | { kind: "read_canonical_artifact_manifest"; manifestId: string }
   | { kind: "read_canonical_wait_group"; waitGroupId: string }
   | { kind: "find_canonical_wait_group_by_member_owner"; ownerId: string }
+  | { kind: "list_canonical_pending_wait_groups"; limit: number }
   | { kind: "read_canonical_authorization"; authorizationId: string }
   | { kind: "read_canonical_logical_effect"; effectId: string }
   | { kind: "read_canonical_execution_attempt"; attemptId: string }

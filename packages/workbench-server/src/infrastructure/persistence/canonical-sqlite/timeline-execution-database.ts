@@ -84,6 +84,19 @@ export class CanonicalExecutionQueryDatabase {
     return row ? decode(row.data) : undefined;
   }
 
+  listPendingWaitGroups(limit: number): WaitGroup[] {
+    const rows = this.database
+      .prepare(
+        `SELECT wait_group_id FROM wait_groups
+         WHERE effective_state IN ('open', 'recovery_required')
+         ORDER BY rowid DESC LIMIT ?`,
+      )
+      .all(limit) as unknown as Array<{ wait_group_id: string }>;
+    return rows
+      .map((row) => readTimelineWaitGroup(this.database, row.wait_group_id))
+      .filter((group): group is WaitGroup => Boolean(group));
+  }
+
   findWaitGroupByMemberOwner(ownerId: string): WaitGroup | undefined {
     const row = this.database
       .prepare(

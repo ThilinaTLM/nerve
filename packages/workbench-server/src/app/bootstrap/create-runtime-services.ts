@@ -607,15 +607,19 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         agentMechanics.runExplore(parent, args, options),
     },
   );
-  const { execution: canonicalExecution, runs: workbenchRun } =
-    createCanonicalProductionExecution({
-      timeline,
-      state,
-      storage,
-      mechanics: agentMechanics,
-      tools,
-      conversations: canonicalConversationLifecycle,
-    });
+  const {
+    execution: canonicalExecution,
+    runs: workbenchRun,
+    toolApplication: canonicalTools,
+    toolInteractions: canonicalToolInteractions,
+  } = createCanonicalProductionExecution({
+    timeline,
+    state,
+    storage,
+    mechanics: agentMechanics,
+    tools,
+    conversations: canonicalConversationLifecycle,
+  });
   const taskNotifications = new TaskNotificationService({
     tasks: tasks,
     events,
@@ -724,7 +728,9 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     pythonRuntime,
     plans,
     tools,
+    canonicalTools,
     toolInteractions,
+    canonicalToolInteractions,
     permissionExceptions,
     permissionPolicy,
     capabilities,

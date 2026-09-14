@@ -62,7 +62,16 @@ export class CanonicalInteractionResolutionService {
 
   async resolve(input: {
     providerToolCallId: string;
-    decision: "allow_once" | "deny";
+    decision:
+      | "allow_once"
+      | "deny"
+      | "answer"
+      | "dismiss"
+      | "accept"
+      | "request_changes"
+      | "reject"
+      | "discard";
+    responseText?: string;
     commandId: string;
     now: string;
   }): Promise<CanonicalInteractionResolutionResult> {
@@ -104,6 +113,8 @@ export class CanonicalInteractionResolutionService {
     ) {
       return rejected("interaction_selection_fenced");
     }
+    const responseDecision = !["allow_once", "deny"].includes(input.decision);
+    const responseEntryId = `entry_interaction_${proposal.suffix}`;
     const nextMembers = group.members.map((candidate) =>
       candidate.memberId !== member.memberId
         ? candidate
@@ -116,11 +127,20 @@ export class CanonicalInteractionResolutionService {
               contributesToBarrier: true,
               revision: candidate.revision + 1,
             }
-          : {
-              ...candidate,
-              executionState: "authorized" as const,
-              revision: candidate.revision + 1,
-            },
+          : responseDecision
+            ? {
+                ...candidate,
+                executionState: "succeeded" as const,
+                attachmentDisposition: "attached" as const,
+                resultEntryId: responseEntryId,
+                contributesToBarrier: true,
+                revision: candidate.revision + 1,
+              }
+            : {
+                ...candidate,
+                executionState: "authorized" as const,
+                revision: candidate.revision + 1,
+              },
     );
     const allSettled = nextMembers.every(
       (candidate) => candidate.contributesToBarrier,
@@ -232,6 +252,7 @@ export class CanonicalInteractionResolutionService {
         group,
         manifest,
         input.now,
+        responseDecision ? responseEntryId : run.continuationEntryId,
       );
       artifactManifests.push(continuation.manifest);
       work.push(continuation.work);
@@ -244,7 +265,34 @@ export class CanonicalInteractionResolutionService {
       now: input.now,
       actor: { kind: "user" },
       cause: { kind: "interaction_resolved", decision: input.decision },
-      entries: [],
+      entries: responseDecision
+        ? [
+            {
+              entryId: responseEntryId,
+              kind: "tool_result",
+              inlineContent: {
+                exactHarnessMessage: {
+                  role: "toolResult",
+                  toolCallId: proposal.providerToolCallId,
+                  toolName: proposal.toolName,
+                  content: [
+                    {
+                      type: "text",
+                      text:
+                        input.responseText ??
+                        `Interaction resolved: ${input.decision}`,
+                    },
+                  ],
+                  isError: false,
+                  timestamp: Date.parse(input.now),
+                },
+              },
+              toolCallId: member.ownerId,
+              runId: run.runId,
+              provenance: { interactionCommandId: input.commandId },
+            },
+          ]
+        : [],
       artifactManifests,
       waitGroups: [nextGroup],
       policyObservations:
@@ -274,6 +322,7 @@ function buildContinuation(
   group: WaitGroup,
   manifest: MembershipManifest,
   now: string,
+  sourceEntryId: string | null,
 ) {
   const suffix = `${run.runId.slice(4)}_${run.generation}_${run.revision + 1}`;
   const manifestId = `manifest_continuation_${suffix}`;
@@ -283,7 +332,7 @@ function buildContinuation(
     runId: run.runId,
     runGeneration: run.generation,
     selectionEpoch,
-    sourceEntryId: run.continuationEntryId,
+    sourceEntryId,
     waitGroupId: group.waitGroupId,
     providerIdentity: manifest.providerIdentity,
     providerCapability: manifest.providerCapability,

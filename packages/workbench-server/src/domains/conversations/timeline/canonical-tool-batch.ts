@@ -12,7 +12,13 @@ import type {
 } from "@nervekit/contracts/tools";
 
 export interface CanonicalToolProposalInput {
-  admission: "authorized" | "awaiting_approval" | "denied" | "internal_command";
+  admission:
+    | "authorized"
+    | "awaiting_approval"
+    | "user_input"
+    | "plan_review"
+    | "denied"
+    | "internal_command";
   providerToolCallId: string;
   toolName: string;
   normalizedInputFingerprint: string;

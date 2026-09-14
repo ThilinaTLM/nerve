@@ -56,7 +56,7 @@ export function createServerAdapterContexts(
     humanInput: services.humanInput,
     agentLifecycle: services.agentLifecycle,
     tasks: services.tasks,
-    tools: services.tools,
+    tools: services.canonicalTools,
   };
   const protocol = {
     platform: {
@@ -81,8 +81,8 @@ export function createServerAdapterContexts(
       pythonRuntime: services.pythonRuntime,
     },
     interactions: {
-      tools: services.tools,
-      toolInteractions: services.toolInteractions,
+      tools: services.canonicalTools,
+      toolInteractions: services.canonicalToolInteractions,
     },
     conversations: {
       conversationLifecycle: services.canonicalConversationLifecycle,
@@ -97,7 +97,7 @@ export function createServerAdapterContexts(
     agents: {
       agentLifecycle: services.agentLifecycle,
       subagentTranscripts: services.subagentTranscripts,
-      tools: services.tools,
+      tools: services.canonicalTools,
       workbenchRun: services.canonicalWorkbenchRun,
     },
     projects: {
