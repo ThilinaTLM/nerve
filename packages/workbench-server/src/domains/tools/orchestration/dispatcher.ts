@@ -79,7 +79,7 @@ import type {
   ExploreRunner,
   TaskStarter,
   ToolRequestOptions,
-} from "../execution/tool-service.js";
+} from "../execution/tool-runtime-ports.js";
 
 const MAX_BASH_TIMEOUT_MS = 86_400_000;
 

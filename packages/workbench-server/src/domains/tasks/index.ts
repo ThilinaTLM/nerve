@@ -14,7 +14,6 @@ export {
   MAX_BUFFERED_LOG_LINE_CHARS,
   TaskLogService,
 } from "./application/task-log.service.js";
-export { TaskNotificationService } from "./application/task-notification.service.js";
 export type { TaskPortInspector } from "./adapters/task-port-inspector.js";
 export {
   dedupeListeningPorts,

@@ -18,12 +18,19 @@ import {
   type ValidatedToolArtifact,
 } from "@nervekit/contracts/tools";
 import type { ToolAnchor } from "../../runs/runtime/conversation-runtime.js";
-import type { ToolService } from "../execution/tool-service.js";
+import type { ToolRequestOptions } from "../execution/tool-runtime-ports.js";
 
-type AgentToolExecutionPort = Pick<
-  ToolService,
-  "requestToolAndWait" | "toolResultRecoveryArtifact"
->;
+interface AgentToolExecutionPort {
+  requestToolAndWait(
+    agent: AgentRecord,
+    toolName: ToolName,
+    args: Record<string, unknown>,
+    options?: ToolRequestOptions,
+  ): Promise<ToolCallRecord>;
+  toolResultRecoveryArtifact(
+    toolCall: ToolCallRecord,
+  ): ValidatedToolArtifact | string | undefined;
+}
 import { projectToolCallResult } from "../artifacts/tool-result-projector.js";
 
 export function createAgentToolsForAgent(

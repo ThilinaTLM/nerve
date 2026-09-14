@@ -24,7 +24,17 @@ const retiredRuntimeImports = [
   "WorkbenchSubagentExecutions",
 ];
 
-const fullyRetiredRuntimeSymbols = ["MessageMirror", "run-composition"];
+const fullyRetiredRuntimeSymbols = [
+  "MessageMirror",
+  "run-composition",
+  "/workbench-run.service",
+  "run-transition.repository",
+  "/human-input/",
+  "/tool-service",
+  "inline-command-runner",
+  "sequential-tool-approval-batch",
+  "prompt-block-expansion",
+];
 
 const retiredAuthoritySymbols = [
   "model_context.entry_appended",

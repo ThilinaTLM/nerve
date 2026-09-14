@@ -16,7 +16,6 @@ import type { StreamLogRegistry } from "../../../infrastructure/events/index.js"
 import type { WorkbenchTaskService } from "../../tasks/adapters/workbench-task-service.js";
 import type { PythonRuntimeService } from "./python-runtime.js";
 import type { TaskStarter, ExploreRunner } from "./tool-runtime-ports.js";
-import type { ToolService } from "./tool-service.js";
 import type { PlanService } from "../../plans/plan-service.js";
 import type { ConversationRuntime } from "../../runs/runtime/conversation-runtime.js";
 import type { PermissionPolicyService } from "../../permissions/permission-policy.service.js";
@@ -81,48 +80,6 @@ export class CanonicalToolRuntimeService {
 
   async removeRecordsForConversations(): Promise<void> {
     // Canonical deletion removes effect and attempt authority by owner.
-  }
-
-  requestToolAndWait(
-    ...args: Parameters<ToolService["requestToolAndWait"]>
-  ): ReturnType<ToolService["requestToolAndWait"]> {
-    void args;
-    throw new Error("Non-canonical tool execution is retired.");
-  }
-
-  toolResultRecoveryArtifact(
-    ...args: Parameters<ToolService["toolResultRecoveryArtifact"]>
-  ): ReturnType<ToolService["toolResultRecoveryArtifact"]> {
-    void args;
-    throw new Error("Legacy tool recovery is retired.");
-  }
-
-  findToolCallByProviderToolCallId(
-    ...args: Parameters<ToolService["findToolCallByProviderToolCallId"]>
-  ): ReturnType<ToolService["findToolCallByProviderToolCallId"]> {
-    void args;
-    throw new Error("Legacy tool lookup is retired.");
-  }
-
-  recordProviderToolCallError(
-    ...args: Parameters<ToolService["recordProviderToolCallError"]>
-  ): ReturnType<ToolService["recordProviderToolCallError"]> {
-    void args;
-    throw new Error("Legacy tool recording is retired.");
-  }
-
-  getToolCall(
-    ...args: Parameters<ToolService["getToolCall"]>
-  ): ReturnType<ToolService["getToolCall"]> {
-    void args;
-    throw new Error("Legacy tool lookup is retired.");
-  }
-
-  requestTool(
-    ...args: Parameters<ToolService["requestTool"]>
-  ): ReturnType<ToolService["requestTool"]> {
-    void args;
-    throw new Error("Non-canonical tool execution is retired.");
   }
 
   async prepareCanonicalToolProposal(

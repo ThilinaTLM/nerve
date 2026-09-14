@@ -8,7 +8,7 @@ import type { OrchestrationToolDispatcher } from "../orchestration/dispatcher.js
 import { toolErrorDetails } from "./tool-errors.js";
 import { isToolExecutionSuspended } from "./tool-execution-suspension.js";
 import { prepareToolResult } from "../artifacts/tool-result-preparation.js";
-import type { ToolRequestOptions } from "./tool-service.js";
+import type { ToolRequestOptions } from "./tool-runtime-ports.js";
 import { ToolResultPayloadStore } from "../artifacts/tool-result-payload-store.js";
 import { toToolCallTranscriptRecord } from "../artifacts/tool-call-transcript-preview.js";
 import {

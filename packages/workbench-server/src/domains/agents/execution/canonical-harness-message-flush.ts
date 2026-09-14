@@ -10,17 +10,10 @@ import type {
   CanonicalRunExecutionSession,
 } from "./canonical-run-execution-boundary.js";
 
-export async function openHarnessExecutionContext(input: {
-  canonical?: CanonicalRunExecutionSession;
-  openLegacy(): Promise<ConversationStorage>;
-}): Promise<[ConversationStorage, Conversation, Set<string>]> {
-  const storage = input.canonical?.storage ?? (await input.openLegacy());
-  return [
-    storage,
-    input.canonical?.conversation ?? new Conversation(storage),
-    input.canonical?.materializedEntryIds ??
-      new Set((await storage.getEntries()).map((entry) => entry.id)),
-  ];
+export function openHarnessExecutionContext(
+  session: CanonicalRunExecutionSession,
+): [ConversationStorage, Conversation, Set<string>] {
+  return [session.storage, session.conversation, session.materializedEntryIds];
 }
 
 /** Flushes ephemeral messages without invoking any legacy persistence adapter. */

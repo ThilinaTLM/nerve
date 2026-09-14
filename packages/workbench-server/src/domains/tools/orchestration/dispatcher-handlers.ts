@@ -22,7 +22,7 @@ import { ToolExecutionSuspended } from "../execution/tool-execution-suspension.j
 import type {
   ExploreProgressUpdate,
   ToolRequestOptions,
-} from "../execution/tool-service.js";
+} from "../execution/tool-runtime-ports.js";
 
 export async function taskLogsFromTool(
   this: OrchestrationToolDispatcher,
