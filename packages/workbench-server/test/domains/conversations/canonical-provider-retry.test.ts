@@ -11,7 +11,8 @@ import { CanonicalStore } from "../../../src/infrastructure/persistence/canonica
 
 test("INV-PROVIDER-01 records known failure before scheduling canonical retry", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-provider-retry-"));
-  const store = new CanonicalStore(join(home, "nerve.sqlite"));
+  const databasePath = join(home, "nerve.sqlite");
+  let store = new CanonicalStore(databasePath);
   await store.initialize();
   t.after(async () => {
     await store.close();
@@ -55,7 +56,7 @@ test("INV-PROVIDER-01 records known failure before scheduling canonical retry", 
     now: "2026-09-14T00:00:03.000Z",
     leaseDurationMs: 30_000,
   });
-  const dispatch = new CanonicalProviderDispatchService(store);
+  let dispatch = new CanonicalProviderDispatchService(store);
   const authorized = await dispatch.authorizeFirstAttempt({
     workId: claimWork!.workId,
     workerId: "claim",
@@ -100,6 +101,10 @@ test("INV-PROVIDER-01 records known failure before scheduling canonical retry", 
       ?.state,
     "closed",
   );
+  await store.close();
+  store = new CanonicalStore(databasePath);
+  await store.initialize();
+  dispatch = new CanonicalProviderDispatchService(store);
   assert.deepEqual(
     await store.execution.listReadyLifecycleWork(
       "2026-09-14T00:00:19.999Z",

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rename, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import test from "node:test";
@@ -79,6 +79,34 @@ test("INV-RESTORE-01 promotes a verified sibling home only during startup", asyn
     await cleanup(parent, prepared.home, storage);
   }
 });
+
+for (const failure of ["missing_candidate", "corrupt_candidate"] as const) {
+  test(`INV-RESTORE-01 rolls back a ${failure}`, async () => {
+    const parent = await mkdtemp(join(tmpdir(), `nerve-promotion-${failure}-`));
+    const prepared = await prepare(parent);
+    let storage: InitializedStorage | undefined = prepared.storage;
+    try {
+      await storage.canonicalStore.close();
+      storage = undefined;
+      if (failure === "missing_candidate") {
+        await rm(prepared.staged.restorePath, { recursive: true, force: true });
+      } else {
+        await writeFile(
+          join(prepared.staged.restorePath, "promotion.json"),
+          '{"corrupted":true}\n',
+        );
+      }
+      await assert.rejects(initializeStorage(prepared.home));
+      storage = await initializeStorage(prepared.home);
+      const admission =
+        await storage.canonicalStore.readTimelineRuntimeAdmission();
+      assert.notEqual(admission?.restoreId, prepared.admitted.restoreId);
+      await assert.rejects(readFile(homePromotionMarkerPath(prepared.home)));
+    } finally {
+      await cleanup(parent, prepared.home, storage);
+    }
+  });
+}
 
 for (const crashPoint of ["old_home_renamed", "candidate_promoted"] as const) {
   test(`INV-RESTORE-01 resumes after ${crashPoint} crash`, async () => {

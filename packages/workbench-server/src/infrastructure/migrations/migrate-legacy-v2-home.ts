@@ -27,6 +27,7 @@ import {
   readJsonFile,
 } from "../storage-bootstrap/json.js";
 import { initializeStorage } from "../storage-bootstrap/initialize.js";
+import { syncPromotionDirectory } from "../storage-bootstrap/home-promotion.js";
 import { storagePaths } from "../storage-bootstrap/paths.js";
 import { assertCurrentStorage } from "../storage-bootstrap/storage-postconditions.js";
 import { acquireStorageStartupLock } from "../storage-bootstrap/startup-lock.js";
@@ -189,7 +190,9 @@ export async function migrateLegacyV2Home(
       "promote",
       "Promoting migrated home and retaining legacy backup",
     );
+    await syncPromotionDirectory(staging);
     await rename(home, backupSibling);
+    await syncPromotionDirectory(parent);
     sourceRenamed = true;
     await writeJournal(
       journalPath,
@@ -201,9 +204,11 @@ export async function migrateLegacyV2Home(
     );
     try {
       await rename(staging, home);
+      await syncPromotionDirectory(parent);
       promoted = true;
     } catch (error) {
       await rename(backupSibling, home);
+      await syncPromotionDirectory(parent);
       sourceRenamed = false;
       throw error;
     }
@@ -217,6 +222,8 @@ export async function migrateLegacyV2Home(
     );
     await mkdir(dirname(finalBackupPath), { recursive: true, mode: 0o700 });
     await rename(backupSibling, finalBackupPath);
+    await syncPromotionDirectory(dirname(finalBackupPath));
+    await syncPromotionDirectory(parent);
     sourceRenamed = false;
     await writeJournal(
       journalPath,

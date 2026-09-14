@@ -63,7 +63,7 @@ export async function recoverHomePromotionAtStartup(
       } else {
         if (await exists(home)) {
           await rename(home, rollback);
-          await syncPath(parent);
+          await syncPromotionDirectory(parent);
         } else if (!(await exists(rollback))) {
           throw new Error(
             "Neither live nor rollback home exists for promotion.",
@@ -79,7 +79,7 @@ export async function recoverHomePromotionAtStartup(
             "Live and candidate homes both exist after old-home rename.",
           );
         await rename(candidate, home);
-        await syncPath(parent);
+        await syncPromotionDirectory(parent);
       } else if (!(await exists(home))) {
         throw new Error("Restore candidate disappeared before promotion.");
       }
@@ -98,9 +98,9 @@ export async function recoverHomePromotionAtStartup(
         await rename(home, `${candidate}.failed-${Date.now()}`);
       }
       await rename(rollback, home);
-      await syncPath(parent);
+      await syncPromotionDirectory(parent);
       await rm(homePromotionMarkerPath(home), { force: true });
-      await syncPath(parent);
+      await syncPromotionDirectory(parent);
     }
     throw error;
   }
@@ -192,7 +192,7 @@ async function writeMarker(
   marker: HomePromotionMarker,
 ): Promise<void> {
   await atomicWriteJson(homePromotionMarkerPath(home), marker, 0o600);
-  await syncPath(dirname(home));
+  await syncPromotionDirectory(dirname(home));
 }
 
 function sibling(parent: string, name: string): string {
@@ -217,7 +217,7 @@ async function exists(path: string): Promise<boolean> {
   );
 }
 
-async function syncPath(path: string): Promise<void> {
+export async function syncPromotionDirectory(path: string): Promise<void> {
   const handle = await open(path, "r");
   try {
     await handle.sync();
