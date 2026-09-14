@@ -95,7 +95,12 @@ export function persistCanonicalLifecycleWork(
 
 export function claimReadyCanonicalLifecycleWork(
   database: DatabaseSync,
-  input: { workerId: string; now: string; leaseDurationMs: number },
+  input: {
+    workerId: string;
+    now: string;
+    leaseDurationMs: number;
+    workId?: string;
+  },
 ): CanonicalLifecycleWork | undefined {
   if (
     !input.workerId ||
@@ -109,10 +114,11 @@ export function claimReadyCanonicalLifecycleWork(
     const row = database
       .prepare(
         `SELECT * FROM canonical_lifecycle_work
-         WHERE state = 'ready' AND not_before_ms <= ?
+         WHERE state = 'ready' AND not_before_ms <= ?1
+           AND (?2 IS NULL OR work_id = ?2)
          ORDER BY not_before_ms, work_id LIMIT 1`,
       )
-      .get(Date.parse(input.now)) as WorkRow | undefined;
+      .get(Date.parse(input.now), input.workId ?? null) as WorkRow | undefined;
     if (!row) return undefined;
     const current = decodeWork(row);
     const next = canonicalLifecycleWorkSchema.parse({

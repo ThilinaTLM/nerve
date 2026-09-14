@@ -60,6 +60,7 @@ export function executeCanonicalCommand(
         workerId: command.workerId,
         now: command.now,
         leaseDurationMs: command.leaseDurationMs,
+        workId: command.workId,
       });
     case "read_canonical_run_execution_authority":
       return database.executionQueries.readRunExecutionAuthority(

@@ -16,6 +16,7 @@ export class CanonicalExecutionStore {
     workerId: string;
     now: string;
     leaseDurationMs: number;
+    workId?: string;
   }) {
     return this.request<CanonicalLifecycleWork | undefined>({
       kind: "claim_ready_canonical_lifecycle_work",

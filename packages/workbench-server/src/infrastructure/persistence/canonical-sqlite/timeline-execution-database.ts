@@ -65,6 +65,7 @@ export class CanonicalExecutionQueryDatabase {
     workerId: string;
     now: string;
     leaseDurationMs: number;
+    workId?: string;
   }): CanonicalLifecycleWork | undefined {
     return claimReadyCanonicalLifecycleWork(this.database, input);
   }

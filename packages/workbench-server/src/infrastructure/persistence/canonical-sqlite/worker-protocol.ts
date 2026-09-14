@@ -28,6 +28,7 @@ export type CanonicalCommand =
       workerId: string;
       now: string;
       leaseDurationMs: number;
+      workId?: string;
     }
   | {
       kind: "read_canonical_run_execution_authority";
