@@ -18,7 +18,7 @@ import { createId } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import { type InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";
-import type { ExploreProgressUpdate } from "../../tools/execution/tool-service.js";
+import type { ExploreProgressUpdate } from "../../tools/execution/tool-runtime-ports.js";
 import type { WorkbenchExploreAdmission } from "./workbench-explore-admission.js";
 import type { SubagentTranscriptLiveService } from "../subagent-transcript-live.service.js";
 

@@ -41,10 +41,8 @@ import type { PlanService } from "../../plans/plan-service.js";
 import type { WorkbenchTaskService } from "../../tasks/adapters/workbench-task-service.js";
 import type { CapabilityService } from "../../capabilities/capability.service.js";
 import { activeToolNamesForAgent } from "../../tools/orchestration/agent-tool-adapter.js";
-import type {
-  ExploreProgressUpdate,
-  ToolService,
-} from "../../tools/execution/tool-service.js";
+import type { ToolService } from "../../tools/execution/tool-service.js";
+import type { ExploreProgressUpdate } from "../../tools/execution/tool-runtime-ports.js";
 import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
 import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills.js";
 import type { SubagentTranscriptLiveService } from "../subagent-transcript-live.service.js";
@@ -54,7 +52,7 @@ import type { AgentMessage } from "@nervekit/harness/agent";
 import type { CanonicalToolProposalInput } from "../../conversations/timeline/canonical-tool-batch.js";
 import { AutoCompactionRunner } from "./auto-compaction-runner.js";
 import { InlineCommandRunner } from "./inline-command-runner.js";
-import type { AppendEntryFn } from "./message-mirror.js";
+import type { AppendEntryFn } from "./canonical-harness-projection.js";
 import {
   type ExploreReport,
   CanonicalExploreCoordinator,

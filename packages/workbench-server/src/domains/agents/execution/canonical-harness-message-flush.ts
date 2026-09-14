@@ -4,7 +4,7 @@ import {
   Conversation,
   type ConversationStorage,
 } from "@nervekit/harness/conversation";
-import { projectHarnessMessageEntry } from "./message-mirror.js";
+import { projectHarnessMessageEntry } from "./canonical-harness-projection.js";
 import type {
   CanonicalRunExecutionBoundary,
   CanonicalRunExecutionSession,

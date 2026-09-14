@@ -8,7 +8,7 @@ This index maps executable evidence to the proposal invariants. It is additive: 
 | INV-ENTRY-01, INV-HEAD-01, INV-SELECT-01      | `canonical-store.test.ts`, `canonical-navigation-service.test.ts`                                                                                                                     |
 | INV-RUN-01, INV-CHECKPOINT-01, INV-BARRIER-01 | `canonical-run-start-service.test.ts`, `canonical-run-timeline-service.test.ts`, `conversation-runtime.test.ts`                                                                       |
 | INV-EFFECT-01, INV-CLAIM-01, INV-RECOVERY-01  | `canonical-provider-preparation-service.test.ts`, `canonical-provider-retry.test.ts`, `canonical-tool-batch.test.ts`                                                                  |
-| INV-CONTEXT-01                                | `canonical-compaction-coordinator.test.ts`, `canonical-auto-compaction-service.test.ts`                                                                                               |
+| INV-CONTEXT-01                                | `canonical-compaction-coordinator.test.ts`, `canonical-auto-compaction-service.test.ts` (stale-summary admission fencing and zero provider work)                                      |
 | INV-POLICY-01..04                             | `permission-policy-service.test.ts`, `policy-save-recovery.test.ts`                                                                                                                   |
 | INV-ARTIFACT-01                               | `canonical-managed-artifact-finalizer.test.ts`, `canonical-portable-backup-service.test.ts`                                                                                           |
 | INV-AGENT-01                                  | `canonical-explore-execution.test.ts` (independent child, nested canonical tool continuation, durable relationship)                                                                   |
@@ -19,7 +19,7 @@ This index maps executable evidence to the proposal invariants. It is additive: 
 
 ## Static authority evidence
 
-`scripts/lib/unified-timeline-policy.mjs` rejects retired production-composition imports and direct writes to canonical authority tables outside owner persistence and versioned migration/restore modules. `scripts/check-package-boundaries.mjs` runs this policy as part of `pnpm check`.
+`scripts/lib/unified-timeline-policy.mjs` rejects fully retired symbols across target runtime source, retired production-composition imports, and direct writes to canonical authority tables outside owner persistence and versioned migration/restore modules. `scripts/check-package-boundaries.mjs` runs this policy as part of `pnpm check`.
 
 ## Bounded-history smoke
 

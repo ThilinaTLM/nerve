@@ -1,18 +1,10 @@
 import type { AgentMessage } from "@nervekit/harness/agent";
-import type {
-  ConversationStorage,
-  ConversationTreeEntry,
-} from "@nervekit/harness/conversation";
-import { type AgentRecord } from "@nervekit/contracts/agents";
+import type { ConversationTreeEntry } from "@nervekit/harness/conversation";
 import {
   type ConversationEntry,
   type ConversationEntryUsage,
-  type ConversationRecord,
 } from "@nervekit/contracts/conversations";
 import { toolNameSchema } from "@nervekit/contracts/tools";
-import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
-import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
-import { deriveConversationTitle } from "../../conversations/operations/index.js";
 import type { AppendEntryDraft } from "../../conversations/timeline/transition-builders.js";
 
 export interface AppendEntryInput {
@@ -103,16 +95,6 @@ export type AppendEntryFn = (
   options?: { mirrorToHarness?: boolean },
 ) => Promise<ConversationEntry>;
 
-export interface MessageMirrorDeps {
-  state: RuntimeState;
-  ensureConversationEntries?: (
-    conversationId: string,
-  ) => Promise<ConversationEntry[]>;
-  appendEntry: AppendEntryFn;
-  updateConversation: (conversation: ConversationRecord) => Promise<void>;
-  events: StreamLogRegistry;
-}
-
 /**
  * Live coordinates of an ended assistant message awaiting materialization.
  * Assistant messages end and mirror strictly in order, so consuming these
@@ -146,99 +128,6 @@ export class AssistantEntryMetaQueue {
   }
 }
 
-export class MessageMirror {
-  constructor(private readonly deps: MessageMirrorDeps) {}
-
-  async mirrorNewHarnessEntries(
-    agent: AgentRecord,
-    storage: ConversationStorage,
-    knownEntryIds: Set<string>,
-    metadata: {
-      runId?: string;
-      turnId?: string;
-      /** FIFO of ended-but-unmaterialized assistant messages; consumed here. */
-      assistantMessageMeta?: AssistantMessageMeta[];
-    } = {},
-  ): Promise<ConversationEntry[]> {
-    await this.deps.ensureConversationEntries?.(agent.conversationId);
-    const mirrored: ConversationEntry[] = [];
-    const storageEntries = await storage.getEntries();
-    const visibleEntryIds = new Set(
-      this.deps.state
-        .getConversationEntries(agent.conversationId)
-        .map((entry) => entry.id),
-    );
-    for (const entry of storageEntries) {
-      if (knownEntryIds.has(entry.id)) continue;
-      knownEntryIds.add(entry.id);
-      if (visibleEntryIds.has(entry.id)) continue;
-      if (entry.type !== "message") continue;
-      if (
-        entry.message.role !== "user" &&
-        entry.message.role !== "assistant" &&
-        entry.message.role !== "toolResult" &&
-        entry.message.role !== "harness"
-      ) {
-        continue;
-      }
-      const role: ConversationEntry["role"] =
-        entry.message.role === "toolResult" || entry.message.role === "harness"
-          ? "system"
-          : entry.message.role;
-      const messageMeta =
-        role === "assistant"
-          ? metadata.assistantMessageMeta?.shift()
-          : undefined;
-      const uiEntry = await this.deps.appendEntry(
-        {
-          id: entry.id,
-          conversationId: agent.conversationId,
-          agentId: agent.id,
-          runId: metadata.runId,
-          turnId: messageMeta?.turnId ?? metadata.turnId,
-          liveMessageId: messageMeta?.liveMessageId,
-          messageOrdinal: messageMeta?.messageOrdinal,
-          parentEntryId: resolveVisibleParentId(
-            entry.parentId,
-            storageEntries,
-            visibleEntryIds,
-          ),
-          role,
-          kind: entryKind(entry.message as AgentMessage),
-          text: agentMessageText(entry.message as AgentMessage),
-          usage: extractEntryUsage(entry.message as AgentMessage),
-          details: entryDetails(entry.message as AgentMessage),
-          createdAt: entry.timestamp,
-        },
-        { mirrorToHarness: false },
-      );
-      visibleEntryIds.add(uiEntry.id);
-      mirrored.push(uiEntry);
-    }
-    return mirrored;
-  }
-
-  async maybeDeriveInitialConversationTitle(
-    conversationId: string,
-    text: string,
-  ): Promise<void> {
-    await this.deps.ensureConversationEntries?.(conversationId);
-    const conversation = this.deps.state.conversations.get(conversationId);
-    if (!conversation) return;
-    const userEntryCount = this.deps.state
-      .getConversationEntries(conversation.id)
-      .filter((entry) => entry.role === "user").length;
-    if (userEntryCount !== 1) return;
-    const title = deriveConversationTitle(text);
-    if (!title || title === conversation.title) return;
-    await this.deps.updateConversation({
-      ...conversation,
-      title,
-      updatedAt: new Date().toISOString(),
-    });
-  }
-}
-
 /**
  * Drop mirrored assistant entries' live messages from future active-run
  * snapshots. Once the entry is durable, a snapshot refresh must not
@@ -260,22 +149,6 @@ export function markMirroredEntriesMaterialized(
       runtime.markMessageMaterialized(runId, entry.turnId, entry.liveMessageId);
     }
   }
-}
-
-function resolveVisibleParentId(
-  parentId: string | null | undefined,
-  storageEntries: ConversationTreeEntry[],
-  visibleEntryIds: Set<string>,
-): string | undefined {
-  const rawEntriesById = new Map(
-    storageEntries.map((entry) => [entry.id, entry]),
-  );
-  let cursor = parentId ?? undefined;
-  while (cursor) {
-    if (visibleEntryIds.has(cursor)) return cursor;
-    cursor = rawEntriesById.get(cursor)?.parentId ?? undefined;
-  }
-  return undefined;
 }
 
 function entryDetails(message: AgentMessage): unknown {
@@ -343,13 +216,6 @@ function toolRecordIdFromDetails(details: unknown): string | undefined {
   return typeof toolCall?.id === "string" && toolCall.id.startsWith("tool_")
     ? toolCall.id
     : undefined;
-}
-
-function entryKind(message: AgentMessage): ConversationEntry["kind"] {
-  if (message.role === "harness" && message.eventType === "task_event") {
-    return "task_event";
-  }
-  return "message";
 }
 
 const UNKNOWN_TOOL_PLACEHOLDER_NAME = "unknown_tool";

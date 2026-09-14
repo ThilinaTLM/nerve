@@ -33,7 +33,7 @@ import {
 import {
   AssistantEntryMetaQueue,
   markMirroredEntriesMaterialized,
-} from "./message-mirror.js";
+} from "./canonical-harness-projection.js";
 import { openHarnessExecutionContext } from "./canonical-harness-message-flush.js";
 import {
   checkpointLegacyProviderResponse,

@@ -33,6 +33,7 @@ export interface CanonicalRunMutationIdentity {
   now: string;
   actor: Record<string, unknown>;
   cause: Record<string, unknown>;
+  requireRuntimeDispatchAdmission?: true;
 }
 
 export type CanonicalRunMutationResult =
@@ -264,6 +265,9 @@ export class CanonicalRunTimelineService {
       commandId: input.commandId,
       fingerprintVersion: 1,
       fingerprint,
+      ...(input.requireRuntimeDispatchAdmission
+        ? { requireRuntimeDispatchAdmission: true as const }
+        : {}),
       expectedHeads: [
         {
           conversationId: input.conversationId,

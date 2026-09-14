@@ -24,6 +24,8 @@ const retiredRuntimeImports = [
   "WorkbenchSubagentExecutions",
 ];
 
+const fullyRetiredRuntimeSymbols = ["MessageMirror", "run-composition"];
+
 const retiredAuthoritySymbols = [
   "model_context.entry_appended",
   "model_context.leaf_changed",
@@ -46,6 +48,16 @@ export function unifiedTimelinePolicyViolations(file, text) {
     violations.push(
       "target runtime must not import unified-timeline source readers",
     );
+  }
+  if (
+    file.startsWith(serverRuntimeRoot) &&
+    !file.startsWith("packages/workbench-server/src/infrastructure/migrations/")
+  ) {
+    for (const symbol of fullyRetiredRuntimeSymbols) {
+      if (text.includes(symbol)) {
+        violations.push(`target runtime uses retired authority: ${symbol}`);
+      }
+    }
   }
   if (productionCompositionRoots.some((root) => file.startsWith(root))) {
     for (const symbol of retiredRuntimeImports) {

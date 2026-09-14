@@ -149,6 +149,7 @@ export class CanonicalProviderPreparationService {
       commandId,
       fingerprintVersion: 1,
       fingerprint,
+      requireRuntimeDispatchAdmission: true,
       expectedHeads: [
         {
           conversationId: input.conversationId,

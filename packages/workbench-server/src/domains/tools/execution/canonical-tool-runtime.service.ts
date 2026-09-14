@@ -15,11 +15,8 @@ import type { InitializedStorage } from "../../../infrastructure/storage-bootstr
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { WorkbenchTaskService } from "../../tasks/adapters/workbench-task-service.js";
 import type { PythonRuntimeService } from "./python-runtime.js";
-import type {
-  TaskStarter,
-  ExploreRunner,
-  ToolService,
-} from "./tool-service.js";
+import type { TaskStarter, ExploreRunner } from "./tool-runtime-ports.js";
+import type { ToolService } from "./tool-service.js";
 import type { PlanService } from "../../plans/plan-service.js";
 import type { ConversationRuntime } from "../../runs/runtime/conversation-runtime.js";
 import type { PermissionPolicyService } from "../../permissions/permission-policy.service.js";

@@ -205,6 +205,21 @@ export class CanonicalAutoCompactionService {
       if (continuation.kind === "rejected") {
         return { kind: "stale", outcome: continuation.outcome };
       }
+      if (
+        !(await this.revalidateScheduledProviderPreparation({
+          snapshot: committed.snapshot,
+          phase: continuation.phase,
+          work: continuation.work,
+        }))
+      ) {
+        return {
+          kind: "stale",
+          outcome: {
+            kind: "superseded",
+            reason: "provider_preparation_fence_changed",
+          },
+        };
+      }
       return {
         kind: "ready",
         snapshot: committed.snapshot,
@@ -214,6 +229,45 @@ export class CanonicalAutoCompactionService {
     return this.coordinator.commitThenPrepareProviderPhase(
       prepared,
       input.prepareProviderPhase,
+    );
+  }
+
+  private async revalidateScheduledProviderPreparation(input: {
+    snapshot: CanonicalContinuationSnapshot;
+    phase: ProviderPhase;
+    work: CanonicalLifecycleWork;
+  }): Promise<boolean> {
+    const [identity, admission, head, run, phase, work] = await Promise.all([
+      this.store.readTimelineStateIdentity(),
+      this.store.readTimelineRuntimeAdmission(),
+      this.store.readTimelineConversationHead(input.snapshot.conversationId),
+      this.store.readTimelineRunControl(
+        input.snapshot.conversationId,
+        input.snapshot.runId,
+      ),
+      this.store.execution.readProviderPhase(input.phase.phaseId),
+      this.store.execution.readLifecycleWork(input.work.workId),
+    ]);
+    return Boolean(
+      identity &&
+      admission?.dispatchState === "admitted" &&
+      identity.executionIncarnationId ===
+        input.snapshot.executionIncarnationId &&
+      admission.executionIncarnationId ===
+        input.snapshot.executionIncarnationId &&
+      head?.activeEntryId === input.snapshot.headEntryId &&
+      head.revision === input.snapshot.revision &&
+      head.selectionEpoch === input.snapshot.selectionEpoch &&
+      head.foregroundRunId === input.snapshot.runId &&
+      run?.foregroundOwned &&
+      run.generation === input.snapshot.runGeneration &&
+      run.providerPhaseId === input.phase.phaseId &&
+      run.state === "running" &&
+      phase?.state === "preparing" &&
+      phase.sourceEntryId === input.snapshot.headEntryId &&
+      work?.state === "ready" &&
+      work.kind === "prepare_provider_request" &&
+      work.providerPhaseId === input.phase.phaseId,
     );
   }
 

@@ -12,7 +12,7 @@ import { CanonicalRunTimelineService } from "../../conversations/timeline/canoni
 import { CanonicalRunTerminationService } from "../../conversations/timeline/canonical-run-termination.service.js";
 import { canonicalConversationJson } from "../../conversations/timeline/command-fingerprint.js";
 import { createCanonicalHarnessContext } from "./canonical-harness-context.js";
-import { projectHarnessCanonicalEntry } from "./message-mirror.js";
+import { projectHarnessCanonicalEntry } from "./canonical-harness-projection.js";
 
 export interface CanonicalRunExecutionSession {
   conversationId: string;

@@ -18,6 +18,9 @@ import type { CanonicalLiveRunExecutor } from "./canonical-live-run-executor.js"
 import type { WorkbenchAgentMechanics } from "./workbench-agent-mechanics.js";
 import { activeToolNamesForExploreAgent } from "../../tools/orchestration/agent-tool-adapter.js";
 
+const MAX_CONTEXT_ANCESTRY_PAGES = 2_048;
+const CONTEXT_ANCESTRY_PAGE_SIZE = 512;
+
 interface ToolManifest {
   normalizedInput: Record<string, unknown>;
   normalizedInputFingerprint: string;
@@ -158,15 +161,27 @@ export class CanonicalExecutionRuntime {
     }
     const entries =
       [] as import("@nervekit/contracts/conversations").CanonicalConversationEntry[];
+    const seen = new Set<string>();
     let next: string | undefined = head.activeEntryId;
-    while (next) {
+    let pages = 0;
+    while (next && pages < MAX_CONTEXT_ANCESTRY_PAGES) {
       const page = await this.deps.store.readTimelineAncestrySegment(
         work.conversationId,
         next,
-        512,
+        CONTEXT_ANCESTRY_PAGE_SIZE,
       );
-      entries.push(...page.entries);
+      for (const entry of page.entries) {
+        if (seen.has(entry.entryId)) {
+          throw new Error("Canonical context ancestry contains an overlap.");
+        }
+        seen.add(entry.entryId);
+        entries.push(entry);
+      }
       next = page.nextAncestorEntryId;
+      pages += 1;
+    }
+    if (next) {
+      throw new RangeError("Canonical context ancestry exceeds proof limit.");
     }
     const agent = this.requireAgent(work.conversationId);
     const settings = await resolveProjectSettings(

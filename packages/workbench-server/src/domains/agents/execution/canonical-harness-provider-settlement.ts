@@ -7,7 +7,7 @@ import type { CanonicalRunExecutionSession } from "./canonical-run-execution-bou
 import {
   projectHarnessCanonicalEntry,
   projectHarnessMessageEntry,
-} from "./message-mirror.js";
+} from "./canonical-harness-projection.js";
 
 /** Commits one assistant response without legacy transcript persistence. */
 export async function settleCanonicalHarnessProviderResponse(input: {

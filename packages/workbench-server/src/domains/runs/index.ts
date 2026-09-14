@@ -1,5 +1,4 @@
 export * from "./adapters/workbench-run-cancellation.js";
-export * from "./application/run-composition.js";
 export * from "./application/run-event-publisher.js";
 export * from "./adapters/workbench-run-execution.js";
 export * from "./adapters/workbench-run-integrity.js";

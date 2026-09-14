@@ -312,6 +312,25 @@ export function commitConversationCommandInTransaction(
     }
 
     ensureTimelineStateIdentity(database, input);
+    if (input.requireRuntimeDispatchAdmission) {
+      const admission = database
+        .prepare(
+          `SELECT execution_incarnation_id, dispatch_state
+           FROM runtime_admission WHERE singleton = 1`,
+        )
+        .get() as
+        | { execution_incarnation_id: string; dispatch_state: string }
+        | undefined;
+      if (
+        admission?.execution_incarnation_id !== input.executionIncarnationId ||
+        admission.dispatch_state !== "admitted"
+      ) {
+        return {
+          kind: "superseded",
+          reason: "runtime_dispatch_not_admitted",
+        };
+      }
+    }
     const expectedByConversation = new Map(
       input.expectedHeads.map((expected) => [
         expected.conversationId,

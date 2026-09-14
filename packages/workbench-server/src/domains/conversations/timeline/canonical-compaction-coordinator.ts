@@ -163,6 +163,7 @@ export class CanonicalCompactionCoordinator {
       commandId: prepared.commandId,
       fingerprintVersion: 1,
       fingerprint,
+      requireRuntimeDispatchAdmission: true,
       expectedHeads: [
         {
           conversationId: prepared.sourceHead.conversationId,
@@ -227,6 +228,15 @@ export class CanonicalCompactionCoordinator {
   > {
     const committed = await this.commitPrepared(prepared);
     if (committed.kind === "stale") return committed;
+    if (!(await this.revalidateBeforeProviderDispatch(committed.snapshot))) {
+      return {
+        kind: "stale",
+        outcome: {
+          kind: "superseded",
+          reason: "provider_preparation_fence_changed",
+        },
+      };
+    }
     const preparedPhase = await prepareProviderPhase(committed.snapshot);
     const phaseCommit = await this.commitPreparedProviderPhase(
       prepared,
@@ -337,6 +347,7 @@ export class CanonicalCompactionCoordinator {
       commandId: `prepare-provider-phase:${snapshot.boundaryId}`,
       fingerprintVersion: 1,
       fingerprint,
+      requireRuntimeDispatchAdmission: true,
       expectedHeads: [
         {
           conversationId: snapshot.conversationId,

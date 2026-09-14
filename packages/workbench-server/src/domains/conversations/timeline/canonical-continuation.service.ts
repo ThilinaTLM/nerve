@@ -174,6 +174,7 @@ export class CanonicalContinuationService {
         kind: "settled_iteration_continuation",
         compacted: Boolean(input.compactedSnapshot),
       },
+      requireRuntimeDispatchAdmission: true,
       entries: [],
       artifactManifests: [
         {

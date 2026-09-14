@@ -14,7 +14,7 @@ import { type InitializedStorage } from "../../infrastructure/storage-bootstrap/
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { ToolService } from "../tools/execution/tool-service.js";
-import { projectHarnessMessageEntry } from "./execution/message-mirror.js";
+import { projectHarnessMessageEntry } from "./execution/canonical-harness-projection.js";
 import type { SubagentTranscriptLiveService } from "./subagent-transcript-live.service.js";
 
 const MAX_PROJECTED_TEXT_CHARS = 2 * 1024 * 1024;

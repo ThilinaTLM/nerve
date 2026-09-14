@@ -7,7 +7,7 @@ import { prepareToolResult } from "../artifacts/tool-result-preparation.js";
 import type { ToolResultPayloadStore } from "../artifacts/tool-result-payload-store.js";
 import { toToolCallTranscriptRecord } from "../artifacts/tool-call-transcript-preview.js";
 import { toolErrorDetails } from "./tool-errors.js";
-import type { ToolRequestOptions } from "./tool-service.js";
+import type { ToolRequestOptions } from "./tool-runtime-ports.js";
 
 /** Invokes an already-authorized tool without touching legacy repositories. */
 export class CanonicalToolExternalInvoker {

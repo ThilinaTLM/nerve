@@ -195,6 +195,7 @@ export class CanonicalProviderDispatchService {
       commandId,
       fingerprintVersion: 1,
       fingerprint,
+      requireRuntimeDispatchAdmission: true,
       expectedHeads: [
         {
           conversationId: input.conversationId,
@@ -314,6 +315,7 @@ export class CanonicalProviderDispatchService {
       commandId,
       fingerprintVersion: 1,
       fingerprint,
+      requireRuntimeDispatchAdmission: true,
       expectedHeads: [
         {
           conversationId: snapshot.conversationId,

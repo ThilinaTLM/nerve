@@ -69,6 +69,7 @@ export interface CommitConversationCommandInput {
   commandId: string;
   fingerprintVersion: number;
   fingerprint: string;
+  requireRuntimeDispatchAdmission?: true;
   expectedHeads: TimelineExpectedHead[];
   expectedRunFences?: TimelineExpectedRunFence[];
   transitions: ConversationTransition[];
