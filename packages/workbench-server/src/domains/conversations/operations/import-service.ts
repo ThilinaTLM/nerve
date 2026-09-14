@@ -15,7 +15,7 @@ import {
   type ProjectRecord,
 } from "@nervekit/contracts/projects";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
-import type { AppendConversationEntry } from "./compaction-service.js";
+import type { AppendConversationEntry } from "../append-entry-contracts.js";
 
 export class ImportService {
   constructor(

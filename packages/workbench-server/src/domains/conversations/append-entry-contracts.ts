@@ -25,3 +25,8 @@ export type AppendEntryInput = {
 };
 
 export type AppendEntryOptions = { mirrorToHarness?: boolean };
+
+export type AppendConversationEntry = (
+  input: AppendEntryInput,
+  options?: AppendEntryOptions,
+) => Promise<ConversationEntry>;

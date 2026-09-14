@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
+import { ConversationJournalRepository } from "../../../src/infrastructure/migrations/legacy-journal/conversation-journal.repository.js";
 import {
   inspectLegacyV2Home,
   migrateLegacyV2Home,

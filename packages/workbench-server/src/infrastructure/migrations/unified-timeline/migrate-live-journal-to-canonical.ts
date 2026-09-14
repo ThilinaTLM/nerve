@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import { ConversationHarnessStorage } from "../../../domains/conversations/conversation-harness-storage.js";
-import { ConversationJournalRepository } from "../../../domains/conversations/conversation-journal.repository.js";
-import { ConversationRepository } from "../../../domains/conversations/conversation.repository.js";
+import { ConversationHarnessStorage } from "../legacy-journal/conversation-harness-storage.js";
+import { ConversationJournalRepository } from "../legacy-journal/conversation-journal.repository.js";
+import { ConversationRepository } from "../legacy-journal/conversation.repository.js";
 import { CanonicalTimelineIdentityService } from "../../../domains/conversations/timeline/canonical-timeline-identity.service.js";
 import { CanonicalPortableBackupService } from "../../../domains/storage/canonical-portable-backup.service.js";
 import { CanonicalAuthorityPromotionService } from "../../../domains/storage/canonical-authority-promotion.service.js";

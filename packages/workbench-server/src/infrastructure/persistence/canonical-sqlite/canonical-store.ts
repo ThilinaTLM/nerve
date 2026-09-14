@@ -597,7 +597,7 @@ export class CanonicalStore {
     );
   }
   persistConversationState(
-    state: import("../../../domains/conversations/conversation-state-materializer.js").SerializedConversationState,
+    state: import("../../migrations/legacy-journal/conversation-state-materializer.js").SerializedConversationState,
     commit?: import("@nervekit/contracts/conversations").ConversationJournalCommit,
   ) {
     return this.request<void>(
@@ -606,7 +606,7 @@ export class CanonicalStore {
     );
   }
   persistConversationCommit(
-    delta: import("../../../domains/conversations/conversation-state-materializer.js").ConversationPersistenceDelta,
+    delta: import("../../migrations/legacy-journal/conversation-state-materializer.js").ConversationPersistenceDelta,
   ) {
     return this.request<void>(
       { kind: "persist_conversation_commit", delta },
@@ -728,7 +728,7 @@ export class CanonicalStore {
     }>({ kind: "read_conversation_journal", conversationId }, true);
   }
   checkpointConversationState(
-    state: import("../../../domains/conversations/conversation-state-materializer.js").SerializedConversationState,
+    state: import("../../migrations/legacy-journal/conversation-state-materializer.js").SerializedConversationState,
   ) {
     const data = Uint8Array.from(encode(state));
     return this.request<void>(

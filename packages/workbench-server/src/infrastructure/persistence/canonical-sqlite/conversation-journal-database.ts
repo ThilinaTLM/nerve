@@ -4,11 +4,11 @@ import type {
   ConversationPersistenceDelta,
   MaterializedConversationRecord,
   SerializedConversationState,
-} from "../../../domains/conversations/conversation-state-materializer.js";
+} from "../../migrations/legacy-journal/conversation-state-materializer.js";
 import {
   upsertConversationRecordProjection,
   upsertToolCallProjection,
-} from "../../../domains/conversations/conversation-state-materializer.js";
+} from "../../migrations/legacy-journal/conversation-state-materializer.js";
 import { decode, encode } from "./payload-codecs.js";
 
 export interface JournalHead {

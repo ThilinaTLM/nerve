@@ -3,13 +3,13 @@ import {
   type JournalDeletionOptions,
 } from "./conversation-journal-deletion.js";
 import { randomUUID } from "node:crypto";
-import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
-import { noopPerformanceDiagnostics } from "../../infrastructure/diagnostics/performance-metrics.js";
+import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics.js";
+import { noopPerformanceDiagnostics } from "../../diagnostics/performance-metrics.js";
 import {
   CanonicalStore,
   decode,
-} from "../../infrastructure/persistence/canonical-sqlite/index.js";
-import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
+} from "../../persistence/canonical-sqlite/index.js";
+import { storagePaths } from "../../storage-bootstrap/paths.js";
 import {
   deserializeState,
   prepareConversationPersistenceDelta,

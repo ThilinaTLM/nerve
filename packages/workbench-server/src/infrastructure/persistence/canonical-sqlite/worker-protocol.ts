@@ -14,7 +14,7 @@ import type { CommitConversationCommandInput } from "./timeline-database.js";
 import type {
   ConversationPersistenceDelta,
   SerializedConversationState,
-} from "../../../domains/conversations/conversation-state-materializer.js";
+} from "../../migrations/legacy-journal/conversation-state-materializer.js";
 
 export type CanonicalCommand =
   | { kind: "initialize" }

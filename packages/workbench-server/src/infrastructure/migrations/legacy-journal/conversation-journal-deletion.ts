@@ -1,7 +1,7 @@
 import type { ConversationRecord } from "@nervekit/contracts/conversations";
-import type { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
-import type { ConversationDeletionProgress } from "../../infrastructure/persistence/canonical-sqlite/conversation-deletion.js";
-import type { ConversationDeletionIntent } from "./conversation-deletion-progress.js";
+import type { CanonicalStore } from "../../persistence/canonical-sqlite/canonical-store.js";
+import type { ConversationDeletionProgress } from "../../persistence/canonical-sqlite/conversation-deletion.js";
+import type { ConversationDeletionIntent } from "../../../domains/conversations/conversation-deletion-progress.js";
 
 export interface JournalDeletionOptions {
   operationId?: string;

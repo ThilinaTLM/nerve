@@ -7,7 +7,7 @@ import {
   materializeConversationRecords,
   type ConversationPersistenceDelta,
   type SerializedConversationState,
-} from "../../../domains/conversations/conversation-state-materializer.js";
+} from "../../migrations/legacy-journal/conversation-state-materializer.js";
 import {
   checkpointConversationStateInTransaction,
   checkpointEncodedConversationStateInTransaction,

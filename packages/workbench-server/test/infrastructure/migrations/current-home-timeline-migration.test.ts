@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
+import { ConversationJournalRepository } from "../../../src/infrastructure/migrations/legacy-journal/conversation-journal.repository.js";
 import { CanonicalAuthorityPromotionService } from "../../../src/domains/storage/canonical-authority-promotion.service.js";
 import {
   migrateCurrentHomeConversationTimelines,
