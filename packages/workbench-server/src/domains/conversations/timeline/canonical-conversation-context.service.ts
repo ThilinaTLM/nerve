@@ -80,8 +80,16 @@ export class CanonicalConversationContextService {
         sourceEntryId,
         Math.min(PAGE_SIZE, remaining),
       );
-      descending.push(...segment.entries);
-      sourceEntryId = segment.nextAncestorEntryId;
+      const boundaryIndex = segment.entries.findIndex(
+        (entry) => entry.kind === "summary",
+      );
+      if (boundaryIndex >= 0) {
+        descending.push(...segment.entries.slice(0, boundaryIndex + 1));
+        sourceEntryId = undefined;
+      } else {
+        descending.push(...segment.entries);
+        sourceEntryId = segment.nextAncestorEntryId;
+      }
     }
     const snapshot: CanonicalContextSnapshot = {
       namespaceId: identity.namespaceId,

@@ -18,6 +18,7 @@ export async function settleCanonicalHarnessProviderResponse(input: {
   workerId: string;
   response: AgentMessage;
   now: string;
+  retryPolicy: { enabled: boolean; maxRetries: number; baseDelayMs: number };
   prepareToolProposals(
     message: AgentMessage,
   ): Promise<
@@ -26,6 +27,33 @@ export async function settleCanonicalHarnessProviderResponse(input: {
     >[0]["toolProposals"]
   >;
 }): Promise<ConversationEntry[]> {
+  if (
+    input.response.role === "assistant" &&
+    input.response.stopReason === "error" &&
+    input.retryPolicy.enabled
+  ) {
+    const currentRetry =
+      typeof input.snapshot.phase.providerIdentity.canonicalRetryNumber ===
+      "number"
+        ? input.snapshot.phase.providerIdentity.canonicalRetryNumber
+        : 0;
+    if (currentRetry < input.retryPolicy.maxRetries) {
+      const result = await input.settlement.commitKnownFailure({
+        snapshot: input.snapshot,
+        workerId: input.workerId,
+        error: input.response.errorMessage ?? "Provider request failed.",
+        now: input.now,
+        retryAt: new Date(
+          Date.parse(input.now) +
+            input.retryPolicy.baseDelayMs * 2 ** currentRetry,
+        ).toISOString(),
+      });
+      if (result.kind === "rejected") {
+        throw new Error("Canonical provider retry settlement was rejected.");
+      }
+      return [];
+    }
+  }
   const toolProposals = await input.prepareToolProposals(input.response);
   const pending = (await input.session.storage.getEntries()).filter(
     (entry) =>

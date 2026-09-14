@@ -2,7 +2,7 @@ import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { CanonicalLifecycleWork } from "@nervekit/contracts/runs";
 import type { ToolName } from "@nervekit/contracts/tools";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
-import type { ToolService } from "../../tools/execution/tool-service.js";
+import type { CanonicalToolRuntimeService } from "../../tools/execution/canonical-tool-runtime.service.js";
 import type { CanonicalToolWorkerService } from "../../conversations/timeline/canonical-tool-worker.service.js";
 import { createCanonicalAgentTools } from "./canonical-agent-tools.js";
 import type { CanonicalHarnessLifecycleExecutor } from "./canonical-harness-lifecycle-executor.js";
@@ -16,7 +16,7 @@ export class CanonicalLiveRunExecutor {
       mechanics: WorkbenchAgentMechanics;
       harness: CanonicalHarnessLifecycleExecutor;
       toolWorker: CanonicalToolWorkerService;
-      tools: ToolService;
+      tools: CanonicalToolRuntimeService;
     },
   ) {}
 

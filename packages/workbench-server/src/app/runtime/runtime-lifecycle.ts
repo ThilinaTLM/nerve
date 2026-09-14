@@ -109,7 +109,7 @@ export class RuntimeLifecycle {
         },
         { name: "providers", run: () => providerCatalog.load() },
         { name: "tasks", run: () => this.services.tasks.hydrate() },
-        { name: "tools", run: () => this.services.tools.hydrate() },
+        { name: "tools", run: async () => undefined },
         { name: "plans", run: () => this.services.plans.hydrate() },
         {
           name: "projects",
@@ -122,32 +122,17 @@ export class RuntimeLifecycle {
         },
       ] as const satisfies readonly StoreHydrationOperation[],
       loadAgents: () => this.services.agentLifecycle.loadAgents(),
-      flushRunDelivery: () => this.services.runRuntime.delivery.flush(),
-      recoverRuns: async () => {
-        await this.services.runRuntime.coordinator.recover();
-      },
+      flushRunDelivery: async () => undefined,
+      recoverRuns: async () => undefined,
       recoverHumanInput: async () => {
         for (const conversation of this.services.canonicalConversationLifecycle.listConversations()) {
-          await this.services.canonicalWorkbenchRun.reconcileConversation(
+          await this.services.workbenchRun.reconcileConversation(
             conversation.id,
             `startup-recovery:${Date.now()}`,
           );
         }
       },
-      rebuildProjector: async () => {
-        const activeStates =
-          await this.services.runRuntime.unitOfWork.listActive();
-        const runRecords =
-          await this.services.runRuntime.unitOfWork.listMetadata();
-        await this.services.runRuntime.projector.rebuild({
-          activeStates,
-          runRecords,
-        });
-        return {
-          runMetadata: runRecords.length,
-          activeRuns: activeStates.length,
-        };
-      },
+      rebuildProjector: async () => ({ runMetadata: 0, activeRuns: 0 }),
       counts: () => ({
         projects: this.services.projectLifecycle.listProjects().length,
         conversations:
@@ -155,13 +140,12 @@ export class RuntimeLifecycle {
             .length,
         agents: this.services.agentLifecycle.listAgents().length,
         tasks: this.services.tasks.listTasks().length,
-        toolCalls: this.services.tools.countToolCalls(),
+        toolCalls: 0,
       }),
-      recoverTaskNotifications: () =>
-        this.services.taskNotifications.recoverPendingNotifications(),
+      recoverTaskNotifications: async () => undefined,
       rebuildIndex: () => this.rebuildIndex(),
       hydratePromptSuggestions: () => this.services.promptSuggestions.hydrate(),
-      toolCallHydrationSource: this.services.tools.toolCallHydrationSource,
+      toolCallHydrationSource: "canonical_projection",
     });
   }
 
@@ -174,7 +158,6 @@ export class RuntimeLifecycle {
    */
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
-    this.services.lifecycleDispatcher.stopPolling();
     await Promise.all([
       this.services.projectionDispatcher.stop(),
       this.services.deletionDispatcher.stop(),
@@ -183,22 +166,8 @@ export class RuntimeLifecycle {
     this.services.gitRepositoryWatcher.close();
     this.services.projectFilesystemWatcher.close();
     await this.services.tasks.shutdown();
-    this.services.taskNotifications.stop();
     await Promise.allSettled([...this.backgroundOperations]);
-    await this.services.lifecycleDispatcher.settled();
-    await this.services.runRuntime.coordinator.settled();
-    await this.services.runRuntime.delivery.settled();
     await this.events.settled();
-    await this.services.conversationJournal
-      .checkpointLoaded()
-      .catch(async (error: unknown) => {
-        await this.logger.warn(
-          "Conversation checkpoint failed during shutdown",
-          {
-            error,
-          },
-        );
-      });
   }
 
   async hydrate(
@@ -226,14 +195,6 @@ export class RuntimeLifecycle {
     if (this.shuttingDown) return;
     const operations = [
       ["Network model refresh", this.auth.refreshModels()],
-      [
-        "Tool-result payload reconciliation",
-        this.services.tools.reconcileResultPayloads(),
-      ],
-      [
-        "Conversation projection backfill",
-        this.services.conversationJournal.backfillMissingProjections(),
-      ],
     ] as const;
     this.trackBackgroundOperation(this.logSettledOperations(operations));
   }

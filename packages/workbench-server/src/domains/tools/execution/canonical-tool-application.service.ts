@@ -8,13 +8,13 @@ import type {
   ToolName,
 } from "@nervekit/contracts/tools";
 import type { CanonicalInteractionResolutionService } from "../../conversations/timeline/canonical-interaction-resolution.service.js";
-import type { ToolService } from "./tool-service.js";
+import type { CanonicalToolRuntimeService } from "./canonical-tool-runtime.service.js";
 import { CanonicalToolQueryService } from "./canonical-tool-query.service.js";
 
 /** Public tool facade projected from canonical effect and wait authority. */
 export class CanonicalToolApplicationService {
   constructor(
-    private readonly legacyDefinitions: ToolService,
+    private readonly legacyDefinitions: CanonicalToolRuntimeService,
     private readonly queries: CanonicalToolQueryService,
   ) {}
 

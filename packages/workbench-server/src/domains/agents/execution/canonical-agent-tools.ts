@@ -4,7 +4,7 @@ import type { ToolName } from "@nervekit/contracts/tools";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import type { PolicyDocumentObservation } from "@nervekit/contracts/permissions";
 import type { CanonicalToolWorkerService } from "../../conversations/timeline/canonical-tool-worker.service.js";
-import type { ToolService } from "../../tools/execution/tool-service.js";
+import type { CanonicalToolRuntimeService } from "../../tools/execution/canonical-tool-runtime.service.js";
 import { createAgentToolsWithExternalExecutor } from "../../tools/orchestration/agent-tool-adapter.js";
 
 /** Binds harness tool callbacks to canonical effect work rather than legacy records. */
@@ -15,7 +15,7 @@ export function createCanonicalAgentTools(input: {
   agent: AgentRecord;
   runId: string;
   activeToolNames: readonly ToolName[];
-  tools: ToolService;
+  tools: CanonicalToolRuntimeService;
 }) {
   return createAgentToolsWithExternalExecutor({
     allowedToolNames: input.activeToolNames,

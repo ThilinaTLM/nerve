@@ -25,6 +25,7 @@ import {
 import { inspectNerveHome } from "./state-layout.js";
 import { acquireStorageStartupLock } from "./startup-lock.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
+import { CanonicalFreshHomeAdmissionService } from "../../domains/storage/canonical-fresh-home-admission.service.js";
 import { promoteCurrentHomeAtStartup } from "../migrations/unified-timeline/migrate-live-journal-to-canonical.js";
 import {
   currentHomeMigrationEntries,
@@ -165,6 +166,13 @@ export async function initializeStorage(
         paths,
         promotedAt: new Date().toISOString(),
       });
+    }
+    if (
+      (await canonicalStore.migration.countLegacyRuntimeAuthority()) === 0 &&
+      (await canonicalStore.readTimelineRuntimeAdmission())?.dispatchState !==
+        "admitted"
+    ) {
+      await new CanonicalFreshHomeAdmissionService(canonicalStore).admit();
     }
     const canonicalOpenMs = Math.round(
       performance.now() - canonicalOpenStartedAt,

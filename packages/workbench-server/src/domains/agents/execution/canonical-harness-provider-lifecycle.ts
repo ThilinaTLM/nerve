@@ -61,6 +61,7 @@ export async function settleCanonicalHarnessMessage(input: {
     workerId: input.authority.workerId,
     response: input.message,
     now: input.authority.now(),
+    retryPolicy: input.authority.retryPolicy,
     prepareToolProposals: input.authority.prepareToolProposals,
   });
   input.authority.activeProviderSnapshot = undefined;

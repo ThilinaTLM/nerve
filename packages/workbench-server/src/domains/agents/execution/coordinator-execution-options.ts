@@ -39,6 +39,7 @@ export interface CoordinatorExecutionOptions {
       message: AgentMessage,
     ): Promise<readonly CanonicalToolProposalInput[]>;
     workerId: string;
+    retryPolicy: { enabled: boolean; maxRetries: number; baseDelayMs: number };
     activeProviderSnapshot?: CanonicalProviderDispatchSnapshot;
     now(): string;
   };

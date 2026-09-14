@@ -26,6 +26,9 @@ export class AutoCompactionRunner {
   /** Compute compaction-aware context-window usage for a conversation. */
   async getContextUsage(conversationId: string): Promise<ContextUsage> {
     const conversation = this.deps.state.getConversation(conversationId);
+    if (!this.deps.harnessStorage) {
+      throw new Error("Legacy context usage authority is retired.");
+    }
     const storage = await this.deps.harnessStorage.openStorage(conversation);
     const branch = await storage.getContextPath();
     const messages = (await storage.buildContext()).messages;
@@ -132,6 +135,9 @@ export class AutoCompactionRunner {
     if (!shouldAutoCompact(contextTokens, policy)) return false;
 
     try {
+      if (!this.deps.compactionService) {
+        throw new Error("Legacy compaction authority is retired.");
+      }
       await this.deps.compactionService.compactConversation(
         input.conversationId,
         { instructions: input.instructions },

@@ -34,7 +34,6 @@ import type { InitializedStorage } from "../../../infrastructure/storage-bootstr
 import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
 import type { AuthManager } from "../../auth/index.js";
-import type { ConversationService } from "../../conversations/conversation-service.js";
 import type { ConversationHarnessStorage } from "../../conversations/conversation-harness-storage.js";
 import type { CompactionService } from "../../conversations/operations/index.js";
 import type { PythonRuntimeService } from "../../tools/execution/python-runtime.js";
@@ -60,17 +59,37 @@ import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
 import type { WorkbenchExploreAdmission } from "./workbench-explore-admission.js";
 import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
 
+type WorkbenchToolPort = Pick<
+  ToolService,
+  | "prepareCanonicalToolProposal"
+  | "requestToolAndWait"
+  | "toolResultRecoveryArtifact"
+  | "findToolCallByProviderToolCallId"
+  | "recordProviderToolCallError"
+  | "getToolCall"
+  | "requestTool"
+>;
+
 export interface WorkbenchAgentMechanicsDeps {
   storage: InitializedStorage;
   events: StreamLogRegistry;
   auth: AuthManager;
-  tools: ToolService;
+  tools: WorkbenchToolPort;
   tasks: WorkbenchTaskService;
   pythonRuntime: PythonRuntimeService;
   plans: PlanService;
-  harnessStorage: ConversationHarnessStorage;
-  conversationService: ConversationService;
-  compactionService: CompactionService;
+  harnessStorage?: ConversationHarnessStorage;
+  openChildStorage: ConstructorParameters<
+    typeof SubagentRunner
+  >[0]["openChildStorage"];
+  openLegacyStorage?: (
+    conversation: ConversationRecord,
+  ) => Promise<
+    import("@nervekit/harness/conversation").ConversationStorage<
+      import("@nervekit/harness/conversation").ConversationMetadata
+    >
+  >;
+  compactionService?: CompactionService;
   state: RuntimeState;
   createAgent: (
     request: CreateAgentRequest,
@@ -82,7 +101,7 @@ export interface WorkbenchAgentMechanicsDeps {
   ) => Promise<void>;
   appendEntry: AppendEntryFn;
   updateConversation: (conversation: ConversationRecord) => Promise<void>;
-  messageMirror: MessageMirror;
+  messageMirror?: MessageMirror;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
   subagentExecutions: WorkbenchSubagentExecutions;
@@ -105,7 +124,7 @@ export class WorkbenchAgentMechanics {
       events: deps.events,
       auth: deps.auth,
       tools: deps.tools,
-      harnessStorage: deps.harnessStorage,
+      openChildStorage: deps.openChildStorage,
       createAgent: deps.createAgent,
       setAgentStatus: deps.setAgentStatus,
       subscriptionUsage: deps.subscriptionUsage,
@@ -276,6 +295,7 @@ export class WorkbenchAgentMechanics {
     runId: string;
     agent: AgentRecord;
     signal?: AbortSignal;
+    canonical?: boolean;
   }): Promise<AssistantMessage> {
     const latestAgent = () =>
       this.deps.state.agents.get(input.agent.id) ?? input.agent;
@@ -304,6 +324,7 @@ export class WorkbenchAgentMechanics {
       input.agent.projectDir,
     );
     if (
+      !input.canonical &&
       settings.compaction.auto &&
       isContextOverflowAssistantMessage(assistant, contextWindow)
     ) {
@@ -339,6 +360,9 @@ export class WorkbenchAgentMechanics {
       (await resolveProjectSettings(this.deps.storage, input.agent.projectDir))
         .compaction,
     );
+    if (!this.deps.compactionService) {
+      throw new Error("Legacy compaction authority is retired.");
+    }
     try {
       await input.conversation.moveTo(failedParentId);
       await this.deps.compactionService.compactConversation(

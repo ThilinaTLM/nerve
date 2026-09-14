@@ -251,9 +251,10 @@ export function composeServerRuntime(
   });
   const projectRemoval = new ProjectRemovalExecutor({
     projects: services.projectLifecycle,
-    listConversations: () => services.conversationLifecycle.listConversations(),
+    listConversations: () =>
+      services.canonicalConversationLifecycle.listConversations(),
     removeConversation: (id, options) =>
-      services.conversationLifecycle.removeConversation(id, options),
+      services.canonicalConversationLifecycle.removeConversation(id, options),
   });
   const maintenance = new MaintenanceService({
     repository: new MaintenanceRepository(storage.canonicalStore),

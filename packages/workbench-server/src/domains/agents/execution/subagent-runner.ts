@@ -7,7 +7,11 @@ import {
   resolveAgentModel,
 } from "@nervekit/harness/models";
 import { AgentHarness } from "@nervekit/harness";
-import { Conversation } from "@nervekit/harness/conversation";
+import {
+  Conversation,
+  type ConversationMetadata,
+  type ConversationStorage,
+} from "@nervekit/harness/conversation";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type {
   AgentRecord,
@@ -27,7 +31,6 @@ import type { ApplicationLogger } from "../../../infrastructure/diagnostics/inde
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import { type InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";
 import type { AuthManager } from "../../auth/index.js";
-import type { ConversationHarnessStorage } from "../../conversations/conversation-harness-storage.js";
 import {
   activeToolNamesForExploreAgent,
   createAgentToolsForAgent,
@@ -152,8 +155,11 @@ export interface SubagentRunnerDeps {
   storage: InitializedStorage;
   events: StreamLogRegistry;
   auth: AuthManager;
-  tools: ToolService;
-  harnessStorage: ConversationHarnessStorage;
+  tools: Pick<ToolService, "requestToolAndWait" | "toolResultRecoveryArtifact">;
+  openChildStorage(
+    child: AgentRecord,
+    historyMode: SubagentHistoryMode,
+  ): Promise<ConversationStorage<ConversationMetadata>>;
   createAgent: (
     request: CreateAgentRequest,
     options?: { allowChildAuthorityExceed?: boolean },
@@ -613,18 +619,7 @@ export class SubagentRunner {
     child: AgentRecord,
     historyMode: SubagentHistoryMode,
   ) {
-    const storage = await this.deps.harnessStorage.openAgentStorage(child);
-    if (
-      historyMode === "copy_parent" &&
-      (await storage.getEntries()).length === 0
-    ) {
-      for (const entry of await this.deps.harnessStorage.modelEntries(
-        child.conversationId,
-      )) {
-        await storage.appendEntry(entry);
-      }
-    }
-    return storage;
+    return this.deps.openChildStorage(child, historyMode);
   }
 
   private async writeExploreReport(input: {

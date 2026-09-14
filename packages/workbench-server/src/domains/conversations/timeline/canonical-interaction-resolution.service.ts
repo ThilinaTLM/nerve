@@ -10,7 +10,7 @@ import type {
 } from "@nervekit/contracts/runs";
 import type { ToolName } from "@nervekit/contracts/tools";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
-import type { ToolService } from "../../tools/execution/tool-service.js";
+import type { CanonicalToolRuntimeService } from "../../tools/execution/canonical-tool-runtime.service.js";
 import { canonicalConversationJson } from "./command-fingerprint.js";
 import { CanonicalRunTimelineService } from "./canonical-run-timeline.service.js";
 
@@ -53,7 +53,7 @@ export class CanonicalInteractionResolutionService {
 
   constructor(
     private readonly store: CanonicalStore,
-    private readonly tools: ToolService,
+    private readonly tools: CanonicalToolRuntimeService,
     private readonly getAgentForConversation: (
       conversationId: string,
     ) => AgentRecord | undefined,

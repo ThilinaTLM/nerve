@@ -3,7 +3,7 @@ import type { CanonicalLifecycleWork } from "@nervekit/contracts/runs";
 import type { ToolCallRecord, ToolName } from "@nervekit/contracts/tools";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import type { CanonicalToolExternalInvoker } from "../../tools/execution/canonical-tool-external-invoker.js";
-import type { ToolService } from "../../tools/execution/tool-service.js";
+import type { CanonicalToolRuntimeService } from "../../tools/execution/canonical-tool-runtime.service.js";
 import { CanonicalInteractionResolutionService } from "./canonical-interaction-resolution.service.js";
 import { CanonicalToolInvocationService } from "./canonical-tool-invocation.service.js";
 import { CanonicalToolSettlementService } from "./canonical-tool-settlement.service.js";
@@ -32,7 +32,7 @@ export class CanonicalToolWorkerService {
   constructor(
     private readonly store: CanonicalStore,
     private readonly external: CanonicalToolExternalInvoker,
-    private readonly tools: ToolService,
+    private readonly tools: CanonicalToolRuntimeService,
   ) {
     this.invocation = new CanonicalToolInvocationService(store);
     this.settlement = new CanonicalToolSettlementService(store);

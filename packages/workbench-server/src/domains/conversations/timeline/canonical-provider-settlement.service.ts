@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { MutationOutcome } from "@nervekit/contracts/conversations";
 import type {
   CanonicalExecutionAttempt,
@@ -26,6 +26,130 @@ export class CanonicalProviderSettlementService {
 
   constructor(private readonly store: CanonicalStore) {
     this.timeline = new CanonicalRunTimelineService(store);
+  }
+
+  async commitKnownFailure(input: {
+    snapshot: CanonicalProviderDispatchSnapshot;
+    workerId: string;
+    error: string;
+    retryAt: string;
+    now: string;
+  }): Promise<CanonicalProviderSettlementResult> {
+    const { snapshot } = input;
+    const [head, run, phase, attempt, claim, work] = await Promise.all([
+      this.store.readTimelineConversationHead(snapshot.conversationId),
+      this.store.readTimelineRunControl(
+        snapshot.conversationId,
+        snapshot.runId,
+      ),
+      this.store.execution.readProviderPhase(snapshot.phase.phaseId),
+      this.store.execution.readAttempt(snapshot.attempt.attemptId),
+      this.store.execution.readClaim(snapshot.claim.claimId),
+      this.store.execution.readLifecycleWork(snapshot.work.workId),
+    ]);
+    if (
+      !head ||
+      !run ||
+      phase?.state !== "active" ||
+      attempt?.state !== "dispatched" ||
+      claim?.state !== "active" ||
+      work?.state !== "leased" ||
+      work.leaseOwner !== input.workerId ||
+      head.activeEntryId !== snapshot.sourceEntryId ||
+      head.foregroundRunId !== snapshot.runId ||
+      run.revision !== snapshot.runRevision
+    ) {
+      return rejected("provider_failure_fence_changed");
+    }
+    const retryNumber =
+      typeof phase.providerIdentity.canonicalRetryNumber === "number"
+        ? phase.providerIdentity.canonicalRetryNumber + 1
+        : 1;
+    const suffix = randomUUID();
+    const nextPhaseId = `provider_phase_retry_${suffix}`;
+    const nextPhase: ProviderPhase = {
+      schemaVersion: 1,
+      phaseId: nextPhaseId,
+      runId: run.runId,
+      runGeneration: run.generation,
+      selectionEpoch: head.selectionEpoch,
+      sourceEntryId: head.activeEntryId,
+      contextRecipeId: `context_recipe_retry_${suffix}`,
+      providerIdentity: {
+        ...phase.providerIdentity,
+        canonicalRetryNumber: retryNumber,
+      },
+      capability: phase.capability,
+      state: "preparing",
+    };
+    const decision = {
+      schemaVersion: 1,
+      priorPhaseId: phase.phaseId,
+      priorAttemptId: attempt.attemptId,
+      retryNumber,
+      error: input.error,
+    };
+    const decisionHash = `sha256:${createHash("sha256")
+      .update(canonicalConversationJson(decision))
+      .digest("hex")}`;
+    const nextWork: CanonicalLifecycleWork = {
+      schemaVersion: 1,
+      workId: `canonical_work_retry_${suffix}`,
+      conversationId: run.conversationId,
+      runId: run.runId,
+      kind: "prepare_provider_request",
+      providerPhaseId: nextPhaseId,
+      state: "ready",
+      inputHash: decisionHash,
+      inputManifestId: `manifest_provider_retry_${suffix}`,
+      generation: 0,
+      revision: 1,
+      notBefore: input.retryAt,
+      createdAt: input.now,
+      updatedAt: input.now,
+    };
+    const result = await this.timeline.append({
+      conversationId: run.conversationId,
+      runId: run.runId,
+      commandId: `retry-provider:${phase.phaseId}`,
+      now: input.now,
+      actor: { kind: "worker", workerId: input.workerId },
+      cause: { kind: "known_provider_failure", phaseId: phase.phaseId },
+      entries: [],
+      artifactManifests: [
+        {
+          manifestId: nextWork.inputManifestId!,
+          schemaVersion: 1,
+          data: decision,
+        },
+      ],
+      providerPhases: [{ ...phase, state: "closed" }, nextPhase],
+      executionAttempts: [
+        {
+          ...attempt,
+          state: "known_failed",
+          outcome: { error: input.error, retryNumber },
+          updatedAt: input.now,
+        },
+      ],
+      executionClaims: [{ ...claim, state: "consumed" }],
+      lifecycleWorks: [
+        {
+          ...work,
+          state: "settled",
+          revision: work.revision + 1,
+          leaseOwner: undefined,
+          leaseDeadline: undefined,
+          updatedAt: input.now,
+        },
+        nextWork,
+      ],
+      providerPhaseId: nextPhaseId,
+      runState: "running",
+    });
+    return result.kind === "rejected"
+      ? result
+      : { kind: result.kind, responseId: `response_retry_${suffix}` };
   }
 
   async commitResponse(input: {

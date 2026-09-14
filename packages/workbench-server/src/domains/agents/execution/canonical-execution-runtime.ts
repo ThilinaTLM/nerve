@@ -1,9 +1,15 @@
+import {
+  deriveAutoCompactionPolicy,
+  shouldAutoCompact,
+} from "@nervekit/harness/compaction";
+import { getModelContextWindow } from "@nervekit/harness/models";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { PolicyDocumentObservation } from "@nervekit/contracts/permissions";
 import type { CanonicalLifecycleWork } from "@nervekit/contracts/runs";
 import type { ToolName } from "@nervekit/contracts/tools";
+import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
-import type { ToolService } from "../../tools/execution/tool-service.js";
+import type { CanonicalToolRuntimeService } from "../../tools/execution/canonical-tool-runtime.service.js";
 import type { CanonicalAutoCompactionService } from "../../conversations/timeline/canonical-auto-compaction.service.js";
 import type { CanonicalContinuationService } from "../../conversations/timeline/canonical-continuation.service.js";
 import type { CanonicalToolWorkerService } from "../../conversations/timeline/canonical-tool-worker.service.js";
@@ -29,10 +35,15 @@ export class CanonicalExecutionRuntime {
       continuation: CanonicalContinuationService;
       autoCompaction: CanonicalAutoCompactionService;
       mechanics: WorkbenchAgentMechanics;
-      tools: ToolService;
+      tools: CanonicalToolRuntimeService;
       workerId: string;
       getAgentForConversation(conversationId: string): AgentRecord | undefined;
       getConversationCreatedAt(conversationId: string): string;
+      prepareCompactionSummary(input: {
+        agent: AgentRecord;
+        entriesDescending: readonly import("@nervekit/contracts/conversations").CanonicalConversationEntry[];
+        summaryReserveTokens: number;
+      }): Promise<string>;
       onForegroundClosed?(conversationId: string): Promise<void>;
     },
   ) {}
@@ -153,13 +164,22 @@ export class CanonicalExecutionRuntime {
       entries.push(...page.entries);
       next = page.nextAncestorEntryId;
     }
-    const contextBytes = entries.reduce(
-      (total, entry) =>
-        total + JSON.stringify(entry.inlineContent ?? {}).length,
-      0,
+    const agent = this.requireAgent(work.conversationId);
+    const settings = await resolveProjectSettings(
+      this.deps.mechanics.deps.storage,
+      agent.projectDir,
     );
+    const policy = deriveAutoCompactionPolicy(
+      getModelContextWindow(agent.model),
+      settings.compaction,
+    );
+    const contextTokens = entries.reduce((total, entry) => {
+      const content = entry.inlineContent as Record<string, unknown>;
+      const text = typeof content.text === "string" ? content.text : "";
+      return total + Math.ceil(text.length / 4) + 8;
+    }, 0);
     const now = new Date().toISOString();
-    if (contextBytes >= 120_000) {
+    if (shouldAutoCompact(contextTokens, policy)) {
       const identity = await this.deps.store.readTimelineStateIdentity();
       if (!identity)
         throw new Error("Canonical timeline identity is unavailable.");
@@ -178,15 +198,11 @@ export class CanonicalExecutionRuntime {
           continuationWork: work,
           scheduleProviderPreparation: true,
           prepareSummary: async (source) => ({
-            summary: [...source]
-              .reverse()
-              .map((entry) => {
-                const content = entry.inlineContent as Record<string, unknown>;
-                return typeof content.text === "string" ? content.text : "";
-              })
-              .filter(Boolean)
-              .join("\n\n")
-              .slice(-64_000),
+            summary: await this.deps.prepareCompactionSummary({
+              agent,
+              entriesDescending: source,
+              summaryReserveTokens: policy.summaryReserveTokens,
+            }),
             anchorEntryId: null,
           }),
           prepareProviderPhase: async () => undefined,
@@ -204,8 +220,10 @@ export class CanonicalExecutionRuntime {
       now,
       compactionDecisionEvidence: {
         decision: "not_required",
-        contextBytes,
-        thresholdBytes: 120_000,
+        contextTokens,
+        contextWindow: policy.contextWindow,
+        thresholdTokens: policy.thresholdTokens,
+        profile: policy.profile,
       },
     });
     if (result.kind === "rejected") {

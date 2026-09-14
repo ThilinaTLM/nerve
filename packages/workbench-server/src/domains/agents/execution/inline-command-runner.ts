@@ -84,6 +84,9 @@ export class InlineCommandRunner {
         },
       );
       await input.sink.upsertToolCalls([toToolCallTranscriptRecord(toolCall)]);
+      if (!this.deps.harnessStorage) {
+        throw new Error("Legacy inline command authority is retired.");
+      }
       const entryId = createId("entry");
       const createdAt = new Date().toISOString();
       await this.deps.harnessStorage.appendAgentMessageWithId(

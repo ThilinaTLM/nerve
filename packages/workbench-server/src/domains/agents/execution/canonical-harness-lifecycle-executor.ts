@@ -94,6 +94,13 @@ export class CanonicalHarnessLifecycleExecutor {
         tools: input.tools,
         prepareToolProposals: input.prepareToolProposals,
         workerId: input.workerId,
+        retryPolicy: {
+          enabled: this.deps.mechanics.deps.storage.settings.retry.enabled,
+          maxRetries:
+            this.deps.mechanics.deps.storage.settings.retry.maxRetries,
+          baseDelayMs:
+            this.deps.mechanics.deps.storage.settings.retry.baseDelayMs,
+        },
         now: input.now,
       },
     });
@@ -103,7 +110,9 @@ export class CanonicalHarnessLifecycleExecutor {
     );
     if (
       canonicalRun?.state === "waiting" ||
-      canonicalRun?.state === "partially_waiting"
+      canonicalRun?.state === "partially_waiting" ||
+      (canonicalRun?.providerPhaseId !== null &&
+        canonicalRun?.providerPhaseId !== input.providerWork.providerPhaseId)
     ) {
       return;
     }

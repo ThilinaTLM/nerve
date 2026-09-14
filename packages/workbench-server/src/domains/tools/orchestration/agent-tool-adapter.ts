@@ -19,11 +19,16 @@ import {
 } from "@nervekit/contracts/tools";
 import type { ToolAnchor } from "../../runs/runtime/conversation-runtime.js";
 import type { ToolService } from "../execution/tool-service.js";
+
+type AgentToolExecutionPort = Pick<
+  ToolService,
+  "requestToolAndWait" | "toolResultRecoveryArtifact"
+>;
 import { projectToolCallResult } from "../artifacts/tool-result-projector.js";
 
 export function createAgentToolsForAgent(
   agent: AgentRecord,
-  tools: ToolService,
+  tools: AgentToolExecutionPort,
   options: {
     runId?: string;
     resolveToolAnchor?: (providerToolCallId: string) => ToolAnchor | undefined;

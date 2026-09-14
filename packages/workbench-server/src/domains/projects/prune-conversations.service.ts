@@ -13,7 +13,6 @@ import type {
 import type { TaskRecord } from "@nervekit/contracts/tasks";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { ConversationRepository } from "../conversations/index.js";
 
 export interface PruneConversationsTaskPort {
   activeTasksForConversations(conversationIds: string[]): TaskRecord[];
@@ -67,7 +66,6 @@ export interface PruneProjectConversationsServiceDeps {
   tasks: PruneConversationsTaskPort;
   tools: PruneConversationsToolPort;
   plans: PruneConversationsPlanPort;
-  conversationRepository: ConversationRepository;
   removeConversation: (
     conversationId: string,
     options?: ConversationRemovalOptions,

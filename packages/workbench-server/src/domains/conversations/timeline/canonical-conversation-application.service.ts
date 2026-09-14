@@ -1,6 +1,7 @@
 import { createId } from "@nervekit/contracts";
 import { randomUUID } from "node:crypto";
 import type {
+  CanonicalConversationEntry,
   ConversationEntry,
   ConversationRecord,
   CreateConversationRequest,
@@ -20,6 +21,7 @@ import type {
 import { CanonicalManagedArtifactFinalizer } from "./canonical-managed-artifact-finalizer.js";
 import { CanonicalConversationCreationService } from "./canonical-conversation-creation.service.js";
 import { CanonicalConversationMetadataRepository } from "./canonical-conversation-metadata.repository.js";
+import { projectCanonicalEntry } from "./canonical-entry-projection.js";
 import { conversationCommandFingerprint } from "./command-fingerprint.js";
 import { CanonicalTimelineIdentityService } from "./canonical-timeline-identity.service.js";
 import { CanonicalNavigationService } from "./canonical-navigation.service.js";
@@ -44,6 +46,11 @@ export class CanonicalConversationApplicationService {
       projects: ProjectLifecycleService;
       capabilities: CapabilityService;
       deletion: CanonicalDeletionService;
+      prepareCompactionSummary?(input: {
+        conversationId: string;
+        entriesDescending: readonly CanonicalConversationEntry[];
+        instructions?: string;
+      }): Promise<string>;
     },
   ) {
     this.metadata = new CanonicalConversationMetadataRepository(deps.storage);
@@ -62,7 +69,17 @@ export class CanonicalConversationApplicationService {
   }
 
   async loadConversations(): Promise<void> {
-    for (const conversation of await this.metadata.loadAll()) {
+    for (const stored of await this.metadata.loadAll()) {
+      const head =
+        await this.deps.storage.canonicalStore.readTimelineConversationHead(
+          stored.id,
+        );
+      const conversation = {
+        ...stored,
+        ...(head?.activeEntryId
+          ? { activeEntryId: head.activeEntryId }
+          : { activeEntryId: undefined }),
+      };
       this.deps.state.conversations.set(conversation.id, conversation);
       this.deps.queryCache.upsertConversation(conversation);
     }
@@ -92,36 +109,7 @@ export class CanonicalConversationApplicationService {
       canonical.push(...page.entries);
       next = page.nextAncestorEntryId;
     }
-    const createdFallback = this.getConversation(conversationId).createdAt;
-    const entries = canonical.reverse().map((entry): ConversationEntry => {
-      const content = entry.inlineContent as Record<string, unknown>;
-      const provenance = entry.provenance as Record<string, unknown>;
-      return {
-        id: entry.entryId,
-        conversationId,
-        ...(typeof provenance.agentId === "string"
-          ? { agentId: provenance.agentId }
-          : {}),
-        ...(entry.runId ? { runId: entry.runId } : {}),
-        ...(entry.parentEntryId ? { parentEntryId: entry.parentEntryId } : {}),
-        role:
-          entry.kind === "user_message"
-            ? "user"
-            : entry.kind === "assistant_message"
-              ? "assistant"
-              : "system",
-        kind: entry.kind === "summary" ? "compaction" : "message",
-        text: typeof content.text === "string" ? content.text : "",
-        ...(typeof content.summary === "string"
-          ? { summary: content.summary }
-          : {}),
-        ...(content.details === undefined ? {} : { details: content.details }),
-        createdAt:
-          typeof provenance.createdAt === "string"
-            ? provenance.createdAt
-            : createdFallback,
-      };
-    });
+    const entries = canonical.reverse().map(projectCanonicalEntry);
     this.deps.state.setConversationEntries(conversationId, entries);
     return entries;
   }
@@ -213,6 +201,13 @@ export class CanonicalConversationApplicationService {
     options: AppendEntryOptions = {},
   ): Promise<ConversationEntry> {
     void options;
+    if (input.id) {
+      const existing = await this.findCanonicalEntry(
+        input.conversationId,
+        input.id,
+      );
+      if (existing) return projectCanonicalEntry(existing);
+    }
     const head =
       await this.deps.storage.canonicalStore.readTimelineConversationHead(
         input.conversationId,
@@ -243,9 +238,35 @@ export class CanonicalConversationApplicationService {
       createdAt,
     };
     const identity = await this.identity.resolve();
+    const metadataDocument =
+      await this.deps.storage.canonicalStore.readDocument(
+        "canonical_conversation_metadata",
+        "global",
+        input.conversationId,
+      );
+    const currentConversation = this.getConversation(input.conversationId);
+    const metadataConversation: ConversationRecord = {
+      ...currentConversation,
+      updatedAt:
+        currentConversation.updatedAt > createdAt
+          ? currentConversation.updatedAt
+          : createdAt,
+      ...(input.role === "user"
+        ? {
+            lastUserMessageAt:
+              currentConversation.lastUserMessageAt &&
+              currentConversation.lastUserMessageAt > createdAt
+                ? currentConversation.lastUserMessageAt
+                : createdAt,
+          }
+        : {}),
+    };
+    delete metadataConversation.activeEntryId;
+    if (input.role === "user") delete metadataConversation.completedAt;
     const fingerprint = conversationCommandFingerprint({
       operation: "append_entry",
       entry,
+      metadataConversation,
     });
     const transition = buildAppendTransition({
       head,
@@ -268,6 +289,7 @@ export class CanonicalConversationApplicationService {
                 : "assistant_message",
           inlineContent: {
             text: entry.text,
+            role: entry.role,
             summary: entry.summary,
             usage: entry.usage,
             details: entry.details,
@@ -294,6 +316,16 @@ export class CanonicalConversationApplicationService {
         },
       ],
       transitions: [transition],
+      domainDocuments: [
+        {
+          namespace: "canonical_conversation_metadata",
+          scopeId: "global",
+          documentId: input.conversationId,
+          expectedRevision: metadataDocument?.revision ?? 0,
+          payloadVersion: 1,
+          data: metadataConversation,
+        },
+      ],
       outcome: entry,
       publicationIntents: [],
       now: createdAt,
@@ -302,15 +334,47 @@ export class CanonicalConversationApplicationService {
       throw new Error(`Canonical append rejected: ${result.kind}.`);
     }
     this.deps.state.appendConversationEntry(entry);
+    const conversation = {
+      ...metadataConversation,
+      activeEntryId: entry.id,
+    };
+    this.deps.state.conversations.set(input.conversationId, conversation);
+    this.deps.queryCache.upsertConversation(conversation);
     return entry;
+  }
+
+  private async findCanonicalEntry(
+    conversationId: string,
+    entryId: string,
+  ): Promise<CanonicalConversationEntry | undefined> {
+    try {
+      return (
+        await this.deps.storage.canonicalStore.readTimelineAncestrySegment(
+          conversationId,
+          entryId,
+          1,
+        )
+      ).entries[0];
+    } catch {
+      return undefined;
+    }
   }
 
   async compactConversation(
     conversationId: string,
     request: { instructions?: string } = {},
     options?: unknown,
-  ): Promise<ConversationRecord> {
-    void options;
+  ): Promise<{
+    conversation: ConversationRecord;
+    entry: ConversationEntry;
+  }> {
+    const reason =
+      options &&
+      typeof options === "object" &&
+      "reason" in options &&
+      typeof options.reason === "string"
+        ? options.reason
+        : "manual";
     const head =
       await this.deps.storage.canonicalStore.readTimelineConversationHead(
         conversationId,
@@ -349,19 +413,28 @@ export class CanonicalConversationApplicationService {
       mediaType: "application/json",
       semanticRole: "context_source_manifest",
     });
-    const summaryText = [
-      request.instructions,
-      ...source
-        .slice()
-        .reverse()
-        .map((entry) => {
-          const content = entry.inlineContent as Record<string, unknown>;
-          return typeof content.text === "string" ? content.text : "";
-        }),
-    ]
-      .filter(Boolean)
-      .join("\n\n")
-      .slice(-64_000);
+    await this.deps.events.publish("conversation.compaction.started", {
+      conversationId,
+      reason,
+    });
+    const summaryText = this.deps.prepareCompactionSummary
+      ? await this.deps.prepareCompactionSummary({
+          conversationId,
+          entriesDescending: source,
+          ...(request.instructions
+            ? { instructions: request.instructions }
+            : {}),
+        })
+      : source
+          .slice()
+          .reverse()
+          .map((entry) => {
+            const content = entry.inlineContent as Record<string, unknown>;
+            return typeof content.text === "string" ? content.text : "";
+          })
+          .filter(Boolean)
+          .join("\n\n")
+          .slice(-64_000);
     const identity = await this.identity.resolve();
     const fingerprint = conversationCommandFingerprint({
       operation: "manual_compaction",
@@ -372,6 +445,7 @@ export class CanonicalConversationApplicationService {
     });
     const transition = buildAppendTransition({
       head,
+      kind: "context_boundary_committed",
       identity: {
         commandId: `manual-compaction:${suffix}`,
         inputFingerprint: fingerprint,
@@ -383,8 +457,36 @@ export class CanonicalConversationApplicationService {
         {
           entryId: `entry_${suffix}`,
           kind: "summary",
-          inlineContent: { text: summaryText },
-          provenance: { sourceManifestDigest: sourceArtifact.digest },
+          inlineContent: {
+            text: summaryText,
+            role: "system",
+            details: {
+              reason,
+              generatedBy: this.deps.prepareCompactionSummary
+                ? "model"
+                : "orchestrator-extractive",
+              tokensAfter: Math.ceil(summaryText.length / 4),
+              freedTokens: Math.max(
+                0,
+                source.reduce((total, entry) => {
+                  const content = entry.inlineContent as Record<
+                    string,
+                    unknown
+                  >;
+                  return (
+                    total +
+                    (typeof content.text === "string"
+                      ? Math.ceil(content.text.length / 4)
+                      : 0)
+                  );
+                }, 0) - Math.ceil(summaryText.length / 4),
+              ),
+            },
+          },
+          provenance: {
+            sourceManifestDigest: sourceArtifact.digest,
+            createdAt: now,
+          },
         },
       ],
     });
@@ -432,14 +534,32 @@ export class CanonicalConversationApplicationService {
         },
       ],
       outcome: transition.resultingHead,
-      publicationIntents: [],
+      publicationIntents: [
+        {
+          intentId: `publication_compaction_${suffix}`,
+          stream: `conv/${conversationId}`,
+          eventType: "conversation.compacted",
+          occurredAt: now,
+          conversationId,
+          data: {
+            conversationId,
+            reason,
+            entryId: transition.entries[0]!.entryId,
+            tokensAfter: Math.ceil(summaryText.length / 4),
+          },
+        },
+      ],
       now,
     });
     if (result.kind !== "committed" && result.kind !== "receipt_replay") {
       throw new Error(`Canonical compaction rejected: ${result.kind}.`);
     }
-    await this.ensureConversationEntries(conversationId);
-    return this.getConversation(conversationId);
+    const entries = await this.ensureConversationEntries(conversationId);
+    const entry = entries.find(
+      (candidate) => candidate.id === transition.entries[0]!.entryId,
+    );
+    if (!entry) throw new Error("Canonical summary projection is unavailable.");
+    return { conversation: this.getConversation(conversationId), entry };
   }
 
   async cancelCompaction(conversationId?: string): Promise<void> {
@@ -492,7 +612,7 @@ export class CanonicalConversationApplicationService {
       ...(request.clearRuntimeStatus === true
         ? { runtimeStatusClearedAt: now }
         : {}),
-      updatedAt: now,
+      updatedAt: current.updatedAt,
     };
     if (request.completed === false) delete next.completedAt;
     await this.updateConversation(next);

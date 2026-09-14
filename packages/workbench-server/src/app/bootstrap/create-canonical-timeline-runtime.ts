@@ -33,7 +33,7 @@ import { CanonicalToolDispatchService } from "../../domains/conversations/timeli
 import { CanonicalToolSettlementService } from "../../domains/conversations/timeline/canonical-tool-settlement.service.js";
 import { CanonicalToolInvocationService } from "../../domains/conversations/timeline/canonical-tool-invocation.service.js";
 import { CanonicalToolWorkerService } from "../../domains/conversations/timeline/canonical-tool-worker.service.js";
-import type { ToolService } from "../../domains/tools/execution/tool-service.js";
+import type { CanonicalToolRuntimeService } from "../../domains/tools/execution/canonical-tool-runtime.service.js";
 import { CanonicalBackupInspectionService } from "../../domains/storage/canonical-backup-inspection.service.js";
 import { CanonicalPortableBackupService } from "../../domains/storage/canonical-portable-backup.service.js";
 import { CanonicalRestoreStagingService } from "../../domains/storage/canonical-restore-staging.service.js";
@@ -149,7 +149,7 @@ export function timelineRuntime(
     toolInvocation,
     runExecutionBoundary,
     createInteractionResolution: (
-      tools: ToolService,
+      tools: CanonicalToolRuntimeService,
       getAgentForConversation: ConstructorParameters<
         typeof CanonicalInteractionResolutionService
       >[2],
@@ -162,13 +162,16 @@ export function timelineRuntime(
     createExecutionRuntime: (input: {
       workerId: string;
       mechanics: WorkbenchAgentMechanics;
-      tools: ToolService;
+      tools: CanonicalToolRuntimeService;
       getAgentForConversation(
         conversationId: string,
       ):
         | Parameters<WorkbenchAgentMechanics["activeToolNamesFor"]>[0]
         | undefined;
       getConversationCreatedAt(conversationId: string): string;
+      prepareCompactionSummary: ConstructorParameters<
+        typeof CanonicalExecutionRuntime
+      >[0]["prepareCompactionSummary"];
       onForegroundClosed?(conversationId: string): Promise<void>;
     }) => {
       const harness = new CanonicalHarnessLifecycleExecutor({
@@ -212,7 +215,7 @@ export function timelineRuntime(
     },
     createLiveRunExecutor: (
       mechanics: WorkbenchAgentMechanics,
-      tools: ToolService,
+      tools: CanonicalToolRuntimeService,
     ) => {
       const harness = new CanonicalHarnessLifecycleExecutor({
         mechanics,

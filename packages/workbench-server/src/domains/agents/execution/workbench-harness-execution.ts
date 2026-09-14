@@ -1,6 +1,5 @@
 import { AgentHarness } from "@nervekit/harness";
 import { type AnyModel, isAgentToolSuspension } from "@nervekit/harness/agent";
-import { convertToLlm } from "@nervekit/harness/messages";
 import { resolveAgentModel } from "@nervekit/harness/models";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
@@ -101,7 +100,9 @@ export async function executeWorkbenchHarness(
     const [storage, harnessConversation, initialHarnessEntryIds] =
       await openHarnessExecutionContext({
         canonical: canonical?.session,
-        openLegacy: () => this.deps.harnessStorage.openStorage(conversation),
+        openLegacy: () =>
+          this.deps.openLegacyStorage?.(conversation) ??
+          Promise.reject(new Error("Legacy harness execution is retired.")),
       });
     let activeToolNames = await this.activeToolNamesFor(
       agent,
@@ -530,6 +531,9 @@ export async function executeWorkbenchHarness(
             message: event.message,
           });
         } else {
+          if (!this.deps.messageMirror) {
+            throw new Error("Legacy message mirroring is retired.");
+          }
           mirrored = await this.deps.messageMirror.mirrorNewHarnessEntries(
             agent,
             storage,
@@ -551,17 +555,12 @@ export async function executeWorkbenchHarness(
           mirrored,
         );
         for (const entry of mirrored) {
-          if (entry.role === "user" && !canonical) {
-            await this.deps.messageMirror.maybeDeriveInitialConversationTitle(
-              conversation.id,
-              entry.text,
-            );
-          } else if (entry.role === "assistant") {
+          if (entry.role === "assistant") {
             lastAssistantEntry = entry;
             if (entry.usage) shouldPublishContextUsage = true;
           }
         }
-        if (shouldPublishContextUsage) {
+        if (shouldPublishContextUsage && !canonical) {
           await this.publishContextUsage(
             agent.conversationId,
             agent.id,
@@ -659,12 +658,14 @@ export async function executeWorkbenchHarness(
       }
     };
     const expandBlocks = (text: string, images?: PromptRequest["images"]) =>
-      expandExecutablePromptBlocks(
-        (command, opts) =>
-          this.executeInlinePromptBlockCommand(agent, command, opts),
-        { text, images },
-        runAbortController.signal,
-      );
+      canonical
+        ? Promise.resolve({ text, images })
+        : expandExecutablePromptBlocks(
+            (command, opts) =>
+              this.executeInlinePromptBlockCommand(agent, command, opts),
+            { text, images },
+            runAbortController.signal,
+          );
     const liveControl: WorkbenchLiveExecutionControl = {
       steer: async (prompt) => {
         const expanded = await expandBlocks(prompt.text, prompt.images);
@@ -710,9 +711,8 @@ export async function executeWorkbenchHarness(
         runId,
         agent,
         signal: runAbortController.signal,
+        canonical: Boolean(canonical),
       });
-      const messages = convertToLlm((await storage.buildContext()).messages);
-      this.deps.conversationService.setForAgent(agent.id, messages);
       if (forcePushGeneration > handledForcePushGeneration) {
         handledForcePushGeneration = forcePushGeneration;
         continueAttempt = true;
@@ -794,7 +794,5 @@ export async function executeWorkbenchHarness(
             retryable: true,
           },
         };
-  } finally {
-    this.finishAutoCompactionRun?.(runId);
   }
 }
