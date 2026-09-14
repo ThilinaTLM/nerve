@@ -5,10 +5,14 @@ import type {
   RunExecutionSink,
 } from "../../runs/runtime/index.js";
 import type { WorkbenchLiveExecutionControl } from "../../runs/application/run-live-executions.js";
+import type { CanonicalLifecycleWork } from "@nervekit/contracts/runs";
 import type {
   CanonicalRunExecutionBoundary,
   CanonicalRunExecutionSession,
 } from "./canonical-run-execution-boundary.js";
+import type { CanonicalProviderDispatchSnapshot } from "../../conversations/timeline/canonical-provider-dispatch.service.js";
+import type { CanonicalProviderInvocationService } from "../../conversations/timeline/canonical-provider-invocation.service.js";
+import type { CanonicalProviderSettlementService } from "../../conversations/timeline/canonical-provider-settlement.service.js";
 
 export interface CoordinatorExecutionOptions {
   run: RunRecord;
@@ -25,6 +29,11 @@ export interface CoordinatorExecutionOptions {
   canonical?: {
     session: CanonicalRunExecutionSession;
     boundary: CanonicalRunExecutionBoundary;
+    providerInvocation: CanonicalProviderInvocationService;
+    providerSettlement: CanonicalProviderSettlementService;
+    preparationWork: CanonicalLifecycleWork;
+    workerId: string;
+    activeProviderSnapshot?: CanonicalProviderDispatchSnapshot;
     now(): string;
   };
 }

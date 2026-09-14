@@ -1,5 +1,7 @@
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import { CanonicalRunExecutionBoundary } from "../../domains/agents/execution/canonical-run-execution-boundary.js";
+import { CanonicalHarnessLifecycleExecutor } from "../../domains/agents/execution/canonical-harness-lifecycle-executor.js";
+import type { WorkbenchAgentMechanics } from "../../domains/agents/execution/workbench-agent-mechanics.js";
 import { FilesystemCanonicalArtifactFinalizer } from "../../infrastructure/persistence/canonical-artifact-finalizer.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
@@ -20,6 +22,9 @@ import { CanonicalRunTerminationService } from "../../domains/conversations/time
 import { CanonicalRunTimelineService } from "../../domains/conversations/timeline/canonical-run-timeline.service.js";
 import { CanonicalTimelinePageProvider } from "../../domains/conversations/timeline/canonical-timeline-page-provider.js";
 import { CanonicalTranscriptProjectionService } from "../../domains/conversations/timeline/canonical-transcript-projection.service.js";
+import { CanonicalToolDispatchService } from "../../domains/conversations/timeline/canonical-tool-dispatch.service.js";
+import { CanonicalToolSettlementService } from "../../domains/conversations/timeline/canonical-tool-settlement.service.js";
+import { CanonicalToolInvocationService } from "../../domains/conversations/timeline/canonical-tool-invocation.service.js";
 import { CanonicalBackupInspectionService } from "../../domains/storage/canonical-backup-inspection.service.js";
 import { CanonicalPortableBackupService } from "../../domains/storage/canonical-portable-backup.service.js";
 import { CanonicalRestoreStagingService } from "../../domains/storage/canonical-restore-staging.service.js";
@@ -51,6 +56,13 @@ export function timelineRuntime(
     storage.canonicalStore,
   );
   const providerInvocation = new CanonicalProviderInvocationService(
+    storage.canonicalStore,
+  );
+  const toolDispatch = new CanonicalToolDispatchService(storage.canonicalStore);
+  const toolSettlement = new CanonicalToolSettlementService(
+    storage.canonicalStore,
+  );
+  const toolInvocation = new CanonicalToolInvocationService(
     storage.canonicalStore,
   );
   const navigation = new CanonicalNavigationService(storage.canonicalStore);
@@ -99,7 +111,17 @@ export function timelineRuntime(
     providerDispatch,
     providerSettlement,
     providerInvocation,
+    toolDispatch,
+    toolSettlement,
+    toolInvocation,
     runExecutionBoundary,
+    createHarnessExecutor: (mechanics: WorkbenchAgentMechanics) =>
+      new CanonicalHarnessLifecycleExecutor({
+        mechanics,
+        boundary: runExecutionBoundary,
+        providerInvocation,
+        providerSettlement,
+      }),
     autoCompaction,
     navigation,
     deletion,

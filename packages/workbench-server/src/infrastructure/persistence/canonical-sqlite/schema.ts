@@ -4,8 +4,10 @@ import { TIMELINE_SEARCH_PROJECTION_V7_SQL } from "./timeline-search-schema.js";
 import { TIMELINE_RESTORE_V8_SQL } from "./timeline-restore-schema.js";
 import { TIMELINE_AUTHORITY_PROMOTION_V9_SQL } from "./timeline-authority-promotion-schema.js";
 import { TIMELINE_LIFECYCLE_WORK_V10_SQL } from "./timeline-lifecycle-work-schema.js";
+import { TIMELINE_TOOL_WORK_V11_SQL } from "./timeline-tool-work-schema.js";
+import { TIMELINE_EFFECT_CAPABILITY_V12_SQL } from "./timeline-effect-capability-schema.js";
 
-export const CANONICAL_SCHEMA_VERSION = 10;
+export const CANONICAL_SCHEMA_VERSION = 12;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -411,5 +413,19 @@ export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
     checksum:
       "4c9eb6e74245ba0300b21e0f7a07264fb95162f0f448c58322ca35f9ad3021cc",
     sql: TIMELINE_LIFECYCLE_WORK_V10_SQL,
+  },
+  {
+    version: 11,
+    name: "timeline-tool-work-v11",
+    checksum:
+      "97d7c351b5b627572a66d2eb4facdcecde975d0f0c59372de008a54cd00f079f",
+    sql: TIMELINE_TOOL_WORK_V11_SQL,
+  },
+  {
+    version: 12,
+    name: "timeline-effect-capability-v12",
+    checksum:
+      "ae5258cb0ad6c7a1ebade0c7a4abb9bc017fce90fbfa22a7e2bf3b1ea0d17fe5",
+    sql: TIMELINE_EFFECT_CAPABILITY_V12_SQL,
   },
 ];

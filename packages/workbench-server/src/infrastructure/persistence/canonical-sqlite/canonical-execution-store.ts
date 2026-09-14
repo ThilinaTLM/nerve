@@ -1,8 +1,11 @@
 import type {
   CanonicalExecutionAttempt,
   CanonicalLifecycleWork,
+  ExactCallAuthorization,
   ExecutionClaim,
+  LogicalEffect,
   ProviderPhase,
+  WaitGroup,
 } from "@nervekit/contracts/runs";
 import type { CanonicalRunExecutionAuthority } from "./timeline-execution-database.js";
 import type { CanonicalCommand } from "./worker-protocol.js";
@@ -29,6 +32,27 @@ export class CanonicalExecutionStore {
       kind: "read_canonical_run_execution_authority",
       runId,
       phaseId,
+    });
+  }
+
+  readWaitGroup(waitGroupId: string) {
+    return this.request<WaitGroup | undefined>({
+      kind: "read_canonical_wait_group",
+      waitGroupId,
+    });
+  }
+
+  readAuthorization(authorizationId: string) {
+    return this.request<ExactCallAuthorization | undefined>({
+      kind: "read_canonical_authorization",
+      authorizationId,
+    });
+  }
+
+  readEffect(effectId: string) {
+    return this.request<LogicalEffect | undefined>({
+      kind: "read_canonical_logical_effect",
+      effectId,
     });
   }
 

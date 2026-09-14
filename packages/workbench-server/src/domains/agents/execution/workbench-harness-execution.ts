@@ -1,6 +1,5 @@
 import { AgentHarness } from "@nervekit/harness";
 import { type AnyModel, isAgentToolSuspension } from "@nervekit/harness/agent";
-import { Conversation } from "@nervekit/harness/conversation";
 import { convertToLlm } from "@nervekit/harness/messages";
 import { resolveAgentModel } from "@nervekit/harness/models";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
@@ -36,7 +35,12 @@ import {
   AssistantEntryMetaQueue,
   markMirroredEntriesMaterialized,
 } from "./message-mirror.js";
-import { flushCanonicalHarnessMessages } from "./canonical-harness-message-flush.js";
+import { openHarnessExecutionContext } from "./canonical-harness-message-flush.js";
+import {
+  checkpointLegacyProviderResponse,
+  prepareCanonicalHarnessProviderDispatch,
+  settleCanonicalHarnessMessage,
+} from "./canonical-harness-provider-lifecycle.js";
 import type { CoordinatorExecutionOptions } from "./coordinator-execution-options.js";
 import { composeAgentSystemPrompt } from "./system-prompt-builder.js";
 import {
@@ -58,6 +62,7 @@ export async function executeWorkbenchHarness(
   },
 ): Promise<RunExecutionOutcome> {
   const coordinator = options.coordinator;
+  const canonical = coordinator.canonical;
   const runId = coordinator.run.runId;
   let abortRequested = false;
   const runAbortController = new AbortController();
@@ -93,16 +98,11 @@ export async function executeWorkbenchHarness(
       agent.conversationId,
     );
     const project = this.deps.state.getProject(agent.projectId);
-    const storage =
-      coordinator.canonical?.session.storage ??
-      (await this.deps.harnessStorage.openStorage(conversation));
-    const harnessConversation =
-      coordinator.canonical?.session.conversation ?? new Conversation(storage);
-    const initialHarnessEntryIds = new Set(
-      coordinator.canonical
-        ? coordinator.canonical.session.materializedEntryIds
-        : (await storage.getEntries()).map((entry) => entry.id),
-    );
+    const [storage, harnessConversation, initialHarnessEntryIds] =
+      await openHarnessExecutionContext({
+        canonical: canonical?.session,
+        openLegacy: () => this.deps.harnessStorage.openStorage(conversation),
+      });
     let activeToolNames = await this.activeToolNamesFor(
       agent,
       capabilitySelection.disabledTools,
@@ -206,6 +206,7 @@ export async function executeWorkbenchHarness(
       context: undefined,
     });
     harness.on("iteration_boundary", async (event) => {
+      if (canonical) return undefined;
       const compacted = await this.maybeAutoCompactAtIteration(
         agent.conversationId,
         agent.id,
@@ -248,6 +249,10 @@ export async function executeWorkbenchHarness(
       if (event.type === "before_provider_request") {
         currentProviderForResponse = event.model.provider;
         this.deps.subscriptionUsage.touchProvider(event.model.provider);
+        return;
+      }
+      if (event.type === "before_provider_payload" && canonical) {
+        await prepareCanonicalHarnessProviderDispatch(canonical, event.payload);
         return;
       }
       if (event.type === "after_provider_response") {
@@ -517,12 +522,11 @@ export async function executeWorkbenchHarness(
         }
         assistantEntryMeta.onMessageEnded(event.message.role);
         let mirrored: ConversationEntry[];
-        if (coordinator.canonical) {
-          mirrored = await flushCanonicalHarnessMessages({
+        if (canonical) {
+          mirrored = await settleCanonicalHarnessMessage({
+            authority: canonical,
             agent,
-            session: coordinator.canonical.session,
-            boundary: coordinator.canonical.boundary,
-            now: coordinator.canonical.now(),
+            message: event.message,
           });
         } else {
           mirrored = await this.deps.messageMirror.mirrorNewHarnessEntries(
@@ -546,7 +550,7 @@ export async function executeWorkbenchHarness(
           mirrored,
         );
         for (const entry of mirrored) {
-          if (entry.role === "user" && !coordinator.canonical) {
+          if (entry.role === "user" && !canonical) {
             await this.deps.messageMirror.maybeDeriveInitialConversationTitle(
               conversation.id,
               entry.text,
@@ -693,9 +697,8 @@ export async function executeWorkbenchHarness(
           delivery: input.delivery,
         }),
     };
-
     const promptRequest = await expandBlocks(request.text, request.images);
-    let continueAttempt = options.continue === true;
+    let continueAttempt = options.continue === true || Boolean(canonical);
     let handledForcePushGeneration = 0;
     while (true) {
       const runAssistant = await this.runHarnessAttempt({
@@ -756,9 +759,7 @@ export async function executeWorkbenchHarness(
               }),
         } as RunExecutionOutcome;
       }
-      await coordinator.sink.checkpoint(
-        await coordinator.checkpointCommand("after_provider_response"),
-      );
+      await checkpointLegacyProviderResponse(coordinator);
       if (forcePushGeneration > handledForcePushGeneration) {
         handledForcePushGeneration = forcePushGeneration;
         continueAttempt = true;

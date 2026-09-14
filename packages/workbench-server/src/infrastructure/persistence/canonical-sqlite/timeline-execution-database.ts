@@ -2,19 +2,26 @@ import type { DatabaseSync } from "node:sqlite";
 import type {
   CanonicalExecutionAttempt,
   CanonicalLifecycleWork,
+  ExactCallAuthorization,
   ExecutionClaim,
+  LogicalEffect,
   ProviderPhase,
   RunControl,
+  WaitGroup,
 } from "@nervekit/contracts/runs";
 import { providerPhaseSchema } from "@nervekit/contracts/runs";
 import { assertProviderPhaseTransition } from "../../../domains/runs/runtime/provider-phase-state.js";
 import { decode, encode } from "./payload-codecs.js";
 import {
-  listTimelineExecutionAttemptsForProviderPhase,
+  listTimelineExecutionAttemptsForRun,
   listTimelineExecutionClaimsForAttempts,
+  listTimelineLogicalEffectsForRun,
+  readTimelineAuthorization,
   readTimelineExecutionAttempt,
   readTimelineExecutionClaim,
+  readTimelineLogicalEffect,
 } from "./timeline-effect-database.js";
+import { readTimelineWaitGroup } from "./timeline-wait-group-database.js";
 import {
   claimReadyCanonicalLifecycleWork,
   listCanonicalLifecycleWorkForRun,
@@ -26,6 +33,9 @@ export interface CanonicalRunExecutionAuthority {
   phase?: ProviderPhase;
   attempts: CanonicalExecutionAttempt[];
   claims: ExecutionClaim[];
+  effects: LogicalEffect[];
+  authorizations: ExactCallAuthorization[];
+  waitGroup?: WaitGroup;
   work: CanonicalLifecycleWork[];
 }
 
@@ -39,9 +49,11 @@ export class CanonicalExecutionQueryDatabase {
     const phase = phaseId
       ? readProviderPhase(this.database, phaseId)
       : undefined;
-    const attempts = phaseId
-      ? listTimelineExecutionAttemptsForProviderPhase(this.database, phaseId)
-      : [];
+    const attempts = listTimelineExecutionAttemptsForRun(this.database, runId);
+    const effects = listTimelineLogicalEffectsForRun(this.database, runId);
+    const run = this.database
+      .prepare(`SELECT wait_group_id FROM run_controls WHERE run_id = ?`)
+      .get(runId) as { wait_group_id: string | null } | undefined;
     return {
       phase,
       attempts,
@@ -49,8 +61,33 @@ export class CanonicalExecutionQueryDatabase {
         this.database,
         attempts.map((attempt) => attempt.attemptId),
       ),
+      effects,
+      authorizations: effects
+        .map((effect) =>
+          readTimelineAuthorization(this.database, effect.authorizationId),
+        )
+        .filter((authorization): authorization is ExactCallAuthorization =>
+          Boolean(authorization),
+        ),
+      waitGroup: run?.wait_group_id
+        ? readTimelineWaitGroup(this.database, run.wait_group_id)
+        : undefined,
       work: listCanonicalLifecycleWorkForRun(this.database, runId),
     };
+  }
+
+  readWaitGroup(waitGroupId: string): WaitGroup | undefined {
+    return readTimelineWaitGroup(this.database, waitGroupId);
+  }
+
+  readAuthorization(
+    authorizationId: string,
+  ): ExactCallAuthorization | undefined {
+    return readTimelineAuthorization(this.database, authorizationId);
+  }
+
+  readEffect(effectId: string): LogicalEffect | undefined {
+    return readTimelineLogicalEffect(this.database, effectId);
   }
 
   readAttempt(attemptId: string): CanonicalExecutionAttempt | undefined {

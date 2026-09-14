@@ -12,6 +12,7 @@ export const canonicalLifecycleWorkSchema = z
       "prepare_provider_request",
       "claim_provider_attempt",
       "dispatch_provider_attempt",
+      "claim_tool_attempt",
       "dispatch_tool_attempt",
       "reconcile_execution",
     ]),
@@ -47,7 +48,11 @@ export const canonicalLifecycleWorkSchema = z
         message: "Provider work requires exactly one provider phase binding.",
       });
     }
-    if (work.kind === "dispatch_tool_attempt" && !work.effectId) {
+    if (
+      (work.kind === "claim_tool_attempt" ||
+        work.kind === "dispatch_tool_attempt") &&
+      !work.effectId
+    ) {
       context.addIssue({
         code: "custom",
         path: ["effectId"],

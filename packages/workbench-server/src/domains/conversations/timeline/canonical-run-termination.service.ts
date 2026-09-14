@@ -2,9 +2,12 @@ import { createHash } from "node:crypto";
 import type {
   CanonicalExecutionAttempt,
   CanonicalLifecycleWork,
+  ExactCallAuthorization,
   ExecutionClaim,
+  LogicalEffect,
   ProviderPhase,
   RecoveryAction,
+  WaitGroup,
 } from "@nervekit/contracts/runs";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import {
@@ -62,6 +65,25 @@ export class CanonicalRunTerminationService {
         updatedAt: input.now,
       });
     }
+    const unknownEffectIds = new Set(
+      authority.attempts
+        .filter((attempt) => unknownAttemptIds.has(attempt.attemptId))
+        .flatMap((attempt) => (attempt.effectId ? [attempt.effectId] : [])),
+    );
+    const authorizations: ExactCallAuthorization[] = authority.authorizations
+      .filter((authorization) => authorization.state === "active")
+      .map((authorization) => ({ ...authorization, state: "revoked" }));
+    const effects: LogicalEffect[] = authority.effects
+      .filter(
+        (effect) =>
+          effect.state !== "closed" && effect.state !== "outcome_unknown",
+      )
+      .map((effect) => ({
+        ...effect,
+        state: unknownEffectIds.has(effect.effectId)
+          ? "outcome_unknown"
+          : "closed",
+      }));
     const claims: ExecutionClaim[] = authority.claims
       .filter((claim) => claim.state === "active")
       .map((claim) => ({ ...claim, state: "revoked" }));
@@ -75,6 +97,15 @@ export class CanonicalRunTerminationService {
         leaseDeadline: undefined,
         updatedAt: input.now,
       }));
+    const waitGroups: WaitGroup[] = authority.waitGroup
+      ? [
+          closeWaitGroup(
+            authority.waitGroup,
+            unknownEffectIds,
+            authority.effects,
+          ),
+        ]
+      : [];
     const phases: ProviderPhase[] =
       authority.phase &&
       authority.phase.state !== "committed" &&
@@ -83,25 +114,30 @@ export class CanonicalRunTerminationService {
         : [];
     const recoveryActions: RecoveryAction[] = [...unknownAttemptIds].map(
       (attemptId) => {
+        const attempt = authority.attempts.find(
+          (candidate) => candidate.attemptId === attemptId,
+        );
         const suffix = createHash("sha256")
           .update(`${input.runId}:${attemptId}:possible-dispatch`)
           .digest("hex")
           .slice(0, 32);
         return {
           schemaVersion: 1,
-          actionId: `recovery_provider_${suffix}`,
+          actionId: `recovery_execution_${suffix}`,
           conversationId: input.conversationId,
           runId: input.runId,
+          ...(attempt?.effectId ? { effectId: attempt.effectId } : {}),
           actionKind: "reconcile_external_effect",
           evidence: {
-            source: "provider_attempt",
+            source: attempt?.effectId ? "tool_attempt" : "provider_attempt",
             attemptId,
-            phaseId: authority.phase?.phaseId,
+            effectId: attempt?.effectId,
+            phaseId: attempt?.providerPhaseId,
             reason: "run_closed_after_possible_provider_dispatch",
             terminalRunState: input.state,
           },
           status: "prepared",
-          commandId: `recover-provider-attempt:${attemptId}`,
+          commandId: `recover-execution-attempt:${attemptId}`,
           createdAt: input.now,
         };
       },
@@ -116,10 +152,63 @@ export class CanonicalRunTerminationService {
       state: input.state,
       recoveryReason: input.recoveryReason,
       providerPhases: phases,
+      waitGroups,
+      authorizations,
+      logicalEffects: effects,
       executionAttempts: attempts,
       executionClaims: claims,
       lifecycleWorks: work,
       recoveryActions,
     });
   }
+}
+
+function closeWaitGroup(
+  group: WaitGroup,
+  unknownEffectIds: ReadonlySet<string>,
+  effects: readonly LogicalEffect[],
+): WaitGroup {
+  const effectByMember = new Map(
+    effects.map((effect) => [effect.memberId, effect.effectId]),
+  );
+  const members = group.members.map((member) => {
+    if (
+      member.executionState === "succeeded" ||
+      member.executionState === "known_failed" ||
+      member.executionState === "denied" ||
+      member.executionState === "cancelled" ||
+      member.executionState === "closed"
+    ) {
+      return member;
+    }
+    const unknown =
+      member.executionState === "outcome_unknown" ||
+      unknownEffectIds.has(effectByMember.get(member.memberId) ?? "");
+    return unknown
+      ? {
+          ...member,
+          executionState: "outcome_unknown" as const,
+          attachmentDisposition: "outcome_unknown" as const,
+          contributesToBarrier: false,
+          revision: member.revision + 1,
+        }
+      : {
+          ...member,
+          executionState: "cancelled" as const,
+          attachmentDisposition: "not_executed" as const,
+          nonDispatchEvidenceId: `evidence_cancelled_${member.memberId.slice("member_".length)}`,
+          contributesToBarrier: true,
+          revision: member.revision + 1,
+        };
+  });
+  const hasUnknown = members.some(
+    (member) => member.executionState === "outcome_unknown",
+  );
+  return {
+    ...group,
+    members,
+    continuationConsumed: true,
+    state: hasUnknown ? "recovery_required" : "closed",
+    revision: group.revision + 1,
+  };
 }

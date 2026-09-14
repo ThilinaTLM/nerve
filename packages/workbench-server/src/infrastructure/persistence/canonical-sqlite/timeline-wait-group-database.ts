@@ -116,6 +116,63 @@ export function persistTimelineWaitGroup(
   }
 }
 
+export function readTimelineWaitGroup(
+  database: DatabaseSync,
+  waitGroupId: string,
+): WaitGroup | undefined {
+  const group = database
+    .prepare(
+      `SELECT run_id, membership_manifest_id, continuation_entry_id,
+              continuation_consumed, effective_state, revision
+       FROM wait_groups WHERE wait_group_id = ?`,
+    )
+    .get(waitGroupId) as
+    | {
+        run_id: string;
+        membership_manifest_id: string;
+        continuation_entry_id: string | null;
+        continuation_consumed: number;
+        effective_state: WaitGroup["state"];
+        revision: number;
+      }
+    | undefined;
+  if (!group) return undefined;
+  const members = database
+    .prepare(
+      `SELECT member_id, wait_group_id, member_kind, owner_id,
+              input_fingerprint, policy_fingerprint, execution_state,
+              attachment_disposition, result_entry_id,
+              non_dispatch_evidence_id, barrier_contribution, revision
+       FROM wait_group_members WHERE wait_group_id = ? ORDER BY member_id`,
+    )
+    .all(waitGroupId) as unknown as MemberRow[];
+  return waitGroupSchema.parse({
+    schemaVersion: 1,
+    waitGroupId,
+    runId: group.run_id,
+    membershipManifestId: group.membership_manifest_id,
+    continuationEntryId: group.continuation_entry_id,
+    continuationConsumed: group.continuation_consumed === 1,
+    state: group.effective_state,
+    revision: group.revision,
+    members: members.map((row) => ({
+      schemaVersion: 1,
+      memberId: row.member_id,
+      waitGroupId: row.wait_group_id,
+      memberKind: row.member_kind,
+      ownerId: row.owner_id,
+      inputFingerprint: row.input_fingerprint,
+      policyFingerprint: row.policy_fingerprint ?? undefined,
+      executionState: row.execution_state,
+      attachmentDisposition: row.attachment_disposition,
+      resultEntryId: row.result_entry_id ?? undefined,
+      nonDispatchEvidenceId: row.non_dispatch_evidence_id ?? undefined,
+      contributesToBarrier: row.barrier_contribution === 1,
+      revision: row.revision,
+    })),
+  });
+}
+
 function updateWaitGroup(
   database: DatabaseSync,
   group: WaitGroup,

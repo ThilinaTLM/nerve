@@ -253,6 +253,8 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
     { version: 8, name: "timeline-restore-quarantine-v8" },
     { version: 9, name: "timeline-authority-promotion-v9" },
     { version: 10, name: "timeline-lifecycle-work-v10" },
+    { version: 11, name: "timeline-tool-work-v11" },
+    { version: 12, name: "timeline-effect-capability-v12" },
   ]);
   const homeMigrations = JSON.parse(
     await readFile(storage.paths.migrationLedgerPath, "utf8"),

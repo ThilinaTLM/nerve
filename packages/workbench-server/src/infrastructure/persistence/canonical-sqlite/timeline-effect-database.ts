@@ -10,7 +10,7 @@ import { decode, encode } from "./payload-codecs.js";
 
 const legalEffectTransitions: Readonly<Record<string, readonly string[]>> = {
   authorized: ["dispatching", "closed"],
-  dispatching: ["settled", "outcome_unknown", "result_unavailable"],
+  dispatching: ["settled", "outcome_unknown", "result_unavailable", "closed"],
   outcome_unknown: ["settled", "result_unavailable", "closed"],
   result_unavailable: ["settled", "closed"],
   settled: ["closed"],
@@ -136,6 +136,44 @@ export function insertTimelineAuthorization(
     );
 }
 
+export function readTimelineAuthorization(
+  database: DatabaseSync,
+  authorizationId: string,
+): ExactCallAuthorization | undefined {
+  const row = database
+    .prepare(
+      `SELECT member_id, normalized_input_hash, policy_observation_id,
+              run_generation, selection_epoch, state, data, created_at_ms
+       FROM exact_call_authorizations WHERE authorization_id = ?`,
+    )
+    .get(authorizationId) as
+    | {
+        member_id: string;
+        normalized_input_hash: string;
+        policy_observation_id: string;
+        run_generation: number;
+        selection_epoch: number;
+        state: ExactCallAuthorization["state"];
+        data: Uint8Array;
+        created_at_ms: number;
+      }
+    | undefined;
+  return row
+    ? {
+        schemaVersion: 1,
+        authorizationId,
+        memberId: row.member_id,
+        normalizedInputFingerprint: row.normalized_input_hash,
+        policyObservationId: row.policy_observation_id,
+        runGeneration: row.run_generation,
+        selectionEpoch: row.selection_epoch,
+        state: row.state,
+        evidence: decode(row.data) as Record<string, unknown>,
+        createdAt: new Date(row.created_at_ms).toISOString(),
+      }
+    : undefined;
+}
+
 export function insertTimelineLogicalEffect(
   database: DatabaseSync,
   effect: LogicalEffect,
@@ -143,7 +181,7 @@ export function insertTimelineLogicalEffect(
   const existing = database
     .prepare(
       `SELECT member_id, tool_name, capability_version, capability_kind,
-              normalized_input_hash, authorization_id, state
+              capability_json, normalized_input_hash, authorization_id, state
        FROM logical_effects WHERE effect_id = ?`,
     )
     .get(effect.effectId) as
@@ -152,6 +190,7 @@ export function insertTimelineLogicalEffect(
         tool_name: string;
         capability_version: number;
         capability_kind: string;
+        capability_json: Uint8Array | null;
         normalized_input_hash: string;
         authorization_id: string;
         state: LogicalEffect["state"];
@@ -163,6 +202,14 @@ export function insertTimelineLogicalEffect(
       existing.tool_name !== effect.toolName ||
       existing.capability_version !== effect.capability.version ||
       existing.capability_kind !== effect.capability.kind ||
+      JSON.stringify(
+        existing.capability_json
+          ? decode(existing.capability_json)
+          : {
+              kind: existing.capability_kind,
+              version: existing.capability_version,
+            },
+      ) !== JSON.stringify(effect.capability) ||
       existing.normalized_input_hash !== effect.normalizedInputFingerprint ||
       existing.authorization_id !== effect.authorizationId ||
       !legalEffectTransitions[existing.state]?.includes(effect.state)
@@ -202,10 +249,10 @@ export function insertTimelineLogicalEffect(
     .prepare(
       `INSERT INTO logical_effects (
          effect_id, member_id, tool_name, capability_version,
-         capability_kind, normalized_input_hash, owner_json,
+         capability_kind, capability_json, normalized_input_hash, owner_json,
          external_scope_json, external_key, authorization_id, state,
          created_at_ms
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       effect.effectId,
@@ -213,6 +260,7 @@ export function insertTimelineLogicalEffect(
       effect.toolName,
       effect.capability.version,
       effect.capability.kind,
+      encode(effect.capability),
       effect.normalizedInputFingerprint,
       encode(effect.owner),
       effect.externalScope ? encode(effect.externalScope) : null,
@@ -221,6 +269,66 @@ export function insertTimelineLogicalEffect(
       effect.state,
       Date.parse(effect.createdAt),
     );
+}
+
+export function readTimelineLogicalEffect(
+  database: DatabaseSync,
+  effectId: string,
+): LogicalEffect | undefined {
+  const row = database
+    .prepare(
+      `SELECT member_id, tool_name, capability_version, capability_kind,
+              capability_json, normalized_input_hash, owner_json,
+              external_scope_json, external_key, authorization_id, state, created_at_ms
+       FROM logical_effects WHERE effect_id = ?`,
+    )
+    .get(effectId) as
+    | {
+        member_id: string;
+        tool_name: string;
+        capability_version: number;
+        capability_kind: LogicalEffect["capability"]["kind"];
+        capability_json: Uint8Array | null;
+        normalized_input_hash: string;
+        owner_json: Uint8Array;
+        external_scope_json: Uint8Array | null;
+        external_key: string | null;
+        authorization_id: string;
+        state: LogicalEffect["state"];
+        created_at_ms: number;
+      }
+    | undefined;
+  return row
+    ? {
+        schemaVersion: 1,
+        effectId,
+        memberId: row.member_id,
+        toolName: row.tool_name,
+        capability: row.capability_json
+          ? (decode(row.capability_json) as LogicalEffect["capability"])
+          : {
+              version: row.capability_version,
+              kind:
+                row.capability_kind === "safe_repeat_observation"
+                  ? "safe_repeat_observation"
+                  : "non_repeatable_or_unknown",
+            },
+        normalizedInputFingerprint: row.normalized_input_hash,
+        owner: decode(row.owner_json) as Record<string, unknown>,
+        ...(row.external_scope_json
+          ? {
+              externalScope: decode(row.external_scope_json) as Record<
+                string,
+                unknown
+              >,
+            }
+          : {}),
+        ...(row.external_key ? { externalKey: row.external_key } : {}),
+        authorizationId: row.authorization_id,
+        state: row.state,
+        createdAt: new Date(row.created_at_ms).toISOString(),
+      }
+    : undefined;
 }
 
 export function persistTimelineExecutionAttempt(
@@ -491,6 +599,46 @@ function assertCurrentIncarnation(
   if (row?.execution_incarnation_id !== incarnationId) {
     throw new Error("Execution incarnation is stale.");
   }
+}
+
+export function listTimelineLogicalEffectsForRun(
+  database: DatabaseSync,
+  runId: string,
+): LogicalEffect[] {
+  const rows = database
+    .prepare(
+      `SELECT effects.effect_id FROM logical_effects effects
+       JOIN wait_group_members members ON members.member_id = effects.member_id
+       JOIN wait_groups groups ON groups.wait_group_id = members.wait_group_id
+       WHERE groups.run_id = ? ORDER BY effects.effect_id`,
+    )
+    .all(runId) as unknown as Array<{ effect_id: string }>;
+  return rows
+    .map((row) => readTimelineLogicalEffect(database, row.effect_id))
+    .filter((effect): effect is LogicalEffect => Boolean(effect));
+}
+
+export function listTimelineExecutionAttemptsForRun(
+  database: DatabaseSync,
+  runId: string,
+): CanonicalExecutionAttempt[] {
+  const rows = database
+    .prepare(
+      `SELECT attempts.attempt_id FROM execution_attempts attempts
+       LEFT JOIN provider_phases phases
+         ON phases.phase_id = attempts.provider_phase_id
+       LEFT JOIN logical_effects effects ON effects.effect_id = attempts.effect_id
+       LEFT JOIN wait_group_members members ON members.member_id = effects.member_id
+       LEFT JOIN wait_groups groups ON groups.wait_group_id = members.wait_group_id
+       WHERE phases.run_id = ?1 OR groups.run_id = ?1
+       ORDER BY attempts.created_at_ms, attempts.attempt_id`,
+    )
+    .all(runId) as unknown as Array<{ attempt_id: string }>;
+  return rows
+    .map((row) => readTimelineExecutionAttempt(database, row.attempt_id))
+    .filter((attempt): attempt is CanonicalExecutionAttempt =>
+      Boolean(attempt),
+    );
 }
 
 export function listTimelineExecutionAttemptsForProviderPhase(

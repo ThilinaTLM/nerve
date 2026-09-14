@@ -67,6 +67,14 @@ export function executeCanonicalCommand(
         command.runId,
         command.phaseId,
       );
+    case "read_canonical_wait_group":
+      return database.executionQueries.readWaitGroup(command.waitGroupId);
+    case "read_canonical_authorization":
+      return database.executionQueries.readAuthorization(
+        command.authorizationId,
+      );
+    case "read_canonical_logical_effect":
+      return database.executionQueries.readEffect(command.effectId);
     case "read_canonical_execution_attempt":
       return database.executionQueries.readAttempt(command.attemptId);
     case "read_canonical_execution_claim":

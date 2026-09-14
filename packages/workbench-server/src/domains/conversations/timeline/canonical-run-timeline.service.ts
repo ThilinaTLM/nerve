@@ -1,12 +1,16 @@
 import type { MutationOutcome } from "@nervekit/contracts/conversations";
+import type { PolicyDocumentObservation } from "@nervekit/contracts/permissions";
 import {
   runControlSchema,
   type CanonicalExecutionAttempt,
   type CanonicalLifecycleWork,
+  type ExactCallAuthorization,
   type ExecutionClaim,
+  type LogicalEffect,
   type ProviderPhase,
   type RecoveryAction,
   type RunControl,
+  type WaitGroup,
 } from "@nervekit/contracts/runs";
 import type { TimelineArtifactManifestWrite } from "../../../infrastructure/persistence/canonical-sqlite/timeline-checkpoint-database.js";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
@@ -62,6 +66,12 @@ export class CanonicalRunTimelineService {
       lifecycleWorks?: readonly CanonicalLifecycleWork[];
       artifactManifests?: readonly TimelineArtifactManifestWrite[];
       providerPhaseId?: string | null;
+      waitGroupId?: string | null;
+      runState?: RunControl["state"];
+      waitGroups?: readonly WaitGroup[];
+      policyObservations?: readonly PolicyDocumentObservation[];
+      authorizations?: readonly ExactCallAuthorization[];
+      logicalEffects?: readonly LogicalEffect[];
     },
   ): Promise<CanonicalRunMutationResult> {
     return this.mutate(input, input.entries, undefined, {
@@ -71,6 +81,12 @@ export class CanonicalRunTimelineService {
       lifecycleWorks: input.lifecycleWorks,
       artifactManifests: input.artifactManifests,
       providerPhaseId: input.providerPhaseId,
+      waitGroupId: input.waitGroupId,
+      runState: input.runState,
+      waitGroups: input.waitGroups,
+      policyObservations: input.policyObservations,
+      authorizations: input.authorizations,
+      logicalEffects: input.logicalEffects,
     });
   }
 
@@ -83,6 +99,9 @@ export class CanonicalRunTimelineService {
       executionClaims?: readonly ExecutionClaim[];
       lifecycleWorks?: readonly CanonicalLifecycleWork[];
       recoveryActions?: readonly RecoveryAction[];
+      waitGroups?: readonly WaitGroup[];
+      authorizations?: readonly ExactCallAuthorization[];
+      logicalEffects?: readonly LogicalEffect[];
     },
   ): Promise<CanonicalRunMutationResult> {
     return this.mutate(
@@ -98,6 +117,9 @@ export class CanonicalRunTimelineService {
         executionClaims: input.executionClaims,
         lifecycleWorks: input.lifecycleWorks,
         recoveryActions: input.recoveryActions,
+        waitGroups: input.waitGroups,
+        authorizations: input.authorizations,
+        logicalEffects: input.logicalEffects,
       },
     );
   }
@@ -116,6 +138,12 @@ export class CanonicalRunTimelineService {
       artifactManifests?: readonly TimelineArtifactManifestWrite[];
       providerPhaseId?: string | null;
       recoveryActions?: readonly RecoveryAction[];
+      waitGroupId?: string | null;
+      runState?: RunControl["state"];
+      waitGroups?: readonly WaitGroup[];
+      policyObservations?: readonly PolicyDocumentObservation[];
+      authorizations?: readonly ExactCallAuthorization[];
+      logicalEffects?: readonly LogicalEffect[];
     } = {},
   ): Promise<CanonicalRunMutationResult> {
     const [identity, head, run] = await Promise.all([
@@ -195,6 +223,12 @@ export class CanonicalRunTimelineService {
       ...(execution.providerPhaseId !== undefined
         ? { providerPhaseId: execution.providerPhaseId }
         : {}),
+      ...(execution.waitGroupId !== undefined
+        ? { waitGroupId: execution.waitGroupId }
+        : {}),
+      ...(execution.runState !== undefined
+        ? { state: execution.runState }
+        : {}),
       ...(terminal
         ? {
             state: terminal.state,
@@ -240,6 +274,16 @@ export class CanonicalRunTimelineService {
         ? [...execution.artifactManifests]
         : [],
       runControls: [nextRun],
+      waitGroups: execution.waitGroups ? [...execution.waitGroups] : [],
+      policyObservations: execution.policyObservations
+        ? [...execution.policyObservations]
+        : [],
+      authorizations: execution.authorizations
+        ? [...execution.authorizations]
+        : [],
+      logicalEffects: execution.logicalEffects
+        ? [...execution.logicalEffects]
+        : [],
       providerPhases: execution.providerPhases
         ? [...execution.providerPhases]
         : [],

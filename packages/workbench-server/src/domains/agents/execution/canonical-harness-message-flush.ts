@@ -1,10 +1,27 @@
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import {
+  Conversation,
+  type ConversationStorage,
+} from "@nervekit/harness/conversation";
 import { projectHarnessMessageEntry } from "./message-mirror.js";
 import type {
   CanonicalRunExecutionBoundary,
   CanonicalRunExecutionSession,
 } from "./canonical-run-execution-boundary.js";
+
+export async function openHarnessExecutionContext(input: {
+  canonical?: CanonicalRunExecutionSession;
+  openLegacy(): Promise<ConversationStorage>;
+}): Promise<[ConversationStorage, Conversation, Set<string>]> {
+  const storage = input.canonical?.storage ?? (await input.openLegacy());
+  return [
+    storage,
+    input.canonical?.conversation ?? new Conversation(storage),
+    input.canonical?.materializedEntryIds ??
+      new Set((await storage.getEntries()).map((entry) => entry.id)),
+  ];
+}
 
 /** Flushes ephemeral messages without invoking any legacy persistence adapter. */
 export async function flushCanonicalHarnessMessages(input: {

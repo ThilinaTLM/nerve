@@ -62,23 +62,28 @@ export class CanonicalRunExecutionBoundary {
     if (context.kind !== "ready") {
       return { kind: "rejected", outcome: context.outcome };
     }
-    const storage = createCanonicalHarnessContext({
+    return readySession({
+      conversationId: input.conversationId,
+      runId: input.runId,
+      agentId: input.agentId,
+      conversationCreatedAt: input.conversationCreatedAt,
       snapshot: context.snapshot,
-      createdAt: input.conversationCreatedAt,
     });
-    return {
-      kind: "ready",
-      value: {
-        conversationId: input.conversationId,
-        runId: input.runId,
-        agentId: input.agentId,
-        storage,
-        conversation: new Conversation(storage),
-        materializedEntryIds: new Set(
-          context.snapshot.entries.map((entry) => entry.entryId),
-        ),
-      },
-    };
+  }
+
+  async resume(input: {
+    conversationId: string;
+    runId: string;
+    agentId: string;
+    conversationCreatedAt: string;
+  }): Promise<CanonicalExecutionBoundaryResult<CanonicalRunExecutionSession>> {
+    const context = await this.contexts.build({
+      conversationId: input.conversationId,
+      runId: input.runId,
+    });
+    return context.kind === "ready"
+      ? readySession({ ...input, snapshot: context.snapshot })
+      : { kind: "rejected", outcome: context.outcome };
   }
 
   async flush(
@@ -145,6 +150,32 @@ export class CanonicalRunExecutionBoundary {
       ? result
       : { kind: "ready", value: undefined };
   }
+}
+
+function readySession(input: {
+  conversationId: string;
+  runId: string;
+  agentId: string;
+  conversationCreatedAt: string;
+  snapshot: import("../../conversations/timeline/canonical-conversation-context.service.js").CanonicalContextSnapshot;
+}): CanonicalExecutionBoundaryResult<CanonicalRunExecutionSession> {
+  const storage = createCanonicalHarnessContext({
+    snapshot: input.snapshot,
+    createdAt: input.conversationCreatedAt,
+  });
+  return {
+    kind: "ready",
+    value: {
+      conversationId: input.conversationId,
+      runId: input.runId,
+      agentId: input.agentId,
+      storage,
+      conversation: new Conversation(storage),
+      materializedEntryIds: new Set(
+        input.snapshot.entries.map((entry) => entry.entryId),
+      ),
+    },
+  };
 }
 
 function materializationCommandId(

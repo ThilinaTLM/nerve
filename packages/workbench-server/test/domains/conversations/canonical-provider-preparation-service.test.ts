@@ -7,6 +7,8 @@ import { CanonicalProviderPreparationService } from "../../../src/domains/conver
 import { CanonicalProviderDispatchService } from "../../../src/domains/conversations/timeline/canonical-provider-dispatch.service.js";
 import { CanonicalProviderSettlementService } from "../../../src/domains/conversations/timeline/canonical-provider-settlement.service.js";
 import { CanonicalRunStartService } from "../../../src/domains/conversations/timeline/canonical-run-start.service.js";
+import { CanonicalToolDispatchService } from "../../../src/domains/conversations/timeline/canonical-tool-dispatch.service.js";
+import { CanonicalToolSettlementService } from "../../../src/domains/conversations/timeline/canonical-tool-settlement.service.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
 
 test("INV-PROVIDER-01 freezes the first request and schedules claim work atomically", async (t) => {
@@ -136,9 +138,42 @@ test("INV-PROVIDER-01 freezes the first request and schedules claim work atomica
     response: { id: "provider-response-1", finishReason: "stop" },
     entries: [
       {
+        entryId: "entry_provider_tool_response",
         kind: "assistant_message",
         inlineContent: { text: "world" },
         provenance: { agentId: "agent_provider" },
+      },
+    ],
+    toolProposals: [
+      {
+        providerToolCallId: "provider-call-1",
+        toolName: "read",
+        normalizedInputFingerprint: `sha256:${"a".repeat(64)}`,
+        capability: {
+          kind: "contractually_replay_safe_effect",
+          version: 1,
+          externalKeyEncoding: "provider-call-id",
+          externalKeyScope: "conversation",
+          retentionWindowMs: 60_000,
+          reconciliation: "supported",
+        },
+        policyObservation: {
+          schemaVersion: 1,
+          observationId: "policy_observation_provider_tool_1",
+          scope: { kind: "conversation", ownerId: "conv_provider" },
+          documentIdentity: "permissions.json",
+          completeDocumentDigest: `sha256:${"b".repeat(64)}`,
+          selectedRuleSetId: "coding",
+          selectedRuleSetDigest: `sha256:${"c".repeat(64)}`,
+          applicableOverlayDigests: [],
+          normalizedInputFingerprint: `sha256:${"a".repeat(64)}`,
+          trustEvidence: { source: "test" },
+          observedAt: "2026-09-14T00:00:07.500Z",
+        },
+        authorizationEvidence: { decision: "allow" },
+        externalScope: { conversationId: "conv_provider" },
+        externalKey: "provider-call-1",
+        owner: { conversationId: "conv_provider", projectId: "project_test" },
       },
     ],
     now: "2026-09-14T00:00:08.000Z",
@@ -165,10 +200,109 @@ test("INV-PROVIDER-01 freezes the first request and schedules claim work atomica
     )?.state,
     "settled",
   );
+  const toolRun = await store.readTimelineRunControl(
+    "conv_provider",
+    "run_provider",
+  );
+  assert.equal(toolRun?.providerPhaseId, null);
+  assert.equal(toolRun?.state, "partially_waiting");
+  assert.match(toolRun?.waitGroupId ?? "", /^wait_group_/);
+  const toolClaimWork = await store.execution.claimReadyLifecycleWork({
+    workerId: "tool-claimer-1",
+    now: "2026-09-14T00:00:09.000Z",
+    leaseDurationMs: 30_000,
+  });
+  assert.equal(toolClaimWork?.kind, "claim_tool_attempt");
+  const toolDispatch = new CanonicalToolDispatchService(store);
+  const toolClaimed = await toolDispatch.authorizeFirstAttempt({
+    workId: toolClaimWork!.workId,
+    workerId: "tool-claimer-1",
+    conversationId: "conv_provider",
+    runId: "run_provider",
+    effectId: toolClaimWork!.effectId!,
+    now: "2026-09-14T00:00:10.000Z",
+    claimLeaseDurationMs: 30_000,
+  });
+  assert.equal(toolClaimed.kind, "committed");
   assert.equal(
-    (await store.readTimelineRunControl("conv_provider", "run_provider"))
-      ?.providerPhaseId,
-    null,
+    toolClaimed.kind !== "rejected" && toolClaimed.snapshot.effect.state,
+    "dispatching",
+  );
+  assert.deepEqual(
+    toolClaimed.kind !== "rejected" && toolClaimed.snapshot.effect.capability,
+    {
+      kind: "contractually_replay_safe_effect",
+      version: 1,
+      externalKeyEncoding: "provider-call-id",
+      externalKeyScope: "conversation",
+      retentionWindowMs: 60_000,
+      reconciliation: "supported",
+    },
+  );
+  assert.equal(
+    toolClaimed.kind !== "rejected" && toolClaimed.snapshot.authorization.state,
+    "consumed",
+  );
+  assert.notEqual(toolClaimed.kind, "rejected");
+  if (toolClaimed.kind === "rejected") return;
+  const toolDispatchWork = await store.execution.claimReadyLifecycleWork({
+    workId: toolClaimed.snapshot.work.workId,
+    workerId: "tool-dispatcher-1",
+    now: "2026-09-14T00:00:11.000Z",
+    leaseDurationMs: 30_000,
+  });
+  assert.equal(toolDispatchWork?.kind, "dispatch_tool_attempt");
+  const toolDispatched = await toolDispatch.markDispatched(
+    { ...toolClaimed.snapshot, work: toolDispatchWork! },
+    {
+      workerId: "tool-dispatcher-1",
+      now: "2026-09-14T00:00:12.000Z",
+    },
+  );
+  assert.equal(toolDispatched.kind, "committed");
+  assert.notEqual(toolDispatched.kind, "rejected");
+  if (toolDispatched.kind === "rejected") return;
+  assert.equal(
+    await toolDispatch.revalidateBeforeDispatch(toolDispatched.snapshot, {
+      workerId: "tool-dispatcher-1",
+      now: "2026-09-14T00:00:13.000Z",
+    }),
+    true,
+  );
+  const toolSettled = await new CanonicalToolSettlementService(
+    store,
+  ).commitResult({
+    snapshot: toolDispatched.snapshot,
+    workerId: "tool-dispatcher-1",
+    resultEntryId: "entry_provider_tool_result_1",
+    result: {
+      role: "toolResult",
+      toolCallId: "provider-call-1",
+      toolName: "read",
+      content: [{ type: "text", text: "result" }],
+      isError: false,
+      timestamp: Date.parse("2026-09-14T00:00:14.000Z"),
+    },
+    failed: false,
+    providerIdentity: { provider: "test", model: "test-model" },
+    providerCapability: "stateless_generation",
+    now: "2026-09-14T00:00:14.000Z",
+  });
+  assert.equal(toolSettled.kind, "committed");
+  const settledRun = await store.readTimelineRunControl(
+    "conv_provider",
+    "run_provider",
+  );
+  assert.equal(settledRun?.state, "running");
+  assert.equal(settledRun?.waitGroupId, null);
+  assert.match(settledRun?.providerPhaseId ?? "", /^provider_phase_/);
+  assert.equal(
+    (
+      await store.execution.readWaitGroup(
+        toolClaimed.snapshot.waitGroup.waitGroupId,
+      )
+    )?.state,
+    "closed",
   );
 });
 

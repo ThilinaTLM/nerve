@@ -11,6 +11,10 @@ import { canonicalConversationJson } from "./command-fingerprint.js";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import type { CanonicalProviderDispatchSnapshot } from "./canonical-provider-dispatch.service.js";
 import { CanonicalRunTimelineService } from "./canonical-run-timeline.service.js";
+import {
+  buildCanonicalToolBatch,
+  type CanonicalToolProposalInput,
+} from "./canonical-tool-batch.js";
 
 export type CanonicalProviderSettlementResult =
   | { kind: "committed" | "receipt_replay"; responseId: string }
@@ -29,6 +33,7 @@ export class CanonicalProviderSettlementService {
     workerId: string;
     response: unknown;
     entries: readonly AppendEntryDraft[];
+    toolProposals?: readonly CanonicalToolProposalInput[];
     now: string;
   }): Promise<CanonicalProviderSettlementResult> {
     const snapshot = input.snapshot;
@@ -103,6 +108,25 @@ export class CanonicalProviderSettlementService {
       leaseDeadline: undefined,
       updatedAt: input.now,
     };
+    const toolProposals = input.toolProposals ?? [];
+    const continuationEntryId = input.entries.at(-1)?.entryId;
+    if (toolProposals.length > 0 && !continuationEntryId) {
+      throw new Error(
+        "A provider tool batch requires an explicit response entry identity.",
+      );
+    }
+    const toolBatch = continuationEntryId
+      ? buildCanonicalToolBatch({
+          conversationId: snapshot.conversationId,
+          runId: snapshot.runId,
+          runGeneration: snapshot.runGeneration,
+          selectionEpoch: snapshot.selectionEpoch,
+          continuationEntryId,
+          phaseId: phase.phaseId,
+          proposals: toolProposals,
+          now: input.now,
+        })
+      : undefined;
     const result = await this.timeline.append({
       conversationId: snapshot.conversationId,
       runId: snapshot.runId,
@@ -126,8 +150,14 @@ export class CanonicalProviderSettlementService {
       providerPhases: [preparedPhase, committedPhase],
       executionAttempts: [succeededAttempt],
       executionClaims: [consumedClaim],
-      lifecycleWorks: [settledWork],
+      lifecycleWorks: [settledWork, ...(toolBatch?.work ?? [])],
+      waitGroups: toolBatch ? [toolBatch.waitGroup] : [],
+      policyObservations: toolBatch?.policyObservations ?? [],
+      authorizations: toolBatch?.authorizations ?? [],
+      logicalEffects: toolBatch?.effects ?? [],
       providerPhaseId: null,
+      waitGroupId: toolBatch?.waitGroup.waitGroupId ?? null,
+      runState: toolBatch ? "partially_waiting" : "running",
     });
     return result.kind === "rejected"
       ? result
