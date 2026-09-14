@@ -61,6 +61,7 @@ import type { ConversationJournalRepository } from "../../conversations/conversa
 import { OrchestrationToolDispatcher } from "../orchestration/dispatcher.js";
 import { toToolCallTranscriptRecord } from "../artifacts/tool-call-transcript-preview.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
+import { CanonicalToolExternalInvoker } from "./canonical-tool-external-invoker.js";
 import { prepareTerminalProjection } from "../artifacts/tool-result-preparation.js";
 import type { ToolResultPayloadStore } from "../artifacts/tool-result-payload-store.js";
 import {
@@ -259,6 +260,7 @@ export class ToolService {
   private readonly executor: ToolExecutorService;
 
   readonly resultPayloads: ToolResultPayloadStore;
+  readonly canonicalInvoker: CanonicalToolExternalInvoker;
   private readonly waiters = new Map<
     string,
     Set<(toolCall: ToolCallRecord) => void>
@@ -294,6 +296,10 @@ export class ToolService {
       publishToolCallUpdated: (toolCall) =>
         this.publishToolCallUpdated(toolCall),
     });
+    this.canonicalInvoker = new CanonicalToolExternalInvoker(
+      this.dispatcher,
+      this.resultPayloads,
+    );
     this.executor = new ToolExecutorService({
       getToolCall: (id) => this.getToolCall(id),
       updateToolCall: (id, patch) => this.updateToolCall(id, patch),
