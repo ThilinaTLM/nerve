@@ -78,6 +78,25 @@ export function createHarnessStreamFn<
       turnState.conversationId,
       snapshotOptions,
     );
+    let providerPayloadPrepared = false;
+    if (requestModel.api.startsWith("faux:")) {
+      const syntheticPayload = JSON.parse(
+        JSON.stringify({
+          provider: requestModel.provider,
+          model: requestModel.id,
+          context,
+          options: {
+            cacheRetention: requestOptions.cacheRetention,
+            maxRetries: requestOptions.maxRetries,
+            reasoning: streamOptions?.reasoning,
+            sessionId: turnState.conversationId,
+            timeoutMs: requestOptions.timeoutMs,
+          },
+        }),
+      ) as unknown;
+      await options.emitBeforeProviderPayload(requestModel, syntheticPayload);
+      providerPayloadPrepared = true;
+    }
     return streamSimpleWithModel(requestModel, context, {
       cacheRetention: requestOptions.cacheRetention,
       headers: requestOptions.headers,
@@ -85,8 +104,11 @@ export function createHarnessStreamFn<
       maxRetryDelayMs: requestOptions.maxRetryDelayMs,
       metadata: requestOptions.metadata,
       env: requestOptions.env,
-      onPayload: async (payload) =>
-        await options.emitBeforeProviderPayload(requestModel, payload),
+      onPayload: async (payload) => {
+        if (providerPayloadPrepared) return payload;
+        providerPayloadPrepared = true;
+        return await options.emitBeforeProviderPayload(requestModel, payload);
+      },
       onResponse: async (response) => {
         const headers = { ...(response.headers as Record<string, string>) };
         await options.emitAfterProviderResponse(

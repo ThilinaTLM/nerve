@@ -34,6 +34,7 @@ interface RunControlRow {
   state: string;
   foreground_owned: number;
   revision: number;
+  recovery_reason: string | null;
 }
 
 export interface EntryRow {
@@ -249,7 +250,7 @@ export function readTimelineRunControl(
       `SELECT conversation_id, run_id, generation, bound_selection_epoch,
               continuation_entry_id, checkpoint_id, wait_group_id,
               provider_phase_id, effective_state AS state,
-              foreground_owned, revision
+              foreground_owned, revision, recovery_reason
        FROM run_controls WHERE conversation_id = ? AND run_id = ?`,
     )
     .get(conversationId, runId) as RunControlRow | undefined;
@@ -267,6 +268,7 @@ export function readTimelineRunControl(
     state: row.state,
     foregroundOwned: row.foreground_owned === 1,
     revision: row.revision,
+    ...(row.recovery_reason ? { recoveryReason: row.recovery_reason } : {}),
   });
 }
 

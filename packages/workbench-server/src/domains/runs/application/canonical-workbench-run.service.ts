@@ -15,7 +15,7 @@ import { CanonicalTimelineIdentityService } from "../../conversations/timeline/c
 import { ConversationTransitionService } from "../../conversations/timeline/conversation-transition.service.js";
 import type { CanonicalRunTerminationService } from "../../conversations/timeline/canonical-run-termination.service.js";
 import type { WorkbenchAgentMechanics } from "../../agents/execution/workbench-agent-mechanics.js";
-import type { ExploreReport } from "../../agents/execution/subagent-runner.js";
+import type { ExploreReport } from "../../agents/execution/canonical-explore-coordinator.js";
 
 export interface CanonicalExecutionWake {
   wake(): void;
@@ -330,12 +330,65 @@ export class CanonicalWorkbenchRunService {
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
-    options?: { signal?: AbortSignal; parentRunId?: string },
+    options?: {
+      signal?: AbortSignal;
+      parentRunId?: string;
+      parentToolCallId?: string;
+    },
   ): Promise<{
     reports: ExploreReport[];
     contentBlocks: [{ type: "text"; text: string }];
   }> {
     return this.deps.mechanics.runExplore(parent, args, options);
+  }
+
+  async runManagedAgent(input: {
+    agent: AgentRecord;
+    prompt: string;
+    runId: string;
+    signal?: AbortSignal;
+  }): Promise<string> {
+    await this.startAcceptedPrompt(
+      input.agent,
+      { text: input.prompt },
+      undefined,
+      input.runId,
+    );
+    for (;;) {
+      if (input.signal?.aborted) {
+        await this.abortRun({ runId: input.runId, reason: "cancelled" });
+        throw input.signal.reason ?? new Error("Managed run was cancelled.");
+      }
+      const head = await this.deps.store.readTimelineConversationHead(
+        input.agent.conversationId,
+      );
+      if (!head?.foregroundRunId) {
+        const run = await this.deps.store.readTimelineRunControl(
+          input.agent.conversationId,
+          input.runId,
+        );
+        if (run?.state !== "completed") {
+          throw new Error(
+            run?.recoveryReason ??
+              `Managed run stopped in state ${run?.state ?? "missing"}.`,
+          );
+        }
+        if (!head?.activeEntryId) return "";
+        const ancestry = await this.deps.store.readTimelineAncestrySegment(
+          input.agent.conversationId,
+          head.activeEntryId,
+          512,
+        );
+        const assistant = ancestry.entries.find(
+          (entry) => entry.kind === "assistant_message",
+        );
+        const inline = assistant?.inlineContent as
+          | { text?: unknown }
+          | undefined;
+        return typeof inline?.text === "string" ? inline.text : "";
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
   }
 
   async acceptNextQueuedPrompt(conversationId: string): Promise<boolean> {
@@ -362,6 +415,7 @@ export class CanonicalWorkbenchRunService {
     agent: AgentRecord,
     request: Pick<PromptRequest, "text" | "images">,
     queuedPrompt?: { record: QueuedPromptRecord; expectedRevision: number },
+    explicitRunId?: string,
   ): Promise<void> {
     const customModels = await this.deps.mechanics.customModels(
       agent.projectDir,
@@ -372,7 +426,7 @@ export class CanonicalWorkbenchRunService {
     );
     const result = await this.deps.starts.start({
       conversationId: agent.conversationId,
-      runId: createId("run"),
+      runId: explicitRunId ?? createId("run"),
       agentId: agent.id,
       prompt: request.text,
       images: request.images,

@@ -55,7 +55,10 @@ import type { CanonicalToolProposalInput } from "../../conversations/timeline/ca
 import { AutoCompactionRunner } from "./auto-compaction-runner.js";
 import { InlineCommandRunner } from "./inline-command-runner.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
-import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
+import {
+  type ExploreReport,
+  CanonicalExploreCoordinator,
+} from "./canonical-explore-coordinator.js";
 import type { WorkbenchExploreAdmission } from "./workbench-explore-admission.js";
 import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
 
@@ -79,9 +82,12 @@ export interface WorkbenchAgentMechanicsDeps {
   pythonRuntime: PythonRuntimeService;
   plans: PlanService;
   harnessStorage?: ConversationHarnessStorage;
-  openChildStorage: ConstructorParameters<
-    typeof SubagentRunner
-  >[0]["openChildStorage"];
+  createChildConversation: ConstructorParameters<
+    typeof CanonicalExploreCoordinator
+  >[0]["createChildConversation"];
+  runCanonicalChild: ConstructorParameters<
+    typeof CanonicalExploreCoordinator
+  >[0]["runCanonicalChild"];
   openLegacyStorage?: (
     conversation: ConversationRecord,
   ) => Promise<
@@ -114,28 +120,21 @@ export interface WorkbenchAgentMechanicsDeps {
 }
 
 export class WorkbenchAgentMechanics {
-  readonly subagents: SubagentRunner;
+  readonly subagents: CanonicalExploreCoordinator;
   readonly inlineCommands: InlineCommandRunner;
   readonly autoCompaction: AutoCompactionRunner;
 
   constructor(readonly deps: WorkbenchAgentMechanicsDeps) {
-    this.subagents = new SubagentRunner({
+    this.subagents = new CanonicalExploreCoordinator({
       storage: deps.storage,
       events: deps.events,
-      auth: deps.auth,
-      tools: deps.tools,
-      openChildStorage: deps.openChildStorage,
+      createChildConversation: deps.createChildConversation,
+      runCanonicalChild: deps.runCanonicalChild,
       createAgent: deps.createAgent,
       setAgentStatus: deps.setAgentStatus,
-      subscriptionUsage: deps.subscriptionUsage,
-      logger: deps.logger.child({ component: "subagent-runner" }),
-      executions: deps.subagentExecutions,
+      logger: deps.logger.child({ component: "canonical-explore" }),
       exploreAdmission: deps.exploreAdmission,
-      agentBrowserSkills: deps.agentBrowserSkills,
-      capabilities: deps.capabilities,
       transcriptLive: deps.subagentTranscriptLive,
-      maxParallelToolsPerRun: deps.maxParallelToolsPerRun,
-      customModels: deps.customModels,
     });
     this.inlineCommands = new InlineCommandRunner(deps);
     this.autoCompaction = new AutoCompactionRunner(deps);

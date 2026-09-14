@@ -33,6 +33,7 @@ export class CanonicalToolSettlementService {
     workerId: string;
     resultEntryId: string;
     result: unknown;
+    exactHarnessMessage: unknown;
     failed: boolean;
     now: string;
     providerIdentity: Record<string, unknown>;
@@ -194,7 +195,7 @@ export class CanonicalToolSettlementService {
           entryId: input.resultEntryId,
           kind: "tool_result",
           inlineContent: {
-            exactHarnessMessage: input.result,
+            exactHarnessMessage: input.exactHarnessMessage,
             failed: input.failed,
           },
           toolCallId: member.ownerId,

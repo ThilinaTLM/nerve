@@ -1,18 +1,6 @@
 import { storagePaths } from "../../../infrastructure/storage-bootstrap/paths.js";
 import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";
 import { join } from "node:path";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
-import {
-  type AgentCustomModel,
-  resolveAgentModel,
-} from "@nervekit/harness/models";
-import { AgentHarness } from "@nervekit/harness";
-import {
-  Conversation,
-  type ConversationMetadata,
-  type ConversationStorage,
-} from "@nervekit/harness/conversation";
-import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type {
   AgentRecord,
   CreateAgentRequest,
@@ -30,34 +18,16 @@ import { createId } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import { type InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";
-import type { AuthManager } from "../../auth/index.js";
-import {
-  activeToolNamesForExploreAgent,
-  createAgentToolsForAgent,
-} from "../../tools/orchestration/agent-tool-adapter.js";
-import type {
-  ExploreProgressUpdate,
-  ToolService,
-} from "../../tools/execution/tool-service.js";
-import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
+import type { ExploreProgressUpdate } from "../../tools/execution/tool-service.js";
 import type { WorkbenchExploreAdmission } from "./workbench-explore-admission.js";
-import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
-import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills.js";
-import type { CapabilityService } from "../../capabilities/capability.service.js";
 import type { SubagentTranscriptLiveService } from "../subagent-transcript-live.service.js";
-import { loadHarnessResources } from "../prompting/resource-loader.js";
 
 export { exploreRunPlanArg, exploreSystemPrompt } from "./explore-helpers.js";
 
 import {
   abortError,
-  addExploreUsage,
-  asRecord,
-  assistantMessageText,
   emptyExploreUsage,
-  exploreAssistantMetadata,
   exploreModelLabel,
-  exploreProgressFromHarnessEvent,
   exploreReportEventSummary,
   exploreRunPlanArg,
   exploreSystemPrompt,
@@ -65,13 +35,10 @@ import {
   formatExploreFailureReport,
   formatExploreReportFile,
   formatExploreReports,
-  messageRole,
   publishExploreProgress,
-  pushExploreStep,
   safeReportFileName,
   summaryPreview,
   throwIfAborted,
-  toolNameFromHarnessEvent,
 } from "./explore-helpers.js";
 import {
   formatAgentReadyExploreReport,
@@ -101,6 +68,7 @@ export interface SubagentRunSpec {
   onProgress?: (update: ExploreProgressUpdate) => void;
   signal?: AbortSignal;
   parentRunId?: string;
+  parentToolCallId?: string;
 }
 
 export type ExploreStatus = "completed" | "failed" | "aborted";
@@ -151,15 +119,18 @@ export interface ExploreReport {
   steps?: ExploreStepPayload[];
 }
 
-export interface SubagentRunnerDeps {
+export interface CanonicalExploreCoordinatorDeps {
   storage: InitializedStorage;
   events: StreamLogRegistry;
-  auth: AuthManager;
-  tools: Pick<ToolService, "requestToolAndWait" | "toolResultRecoveryArtifact">;
-  openChildStorage(
-    child: AgentRecord,
-    historyMode: SubagentHistoryMode,
-  ): Promise<ConversationStorage<ConversationMetadata>>;
+  createChildConversation(spec: SubagentRunSpec): Promise<string>;
+  runCanonicalChild(input: {
+    parent: AgentRecord;
+    parentRunId: string;
+    parentToolCallId: string;
+    child: AgentRecord;
+    prompt: string;
+    runId: string;
+  }): Promise<string>;
   createAgent: (
     request: CreateAgentRequest,
     options?: { allowChildAuthorityExceed?: boolean },
@@ -168,19 +139,13 @@ export interface SubagentRunnerDeps {
     agent: AgentRecord,
     status: AgentRecord["status"],
   ) => Promise<void>;
-  subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
-  executions: WorkbenchSubagentExecutions;
   exploreAdmission: WorkbenchExploreAdmission;
-  agentBrowserSkills: AgentBrowserSkillCatalog;
-  capabilities: CapabilityService;
   transcriptLive: SubagentTranscriptLiveService;
-  maxParallelToolsPerRun: number;
-  customModels?: (projectDir?: string) => Promise<AgentCustomModel[]>;
 }
 
-export class SubagentRunner {
-  constructor(private readonly deps: SubagentRunnerDeps) {}
+export class CanonicalExploreCoordinator {
+  constructor(private readonly deps: CanonicalExploreCoordinatorDeps) {}
 
   async runExplore(
     parent: AgentRecord,
@@ -189,6 +154,7 @@ export class SubagentRunner {
       onProgress?: (update: ExploreProgressUpdate) => void;
       signal?: AbortSignal;
       parentRunId?: string;
+      parentToolCallId?: string;
     } = {},
   ): Promise<{
     reports: ExploreReport[];
@@ -262,6 +228,7 @@ export class SubagentRunner {
               onProgress: options.onProgress,
               signal: options.signal,
               parentRunId: options.parentRunId,
+              parentToolCallId: options.parentToolCallId,
             });
           } finally {
             release();
@@ -376,9 +343,10 @@ export class SubagentRunner {
   }
 
   async runSubagent(spec: SubagentRunSpec): Promise<SubagentRunOutput> {
+    const childConversationId = await this.deps.createChildConversation(spec);
     const child = await this.deps.createAgent(
       {
-        conversationId: spec.parent.conversationId,
+        conversationId: childConversationId,
         projectId: spec.projectId,
         projectDir: spec.projectDir,
         parentAgentId: spec.parent.id,
@@ -415,136 +383,26 @@ export class SubagentRunner {
       child,
       runId,
     });
-    const abortController = new AbortController();
-    const abortFromParent = () => abortController.abort(spec.signal?.reason);
-    if (spec.signal?.aborted) abortFromParent();
-    else
-      spec.signal?.addEventListener("abort", abortFromParent, { once: true });
-    const signal = abortController.signal;
     const steps: ExploreStepPayload[] = [];
-    let usage = emptyExploreUsage();
-    let modelId: string | undefined;
-    let stopReason: string | undefined;
-    let errorMessage: string | undefined;
-    let abortRequested = false;
-    let harness: AgentHarness | undefined;
-    let settleRun!: () => void;
-    const runSettled = new Promise<void>((resolve) => {
-      settleRun = resolve;
-    });
-    const abortRun = async () => {
-      abortRequested = true;
-      abortController.abort();
-      harness?.requestAbort();
-      // Cancellation is confirmed only after the child projects its terminal
-      // status, not merely after its AbortController is tripped.
-      await runSettled;
-    };
-    const unregister = spec.parentRunId
-      ? this.deps.executions.register(spec.parentRunId, runId, abortRun)
-      : undefined;
+    const usage = emptyExploreUsage();
+    const modelId = exploreModelLabel(child.model);
     try {
-      throwIfAborted(signal);
       await this.deps.setAgentStatus(child, "running");
-      const storage = await this.openChildStorage(child, spec.historyMode);
-      const conversation = new Conversation(storage);
-      const settings = await resolveProjectSettings(
-        this.deps.storage,
-        child.projectDir,
-      );
-      const capabilitySelection = await this.deps.capabilities.resolve(
-        child.projectId,
-        child.conversationId,
-      );
-      const model = resolveAgentModel(
-        child.model,
-        (await this.deps.customModels?.(child.projectDir)) ?? [],
-      );
-      this.deps.subscriptionUsage.touchProvider(model.provider);
-      const env = new NodeExecutionEnv({
-        cwd: child.projectDir,
-        shellPath: settings.runtime.shellPath,
-      });
-      const resources = await loadHarnessResources(child.projectDir, {
-        storageHome: this.deps.storage.paths.home,
-        disabledSkillNames: capabilitySelection.disabledFileSkills,
-        enabledAgentBrowserSkillNames:
-          capabilitySelection.enabledAgentBrowserSkills,
-        agentBrowserSkills: this.deps.agentBrowserSkills.skills,
-      });
-      const activeToolNames = activeToolNamesForExploreAgent();
-      harness = new AgentHarness({
-        env,
-        conversation,
-        resources: { skills: resources.skills },
-        tools: createAgentToolsForAgent(child, this.deps.tools, {
-          runId,
-          hidden: true,
-          allowedToolNames: activeToolNames,
-        }),
-        activeToolNames,
-        model,
-        thinkingLevel: child.thinkingLevel,
-        maxParallelToolCalls: this.deps.maxParallelToolsPerRun,
-        getApiKeyAndHeaders: (requestModel) =>
-          this.deps.auth.requestAuthForPiModel(requestModel),
-        systemPrompt: () => spec.systemPrompt,
-      });
-      harness.subscribe(async (event) => {
-        await this.deps.transcriptLive.handleHarnessEvent(child.id, event);
-        const update = exploreProgressFromHarnessEvent(event, child, spec);
-        if (update) {
-          publishExploreProgress(spec.onProgress, update);
-          if (
-            update.phase === "tool_call" ||
-            update.phase === "tool_result" ||
-            update.phase === "assistant"
-          ) {
-            pushExploreStep(steps, {
-              type: update.phase === "assistant" ? "assistant" : update.phase,
-              toolName: toolNameFromHarnessEvent(event),
-              message: update.message,
-              timestamp: new Date().toISOString(),
-            });
-          }
-        }
-        const record = asRecord(event);
-        if (
-          record?.type === "message_end" &&
-          messageRole(record.message) === "assistant"
-        ) {
-          const metadata = exploreAssistantMetadata(
-            record.message as AssistantMessage,
-          );
-          if (metadata.usage) usage = addExploreUsage(usage, metadata.usage);
-          if (metadata.model) modelId = metadata.model;
-          if (metadata.stopReason) stopReason = metadata.stopReason;
-          if (metadata.errorMessage) errorMessage = metadata.errorMessage;
-        }
-      });
-      const onSignalAbort = () => {
-        abortRequested = true;
-        void harness?.abort();
-      };
-      signal.addEventListener("abort", onSignalAbort, { once: true });
-      throwIfAborted(signal);
-      const assistant = await harness.prompt(spec.prompt);
-      if (usage.turns === 0) {
-        const metadata = exploreAssistantMetadata(assistant);
-        if (metadata.usage) usage = addExploreUsage(usage, metadata.usage);
-        if (metadata.model) modelId = metadata.model;
-        if (metadata.stopReason) stopReason = metadata.stopReason;
-        if (metadata.errorMessage) errorMessage = metadata.errorMessage;
-      }
-      if (abortRequested || assistant.stopReason === "aborted") {
-        throw abortError();
-      }
-      const report = assistantMessageText(assistant).trim();
-      if (assistant.stopReason === "error") {
+      if (!spec.parentRunId || !spec.parentToolCallId) {
         throw new Error(
-          errorMessage ?? report ?? "Explore agent stopped with an error.",
+          "Canonical Explore requires parent run and tool authority.",
         );
       }
+      const report = (
+        await this.deps.runCanonicalChild({
+          parent: spec.parent,
+          parentRunId: spec.parentRunId,
+          parentToolCallId: spec.parentToolCallId,
+          child,
+          prompt: spec.prompt,
+          runId,
+        })
+      ).trim();
       if (!report) throw new Error("Explore agent completed without a report.");
       await this.deps.setAgentStatus(child, "idle");
       await this.deps.transcriptLive.complete(child.id, "completed");
@@ -558,15 +416,14 @@ export class SubagentRunner {
         agent: child,
         status: "completed",
         report,
-        usage: usage.turns > 0 ? usage : undefined,
-        model: modelId ?? exploreModelLabel(child.model),
+        usage,
+        model: modelId,
         thinkingLevel: child.thinkingLevel,
-        stopReason,
-        errorMessage,
+        stopReason: "stop",
         steps,
       };
     } catch (error) {
-      const aborted = abortRequested || signal.aborted;
+      const aborted = error instanceof Error && error.name === "AbortError";
       const terminalMessage =
         error instanceof Error ? error.message : String(error);
       await this.deps.transcriptLive
@@ -605,21 +462,10 @@ export class SubagentRunner {
         usage: usage.turns > 0 ? usage : undefined,
         model: modelId ?? exploreModelLabel(child.model),
         thinkingLevel: child.thinkingLevel,
-        stopReason,
-        errorMessage: errorMessage ?? message,
+        errorMessage: message,
         steps,
       };
-    } finally {
-      unregister?.();
-      spec.signal?.removeEventListener("abort", abortFromParent);
-      settleRun();
     }
-  }
-  private async openChildStorage(
-    child: AgentRecord,
-    historyMode: SubagentHistoryMode,
-  ) {
-    return this.deps.openChildStorage(child, historyMode);
   }
 
   private async writeExploreReport(input: {

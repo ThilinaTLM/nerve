@@ -3,6 +3,7 @@ import type { AgentMessage, AgentTool } from "@nervekit/harness/agent";
 import type { CanonicalToolProposalInput } from "../../conversations/timeline/canonical-tool-batch.js";
 import { RUN_STATE_EPOCH, type RunRecord } from "@nervekit/contracts/runs";
 import type { CanonicalLifecycleWork } from "@nervekit/contracts/runs";
+import type { ToolName } from "@nervekit/contracts/tools";
 import type { RunExecutionSink } from "../../runs/runtime/index.js";
 import type { CanonicalProviderInvocationService } from "../../conversations/timeline/canonical-provider-invocation.service.js";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
@@ -29,6 +30,7 @@ export class CanonicalHarnessLifecycleExecutor {
     conversationCreatedAt: string;
     signal: AbortSignal;
     tools: AgentTool[];
+    activeToolNames: readonly ToolName[];
     prepareToolProposals(
       message: AgentMessage,
     ): Promise<readonly CanonicalToolProposalInput[]>;
@@ -72,6 +74,14 @@ export class CanonicalHarnessLifecycleExecutor {
       startedAt: now,
       cancellationEvidence: [],
     };
+    const runtime = this.deps.mechanics.deps.state.conversationRuntime;
+    runtime.startRun({
+      runId: run.runId,
+      agentId: run.agentId,
+      projectId: run.projectId,
+      conversationId: run.conversationId,
+      startedAt: now,
+    });
     const outcome = await this.deps.mechanics.runCoordinatorExecution({
       run,
       sink: inertLegacySink,
@@ -92,6 +102,7 @@ export class CanonicalHarnessLifecycleExecutor {
         providerSettlement: this.deps.providerSettlement,
         providerWork: input.providerWork,
         tools: input.tools,
+        activeToolNames: input.activeToolNames,
         prepareToolProposals: input.prepareToolProposals,
         workerId: input.workerId,
         retryPolicy: {
@@ -104,6 +115,11 @@ export class CanonicalHarnessLifecycleExecutor {
         now: input.now,
       },
     });
+    if (outcome.status === "completed" || outcome.status === "suspended") {
+      runtime.completeRun(run.runId);
+    } else {
+      runtime.failRun(run.runId);
+    }
     const canonicalRun = await this.deps.store.readTimelineRunControl(
       run.conversationId,
       run.runId,

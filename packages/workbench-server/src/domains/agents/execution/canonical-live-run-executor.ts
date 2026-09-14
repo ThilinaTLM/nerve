@@ -44,6 +44,7 @@ export class CanonicalLiveRunExecutor {
       conversationCreatedAt: input.conversationCreatedAt,
       signal: input.signal,
       tools,
+      activeToolNames: input.activeToolNames,
       prepareToolProposals: (message) =>
         this.deps.mechanics.prepareCanonicalToolProposals(input.agent, message),
       now: () => new Date().toISOString(),

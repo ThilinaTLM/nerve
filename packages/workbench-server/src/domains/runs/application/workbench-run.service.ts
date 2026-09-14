@@ -10,7 +10,7 @@ import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { TERMINAL_STATUSES, type RunCoordinator } from "../runtime/index.js";
 import { ApplicationError } from "../../../core/application-error.js";
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
-import type { ExploreReport } from "../../agents/execution/subagent-runner.js";
+import type { ExploreReport } from "../../agents/execution/canonical-explore-coordinator.js";
 import type { WorkbenchRunUnitOfWork } from "../persistence/run-transition.repository.js";
 
 export interface ApprovalInteractionBatch {
@@ -33,7 +33,11 @@ export interface WorkbenchRunFeatureMechanics {
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
-    options?: { signal?: AbortSignal; parentRunId?: string },
+    options?: {
+      signal?: AbortSignal;
+      parentRunId?: string;
+      parentToolCallId?: string;
+    },
   ): Promise<{
     reports: ExploreReport[];
     contentBlocks: [{ type: "text"; text: string }];
@@ -555,7 +559,11 @@ export class WorkbenchRunService {
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
-    options?: { signal?: AbortSignal; parentRunId?: string },
+    options?: {
+      signal?: AbortSignal;
+      parentRunId?: string;
+      parentToolCallId?: string;
+    },
   ): Promise<{
     reports: ExploreReport[];
     contentBlocks: [{ type: "text"; text: string }];

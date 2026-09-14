@@ -4,6 +4,7 @@ import type { ToolCallRecord, ToolName } from "@nervekit/contracts/tools";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import type { CanonicalToolExternalInvoker } from "../../tools/execution/canonical-tool-external-invoker.js";
 import type { CanonicalToolRuntimeService } from "../../tools/execution/canonical-tool-runtime.service.js";
+import { toolCallResultForModel } from "../../tools/orchestration/agent-tool-adapter.js";
 import { CanonicalInteractionResolutionService } from "./canonical-interaction-resolution.service.js";
 import { CanonicalToolInvocationService } from "./canonical-tool-invocation.service.js";
 import { CanonicalToolSettlementService } from "./canonical-tool-settlement.service.js";
@@ -158,6 +159,14 @@ export class CanonicalToolWorkerService {
       workerId: input.workerId,
       resultEntryId: `entry_tool_result_${authorized.snapshot.effect.effectId.slice("effect_".length)}`,
       result: terminal,
+      exactHarnessMessage: {
+        role: "toolResult",
+        toolCallId: manifest.providerToolCallId,
+        toolName: manifest.toolName,
+        content: toolCallResultForModel(terminal).content,
+        isError: terminal.status !== "completed",
+        timestamp: Date.parse(terminal.updatedAt),
+      },
       failed: terminal.status !== "completed",
       providerIdentity: manifest.providerIdentity,
       providerCapability: manifest.providerCapability,

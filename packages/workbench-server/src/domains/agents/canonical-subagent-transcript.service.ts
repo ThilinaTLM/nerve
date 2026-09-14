@@ -26,10 +26,7 @@ export class CanonicalSubagentTranscriptService {
   ): Promise<SubagentTranscriptSnapshot> {
     const parent = this.deps.getAgent(parentAgentId);
     const child = this.deps.getAgent(childAgentId);
-    if (
-      child.parentAgentId !== parent.id ||
-      child.conversationId !== parent.conversationId
-    ) {
+    if (child.parentAgentId !== parent.id) {
       throw new Error("Subagent transcript not found.");
     }
     const captured = await this.deps.events.withCursor(

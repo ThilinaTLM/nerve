@@ -125,6 +125,7 @@ export class RuntimeLifecycle {
       flushRunDelivery: async () => undefined,
       recoverRuns: async () => undefined,
       recoverHumanInput: async () => {
+        await this.services.canonicalChildExecution.recoverPending();
         await this.services.policySaves.recoverPending({
           approvalStillApplicable: async (intent) => {
             if (intent.schemaVersion !== 2) return false;

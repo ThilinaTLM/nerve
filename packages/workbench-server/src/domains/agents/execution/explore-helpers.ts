@@ -18,7 +18,7 @@ import type {
   ExploreTask,
   SubagentRunOutput,
   SubagentRunSpec,
-} from "./subagent-runner.js";
+} from "./canonical-explore-coordinator.js";
 
 const EXPLORE_CONTEXT_MIN_LENGTH = 40;
 const EXPLORE_TASK_MIN_LENGTH = 15;

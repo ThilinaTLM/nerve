@@ -104,10 +104,9 @@ export async function executeWorkbenchHarness(
           this.deps.openLegacyStorage?.(conversation) ??
           Promise.reject(new Error("Legacy harness execution is retired.")),
       });
-    let activeToolNames = await this.activeToolNamesFor(
-      agent,
-      capabilitySelection.disabledTools,
-    );
+    let activeToolNames = canonical
+      ? [...canonical.activeToolNames]
+      : await this.activeToolNamesFor(agent, capabilitySelection.disabledTools);
     const model = resolveAgentModel(
       agent.model,
       await this.customModels(agent.projectDir),
@@ -210,6 +209,25 @@ export async function executeWorkbenchHarness(
       scope: { conversationId: conversation.id, agentId: agent.id, runId },
       context: undefined,
     });
+    harness.on("before_provider_request", (event) => {
+      currentProviderForResponse = event.model.provider;
+      this.deps.subscriptionUsage.touchProvider(event.model.provider);
+      return undefined;
+    });
+    if (canonical) {
+      harness.on("before_provider_payload", async (event) => {
+        await prepareCanonicalHarnessProviderDispatch(canonical, event.payload);
+        return undefined;
+      });
+    }
+    harness.on("after_provider_response", (event) => {
+      const responseProvider = currentProviderForResponse;
+      currentProviderForResponse = undefined;
+      if (responseProvider === "openai-codex") {
+        this.deps.subscriptionUsage.applyCodexHeaders(event.headers);
+      }
+      return undefined;
+    });
     harness.on("iteration_boundary", async (event) => {
       if (canonical) return undefined;
       const compacted = await this.maybeAutoCompactAtIteration(
@@ -248,22 +266,6 @@ export async function executeWorkbenchHarness(
       if (event.type === "queue_drained") {
         for (const promptId of event.messageIds)
           await coordinator.sink.promptDelivered(promptId);
-      }
-      if (event.type === "before_provider_request") {
-        currentProviderForResponse = event.model.provider;
-        this.deps.subscriptionUsage.touchProvider(event.model.provider);
-        return;
-      }
-      if (event.type === "before_provider_payload" && canonical) {
-        await prepareCanonicalHarnessProviderDispatch(canonical, event.payload);
-      }
-      if (event.type === "after_provider_response") {
-        const responseProvider = currentProviderForResponse;
-        currentProviderForResponse = undefined;
-        if (responseProvider === "openai-codex") {
-          this.deps.subscriptionUsage.applyCodexHeaders(event.headers);
-        }
-        return;
       }
       if (event.type === "turn_start") {
         coordinator.installControl(liveControl);

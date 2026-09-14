@@ -13,11 +13,11 @@ import {
   AgentRepository,
 } from "../../domains/agents/index.js";
 import { WorkbenchAgentMechanics } from "../../domains/agents/execution/index.js";
-import { createCanonicalHarnessContext } from "../../domains/agents/execution/canonical-harness-context.js";
 import type { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/agent-browser-skills.js";
 import type { CanonicalConversationApplicationService } from "../../domains/conversations/timeline/canonical-conversation-application.service.js";
 import { CanonicalCompactionSummaryPreparer } from "../../domains/conversations/timeline/canonical-compaction-summary-preparer.js";
 import { CanonicalSubagentTranscriptService } from "../../domains/agents/canonical-subagent-transcript.service.js";
+import { CanonicalChildExecutionService } from "../../domains/agents/execution/canonical-child-execution.service.js";
 import { SubagentTranscriptLiveService } from "../../domains/agents/subagent-transcript-live.service.js";
 import type { AuthManager } from "../../domains/auth/index.js";
 import { WorkbenchExploreAdmission } from "../../domains/agents/execution/workbench-explore-admission.js";
@@ -448,25 +448,20 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     tasks: tasks,
     pythonRuntime: pythonRuntime,
     plans: plans,
-    openChildStorage: async (child) => {
-      const head = await storage.canonicalStore.readTimelineConversationHead(
-        child.conversationId,
-      );
-      if (!head?.foregroundRunId) {
-        throw new Error("Canonical subagent context has no foreground run.");
-      }
-      const context = await timeline.conversationContext.build({
-        conversationId: child.conversationId,
-        runId: head.foregroundRunId,
-      });
-      if (context.kind !== "ready") {
-        throw new Error("Canonical subagent context fence changed.");
-      }
-      return createCanonicalHarnessContext({
-        snapshot: context.snapshot,
-        createdAt: child.createdAt,
-      });
-    },
+    createChildConversation: async (spec) =>
+      (
+        await canonicalConversationLifecycle.createConversation({
+          projectId: spec.projectId,
+          title: spec.label ? `Explore: ${spec.label}` : "Explore subagent",
+          mode: spec.mode,
+          permissionLevel: spec.permissionLevel,
+        })
+      ).id,
+    runCanonicalChild: (input) =>
+      canonicalChildExecution.run({
+        ...input,
+        childRunId: input.runId,
+      }),
     state,
     createAgent,
     setAgentStatus: (agent, status) =>
@@ -501,6 +496,11 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     conversations: canonicalConversationLifecycle,
     summaryPreparer: canonicalSummaryPreparer,
   });
+  const canonicalChildExecution = new CanonicalChildExecutionService({
+    store: storage.canonicalStore,
+    run: ({ agent, prompt, runId }) =>
+      workbenchRun.runManagedAgent({ agent, prompt, runId }),
+  });
   const subagentTranscripts = new CanonicalSubagentTranscriptService({
     getAgent,
     conversations: canonicalConversationLifecycle,
@@ -528,6 +528,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     tools: canonicalTools,
     canonicalTools,
     canonicalToolInteractions,
+    canonicalChildExecution,
     permissionExceptions,
     permissionPolicy,
     capabilities,

@@ -22,15 +22,19 @@ export function createCanonicalProductionExecution(input: {
   conversations: CanonicalConversationApplicationService;
   summaryPreparer: CanonicalCompactionSummaryPreparer;
 }) {
+  const getAgentForConversation = (conversationId: string) =>
+    [...input.state.agents.values()].find(
+      (agent) =>
+        agent.conversationId === conversationId && !agent.parentAgentId,
+    ) ??
+    [...input.state.agents.values()].find(
+      (agent) => agent.conversationId === conversationId,
+    );
   const execution = input.timeline.createExecutionRuntime({
     workerId: `canonical-runtime-${randomUUID()}`,
     mechanics: input.mechanics,
     tools: input.tools,
-    getAgentForConversation: (conversationId) =>
-      [...input.state.agents.values()].find(
-        (agent) =>
-          agent.conversationId === conversationId && !agent.parentAgentId,
-      ),
+    getAgentForConversation,
     getConversationCreatedAt: (conversationId) =>
       input.conversations.getConversation(conversationId).createdAt,
     prepareCompactionSummary: (summary) =>
@@ -55,11 +59,9 @@ export function createCanonicalProductionExecution(input: {
     toolQueries,
   );
   const toolInteractions = new CanonicalToolInteractionApplicationService(
-    input.timeline.createInteractionResolution(input.tools, (conversationId) =>
-      [...input.state.agents.values()].find(
-        (agent) =>
-          agent.conversationId === conversationId && !agent.parentAgentId,
-      ),
+    input.timeline.createInteractionResolution(
+      input.tools,
+      getAgentForConversation,
     ),
     toolQueries,
   );

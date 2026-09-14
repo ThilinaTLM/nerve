@@ -287,7 +287,8 @@ test("INV-PROVIDER-01 freezes the first request and schedules claim work atomica
     snapshot: toolDispatched.snapshot,
     workerId: "tool-dispatcher-1",
     resultEntryId: "entry_provider_tool_result_1",
-    result: {
+    result: { status: "completed", text: "result" },
+    exactHarnessMessage: {
       role: "toolResult",
       toolCallId: "provider-call-1",
       toolName: "read",

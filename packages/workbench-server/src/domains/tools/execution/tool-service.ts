@@ -187,6 +187,7 @@ export type ExploreRunner = (
     onProgress?: (update: ExploreProgressUpdate) => void;
     signal?: AbortSignal;
     parentRunId?: string;
+    parentToolCallId?: string;
   },
 ) => Promise<ExploreRunResult>;
 

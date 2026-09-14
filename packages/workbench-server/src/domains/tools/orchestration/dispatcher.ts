@@ -275,6 +275,7 @@ export class OrchestrationToolDispatcher {
                   this.publishExploreProgress(toolCall, message, options.runId),
                 signal,
                 parentRunId: toolCall.runId,
+                parentToolCallId: toolCall.id,
               },
             ),
           ),

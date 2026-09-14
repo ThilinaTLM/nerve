@@ -15,6 +15,7 @@ import type { CanonicalContinuationService } from "../../conversations/timeline/
 import type { CanonicalToolWorkerService } from "../../conversations/timeline/canonical-tool-worker.service.js";
 import type { CanonicalLiveRunExecutor } from "./canonical-live-run-executor.js";
 import type { WorkbenchAgentMechanics } from "./workbench-agent-mechanics.js";
+import { activeToolNamesForExploreAgent } from "../../tools/orchestration/agent-tool-adapter.js";
 
 interface ToolManifest {
   normalizedInput: Record<string, unknown>;
@@ -76,7 +77,9 @@ export class CanonicalExecutionRuntime {
       agent,
       providerWork: work,
       workerId: this.deps.workerId,
-      activeToolNames: await this.deps.mechanics.activeToolNamesFor(agent),
+      activeToolNames: agent.parentAgentId
+        ? activeToolNamesForExploreAgent()
+        : await this.deps.mechanics.activeToolNamesFor(agent),
       conversationCreatedAt: this.deps.getConversationCreatedAt(
         work.conversationId,
       ),

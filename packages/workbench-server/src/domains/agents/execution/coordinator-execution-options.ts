@@ -1,4 +1,5 @@
 import type { PromptRequest } from "@nervekit/contracts/agents";
+import type { ToolName } from "@nervekit/contracts/tools";
 import type { AgentMessage, AgentTool } from "@nervekit/harness/agent";
 import type { CanonicalToolProposalInput } from "../../conversations/timeline/canonical-tool-batch.js";
 import type { RunRecord } from "@nervekit/contracts/runs";
@@ -35,6 +36,7 @@ export interface CoordinatorExecutionOptions {
     providerSettlement: CanonicalProviderSettlementService;
     providerWork: CanonicalLifecycleWork;
     tools: AgentTool[];
+    activeToolNames: readonly ToolName[];
     prepareToolProposals(
       message: AgentMessage,
     ): Promise<readonly CanonicalToolProposalInput[]>;
