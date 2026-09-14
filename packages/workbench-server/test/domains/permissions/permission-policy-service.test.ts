@@ -1,11 +1,20 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { PermissionPolicyService } from "../../../src/domains/permissions/permission-policy.service.js";
+import { PermissionOverlayRepairService } from "../../../src/domains/permissions/permission-overlay-repair.service.js";
 import { CanonicalPolicySaveCoordinator } from "../../../src/domains/permissions/canonical-policy-save-coordinator.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
@@ -391,14 +400,12 @@ test("INV-POLICY-04 prepared remembered saves never overwrite external edits", a
 });
 
 test("one invalid rule causes the complete overlay to be ignored", async () => {
-  const { service, storage, agent } = await setup();
-  await writeFile(
-    storage.paths.permissionsConfigPath,
-    JSON.stringify({
-      schemaVersion: 1,
-      rules: [allowWrite, { ...allowWrite, id: "bad", priority: 1 }],
-    }),
-  );
+  const { service, storage, agent, project } = await setup();
+  const invalid = JSON.stringify({
+    schemaVersion: 1,
+    rules: [allowWrite, { ...allowWrite, id: "bad", priority: 1 }],
+  });
+  await writeFile(storage.paths.permissionsConfigPath, invalid);
   const resolved = await service.resolve(agent);
   assert.equal(
     resolved.policy.rules.some((entry) => entry.origin === "user"),
@@ -408,4 +415,38 @@ test("one invalid rule causes the complete overlay to be ignored", async () => {
     resolved.policy.ignoredOverlays.some((item) => item.origin === "user"),
   );
   assert.equal(resolved.executionBlocked, true);
+  const repair = new PermissionOverlayRepairService({
+    storage,
+    getProject: () => project,
+    trustProject: (projectId) => service.trustProject(projectId),
+  });
+  assert.equal(
+    (
+      await repair.reset({
+        origin: "user",
+        expectedDocumentDigest: `sha256:${"0".repeat(64)}`,
+        quarantine: true,
+      })
+    ).kind,
+    "external_conflict",
+  );
+  assert.equal(
+    await readFile(storage.paths.permissionsConfigPath, "utf8"),
+    invalid,
+  );
+  const reset = await repair.reset({
+    origin: "user",
+    expectedDocumentDigest: `sha256:${createHash("sha256").update(invalid).digest("hex")}`,
+    quarantine: true,
+  });
+  assert.equal(reset.kind, "reset");
+  assert.equal((await service.resolve(agent)).executionBlocked, false);
+  assert.equal(
+    (
+      await readdir(
+        join(storage.paths.home, "quarantine", "permission-overlays"),
+      )
+    ).length,
+    1,
+  );
 });

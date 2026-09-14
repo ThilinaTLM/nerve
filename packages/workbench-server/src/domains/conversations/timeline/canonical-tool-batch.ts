@@ -103,7 +103,10 @@ export function buildCanonicalToolBatch(input: {
         schemaVersion: 1 as const,
         memberId: `member_${suffix}`,
         waitGroupId,
-        memberKind: "tool" as const,
+        memberKind:
+          proposal.toolName === "explore"
+            ? ("child_agent" as const)
+            : ("tool" as const),
         ownerId: `tool_${suffix}`,
         inputFingerprint: proposal.normalizedInputFingerprint,
         policyFingerprint: proposal.policyObservation.completeDocumentDigest,

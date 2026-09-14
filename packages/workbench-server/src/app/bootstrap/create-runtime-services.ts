@@ -59,6 +59,7 @@ import { CanonicalToolRuntimeService } from "../../domains/tools/execution/canon
 import { ToolResultPayloadStore } from "../../domains/tools/artifacts/tool-result-payload-store.js";
 import {
   PermissionExceptionService,
+  PermissionOverlayRepairService,
   PermissionPolicyService,
   ProjectPermissionsRepository,
 } from "../../domains/permissions/index.js";
@@ -154,6 +155,11 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     events,
   );
   const permissionPolicy = new PermissionPolicyService(storage, getProject);
+  const permissionOverlayRepair = new PermissionOverlayRepairService({
+    storage,
+    getProject,
+    trustProject: (projectId) => permissionPolicy.trustProject(projectId),
+  });
   const capabilities = new CapabilityService(
     storage,
     getProject,
@@ -528,6 +534,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     canonicalChildExecution,
     permissionExceptions,
     permissionPolicy,
+    permissionOverlayRepair,
     capabilities,
     git,
     gitRepositoryWatcher,

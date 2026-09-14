@@ -16,6 +16,8 @@ import {
   type CanonicalToolProposalInput,
 } from "./canonical-tool-batch.js";
 
+const MAX_CANONICAL_PROVIDER_RETRIES = 3;
+
 export type CanonicalProviderSettlementResult =
   | { kind: "committed" | "receipt_replay"; responseId: string }
   | { kind: "rejected"; outcome: MutationOutcome };
@@ -74,6 +76,45 @@ export class CanonicalProviderSettlementService {
       typeof phase.providerIdentity.canonicalRetryNumber === "number"
         ? phase.providerIdentity.canonicalRetryNumber + 1
         : 1;
+    if (retryNumber > MAX_CANONICAL_PROVIDER_RETRIES) {
+      const exhausted = await this.timeline.append({
+        conversationId: run.conversationId,
+        runId: run.runId,
+        commandId: `retry-provider:${phase.phaseId}`,
+        now: input.now,
+        actor: { kind: "worker", workerId: input.workerId },
+        cause: { kind: "provider_retry_exhausted", phaseId: phase.phaseId },
+        entries: [],
+        providerPhases: [{ ...snapshot.phase, state: "closed" }],
+        executionAttempts: [
+          {
+            ...snapshot.attempt,
+            state: "known_failed",
+            outcome: { error: input.error, retryNumber, exhausted: true },
+            updatedAt: input.now,
+          },
+        ],
+        executionClaims: [{ ...snapshot.claim, state: "consumed" }],
+        lifecycleWorks: [
+          {
+            ...snapshot.work,
+            state: "settled",
+            revision: snapshot.work.revision + 1,
+            leaseOwner: undefined,
+            leaseDeadline: undefined,
+            updatedAt: input.now,
+          },
+        ],
+        providerPhaseId: null,
+        runState: "recovery_required",
+      });
+      return exhausted.kind === "rejected"
+        ? exhausted
+        : {
+            kind: exhausted.kind,
+            responseId: `response_retry_exhausted_${phase.phaseId}`,
+          };
+    }
     const suffix = createHash("sha256")
       .update(`${phase.phaseId}:${retryNumber}`)
       .digest("hex")

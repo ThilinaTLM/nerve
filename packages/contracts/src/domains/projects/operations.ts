@@ -112,6 +112,30 @@ export const projectsOperationDefinitions = [
     "operation.project.permissionOverlay.update",
   ),
   defineOperation(
+    "project.permissionOverlay.reset",
+    projectIdParamsSchema.extend({
+      conversationId: z.string().startsWith("conv_").optional(),
+      origin: permissionOverlayOriginSchema,
+      expectedDocumentDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+      quarantine: z.boolean().default(true),
+    }),
+    z.discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("reset"),
+        documentIdentity: z.string(),
+        quarantineIdentity: z.string().optional(),
+      }),
+      z.object({
+        kind: z.literal("external_conflict"),
+        currentDocumentDigest: z.string().optional(),
+      }),
+    ]),
+    "mutation",
+    "required",
+    ["workbench_server"] as const,
+    "operation.project.permissionOverlay.reset",
+  ),
+  defineOperation(
     "project.permissionTrust.update",
     projectIdParamsSchema.extend({ trusted: z.boolean() }),
     z.object({ trust: projectPermissionTrustSchema }),

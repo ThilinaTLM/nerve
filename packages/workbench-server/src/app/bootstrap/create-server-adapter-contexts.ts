@@ -104,6 +104,7 @@ export function createServerAdapterContexts(
       fileCompletions: services.fileCompletions,
       permissionExceptions: services.permissionExceptions,
       permissionPolicy: services.permissionPolicy,
+      permissionOverlayRepair: services.permissionOverlayRepair,
       capabilities: services.capabilities,
       projectLifecycle: services.projectLifecycle,
       maintenance: infrastructure.maintenance,
