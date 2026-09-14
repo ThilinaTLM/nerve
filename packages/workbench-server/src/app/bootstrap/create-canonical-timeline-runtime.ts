@@ -2,6 +2,7 @@ import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.j
 import { CanonicalRunExecutionBoundary } from "../../domains/agents/execution/canonical-run-execution-boundary.js";
 import { createCanonicalAgentTools } from "../../domains/agents/execution/canonical-agent-tools.js";
 import { CanonicalHarnessLifecycleExecutor } from "../../domains/agents/execution/canonical-harness-lifecycle-executor.js";
+import { CanonicalLiveRunExecutor } from "../../domains/agents/execution/canonical-live-run-executor.js";
 import type { WorkbenchAgentMechanics } from "../../domains/agents/execution/workbench-agent-mechanics.js";
 import { FilesystemCanonicalArtifactFinalizer } from "../../infrastructure/persistence/canonical-artifact-finalizer.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
@@ -30,6 +31,7 @@ import { CanonicalToolSettlementService } from "../../domains/conversations/time
 import { CanonicalToolInvocationService } from "../../domains/conversations/timeline/canonical-tool-invocation.service.js";
 import { CanonicalToolWorkerService } from "../../domains/conversations/timeline/canonical-tool-worker.service.js";
 import type { CanonicalToolExternalInvoker } from "../../domains/tools/execution/canonical-tool-external-invoker.js";
+import type { ToolService } from "../../domains/tools/execution/tool-service.js";
 import { CanonicalBackupInspectionService } from "../../domains/storage/canonical-backup-inspection.service.js";
 import { CanonicalPortableBackupService } from "../../domains/storage/canonical-portable-backup.service.js";
 import { CanonicalRestoreStagingService } from "../../domains/storage/canonical-restore-staging.service.js";
@@ -122,6 +124,29 @@ export function timelineRuntime(
     toolSettlement,
     toolInvocation,
     runExecutionBoundary,
+    createLiveRunExecutor: (
+      mechanics: WorkbenchAgentMechanics,
+      tools: ToolService,
+    ) => {
+      const harness = new CanonicalHarnessLifecycleExecutor({
+        mechanics,
+        boundary: runExecutionBoundary,
+        providerInvocation,
+        providerSettlement,
+        store: storage.canonicalStore,
+      });
+      const toolWorker = new CanonicalToolWorkerService(
+        storage.canonicalStore,
+        tools.canonicalInvoker,
+      );
+      return new CanonicalLiveRunExecutor({
+        store: storage.canonicalStore,
+        mechanics,
+        harness,
+        toolWorker,
+        tools,
+      });
+    },
     createAgentTools: (
       input: Omit<Parameters<typeof createCanonicalAgentTools>[0], "store">,
     ) => createCanonicalAgentTools({ ...input, store: storage.canonicalStore }),
