@@ -160,7 +160,11 @@ export class CanonicalProviderSettlementService {
       logicalEffects: toolBatch?.effects ?? [],
       providerPhaseId: null,
       waitGroupId: toolBatch?.waitGroup.waitGroupId ?? null,
-      runState: toolBatch ? "partially_waiting" : "running",
+      runState: toolBatch
+        ? toolBatch.waitGroup.state === "ready"
+          ? "waiting"
+          : "partially_waiting"
+        : "running",
     });
     return result.kind === "rejected"
       ? result

@@ -49,6 +49,13 @@ export class CanonicalExecutionStore {
     });
   }
 
+  findWaitGroupByMemberOwner(ownerId: string) {
+    return this.request<WaitGroup | undefined>({
+      kind: "find_canonical_wait_group_by_member_owner",
+      ownerId,
+    });
+  }
+
   readWaitGroup(waitGroupId: string) {
     return this.request<WaitGroup | undefined>({
       kind: "read_canonical_wait_group",

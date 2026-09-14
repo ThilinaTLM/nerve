@@ -439,11 +439,6 @@ export class ToolService {
     const latestAgent = this.dependencies.getAgent(agent.id);
     const resolved =
       await this.dependencies.permissionPolicy.resolve(latestAgent);
-    if (resolved.fallback) {
-      throw new Error(
-        "Canonical execution requires explicit confirmation of the Baseline permission fallback.",
-      );
-    }
     const evaluation = evaluateWorkbenchToolPermission(
       latestAgent,
       toolName,
@@ -456,17 +451,16 @@ export class ToolService {
         policyDiagnostic: resolved.diagnostics.at(-1),
       },
     );
-    if (evaluation.decision !== "allow") {
-      throw new Error(
-        `Canonical tool proposal requires interaction authority: ${evaluation.decision}.`,
-      );
-    }
     const definition = requireToolDefinition(toolName);
-    if (definition.executionRecovery.executionClass !== "external_effect") {
-      throw new Error(
-        "Canonical internal commands require receipt settlement, not effect dispatch.",
-      );
-    }
+    const admission = resolved.fallback
+      ? "awaiting_approval"
+      : evaluation.decision === "allow"
+        ? definition.executionRecovery.executionClass === "external_effect"
+          ? "authorized"
+          : "internal_command"
+        : evaluation.decision === "approval"
+          ? "awaiting_approval"
+          : "denied";
     const normalizedInputFingerprint = digest({
       toolName,
       args: evaluation.normalizedArgs,
@@ -484,13 +478,17 @@ export class ToolService {
       .digest("hex")
       .slice(0, 32);
     return {
+      admission,
       providerToolCallId,
       toolName,
       normalizedInputFingerprint,
       normalizedInput: evaluation.normalizedArgs,
       cwd: evaluation.cwd,
       risk: evaluation.risk,
-      capability: definition.executionRecovery.capability,
+      capability:
+        definition.executionRecovery.executionClass === "external_effect"
+          ? definition.executionRecovery.capability
+          : { kind: "non_repeatable_or_unknown", version: 1 },
       policyObservation: {
         schemaVersion: 1,
         observationId: `policy_observation_${observationSuffix}`,
@@ -523,6 +521,13 @@ export class ToolService {
         decision: evaluation.decision,
         reason: evaluation.reason,
         permissionEvaluation: evaluation.permissionEvaluation,
+        ...(resolved.fallback
+          ? { interactionKind: "policy_fallback_confirmation" }
+          : evaluation.decision === "approval"
+            ? { interactionKind: "tool_approval" }
+            : definition.executionRecovery.executionClass !== "external_effect"
+              ? { interactionKind: "internal_command" }
+              : {}),
       },
       owner: {
         conversationId: agent.conversationId,
@@ -540,6 +545,7 @@ export class ToolService {
     normalizedInputFingerprint: string;
     completeDocumentDigest: string;
     selectedRuleSetDigest: string;
+    exactApproval?: boolean;
   }): Promise<boolean> {
     const current = await this.prepareCanonicalToolProposal(
       input.agent,
@@ -548,6 +554,9 @@ export class ToolService {
       input.providerToolCallId,
     );
     return (
+      (current.admission === "authorized" ||
+        (input.exactApproval === true &&
+          current.admission === "awaiting_approval")) &&
       current.normalizedInputFingerprint === input.normalizedInputFingerprint &&
       current.policyObservation.completeDocumentDigest ===
         input.completeDocumentDigest &&

@@ -147,6 +147,7 @@ test("INV-PROVIDER-01 freezes the first request and schedules claim work atomica
     ],
     toolProposals: [
       {
+        admission: "authorized",
         providerToolCallId: "provider-call-1",
         toolName: "read",
         normalizedInputFingerprint: `sha256:${"a".repeat(64)}`,

@@ -12,6 +12,7 @@ import type {
 } from "@nervekit/contracts/tools";
 
 export interface CanonicalToolProposalInput {
+  admission: "authorized" | "awaiting_approval" | "denied" | "internal_command";
   providerToolCallId: string;
   toolName: string;
   normalizedInputFingerprint: string;
@@ -62,6 +63,7 @@ export function buildCanonicalToolBatch(input: {
   const phaseSuffix = input.phaseId.slice("provider_phase_".length);
   const waitGroupId = `wait_group_${phaseSuffix}`;
   const membershipManifestId = `manifest_wait_members_${phaseSuffix}`;
+  const proposalManifestId = `manifest_wait_proposals_${phaseSuffix}`;
   const seenCalls = new Set<string>();
   const members = input.proposals.map((proposal, index) => {
     if (seenCalls.has(proposal.providerToolCallId)) {
@@ -86,9 +88,20 @@ export function buildCanonicalToolBatch(input: {
         ownerId: proposal.providerToolCallId,
         inputFingerprint: proposal.normalizedInputFingerprint,
         policyFingerprint: proposal.policyObservation.completeDocumentDigest,
-        executionState: "authorized" as const,
-        attachmentDisposition: "pending" as const,
-        contributesToBarrier: false,
+        executionState:
+          proposal.admission === "authorized"
+            ? ("authorized" as const)
+            : proposal.admission === "denied"
+              ? ("denied" as const)
+              : ("awaiting_approval" as const),
+        attachmentDisposition:
+          proposal.admission === "denied"
+            ? ("not_executed" as const)
+            : ("pending" as const),
+        ...(proposal.admission === "denied"
+          ? { nonDispatchEvidenceId: `evidence_${suffix}` }
+          : {}),
+        contributesToBarrier: proposal.admission === "denied",
         revision: 1,
       },
     };
@@ -100,11 +113,16 @@ export function buildCanonicalToolBatch(input: {
     membershipManifestId,
     continuationEntryId: input.continuationEntryId,
     continuationConsumed: false,
-    state: "open",
+    state: members.every(({ member }) => member.contributesToBarrier)
+      ? "ready"
+      : "open",
     revision: 1,
     members: members.map(({ member }) => member),
   };
-  const authorizations: ExactCallAuthorization[] = members.map(
+  const authorized = members.filter(
+    ({ proposal }) => proposal.admission === "authorized",
+  );
+  const authorizations: ExactCallAuthorization[] = authorized.map(
     ({ proposal, member, suffix }) => ({
       schemaVersion: 1,
       authorizationId: `authorization_${suffix}`,
@@ -118,7 +136,7 @@ export function buildCanonicalToolBatch(input: {
       createdAt: input.now,
     }),
   );
-  const effects: LogicalEffect[] = members.map(
+  const effects: LogicalEffect[] = authorized.map(
     ({ proposal, member, suffix }, index) => ({
       schemaVersion: 1,
       effectId: `effect_${suffix}`,
@@ -136,24 +154,41 @@ export function buildCanonicalToolBatch(input: {
       createdAt: input.now,
     }),
   );
-  const inputManifests = effects.map((effect, index) => ({
-    manifestId: `manifest_tool_input_${effect.effectId.slice("effect_".length)}`,
-    schemaVersion: 1 as const,
-    data: {
-      schemaVersion: 1,
-      effectId: effect.effectId,
-      toolName: effect.toolName,
-      providerToolCallId: input.proposals[index]!.providerToolCallId,
-      normalizedInputFingerprint: effect.normalizedInputFingerprint,
-      normalizedInput: input.proposals[index]!.normalizedInput,
-      cwd: input.proposals[index]!.cwd,
-      risk: input.proposals[index]!.risk,
-      policyObservation: input.proposals[index]!.policyObservation,
-      providerIdentity: input.providerIdentity,
-      providerCapability: input.providerCapability,
+  const inputManifests: CanonicalToolBatchAuthority["inputManifests"] = [
+    {
+      manifestId: proposalManifestId,
+      schemaVersion: 1 as const,
+      data: {
+        schemaVersion: 1,
+        waitGroupId,
+        providerIdentity: input.providerIdentity,
+        providerCapability: input.providerCapability,
+        proposals: members.map(({ proposal, member, suffix }) => ({
+          memberId: member.memberId,
+          suffix,
+          ...proposal,
+        })),
+      },
     },
-  }));
-  const work: CanonicalLifecycleWork[] = effects.map((effect, index) => ({
+    ...effects.map((effect, index) => ({
+      manifestId: `manifest_tool_input_${effect.effectId.slice("effect_".length)}`,
+      schemaVersion: 1 as const,
+      data: {
+        schemaVersion: 1,
+        effectId: effect.effectId,
+        toolName: effect.toolName,
+        providerToolCallId: authorized[index]!.proposal.providerToolCallId,
+        normalizedInputFingerprint: effect.normalizedInputFingerprint,
+        normalizedInput: authorized[index]!.proposal.normalizedInput,
+        cwd: authorized[index]!.proposal.cwd,
+        risk: authorized[index]!.proposal.risk,
+        policyObservation: authorized[index]!.proposal.policyObservation,
+        providerIdentity: input.providerIdentity,
+        providerCapability: input.providerCapability,
+      },
+    })),
+  ];
+  const work: CanonicalLifecycleWork[] = effects.map((effect) => ({
     schemaVersion: 1,
     workId: `canonical_work_${effect.effectId.slice("effect_".length)}_claim`,
     conversationId: input.conversationId,
@@ -162,13 +197,50 @@ export function buildCanonicalToolBatch(input: {
     effectId: effect.effectId,
     state: "ready",
     inputHash: effect.normalizedInputFingerprint,
-    inputManifestId: inputManifests[index]!.manifestId,
+    inputManifestId: `manifest_tool_input_${effect.effectId.slice("effect_".length)}`,
     generation: 0,
     revision: 1,
     notBefore: input.now,
     createdAt: input.now,
     updatedAt: input.now,
   }));
+  if (waitGroup.state === "ready") {
+    const continuationManifestId = `manifest_continuation_${phaseSuffix}_initial`;
+    const continuationData = {
+      schemaVersion: 1,
+      conversationId: input.conversationId,
+      runId: input.runId,
+      runGeneration: input.runGeneration,
+      selectionEpoch: input.selectionEpoch,
+      sourceEntryId: input.continuationEntryId,
+      waitGroupId,
+      providerIdentity: input.providerIdentity,
+      providerCapability: input.providerCapability,
+    };
+    const inputHash = `sha256:${createHash("sha256")
+      .update(JSON.stringify(continuationData))
+      .digest("hex")}`;
+    inputManifests.push({
+      manifestId: continuationManifestId,
+      schemaVersion: 1,
+      data: continuationData,
+    });
+    work.push({
+      schemaVersion: 1,
+      workId: `canonical_work_${phaseSuffix}_continuation`,
+      conversationId: input.conversationId,
+      runId: input.runId,
+      kind: "prepare_continuation",
+      state: "ready",
+      inputHash,
+      inputManifestId: continuationManifestId,
+      generation: 0,
+      revision: 1,
+      notBefore: input.now,
+      createdAt: input.now,
+      updatedAt: input.now,
+    });
+  }
   return {
     waitGroup,
     policyObservations: input.proposals.map(

@@ -15,6 +15,7 @@ interface ToolManifest {
   policyObservation: PolicyDocumentObservation;
   providerToolCallId: string;
   toolName: ToolName;
+  exactApproval?: boolean;
 }
 
 /** Owns production handlers for all directly dispatchable canonical work. */
@@ -93,6 +94,7 @@ export class CanonicalExecutionRuntime {
             manifest.policyObservation.completeDocumentDigest,
           selectedRuleSetDigest:
             manifest.policyObservation.selectedRuleSetDigest,
+          exactApproval: manifest.exactApproval,
         }),
     });
   }

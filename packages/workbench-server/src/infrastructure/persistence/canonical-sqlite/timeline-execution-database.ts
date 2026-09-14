@@ -84,6 +84,18 @@ export class CanonicalExecutionQueryDatabase {
     return row ? decode(row.data) : undefined;
   }
 
+  findWaitGroupByMemberOwner(ownerId: string): WaitGroup | undefined {
+    const row = this.database
+      .prepare(
+        `SELECT wait_group_id FROM wait_group_members
+         WHERE owner_id = ? ORDER BY rowid DESC LIMIT 1`,
+      )
+      .get(ownerId) as { wait_group_id: string } | undefined;
+    return row
+      ? readTimelineWaitGroup(this.database, row.wait_group_id)
+      : undefined;
+  }
+
   readWaitGroup(waitGroupId: string): WaitGroup | undefined {
     return readTimelineWaitGroup(this.database, waitGroupId);
   }

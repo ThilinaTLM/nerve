@@ -15,6 +15,7 @@ import { CanonicalConversationCreationService } from "../../domains/conversation
 import { CanonicalDeletionCleanupService } from "../../domains/conversations/timeline/canonical-deletion-cleanup.service.js";
 import { CanonicalDeletionDispatcher } from "../../domains/conversations/timeline/canonical-deletion-dispatcher.js";
 import { CanonicalDeletionService } from "../../domains/conversations/timeline/canonical-deletion.service.js";
+import { CanonicalInteractionResolutionService } from "../../domains/conversations/timeline/canonical-interaction-resolution.service.js";
 import { CanonicalLifecycleDispatcher } from "../../domains/conversations/timeline/canonical-lifecycle-dispatcher.js";
 import { CanonicalNavigationService } from "../../domains/conversations/timeline/canonical-navigation.service.js";
 import { CanonicalProjectionDispatcher } from "../../domains/conversations/timeline/canonical-projection-dispatcher.js";
@@ -125,6 +126,17 @@ export function timelineRuntime(
     toolSettlement,
     toolInvocation,
     runExecutionBoundary,
+    createInteractionResolution: (
+      tools: ToolService,
+      getAgentForConversation: ConstructorParameters<
+        typeof CanonicalInteractionResolutionService
+      >[2],
+    ) =>
+      new CanonicalInteractionResolutionService(
+        storage.canonicalStore,
+        tools,
+        getAgentForConversation,
+      ),
     createExecutionRuntime: (input: {
       workerId: string;
       mechanics: WorkbenchAgentMechanics;

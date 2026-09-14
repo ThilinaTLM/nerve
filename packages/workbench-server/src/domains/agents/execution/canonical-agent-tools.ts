@@ -1,3 +1,4 @@
+import { AgentToolSuspension } from "@nervekit/harness/agent";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ToolName } from "@nervekit/contracts/tools";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
@@ -25,10 +26,23 @@ export function createCanonicalAgentTools(input: {
       const member = authority.waitGroup?.members.find(
         (candidate) => candidate.ownerId === providerToolCallId,
       );
+      if (!member) {
+        throw new Error("Canonical tool callback has no member authority.");
+      }
+      if (member.executionState === "awaiting_approval") {
+        throw new AgentToolSuspension({
+          toolCallId: providerToolCallId,
+          toolName,
+          reason: `Tool ${toolName} is awaiting canonical interaction resolution.`,
+        });
+      }
+      if (member.executionState === "denied") {
+        throw new Error(`Tool ${toolName} was denied by canonical policy.`);
+      }
       const effect = authority.effects.find(
-        (candidate) => candidate.memberId === member?.memberId,
+        (candidate) => candidate.memberId === member.memberId,
       );
-      if (!member || !effect || effect.toolName !== toolName) {
+      if (!effect || effect.toolName !== toolName) {
         throw new Error(
           "Canonical tool callback has no matching effect authority.",
         );
@@ -50,6 +64,7 @@ export function createCanonicalAgentTools(input: {
             normalizedInput: Record<string, unknown>;
             normalizedInputFingerprint: string;
             policyObservation: PolicyDocumentObservation;
+            exactApproval?: boolean;
           })
         : undefined;
       if (!manifest)
@@ -71,6 +86,7 @@ export function createCanonicalAgentTools(input: {
               manifest.policyObservation.completeDocumentDigest,
             selectedRuleSetDigest:
               manifest.policyObservation.selectedRuleSetDigest,
+            exactApproval: manifest.exactApproval,
           }),
       });
     },

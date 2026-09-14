@@ -73,6 +73,10 @@ export function executeCanonicalCommand(
       return database.executionQueries.readArtifactManifest(command.manifestId);
     case "read_canonical_wait_group":
       return database.executionQueries.readWaitGroup(command.waitGroupId);
+    case "find_canonical_wait_group_by_member_owner":
+      return database.executionQueries.findWaitGroupByMemberOwner(
+        command.ownerId,
+      );
     case "read_canonical_authorization":
       return database.executionQueries.readAuthorization(
         command.authorizationId,
