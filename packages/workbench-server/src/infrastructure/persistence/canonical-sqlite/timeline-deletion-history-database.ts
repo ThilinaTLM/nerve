@@ -191,7 +191,12 @@ function deleteStage(
       database,
       "domain_documents",
       "rowid",
-      "scope_id = ?1 OR document_id = ?1",
+      `scope_id = ?1 OR document_id = ?1
+       OR scope_id IN (SELECT run_id FROM run_controls WHERE conversation_id = ?1)
+       OR document_id IN (
+         SELECT 'childrel_' || substr(run_id, 5) FROM run_controls
+         WHERE conversation_id = ?1
+       )`,
       conversationId,
       limit,
     );

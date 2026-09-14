@@ -254,11 +254,11 @@ export class CanonicalWorkbenchRunService {
   }
 
   async listQueuedPrompts(agentId: string): Promise<QueuedPromptRecord[]> {
-    this.requireAgent(agentId);
+    const agent = this.requireAgent(agentId);
     return (
       await this.deps.store.listDocuments<QueuedPromptRecord>(
         "canonical_prompt_queue",
-        agentId,
+        agent.conversationId,
       )
     )
       .map((document) => document.data)
@@ -275,7 +275,7 @@ export class CanonicalWorkbenchRunService {
     const agent = this.requireAgent(agentId);
     const document = await this.deps.store.readDocument<QueuedPromptRecord>(
       "canonical_prompt_queue",
-      agentId,
+      agent.conversationId,
       promptId,
     );
     if (!document || document.data.status !== "queued") {
@@ -395,7 +395,7 @@ export class CanonicalWorkbenchRunService {
     const agent = this.requireConversationAgent(conversationId);
     const documents = await this.deps.store.listDocuments<QueuedPromptRecord>(
       "canonical_prompt_queue",
-      agent.id,
+      agent.conversationId,
     );
     const next = documents
       .filter((document) => document.data.status === "queued")
@@ -509,7 +509,7 @@ export class CanonicalWorkbenchRunService {
       domainDocuments: [
         {
           namespace: "canonical_prompt_queue",
-          scopeId: input.agent.id,
+          scopeId: input.agent.conversationId,
           documentId: input.prompt.id,
           expectedRevision: input.expectedRevision,
           payloadVersion: 1,
