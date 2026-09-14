@@ -15,6 +15,13 @@ export class CanonicalExecutionStore {
     private readonly request: <T>(command: CanonicalCommand) => Promise<T>,
   ) {}
 
+  recoverExpiredLifecycleWork(input: { now: string; limit: number }) {
+    return this.request<CanonicalLifecycleWork[]>({
+      kind: "recover_expired_canonical_lifecycle_work",
+      ...input,
+    });
+  }
+
   claimReadyLifecycleWork(input: {
     workerId: string;
     now: string;

@@ -138,6 +138,41 @@ export function claimReadyCanonicalLifecycleWork(
   });
 }
 
+export function recoverExpiredCanonicalLifecycleWork(
+  database: DatabaseSync,
+  input: { now: string; limit: number },
+): CanonicalLifecycleWork[] {
+  if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 256) {
+    throw new RangeError("Canonical recovery work limit is invalid.");
+  }
+  return withTimelineImmediateTransaction(database, () => {
+    const rows = database
+      .prepare(
+        `SELECT * FROM canonical_lifecycle_work
+         WHERE state = 'leased' AND lease_deadline_ms <= ?
+         ORDER BY lease_deadline_ms, work_id LIMIT ?`,
+      )
+      .all(Date.parse(input.now), input.limit) as unknown as WorkRow[];
+    return rows.map((row) => {
+      const current = decodeWork(row);
+      const possibleDispatch =
+        current.kind === "dispatch_provider_attempt" ||
+        current.kind === "dispatch_tool_attempt";
+      const next = canonicalLifecycleWorkSchema.parse({
+        ...current,
+        state: possibleDispatch ? "recovery_required" : "ready",
+        revision: current.revision + 1,
+        leaseOwner: undefined,
+        leaseDeadline: undefined,
+        notBefore: input.now,
+        updatedAt: input.now,
+      });
+      persistCanonicalLifecycleWork(database, next);
+      return next;
+    });
+  });
+}
+
 export function readCanonicalLifecycleWork(
   database: DatabaseSync,
   workId: string,

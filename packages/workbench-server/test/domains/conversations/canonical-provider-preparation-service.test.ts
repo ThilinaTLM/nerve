@@ -376,4 +376,11 @@ test("INV-PROVIDER-01 refuses preparation after scheduler lease expiry", async (
     now: "2026-09-14T00:00:02.000Z",
   });
   assert.equal(rejected.kind, "rejected");
+  const recovered = await store.execution.recoverExpiredLifecycleWork({
+    now: "2026-09-14T00:00:03.000Z",
+    limit: 10,
+  });
+  assert.equal(recovered.length, 1);
+  assert.equal(recovered[0]?.state, "ready");
+  assert.equal(recovered[0]?.leaseOwner, undefined);
 });

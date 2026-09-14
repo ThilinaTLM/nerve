@@ -27,6 +27,7 @@ import {
   listCanonicalLifecycleWorkForRun,
   listReadyCanonicalLifecycleWork,
   readCanonicalLifecycleWork,
+  recoverExpiredCanonicalLifecycleWork,
 } from "./timeline-lifecycle-work-database.js";
 
 export interface CanonicalRunExecutionAuthority {
@@ -103,6 +104,10 @@ export class CanonicalExecutionQueryDatabase {
 
   readClaim(claimId: string): ExecutionClaim | undefined {
     return readTimelineExecutionClaim(this.database, claimId);
+  }
+
+  recoverExpiredLifecycleWork(input: { now: string; limit: number }) {
+    return recoverExpiredCanonicalLifecycleWork(this.database, input);
   }
 
   claimLifecycleWork(input: {

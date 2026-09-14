@@ -55,6 +55,8 @@ export function executeCanonicalCommand(
       return database.executionQueries.countCompactionProviderPhases(
         command.runId,
       );
+    case "recover_expired_canonical_lifecycle_work":
+      return database.executionQueries.recoverExpiredLifecycleWork(command);
     case "claim_ready_canonical_lifecycle_work":
       return database.executionQueries.claimLifecycleWork({
         workerId: command.workerId,

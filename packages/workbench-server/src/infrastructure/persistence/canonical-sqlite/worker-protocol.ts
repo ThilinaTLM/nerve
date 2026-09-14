@@ -24,6 +24,11 @@ export type CanonicalCommand =
   | { kind: "create_timeline_backup_snapshot"; destination: string }
   | { kind: "count_compaction_provider_phases"; runId: string }
   | {
+      kind: "recover_expired_canonical_lifecycle_work";
+      now: string;
+      limit: number;
+    }
+  | {
       kind: "claim_ready_canonical_lifecycle_work";
       workerId: string;
       now: string;

@@ -12,6 +12,7 @@ import { CanonicalConversationCreationService } from "../../domains/conversation
 import { CanonicalDeletionCleanupService } from "../../domains/conversations/timeline/canonical-deletion-cleanup.service.js";
 import { CanonicalDeletionDispatcher } from "../../domains/conversations/timeline/canonical-deletion-dispatcher.js";
 import { CanonicalDeletionService } from "../../domains/conversations/timeline/canonical-deletion.service.js";
+import { CanonicalLifecycleDispatcher } from "../../domains/conversations/timeline/canonical-lifecycle-dispatcher.js";
 import { CanonicalNavigationService } from "../../domains/conversations/timeline/canonical-navigation.service.js";
 import { CanonicalProjectionDispatcher } from "../../domains/conversations/timeline/canonical-projection-dispatcher.js";
 import { CanonicalProviderPreparationService } from "../../domains/conversations/timeline/canonical-provider-preparation.service.js";
@@ -118,6 +119,16 @@ export function timelineRuntime(
     toolSettlement,
     toolInvocation,
     runExecutionBoundary,
+    createLifecycleDispatcher: (
+      workerId: string,
+      handlers: ConstructorParameters<typeof CanonicalLifecycleDispatcher>[2],
+    ) =>
+      new CanonicalLifecycleDispatcher(
+        storage.canonicalStore,
+        workerId,
+        handlers,
+        logger.child({ component: "canonical-lifecycle" }),
+      ),
     createHarnessExecutor: (mechanics: WorkbenchAgentMechanics) =>
       new CanonicalHarnessLifecycleExecutor({
         mechanics,
