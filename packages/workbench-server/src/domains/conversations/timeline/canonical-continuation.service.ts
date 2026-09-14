@@ -40,7 +40,6 @@ export class CanonicalContinuationService {
   async commitWithoutCompaction(input: {
     continuationWork: CanonicalLifecycleWork;
     workerId: string;
-    preparedRequest: unknown;
     compactionDecisionEvidence: Record<string, unknown>;
     now: string;
   }): Promise<CanonicalContinuationResult> {
@@ -98,8 +97,8 @@ export class CanonicalContinuationService {
     }
     const suffix = work.workId.slice("canonical_work_".length);
     const phaseId = `provider_phase_${suffix}`;
-    const requestManifestId = `manifest_provider_request_${suffix}`;
-    const requestData = {
+    const decisionManifestId = `manifest_continuation_decision_${suffix}`;
+    const decisionData = {
       schemaVersion: 1,
       sourceContinuationManifestId: work.inputManifestId,
       sourceContinuationHash: work.inputHash,
@@ -107,10 +106,9 @@ export class CanonicalContinuationService {
         required: false,
         evidence: input.compactionDecisionEvidence,
       },
-      request: input.preparedRequest,
     };
-    const requestHash = `sha256:${createHash("sha256")
-      .update(canonicalConversationJson(requestData))
+    const preparationHash = `sha256:${createHash("sha256")
+      .update(canonicalConversationJson(decisionData))
       .digest("hex")}`;
     const phase: ProviderPhase = {
       schemaVersion: 1,
@@ -120,21 +118,20 @@ export class CanonicalContinuationService {
       selectionEpoch: head.selectionEpoch,
       sourceEntryId: head.activeEntryId!,
       contextRecipeId: `context_recipe_${suffix}`,
-      requestManifestId,
-      requestHash,
       providerIdentity: manifest.providerIdentity,
       capability: manifest.providerCapability,
-      state: "ready",
+      state: "preparing",
     };
-    const claimWork: CanonicalLifecycleWork = {
+    const preparationWork: CanonicalLifecycleWork = {
       schemaVersion: 1,
-      workId: `canonical_work_${suffix}_claim`,
+      workId: `canonical_work_${suffix}_prepare`,
       conversationId: work.conversationId,
       runId: work.runId,
-      kind: "claim_provider_attempt",
+      kind: "prepare_provider_request",
       providerPhaseId: phaseId,
       state: "ready",
-      inputHash: requestHash,
+      inputHash: preparationHash,
+      inputManifestId: decisionManifestId,
       generation: 0,
       revision: 1,
       notBefore: input.now,
@@ -164,18 +161,22 @@ export class CanonicalContinuationService {
       cause: { kind: "settled_iteration_continuation", compacted: false },
       entries: [],
       artifactManifests: [
-        { manifestId: requestManifestId, schemaVersion: 1, data: requestData },
+        {
+          manifestId: decisionManifestId,
+          schemaVersion: 1,
+          data: decisionData,
+        },
       ],
       waitGroups: [closedGroup],
       providerPhases: [phase],
-      lifecycleWorks: [settledWork, claimWork],
+      lifecycleWorks: [settledWork, preparationWork],
       providerPhaseId: phaseId,
       waitGroupId: null,
       runState: "running",
     });
     return result.kind === "rejected"
       ? result
-      : { kind: result.kind, phase, work: claimWork };
+      : { kind: result.kind, phase, work: preparationWork };
   }
 }
 

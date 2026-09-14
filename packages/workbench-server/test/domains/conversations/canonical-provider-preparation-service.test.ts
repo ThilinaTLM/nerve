@@ -326,7 +326,6 @@ test("INV-PROVIDER-01 freezes the first request and schedules claim work atomica
   ).commitWithoutCompaction({
     continuationWork: continuationWork!,
     workerId: "continuation-worker-1",
-    preparedRequest: { messages: [{ role: "tool", content: "result" }] },
     compactionDecisionEvidence: {
       contextTokens: 100,
       thresholdTokens: 1_000,
@@ -341,6 +340,10 @@ test("INV-PROVIDER-01 freezes the first request and schedules claim work atomica
   assert.equal(continuedRun?.state, "running");
   assert.equal(continuedRun?.waitGroupId, null);
   assert.match(continuedRun?.providerPhaseId ?? "", /^provider_phase_/);
+  assert.equal(
+    continued.kind !== "rejected" && continued.work.kind,
+    "prepare_provider_request",
+  );
   assert.equal(
     (
       await store.execution.readWaitGroup(
