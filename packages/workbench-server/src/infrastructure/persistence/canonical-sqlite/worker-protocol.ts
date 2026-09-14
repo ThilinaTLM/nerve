@@ -106,6 +106,8 @@ export type CanonicalCommand =
     }
   | { kind: "read_timeline_state_identity" }
   | { kind: "read_timeline_runtime_admission" }
+  | { kind: "read_timeline_policy_save_intent"; saveIntentId: string }
+  | { kind: "list_pending_timeline_policy_save_intents"; limit: number }
   | { kind: "disable_timeline_runtime_admission"; now: string }
   | {
       kind: "promote_timeline_runtime_admission";
@@ -380,6 +382,8 @@ export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "read_timeline_command_receipt",
   "read_timeline_state_identity",
   "read_timeline_runtime_admission",
+  "read_timeline_policy_save_intent",
+  "list_pending_timeline_policy_save_intents",
   "read_timeline_conversation_head",
   "read_timeline_deletion_state",
   "read_pending_timeline_transcript_projections",

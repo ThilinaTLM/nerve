@@ -37,11 +37,14 @@ import type { CanonicalToolRuntimeService } from "../../domains/tools/execution/
 import { CanonicalBackupInspectionService } from "../../domains/storage/canonical-backup-inspection.service.js";
 import { CanonicalPortableBackupService } from "../../domains/storage/canonical-portable-backup.service.js";
 import { CanonicalRestoreStagingService } from "../../domains/storage/canonical-restore-staging.service.js";
+import type { PermissionPolicyService } from "../../domains/permissions/permission-policy.service.js";
+import { CanonicalPolicySaveCoordinator } from "../../domains/permissions/canonical-policy-save-coordinator.js";
 
 export function timelineRuntime(
   storage: InitializedStorage,
   secrets: SecretProvider,
   logger: ApplicationLogger,
+  permissionPolicy: PermissionPolicyService,
 ) {
   const timelinePages = new CanonicalTimelinePageProvider(
     storage.canonicalStore,
@@ -112,8 +115,13 @@ export function timelineRuntime(
   );
   const backupInspection = new CanonicalBackupInspectionService(storage.paths);
   const restoreStaging = new CanonicalRestoreStagingService(storage.paths);
+  const policySaves = new CanonicalPolicySaveCoordinator(
+    storage.canonicalStore,
+    permissionPolicy,
+  );
   return {
     timelinePages,
+    policySaves,
     rebuildConversation: (conversationId: string) =>
       projections.rebuild(conversationId),
     createConversationApplication: (
@@ -158,6 +166,7 @@ export function timelineRuntime(
         storage.canonicalStore,
         tools,
         getAgentForConversation,
+        policySaves,
       ),
     createExecutionRuntime: (input: {
       workerId: string;

@@ -229,7 +229,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       void logger.warn(message, { error });
     },
   });
-  const timeline = timelineRuntime(storage, secrets, logger);
+  const timeline = timelineRuntime(storage, secrets, logger, permissionPolicy);
   const canonicalSummaryPreparer = new CanonicalCompactionSummaryPreparer({
     providerCatalog,
     secrets,

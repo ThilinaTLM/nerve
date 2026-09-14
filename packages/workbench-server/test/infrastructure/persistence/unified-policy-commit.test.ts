@@ -145,3 +145,71 @@ test("INV-POLICY-01 persists file-authoritative observations and partial save ou
     assert.equal(result.kind, "committed");
   }
 });
+
+test("INV-POLICY-04 binds remembered saves to prepared bytes and approval identity", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-unified-policy-v2-"));
+  const store = new CanonicalStore(join(home, "nerve.sqlite"));
+  await store.initialize();
+  t.after(async () => {
+    await store.close();
+    await rm(home, { recursive: true, force: true });
+  });
+  const intent: PolicySaveIntent = {
+    schemaVersion: 2,
+    saveIntentId: "policy_save_v2",
+    commandId: "remember-project-rule",
+    scope: { kind: "project", ownerId: "proj_policy" },
+    documentIdentity: "projects/proj_policy/permissions.json",
+    observedDocumentDigest: hash,
+    intendedDocumentDigest: hash,
+    ruleFingerprint: hash,
+    conversationId: "conv_policy",
+    runId: "run_policy",
+    memberId: "member_policy",
+    approvalCommandId: "approval-policy-v2",
+    intendedDocumentManifestId: "manifest_policy_save_v2",
+    state: "recorded",
+    fileOutcome: "not_attempted",
+    approvalOutcome: "not_attempted",
+    createdAt: now,
+    updatedAt: now,
+  };
+  const recorded = await store.commitConversationCommand({
+    ...command("policy-save-v2-recorded"),
+    artifactManifests: [
+      {
+        manifestId: "manifest_policy_save_v2",
+        schemaVersion: 1,
+        data: {
+          schemaVersion: 1,
+          mediaType: "application/json",
+          bytesBase64: Buffer.from("{}\n").toString("base64"),
+          intendedDocumentDigest: hash,
+        },
+      },
+    ],
+    policySaveIntents: [intent],
+  });
+  assert.equal(recorded.kind, "committed");
+  assert.deepEqual(
+    await store.policy.readSaveIntent(intent.saveIntentId),
+    intent,
+  );
+  assert.deepEqual(
+    (await store.policy.listPendingSaveIntents()).map(
+      (candidate) => candidate.saveIntentId,
+    ),
+    [intent.saveIntentId],
+  );
+  const writing = await store.commitConversationCommand({
+    ...command("policy-save-v2-writing"),
+    policySaveIntents: [
+      {
+        ...intent,
+        state: "writing",
+        updatedAt: "2026-09-12T00:00:01.000Z",
+      },
+    ],
+  });
+  assert.equal(writing.kind, "committed");
+});

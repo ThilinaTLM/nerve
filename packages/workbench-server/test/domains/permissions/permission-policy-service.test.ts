@@ -6,6 +6,7 @@ import { afterEach, test } from "node:test";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { PermissionPolicyService } from "../../../src/domains/permissions/permission-policy.service.js";
+import { CanonicalPolicySaveCoordinator } from "../../../src/domains/permissions/canonical-policy-save-coordinator.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
 const roots: string[] = [];
@@ -287,6 +288,7 @@ test("invalid custom selection falls back to Baseline without overlays", async (
   agent.permissionRuleSetId = "missing-set";
   const resolved = await service.resolve(agent);
   assert.equal(resolved.fallback, true);
+  assert.equal(resolved.executionBlocked, true);
   assert.deepEqual(resolved.policy.activeRuleSetIds, ["baseline"]);
   assert.equal(
     resolved.policy.rules.some((entry) => entry.origin === "user"),
@@ -309,6 +311,85 @@ test("Explore children receive only fixed Read only without overlays", async () 
   );
 });
 
+test("INV-POLICY-04 records prepared bytes before a remembered file save", async () => {
+  const { service, storage, agent } = await setup();
+  const coordinator = new CanonicalPolicySaveCoordinator(
+    storage.canonicalStore,
+    service,
+  );
+  const saved = await coordinator.prepareAndSave({
+    origin: "conversation",
+    ownerId: agent.conversationId,
+    ruleSetId: "supervised",
+    rule: allowWrite,
+    saveIntentId: "policy_save_coordinated",
+    commandId: "remember-conversation-rule",
+    scope: { kind: "conversation", ownerId: agent.conversationId },
+    conversationId: agent.conversationId,
+    runId: "run_policy",
+    memberId: "member_policy",
+    approvalCommandId: "approval-policy",
+    now: "2026-09-14T00:00:00.000Z",
+  });
+  assert.equal(saved.state, "saved_pending_finalization");
+  assert.equal(saved.fileOutcome, "saved");
+  const persisted = await storage.canonicalStore.policy.readSaveIntent(
+    saved.saveIntentId,
+  );
+  assert.deepEqual(persisted, saved);
+  assert.ok(
+    await storage.canonicalStore.execution.readArtifactManifest(
+      saved.schemaVersion === 2 ? saved.intendedDocumentManifestId : "",
+    ),
+  );
+  const restarted = new CanonicalPolicySaveCoordinator(
+    storage.canonicalStore,
+    service,
+  );
+  const [finalized] = await restarted.recoverPending({
+    approvalStillApplicable: async () => true,
+    finalizeApproval: async () => "committed",
+    now: () => "2026-09-14T00:00:01.000Z",
+  });
+  assert.equal(finalized?.state, "finalized");
+  assert.equal(
+    (await storage.canonicalStore.policy.listPendingSaveIntents()).length,
+    0,
+  );
+});
+
+test("INV-POLICY-04 prepared remembered saves never overwrite external edits", async () => {
+  const { service, storage } = await setup();
+  const prepared = await service.prepareRuleSave(
+    "user",
+    "supervised",
+    allowWrite,
+  );
+  await writeFile(
+    storage.paths.permissionsConfigPath,
+    '{"schemaVersion":2,"overlays":[]}\n',
+  );
+  const conflicted = await service.commitPreparedRuleSave(prepared);
+  assert.equal(conflicted.kind, "external_conflict");
+
+  const refreshed = await service.prepareRuleSave(
+    "user",
+    "supervised",
+    allowWrite,
+  );
+  const saved = await service.commitPreparedRuleSave(refreshed);
+  assert.equal(saved.kind, "saved");
+  assert.equal(
+    saved.kind === "saved" ? saved.digest : undefined,
+    refreshed.intendedDocumentDigest,
+  );
+  const policy = await service.readOverlay("user", "supervised");
+  assert.equal(
+    policy.rules.some((rule) => rule.id === allowWrite.id),
+    true,
+  );
+});
+
 test("one invalid rule causes the complete overlay to be ignored", async () => {
   const { service, storage, agent } = await setup();
   await writeFile(
@@ -326,4 +407,5 @@ test("one invalid rule causes the complete overlay to be ignored", async () => {
   assert.ok(
     resolved.policy.ignoredOverlays.some((item) => item.origin === "user"),
   );
+  assert.equal(resolved.executionBlocked, true);
 });

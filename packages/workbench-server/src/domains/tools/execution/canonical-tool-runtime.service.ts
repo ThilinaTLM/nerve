@@ -25,7 +25,6 @@ import type { ConversationRuntime } from "../../runs/runtime/conversation-runtim
 import type { PermissionPolicyService } from "../../permissions/permission-policy.service.js";
 import { evaluateWorkbenchToolPermission } from "../permission/index.js";
 import { TodoStateService } from "../orchestration/todo-state.service.js";
-import { InteractionSessionService } from "../orchestration/interaction-session.service.js";
 import { OrchestrationToolDispatcher } from "../orchestration/dispatcher.js";
 import { CanonicalToolExternalInvoker } from "./canonical-tool-external-invoker.js";
 import type { ToolResultPayloadStore } from "../artifacts/tool-result-payload-store.js";
@@ -57,19 +56,6 @@ export class CanonicalToolRuntimeService {
   readonly canonicalInvoker: CanonicalToolExternalInvoker;
 
   constructor(private readonly deps: CanonicalToolRuntimeDependencies) {
-    const unavailable = async (): Promise<never> => {
-      throw new Error("Legacy interaction-session authority is retired.");
-    };
-    const unavailableSync = (): never => {
-      throw new Error("Legacy interaction-session authority is retired.");
-    };
-    const interactions = new InteractionSessionService({
-      events: deps.events,
-      getToolCall: unavailableSync,
-      listToolCalls: () => [],
-      updateToolCall: unavailable,
-      publishToolCallUpdated: async () => undefined,
-    });
     const dispatcher = new OrchestrationToolDispatcher({
       storage: deps.storage,
       events: deps.events,
@@ -84,9 +70,6 @@ export class CanonicalToolRuntimeService {
       setAgentMode: deps.setAgentMode,
       conversationRuntime: deps.conversationRuntime,
       todoState: new TodoStateService(),
-      interactionSessions: interactions,
-      updateToolCall: unavailable,
-      publishToolCallUpdated: async () => undefined,
     });
     this.canonicalInvoker = new CanonicalToolExternalInvoker(
       dispatcher,
@@ -165,8 +148,8 @@ export class CanonicalToolRuntimeService {
       },
     );
     const definition = requireToolDefinition(toolName);
-    const admission = resolved.fallback
-      ? "awaiting_approval"
+    const admission = resolved.executionBlocked
+      ? "policy_blocked"
       : evaluation.decision === "allow"
         ? definition.executionRecovery.executionClass === "external_effect"
           ? "authorized"
@@ -224,7 +207,7 @@ export class CanonicalToolRuntimeService {
                   ? agent.projectId
                   : agent.conversationId,
           },
-          documentIdentity: source.path,
+          documentIdentity: source.documentIdentity,
           digest: source.digest,
         })),
         normalizedInputFingerprint,
@@ -244,6 +227,30 @@ export class CanonicalToolRuntimeService {
             ? "tool_approval"
             : admission,
       },
+      ...(resolved.executionBlocked
+        ? {
+            policyFailure: {
+              scope: {
+                kind: "conversation" as const,
+                ownerId: agent.conversationId,
+              },
+              documentIdentity: resolved.fallback
+                ? `rule-set:${agent.permissionRuleSetId ?? agent.permissionLevel}`
+                : "applicable-permission-overlay",
+              failureFingerprint: digest({
+                selectedRuleSetId: resolved.selectedRuleSetId,
+                diagnostics: resolved.diagnostics,
+              }),
+              failureKind: resolved.fallback
+                ? ("invalid_rule_set" as const)
+                : resolved.diagnostics.some((message) =>
+                      /json|malformed|invalid/i.test(message),
+                    )
+                  ? ("malformed_overlay" as const)
+                  : ("unreadable_overlay" as const),
+            },
+          }
+        : {}),
       owner: {
         conversationId: agent.conversationId,
         projectId: agent.projectId,

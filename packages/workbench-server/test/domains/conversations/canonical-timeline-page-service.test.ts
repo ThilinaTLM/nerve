@@ -264,7 +264,17 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
     query: "alpha",
     cursor: searchCursor,
   });
+  const invalidatedTree = await pages.treePage({
+    conversationId: "conv_page",
+    cursor: treeFirst.kind === "page" ? treeFirst.page.nextCursor : undefined,
+  });
   assert.equal(invalidatedSearch.kind, "reconciliation_required");
+  assert.equal(invalidatedTree.kind, "reconciliation_required");
+  assert.equal(
+    invalidatedTree.kind === "reconciliation_required" &&
+      invalidatedTree.reason,
+    "projection_rebuilt",
+  );
   assert.equal(invalidatedByRebuild.kind, "reconciliation_required");
   assert.equal(
     invalidatedByRebuild.kind === "reconciliation_required" &&

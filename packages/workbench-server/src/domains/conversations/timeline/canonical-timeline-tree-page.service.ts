@@ -25,23 +25,34 @@ export class CanonicalTimelineTreePageService {
         actualVersion: 0,
       };
     }
-    const [identity, currentHead, deletionState] = await Promise.all([
-      this.store.readTimelineStateIdentity(),
-      this.store.readTimelineConversationHead(request.conversationId),
-      this.store.readTimelineDeletionState(request.conversationId),
-    ]);
+    const [identity, currentHead, deletionState, projection] =
+      await Promise.all([
+        this.store.readTimelineStateIdentity(),
+        this.store.readTimelineConversationHead(request.conversationId),
+        this.store.readTimelineDeletionState(request.conversationId),
+        this.store.readTimelineTranscriptProjectionStatus(
+          request.conversationId,
+        ),
+      ]);
     if (!identity) return { kind: "restore_invalidated" };
     if (!currentHead || deletionState !== "active") {
       return { kind: "deleted_owner", ownerId: request.conversationId };
     }
+    if (projection?.rebuildState === "rebuilding") {
+      return {
+        kind: "rebuilding",
+        generation: projection.rebuildGeneration,
+        appliedRevision: projection.appliedRevision,
+      };
+    }
     if (
       request.minimumRevision !== undefined &&
-      currentHead.revision < request.minimumRevision
+      (projection?.appliedRevision ?? 0) < request.minimumRevision
     ) {
       return {
         kind: "projection_lag",
         requestedRevision: request.minimumRevision,
-        appliedRevision: currentHead.revision,
+        appliedRevision: projection?.appliedRevision ?? 0,
         canonicalRevision: currentHead.revision,
       };
     }
@@ -54,6 +65,20 @@ export class CanonicalTimelineTreePageService {
       decoded.view.executionIncarnationId !== identity.executionIncarnationId
     ) {
       return { kind: "restore_invalidated" };
+    }
+    if (
+      decoded &&
+      projection &&
+      (decoded.view.projection.schemaVersion !== projection.schemaVersion ||
+        decoded.view.projection.policyVersion !== projection.policyVersion ||
+        decoded.view.projection.rebuildGeneration !==
+          projection.rebuildGeneration)
+    ) {
+      return {
+        kind: "reconciliation_required",
+        reason: "projection_rebuilt",
+        freshViewAvailable: true,
+      };
     }
     if (
       decoded &&
@@ -98,21 +123,34 @@ export class CanonicalTimelineTreePageService {
         sourceHeadEntryId: sourceHead.activeEntryId,
         sourceRevision,
         projection: {
-          canonicalRevision: sourceRevision,
-          appliedRevision: sourceRevision,
-          schemaVersion: 1,
-          policyVersion: 1,
-          rebuildGeneration: 1,
+          canonicalRevision: currentHead.revision,
+          appliedRevision: Math.min(
+            projection?.appliedRevision ?? sourceRevision,
+            sourceRevision,
+          ),
+          schemaVersion: projection?.schemaVersion ?? 1,
+          policyVersion: projection?.policyVersion ?? 1,
+          rebuildGeneration: projection?.rebuildGeneration ?? 1,
         },
         visibilityId: request.visibilityId,
         filterId: request.filterId,
         ordering: "tree_commit_order" as const,
         executionIncarnationId: identity.executionIncarnationId,
       } as const);
+    let after:
+      | { revision: number; ordinal: number; entryId: string }
+      | undefined;
+    if (decoded) {
+      try {
+        after = decodeTreeKey(decoded.lastDisplayOrderKey);
+      } catch {
+        return { kind: "expired_cursor" };
+      }
+    }
     const slice = await this.store.readTimelineFixedTreePage(
       request.conversationId,
       sourceRevision,
-      decoded ? decodeTreeKey(decoded.lastDisplayOrderKey) : undefined,
+      after,
       request.pageSize,
     );
     const nextCursor = slice.nextAfter

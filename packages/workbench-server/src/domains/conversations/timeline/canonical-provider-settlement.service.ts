@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { MutationOutcome } from "@nervekit/contracts/conversations";
 import type {
   CanonicalExecutionAttempt,
@@ -47,25 +47,37 @@ export class CanonicalProviderSettlementService {
       this.store.execution.readClaim(snapshot.claim.claimId),
       this.store.execution.readLifecycleWork(snapshot.work.workId),
     ]);
+    const replayCandidate =
+      phase?.state === "closed" &&
+      attempt?.state === "known_failed" &&
+      claim?.state === "consumed" &&
+      work?.state === "settled";
     if (
       !head ||
       !run ||
-      phase?.state !== "active" ||
-      attempt?.state !== "dispatched" ||
-      claim?.state !== "active" ||
-      work?.state !== "leased" ||
-      work.leaseOwner !== input.workerId ||
-      head.activeEntryId !== snapshot.sourceEntryId ||
-      head.foregroundRunId !== snapshot.runId ||
-      run.revision !== snapshot.runRevision
+      (!replayCandidate &&
+        (phase?.state !== "active" ||
+          attempt?.state !== "dispatched" ||
+          claim?.state !== "active" ||
+          work?.state !== "leased" ||
+          work.leaseOwner !== input.workerId ||
+          head.activeEntryId !== snapshot.sourceEntryId ||
+          head.foregroundRunId !== snapshot.runId ||
+          run.revision !== snapshot.runRevision))
     ) {
       return rejected("provider_failure_fence_changed");
+    }
+    if (!phase || !attempt || !claim || !work) {
+      return rejected("provider_failure_authority_missing");
     }
     const retryNumber =
       typeof phase.providerIdentity.canonicalRetryNumber === "number"
         ? phase.providerIdentity.canonicalRetryNumber + 1
         : 1;
-    const suffix = randomUUID();
+    const suffix = createHash("sha256")
+      .update(`${phase.phaseId}:${retryNumber}`)
+      .digest("hex")
+      .slice(0, 32);
     const nextPhaseId = `provider_phase_retry_${suffix}`;
     const nextPhase: ProviderPhase = {
       schemaVersion: 1,
@@ -123,21 +135,21 @@ export class CanonicalProviderSettlementService {
           data: decision,
         },
       ],
-      providerPhases: [{ ...phase, state: "closed" }, nextPhase],
+      providerPhases: [{ ...snapshot.phase, state: "closed" }, nextPhase],
       executionAttempts: [
         {
-          ...attempt,
+          ...snapshot.attempt,
           state: "known_failed",
           outcome: { error: input.error, retryNumber },
           updatedAt: input.now,
         },
       ],
-      executionClaims: [{ ...claim, state: "consumed" }],
+      executionClaims: [{ ...snapshot.claim, state: "consumed" }],
       lifecycleWorks: [
         {
-          ...work,
+          ...snapshot.work,
           state: "settled",
-          revision: work.revision + 1,
+          revision: snapshot.work.revision + 1,
           leaseOwner: undefined,
           leaseDeadline: undefined,
           updatedAt: input.now,
@@ -280,6 +292,7 @@ export class CanonicalProviderSettlementService {
       lifecycleWorks: [settledWork, ...(toolBatch?.work ?? [])],
       waitGroups: toolBatch ? [toolBatch.waitGroup] : [],
       policyObservations: toolBatch?.policyObservations ?? [],
+      policyDiagnostics: toolBatch?.policyDiagnostics ?? [],
       authorizations: toolBatch?.authorizations ?? [],
       logicalEffects: toolBatch?.effects ?? [],
       providerPhaseId: null,

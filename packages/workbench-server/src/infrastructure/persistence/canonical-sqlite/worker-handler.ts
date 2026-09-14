@@ -113,6 +113,10 @@ export function executeCanonicalCommand(
       return database.timeline.readStateIdentity();
     case "read_timeline_runtime_admission":
       return database.timeline.readRuntimeAdmission();
+    case "read_timeline_policy_save_intent":
+      return database.timeline.readPolicySaveIntent(command.saveIntentId);
+    case "list_pending_timeline_policy_save_intents":
+      return database.timeline.listPendingPolicySaveIntents(command.limit);
     case "disable_timeline_runtime_admission":
       return database.timeline.disableRuntimeAdmission(command.now);
     case "promote_timeline_runtime_admission":

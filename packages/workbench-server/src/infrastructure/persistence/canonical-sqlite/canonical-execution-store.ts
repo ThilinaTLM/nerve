@@ -15,6 +15,13 @@ export class CanonicalExecutionStore {
     private readonly request: <T>(command: CanonicalCommand) => Promise<T>,
   ) {}
 
+  countCompactionProviderPhases(runId: string) {
+    return this.request<number>({
+      kind: "count_compaction_provider_phases",
+      runId,
+    });
+  }
+
   recoverExpiredLifecycleWork(input: { now: string; limit: number }) {
     return this.request<CanonicalLifecycleWork[]>({
       kind: "recover_expired_canonical_lifecycle_work",

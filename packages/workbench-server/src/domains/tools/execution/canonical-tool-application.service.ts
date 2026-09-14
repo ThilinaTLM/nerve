@@ -76,7 +76,13 @@ export class CanonicalToolInteractionApplicationService {
   async resolve(
     input: ResolveToolInteractionRequest,
   ): Promise<{ toolCall: ToolCallRecord }> {
-    const resolution = canonicalResolution(input.resolution);
+    const current = await this.queries.getToolCallUiDetails(input.toolCallId);
+    const pending = current.toolCall.interactions.find(
+      (interaction) =>
+        interaction.ordinal === input.interactionOrdinal &&
+        interaction.status === "pending",
+    );
+    const resolution = canonicalResolution(input.resolution, pending);
     const result = await this.interactions.resolve({
       providerToolCallId: input.toolCallId,
       ...resolution,
@@ -95,7 +101,10 @@ export class CanonicalToolInteractionApplicationService {
   }
 }
 
-function canonicalResolution(resolution: ToolInteractionResolution): {
+function canonicalResolution(
+  resolution: ToolInteractionResolution,
+  interaction: ToolCallRecord["interactions"][number] | undefined,
+): {
   decision:
     | "allow_once"
     | "deny"
@@ -106,19 +115,34 @@ function canonicalResolution(resolution: ToolInteractionResolution): {
     | "reject"
     | "discard";
   responseText?: string;
+  remembered?: {
+    origin: "user" | "project" | "conversation";
+    rule: import("@nervekit/contracts/permissions").PermissionRule;
+  };
 } {
   if (resolution.kind === "approval") {
-    if (
-      resolution.action === "allow" &&
-      resolution.scope !== undefined &&
-      resolution.scope !== "single_call"
-    ) {
+    const durableOrigin =
+      resolution.scope === "always_conversation"
+        ? "conversation"
+        : resolution.scope === "always_project"
+          ? "project"
+          : resolution.scope === "always_user" || resolution.scope === "always"
+            ? "user"
+            : undefined;
+    const suggestedRule =
+      interaction?.kind === "approval"
+        ? interaction.request.suggestedRules[0]
+        : undefined;
+    if (resolution.action === "allow" && durableOrigin && !suggestedRule) {
       throw new Error(
-        "Remembered canonical grants require a policy save intent.",
+        "The requested canonical remembered scope is unavailable.",
       );
     }
     return {
       decision: resolution.action === "allow" ? "allow_once" : "deny",
+      ...(resolution.action === "allow" && durableOrigin && suggestedRule
+        ? { remembered: { origin: durableOrigin, rule: suggestedRule } }
+        : {}),
     };
   }
   if (resolution.kind === "user_input") {

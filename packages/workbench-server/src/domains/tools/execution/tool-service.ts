@@ -511,7 +511,7 @@ export class ToolService {
                   ? agent.projectId
                   : agent.conversationId,
           },
-          documentIdentity: source.path,
+          documentIdentity: source.documentIdentity,
           digest: source.digest,
         })),
         normalizedInputFingerprint,

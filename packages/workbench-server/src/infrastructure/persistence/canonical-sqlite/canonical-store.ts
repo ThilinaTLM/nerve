@@ -2,6 +2,7 @@ import type { CommitConversationCommandInput } from "./timeline-database.js";
 import {
   CanonicalExecutionStore,
   CanonicalMigrationStore,
+  CanonicalPolicyStore,
 } from "./store-facets.js";
 import type {
   CanonicalAncestrySegment,
@@ -116,6 +117,7 @@ export class CanonicalStore {
     this.request<T>(command);
   readonly migration = new CanonicalMigrationStore(this.requester);
   readonly execution = new CanonicalExecutionStore(this.requester);
+  readonly policy = new CanonicalPolicyStore(this.requester);
   readonly deletion = new CanonicalDeletionStore(this.requester);
 
   constructor(
@@ -213,13 +215,6 @@ export class CanonicalStore {
     return this.request<ConversationHead | undefined>({
       kind: "read_timeline_conversation_head",
       conversationId,
-    });
-  }
-
-  countCompactionProviderPhases(runId: string) {
-    return this.request<number>({
-      kind: "count_compaction_provider_phases",
-      runId,
     });
   }
 

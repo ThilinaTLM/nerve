@@ -46,6 +46,13 @@ export class CanonicalTimelinePageService {
     if (!currentHead || deletionState !== "active") {
       return { kind: "deleted_owner", ownerId: request.conversationId };
     }
+    if (projection?.rebuildState === "rebuilding") {
+      return {
+        kind: "rebuilding",
+        generation: projection.rebuildGeneration,
+        appliedRevision: projection.appliedRevision,
+      };
+    }
     if (
       request.minimumRevision !== undefined &&
       currentHead.revision < request.minimumRevision
@@ -124,9 +131,14 @@ export class CanonicalTimelinePageService {
         ordering: "ancestry_ascending" as const,
         executionIncarnationId: identity.executionIncarnationId,
       } as const);
-    const beforeDepth = decoded
-      ? decodeDisplayOrderKey(decoded.lastDisplayOrderKey)
-      : undefined;
+    let beforeDepth: number | undefined;
+    if (decoded) {
+      try {
+        beforeDepth = decodeDisplayOrderKey(decoded.lastDisplayOrderKey);
+      } catch {
+        return { kind: "expired_cursor" };
+      }
+    }
     const projected =
       sourceHeadEntryId &&
       projection?.rebuildState === "ready" &&

@@ -71,8 +71,7 @@ export type PolicyFallbackDecision = z.infer<
   typeof policyFallbackDecisionSchema
 >;
 
-export const policySaveIntentSchema = z.object({
-  schemaVersion: z.literal(1),
+const policySaveIntentBaseSchema = z.object({
   saveIntentId: z.string().startsWith("policy_save_"),
   commandId: z.string().min(1).max(256),
   scope: policyScopeReferenceSchema,
@@ -98,4 +97,16 @@ export const policySaveIntentSchema = z.object({
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
+
+export const policySaveIntentSchema = z.discriminatedUnion("schemaVersion", [
+  policySaveIntentBaseSchema.extend({ schemaVersion: z.literal(1) }),
+  policySaveIntentBaseSchema.extend({
+    schemaVersion: z.literal(2),
+    conversationId: z.string().startsWith("conv_"),
+    runId: z.string().startsWith("run_"),
+    memberId: z.string().startsWith("member_"),
+    approvalCommandId: z.string().min(1).max(256),
+    intendedDocumentManifestId: z.string().startsWith("manifest_"),
+  }),
+]);
 export type PolicySaveIntent = z.infer<typeof policySaveIntentSchema>;

@@ -68,8 +68,10 @@ import {
 import {
   insertTimelinePolicyFallbackDecision,
   insertTimelinePolicyObservation,
+  listPendingTimelinePolicySaveIntents,
   persistTimelinePolicyDiagnostic,
   persistTimelinePolicySaveIntent,
+  readTimelinePolicySaveIntent,
 } from "./timeline-policy-database.js";
 import { withTimelineImmediateTransaction } from "./timeline-transaction.js";
 import { promoteTimelineRuntimeAdmission } from "./timeline-authority-promotion-database.js";
@@ -129,6 +131,14 @@ export class CanonicalTimelineDatabase {
 
   readRuntimeAdmission() {
     return readTimelineRuntimeAdmission(this.database);
+  }
+
+  readPolicySaveIntent(saveIntentId: string) {
+    return readTimelinePolicySaveIntent(this.database, saveIntentId);
+  }
+
+  listPendingPolicySaveIntents(limit: number) {
+    return listPendingTimelinePolicySaveIntents(this.database, limit);
   }
 
   promoteRuntimeAdmission(

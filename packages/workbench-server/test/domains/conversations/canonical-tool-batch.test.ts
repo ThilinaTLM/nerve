@@ -9,6 +9,7 @@ const selectedDigest = `sha256:${"c".repeat(64)}` as const;
 type Admission =
   | "authorized"
   | "awaiting_approval"
+  | "policy_blocked"
   | "denied"
   | "internal_command";
 
@@ -36,6 +37,16 @@ function proposal(admission: Admission) {
       observedAt: "2026-09-14T00:00:00.000Z",
     },
     authorizationEvidence: { decision: admission },
+    ...(admission === "policy_blocked"
+      ? {
+          policyFailure: {
+            scope: { kind: "conversation" as const, ownerId: "conv_batch" },
+            documentIdentity: "conversation:permissions.json",
+            failureFingerprint: fingerprint,
+            failureKind: "malformed_overlay" as const,
+          },
+        }
+      : {}),
     owner: { conversationId: "conv_batch", agentId: "agent_batch" },
   };
 }
@@ -75,6 +86,14 @@ test("canonical tool batch admits only allowed calls to effect dispatch", () => 
     awaiting.waitGroup.members[0]?.executionState,
     "awaiting_approval",
   );
+
+  const blocked = batch("policy_blocked");
+  assert.equal(blocked.effects.length, 0);
+  assert.equal(blocked.work.length, 0);
+  assert.equal(blocked.policyDiagnostics.length, 1);
+  assert.deepEqual(blocked.policyDiagnostics[0]?.affectedMemberIds, [
+    blocked.waitGroup.members[0]?.memberId,
+  ]);
 });
 
 test("a denied-only batch proves non-dispatch and schedules continuation", () => {

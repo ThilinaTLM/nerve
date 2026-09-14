@@ -5,7 +5,8 @@ import type {
   PolicyFallbackDecision,
   PolicySaveIntent,
 } from "@nervekit/contracts/permissions";
-import { encode } from "./payload-codecs.js";
+import { policySaveIntentSchema } from "@nervekit/contracts/permissions";
+import { decode, encode } from "./payload-codecs.js";
 
 const diagnosticTerminalStates = new Set([
   "repaired",
@@ -153,18 +154,107 @@ export function insertTimelinePolicyFallbackDecision(
     );
 }
 
+interface PolicySaveIntentRow {
+  schema_version: number;
+  save_intent_id: string;
+  command_id: string;
+  scope_json: Uint8Array;
+  document_identity: string;
+  observed_digest: string | null;
+  intended_digest: string;
+  rule_fingerprint: string;
+  state: PolicySaveIntent["state"];
+  file_outcome: PolicySaveIntent["fileOutcome"];
+  approval_outcome: PolicySaveIntent["approvalOutcome"];
+  created_at_ms: number;
+  updated_at_ms: number;
+  conversation_id: string | null;
+  run_id: string | null;
+  member_id: string | null;
+  approval_command_id: string | null;
+  intended_document_manifest_id: string | null;
+}
+
+const saveIntentColumns = `schema_version, save_intent_id, command_id,
+  scope_json, document_identity, observed_digest, intended_digest,
+  rule_fingerprint, state, file_outcome, approval_outcome, created_at_ms,
+  updated_at_ms, conversation_id, run_id, member_id, approval_command_id,
+  intended_document_manifest_id`;
+
+export function readTimelinePolicySaveIntent(
+  database: DatabaseSync,
+  saveIntentId: string,
+): PolicySaveIntent | undefined {
+  const row = database
+    .prepare(
+      `SELECT ${saveIntentColumns} FROM policy_save_intents WHERE save_intent_id = ?`,
+    )
+    .get(saveIntentId) as PolicySaveIntentRow | undefined;
+  return row ? decodeSaveIntent(row) : undefined;
+}
+
+export function listPendingTimelinePolicySaveIntents(
+  database: DatabaseSync,
+  limit: number,
+): PolicySaveIntent[] {
+  return (
+    database
+      .prepare(
+        `SELECT ${saveIntentColumns} FROM policy_save_intents
+         WHERE state IN ('recorded','writing','saved_pending_finalization')
+         ORDER BY updated_at_ms, save_intent_id LIMIT ?`,
+      )
+      .all(limit) as unknown as PolicySaveIntentRow[]
+  ).map(decodeSaveIntent);
+}
+
+function decodeSaveIntent(row: PolicySaveIntentRow): PolicySaveIntent {
+  const common = {
+    schemaVersion: row.schema_version,
+    saveIntentId: row.save_intent_id,
+    commandId: row.command_id,
+    scope: decode(row.scope_json),
+    documentIdentity: row.document_identity,
+    ...(row.observed_digest
+      ? { observedDocumentDigest: row.observed_digest }
+      : {}),
+    intendedDocumentDigest: row.intended_digest,
+    ruleFingerprint: row.rule_fingerprint,
+    state: row.state,
+    fileOutcome: row.file_outcome,
+    approvalOutcome: row.approval_outcome,
+    createdAt: new Date(row.created_at_ms).toISOString(),
+    updatedAt: new Date(row.updated_at_ms).toISOString(),
+  };
+  return policySaveIntentSchema.parse(
+    row.schema_version === 2
+      ? {
+          ...common,
+          conversationId: row.conversation_id,
+          runId: row.run_id,
+          memberId: row.member_id,
+          approvalCommandId: row.approval_command_id,
+          intendedDocumentManifestId: row.intended_document_manifest_id,
+        }
+      : common,
+  );
+}
+
 export function persistTimelinePolicySaveIntent(
   database: DatabaseSync,
   intent: PolicySaveIntent,
 ): void {
   const current = database
     .prepare(
-      `SELECT command_id, scope_json, document_identity, observed_digest,
-              intended_digest, rule_fingerprint, state
+      `SELECT schema_version, command_id, scope_json, document_identity,
+              observed_digest, intended_digest, rule_fingerprint, state,
+              conversation_id, run_id, member_id, approval_command_id,
+              intended_document_manifest_id
        FROM policy_save_intents WHERE save_intent_id = ?`,
     )
     .get(intent.saveIntentId) as
     | {
+        schema_version: number;
         command_id: string;
         scope_json: Uint8Array;
         document_identity: string;
@@ -172,10 +262,16 @@ export function persistTimelinePolicySaveIntent(
         intended_digest: string;
         rule_fingerprint: string;
         state: PolicySaveIntent["state"];
+        conversation_id: string | null;
+        run_id: string | null;
+        member_id: string | null;
+        approval_command_id: string | null;
+        intended_document_manifest_id: string | null;
       }
     | undefined;
   if (current) {
     if (
+      current.schema_version !== intent.schemaVersion ||
       current.command_id !== intent.commandId ||
       !Buffer.from(current.scope_json).equals(
         Buffer.from(encode(intent.scope)),
@@ -184,6 +280,17 @@ export function persistTimelinePolicySaveIntent(
       current.observed_digest !== (intent.observedDocumentDigest ?? null) ||
       current.intended_digest !== intent.intendedDocumentDigest ||
       current.rule_fingerprint !== intent.ruleFingerprint ||
+      current.conversation_id !==
+        (intent.schemaVersion === 2 ? intent.conversationId : null) ||
+      current.run_id !== (intent.schemaVersion === 2 ? intent.runId : null) ||
+      current.member_id !==
+        (intent.schemaVersion === 2 ? intent.memberId : null) ||
+      current.approval_command_id !==
+        (intent.schemaVersion === 2 ? intent.approvalCommandId : null) ||
+      current.intended_document_manifest_id !==
+        (intent.schemaVersion === 2
+          ? intent.intendedDocumentManifestId
+          : null) ||
       !saveTransitions[current.state]?.includes(intent.state)
     ) {
       throw new Error(
@@ -217,14 +324,17 @@ export function persistTimelinePolicySaveIntent(
   database
     .prepare(
       `INSERT INTO policy_save_intents (
-         save_intent_id, scope_json, command_id, document_identity,
-         observed_digest, intended_digest, rule_fingerprint, state,
-         file_outcome, approval_outcome, created_at_ms, updated_at_ms
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, 'recorded', 'not_attempted',
-                 'not_attempted', ?, ?)`,
+         save_intent_id, schema_version, scope_json, command_id,
+         document_identity, observed_digest, intended_digest,
+         rule_fingerprint, state, file_outcome, approval_outcome,
+         created_at_ms, updated_at_ms, conversation_id, run_id, member_id,
+         approval_command_id, intended_document_manifest_id
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'recorded', 'not_attempted',
+                 'not_attempted', ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       intent.saveIntentId,
+      intent.schemaVersion,
       encode(intent.scope),
       intent.commandId,
       intent.documentIdentity,
@@ -233,5 +343,10 @@ export function persistTimelinePolicySaveIntent(
       intent.ruleFingerprint,
       Date.parse(intent.createdAt),
       Date.parse(intent.updatedAt),
+      intent.schemaVersion === 2 ? intent.conversationId : null,
+      intent.schemaVersion === 2 ? intent.runId : null,
+      intent.schemaVersion === 2 ? intent.memberId : null,
+      intent.schemaVersion === 2 ? intent.approvalCommandId : null,
+      intent.schemaVersion === 2 ? intent.intendedDocumentManifestId : null,
     );
 }

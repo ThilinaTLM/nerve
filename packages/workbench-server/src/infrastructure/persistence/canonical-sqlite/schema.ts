@@ -8,8 +8,9 @@ import { TIMELINE_TOOL_WORK_V11_SQL } from "./timeline-tool-work-schema.js";
 import { TIMELINE_EFFECT_CAPABILITY_V12_SQL } from "./timeline-effect-capability-schema.js";
 import { TIMELINE_CONTINUATION_WORK_V13_SQL } from "./timeline-continuation-work-schema.js";
 import { TIMELINE_WORK_MANIFEST_V14_SQL } from "./timeline-work-manifest-schema.js";
+import { TIMELINE_POLICY_SAVE_V15_SQL } from "./timeline-policy-save-v15-schema.js";
 
-export const CANONICAL_SCHEMA_VERSION = 14;
+export const CANONICAL_SCHEMA_VERSION = 15;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -443,5 +444,12 @@ export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
     checksum:
       "e5bbbd66201b150c302059b0e84b932a4eac1371fccf779121dce8fd4027a277",
     sql: TIMELINE_WORK_MANIFEST_V14_SQL,
+  },
+  {
+    version: 15,
+    name: "timeline-policy-save-v15",
+    checksum:
+      "ed735211690d1fa06e45d81f776421fe51050e725f7c3347ca91ba540d5969c9",
+    sql: TIMELINE_POLICY_SAVE_V15_SQL,
   },
 ];

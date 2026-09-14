@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
   IgnoredPermissionSource,
@@ -28,6 +28,7 @@ import {
   type EffectivePermissionPolicy,
   type PermissionRootPaths,
 } from "@nervekit/tools/policy";
+import { saveRuleInOverlay } from "./prepared-policy-save.js";
 import {
   atomicWriteJson,
   managedOwnerPathSegment,
@@ -55,17 +56,32 @@ const legacyPermissionOverlaySchema = z
   })
   .strict();
 
+export interface PreparedPermissionRuleSave {
+  origin: PermissionOverlayOrigin;
+  ownerId?: string;
+  documentIdentity: string;
+  observedDocumentDigest?: string;
+  intendedDocumentDigest: string;
+  intendedBytes: Uint8Array;
+  ruleFingerprint: string;
+}
+
+export type PreparedPermissionRuleSaveOutcome =
+  | { kind: "saved"; digest: string }
+  | { kind: "external_conflict"; currentDocumentDigest?: string };
+
 export interface ResolvedPermissionPolicy {
   policy: EffectivePermissionPolicy;
   selectedRuleSetDigest: string;
   sourceDocuments: Array<{
     origin: PermissionOverlayOrigin;
-    path: string;
+    documentIdentity: string;
     digest: string;
   }>;
   roots: PermissionRootPaths;
   selectedRuleSetId: string;
   fallback: boolean;
+  executionBlocked: boolean;
   diagnostics: string[];
 }
 
@@ -176,6 +192,7 @@ export class PermissionPolicyService {
       },
       selectedRuleSetId: effectiveSelected.id,
       fallback,
+      executionBlocked: fallback || (!subagent && ignored.length > 0),
       diagnostics,
     };
   }
@@ -380,6 +397,122 @@ export class PermissionPolicyService {
     });
   }
 
+  async prepareRuleSave(
+    origin: PermissionOverlayOrigin,
+    ruleSetId: string,
+    rule: PermissionRule,
+    ownerId?: string,
+  ): Promise<PreparedPermissionRuleSave> {
+    const path = this.overlayPath(origin, ownerId);
+    let observedContent: string | undefined;
+    try {
+      observedContent = await readFile(path, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    const current = observedContent
+      ? parseOverlayDocument(
+          origin,
+          observedContent,
+          this.knownRuleSetIds((await this.customRuleSets()).available),
+        )
+      : emptyOverlayDocument();
+    const next = replaceOverlayGroup(
+      current,
+      saveRuleInOverlay(
+        overlayForRuleSet(current, ruleSetId) ?? { ruleSetId, rules: [] },
+        rule,
+        origin,
+      ),
+    );
+    const parsed = permissionOverlayDocumentForOriginSchema(origin).parse(next);
+    const intendedContent = `${JSON.stringify(parsed, null, 2)}\n`;
+    return {
+      origin,
+      ...(ownerId ? { ownerId } : {}),
+      documentIdentity: relative(this.storage.paths.home, path),
+      ...(observedContent
+        ? { observedDocumentDigest: digestContent(observedContent) }
+        : {}),
+      intendedDocumentDigest: digestContent(intendedContent),
+      intendedBytes: Buffer.from(intendedContent, "utf8"),
+      ruleFingerprint: digestJson(rule),
+    };
+  }
+
+  async inspectPreparedRuleSave(prepared: PreparedPermissionRuleSave): Promise<{
+    currentDocumentDigest?: string;
+    currentDocumentValid: boolean;
+  }> {
+    const path = this.overlayPath(prepared.origin, prepared.ownerId);
+    try {
+      const content = await readFile(path, "utf8");
+      try {
+        parseOverlayDocument(
+          prepared.origin,
+          content,
+          this.knownRuleSetIds((await this.customRuleSets()).available),
+        );
+        return {
+          currentDocumentDigest: digestContent(content),
+          currentDocumentValid: true,
+        };
+      } catch {
+        return {
+          currentDocumentDigest: digestContent(content),
+          currentDocumentValid: false,
+        };
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return { currentDocumentValid: true };
+      }
+      return { currentDocumentValid: false };
+    }
+  }
+
+  async commitPreparedRuleSave(
+    prepared: PreparedPermissionRuleSave,
+  ): Promise<PreparedPermissionRuleSaveOutcome> {
+    return this.exclusive(
+      `${prepared.origin}:${prepared.ownerId ?? "global"}`,
+      async () => {
+        const path = this.overlayPath(prepared.origin, prepared.ownerId);
+        let currentContent: string | undefined;
+        try {
+          currentContent = await readFile(path, "utf8");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+        const currentDocumentDigest = currentContent
+          ? digestContent(currentContent)
+          : undefined;
+        if (currentDocumentDigest !== prepared.observedDocumentDigest) {
+          return { kind: "external_conflict", currentDocumentDigest };
+        }
+        const intendedContent = Buffer.from(prepared.intendedBytes).toString(
+          "utf8",
+        );
+        if (
+          digestContent(intendedContent) !== prepared.intendedDocumentDigest
+        ) {
+          throw new Error("Prepared permission document digest is invalid.");
+        }
+        const document = parseOverlayDocument(
+          prepared.origin,
+          intendedContent,
+          this.knownRuleSetIds((await this.customRuleSets()).available),
+        );
+        await atomicWriteJson(path, document, 0o600);
+        if (prepared.origin === "project") {
+          if (!prepared.ownerId) throw new Error("Project ID is required.");
+          await this.trustProject(prepared.ownerId);
+        }
+        return { kind: "saved", digest: prepared.intendedDocumentDigest };
+      },
+    );
+  }
+
   async projectTrust(projectId: string): Promise<ProjectPermissionTrust> {
     const project = this.getProject(projectId);
     const path = this.projectOverlayPath(project);
@@ -506,7 +639,7 @@ export class PermissionPolicyService {
       const document = parseOverlayDocument(origin, content, knownRuleSetIds);
       observations?.push({
         origin,
-        path,
+        documentIdentity: `${origin}:permissions.json`,
         digest: `sha256:${createHash("sha256").update(content).digest("hex")}`,
       });
       return document;

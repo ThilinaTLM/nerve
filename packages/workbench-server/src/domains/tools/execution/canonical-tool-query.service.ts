@@ -182,6 +182,15 @@ function pendingInteraction(
       },
     };
   }
+  const permissionEvaluation =
+    proposal.authorizationEvidence.permissionEvaluation;
+  const suggestedRules =
+    permissionEvaluation &&
+    typeof permissionEvaluation === "object" &&
+    "suggestedRules" in permissionEvaluation &&
+    Array.isArray(permissionEvaluation.suggestedRules)
+      ? permissionEvaluation.suggestedRules
+      : [];
   return {
     ...base,
     kind: "approval",
@@ -191,9 +200,17 @@ function pendingInteraction(
         typeof proposal.authorizationEvidence.reason === "string"
           ? proposal.authorizationEvidence.reason
           : "Canonical policy requires approval.",
-      offeredScopes: ["single_call"],
+      offeredScopes:
+        suggestedRules.length > 0
+          ? [
+              "single_call",
+              "always_conversation",
+              "always_project",
+              "always_user",
+            ]
+          : ["single_call"],
       suggestedExceptions: [],
-      suggestedRules: [],
+      suggestedRules,
       permissionRuleSetId: proposal.policyObservation.selectedRuleSetId,
     },
   };

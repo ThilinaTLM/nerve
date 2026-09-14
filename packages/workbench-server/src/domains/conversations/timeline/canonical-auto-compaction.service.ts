@@ -93,7 +93,7 @@ export class CanonicalAutoCompactionService {
       await Promise.all([
         this.store.readTimelineConversationHead(input.conversationId),
         this.store.readTimelineRunControl(input.conversationId, input.runId),
-        this.store.countCompactionProviderPhases(input.runId),
+        this.store.execution.countCompactionProviderPhases(input.runId),
         this.store.readTimelineRuntimeAdmission(),
       ]);
     const waitGroup = run?.waitGroupId

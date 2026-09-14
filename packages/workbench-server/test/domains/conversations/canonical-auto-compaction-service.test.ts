@@ -175,9 +175,15 @@ test("INV-CONTEXT-01 prepares external evidence before committing and building t
   });
   assert.equal(stale.kind, "stale");
   assert.equal(staleSummaryCalled, false);
-  assert.equal(await store.countCompactionProviderPhases("run_auto"), 1);
+  assert.equal(
+    await store.execution.countCompactionProviderPhases("run_auto"),
+    1,
+  );
   await store.close();
   cleanupStore = new CanonicalStore(databasePath);
   await cleanupStore.initialize();
-  assert.equal(await cleanupStore.countCompactionProviderPhases("run_auto"), 1);
+  assert.equal(
+    await cleanupStore.execution.countCompactionProviderPhases("run_auto"),
+    1,
+  );
 });

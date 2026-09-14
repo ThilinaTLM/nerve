@@ -125,6 +125,58 @@ export class RuntimeLifecycle {
       flushRunDelivery: async () => undefined,
       recoverRuns: async () => undefined,
       recoverHumanInput: async () => {
+        await this.services.policySaves.recoverPending({
+          approvalStillApplicable: async (intent) => {
+            if (intent.schemaVersion !== 2) return false;
+            const groups =
+              await storage.canonicalStore.execution.listPendingWaitGroups(
+                1_000,
+              );
+            return groups.some((group) =>
+              group.members.some(
+                (member) =>
+                  member.memberId === intent.memberId &&
+                  member.executionState === "awaiting_approval",
+              ),
+            );
+          },
+          finalizeApproval: async (intent) => {
+            if (intent.schemaVersion !== 2) return "superseded";
+            const groups =
+              await storage.canonicalStore.execution.listPendingWaitGroups(
+                1_000,
+              );
+            const member = groups
+              .flatMap((group) => group.members)
+              .find((candidate) => candidate.memberId === intent.memberId);
+            if (!member) return "superseded";
+            try {
+              const details =
+                await this.services.canonicalTools.getToolCallUiDetails(
+                  member.ownerId,
+                );
+              const pending = details.toolCall.interactions.find(
+                (interaction) => interaction.status === "pending",
+              );
+              if (!pending) return "superseded";
+              await this.services.canonicalToolInteractions.resolve({
+                toolCallId: member.ownerId,
+                interactionOrdinal: pending.ordinal,
+                expectedRevision: details.toolCall.revision,
+                resolutionRequestId: intent.approvalCommandId,
+                resolution: {
+                  kind: "approval",
+                  action: "allow",
+                  scope: "single_call",
+                },
+              });
+              return "committed";
+            } catch {
+              return "superseded";
+            }
+          },
+          now: () => new Date().toISOString(),
+        });
         for (const conversation of this.services.canonicalConversationLifecycle.listConversations()) {
           await this.services.workbenchRun.reconcileConversation(
             conversation.id,

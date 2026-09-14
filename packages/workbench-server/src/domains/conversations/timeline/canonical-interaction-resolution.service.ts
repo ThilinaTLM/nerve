@@ -9,6 +9,12 @@ import type {
   WaitGroup,
 } from "@nervekit/contracts/runs";
 import type { ToolName } from "@nervekit/contracts/tools";
+import type {
+  PermissionOverlayOrigin,
+  PermissionRule,
+  PolicySaveIntent,
+} from "@nervekit/contracts/permissions";
+import type { CanonicalPolicySaveCoordinator } from "../../permissions/canonical-policy-save-coordinator.js";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import type { CanonicalToolRuntimeService } from "../../tools/execution/canonical-tool-runtime.service.js";
 import { canonicalConversationJson } from "./command-fingerprint.js";
@@ -57,6 +63,7 @@ export class CanonicalInteractionResolutionService {
     private readonly getAgentForConversation: (
       conversationId: string,
     ) => AgentRecord | undefined,
+    private readonly policySaves?: CanonicalPolicySaveCoordinator,
   ) {
     this.timeline = new CanonicalRunTimelineService(store);
   }
@@ -73,6 +80,7 @@ export class CanonicalInteractionResolutionService {
       | "reject"
       | "discard";
     responseText?: string;
+    remembered?: { origin: PermissionOverlayOrigin; rule: PermissionRule };
     settleWork?: CanonicalLifecycleWork;
     commandId: string;
     now: string;
@@ -102,6 +110,9 @@ export class CanonicalInteractionResolutionService {
       input.settleWork?.kind === "execute_internal_command";
     if (member.executionState !== "awaiting_approval" && !internalSettlement) {
       return rejected("interaction_not_pending");
+    }
+    if (proposal.admission === "policy_blocked" && input.decision !== "deny") {
+      return rejected("policy_diagnostic_unresolved");
     }
     const run = await this.store.readTimelineRunControl(
       conversationId,
@@ -158,6 +169,36 @@ export class CanonicalInteractionResolutionService {
       state: allSettled ? "ready" : "open",
       revision: group.revision + 1,
     };
+    let saveIntent: PolicySaveIntent | undefined;
+    if (input.remembered && input.decision === "allow_once") {
+      if (!this.policySaves) return rejected("policy_save_unavailable");
+      const scopeOwnerId =
+        input.remembered.origin === "user"
+          ? "user"
+          : input.remembered.origin === "project"
+            ? String(proposal.owner.projectId)
+            : run.conversationId;
+      saveIntent = await this.policySaves.prepareAndSave({
+        origin: input.remembered.origin,
+        ...(input.remembered.origin === "user"
+          ? {}
+          : { ownerId: scopeOwnerId }),
+        ruleSetId: proposal.policyObservation.selectedRuleSetId,
+        rule: input.remembered.rule,
+        saveIntentId: `policy_save_${proposal.suffix}`,
+        commandId: `remember:${input.commandId}`,
+        scope: { kind: input.remembered.origin, ownerId: scopeOwnerId },
+        conversationId: run.conversationId,
+        runId: run.runId,
+        memberId: member.memberId,
+        approvalCommandId: input.commandId,
+        now: input.now,
+      });
+      if (saveIntent.state !== "saved_pending_finalization") {
+        return rejected(`policy_save_${saveIntent.state}`);
+      }
+    }
+
     const authorizations: ExactCallAuthorization[] = [];
     const effects: LogicalEffect[] = [];
     const work: CanonicalLifecycleWork[] = [];
@@ -331,6 +372,13 @@ export class CanonicalInteractionResolutionService {
       ],
       runState: allSettled ? "waiting" : "partially_waiting",
     });
+    if (saveIntent && this.policySaves) {
+      await this.policySaves.finalize(
+        saveIntent,
+        result.kind === "rejected" ? "superseded" : "committed",
+        new Date().toISOString(),
+      );
+    }
     return result.kind === "rejected"
       ? result
       : { kind: result.kind, memberId: member.memberId };

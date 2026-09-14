@@ -1,5 +1,8 @@
 import type { MutationOutcome } from "@nervekit/contracts/conversations";
-import type { PolicyDocumentObservation } from "@nervekit/contracts/permissions";
+import type {
+  PolicyDiagnostic,
+  PolicyDocumentObservation,
+} from "@nervekit/contracts/permissions";
 import {
   runControlSchema,
   type CanonicalExecutionAttempt,
@@ -70,6 +73,7 @@ export class CanonicalRunTimelineService {
       runState?: RunControl["state"];
       waitGroups?: readonly WaitGroup[];
       policyObservations?: readonly PolicyDocumentObservation[];
+      policyDiagnostics?: readonly PolicyDiagnostic[];
       authorizations?: readonly ExactCallAuthorization[];
       logicalEffects?: readonly LogicalEffect[];
     },
@@ -85,6 +89,7 @@ export class CanonicalRunTimelineService {
       runState: input.runState,
       waitGroups: input.waitGroups,
       policyObservations: input.policyObservations,
+      policyDiagnostics: input.policyDiagnostics,
       authorizations: input.authorizations,
       logicalEffects: input.logicalEffects,
     });
@@ -142,6 +147,7 @@ export class CanonicalRunTimelineService {
       runState?: RunControl["state"];
       waitGroups?: readonly WaitGroup[];
       policyObservations?: readonly PolicyDocumentObservation[];
+      policyDiagnostics?: readonly PolicyDiagnostic[];
       authorizations?: readonly ExactCallAuthorization[];
       logicalEffects?: readonly LogicalEffect[];
     } = {},
@@ -284,6 +290,9 @@ export class CanonicalRunTimelineService {
       waitGroups: execution.waitGroups ? [...execution.waitGroups] : [],
       policyObservations: execution.policyObservations
         ? [...execution.policyObservations]
+        : [],
+      policyDiagnostics: execution.policyDiagnostics
+        ? [...execution.policyDiagnostics]
         : [],
       authorizations: execution.authorizations
         ? [...execution.authorizations]

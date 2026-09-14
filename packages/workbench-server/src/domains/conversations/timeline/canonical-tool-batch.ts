@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
-import type { PolicyDocumentObservation } from "@nervekit/contracts/permissions";
+import type {
+  PolicyDiagnostic,
+  PolicyDocumentObservation,
+} from "@nervekit/contracts/permissions";
 import type {
   CanonicalLifecycleWork,
   ExactCallAuthorization,
@@ -15,6 +18,7 @@ export interface CanonicalToolProposalInput {
   admission:
     | "authorized"
     | "awaiting_approval"
+    | "policy_blocked"
     | "user_input"
     | "plan_review"
     | "denied"
@@ -28,6 +32,14 @@ export interface CanonicalToolProposalInput {
   capability: ToolReplayCapability;
   policyObservation: PolicyDocumentObservation;
   authorizationEvidence: Record<string, unknown>;
+  policyFailure?: Omit<
+    PolicyDiagnostic,
+    | "schemaVersion"
+    | "diagnosticId"
+    | "affectedMemberIds"
+    | "state"
+    | "observedAt"
+  >;
   owner: Record<string, unknown>;
   externalScope?: Record<string, unknown>;
   externalKey?: string;
@@ -36,6 +48,7 @@ export interface CanonicalToolProposalInput {
 export interface CanonicalToolBatchAuthority {
   waitGroup: WaitGroup;
   policyObservations: PolicyDocumentObservation[];
+  policyDiagnostics: PolicyDiagnostic[];
   authorizations: ExactCallAuthorization[];
   effects: LogicalEffect[];
   work: CanonicalLifecycleWork[];
@@ -288,6 +301,20 @@ export function buildCanonicalToolBatch(input: {
     waitGroup,
     policyObservations: input.proposals.map(
       (proposal) => proposal.policyObservation,
+    ),
+    policyDiagnostics: members.flatMap(({ proposal, member, suffix }) =>
+      proposal.policyFailure
+        ? [
+            {
+              schemaVersion: 1 as const,
+              diagnosticId: `policy_diagnostic_${suffix}`,
+              ...proposal.policyFailure,
+              affectedMemberIds: [member.memberId],
+              state: "unresolved" as const,
+              observedAt: input.now,
+            },
+          ]
+        : [],
     ),
     authorizations,
     effects,
