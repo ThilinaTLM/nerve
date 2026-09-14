@@ -1,6 +1,7 @@
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import { CanonicalRunExecutionBoundary } from "../../domains/agents/execution/canonical-run-execution-boundary.js";
 import { createCanonicalAgentTools } from "../../domains/agents/execution/canonical-agent-tools.js";
+import { CanonicalExecutionRuntime } from "../../domains/agents/execution/canonical-execution-runtime.js";
 import { CanonicalHarnessLifecycleExecutor } from "../../domains/agents/execution/canonical-harness-lifecycle-executor.js";
 import { CanonicalLiveRunExecutor } from "../../domains/agents/execution/canonical-live-run-executor.js";
 import type { WorkbenchAgentMechanics } from "../../domains/agents/execution/workbench-agent-mechanics.js";
@@ -124,6 +125,53 @@ export function timelineRuntime(
     toolSettlement,
     toolInvocation,
     runExecutionBoundary,
+    createExecutionRuntime: (input: {
+      workerId: string;
+      mechanics: WorkbenchAgentMechanics;
+      tools: ToolService;
+      getAgentForConversation(
+        conversationId: string,
+      ):
+        | Parameters<WorkbenchAgentMechanics["activeToolNamesFor"]>[0]
+        | undefined;
+      getConversationCreatedAt(conversationId: string): string;
+    }) => {
+      const harness = new CanonicalHarnessLifecycleExecutor({
+        mechanics: input.mechanics,
+        boundary: runExecutionBoundary,
+        providerInvocation,
+        providerSettlement,
+        store: storage.canonicalStore,
+      });
+      const toolWorker = new CanonicalToolWorkerService(
+        storage.canonicalStore,
+        input.tools.canonicalInvoker,
+      );
+      const execution = new CanonicalExecutionRuntime({
+        store: storage.canonicalStore,
+        live: new CanonicalLiveRunExecutor({
+          store: storage.canonicalStore,
+          mechanics: input.mechanics,
+          harness,
+          toolWorker,
+          tools: input.tools,
+        }),
+        toolWorker,
+        continuation,
+        ...input,
+      });
+      const lifecycle = new CanonicalLifecycleDispatcher(
+        storage.canonicalStore,
+        input.workerId,
+        execution.handlers,
+        logger.child({ component: "canonical-lifecycle" }),
+      );
+      return {
+        start: () => lifecycle.start(),
+        stop: () => lifecycle.stop(),
+        settled: () => lifecycle.settled(),
+      };
+    },
     createLiveRunExecutor: (
       mechanics: WorkbenchAgentMechanics,
       tools: ToolService,

@@ -3,6 +3,7 @@ import type {
   ConversationEntry,
   ConversationRecord,
   ConversationSnapshot,
+  ReconcileConversationResult,
   TimelinePageRequest,
   TimelineSearchRequest,
   TimelineTreePageRequest,
@@ -64,6 +65,18 @@ export async function getConversationProjectionStatus(
   return (
     await protocolRequest("conversation.timeline.projectionStatus", {
       conversationId,
+    })
+  ).result;
+}
+
+export async function reconcileConversation(
+  conversationId: string,
+  requestId: string,
+): Promise<ReconcileConversationResult> {
+  return (
+    await protocolRequest("conversation.reconcile", {
+      conversationId,
+      requestId,
     })
   ).result;
 }
