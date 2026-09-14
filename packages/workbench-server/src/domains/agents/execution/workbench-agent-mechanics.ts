@@ -12,10 +12,7 @@ import {
   isContextOverflowAssistantMessage,
 } from "@nervekit/harness/compaction";
 import type { ToolExecutionResult } from "@nervekit/tools/execution";
-import type {
-  RunExecutionOutcome,
-  RunExecutionSink,
-} from "../../runs/runtime/index.js";
+import type { RunExecutionOutcome } from "../../runs/runtime/index.js";
 import {
   type AgentRecord,
   type CreateAgentRequest,
@@ -23,7 +20,6 @@ import {
 } from "@nervekit/contracts/agents";
 import { type ContextUsage } from "@nervekit/contracts/models";
 import { type ConversationRecord } from "@nervekit/contracts/conversations";
-import { type RunRecord } from "@nervekit/contracts/runs";
 import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
 import {
   type ToolCallRecord,
@@ -53,11 +49,11 @@ import type { SubscriptionUsageService } from "../../usage/subscription-usage-se
 import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills.js";
 import type { SubagentTranscriptLiveService } from "../subagent-transcript-live.service.js";
 import { executeWorkbenchHarness } from "./workbench-harness-execution.js";
+import type { CoordinatorExecutionOptions } from "./coordinator-execution-options.js";
 import { AutoCompactionRunner } from "./auto-compaction-runner.js";
 import { InlineCommandRunner } from "./inline-command-runner.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
-import type { WorkbenchLiveExecutionControl } from "../../runs/application/run-live-executions.js";
 import type { WorkbenchExploreAdmission } from "./workbench-explore-admission.js";
 import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
 
@@ -220,19 +216,9 @@ export class WorkbenchAgentMechanics {
     return this.subagents.runExplore(parent, args, options);
   }
 
-  async runCoordinatorExecution(input: {
-    run: RunRecord;
-    sink: RunExecutionSink;
-    command: "start" | "continue";
-    prompt?: string;
-    images?: PromptRequest["images"];
-    signal: AbortSignal;
-    installControl(control: WorkbenchLiveExecutionControl): void;
-    checkpointCommand(
-      boundary: "after_provider_response" | "suspension",
-      interactionId?: string,
-    ): Promise<import("../../runs/runtime/index.js").CheckpointCommand>;
-  }): Promise<RunExecutionOutcome> {
+  async runCoordinatorExecution(
+    input: CoordinatorExecutionOptions,
+  ): Promise<RunExecutionOutcome> {
     const agent = this.deps.state.getAgent(input.run.agentId);
     const inline =
       input.command === "start"

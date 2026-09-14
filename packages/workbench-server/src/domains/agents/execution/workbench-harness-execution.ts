@@ -6,22 +6,17 @@ import { resolveAgentModel } from "@nervekit/harness/models";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
-import type { RunRecord } from "@nervekit/contracts/runs";
 import { toolNameSchema, type ToolName } from "@nervekit/contracts/tools";
 import { HostHarnessFactory } from "./harness-factory.js";
-import type {
-  CheckpointCommand,
-  RunExecutionOutcome,
-  RunExecutionSink,
-} from "../../runs/runtime/index.js";
+import type { RunExecutionOutcome } from "../../runs/runtime/index.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import { createAgentToolsForAgent } from "../../tools/orchestration/agent-tool-adapter.js";
 import {
   toPublicToolCallArgsPreview,
   toToolCallTranscriptRecord,
 } from "../../tools/artifacts/tool-call-transcript-preview.js";
-import type { WorkbenchLiveExecutionControl } from "../../runs/application/run-live-executions.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
+import type { WorkbenchLiveExecutionControl } from "../../runs/application/run-live-executions.js";
 import type { WorkbenchAgentMechanics } from "./workbench-agent-mechanics.js";
 import {
   assistantContentRedacted,
@@ -41,6 +36,8 @@ import {
   AssistantEntryMetaQueue,
   markMirroredEntriesMaterialized,
 } from "./message-mirror.js";
+import { flushCanonicalHarnessMessages } from "./canonical-harness-message-flush.js";
+import type { CoordinatorExecutionOptions } from "./coordinator-execution-options.js";
 import { composeAgentSystemPrompt } from "./system-prompt-builder.js";
 import {
   createToolDraftProgressAccumulator,
@@ -51,20 +48,6 @@ import {
   shouldPublishToolDraftProgress,
   shouldStreamToolDraftArguments,
 } from "./tool-draft-streaming.js";
-interface CoordinatorExecutionOptions {
-  run: RunRecord;
-  sink: RunExecutionSink;
-  command: "start" | "continue";
-  prompt?: string;
-  images?: PromptRequest["images"];
-  signal: AbortSignal;
-  installControl(control: WorkbenchLiveExecutionControl): void;
-  checkpointCommand(
-    boundary: CheckpointCommand["boundary"],
-    interactionId?: string,
-  ): Promise<CheckpointCommand>;
-}
-
 export async function executeWorkbenchHarness(
   this: WorkbenchAgentMechanics,
   agent: AgentRecord,
@@ -110,10 +93,15 @@ export async function executeWorkbenchHarness(
       agent.conversationId,
     );
     const project = this.deps.state.getProject(agent.projectId);
-    const storage = await this.deps.harnessStorage.openStorage(conversation);
-    const harnessConversation = new Conversation(storage);
+    const storage =
+      coordinator.canonical?.session.storage ??
+      (await this.deps.harnessStorage.openStorage(conversation));
+    const harnessConversation =
+      coordinator.canonical?.session.conversation ?? new Conversation(storage);
     const initialHarnessEntryIds = new Set(
-      (await storage.getEntries()).map((entry) => entry.id),
+      coordinator.canonical
+        ? coordinator.canonical.session.materializedEntryIds
+        : (await storage.getEntries()).map((entry) => entry.id),
     );
     let activeToolNames = await this.activeToolNamesFor(
       agent,
@@ -528,27 +516,37 @@ export async function executeWorkbenchHarness(
           toolDraftProgressScheduler.clear();
         }
         assistantEntryMeta.onMessageEnded(event.message.role);
-        const mirrored = await this.deps.messageMirror.mirrorNewHarnessEntries(
-          agent,
-          storage,
-          initialHarnessEntryIds,
-          {
-            runId,
-            turnId: currentTurnId,
-            assistantMessageMeta: assistantEntryMeta.queue,
-          },
-        );
-        let shouldPublishContextUsage = false;
-        if (mirrored.length > 0) {
-          await coordinator.sink.appendEntries(mirrored);
+        let mirrored: ConversationEntry[];
+        if (coordinator.canonical) {
+          mirrored = await flushCanonicalHarnessMessages({
+            agent,
+            session: coordinator.canonical.session,
+            boundary: coordinator.canonical.boundary,
+            now: coordinator.canonical.now(),
+          });
+        } else {
+          mirrored = await this.deps.messageMirror.mirrorNewHarnessEntries(
+            agent,
+            storage,
+            initialHarnessEntryIds,
+            {
+              runId,
+              turnId: currentTurnId,
+              assistantMessageMeta: assistantEntryMeta.queue,
+            },
+          );
+          if (mirrored.length > 0) {
+            await coordinator.sink.appendEntries(mirrored);
+          }
         }
+        let shouldPublishContextUsage = false;
         markMirroredEntriesMaterialized(
           this.deps.state.conversationRuntime,
           runId,
           mirrored,
         );
         for (const entry of mirrored) {
-          if (entry.role === "user") {
+          if (entry.role === "user" && !coordinator.canonical) {
             await this.deps.messageMirror.maybeDeriveInitialConversationTitle(
               conversation.id,
               entry.text,

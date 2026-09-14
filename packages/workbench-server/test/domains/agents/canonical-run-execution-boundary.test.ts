@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { CanonicalRunExecutionBoundary } from "../../../src/domains/agents/execution/canonical-run-execution-boundary.js";
+import { flushCanonicalHarnessMessages } from "../../../src/domains/agents/execution/canonical-harness-message-flush.js";
 import { CanonicalConversationContextService } from "../../../src/domains/conversations/timeline/canonical-conversation-context.service.js";
 import { CanonicalConversationCreationService } from "../../../src/domains/conversations/timeline/canonical-conversation-creation.service.js";
 import { CanonicalRunStartService } from "../../../src/domains/conversations/timeline/canonical-run-start.service.js";
@@ -69,8 +70,17 @@ test("canonical execution boundary materializes exact messages and closes foregr
     stopReason: "toolUse",
     timestamp: 1,
   });
-  const flushed = await boundary.flush(begun.value, "2026-09-14T00:00:02.000Z");
-  assert.deepEqual(flushed, { kind: "ready", value: 1 });
+  const projected = await flushCanonicalHarnessMessages({
+    agent: {
+      id: "agent_boundary",
+      conversationId: "conv_boundary",
+    } as never,
+    session: begun.value,
+    boundary,
+    now: "2026-09-14T00:00:02.000Z",
+  });
+  assert.equal(projected.length, 1);
+  assert.equal(projected[0]?.role, "assistant");
   assert.deepEqual(
     await boundary.flush(begun.value, "2026-09-14T00:00:03.000Z"),
     { kind: "ready", value: 0 },
