@@ -84,6 +84,25 @@ export class CanonicalExecutionQueryDatabase {
     return row ? decode(row.data) : undefined;
   }
 
+  listRecoveryWork(
+    conversationId: string | undefined,
+    limit: number,
+  ): CanonicalLifecycleWork[] {
+    const rows = this.database
+      .prepare(
+        `SELECT work_id FROM canonical_lifecycle_work
+         WHERE state = 'recovery_required'
+           AND (?1 IS NULL OR conversation_id = ?1)
+         ORDER BY updated_at_ms, work_id LIMIT ?2`,
+      )
+      .all(conversationId ?? null, limit) as unknown as Array<{
+      work_id: string;
+    }>;
+    return rows
+      .map((row) => readCanonicalLifecycleWork(this.database, row.work_id))
+      .filter((work): work is CanonicalLifecycleWork => Boolean(work));
+  }
+
   listPendingWaitGroups(limit: number): WaitGroup[] {
     const rows = this.database
       .prepare(
@@ -159,8 +178,14 @@ export class CanonicalExecutionQueryDatabase {
   countCompactionProviderPhases(runId: string): number {
     const row = this.database
       .prepare(
-        `SELECT COUNT(*) AS count FROM provider_phases
-         WHERE run_id = ? AND phase_id LIKE 'provider_phase_compaction_%'`,
+        `SELECT MAX(
+           (SELECT COUNT(*) FROM provider_phases
+            WHERE run_id = ?1 AND phase_id LIKE 'provider_phase_compaction_%'),
+           (SELECT COUNT(*) FROM context_boundaries boundaries
+            JOIN conversation_entries entries
+              ON entries.entry_id = boundaries.visible_summary_entry_id
+            WHERE entries.run_id = ?1)
+         ) AS count`,
       )
       .get(runId) as { count: number };
     return row.count;

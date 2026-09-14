@@ -95,7 +95,8 @@ export function buildCanonicalToolBatch(input: {
         inputFingerprint: proposal.normalizedInputFingerprint,
         policyFingerprint: proposal.policyObservation.completeDocumentDigest,
         executionState:
-          proposal.admission === "authorized"
+          proposal.admission === "authorized" ||
+          proposal.admission === "internal_command"
             ? ("authorized" as const)
             : proposal.admission === "denied"
               ? ("denied" as const)
@@ -127,6 +128,9 @@ export function buildCanonicalToolBatch(input: {
   };
   const authorized = members.filter(
     ({ proposal }) => proposal.admission === "authorized",
+  );
+  const internalCommands = members.filter(
+    ({ proposal }) => proposal.admission === "internal_command",
   );
   const authorizations: ExactCallAuthorization[] = authorized.map(
     ({ proposal, member, suffix }) => ({
@@ -176,6 +180,22 @@ export function buildCanonicalToolBatch(input: {
         })),
       },
     },
+    ...internalCommands.map(({ proposal, suffix }) => ({
+      manifestId: `manifest_internal_command_${suffix}`,
+      schemaVersion: 1 as const,
+      data: {
+        schemaVersion: 1,
+        suffix,
+        toolName: proposal.toolName,
+        providerToolCallId: proposal.providerToolCallId,
+        normalizedInputFingerprint: proposal.normalizedInputFingerprint,
+        normalizedInput: proposal.normalizedInput,
+        cwd: proposal.cwd,
+        risk: proposal.risk,
+        providerIdentity: input.providerIdentity,
+        providerCapability: input.providerCapability,
+      },
+    })),
     ...effects.map((effect, index) => ({
       manifestId: `manifest_tool_input_${effect.effectId.slice("effect_".length)}`,
       schemaVersion: 1 as const,
@@ -194,22 +214,39 @@ export function buildCanonicalToolBatch(input: {
       },
     })),
   ];
-  const work: CanonicalLifecycleWork[] = effects.map((effect) => ({
-    schemaVersion: 1,
-    workId: `canonical_work_${effect.effectId.slice("effect_".length)}_claim`,
-    conversationId: input.conversationId,
-    runId: input.runId,
-    kind: "claim_tool_attempt",
-    effectId: effect.effectId,
-    state: "ready",
-    inputHash: effect.normalizedInputFingerprint,
-    inputManifestId: `manifest_tool_input_${effect.effectId.slice("effect_".length)}`,
-    generation: 0,
-    revision: 1,
-    notBefore: input.now,
-    createdAt: input.now,
-    updatedAt: input.now,
-  }));
+  const work: CanonicalLifecycleWork[] = [
+    ...internalCommands.map(({ proposal, suffix }) => ({
+      schemaVersion: 1 as const,
+      workId: `canonical_work_internal_${suffix}`,
+      conversationId: input.conversationId,
+      runId: input.runId,
+      kind: "execute_internal_command" as const,
+      state: "ready" as const,
+      inputHash: proposal.normalizedInputFingerprint,
+      inputManifestId: `manifest_internal_command_${suffix}`,
+      generation: 0,
+      revision: 1,
+      notBefore: input.now,
+      createdAt: input.now,
+      updatedAt: input.now,
+    })),
+    ...effects.map((effect) => ({
+      schemaVersion: 1 as const,
+      workId: `canonical_work_${effect.effectId.slice("effect_".length)}_claim`,
+      conversationId: input.conversationId,
+      runId: input.runId,
+      kind: "claim_tool_attempt" as const,
+      effectId: effect.effectId,
+      state: "ready" as const,
+      inputHash: effect.normalizedInputFingerprint,
+      inputManifestId: `manifest_tool_input_${effect.effectId.slice("effect_".length)}`,
+      generation: 0,
+      revision: 1,
+      notBefore: input.now,
+      createdAt: input.now,
+      updatedAt: input.now,
+    })),
+  ];
   if (waitGroup.state === "ready") {
     const continuationManifestId = `manifest_continuation_${phaseSuffix}_initial`;
     const continuationData = {

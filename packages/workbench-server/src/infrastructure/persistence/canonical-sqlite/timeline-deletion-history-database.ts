@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { DeletionIntent } from "@nervekit/contracts/storage";
 import { encode } from "./payload-codecs.js";
+import { appendDurableEventInTransaction } from "./canonical-database-helpers.js";
 
 const stages = [
+  "canonical_metadata",
   "lifecycle_work",
   "recovery_actions",
   "execution_claims",
@@ -72,6 +74,14 @@ export function finalizeDeletionHistory(
     )
     .get(intent.conversationId);
   if (!tombstone) throw new Error("Deletion replay tombstone is missing.");
+  appendDurableEventInTransaction(database, {
+    stream: `conversation:${intent.conversationId}`,
+    intentId: `deletion-finalized:${intent.conversationId}`,
+    eventType: "conversation.deleted",
+    data: { conversationId: intent.conversationId },
+    occurredAt: now,
+    conversationId: intent.conversationId,
+  });
   database
     .prepare(
       `UPDATE deletion_intents
@@ -157,6 +167,15 @@ function deleteStage(
   stage: HistoryStage,
   limit: number,
 ): number {
+  if (stage === "canonical_metadata")
+    return remove(
+      database,
+      "domain_documents",
+      "rowid",
+      "namespace = 'canonical_conversation_metadata' AND document_id = ?1",
+      conversationId,
+      limit,
+    );
   if (stage === "lifecycle_work")
     return remove(
       database,

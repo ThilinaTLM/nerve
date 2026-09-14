@@ -17,10 +17,12 @@ import type {
   AppendEntryInput,
   AppendEntryOptions,
 } from "../append-entry-contracts.js";
+import { CanonicalManagedArtifactFinalizer } from "./canonical-managed-artifact-finalizer.js";
 import { CanonicalConversationCreationService } from "./canonical-conversation-creation.service.js";
 import { CanonicalConversationMetadataRepository } from "./canonical-conversation-metadata.repository.js";
 import { conversationCommandFingerprint } from "./command-fingerprint.js";
 import { CanonicalTimelineIdentityService } from "./canonical-timeline-identity.service.js";
+import { CanonicalNavigationService } from "./canonical-navigation.service.js";
 import { ConversationTransitionService } from "./conversation-transition.service.js";
 import { buildAppendTransition } from "./transition-builders.js";
 import type { CanonicalDeletionService } from "./canonical-deletion.service.js";
@@ -31,6 +33,7 @@ export class CanonicalConversationApplicationService {
   private readonly creation: CanonicalConversationCreationService;
   private readonly identity: CanonicalTimelineIdentityService;
   private readonly transitions: ConversationTransitionService;
+  private readonly navigation: CanonicalNavigationService;
 
   constructor(
     private readonly deps: {
@@ -51,6 +54,9 @@ export class CanonicalConversationApplicationService {
       deps.storage.canonicalStore,
     );
     this.transitions = new ConversationTransitionService(
+      deps.storage.canonicalStore,
+    );
+    this.navigation = new CanonicalNavigationService(
       deps.storage.canonicalStore,
     );
   }
@@ -299,6 +305,173 @@ export class CanonicalConversationApplicationService {
     return entry;
   }
 
+  async compactConversation(
+    conversationId: string,
+    request: { instructions?: string } = {},
+    options?: unknown,
+  ): Promise<ConversationRecord> {
+    void options;
+    const head =
+      await this.deps.storage.canonicalStore.readTimelineConversationHead(
+        conversationId,
+      );
+    if (!head?.activeEntryId) throw new Error("Nothing to compact.");
+    if (head.foregroundRunId) throw new Error("Conversation is running.");
+    const source =
+      [] as import("@nervekit/contracts/conversations").CanonicalConversationEntry[];
+    let next: string | undefined = head.activeEntryId;
+    while (next) {
+      const page =
+        await this.deps.storage.canonicalStore.readTimelineAncestrySegment(
+          conversationId,
+          next,
+          512,
+        );
+      source.push(...page.entries);
+      next = page.nextAncestorEntryId;
+    }
+    const now = new Date().toISOString();
+    const suffix = randomUUID();
+    const manifestBytes = new TextEncoder().encode(
+      JSON.stringify({
+        schemaVersion: 1,
+        sourceEntryIds: source.map((entry) => entry.entryId),
+      }),
+    );
+    const sourceArtifact = await new CanonicalManagedArtifactFinalizer(
+      this.deps.storage.paths,
+    ).finalize({
+      artifactId: `artifact_${suffix}`,
+      ownerKind: "conversation",
+      ownerId: conversationId,
+      relativeLocator: `context/${suffix}.json`,
+      bytes: manifestBytes,
+      mediaType: "application/json",
+      semanticRole: "context_source_manifest",
+    });
+    const summaryText = [
+      request.instructions,
+      ...source
+        .slice()
+        .reverse()
+        .map((entry) => {
+          const content = entry.inlineContent as Record<string, unknown>;
+          return typeof content.text === "string" ? content.text : "";
+        }),
+    ]
+      .filter(Boolean)
+      .join("\n\n")
+      .slice(-64_000);
+    const identity = await this.identity.resolve();
+    const fingerprint = conversationCommandFingerprint({
+      operation: "manual_compaction",
+      conversationId,
+      sourceTipEntryId: head.activeEntryId,
+      sourceDigest: sourceArtifact.digest,
+      summaryText,
+    });
+    const transition = buildAppendTransition({
+      head,
+      identity: {
+        commandId: `manual-compaction:${suffix}`,
+        inputFingerprint: fingerprint,
+        actor: { kind: "user" },
+        cause: { kind: "manual_compaction" },
+        committedAt: now,
+      },
+      entries: [
+        {
+          entryId: `entry_${suffix}`,
+          kind: "summary",
+          inlineContent: { text: summaryText },
+          provenance: { sourceManifestDigest: sourceArtifact.digest },
+        },
+      ],
+    });
+    const result = await this.transitions.commit({
+      namespaceId: identity.namespaceId,
+      executionIncarnationId: identity.executionIncarnationId,
+      operationKind: "manual_context_compaction",
+      ownerKind: "conversation",
+      ownerId: conversationId,
+      commandId: `manual-compaction:${suffix}`,
+      fingerprintVersion: 1,
+      fingerprint,
+      expectedHeads: [
+        {
+          conversationId,
+          revision: head.revision,
+          selectionEpoch: head.selectionEpoch,
+        },
+      ],
+      transitions: [transition],
+      finalizedArtifacts: [sourceArtifact],
+      contextBoundaries: [
+        {
+          schemaVersion: 1,
+          boundaryId: `boundary_${suffix}`,
+          conversationId,
+          transitionId: transition.transitionId,
+          anchorEntryId: null,
+          sourceTipEntryId: head.activeEntryId,
+          sourceManifest: {
+            schemaVersion: 1,
+            conversationId,
+            sourceTipEntryId: head.activeEntryId,
+            entryCount: source.length,
+            entriesManifest: sourceArtifact,
+            transitiveBoundaryCount: 0,
+            digest: conversationCommandFingerprint({
+              entriesDigest: sourceArtifact.digest,
+            }),
+          },
+          policyVersion: 1,
+          providerAdapterVersion: "manual-v1",
+          recipeVersion: 1,
+          visibleSummaryEntryId: transition.entries[0]!.entryId,
+        },
+      ],
+      outcome: transition.resultingHead,
+      publicationIntents: [],
+      now,
+    });
+    if (result.kind !== "committed" && result.kind !== "receipt_replay") {
+      throw new Error(`Canonical compaction rejected: ${result.kind}.`);
+    }
+    await this.ensureConversationEntries(conversationId);
+    return this.getConversation(conversationId);
+  }
+
+  async cancelCompaction(conversationId?: string): Promise<void> {
+    void conversationId;
+    // Summary preparation is synchronous and commits once; there is no latent job.
+  }
+
+  async navigateConversation(
+    conversationId: string,
+    request: { activeEntryId: string | null },
+  ): Promise<ConversationRecord> {
+    const result = await this.navigation.select({
+      conversationId,
+      targetEntryId: request.activeEntryId,
+      commandId: `navigate:${conversationId}:${request.activeEntryId ?? "root"}`,
+      now: new Date().toISOString(),
+      actor: { kind: "user" },
+      cause: { kind: "navigation" },
+    });
+    if (result.kind === "rejected") {
+      throw new Error(`Canonical navigation rejected: ${result.outcome.kind}.`);
+    }
+    await this.ensureConversationEntries(conversationId);
+    const conversation = {
+      ...this.getConversation(conversationId),
+      activeEntryId: result.head.activeEntryId ?? undefined,
+    };
+    this.deps.state.conversations.set(conversationId, conversation);
+    this.deps.queryCache.upsertConversation(conversation);
+    return conversation;
+  }
+
   async updateConversation(conversation: ConversationRecord): Promise<void> {
     await this.metadata.write(conversation);
     this.deps.state.conversations.set(conversation.id, conversation);
@@ -324,6 +497,13 @@ export class CanonicalConversationApplicationService {
     if (request.completed === false) delete next.completedAt;
     await this.updateConversation(next);
     return next;
+  }
+
+  async finalizeDeletion(conversationId: string): Promise<void> {
+    await this.deps.capabilities.removeConversation(conversationId);
+    await this.deps.events.removeConversationStream(conversationId);
+    this.deps.queryCache.removeConversation(conversationId);
+    this.deps.state.removeConversation(conversationId);
   }
 
   async recoverDeletions(): Promise<void> {

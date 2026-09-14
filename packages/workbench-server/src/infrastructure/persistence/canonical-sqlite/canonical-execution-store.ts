@@ -49,6 +49,14 @@ export class CanonicalExecutionStore {
     });
   }
 
+  listRecoveryWork(conversationId?: string, limit = 1_000) {
+    return this.request<CanonicalLifecycleWork[]>({
+      kind: "list_canonical_recovery_work",
+      conversationId,
+      limit,
+    });
+  }
+
   listPendingWaitGroups(limit = 100) {
     return this.request<WaitGroup[]>({
       kind: "list_canonical_pending_wait_groups",

@@ -127,7 +127,12 @@ export class RuntimeLifecycle {
         await this.services.runRuntime.coordinator.recover();
       },
       recoverHumanInput: async () => {
-        await this.services.runReconciliation.reconcileStartup();
+        for (const conversation of this.services.canonicalConversationLifecycle.listConversations()) {
+          await this.services.canonicalWorkbenchRun.reconcileConversation(
+            conversation.id,
+            `startup-recovery:${Date.now()}`,
+          );
+        }
       },
       rebuildProjector: async () => {
         const activeStates =

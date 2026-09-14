@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
-import type { MutationOutcome } from "@nervekit/contracts/conversations";
+import type {
+  CanonicalContinuationSnapshot,
+  MutationOutcome,
+} from "@nervekit/contracts/conversations";
 import type {
   CanonicalLifecycleWork,
   ProviderPhase,
@@ -41,6 +44,7 @@ export class CanonicalContinuationService {
     continuationWork: CanonicalLifecycleWork;
     workerId: string;
     compactionDecisionEvidence: Record<string, unknown>;
+    compactedSnapshot?: CanonicalContinuationSnapshot;
     now: string;
   }): Promise<CanonicalContinuationResult> {
     const work = input.continuationWork;
@@ -82,7 +86,14 @@ export class CanonicalContinuationService {
       manifest.runId !== work.runId ||
       manifest.runGeneration !== run.generation ||
       manifest.selectionEpoch !== head.selectionEpoch ||
-      manifest.sourceEntryId !== head.activeEntryId ||
+      (input.compactedSnapshot
+        ? input.compactedSnapshot.conversationId !== head.conversationId ||
+          input.compactedSnapshot.runId !== run.runId ||
+          input.compactedSnapshot.headEntryId !== head.activeEntryId ||
+          input.compactedSnapshot.revision !== head.revision ||
+          input.compactedSnapshot.selectionEpoch !== head.selectionEpoch ||
+          input.compactedSnapshot.runRevision !== run.revision
+        : manifest.sourceEntryId !== head.activeEntryId) ||
       group.state !== "ready" ||
       group.continuationConsumed ||
       run.waitGroupId !== group.waitGroupId ||
@@ -103,7 +114,8 @@ export class CanonicalContinuationService {
       sourceContinuationManifestId: work.inputManifestId,
       sourceContinuationHash: work.inputHash,
       compaction: {
-        required: false,
+        required: Boolean(input.compactedSnapshot),
+        boundaryId: input.compactedSnapshot?.boundaryId,
         evidence: input.compactionDecisionEvidence,
       },
     };
@@ -158,7 +170,10 @@ export class CanonicalContinuationService {
       commandId: `commit-continuation:${work.workId}:${work.generation}`,
       now: input.now,
       actor: { kind: "worker", workerId: input.workerId },
-      cause: { kind: "settled_iteration_continuation", compacted: false },
+      cause: {
+        kind: "settled_iteration_continuation",
+        compacted: Boolean(input.compactedSnapshot),
+      },
       entries: [],
       artifactManifests: [
         {

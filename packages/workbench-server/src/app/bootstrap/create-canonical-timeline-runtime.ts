@@ -33,7 +33,6 @@ import { CanonicalToolDispatchService } from "../../domains/conversations/timeli
 import { CanonicalToolSettlementService } from "../../domains/conversations/timeline/canonical-tool-settlement.service.js";
 import { CanonicalToolInvocationService } from "../../domains/conversations/timeline/canonical-tool-invocation.service.js";
 import { CanonicalToolWorkerService } from "../../domains/conversations/timeline/canonical-tool-worker.service.js";
-import type { CanonicalToolExternalInvoker } from "../../domains/tools/execution/canonical-tool-external-invoker.js";
 import type { ToolService } from "../../domains/tools/execution/tool-service.js";
 import { CanonicalBackupInspectionService } from "../../domains/storage/canonical-backup-inspection.service.js";
 import { CanonicalPortableBackupService } from "../../domains/storage/canonical-portable-backup.service.js";
@@ -97,14 +96,16 @@ export function timelineRuntime(
     projections,
     logger.child({ component: "canonical-projections" }),
   );
-  dispatcher.start();
   const deletion = new CanonicalDeletionService(storage.canonicalStore);
+  const deletionCleanup = new CanonicalDeletionCleanupService(
+    storage.canonicalStore,
+    storage.paths,
+  );
   const deletionDispatcher = new CanonicalDeletionDispatcher(
     storage.canonicalStore,
-    new CanonicalDeletionCleanupService(storage.canonicalStore, storage.paths),
+    deletionCleanup,
     logger.child({ component: "canonical-deletion" }),
   );
-  deletionDispatcher.start();
   const portableBackup = new CanonicalPortableBackupService(
     storage.canonicalStore,
     storage.paths,
@@ -113,6 +114,8 @@ export function timelineRuntime(
   const restoreStaging = new CanonicalRestoreStagingService(storage.paths);
   return {
     timelinePages,
+    rebuildConversation: (conversationId: string) =>
+      projections.rebuild(conversationId),
     createConversationApplication: (
       input: Omit<
         ConstructorParameters<
@@ -120,12 +123,17 @@ export function timelineRuntime(
         >[0],
         "storage" | "deletion"
       >,
-    ) =>
-      new CanonicalConversationApplicationService({
+    ) => {
+      const application = new CanonicalConversationApplicationService({
         ...input,
         storage,
         deletion,
-      }),
+      });
+      deletionCleanup.setExternalFinalizer((conversationId) =>
+        application.finalizeDeletion(conversationId),
+      );
+      return application;
+    },
     conversationCreation,
     conversationContext,
     continuation,
@@ -173,6 +181,7 @@ export function timelineRuntime(
       const toolWorker = new CanonicalToolWorkerService(
         storage.canonicalStore,
         input.tools.canonicalInvoker,
+        input.tools,
       );
       const execution = new CanonicalExecutionRuntime({
         store: storage.canonicalStore,
@@ -185,6 +194,7 @@ export function timelineRuntime(
         }),
         toolWorker,
         continuation,
+        autoCompaction,
         ...input,
       });
       const lifecycle = new CanonicalLifecycleDispatcher(
@@ -214,6 +224,7 @@ export function timelineRuntime(
       const toolWorker = new CanonicalToolWorkerService(
         storage.canonicalStore,
         tools.canonicalInvoker,
+        tools,
       );
       return new CanonicalLiveRunExecutor({
         store: storage.canonicalStore,
@@ -226,8 +237,6 @@ export function timelineRuntime(
     createAgentTools: (
       input: Omit<Parameters<typeof createCanonicalAgentTools>[0], "store">,
     ) => createCanonicalAgentTools({ ...input, store: storage.canonicalStore }),
-    createToolWorker: (external: CanonicalToolExternalInvoker) =>
-      new CanonicalToolWorkerService(storage.canonicalStore, external),
     createLifecycleDispatcher: (
       workerId: string,
       handlers: ConstructorParameters<typeof CanonicalLifecycleDispatcher>[2],

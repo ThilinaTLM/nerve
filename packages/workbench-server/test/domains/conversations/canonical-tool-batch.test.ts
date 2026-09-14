@@ -6,7 +6,13 @@ const fingerprint = `sha256:${"a".repeat(64)}` as const;
 const documentDigest = `sha256:${"b".repeat(64)}` as const;
 const selectedDigest = `sha256:${"c".repeat(64)}` as const;
 
-function proposal(admission: "authorized" | "awaiting_approval" | "denied") {
+type Admission =
+  | "authorized"
+  | "awaiting_approval"
+  | "denied"
+  | "internal_command";
+
+function proposal(admission: Admission) {
   return {
     admission,
     providerToolCallId: `call-${admission}`,
@@ -34,7 +40,7 @@ function proposal(admission: "authorized" | "awaiting_approval" | "denied") {
   };
 }
 
-function batch(admission: "authorized" | "awaiting_approval" | "denied") {
+function batch(admission: Admission) {
   return buildCanonicalToolBatch({
     conversationId: "conv_batch",
     runId: "run_batch",
@@ -55,6 +61,12 @@ test("canonical tool batch admits only allowed calls to effect dispatch", () => 
   assert.equal(authorized.authorizations.length, 1);
   assert.equal(authorized.work[0]?.kind, "claim_tool_attempt");
   assert.equal(authorized.waitGroup.members[0]?.executionState, "authorized");
+
+  const internal = batch("internal_command");
+  assert.equal(internal.effects.length, 0);
+  assert.equal(internal.authorizations.length, 0);
+  assert.equal(internal.work[0]?.kind, "execute_internal_command");
+  assert.equal(internal.waitGroup.members[0]?.executionState, "authorized");
 
   const awaiting = batch("awaiting_approval");
   assert.equal(awaiting.effects.length, 0);

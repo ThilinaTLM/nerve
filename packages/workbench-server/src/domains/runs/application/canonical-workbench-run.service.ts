@@ -1,4 +1,5 @@
 import { createId } from "@nervekit/contracts";
+import { createHash } from "node:crypto";
 import type {
   AgentRecord,
   PromptRequest,
@@ -39,6 +40,116 @@ export class CanonicalWorkbenchRunService {
     this.transitions = new ConversationTransitionService(deps.store);
   }
 
+  async reconcileConversation(conversationId: string, requestId: string) {
+    const operationId = `reconcile_${createHash("sha256")
+      .update(`${conversationId}:${requestId}`)
+      .digest("hex")}`;
+    const existing = await this.deps.store.readDocument<
+      Record<string, unknown>
+    >("canonical_reconciliation", conversationId, operationId);
+    if (existing) return existing.data;
+    const recovered =
+      await this.deps.store.execution.recoverExpiredLifecycleWork({
+        now: new Date().toISOString(),
+        limit: 1_000,
+      });
+    const relevant = [
+      ...recovered.filter((work) => work.conversationId === conversationId),
+      ...(await this.deps.store.execution.listRecoveryWork(conversationId)),
+    ].filter(
+      (work, index, all) =>
+        all.findIndex((candidate) => candidate.workId === work.workId) ===
+        index,
+    );
+    const head =
+      await this.deps.store.readTimelineConversationHead(conversationId);
+    if (!head)
+      throw new ApplicationError(
+        404,
+        "CONVERSATION_NOT_FOUND",
+        "Conversation not found.",
+      );
+    const agent = this.requireConversationAgent(conversationId);
+    for (const runId of new Set(relevant.map((work) => work.runId))) {
+      const run = await this.deps.store.readTimelineRunControl(
+        conversationId,
+        runId,
+      );
+      if (run?.foregroundOwned) {
+        await this.deps.termination.close({
+          conversationId,
+          runId,
+          agentId: agent.id,
+          state: "abandoned",
+          recoveryReason: "unknown_external_outcome",
+          now: new Date().toISOString(),
+        });
+      }
+    }
+    const result = {
+      operationId,
+      status: "completed" as const,
+      changed: relevant.length > 0,
+      observedRevision: head.revision,
+      preservedInputs: 0,
+      repairedTransitions: 0,
+      requeuedWork: relevant.filter((work) => work.state === "ready").length,
+      unknownOutcomes: relevant.filter(
+        (work) => work.state === "recovery_required",
+      ).length,
+      recoveryIssues: [],
+    };
+    try {
+      await this.deps.store.writeDocument({
+        namespace: "canonical_reconciliation",
+        scopeId: conversationId,
+        documentId: operationId,
+        data: result,
+        expectedRevision: 0,
+        now: new Date().toISOString(),
+      });
+    } catch {
+      const winner = await this.deps.store.readDocument<typeof result>(
+        "canonical_reconciliation",
+        conversationId,
+        operationId,
+      );
+      if (winner) return winner.data;
+      throw new Error(
+        "Canonical reconciliation result could not be persisted.",
+      );
+    }
+    this.deps.execution.wake();
+    return result;
+  }
+
+  async activeForConversation(conversationId: string) {
+    const head =
+      await this.deps.store.readTimelineConversationHead(conversationId);
+    if (!head?.foregroundRunId) return undefined;
+    const run = await this.deps.store.readTimelineRunControl(
+      conversationId,
+      head.foregroundRunId,
+    );
+    if (!run || !run.foregroundOwned) return undefined;
+    const agent = this.requireConversationAgent(conversationId);
+    const conversation = this.deps.state.getConversation(conversationId);
+    return {
+      runId: run.runId,
+      agentId: agent.id,
+      projectId: agent.projectId,
+      conversationId,
+      status:
+        run.state === "waiting" || run.state === "partially_waiting"
+          ? ("waiting" as const)
+          : ("running" as const),
+      startedAt: conversation.updatedAt,
+      turns: [],
+      toolOutputsByToolCallId: {},
+      queuedPrompts: await this.listQueuedPrompts(agent.id),
+    };
+  }
+
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
     const agent = this.requireAgent(agentId);
     this.deps.state.maintenanceScopes.assertConversation(agent.conversationId);
@@ -74,13 +185,20 @@ export class CanonicalWorkbenchRunService {
   }): Promise<void> {
     const agent = input.agentId ? this.requireAgent(input.agentId) : undefined;
     const conversationId =
-      agent?.conversationId ?? this.findConversation(input.runId);
-    if (!conversationId || !input.runId) {
+      agent?.conversationId ?? (await this.findConversation(input.runId));
+    if (!conversationId) {
+      throw new ApplicationError(404, "RUN_NOT_FOUND", "Run not found.");
+    }
+    const runId =
+      input.runId ??
+      (await this.deps.store.readTimelineConversationHead(conversationId))
+        ?.foregroundRunId;
+    if (!runId) {
       throw new ApplicationError(404, "RUN_NOT_FOUND", "Run not found.");
     }
     const run = await this.deps.store.readTimelineRunControl(
       conversationId,
-      input.runId,
+      runId,
     );
     if (!run)
       throw new ApplicationError(404, "RUN_NOT_FOUND", "Run not found.");
@@ -357,11 +475,14 @@ export class CanonicalWorkbenchRunService {
     }
   }
 
-  private findConversation(runId?: string): string | undefined {
+  private async findConversation(runId?: string): Promise<string | undefined> {
     if (!runId) return undefined;
-    return [...this.deps.state.conversations.keys()].find((conversationId) =>
-      runId.includes(conversationId.slice("conv_".length)),
-    );
+    for (const conversationId of this.deps.state.conversations.keys()) {
+      if (await this.deps.store.readTimelineRunControl(conversationId, runId)) {
+        return conversationId;
+      }
+    }
+    return undefined;
   }
 
   private requireConversationAgent(conversationId: string): AgentRecord {

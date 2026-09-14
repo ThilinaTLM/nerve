@@ -7,10 +7,18 @@ import type { StoragePaths } from "../../../infrastructure/storage-bootstrap/ind
 
 /** Advances one bounded deletion unit; artifact IO occurs between transactions. */
 export class CanonicalDeletionCleanupService {
+  private externalFinalizer?: (conversationId: string) => Promise<void>;
+
   constructor(
     private readonly store: CanonicalStore,
     private readonly paths: StoragePaths,
   ) {}
+
+  setExternalFinalizer(
+    finalizer: (conversationId: string) => Promise<void>,
+  ): void {
+    this.externalFinalizer = finalizer;
+  }
 
   async advance(input: {
     conversationId: string;
@@ -31,10 +39,15 @@ export class CanonicalDeletionCleanupService {
     if (intent.phase === "fenced" || intent.phase === "settling_execution") {
       return this.store.deletion.settleExecution(input.conversationId, now);
     }
-    if (
-      intent.phase === "removing_history" ||
-      intent.phase === "retaining_replay_evidence"
-    ) {
+    if (intent.phase === "retaining_replay_evidence") {
+      await this.externalFinalizer?.(input.conversationId);
+      return this.store.deletion.removeHistory(
+        input.conversationId,
+        limit,
+        now,
+      );
+    }
+    if (intent.phase === "removing_history") {
       return this.store.deletion.removeHistory(
         input.conversationId,
         limit,

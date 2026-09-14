@@ -17,6 +17,7 @@ import { CanonicalRunTimelineService } from "./canonical-run-timeline.service.js
 interface MembershipProposal {
   memberId: string;
   suffix: string;
+  admission?: string;
   providerToolCallId: string;
   toolName: ToolName;
   normalizedInputFingerprint: string;
@@ -72,6 +73,7 @@ export class CanonicalInteractionResolutionService {
       | "reject"
       | "discard";
     responseText?: string;
+    settleWork?: CanonicalLifecycleWork;
     commandId: string;
     now: string;
   }): Promise<CanonicalInteractionResolutionResult> {
@@ -81,9 +83,7 @@ export class CanonicalInteractionResolutionService {
     const member = group?.members.find(
       (candidate) => candidate.ownerId === input.providerToolCallId,
     );
-    if (!group || !member || member.executionState !== "awaiting_approval") {
-      return rejected("interaction_not_pending");
-    }
+    if (!group || !member) return rejected("interaction_not_pending");
     const manifest = parseManifest(
       await this.store.execution.readArtifactManifest(
         group.membershipManifestId.replace("wait_members", "wait_proposals"),
@@ -95,6 +95,13 @@ export class CanonicalInteractionResolutionService {
     const conversationId = proposal?.owner.conversationId;
     if (!manifest || !proposal || typeof conversationId !== "string") {
       return rejected("interaction_evidence_missing");
+    }
+    const internalSettlement =
+      proposal.admission === "internal_command" &&
+      member.executionState === "authorized" &&
+      input.settleWork?.kind === "execute_internal_command";
+    if (member.executionState !== "awaiting_approval" && !internalSettlement) {
+      return rejected("interaction_not_pending");
     }
     const run = await this.store.readTimelineRunControl(
       conversationId,
@@ -307,7 +314,21 @@ export class CanonicalInteractionResolutionService {
           : [],
       authorizations,
       logicalEffects: effects,
-      lifecycleWorks: work,
+      lifecycleWorks: [
+        ...work,
+        ...(input.settleWork
+          ? [
+              {
+                ...input.settleWork,
+                state: "settled" as const,
+                revision: input.settleWork.revision + 1,
+                leaseOwner: undefined,
+                leaseDeadline: undefined,
+                updatedAt: input.now,
+              },
+            ]
+          : []),
+      ],
       runState: allSettled ? "waiting" : "partially_waiting",
     });
     return result.kind === "rejected"

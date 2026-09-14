@@ -89,10 +89,10 @@ export function createServerAdapterContexts(
       conversationQuery: services.conversationQuery,
       timelinePages: services.timelinePages,
       importService: services.importService,
-      navigationService: services.navigationService,
-      compactionService: services.compactionService,
+      navigationService: services.canonicalConversationLifecycle,
+      compactionService: services.canonicalConversationLifecycle,
       workbenchRun: services.canonicalWorkbenchRun,
-      runReconciliation: services.runReconciliation,
+      runReconciliation: services.canonicalWorkbenchRun,
     },
     agents: {
       agentLifecycle: services.agentLifecycle,

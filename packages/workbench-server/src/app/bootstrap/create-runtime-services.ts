@@ -274,15 +274,17 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     getProject,
     listAgents,
     (conversationId) =>
-      conversationLifecycle.ensureConversationEntries(conversationId),
+      canonicalConversationLifecycle.ensureConversationEntries(conversationId),
   );
   const importService = new ImportService(
     createProject,
-    createConversation,
+    (request) => canonicalConversationLifecycle.createConversation(request),
     createAgent,
     getConversation,
-    appendEntry,
-    rebuildConversation,
+    (entry) => canonicalConversationLifecycle.appendEntry(entry),
+    async (conversationId) => {
+      await timeline.rebuildConversation(conversationId);
+    },
     events,
   );
   const messageMirror = new MessageMirror({
@@ -365,9 +367,9 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     getContextUsage: (conversationId) =>
       workbenchRun.getContextUsage(conversationId),
     listToolCallPreviews: (conversationId) =>
-      tools.listToolCallPreviews({ conversationId, limit: 1_000 }),
-    getActiveRun: (conversationId, activeEntryIds) =>
-      runQuery.activeForConversation(conversationId, activeEntryIds),
+      canonicalTools.listToolCallPreviews({ conversationId, limit: 1_000 }),
+    getActiveRun: (conversationId) =>
+      workbenchRun.activeForConversation(conversationId),
   });
   const agentLifecycle: AgentLifecycleService = new AgentLifecycleService(
     storage,

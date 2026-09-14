@@ -12,7 +12,11 @@ import type {
 } from "@nervekit/contracts/conversations";
 import { artifactReferenceSchema } from "@nervekit/contracts/conversations";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
-import { CanonicalCompactionCoordinator } from "./canonical-compaction-coordinator.js";
+import { CanonicalContinuationService } from "./canonical-continuation.service.js";
+import {
+  CanonicalCompactionCoordinator,
+  type PreparedCanonicalCompaction,
+} from "./canonical-compaction-coordinator.js";
 import {
   canonicalConversationJson,
   conversationCommandFingerprint,
@@ -57,6 +61,7 @@ export interface CanonicalAutoCompactionInput<T> {
     entriesDescending: readonly CanonicalConversationEntry[],
   ): Promise<CanonicalSummaryPreparation>;
   prepareProviderPhase(snapshot: CanonicalContinuationSnapshot): Promise<T>;
+  scheduleProviderPreparation?: boolean;
 }
 
 export type CanonicalAutoCompactionResult<T> =
@@ -150,30 +155,64 @@ export class CanonicalAutoCompactionService {
       sourceHead.activeEntryId,
       entries,
     );
-    return this.coordinator.commitThenPrepareProviderPhase(
-      {
-        namespaceId: input.namespaceId,
-        executionIncarnationId: input.executionIncarnationId,
-        commandId: `command_${randomUUID()}`,
-        transitionId: `transition_${randomUUID()}`,
-        boundaryId: `boundary_${randomUUID()}`,
-        sourceHead,
-        run,
-        anchorEntryId: summary.anchorEntryId,
-        sourceManifest,
-        summary: summary.summary,
-        summaryEntryId: `entry_${randomUUID()}`,
-        policyVersion: input.policyVersion,
-        providerAdapterVersion: input.providerAdapterVersion,
-        providerIdentity: input.providerIdentity,
-        providerCapability: input.providerCapability,
-        recipeVersion: input.recipeVersion,
-        actor: { kind: "system" },
-        cause: { kind: "automatic_compaction" },
-        preparedAt: input.preparedAt,
+    const prepared: PreparedCanonicalCompaction = {
+      namespaceId: input.namespaceId,
+      executionIncarnationId: input.executionIncarnationId,
+      commandId: `command_${randomUUID()}`,
+      transitionId: `transition_${randomUUID()}`,
+      boundaryId: `boundary_${randomUUID()}`,
+      sourceHead,
+      run,
+      anchorEntryId: summary.anchorEntryId,
+      sourceManifest,
+      summary: summary.summary,
+      summaryEntryId: `entry_${randomUUID()}`,
+      policyVersion: input.policyVersion,
+      providerAdapterVersion: input.providerAdapterVersion,
+      providerIdentity: input.providerIdentity,
+      providerCapability: input.providerCapability,
+      recipeVersion: input.recipeVersion,
+      actor: { kind: "system" },
+      cause: { kind: "automatic_compaction" },
+      preparedAt: input.preparedAt,
+      continuationWork: input.continuationWork,
+      waitGroup,
+    };
+    if (input.scheduleProviderPreparation) {
+      const committed = await this.coordinator.commitPrepared(prepared);
+      if (committed.kind === "stale") return committed;
+      if (!input.continuationWork?.leaseOwner) {
+        return {
+          kind: "stale",
+          outcome: {
+            kind: "superseded",
+            reason: "compaction_continuation_work_missing",
+          },
+        };
+      }
+      const continuation = await new CanonicalContinuationService(
+        this.store,
+      ).commitWithoutCompaction({
         continuationWork: input.continuationWork,
-        waitGroup,
-      },
+        workerId: input.continuationWork.leaseOwner,
+        compactionDecisionEvidence: {
+          decision: "required",
+          boundaryId: committed.snapshot.boundaryId,
+        },
+        compactedSnapshot: committed.snapshot,
+        now: input.preparedAt,
+      });
+      if (continuation.kind === "rejected") {
+        return { kind: "stale", outcome: continuation.outcome };
+      }
+      return {
+        kind: "ready",
+        snapshot: committed.snapshot,
+        preparedPhase: await input.prepareProviderPhase(committed.snapshot),
+      };
+    }
+    return this.coordinator.commitThenPrepareProviderPhase(
+      prepared,
       input.prepareProviderPhase,
     );
   }
