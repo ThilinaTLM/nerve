@@ -97,13 +97,12 @@ export async function executeWorkbenchHarness(
       agent.conversationId,
     );
     const project = this.deps.state.getProject(agent.projectId);
-    const [storage, harnessConversation, initialHarnessEntryIds] =
-      await openHarnessExecutionContext({
-        canonical: canonical?.session,
-        openLegacy: () =>
-          this.deps.openLegacyStorage?.(conversation) ??
-          Promise.reject(new Error("Legacy harness execution is retired.")),
-      });
+    const [, harnessConversation] = await openHarnessExecutionContext({
+      canonical: canonical?.session,
+      openLegacy: () =>
+        this.deps.openLegacyStorage?.(conversation) ??
+        Promise.reject(new Error("Legacy harness execution is retired.")),
+    });
     let activeToolNames = canonical
       ? [...canonical.activeToolNames]
       : await this.activeToolNamesFor(agent, capabilitySelection.disabledTools);
@@ -525,31 +524,17 @@ export async function executeWorkbenchHarness(
           toolDraftProgressScheduler.clear();
         }
         assistantEntryMeta.onMessageEnded(event.message.role);
-        let mirrored: ConversationEntry[];
-        if (canonical) {
-          mirrored = await settleCanonicalHarnessMessage({
+        if (!canonical) {
+          throw new Error(
+            "Canonical harness settlement authority is required.",
+          );
+        }
+        const mirrored: ConversationEntry[] =
+          await settleCanonicalHarnessMessage({
             authority: canonical,
             agent,
             message: event.message,
           });
-        } else {
-          if (!this.deps.messageMirror) {
-            throw new Error("Legacy message mirroring is retired.");
-          }
-          mirrored = await this.deps.messageMirror.mirrorNewHarnessEntries(
-            agent,
-            storage,
-            initialHarnessEntryIds,
-            {
-              runId,
-              turnId: currentTurnId,
-              assistantMessageMeta: assistantEntryMeta.queue,
-            },
-          );
-          if (mirrored.length > 0) {
-            await coordinator.sink.appendEntries(mirrored);
-          }
-        }
         let shouldPublishContextUsage = false;
         markMirroredEntriesMaterialized(
           this.deps.state.conversationRuntime,

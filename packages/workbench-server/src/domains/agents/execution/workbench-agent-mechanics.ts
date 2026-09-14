@@ -54,7 +54,7 @@ import type { AgentMessage } from "@nervekit/harness/agent";
 import type { CanonicalToolProposalInput } from "../../conversations/timeline/canonical-tool-batch.js";
 import { AutoCompactionRunner } from "./auto-compaction-runner.js";
 import { InlineCommandRunner } from "./inline-command-runner.js";
-import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
+import type { AppendEntryFn } from "./message-mirror.js";
 import {
   type ExploreReport,
   CanonicalExploreCoordinator,
@@ -106,7 +106,6 @@ export interface WorkbenchAgentMechanicsDeps {
   ) => Promise<void>;
   appendEntry: AppendEntryFn;
   updateConversation: (conversation: ConversationRecord) => Promise<void>;
-  messageMirror?: MessageMirror;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
   exploreAdmission: WorkbenchExploreAdmission;

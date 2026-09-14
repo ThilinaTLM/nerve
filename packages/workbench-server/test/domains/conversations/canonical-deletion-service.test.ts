@@ -176,6 +176,17 @@ test("INV-DELETE-01 fences dispatch and foreground ownership before cleanup", as
     });
   }
   assert.equal(intent?.phase, "finalized");
+  await cleanup.advance({ conversationId: "conv_delete", limit: 1 });
+  const deletionEvents = await store.readDurableEvents(
+    "conversation:conv_delete",
+    0,
+    100,
+  );
+  assert.equal(
+    deletionEvents.filter((event) => event.eventType === "conversation.deleted")
+      .length,
+    1,
+  );
   assert.equal(
     (await store.readTimelineConversationHead("conv_delete"))?.activeEntryId,
     null,
