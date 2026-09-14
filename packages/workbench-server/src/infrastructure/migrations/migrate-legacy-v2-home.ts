@@ -476,6 +476,8 @@ async function recoverMigration(
         mode: 0o700,
       });
       await rename(journal.backup, journal.finalBackup);
+      await syncPromotionDirectory(dirname(journal.finalBackup));
+      await syncPromotionDirectory(dirname(home));
     }
     const reportPath = join(
       storagePaths(home).migrationsPath,
@@ -485,13 +487,18 @@ async function recoverMigration(
       await readJsonFile(reportPath),
     );
     await rm(journalPath, { force: true });
+    await syncPromotionDirectory(dirname(home));
     return migrationReport;
   }
 
-  if (!homeExists && backupExists) await rename(journal.backup, home);
+  if (!homeExists && backupExists) {
+    await rename(journal.backup, home);
+    await syncPromotionDirectory(dirname(home));
+  }
   if (stagingExists)
     await rm(journal.staging, { recursive: true, force: true });
   await rm(journalPath, { force: true });
+  await syncPromotionDirectory(dirname(home));
   return undefined;
 }
 

@@ -32,6 +32,11 @@ interface ToolManifest {
 
 /** Owns production handlers for all directly dispatchable canonical work. */
 export class CanonicalExecutionRuntime {
+  private readonly activeAbortControllers = new Map<
+    string,
+    Set<AbortController>
+  >();
+
   constructor(
     private readonly deps: {
       store: CanonicalStore;
@@ -59,12 +64,44 @@ export class CanonicalExecutionRuntime {
       (work: CanonicalLifecycleWork) => Promise<void>
     >
   > = {
-    prepare_provider_request: (work) => this.executeProvider(work),
-    claim_provider_attempt: (work) => this.executeProvider(work),
-    claim_tool_attempt: (work) => this.executeTool(work),
-    execute_internal_command: (work) => this.executeInternalCommand(work),
+    prepare_provider_request: (work) =>
+      this.withAbortSignal(work, (signal) =>
+        this.executeProvider(work, signal),
+      ),
+    claim_provider_attempt: (work) =>
+      this.withAbortSignal(work, (signal) =>
+        this.executeProvider(work, signal),
+      ),
+    claim_tool_attempt: (work) =>
+      this.withAbortSignal(work, (signal) => this.executeTool(work, signal)),
+    execute_internal_command: (work) =>
+      this.withAbortSignal(work, (signal) =>
+        this.executeInternalCommand(work, signal),
+      ),
     prepare_continuation: (work) => this.prepareContinuation(work),
   };
+
+  abortRun(runId: string, reason = "run_cancelled"): void {
+    for (const controller of this.activeAbortControllers.get(runId) ?? []) {
+      controller.abort(new Error(reason));
+    }
+  }
+
+  private async withAbortSignal(
+    work: CanonicalLifecycleWork,
+    operation: (signal: AbortSignal) => Promise<void>,
+  ): Promise<void> {
+    const controller = new AbortController();
+    const active = this.activeAbortControllers.get(work.runId) ?? new Set();
+    active.add(controller);
+    this.activeAbortControllers.set(work.runId, active);
+    try {
+      await operation(controller.signal);
+    } finally {
+      active.delete(controller);
+      if (active.size === 0) this.activeAbortControllers.delete(work.runId);
+    }
+  }
 
   private requireAgent(conversationId: string): AgentRecord {
     const agent = this.deps.getAgentForConversation(conversationId);
@@ -75,7 +112,10 @@ export class CanonicalExecutionRuntime {
     return agent;
   }
 
-  private async executeProvider(work: CanonicalLifecycleWork): Promise<void> {
+  private async executeProvider(
+    work: CanonicalLifecycleWork,
+    signal: AbortSignal,
+  ): Promise<void> {
     const agent = this.requireAgent(work.conversationId);
     await this.deps.live.execute({
       agent,
@@ -87,7 +127,7 @@ export class CanonicalExecutionRuntime {
       conversationCreatedAt: this.deps.getConversationCreatedAt(
         work.conversationId,
       ),
-      signal: new AbortController().signal,
+      signal,
     });
     const head = await this.deps.store.readTimelineConversationHead(
       work.conversationId,
@@ -99,15 +139,20 @@ export class CanonicalExecutionRuntime {
 
   private async executeInternalCommand(
     work: CanonicalLifecycleWork,
+    signal: AbortSignal,
   ): Promise<void> {
     await this.deps.toolWorker.executeInternal({
       agent: this.requireAgent(work.conversationId),
       work,
       now: new Date().toISOString(),
+      signal,
     });
   }
 
-  private async executeTool(work: CanonicalLifecycleWork): Promise<void> {
+  private async executeTool(
+    work: CanonicalLifecycleWork,
+    signal: AbortSignal,
+  ): Promise<void> {
     const agent = this.requireAgent(work.conversationId);
     const manifest = work.inputManifestId
       ? ((await this.deps.store.execution.readArtifactManifest(
@@ -121,6 +166,7 @@ export class CanonicalExecutionRuntime {
       claimWork: work,
       workerId: this.deps.workerId,
       now: new Date().toISOString(),
+      signal,
       revalidatePolicy: () =>
         this.deps.tools.revalidateCanonicalToolProposal({
           agent,

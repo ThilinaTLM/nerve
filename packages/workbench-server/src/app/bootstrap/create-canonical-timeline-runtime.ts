@@ -220,6 +220,8 @@ export function timelineRuntime(
       return {
         start: () => lifecycle.start(),
         wake: () => lifecycle.wake(),
+        abortRun: (runId: string, reason?: string) =>
+          execution.abortRun(runId, reason),
         stop: () => lifecycle.stop(),
         settled: () => lifecycle.settled(),
       };

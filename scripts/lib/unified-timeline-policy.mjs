@@ -34,6 +34,10 @@ const fullyRetiredRuntimeSymbols = [
   "inline-command-runner",
   "sequential-tool-approval-batch",
   "prompt-block-expansion",
+  "ConversationJournalRepository",
+  "ConversationHarnessStorage",
+  "class ToolService",
+  "class WorkbenchRunService",
 ];
 
 const retiredAuthoritySymbols = [

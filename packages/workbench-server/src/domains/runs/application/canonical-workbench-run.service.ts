@@ -19,6 +19,7 @@ import type { ExploreReport } from "../../agents/execution/canonical-explore-coo
 
 export interface CanonicalExecutionWake {
   wake(): void;
+  abortRun?(runId: string, reason?: string): void;
 }
 
 /** Public run facade backed only by canonical run controls and lifecycle work. */
@@ -218,6 +219,7 @@ export class CanonicalWorkbenchRunService {
         result.outcome.kind,
       );
     }
+    this.deps.execution.abortRun?.(runId, input.reason ?? "run_cancelled");
   }
 
   abortAgent(agentId: string): Promise<void> {
