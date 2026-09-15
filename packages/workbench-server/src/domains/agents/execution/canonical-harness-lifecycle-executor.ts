@@ -4,7 +4,6 @@ import type { CanonicalToolProposalInput } from "../../conversations/timeline/ca
 import { RUN_STATE_EPOCH, type RunRecord } from "@nervekit/contracts/runs";
 import type { CanonicalLifecycleWork } from "@nervekit/contracts/runs";
 import type { ToolName } from "@nervekit/contracts/tools";
-import type { RunExecutionSink } from "../../runs/runtime/index.js";
 import type { CanonicalProviderInvocationService } from "../../conversations/timeline/canonical-provider-invocation.service.js";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import type { CanonicalProviderSettlementService } from "../../conversations/timeline/canonical-provider-settlement.service.js";
@@ -84,17 +83,9 @@ export class CanonicalHarnessLifecycleExecutor {
     });
     const outcome = await this.deps.mechanics.runCoordinatorExecution({
       run,
-      sink: inertLegacySink,
       command: "continue",
       signal: input.signal,
       installControl: () => undefined,
-      checkpointCommand: async () =>
-        ({
-          runId: run.runId,
-          checkpointId: `checkpoint_canonical_${run.runId.slice("run_".length)}`,
-          boundary: "after_provider_response",
-          continuation: { kind: "provider" },
-        }) as never,
       canonical: {
         session: resumed.value,
         boundary: this.deps.boundary,
@@ -148,13 +139,3 @@ export class CanonicalHarnessLifecycleExecutor {
     });
   }
 }
-
-const inertLegacySink: RunExecutionSink = {
-  appendEntries: async () => undefined,
-  upsertToolCalls: async () => undefined,
-  promptDelivered: async () => undefined,
-  checkpoint: async () => ({}) as never,
-  wait: async () => ({}) as never,
-  waitMany: async () => [],
-  progress: () => undefined,
-};

@@ -14,7 +14,7 @@ import {
   listConversationJournalIds,
   persistConversationCommitInTransaction,
   readConversationJournalHead,
-} from "./conversation-journal-database.js";
+} from "../../migrations/legacy-journal/conversation-journal-database.js";
 import {
   appendDurableEventInTransaction,
   assertCanonicalSchemaCompatible,
@@ -49,7 +49,7 @@ import {
   readCanonicalToolCall,
   type CanonicalToolCallProjectionQuery,
 } from "./canonical-tool-call-queries.js";
-import { CanonicalLifecycleDatabase } from "./lifecycle-work-database.js";
+import { CanonicalLifecycleDatabase } from "../../migrations/legacy-lifecycle-work-database.js";
 import { applyCanonicalMigrations } from "./canonical-migrations.js";
 import { CanonicalTimelineDatabase } from "./timeline-database.js";
 import { CanonicalProjectionDatabase } from "./timeline-projection-database.js";

@@ -83,12 +83,29 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
     list: () => Promise.resolve([...secretValues.keys()]),
   };
   const projections = new CanonicalTranscriptProjectionService(store);
+  const headBeforeRebuild =
+    await store.readTimelineConversationHead("conv_page");
+  const workBeforeRebuild = await store.execution.listReadyLifecycleWork(
+    "2026-09-12T00:00:01.000Z",
+    100,
+  );
   const [rebuilt] = await projections.rebuildPending(
     10,
     "2026-09-12T00:00:01.000Z",
   );
   assert.equal(rebuilt?.appliedRevision, 1);
   assert.equal(rebuilt?.rebuildGeneration, 1);
+  assert.deepEqual(
+    await store.readTimelineConversationHead("conv_page"),
+    headBeforeRebuild,
+  );
+  assert.deepEqual(
+    await store.execution.listReadyLifecycleWork(
+      "2026-09-12T00:00:01.000Z",
+      100,
+    ),
+    workBeforeRebuild,
+  );
 
   const deniedPages = new CanonicalTimelinePageProvider(
     store,

@@ -334,6 +334,39 @@ test("rejects canonical development homes without the exact v0.26 ledger", async
   assert.equal((await stat(join(home, "state.sqlite"))).isFile(), true);
 });
 
+for (const phase of ["source-renamed", "staging-promoted"] as const) {
+  test(`legacy-v2 promotion recovers after a ${phase} boundary failure`, async () => {
+    const parent = await mkdtemp(join(tmpdir(), `nerve-v2-${phase}-`));
+    const home = join(parent, "home");
+    await createPost0012Home(home);
+    let failed = false;
+    try {
+      await assert.rejects(
+        migrateLegacyV2Home(home, {
+          now: () => new Date(now),
+          afterPromotionPhase(current) {
+            if (!failed && current === phase) {
+              failed = true;
+              throw new Error(`injected ${phase} failure`);
+            }
+          },
+        }),
+        new RegExp(`injected ${phase} failure`),
+      );
+      const report = await migrateLegacyV2Home(home, {
+        now: () => new Date(now),
+      });
+      assert.equal(report.sourceVersion, 2);
+      const storage = await initializeStorage(home);
+      assert.ok(await storage.canonicalStore.readTimelineStateIdentity());
+      await storage.canonicalStore.close();
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+      await rm(`${home}.migration.json`, { force: true });
+    }
+  });
+}
+
 test("refuses a legacy home while its daemon is running", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-legacy-running-"));
   t.after(() => rm(home, { recursive: true, force: true }));

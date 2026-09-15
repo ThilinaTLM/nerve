@@ -38,6 +38,23 @@ export class CanonicalChildExecutionService {
   }): Promise<string> {
     const now = new Date().toISOString();
     const relationshipId = `childrel_${input.childRunId.slice("run_".length)}`;
+    const existing = await this.deps.store.readDocument<unknown>(
+      NAMESPACE,
+      input.parentRunId,
+      relationshipId,
+    );
+    if (existing) {
+      const relationship = childExecutionRelationshipSchema.parse(
+        existing.data,
+      );
+      this.assertSameRelationship(relationship, input);
+      if (relationship.state === "completed" && relationship.resultText) {
+        return relationship.resultText;
+      }
+      throw new Error(
+        `Canonical child execution '${relationshipId}' is already ${relationship.state}.`,
+      );
+    }
     const parentWait =
       await this.deps.store.execution.findWaitGroupByMemberOwner(
         input.parentToolCallId,
@@ -73,8 +90,15 @@ export class CanonicalChildExecutionService {
     } else {
       await this.write(registered, 0);
     }
+    const dispatchStartedAt = new Date().toISOString();
     await this.write(
-      { ...registered, state: "running", revision: 2, updatedAt: now },
+      {
+        ...registered,
+        state: "running",
+        dispatchStartedAt,
+        revision: 2,
+        updatedAt: dispatchStartedAt,
+      },
       1,
     );
     try {
@@ -89,6 +113,8 @@ export class CanonicalChildExecutionService {
           ...registered,
           state: "completed",
           resultDigest: digest(report),
+          resultText: report,
+          dispatchStartedAt,
           revision: 3,
           updatedAt: new Date().toISOString(),
         },
@@ -100,6 +126,7 @@ export class CanonicalChildExecutionService {
         {
           ...registered,
           state: input.signal?.aborted ? "cancelled" : "failed",
+          dispatchStartedAt,
           errorMessage: error instanceof Error ? error.message : String(error),
           revision: 3,
           updatedAt: new Date().toISOString(),
@@ -107,6 +134,31 @@ export class CanonicalChildExecutionService {
         2,
       );
       throw error;
+    }
+  }
+
+  private assertSameRelationship(
+    relationship: ChildExecutionRelationship,
+    input: {
+      parent: AgentRecord;
+      parentRunId: string;
+      parentToolCallId: string;
+      child: AgentRecord;
+      childRunId: string;
+    },
+  ): void {
+    if (
+      relationship.parentAgentId !== input.parent.id ||
+      relationship.parentConversationId !== input.parent.conversationId ||
+      relationship.parentRunId !== input.parentRunId ||
+      relationship.parentToolCallId !== input.parentToolCallId ||
+      relationship.childAgentId !== input.child.id ||
+      relationship.childConversationId !== input.child.conversationId ||
+      relationship.childRunId !== input.childRunId
+    ) {
+      throw new Error(
+        "Canonical child execution identity does not match its receipt.",
+      );
     }
   }
 

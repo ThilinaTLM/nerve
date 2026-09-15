@@ -464,6 +464,32 @@ test("INV-POLICY-04 prepared remembered saves never overwrite external edits", a
   );
 });
 
+test("quarantine failure leaves the authoritative overlay unchanged", async () => {
+  const { service, storage, project } = await setup();
+  const invalid = JSON.stringify({
+    schemaVersion: 1,
+    rules: [allowWrite, { ...allowWrite, id: "bad", priority: 1 }],
+  });
+  await writeFile(storage.paths.permissionsConfigPath, invalid);
+  await writeFile(join(storage.paths.home, "quarantine"), "not-a-directory");
+  const repair = new PermissionOverlayRepairService({
+    storage,
+    getProject: () => project,
+    trustProject: (projectId) => service.trustProject(projectId),
+  });
+  await assert.rejects(
+    repair.reset({
+      origin: "user",
+      expectedDocumentDigest: `sha256:${createHash("sha256").update(invalid).digest("hex")}`,
+      quarantine: true,
+    }),
+  );
+  assert.equal(
+    await readFile(storage.paths.permissionsConfigPath, "utf8"),
+    invalid,
+  );
+});
+
 test("one invalid rule causes the complete overlay to be ignored", async () => {
   const { service, storage, agent, project } = await setup();
   const invalid = JSON.stringify({

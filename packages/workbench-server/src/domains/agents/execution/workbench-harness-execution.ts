@@ -52,9 +52,6 @@ export async function executeWorkbenchHarness(
 ): Promise<RunExecutionOutcome> {
   const coordinator = options.coordinator;
   const canonical = coordinator.canonical;
-  if (!canonical) {
-    throw new Error("Canonical harness execution authority is required.");
-  }
   const runId = coordinator.run.runId;
   let abortRequested = false;
   const runAbortController = new AbortController();
@@ -214,10 +211,6 @@ export async function executeWorkbenchHarness(
       return turn.turnId;
     };
     harness.subscribe(async (event) => {
-      if (event.type === "queue_drained") {
-        for (const promptId of event.messageIds)
-          await coordinator.sink.promptDelivered(promptId);
-      }
       if (event.type === "turn_start") {
         coordinator.installControl(liveControl);
         await startLiveTurn();
@@ -591,19 +584,6 @@ export async function executeWorkbenchHarness(
       ) {
         const aborted = runAssistant.stopReason === "aborted" || abortRequested;
         const retryable = !aborted && isRetryableAssistantError(runAssistant);
-        const continuable = !aborted;
-        if (continuable) {
-          const leafId = await harnessConversation.getLeafId();
-          const leaf = leafId
-            ? await harnessConversation.getEntry(leafId)
-            : undefined;
-          if (leaf?.parentId !== undefined) {
-            await harnessConversation.moveTo(leaf.parentId);
-          }
-          await coordinator.sink.checkpoint(
-            await coordinator.checkpointCommand("before_provider_request"),
-          );
-        }
         if (forcePushGeneration > handledForcePushGeneration) {
           handledForcePushGeneration = forcePushGeneration;
           continueAttempt = true;
@@ -618,7 +598,7 @@ export async function executeWorkbenchHarness(
                   code: "MODEL_REQUEST_FAILED",
                   message: runAssistant.errorMessage ?? "Agent run failed.",
                   retryable,
-                  continuable,
+                  continuable: !aborted,
                 },
               }),
         } as RunExecutionOutcome;

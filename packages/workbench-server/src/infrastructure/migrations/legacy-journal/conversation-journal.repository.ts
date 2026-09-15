@@ -169,19 +169,19 @@ export class ConversationJournalRepository {
 
   async listConversationMetadata(): Promise<ConversationRecord[]> {
     await this.ready;
-    return this.canonical.listConversationMetadata<ConversationRecord>();
+    return this.canonical.migration.listConversationMetadata<ConversationRecord>();
   }
 
   async readConversationRevision(conversationId: string): Promise<number> {
     await this.ready;
-    return this.canonical.readConversationRevision(conversationId);
+    return this.canonical.migration.readConversationRevision(conversationId);
   }
 
   async readConversationEntries(
     conversationId: string,
   ): Promise<ConversationEntry[]> {
     await this.ready;
-    return this.canonical.readConversationEntries(conversationId);
+    return this.canonical.migration.readConversationEntries(conversationId);
   }
 
   async scanToolCalls(
@@ -192,56 +192,58 @@ export class ConversationJournalRepository {
     } = {},
   ) {
     await this.ready;
-    return this.canonical.scanToolCalls(input);
+    return this.canonical.migration.scanToolCalls(input);
   }
 
   async readToolCall(toolCallId: string): Promise<ToolCallRecord | undefined> {
     await this.ready;
-    return this.canonical.readToolCall(toolCallId);
+    return this.canonical.migration.readToolCall(toolCallId);
   }
 
   async countToolCallProjections(): Promise<number> {
     await this.ready;
-    return this.canonical.countToolCallProjections();
+    return this.canonical.migration.countToolCallProjections();
   }
 
   async queryToolCallProjections(
-    query: Parameters<CanonicalStore["queryToolCallProjections"]>[0],
+    query: Parameters<
+      CanonicalStore["migration"]["queryToolCallProjections"]
+    >[0],
   ) {
     await this.ready;
-    return this.canonical.queryToolCallProjections(query);
+    return this.canonical.migration.queryToolCallProjections(query);
   }
 
   async listToolCallStartupRecords(): Promise<ToolCallRecord[]> {
     await this.ready;
-    return this.canonical.listToolCallStartupRecords();
+    return this.canonical.migration.listToolCallStartupRecords();
   }
 
   async toolCallConversationId(
     toolCallId: string,
   ): Promise<string | undefined> {
     await this.ready;
-    return this.canonical.toolCallConversationId(toolCallId);
+    return this.canonical.migration.toolCallConversationId(toolCallId);
   }
 
   async listRunMetadata(): Promise<RunRecord[]> {
     await this.ready;
-    return this.canonical.listRunMetadata();
+    return this.canonical.migration.listRunMetadata();
   }
 
   async listRunStates<T>(statuses: string[]): Promise<T[]> {
     await this.ready;
-    return this.canonical.listRunStates<T>(statuses);
+    return this.canonical.migration.listRunStates<T>(statuses);
   }
 
   async listRunDeliveryRecoveryStates<T>(): Promise<T[]> {
     await this.ready;
-    return this.canonical.listRunDeliveryRecoveryStates<T>();
+    return this.canonical.migration.listRunDeliveryRecoveryStates<T>();
   }
 
   async readRunState<T>(runId: string): Promise<T | undefined> {
     await this.ready;
-    return this.canonical.readRunState<T>(runId);
+    return this.canonical.migration.readRunState<T>(runId);
   }
 
   async backfillConversationRecordProjections(
@@ -251,7 +253,9 @@ export class ConversationJournalRepository {
     } = {},
   ) {
     await this.ready;
-    return this.canonical.backfillConversationRecordProjections(input);
+    return this.canonical.migration.backfillConversationRecordProjections(
+      input,
+    );
   }
 
   async backfillMissingProjections(): Promise<number> {
@@ -290,7 +294,7 @@ export class ConversationJournalRepository {
     await this.ready;
     const states: ConversationJournalState[] = [];
     const conversationIds = new Set(
-      await this.canonical.listConversationJournalIds(),
+      await this.canonical.migration.listConversationJournalIds(),
     );
     for (const conversationId of [...conversationIds].sort()) {
       const state = options.fresh
@@ -436,18 +440,19 @@ export class ConversationJournalRepository {
         if (!input.idempotencyKey) {
           throw new Error("Lifecycle commits require an idempotency key.");
         }
-        const persisted = await this.canonical.persistLifecycleAtomicCommit({
-          delta,
-          aggregate: input.lifecycle.aggregate,
-          work: input.lifecycle.work,
-          receipt: {
-            scopeId: conversationId,
-            requestId: input.idempotencyKey,
-            inputHash: input.lifecycle.inputHash,
-            outcome: input.lifecycle.outcome,
-            createdAt: parsed.committedAt,
-          },
-        });
+        const persisted =
+          await this.canonical.migration.persistLifecycleAtomicCommit({
+            delta,
+            aggregate: input.lifecycle.aggregate,
+            work: input.lifecycle.work,
+            receipt: {
+              scopeId: conversationId,
+              requestId: input.idempotencyKey,
+              inputHash: input.lifecycle.inputHash,
+              outcome: input.lifecycle.outcome,
+              createdAt: parsed.committedAt,
+            },
+          });
         if (persisted.replayed) {
           throw new Error(
             `Lifecycle receipt ${input.idempotencyKey} replayed without its journal commit.`,
@@ -481,7 +486,8 @@ export class ConversationJournalRepository {
 
   async loadFresh(conversationId: string): Promise<ConversationJournalState> {
     await this.deletions.assertAvailable(conversationId);
-    const stored = await this.canonical.readConversationJournal(conversationId);
+    const stored =
+      await this.canonical.migration.readConversationJournal(conversationId);
     await this.deletions.assertAvailable(conversationId);
     const state = stored.snapshot
       ? deserializeState(
@@ -527,7 +533,9 @@ export class ConversationJournalRepository {
     state: ConversationJournalState,
   ): Promise<void> {
     const startedAt = performance.now();
-    await this.canonical.checkpointConversationState(serializeState(state));
+    await this.canonical.migration.checkpointConversationState(
+      serializeState(state),
+    );
     this.dirty.delete(conversationId);
     this.diagnostics.duration(
       "conversation.checkpoint",
@@ -580,7 +588,7 @@ export class ConversationJournalRepository {
     delta: ConversationPersistenceDelta,
   ): Promise<void> {
     await this.ready;
-    await this.canonical.persistConversationCommit(delta);
+    await this.canonical.migration.persistConversationCommit(delta);
   }
   private async exclusive<T>(
     conversationId: string,

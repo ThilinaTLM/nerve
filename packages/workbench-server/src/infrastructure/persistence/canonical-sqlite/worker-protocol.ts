@@ -9,7 +9,7 @@ import type {
   RequeueLifecycleWorkInput,
   RenewLifecycleWorkInput,
   SettleLifecycleWorkInput,
-} from "./lifecycle-work-database.js";
+} from "../../migrations/legacy-lifecycle-work-database.js";
 import type { CommitConversationCommandInput } from "./timeline-database.js";
 import type {
   ConversationPersistenceDelta,

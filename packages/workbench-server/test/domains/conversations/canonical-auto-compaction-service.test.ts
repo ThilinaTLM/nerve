@@ -266,6 +266,18 @@ test("INV-CONTEXT-01 prepares external evidence before committing and building t
   );
   assert.equal(persistedRun?.revision, 3);
   assert.match(persistedRun?.providerPhaseId ?? "", /^provider_phase_/);
+  const compactedPage = await store.readTimelineAncestrySegment(
+    "conv_auto",
+    result.kind === "ready" ? result.snapshot.headEntryId : "entry_prompt",
+    2,
+  );
+  const summaryDetails = compactedPage.entries[0]?.inlineContent.details as
+    | Record<string, unknown>
+    | undefined;
+  assert.equal(summaryDetails?.generatedBy, "canonical_compaction_summary");
+  assert.equal(summaryDetails?.sourceEntryCount, 1);
+  assert.equal(summaryDetails?.sourceTipEntryId, "entry_prompt");
+  assert.equal(typeof summaryDetails?.freedTokens, "number");
   assert.equal(
     result.kind === "ready" ? result.snapshot.runRevision : undefined,
     persistedRun?.revision,

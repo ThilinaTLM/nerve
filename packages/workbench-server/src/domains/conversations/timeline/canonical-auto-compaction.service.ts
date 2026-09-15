@@ -155,6 +155,15 @@ export class CanonicalAutoCompactionService {
       sourceHead.activeEntryId,
       entries,
     );
+    const sourceTokenEstimate = entries.reduce(
+      (total, entry) =>
+        total +
+        Math.ceil(
+          canonicalConversationJson(entry.inlineContent ?? {}).length / 4,
+        ),
+      0,
+    );
+    const summaryTokenEstimate = Math.ceil(summary.summary.length / 4);
     const prepared: PreparedCanonicalCompaction = {
       namespaceId: input.namespaceId,
       executionIncarnationId: input.executionIncarnationId,
@@ -167,6 +176,19 @@ export class CanonicalAutoCompactionService {
       sourceManifest,
       summary: summary.summary,
       summaryEntryId: `entry_${randomUUID()}`,
+      summaryMetadata: {
+        generatedBy: "canonical_compaction_summary",
+        providerIdentity: input.providerIdentity,
+        providerAdapterVersion: input.providerAdapterVersion,
+        recipeVersion: input.recipeVersion,
+        sourceEntryCount: entries.length,
+        sourceTipEntryId: sourceHead.activeEntryId,
+        anchorEntryId: summary.anchorEntryId,
+        sourceManifestDigest: sourceManifest.digest,
+        tokensBefore: sourceTokenEstimate,
+        tokensAfter: summaryTokenEstimate,
+        freedTokens: Math.max(0, sourceTokenEstimate - summaryTokenEstimate),
+      },
       policyVersion: input.policyVersion,
       providerAdapterVersion: input.providerAdapterVersion,
       providerIdentity: input.providerIdentity,

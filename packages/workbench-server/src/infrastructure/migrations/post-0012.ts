@@ -19,7 +19,7 @@ import {
   type ToolResultPayloadReference,
 } from "@nervekit/contracts/tools";
 import { ConversationJournalRepository } from "./legacy-journal/conversation-journal.repository.js";
-import { reduceRunTransitions } from "../../domains/runs/runtime/index.js";
+import { reduceRunTransitions } from "./legacy-run-state.js";
 import { hydrateToolCallResult } from "../../domains/tools/artifacts/tool-result-artifact.js";
 import { prepareToolResult } from "../../domains/tools/artifacts/tool-result-preparation.js";
 import { ToolResultPayloadStore } from "../../domains/tools/artifacts/tool-result-payload-store.js";

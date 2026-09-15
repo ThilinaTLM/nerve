@@ -232,6 +232,7 @@ export class CanonicalToolRuntimeService {
     );
     return (
       (current.admission === "authorized" ||
+        current.admission === "internal_command" ||
         (input.exactApproval === true &&
           current.admission === "awaiting_approval")) &&
       current.normalizedInputFingerprint === input.normalizedInputFingerprint &&

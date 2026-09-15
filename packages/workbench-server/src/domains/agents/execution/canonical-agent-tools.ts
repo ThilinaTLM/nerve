@@ -59,23 +59,6 @@ export function createCanonicalAgentTools(input: {
       if (member.executionState === "denied") {
         throw new Error(`Tool ${toolName} was denied by canonical policy.`);
       }
-      if (proposal?.admission === "internal_command") {
-        const work = await input.store.execution.claimReadyLifecycleWork({
-          workId: `canonical_work_internal_${proposal.suffix}`,
-          workerId: input.workerId,
-          now: new Date().toISOString(),
-          leaseDurationMs: 60_000,
-        });
-        if (!work) {
-          throw new Error("Canonical internal command work is unavailable.");
-        }
-        return input.worker.executeInternal({
-          agent: input.agent,
-          work,
-          now: new Date().toISOString(),
-          signal,
-        });
-      }
       const effect = authority.effects.find(
         (candidate) => candidate.memberId === member.memberId,
       );

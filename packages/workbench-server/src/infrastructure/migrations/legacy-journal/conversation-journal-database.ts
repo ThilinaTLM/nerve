@@ -4,12 +4,15 @@ import type {
   ConversationPersistenceDelta,
   MaterializedConversationRecord,
   SerializedConversationState,
-} from "../../migrations/legacy-journal/conversation-state-materializer.js";
+} from "./conversation-state-materializer.js";
 import {
   upsertConversationRecordProjection,
   upsertToolCallProjection,
-} from "../../migrations/legacy-journal/conversation-state-materializer.js";
-import { decode, encode } from "./payload-codecs.js";
+} from "./conversation-state-materializer.js";
+import {
+  decode,
+  encode,
+} from "../../persistence/canonical-sqlite/payload-codecs.js";
 
 export interface JournalHead {
   revision: number;

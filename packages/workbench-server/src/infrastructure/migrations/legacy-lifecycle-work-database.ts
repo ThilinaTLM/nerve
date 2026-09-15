@@ -11,10 +11,13 @@ import {
   type RunLifecycleRecord,
   type ToolProposal,
 } from "@nervekit/contracts/runs";
-import type { ConversationPersistenceDelta } from "../../migrations/legacy-journal/conversation-state-materializer.js";
-import { appendDurableEventInTransaction } from "./canonical-database-helpers.js";
-import { persistConversationCommitInTransaction } from "./conversation-journal-database.js";
-import { decode, encode } from "./payload-codecs.js";
+import type { ConversationPersistenceDelta } from "./legacy-journal/conversation-state-materializer.js";
+import { appendDurableEventInTransaction } from "../persistence/canonical-sqlite/canonical-database-helpers.js";
+import { persistConversationCommitInTransaction } from "./legacy-journal/conversation-journal-database.js";
+import {
+  decode,
+  encode,
+} from "../persistence/canonical-sqlite/payload-codecs.js";
 
 export interface ReconciliationOperationRecord {
   id: string;

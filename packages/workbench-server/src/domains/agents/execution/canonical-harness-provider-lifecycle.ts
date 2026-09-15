@@ -33,15 +33,6 @@ export async function prepareCanonicalHarnessProviderDispatch(
   authority.activeProviderSnapshot = prepared.snapshot;
 }
 
-export async function checkpointLegacyProviderResponse(
-  coordinator: CoordinatorExecutionOptions,
-): Promise<void> {
-  if (coordinator.canonical) return;
-  await coordinator.sink.checkpoint(
-    await coordinator.checkpointCommand("after_provider_response"),
-  );
-}
-
 export async function settleCanonicalHarnessMessage(input: {
   authority: CanonicalAuthority;
   agent: AgentRecord;

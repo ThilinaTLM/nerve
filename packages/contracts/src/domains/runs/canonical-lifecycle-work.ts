@@ -15,7 +15,6 @@ export const canonicalLifecycleWorkSchema = z
       "dispatch_provider_attempt",
       "claim_tool_attempt",
       "dispatch_tool_attempt",
-      "execute_internal_command",
       "reconcile_execution",
     ]),
     providerPhaseId: z.string().startsWith("provider_phase_").optional(),

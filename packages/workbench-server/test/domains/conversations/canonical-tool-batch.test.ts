@@ -74,9 +74,9 @@ test("canonical tool batch admits only allowed calls to effect dispatch", () => 
   assert.equal(authorized.waitGroup.members[0]?.executionState, "authorized");
 
   const internal = batch("internal_command");
-  assert.equal(internal.effects.length, 0);
-  assert.equal(internal.authorizations.length, 0);
-  assert.equal(internal.work[0]?.kind, "execute_internal_command");
+  assert.equal(internal.effects.length, 1);
+  assert.equal(internal.authorizations.length, 1);
+  assert.equal(internal.work[0]?.kind, "claim_tool_attempt");
   assert.equal(internal.waitGroup.members[0]?.executionState, "authorized");
 
   const awaiting = batch("awaiting_approval");

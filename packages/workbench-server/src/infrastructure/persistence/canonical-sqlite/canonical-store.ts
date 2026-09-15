@@ -7,40 +7,18 @@ import {
 import type {
   CanonicalAncestrySegment,
   CanonicalConversationEntry,
-  ConversationEntry,
   ConversationHead,
   MutationOutcome,
   TimelineStateIdentity,
   TranscriptProjectionStatus,
 } from "@nervekit/contracts/conversations";
-import type {
-  ConversationDeletionChunk,
-  ConversationDeletionCursor,
-  ConversationDeletionProgress,
-} from "./conversation-deletion.js";
 import { Worker } from "node:worker_threads";
-import type {
-  LifecycleWork,
-  RecoveryIssue,
-  RunControl,
-  RunRecord,
-} from "@nervekit/contracts/runs";
-import type {
-  ClaimLifecycleWorkInput,
-  LifecycleAtomicCommitInput,
-  LifecycleAtomicCommitResult,
-  ReconciliationOperationRecord,
-  RequeueLifecycleWorkInput,
-  RenewLifecycleWorkInput,
-  SettleLifecycleWorkInput,
-} from "./lifecycle-work-database.js";
-import type { ToolCallRecord } from "@nervekit/contracts/tools";
+import type { RunControl } from "@nervekit/contracts/runs";
 import type {
   RuntimeAdmission,
   TimelineAuthorityPromotion,
 } from "@nervekit/contracts/storage";
 import {
-  encode,
   type CanonicalDocument,
   type RpcIdempotencyEntry,
 } from "./canonical-database.js";
@@ -388,103 +366,6 @@ export class CanonicalStore {
     });
   }
 
-  persistLifecycleAtomicCommit(input: LifecycleAtomicCommitInput) {
-    return this.request<LifecycleAtomicCommitResult>(
-      { kind: "persist_lifecycle_atomic_commit", input },
-      true,
-    );
-  }
-
-  insertLifecycleWork(work: LifecycleWork) {
-    return this.request<LifecycleWork>(
-      { kind: "insert_lifecycle_work", work },
-      true,
-    );
-  }
-  readLifecycleWork(workId: string) {
-    return this.request<LifecycleWork | undefined>(
-      { kind: "read_lifecycle_work", workId },
-      true,
-    );
-  }
-  listDueLifecycleWork(now: string, limit = 100) {
-    return this.request<LifecycleWork[]>({
-      kind: "list_due_lifecycle_work",
-      now,
-      limit,
-    });
-  }
-  listExpiredLifecycleWork(now: string, limit = 100) {
-    return this.request<LifecycleWork[]>({
-      kind: "list_expired_lifecycle_work",
-      now,
-      limit,
-    });
-  }
-  claimLifecycleWork(input: ClaimLifecycleWorkInput) {
-    return this.request<LifecycleWork | undefined>(
-      { kind: "claim_lifecycle_work", input },
-      true,
-    );
-  }
-  requeueLifecycleWork(input: RequeueLifecycleWorkInput) {
-    return this.request<LifecycleWork | undefined>(
-      { kind: "requeue_lifecycle_work", input },
-      true,
-    );
-  }
-  renewLifecycleWork(input: RenewLifecycleWorkInput) {
-    return this.request<LifecycleWork | undefined>(
-      { kind: "renew_lifecycle_work", input },
-      true,
-    );
-  }
-  resolveRecoveryIssuesForRun(runId: string, now = new Date().toISOString()) {
-    return this.request<number>(
-      { kind: "resolve_recovery_issues_for_run", runId, now },
-      true,
-    );
-  }
-  listRecoveryIssues(conversationId: string) {
-    return this.request<RecoveryIssue[]>({
-      kind: "list_recovery_issues",
-      conversationId,
-    });
-  }
-  persistRecoveryIssue(issue: RecoveryIssue) {
-    return this.request<void>({ kind: "persist_recovery_issue", issue }, true);
-  }
-  settleLifecycleWork(input: SettleLifecycleWorkInput) {
-    return this.request<LifecycleWork | undefined>(
-      { kind: "settle_lifecycle_work", input },
-      true,
-    );
-  }
-  readLifecycleCommandReceipt(scopeId: string, requestId: string) {
-    return this.request<{ inputHash: string; outcome: unknown } | undefined>(
-      { kind: "read_lifecycle_command_receipt", scopeId, requestId },
-      true,
-    );
-  }
-  readReconciliationOperation(conversationId: string, requestId: string) {
-    return this.request<ReconciliationOperationRecord | undefined>(
-      { kind: "read_reconciliation_operation", conversationId, requestId },
-      true,
-    );
-  }
-  beginReconciliationOperation(operation: ReconciliationOperationRecord) {
-    return this.request<ReconciliationOperationRecord>(
-      { kind: "begin_reconciliation_operation", operation },
-      true,
-    );
-  }
-  settleReconciliationOperation(operation: ReconciliationOperationRecord) {
-    return this.request<ReconciliationOperationRecord>(
-      { kind: "settle_reconciliation_operation", operation },
-      true,
-    );
-  }
-
   readRpcIdempotency<T>(scope: string, key: string, now = Date.now()) {
     return this.request<RpcIdempotencyEntry<T> | undefined>(
       { kind: "read_rpc_idempotency", scope, key, now },
@@ -595,183 +476,6 @@ export class CanonicalStore {
       { kind: "remove_durable_event_stream", stream },
       true,
     );
-  }
-  persistConversationState(
-    state: import("../../migrations/legacy-journal/conversation-state-materializer.js").SerializedConversationState,
-    commit?: import("@nervekit/contracts/conversations").ConversationJournalCommit,
-  ) {
-    return this.request<void>(
-      { kind: "persist_conversation_state", state, commit },
-      true,
-    );
-  }
-  persistConversationCommit(
-    delta: import("../../migrations/legacy-journal/conversation-state-materializer.js").ConversationPersistenceDelta,
-  ) {
-    return this.request<void>(
-      { kind: "persist_conversation_commit", delta },
-      true,
-    );
-  }
-  async listConversationMetadata<T>() {
-    return (await this.listDocuments<T>("conversation")).map(
-      (document) => document.data,
-    );
-  }
-  readConversationRevision(conversationId: string) {
-    return this.request<number>({
-      kind: "read_conversation_revision",
-      conversationId,
-    });
-  }
-  readConversationEntries(conversationId: string) {
-    return this.request<ConversationEntry[]>({
-      kind: "read_conversation_entries",
-      conversationId,
-    });
-  }
-  scanToolCalls(input: {
-    afterId?: string;
-    maxRows?: number;
-    maxBytes?: number;
-  }) {
-    return this.request<{
-      records: ToolCallRecord[];
-      nextCursor?: string;
-      done: boolean;
-      encodedBytes: number;
-    }>({
-      kind: "scan_tool_calls",
-      ...(input.afterId ? { afterId: input.afterId } : {}),
-      maxRows: input.maxRows ?? 128,
-      maxBytes: input.maxBytes ?? 8 * 1024 * 1024,
-    });
-  }
-  readToolCall(toolCallId: string): Promise<ToolCallRecord | undefined> {
-    return this.request<ToolCallRecord | undefined>({
-      kind: "read_tool_call",
-      toolCallId,
-    });
-  }
-  countToolCallProjections(): Promise<number> {
-    return this.request<number>({ kind: "count_tool_call_projections" });
-  }
-  queryToolCallProjections(query: {
-    status?: ToolCallRecord["status"];
-    pendingInteractionKind?: "approval" | "user_input" | "plan_review";
-    conversationId?: string;
-    projectId?: string;
-    agentId?: string;
-    runId?: string;
-    limit?: number;
-    cursor?: { updatedAt: string; id: string };
-  }) {
-    return this.request<{
-      records: ToolCallRecord[];
-      nextCursor?: { updatedAt: string; id: string };
-    }>({ kind: "query_tool_call_projections", query });
-  }
-  listToolCallStartupRecords(): Promise<ToolCallRecord[]> {
-    return this.request<ToolCallRecord[]>({
-      kind: "list_tool_call_startup_records",
-    });
-  }
-  toolCallConversationId(toolCallId: string): Promise<string | undefined> {
-    return this.request<string | undefined>({
-      kind: "tool_call_conversation_id",
-      toolCallId,
-    });
-  }
-  listRunMetadata() {
-    return this.request<RunRecord[]>({ kind: "list_run_metadata" });
-  }
-  listRunStates<T>(statuses: string[]) {
-    return this.request<T[]>({ kind: "list_run_states", statuses });
-  }
-  listRunDeliveryRecoveryStates<T>() {
-    return this.request<T[]>({ kind: "list_run_delivery_recovery_states" });
-  }
-  readRunState<T>(runId: string) {
-    return this.request<T | undefined>({ kind: "read_run_state", runId });
-  }
-  backfillConversationRecordProjections(
-    input: {
-      afterId?: string;
-      maxRows?: number;
-    } = {},
-  ) {
-    return this.request<{
-      inserted: number;
-      nextCursor?: string;
-      done: boolean;
-    }>(
-      {
-        kind: "backfill_conversation_record_projections",
-        ...(input.afterId ? { afterId: input.afterId } : {}),
-        maxRows: input.maxRows ?? 250,
-      },
-      true,
-    );
-  }
-  listConversationJournalIds() {
-    return this.request<string[]>(
-      { kind: "list_conversation_journal_ids" },
-      true,
-    );
-  }
-  readConversationJournal(conversationId: string) {
-    return this.request<{
-      snapshot?: Uint8Array;
-      commits: Uint8Array[];
-      head?: { revision: number; checksum?: string };
-      encodedBytes: number;
-    }>({ kind: "read_conversation_journal", conversationId }, true);
-  }
-  checkpointConversationState(
-    state: import("../../migrations/legacy-journal/conversation-state-materializer.js").SerializedConversationState,
-  ) {
-    const data = Uint8Array.from(encode(state));
-    return this.request<void>(
-      {
-        kind: "checkpoint_conversation_state",
-        input: {
-          conversationId: state.conversationId,
-          revision: state.revision,
-          ...(state.checksum ? { checksum: state.checksum } : {}),
-          data,
-        },
-      },
-      true,
-      [data.buffer],
-    );
-  }
-  async deleteConversationState(
-    conversationId: string,
-    onProgress?: (
-      progress: ConversationDeletionProgress,
-    ) => void | Promise<void>,
-  ): Promise<void> {
-    const limit = 500;
-    let cursor: ConversationDeletionCursor = { phase: "events" };
-    let removed = 0;
-    let detached = 0;
-    for (;;) {
-      const result = await this.request<ConversationDeletionChunk>(
-        {
-          kind: "delete_conversation_state_chunk",
-          conversationId,
-          limit,
-          cursor,
-        },
-        true,
-      );
-      cursor = result.next;
-      removed += result.removed;
-      detached += result.detached;
-      await onProgress?.({ phase: result.phase, removed, detached });
-      if (result.done) return;
-      await new Promise<void>((resolve) => setImmediate(resolve));
-    }
   }
   integrityCheck() {
     return this.request<void>({ kind: "integrity_check" }, true);

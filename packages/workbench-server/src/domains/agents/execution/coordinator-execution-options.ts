@@ -3,10 +3,6 @@ import type { ToolName } from "@nervekit/contracts/tools";
 import type { AgentMessage, AgentTool } from "@nervekit/harness/agent";
 import type { CanonicalToolProposalInput } from "../../conversations/timeline/canonical-tool-batch.js";
 import type { RunRecord } from "@nervekit/contracts/runs";
-import type {
-  CheckpointCommand,
-  RunExecutionSink,
-} from "../../runs/runtime/index.js";
 import type { WorkbenchLiveExecutionControl } from "../../runs/application/run-live-executions.js";
 import type { CanonicalLifecycleWork } from "@nervekit/contracts/runs";
 import type {
@@ -19,17 +15,12 @@ import type { CanonicalProviderSettlementService } from "../../conversations/tim
 
 export interface CoordinatorExecutionOptions {
   run: RunRecord;
-  sink: RunExecutionSink;
   command: "start" | "continue";
   prompt?: string;
   images?: PromptRequest["images"];
   signal: AbortSignal;
   installControl(control: WorkbenchLiveExecutionControl): void;
-  checkpointCommand(
-    boundary: CheckpointCommand["boundary"],
-    interactionId?: string,
-  ): Promise<CheckpointCommand>;
-  canonical?: {
+  canonical: {
     session: CanonicalRunExecutionSession;
     boundary: CanonicalRunExecutionBoundary;
     providerInvocation: CanonicalProviderInvocationService;

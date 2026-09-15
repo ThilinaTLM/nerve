@@ -24,6 +24,8 @@ export const childExecutionRelationshipSchema = z.object({
     .string()
     .regex(/^sha256:[a-f0-9]{64}$/)
     .optional(),
+  resultText: z.string().max(1_000_000).optional(),
+  dispatchStartedAt: z.string().datetime({ offset: true }).optional(),
   errorMessage: z.string().max(4096).optional(),
   revision: z.number().int().positive().safe(),
   createdAt: z.string().datetime({ offset: true }),

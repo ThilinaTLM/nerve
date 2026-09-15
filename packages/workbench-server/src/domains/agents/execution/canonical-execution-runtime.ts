@@ -53,6 +53,7 @@ export class CanonicalExecutionRuntime {
         agent: AgentRecord;
         entriesDescending: readonly import("@nervekit/contracts/conversations").CanonicalConversationEntry[];
         summaryReserveTokens: number;
+        signal?: AbortSignal;
       }): Promise<string>;
       onForegroundClosed?(conversationId: string): Promise<void>;
     },
@@ -74,11 +75,10 @@ export class CanonicalExecutionRuntime {
       ),
     claim_tool_attempt: (work) =>
       this.withAbortSignal(work, (signal) => this.executeTool(work, signal)),
-    execute_internal_command: (work) =>
+    prepare_continuation: (work) =>
       this.withAbortSignal(work, (signal) =>
-        this.executeInternalCommand(work, signal),
+        this.prepareContinuation(work, signal),
       ),
-    prepare_continuation: (work) => this.prepareContinuation(work),
   };
 
   abortRun(runId: string, reason = "run_cancelled"): void {
@@ -137,18 +137,6 @@ export class CanonicalExecutionRuntime {
     }
   }
 
-  private async executeInternalCommand(
-    work: CanonicalLifecycleWork,
-    signal: AbortSignal,
-  ): Promise<void> {
-    await this.deps.toolWorker.executeInternal({
-      agent: this.requireAgent(work.conversationId),
-      work,
-      now: new Date().toISOString(),
-      signal,
-    });
-  }
-
   private async executeTool(
     work: CanonicalLifecycleWork,
     signal: AbortSignal,
@@ -185,6 +173,7 @@ export class CanonicalExecutionRuntime {
 
   private async prepareContinuation(
     work: CanonicalLifecycleWork,
+    signal: AbortSignal,
   ): Promise<void> {
     const manifest = work.inputManifestId
       ? ((await this.deps.store.execution.readArtifactManifest(
@@ -211,6 +200,7 @@ export class CanonicalExecutionRuntime {
     let next: string | undefined = head.activeEntryId;
     let pages = 0;
     while (next && pages < MAX_CONTEXT_ANCESTRY_PAGES) {
+      signal.throwIfAborted();
       const page = await this.deps.store.readTimelineAncestrySegment(
         work.conversationId,
         next,
@@ -285,6 +275,7 @@ export class CanonicalExecutionRuntime {
               agent,
               entriesDescending: source,
               summaryReserveTokens: policy.summaryReserveTokens,
+              signal,
             }),
             anchorEntryId: null,
           }),

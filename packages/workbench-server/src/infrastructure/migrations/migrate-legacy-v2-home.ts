@@ -47,6 +47,10 @@ export async function migrateLegacyV2Home(
   options: {
     now?: () => Date;
     reportProgress?: ProgressReporter;
+    /** Fault-injection hook used to verify crash-safe promotion recovery. */
+    afterPromotionPhase?: (
+      phase: "source-renamed" | "staging-promoted" | "backup-retained",
+    ) => void | Promise<void>;
   } = {},
 ): Promise<HomeMigrationReport> {
   const now = options.now ?? (() => new Date());
@@ -202,6 +206,7 @@ export async function migrateLegacyV2Home(
       finalBackupPath,
       "source-renamed",
     );
+    await options.afterPromotionPhase?.("source-renamed");
     try {
       await rename(staging, home);
       await syncPromotionDirectory(parent);
@@ -220,6 +225,7 @@ export async function migrateLegacyV2Home(
       finalBackupPath,
       "staging-promoted",
     );
+    await options.afterPromotionPhase?.("staging-promoted");
     await mkdir(dirname(finalBackupPath), { recursive: true, mode: 0o700 });
     await rename(backupSibling, finalBackupPath);
     await syncPromotionDirectory(dirname(finalBackupPath));
@@ -233,13 +239,19 @@ export async function migrateLegacyV2Home(
       finalBackupPath,
       "backup-retained",
     );
+    await options.afterPromotionPhase?.("backup-retained");
     await rm(journalPath, { force: true });
     return migrationReport;
   } catch (error) {
     if (sourceRenamed && !promoted) {
       await rename(backupSibling, home).catch(() => undefined);
+      await syncPromotionDirectory(parent).catch(() => undefined);
     }
-    if (!promoted) await rm(staging, { recursive: true, force: true });
+    if (!promoted) {
+      await rm(staging, { recursive: true, force: true });
+      await rm(journalPath, { force: true });
+      await syncPromotionDirectory(parent).catch(() => undefined);
+    }
     throw error;
   } finally {
     await lock.release();
@@ -486,6 +498,23 @@ async function recoverMigration(
     const migrationReport = homeMigrationReportSchema.parse(
       await readJsonFile(reportPath),
     );
+    try {
+      await validateMigratedHome(home, migrationReport.counts);
+    } catch (error) {
+      if (backupExists) {
+        await rm(home, { recursive: true, force: true });
+        await rename(journal.backup, home);
+        await syncPromotionDirectory(dirname(home));
+        if (stagingExists) {
+          await rm(journal.staging, { recursive: true, force: true });
+        }
+        await rm(journalPath, { force: true });
+        await syncPromotionDirectory(dirname(home));
+      }
+      throw new Error("Recovered migrated home failed verification.", {
+        cause: error,
+      });
+    }
     await rm(journalPath, { force: true });
     await syncPromotionDirectory(dirname(home));
     return migrationReport;

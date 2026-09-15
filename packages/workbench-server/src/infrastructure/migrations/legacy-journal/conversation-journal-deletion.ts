@@ -75,7 +75,7 @@ export class ConversationJournalDeletion {
           data: intent,
         });
       this.evict(conversationId);
-      await this.canonical.deleteConversationState(
+      await this.canonical.migration.deleteConversationState(
         conversationId,
         options.onProgress,
       );

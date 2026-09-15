@@ -81,7 +81,6 @@ export class CanonicalInteractionResolutionService {
       | "discard";
     responseText?: string;
     remembered?: { origin: PermissionOverlayOrigin; rule: PermissionRule };
-    settleWork?: CanonicalLifecycleWork;
     commandId: string;
     now: string;
   }): Promise<CanonicalInteractionResolutionResult> {
@@ -104,11 +103,7 @@ export class CanonicalInteractionResolutionService {
     if (!manifest || !proposal || typeof conversationId !== "string") {
       return rejected("interaction_evidence_missing");
     }
-    const internalSettlement =
-      proposal.admission === "internal_command" &&
-      member.executionState === "authorized" &&
-      input.settleWork?.kind === "execute_internal_command";
-    if (member.executionState !== "awaiting_approval" && !internalSettlement) {
+    if (member.executionState !== "awaiting_approval") {
       return rejected("interaction_not_pending");
     }
     if (proposal.admission === "policy_blocked" && input.decision !== "deny") {
@@ -355,21 +350,7 @@ export class CanonicalInteractionResolutionService {
           : [],
       authorizations,
       logicalEffects: effects,
-      lifecycleWorks: [
-        ...work,
-        ...(input.settleWork
-          ? [
-              {
-                ...input.settleWork,
-                state: "settled" as const,
-                revision: input.settleWork.revision + 1,
-                leaseOwner: undefined,
-                leaseDeadline: undefined,
-                updatedAt: input.now,
-              },
-            ]
-          : []),
-      ],
+      lifecycleWorks: work,
       runState: allSettled ? "waiting" : "partially_waiting",
     });
     if (saveIntent && this.policySaves) {

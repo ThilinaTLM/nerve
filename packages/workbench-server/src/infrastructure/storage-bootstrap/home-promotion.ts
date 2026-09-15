@@ -26,6 +26,16 @@ export async function requestHomePromotion(input: {
   assertSibling(parent, input.candidateHome);
   const existing = await readMarker(input.home);
   if (existing) throw new Error("A home promotion is already pending.");
+  if (!(await exists(input.candidateHome))) {
+    throw new Error("The requested promotion candidate does not exist.");
+  }
+  const rollbackHome = join(
+    parent,
+    `${basename(input.home)}.rollback-${input.restoreId}`,
+  );
+  if (await exists(rollbackHome)) {
+    throw new Error("The requested promotion rollback path already exists.");
+  }
   const now = input.now ?? new Date().toISOString();
   const marker = homePromotionMarkerSchema.parse({
     schemaVersion: 1,

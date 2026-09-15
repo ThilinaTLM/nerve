@@ -5,7 +5,6 @@ import type { CanonicalStore } from "../../../infrastructure/persistence/canonic
 import type { CanonicalToolExternalInvoker } from "../../tools/execution/canonical-tool-external-invoker.js";
 import type { CanonicalToolRuntimeService } from "../../tools/execution/canonical-tool-runtime.service.js";
 import { toolCallResultForModel } from "../../tools/orchestration/agent-tool-adapter.js";
-import { CanonicalInteractionResolutionService } from "./canonical-interaction-resolution.service.js";
 import { CanonicalToolInvocationService } from "./canonical-tool-invocation.service.js";
 import { CanonicalToolSettlementService } from "./canonical-tool-settlement.service.js";
 
@@ -37,66 +36,6 @@ export class CanonicalToolWorkerService {
   ) {
     this.invocation = new CanonicalToolInvocationService(store);
     this.settlement = new CanonicalToolSettlementService(store);
-  }
-
-  async executeInternal(input: {
-    agent: AgentRecord;
-    work: CanonicalLifecycleWork;
-    now: string;
-    signal?: AbortSignal;
-  }): Promise<ToolCallRecord> {
-    if (
-      input.work.kind !== "execute_internal_command" ||
-      input.work.state !== "leased" ||
-      !input.work.inputManifestId
-    ) {
-      throw new Error("Canonical internal command work is not owned.");
-    }
-    const manifest = parseInternalManifest(
-      await this.store.execution.readArtifactManifest(
-        input.work.inputManifestId,
-      ),
-    );
-    if (
-      !manifest ||
-      manifest.normalizedInputFingerprint !== input.work.inputHash
-    ) {
-      throw new Error("Canonical internal command manifest is invalid.");
-    }
-    const terminal = await this.external.invoke({
-      agent: input.agent,
-      effectId: `effect_internal_${manifest.suffix}`,
-      attemptId: `attempt_internal_${manifest.suffix}`,
-      providerToolCallId: manifest.providerToolCallId,
-      toolName: manifest.toolName,
-      normalizedArgs: manifest.normalizedInput,
-      cwd: manifest.cwd,
-      risk: manifest.risk,
-      runId: input.work.runId,
-      options: { signal: input.signal },
-    });
-    const responseText =
-      terminal.result === undefined
-        ? (terminal.error ?? "Internal command completed.")
-        : JSON.stringify(terminal.result);
-    const settled = await new CanonicalInteractionResolutionService(
-      this.store,
-      this.tools,
-      () => input.agent,
-    ).resolve({
-      providerToolCallId: `tool_${manifest.suffix}`,
-      decision: "answer",
-      responseText,
-      settleWork: input.work,
-      commandId: `settle-internal:${input.work.workId}:${input.work.generation}`,
-      now: new Date().toISOString(),
-    });
-    if (settled.kind === "rejected") {
-      throw new Error(
-        `Canonical internal command settlement rejected: ${settled.outcome.kind}.`,
-      );
-    }
-    return terminal;
   }
 
   async execute(input: {
@@ -179,34 +118,6 @@ export class CanonicalToolWorkerService {
     }
     return terminal;
   }
-}
-
-interface CanonicalInternalCommandManifest {
-  schemaVersion: 1;
-  suffix: string;
-  toolName: ToolName;
-  providerToolCallId: string;
-  normalizedInputFingerprint: string;
-  normalizedInput: Record<string, unknown>;
-  cwd: string;
-  risk: ToolCallRecord["risk"];
-}
-
-function parseInternalManifest(
-  value: unknown,
-): CanonicalInternalCommandManifest | undefined {
-  const input = value as Partial<CanonicalInternalCommandManifest> | undefined;
-  return input?.schemaVersion === 1 &&
-    typeof input.suffix === "string" &&
-    typeof input.toolName === "string" &&
-    typeof input.providerToolCallId === "string" &&
-    typeof input.normalizedInputFingerprint === "string" &&
-    typeof input.normalizedInput === "object" &&
-    input.normalizedInput !== null &&
-    typeof input.cwd === "string" &&
-    typeof input.risk === "string"
-    ? (input as CanonicalInternalCommandManifest)
-    : undefined;
 }
 
 function parseManifest(value: unknown): CanonicalToolInputManifest | undefined {

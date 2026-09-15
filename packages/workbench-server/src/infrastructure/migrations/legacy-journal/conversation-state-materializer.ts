@@ -12,7 +12,7 @@ import {
   type ConversationTreeEntry,
 } from "@nervekit/harness/conversation";
 import { encode } from "../../persistence/canonical-sqlite/payload-codecs.js";
-import { latestDeliverySettledRevision } from "../../../domains/runs/runtime/index.js";
+import { latestDeliverySettledRevision } from "../legacy-run-state.js";
 import type {
   ConversationJournalState,
   ConversationRunProjection,

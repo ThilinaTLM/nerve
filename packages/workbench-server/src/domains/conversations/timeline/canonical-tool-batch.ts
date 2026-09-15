@@ -143,10 +143,9 @@ export function buildCanonicalToolBatch(input: {
     members: members.map(({ member }) => member),
   };
   const authorized = members.filter(
-    ({ proposal }) => proposal.admission === "authorized",
-  );
-  const internalCommands = members.filter(
-    ({ proposal }) => proposal.admission === "internal_command",
+    ({ proposal }) =>
+      proposal.admission === "authorized" ||
+      proposal.admission === "internal_command",
   );
   const authorizations: ExactCallAuthorization[] = authorized.map(
     ({ proposal, member, suffix }) => ({
@@ -196,22 +195,6 @@ export function buildCanonicalToolBatch(input: {
         })),
       },
     },
-    ...internalCommands.map(({ proposal, suffix }) => ({
-      manifestId: `manifest_internal_command_${suffix}`,
-      schemaVersion: 1 as const,
-      data: {
-        schemaVersion: 1,
-        suffix,
-        toolName: proposal.toolName,
-        providerToolCallId: proposal.providerToolCallId,
-        normalizedInputFingerprint: proposal.normalizedInputFingerprint,
-        normalizedInput: proposal.normalizedInput,
-        cwd: proposal.cwd,
-        risk: proposal.risk,
-        providerIdentity: input.providerIdentity,
-        providerCapability: input.providerCapability,
-      },
-    })),
     ...effects.map((effect, index) => ({
       manifestId: `manifest_tool_input_${effect.effectId.slice("effect_".length)}`,
       schemaVersion: 1 as const,
@@ -231,21 +214,6 @@ export function buildCanonicalToolBatch(input: {
     })),
   ];
   const work: CanonicalLifecycleWork[] = [
-    ...internalCommands.map(({ proposal, suffix }) => ({
-      schemaVersion: 1 as const,
-      workId: `canonical_work_internal_${suffix}`,
-      conversationId: input.conversationId,
-      runId: input.runId,
-      kind: "execute_internal_command" as const,
-      state: "ready" as const,
-      inputHash: proposal.normalizedInputFingerprint,
-      inputManifestId: `manifest_internal_command_${suffix}`,
-      generation: 0,
-      revision: 1,
-      notBefore: input.now,
-      createdAt: input.now,
-      updatedAt: input.now,
-    })),
     ...effects.map((effect) => ({
       schemaVersion: 1 as const,
       workId: `canonical_work_${effect.effectId.slice("effect_".length)}_claim`,

@@ -37,6 +37,7 @@ export interface PreparedCanonicalCompaction {
   sourceManifest: ContextSourceManifest;
   summary?: string;
   summaryEntryId?: string;
+  summaryMetadata?: Record<string, unknown>;
   policyVersion: number;
   providerAdapterVersion: string;
   providerIdentity: Record<string, unknown>;
@@ -84,6 +85,7 @@ export class CanonicalCompactionCoordinator {
       anchorEntryId: prepared.anchorEntryId,
       sourceManifestDigest: prepared.sourceManifest.digest,
       summary: prepared.summary,
+      summaryMetadata: prepared.summaryMetadata,
       policyVersion: prepared.policyVersion,
       providerAdapterVersion: prepared.providerAdapterVersion,
       providerIdentity: prepared.providerIdentity,
@@ -107,7 +109,12 @@ export class CanonicalCompactionCoordinator {
             {
               entryId: prepared.summaryEntryId,
               kind: "summary",
-              inlineContent: { text: prepared.summary },
+              inlineContent: {
+                text: prepared.summary,
+                ...(prepared.summaryMetadata
+                  ? { details: prepared.summaryMetadata }
+                  : {}),
+              },
               runId: prepared.run.runId,
               provenance: {
                 boundaryId,

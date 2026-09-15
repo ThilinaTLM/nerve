@@ -34,7 +34,7 @@ export async function migrateCurrentHomeConversationTimelines(input: {
   ) => Promise<Readonly<Record<string, unknown>>>;
 }): Promise<LegacyConversationImportProof[]> {
   const conversations = (
-    await input.store.listConversationMetadata<ConversationRecord>()
+    await input.store.migration.listConversationMetadata<ConversationRecord>()
   ).sort((left, right) => left.id.localeCompare(right.id));
   await mkdir(input.proofDirectory, { recursive: true, mode: 0o700 });
   if ((await input.store.migration.countLegacyRuntimeAuthority()) === 0) {
@@ -62,7 +62,7 @@ export async function migrateCurrentHomeConversationTimelines(input: {
   const proofs: LegacyConversationImportProof[] = [];
   for (const conversation of conversations) {
     const entries: ConversationEntry[] =
-      await input.store.readConversationEntries(conversation.id);
+      await input.store.migration.readConversationEntries(conversation.id);
     const exactMessagesByEntryId = input.readExactMessages
       ? await input.readExactMessages(conversation.id)
       : undefined;
@@ -170,7 +170,7 @@ async function importLegacyRunControls(
   if (!identity)
     throw new Error("Canonical state identity is not initialized.");
   const transitions = new ConversationTransitionService(store);
-  const runs = (await store.listRunMetadata()).sort((left, right) =>
+  const runs = (await store.migration.listRunMetadata()).sort((left, right) =>
     left.runId.localeCompare(right.runId),
   );
   for (const run of runs) {
@@ -321,7 +321,7 @@ async function importLegacyToolRecovery(
   const records: ToolCallRecord[] = [];
   let cursor: string | undefined;
   do {
-    const page = await store.scanToolCalls({
+    const page = await store.migration.scanToolCalls({
       ...(cursor ? { afterId: cursor } : {}),
       maxRows: 500,
     });
