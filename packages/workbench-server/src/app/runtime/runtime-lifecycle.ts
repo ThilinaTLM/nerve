@@ -229,8 +229,10 @@ export class RuntimeLifecycle {
     reportStage?.("recovering-conversation-deletions");
     await this.services.canonicalConversationLifecycle.recoverDeletions();
     const timings = await this.hydrator.hydrate(reportStage);
-    // Provider and tool work can be arbitrarily long-running. Start its drain
-    // only after canonical hydration, and never gate daemon readiness on it.
+    // Canonical background drains start only after hydration and never gate
+    // daemon readiness. Provider and tool work can be arbitrarily long-running.
+    this.services.projectionDispatcher.start();
+    this.services.deletionDispatcher.start();
     this.services.canonicalExecution.start();
     return timings;
   }

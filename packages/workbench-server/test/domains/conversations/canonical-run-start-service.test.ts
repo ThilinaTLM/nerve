@@ -4,13 +4,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { CanonicalRunStartService } from "../../../src/domains/conversations/timeline/canonical-run-start.service.js";
+import { StreamLogRegistry } from "../../../src/infrastructure/events/stream-log-registry.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
 
 test("INV-HEAD-01 accepts a prompt and foreground owner in one transition", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-run-start-"));
   const store = new CanonicalStore(join(home, "nerve.sqlite"));
   await store.initialize();
+  const events = new StreamLogRegistry(home, { canonicalStore: store });
+  const announced: string[] = [];
+  const unsubscribe = events.subscribeSequenced((_stream, event) => {
+    announced.push(event.type);
+  });
   t.after(async () => {
+    unsubscribe();
+    await events.shutdown();
     await store.close();
     await rm(home, { recursive: true, force: true });
   });
@@ -51,12 +59,14 @@ test("INV-HEAD-01 accepts a prompt and foreground owner in one transition", asyn
     head?.activeEntryId,
     started.kind === "started" ? started.run.continuationEntryId : null,
   );
-  const events = await store.readDurableEvents("conv/conv_start", 1, 10);
+  assert.deepEqual(announced, ["run.started"]);
+  const storedEvents = await store.readDurableEvents("conv/conv_start", 1, 10);
   assert.deepEqual(
-    events.map((event) => event.eventType),
+    storedEvents.map((event) => event.eventType),
     ["run.started"],
   );
-  assert.deepEqual(events[0]?.data, {
+  assert.equal(storedEvents[0]?.intentId, "evt_run_started_run_start");
+  assert.deepEqual(storedEvents[0]?.data, {
     conversationId: "conv_start",
     agentId: "agent_start",
     projectId: "proj_start",

@@ -91,6 +91,9 @@ export class CanonicalStore {
   private writer?: WorkerEndpoint;
   private readers: WorkerEndpoint[] = [];
   private nextReader = 0;
+  private committedPublicationHandler?: (
+    intents: CommitConversationCommandInput["publicationIntents"],
+  ) => Promise<void>;
   private readonly requester = <T>(command: CanonicalCommand) =>
     this.request<T>(command);
   readonly migration = new CanonicalMigrationStore(this.requester);
@@ -144,11 +147,23 @@ export class CanonicalStore {
     return this.writer.request<T>(command, transferList);
   }
 
-  commitConversationCommand(input: CommitConversationCommandInput) {
-    return this.request<MutationOutcome>(
+  setCommittedPublicationHandler(
+    handler: (
+      intents: CommitConversationCommandInput["publicationIntents"],
+    ) => Promise<void>,
+  ): void {
+    this.committedPublicationHandler = handler;
+  }
+
+  async commitConversationCommand(input: CommitConversationCommandInput) {
+    const outcome = await this.request<MutationOutcome>(
       { kind: "commit_conversation_command", input },
       true,
     );
+    if (outcome.kind === "committed" && input.publicationIntents.length > 0) {
+      await this.committedPublicationHandler?.(input.publicationIntents);
+    }
+    return outcome;
   }
 
   readTimelineCommandReceipt(input: {

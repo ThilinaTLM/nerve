@@ -18,10 +18,10 @@ interface ToolCallListParams {
   cursor?: { updatedAt: string; id: string };
 }
 
-interface Proposal {
+export interface CanonicalToolProposalProjection {
   memberId: string;
   providerToolCallId: string;
-  toolName: ToolName;
+  toolName: string;
   normalizedInput: Record<string, unknown>;
   cwd: string;
   risk: ToolCallRecord["risk"];
@@ -32,7 +32,7 @@ interface Proposal {
 }
 
 interface ProposalManifest {
-  proposals: Proposal[];
+  proposals: CanonicalToolProposalProjection[];
 }
 
 /** Rebuildable public tool views projected from canonical wait authority. */
@@ -101,40 +101,47 @@ export class CanonicalToolQueryService {
       group.membershipManifestId.replace("wait_members", "wait_proposals"),
     )) as ProposalManifest | undefined;
     if (!manifest?.proposals) return [];
-    return manifest.proposals.map((proposal) => {
-      const member = group.members.find(
-        (candidate) => candidate.memberId === proposal.memberId,
-      )!;
-      const waiting = member.executionState === "awaiting_approval";
-      const denied = member.executionState === "denied";
-      const owner = proposal.owner;
-      const createdAt = proposal.policyObservation.observedAt;
-      return {
-        id: member.ownerId,
-        agentId: String(owner.agentId),
-        conversationId: String(owner.conversationId),
-        projectId: String(owner.projectId),
-        toolName: proposal.toolName,
-        sourceToolCallId: proposal.providerToolCallId,
-        providerToolCallId: proposal.providerToolCallId,
-        runId: group.runId,
-        risk: proposal.risk,
-        args: proposal.normalizedInput,
-        cwd: proposal.cwd,
-        status: waiting ? "waiting" : denied ? "denied" : "committed",
-        phase: waiting ? "drafted" : denied ? "denied" : "drafted",
-        revision: member.revision,
-        attempt: 0,
-        interactions: waiting ? [pendingInteraction(proposal, createdAt)] : [],
-        createdAt,
-        updatedAt: createdAt,
-      } as ToolCallRecord;
-    });
+    return manifest.proposals.map((proposal) =>
+      projectCanonicalToolCall(group, proposal),
+    );
   }
 }
 
+export function projectCanonicalToolCall(
+  group: WaitGroup,
+  proposal: CanonicalToolProposalProjection,
+): ToolCallRecord {
+  const member = group.members.find(
+    (candidate) => candidate.memberId === proposal.memberId,
+  )!;
+  const waiting = member.executionState === "awaiting_approval";
+  const denied = member.executionState === "denied";
+  const owner = proposal.owner;
+  const createdAt = proposal.policyObservation.observedAt;
+  return {
+    id: member.ownerId,
+    agentId: String(owner.agentId),
+    conversationId: String(owner.conversationId),
+    projectId: String(owner.projectId),
+    toolName: proposal.toolName as ToolName,
+    sourceToolCallId: proposal.providerToolCallId,
+    providerToolCallId: proposal.providerToolCallId,
+    runId: group.runId,
+    risk: proposal.risk,
+    args: proposal.normalizedInput,
+    cwd: proposal.cwd,
+    status: waiting ? "waiting" : denied ? "denied" : "committed",
+    phase: waiting ? "drafted" : denied ? "denied" : "drafted",
+    revision: member.revision,
+    attempt: 0,
+    interactions: waiting ? [pendingInteraction(proposal, createdAt)] : [],
+    createdAt,
+    updatedAt: createdAt,
+  } as ToolCallRecord;
+}
+
 function pendingInteraction(
-  proposal: Proposal,
+  proposal: CanonicalToolProposalProjection,
   createdAt: string,
 ): ToolCallRecord["interactions"][number] {
   const base = {

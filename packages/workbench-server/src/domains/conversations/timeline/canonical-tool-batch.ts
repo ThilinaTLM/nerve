@@ -13,6 +13,9 @@ import type {
   ToolCallRecord,
   ToolReplayCapability,
 } from "@nervekit/contracts/tools";
+import type { AppendEntryDraft } from "./transition-builders.js";
+import { projectCanonicalToolCall } from "../../tools/execution/canonical-tool-query.service.js";
+import { toToolCallTranscriptRecord } from "../../tools/artifacts/tool-call-transcript-preview.js";
 
 export interface CanonicalToolProposalInput {
   admission:
@@ -47,6 +50,8 @@ export interface CanonicalToolProposalInput {
 
 export interface CanonicalToolBatchAuthority {
   waitGroup: WaitGroup;
+  entries: AppendEntryDraft[];
+  toolCalls: import("@nervekit/contracts/tools").ToolCallTranscriptRecord[];
   policyObservations: PolicyDocumentObservation[];
   policyDiagnostics: PolicyDiagnostic[];
   authorizations: ExactCallAuthorization[];
@@ -129,12 +134,41 @@ export function buildCanonicalToolBatch(input: {
       },
     };
   });
+  const deniedEntries: AppendEntryDraft[] = members.flatMap(
+    ({ proposal, member, suffix }) =>
+      proposal.admission === "denied"
+        ? [
+            {
+              entryId: `entry_tool_denied_${suffix}`,
+              kind: "tool_result" as const,
+              inlineContent: {
+                exactHarnessMessage: {
+                  role: "toolResult",
+                  toolCallId: proposal.providerToolCallId,
+                  toolName: proposal.toolName,
+                  content: [{ type: "text", text: "Tool call denied." }],
+                  isError: true,
+                  timestamp: Date.parse(input.now),
+                },
+                failed: true,
+              },
+              runId: input.runId,
+              toolCallId: member.ownerId,
+              provenance: {
+                nonDispatchEvidenceId: member.nonDispatchEvidenceId!,
+              },
+            },
+          ]
+        : [],
+  );
+  const continuationEntryId =
+    deniedEntries.at(-1)?.entryId ?? input.continuationEntryId;
   const waitGroup: WaitGroup = {
     schemaVersion: 1,
     waitGroupId,
     runId: input.runId,
     membershipManifestId,
-    continuationEntryId: input.continuationEntryId,
+    continuationEntryId,
     continuationConsumed: false,
     state: members.every(({ member }) => member.contributesToBarrier)
       ? "ready"
@@ -239,7 +273,7 @@ export function buildCanonicalToolBatch(input: {
       runId: input.runId,
       runGeneration: input.runGeneration,
       selectionEpoch: input.selectionEpoch,
-      sourceEntryId: input.continuationEntryId,
+      sourceEntryId: continuationEntryId,
       waitGroupId,
       providerIdentity: input.providerIdentity,
       providerCapability: input.providerCapability,
@@ -270,6 +304,15 @@ export function buildCanonicalToolBatch(input: {
   }
   return {
     waitGroup,
+    entries: deniedEntries,
+    toolCalls: members.map(({ proposal, member }) =>
+      toToolCallTranscriptRecord(
+        projectCanonicalToolCall(waitGroup, {
+          memberId: member.memberId,
+          ...proposal,
+        }),
+      ),
+    ),
     policyObservations: input.proposals.map(
       (proposal) => proposal.policyObservation,
     ),

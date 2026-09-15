@@ -546,7 +546,7 @@ export class CanonicalConversationApplicationService {
       outcome: transition.resultingHead,
       publicationIntents: [
         {
-          intentId: `publication_compaction_${suffix}`,
+          intentId: `evt_compaction_${suffix}`,
           stream: `conv/${conversationId}`,
           eventType: "conversation.compacted",
           occurredAt: now,

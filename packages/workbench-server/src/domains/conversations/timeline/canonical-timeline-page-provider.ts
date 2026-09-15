@@ -35,12 +35,16 @@ export class CanonicalTimelinePageProvider {
     return (await this.services).timeline.page(request);
   }
 
-  deletionStatus(conversationId: string) {
-    return this.store.deletion.readIntent(conversationId);
+  async deletionStatus(conversationId: string) {
+    return (await this.store.deletion.readIntent(conversationId)) ?? null;
   }
 
-  projectionStatus(conversationId: string) {
-    return this.store.readTimelineTranscriptProjectionStatus(conversationId);
+  async projectionStatus(conversationId: string) {
+    return (
+      (await this.store.readTimelineTranscriptProjectionStatus(
+        conversationId,
+      )) ?? null
+    );
   }
 
   async search(request: unknown) {

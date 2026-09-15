@@ -82,6 +82,10 @@ test("INV-PAGE-01 INV-VIEW-01 pages fixed projection snapshots", async (t) => {
     },
     list: () => Promise.resolve([...secretValues.keys()]),
   };
+  const statusPages = new CanonicalTimelinePageProvider(store, secrets);
+  assert.equal(await statusPages.deletionStatus("conv_page"), null);
+  assert.equal(await statusPages.projectionStatus("conv_missing"), null);
+
   const projections = new CanonicalTranscriptProjectionService(store);
   const headBeforeRebuild =
     await store.readTimelineConversationHead("conv_page");

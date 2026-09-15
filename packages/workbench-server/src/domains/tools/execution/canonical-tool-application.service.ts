@@ -91,7 +91,11 @@ export class CanonicalToolInteractionApplicationService {
     });
     if (result.kind === "rejected") {
       throw new Error(
-        `Canonical interaction rejected: ${result.outcome.kind}.`,
+        `Canonical interaction rejected: ${result.outcome.kind}${
+          result.outcome.kind === "superseded"
+            ? ` (${result.outcome.reason})`
+            : ""
+        }.`,
       );
     }
     return {

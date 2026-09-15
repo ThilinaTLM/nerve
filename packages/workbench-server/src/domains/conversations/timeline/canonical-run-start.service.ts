@@ -212,7 +212,7 @@ export class CanonicalRunStartService {
       publicationIntents: input.projectId
         ? [
             {
-              intentId: `publication_run_started_${input.runId}`,
+              intentId: `evt_run_started_${input.runId}`,
               stream: `conv/${input.conversationId}`,
               eventType: "run.started",
               occurredAt: input.now,

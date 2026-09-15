@@ -53,7 +53,11 @@ export class StreamLogRegistry {
   constructor(
     private readonly home: string,
     private readonly options: StreamLogRegistryOptions = {},
-  ) {}
+  ) {
+    options.canonicalStore?.setCommittedPublicationHandler(async (intents) => {
+      for (const intent of intents) await this.#announcePersisted(intent);
+    });
+  }
 
   setConversationRevisionResolver(
     resolve: (conversationId: string) => number | undefined,
@@ -227,6 +231,44 @@ export class StreamLogRegistry {
       [...this.#logs.values()].map(async (log) => (await log).close()),
     );
     this.#logs.clear();
+  }
+
+  async #announcePersisted(input: {
+    stream: string;
+    intentId: string;
+    eventType: string;
+    data: unknown;
+    occurredAt: string;
+    conversationId?: string;
+  }): Promise<void> {
+    const store = this.options.canonicalStore;
+    if (!store) return;
+    validatePublicEvent(input.eventType, input.data, "workbench_server");
+    const stored = await store.appendDurableEvent({
+      stream: input.stream,
+      intentId: input.intentId,
+      eventType: input.eventType,
+      data: input.data,
+      occurredAt: input.occurredAt,
+      ...(input.conversationId ? { conversationId: input.conversationId } : {}),
+    });
+    const event = {
+      seq: stored.sequence,
+      id: input.intentId,
+      ts: input.occurredAt,
+      type: input.eventType,
+      data: input.data,
+    } as EventEnvelope;
+    this.options.diagnostics?.count("event.durable");
+    this.#intentResults.set(input.intentId, event);
+    for (const listener of this.#eventListeners) {
+      this.options.diagnostics?.count("event.listenerDelivery");
+      safelyNotify(() => listener(event), event.type);
+    }
+    for (const listener of this.#sequencedListeners) {
+      this.options.diagnostics?.count("event.listenerDelivery");
+      safelyNotify(() => listener(input.stream, event), event.type);
+    }
   }
 
   async #publishNow<T>(

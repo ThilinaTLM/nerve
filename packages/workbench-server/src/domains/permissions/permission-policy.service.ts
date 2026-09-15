@@ -129,6 +129,7 @@ export class PermissionPolicyService {
     const effectiveSelected = selected ?? builtInPermissionRuleSet("baseline");
 
     const ignored: IgnoredPermissionSource[] = [];
+    const nonBlockingIgnored = new Set<IgnoredPermissionSource>();
     const sourceDocuments: ResolvedPermissionPolicy["sourceDocuments"] = [];
     const knownRuleSetIds = this.knownRuleSetIds(custom.available);
     const userDocument = await this.loadOverlayDocument(
@@ -151,11 +152,13 @@ export class PermissionPolicyService {
           )
         : undefined;
     if (trust.status === "invalid" || trust.status === "untrusted") {
-      ignored.push({
-        origin: "project",
+      const untrustedProjectOverlay = {
+        origin: "project" as const,
         path: projectPath,
         reason: trust.reason ?? "Project permission overlay is not trusted.",
-      });
+      };
+      ignored.push(untrustedProjectOverlay);
+      nonBlockingIgnored.add(untrustedProjectOverlay);
     }
     const conversationPath = this.conversationOverlayPath(agent.conversationId);
     const conversationDocument = await this.loadOverlayDocument(
@@ -224,7 +227,8 @@ export class PermissionPolicyService {
         : {}),
       executionBlocked: fallback
         ? !activeFallback
-        : !subagent && ignored.length > 0,
+        : !subagent &&
+          ignored.some((source) => !nonBlockingIgnored.has(source)),
       diagnostics,
     };
   }

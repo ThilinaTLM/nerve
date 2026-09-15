@@ -187,7 +187,7 @@ function terminalRunPublication(
   };
   if (input.state === "completed") {
     return {
-      intentId: `publication_run_completed_${input.runId}`,
+      intentId: `evt_run_completed_${input.runId}`,
       stream: `conv/${input.conversationId}`,
       eventType: "run.completed",
       occurredAt: input.now,
@@ -201,7 +201,7 @@ function terminalRunPublication(
   }
   if (input.state === "cancelled") {
     return {
-      intentId: `publication_run_cancelled_${input.runId}`,
+      intentId: `evt_run_cancelled_${input.runId}`,
       stream: `conv/${input.conversationId}`,
       eventType: "run.cancelled",
       occurredAt: input.now,
@@ -210,7 +210,7 @@ function terminalRunPublication(
     };
   }
   return {
-    intentId: `publication_run_failed_${input.runId}`,
+    intentId: `evt_run_failed_${input.runId}`,
     stream: `conv/${input.conversationId}`,
     eventType: "run.failed",
     occurredAt: input.now,

@@ -318,7 +318,7 @@ export class CanonicalProviderSettlementService {
         attemptId: attempt.attemptId,
         responseId,
       },
-      entries: input.entries,
+      entries: [...input.entries, ...(toolBatch?.entries ?? [])],
       artifactManifests: [
         {
           manifestId: responseManifestId,
@@ -336,6 +336,22 @@ export class CanonicalProviderSettlementService {
       policyDiagnostics: toolBatch?.policyDiagnostics ?? [],
       authorizations: toolBatch?.authorizations ?? [],
       logicalEffects: toolBatch?.effects ?? [],
+      publicationIntents:
+        toolBatch?.toolCalls.map((toolCall) => ({
+          intentId: `evt_tool_call_updated_${suffix}_${toolCall.id}`,
+          stream: `conv/${snapshot.conversationId}`,
+          eventType: "toolCall.updated",
+          occurredAt: input.now,
+          conversationId: snapshot.conversationId,
+          data: {
+            conversationId: snapshot.conversationId,
+            agentId: toolCall.agentId,
+            projectId: toolCall.projectId,
+            runId: snapshot.runId,
+            providerToolCallId: toolCall.providerToolCallId,
+            toolCall,
+          },
+        })) ?? [],
       providerPhaseId: null,
       waitGroupId: toolBatch?.waitGroup.waitGroupId ?? null,
       runState: toolBatch

@@ -86,6 +86,8 @@ test("canonical tool batch admits only allowed calls to effect dispatch", () => 
     awaiting.waitGroup.members[0]?.executionState,
     "awaiting_approval",
   );
+  assert.equal(awaiting.toolCalls[0]?.status, "waiting");
+  assert.equal(awaiting.toolCalls[0]?.interactions[0]?.kind, "approval");
 
   const blocked = batch("policy_blocked");
   assert.equal(blocked.effects.length, 0);
@@ -105,4 +107,21 @@ test("a denied-only batch proves non-dispatch and schedules continuation", () =>
     "not_executed",
   );
   assert.equal(denied.work[0]?.kind, "prepare_continuation");
+  assert.equal(denied.toolCalls[0]?.status, "denied");
+  assert.equal(denied.entries[0]?.kind, "tool_result");
+  assert.deepEqual(denied.entries[0]?.inlineContent, {
+    exactHarnessMessage: {
+      role: "toolResult",
+      toolCallId: "call-denied",
+      toolName: "read",
+      content: [{ type: "text", text: "Tool call denied." }],
+      isError: true,
+      timestamp: Date.parse("2026-09-14T00:00:00.000Z"),
+    },
+    failed: true,
+  });
+  assert.equal(
+    denied.waitGroup.continuationEntryId,
+    denied.entries[0]?.entryId,
+  );
 });

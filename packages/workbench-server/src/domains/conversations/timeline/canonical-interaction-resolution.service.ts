@@ -127,6 +127,7 @@ export class CanonicalInteractionResolutionService {
       return rejected("interaction_selection_fenced");
     }
     const responseDecision = !["allow_once", "deny"].includes(input.decision);
+    const attachesResponse = responseDecision || input.decision === "deny";
     const responseEntryId = `entry_interaction_${proposal.suffix}`;
     const nextMembers = group.members.map((candidate) =>
       candidate.memberId !== member.memberId
@@ -295,7 +296,7 @@ export class CanonicalInteractionResolutionService {
         group,
         manifest,
         input.now,
-        responseDecision ? responseEntryId : run.continuationEntryId,
+        attachesResponse ? responseEntryId : run.continuationEntryId,
       );
       artifactManifests.push(continuation.manifest);
       work.push(continuation.work);
@@ -308,7 +309,7 @@ export class CanonicalInteractionResolutionService {
       now: input.now,
       actor: { kind: "user" },
       cause: { kind: "interaction_resolved", decision: input.decision },
-      entries: responseDecision
+      entries: attachesResponse
         ? [
             {
               entryId: responseEntryId,
@@ -323,10 +324,12 @@ export class CanonicalInteractionResolutionService {
                       type: "text",
                       text:
                         input.responseText ??
-                        `Interaction resolved: ${input.decision}`,
+                        (input.decision === "deny"
+                          ? "Tool call denied."
+                          : `Interaction resolved: ${input.decision}`),
                     },
                   ],
-                  isError: false,
+                  isError: input.decision === "deny",
                   timestamp: Date.parse(input.now),
                 },
               },

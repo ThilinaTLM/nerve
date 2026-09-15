@@ -242,6 +242,7 @@ test("project overlays remain inactive until their complete content digest is tr
   assert.ok(
     resolved.policy.ignoredOverlays.some((item) => item.origin === "project"),
   );
+  assert.equal(resolved.executionBlocked, false);
 });
 
 test("project trust persists across service reconstruction and revokes in isolation", async () => {
