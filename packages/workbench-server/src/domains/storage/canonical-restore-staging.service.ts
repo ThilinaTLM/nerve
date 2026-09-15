@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
+  copyFile,
   cp,
   mkdir,
   open,
@@ -438,7 +439,7 @@ function quarantineDatabase(input: {
 
 async function copyBytes(source: string, target: string): Promise<void> {
   await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-  await writeFile(target, await readFile(source), { mode: 0o600 });
+  await copyFile(source, target);
   await syncPath(target);
 }
 

@@ -19,12 +19,25 @@ describe("desktop data-directory preparation", () => {
     const dialog = dialogRecorder();
     let initializedHome: string | undefined;
     let closed = false;
+    const progress: string[] = [];
     const result = await prepareDesktopDataDirectory(
-      { home: "/home/test/.nerve", mode: "local" },
+      {
+        home: "/home/test/.nerve",
+        mode: "local",
+        reportProgress: (message) => progress.push(message),
+      },
       {
         ...dialog,
-        initialize: (async (home: string) => {
+        initialize: (async (
+          home: string,
+          options: {
+            reportStartupProgress: (progress: { message: string }) => void;
+          },
+        ) => {
           initializedHome = home;
+          options.reportStartupProgress({
+            message: "Migrating conversations (1 of 2)",
+          });
           return {
             canonicalStore: {
               close: async () => {
@@ -38,6 +51,7 @@ describe("desktop data-directory preparation", () => {
     assert.deepEqual(result, { status: "ready" });
     assert.equal(initializedHome, "/home/test/.nerve");
     assert.equal(closed, true);
+    assert.deepEqual(progress, ["Migrating conversations (1 of 2)"]);
     assert.deepEqual(dialog.dialogs, []);
   });
 

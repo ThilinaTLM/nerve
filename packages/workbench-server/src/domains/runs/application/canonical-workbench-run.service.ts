@@ -52,7 +52,7 @@ export class CanonicalWorkbenchRunService {
     const recovered =
       await this.deps.store.execution.recoverExpiredLifecycleWork({
         now: new Date().toISOString(),
-        limit: 1_000,
+        limit: 256,
       });
     const relevant = [
       ...recovered.filter((work) => work.conversationId === conversationId),
@@ -70,17 +70,18 @@ export class CanonicalWorkbenchRunService {
         "CONVERSATION_NOT_FOUND",
         "Conversation not found.",
       );
-    const agent = this.requireConversationAgent(conversationId);
     for (const runId of new Set(relevant.map((work) => work.runId))) {
       const run = await this.deps.store.readTimelineRunControl(
         conversationId,
         runId,
       );
       if (run?.foregroundOwned) {
+        const agent = this.requireConversationAgent(conversationId);
         await this.deps.termination.close({
           conversationId,
           runId,
           agentId: agent.id,
+          projectId: agent.projectId,
           state: "abandoned",
           recoveryReason: "unknown_external_outcome",
           now: new Date().toISOString(),
@@ -208,6 +209,7 @@ export class CanonicalWorkbenchRunService {
       conversationId,
       runId: run.runId,
       agentId: owner.id,
+      projectId: owner.projectId,
       state: "cancelled",
       recoveryReason: input.reason,
       now: new Date().toISOString(),
@@ -430,6 +432,7 @@ export class CanonicalWorkbenchRunService {
       conversationId: agent.conversationId,
       runId: explicitRunId ?? createId("run"),
       agentId: agent.id,
+      projectId: agent.projectId,
       prompt: request.text,
       images: request.images,
       providerIdentity: { provider: model.provider, model: model.id },

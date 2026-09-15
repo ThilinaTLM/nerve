@@ -158,15 +158,16 @@ export async function initializeStorage(
     const canonicalStore = new CanonicalStore(paths.sqlitePath);
     await canonicalStore.initialize();
     if (!fresh) {
-      options.reportStartupProgress?.({
-        type: "nerve.startup.progress",
-        phase: "storage-migration",
-        message: "Promoting the unified conversation timeline",
-      });
       await promoteCurrentHomeAtStartup({
         store: canonicalStore,
         paths,
         promotedAt: new Date().toISOString(),
+        reportProgress: (message) =>
+          options.reportStartupProgress?.({
+            type: "nerve.startup.progress",
+            phase: "storage-migration",
+            message,
+          }),
       });
     }
     const runtimeAdmission =

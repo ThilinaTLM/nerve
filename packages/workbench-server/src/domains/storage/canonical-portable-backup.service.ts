@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
+import { createReadStream } from "node:fs";
 import {
+  copyFile,
   lstat,
   mkdir,
   open,
-  readFile,
   realpath,
   rename,
   rm,
@@ -34,7 +35,10 @@ export class CanonicalPortableBackupService {
     private readonly paths: StoragePaths,
   ) {}
 
-  async create(capturedAt = new Date().toISOString()): Promise<{
+  async create(
+    capturedAt = new Date().toISOString(),
+    reportProgress?: (message: string) => void,
+  ): Promise<{
     manifest: PortableBackupManifest;
     backupPath: string;
   }> {
@@ -47,34 +51,35 @@ export class CanonicalPortableBackupService {
     try {
       const entries: BackupEntry[] = [];
       const databasePath = join(staging, "database.sqlite");
+      reportProgress?.("Creating the migration database snapshot");
       const artifacts =
         await this.store.createTimelineBackupSnapshot(databasePath);
+      reportProgress?.("Verifying the migration database snapshot");
       entries.push(await describeFile(databasePath, staging, "database"));
-      for (const artifact of artifacts) {
+      for (const [artifactIndex, artifact] of artifacts.entries()) {
+        reportProgress?.(
+          `Copying migration artifacts (${artifactIndex + 1} of ${artifacts.length})`,
+        );
         const source = await safeManagedFile(
           this.paths.home,
           artifact.relativeLocator,
         );
-        const bytes = await readFile(source);
-        const digest = digestBytes(bytes);
+        const target = join(staging, "artifacts", artifact.relativeLocator);
+        await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+        await copyFile(source, target);
+        await syncPath(target);
+        const copied = await describeFile(target, staging, "artifact");
         if (
-          digest !== artifact.digest ||
-          bytes.byteLength !== artifact.byteLength
+          copied.digest !== artifact.digest ||
+          copied.byteLength !== artifact.byteLength
         ) {
           throw new Error(
             `Backup artifact '${artifact.artifactId}' failed verification.`,
           );
         }
-        const target = join(staging, "artifacts", artifact.relativeLocator);
-        await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-        await writeFile(target, bytes, { mode: 0o600 });
-        await syncPath(target);
         entries.push({
-          kind: "artifact",
+          ...copied,
           ownerId: artifact.ownerId,
-          relativeLocator: relative(staging, target),
-          digest,
-          byteLength: bytes.byteLength,
         });
       }
 
@@ -133,11 +138,11 @@ async function copyStableExternalFile(
   target: string,
 ): Promise<void> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const before = await readFile(source);
-    await writeFile(target, before, { mode: 0o600 });
+    const before = await digestFile(source);
+    await copyFile(source, target);
     await syncPath(target);
-    const after = await readFile(source);
-    if (digestBytes(before) === digestBytes(after)) return;
+    const after = await digestFile(source);
+    if (before === after && after === (await digestFile(target))) return;
   }
   throw new Error(`External policy file changed during backup: ${source}`);
 }
@@ -148,13 +153,19 @@ async function describeFile(
   kind: BackupEntry["kind"],
 ): Promise<BackupEntry> {
   await syncPath(path);
-  const bytes = await readFile(path);
+  const stats = await lstat(path);
   return {
     kind,
     relativeLocator: relative(root, path),
-    digest: digestBytes(bytes),
-    byteLength: bytes.byteLength,
+    digest: await digestFile(path),
+    byteLength: stats.size,
   };
+}
+
+async function digestFile(path: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(path)) hash.update(chunk);
+  return `sha256:${hash.digest("hex")}`;
 }
 
 function digestBytes(bytes: Uint8Array): string {

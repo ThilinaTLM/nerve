@@ -19,6 +19,7 @@ test("INV-HEAD-01 accepts a prompt and foreground owner in one transition", asyn
     conversationId: "conv_start",
     runId: "run_start",
     agentId: "agent_start",
+    projectId: "proj_start",
     providerIdentity: { provider: "test", model: "test" },
     providerCapability: "stateless_generation" as const,
     prompt: "hello",
@@ -50,4 +51,16 @@ test("INV-HEAD-01 accepts a prompt and foreground owner in one transition", asyn
     head?.activeEntryId,
     started.kind === "started" ? started.run.continuationEntryId : null,
   );
+  const events = await store.readDurableEvents("conv/conv_start", 1, 10);
+  assert.deepEqual(
+    events.map((event) => event.eventType),
+    ["run.started"],
+  );
+  assert.deepEqual(events[0]?.data, {
+    conversationId: "conv_start",
+    agentId: "agent_start",
+    projectId: "proj_start",
+    runId: "run_start",
+    startedAt: input.now,
+  });
 });

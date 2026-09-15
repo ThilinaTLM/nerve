@@ -18,6 +18,7 @@ export interface CanonicalRunExecutionSession {
   conversationId: string;
   runId: string;
   agentId: string;
+  projectId?: string;
   storage: ConversationStorage;
   conversation: Conversation;
   materializedEntryIds: Set<string>;
@@ -43,6 +44,7 @@ export class CanonicalRunExecutionBoundary {
     conversationId: string;
     runId: string;
     agentId: string;
+    projectId?: string;
     prompt: string;
     images?: readonly unknown[];
     providerIdentity: Record<string, unknown>;
@@ -66,6 +68,7 @@ export class CanonicalRunExecutionBoundary {
       conversationId: input.conversationId,
       runId: input.runId,
       agentId: input.agentId,
+      ...(input.projectId ? { projectId: input.projectId } : {}),
       conversationCreatedAt: input.conversationCreatedAt,
       snapshot: context.snapshot,
     });
@@ -75,6 +78,7 @@ export class CanonicalRunExecutionBoundary {
     conversationId: string;
     runId: string;
     agentId: string;
+    projectId?: string;
     conversationCreatedAt: string;
   }): Promise<CanonicalExecutionBoundaryResult<CanonicalRunExecutionSession>> {
     const context = await this.contexts.build({
@@ -142,6 +146,7 @@ export class CanonicalRunExecutionBoundary {
       conversationId: session.conversationId,
       runId: session.runId,
       agentId: session.agentId,
+      ...(session.projectId ? { projectId: session.projectId } : {}),
       now: input.now,
       state: input.state,
       recoveryReason: input.recoveryReason,
@@ -156,6 +161,7 @@ function readySession(input: {
   conversationId: string;
   runId: string;
   agentId: string;
+  projectId?: string;
   conversationCreatedAt: string;
   snapshot: import("../../conversations/timeline/canonical-conversation-context.service.js").CanonicalContextSnapshot;
 }): CanonicalExecutionBoundaryResult<CanonicalRunExecutionSession> {
@@ -169,6 +175,7 @@ function readySession(input: {
       conversationId: input.conversationId,
       runId: input.runId,
       agentId: input.agentId,
+      ...(input.projectId ? { projectId: input.projectId } : {}),
       storage,
       conversation: new Conversation(storage),
       materializedEntryIds: new Set(

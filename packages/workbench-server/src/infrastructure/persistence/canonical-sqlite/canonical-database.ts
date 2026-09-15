@@ -26,6 +26,7 @@ import {
 } from "./canonical-database-helpers.js";
 import { decode, encode } from "./payload-codecs.js";
 import { repairCanonicalDeletionIndexes } from "./deletion-indexes.js";
+import { readLegacyConversationEntries } from "./legacy-conversation-entry-reader.js";
 import {
   deleteConversationChunk,
   type ConversationDeletionCursor,
@@ -454,27 +455,7 @@ export class CanonicalDatabase {
   }
 
   readConversationEntries(conversationId: string): unknown[] {
-    const rows = this.database
-      .prepare(
-        `SELECT COALESCE(
-                  projection.data,
-                  CAST(json_extract(CAST(record.data AS TEXT), '$.entry') AS BLOB)
-                ) AS data
-         FROM conversation_records AS record
-         LEFT JOIN conversation_record_projections AS projection
-           ON projection.record_id = record.id
-         WHERE record.conversation_id = ?
-           AND record.kind IN ('message', 'summary')
-           AND COALESCE(
-                 projection.data,
-                 json_extract(CAST(record.data AS TEXT), '$.entry')
-               ) IS NOT NULL
-         ORDER BY record.sequence`,
-      )
-      .all(conversationId) as unknown as Array<{
-      data: Uint8Array | string;
-    }>;
-    return rows.map((row) => decode(row.data));
+    return readLegacyConversationEntries(this.database, conversationId);
   }
 
   scanToolCalls(input: {

@@ -37,6 +37,7 @@ test("canonical execution boundary materializes exact messages and closes foregr
     conversationId: "conv_boundary",
     runId: "run_boundary",
     agentId: "agent_boundary",
+    projectId: "proj_boundary",
     providerIdentity: { provider: "test", model: "test" },
     providerCapability: "stateless_generation",
     prompt: "inspect",
@@ -124,4 +125,17 @@ test("canonical execution boundary materializes exact messages and closes foregr
     ).exactHarnessMessage?.stopReason,
     "toolUse",
   );
+  const events = await store.readDurableEvents("conv/conv_boundary", 1, 10);
+  assert.deepEqual(
+    events.map((event) => event.eventType),
+    ["run.started", "run.completed"],
+  );
+  assert.deepEqual(events[1]?.data, {
+    conversationId: "conv_boundary",
+    agentId: "agent_boundary",
+    projectId: "proj_boundary",
+    runId: "run_boundary",
+    finalEntryId: segment.entries[0]?.entryId,
+    completedAt: "2026-09-14T00:00:04.000Z",
+  });
 });

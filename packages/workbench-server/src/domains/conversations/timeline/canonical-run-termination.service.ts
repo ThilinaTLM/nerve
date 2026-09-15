@@ -35,6 +35,7 @@ export class CanonicalRunTerminationService {
     conversationId: string;
     runId: string;
     agentId: string;
+    projectId?: string;
     state: "completed" | "failed" | "cancelled" | "abandoned" | "superseded";
     now: string;
     recoveryReason?: string;
@@ -159,8 +160,69 @@ export class CanonicalRunTerminationService {
       executionClaims: claims,
       lifecycleWorks: work,
       recoveryActions,
+      publicationIntents: input.projectId
+        ? [terminalRunPublication(input, run?.continuationEntryId ?? undefined)]
+        : [],
     });
   }
+}
+
+function terminalRunPublication(
+  input: {
+    conversationId: string;
+    runId: string;
+    agentId: string;
+    projectId?: string;
+    state: "completed" | "failed" | "cancelled" | "abandoned" | "superseded";
+    now: string;
+    recoveryReason?: string;
+  },
+  finalEntryId?: string,
+) {
+  const common = {
+    conversationId: input.conversationId,
+    agentId: input.agentId,
+    projectId: input.projectId!,
+    runId: input.runId,
+  };
+  if (input.state === "completed") {
+    return {
+      intentId: `publication_run_completed_${input.runId}`,
+      stream: `conv/${input.conversationId}`,
+      eventType: "run.completed",
+      occurredAt: input.now,
+      conversationId: input.conversationId,
+      data: {
+        ...common,
+        ...(finalEntryId ? { finalEntryId } : {}),
+        completedAt: input.now,
+      },
+    };
+  }
+  if (input.state === "cancelled") {
+    return {
+      intentId: `publication_run_cancelled_${input.runId}`,
+      stream: `conv/${input.conversationId}`,
+      eventType: "run.cancelled",
+      occurredAt: input.now,
+      conversationId: input.conversationId,
+      data: { ...common, cancelledAt: input.now },
+    };
+  }
+  return {
+    intentId: `publication_run_failed_${input.runId}`,
+    stream: `conv/${input.conversationId}`,
+    eventType: "run.failed",
+    occurredAt: input.now,
+    conversationId: input.conversationId,
+    data: {
+      ...common,
+      message: input.recoveryReason ?? `Run ${input.state}.`,
+      aborted: input.state !== "failed",
+      interrupted: input.state !== "failed",
+      failedAt: input.now,
+    },
+  };
 }
 
 function closeWaitGroup(

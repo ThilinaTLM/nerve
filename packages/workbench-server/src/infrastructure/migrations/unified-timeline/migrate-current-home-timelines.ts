@@ -31,7 +31,9 @@ export async function migrateCurrentHomeConversationTimelines(input: {
   runtimeIsolation: "proven";
   readExactMessages?: (
     conversationId: string,
+    includedEntryIds: ReadonlySet<string>,
   ) => Promise<Readonly<Record<string, unknown>>>;
+  reportProgress?: (message: string) => void;
 }): Promise<LegacyConversationImportProof[]> {
   const conversations = (
     await input.store.migration.listConversationMetadata<ConversationRecord>()
@@ -60,11 +62,17 @@ export async function migrateCurrentHomeConversationTimelines(input: {
   }
   const importer = new LegacyConversationTimelineImporter(input.store);
   const proofs: LegacyConversationImportProof[] = [];
-  for (const conversation of conversations) {
+  for (const [conversationIndex, conversation] of conversations.entries()) {
+    input.reportProgress?.(
+      `Migrating conversations (${conversationIndex + 1} of ${conversations.length})`,
+    );
     const entries: ConversationEntry[] =
       await input.store.migration.readConversationEntries(conversation.id);
     const exactMessagesByEntryId = input.readExactMessages
-      ? await input.readExactMessages(conversation.id)
+      ? await input.readExactMessages(
+          conversation.id,
+          new Set(entries.map((entry) => entry.id)),
+        )
       : undefined;
     const sourceDigest = `sha256:${createHash("sha256")
       .update(
@@ -95,6 +103,7 @@ export async function migrateCurrentHomeConversationTimelines(input: {
   const importedRunCount = await importLegacyRunControls(
     input.store,
     input.importedAt,
+    input.reportProgress,
   );
   const toolRecovery = await importLegacyToolRecovery(
     input.store,
@@ -165,6 +174,7 @@ export async function readRetainedTimelineMigrationProofs(
 async function importLegacyRunControls(
   store: CanonicalStore,
   importedAt: string,
+  reportProgress?: (message: string) => void,
 ): Promise<number> {
   const identity = await store.readTimelineStateIdentity();
   if (!identity)
@@ -173,7 +183,8 @@ async function importLegacyRunControls(
   const runs = (await store.migration.listRunMetadata()).sort((left, right) =>
     left.runId.localeCompare(right.runId),
   );
-  for (const run of runs) {
+  for (const [runIndex, run] of runs.entries()) {
+    reportProgress?.(`Migrating runs (${runIndex + 1} of ${runs.length})`);
     const head = await store.readTimelineConversationHead(run.conversationId);
     if (!head) {
       throw new Error(
@@ -429,7 +440,9 @@ function legacyRunControl(
     schemaVersion: 1,
     conversationId: run.conversationId,
     runId: run.runId,
-    generation: Math.max(1, run.attempt),
+    // Canonical generations are local fencing epochs, not legacy retry counts.
+    // Every newly imported control must begin at generation one.
+    generation: 1,
     boundSelectionEpoch: selectionEpoch,
     continuationEntryId,
     checkpointId: null,

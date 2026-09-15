@@ -10,9 +10,35 @@ import {
   migrateCurrentHomeConversationTimelines,
   retireMigratedLegacyRuntimeAuthority,
 } from "../../../src/infrastructure/migrations/unified-timeline/migrate-current-home-timelines.js";
+import { extractExactHarnessMessages } from "../../../src/infrastructure/migrations/unified-timeline/extract-exact-harness-messages.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
 
 const now = "2026-09-14T00:00:00.000Z";
+
+test("exact legacy messages exclude model-only entries outside the migrated timeline", () => {
+  const entries = [
+    {
+      type: "message",
+      id: "entry_included",
+      parentId: null,
+      timestamp: now,
+      message: { role: "user", content: "included", timestamp: 1 },
+    },
+    {
+      type: "message",
+      id: "entry_model_only",
+      parentId: "entry_included",
+      timestamp: now,
+      message: { role: "assistant", content: [], timestamp: 2 },
+    },
+  ] as Parameters<typeof extractExactHarnessMessages>[0];
+  assert.deepEqual(
+    extractExactHarnessMessages(entries, new Set(["entry_included"])),
+    {
+      entry_included: { role: "user", content: "included", timestamp: 1 },
+    },
+  );
+});
 
 test("INV-MIGRATE-02 converts a quiesced current-home journal with proof", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-current-home-migration-"));
@@ -80,6 +106,111 @@ test("INV-MIGRATE-02 converts a quiesced current-home journal with proof", async
     ],
   });
   const seedDatabase = new DatabaseSync(sqlitePath);
+  const modelOnlyEntryId = "entry_model_only";
+  const summaryEntryId = "entry_summary";
+  const insertLegacyRecord = seedDatabase.prepare(
+    `INSERT INTO conversation_records (
+       id, conversation_id, parent_id, sequence, revision, kind, status,
+       payload_version, data, created_at_ms, updated_at_ms
+     ) VALUES (?, 'conv_current', ?, ?, 1, ?, 'completed', 1, ?, ?, ?)`,
+  );
+  insertLegacyRecord.run(
+    modelOnlyEntryId,
+    "entry_current",
+    100,
+    "message",
+    Buffer.from(
+      JSON.stringify({
+        version: 1,
+        modelContext: {
+          visibility: "model_only",
+          entry: {
+            type: "thinking_level_change",
+            id: modelOnlyEntryId,
+            parentId: "entry_current",
+            timestamp: now,
+            thinkingLevel: "high",
+          },
+        },
+      }),
+    ),
+    Date.parse(now),
+    Date.parse(now),
+  );
+  insertLegacyRecord.run(
+    summaryEntryId,
+    modelOnlyEntryId,
+    101,
+    "summary",
+    Buffer.from(
+      JSON.stringify({
+        version: 1,
+        entry: {
+          id: summaryEntryId,
+          conversationId: "conv_current",
+          parentEntryId: modelOnlyEntryId,
+          role: "system",
+          kind: "compaction",
+          text: "preserved summary",
+          createdAt: now,
+        },
+        modelContext: {
+          visibility: "model_and_history",
+          entry: {
+            type: "compaction",
+            id: summaryEntryId,
+            parentId: modelOnlyEntryId,
+            timestamp: now,
+            summary: "preserved summary",
+            firstKeptEntryId: "entry_current",
+            tokensBefore: 10,
+          },
+        },
+      }),
+    ),
+    Date.parse(now),
+    Date.parse(now),
+  );
+  insertLegacyRecord.run(
+    "run_current",
+    summaryEntryId,
+    102,
+    "run",
+    Buffer.from(
+      JSON.stringify({
+        version: 1,
+        run: {
+          stateEpoch: 1,
+          conversationId: "conv_current",
+          agentId: "agent_current",
+          projectId: "proj_current",
+          runId: "run_current",
+          scopeId: "scope_current",
+          revision: 7,
+          status: "completed",
+          recoverability: "not_needed",
+          executionId: "exec_current",
+          attempt: 3,
+          createdAt: now,
+          updatedAt: now,
+          terminalAt: now,
+          cancellationEvidence: [],
+        },
+      }),
+    ),
+    Date.parse(now),
+    Date.parse(now),
+  );
+  seedDatabase
+    .prepare(
+      `UPDATE domain_documents
+          SET data = CAST(json_set(
+            CAST(data AS TEXT), '$.activeEntryId', ?
+          ) AS BLOB)
+        WHERE namespace = 'conversation' AND scope_id = 'global'
+          AND document_id = 'conv_current'`,
+    )
+    .run(summaryEntryId);
   seedDatabase
     .prepare(
       `INSERT INTO lifecycle_work (
@@ -123,16 +254,23 @@ test("INV-MIGRATE-02 converts a quiesced current-home journal with proof", async
   assert.equal(first[0]?.conversationId, "conv_current");
   assert.equal(
     (await store.readTimelineConversationHead("conv_current"))?.activeEntryId,
-    "entry_current",
+    "entry_summary",
   );
   const ancestry = await store.readTimelineAncestrySegment(
     "conv_current",
-    "entry_current",
-    1,
+    "entry_summary",
+    2,
   );
+  assert.equal(ancestry.entries[0]?.parentEntryId, "entry_current");
+  const migratedRun = await store.readTimelineRunControl(
+    "conv_current",
+    "run_current",
+  );
+  assert.equal(migratedRun?.generation, 1);
+  assert.equal(migratedRun?.revision, 1);
   assert.deepEqual(
     (
-      ancestry.entries[0]?.inlineContent as {
+      ancestry.entries[1]?.inlineContent as {
         exactHarnessMessage?: unknown;
       }
     ).exactHarnessMessage,

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -58,7 +59,7 @@ export class CanonicalBackupVerifier {
           `Backup entry size is invalid: ${entry.relativeLocator}`,
         );
       }
-      if (digestBytes(await readFile(path)) !== entry.digest) {
+      if ((await digestFile(path)) !== entry.digest) {
         throw new Error(
           `Backup entry digest is invalid: ${entry.relativeLocator}`,
         );
@@ -118,6 +119,12 @@ function resolveInside(root: string, locator: string): string {
     throw new Error(`Backup locator escapes its root: ${locator}`);
   }
   return path;
+}
+
+async function digestFile(path: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(path)) hash.update(chunk);
+  return `sha256:${hash.digest("hex")}`;
 }
 
 function digestBytes(bytes: Uint8Array): string {

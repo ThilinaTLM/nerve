@@ -115,7 +115,10 @@ describe("DesktopRuntime", () => {
         stopCount += 1;
       },
     };
-    const window = fakeWindow();
+    let loadCount = 0;
+    const window = fakeWindow(() => {
+      loadCount += 1;
+    });
     const ports = {
       application: {
         whenReady: async () => undefined,
@@ -145,7 +148,13 @@ describe("DesktopRuntime", () => {
         createMainWindow: () => window,
       },
       nativeTheme: { onUpdated: () => () => undefined },
-      prepareDataDirectory: async () => ({ status: "ready" }),
+      prepareDataDirectory: async (input: {
+        reportProgress?: (message: string) => void;
+      }) => {
+        assert.equal(loadCount, 1);
+        input.reportProgress?.("Migrating conversations (1 of 2)");
+        return { status: "ready" as const };
+      },
       readCurrentSettings: async () => defaultSettings,
       configureNetworkSession: async () => undefined,
       acquireDaemon: async () => daemon,
@@ -208,10 +217,12 @@ describe("DesktopRuntime", () => {
   });
 });
 
-function fakeWindow(): BrowserWindowType {
+function fakeWindow(onLoad?: () => void): BrowserWindowType {
   const window = {
     on: () => window,
-    loadURL: async () => undefined,
+    loadURL: async () => {
+      onLoad?.();
+    },
     isDestroyed: () => false,
     isVisible: () => true,
     isMinimized: () => false,

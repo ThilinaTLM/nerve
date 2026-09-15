@@ -1,3 +1,4 @@
+import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { ConversationHarnessStorage } from "../legacy-journal/conversation-harness-storage.js";
 import { ConversationJournalRepository } from "../legacy-journal/conversation-journal.repository.js";
@@ -25,6 +26,7 @@ export async function migrateLiveJournalToCanonical(input: {
   legacyHarness: ConversationHarnessStorage;
   importedAt: string;
   runtimeIsolation: "proven";
+  reportProgress?: (message: string) => void;
 }) {
   const admission = await input.store.disableTimelineRuntimeAdmission(
     input.importedAt,
@@ -40,10 +42,12 @@ export async function migrateLiveJournalToCanonical(input: {
     ),
     importedAt: input.importedAt,
     runtimeIsolation: input.runtimeIsolation,
-    readExactMessages: async (conversationId) =>
+    readExactMessages: async (conversationId, includedEntryIds) =>
       extractExactHarnessMessages(
         await input.legacyHarness.modelEntries(conversationId),
+        includedEntryIds,
       ),
+    reportProgress: input.reportProgress,
   });
 }
 
@@ -52,13 +56,26 @@ export async function promoteCurrentHomeAtStartup(input: {
   store: CanonicalStore;
   paths: StoragePaths;
   promotedAt: string;
+  reportProgress?: (message: string) => void;
 }) {
   const legacyCount = await input.store.migration.countLegacyRuntimeAuthority();
   if (legacyCount === 0) return undefined;
   await new CanonicalTimelineIdentityService(input.store).resolve();
-  await new CanonicalPortableBackupService(input.store, input.paths).create(
-    input.promotedAt,
+  const proofDirectory = join(
+    input.paths.migrationsPath,
+    "unified-conversation-timeline",
   );
+  if (await hasConversationMigrationProof(proofDirectory)) {
+    input.reportProgress?.(
+      "Resuming migration from the last completed conversation",
+    );
+  } else {
+    input.reportProgress?.("Creating a safety backup before migration");
+    await new CanonicalPortableBackupService(input.store, input.paths).create(
+      input.promotedAt,
+      input.reportProgress,
+    );
+  }
   const journal = new ConversationJournalRepository({
     paths: input.paths,
     canonicalStore: input.store,
@@ -91,6 +108,7 @@ export async function promoteLiveJournalToCanonical(input: {
   legacyHarness: ConversationHarnessStorage;
   promotedAt: string;
   runtimeIsolation: "proven";
+  reportProgress?: (message: string) => void;
 }) {
   const legacyAuthorityCount =
     await input.store.migration.countLegacyRuntimeAuthority();
@@ -120,4 +138,17 @@ export async function promoteLiveJournalToCanonical(input: {
     promotedAt: input.promotedAt,
   });
   return { proofs, retiredLegacyRows, promotion };
+}
+
+async function hasConversationMigrationProof(
+  proofDirectory: string,
+): Promise<boolean> {
+  try {
+    return (await readdir(proofDirectory)).some(
+      (name) => name.startsWith("conv_") && name.endsWith(".json"),
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
 }

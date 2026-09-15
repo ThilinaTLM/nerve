@@ -48,6 +48,7 @@ export class CanonicalHarnessLifecycleExecutor {
       conversationId: input.providerWork.conversationId,
       runId: input.providerWork.runId,
       agentId: input.agent.id,
+      projectId: input.agent.projectId,
       conversationCreatedAt: input.conversationCreatedAt,
     });
     if (resumed.kind === "rejected") {

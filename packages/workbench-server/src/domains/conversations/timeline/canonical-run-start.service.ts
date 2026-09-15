@@ -17,6 +17,7 @@ export interface CanonicalRunStartInput {
   conversationId: string;
   runId: string;
   agentId: string;
+  projectId?: string;
   prompt: string;
   images?: readonly unknown[];
   providerIdentity: Record<string, unknown>;
@@ -208,7 +209,27 @@ export class CanonicalRunStartService {
       providerPhases: [phase],
       lifecycleWorks: [work],
       outcome: run,
-      publicationIntents: [],
+      publicationIntents: input.projectId
+        ? [
+            {
+              intentId: `publication_run_started_${input.runId}`,
+              stream: `conv/${input.conversationId}`,
+              eventType: "run.started",
+              occurredAt: input.now,
+              conversationId: input.conversationId,
+              data: {
+                conversationId: input.conversationId,
+                agentId: input.agentId,
+                projectId: input.projectId,
+                runId: input.runId,
+                ...(head.activeEntryId
+                  ? { parentEntryId: head.activeEntryId }
+                  : {}),
+                startedAt: input.now,
+              },
+            },
+          ]
+        : [],
       now: input.now,
     });
     if (outcome.kind === "committed") return { kind: "started", run };

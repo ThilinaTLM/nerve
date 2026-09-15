@@ -16,7 +16,10 @@ import {
   type WaitGroup,
 } from "@nervekit/contracts/runs";
 import type { TimelineArtifactManifestWrite } from "../../../infrastructure/persistence/canonical-sqlite/timeline-checkpoint-database.js";
-import type { TimelineDomainDocumentWrite } from "../../../infrastructure/persistence/canonical-sqlite/timeline-command-contracts.js";
+import type {
+  TimelineDomainDocumentWrite,
+  TimelinePublicationIntent,
+} from "../../../infrastructure/persistence/canonical-sqlite/timeline-command-contracts.js";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import { CanonicalTimelineIdentityService } from "./canonical-timeline-identity.service.js";
 import { conversationCommandFingerprint } from "./command-fingerprint.js";
@@ -36,6 +39,7 @@ export interface CanonicalRunMutationIdentity {
   cause: Record<string, unknown>;
   requireRuntimeDispatchAdmission?: true;
   transitionId?: string;
+  publicationIntents?: readonly TimelinePublicationIntent[];
 }
 
 export type CanonicalRunMutationResult =
@@ -332,7 +336,9 @@ export class CanonicalRunTimelineService {
         ? [...execution.domainDocuments]
         : [],
       outcome: nextRun,
-      publicationIntents: [],
+      publicationIntents: input.publicationIntents
+        ? [...input.publicationIntents]
+        : [],
       now: input.now,
     });
     if (outcome.kind === "committed")
