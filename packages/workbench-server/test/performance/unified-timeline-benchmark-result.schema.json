@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nerve.local/schemas/unified-timeline-benchmark-result-v1.json",
+  "type": "object",
+  "required": ["schemaVersion", "seed", "filesystemClass", "cases"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "seed": { "type": "integer" },
+    "filesystemClass": { "type": "string", "minLength": 1 },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "historySize",
+          "sampleCount",
+          "pageP95Ms",
+          "appendTransactionP95Ms",
+          "queueWaitP95Ms",
+          "retainedEvidence"
+        ],
+        "properties": {
+          "historySize": { "enum": [100, 2000, 20000] },
+          "sampleCount": { "type": "integer", "minimum": 100 },
+          "pageP95Ms": { "type": "number", "minimum": 0 },
+          "appendTransactionP95Ms": { "type": "number", "minimum": 0 },
+          "queueWaitP95Ms": { "type": "number", "minimum": 0 },
+          "artifactPreparationP95Ms": { "type": "number", "minimum": 0 },
+          "projectionLagP95Ms": { "type": "number", "minimum": 0 },
+          "retainedEvidence": {
+            "type": "object",
+            "required": [
+              "commandReceipts",
+              "logicalEffects",
+              "ownerTombstones",
+              "diskBytes"
+            ],
+            "additionalProperties": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

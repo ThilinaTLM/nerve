@@ -53,10 +53,27 @@ test("INV-RESTORE-01 promotes a verified sibling home only during startup", asyn
   let storage: InitializedStorage | undefined = prepared.storage;
   try {
     assert.equal(dirname(prepared.staged.restorePath), dirname(prepared.home));
-    assert.equal(
-      JSON.parse(await readFile(homePromotionMarkerPath(prepared.home), "utf8"))
-        .state,
-      "requested",
+    const requestedMarker = JSON.parse(
+      await readFile(homePromotionMarkerPath(prepared.home), "utf8"),
+    ) as {
+      schemaVersion: number;
+      operationKind: string;
+      verifierKind: string;
+      state: string;
+    };
+    assert.deepEqual(
+      {
+        schemaVersion: requestedMarker.schemaVersion,
+        operationKind: requestedMarker.operationKind,
+        verifierKind: requestedMarker.verifierKind,
+        state: requestedMarker.state,
+      },
+      {
+        schemaVersion: 2,
+        operationKind: "restore",
+        verifierKind: "restore_v1",
+        state: "requested",
+      },
     );
     await storage.canonicalStore.close();
     storage = await initializeStorage(prepared.home);

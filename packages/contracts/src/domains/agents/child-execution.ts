@@ -9,6 +9,14 @@ export const childExecutionRelationshipSchema = z.object({
   parentToolCallId: z.string().startsWith("tool_"),
   parentWaitGroupId: z.string().startsWith("wait_group_").optional(),
   parentMemberId: z.string().startsWith("member_").optional(),
+  registrationRevision: z.number().int().positive().safe().optional(),
+  registeredParentHeadId: z.string().startsWith("entry_").nullable().optional(),
+  registeredParentSelectionEpoch: z
+    .number()
+    .int()
+    .nonnegative()
+    .safe()
+    .optional(),
   childAgentId: z.string().startsWith("agent_"),
   childConversationId: z.string().startsWith("conv_"),
   childRunId: z.string().startsWith("run_"),
@@ -20,6 +28,18 @@ export const childExecutionRelationshipSchema = z.object({
     "cancelled",
     "detached",
   ]),
+  dispatchEvidence: z
+    .enum(["not_dispatched", "dispatch_started", "possibly_dispatched"])
+    .optional(),
+  terminalOutcome: z.enum(["completed", "failed", "cancelled"]).optional(),
+  attachmentState: z
+    .enum(["pending", "attached", "detached", "unknown"])
+    .optional(),
+  attachmentEntryId: z.string().startsWith("entry_").optional(),
+  attachmentTransitionId: z.string().startsWith("transition_").optional(),
+  cancellationRequestedAt: z.string().datetime({ offset: true }).optional(),
+  nonDispatchProvenAt: z.string().datetime({ offset: true }).optional(),
+  resultArtifactManifestId: z.string().startsWith("manifest_").optional(),
   resultDigest: z
     .string()
     .regex(/^sha256:[a-f0-9]{64}$/)

@@ -12,7 +12,7 @@ import { CanonicalStore } from "../../../src/infrastructure/persistence/canonica
 const hash = `sha256:${"a".repeat(64)}`;
 const now = "2026-09-12T00:00:00.000Z";
 
-test("INV-EFFECT-01 atomically authorizes an effect and claims its attempt", async (t) => {
+test("INV-EFFECT-01 INV-CLAIM-01 atomically authorizes an effect and claims its attempt", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-unified-effect-"));
   const store = new CanonicalStore(join(home, "nerve.sqlite"));
   await store.initialize();

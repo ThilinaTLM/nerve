@@ -1,5 +1,7 @@
 const migrationPath =
   "packages/workbench-server/src/infrastructure/migrations/unified-timeline/";
+const allMigrationsPath =
+  "packages/workbench-server/src/infrastructure/migrations/";
 const serverRuntimeRoot = "packages/workbench-server/src/";
 const timelineRuntimeRoot =
   "packages/workbench-server/src/domains/conversations/timeline/";
@@ -40,6 +42,23 @@ const fullyRetiredRuntimeSymbols = [
   "class WorkbenchRunService",
 ];
 
+const migrationOnlySymbols = [
+  "CanonicalMigrationStore",
+  ".migration.listConversationMetadata",
+  ".migration.readConversationEntries",
+  ".migration.retireLegacyRuntimeAuthority",
+  "ConversationJournalRepository",
+  "ConversationHarnessStorage",
+];
+
+const legacyLifecycleSymbols = [
+  "run_lifecycle_records",
+  "lifecycle_execution_attempts",
+  "lifecycle_tool_proposals",
+  "conversation_journal_head",
+  "conversation_journal_commit",
+];
+
 const retiredAuthoritySymbols = [
   "model_context.entry_appended",
   "model_context.leaf_changed",
@@ -52,9 +71,7 @@ export function unifiedTimelinePolicyViolations(file, text) {
   const violations = [];
   if (
     file.startsWith(serverRuntimeRoot) &&
-    !file.startsWith(
-      "packages/workbench-server/src/infrastructure/migrations/",
-    ) &&
+    !file.startsWith(allMigrationsPath) &&
     file !==
       "packages/workbench-server/src/infrastructure/storage-bootstrap/initialize.ts" &&
     text.includes("infrastructure/migrations/unified-timeline")
@@ -78,6 +95,38 @@ export function unifiedTimelinePolicyViolations(file, text) {
       if (text.includes(symbol)) {
         violations.push(
           `production composition uses retired authority: ${symbol}`,
+        );
+      }
+    }
+  }
+  if (productionCompositionRoots.some((root) => file.startsWith(root))) {
+    for (const symbol of migrationOnlySymbols) {
+      if (text.includes(symbol)) {
+        violations.push(
+          `production composition reaches a migration-only facet: ${symbol}`,
+        );
+      }
+    }
+  }
+  if (
+    file.startsWith("packages/workbench-server/src/domains/") &&
+    !file.endsWith("/canonical-tool-settlement.service.ts") &&
+    !file.endsWith("/canonical-interaction-resolution.service.ts") &&
+    /attachmentDisposition:\s*["']attached["']/.test(text)
+  ) {
+    violations.push(
+      "parent wait-member attachment belongs to canonical settlement",
+    );
+  }
+  if (
+    (file.startsWith("packages/workbench-server/src/domains/") ||
+      productionCompositionRoots.some((root) => file.startsWith(root))) &&
+    !file.startsWith(allMigrationsPath)
+  ) {
+    for (const symbol of legacyLifecycleSymbols) {
+      if (text.includes(symbol)) {
+        violations.push(
+          `runtime references legacy lifecycle authority: ${symbol}`,
         );
       }
     }

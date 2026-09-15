@@ -73,7 +73,9 @@ export const restorePromotionSchema = z
   });
 export type RestorePromotion = z.infer<typeof restorePromotionSchema>;
 
-export const homePromotionMarkerSchema = z.object({
+// Version 1 was restore-specific. It remains readable only so an interrupted
+// released promotion can be normalized at startup; new requests write v2.
+export const legacyRestorePromotionMarkerSchema = z.object({
   schemaVersion: z.literal(1),
   restoreId: z.string().startsWith("restore_"),
   backupId: z.string().startsWith("backup_"),
@@ -90,6 +92,48 @@ export const homePromotionMarkerSchema = z.object({
   requestedAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
+export type LegacyRestorePromotionMarker = z.infer<
+  typeof legacyRestorePromotionMarkerSchema
+>;
+
+export const homePromotionMarkerSchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    operationKind: z.enum(["restore", "legacy_v2_migration"]),
+    operationId: z.string().min(1).max(256),
+    candidateEvidenceId: z.string().min(1).max(512),
+    candidateEvidenceDigest: digestSchema,
+    sourceAuthorityId: z.string().min(1).max(512),
+    verifierKind: z.enum(["restore_v1", "legacy_v2_canonical_v1"]),
+    rollbackDisposition: z.enum(["retain_sibling", "archive_under_live"]),
+    archiveRelativePath: z.string().min(1).max(2_048).optional(),
+    liveHomeName: z.string().min(1).max(255),
+    candidateHomeName: z.string().min(1).max(255),
+    rollbackHomeName: z.string().min(1).max(255),
+    state: z.enum([
+      "requested",
+      "old_home_renamed",
+      "candidate_promoted",
+      "home_verified",
+      "admitted",
+      "archived",
+      "verified",
+    ]),
+    requestedAt: isoDateTimeSchema,
+    updatedAt: isoDateTimeSchema,
+  })
+  .superRefine((value, context) => {
+    if (
+      value.rollbackDisposition === "archive_under_live" &&
+      !value.archiveRelativePath
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["archiveRelativePath"],
+        message: "Archived rollback promotions require an archive path.",
+      });
+    }
+  });
 export type HomePromotionMarker = z.infer<typeof homePromotionMarkerSchema>;
 
 export const runtimeAdmissionSchema = z.object({

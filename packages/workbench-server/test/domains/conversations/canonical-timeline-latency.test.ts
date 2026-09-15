@@ -12,11 +12,12 @@ import { CanonicalStore } from "../../../src/infrastructure/persistence/canonica
 const BATCHES = 50;
 const ENTRIES_PER_BATCH = 40;
 const PAGE_SIZE = 50;
-const SAMPLES = 30;
+const WARMUPS = 10;
+const SAMPLES = 100;
 const P95_BUDGET_MS = 250;
 
 /** Conservative smoke budget; structural page size is the primary bound. */
-test("INV-PAGE-01 bounded history paging stays structurally bounded", async (t) => {
+test("INV-PAGE-01 INV-PERF-01 bounded history paging stays structurally bounded", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-timeline-latency-"));
   const store = new CanonicalStore(join(home, "nerve.sqlite"));
   await store.initialize();
@@ -48,7 +49,7 @@ test("INV-PAGE-01 bounded history paging stays structurally bounded", async (t) 
       entries: Array.from({ length: ENTRIES_PER_BATCH }, (_, offset) => ({
         entryId: `entry_latency_${batch}_${offset}`,
         kind: "user_message" as const,
-        inlineContent: { text: `seed ${batch}:${offset} ${"x".repeat(128)}` },
+        inlineContent: { text: `seed ${batch}:${offset} ${"x".repeat(1024)}` },
       })),
     });
     const outcome = await store.commitConversationCommand({
@@ -79,13 +80,13 @@ test("INV-PAGE-01 bounded history paging stays structurally bounded", async (t) 
 
   const pages = new CanonicalTimelinePageService(store, Buffer.alloc(32, 7));
   const durations: number[] = [];
-  for (let sample = 0; sample < SAMPLES; sample += 1) {
+  for (let sample = 0; sample < WARMUPS + SAMPLES; sample += 1) {
     const started = performance.now();
     const outcome = await pages.page({
       conversationId: head.conversationId,
       pageSize: PAGE_SIZE,
     });
-    durations.push(performance.now() - started);
+    if (sample >= WARMUPS) durations.push(performance.now() - started);
     assert.equal(outcome.kind, "page");
     assert.equal(
       outcome.kind === "page" ? outcome.page.entries.length : 0,

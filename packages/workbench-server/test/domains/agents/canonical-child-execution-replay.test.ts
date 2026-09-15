@@ -41,6 +41,9 @@ test("INV-AGENT-01 replays a completed child result without redispatch", async (
     assert.equal(dispatches, 1);
     const [relationship] = await service.listForParentRun(input.parentRunId);
     assert.equal(relationship?.state, "completed");
+    assert.equal(relationship?.terminalOutcome, "completed");
+    assert.equal(relationship?.dispatchEvidence, "dispatch_started");
+    assert.equal(relationship?.attachmentState, "detached");
     assert.equal(relationship?.resultText, "durable child report");
   } finally {
     await storage.canonicalStore.close();

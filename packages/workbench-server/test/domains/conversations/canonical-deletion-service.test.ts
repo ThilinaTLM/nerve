@@ -11,7 +11,7 @@ import { CanonicalRunStartService } from "../../../src/domains/conversations/tim
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
-test("INV-DELETE-01 fences dispatch and foreground ownership before cleanup", async (t) => {
+test("INV-DELETE-01 INV-DELIVERY-01 fences dispatch and publishes deletion exactly once", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-canonical-delete-"));
   const databasePath = join(home, "nerve.sqlite");
   let store = new CanonicalStore(databasePath);

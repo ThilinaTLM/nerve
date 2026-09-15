@@ -5,6 +5,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   stat,
   writeFile,
@@ -14,7 +15,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { ConversationJournalRepository } from "../../../src/infrastructure/migrations/legacy-journal/conversation-journal.repository.js";
 import {
   inspectLegacyV2Home,
   migrateLegacyV2Home,
@@ -288,13 +288,20 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
     "migration-secret-value",
   );
   assert.equal(await secrets.get("task:task_legacy:launchConfig"), undefined);
-  assert.equal(
-    (
-      await new ConversationJournalRepository(storage).load(
-        "conv_migration_test",
-      )
-    ).entries[0]?.text,
-    "Preserve this message",
+  const migratedDatabase = new DatabaseSync(storage.paths.sqlitePath, {
+    readOnly: true,
+  });
+  const migratedEntryPayloads = migratedDatabase
+    .prepare(
+      "SELECT inline_content_json FROM conversation_entries WHERE conversation_id = ? ORDER BY ordinal",
+    )
+    .all("conv_migration_test") as Array<{ inline_content_json: Uint8Array }>;
+  migratedDatabase.close();
+  assert.match(
+    migratedEntryPayloads
+      .map((row) => Buffer.from(row.inline_content_json).toString("utf8"))
+      .join("\n"),
+    /Preserve this message/,
   );
   assert.equal(
     await readFile(join(storage.paths.plansPath, "migration.md"), "utf8"),
@@ -344,8 +351,38 @@ for (const phase of ["source-renamed", "staging-promoted"] as const) {
       await assert.rejects(
         migrateLegacyV2Home(home, {
           now: () => new Date(now),
-          afterPromotionPhase(current) {
+          async afterPromotionPhase(current) {
             if (!failed && current === phase) {
+              const candidate =
+                current === "staging-promoted"
+                  ? home
+                  : join(
+                      parent,
+                      (await readdir(parent)).find((name) =>
+                        name.startsWith(".home.migration-"),
+                      )!,
+                    );
+              const candidateDatabase = new DatabaseSync(
+                join(candidate, "data", "nerve.sqlite"),
+                { readOnly: true },
+              );
+              const legacy = candidateDatabase
+                .prepare(
+                  "SELECT COUNT(*) AS count FROM domain_documents WHERE namespace IN ('conversation_state','conversation_journal_head','conversation_journal_commit')",
+                )
+                .get() as { count: number };
+              const canonical = candidateDatabase
+                .prepare("SELECT COUNT(*) AS count FROM conversations")
+                .get() as { count: number };
+              const admission = candidateDatabase
+                .prepare(
+                  "SELECT dispatch_state FROM runtime_admission WHERE singleton = 1",
+                )
+                .get() as { dispatch_state: string };
+              candidateDatabase.close();
+              assert.equal(legacy.count, 0);
+              assert.equal(canonical.count, 1);
+              assert.equal(admission.dispatch_state, "disabled");
               failed = true;
               throw new Error(`injected ${phase} failure`);
             }

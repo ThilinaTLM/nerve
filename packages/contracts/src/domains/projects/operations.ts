@@ -132,6 +132,23 @@ export const projectsOperationDefinitions = [
         kind: z.literal("external_conflict"),
         currentDocumentDigest: z.string().optional(),
       }),
+      z.object({
+        kind: z.literal("quarantine_created_reset_not_written"),
+        quarantineIdentity: z.string(),
+        errorMessage: z.string(),
+      }),
+      z.object({
+        kind: z.literal("reset_written_reload_failed"),
+        documentIdentity: z.string(),
+        quarantineIdentity: z.string().optional(),
+        errorMessage: z.string(),
+      }),
+      z.object({
+        kind: z.literal("trust_failed"),
+        documentIdentity: z.string(),
+        quarantineIdentity: z.string().optional(),
+        errorMessage: z.string(),
+      }),
     ]),
     "mutation",
     "required",

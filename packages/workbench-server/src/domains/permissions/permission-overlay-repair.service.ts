@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { PermissionOverlayOrigin } from "@nervekit/contracts/permissions";
+import {
+  permissionOverlayDocumentSchema,
+  type PermissionOverlayOrigin,
+} from "@nervekit/contracts/permissions";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import {
@@ -31,6 +34,23 @@ export class PermissionOverlayRepairService {
   }): Promise<
     | { kind: "reset"; documentIdentity: string; quarantineIdentity?: string }
     | { kind: "external_conflict"; currentDocumentDigest?: string }
+    | {
+        kind: "quarantine_created_reset_not_written";
+        quarantineIdentity: string;
+        errorMessage: string;
+      }
+    | {
+        kind: "reset_written_reload_failed";
+        documentIdentity: string;
+        quarantineIdentity?: string;
+        errorMessage: string;
+      }
+    | {
+        kind: "trust_failed";
+        documentIdentity: string;
+        quarantineIdentity?: string;
+        errorMessage: string;
+      }
   > {
     const path = this.overlayPath(input.origin, input.ownerId);
     return this.exclusive(path, async () => {
@@ -58,14 +78,45 @@ export class PermissionOverlayRepairService {
         quarantineIdentity = `${input.origin}-${currentDocumentDigest.slice(7, 23)}.json`;
         await copyFile(path, join(quarantineDir, quarantineIdentity));
       }
-      await atomicWriteJson(path, emptyOverlay, 0o600);
+      try {
+        await atomicWriteJson(path, emptyOverlay, 0o600);
+      } catch (error) {
+        if (!quarantineIdentity) throw error;
+        return {
+          kind: "quarantine_created_reset_not_written" as const,
+          quarantineIdentity,
+          errorMessage: message(error),
+        };
+      }
+      const documentIdentity = `${input.origin}:permissions.json`;
+      try {
+        permissionOverlayDocumentSchema.parse(
+          JSON.parse(await readFile(path, "utf8")),
+        );
+      } catch (error) {
+        return {
+          kind: "reset_written_reload_failed" as const,
+          documentIdentity,
+          ...(quarantineIdentity ? { quarantineIdentity } : {}),
+          errorMessage: message(error),
+        };
+      }
       if (input.origin === "project") {
         if (!input.ownerId) throw new Error("Project ID is required.");
-        await this.deps.trustProject(input.ownerId);
+        try {
+          await this.deps.trustProject(input.ownerId);
+        } catch (error) {
+          return {
+            kind: "trust_failed" as const,
+            documentIdentity,
+            ...(quarantineIdentity ? { quarantineIdentity } : {}),
+            errorMessage: message(error),
+          };
+        }
       }
       return {
         kind: "reset" as const,
-        documentIdentity: `${input.origin}:permissions.json`,
+        documentIdentity,
         ...(quarantineIdentity ? { quarantineIdentity } : {}),
       };
     });
@@ -107,6 +158,10 @@ export class PermissionOverlayRepairService {
       if (this.queues.get(key) === tail) this.queues.delete(key);
     });
   }
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function digest(content: string): string {

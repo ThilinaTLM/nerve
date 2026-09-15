@@ -7,12 +7,8 @@ import {
   unifiedTimelineMutationInventory,
 } from "./unified-timeline-coverage.js";
 
-const proposalDirectory = fileURLToPath(
-  new URL(
-    "../../../../docs/proposals/unified-conversation-timeline/",
-    import.meta.url,
-  ),
-);
+const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+const proposalDirectory = `${repositoryRoot}docs/proposals/unified-conversation-timeline/`;
 
 const proposalFiles = [
   "timeline.md",
@@ -36,9 +32,42 @@ test("INV-COVERAGE-01 maps every owning unified-timeline invariant once", () => 
   const mapped = unifiedTimelineInvariantCoverage.map(([id]) => id);
   assert.equal(new Set(mapped).size, mapped.length, "duplicate coverage ID");
   assert.deepEqual([...mapped].sort(), [...documented].sort());
-  for (const [, phase, evidence] of unifiedTimelineInvariantCoverage) {
+  const soleOwners = new Map<string, string[]>();
+  for (const [
+    id,
+    phase,
+    description,
+    evidence,
+  ] of unifiedTimelineInvariantCoverage) {
     assert.ok(phase >= 1 && phase <= 10);
-    assert.ok(evidence.length > 0);
+    assert.ok(description.length > 0);
+    assert.ok(evidence.length > 0, `${id} has no executable evidence`);
+    for (const item of evidence) {
+      assert.match(item.file, /\.test\.(?:ts|mjs)$/);
+      assert.doesNotMatch(item.file, /legacy-journal|retired|deleted/);
+      const text = readFileSync(`${repositoryRoot}${item.file}`, "utf8");
+      assert.ok(
+        text.includes(item.testId),
+        `${id} references missing test '${item.testId}' in ${item.file}`,
+      );
+      const key = `${item.file}\0${item.testId}`;
+      soleOwners.set(key, [...(soleOwners.get(key) ?? []), id]);
+    }
+  }
+  for (const [key, owners] of soleOwners) {
+    if (owners.length < 2) continue;
+    const relatedOwnerSets = [
+      ["INV-PAGE-01", "INV-VIEW-01"],
+      ["INV-CLAIM-01", "INV-EFFECT-01"],
+      ["INV-DELETE-01", "INV-DELIVERY-01"],
+    ];
+    assert.ok(
+      relatedOwnerSets.some(
+        (allowed) =>
+          JSON.stringify([...owners].sort()) === JSON.stringify(allowed),
+      ),
+      `unrelated invariants share sole evidence ${key}`,
+    );
   }
 });
 

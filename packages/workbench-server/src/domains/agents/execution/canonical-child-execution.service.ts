@@ -64,6 +64,11 @@ export class CanonicalChildExecutionService {
         member.ownerId === input.parentToolCallId &&
         member.memberKind === "child_agent",
     );
+    const registeredParentHead = parentWait
+      ? await this.deps.store.readTimelineConversationHead(
+          input.parent.conversationId,
+        )
+      : undefined;
     const registered = childExecutionRelationshipSchema.parse({
       schemaVersion: 1,
       relationshipId,
@@ -75,12 +80,18 @@ export class CanonicalChildExecutionService {
         ? {
             parentWaitGroupId: parentWait.waitGroupId,
             parentMemberId: parentMember.memberId,
+            registrationRevision: parentWait.revision + 1,
+            registeredParentHeadId: registeredParentHead?.activeEntryId ?? null,
+            registeredParentSelectionEpoch:
+              registeredParentHead?.selectionEpoch ?? 0,
           }
         : {}),
       childAgentId: input.child.id,
       childConversationId: input.child.conversationId,
       childRunId: input.childRunId,
       state: "registered",
+      dispatchEvidence: "not_dispatched",
+      attachmentState: parentWait && parentMember ? "pending" : "detached",
       revision: 1,
       createdAt: now,
       updatedAt: now,
@@ -91,10 +102,31 @@ export class CanonicalChildExecutionService {
       await this.write(registered, 0);
     }
     const dispatchStartedAt = new Date().toISOString();
+    if (parentWait && parentMember) {
+      const applicable = await this.parentDispatchIsApplicable(registered);
+      if (!applicable) {
+        await this.write(
+          {
+            ...registered,
+            state: "detached",
+            dispatchEvidence: "not_dispatched",
+            attachmentState: "detached",
+            nonDispatchProvenAt: dispatchStartedAt,
+            revision: 2,
+            updatedAt: dispatchStartedAt,
+          },
+          1,
+        );
+        throw new Error(
+          "Canonical child dispatch was fenced by its parent state.",
+        );
+      }
+    }
     await this.write(
       {
         ...registered,
         state: "running",
+        dispatchEvidence: "dispatch_started",
         dispatchStartedAt,
         revision: 2,
         updatedAt: dispatchStartedAt,
@@ -112,6 +144,8 @@ export class CanonicalChildExecutionService {
         {
           ...registered,
           state: "completed",
+          dispatchEvidence: "dispatch_started",
+          terminalOutcome: "completed",
           resultDigest: digest(report),
           resultText: report,
           dispatchStartedAt,
@@ -126,6 +160,11 @@ export class CanonicalChildExecutionService {
         {
           ...registered,
           state: input.signal?.aborted ? "cancelled" : "failed",
+          dispatchEvidence: "possibly_dispatched",
+          terminalOutcome: input.signal?.aborted ? "cancelled" : "failed",
+          ...(input.signal?.aborted
+            ? { cancellationRequestedAt: new Date().toISOString() }
+            : {}),
           dispatchStartedAt,
           errorMessage: error instanceof Error ? error.message : String(error),
           revision: 3,
@@ -135,6 +174,37 @@ export class CanonicalChildExecutionService {
       );
       throw error;
     }
+  }
+
+  private async parentDispatchIsApplicable(
+    relationship: ChildExecutionRelationship,
+  ): Promise<boolean> {
+    if (!relationship.parentWaitGroupId || !relationship.parentMemberId)
+      return false;
+    const [run, head, waitGroup] = await Promise.all([
+      this.deps.store.readTimelineRunControl(
+        relationship.parentConversationId,
+        relationship.parentRunId,
+      ),
+      this.deps.store.readTimelineConversationHead(
+        relationship.parentConversationId,
+      ),
+      this.deps.store.execution.findWaitGroupByMemberOwner(
+        relationship.parentToolCallId,
+      ),
+    ]);
+    const member = waitGroup?.members.find(
+      (candidate) => candidate.memberId === relationship.parentMemberId,
+    );
+    return Boolean(
+      run?.foregroundOwned &&
+      ["running", "waiting", "partially_waiting"].includes(run.state) &&
+      head?.selectionEpoch === relationship.registeredParentSelectionEpoch &&
+      head?.activeEntryId === relationship.registeredParentHeadId &&
+      waitGroup?.waitGroupId === relationship.parentWaitGroupId &&
+      waitGroup.revision >= (relationship.registrationRevision ?? 0) &&
+      member?.executionState === "executing",
+    );
   }
 
   private assertSameRelationship(
@@ -192,14 +262,29 @@ export class CanonicalChildExecutionService {
         ["running", "waiting", "partially_waiting"].includes(childRun.state),
       );
       if (childActive && parentApplicable) continue;
+      const detached = !parentApplicable;
+      const registeredWithoutDispatch =
+        relationship.state === "registered" &&
+        relationship.dispatchEvidence !== "dispatch_started" &&
+        relationship.dispatchEvidence !== "possibly_dispatched";
       await this.write(
         {
           ...relationship,
-          state: !parentApplicable
+          state: detached
             ? "detached"
             : childRun?.state === "completed"
               ? "completed"
               : "failed",
+          dispatchEvidence: registeredWithoutDispatch
+            ? "not_dispatched"
+            : (relationship.dispatchEvidence ?? "possibly_dispatched"),
+          attachmentState: detached ? "detached" : relationship.attachmentState,
+          ...(registeredWithoutDispatch
+            ? { nonDispatchProvenAt: new Date().toISOString() }
+            : {}),
+          ...(detached && !registeredWithoutDispatch
+            ? { cancellationRequestedAt: new Date().toISOString() }
+            : {}),
           ...(childRun?.recoveryReason
             ? { errorMessage: childRun.recoveryReason }
             : {}),

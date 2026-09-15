@@ -1,4 +1,8 @@
 import { createHash } from "node:crypto";
+import {
+  childExecutionRelationshipSchema,
+  type ChildExecutionRelationship,
+} from "@nervekit/contracts/agents";
 import type { MutationOutcome } from "@nervekit/contracts/conversations";
 import type {
   CanonicalExecutionAttempt,
@@ -43,18 +47,23 @@ export class CanonicalToolSettlementService {
       | "non_repeatable_or_unknown";
   }): Promise<CanonicalToolSettlementResult> {
     const snapshot = input.snapshot;
-    const [head, run, effect, attempt, claim, work, group] = await Promise.all([
-      this.store.readTimelineConversationHead(snapshot.conversationId),
-      this.store.readTimelineRunControl(
-        snapshot.conversationId,
-        snapshot.runId,
-      ),
-      this.store.execution.readEffect(snapshot.effect.effectId),
-      this.store.execution.readAttempt(snapshot.attempt.attemptId),
-      this.store.execution.readClaim(snapshot.claim.claimId),
-      this.store.execution.readLifecycleWork(snapshot.work.workId),
-      this.store.execution.readWaitGroup(snapshot.waitGroup.waitGroupId),
-    ]);
+    const [head, run, effect, attempt, claim, work, group, childDocuments] =
+      await Promise.all([
+        this.store.readTimelineConversationHead(snapshot.conversationId),
+        this.store.readTimelineRunControl(
+          snapshot.conversationId,
+          snapshot.runId,
+        ),
+        this.store.execution.readEffect(snapshot.effect.effectId),
+        this.store.execution.readAttempt(snapshot.attempt.attemptId),
+        this.store.execution.readClaim(snapshot.claim.claimId),
+        this.store.execution.readLifecycleWork(snapshot.work.workId),
+        this.store.execution.readWaitGroup(snapshot.waitGroup.waitGroupId),
+        this.store.listDocuments<unknown>(
+          "canonical_child_execution",
+          snapshot.runId,
+        ),
+      ]);
     const anchorStillApplies = head?.activeEntryId
       ? await this.store.timelineEntryIsAncestor(
           snapshot.conversationId,
@@ -65,6 +74,44 @@ export class CanonicalToolSettlementService {
     const member = group?.members.find(
       (candidate) => candidate.memberId === snapshot.effect.memberId,
     );
+    const childDocument = childDocuments.find((document) => {
+      const parsed = childExecutionRelationshipSchema.safeParse(document.data);
+      return (
+        member?.memberKind === "child_agent" &&
+        parsed.success &&
+        parsed.data.parentToolCallId === member.ownerId
+      );
+    });
+    const childRelationship = childDocument
+      ? childExecutionRelationshipSchema.parse(childDocument.data)
+      : undefined;
+    const resultData = {
+      schemaVersion: 1,
+      effectId: effect?.effectId ?? snapshot.effect.effectId,
+      attemptId: attempt?.attemptId ?? snapshot.attempt.attemptId,
+      inputFingerprint:
+        effect?.normalizedInputFingerprint ??
+        snapshot.effect.normalizedInputFingerprint,
+      result: input.result,
+      failed: input.failed,
+    };
+    const digest = createHash("sha256")
+      .update(canonicalConversationJson(resultData))
+      .digest("hex");
+    if (
+      effect?.state === "settled" &&
+      (attempt?.outcome as { digest?: string } | undefined)?.digest ===
+        `sha256:${digest}` &&
+      member?.attachmentDisposition === "attached" &&
+      member.resultEntryId === input.resultEntryId
+    ) {
+      return {
+        kind: "receipt_replay",
+        resultEntryId: input.resultEntryId,
+        continuationScheduled:
+          group?.state === "ready" || group?.state === "closed",
+      };
+    }
     if (
       !head ||
       !run ||
@@ -93,17 +140,6 @@ export class CanonicalToolSettlementService {
     ) {
       return rejected("tool_settlement_fence_changed");
     }
-    const resultData = {
-      schemaVersion: 1,
-      effectId: effect.effectId,
-      attemptId: attempt.attemptId,
-      inputFingerprint: effect.normalizedInputFingerprint,
-      result: input.result,
-      failed: input.failed,
-    };
-    const digest = createHash("sha256")
-      .update(canonicalConversationJson(resultData))
-      .digest("hex");
     const manifestId = `manifest_tool_result_${effect.effectId.slice("effect_".length)}`;
     const settledEffect: LogicalEffect = { ...effect, state: "settled" };
     const settledAttempt: CanonicalExecutionAttempt = {
@@ -179,10 +215,25 @@ export class CanonicalToolSettlementService {
           updatedAt: input.now,
         }
       : undefined;
+    const attachmentTransitionId = `transition_tool_result_${attempt.attemptId.slice("attempt_".length)}`;
+    const attachedChild: ChildExecutionRelationship | undefined =
+      childRelationship?.state === "completed" &&
+      childRelationship.attachmentState === "pending"
+        ? childExecutionRelationshipSchema.parse({
+            ...childRelationship,
+            attachmentState: "attached",
+            attachmentEntryId: input.resultEntryId,
+            attachmentTransitionId,
+            resultArtifactManifestId: manifestId,
+            revision: childRelationship.revision + 1,
+            updatedAt: input.now,
+          })
+        : undefined;
     const result = await this.timeline.append({
       conversationId: snapshot.conversationId,
       runId: snapshot.runId,
       commandId: `settle-tool-result:${attempt.attemptId}`,
+      transitionId: attachmentTransitionId,
       now: input.now,
       actor: { kind: "worker", workerId: input.workerId },
       cause: {
@@ -193,7 +244,7 @@ export class CanonicalToolSettlementService {
       entries: [
         {
           entryId: input.resultEntryId,
-          kind: "tool_result",
+          kind: attachedChild ? "child_result" : "tool_result",
           inlineContent: {
             exactHarnessMessage: input.exactHarnessMessage,
             failed: input.failed,
@@ -226,6 +277,19 @@ export class CanonicalToolSettlementService {
         settledWork,
         ...(continuationWork ? [continuationWork] : []),
       ],
+      domainDocuments:
+        attachedChild && childDocument
+          ? [
+              {
+                namespace: "canonical_child_execution",
+                scopeId: snapshot.runId,
+                documentId: attachedChild.relationshipId,
+                expectedRevision: childDocument.revision,
+                payloadVersion: 1,
+                data: attachedChild,
+              },
+            ]
+          : [],
       providerPhaseId: null,
       waitGroupId: group.waitGroupId,
       runState: allSettled ? "waiting" : "partially_waiting",

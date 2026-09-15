@@ -22,6 +22,38 @@ test("canonical timeline rejects retired transcript authorities", () => {
   );
 });
 
+test("production composition cannot reach migration-only facets", () => {
+  assert.deepEqual(
+    unifiedTimelinePolicyViolations(
+      "packages/workbench-server/src/app/runtime/example.ts",
+      "const store = new CanonicalMigrationStore();",
+    ),
+    [
+      "production composition reaches a migration-only facet: CanonicalMigrationStore",
+    ],
+  );
+});
+
+test("parent wait attachment is owned by canonical settlement", () => {
+  assert.deepEqual(
+    unifiedTimelinePolicyViolations(
+      "packages/workbench-server/src/domains/agents/example.ts",
+      'const member = { attachmentDisposition: "attached" };',
+    ),
+    ["parent wait-member attachment belongs to canonical settlement"],
+  );
+});
+
+test("runtime cannot reference legacy lifecycle tables", () => {
+  assert.deepEqual(
+    unifiedTimelinePolicyViolations(
+      "packages/workbench-server/src/domains/runs/example.ts",
+      "SELECT * FROM run_lifecycle_records",
+    ),
+    ["runtime references legacy lifecycle authority: run_lifecycle_records"],
+  );
+});
+
 test("migration modules may retain source-format vocabulary", () => {
   assert.deepEqual(
     unifiedTimelinePolicyViolations(

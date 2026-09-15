@@ -70,6 +70,10 @@ export function countLegacyRuntimeAuthority(database: DatabaseSync): number {
     .prepare(
       `SELECT
          (SELECT COUNT(*) FROM conversation_records) +
+         (SELECT COUNT(*) FROM domain_documents WHERE namespace IN (
+           'conversation_state', 'conversation_journal_head',
+           'conversation_journal_commit'
+         )) +
          (SELECT COUNT(*) FROM lifecycle_work) +
          (SELECT COUNT(*) FROM run_lifecycle_records) +
          (SELECT COUNT(*) FROM reconciliation_operations) AS count`,
@@ -105,6 +109,12 @@ export function retireLegacyRuntimeAuthority(database: DatabaseSync): number {
       DELETE FROM durable_event_stream_counters;
       DELETE FROM rpc_idempotency;
       DELETE FROM agent_context_leaves;
+      DELETE FROM domain_documents
+       WHERE namespace IN (
+         'conversation_state',
+         'conversation_journal_head',
+         'conversation_journal_commit'
+       );
     `);
     let removed = 1;
     while (removed > 0) {

@@ -16,6 +16,7 @@ import {
   type WaitGroup,
 } from "@nervekit/contracts/runs";
 import type { TimelineArtifactManifestWrite } from "../../../infrastructure/persistence/canonical-sqlite/timeline-checkpoint-database.js";
+import type { TimelineDomainDocumentWrite } from "../../../infrastructure/persistence/canonical-sqlite/timeline-command-contracts.js";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import { CanonicalTimelineIdentityService } from "./canonical-timeline-identity.service.js";
 import { conversationCommandFingerprint } from "./command-fingerprint.js";
@@ -34,6 +35,7 @@ export interface CanonicalRunMutationIdentity {
   actor: Record<string, unknown>;
   cause: Record<string, unknown>;
   requireRuntimeDispatchAdmission?: true;
+  transitionId?: string;
 }
 
 export type CanonicalRunMutationResult =
@@ -77,6 +79,7 @@ export class CanonicalRunTimelineService {
       policyDiagnostics?: readonly PolicyDiagnostic[];
       authorizations?: readonly ExactCallAuthorization[];
       logicalEffects?: readonly LogicalEffect[];
+      domainDocuments?: readonly TimelineDomainDocumentWrite[];
     },
   ): Promise<CanonicalRunMutationResult> {
     return this.mutate(input, input.entries, undefined, {
@@ -93,6 +96,7 @@ export class CanonicalRunTimelineService {
       policyDiagnostics: input.policyDiagnostics,
       authorizations: input.authorizations,
       logicalEffects: input.logicalEffects,
+      domainDocuments: input.domainDocuments,
     });
   }
 
@@ -151,6 +155,7 @@ export class CanonicalRunTimelineService {
       policyDiagnostics?: readonly PolicyDiagnostic[];
       authorizations?: readonly ExactCallAuthorization[];
       logicalEffects?: readonly LogicalEffect[];
+      domainDocuments?: readonly TimelineDomainDocumentWrite[];
     } = {},
   ): Promise<CanonicalRunMutationResult> {
     const [identity, head, run] = await Promise.all([
@@ -212,6 +217,7 @@ export class CanonicalRunTimelineService {
             actor: input.actor,
             cause: input.cause,
             committedAt: input.now,
+            ...(input.transitionId ? { transitionId: input.transitionId } : {}),
           },
           foregroundRunId: null,
         })
@@ -225,6 +231,9 @@ export class CanonicalRunTimelineService {
               actor: input.actor,
               cause: input.cause,
               committedAt: input.now,
+              ...(input.transitionId
+                ? { transitionId: input.transitionId }
+                : {}),
             },
             entries: entries.map((entry) => ({ ...entry, runId: input.runId })),
             foregroundRunId: input.runId,
@@ -318,6 +327,9 @@ export class CanonicalRunTimelineService {
         : [],
       recoveryActions: execution.recoveryActions
         ? [...execution.recoveryActions]
+        : [],
+      domainDocuments: execution.domainDocuments
+        ? [...execution.domainDocuments]
         : [],
       outcome: nextRun,
       publicationIntents: [],
