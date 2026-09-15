@@ -1,16 +1,11 @@
-import { UNIFIED_TIMELINE_V5_SQL } from "./unified-timeline-schema.js";
-import { TIMELINE_DELETION_WORK_V6_SQL } from "./timeline-deletion-schema.js";
-import { TIMELINE_SEARCH_PROJECTION_V7_SQL } from "./timeline-search-schema.js";
-import { TIMELINE_RESTORE_V8_SQL } from "./timeline-restore-schema.js";
-import { TIMELINE_AUTHORITY_PROMOTION_V9_SQL } from "./timeline-authority-promotion-schema.js";
-import { TIMELINE_LIFECYCLE_WORK_V10_SQL } from "./timeline-lifecycle-work-schema.js";
-import { TIMELINE_TOOL_WORK_V11_SQL } from "./timeline-tool-work-schema.js";
-import { TIMELINE_EFFECT_CAPABILITY_V12_SQL } from "./timeline-effect-capability-schema.js";
-import { TIMELINE_CONTINUATION_WORK_V13_SQL } from "./timeline-continuation-work-schema.js";
-import { TIMELINE_WORK_MANIFEST_V14_SQL } from "./timeline-work-manifest-schema.js";
-import { TIMELINE_POLICY_SAVE_V15_SQL } from "./timeline-policy-save-v15-schema.js";
+import { UNIFIED_TIMELINE_SCHEMA_SQL } from "./unified-timeline-schema.js";
+import { TIMELINE_DELETION_WORK_SQL } from "./timeline-deletion-schema.js";
+import { TIMELINE_SEARCH_PROJECTION_SQL } from "./timeline-search-schema.js";
+import { TIMELINE_RESTORE_SQL } from "./timeline-restore-schema.js";
+import { TIMELINE_AUTHORITY_PROMOTION_SQL } from "./timeline-authority-promotion-schema.js";
+import { TIMELINE_LIFECYCLE_WORK_SQL } from "./timeline-lifecycle-work-schema.js";
 
-export const CANONICAL_SCHEMA_VERSION = 15;
+export const CANONICAL_SCHEMA_VERSION = 5;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -353,6 +348,15 @@ export interface CanonicalMigration {
   sql: string;
 }
 
+const UNIFIED_TIMELINE_V5_SQL = [
+  UNIFIED_TIMELINE_SCHEMA_SQL,
+  TIMELINE_DELETION_WORK_SQL,
+  TIMELINE_SEARCH_PROJECTION_SQL,
+  TIMELINE_RESTORE_SQL,
+  TIMELINE_AUTHORITY_PROMOTION_SQL,
+  TIMELINE_LIFECYCLE_WORK_SQL,
+].join("\n");
+
 export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
   {
     version: 2,
@@ -379,77 +383,7 @@ export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
     version: 5,
     name: "unified-conversation-timeline-v5",
     checksum:
-      "aeb2ff5e6642e41e039d5c729215ecec889feee37ac80f206a03dcac87b9a8a1",
+      "7f3f6ea9db2c431f06aea59c03d3205396332ae0f9d2d2aa42ae9eaceee0c6e4",
     sql: UNIFIED_TIMELINE_V5_SQL,
-  },
-  {
-    version: 6,
-    name: "timeline-deletion-work-v6",
-    checksum:
-      "66874fa2f977a0e18963f9557fc588d06d1136b49b7a725b81c55c55b6724ac9",
-    sql: TIMELINE_DELETION_WORK_V6_SQL,
-  },
-  {
-    version: 7,
-    name: "timeline-search-projection-v7",
-    checksum:
-      "561fb0f1b3020fff645779ad8eeeae419e09d877f4efc4345747ebac1ca66ba1",
-    sql: TIMELINE_SEARCH_PROJECTION_V7_SQL,
-  },
-  {
-    version: 8,
-    name: "timeline-restore-quarantine-v8",
-    checksum:
-      "924aa2bdac347f2c9b4a47037905c5b8e5962f24e4d49fea29d2d6df73c4a5b2",
-    sql: TIMELINE_RESTORE_V8_SQL,
-  },
-  {
-    version: 9,
-    name: "timeline-authority-promotion-v9",
-    checksum:
-      "552b03feb9d508e98fb64de98be2bc996b5c3abc3e8b2d1f21c12cfbbac434a3",
-    sql: TIMELINE_AUTHORITY_PROMOTION_V9_SQL,
-  },
-  {
-    version: 10,
-    name: "timeline-lifecycle-work-v10",
-    checksum:
-      "4c9eb6e74245ba0300b21e0f7a07264fb95162f0f448c58322ca35f9ad3021cc",
-    sql: TIMELINE_LIFECYCLE_WORK_V10_SQL,
-  },
-  {
-    version: 11,
-    name: "timeline-tool-work-v11",
-    checksum:
-      "97d7c351b5b627572a66d2eb4facdcecde975d0f0c59372de008a54cd00f079f",
-    sql: TIMELINE_TOOL_WORK_V11_SQL,
-  },
-  {
-    version: 12,
-    name: "timeline-effect-capability-v12",
-    checksum:
-      "ae5258cb0ad6c7a1ebade0c7a4abb9bc017fce90fbfa22a7e2bf3b1ea0d17fe5",
-    sql: TIMELINE_EFFECT_CAPABILITY_V12_SQL,
-  },
-  {
-    version: 13,
-    name: "timeline-continuation-work-v13",
-    checksum:
-      "9ad52095c65c5dc1ff25c721ea7e30d8cdc43a82d9f6960ef907b7859ccfe12f",
-    sql: TIMELINE_CONTINUATION_WORK_V13_SQL,
-  },
-  {
-    version: 14,
-    name: "timeline-work-manifest-v14",
-    checksum:
-      "e5bbbd66201b150c302059b0e84b932a4eac1371fccf779121dce8fd4027a277",
-    sql: TIMELINE_WORK_MANIFEST_V14_SQL,
-  },
-  {
-    version: 15,
-    name: "timeline-policy-save-v15",
-    checksum:
-      "ed735211690d1fa06e45d81f776421fe51050e725f7c3347ca91ba540d5969c9",
-    sql: TIMELINE_POLICY_SAVE_V15_SQL,
   },
 ];

@@ -1,4 +1,4 @@
-export const TIMELINE_SEARCH_PROJECTION_V7_SQL = `
+export const TIMELINE_SEARCH_PROJECTION_SQL = `
 CREATE VIRTUAL TABLE timeline_search_projection_rows USING fts5(
   conversation_id UNINDEXED,
   source_revision UNINDEXED,

@@ -248,16 +248,6 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
     { version: 3, name: "authoritative-run-lifecycle-v3" },
     { version: 4, name: "convert-run-lifecycle-v4" },
     { version: 5, name: "unified-conversation-timeline-v5" },
-    { version: 6, name: "timeline-deletion-work-v6" },
-    { version: 7, name: "timeline-search-projection-v7" },
-    { version: 8, name: "timeline-restore-quarantine-v8" },
-    { version: 9, name: "timeline-authority-promotion-v9" },
-    { version: 10, name: "timeline-lifecycle-work-v10" },
-    { version: 11, name: "timeline-tool-work-v11" },
-    { version: 12, name: "timeline-effect-capability-v12" },
-    { version: 13, name: "timeline-continuation-work-v13" },
-    { version: 14, name: "timeline-work-manifest-v14" },
-    { version: 15, name: "timeline-policy-save-v15" },
   ]);
   const homeMigrations = JSON.parse(
     await readFile(storage.paths.migrationLedgerPath, "utf8"),

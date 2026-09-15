@@ -1,4 +1,4 @@
-export const UNIFIED_TIMELINE_V5_SQL = `
+export const UNIFIED_TIMELINE_SCHEMA_SQL = `
 CREATE TABLE state_identity (
   singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
   namespace_id TEXT NOT NULL UNIQUE,
@@ -267,6 +267,7 @@ CREATE TABLE logical_effects (
     'result_unavailable','closed'
   )),
   created_at_ms INTEGER NOT NULL,
+  capability_json BLOB,
   FOREIGN KEY(member_id) REFERENCES wait_group_members(member_id) ON DELETE RESTRICT,
   FOREIGN KEY(authorization_id) REFERENCES exact_call_authorizations(authorization_id) ON DELETE RESTRICT
 ) STRICT;
@@ -417,8 +418,18 @@ CREATE TABLE policy_save_intents (
     'not_attempted','committed','superseded','failed'
   )),
   created_at_ms INTEGER NOT NULL,
-  updated_at_ms INTEGER NOT NULL
+  updated_at_ms INTEGER NOT NULL,
+  schema_version INTEGER NOT NULL DEFAULT 1 CHECK(schema_version IN (1, 2)),
+  conversation_id TEXT,
+  run_id TEXT,
+  member_id TEXT,
+  approval_command_id TEXT,
+  intended_document_manifest_id TEXT REFERENCES artifact_manifests(manifest_id) ON DELETE RESTRICT
 ) STRICT;
+CREATE INDEX policy_save_intents_recovery
+  ON policy_save_intents(state, updated_at_ms, save_intent_id);
+CREATE INDEX policy_save_intents_member
+  ON policy_save_intents(member_id, state);
 
 CREATE TABLE artifact_preparations (
   preparation_id TEXT PRIMARY KEY,

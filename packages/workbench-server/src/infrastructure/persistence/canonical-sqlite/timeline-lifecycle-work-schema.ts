@@ -1,10 +1,11 @@
-export const TIMELINE_LIFECYCLE_WORK_V10_SQL = `
+export const TIMELINE_LIFECYCLE_WORK_SQL = `
 CREATE TABLE canonical_lifecycle_work (
   work_id TEXT PRIMARY KEY,
   conversation_id TEXT NOT NULL,
   run_id TEXT NOT NULL,
   kind TEXT NOT NULL CHECK(kind IN (
-    'prepare_provider_request','claim_provider_attempt','dispatch_provider_attempt',
+    'prepare_provider_request','prepare_continuation','claim_provider_attempt',
+    'dispatch_provider_attempt','claim_tool_attempt',
     'dispatch_tool_attempt','reconcile_execution'
   )),
   provider_phase_id TEXT,
@@ -22,14 +23,16 @@ CREATE TABLE canonical_lifecycle_work (
   lease_deadline_ms INTEGER,
   created_at_ms INTEGER NOT NULL,
   updated_at_ms INTEGER NOT NULL,
+  input_manifest_id TEXT,
   CHECK(
     (kind IN (
-      'prepare_provider_request','claim_provider_attempt','dispatch_provider_attempt'
-    )) =
-    (provider_phase_id IS NOT NULL)
+      'prepare_provider_request','claim_provider_attempt',
+      'dispatch_provider_attempt'
+    )) = (provider_phase_id IS NOT NULL)
   ),
   CHECK(
-    kind <> 'dispatch_tool_attempt' OR effect_id IS NOT NULL
+    (kind IN ('claim_tool_attempt','dispatch_tool_attempt')) =
+    (effect_id IS NOT NULL)
   ),
   CHECK(
     (kind IN ('dispatch_provider_attempt','dispatch_tool_attempt')) =
@@ -61,4 +64,9 @@ CREATE UNIQUE INDEX canonical_lifecycle_work_provider_open
 CREATE UNIQUE INDEX canonical_lifecycle_work_attempt_open
   ON canonical_lifecycle_work(attempt_id)
   WHERE attempt_id IS NOT NULL AND state IN ('ready','leased');
+CREATE UNIQUE INDEX canonical_lifecycle_work_effect_open
+  ON canonical_lifecycle_work(effect_id)
+  WHERE effect_id IS NOT NULL AND state IN ('ready','leased');
+CREATE INDEX canonical_lifecycle_work_input_manifest
+  ON canonical_lifecycle_work(input_manifest_id);
 `;

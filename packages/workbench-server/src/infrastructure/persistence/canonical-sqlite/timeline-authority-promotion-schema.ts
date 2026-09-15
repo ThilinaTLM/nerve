@@ -1,4 +1,4 @@
-export const TIMELINE_AUTHORITY_PROMOTION_V9_SQL = `
+export const TIMELINE_AUTHORITY_PROMOTION_SQL = `
 CREATE TABLE timeline_authority_promotions (
   promotion_id TEXT PRIMARY KEY,
   namespace_id TEXT NOT NULL,

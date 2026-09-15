@@ -1,4 +1,4 @@
-export const TIMELINE_RESTORE_V8_SQL = `
+export const TIMELINE_RESTORE_SQL = `
 CREATE TABLE restore_promotions (
   restore_id TEXT PRIMARY KEY,
   backup_id TEXT NOT NULL,

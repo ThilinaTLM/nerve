@@ -19,6 +19,27 @@ import {
   CANONICAL_SCHEMA_VERSION,
 } from "../../../src/infrastructure/persistence/canonical-sqlite/schema.js";
 
+function seedCanonicalV4(path: string): void {
+  const database = new DatabaseSync(path);
+  database.exec(CANONICAL_SCHEMA_SQL);
+  database
+    .prepare("INSERT INTO schema_migrations VALUES (?, ?, ?, ?, ?)")
+    .run(
+      CANONICAL_BASELINE_VERSION,
+      CANONICAL_BASELINE_NAME,
+      CANONICAL_BASELINE_CHECKSUM,
+      1,
+      0,
+    );
+  for (const migration of CANONICAL_MIGRATIONS.slice(0, 3)) {
+    database.exec(migration.sql);
+    database
+      .prepare("INSERT INTO schema_migrations VALUES (?, ?, ?, ?, ?)")
+      .run(migration.version, migration.name, migration.checksum, 1, 0);
+  }
+  database.close();
+}
+
 test("canonical schema checksum matches the v1 baseline SQL", () => {
   assert.equal(
     createHash("sha256").update(CANONICAL_SCHEMA_SQL).digest("hex"),
@@ -34,6 +55,119 @@ test("canonical migration checksums match their immutable SQL", () => {
       migration.name,
     );
   }
+});
+
+test("squashed v5 upgrades v4 once to the complete unified schema", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v5-upgrade-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const path = join(home, "nerve.sqlite");
+  seedCanonicalV4(path);
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const store = new CanonicalStore(path);
+    await store.initialize();
+    await store.close();
+  }
+
+  const database = new DatabaseSync(path, { readOnly: true });
+  const migrations = database
+    .prepare(
+      "SELECT version, name, checksum, applied_at_ms FROM schema_migrations ORDER BY version",
+    )
+    .all();
+  assert.deepEqual(
+    migrations.map((row) => ({
+      version: Number(row.version),
+      name: String(row.name),
+    })),
+    [
+      { version: 1, name: "nerve-home-v1" },
+      { version: 2, name: "atomic-run-lifecycle-work-v2" },
+      { version: 3, name: "authoritative-run-lifecycle-v3" },
+      { version: 4, name: "convert-run-lifecycle-v4" },
+      { version: 5, name: "unified-conversation-timeline-v5" },
+    ],
+  );
+  assert.equal(migrations.filter((row) => Number(row.version) === 5).length, 1);
+
+  const tables = new Set(
+    database
+      .prepare("SELECT name FROM sqlite_schema WHERE type = 'table'")
+      .all()
+      .map((row) => String(row.name)),
+  );
+  for (const table of [
+    "artifact_deletion_work",
+    "restore_promotions",
+    "runtime_admission",
+    "timeline_authority_promotions",
+    "canonical_lifecycle_work",
+  ]) {
+    assert.equal(tables.has(table), true, table);
+  }
+  const columns = (table: string) =>
+    database
+      .prepare(`PRAGMA table_info(${table})`)
+      .all()
+      .map((row) => String(row.name));
+  assert.equal(columns("logical_effects").includes("capability_json"), true);
+  assert.deepEqual(columns("policy_save_intents").slice(-6), [
+    "schema_version",
+    "conversation_id",
+    "run_id",
+    "member_id",
+    "approval_command_id",
+    "intended_document_manifest_id",
+  ]);
+  assert.equal(columns("canonical_lifecycle_work").at(-1), "input_manifest_id");
+  const indexes = new Set(
+    database
+      .prepare("SELECT name FROM sqlite_schema WHERE type = 'index'")
+      .all()
+      .map((row) => String(row.name)),
+  );
+  for (const index of [
+    "projection_state_pending",
+    "canonical_lifecycle_work_effect_open",
+    "canonical_lifecycle_work_input_manifest",
+    "policy_save_intents_recovery",
+    "policy_save_intents_member",
+  ]) {
+    assert.equal(indexes.has(index), true, index);
+  }
+  database.close();
+});
+
+test("squashed v5 rolls back all schema changes when a late statement fails", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v5-rollback-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const path = join(home, "nerve.sqlite");
+  seedCanonicalV4(path);
+  const seed = new DatabaseSync(path);
+  seed.exec("CREATE TABLE artifact_deletion_work (conflict INTEGER)");
+  seed.close();
+
+  const store = new CanonicalStore(path);
+  await assert.rejects(store.initialize(), /artifact_deletion_work/i);
+  await store.close();
+
+  const database = new DatabaseSync(path, { readOnly: true });
+  assert.deepEqual(
+    database
+      .prepare("SELECT version FROM schema_migrations ORDER BY version")
+      .all()
+      .map((row) => Number(row.version)),
+    [1, 2, 3, 4],
+  );
+  assert.equal(
+    database
+      .prepare(
+        "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'state_identity'",
+      )
+      .get(),
+    undefined,
+  );
+  database.close();
 });
 
 test("fresh canonical stores create the baseline and ordered migrations", async (t) => {

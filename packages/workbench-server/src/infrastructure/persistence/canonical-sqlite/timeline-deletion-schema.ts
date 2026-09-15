@@ -1,4 +1,4 @@
-export const TIMELINE_DELETION_WORK_V6_SQL = `
+export const TIMELINE_DELETION_WORK_SQL = `
 CREATE TABLE artifact_deletion_work (
   work_id TEXT PRIMARY KEY,
   conversation_id TEXT NOT NULL,
