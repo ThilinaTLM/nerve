@@ -1351,6 +1351,36 @@ test("atomically queues durable model continuation when input resolves", async (
   );
 });
 
+test("fails a resumed run when execution exits without settling it", async () => {
+  const harness = fixture({
+    durableContinuation: true,
+    execute: async () => ({ status: "suspended" }),
+  });
+  const run = await start(harness.coordinator);
+  const interaction = await harness.coordinator.wait(run.runId, {
+    kind: "user_input",
+    toolCallId: "tool_question",
+    interactionOrdinal: 0,
+    toolCallRevision: 1,
+    prompt: "Choose",
+    required: true,
+    checkpoint: suspensionCheckpoint(),
+  });
+  await harness.coordinator.resolveInteraction(run.runId, {
+    interactionId: interaction.id,
+    resolutionRequestId: "request_resume",
+    resolution: { answer: "yes" },
+  });
+  const continuation = harness.unitOfWork.lifecycleWork.at(-1)!;
+
+  await harness.coordinator.executeModelWork(continuation);
+
+  const state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.status, "failed");
+  assert.equal(state?.run.failure?.code, "RUN_EXECUTION_LOST");
+  assert.equal(state?.run.failure?.retryable, true);
+});
+
 test("keeps an interaction batch waiting until every member resolves", async () => {
   const harness = fixture();
   const run = await start(harness.coordinator);

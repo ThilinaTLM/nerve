@@ -21,8 +21,15 @@ export async function startNewConversationRun(
 ): Promise<void> {
   await options.hydrate();
   const view = options.view();
+  const previousOptimisticMessages = view.optimisticMessages;
   view.sending = true;
   view.error = undefined;
   view.optimisticMessages = options.optimisticMessages;
-  await options.start();
+  try {
+    await options.start();
+  } catch (error) {
+    view.sending = false;
+    view.optimisticMessages = previousOptimisticMessages;
+    throw error;
+  }
 }

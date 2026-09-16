@@ -2,7 +2,10 @@ import { deriveConversationTitle } from "@nervekit/contracts/conversations";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { scopedUsableModelOptions } from "$lib/presentation/utils/model";
 import { deleteConversation } from "$lib/api";
-import { protocolRequest } from "@nervekit/protocol/adapters";
+import {
+  ProtocolRequestError,
+  protocolRequest,
+} from "@nervekit/protocol/adapters";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { pendingConversationKey } from "$lib/domain/navigation/view-keys";
 import type {
@@ -34,6 +37,11 @@ import { reloadWorkspace } from "$lib/application/workspace/workspace-commands";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { executeComposerSlashCommand } from "./composer-slash-command";
 import { optimisticUserMessage } from "./conversation-optimistic";
+import {
+  beginOptimisticPrompt,
+  rollbackOptimisticPrompt,
+  type OptimisticPromptTransaction,
+} from "./optimistic-prompt-transaction";
 import { startNewConversationRun } from "./new-conversation-run";
 import { abortActiveRun, compactActiveConversation } from "./run-control";
 import {
@@ -242,6 +250,7 @@ async function sendPendingPrompt(
     if (view) {
       view.error = message;
       view.sending = false;
+      if (!view.composerText.trim()) view.composerText = text;
     } else {
       if (createdConversationId)
         await deleteConversation(createdConversationId).catch(() => undefined);
@@ -294,6 +303,7 @@ export async function sendPromptText(
     return;
   }
   const queueWhileRunning = Boolean(view.sending);
+  let optimisticTransaction: OptimisticPromptTransaction | undefined;
   view.error = undefined;
   workspaceState.error = undefined;
   if (!queueWhileRunning) {
@@ -314,10 +324,11 @@ export async function sendPromptText(
       return;
     }
     if (!isInlineCommandPrompt(text)) {
-      view.optimisticMessages = [
-        ...view.optimisticMessages,
+      optimisticTransaction = beginOptimisticPrompt(
+        view,
+        text,
         optimisticUserMessage(text),
-      ];
+      );
     }
     await protocolRequest(
       "run.start",
@@ -325,11 +336,28 @@ export async function sendPromptText(
       { idempotencyKey: crypto.randomUUID() },
     );
   } catch (caught) {
-    const message = caught instanceof Error ? caught.message : String(caught);
-    view.error = message;
+    if (optimisticTransaction) {
+      rollbackOptimisticPrompt(view, optimisticTransaction);
+    }
+    const busyConflict =
+      caught instanceof ProtocolRequestError && caught.code === "CONFLICT";
+    if (busyConflict && selection.conversationId) {
+      await refreshConversationView(selection.conversationId).catch(
+        () => undefined,
+      );
+    }
+    const message = busyConflict
+      ? "The previous response is still running. Stop it or wait for it to finish."
+      : caught instanceof Error
+        ? caught.message
+        : String(caught);
+    const currentView = selection.conversationId
+      ? ensureConversationView(selection.conversationId)
+      : view;
+    currentView.error = message;
     workspaceState.error = message;
-    if (!queueWhileRunning) {
-      view.sending = false;
+    if (!queueWhileRunning && !busyConflict) {
+      currentView.sending = false;
     }
     notifyPromptError("Prompt failed", message);
   }

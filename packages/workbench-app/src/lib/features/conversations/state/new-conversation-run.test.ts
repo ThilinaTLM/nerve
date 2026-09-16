@@ -55,6 +55,30 @@ describe("new conversation first run", () => {
     ]);
   });
 
+  it("rolls back optimistic state when run start fails", async () => {
+    const previous = [optimisticUserMessage("previous")];
+    const view: NewConversationRunView = {
+      sending: false,
+      error: undefined,
+      optimisticMessages: previous,
+    };
+
+    await assert.rejects(
+      startNewConversationRun({
+        hydrate: async () => undefined,
+        view: () => view,
+        optimisticMessages: [optimisticUserMessage("Run the checks")],
+        start: async () => {
+          throw new Error("Agent is already running.");
+        },
+      }),
+      /already running/,
+    );
+
+    assert.equal(view.sending, false);
+    assert.equal(view.optimisticMessages, previous);
+  });
+
   it("does not project or start a run when snapshot hydration fails", async () => {
     const view: NewConversationRunView = {
       sending: false,

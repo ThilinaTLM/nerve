@@ -101,6 +101,78 @@ test("approval decision atomically commits a durable reconciliation intent", asy
   assert.deepEqual(command?.events, [{ kind: "tool_call.upserted" }]);
 });
 
+test("startup recovery rejects duplicate provider tool-call IDs before resolving a batch", async () => {
+  const first = {
+    ...terminalToolCall("tool_first"),
+    providerToolCallId: "provider_duplicate",
+  } as ToolCallRecord;
+  const second = {
+    ...terminalToolCall("tool_second"),
+    providerToolCallId: "provider_duplicate",
+  } as ToolCallRecord;
+  const approvals = new Map<string, ApprovalRecord>([
+    [
+      first.id,
+      {
+        id: "approval_first_0",
+        toolCallId: first.id,
+        status: "denied",
+      } as unknown as ApprovalRecord,
+    ],
+    [
+      second.id,
+      {
+        id: "approval_second_0",
+        toolCallId: second.id,
+        status: "denied",
+      } as unknown as ApprovalRecord,
+    ],
+  ]);
+  const interactions = [first, second].map((toolCall, index) => ({
+    id: `interaction_${index}`,
+    runId: "run_test",
+    toolCallId: toolCall.id,
+    status: "pending",
+  }));
+  const batch = {
+    runId: "run_test",
+    checkpointId: "checkpoint_test",
+    batchToolCallIds: [first.id, second.id],
+    interactions,
+  } as unknown as ApprovalInteractionBatch;
+  let resolutions = 0;
+  let appended = 0;
+  const service = new ApprovalBatchResolutionService({
+    tools: {
+      listApprovals: () => [],
+      getToolCallDetails: async (toolCallId: string) =>
+        toolCallId === first.id ? first : second,
+      getApprovalForToolCallDetails: async (toolCallId: string) =>
+        approvals.get(toolCallId),
+    } as unknown as ToolService,
+    runs: {
+      listPendingApprovalInteractions: async () => interactions,
+      recoverableApprovalBatchForToolCall: async () => batch,
+      assertApprovalBatchRecoveryContextUnchanged: async () => undefined,
+      resolveInteractionBatchForToolCalls: async () => {
+        resolutions += 1;
+      },
+    } as unknown as WorkbenchRunService,
+    appendToolResult: async () => {
+      appended += 1;
+      return {} as ConversationEntry;
+    },
+    existingToolResultEntry: async () => undefined,
+  });
+
+  await assert.rejects(
+    service.recoverReadyBatches(),
+    /duplicate provider tool-call ID provider_duplicate/,
+  );
+  assert.equal(appended, 0);
+  assert.equal(resolutions, 0);
+});
+
 test("startup recovery loads evicted terminal approval tool calls asynchronously", async () => {
   const decided = terminalToolCall("tool_decided");
   const policyTerminal = terminalToolCall("tool_policy_terminal");
