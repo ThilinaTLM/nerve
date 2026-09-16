@@ -360,7 +360,11 @@ export class ToolCallRepository {
       events: ConversationJournalEvent[],
     ) => Promise<void>,
   ): Promise<ToolCallRecord> {
-    return this.serialize(toolCallId, async () => {
+    const conversationId = this.get(toolCallId).conversationId;
+    // Interactions and suspension members span tool calls. Serialize the
+    // read-modify-commit window per conversation so sibling revisions cannot
+    // validate against the same stale suspension snapshot.
+    return this.serialize(conversationId, async () => {
       const current = this.get(toolCallId);
       if (current.revision !== expectedRevision) {
         throw new ToolCallRevisionConflictError(
