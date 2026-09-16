@@ -1,4 +1,7 @@
-import type { ToolCallDetails } from "@nervekit/contracts/tools";
+import {
+  toolCallRecordSchema,
+  type ToolCallDetails,
+} from "@nervekit/contracts/tools";
 import type {
   ToolCallRecord,
   ToolCallTranscriptRecord,
@@ -20,6 +23,7 @@ interface ToolCallListParams {
 
 export interface CanonicalToolProposalProjection {
   memberId: string;
+  suffix: string;
   providerToolCallId: string;
   toolName: string;
   normalizedInput: Record<string, unknown>;
@@ -43,9 +47,11 @@ export class CanonicalToolQueryService {
     toolCalls: ToolCallTranscriptRecord[];
     nextCursor: undefined;
   }> {
-    const groups = await this.store.execution.listPendingWaitGroups(
-      params.limit ?? 100,
-    );
+    const groups = await this.store.execution.listWaitGroups({
+      conversationId: params.conversationId,
+      runId: params.runId,
+      limit: params.limit ?? 100,
+    });
     const records = (
       await Promise.all(groups.map((group) => this.records(group)))
     )
@@ -101,10 +107,33 @@ export class CanonicalToolQueryService {
       group.membershipManifestId.replace("wait_members", "wait_proposals"),
     )) as ProposalManifest | undefined;
     if (!manifest?.proposals) return [];
-    return manifest.proposals.map((proposal) =>
-      projectCanonicalToolCall(group, proposal),
+    return Promise.all(
+      manifest.proposals.map(async (proposal) => {
+        const resultManifest = (await this.store.execution.readArtifactManifest(
+          `manifest_tool_result_${proposal.suffix}`,
+        )) as { result?: unknown } | undefined;
+        const storedResult = resultManifest?.result;
+        const settled = toolCallRecordSchema.safeParse(
+          normalizeSettledToolCall(storedResult),
+        );
+        return settled.success
+          ? settled.data
+          : projectCanonicalToolCall(group, proposal);
+      }),
     );
   }
+}
+
+function normalizeSettledToolCall(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const record = value as Record<string, unknown>;
+  return ["completed", "denied", "failed", "cancelled"].includes(
+    String(record.status),
+  ) &&
+    typeof record.settledAt !== "string" &&
+    typeof record.updatedAt === "string"
+    ? { ...record, settledAt: record.updatedAt }
+    : value;
 }
 
 export function projectCanonicalToolCall(

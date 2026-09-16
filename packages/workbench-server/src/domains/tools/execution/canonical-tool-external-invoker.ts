@@ -76,6 +76,7 @@ export class CanonicalToolExternalInvoker {
         status: "completed",
         phase: "completed",
       });
+      const settledAt = new Date().toISOString();
       const terminal: ToolCallRecord = {
         ...running,
         status: "completed",
@@ -88,10 +89,11 @@ export class CanonicalToolExternalInvoker {
         execution: {
           ...running.execution!,
           status: "completed",
-          endedAt: new Date().toISOString(),
+          endedAt: settledAt,
         },
         revision: 2,
-        updatedAt: new Date().toISOString(),
+        updatedAt: settledAt,
+        settledAt,
       };
       return {
         ...terminal,
@@ -113,6 +115,7 @@ export class CanonicalToolExternalInvoker {
           errorDetails: details,
         },
       ).catch(() => undefined);
+      const settledAt = new Date().toISOString();
       return {
         ...running,
         status: "failed",
@@ -131,10 +134,11 @@ export class CanonicalToolExternalInvoker {
         execution: {
           ...running.execution!,
           status: "failed",
-          endedAt: new Date().toISOString(),
+          endedAt: settledAt,
         },
         revision: 2,
-        updatedAt: new Date().toISOString(),
+        updatedAt: settledAt,
+        settledAt,
       };
     }
   }

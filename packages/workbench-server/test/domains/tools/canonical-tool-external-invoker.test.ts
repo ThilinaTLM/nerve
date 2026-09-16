@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { toolCallRecordSchema } from "@nervekit/contracts/tools";
 import { CanonicalToolExternalInvoker } from "../../../src/domains/tools/execution/canonical-tool-external-invoker.js";
 import { ToolResultPayloadStore } from "../../../src/domains/tools/artifacts/tool-result-payload-store.js";
 
@@ -38,6 +39,8 @@ test("canonical external invocation executes without a durable tool repository",
   assert.equal(result.status, "completed");
   assert.equal(result.providerToolCallId, "provider-tool-1");
   assert.equal(result.revision, 2);
+  assert.equal(result.settledAt, result.updatedAt);
+  assert.equal(toolCallRecordSchema.safeParse(result).success, true);
 });
 
 test("canonical external invocation rejects suspending tools", async () => {

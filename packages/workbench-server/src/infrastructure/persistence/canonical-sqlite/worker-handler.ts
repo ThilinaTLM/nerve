@@ -79,6 +79,12 @@ export function executeCanonicalCommand(
       );
     case "list_canonical_pending_wait_groups":
       return database.executionQueries.listPendingWaitGroups(command.limit);
+    case "list_canonical_wait_groups":
+      return database.executionQueries.listWaitGroups({
+        conversationId: command.conversationId,
+        runId: command.runId,
+        limit: command.limit,
+      });
     case "list_canonical_recovery_work":
       return database.executionQueries.listRecoveryWork(
         command.conversationId,

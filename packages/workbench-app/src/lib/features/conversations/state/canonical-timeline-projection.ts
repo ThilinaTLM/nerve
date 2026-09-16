@@ -32,7 +32,11 @@ export function projectCanonicalTimelineEntry(
     kind: entry.kind === "summary" ? "compaction" : "message",
     text,
     ...(entry.kind === "summary" ? { summary: text } : {}),
-    details: { canonicalKind: entry.kind, provenance: entry.provenance },
+    details: {
+      canonicalKind: entry.kind,
+      provenance: entry.provenance,
+      ...(entry.toolCallId ? { toolRecordId: entry.toolCallId } : {}),
+    },
     createdAt:
       string(entry.provenance.createdAt) ??
       string(entry.provenance.legacyCreatedAt) ??

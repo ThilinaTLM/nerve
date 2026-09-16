@@ -40,7 +40,14 @@ export function projectCanonicalEntry(
         : undefined,
     firstKeptEntryId: undefined,
     fromEntryId: undefined,
-    details: content.details,
+    details: entry.toolCallId
+      ? {
+          ...(content.details && typeof content.details === "object"
+            ? content.details
+            : {}),
+          toolRecordId: entry.toolCallId,
+        }
+      : content.details,
     createdAt:
       typeof entry.provenance.createdAt === "string"
         ? entry.provenance.createdAt

@@ -116,6 +116,30 @@ export class CanonicalExecutionQueryDatabase {
       .filter((group): group is WaitGroup => Boolean(group));
   }
 
+  listWaitGroups(input: {
+    conversationId?: string;
+    runId?: string;
+    limit: number;
+  }): WaitGroup[] {
+    const rows = this.database
+      .prepare(
+        `SELECT wait_group_id FROM wait_groups
+         WHERE (?1 IS NULL OR run_id IN (
+           SELECT run_id FROM run_controls WHERE conversation_id = ?1
+         ))
+           AND (?2 IS NULL OR run_id = ?2)
+         ORDER BY rowid DESC LIMIT ?3`,
+      )
+      .all(
+        input.conversationId ?? null,
+        input.runId ?? null,
+        input.limit,
+      ) as unknown as Array<{ wait_group_id: string }>;
+    return rows
+      .map((row) => readTimelineWaitGroup(this.database, row.wait_group_id))
+      .filter((group): group is WaitGroup => Boolean(group));
+  }
+
   findWaitGroupByMemberOwner(ownerId: string): WaitGroup | undefined {
     const row = this.database
       .prepare(

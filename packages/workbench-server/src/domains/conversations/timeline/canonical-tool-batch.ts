@@ -305,10 +305,11 @@ export function buildCanonicalToolBatch(input: {
   return {
     waitGroup,
     entries: deniedEntries,
-    toolCalls: members.map(({ proposal, member }) =>
+    toolCalls: members.map(({ proposal, member, suffix }) =>
       toToolCallTranscriptRecord(
         projectCanonicalToolCall(waitGroup, {
           memberId: member.memberId,
+          suffix,
           ...proposal,
         }),
       ),

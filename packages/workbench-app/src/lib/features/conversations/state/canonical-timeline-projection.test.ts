@@ -26,6 +26,19 @@ const assistant = {
   },
 };
 
+test("canonical tool-result rows preserve their tool record anchor", () => {
+  const projected = projectCanonicalTimelineEntry({
+    ...assistant,
+    entryId: "entry_tool_result",
+    kind: "tool_result",
+    toolCallId: "tool_projection",
+  });
+  assert.equal(
+    (projected.details as { toolRecordId?: string }).toolRecordId,
+    "tool_projection",
+  );
+});
+
 test("INV-OUTCOME-01 projects only canonical page rows into transcript state", () => {
   const projected = projectCanonicalTimelineEntry(assistant);
   assert.equal(projected.text, "canonical response");

@@ -45,6 +45,12 @@ export type CanonicalCommand =
   | { kind: "find_canonical_wait_group_by_member_owner"; ownerId: string }
   | { kind: "list_canonical_pending_wait_groups"; limit: number }
   | {
+      kind: "list_canonical_wait_groups";
+      conversationId?: string;
+      runId?: string;
+      limit: number;
+    }
+  | {
       kind: "list_canonical_recovery_work";
       conversationId?: string;
       limit: number;

@@ -71,6 +71,19 @@ export class CanonicalExecutionStore {
     });
   }
 
+  listWaitGroups(input: {
+    conversationId?: string;
+    runId?: string;
+    limit?: number;
+  }) {
+    return this.request<WaitGroup[]>({
+      kind: "list_canonical_wait_groups",
+      conversationId: input.conversationId,
+      runId: input.runId,
+      limit: input.limit ?? 100,
+    });
+  }
+
   findWaitGroupByMemberOwner(ownerId: string) {
     return this.request<WaitGroup | undefined>({
       kind: "find_canonical_wait_group_by_member_owner",
