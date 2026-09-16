@@ -21,12 +21,14 @@ import {
   SettingsSidebarStatus,
 } from "$lib/presentation/settings";
 import { settingsPages } from "$lib/features/settings/registry/settings-pages";
+import { createCapabilityMutationQueue } from "$lib/domain/capabilities/capability-mutation-queue";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { parseModelKey } from "$lib/presentation/utils/model";
 import {
   skillSourceLabels,
   skillSourceSectionIds,
-} from "$lib/features/settings/views/pages/skills/skills-filter";
+  sourcesForScope,
+} from "$lib/domain/skills/skill-catalog";
 import CompactionSettingsPage from "$lib/features/settings/views/pages/compaction/CompactionSettingsPage.svelte";
 import ModelsPageActions from "$lib/features/settings/views/pages/models/ModelsPageActions.svelte";
 import ModelsSettingsPage from "$lib/features/settings/views/pages/models/ModelsSettingsPage.svelte";
@@ -56,7 +58,6 @@ import SystemSettingsPage from "$lib/features/settings/views/pages/system/System
 import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
 import TranscriptionSettingsPage from "$lib/features/settings/views/pages/transcription/TranscriptionSettingsPage.svelte";
 import WorkbenchSettingsPage from "$lib/features/settings/views/pages/workbench/WorkbenchSettingsPage.svelte";
-import ProjectSkillsSettingsPage from "$lib/features/settings/views/pages/capabilities/ProjectSkillsSettingsPage.svelte";
 import ProjectToolsSettingsPage from "$lib/features/settings/views/pages/capabilities/ProjectToolsSettingsPage.svelte";
 import { SettingsEmptyState } from "$lib/presentation/settings";
 import UserCog from "@lucide/svelte/icons/user-cog";
@@ -84,9 +85,7 @@ type Props = {
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
   activeProject?: ProjectRecord;
-  agentBrowserSkills?: AvailableSkill[];
-  globalSkills?: AvailableSkill[];
-  projectSkills?: AvailableSkill[];
+  skills?: AvailableSkill[];
   skillsLoading?: boolean;
   skillsError?: string;
   settingsSaveStatus?: SettingsSaveStatus;
@@ -112,9 +111,7 @@ let {
   models = [],
   authProviders = [],
   activeProject,
-  agentBrowserSkills = [],
-  globalSkills = [],
-  projectSkills = [],
+  skills = [],
   skillsLoading = false,
   skillsError,
   settingsSaveStatus = "idle",
@@ -136,9 +133,11 @@ let capabilityRequest = 0;
 async function loadProjectCapabilities(): Promise<void> {
   const projectId = activeProject?.id;
   const request = ++capabilityRequest;
-  capabilityConfiguration = undefined;
   capabilityError = undefined;
-  if (!projectId) return;
+  if (!projectId) {
+    capabilityConfiguration = undefined;
+    return;
+  }
   capabilityLoading = true;
   try {
     const configuration = await getCapabilityConfiguration(projectId);
@@ -157,39 +156,42 @@ $effect(() => {
   if (scope === "project" && projectId) void loadProjectCapabilities();
 });
 
-/** Mutations reload on failure, so the message is re-applied afterwards. */
+/** Mutations are serialized so each one sends the digest the server just echoed. */
+const capabilityMutations = createCapabilityMutationQueue();
+
 async function runCapabilityMutation(
   mutation: () => Promise<CapabilityConfiguration | void>,
 ): Promise<void> {
-  try {
-    const configuration = await mutation();
-    if (configuration) capabilityConfiguration = configuration;
-    else await loadProjectCapabilities();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await loadProjectCapabilities();
-    capabilityError = message;
-  }
+  await capabilityMutations.run(async () => {
+    try {
+      const configuration = await mutation();
+      if (configuration) capabilityConfiguration = configuration;
+      else await loadProjectCapabilities();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await loadProjectCapabilities();
+      capabilityError = message;
+    }
+  });
 }
 
 async function patchProjectCapabilities(patch: CapabilityPatch): Promise<void> {
   const project = activeProject;
-  const current = capabilityConfiguration;
-  if (!project || !current) return;
+  if (!project || !capabilityConfiguration) return;
+  // The digest is read when the mutation runs, after any queued write applied.
   await runCapabilityMutation(() =>
     updateCapabilities({
       projectId: project.id,
       origin: "project",
       patch,
-      expectedDigest: current.projectDigest,
+      expectedDigest: capabilityConfiguration?.projectDigest,
     }),
   );
 }
 
 async function resetProjectCapabilities(): Promise<void> {
   const project = activeProject;
-  const current = capabilityConfiguration;
-  if (!project || !current) return;
+  if (!project || !capabilityConfiguration) return;
   await runCapabilityMutation(() =>
     updateCapabilities({
       projectId: project.id,
@@ -199,17 +201,20 @@ async function resetProjectCapabilities(): Promise<void> {
         tools: {},
         skills: { file: {}, agentBrowser: {} },
       },
-      expectedDigest: current.projectDigest,
+      expectedDigest: capabilityConfiguration?.projectDigest,
     }),
   );
 }
 
 async function setProjectCapabilityTrust(trusted: boolean): Promise<void> {
   const project = activeProject;
-  const current = capabilityConfiguration;
-  if (!project || !current) return;
+  if (!project || !capabilityConfiguration) return;
   await runCapabilityMutation(async () => {
-    await updateCapabilityTrust(project.id, trusted, current.projectDigest);
+    await updateCapabilityTrust(
+      project.id,
+      trusted,
+      capabilityConfiguration?.projectDigest,
+    );
   });
 }
 
@@ -224,17 +229,11 @@ const permissionsPageState = new PermissionsPageState({
   },
 });
 
-/** Skills sections mirror the sources that actually have skills. */
+/** Skills sections mirror the sources the current scope actually renders. */
 const skillSections = $derived(
-  (
-    [
-      ["agentBrowser", agentBrowserSkills],
-      ["global", globalSkills],
-      ["project", projectSkills],
-    ] as const
-  )
-    .filter(([, skills]) => skills.length > 0)
-    .map(([source]) => ({
+  sourcesForScope(settingsScope)
+    .filter((source) => skills.some((skill) => skill.source === source))
+    .map((source) => ({
       id: skillSourceSectionIds[source],
       label: skillSourceLabels[source],
     })),
@@ -334,12 +333,12 @@ function statusText(): string {
           onRetry={() => void loadProjectCapabilities()}
         />
       {:else if settingsScope === "project" && page.id === "skills"}
-        <ProjectSkillsSettingsPage
+        <SkillsSettingsPage
+          scope="project"
           configuration={capabilityConfiguration}
+          projectName={activeProject?.name}
           {settingsDraft}
-          {agentBrowserSkills}
-          {globalSkills}
-          {projectSkills}
+          {skills}
           loading={capabilityLoading || skillsLoading}
           error={capabilityError ?? skillsError}
           onPatch={(patch) => void patchProjectCapabilities(patch)}
@@ -421,10 +420,9 @@ function statusText(): string {
         />
       {:else if page.id === "skills"}
         <SkillsSettingsPage
+          scope="user"
           {settingsDraft}
-          {agentBrowserSkills}
-          {globalSkills}
-          {projectSkills}
+          {skills}
           loading={skillsLoading}
           error={skillsError}
           onRetry={onSkillsRetry}

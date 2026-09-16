@@ -24,7 +24,6 @@ import {
   assistantToolCallDraft,
   errorTextFromToolResult,
   recordFromUnknown,
-  sameStringList,
   isRetryableAssistantError,
 } from "./harness-execution-shared.js";
 import { expandExecutablePromptBlocks } from "./prompt-block-expansion.js";
@@ -38,6 +37,7 @@ import {
   markMirroredEntriesMaterialized,
 } from "./message-mirror.js";
 import { composeAgentSystemPrompt } from "./system-prompt-builder.js";
+import { createRunCapabilityResources } from "./run-capability-resources.js";
 import {
   createToolDraftProgressAccumulator,
   type ToolDraftProgressAccumulator,
@@ -88,20 +88,35 @@ export async function executeWorkbenchHarness(
     });
     const conversation = this.deps.state.getConversation(agent.conversationId);
     const settings = await this.effectiveSettings(agent.projectDir);
-    const capabilitySelection = await this.deps.capabilities.resolve(
-      agent.projectId,
-      agent.conversationId,
-    );
     const project = this.deps.state.getProject(agent.projectId);
     const storage = await this.deps.harnessStorage.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
     const initialHarnessEntryIds = new Set(
       (await storage.getEntries()).map((entry) => entry.id),
     );
-    let activeToolNames = await this.activeToolNamesFor(
-      agent,
-      capabilitySelection.disabledTools,
-    );
+    const latestAgent = () => this.deps.state.agents.get(agent.id) ?? agent;
+    const capabilities = await createRunCapabilityResources({
+      resolveSelection: () =>
+        this.deps.capabilities.resolve(agent.projectId, agent.conversationId),
+      loadResources: (selection) =>
+        loadHarnessResources(agent.projectDir, {
+          storageHome: this.deps.storage.paths.home,
+          disabledSkillNames: selection.disabledFileSkills,
+          enabledAgentBrowserSkillNames: selection.enabledAgentBrowserSkills,
+          agentBrowserSkills: this.deps.agentBrowserSkills.skills,
+        }),
+      resolveActiveToolNames: (current, disabledTools) =>
+        this.activeToolNamesFor(current, disabledTools),
+      latestAgent,
+      onError: (error) =>
+        void this.deps.logger.warn("Capability refresh failed", {
+          agentId: agent.id,
+          conversationId: agent.conversationId,
+          projectId: agent.projectId,
+          runId,
+          context: { error: String(error) },
+        }),
+    });
     const model = resolveAgentModel(
       agent.model,
       await this.customModels(agent.projectDir),
@@ -109,24 +124,13 @@ export async function executeWorkbenchHarness(
     this.deps.subscriptionUsage.touchProvider(model.provider);
     const shellPath = settings.runtime.shellPath;
     const env = new NodeExecutionEnv({ cwd: agent.projectDir, shellPath });
-    const resources = await loadHarnessResources(agent.projectDir, {
-      storageHome: this.deps.storage.paths.home,
-      disabledSkillNames: capabilitySelection.disabledFileSkills,
-      enabledAgentBrowserSkillNames:
-        capabilitySelection.enabledAgentBrowserSkills,
-      agentBrowserSkills: this.deps.agentBrowserSkills.skills,
-    });
-    const latestAgent = () => this.deps.state.agents.get(agent.id) ?? agent;
-    const composeLatestSystemPrompt = () => {
-      const currentAgent = latestAgent();
-      const currentActiveToolNames = activeToolNames;
+    const composeLatestSystemPrompt = async () => {
+      await capabilities.refresh();
       return composeAgentSystemPrompt(
-        currentAgent,
-        currentActiveToolNames,
-        resources,
-        {
-          planDir: planDirForStorageHome(this.deps.storage.paths.home),
-        },
+        latestAgent(),
+        capabilities.activeToolNames(),
+        capabilities.resources(),
+        { planDir: planDirForStorageHome(this.deps.storage.paths.home) },
       );
     };
     const liveToolDraftReconciler = new LiveToolDraftReconciler({
@@ -180,13 +184,13 @@ export async function executeWorkbenchHarness(
               toToolCallTranscriptRecord(toolCall),
             ]),
         }),
-        activeToolNames,
+        activeToolNames: capabilities.activeToolNames(),
       }),
       create: async ({ environment }) =>
         createWorkbenchAgentHarness({
           env,
           conversation: harnessConversation,
-          resources: { skills: resources.skills },
+          resources: { skills: capabilities.resources().skills },
           tools: environment.policy.tools,
           activeToolNames: environment.policy.activeToolNames,
           model: environment.model,
@@ -200,6 +204,7 @@ export async function executeWorkbenchHarness(
       scope: { conversationId: conversation.id, agentId: agent.id, runId },
       context: undefined,
     });
+    capabilities.attach(harness);
     harness.on("iteration_boundary", async (event) => {
       const compacted = await this.maybeAutoCompactAtIteration(
         agent.conversationId,
@@ -615,14 +620,7 @@ export async function executeWorkbenchHarness(
       harness.requestAbort();
     };
     const updateAgentRuntimeConfig = async (updatedAgent: AgentRecord) => {
-      const nextActiveToolNames = await this.activeToolNamesFor(
-        updatedAgent,
-        capabilitySelection.disabledTools,
-      );
-      if (!sameStringList(nextActiveToolNames, activeToolNames)) {
-        activeToolNames = nextActiveToolNames;
-        await harness.setActiveTools(nextActiveToolNames);
-      }
+      await capabilities.refreshActiveTools(updatedAgent);
       const nextModel = resolveAgentModel(
         updatedAgent.model,
         await this.customModels(updatedAgent.projectDir),

@@ -77,7 +77,7 @@ export const settingsPages: SettingsPageDef[] = [
     label: "Skills",
     icon: Library,
     description:
-      "Skills apply to subsequent agent runs. Project definitions take precedence over global skills with the same name.",
+      "Skills apply from the next agent turn. Project definitions take precedence over your skills with the same name.",
     sections: [{ id: "skills", label: "Skills" }],
   },
   {

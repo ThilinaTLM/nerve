@@ -36,9 +36,7 @@ $effect(() => {
   models={settingsState.models}
   authProviders={settingsState.authProviders}
   {activeProject}
-  agentBrowserSkills={settingsState.agentBrowserSkills}
-  globalSkills={settingsState.globalSkills}
-  projectSkills={settingsState.projectSkills}
+  skills={settingsState.skills}
   skillsLoading={settingsState.skillsLoading}
   skillsError={settingsState.skillsError}
   onSkillsRetry={() => loadSettingsSkills(activeProject?.id)}

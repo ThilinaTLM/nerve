@@ -10,7 +10,7 @@ import {
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
-import { uploadClipboardImage } from "$lib/api";
+import { uploadClipboardImage, type AvailableSkill } from "$lib/api";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import TranscriptionActivity from "$lib/features/conversations/audio/TranscriptionActivity.svelte";
@@ -38,6 +38,10 @@ import {
   updateCapabilities,
 } from "$lib/features/projects/api/projects.api";
 import { listAvailableSkills } from "$lib/features/skills/api/skills.api";
+import { composerSkillRows } from "$lib/domain/skills/skill-catalog";
+import { createCapabilityMutationQueue } from "$lib/domain/capabilities/capability-mutation-queue";
+import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
+import { onEvent } from "$lib/application/events/event-bus";
 
 let {
   text = "",
@@ -96,9 +100,8 @@ let lastComposerEscapeToken: number | undefined;
 let lastMicShortcutToken: number | undefined;
 let audioAuthDialogOpen = $state(false);
 let capabilityConfiguration = $state<CapabilityConfiguration>();
-let capabilitySkills = $state<
-  Array<{ name: string; kind: "file" | "agentBrowser" }>
->([]);
+let capabilitySkills = $state<CapabilitySkillRow[]>([]);
+let availableSkills: AvailableSkill[] = [];
 let capabilityLoading = $state(false);
 let capabilityError = $state<string>();
 let capabilityRequest = 0;
@@ -120,23 +123,7 @@ async function loadCapabilities(): Promise<void> {
       listAvailableSkills(projectId),
     ]);
     if (request !== capabilityRequest) return;
-    capabilitySkills = [
-      ...available.projectSkills.map((skill) => ({
-        name: skill.name,
-        kind: "file" as const,
-      })),
-      ...available.globalSkills.map((skill) => ({
-        name: skill.name,
-        kind: "file" as const,
-      })),
-      ...available.agentBrowserSkills.map((skill) => ({
-        name: skill.name,
-        kind: "agentBrowser" as const,
-      })),
-    ].filter(
-      (skill, index, all) =>
-        all.findIndex((item) => item.name === skill.name) === index,
-    );
+    availableSkills = available.skills;
     const pendingOverrides = !conversationId
       ? activePendingConversation?.capabilityOverrides
       : undefined;
@@ -150,6 +137,12 @@ async function loadCapabilities(): Promise<void> {
           }),
         }
       : base;
+    capabilitySkills = composerSkillRows({
+      skills: availableSkills,
+      selection: capabilityConfiguration.effective,
+      project: capabilityConfiguration.project,
+      conversation: capabilityConfiguration.conversation,
+    });
   } catch (error) {
     if (request === capabilityRequest)
       capabilityError = error instanceof Error ? error.message : String(error);
@@ -167,24 +160,62 @@ $effect(() => {
   if (progressive && scopeKey) void loadCapabilities();
 });
 
-/** Failed mutations reload, then surface the message in the popover. */
+/* Project and user level changes made elsewhere must not leave the composer
+ * showing a stale effective state. */
+$effect(() => {
+  const unsubscribes = [
+    onEvent("project.capabilities.changed", (event) => {
+      const data = event.data as {
+        projectId?: string;
+        conversationId?: string;
+      };
+      if (data.projectId !== activeProject?.id) return;
+      if (
+        data.conversationId !== undefined &&
+        data.conversationId !== activeConversation?.id
+      )
+        return;
+      void capabilityMutations.settled().then(() => loadCapabilities());
+    }),
+    onEvent("settings.updated", () => {
+      void capabilityMutations.settled().then(() => loadCapabilities());
+    }),
+  ];
+  return () => {
+    for (const unsubscribe of unsubscribes) unsubscribe();
+  };
+});
+
+/**
+ * Serialized so rapid toggles cannot land out of order or collide on the
+ * document digest; failures reload and surface the message in the popover.
+ */
+const capabilityMutations = createCapabilityMutationQueue();
+
 async function runCapabilityMutation(
   mutation: () => Promise<CapabilityConfiguration>,
 ): Promise<void> {
-  try {
-    capabilityConfiguration = await mutation();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await loadCapabilities();
-    capabilityError = message;
-  }
+  await capabilityMutations.run(async () => {
+    try {
+      capabilityConfiguration = await mutation();
+      capabilitySkills = composerSkillRows({
+        skills: availableSkills,
+        selection: capabilityConfiguration.effective,
+        project: capabilityConfiguration.project,
+        conversation: capabilityConfiguration.conversation,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await loadCapabilities();
+      capabilityError = message;
+    }
+  });
 }
 
 async function patchCapabilities(patch: CapabilityPatch): Promise<void> {
   const project = activeProject;
   const conversation = activeConversation;
-  const current = capabilityConfiguration;
-  if (!project || !current) return;
+  if (!project || !capabilityConfiguration) return;
   if (!conversation && activePendingConversation) {
     activePendingConversation.capabilityOverrides = applyCapabilityPatch(
       activePendingConversation.capabilityOverrides ??
@@ -195,13 +226,14 @@ async function patchCapabilities(patch: CapabilityPatch): Promise<void> {
     return;
   }
   if (!conversation) return;
+  // The digest is read when the mutation runs, after any queued write applied.
   await runCapabilityMutation(() =>
     updateCapabilities({
       projectId: project.id,
       conversationId: conversation.id,
       origin: "conversation",
       patch,
-      expectedDigest: current.conversationDigest,
+      expectedDigest: capabilityConfiguration?.conversationDigest,
     }),
   );
 }
@@ -209,8 +241,7 @@ async function patchCapabilities(patch: CapabilityPatch): Promise<void> {
 async function resetCapabilities(): Promise<void> {
   const project = activeProject;
   const conversation = activeConversation;
-  const current = capabilityConfiguration;
-  if (!project || !current) return;
+  if (!project || !capabilityConfiguration) return;
   const empty = emptyCapabilityOverrides();
   if (!conversation && activePendingConversation) {
     activePendingConversation.capabilityOverrides = empty;
@@ -224,7 +255,7 @@ async function resetCapabilities(): Promise<void> {
       conversationId: conversation.id,
       origin: "conversation",
       replace: empty,
-      expectedDigest: current.conversationDigest,
+      expectedDigest: capabilityConfiguration?.conversationDigest,
     }),
   );
 }

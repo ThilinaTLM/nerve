@@ -9,9 +9,7 @@ import type {
 export const settingsState = $state({
   models: [] as ModelInfo[],
   authProviders: [] as AuthProviderMetadata[],
-  agentBrowserSkills: [] as AvailableSkill[],
-  globalSkills: [] as AvailableSkill[],
-  projectSkills: [] as AvailableSkill[],
+  skills: [] as AvailableSkill[],
   skillsLoading: false,
   skillsError: undefined as string | undefined,
   skillsProjectId: undefined as string | null | undefined,

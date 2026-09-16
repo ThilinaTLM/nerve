@@ -2,7 +2,11 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import type { AvailableSkillsResponse } from "@nervekit/contracts/skills";
+import type {
+  AvailableSkill,
+  AvailableSkillsResponse,
+  SkillSource,
+} from "@nervekit/contracts/skills";
 import { loadSkills, type Skill } from "@nervekit/harness/resources";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import { resolveDataDir } from "../../../infrastructure/storage-bootstrap/paths.js";
@@ -26,7 +30,7 @@ export interface LoadHarnessResourcesOptions {
 }
 
 interface DiscoveredSkillGroups {
-  globalSkills: Skill[];
+  userSkills: Skill[];
   projectSkills: Skill[];
 }
 
@@ -107,15 +111,20 @@ export async function listAvailableSkills(
   const resolvedCwd = cwd ? resolve(cwd) : undefined;
   const env = new NodeExecutionEnv({ cwd: resolvedCwd ?? agentDir });
   const groups = await discoverSkillGroups(env, resolvedCwd, agentDir);
-  const toMetadata = ({ name, description, filePath }: Skill) => ({
-    name,
-    description,
-    filePath,
-  });
+  const toMetadata =
+    (source: SkillSource) =>
+    ({ name, description, filePath }: Skill): AvailableSkill => ({
+      name,
+      description,
+      filePath,
+      source,
+    });
   return {
-    agentBrowserSkills: (options.agentBrowserSkills ?? []).map(toMetadata),
-    globalSkills: groups.globalSkills.map(toMetadata),
-    projectSkills: groups.projectSkills.map(toMetadata),
+    skills: [
+      ...groups.projectSkills.map(toMetadata("project")),
+      ...groups.userSkills.map(toMetadata("user")),
+      ...(options.agentBrowserSkills ?? []).map(toMetadata("agentBrowser")),
+    ],
   };
 }
 
@@ -124,19 +133,20 @@ async function discoverSkillGroups(
   cwd: string | undefined,
   agentDir: string,
 ): Promise<DiscoveredSkillGroups> {
-  const globalAgentsSkillDir = join(homedir(), AGENTS_DIR_NAME, "skills");
-  const [project, global] = await Promise.all([
+  /** The home `.agents/skills` directory is always a user source, never a project one. */
+  const userAgentsSkillDir = join(homedir(), AGENTS_DIR_NAME, "skills");
+  const [project, user] = await Promise.all([
     cwd
       ? loadSkills(env, [
           join(cwd, NERVE_DIR_NAME, "skills"),
-          ...ancestorAgentsSkillDirs(cwd, globalAgentsSkillDir),
+          ...ancestorAgentsSkillDirs(cwd, userAgentsSkillDir),
         ])
       : Promise.resolve({ skills: [], diagnostics: [] }),
-    loadSkills(env, [join(agentDir, "skills"), globalAgentsSkillDir]),
+    loadSkills(env, [join(agentDir, "skills"), userAgentsSkillDir]),
   ]);
   return {
     projectSkills: deduplicateSkills(project.skills),
-    globalSkills: deduplicateSkills(global.skills),
+    userSkills: deduplicateSkills(user.skills),
   };
 }
 
@@ -150,7 +160,7 @@ function effectiveSkills(
   );
   const fileSkills = deduplicateSkills([
     ...groups.projectSkills,
-    ...groups.globalSkills,
+    ...groups.userSkills,
   ]).filter((skill) => !disabledSkillNames.has(skill.name));
   const agentBrowserSkills = (options.agentBrowserSkills ?? []).filter(
     (skill) => enabledAgentBrowserSkillNames.has(skill.name),
