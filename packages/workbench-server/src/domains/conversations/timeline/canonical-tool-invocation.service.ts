@@ -16,9 +16,13 @@ export class CanonicalToolInvocationService {
   private readonly dispatch: CanonicalToolDispatchService;
   private readonly termination: CanonicalRunTerminationService;
 
-  constructor(private readonly store: CanonicalStore) {
-    this.dispatch = new CanonicalToolDispatchService(store);
-    this.termination = new CanonicalRunTerminationService(store);
+  constructor(
+    private readonly store: CanonicalStore,
+    dispatch?: CanonicalToolDispatchService,
+    termination?: CanonicalRunTerminationService,
+  ) {
+    this.dispatch = dispatch ?? new CanonicalToolDispatchService(store);
+    this.termination = termination ?? new CanonicalRunTerminationService(store);
   }
 
   async prepareForDispatch(input: {
@@ -42,7 +46,8 @@ export class CanonicalToolInvocationService {
     ) {
       return rejected("tool_claim_work_invalid");
     }
-    const effect = await this.store.execution.readEffect(initial.effectId);
+    const effectId = initial.effectId;
+    const effect = await this.store.execution.readEffect(effectId);
     if (!effect) return rejected("tool_effect_missing");
     if (
       !(await input.revalidatePolicy({
@@ -53,44 +58,49 @@ export class CanonicalToolInvocationService {
     ) {
       return rejected("tool_policy_observation_changed");
     }
-    const authorized = await this.dispatch.authorizeFirstAttempt({
-      workId: initial.workId,
-      workerId: input.workerId,
-      conversationId: initial.conversationId,
-      runId: initial.runId,
-      effectId: initial.effectId,
-      now: input.now,
-      claimLeaseDurationMs: input.executionClaimDurationMs ?? 60_000,
-    });
+    const authorize = () =>
+      this.dispatch.authorizeFirstAttempt({
+        workId: initial.workId,
+        workerId: input.workerId,
+        conversationId: initial.conversationId,
+        runId: initial.runId,
+        effectId,
+        now: input.now,
+        claimLeaseDurationMs: input.executionClaimDurationMs ?? 300_000,
+      });
+    let authorized = await authorize();
+    for (
+      let retry = 1;
+      retry < 32 &&
+      authorized.kind === "rejected" &&
+      isConcurrentConflict(authorized.outcome);
+      retry += 1
+    ) {
+      authorized = await authorize();
+    }
     if (authorized.kind === "rejected") return authorized;
     const dispatchWork = await this.store.execution.claimReadyLifecycleWork({
       workId: authorized.snapshot.work.workId,
       workerId: input.workerId,
       now: input.now,
-      leaseDurationMs: input.schedulerLeaseDurationMs ?? 30_000,
+      leaseDurationMs: input.schedulerLeaseDurationMs ?? 300_000,
     });
     if (!dispatchWork) return rejected("tool_dispatch_work_unavailable");
-    if (
-      !(await input.revalidatePolicy({
-        effectId: effect.effectId,
-        authorizationId: effect.authorizationId,
-        normalizedInputFingerprint: effect.normalizedInputFingerprint,
-      }))
+    const markDispatched = () =>
+      this.dispatch.markDispatched(
+        { ...authorized.snapshot, work: dispatchWork },
+        { workerId: input.workerId, now: input.now },
+      );
+    let dispatched = await markDispatched();
+    for (
+      let retry = 1;
+      retry < 32 &&
+      dispatched.kind === "rejected" &&
+      isConcurrentConflict(dispatched.outcome);
+      retry += 1
     ) {
-      await this.termination.close({
-        conversationId: initial.conversationId,
-        runId: initial.runId,
-        agentId: String(effect.owner.agentId ?? "agent_unknown"),
-        state: "failed",
-        recoveryReason: "tool_policy_changed_before_dispatch",
-        now: input.now,
-      });
-      return rejected("tool_policy_changed_before_dispatch");
+      dispatched = await markDispatched();
     }
-    const dispatched = await this.dispatch.markDispatched(
-      { ...authorized.snapshot, work: dispatchWork },
-      { workerId: input.workerId, now: input.now },
-    );
     if (dispatched.kind === "rejected") return dispatched;
     if (
       await this.dispatch.revalidateBeforeDispatch(dispatched.snapshot, {
@@ -110,6 +120,13 @@ export class CanonicalToolInvocationService {
     });
     return rejected("tool_pre_dispatch_revalidation_failed");
   }
+}
+
+function isConcurrentConflict(outcome: MutationOutcome): boolean {
+  return (
+    outcome.kind === "cas_conflict" ||
+    (outcome.kind === "superseded" && outcome.reason === "run_fence_changed")
+  );
 }
 
 function rejected(reason: string): CanonicalToolInvocationResult {

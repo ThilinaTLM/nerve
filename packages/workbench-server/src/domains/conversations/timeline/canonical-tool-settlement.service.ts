@@ -4,6 +4,7 @@ import {
   type ChildExecutionRelationship,
 } from "@nervekit/contracts/agents";
 import type { MutationOutcome } from "@nervekit/contracts/conversations";
+import { toolCallRecordSchema } from "@nervekit/contracts/tools";
 import type {
   CanonicalExecutionAttempt,
   CanonicalLifecycleWork,
@@ -15,6 +16,7 @@ import type { CanonicalStore } from "../../../infrastructure/persistence/canonic
 import type { CanonicalToolDispatchSnapshot } from "./canonical-tool-dispatch.service.js";
 import { canonicalConversationJson } from "./command-fingerprint.js";
 import { CanonicalRunTimelineService } from "./canonical-run-timeline.service.js";
+import { toToolCallTranscriptRecord } from "../../tools/artifacts/tool-call-transcript-preview.js";
 
 export type CanonicalToolSettlementResult =
   | {
@@ -95,6 +97,7 @@ export class CanonicalToolSettlementService {
       result: input.result,
       failed: input.failed,
     };
+    const publicToolCall = toolCallRecordSchema.safeParse(input.result);
     const digest = createHash("sha256")
       .update(canonicalConversationJson(resultData))
       .digest("hex");
@@ -290,6 +293,26 @@ export class CanonicalToolSettlementService {
               },
             ]
           : [],
+      publicationIntents: publicToolCall.success
+        ? [
+            {
+              intentId: `evt_tool_call_updated_settled_${attempt.attemptId}`,
+              stream: `conv/${snapshot.conversationId}`,
+              eventType: "toolCall.updated",
+              occurredAt: input.now,
+              conversationId: snapshot.conversationId,
+              data: {
+                conversationId: snapshot.conversationId,
+                agentId: publicToolCall.data.agentId,
+                projectId: publicToolCall.data.projectId,
+                runId: snapshot.runId,
+                providerToolCallId:
+                  publicToolCall.data.providerToolCallId,
+                toolCall: toToolCallTranscriptRecord(publicToolCall.data),
+              },
+            },
+          ]
+        : [],
       providerPhaseId: null,
       waitGroupId: group.waitGroupId,
       runState: allSettled ? "waiting" : "partially_waiting",

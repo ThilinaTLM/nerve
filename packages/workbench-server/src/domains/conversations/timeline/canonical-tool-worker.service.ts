@@ -1,4 +1,5 @@
 import type { AgentRecord } from "@nervekit/contracts/agents";
+import type { MutationOutcome } from "@nervekit/contracts/conversations";
 import type { CanonicalLifecycleWork } from "@nervekit/contracts/runs";
 import type { ToolCallRecord, ToolName } from "@nervekit/contracts/tools";
 import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
@@ -93,24 +94,35 @@ export class CanonicalToolWorkerService {
       runId: authorized.snapshot.runId,
       options: { signal: input.signal },
     });
-    const result = await this.settlement.commitResult({
-      snapshot: authorized.snapshot,
-      workerId: input.workerId,
-      resultEntryId: `entry_tool_result_${authorized.snapshot.effect.effectId.slice("effect_".length)}`,
-      result: terminal,
-      exactHarnessMessage: {
-        role: "toolResult",
-        toolCallId: manifest.providerToolCallId,
-        toolName: manifest.toolName,
-        content: toolCallResultForModel(terminal).content,
-        isError: terminal.status !== "completed",
-        timestamp: Date.parse(terminal.updatedAt),
-      },
-      failed: terminal.status !== "completed",
-      providerIdentity: manifest.providerIdentity,
-      providerCapability: manifest.providerCapability,
-      now: new Date().toISOString(),
-    });
+    const settle = () =>
+      this.settlement.commitResult({
+        snapshot: authorized.snapshot,
+        workerId: input.workerId,
+        resultEntryId: `entry_tool_result_${authorized.snapshot.effect.effectId.slice("effect_".length)}`,
+        result: terminal,
+        exactHarnessMessage: {
+          role: "toolResult",
+          toolCallId: manifest.providerToolCallId,
+          toolName: manifest.toolName,
+          content: toolCallResultForModel(terminal).content,
+          isError: terminal.status !== "completed",
+          timestamp: Date.parse(terminal.updatedAt),
+        },
+        failed: terminal.status !== "completed",
+        providerIdentity: manifest.providerIdentity,
+        providerCapability: manifest.providerCapability,
+        now: new Date().toISOString(),
+      });
+    let result = await settle();
+    for (
+      let retry = 1;
+      retry < 32 &&
+      result.kind === "rejected" &&
+      isConcurrentConflict(result.outcome);
+      retry += 1
+    ) {
+      result = await settle();
+    }
     if (result.kind === "rejected") {
       throw new Error(
         `Canonical tool settlement rejected: ${result.outcome.kind}.`,
@@ -118,6 +130,13 @@ export class CanonicalToolWorkerService {
     }
     return terminal;
   }
+}
+
+function isConcurrentConflict(outcome: MutationOutcome): boolean {
+  return (
+    outcome.kind === "cas_conflict" ||
+    (outcome.kind === "superseded" && outcome.reason === "run_fence_changed")
+  );
 }
 
 function parseManifest(value: unknown): CanonicalToolInputManifest | undefined {

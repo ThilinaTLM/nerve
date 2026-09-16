@@ -331,7 +331,6 @@ export class CanonicalToolDispatchService {
       head.selectionEpoch !== snapshot.selectionEpoch ||
       head.foregroundRunId !== snapshot.runId ||
       run.generation !== snapshot.runGeneration ||
-      run.revision !== snapshot.runRevision ||
       !run.foregroundOwned
     ) {
       return rejected("tool_dispatch_fence_changed");
@@ -437,7 +436,6 @@ export class CanonicalToolDispatchService {
       head.selectionEpoch === snapshot.selectionEpoch &&
       head.foregroundRunId === snapshot.runId &&
       run?.generation === snapshot.runGeneration &&
-      run.revision === snapshot.runRevision &&
       run.foregroundOwned &&
       authorization?.state === "consumed" &&
       effect?.state === "dispatching" &&
