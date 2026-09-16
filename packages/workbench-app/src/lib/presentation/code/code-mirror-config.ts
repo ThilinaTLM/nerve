@@ -24,7 +24,6 @@ import {
   lineNumbers,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { showMinimap } from "@replit/codemirror-minimap";
 
 export type CodeLanguageId =
   | "javascript"
@@ -427,30 +426,7 @@ export const codeMirrorTheme = EditorView.theme({
     color: "var(--foreground)",
     backgroundColor: "var(--card)",
   },
-  ".cm-minimap-gutter": {
-    backgroundColor: "var(--background)",
-    borderLeft: "1px solid var(--border)",
-  },
-  ".cm-minimap-overlay": {
-    backgroundColor: "var(--primary)",
-  },
-  ".cm-minimap-box-shadow": {
-    boxShadow: "none",
-  },
 });
-
-function codeMinimapExtension(): Extension {
-  return showMinimap.of({
-    create: () => {
-      const dom = document.createElement("div");
-      dom.setAttribute("aria-label", "Code minimap");
-      dom.title = "Code minimap";
-      return { dom };
-    },
-    displayText: "blocks",
-    showOverlay: "always",
-  });
-}
 
 export function editableCodeExtensions(ariaLabel: string): Extension[] {
   return [
@@ -490,7 +466,6 @@ export function readOnlyCodeExtensions(input: {
     input.highlightSelectionMatches ? highlightSelectionMatches() : [],
     syntaxHighlighting(codeHighlightStyle),
     keymap.of(foldKeymap),
-    codeMinimapExtension(),
     codeMirrorTheme,
   ];
 }
