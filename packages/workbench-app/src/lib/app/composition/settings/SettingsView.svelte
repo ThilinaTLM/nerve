@@ -242,12 +242,21 @@ const skillSections = $derived(
 /** Pages that hold project-scoped controls; the rest stay user-only. */
 const projectScopedPageIds = new Set(["tools", "skills", "permissions"]);
 
+/** The Skills page states what the current scope writes, instead of a banner. */
+const skillsDescription = $derived(
+  settingsScope === "user"
+    ? "Your defaults for every project. Projects and conversations can override them."
+    : `Overrides for ${activeProject?.name ?? "this project"}. Skills without an override follow your user settings.`,
+);
+
 const pages = $derived(
   settingsPages.map((page) => {
     const sections =
       page.id === "skills" && skillSections.length > 0
         ? skillSections
         : page.sections;
+    if (page.id === "skills")
+      return { ...page, sections, description: skillsDescription };
     if (settingsScope === "user") return { ...page, sections };
     if (page.id === "permissions")
       return {
@@ -336,7 +345,6 @@ function statusText(): string {
         <SkillsSettingsPage
           scope="project"
           configuration={capabilityConfiguration}
-          projectName={activeProject?.name}
           {settingsDraft}
           {skills}
           loading={capabilityLoading || skillsLoading}

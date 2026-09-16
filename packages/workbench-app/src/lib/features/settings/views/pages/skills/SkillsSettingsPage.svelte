@@ -38,6 +38,7 @@ import {
 } from "$lib/domain/skills/skill-catalog";
 import type { SettingsChange } from "../settings-change";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
+import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
 
 type Props = {
   /** Where toggles are written: user defaults or this project's overrides. */
@@ -45,7 +46,6 @@ type Props = {
   settingsDraft: Settings;
   skills?: AvailableSkill[];
   configuration?: CapabilityConfiguration;
-  projectName?: string;
   loading?: boolean;
   error?: string;
   onSettingsChange?: SettingsChange;
@@ -60,7 +60,6 @@ let {
   settingsDraft,
   skills = [],
   configuration,
-  projectName,
   loading = false,
   error,
   onSettingsChange,
@@ -115,11 +114,6 @@ const overrideCount = $derived(
         Object.keys(configuration.project.skills.agentBrowser).length
     : 0,
 );
-const scopeNote = $derived(
-  scope === "user"
-    ? "Your defaults for every project. Projects and conversations can override them."
-    : `Overrides for ${projectName ?? "this project"}. Skills without an override follow your user settings.`,
-);
 
 function persistUserSets(next: {
   disabled: string[];
@@ -170,18 +164,30 @@ function resetEntry(entry: SkillEntry): void {
   onPatch?.({ skills: { [entry.kind]: { [entry.skill.name]: null } } });
 }
 
-function clearOrphan(name: string, kind: "file" | "agentBrowser"): void {
+function clearOrphans(
+  removed: Array<{ name: string; kind: "file" | "agentBrowser" }>,
+): void {
   if (scope === "user") {
-    const disabled = sets.disabled.filter(
-      (entry) => kind !== "file" || entry !== name,
-    );
-    const agentBrowserEnabled = sets.agentBrowserEnabled.filter(
-      (entry) => kind !== "agentBrowser" || entry !== name,
-    );
-    persistUserSets({ disabled, agentBrowserEnabled });
+    const gone = new Set(removed.map((entry) => `${entry.kind}:${entry.name}`));
+    persistUserSets({
+      disabled: sets.disabled.filter((name) => !gone.has(`file:${name}`)),
+      agentBrowserEnabled: sets.agentBrowserEnabled.filter(
+        (name) => !gone.has(`agentBrowser:${name}`),
+      ),
+    });
     return;
   }
-  onPatch?.({ skills: { [kind]: { [name]: null } } });
+  const file: Record<string, null> = {};
+  const agentBrowser: Record<string, null> = {};
+  for (const entry of removed) {
+    if (entry.kind === "agentBrowser") agentBrowser[entry.name] = null;
+    else file[entry.name] = null;
+  }
+  onPatch?.({ skills: { file, agentBrowser } });
+}
+
+function clearAllOrphans(): void {
+  clearOrphans(orphans);
 }
 
 function applyBulk(enabled: boolean): void {
@@ -212,8 +218,6 @@ function copyPath(path: string): void {
     {/snippet}
   </SettingsInlineMessage>
 {/if}
-
-<SettingsInlineMessage tone="neutral" text={scopeNote} />
 
 {#if scope === "project" && configuration}
   <ProjectCapabilityTrustNotice trust={configuration.trust} {onTrust} />
@@ -278,6 +282,9 @@ function copyPath(path: string): void {
         >
           <RotateCcw class="size-3.5" />Reset all
         </Button>
+        {#if configuration}
+          <ProjectCapabilityTrustAction trust={configuration.trust} {onTrust} />
+        {/if}
       {/if}
     {/snippet}
   </SettingsToolbar>
@@ -354,24 +361,34 @@ function copyPath(path: string): void {
 
   {#if orphans.length > 0}
     <SettingsSection
-      id="not-installed"
-      title="Not installed"
-      info="Stored settings for skills that are not on this machine, or that belong to another project."
+      id="unused-entries"
+      title="Unused entries"
+      info={scope === "user"
+        ? "Saved on/off decisions for skill names that are not installed for you, usually a project's own skill or a leftover from an earlier version. They do nothing today, but would apply to any future skill taking that name."
+        : "Project overrides for skill names that are no longer installed. They do nothing today, but would apply to any future skill taking that name."}
     >
-      <SettingsList ariaLabel="Not installed skills">
+      {#snippet actions()}
+        <Button
+          size="xs"
+          variant="ghost"
+          class="text-muted-foreground"
+          onclick={clearAllOrphans}
+        >
+          Remove all
+        </Button>
+      {/snippet}
+      <SettingsList ariaLabel="Unused skill entries">
         {#each orphans as orphan (`${orphan.kind}:${orphan.name}`)}
           <SettingsDisclosureItem
             title={orphan.name}
-            description={orphan.enabled
-              ? "Stored as enabled, but no matching skill was found."
-              : "Stored as disabled, but no matching skill was found."}
+            description={`Saved as ${orphan.enabled ? "enabled" : "disabled"}, but no skill with this name is installed ${scope === "user" ? "for you" : "for this project"}.`}
           >
             {#snippet actions()}
               <Button
                 size="xs"
                 variant="ghost"
                 class="text-muted-foreground"
-                onclick={() => clearOrphan(orphan.name, orphan.kind)}
+                onclick={() => clearOrphans([orphan])}
               >
                 Remove
               </Button>
@@ -379,8 +396,8 @@ function copyPath(path: string): void {
             {#snippet detail()}
               <span class="text-xs text-muted-foreground">
                 {orphan.kind === "agentBrowser"
-                  ? "Agent Browser skill"
-                  : "File skill"}
+                  ? "Agent Browser skill entry"
+                  : "File skill entry"}
               </span>
             {/snippet}
           </SettingsDisclosureItem>
