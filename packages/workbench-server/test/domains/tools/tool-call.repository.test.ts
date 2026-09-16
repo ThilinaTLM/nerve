@@ -82,6 +82,59 @@ describe("canonical ToolCallRepository", () => {
     );
   });
 
+  it("serializes replacements that share conversation suspension state", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-repository-"));
+    roots.push(home);
+    const value = await repository(home);
+    await value.repository.create(toolCall("tool_first"));
+    await value.repository.create(toolCall("tool_second"));
+
+    let releaseFirst!: () => void;
+    const firstBlocked = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let markFirstEntered!: () => void;
+    const firstEntered = new Promise<void>((resolve) => {
+      markFirstEntered = resolve;
+    });
+    let secondEntered = false;
+
+    const first = value.repository.replaceWithCommit(
+      "tool_first",
+      1,
+      (current) => ({
+        ...current,
+        status: "completed",
+        result: "first",
+        settledAt: current.updatedAt,
+      }),
+      async () => {
+        markFirstEntered();
+        await firstBlocked;
+      },
+    );
+    const second = value.repository.replaceWithCommit(
+      "tool_second",
+      1,
+      (current) => ({
+        ...current,
+        status: "completed",
+        result: "second",
+        settledAt: current.updatedAt,
+      }),
+      async () => {
+        secondEntered = true;
+      },
+    );
+
+    await firstEntered;
+    await Promise.resolve();
+    assert.equal(secondEntered, false);
+    releaseFirst();
+    await Promise.all([first, second]);
+    assert.equal(secondEntered, true);
+  });
+
   it("installs an externally committed replacement only after commit success", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-repository-"));
     roots.push(home);

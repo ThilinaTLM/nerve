@@ -474,13 +474,27 @@ export class ApprovalBatchResolutionService {
     batch: ApprovalInteractionBatch,
     targetToolCallId: string,
   ): Promise<ToolCallRecord> {
+    const currentByToolCallId = new Map<string, ToolCallRecord>();
+    const providerToolCallIds = new Set<string>();
+    for (const toolCallId of batch.batchToolCallIds) {
+      const current = await this.deps.tools.getToolCallDetails(toolCallId);
+      currentByToolCallId.set(toolCallId, current);
+      const providerToolCallId = providerToolCallIdFor(current);
+      if (providerToolCallIds.has(providerToolCallId)) {
+        throw new Error(
+          `Approval batch has duplicate provider tool-call ID ${providerToolCallId}.`,
+        );
+      }
+      providerToolCallIds.add(providerToolCallId);
+    }
+
     const toolCalls: ToolCallRecord[] = [];
     const approvalsByToolCallId = new Map<string, ApprovalRecord>();
     for (const toolCallId of batch.batchToolCallIds) {
       const approval =
         await this.deps.tools.getApprovalForToolCallDetails(toolCallId);
       if (approval) approvalsByToolCallId.set(toolCallId, approval);
-      const current = await this.deps.tools.getToolCallDetails(toolCallId);
+      const current = currentByToolCallId.get(toolCallId)!;
       const toolCall = isTerminalToolCall(current)
         ? current
         : approval
@@ -543,6 +557,12 @@ export class ApprovalBatchResolutionService {
       if (this.locks.get(key) === tail) this.locks.delete(key);
     });
   }
+}
+
+function providerToolCallIdFor(toolCall: ToolCallRecord): string {
+  return (
+    toolCall.providerToolCallId ?? toolCall.sourceToolCallId ?? toolCall.id
+  );
 }
 
 function isStaleApprovalContextError(

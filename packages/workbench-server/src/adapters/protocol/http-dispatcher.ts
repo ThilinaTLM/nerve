@@ -16,6 +16,10 @@ import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-ad
 
 export type ProtocolAdapterContext = ServerAdapterContexts["protocolAdapter"];
 import { ApplicationError } from "../../core/application-error.js";
+import {
+  protocolCodeForHttpError,
+  translateApplicationError,
+} from "./application-error-translation.js";
 import { SqliteIdempotencyStore } from "./sqlite-idempotency-store.js";
 import { createProtocolMessage, orchestratorSource } from "./messages.js";
 import {
@@ -101,6 +105,8 @@ export class ProtocolHttpDispatcher {
         protocolStatus(dispatched.error.code),
         dispatched.error.close,
         dispatched.error.details,
+        dispatched.error.retryable,
+        dispatched.error.recovery,
       );
     }
 
@@ -133,19 +139,22 @@ export class ProtocolHttpDispatcher {
     status: number,
     close = false,
     details?: unknown,
+    retryable?: boolean,
+    recovery?: ProtocolErrorData["recovery"],
   ): Response {
     const envelope = createProtocolMessage(
       "error",
       protocolErrorData(code, message, {
         close,
-        retryable: status === 429 || status >= 500,
+        retryable: retryable ?? (status === 429 || status >= 500),
         details: details
           ? (redactProtocolValue(details) as Record<string, unknown>)
           : undefined,
         recovery:
-          status === 429
+          recovery ??
+          (status === 429
             ? { action: "retry", retryAfterMs: 10_000 }
-            : undefined,
+            : undefined),
       }),
       {
         source: orchestratorSource(this.state.daemonId),
@@ -205,15 +214,11 @@ export function workbenchWebSocketRpcDispatcher(
 
 function translateError(error: unknown): ProtocolErrorData {
   if (error instanceof ApplicationError) {
-    return {
-      code: mapHttpCode(error.code),
-      message: error.message,
-      retryable: error.status === 429 || error.status >= 500,
-    };
+    return translateApplicationError(error);
   }
   if (error instanceof GitWorkflowError) {
     return {
-      code: mapHttpCode(error.code),
+      code: protocolCodeForHttpError(error.status, error.code),
       message: error.message,
       retryable: error.status === 429 || error.status >= 500,
     };
@@ -246,13 +251,6 @@ function messageId(raw: unknown): string | undefined {
     : undefined;
 }
 
-function mapHttpCode(code: string): NerveErrorCode {
-  if (code.endsWith("_NOT_FOUND")) return "RESOURCE_NOT_FOUND";
-  if (code.includes("POLICY")) return "POLICY_DENIED";
-  if (code.includes("CONFLICT")) return "CONFLICT";
-  return "INTERNAL_ERROR";
-}
-
 function protocolStatus(code: NerveErrorCode): number {
   switch (code) {
     case "AUTH_REQUIRED":
@@ -270,6 +268,8 @@ function protocolStatus(code: NerveErrorCode): number {
       return 409;
     case "DOMAIN_VALIDATION_FAILED":
       return 422;
+    case "RATE_LIMITED":
+      return 429;
     case "OPERATION_TIMEOUT":
       return 504;
     case "SERVICE_UNAVAILABLE":

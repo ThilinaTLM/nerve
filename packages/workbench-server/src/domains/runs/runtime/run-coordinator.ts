@@ -364,9 +364,28 @@ export class RunCoordinator {
   }
 
   async continueAndWait(runId: string): Promise<RunRecord> {
-    const run = await this.continue(runId);
+    const resumed = await this.continue(runId);
     await this.live.get(runId)?.promise;
-    return run;
+    let state = await this.require(runId);
+    if (
+      state.run.status === "running" &&
+      state.run.executionId === resumed.executionId &&
+      !this.live.get(runId)
+    ) {
+      await this.fail(
+        runId,
+        resumed.executionId,
+        {
+          code: "RUN_EXECUTION_LOST",
+          message:
+            "The resumed model execution ended without settling the run.",
+          retryable: true,
+        },
+        new AbortController().signal,
+      );
+      state = await this.require(runId);
+    }
+    return state.run;
   }
 
   async executeModelWork(work: LifecycleWork): Promise<void> {

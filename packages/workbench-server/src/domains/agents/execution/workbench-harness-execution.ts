@@ -1,4 +1,5 @@
-import { AgentHarness } from "@nervekit/harness";
+import { createWorkbenchAgentHarness } from "./workbench-agent-harness.js";
+import type { CoordinatorExecutionOptions } from "./coordinator-execution-options.js";
 import { type AnyModel, isAgentToolSuspension } from "@nervekit/harness/agent";
 import { Conversation } from "@nervekit/harness/conversation";
 import { convertToLlm } from "@nervekit/harness/messages";
@@ -6,14 +7,9 @@ import { resolveAgentModel } from "@nervekit/harness/models";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
-import type { RunRecord } from "@nervekit/contracts/runs";
 import { toolNameSchema, type ToolName } from "@nervekit/contracts/tools";
 import { HostHarnessFactory } from "./harness-factory.js";
-import type {
-  CheckpointCommand,
-  RunExecutionOutcome,
-  RunExecutionSink,
-} from "../../runs/runtime/index.js";
+import type { RunExecutionOutcome } from "../../runs/runtime/index.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import { createAgentToolsForAgent } from "../../tools/orchestration/agent-tool-adapter.js";
 import {
@@ -51,19 +47,6 @@ import {
   shouldPublishToolDraftProgress,
   shouldStreamToolDraftArguments,
 } from "./tool-draft-streaming.js";
-interface CoordinatorExecutionOptions {
-  run: RunRecord;
-  sink: RunExecutionSink;
-  command: "start" | "continue";
-  prompt?: string;
-  images?: PromptRequest["images"];
-  signal: AbortSignal;
-  installControl(control: WorkbenchLiveExecutionControl): void;
-  checkpointCommand(
-    boundary: CheckpointCommand["boundary"],
-    interactionId?: string,
-  ): Promise<CheckpointCommand>;
-}
 
 export async function executeWorkbenchHarness(
   this: WorkbenchAgentMechanics,
@@ -200,7 +183,7 @@ export async function executeWorkbenchHarness(
         activeToolNames,
       }),
       create: async ({ environment }) =>
-        new AgentHarness({
+        createWorkbenchAgentHarness({
           env,
           conversation: harnessConversation,
           resources: { skills: resources.skills },
