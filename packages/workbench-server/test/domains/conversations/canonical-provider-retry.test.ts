@@ -1,0 +1,207 @@
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import { CanonicalProviderDispatchService } from "../../../src/domains/conversations/timeline/canonical-provider-dispatch.service.js";
+import { CanonicalProviderPreparationService } from "../../../src/domains/conversations/timeline/canonical-provider-preparation.service.js";
+import { CanonicalProviderSettlementService } from "../../../src/domains/conversations/timeline/canonical-provider-settlement.service.js";
+import { CanonicalRunStartService } from "../../../src/domains/conversations/timeline/canonical-run-start.service.js";
+import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
+
+test("INV-PROVIDER-01 records known failure before scheduling canonical retry", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-provider-retry-"));
+  const databasePath = join(home, "nerve.sqlite");
+  let store = new CanonicalStore(databasePath);
+  await store.initialize();
+  t.after(async () => {
+    await store.close();
+    await rm(home, { recursive: true, force: true });
+  });
+
+  await new CanonicalRunStartService(store).start({
+    conversationId: "conv_retry",
+    runId: "run_retry",
+    agentId: "agent_retry",
+    providerIdentity: {
+      provider: "test",
+      model: "test-model",
+      canonicalRetryNumber: 2,
+    },
+    providerCapability: "stateless_generation",
+    prompt: "hello",
+    now: "2026-09-14T00:00:00.000Z",
+  });
+  const preparationWork = await store.execution.claimReadyLifecycleWork({
+    workerId: "prepare",
+    now: "2026-09-14T00:00:01.000Z",
+    leaseDurationMs: 30_000,
+  });
+  assert.equal(preparationWork?.kind, "prepare_provider_request");
+  const prepared = await new CanonicalProviderPreparationService(
+    store,
+  ).commitPreparedRequest({
+    workId: preparationWork!.workId,
+    workerId: "prepare",
+    conversationId: "conv_retry",
+    runId: "run_retry",
+    phaseId: preparationWork!.providerPhaseId!,
+    request: { model: "test-model", messages: [] },
+    now: "2026-09-14T00:00:02.000Z",
+  });
+  assert.notEqual(prepared.kind, "rejected");
+
+  const claimWork = await store.execution.claimReadyLifecycleWork({
+    workerId: "claim",
+    now: "2026-09-14T00:00:03.000Z",
+    leaseDurationMs: 30_000,
+  });
+  let dispatch = new CanonicalProviderDispatchService(store);
+  const authorized = await dispatch.authorizeFirstAttempt({
+    workId: claimWork!.workId,
+    workerId: "claim",
+    conversationId: "conv_retry",
+    runId: "run_retry",
+    phaseId: claimWork!.providerPhaseId!,
+    now: "2026-09-14T00:00:04.000Z",
+    claimLeaseDurationMs: 30_000,
+  });
+  assert.notEqual(authorized.kind, "rejected");
+  if (authorized.kind === "rejected") return;
+  const dispatchWork = await store.execution.claimReadyLifecycleWork({
+    workerId: "dispatch",
+    now: "2026-09-14T00:00:05.000Z",
+    leaseDurationMs: 30_000,
+  });
+  assert.equal(dispatchWork?.kind, "dispatch_provider_attempt");
+  const dispatched = await dispatch.markDispatched(authorized.snapshot, {
+    workerId: "dispatch",
+    now: "2026-09-14T00:00:06.000Z",
+  });
+  assert.notEqual(dispatched.kind, "rejected");
+  if (dispatched.kind === "rejected") return;
+
+  const failed = await new CanonicalProviderSettlementService(
+    store,
+  ).commitKnownFailure({
+    snapshot: dispatched.snapshot,
+    workerId: "dispatch",
+    error: "rate limited",
+    retryAt: "2026-09-14T00:00:20.000Z",
+    now: "2026-09-14T00:00:07.000Z",
+  });
+  assert.equal(failed.kind, "committed");
+  assert.equal(
+    (await store.execution.readAttempt(dispatched.snapshot.attempt.attemptId))
+      ?.state,
+    "known_failed",
+  );
+  assert.equal(
+    (await store.execution.readProviderPhase(dispatched.snapshot.phase.phaseId))
+      ?.state,
+    "closed",
+  );
+  await store.close();
+  store = new CanonicalStore(databasePath);
+  await store.initialize();
+  dispatch = new CanonicalProviderDispatchService(store);
+  assert.deepEqual(
+    await store.execution.listReadyLifecycleWork(
+      "2026-09-14T00:00:19.999Z",
+      10,
+    ),
+    [],
+  );
+  const retryWork = await store.execution.listReadyLifecycleWork(
+    "2026-09-14T00:00:20.000Z",
+    10,
+  );
+  assert.equal(retryWork.length, 1);
+  assert.equal(retryWork[0]?.kind, "prepare_provider_request");
+  const retryPhase = await store.execution.readProviderPhase(
+    retryWork[0]!.providerPhaseId!,
+  );
+  assert.equal(retryPhase?.state, "preparing");
+  assert.equal(retryPhase?.providerIdentity.canonicalRetryNumber, 3);
+  assert.equal(
+    (await store.readTimelineRunControl("conv_retry", "run_retry"))
+      ?.providerPhaseId,
+    retryPhase?.phaseId,
+  );
+
+  const replay = await new CanonicalProviderSettlementService(
+    store,
+  ).commitKnownFailure({
+    snapshot: dispatched.snapshot,
+    workerId: "dispatch",
+    error: "rate limited",
+    retryAt: "2026-09-14T00:00:20.000Z",
+    now: "2026-09-14T00:00:07.000Z",
+  });
+  assert.equal(replay.kind, "receipt_replay", JSON.stringify(replay));
+
+  const retryPreparation = await store.execution.claimReadyLifecycleWork({
+    workerId: "retry-prepare",
+    now: "2026-09-14T00:00:20.000Z",
+    leaseDurationMs: 30_000,
+  });
+  assert.equal(retryPreparation?.kind, "prepare_provider_request");
+  await new CanonicalProviderPreparationService(store).commitPreparedRequest({
+    workId: retryPreparation!.workId,
+    workerId: "retry-prepare",
+    conversationId: "conv_retry",
+    runId: "run_retry",
+    phaseId: retryPreparation!.providerPhaseId!,
+    request: { model: "test-model", messages: [] },
+    now: "2026-09-14T00:00:21.000Z",
+  });
+  const retryClaimWork = await store.execution.claimReadyLifecycleWork({
+    workerId: "retry-claim",
+    now: "2026-09-14T00:00:22.000Z",
+    leaseDurationMs: 30_000,
+  });
+  const retryAuthorized = await dispatch.authorizeFirstAttempt({
+    workId: retryClaimWork!.workId,
+    workerId: "retry-claim",
+    conversationId: "conv_retry",
+    runId: "run_retry",
+    phaseId: retryClaimWork!.providerPhaseId!,
+    now: "2026-09-14T00:00:23.000Z",
+    claimLeaseDurationMs: 30_000,
+  });
+  assert.notEqual(retryAuthorized.kind, "rejected");
+  if (retryAuthorized.kind === "rejected") return;
+  const retryDispatchWork = await store.execution.claimReadyLifecycleWork({
+    workerId: "retry-dispatch",
+    now: "2026-09-14T00:00:24.000Z",
+    leaseDurationMs: 30_000,
+  });
+  assert.equal(retryDispatchWork?.kind, "dispatch_provider_attempt");
+  const retryDispatched = await dispatch.markDispatched(
+    retryAuthorized.snapshot,
+    { workerId: "retry-dispatch", now: "2026-09-14T00:00:25.000Z" },
+  );
+  assert.notEqual(retryDispatched.kind, "rejected");
+  if (retryDispatched.kind === "rejected") return;
+  const exhausted = await new CanonicalProviderSettlementService(
+    store,
+  ).commitKnownFailure({
+    snapshot: retryDispatched.snapshot,
+    workerId: "retry-dispatch",
+    error: "still unavailable",
+    retryAt: "2026-09-14T00:01:00.000Z",
+    now: "2026-09-14T00:00:26.000Z",
+  });
+  assert.equal(exhausted.kind, "committed");
+  assert.equal(
+    (await store.readTimelineRunControl("conv_retry", "run_retry"))?.state,
+    "recovery_required",
+  );
+  assert.deepEqual(
+    await store.execution.listReadyLifecycleWork(
+      "2026-09-14T00:01:00.000Z",
+      10,
+    ),
+    [],
+  );
+});

@@ -1,38 +1,22 @@
 import { AgentHarness } from "@nervekit/harness";
-import { type AnyModel, isAgentToolSuspension } from "@nervekit/harness/agent";
-import { Conversation } from "@nervekit/harness/conversation";
-import { convertToLlm } from "@nervekit/harness/messages";
+import { type AnyModel } from "@nervekit/harness/agent";
 import { resolveAgentModel } from "@nervekit/harness/models";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
-import type { RunRecord } from "@nervekit/contracts/runs";
-import { toolNameSchema, type ToolName } from "@nervekit/contracts/tools";
 import { HostHarnessFactory } from "./harness-factory.js";
-import type {
-  CheckpointCommand,
-  RunExecutionOutcome,
-  RunExecutionSink,
-} from "../../runs/runtime/index.js";
+import type { RunExecutionOutcome } from "../../runs/runtime/index.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
-import { createAgentToolsForAgent } from "../../tools/orchestration/agent-tool-adapter.js";
-import {
-  toPublicToolCallArgsPreview,
-  toToolCallTranscriptRecord,
-} from "../../tools/artifacts/tool-call-transcript-preview.js";
-import type { WorkbenchLiveExecutionControl } from "../../runs/application/run-live-executions.js";
+import { toPublicToolCallArgsPreview } from "../../tools/artifacts/tool-call-transcript-preview.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
+import type { WorkbenchLiveExecutionControl } from "../../runs/application/run-live-executions.js";
 import type { WorkbenchAgentMechanics } from "./workbench-agent-mechanics.js";
 import {
   assistantContentRedacted,
   assistantToolCallDraft,
-  errorTextFromToolResult,
-  recordFromUnknown,
   sameStringList,
   isRetryableAssistantError,
 } from "./harness-execution-shared.js";
-import { expandExecutablePromptBlocks } from "./prompt-block-expansion.js";
-import { waitForSequentialToolInteractionBatch } from "./sequential-tool-approval-batch.js";
 import {
   LiveToolDraftReconciler,
   type LiveToolDraftState,
@@ -40,7 +24,13 @@ import {
 import {
   AssistantEntryMetaQueue,
   markMirroredEntriesMaterialized,
-} from "./message-mirror.js";
+} from "./canonical-harness-projection.js";
+import { openHarnessExecutionContext } from "./canonical-harness-message-flush.js";
+import {
+  prepareCanonicalHarnessProviderDispatch,
+  settleCanonicalHarnessMessage,
+} from "./canonical-harness-provider-lifecycle.js";
+import type { CoordinatorExecutionOptions } from "./coordinator-execution-options.js";
 import { composeAgentSystemPrompt } from "./system-prompt-builder.js";
 import {
   createToolDraftProgressAccumulator,
@@ -51,20 +41,6 @@ import {
   shouldPublishToolDraftProgress,
   shouldStreamToolDraftArguments,
 } from "./tool-draft-streaming.js";
-interface CoordinatorExecutionOptions {
-  run: RunRecord;
-  sink: RunExecutionSink;
-  command: "start" | "continue";
-  prompt?: string;
-  images?: PromptRequest["images"];
-  signal: AbortSignal;
-  installControl(control: WorkbenchLiveExecutionControl): void;
-  checkpointCommand(
-    boundary: CheckpointCommand["boundary"],
-    interactionId?: string,
-  ): Promise<CheckpointCommand>;
-}
-
 export async function executeWorkbenchHarness(
   this: WorkbenchAgentMechanics,
   agent: AgentRecord,
@@ -75,6 +51,7 @@ export async function executeWorkbenchHarness(
   },
 ): Promise<RunExecutionOutcome> {
   const coordinator = options.coordinator;
+  const canonical = coordinator.canonical;
   const runId = coordinator.run.runId;
   let abortRequested = false;
   const runAbortController = new AbortController();
@@ -91,10 +68,6 @@ export async function executeWorkbenchHarness(
   const liveToolDraftNames = new Map<number, string | undefined>();
   const liveToolDraftProgress = new Map<number, ToolDraftProgressAccumulator>();
   const liveToolDrafts = new Map<number, LiveToolDraftState>();
-  const pendingProviderToolCalls = new Map<
-    string,
-    { toolName: string; args: Record<string, unknown> }
-  >();
   try {
     await this.deps.logger.info("Agent run preparing", {
       agentId: agent.id,
@@ -110,15 +83,10 @@ export async function executeWorkbenchHarness(
       agent.conversationId,
     );
     const project = this.deps.state.getProject(agent.projectId);
-    const storage = await this.deps.harnessStorage.openStorage(conversation);
-    const harnessConversation = new Conversation(storage);
-    const initialHarnessEntryIds = new Set(
-      (await storage.getEntries()).map((entry) => entry.id),
+    const [, harnessConversation] = openHarnessExecutionContext(
+      canonical.session,
     );
-    let activeToolNames = await this.activeToolNamesFor(
-      agent,
-      capabilitySelection.disabledTools,
-    );
+    let activeToolNames = [...canonical.activeToolNames];
     const model = resolveAgentModel(
       agent.model,
       await this.customModels(agent.projectDir),
@@ -185,18 +153,7 @@ export async function executeWorkbenchHarness(
       resolveCredentials: async () => (requestModel: AnyModel) =>
         this.deps.auth.requestAuthForPiModel(requestModel),
       resolvePolicy: async () => ({
-        tools: createAgentToolsForAgent(agent, this.deps.tools, {
-          runId,
-          resolveToolAnchor: (providerToolCallId) =>
-            this.deps.state.conversationRuntime.resolveToolAnchor(
-              runId,
-              providerToolCallId,
-            ),
-          onLifecycle: (toolCall) =>
-            coordinator.sink.upsertToolCalls([
-              toToolCallTranscriptRecord(toolCall),
-            ]),
-        }),
+        tools: canonical.tools,
         activeToolNames,
       }),
       create: async ({ environment }) =>
@@ -209,6 +166,8 @@ export async function executeWorkbenchHarness(
           model: environment.model,
           thinkingLevel: agent.thinkingLevel,
           maxParallelToolCalls: this.deps.maxParallelToolsPerRun,
+          stopAfterToolIteration: true,
+          streamOptions: { maxRetries: 0 },
           getApiKeyAndHeaders: environment.credentials,
           systemPrompt: composeLatestSystemPrompt,
         }),
@@ -217,21 +176,22 @@ export async function executeWorkbenchHarness(
       scope: { conversationId: conversation.id, agentId: agent.id, runId },
       context: undefined,
     });
-    harness.on("iteration_boundary", async (event) => {
-      const compacted = await this.maybeAutoCompactAtIteration(
-        agent.conversationId,
-        agent.id,
-        runId,
-        harnessConversation,
-        event.signal,
-      );
-      if (!compacted || event.hasMoreToolCalls) return undefined;
-      const hadToolCalls = event.message.content.some(
-        (content) => content.type === "toolCall",
-      );
-      if (hadToolCalls) return undefined;
-      const followUp = this.takeAutoCompactionContinuation(runId);
-      return followUp ? { followUp } : undefined;
+    harness.on("before_provider_request", (event) => {
+      currentProviderForResponse = event.model.provider;
+      this.deps.subscriptionUsage.touchProvider(event.model.provider);
+      return undefined;
+    });
+    harness.on("before_provider_payload", async (event) => {
+      await prepareCanonicalHarnessProviderDispatch(canonical, event.payload);
+      return undefined;
+    });
+    harness.on("after_provider_response", (event) => {
+      const responseProvider = currentProviderForResponse;
+      currentProviderForResponse = undefined;
+      if (responseProvider === "openai-codex") {
+        this.deps.subscriptionUsage.applyCodexHeaders(event.headers);
+      }
+      return undefined;
     });
     const startLiveTurn = async () => {
       const turn = this.deps.state.conversationRuntime.startTurn(runId);
@@ -251,25 +211,6 @@ export async function executeWorkbenchHarness(
       return turn.turnId;
     };
     harness.subscribe(async (event) => {
-      if (event.type === "queue_drained") {
-        for (const promptId of event.messageIds) {
-          await coordinator.sink.promptDelivered(promptId);
-        }
-        return;
-      }
-      if (event.type === "before_provider_request") {
-        currentProviderForResponse = event.model.provider;
-        this.deps.subscriptionUsage.touchProvider(event.model.provider);
-        return;
-      }
-      if (event.type === "after_provider_response") {
-        const responseProvider = currentProviderForResponse;
-        currentProviderForResponse = undefined;
-        if (responseProvider === "openai-codex") {
-          this.deps.subscriptionUsage.applyCodexHeaders(event.headers);
-        }
-        return;
-      }
       if (event.type === "turn_start") {
         coordinator.installControl(liveControl);
         await startLiveTurn();
@@ -277,55 +218,6 @@ export async function executeWorkbenchHarness(
         liveToolDraftNames.clear();
         toolDraftProgressScheduler.clear();
         liveToolDrafts.clear();
-        pendingProviderToolCalls.clear();
-        return;
-      }
-      if (event.type === "tool_execution_start") {
-        pendingProviderToolCalls.set(event.toolCallId, {
-          toolName: event.toolName,
-          args: recordFromUnknown(event.args),
-        });
-        return;
-      }
-      if (event.type === "tool_execution_end") {
-        const started = pendingProviderToolCalls.get(event.toolCallId);
-        pendingProviderToolCalls.delete(event.toolCallId);
-        const existingToolCall =
-          this.deps.tools.findToolCallByProviderToolCallId(event.toolCallId);
-        if (!event.isError) return;
-        if (existingToolCall) return;
-        const parsedToolName = toolNameSchema.safeParse(event.toolName);
-        if (!parsedToolName.success) {
-          await this.deps.logger.warn(
-            "Unknown tool call failed before execution",
-            {
-              agentId: agent.id,
-              conversationId: agent.conversationId,
-              projectId: agent.projectId,
-              runId,
-              context: {
-                toolName: event.toolName,
-                providerToolCallId: event.toolCallId,
-              },
-            },
-          );
-          return;
-        }
-        await this.deps.tools.recordProviderToolCallError(
-          agent,
-          parsedToolName.data as ToolName,
-          started?.args ?? {},
-          errorTextFromToolResult(event.result, event.toolName),
-          {
-            sourceToolCallId: event.toolCallId,
-            providerToolCallId: event.toolCallId,
-            runId,
-            anchor: this.deps.state.conversationRuntime.resolveToolAnchor(
-              runId,
-              event.toolCallId,
-            ),
-          },
-        );
         return;
       }
       if (
@@ -528,48 +420,21 @@ export async function executeWorkbenchHarness(
           toolDraftProgressScheduler.clear();
         }
         assistantEntryMeta.onMessageEnded(event.message.role);
-        const mirrored = await this.deps.messageMirror.mirrorNewHarnessEntries(
-          agent,
-          storage,
-          initialHarnessEntryIds,
-          {
-            runId,
-            turnId: currentTurnId,
-            assistantMessageMeta: assistantEntryMeta.queue,
-          },
-        );
-        let shouldPublishContextUsage = false;
-        if (mirrored.length > 0) {
-          await coordinator.sink.appendEntries(mirrored);
-        }
+        const mirrored: ConversationEntry[] =
+          await settleCanonicalHarnessMessage({
+            authority: canonical,
+            agent,
+            message: event.message,
+          });
         markMirroredEntriesMaterialized(
           this.deps.state.conversationRuntime,
           runId,
           mirrored,
         );
         for (const entry of mirrored) {
-          if (entry.role === "user") {
-            await this.deps.messageMirror.maybeDeriveInitialConversationTitle(
-              conversation.id,
-              entry.text,
-            );
-          } else if (entry.role === "assistant") {
+          if (entry.role === "assistant") {
             lastAssistantEntry = entry;
-            if (entry.usage) shouldPublishContextUsage = true;
           }
-        }
-        if (shouldPublishContextUsage) {
-          await this.publishContextUsage(
-            agent.conversationId,
-            agent.id,
-            runId,
-          ).catch((error) => {
-            process.emitWarning(
-              `Context-usage publish failed for ${agent.conversationId}: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            );
-          });
         }
         if (
           event.message.role === "assistant" &&
@@ -656,12 +521,7 @@ export async function executeWorkbenchHarness(
       }
     };
     const expandBlocks = (text: string, images?: PromptRequest["images"]) =>
-      expandExecutablePromptBlocks(
-        (command, opts) =>
-          this.executeInlinePromptBlockCommand(agent, command, opts),
-        { text, images },
-        runAbortController.signal,
-      );
+      Promise.resolve({ text, images });
     const liveControl: WorkbenchLiveExecutionControl = {
       steer: async (prompt) => {
         const expanded = await expandBlocks(prompt.text, prompt.images);
@@ -695,9 +555,8 @@ export async function executeWorkbenchHarness(
           delivery: input.delivery,
         }),
     };
-
     const promptRequest = await expandBlocks(request.text, request.images);
-    let continueAttempt = options.continue === true;
+    let continueAttempt = true;
     let handledForcePushGeneration = 0;
     while (true) {
       const runAssistant = await this.runHarnessAttempt({
@@ -708,9 +567,8 @@ export async function executeWorkbenchHarness(
         runId,
         agent,
         signal: runAbortController.signal,
+        canonical: true,
       });
-      const messages = convertToLlm((await storage.buildContext()).messages);
-      this.deps.conversationService.setForAgent(agent.id, messages);
       if (forcePushGeneration > handledForcePushGeneration) {
         handledForcePushGeneration = forcePushGeneration;
         continueAttempt = true;
@@ -726,19 +584,6 @@ export async function executeWorkbenchHarness(
       ) {
         const aborted = runAssistant.stopReason === "aborted" || abortRequested;
         const retryable = !aborted && isRetryableAssistantError(runAssistant);
-        const continuable = !aborted;
-        if (continuable) {
-          const leafId = await harnessConversation.getLeafId();
-          const leaf = leafId
-            ? await harnessConversation.getEntry(leafId)
-            : undefined;
-          if (leaf?.parentId !== undefined) {
-            await harnessConversation.moveTo(leaf.parentId);
-          }
-          await coordinator.sink.checkpoint(
-            await coordinator.checkpointCommand("before_provider_request"),
-          );
-        }
         if (forcePushGeneration > handledForcePushGeneration) {
           handledForcePushGeneration = forcePushGeneration;
           continueAttempt = true;
@@ -753,14 +598,11 @@ export async function executeWorkbenchHarness(
                   code: "MODEL_REQUEST_FAILED",
                   message: runAssistant.errorMessage ?? "Agent run failed.",
                   retryable,
-                  continuable,
+                  continuable: !aborted,
                 },
               }),
         } as RunExecutionOutcome;
       }
-      await coordinator.sink.checkpoint(
-        await coordinator.checkpointCommand("after_provider_response"),
-      );
       if (forcePushGeneration > handledForcePushGeneration) {
         handledForcePushGeneration = forcePushGeneration;
         continueAttempt = true;
@@ -772,18 +614,6 @@ export async function executeWorkbenchHarness(
       };
     }
   } catch (error) {
-    if (isAgentToolSuspension(error)) {
-      await waitForSequentialToolInteractionBatch({
-        agent,
-        runId,
-        suspension: error.data,
-        deps: this.deps,
-        sink: coordinator.sink,
-        checkpointCommand: (boundary, interactionId) =>
-          coordinator.checkpointCommand(boundary, interactionId),
-      });
-      return { status: "suspended" };
-    }
     return abortRequested
       ? { status: "interrupted", message: "Agent run aborted." }
       : {
@@ -794,7 +624,5 @@ export async function executeWorkbenchHarness(
             retryable: true,
           },
         };
-  } finally {
-    this.finishAutoCompactionRun?.(runId);
   }
 }

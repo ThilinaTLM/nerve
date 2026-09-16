@@ -1,3 +1,4 @@
+export * from "./adapters/in-memory-storage.js";
 export * from "./context.js";
 export * from "./conversation.js";
 export * from "./conversation-tree-state.js";

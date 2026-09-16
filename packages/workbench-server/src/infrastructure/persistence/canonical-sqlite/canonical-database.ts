@@ -7,14 +7,14 @@ import {
   materializeConversationRecords,
   type ConversationPersistenceDelta,
   type SerializedConversationState,
-} from "../../../domains/conversations/conversation-state-materializer.js";
+} from "../../migrations/legacy-journal/conversation-state-materializer.js";
 import {
   checkpointConversationStateInTransaction,
   checkpointEncodedConversationStateInTransaction,
   listConversationJournalIds,
   persistConversationCommitInTransaction,
   readConversationJournalHead,
-} from "./conversation-journal-database.js";
+} from "../../migrations/legacy-journal/conversation-journal-database.js";
 import {
   appendDurableEventInTransaction,
   assertCanonicalSchemaCompatible,
@@ -26,6 +26,7 @@ import {
 } from "./canonical-database-helpers.js";
 import { decode, encode } from "./payload-codecs.js";
 import { repairCanonicalDeletionIndexes } from "./deletion-indexes.js";
+import { readLegacyConversationEntries } from "./legacy-conversation-entry-reader.js";
 import {
   deleteConversationChunk,
   type ConversationDeletionCursor,
@@ -49,8 +50,13 @@ import {
   readCanonicalToolCall,
   type CanonicalToolCallProjectionQuery,
 } from "./canonical-tool-call-queries.js";
-import { CanonicalLifecycleDatabase } from "./lifecycle-work-database.js";
+import { CanonicalLifecycleDatabase } from "../../migrations/legacy-lifecycle-work-database.js";
 import { applyCanonicalMigrations } from "./canonical-migrations.js";
+import { CanonicalTimelineDatabase } from "./timeline-database.js";
+import { CanonicalProjectionDatabase } from "./timeline-projection-database.js";
+import { CanonicalBackupDatabase } from "./timeline-backup-database.js";
+import { CanonicalExecutionQueryDatabase } from "./timeline-execution-database.js";
+import { CanonicalDeletionCleanupDatabase } from "./timeline-deletion-cleanup-database.js";
 import {
   CANONICAL_BASELINE_CHECKSUM,
   CANONICAL_BASELINE_NAME,
@@ -87,6 +93,11 @@ export interface CanonicalDocument<T = unknown> {
 export class CanonicalDatabase {
   private readonly database: DatabaseSync;
   readonly lifecycle: CanonicalLifecycleDatabase;
+  readonly timeline: CanonicalTimelineDatabase;
+  readonly projections: CanonicalProjectionDatabase;
+  readonly backups: CanonicalBackupDatabase;
+  readonly executionQueries: CanonicalExecutionQueryDatabase;
+  readonly deletionCleanup: CanonicalDeletionCleanupDatabase;
 
   constructor(
     readonly path: string,
@@ -96,6 +107,11 @@ export class CanonicalDatabase {
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.database = new DatabaseSync(path);
     this.lifecycle = new CanonicalLifecycleDatabase(this.database);
+    this.timeline = new CanonicalTimelineDatabase(this.database);
+    this.projections = new CanonicalProjectionDatabase(this.database);
+    this.backups = new CanonicalBackupDatabase(this.database);
+    this.executionQueries = new CanonicalExecutionQueryDatabase(this.database);
+    this.deletionCleanup = new CanonicalDeletionCleanupDatabase(this.database);
     this.database.exec("PRAGMA foreign_keys = ON");
     this.database.exec("PRAGMA busy_timeout = 5000");
     if (options.queryOnly) {
@@ -439,27 +455,7 @@ export class CanonicalDatabase {
   }
 
   readConversationEntries(conversationId: string): unknown[] {
-    const rows = this.database
-      .prepare(
-        `SELECT COALESCE(
-                  projection.data,
-                  CAST(json_extract(CAST(record.data AS TEXT), '$.entry') AS BLOB)
-                ) AS data
-         FROM conversation_records AS record
-         LEFT JOIN conversation_record_projections AS projection
-           ON projection.record_id = record.id
-         WHERE record.conversation_id = ?
-           AND record.kind IN ('message', 'summary')
-           AND COALESCE(
-                 projection.data,
-                 json_extract(CAST(record.data AS TEXT), '$.entry')
-               ) IS NOT NULL
-         ORDER BY record.sequence`,
-      )
-      .all(conversationId) as unknown as Array<{
-      data: Uint8Array | string;
-    }>;
-    return rows.map((row) => decode(row.data));
+    return readLegacyConversationEntries(this.database, conversationId);
   }
 
   scanToolCalls(input: {

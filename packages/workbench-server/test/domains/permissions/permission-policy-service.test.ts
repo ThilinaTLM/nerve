@@ -1,11 +1,21 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { PermissionPolicyService } from "../../../src/domains/permissions/permission-policy.service.js";
+import { PermissionOverlayRepairService } from "../../../src/domains/permissions/permission-overlay-repair.service.js";
+import { CanonicalPolicySaveCoordinator } from "../../../src/domains/permissions/canonical-policy-save-coordinator.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
 const roots: string[] = [];
@@ -77,6 +87,13 @@ test("conversation rules persist independently and compose at highest scope", as
   );
   assert.ok(winner);
   assert.equal(winner.precedence.scopeRank, 4);
+  assert.match(resolved.selectedRuleSetDigest, /^sha256:[a-f0-9]{64}$/);
+  assert.ok(resolved.sourceDocuments.length >= 1);
+  const conversationSource = resolved.sourceDocuments.find(
+    (source) => source.origin === "conversation",
+  );
+  assert.ok(conversationSource);
+  assert.match(conversationSource.digest, /^sha256:[a-f0-9]{64}$/);
   assert.deepEqual(
     (
       await service.readOverlay(
@@ -225,6 +242,7 @@ test("project overlays remain inactive until their complete content digest is tr
   assert.ok(
     resolved.policy.ignoredOverlays.some((item) => item.origin === "project"),
   );
+  assert.equal(resolved.executionBlocked, false);
 });
 
 test("project trust persists across service reconstruction and revokes in isolation", async () => {
@@ -280,6 +298,7 @@ test("invalid custom selection falls back to Baseline without overlays", async (
   agent.permissionRuleSetId = "missing-set";
   const resolved = await service.resolve(agent);
   assert.equal(resolved.fallback, true);
+  assert.equal(resolved.executionBlocked, true);
   assert.deepEqual(resolved.policy.activeRuleSetIds, ["baseline"]);
   assert.equal(
     resolved.policy.rules.some((entry) => entry.origin === "user"),
@@ -302,15 +321,183 @@ test("Explore children receive only fixed Read only without overlays", async () 
   );
 });
 
-test("one invalid rule causes the complete overlay to be ignored", async () => {
+test("INV-POLICY-04 records prepared bytes before a remembered file save", async () => {
   const { service, storage, agent } = await setup();
+  const coordinator = new CanonicalPolicySaveCoordinator(
+    storage.canonicalStore,
+    service,
+  );
+  const saved = await coordinator.prepareAndSave({
+    origin: "conversation",
+    ownerId: agent.conversationId,
+    ruleSetId: "supervised",
+    rule: allowWrite,
+    saveIntentId: "policy_save_coordinated",
+    commandId: "remember-conversation-rule",
+    scope: { kind: "conversation", ownerId: agent.conversationId },
+    conversationId: agent.conversationId,
+    runId: "run_policy",
+    memberId: "member_policy",
+    approvalCommandId: "approval-policy",
+    now: "2026-09-14T00:00:00.000Z",
+  });
+  assert.equal(saved.state, "saved_pending_finalization");
+  assert.equal(saved.fileOutcome, "saved");
+  const persisted = await storage.canonicalStore.policy.readSaveIntent(
+    saved.saveIntentId,
+  );
+  assert.deepEqual(persisted, saved);
+  assert.ok(
+    await storage.canonicalStore.execution.readArtifactManifest(
+      saved.schemaVersion === 2 ? saved.intendedDocumentManifestId : "",
+    ),
+  );
+  const restarted = new CanonicalPolicySaveCoordinator(
+    storage.canonicalStore,
+    service,
+  );
+  const [finalized] = await restarted.recoverPending({
+    approvalStillApplicable: async () => true,
+    finalizeApproval: async () => "committed",
+    now: () => "2026-09-14T00:00:01.000Z",
+  });
+  assert.equal(finalized?.state, "finalized");
+  assert.equal(
+    (await storage.canonicalStore.policy.listPendingSaveIntents()).length,
+    0,
+  );
+});
+
+test("INV-POLICY-04 startup recovery fails closed when a prepared manifest is corrupt", async () => {
+  const { service, storage, agent } = await setup();
+  const identity = await storage.canonicalStore.readTimelineStateIdentity();
+  const admission = await storage.canonicalStore.readTimelineRuntimeAdmission();
+  assert.ok(identity);
+  assert.ok(admission);
+  const recorded = {
+    schemaVersion: 2 as const,
+    saveIntentId: "policy_save_missing_manifest",
+    commandId: "missing-manifest",
+    scope: { kind: "conversation" as const, ownerId: agent.conversationId },
+    documentIdentity: "conversation:permissions.json",
+    intendedDocumentDigest: `sha256:${"b".repeat(64)}`,
+    ruleFingerprint: `sha256:${"c".repeat(64)}`,
+    state: "recorded" as const,
+    fileOutcome: "not_attempted" as const,
+    approvalOutcome: "not_attempted" as const,
+    conversationId: agent.conversationId,
+    runId: "run_policy_missing",
+    memberId: "member_policy_missing",
+    approvalCommandId: "approval-policy-missing",
+    intendedDocumentManifestId: "manifest_missing_policy",
+    createdAt: "2026-09-14T00:00:00.000Z",
+    updatedAt: "2026-09-14T00:00:00.000Z",
+  };
+  assert.equal(
+    (
+      await storage.canonicalStore.commitConversationCommand({
+        namespaceId: identity.namespaceId,
+        executionIncarnationId: admission.executionIncarnationId,
+        operationKind: "seed_missing_policy_manifest",
+        ownerKind: "policy_scope",
+        ownerId: agent.conversationId,
+        commandId: recorded.commandId,
+        fingerprintVersion: 1,
+        fingerprint: `sha256:${"d".repeat(64)}`,
+        expectedHeads: [],
+        transitions: [],
+        artifactManifests: [
+          {
+            manifestId: recorded.intendedDocumentManifestId,
+            schemaVersion: 1,
+            data: { corrupted: true },
+          },
+        ],
+        policySaveIntents: [recorded],
+        outcome: recorded,
+        publicationIntents: [],
+        now: recorded.createdAt,
+      })
+    ).kind,
+    "committed",
+  );
+  const [recovered] = await new CanonicalPolicySaveCoordinator(
+    storage.canonicalStore,
+    service,
+  ).recoverPending({
+    approvalStillApplicable: async () => true,
+    finalizeApproval: async () => "committed",
+    now: () => "2026-09-14T00:00:01.000Z",
+  });
+  assert.equal(recovered?.state, "conflicted");
+  assert.equal(recovered?.fileOutcome, "external_conflict");
+});
+
+test("INV-POLICY-04 prepared remembered saves never overwrite external edits", async () => {
+  const { service, storage } = await setup();
+  const prepared = await service.prepareRuleSave(
+    "user",
+    "supervised",
+    allowWrite,
+  );
   await writeFile(
     storage.paths.permissionsConfigPath,
-    JSON.stringify({
-      schemaVersion: 1,
-      rules: [allowWrite, { ...allowWrite, id: "bad", priority: 1 }],
+    '{"schemaVersion":2,"overlays":[]}\n',
+  );
+  const conflicted = await service.commitPreparedRuleSave(prepared);
+  assert.equal(conflicted.kind, "external_conflict");
+
+  const refreshed = await service.prepareRuleSave(
+    "user",
+    "supervised",
+    allowWrite,
+  );
+  const saved = await service.commitPreparedRuleSave(refreshed);
+  assert.equal(saved.kind, "saved");
+  assert.equal(
+    saved.kind === "saved" ? saved.digest : undefined,
+    refreshed.intendedDocumentDigest,
+  );
+  const policy = await service.readOverlay("user", "supervised");
+  assert.equal(
+    policy.rules.some((rule) => rule.id === allowWrite.id),
+    true,
+  );
+});
+
+test("quarantine failure leaves the authoritative overlay unchanged", async () => {
+  const { service, storage, project } = await setup();
+  const invalid = JSON.stringify({
+    schemaVersion: 1,
+    rules: [allowWrite, { ...allowWrite, id: "bad", priority: 1 }],
+  });
+  await writeFile(storage.paths.permissionsConfigPath, invalid);
+  await writeFile(join(storage.paths.home, "quarantine"), "not-a-directory");
+  const repair = new PermissionOverlayRepairService({
+    storage,
+    getProject: () => project,
+    trustProject: (projectId) => service.trustProject(projectId),
+  });
+  await assert.rejects(
+    repair.reset({
+      origin: "user",
+      expectedDocumentDigest: `sha256:${createHash("sha256").update(invalid).digest("hex")}`,
+      quarantine: true,
     }),
   );
+  assert.equal(
+    await readFile(storage.paths.permissionsConfigPath, "utf8"),
+    invalid,
+  );
+});
+
+test("one invalid rule causes the complete overlay to be ignored", async () => {
+  const { service, storage, agent, project } = await setup();
+  const invalid = JSON.stringify({
+    schemaVersion: 1,
+    rules: [allowWrite, { ...allowWrite, id: "bad", priority: 1 }],
+  });
+  await writeFile(storage.paths.permissionsConfigPath, invalid);
   const resolved = await service.resolve(agent);
   assert.equal(
     resolved.policy.rules.some((entry) => entry.origin === "user"),
@@ -318,5 +505,40 @@ test("one invalid rule causes the complete overlay to be ignored", async () => {
   );
   assert.ok(
     resolved.policy.ignoredOverlays.some((item) => item.origin === "user"),
+  );
+  assert.equal(resolved.executionBlocked, true);
+  const repair = new PermissionOverlayRepairService({
+    storage,
+    getProject: () => project,
+    trustProject: (projectId) => service.trustProject(projectId),
+  });
+  assert.equal(
+    (
+      await repair.reset({
+        origin: "user",
+        expectedDocumentDigest: `sha256:${"0".repeat(64)}`,
+        quarantine: true,
+      })
+    ).kind,
+    "external_conflict",
+  );
+  assert.equal(
+    await readFile(storage.paths.permissionsConfigPath, "utf8"),
+    invalid,
+  );
+  const reset = await repair.reset({
+    origin: "user",
+    expectedDocumentDigest: `sha256:${createHash("sha256").update(invalid).digest("hex")}`,
+    quarantine: true,
+  });
+  assert.equal(reset.kind, "reset");
+  assert.equal((await service.resolve(agent)).executionBlocked, false);
+  assert.equal(
+    (
+      await readdir(
+        join(storage.paths.home, "quarantine", "permission-overlays"),
+      )
+    ).length,
+    1,
   );
 });

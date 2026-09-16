@@ -6,6 +6,8 @@ import type {
   QueuedPromptRecord,
 } from "$lib/api";
 import type { RecoveryIssue } from "@nervekit/contracts/runs";
+import type { TranscriptProjectionStatus } from "@nervekit/contracts/conversations";
+import type { DeletionIntent } from "@nervekit/contracts/storage";
 import type {
   ConversationRenderState,
   TranscriptItem,
@@ -43,6 +45,8 @@ export interface ConversationViewState extends ConversationRenderState {
   composerText: string;
   loading: boolean;
   recoveryIssues: RecoveryIssue[];
+  projectionStatus?: TranscriptProjectionStatus;
+  deletionStatus?: DeletionIntent;
 }
 
 export type PendingConversationState = {

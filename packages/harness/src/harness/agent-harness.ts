@@ -118,6 +118,7 @@ export class AgentHarness<
     TTool
   >;
   private readonly maxParallelToolCalls: number | undefined;
+  private readonly stopAfterToolIteration: boolean;
   constructor(options: AgentHarnessOptions<TSkill, TPromptTemplate, TTool>) {
     this.env = options.env;
     this.conversation = options.conversation;
@@ -133,6 +134,7 @@ export class AgentHarness<
       : [...this.tools.keys()];
     this.validateToolNames(this.activeToolNames);
     this.maxParallelToolCalls = options.maxParallelToolCalls;
+    this.stopAfterToolIteration = options.stopAfterToolIteration === true;
     this.runState = new HarnessRunState(
       options.steeringMode ?? "one-at-a-time",
       options.followUpMode ?? "one-at-a-time",
@@ -400,6 +402,8 @@ export class AgentHarness<
           thinkingLevel: nextTurnState.thinkingLevel,
         };
       },
+      shouldStopAfterTurn: async ({ toolResults }) =>
+        this.stopAfterToolIteration && toolResults.length > 0,
       getSteeringMessages: async () => {
         const forceDrainAll = this.forceDrainAll;
         this.forceDrainAll = false;

@@ -1,32 +1,19 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   type AgentCustomModel,
-  getModelContextWindow,
   resolveAgentModel,
 } from "@nervekit/harness/models";
 import { type AgentHarness } from "@nervekit/harness";
 import { Conversation } from "@nervekit/harness/conversation";
-import {
-  calculateContextTokens,
-  deriveAutoCompactionPolicy,
-  isContextOverflowAssistantMessage,
-} from "@nervekit/harness/compaction";
-import type { ToolExecutionResult } from "@nervekit/tools/execution";
-import type {
-  RunExecutionOutcome,
-  RunExecutionSink,
-} from "../../runs/runtime/index.js";
+import type { RunExecutionOutcome } from "../../runs/runtime/index.js";
 import {
   type AgentRecord,
   type CreateAgentRequest,
   type PromptRequest,
 } from "@nervekit/contracts/agents";
-import { type ContextUsage } from "@nervekit/contracts/models";
 import { type ConversationRecord } from "@nervekit/contracts/conversations";
-import { type RunRecord } from "@nervekit/contracts/runs";
-import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
 import {
-  type ToolCallRecord,
+  toolNameSchema,
   type ToolName,
   type UserConfigurableToolName,
 } from "@nervekit/contracts/tools";
@@ -37,41 +24,46 @@ import type { InitializedStorage } from "../../../infrastructure/storage-bootstr
 import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
 import type { AuthManager } from "../../auth/index.js";
-import type { ConversationService } from "../../conversations/conversation-service.js";
-import type { ConversationHarnessStorage } from "../../conversations/conversation-harness-storage.js";
-import type { CompactionService } from "../../conversations/operations/index.js";
 import type { PythonRuntimeService } from "../../tools/execution/python-runtime.js";
 import type { PlanService } from "../../plans/plan-service.js";
 import type { WorkbenchTaskService } from "../../tasks/adapters/workbench-task-service.js";
 import type { CapabilityService } from "../../capabilities/capability.service.js";
 import { activeToolNamesForAgent } from "../../tools/orchestration/agent-tool-adapter.js";
-import type {
-  ExploreProgressUpdate,
-  ToolService,
-} from "../../tools/execution/tool-service.js";
+import type { CanonicalToolRuntimeService } from "../../tools/execution/canonical-tool-runtime.service.js";
+import type { ExploreProgressUpdate } from "../../tools/execution/tool-runtime-ports.js";
 import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
 import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills.js";
 import type { SubagentTranscriptLiveService } from "../subagent-transcript-live.service.js";
 import { executeWorkbenchHarness } from "./workbench-harness-execution.js";
-import { AutoCompactionRunner } from "./auto-compaction-runner.js";
-import { InlineCommandRunner } from "./inline-command-runner.js";
-import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
-import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
-import type { WorkbenchLiveExecutionControl } from "../../runs/application/run-live-executions.js";
+import type { CoordinatorExecutionOptions } from "./coordinator-execution-options.js";
+import type { AgentMessage } from "@nervekit/harness/agent";
+import type { CanonicalToolProposalInput } from "../../conversations/timeline/canonical-tool-batch.js";
+import type { AppendEntryFn } from "./canonical-harness-projection.js";
+import {
+  type ExploreReport,
+  CanonicalExploreCoordinator,
+} from "./canonical-explore-coordinator.js";
 import type { WorkbenchExploreAdmission } from "./workbench-explore-admission.js";
-import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
+
+type WorkbenchToolPort = Pick<
+  CanonicalToolRuntimeService,
+  "prepareCanonicalToolProposal"
+>;
 
 export interface WorkbenchAgentMechanicsDeps {
   storage: InitializedStorage;
   events: StreamLogRegistry;
   auth: AuthManager;
-  tools: ToolService;
+  tools: WorkbenchToolPort;
   tasks: WorkbenchTaskService;
   pythonRuntime: PythonRuntimeService;
   plans: PlanService;
-  harnessStorage: ConversationHarnessStorage;
-  conversationService: ConversationService;
-  compactionService: CompactionService;
+  createChildConversation: ConstructorParameters<
+    typeof CanonicalExploreCoordinator
+  >[0]["createChildConversation"];
+  runCanonicalChild: ConstructorParameters<
+    typeof CanonicalExploreCoordinator
+  >[0]["runCanonicalChild"];
   state: RuntimeState;
   createAgent: (
     request: CreateAgentRequest,
@@ -83,10 +75,8 @@ export interface WorkbenchAgentMechanicsDeps {
   ) => Promise<void>;
   appendEntry: AppendEntryFn;
   updateConversation: (conversation: ConversationRecord) => Promise<void>;
-  messageMirror: MessageMirror;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
-  subagentExecutions: WorkbenchSubagentExecutions;
   exploreAdmission: WorkbenchExploreAdmission;
   agentBrowserSkills: AgentBrowserSkillCatalog;
   capabilities: CapabilityService;
@@ -96,31 +86,20 @@ export interface WorkbenchAgentMechanicsDeps {
 }
 
 export class WorkbenchAgentMechanics {
-  readonly subagents: SubagentRunner;
-  readonly inlineCommands: InlineCommandRunner;
-  readonly autoCompaction: AutoCompactionRunner;
+  readonly subagents: CanonicalExploreCoordinator;
 
   constructor(readonly deps: WorkbenchAgentMechanicsDeps) {
-    this.subagents = new SubagentRunner({
+    this.subagents = new CanonicalExploreCoordinator({
       storage: deps.storage,
       events: deps.events,
-      auth: deps.auth,
-      tools: deps.tools,
-      harnessStorage: deps.harnessStorage,
+      createChildConversation: deps.createChildConversation,
+      runCanonicalChild: deps.runCanonicalChild,
       createAgent: deps.createAgent,
       setAgentStatus: deps.setAgentStatus,
-      subscriptionUsage: deps.subscriptionUsage,
-      logger: deps.logger.child({ component: "subagent-runner" }),
-      executions: deps.subagentExecutions,
+      logger: deps.logger.child({ component: "canonical-explore" }),
       exploreAdmission: deps.exploreAdmission,
-      agentBrowserSkills: deps.agentBrowserSkills,
-      capabilities: deps.capabilities,
       transcriptLive: deps.subagentTranscriptLive,
-      maxParallelToolsPerRun: deps.maxParallelToolsPerRun,
-      customModels: deps.customModels,
     });
-    this.inlineCommands = new InlineCommandRunner(deps);
-    this.autoCompaction = new AutoCompactionRunner(deps);
   }
 
   async customModels(projectDir?: string): Promise<AgentCustomModel[]> {
@@ -180,31 +159,6 @@ export class WorkbenchAgentMechanics {
     });
   }
 
-  async executeInlineBashCommand(
-    agent: AgentRecord,
-    command: string,
-    options: {
-      runId: string;
-      signal?: AbortSignal;
-      continueAfterPromotedTask?: boolean;
-      useForegroundBash?: boolean;
-    },
-  ): Promise<ToolCallRecord> {
-    return this.inlineCommands.executeBashCommand(agent, command, options);
-  }
-
-  async executeInlinePromptBlockCommand(
-    agent: AgentRecord,
-    command: string,
-    options: { signal?: AbortSignal },
-  ): Promise<ToolExecutionResult> {
-    return this.inlineCommands.executePromptBlockCommand(
-      agent,
-      command,
-      options,
-    );
-  }
-
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
@@ -220,33 +174,10 @@ export class WorkbenchAgentMechanics {
     return this.subagents.runExplore(parent, args, options);
   }
 
-  async runCoordinatorExecution(input: {
-    run: RunRecord;
-    sink: RunExecutionSink;
-    command: "start" | "continue";
-    prompt?: string;
-    images?: PromptRequest["images"];
-    signal: AbortSignal;
-    installControl(control: WorkbenchLiveExecutionControl): void;
-    checkpointCommand(
-      boundary: "after_provider_response" | "suspension",
-      interactionId?: string,
-    ): Promise<import("../../runs/runtime/index.js").CheckpointCommand>;
-  }): Promise<RunExecutionOutcome> {
+  async runCoordinatorExecution(
+    input: CoordinatorExecutionOptions,
+  ): Promise<RunExecutionOutcome> {
     const agent = this.deps.state.getAgent(input.run.agentId);
-    const inline =
-      input.command === "start"
-        ? parseInlineCommandPrompt(input.prompt ?? "")
-        : undefined;
-    if (inline) {
-      return this.inlineCommands.runCoordinatorPrompt({
-        agent,
-        command: inline.command,
-        runId: input.run.runId,
-        sink: input.sink,
-        signal: input.signal,
-      });
-    }
     return (await executeWorkbenchHarness.call(
       this,
       agent,
@@ -258,6 +189,27 @@ export class WorkbenchAgentMechanics {
     )) as RunExecutionOutcome;
   }
 
+  async prepareCanonicalToolProposals(
+    agent: AgentRecord,
+    message: AgentMessage,
+  ): Promise<readonly CanonicalToolProposalInput[]> {
+    if (message.role !== "assistant") return [];
+    return Promise.all(
+      message.content.flatMap((content) =>
+        content.type === "toolCall"
+          ? [
+              this.deps.tools.prepareCanonicalToolProposal(
+                agent,
+                toolNameSchema.parse(content.name),
+                content.arguments,
+                content.id,
+              ),
+            ]
+          : [],
+      ),
+    );
+  }
+
   async runHarnessAttempt(input: {
     harness: AgentHarness;
     conversation: Conversation;
@@ -266,159 +218,12 @@ export class WorkbenchAgentMechanics {
     runId: string;
     agent: AgentRecord;
     signal?: AbortSignal;
+    canonical?: boolean;
   }): Promise<AssistantMessage> {
-    const latestAgent = () =>
-      this.deps.state.agents.get(input.agent.id) ?? input.agent;
-    if (!input.continue) {
-      await this.autoCompaction.maybeCompactBeforePrompt({
-        conversationId: input.agent.conversationId,
-        agentId: input.agent.id,
-        runId: input.runId,
-        text: input.request.text,
-        images: input.request.images,
-        conversation: input.conversation,
-        signal: input.signal,
-      });
-    }
-    let assistant = input.continue
-      ? await input.harness.continue()
-      : await input.harness.prompt(input.request.text, {
+    return input.continue
+      ? input.harness.continue()
+      : input.harness.prompt(input.request.text, {
           images: input.request.images,
         });
-    const contextWindow = getModelContextWindow(
-      latestAgent().model,
-      await this.customModels(input.agent.projectDir),
-    );
-    const settings = await resolveProjectSettings(
-      this.deps.storage,
-      input.agent.projectDir,
-    );
-    if (
-      settings.compaction.auto &&
-      isContextOverflowAssistantMessage(assistant, contextWindow)
-    ) {
-      const recovered = await this.tryOverflowCompactionRecovery(
-        input,
-        assistant,
-        contextWindow,
-      );
-      if (recovered) assistant = await input.harness.continue();
-    }
-    return assistant;
-  }
-
-  async tryOverflowCompactionRecovery(
-    input: {
-      conversation: Conversation;
-      runId: string;
-      agent: AgentRecord;
-      signal?: AbortSignal;
-    },
-    assistant: AssistantMessage,
-    contextWindow: number,
-  ): Promise<boolean> {
-    const leafId = await input.conversation.getLeafId();
-    const leaf = leafId ? await input.conversation.getEntry(leafId) : undefined;
-    if (leaf?.type !== "message" || leaf.message.role !== "assistant") {
-      return false;
-    }
-    const failedEntryId = leaf.id;
-    const failedParentId = leaf.parentId;
-    const policy = deriveAutoCompactionPolicy(
-      contextWindow,
-      (await resolveProjectSettings(this.deps.storage, input.agent.projectDir))
-        .compaction,
-    );
-    try {
-      await input.conversation.moveTo(failedParentId);
-      await this.deps.compactionService.compactConversation(
-        input.agent.conversationId,
-        {
-          instructions:
-            "Overflow recovery after the selected model hit its context limit.",
-        },
-        {
-          reason: "overflow",
-          agentId: input.agent.id,
-          runId: input.runId,
-          contextWindow: policy.contextWindow,
-          contextTokens: calculateContextTokens(assistant.usage),
-          thresholdTokens: policy.thresholdTokens,
-          triggerReserveTokens: policy.triggerReserveTokens,
-          keepRecentTokens: policy.keepRecentTokens,
-          summaryReserveTokens: policy.summaryReserveTokens,
-          profile: policy.profile,
-          thresholdPercent: policy.thresholdPercent,
-          keepRecentPercent: policy.keepRecentPercent,
-          safetyHeadroomTokens: policy.safetyHeadroomTokens,
-          failedEntryId,
-          activeConversation: input.conversation,
-          signal: input.signal,
-        },
-      );
-      await this.deps.logger.info(
-        "Recovered context overflow with compaction",
-        {
-          agentId: input.agent.id,
-          conversationId: input.agent.conversationId,
-          projectId: input.agent.projectId,
-          runId: input.runId,
-          context: { failedEntryId, contextWindow: policy.contextWindow },
-        },
-      );
-      return true;
-    } catch (error) {
-      await input.conversation.moveTo(failedEntryId).catch(() => undefined);
-      await this.deps.logger.warn("Context overflow compaction failed", {
-        agentId: input.agent.id,
-        conversationId: input.agent.conversationId,
-        projectId: input.agent.projectId,
-        runId: input.runId,
-        context: { failedEntryId },
-        error,
-      });
-      return false;
-    }
-  }
-
-  /** Compute compaction-aware context-window usage for a conversation. */
-  async getContextUsage(conversationId: string): Promise<ContextUsage> {
-    return this.autoCompaction.getContextUsage(conversationId);
-  }
-
-  async publishContextUsage(
-    conversationId: string,
-    agentId: string,
-    runId: string,
-  ): Promise<void> {
-    return this.autoCompaction.publishContextUsage(
-      conversationId,
-      agentId,
-      runId,
-    );
-  }
-
-  async maybeAutoCompactAtIteration(
-    conversationId: string,
-    agentId: string,
-    runId: string,
-    conversation: Conversation,
-    signal?: AbortSignal,
-  ): Promise<boolean> {
-    return this.autoCompaction.maybeCompactAtIteration({
-      conversationId,
-      agentId,
-      runId,
-      conversation,
-      signal,
-    });
-  }
-
-  takeAutoCompactionContinuation(runId: string): string | undefined {
-    return this.autoCompaction.takeContinuation(runId);
-  }
-
-  finishAutoCompactionRun(runId: string): void {
-    this.autoCompaction.finishRun(runId);
   }
 }

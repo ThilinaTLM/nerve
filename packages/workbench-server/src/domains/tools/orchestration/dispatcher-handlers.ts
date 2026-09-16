@@ -22,7 +22,7 @@ import { ToolExecutionSuspended } from "../execution/tool-execution-suspension.j
 import type {
   ExploreProgressUpdate,
   ToolRequestOptions,
-} from "../execution/tool-service.js";
+} from "../execution/tool-runtime-ports.js";
 
 export async function taskLogsFromTool(
   this: OrchestrationToolDispatcher,
@@ -284,6 +284,13 @@ export async function requestPlanReview(
   args: Record<string, unknown>,
   options: ToolRequestOptions = {},
 ): Promise<unknown> {
+  const updateToolCall = this.deps.updateToolCall;
+  const publishToolCallUpdated = this.deps.publishToolCallUpdated;
+  if (!updateToolCall || !publishToolCallUpdated) {
+    throw new Error(
+      "Plan review must be resolved through canonical interaction authority.",
+    );
+  }
   const existing = this.deps.plans
     .listPlanReviews()
     .find((review) => review.toolCallId === toolCall.id);
@@ -305,7 +312,7 @@ export async function requestPlanReview(
     args,
   );
   const requestedAt = review.requestedAt;
-  const updatedToolCall = await this.deps.updateToolCall(toolCall.id, {
+  const updatedToolCall = await updateToolCall(toolCall.id, {
     result: this.deps.plans.planReviewResult(review),
     status: "waiting",
     interactions: [
@@ -326,7 +333,7 @@ export async function requestPlanReview(
       },
     ],
   });
-  await this.deps.publishToolCallUpdated(updatedToolCall);
+  await publishToolCallUpdated(updatedToolCall);
   if (!options.durableSuspend) {
     const result = await this.deps.plans.waitForPlanReviewResult(
       review.id,
@@ -341,7 +348,7 @@ export async function requestPlanReview(
           : result.outcome === "changes_requested"
             ? "request_changes"
             : "discard";
-    const resumedToolCall = await this.deps.updateToolCall(toolCall.id, {
+    const resumedToolCall = await updateToolCall(toolCall.id, {
       status: "running",
       interactions: updatedToolCall.interactions.map((interaction) =>
         interaction.kind === "plan_review" && interaction.status === "pending"
@@ -355,7 +362,7 @@ export async function requestPlanReview(
           : interaction,
       ),
     });
-    await this.deps.publishToolCallUpdated(resumedToolCall);
+    await publishToolCallUpdated(resumedToolCall);
     return result;
   }
   throw new ToolExecutionSuspended();

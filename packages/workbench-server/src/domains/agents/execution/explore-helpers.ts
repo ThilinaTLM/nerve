@@ -9,7 +9,7 @@ import type {
   ExploreUsageStatsPayload,
 } from "@nervekit/contracts/tools";
 import type { ModelSelection } from "@nervekit/contracts/models";
-import type { ExploreProgressUpdate } from "../../tools/execution/tool-service.js";
+import type { ExploreProgressUpdate } from "../../tools/execution/tool-runtime-ports.js";
 import { promptText } from "../prompting/prompt-text.js";
 import { summarizeExploreToolCall } from "./explore-tool-summary.js";
 import type {
@@ -18,7 +18,7 @@ import type {
   ExploreTask,
   SubagentRunOutput,
   SubagentRunSpec,
-} from "./subagent-runner.js";
+} from "./canonical-explore-coordinator.js";
 
 const EXPLORE_CONTEXT_MIN_LENGTH = 40;
 const EXPLORE_TASK_MIN_LENGTH = 15;

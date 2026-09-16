@@ -109,7 +109,7 @@ export class RuntimeLifecycle {
         },
         { name: "providers", run: () => providerCatalog.load() },
         { name: "tasks", run: () => this.services.tasks.hydrate() },
-        { name: "tools", run: () => this.services.tools.hydrate() },
+        { name: "tools", run: async () => undefined },
         { name: "plans", run: () => this.services.plans.hydrate() },
         {
           name: "projects",
@@ -117,44 +117,88 @@ export class RuntimeLifecycle {
         },
         {
           name: "conversations",
-          run: () => this.services.conversationLifecycle.loadConversations(),
+          run: () =>
+            this.services.canonicalConversationLifecycle.loadConversations(),
         },
       ] as const satisfies readonly StoreHydrationOperation[],
       loadAgents: () => this.services.agentLifecycle.loadAgents(),
-      flushRunDelivery: () => this.services.runRuntime.delivery.flush(),
-      recoverRuns: async () => {
-        await this.services.runRuntime.coordinator.recover();
-      },
+      flushRunDelivery: async () => undefined,
+      recoverRuns: async () => undefined,
       recoverHumanInput: async () => {
-        await this.services.runReconciliation.reconcileStartup();
-      },
-      rebuildProjector: async () => {
-        const activeStates =
-          await this.services.runRuntime.unitOfWork.listActive();
-        const runRecords =
-          await this.services.runRuntime.unitOfWork.listMetadata();
-        await this.services.runRuntime.projector.rebuild({
-          activeStates,
-          runRecords,
+        await this.services.canonicalChildExecution.recoverPending();
+        await this.services.policySaves.recoverPending({
+          approvalStillApplicable: async (intent) => {
+            if (intent.schemaVersion !== 2) return false;
+            const groups =
+              await storage.canonicalStore.execution.listPendingWaitGroups(
+                1_000,
+              );
+            return groups.some((group) =>
+              group.members.some(
+                (member) =>
+                  member.memberId === intent.memberId &&
+                  member.executionState === "awaiting_approval",
+              ),
+            );
+          },
+          finalizeApproval: async (intent) => {
+            if (intent.schemaVersion !== 2) return "superseded";
+            const groups =
+              await storage.canonicalStore.execution.listPendingWaitGroups(
+                1_000,
+              );
+            const member = groups
+              .flatMap((group) => group.members)
+              .find((candidate) => candidate.memberId === intent.memberId);
+            if (!member) return "superseded";
+            try {
+              const details =
+                await this.services.canonicalTools.getToolCallUiDetails(
+                  member.ownerId,
+                );
+              const pending = details.toolCall.interactions.find(
+                (interaction) => interaction.status === "pending",
+              );
+              if (!pending) return "superseded";
+              await this.services.canonicalToolInteractions.resolve({
+                toolCallId: member.ownerId,
+                interactionOrdinal: pending.ordinal,
+                expectedRevision: details.toolCall.revision,
+                resolutionRequestId: intent.approvalCommandId,
+                resolution: {
+                  kind: "approval",
+                  action: "allow",
+                  scope: "single_call",
+                },
+              });
+              return "committed";
+            } catch {
+              return "superseded";
+            }
+          },
+          now: () => new Date().toISOString(),
         });
-        return {
-          runMetadata: runRecords.length,
-          activeRuns: activeStates.length,
-        };
+        for (const conversation of this.services.canonicalConversationLifecycle.listConversations()) {
+          await this.services.workbenchRun.reconcileConversation(
+            conversation.id,
+            `startup-recovery:${Date.now()}`,
+          );
+        }
       },
+      rebuildProjector: async () => ({ runMetadata: 0, activeRuns: 0 }),
       counts: () => ({
         projects: this.services.projectLifecycle.listProjects().length,
         conversations:
-          this.services.conversationLifecycle.listConversations().length,
+          this.services.canonicalConversationLifecycle.listConversations()
+            .length,
         agents: this.services.agentLifecycle.listAgents().length,
         tasks: this.services.tasks.listTasks().length,
-        toolCalls: this.services.tools.countToolCalls(),
+        toolCalls: 0,
       }),
-      recoverTaskNotifications: () =>
-        this.services.taskNotifications.recoverPendingNotifications(),
+      recoverTaskNotifications: async () => undefined,
       rebuildIndex: () => this.rebuildIndex(),
       hydratePromptSuggestions: () => this.services.promptSuggestions.hydrate(),
-      toolCallHydrationSource: this.services.tools.toolCallHydrationSource,
+      toolCallHydrationSource: "canonical_projection",
     });
   }
 
@@ -167,37 +211,29 @@ export class RuntimeLifecycle {
    */
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
-    this.services.lifecycleDispatcher.stopPolling();
+    await Promise.all([
+      this.services.projectionDispatcher.stop(),
+      this.services.deletionDispatcher.stop(),
+      this.services.canonicalExecution.stop(),
+    ]);
     this.services.gitRepositoryWatcher.close();
     this.services.projectFilesystemWatcher.close();
     await this.services.tasks.shutdown();
-    this.services.taskNotifications.stop();
     await Promise.allSettled([...this.backgroundOperations]);
-    await this.services.lifecycleDispatcher.settled();
-    await this.services.runRuntime.coordinator.settled();
-    await this.services.runRuntime.delivery.settled();
     await this.events.settled();
-    await this.services.conversationJournal
-      .checkpointLoaded()
-      .catch(async (error: unknown) => {
-        await this.logger.warn(
-          "Conversation checkpoint failed during shutdown",
-          {
-            error,
-          },
-        );
-      });
   }
 
   async hydrate(
     reportStage?: (stage: RuntimeBootstrapStage) => void,
   ): Promise<RuntimeHydrationTimings> {
     reportStage?.("recovering-conversation-deletions");
-    await this.services.conversationLifecycle.recoverDeletions();
+    await this.services.canonicalConversationLifecycle.recoverDeletions();
     const timings = await this.hydrator.hydrate(reportStage);
-    // Provider and tool work can be arbitrarily long-running. Start its drain
-    // only after canonical hydration, and never gate daemon readiness on it.
-    this.services.lifecycleDispatcher.start();
+    // Canonical background drains start only after hydration and never gate
+    // daemon readiness. Provider and tool work can be arbitrarily long-running.
+    this.services.projectionDispatcher.start();
+    this.services.deletionDispatcher.start();
+    this.services.canonicalExecution.start();
     return timings;
   }
   async refreshRuntimeCapabilities(): Promise<void> {
@@ -214,14 +250,6 @@ export class RuntimeLifecycle {
     if (this.shuttingDown) return;
     const operations = [
       ["Network model refresh", this.auth.refreshModels()],
-      [
-        "Tool-result payload reconciliation",
-        this.services.tools.reconcileResultPayloads(),
-      ],
-      [
-        "Conversation projection backfill",
-        this.services.conversationJournal.backfillMissingProjections(),
-      ],
     ] as const;
     this.trackBackgroundOperation(this.logSettledOperations(operations));
   }
@@ -254,7 +282,8 @@ export class RuntimeLifecycle {
   async rebuildIndex(): Promise<void> {
     await this.queryCache.rebuildIncrementally(() => ({
       projects: this.services.projectLifecycle.listProjects(),
-      conversations: this.services.conversationLifecycle.listConversations(),
+      conversations:
+        this.services.canonicalConversationLifecycle.listConversations(),
       agents: this.services.agentLifecycle.listAgents(),
       tasks: this.services.tasks.listTasks(),
     }));

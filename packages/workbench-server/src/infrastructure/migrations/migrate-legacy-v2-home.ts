@@ -9,7 +9,7 @@ import {
   rm,
   stat,
 } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import {
   homeMigrationReportSchema,
   type HomeMigrationProgress,
@@ -27,6 +27,11 @@ import {
   readJsonFile,
 } from "../storage-bootstrap/json.js";
 import { initializeStorage } from "../storage-bootstrap/initialize.js";
+import {
+  recoverHomePromotionAtStartup,
+  requestGenericHomePromotion,
+  syncPromotionDirectory,
+} from "../storage-bootstrap/home-promotion.js";
 import { storagePaths } from "../storage-bootstrap/paths.js";
 import { assertCurrentStorage } from "../storage-bootstrap/storage-postconditions.js";
 import { acquireStorageStartupLock } from "../storage-bootstrap/startup-lock.js";
@@ -46,6 +51,10 @@ export async function migrateLegacyV2Home(
   options: {
     now?: () => Date;
     reportProgress?: ProgressReporter;
+    /** Fault-injection hook used to verify crash-safe promotion recovery. */
+    afterPromotionPhase?: (
+      phase: "source-renamed" | "staging-promoted" | "backup-retained",
+    ) => void | Promise<void>;
   } = {},
 ): Promise<HomeMigrationReport> {
   const now = options.now ?? (() => new Date());
@@ -60,8 +69,6 @@ export async function migrateLegacyV2Home(
   assertSeparatePaths(home, staging, backupSibling);
 
   const lock = await acquireStorageStartupLock(home, 15_000);
-  let sourceRenamed = false;
-  let promoted = false;
   try {
     const recovered = await recoverMigration(home, journalPath);
     if (recovered) return recovered;
@@ -170,11 +177,20 @@ export async function migrateLegacyV2Home(
       counts,
       warnings,
     });
-    await atomicWriteJson(
-      join(storage.paths.migrationsPath, "legacy-v2-import.json"),
-      migrationReport,
-      0o600,
+    const migrationEvidencePath = join(
+      storage.paths.migrationsPath,
+      "legacy-v2-import.json",
     );
+    await atomicWriteJson(migrationEvidencePath, migrationReport, 0o600);
+
+    // Complete the journal-to-canonical cutover in the sibling candidate. The
+    // promoted live home must never perform this conversion after rename.
+    const canonicalCandidate = await initializeStorage(staging);
+    await canonicalCandidate.canonicalStore.disableTimelineRuntimeAdmission(
+      completedAt.toISOString(),
+    );
+    await canonicalCandidate.canonicalStore.close();
+    await validateMigratedHome(staging, counts);
     await writeJournal(
       journalPath,
       home,
@@ -189,50 +205,48 @@ export async function migrateLegacyV2Home(
       "promote",
       "Promoting migrated home and retaining legacy backup",
     );
-    await rename(home, backupSibling);
-    sourceRenamed = true;
-    await writeJournal(
-      journalPath,
+    await syncPromotionDirectory(staging);
+    const evidenceBytes = await readFile(migrationEvidencePath);
+    const operationId = `migration_${createHash("sha256")
+      .update(evidenceBytes)
+      .digest("hex")
+      .slice(0, 24)}`;
+    await requestGenericHomePromotion({
       home,
-      staging,
-      backupSibling,
-      finalBackupPath,
-      "source-renamed",
-    );
-    try {
-      await rename(staging, home);
-      promoted = true;
-    } catch (error) {
-      await rename(backupSibling, home);
-      sourceRenamed = false;
-      throw error;
-    }
-    await writeJournal(
-      journalPath,
-      home,
-      staging,
-      backupSibling,
-      finalBackupPath,
-      "staging-promoted",
-    );
-    await mkdir(dirname(finalBackupPath), { recursive: true, mode: 0o700 });
-    await rename(backupSibling, finalBackupPath);
-    sourceRenamed = false;
-    await writeJournal(
-      journalPath,
-      home,
-      staging,
-      finalBackupPath,
-      finalBackupPath,
-      "backup-retained",
-    );
+      operationKind: "legacy_v2_migration",
+      operationId,
+      candidateEvidenceId: "legacy-v2-import.json",
+      candidateHome: staging,
+      candidateEvidenceDigest: `sha256:${createHash("sha256")
+        .update(evidenceBytes)
+        .digest("hex")}`,
+      sourceAuthorityId: `legacy-v2:${basename(resolve(home))}`,
+      verifierKind: "legacy_v2_canonical_v1",
+      rollbackDisposition: "archive_under_live",
+      rollbackHomeName: backupSibling.split(sep).at(-1),
+      archiveRelativePath: relative(home, finalBackupPath),
+      now: completedAt.toISOString(),
+    });
+    await recoverHomePromotionAtStartup(home, {
+      afterPhase: async (phase) => {
+        if (phase === "old_home_renamed")
+          await options.afterPromotionPhase?.("source-renamed");
+        if (phase === "candidate_promoted")
+          await options.afterPromotionPhase?.("staging-promoted");
+        if (phase === "archived")
+          await options.afterPromotionPhase?.("backup-retained");
+      },
+    });
     await rm(journalPath, { force: true });
     return migrationReport;
   } catch (error) {
-    if (sourceRenamed && !promoted) {
-      await rename(backupSibling, home).catch(() => undefined);
+    // Before a promotion request exists, staging is disposable. Once the
+    // generic marker exists, startup recovery exclusively owns rollback.
+    if (!(await pathExists(`${resolve(home)}.promotion.json`))) {
+      await rm(staging, { recursive: true, force: true });
+      await rm(journalPath, { force: true });
+      await syncPromotionDirectory(parent).catch(() => undefined);
     }
-    if (!promoted) await rm(staging, { recursive: true, force: true });
     throw error;
   } finally {
     await lock.release();
@@ -373,7 +387,8 @@ async function validateMigratedHome(
                'conversation_state',
                'conversation_journal_head',
                'conversation_journal_commit'
-             )) AS conversations,
+             )) AS legacy_conversations,
+           (SELECT COUNT(*) FROM conversations) AS canonical_conversations,
            (SELECT COUNT(*) FROM conversation_records) AS records,
            (SELECT COUNT(*) FROM durable_events) AS events,
            (SELECT COUNT(*) FROM conversation_records
@@ -384,18 +399,25 @@ async function validateMigratedHome(
              WHERE json_valid(CAST(data AS TEXT)) = 0) AS invalid_json`,
       )
       .get() as {
-      conversations: number;
+      legacy_conversations: number;
+      canonical_conversations: number;
       records: number;
       events: number;
       invalid_json: number;
     };
     if (
-      row.conversations !== counts.conversations ||
-      row.records !== counts.conversationRecords ||
-      row.events !== counts.durableEvents ||
+      !(
+        (row.legacy_conversations === counts.conversations &&
+          row.records === counts.conversationRecords &&
+          row.events === counts.durableEvents) ||
+        (row.legacy_conversations === 0 &&
+          row.canonical_conversations === counts.conversations)
+      ) ||
       row.invalid_json !== 0
     ) {
-      throw new Error("Migrated conversation validation failed.");
+      throw new Error(
+        `Migrated conversation validation failed: ${JSON.stringify({ row, expected: counts })}.`,
+      );
     }
   } finally {
     database.close();
@@ -469,6 +491,8 @@ async function recoverMigration(
         mode: 0o700,
       });
       await rename(journal.backup, journal.finalBackup);
+      await syncPromotionDirectory(dirname(journal.finalBackup));
+      await syncPromotionDirectory(dirname(home));
     }
     const reportPath = join(
       storagePaths(home).migrationsPath,
@@ -477,14 +501,36 @@ async function recoverMigration(
     const migrationReport = homeMigrationReportSchema.parse(
       await readJsonFile(reportPath),
     );
+    try {
+      await validateMigratedHome(home, migrationReport.counts);
+    } catch (error) {
+      if (backupExists) {
+        await rm(home, { recursive: true, force: true });
+        await rename(journal.backup, home);
+        await syncPromotionDirectory(dirname(home));
+        if (stagingExists) {
+          await rm(journal.staging, { recursive: true, force: true });
+        }
+        await rm(journalPath, { force: true });
+        await syncPromotionDirectory(dirname(home));
+      }
+      throw new Error("Recovered migrated home failed verification.", {
+        cause: error,
+      });
+    }
     await rm(journalPath, { force: true });
+    await syncPromotionDirectory(dirname(home));
     return migrationReport;
   }
 
-  if (!homeExists && backupExists) await rename(journal.backup, home);
+  if (!homeExists && backupExists) {
+    await rename(journal.backup, home);
+    await syncPromotionDirectory(dirname(home));
+  }
   if (stagingExists)
     await rm(journal.staging, { recursive: true, force: true });
   await rm(journalPath, { force: true });
+  await syncPromotionDirectory(dirname(home));
   return undefined;
 }
 

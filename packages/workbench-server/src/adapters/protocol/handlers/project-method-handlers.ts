@@ -36,6 +36,51 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
     "project.permissionOverlay.update": async (state, params) => ({
       overlay: await updatePermissionOverlay(state, params),
     }),
+    "project.permissionOverlay.reset": async (state, params) => {
+      const ownerId =
+        params.origin === "project"
+          ? params.projectId
+          : params.origin === "conversation"
+            ? params.conversationId
+            : undefined;
+      if (params.origin === "conversation" && !ownerId) {
+        throw new Error("Conversation ID is required for overlay reset.");
+      }
+      const result = await state.permissionOverlayRepair.reset({
+        origin: params.origin,
+        ...(ownerId ? { ownerId } : {}),
+        expectedDocumentDigest: params.expectedDocumentDigest,
+        quarantine: params.quarantine ?? true,
+      });
+      if (result.kind === "reset" && params.diagnosticId) {
+        await state.policyFallback.resolveReset({
+          diagnosticId: params.diagnosticId,
+          scope: {
+            kind: params.origin,
+            ownerId: ownerId ?? "user",
+          },
+          commandId:
+            params.commandId ??
+            `reset-policy-diagnostic:${params.diagnosticId}`,
+          now: new Date().toISOString(),
+        });
+      }
+      return result;
+    },
+    "project.permissionFallback.selectBaseline": async (state, params) => {
+      const agent = state.agentLifecycle.getAgent(params.agentId);
+      if (agent.projectId !== params.projectId) {
+        throw new Error("Agent does not belong to the requested project.");
+      }
+      return {
+        decision: await state.policyFallback.selectBaseline({
+          agent,
+          diagnosticId: params.diagnosticId,
+          commandId: params.commandId,
+          now: new Date().toISOString(),
+        }),
+      };
+    },
     "project.permissionTrust.update": async (state, params) => ({
       trust: await updateProjectPermissionTrust(state, params),
     }),

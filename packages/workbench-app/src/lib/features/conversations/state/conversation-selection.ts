@@ -4,7 +4,11 @@ import { fromConversationSnapshot } from "$lib/presentation/state";
 import {
   type AgentRecord,
   type ConversationRecord,
+  getConversationDeletionStatus,
+  getConversationProjectionStatus,
   getConversationSnapshotWithCursor,
+  getConversationTimelinePage,
+  getConversationTimelineTreePage,
   getProject,
   type ProjectRecord,
 } from "$lib/api";
@@ -13,6 +17,11 @@ import { installEventCursors } from "$lib/application/event-routing/stream-curso
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { reconcileTimelineOutcome } from "./timeline-reconciliation";
+import {
+  projectCanonicalTimelineEntry,
+  projectCanonicalTree,
+} from "./canonical-timeline-projection";
 import { stoppingAfterConversationSnapshot } from "$lib/features/conversations/state/conversation-terminal-state";
 import { KeyedSingleFlight } from "$lib/features/conversations/state/keyed-single-flight";
 import {
@@ -117,23 +126,55 @@ export function refreshConversationView(conversationId: string): Promise<void> {
     const view = ensureConversationView(conversationId);
     view.loading = true;
     try {
-      const response = await getConversationSnapshotWithCursor(conversationId);
+      const [
+        response,
+        projectionStatus,
+        deletionStatus,
+        timelineOutcome,
+        treeOutcome,
+      ] = await Promise.all([
+        getConversationSnapshotWithCursor(conversationId),
+        getConversationProjectionStatus(conversationId),
+        getConversationDeletionStatus(conversationId),
+        getConversationTimelinePage({ conversationId, pageSize: 200 }),
+        getConversationTimelineTreePage({ conversationId, pageSize: 200 }),
+      ]);
       const snapshot = response.snapshot;
       // Canonical state comes straight from the shared snapshot ingestion
       // (which drains already-materialized active-run messages).
       const canonical = fromConversationSnapshot(snapshot);
       const previousRunId = view.activeRun?.runId;
+      const timelineAction = reconcileTimelineOutcome(timelineOutcome);
+      const treeAction = reconcileTimelineOutcome(treeOutcome);
       view.activeEntryId = snapshot.tree.activeEntryId;
       view.activeEntryIds = canonical.activeEntryIds;
-      view.entries = canonical.entries;
+      if (timelineAction.kind === "apply_page") {
+        view.entries = timelineAction.page.entries.map(
+          projectCanonicalTimelineEntry,
+        );
+      } else if (
+        timelineAction.kind === "clear_and_close" ||
+        timelineAction.kind === "clear_protected_rows"
+      ) {
+        view.entries = [];
+      }
       view.toolCalls = canonical.toolCalls;
-      view.treeNodes = snapshot.tree.nodes;
+      if (treeAction.kind === "apply_page") {
+        view.treeNodes = projectCanonicalTree(treeAction.page.entries);
+      } else if (
+        treeAction.kind === "clear_and_close" ||
+        treeAction.kind === "clear_protected_rows"
+      ) {
+        view.treeNodes = [];
+      }
       view.activeRun = canonical.activeRun;
       view.transient = undefined;
       view.optimisticMessages = [];
       view.queuedPrompts = canonical.queuedPrompts ?? [];
       view.contextUsage = canonical.contextUsage;
       view.cursorSeq = canonical.cursorSeq;
+      view.projectionStatus = projectionStatus ?? undefined;
+      view.deletionStatus = deletionStatus ?? undefined;
       view.stopping = stoppingAfterConversationSnapshot(
         view.stopping,
         previousRunId,

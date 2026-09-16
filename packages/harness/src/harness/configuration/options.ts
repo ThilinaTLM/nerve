@@ -130,4 +130,6 @@ export interface AgentHarnessOptions<
   followUpMode?: QueueMode;
   /** Maximum allowed executions in one parallel tool batch. */
   maxParallelToolCalls?: number;
+  /** Return after a settled tool iteration so the host can admit continuation. */
+  stopAfterToolIteration?: boolean;
 }

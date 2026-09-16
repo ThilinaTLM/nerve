@@ -18,12 +18,24 @@ import {
   type ValidatedToolArtifact,
 } from "@nervekit/contracts/tools";
 import type { ToolAnchor } from "../../runs/runtime/conversation-runtime.js";
-import type { ToolService } from "../execution/tool-service.js";
+import type { ToolRequestOptions } from "../execution/tool-runtime-ports.js";
+
+interface AgentToolExecutionPort {
+  requestToolAndWait(
+    agent: AgentRecord,
+    toolName: ToolName,
+    args: Record<string, unknown>,
+    options?: ToolRequestOptions,
+  ): Promise<ToolCallRecord>;
+  toolResultRecoveryArtifact(
+    toolCall: ToolCallRecord,
+  ): ValidatedToolArtifact | string | undefined;
+}
 import { projectToolCallResult } from "../artifacts/tool-result-projector.js";
 
 export function createAgentToolsForAgent(
   agent: AgentRecord,
-  tools: ToolService,
+  tools: AgentToolExecutionPort,
   options: {
     runId?: string;
     resolveToolAnchor?: (providerToolCallId: string) => ToolAnchor | undefined;
@@ -63,6 +75,34 @@ export function createAgentToolsForAgent(
         });
       }
       throw new Error(formatToolResultForModel(toolCall));
+    },
+  );
+}
+
+export function createAgentToolsWithExternalExecutor(input: {
+  allowedToolNames: readonly ToolName[];
+  execute(
+    toolName: ToolName,
+    providerToolCallId: string,
+    args: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+  ): Promise<ToolCallRecord>;
+}): AgentTool[] {
+  const allowed = new Set<string>(input.allowedToolNames);
+  return createAgentToolsFromDefinitions(
+    allToolDefinitions,
+    allowed,
+    async (definition, providerToolCallId, params, signal) => {
+      const terminal = await input.execute(
+        definition.name as ToolName,
+        providerToolCallId,
+        params,
+        signal,
+      );
+      if (terminal.status !== "completed") {
+        throw new Error(formatToolResultForModel(terminal));
+      }
+      return toolCallResultForModel(terminal);
     },
   );
 }

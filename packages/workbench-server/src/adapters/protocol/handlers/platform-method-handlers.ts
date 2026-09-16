@@ -93,6 +93,32 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       sqlitePath: state.storage.paths.sqlitePath,
       counts: state.queryCache.counts(),
     }),
+    "storage.backup.create": async (state) => ({
+      manifest: (await state.portableBackup.create()).manifest,
+    }),
+    "storage.backup.inspect": async (state, params) => ({
+      manifest: await state.backupInspection.inspect(params.backupId),
+    }),
+    "storage.restore.stage": async (state, params) => ({
+      promotion: (
+        await state.restoreStaging.stage({
+          backupId: params.backupId,
+          oldRuntimeIsolation: "unproven",
+        })
+      ).promotion,
+    }),
+    "storage.restore.status": async (state, params) => ({
+      promotion: await state.restoreStaging.status(params.restoreId),
+    }),
+    "storage.restore.requestPromotion": async (state, params) => {
+      void params.oldRuntimeIsolationProven;
+      return {
+        marker: await state.restoreStaging.requestPromotionById(
+          params.restoreId,
+        ),
+        restartRequired: true as const,
+      };
+    },
     "storage.rebuildIndex": async (state) => ({
       operation: await state.maintenance.start({
         kind: "storage_cleanup",

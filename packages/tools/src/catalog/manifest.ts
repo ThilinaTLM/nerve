@@ -23,8 +23,10 @@ import {
   isHostToolDefinition,
   isLocalToolDefinition,
   type LocalToolDefinition,
+  type ResolvedToolDefinition,
   type ToolDefinition,
 } from "./contracts.js";
+import { executionRecoveryForTool } from "./replay-capabilities.js";
 
 const [readToolDefinition, ...remainingFilesystemToolDefinitions] =
   filesystemToolDefinitions;
@@ -41,20 +43,25 @@ const rawCoreToolDefinitions: readonly ToolDefinition[] = [
   ...confluenceToolDefinitions,
 ];
 
-export const coreToolDefinitions: readonly ToolDefinition[] = Object.freeze(
-  rawCoreToolDefinitions.map(withAgentResultPolicy),
-);
+export const coreToolDefinitions: readonly ResolvedToolDefinition[] =
+  Object.freeze(
+    rawCoreToolDefinitions.map((definition) =>
+      withExecutionRecovery(withAgentResultPolicy(definition)),
+    ),
+  );
 
-export const orchestrationToolDefinitions: readonly ToolDefinition[] =
+export const orchestrationToolDefinitions: readonly ResolvedToolDefinition[] =
   Object.freeze(
     [
       ...taskToolDefinitions,
       ...exploreToolDefinitions,
       ...planModeToolDefinitions,
-    ].map(withAgentResultPolicy),
+    ].map((definition) =>
+      withExecutionRecovery(withAgentResultPolicy(definition)),
+    ),
   );
 
-export const toolManifest: readonly ToolDefinition[] = Object.freeze([
+export const toolManifest: readonly ResolvedToolDefinition[] = Object.freeze([
   ...coreToolDefinitions,
   ...orchestrationToolDefinitions,
 ]);
@@ -74,7 +81,24 @@ function withAgentResultPolicy(definition: ToolDefinition): ToolDefinition {
   }) as ToolDefinition;
 }
 
-const definitionByName = new Map<ToolName, ToolDefinition>();
+function withExecutionRecovery(
+  definition: ToolDefinition,
+): ResolvedToolDefinition {
+  const contract = executionRecoveryForTool(definition.name);
+  const executionRecovery =
+    contract.executionClass === "internal_command"
+      ? Object.freeze({ ...contract })
+      : Object.freeze({
+          ...contract,
+          capability: Object.freeze({ ...contract.capability }),
+        });
+  return Object.freeze({
+    ...definition,
+    executionRecovery,
+  }) as ResolvedToolDefinition;
+}
+
+const definitionByName = new Map<ToolName, ResolvedToolDefinition>();
 for (const definition of toolManifest) {
   if (definitionByName.has(definition.name)) {
     throw new Error(`Duplicate tool definition: ${definition.name}`);
@@ -108,11 +132,13 @@ for (const definition of toolManifest) {
 
 export function toolDefinitionByName(
   name: ToolName | string,
-): ToolDefinition | undefined {
+): ResolvedToolDefinition | undefined {
   return definitionByName.get(name as ToolName);
 }
 
-export function requireToolDefinition(name: ToolName | string): ToolDefinition {
+export function requireToolDefinition(
+  name: ToolName | string,
+): ResolvedToolDefinition {
   const definition = toolDefinitionByName(name);
   if (!definition) throw new Error(`Unknown tool: ${name}`);
   return definition;
@@ -131,10 +157,20 @@ export const toolGroups: readonly ToolGroupName[] = Object.freeze(
 );
 
 export const localToolDefinitions: readonly LocalToolDefinition[] =
-  Object.freeze(toolManifest.filter(isLocalToolDefinition));
+  Object.freeze(
+    toolManifest.filter(
+      (
+        definition,
+      ): definition is ResolvedToolDefinition & LocalToolDefinition =>
+        isLocalToolDefinition(definition),
+    ),
+  );
 
 export const hostToolDefinitions: readonly HostToolDefinition[] = Object.freeze(
-  toolManifest.filter(isHostToolDefinition),
+  toolManifest.filter(
+    (definition): definition is ResolvedToolDefinition & HostToolDefinition =>
+      isHostToolDefinition(definition),
+  ),
 );
 
 export function classifyToolRisk(

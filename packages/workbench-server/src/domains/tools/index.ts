@@ -7,7 +7,6 @@ export {
   todoItemsArg,
   todosResult,
 } from "./orchestration/todo-state.service.js";
-export { ToolCallRepository } from "./artifacts/tool-call.repository.js";
 export { ToolResultPayloadStore } from "./artifacts/tool-result-payload-store.js";
 export {
   isToolExecutionSuspended,

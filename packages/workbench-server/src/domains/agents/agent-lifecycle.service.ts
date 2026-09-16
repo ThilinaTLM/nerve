@@ -14,7 +14,6 @@ import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/
 import { resolveProjectSettings } from "../../infrastructure/configuration/index.js";
 import type { RuntimeState } from "../../app/runtime/runtime-projections.js";
 import type { AgentStatus } from "./agent-status.js";
-import type { ConversationService } from "../conversations/conversation-service.js";
 import type { AgentRepository } from "./agent.repository.js";
 import { assertChildAuthority } from "./agent-authority.js";
 import { agentBudget } from "./agent-budget.js";
@@ -49,7 +48,6 @@ export class AgentLifecycleService {
     private readonly queryCache: RuntimeQueryCache,
     private readonly state: RuntimeState,
     private readonly agentRepository: AgentRepository,
-    private readonly conversationService: ConversationService,
     private readonly updateConversation: (
       conversation: ReturnType<RuntimeState["getConversation"]>,
     ) => Promise<void>,
@@ -187,7 +185,7 @@ export class AgentLifecycleService {
       await this.removeAgentInternal(child.id);
     }
     this.state.agents.delete(agentId);
-    this.conversationService.deleteAgent(agentId);
+    this.state.agentConversationMessages.delete(agentId);
     this.queryCache.removeAgent(agentId);
     await this.agentRepository.remove(agentId);
   }

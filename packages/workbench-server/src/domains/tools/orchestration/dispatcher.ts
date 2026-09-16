@@ -79,7 +79,7 @@ import type {
   ExploreRunner,
   TaskStarter,
   ToolRequestOptions,
-} from "../execution/tool-service.js";
+} from "../execution/tool-runtime-ports.js";
 
 const MAX_BASH_TIMEOUT_MS = 86_400_000;
 
@@ -101,12 +101,12 @@ export interface OrchestrationToolDispatcherDeps {
   ): Promise<AgentRecord>;
   conversationRuntime: ConversationRuntime;
   todoState: TodoStateService;
-  interactionSessions: InteractionSessionService;
-  updateToolCall(
+  interactionSessions?: InteractionSessionService;
+  updateToolCall?(
     toolCallId: string,
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
   ): Promise<ToolCallRecord>;
-  publishToolCallUpdated(toolCall: ToolCallRecord): Promise<void>;
+  publishToolCallUpdated?(toolCall: ToolCallRecord): Promise<void>;
 }
 
 type WorkbenchToolExecution = {
@@ -228,20 +228,22 @@ export class OrchestrationToolDispatcher {
     const result = (value: Promise<unknown>) =>
       value as Promise<ToolExecutionResult>;
     return {
-      ...createInteractionHandlers({
-        resolve: async () =>
-          this.deps.interactionSessions.resolvedUserQuestion(toolCall.id) as
-            | ToolExecutionResult
-            | undefined,
-        request: (_identity, input) =>
-          result(
-            this.deps.interactionSessions.requestUserQuestion(
-              toolCall,
-              input,
-              options,
-            ),
-          ),
-      }),
+      ...(this.deps.interactionSessions
+        ? createInteractionHandlers({
+            resolve: async () =>
+              this.deps.interactionSessions!.resolvedUserQuestion(
+                toolCall.id,
+              ) as ToolExecutionResult | undefined,
+            request: (_identity, input) =>
+              result(
+                this.deps.interactionSessions!.requestUserQuestion(
+                  toolCall,
+                  input,
+                  options,
+                ),
+              ),
+          })
+        : {}),
       ...createPlanHandlers({
         enter: (_identity, reason) =>
           result(this.enterPlanMode(toolCall, { reason })),
@@ -273,6 +275,7 @@ export class OrchestrationToolDispatcher {
                   this.publishExploreProgress(toolCall, message, options.runId),
                 signal,
                 parentRunId: toolCall.runId,
+                parentToolCallId: toolCall.id,
               },
             ),
           ),

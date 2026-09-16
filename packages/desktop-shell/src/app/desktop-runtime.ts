@@ -201,9 +201,19 @@ export class DesktopRuntime {
     ports.application
       .whenReady()
       .then(async () => {
+        const startupWindow = ensureMainWindow();
+        if (!startupWindow) return;
+        await startupWindow.loadURL(
+          runtime.#shellPageUrls.create(
+            loadingHtml("Checking Nerve home storage"),
+          ),
+        );
         const preparation = await ports.prepareDataDirectory({
           home: desktopDataDir,
           mode: desktopOptions.mode,
+          reportProgress: (message) => {
+            void updateLoadingStatus(startupWindow, message);
+          },
         });
         if (preparation.status === "quit") {
           runtime.#appQuitting = true;
@@ -325,13 +335,9 @@ export class DesktopRuntime {
       ),
     );
 
-    async function openMainWindow(): Promise<void> {
-      if (runtime.#disposed) return;
-      if (runtime.#mainWindow) {
-        showWindow(runtime.#mainWindow);
-        return;
-      }
-
+    function ensureMainWindow(): BrowserWindowType | undefined {
+      if (runtime.#disposed) return undefined;
+      if (runtime.#mainWindow) return runtime.#mainWindow;
       const window = ports.windows.createMainWindow({
         daemonUrl: () => runtime.#managedDaemon?.url,
         isTrustedShellUrl: (url) => runtime.#shellPageUrls.isTrusted(url),
@@ -344,7 +350,12 @@ export class DesktopRuntime {
       window.on("closed", () => {
         if (runtime.#mainWindow === window) runtime.#mainWindow = undefined;
       });
+      return window;
+    }
 
+    async function openMainWindow(): Promise<void> {
+      const window = ensureMainWindow();
+      if (!window) return;
       const startupStartedAt = ports.now();
       let initialZoomLevel: number | undefined;
       try {

@@ -1,0 +1,76 @@
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import { CanonicalRunStartService } from "../../../src/domains/conversations/timeline/canonical-run-start.service.js";
+import { StreamLogRegistry } from "../../../src/infrastructure/events/stream-log-registry.js";
+import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/canonical-store.js";
+
+test("INV-HEAD-01 accepts a prompt and foreground owner in one transition", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-canonical-run-start-"));
+  const store = new CanonicalStore(join(home, "nerve.sqlite"));
+  await store.initialize();
+  const events = new StreamLogRegistry(home, { canonicalStore: store });
+  const announced: string[] = [];
+  const unsubscribe = events.subscribeSequenced((_stream, event) => {
+    announced.push(event.type);
+  });
+  t.after(async () => {
+    unsubscribe();
+    await events.shutdown();
+    await store.close();
+    await rm(home, { recursive: true, force: true });
+  });
+  const service = new CanonicalRunStartService(store);
+  const input = {
+    conversationId: "conv_start",
+    runId: "run_start",
+    agentId: "agent_start",
+    projectId: "proj_start",
+    providerIdentity: { provider: "test", model: "test" },
+    providerCapability: "stateless_generation" as const,
+    prompt: "hello",
+    commandId: "command-start",
+    now: "2026-09-12T00:00:00.000Z",
+  };
+  const started = await service.start(input);
+  assert.equal(started.kind, "started");
+  const replay = await service.start(input);
+  assert.equal(replay.kind, "receipt_replay");
+  assert.deepEqual(
+    replay.kind === "receipt_replay" ? replay.run : undefined,
+    started.kind === "started" ? started.run : undefined,
+  );
+  const head = await store.readTimelineConversationHead("conv_start");
+  assert.equal(head?.revision, 1);
+  assert.equal(head?.foregroundRunId, "run_start");
+  assert.equal(
+    started.kind === "started" && started.run.providerPhaseId,
+    "provider_phase_start_1",
+  );
+  const work = await store.execution.readLifecycleWork(
+    "canonical_work_start_provider_1",
+  );
+  assert.equal(work?.providerPhaseId, "provider_phase_start_1");
+  assert.equal(work?.kind, "prepare_provider_request");
+  assert.equal(work?.state, "ready");
+  assert.equal(
+    head?.activeEntryId,
+    started.kind === "started" ? started.run.continuationEntryId : null,
+  );
+  assert.deepEqual(announced, ["run.started"]);
+  const storedEvents = await store.readDurableEvents("conv/conv_start", 1, 10);
+  assert.deepEqual(
+    storedEvents.map((event) => event.eventType),
+    ["run.started"],
+  );
+  assert.equal(storedEvents[0]?.intentId, "evt_run_started_run_start");
+  assert.deepEqual(storedEvents[0]?.data, {
+    conversationId: "conv_start",
+    agentId: "agent_start",
+    projectId: "proj_start",
+    runId: "run_start",
+    startedAt: input.now,
+  });
+});

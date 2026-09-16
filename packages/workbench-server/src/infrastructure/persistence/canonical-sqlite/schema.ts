@@ -1,4 +1,11 @@
-export const CANONICAL_SCHEMA_VERSION = 4;
+import { UNIFIED_TIMELINE_SCHEMA_SQL } from "./unified-timeline-schema.js";
+import { TIMELINE_DELETION_WORK_SQL } from "./timeline-deletion-schema.js";
+import { TIMELINE_SEARCH_PROJECTION_SQL } from "./timeline-search-schema.js";
+import { TIMELINE_RESTORE_SQL } from "./timeline-restore-schema.js";
+import { TIMELINE_AUTHORITY_PROMOTION_SQL } from "./timeline-authority-promotion-schema.js";
+import { TIMELINE_LIFECYCLE_WORK_SQL } from "./timeline-lifecycle-work-schema.js";
+
+export const CANONICAL_SCHEMA_VERSION = 5;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -341,6 +348,15 @@ export interface CanonicalMigration {
   sql: string;
 }
 
+const UNIFIED_TIMELINE_V5_SQL = [
+  UNIFIED_TIMELINE_SCHEMA_SQL,
+  TIMELINE_DELETION_WORK_SQL,
+  TIMELINE_SEARCH_PROJECTION_SQL,
+  TIMELINE_RESTORE_SQL,
+  TIMELINE_AUTHORITY_PROMOTION_SQL,
+  TIMELINE_LIFECYCLE_WORK_SQL,
+].join("\n");
+
 export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
   {
     version: 2,
@@ -362,5 +378,12 @@ export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
     checksum:
       "496cd5027ff354aee6aed213f19bb6c6771d5c847cc799d85e1cc4fd5781b28a",
     sql: LIFECYCLE_RUN_CONVERSION_V4_SQL,
+  },
+  {
+    version: 5,
+    name: "unified-conversation-timeline-v5",
+    checksum:
+      "7f3f6ea9db2c431f06aea59c03d3205396332ae0f9d2d2aa42ae9eaceee0c6e4",
+    sql: UNIFIED_TIMELINE_V5_SQL,
   },
 ];

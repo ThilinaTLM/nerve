@@ -24,7 +24,10 @@ import {
 } from "../configuration/home-configuration.js";
 import { inspectNerveHome } from "./state-layout.js";
 import { acquireStorageStartupLock } from "./startup-lock.js";
+import { recoverHomePromotionAtStartup } from "./home-promotion.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
+import { CanonicalFreshHomeAdmissionService } from "../../domains/storage/canonical-fresh-home-admission.service.js";
+import { promoteCurrentHomeAtStartup } from "../migrations/unified-timeline/migrate-live-journal-to-canonical.js";
 import {
   currentHomeMigrationEntries,
   migrateToolResultPayloadReferences,
@@ -93,6 +96,7 @@ export async function initializeStorage(
 
   const startupLock = await acquireStorageStartupLock(home);
   try {
+    await recoverHomePromotionAtStartup(home);
     const homeInspectionStartedAt = performance.now();
     const inspection = await inspectNerveHome(home);
     const homeInspectionMs = Math.round(
@@ -153,6 +157,28 @@ export async function initializeStorage(
     const canonicalOpenStartedAt = performance.now();
     const canonicalStore = new CanonicalStore(paths.sqlitePath);
     await canonicalStore.initialize();
+    if (!fresh) {
+      await promoteCurrentHomeAtStartup({
+        store: canonicalStore,
+        paths,
+        promotedAt: new Date().toISOString(),
+        reportProgress: (message) =>
+          options.reportStartupProgress?.({
+            type: "nerve.startup.progress",
+            phase: "storage-migration",
+            message,
+          }),
+      });
+    }
+    const runtimeAdmission =
+      await canonicalStore.readTimelineRuntimeAdmission();
+    if (
+      (await canonicalStore.migration.countLegacyRuntimeAuthority()) === 0 &&
+      !runtimeAdmission?.restoreId &&
+      runtimeAdmission?.dispatchState !== "admitted"
+    ) {
+      await new CanonicalFreshHomeAdmissionService(canonicalStore).admit();
+    }
     const canonicalOpenMs = Math.round(
       performance.now() - canonicalOpenStartedAt,
     );

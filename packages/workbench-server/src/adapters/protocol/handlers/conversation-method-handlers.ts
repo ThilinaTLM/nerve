@@ -39,31 +39,21 @@ export const conversationMethodHandlers: WorkbenchMethodHandlerMapFor<Conversati
         params,
       ),
     }),
-    "conversation.entries.list": async (state, params) => {
-      await state.conversationLifecycle.ensureConversationEntries(
-        params.conversationId,
-      );
-      return {
-        entries: state.conversationLifecycle.getConversationEntries(
-          params.conversationId,
-        ),
-      };
-    },
+    "conversation.timeline.page": (state, params) =>
+      state.timelinePages.page(params),
+    "conversation.timeline.deletionStatus": (state, params) =>
+      state.timelinePages.deletionStatus(params.conversationId),
+    "conversation.timeline.projectionStatus": (state, params) =>
+      state.timelinePages.projectionStatus(params.conversationId),
+    "conversation.timeline.search": (state, params) =>
+      state.timelinePages.search(params),
+    "conversation.timeline.treePage": (state, params) =>
+      state.timelinePages.treePage(params),
     "conversation.contextUsage.get": async (state, params) => ({
       contextUsage: await state.workbenchRun.getContextUsage(
         params.conversationId,
       ),
     }),
-    "conversation.tree.get": async (state, params) => {
-      await state.conversationLifecycle.ensureConversationEntries(
-        params.conversationId,
-      );
-      return {
-        tree: state.conversationLifecycle.getConversationTree(
-          params.conversationId,
-        ),
-      };
-    },
     "conversation.navigate": async (state, params) => ({
       conversation: await state.navigationService.navigateConversation(
         params.conversationId,

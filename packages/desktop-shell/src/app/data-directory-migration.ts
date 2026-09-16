@@ -23,7 +23,11 @@ export interface DesktopDataDirectoryMigrationDependencies {
 
 /** Strictly initialize v1, or explicitly migrate the immediately preceding v2 home. */
 export async function prepareDesktopDataDirectory(
-  input: { home: string; mode?: DaemonMode },
+  input: {
+    home: string;
+    mode?: DaemonMode;
+    reportProgress?: (message: string) => void;
+  },
   dependencies: DesktopDataDirectoryMigrationDependencies,
 ): Promise<DesktopDataDirectoryPreparation> {
   if (input.mode === "remote") return { status: "ready" };
@@ -33,7 +37,10 @@ export async function prepareDesktopDataDirectory(
   try {
     const current = await inspect(input.home);
     if (current.kind !== "unsupported") {
-      const storage = await initialize(input.home);
+      const storage = await initialize(input.home, {
+        reportStartupProgress: (progress) =>
+          input.reportProgress?.(progress.message),
+      });
       await storage.canonicalStore.close();
       return { status: "ready" };
     }

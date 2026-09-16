@@ -1,6 +1,5 @@
-import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
   IgnoredPermissionSource,
@@ -28,6 +27,13 @@ import {
   type EffectivePermissionPolicy,
   type PermissionRootPaths,
 } from "@nervekit/tools/policy";
+import { saveRuleInOverlay } from "./prepared-policy-save.js";
+import {
+  canonicalPermissionMatcher,
+  digestContent,
+  policyDigestJson,
+  policyFailureFingerprint,
+} from "./policy-fingerprints.js";
 import {
   atomicWriteJson,
   managedOwnerPathSegment,
@@ -55,11 +61,34 @@ const legacyPermissionOverlaySchema = z
   })
   .strict();
 
+export interface PreparedPermissionRuleSave {
+  origin: PermissionOverlayOrigin;
+  ownerId?: string;
+  documentIdentity: string;
+  observedDocumentDigest?: string;
+  intendedDocumentDigest: string;
+  intendedBytes: Uint8Array;
+  ruleFingerprint: string;
+}
+
+export type PreparedPermissionRuleSaveOutcome =
+  | { kind: "saved"; digest: string }
+  | { kind: "external_conflict"; currentDocumentDigest?: string };
+
 export interface ResolvedPermissionPolicy {
   policy: EffectivePermissionPolicy;
+  selectedRuleSetDigest: string;
+  sourceDocuments: Array<{
+    origin: PermissionOverlayOrigin;
+    documentIdentity: string;
+    digest: string;
+  }>;
   roots: PermissionRootPaths;
   selectedRuleSetId: string;
+  requestedRuleSetId: string;
   fallback: boolean;
+  fallbackDecisionId?: string;
+  executionBlocked: boolean;
   diagnostics: string[];
 }
 
@@ -100,12 +129,15 @@ export class PermissionPolicyService {
     const effectiveSelected = selected ?? builtInPermissionRuleSet("baseline");
 
     const ignored: IgnoredPermissionSource[] = [];
+    const nonBlockingIgnored = new Set<IgnoredPermissionSource>();
+    const sourceDocuments: ResolvedPermissionPolicy["sourceDocuments"] = [];
     const knownRuleSetIds = this.knownRuleSetIds(custom.available);
     const userDocument = await this.loadOverlayDocument(
       "user",
       this.storage.paths.permissionsConfigPath,
       ignored,
       knownRuleSetIds,
+      sourceDocuments,
     );
     const projectPath = this.projectOverlayPath(project);
     const trust = await this.projectTrust(agent.projectId);
@@ -116,14 +148,17 @@ export class PermissionPolicyService {
             projectPath,
             ignored,
             knownRuleSetIds,
+            sourceDocuments,
           )
         : undefined;
     if (trust.status === "invalid" || trust.status === "untrusted") {
-      ignored.push({
-        origin: "project",
+      const untrustedProjectOverlay = {
+        origin: "project" as const,
         path: projectPath,
         reason: trust.reason ?? "Project permission overlay is not trusted.",
-      });
+      };
+      ignored.push(untrustedProjectOverlay);
+      nonBlockingIgnored.add(untrustedProjectOverlay);
     }
     const conversationPath = this.conversationOverlayPath(agent.conversationId);
     const conversationDocument = await this.loadOverlayDocument(
@@ -131,10 +166,32 @@ export class PermissionPolicyService {
       conversationPath,
       ignored,
       knownRuleSetIds,
+      sourceDocuments,
     );
     diagnostics.push(...ignored.map((item) => `${item.path}: ${item.reason}`));
+    const currentFailureFingerprint = fallback
+      ? policyFailureFingerprint({
+          selectedRuleSetId: effectiveSelected.id,
+          diagnostics,
+        })
+      : undefined;
+    const activeFallback = fallback
+      ? (
+          await this.storage.canonicalStore.policy.readActiveFallbacks(
+            selectedId,
+          )
+        ).find(
+          ({ decision, diagnostic }) =>
+            diagnostic.scope.kind === "conversation" &&
+            diagnostic.scope.ownerId === agent.conversationId &&
+            diagnostic.failureFingerprint === currentFailureFingerprint &&
+            decision.requestedRuleSetId === selectedId,
+        )
+      : undefined;
     const overlaysEnabled = !subagent && !fallback;
     return {
+      selectedRuleSetDigest: policyDigestJson(effectiveSelected),
+      sourceDocuments,
       policy: composeEffectivePermissionPolicy({
         selectedRuleSet: effectiveSelected,
         ...(overlaysEnabled
@@ -163,7 +220,15 @@ export class PermissionPolicyService {
         plans: this.storage.paths.plansPath,
       },
       selectedRuleSetId: effectiveSelected.id,
+      requestedRuleSetId: selectedId,
       fallback,
+      ...(activeFallback
+        ? { fallbackDecisionId: activeFallback.decision.decisionId }
+        : {}),
+      executionBlocked: fallback
+        ? !activeFallback
+        : !subagent &&
+          ignored.some((source) => !nonBlockingIgnored.has(source)),
       diagnostics,
     };
   }
@@ -322,11 +387,11 @@ export class PermissionPolicyService {
         ruleSetId,
         rules: [],
       };
-      const canonical = canonicalMatcher(rule);
+      const canonical = canonicalPermissionMatcher(rule);
       const duplicate = current.rules.findIndex(
         (candidate) =>
           candidate.enforcement === rule.enforcement &&
-          canonicalMatcher(candidate) === canonical,
+          canonicalPermissionMatcher(candidate) === canonical,
       );
       let remaining = current.rules.filter((_, index) => index !== duplicate);
       const desiredEnforcement =
@@ -366,6 +431,122 @@ export class PermissionPolicyService {
       );
       return parsed;
     });
+  }
+
+  async prepareRuleSave(
+    origin: PermissionOverlayOrigin,
+    ruleSetId: string,
+    rule: PermissionRule,
+    ownerId?: string,
+  ): Promise<PreparedPermissionRuleSave> {
+    const path = this.overlayPath(origin, ownerId);
+    let observedContent: string | undefined;
+    try {
+      observedContent = await readFile(path, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    const current = observedContent
+      ? parseOverlayDocument(
+          origin,
+          observedContent,
+          this.knownRuleSetIds((await this.customRuleSets()).available),
+        )
+      : emptyOverlayDocument();
+    const next = replaceOverlayGroup(
+      current,
+      saveRuleInOverlay(
+        overlayForRuleSet(current, ruleSetId) ?? { ruleSetId, rules: [] },
+        rule,
+        origin,
+      ),
+    );
+    const parsed = permissionOverlayDocumentForOriginSchema(origin).parse(next);
+    const intendedContent = `${JSON.stringify(parsed, null, 2)}\n`;
+    return {
+      origin,
+      ...(ownerId ? { ownerId } : {}),
+      documentIdentity: relative(this.storage.paths.home, path),
+      ...(observedContent
+        ? { observedDocumentDigest: digestContent(observedContent) }
+        : {}),
+      intendedDocumentDigest: digestContent(intendedContent),
+      intendedBytes: Buffer.from(intendedContent, "utf8"),
+      ruleFingerprint: policyDigestJson(rule),
+    };
+  }
+
+  async inspectPreparedRuleSave(prepared: PreparedPermissionRuleSave): Promise<{
+    currentDocumentDigest?: string;
+    currentDocumentValid: boolean;
+  }> {
+    const path = this.overlayPath(prepared.origin, prepared.ownerId);
+    try {
+      const content = await readFile(path, "utf8");
+      try {
+        parseOverlayDocument(
+          prepared.origin,
+          content,
+          this.knownRuleSetIds((await this.customRuleSets()).available),
+        );
+        return {
+          currentDocumentDigest: digestContent(content),
+          currentDocumentValid: true,
+        };
+      } catch {
+        return {
+          currentDocumentDigest: digestContent(content),
+          currentDocumentValid: false,
+        };
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return { currentDocumentValid: true };
+      }
+      return { currentDocumentValid: false };
+    }
+  }
+
+  async commitPreparedRuleSave(
+    prepared: PreparedPermissionRuleSave,
+  ): Promise<PreparedPermissionRuleSaveOutcome> {
+    return this.exclusive(
+      `${prepared.origin}:${prepared.ownerId ?? "global"}`,
+      async () => {
+        const path = this.overlayPath(prepared.origin, prepared.ownerId);
+        let currentContent: string | undefined;
+        try {
+          currentContent = await readFile(path, "utf8");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+        const currentDocumentDigest = currentContent
+          ? digestContent(currentContent)
+          : undefined;
+        if (currentDocumentDigest !== prepared.observedDocumentDigest) {
+          return { kind: "external_conflict", currentDocumentDigest };
+        }
+        const intendedContent = Buffer.from(prepared.intendedBytes).toString(
+          "utf8",
+        );
+        if (
+          digestContent(intendedContent) !== prepared.intendedDocumentDigest
+        ) {
+          throw new Error("Prepared permission document digest is invalid.");
+        }
+        const document = parseOverlayDocument(
+          prepared.origin,
+          intendedContent,
+          this.knownRuleSetIds((await this.customRuleSets()).available),
+        );
+        await atomicWriteJson(path, document, 0o600);
+        if (prepared.origin === "project") {
+          if (!prepared.ownerId) throw new Error("Project ID is required.");
+          await this.trustProject(prepared.ownerId);
+        }
+        return { kind: "saved", digest: prepared.intendedDocumentDigest };
+      },
+    );
   }
 
   async projectTrust(projectId: string): Promise<ProjectPermissionTrust> {
@@ -487,13 +668,17 @@ export class PermissionPolicyService {
     path: string,
     ignored: IgnoredPermissionSource[],
     knownRuleSetIds: readonly string[],
+    observations?: ResolvedPermissionPolicy["sourceDocuments"],
   ): Promise<PermissionOverlayDocument | undefined> {
     try {
-      return parseOverlayDocument(
+      const content = await readFile(path, "utf8");
+      const document = parseOverlayDocument(origin, content, knownRuleSetIds);
+      observations?.push({
         origin,
-        await readFile(path, "utf8"),
-        knownRuleSetIds,
-      );
+        documentIdentity: `${origin}:permissions.json`,
+        digest: digestContent(content),
+      });
+      return document;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
       ignored.push({ origin, path, reason: errorMessage(error) });
@@ -591,29 +776,6 @@ function replaceOverlayGroup(
   if (overlay.rules.length > 0) overlays.push(overlay);
   overlays.sort((left, right) => left.ruleSetId.localeCompare(right.ruleSetId));
   return { schemaVersion: 2, overlays };
-}
-
-function digestContent(content: string): string {
-  return `sha256:${createHash("sha256").update(content).digest("hex")}`;
-}
-
-function canonicalMatcher(rule: PermissionRule): string {
-  return JSON.stringify({
-    enforcement: rule.enforcement,
-    when: sort(rule.when),
-  });
-}
-
-function sort(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sort);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, child]) => [key, sort(child)]),
-    );
-  }
-  return value;
 }
 
 function errorMessage(error: unknown): string {

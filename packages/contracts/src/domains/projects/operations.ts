@@ -24,6 +24,7 @@ import {
   projectPermissionTrustSchema,
 } from "../permissions/permission-rule-sets.js";
 import { defineOperation } from "../../operations/definition.js";
+import { policyFallbackDecisionSchema } from "../permissions/unified-policy.js";
 
 const emptyParamsSchema = z.object({}).optional();
 const projectIdSchema = z.string().startsWith("proj_");
@@ -110,6 +111,62 @@ export const projectsOperationDefinitions = [
     "required",
     ["workbench_server"] as const,
     "operation.project.permissionOverlay.update",
+  ),
+  defineOperation(
+    "project.permissionOverlay.reset",
+    projectIdParamsSchema.extend({
+      conversationId: z.string().startsWith("conv_").optional(),
+      origin: permissionOverlayOriginSchema,
+      expectedDocumentDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+      diagnosticId: z.string().startsWith("policy_diagnostic_").optional(),
+      commandId: z.string().min(1).max(256).optional(),
+      quarantine: z.boolean().default(true),
+    }),
+    z.discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("reset"),
+        documentIdentity: z.string(),
+        quarantineIdentity: z.string().optional(),
+      }),
+      z.object({
+        kind: z.literal("external_conflict"),
+        currentDocumentDigest: z.string().optional(),
+      }),
+      z.object({
+        kind: z.literal("quarantine_created_reset_not_written"),
+        quarantineIdentity: z.string(),
+        errorMessage: z.string(),
+      }),
+      z.object({
+        kind: z.literal("reset_written_reload_failed"),
+        documentIdentity: z.string(),
+        quarantineIdentity: z.string().optional(),
+        errorMessage: z.string(),
+      }),
+      z.object({
+        kind: z.literal("trust_failed"),
+        documentIdentity: z.string(),
+        quarantineIdentity: z.string().optional(),
+        errorMessage: z.string(),
+      }),
+    ]),
+    "mutation",
+    "required",
+    ["workbench_server"] as const,
+    "operation.project.permissionOverlay.reset",
+  ),
+  defineOperation(
+    "project.permissionFallback.selectBaseline",
+    projectIdParamsSchema.extend({
+      agentId: z.string().startsWith("agent_"),
+      diagnosticId: z.string().startsWith("policy_diagnostic_"),
+      commandId: z.string().min(1).max(256),
+    }),
+    z.object({ decision: policyFallbackDecisionSchema }),
+    "mutation",
+    "required",
+    ["workbench_server"] as const,
+    "operation.project.permissionFallback.selectBaseline",
   ),
   defineOperation(
     "project.permissionTrust.update",

@@ -134,6 +134,24 @@ export function appendDurableEventInTransaction(
     }
     return { sequence: existing.stream_sequence, intentId: input.intentId };
   }
+  if (input.conversationId && input.eventType !== "conversation.deleted") {
+    const owner = database
+      .prepare(
+        `SELECT deletion_state FROM conversations WHERE conversation_id = ?`,
+      )
+      .get(input.conversationId) as { deletion_state: string } | undefined;
+    const tombstone = owner
+      ? undefined
+      : database
+          .prepare(
+            `SELECT 1 FROM owner_tombstones
+             WHERE owner_kind = 'conversation' AND owner_id = ?`,
+          )
+          .get(input.conversationId);
+    if ((owner && owner.deletion_state !== "active") || tombstone) {
+      throw new Error(`deleted_owner:${input.conversationId}`);
+    }
+  }
 
   database
     .prepare(

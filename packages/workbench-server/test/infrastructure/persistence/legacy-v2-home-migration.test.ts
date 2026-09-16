@@ -5,6 +5,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   stat,
   writeFile,
@@ -14,7 +15,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
 import {
   inspectLegacyV2Home,
   migrateLegacyV2Home,
@@ -247,6 +247,7 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
     { version: 2, name: "atomic-run-lifecycle-work-v2" },
     { version: 3, name: "authoritative-run-lifecycle-v3" },
     { version: 4, name: "convert-run-lifecycle-v4" },
+    { version: 5, name: "unified-conversation-timeline-v5" },
   ]);
   const homeMigrations = JSON.parse(
     await readFile(storage.paths.migrationLedgerPath, "utf8"),
@@ -277,13 +278,20 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
     "migration-secret-value",
   );
   assert.equal(await secrets.get("task:task_legacy:launchConfig"), undefined);
-  assert.equal(
-    (
-      await new ConversationJournalRepository(storage).load(
-        "conv_migration_test",
-      )
-    ).entries[0]?.text,
-    "Preserve this message",
+  const migratedDatabase = new DatabaseSync(storage.paths.sqlitePath, {
+    readOnly: true,
+  });
+  const migratedEntryPayloads = migratedDatabase
+    .prepare(
+      "SELECT inline_content_json FROM conversation_entries WHERE conversation_id = ? ORDER BY ordinal",
+    )
+    .all("conv_migration_test") as Array<{ inline_content_json: Uint8Array }>;
+  migratedDatabase.close();
+  assert.match(
+    migratedEntryPayloads
+      .map((row) => Buffer.from(row.inline_content_json).toString("utf8"))
+      .join("\n"),
+    /Preserve this message/,
   );
   assert.equal(
     await readFile(join(storage.paths.plansPath, "migration.md"), "utf8"),
@@ -322,6 +330,69 @@ test("rejects canonical development homes without the exact v0.26 ledger", async
   await assert.rejects(migrateLegacyV2Home(home), /released Nerve 0\.26/);
   assert.equal((await stat(join(home, "state.sqlite"))).isFile(), true);
 });
+
+for (const phase of ["source-renamed", "staging-promoted"] as const) {
+  test(`legacy-v2 promotion recovers after a ${phase} boundary failure`, async () => {
+    const parent = await mkdtemp(join(tmpdir(), `nerve-v2-${phase}-`));
+    const home = join(parent, "home");
+    await createPost0012Home(home);
+    let failed = false;
+    try {
+      await assert.rejects(
+        migrateLegacyV2Home(home, {
+          now: () => new Date(now),
+          async afterPromotionPhase(current) {
+            if (!failed && current === phase) {
+              const candidate =
+                current === "staging-promoted"
+                  ? home
+                  : join(
+                      parent,
+                      (await readdir(parent)).find((name) =>
+                        name.startsWith(".home.migration-"),
+                      )!,
+                    );
+              const candidateDatabase = new DatabaseSync(
+                join(candidate, "data", "nerve.sqlite"),
+                { readOnly: true },
+              );
+              const legacy = candidateDatabase
+                .prepare(
+                  "SELECT COUNT(*) AS count FROM domain_documents WHERE namespace IN ('conversation_state','conversation_journal_head','conversation_journal_commit')",
+                )
+                .get() as { count: number };
+              const canonical = candidateDatabase
+                .prepare("SELECT COUNT(*) AS count FROM conversations")
+                .get() as { count: number };
+              const admission = candidateDatabase
+                .prepare(
+                  "SELECT dispatch_state FROM runtime_admission WHERE singleton = 1",
+                )
+                .get() as { dispatch_state: string };
+              candidateDatabase.close();
+              assert.equal(legacy.count, 0);
+              assert.equal(canonical.count, 1);
+              assert.equal(admission.dispatch_state, "disabled");
+              failed = true;
+              throw new Error(`injected ${phase} failure`);
+            }
+          },
+        }),
+        new RegExp(`injected ${phase} failure`),
+      );
+      const report = await migrateLegacyV2Home(home, {
+        now: () => new Date(now),
+      });
+      assert.equal(report.sourceVersion, 2);
+      const storage = await initializeStorage(home);
+      assert.ok(await storage.canonicalStore.readTimelineStateIdentity());
+      await storage.canonicalStore.close();
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+      await rm(`${home}.migration.json`, { force: true });
+    }
+  });
+}
 
 test("refuses a legacy home while its daemon is running", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-legacy-running-"));

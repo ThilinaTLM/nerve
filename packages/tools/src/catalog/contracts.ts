@@ -1,5 +1,6 @@
 import type {
   ToolExecutionKind,
+  ToolExecutionRecoveryContract,
   ToolGroupName,
   ToolName,
   ToolTrait,
@@ -49,6 +50,11 @@ interface ToolDefinitionBase<TParams extends TObject = TObject> {
   };
   /** Host/model-only semantic result projection policy; never exposed publicly. */
   agentResult?: AgentResultPolicy;
+  /**
+   * Filled exhaustively by the catalog manifest before a tool is exposed.
+   * Persist this evaluated contract with authorization; risk is not replay safety.
+   */
+  executionRecovery?: ToolExecutionRecoveryContract;
 }
 
 export interface LocalToolDefinition<
@@ -68,6 +74,11 @@ export interface HostToolDefinition<
 export type ToolDefinition<TParams extends TObject = TObject> =
   | LocalToolDefinition<TParams>
   | HostToolDefinition<TParams>;
+
+export type ResolvedToolDefinition<TParams extends TObject = TObject> =
+  ToolDefinition<TParams> & {
+    executionRecovery: ToolExecutionRecoveryContract;
+  };
 
 export function isLocalToolDefinition(
   definition: ToolDefinition,
@@ -96,4 +107,5 @@ export type ToolDefinitionMetadata = {
   executionKind: ToolExecutionKind;
   baseRisk: ToolRisk;
   traits: readonly ToolTrait[];
+  executionRecovery: ToolExecutionRecoveryContract;
 };

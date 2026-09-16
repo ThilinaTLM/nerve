@@ -2,6 +2,8 @@ export {
   PermissionExceptionService,
   type DurableExceptionScope,
 } from "./permission-exceptions.service.js";
+export { CanonicalPolicyFallbackCoordinator } from "./canonical-policy-fallback-coordinator.js";
+export { PermissionOverlayRepairService } from "./permission-overlay-repair.service.js";
 export { ProjectPermissionsRepository } from "./project-permissions.repository.js";
 export {
   PermissionPolicyService,

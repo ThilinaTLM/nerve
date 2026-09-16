@@ -236,7 +236,7 @@ export function composeServerRuntime(
     paths: storage.paths,
     getSource: () => ({
       listConversations: () =>
-        services.conversationLifecycle.listConversations(),
+        services.canonicalConversationLifecycle.listConversations(),
     }),
   });
   const latestRelease = new LatestReleaseService();
@@ -251,9 +251,10 @@ export function composeServerRuntime(
   });
   const projectRemoval = new ProjectRemovalExecutor({
     projects: services.projectLifecycle,
-    listConversations: () => services.conversationLifecycle.listConversations(),
+    listConversations: () =>
+      services.canonicalConversationLifecycle.listConversations(),
     removeConversation: (id, options) =>
-      services.conversationLifecycle.removeConversation(id, options),
+      services.canonicalConversationLifecycle.removeConversation(id, options),
   });
   const maintenance = new MaintenanceService({
     repository: new MaintenanceRepository(storage.canonicalStore),

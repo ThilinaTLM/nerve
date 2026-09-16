@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "seed": 3747,
+  "payloadBytes": 1024,
+  "historySizes": [100, 2000, 20000],
+  "ciSmokeHistorySizes": [100, 2000],
+  "warmupOperations": 10,
+  "measuredOperations": 100,
+  "pageSize": 50,
+  "appendBatchSize": 1,
+  "concurrentReaders": 4,
+  "concurrentWriters": 1,
+  "measurements": [
+    "commandQueueWaitMs",
+    "sqliteTransactionMs",
+    "artifactPreparationMs",
+    "projectionLagMs",
+    "pageEndToEndMs"
+  ],
+  "pageP95AbsoluteBudgetMs": 250,
+  "pageP95ReferenceMultiplier": 1.5,
+  "largeSweepDisposition": "diagnostic",
+  "retainedEvidence": [
+    "commandReceipts",
+    "logicalEffects",
+    "ownerTombstones",
+    "diskBytes"
+  ]
+}

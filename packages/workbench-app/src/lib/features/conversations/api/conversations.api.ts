@@ -3,8 +3,15 @@ import type {
   ConversationEntry,
   ConversationRecord,
   ConversationSnapshot,
+  ReconcileConversationResult,
+  TimelinePageRequest,
+  TimelineSearchRequest,
+  TimelineTreePageRequest,
+  TimelineViewOutcome,
+  TranscriptProjectionStatus,
   UpdateConversationStateRequest,
 } from "@nervekit/contracts/conversations";
+import type { DeletionIntent } from "@nervekit/contracts/storage";
 import type { SnapshotCursor } from "@nervekit/contracts/snapshots";
 import { protocolRequest } from "@nervekit/protocol/adapters";
 
@@ -20,6 +27,58 @@ export async function getConversationSnapshotWithCursor(
     conversationId,
   });
   return result;
+}
+
+export async function getConversationTimelinePage(
+  request: TimelinePageRequest,
+): Promise<TimelineViewOutcome> {
+  return (await protocolRequest("conversation.timeline.page", request)).result;
+}
+
+export async function searchConversationTimeline(
+  request: TimelineSearchRequest,
+): Promise<TimelineViewOutcome> {
+  return (await protocolRequest("conversation.timeline.search", request))
+    .result;
+}
+
+export async function getConversationTimelineTreePage(
+  request: TimelineTreePageRequest,
+): Promise<TimelineViewOutcome> {
+  return (await protocolRequest("conversation.timeline.treePage", request))
+    .result;
+}
+
+export async function getConversationDeletionStatus(
+  conversationId: string,
+): Promise<DeletionIntent | null> {
+  return (
+    await protocolRequest("conversation.timeline.deletionStatus", {
+      conversationId,
+    })
+  ).result;
+}
+
+export async function getConversationProjectionStatus(
+  conversationId: string,
+): Promise<TranscriptProjectionStatus | null> {
+  return (
+    await protocolRequest("conversation.timeline.projectionStatus", {
+      conversationId,
+    })
+  ).result;
+}
+
+export async function reconcileConversation(
+  conversationId: string,
+  requestId: string,
+): Promise<ReconcileConversationResult> {
+  return (
+    await protocolRequest("conversation.reconcile", {
+      conversationId,
+      requestId,
+    })
+  ).result;
 }
 
 export async function getConversationContextUsage(

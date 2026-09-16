@@ -1,6 +1,7 @@
 import type { ConversationDeletionCursor } from "./conversation-deletion.js";
 import type { ConversationJournalCommit } from "@nervekit/contracts/conversations";
 import type { LifecycleWork, RecoveryIssue } from "@nervekit/contracts/runs";
+import type { TimelineAuthorityPromotion } from "@nervekit/contracts/storage";
 import type {
   ClaimLifecycleWorkInput,
   LifecycleAtomicCommitInput,
@@ -8,14 +9,192 @@ import type {
   RequeueLifecycleWorkInput,
   RenewLifecycleWorkInput,
   SettleLifecycleWorkInput,
-} from "./lifecycle-work-database.js";
+} from "../../migrations/legacy-lifecycle-work-database.js";
+import type { CommitConversationCommandInput } from "./timeline-database.js";
 import type {
   ConversationPersistenceDelta,
   SerializedConversationState,
-} from "../../../domains/conversations/conversation-state-materializer.js";
+} from "../../migrations/legacy-journal/conversation-state-materializer.js";
 
 export type CanonicalCommand =
   | { kind: "initialize" }
+  | { kind: "read_legacy_lifecycle_authority_facts" }
+  | { kind: "retire_legacy_runtime_authority" }
+  | { kind: "count_legacy_runtime_authority" }
+  | { kind: "create_timeline_backup_snapshot"; destination: string }
+  | { kind: "count_compaction_provider_phases"; runId: string }
+  | {
+      kind: "recover_expired_canonical_lifecycle_work";
+      now: string;
+      limit: number;
+    }
+  | {
+      kind: "claim_ready_canonical_lifecycle_work";
+      workerId: string;
+      now: string;
+      leaseDurationMs: number;
+      workId?: string;
+    }
+  | {
+      kind: "read_canonical_run_execution_authority";
+      runId: string;
+      phaseId?: string;
+    }
+  | { kind: "read_canonical_artifact_manifest"; manifestId: string }
+  | { kind: "read_canonical_wait_group"; waitGroupId: string }
+  | { kind: "find_canonical_wait_group_by_member_owner"; ownerId: string }
+  | { kind: "list_canonical_pending_wait_groups"; limit: number }
+  | {
+      kind: "list_canonical_wait_groups";
+      conversationId?: string;
+      runId?: string;
+      limit: number;
+    }
+  | {
+      kind: "list_canonical_recovery_work";
+      conversationId?: string;
+      limit: number;
+    }
+  | { kind: "read_canonical_authorization"; authorizationId: string }
+  | { kind: "read_canonical_logical_effect"; effectId: string }
+  | { kind: "read_canonical_execution_attempt"; attemptId: string }
+  | { kind: "read_canonical_execution_claim"; claimId: string }
+  | { kind: "read_canonical_provider_phase"; phaseId: string }
+  | { kind: "read_canonical_lifecycle_work"; workId: string }
+  | { kind: "list_ready_canonical_lifecycle_work"; now: string; limit: number }
+  | { kind: "list_pending_canonical_deletions"; limit: number }
+  | { kind: "read_canonical_deletion_intent"; conversationId: string }
+  | { kind: "read_canonical_deletion_tombstone"; conversationId: string }
+  | {
+      kind: "settle_canonical_deletion_execution";
+      conversationId: string;
+      now: string;
+    }
+  | {
+      kind: "claim_canonical_artifact_deletion";
+      conversationId: string;
+      limit: number;
+      now: string;
+    }
+  | {
+      kind: "settle_canonical_artifact_deletion";
+      workId: string;
+      state: "deleted" | "missing" | "failed";
+      error?: string;
+      now: string;
+    }
+  | {
+      kind: "remove_canonical_deletion_history";
+      conversationId: string;
+      limit: number;
+      now: string;
+    }
+  | {
+      kind: "redact_canonical_deletion_payloads";
+      conversationId: string;
+      limit: number;
+      now: string;
+    }
+  | {
+      kind: "commit_conversation_command";
+      input: CommitConversationCommandInput;
+    }
+  | {
+      kind: "read_timeline_command_receipt";
+      input: {
+        namespaceId: string;
+        operationKind: string;
+        ownerKind: "state" | "conversation" | "policy_scope";
+        ownerId: string;
+        commandId: string;
+        fingerprint: string;
+      };
+    }
+  | { kind: "read_timeline_state_identity" }
+  | { kind: "read_timeline_runtime_admission" }
+  | { kind: "read_timeline_policy_save_intent"; saveIntentId: string }
+  | { kind: "read_timeline_policy_diagnostic"; diagnosticId: string }
+  | { kind: "read_timeline_active_policy_fallback"; requestedRuleSetId: string }
+  | { kind: "list_pending_timeline_policy_save_intents"; limit: number }
+  | { kind: "disable_timeline_runtime_admission"; now: string }
+  | {
+      kind: "promote_timeline_runtime_admission";
+      promotion: TimelineAuthorityPromotion;
+    }
+  | { kind: "read_timeline_conversation_head"; conversationId: string }
+  | { kind: "read_timeline_deletion_state"; conversationId: string }
+  | {
+      kind: "record_timeline_transcript_projection_failure";
+      conversationId: string;
+      message: string;
+      now: string;
+    }
+  | {
+      kind: "rebuild_timeline_transcript_projection";
+      conversationId: string;
+      now: string;
+      invalidateCursors: boolean;
+    }
+  | {
+      kind: "read_timeline_search_projection_page";
+      conversationId: string;
+      sourceRevision: number;
+      matchExpression: string;
+      afterDepth?: number;
+      afterEntryId?: string;
+      limit: number;
+    }
+  | {
+      kind: "read_timeline_transcript_projection_page";
+      conversationId: string;
+      sourceRevision: number;
+      beforeDepth?: number;
+      limit: number;
+    }
+  | {
+      kind: "read_pending_timeline_transcript_projections";
+      limit: number;
+    }
+  | {
+      kind: "read_timeline_transcript_projection_status";
+      conversationId: string;
+    }
+  | {
+      kind: "read_timeline_head_at_revision";
+      conversationId: string;
+      revision: number;
+    }
+  | {
+      kind: "read_timeline_run_control";
+      conversationId: string;
+      runId: string;
+    }
+  | {
+      kind: "read_timeline_fixed_tree_page";
+      conversationId: string;
+      sourceRevision: number;
+      after?: { revision: number; ordinal: number; entryId: string };
+      limit: number;
+    }
+  | {
+      kind: "read_timeline_fixed_ancestry_page";
+      conversationId: string;
+      sourceEntryId: string;
+      beforeDepth?: number;
+      limit: number;
+    }
+  | {
+      kind: "read_timeline_ancestry_segment";
+      conversationId: string;
+      sourceEntryId: string;
+      limit: number;
+    }
+  | {
+      kind: "timeline_entry_is_ancestor";
+      conversationId: string;
+      ancestorEntryId: string | null;
+      descendantEntryId: string | null;
+    }
   | {
       kind: "persist_lifecycle_atomic_commit";
       input: LifecycleAtomicCommitInput;
@@ -175,6 +354,11 @@ export type CanonicalCommand =
   | { kind: "checkpoint" }
   | { kind: "close" };
 
+export interface CanonicalPendingRequest {
+  resolve(value: unknown): void;
+  reject(error: Error): void;
+}
+
 export interface CanonicalWorkerRequest {
   id: number;
   command: CanonicalCommand;
@@ -189,6 +373,37 @@ export type CanonicalWorkerResponse =
     };
 
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
+  "count_compaction_provider_phases",
+  "read_canonical_run_execution_authority",
+  "read_canonical_artifact_manifest",
+  "read_canonical_wait_group",
+  "read_canonical_authorization",
+  "read_canonical_logical_effect",
+  "read_canonical_execution_attempt",
+  "read_canonical_execution_claim",
+  "read_canonical_provider_phase",
+  "read_canonical_lifecycle_work",
+  "list_ready_canonical_lifecycle_work",
+  "list_pending_canonical_deletions",
+  "read_canonical_deletion_intent",
+  "read_canonical_deletion_tombstone",
+  "read_timeline_command_receipt",
+  "read_timeline_state_identity",
+  "read_timeline_runtime_admission",
+  "read_timeline_policy_save_intent",
+  "list_pending_timeline_policy_save_intents",
+  "read_timeline_conversation_head",
+  "read_timeline_deletion_state",
+  "read_pending_timeline_transcript_projections",
+  "read_timeline_search_projection_page",
+  "read_timeline_transcript_projection_page",
+  "read_timeline_transcript_projection_status",
+  "read_timeline_head_at_revision",
+  "read_timeline_run_control",
+  "read_timeline_fixed_tree_page",
+  "read_timeline_fixed_ancestry_page",
+  "read_timeline_ancestry_segment",
+  "timeline_entry_is_ancestor",
   "read_lifecycle_work",
   "list_due_lifecycle_work",
   "list_expired_lifecycle_work",

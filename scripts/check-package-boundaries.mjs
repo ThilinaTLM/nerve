@@ -9,6 +9,7 @@ import { validatePackageExportSurfaces } from "./lib/package-export-surfaces.mjs
 import { contractsSourcePolicyViolations } from "./lib/contracts-source-policy.mjs";
 import { serverTestRuntimePolicyViolations } from "./lib/server-test-runtime-policy.mjs";
 import { sourceNamingPolicyViolation } from "./lib/source-naming-policy.mjs";
+import { unifiedTimelinePolicyViolations } from "./lib/unified-timeline-policy.mjs";
 
 export function checkRepositoryBoundaries(repoRoot) {
   const inventory = createRepositorySourceInventory(repoRoot);
@@ -22,6 +23,8 @@ export function checkRepositoryBoundaries(repoRoot) {
     for (const violation of contractsSourcePolicyViolations(file, source))
       fail(file, violation);
     for (const violation of serverTestRuntimePolicyViolations(file, source))
+      fail(file, violation);
+    for (const violation of unifiedTimelinePolicyViolations(file, source))
       fail(file, violation);
     const namingViolation = sourceNamingPolicyViolation(file);
     if (namingViolation) fail(file, namingViolation);

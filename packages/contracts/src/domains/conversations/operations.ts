@@ -4,7 +4,6 @@ import {
   compactConversationRequestSchema,
   conversationEntrySchema,
   conversationRecordSchema,
-  conversationTreeSchema,
   createConversationRequestSchema,
   importConversationRequestSchema,
   navigateConversationRequestSchema,
@@ -12,6 +11,14 @@ import {
 } from "./conversation-state.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
+import {
+  timelinePageRequestSchema,
+  timelineSearchRequestSchema,
+  timelineTreePageRequestSchema,
+  transcriptProjectionStatusSchema,
+} from "./timeline.js";
+import { timelineViewOutcomeSchema } from "./timeline-outcomes.js";
+import { deletionIntentSchema } from "../storage/durable-recovery.js";
 
 const emptyParamsSchema = z.object({}).optional();
 const okResultSchema = z.object({ ok: z.literal(true) });
@@ -101,13 +108,49 @@ export const conversationsOperationDefinitions = [
     "operation.conversation.state.update",
   ),
   defineOperation(
-    "conversation.entries.list",
-    conversationIdParamsSchema,
-    z.object({ entries: z.array(conversationEntrySchema) }),
+    "conversation.timeline.page",
+    timelinePageRequestSchema,
+    timelineViewOutcomeSchema,
     "read",
     "none",
     ["workbench_server"] as const,
-    "operation.conversation.entries.list",
+    "operation.conversation.timeline.page",
+  ),
+  defineOperation(
+    "conversation.timeline.deletionStatus",
+    conversationIdParamsSchema,
+    deletionIntentSchema.nullable(),
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.conversation.timeline.deletionStatus",
+  ),
+  defineOperation(
+    "conversation.timeline.projectionStatus",
+    conversationIdParamsSchema,
+    transcriptProjectionStatusSchema.nullable(),
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.conversation.timeline.projectionStatus",
+  ),
+  defineOperation(
+    "conversation.timeline.search",
+    timelineSearchRequestSchema,
+    timelineViewOutcomeSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.conversation.timeline.search",
+  ),
+  defineOperation(
+    "conversation.timeline.treePage",
+    timelineTreePageRequestSchema,
+    timelineViewOutcomeSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.conversation.timeline.treePage",
   ),
   defineOperation(
     "conversation.contextUsage.get",
@@ -117,15 +160,6 @@ export const conversationsOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.conversation.contextUsage.get",
-  ),
-  defineOperation(
-    "conversation.tree.get",
-    conversationIdParamsSchema,
-    z.object({ tree: conversationTreeSchema }),
-    "read",
-    "none",
-    ["workbench_server"] as const,
-    "operation.conversation.tree.get",
   ),
   defineOperation(
     "conversation.navigate",

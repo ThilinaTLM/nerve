@@ -6,7 +6,7 @@ import type { ConversationJournalEvent } from "@nervekit/contracts/conversations
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import { optionalStringArg, stringArg } from "../execution/tool-arguments.js";
 import { ToolExecutionSuspended } from "../execution/tool-execution-suspension.js";
-import type { ToolRequestOptions } from "../execution/tool-service.js";
+import type { ToolRequestOptions } from "../execution/tool-runtime-ports.js";
 
 export interface InteractionSessionDeps {
   events: StreamLogRegistry;

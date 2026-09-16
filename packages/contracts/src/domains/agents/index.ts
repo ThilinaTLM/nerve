@@ -1,6 +1,7 @@
 export * from "./agent.js";
 export * from "./prompt.js";
 export * from "./subagent-transcript.js";
+export * from "./child-execution.js";
 export * from "./explore-policy.js";
 export * from "./agent-events.js";
 export * from "./run-events.js";
