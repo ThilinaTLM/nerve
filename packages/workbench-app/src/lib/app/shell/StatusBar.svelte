@@ -125,11 +125,18 @@ function gitStatusTitle(status: GitStatus): string {
         class={cn(STATUS_BAR_CHIP, "min-w-0 shrink gap-2")}
         title={gitStatusTitle(gitStatus)}
       >
-        <GitBranch size={12} strokeWidth={2.1} aria-hidden="true" />
-        <span class="max-w-40 min-w-0 truncate">{gitStatus.branch}</span>
+        <GitBranch
+          class="shrink-0"
+          size={12}
+          strokeWidth={2.1}
+          aria-hidden="true"
+        />
+        <!-- No fixed cap: the chip shrinks with the footer, so a branch name
+             stays whole whenever the row has room for it. -->
+        <span class="min-w-0 truncate">{gitStatus.branch}</span>
         {#if gitStatus.changeCount > 0}
           <span
-            class="inline-flex items-center gap-0.5"
+            class="inline-flex shrink-0 items-center gap-0.5"
             aria-label={changeCountLabel(gitStatus.changeCount)}
           >
             <Diff
@@ -143,7 +150,7 @@ function gitStatusTitle(status: GitStatus): string {
         {/if}
         {#if (gitStatus.ahead ?? 0) > 0}
           <span
-            class="inline-flex items-center gap-0.5"
+            class="inline-flex shrink-0 items-center gap-0.5"
             aria-label={`${gitStatus.ahead} ahead`}
           >
             <ArrowUp
@@ -155,7 +162,7 @@ function gitStatusTitle(status: GitStatus): string {
         {/if}
         {#if (gitStatus.behind ?? 0) > 0}
           <span
-            class="inline-flex items-center gap-0.5"
+            class="inline-flex shrink-0 items-center gap-0.5"
             aria-label={`${gitStatus.behind} behind`}
           >
             <ArrowDown
