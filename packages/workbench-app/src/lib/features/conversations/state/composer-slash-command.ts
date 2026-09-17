@@ -6,6 +6,7 @@ export type ComposerSlashCommandActions = {
   setMode: (mode: Mode) => void;
   compact: () => void | Promise<void>;
   abort: () => void | Promise<void>;
+  newConversation: () => void | Promise<void>;
 };
 
 export async function executeComposerSlashCommand(
@@ -28,6 +29,9 @@ export async function executeComposerSlashCommand(
       break;
     case "abort":
       await actions.abort();
+      break;
+    case "new":
+      await actions.newConversation();
       break;
   }
   return true;

@@ -2,6 +2,7 @@ import type { AgentRecord, ModelInfo } from "$lib/api";
 import type { PermissionRuleSetId } from "@nervekit/contracts/permissions";
 import {
   isEditableTarget,
+  isPromptComposerTarget,
   matchesShortcut,
 } from "$lib/application/commands/keyboard";
 import {
@@ -40,6 +41,7 @@ type AppShortcutsOptions = {
   ) => void | Promise<void>;
   usableModels: () => ModelInfo[];
   selectedModelKey: () => string;
+  setComposerModel: (value: string) => void | Promise<void>;
   selectedThinkingLevel: () => AgentRecord["thinkingLevel"];
   setComposerThinkingLevel: (
     value: AgentRecord["thinkingLevel"],
@@ -119,6 +121,18 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
     return true;
   }
 
+  function cycleModel(): boolean {
+    if (!options.hasConversationComposer()) return false;
+    const models = options.usableModels();
+    if (models.length <= 1) return false;
+    const keys = models.map((model) => `${model.provider}:${model.modelId}`);
+    const currentIndex = keys.indexOf(options.selectedModelKey());
+    const next = keys[(currentIndex + 1) % keys.length] ?? keys[0];
+    if (!next) return false;
+    void options.setComposerModel(next);
+    return true;
+  }
+
   function cycleThinkingLevel(): boolean {
     if (!options.hasConversationComposer()) return false;
     const selectedModel = options.usableModels().find((model) => {
@@ -128,6 +142,7 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
     const levels = selectedModel?.supportedThinkingLevels?.length
       ? selectedModel.supportedThinkingLevels
       : ["off" as const];
+    if (levels.length <= 1) return false;
     const currentIndex = levels.indexOf(options.selectedThinkingLevel());
     const next =
       levels[(currentIndex + 1) % levels.length] ?? levels[0] ?? "off";
@@ -195,6 +210,8 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
         return true;
       case "composer.toggleMode":
         return toggleComposerModeShortcut();
+      case "composer.cycleModel":
+        return cycleModel();
       case "composer.cyclePermission":
         return cyclePermissionRuleSet();
       case "composer.cycleThinking":
@@ -224,6 +241,8 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
       matchesShortcut(event, candidate.defaultBinding),
     );
     if (!command) return;
+    if (command.promptComposerOnly && !isPromptComposerTarget(event.target))
+      return;
 
     const consumesNativeDefault = command.id === "pane.close";
     if (consumesNativeDefault) event.preventDefault();
@@ -243,6 +262,7 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
   return {
     activeCenterTabIndex,
     centerTabIdentity,
+    cycleModel,
     cyclePermissionRuleSet,
     cycleThinkingLevel,
     handleWorkbenchShortcut,

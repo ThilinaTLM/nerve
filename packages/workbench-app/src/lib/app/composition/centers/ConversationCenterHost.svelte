@@ -9,6 +9,8 @@ import { selectCenterTab } from "$lib/application/workspace/center-tabs.svelte";
 import type { CenterTabIdentity } from "$lib/application/workspace";
 import {
   conversationViewKey,
+  gitProjectStateKey,
+  gitRepoStateKey,
   pendingConversationKey,
 } from "$lib/domain/navigation/view-keys";
 import {
@@ -60,6 +62,17 @@ import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
+import { gitPanelState } from "$lib/features/git/state/git-panel-state.svelte";
+import {
+  refreshGitProject,
+  refreshPrs,
+} from "$lib/features/git/state/git-panel-refresh.svelte";
+import { PR_STALE_MS } from "$lib/features/git/state/git-refresh-policy";
+import { taskSelectors } from "$lib/features/tasks/state/task-selectors.svelte";
+import {
+  pullRequestReferenceCompletions,
+  taskReferenceCompletions,
+} from "$lib/app/composition/conversations/composer-reference-completions";
 import { gitContextFingerprint } from "$lib/features/git/state/git-context.svelte";
 import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
@@ -74,6 +87,7 @@ import {
 } from "$lib/domain/permissions/rule-set-options";
 import {
   completeFiles,
+  newConversation,
   newConversationInProject,
 } from "$lib/application/workspace/workspace-actions.svelte";
 
@@ -266,6 +280,33 @@ const promptSuggestionRefreshKey = $derived.by(() => {
 const slashCompletions = $derived(
   active ? conversationState.slashCompletions : [],
 );
+
+async function completeReferences(
+  kind: "task" | "pull_request",
+  query: string,
+) {
+  if (kind === "task")
+    return taskReferenceCompletions(taskSelectors.scopedTasks, query);
+  if (!activeProject) return [];
+
+  let projectState =
+    gitPanelState.projects[gitProjectStateKey(activeProject.id)];
+  if (!projectState?.loaded) {
+    await refreshGitProject(activeProject, { silent: true, loadDetails: true });
+    projectState = gitPanelState.projects[gitProjectStateKey(activeProject.id)];
+  }
+  const repo = projectState?.selectedRepo;
+  if (!repo) return [];
+  let repoState = projectState.repoStates[gitRepoStateKey(repo)];
+  if (
+    !repoState?.prsLoadedAt ||
+    Date.now() - repoState.prsLoadedAt >= PR_STALE_MS
+  ) {
+    await refreshPrs(activeProject.id, repo, true);
+    repoState = projectState.repoStates[gitRepoStateKey(repo)];
+  }
+  return pullRequestReferenceCompletions(repoState?.prs ?? [], repo, query);
+}
 
 function tabsEqual(
   left: CenterTabIdentity | undefined,
@@ -475,9 +516,10 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   composerEscapeToken={composerSignals.escapeToken}
   micShortcutToken={composerSignals.micToken}
   fileCompletions={active ? completeFiles : undefined}
+  referenceCompletions={active ? completeReferences : undefined}
   onComposerChange={setPaneComposerText}
   onSubmit={() => {
-    void runActivePaneAction(sendPrompt);
+    void runActivePaneAction(() => sendPrompt({ newConversation }));
   }}
   onAnswerUserQuestion={answerUserQuestionById}
   onDismissUserQuestion={dismissUserQuestionById}

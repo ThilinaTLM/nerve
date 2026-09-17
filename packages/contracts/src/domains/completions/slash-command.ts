@@ -1,6 +1,12 @@
 import type { CompletionItem } from "./completion.js";
 
-export const slashCommandNames = ["plan", "code", "compact", "abort"] as const;
+export const slashCommandNames = [
+  "plan",
+  "code",
+  "compact",
+  "abort",
+  "new",
+] as const;
 
 export type SlashCommandName = (typeof slashCommandNames)[number];
 
@@ -31,6 +37,12 @@ export const slashCommandCompletionItems = [
     label: "/abort",
     detail: "Stop the active run",
     info: "Cancels the active agent run.",
+    kind: "slash",
+  },
+  {
+    label: "/new",
+    detail: "Start a new conversation",
+    info: "Opens a new conversation in the active project.",
     kind: "slash",
   },
 ] satisfies readonly CompletionItem[];

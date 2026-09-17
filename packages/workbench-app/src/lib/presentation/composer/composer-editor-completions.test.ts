@@ -53,6 +53,7 @@ describe("composer editor completions", () => {
     const source = createComposerCompletionSource({
       slashCompletions: () => items,
       fileCompletions: () => undefined,
+      referenceCompletions: () => undefined,
     });
 
     const result = await source(context("run /co"));
@@ -78,6 +79,7 @@ describe("composer editor completions", () => {
         query = value;
         return completions;
       },
+      referenceCompletions: () => undefined,
     });
 
     const result = await source(context("@src"));
@@ -94,5 +96,48 @@ describe("composer editor completions", () => {
       next?.options.map((option) => option.label),
       ["@other.ts"],
     );
+  });
+
+  it("discovers and routes typed task and pull-request references", async () => {
+    const requests: Array<[string, string]> = [];
+    const source = createComposerCompletionSource({
+      slashCompletions: () => [],
+      fileCompletions: () => async () => [
+        { label: "@README.md", kind: "file" },
+      ],
+      referenceCompletions: () => async (kind, query) => {
+        requests.push([kind, query]);
+        return kind === "task"
+          ? [
+              {
+                label: "task_123",
+                displayLabel: "Dev server",
+                kind: "task",
+              },
+            ]
+          : [
+              {
+                label: "https://github.com/acme/app/pull/42",
+                displayLabel: "#42 Improve composer",
+                kind: "pull_request",
+              },
+            ];
+      },
+    });
+
+    const bare = await source(context("@"));
+    assert.deepEqual(
+      bare?.options.map((option) => option.label),
+      ["@task:", "@pr:", "@README.md"],
+    );
+
+    const task = await source(context("please @task:dev"));
+    assert.deepEqual(requests.at(-1), ["task", "dev"]);
+    assert.equal(task?.from, 7);
+    assert.equal(task?.options[0]?.apply, "task_123");
+
+    const pr = await source(context("@pr:42"));
+    assert.deepEqual(requests.at(-1), ["pull_request", "42"]);
+    assert.equal(pr?.options[0]?.apply, "https://github.com/acme/app/pull/42");
   });
 });

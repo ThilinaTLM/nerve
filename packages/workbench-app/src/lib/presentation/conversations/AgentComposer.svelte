@@ -111,6 +111,7 @@ function submit(): void {
       permissionShortcutAria={model.permissionShortcutAria}
       modeShortcut={model.modeShortcut}
       modeShortcutAria={model.modeShortcutAria}
+      modelShortcut={model.modelShortcut}
       thinkingShortcut={model.thinkingShortcut}
       contextUsage={model.contextUsage}
       conversationUsage={model.conversationUsage}
@@ -148,11 +149,15 @@ function submit(): void {
       {placeholder}
       slashCompletions={model.slashCompletions}
       fileCompletions={model.fileCompletions}
+      referenceCompletions={model.referenceCompletions}
       focusToken={model.focusToken ?? 0}
       onChange={actions.onComposerChange}
       onSubmit={submit}
       onPasteImage={actions.onPasteImage}
       onDropFiles={actions.onDropFiles}
+      onReadClipboardText={actions.onReadClipboardText}
+      onWriteClipboardText={actions.onWriteClipboardText}
+      onClipboardError={actions.onClipboardError}
     />
   {/snippet}
 

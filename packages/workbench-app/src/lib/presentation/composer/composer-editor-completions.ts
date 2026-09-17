@@ -26,12 +26,28 @@ export type ComposerCompletionOptions = {
   fileCompletions: () =>
     | ((query: string) => Promise<CompletionItem[]>)
     | undefined;
+  referenceCompletions: () =>
+    | ((
+        kind: "task" | "pull_request",
+        query: string,
+      ) => Promise<CompletionItem[]>)
+    | undefined;
 };
 
+const COMPOSER_RENDERED_OPTION_LIMIT = 16;
+
 const commandSection: CompletionSection = { name: "Commands", rank: 0 };
+const taskReferenceSection: CompletionSection = {
+  name: "Background tasks",
+  rank: 10,
+};
+const pullRequestSection: CompletionSection = {
+  name: "Pull requests",
+  rank: 20,
+};
 const projectReferenceSection: CompletionSection = {
   name: "Project references",
-  rank: 10,
+  rank: 30,
 };
 
 export function composerCompletionBoost(
@@ -58,7 +74,11 @@ export function toComposerCompletion(item: CompletionItem): ComposerCompletion {
     section:
       item.kind === "directory" || item.kind === "file"
         ? projectReferenceSection
-        : commandSection,
+        : item.kind === "task"
+          ? taskReferenceSection
+          : item.kind === "pull_request"
+            ? pullRequestSection
+            : commandSection,
     matchRanges: item.matchRanges?.flatMap(([from, to]) => [from, to]),
     nerveKind: item.kind,
   };
@@ -83,6 +103,26 @@ const lucideIcons = {
   ],
   folder: [
     "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z",
+  ],
+  command: ["m4 17 6-6-6-6", "m12 19 8 0"],
+  plan: [
+    "M9 11l3 3L22 4",
+    "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
+  ],
+  code: ["m8 9-3 3 3 3", "m16 9 3 3-3 3", "m14 5-4 14"],
+  compact: ["m8 3 4 4 4-4", "m8 21 4-4 4 4", "M12 7v10"],
+  abort: ["M9 9h6v6H9z", "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20"],
+  new: [
+    "M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h6",
+    "M19 3v6",
+    "m22 6-6 0",
+  ],
+  task: ["M4 17l6-6-6-6", "M12 19h8"],
+  pullRequest: [
+    "M18 15v-3a4 4 0 0 0-4-4h-4",
+    "M14 5l-3 3 3 3",
+    "M6 3v12",
+    "M3 18a3 3 0 1 0 6 0 3 3 0 0 0-6 0",
   ],
 } as const;
 
@@ -126,6 +166,18 @@ function appendHighlighted(
   }
 }
 
+function completionIcon(completion: Completion): keyof typeof lucideIcons {
+  const kind = (completion as ComposerCompletion).nerveKind;
+  if (kind === "directory") return "folder";
+  if (kind === "file") return "file";
+  if (kind === "task") return "task";
+  if (kind === "pull_request") return "pullRequest";
+  const command = completion.label?.replace(/^\//, "");
+  if (command && command in lucideIcons)
+    return command as keyof typeof lucideIcons;
+  return "command";
+}
+
 function renderCompletionRow(completion: Completion): Node {
   const kind = (completion as ComposerCompletion).nerveKind;
   const labelRanges = (completion as ComposerCompletion).matchRanges ?? [];
@@ -134,7 +186,7 @@ function renderCompletionRow(completion: Completion): Node {
 
   const iconWrap = document.createElement("span");
   iconWrap.className = "cm-nerve-row-icon";
-  iconWrap.appendChild(lucideIcon(kind === "directory" ? "folder" : "file"));
+  iconWrap.appendChild(lucideIcon(completionIcon(completion)));
   row.appendChild(iconWrap);
 
   const main = document.createElement("span");
@@ -187,8 +239,14 @@ function renderCompletionRow(completion: Completion): Node {
   } else {
     const nameElement = document.createElement("span");
     nameElement.className = "cm-nerve-row-name";
-    nameElement.textContent = completion.label ?? "";
+    nameElement.textContent = completion.displayLabel ?? completion.label ?? "";
     main.appendChild(nameElement);
+    if (completion.detail) {
+      const detailElement = document.createElement("span");
+      detailElement.className = "cm-nerve-row-detail";
+      detailElement.textContent = completion.detail;
+      main.appendChild(detailElement);
+    }
   }
 
   row.appendChild(main);
@@ -221,15 +279,62 @@ export function createComposerCompletionSource(
       context.addEventListener("abort", () => undefined, {
         onDocChange: true,
       });
+
+      if (rawToken.startsWith("@task:")) {
+        const items =
+          (await options.referenceCompletions()?.(
+            "task",
+            rawToken.slice("@task:".length),
+          )) ?? [];
+        if (context.aborted) return null;
+        return {
+          from: tokenStart,
+          options: items
+            .slice(0, FILE_COMPLETION_RESULT_LIMIT)
+            .map(toComposerCompletion),
+          filter: false,
+        };
+      }
+
+      if (rawToken.startsWith("@pr:")) {
+        const items =
+          (await options.referenceCompletions()?.(
+            "pull_request",
+            rawToken.slice("@pr:".length),
+          )) ?? [];
+        if (context.aborted) return null;
+        return {
+          from: tokenStart,
+          options: items
+            .slice(0, FILE_COMPLETION_RESULT_LIMIT)
+            .map(toComposerCompletion),
+          filter: false,
+        };
+      }
+
       const query = rawToken.slice(1);
-      const completions = ((await options.fileCompletions()?.(query)) ?? [])
+      const files = ((await options.fileCompletions()?.(query)) ?? [])
         .slice(0, FILE_COMPLETION_RESULT_LIMIT)
-        .reverse()
-        .map(toComposerCompletion);
+        .reverse();
       if (context.aborted) return null;
+      const starters: CompletionItem[] =
+        rawToken === "@" && options.referenceCompletions()
+          ? [
+              {
+                label: "@task:",
+                detail: "Mention a background task",
+                kind: "task",
+              },
+              {
+                label: "@pr:",
+                detail: "Mention a pull request",
+                kind: "pull_request",
+              },
+            ]
+          : [];
       return {
         from: tokenStart,
-        options: completions,
+        options: [...starters, ...files].map(toComposerCompletion),
         filter: false,
         getMatch: getCompletionMatch,
       };
@@ -286,14 +391,18 @@ export const bestFileCompletionSelector: Extension = ViewPlugin.fromClass(
 export function composerCompletionExtensions(
   options: ComposerCompletionOptions,
 ) {
-  if (options.slashCompletions().length === 0 && !options.fileCompletions()) {
+  if (
+    options.slashCompletions().length === 0 &&
+    !options.fileCompletions() &&
+    !options.referenceCompletions()
+  ) {
     return [];
   }
   return autocompletion({
     override: [createComposerCompletionSource(options)],
     icons: false,
     aboveCursor: true,
-    maxRenderedOptions: FILE_COMPLETION_RESULT_LIMIT,
+    maxRenderedOptions: COMPOSER_RENDERED_OPTION_LIMIT,
     tooltipClass: () => "nerve-composer-completions",
     optionClass: completionOptionClass,
     addToOptions: [{ render: renderCompletionRow, position: 20 }],

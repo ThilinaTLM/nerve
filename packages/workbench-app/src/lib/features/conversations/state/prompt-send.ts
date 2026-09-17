@@ -363,7 +363,7 @@ export async function sendPromptText(
   }
 }
 
-export async function sendPrompt() {
+export async function sendPrompt(options: { newConversation: () => void }) {
   const pending = activePendingConversation();
   const view = selection.conversationId
     ? ensureConversationView(selection.conversationId)
@@ -379,6 +379,7 @@ export async function sendPrompt() {
     setMode: setComposerMode,
     compact: compactActiveConversation,
     abort: abortActiveRun,
+    newConversation: options.newConversation,
   });
   if (!handled) await sendPromptText(text, { clearComposer: true });
 }

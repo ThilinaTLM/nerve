@@ -45,6 +45,7 @@ function createDesktopPreloadApi({ ipcRenderer, webUtils, platform }) {
         ipcRenderer.invoke("desktop.notifications.show", payload),
     },
     clipboard: {
+      readText: () => ipcRenderer.invoke("desktop.clipboard.readText"),
       writeText: (text) =>
         ipcRenderer.invoke("desktop.clipboard.writeText", text),
     },

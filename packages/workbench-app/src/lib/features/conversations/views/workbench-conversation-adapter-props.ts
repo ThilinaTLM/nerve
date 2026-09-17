@@ -67,6 +67,10 @@ export type WorkbenchConversationAdapterProps = {
   permissionRuleSetsError?: string;
   slashCompletions?: CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
+  referenceCompletions?: (
+    kind: "task" | "pull_request",
+    query: string,
+  ) => Promise<CompletionItem[]>;
   composerSuggestions?: ComposerSuggestion[];
   onSendSuggestion?: (suggestion: ComposerSuggestion) => void;
   onDraftSuggestion?: (suggestion: ComposerSuggestion) => void;

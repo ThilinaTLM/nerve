@@ -28,12 +28,12 @@ import CodeMirrorFindPanel from "./CodeMirrorFindPanel.svelte";
 import {
   canFoldAt,
   canUnfoldAt,
-  contextSelection,
   isSearchQueryValid,
   searchMatchStatus,
   selectedSearchText,
   viewerShortcut,
 } from "./code-viewer-helpers";
+import { contextSelection } from "./codemirror-context-menu";
 import {
   loadCodeLanguage,
   localLineNumber,

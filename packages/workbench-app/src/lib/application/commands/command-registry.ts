@@ -22,6 +22,7 @@ export type ShortcutCommandId =
   | "composer.toggleMic"
   | "composer.cancelMic"
   | "composer.toggleMode"
+  | "composer.cycleModel"
   | "composer.cyclePermission"
   | "composer.cycleThinking"
   | "zoom.in"
@@ -37,6 +38,7 @@ export type ShortcutCommand = {
   category: ShortcutCategory;
   defaultBinding: ShortcutBinding;
   allowInEditable?: boolean;
+  promptComposerOnly?: boolean;
 };
 
 const paneIndexCommands = Array.from({ length: 9 }, (_, index) => {
@@ -55,6 +57,7 @@ export const DEFAULT_SHORTCUTS: ShortcutCommand[] = [
     label: "New chat",
     category: "Conversation",
     defaultBinding: { key: "n", mod: true },
+    allowInEditable: true,
   },
   {
     id: "conversation.newFromProject",
@@ -139,8 +142,17 @@ export const DEFAULT_SHORTCUTS: ShortcutCommand[] = [
     id: "composer.toggleMode",
     label: "Toggle coding/planning mode",
     category: "Composer",
+    defaultBinding: { key: "tab", shift: true },
+    allowInEditable: true,
+    promptComposerOnly: true,
+  },
+  {
+    id: "composer.cycleModel",
+    label: "Cycle model",
+    category: "Composer",
     defaultBinding: { key: "m", alt: true },
     allowInEditable: true,
+    promptComposerOnly: true,
   },
   {
     id: "composer.cyclePermission",
@@ -151,10 +163,11 @@ export const DEFAULT_SHORTCUTS: ShortcutCommand[] = [
   },
   {
     id: "composer.cycleThinking",
-    label: "Cycle thinking level",
+    label: "Cycle reasoning level",
     category: "Composer",
     defaultBinding: { key: "t", alt: true },
     allowInEditable: true,
+    promptComposerOnly: true,
   },
   {
     id: "zoom.in",

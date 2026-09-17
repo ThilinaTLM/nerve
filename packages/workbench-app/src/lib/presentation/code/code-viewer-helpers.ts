@@ -1,6 +1,7 @@
 import { foldable, foldedRanges } from "@codemirror/language";
 import type { SearchQuery } from "@codemirror/search";
 import type { EditorState } from "@codemirror/state";
+export { contextSelection } from "./codemirror-context-menu";
 
 export type SearchMatchStatus = {
   count: number;
@@ -41,16 +42,6 @@ export function searchMatchStatus(
     if (count >= limit) return { count, current, capped: true };
   }
   return { count, current, capped: false };
-}
-
-export function contextSelection(
-  state: EditorState,
-  position: number,
-): { anchor: number; head?: number } | undefined {
-  const insideSelection = state.selection.ranges.some(
-    (range) => !range.empty && position >= range.from && position <= range.to,
-  );
-  return insideSelection ? undefined : { anchor: position };
 }
 
 export function canFoldAt(state: EditorState, position: number): boolean {

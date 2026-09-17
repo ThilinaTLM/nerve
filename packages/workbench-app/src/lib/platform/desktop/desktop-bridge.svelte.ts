@@ -45,6 +45,7 @@ export interface NerveDesktopBridge {
     show: (payload: DesktopNotificationPayload) => Promise<{ shown: boolean }>;
   };
   clipboard: {
+    readText: () => Promise<string>;
     writeText: (text: string) => Promise<{ ok: true }>;
   };
   files: {

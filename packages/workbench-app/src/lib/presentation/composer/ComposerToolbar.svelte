@@ -50,6 +50,7 @@ type Props = {
   permissionShortcutAria?: string;
   modeShortcut?: string;
   modeShortcutAria?: string;
+  modelShortcut?: string;
   thinkingShortcut?: string;
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
@@ -93,6 +94,7 @@ let {
   permissionShortcutAria,
   modeShortcut,
   modeShortcutAria,
+  modelShortcut,
   thinkingShortcut,
   contextUsage,
   conversationUsage,
@@ -311,7 +313,8 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
       {onThinkingLevelChange}
       {runtimeChangeHint}
       emptyMessage={modelEmptyMessage}
-      shortcutLabel={thinkingShortcut}
+      {modelShortcut}
+      {thinkingShortcut}
     />
   </div>
 </div>

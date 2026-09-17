@@ -51,6 +51,13 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   return Boolean(editable);
 }
 
+export function isPromptComposerTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    Boolean(target.closest("[data-prompt-composer-editor]"))
+  );
+}
+
 export function matchesShortcut(
   event: KeyboardEvent,
   binding: ShortcutBinding,

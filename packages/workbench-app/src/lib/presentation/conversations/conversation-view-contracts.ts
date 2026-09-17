@@ -88,11 +88,16 @@ export type ConversationComposerModel = {
   permissionShortcutAria?: string;
   modeShortcut?: string;
   modeShortcutAria?: string;
+  modelShortcut?: string;
   thinkingShortcut?: string;
   modelEmptyMessage?: string;
   todos?: TodoItem[];
   slashCompletions?: CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
+  referenceCompletions?: (
+    kind: "task" | "pull_request",
+    query: string,
+  ) => Promise<CompletionItem[]>;
   capabilities?: ConversationComposerCapabilities;
   capabilityConfiguration?: CapabilityConfiguration;
   capabilitySkills?: CapabilitySkillRow[];
@@ -147,6 +152,9 @@ export type ConversationPaneActions = {
   onRefreshCapabilities?: () => void;
   onPasteImage?: (file: File) => Promise<string>;
   onDropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
+  onReadClipboardText?: () => Promise<string>;
+  onWriteClipboardText?: (text: string) => Promise<void>;
+  onClipboardError?: (action: "copy" | "cut" | "paste") => void;
   onOpenFile?: (path: string, line?: number) => void;
   onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
   onAnswerUserQuestion?: (id: string, answer: string) => void | Promise<void>;
