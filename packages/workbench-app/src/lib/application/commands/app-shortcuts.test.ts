@@ -4,9 +4,14 @@ import { createAppShortcuts } from "./app-shortcuts.svelte";
 import type { CenterTabIdentity } from "$lib/application/workspace";
 
 class ShortcutTarget {
-  constructor(private readonly editable: boolean) {}
+  constructor(
+    private readonly editable: boolean,
+    private readonly composer = false,
+  ) {}
 
-  closest(): ShortcutTarget | null {
+  closest(selector: string): ShortcutTarget | null {
+    if (selector === "[data-prompt-composer-editor]")
+      return this.composer ? this : null;
     return this.editable ? this : null;
   }
 }
@@ -68,6 +73,7 @@ function shortcutOptions(
     setComposerPermissionRuleSet: () => undefined,
     usableModels: () => [],
     selectedModelKey: () => "",
+    setComposerModel: () => undefined,
     selectedThinkingLevel: () => "off",
     setComposerThinkingLevel: () => undefined,
     selectedMode: () => "coding",
@@ -101,6 +107,158 @@ test("does not cycle the fixed Planning rule set", () => {
   });
 
   assert.equal(shortcuts.cyclePermissionRuleSet(), false);
+});
+
+test("Ctrl+N creates a conversation from an editable target", () => {
+  let created = 0;
+  const shortcuts = createAppShortcuts({
+    ...shortcutOptions(undefined, () => undefined),
+    newConversation: () => {
+      created += 1;
+    },
+  });
+  const { event, prevented } = shortcutEvent(
+    new ShortcutTarget(true, true) as unknown as EventTarget,
+    { key: "n", code: "KeyN" },
+  );
+
+  shortcuts.handleWorkbenchShortcut(event);
+
+  assert.equal(created, 1);
+  assert.equal(prevented(), true);
+});
+
+test("Shift+Tab toggles mode only from the prompt composer", () => {
+  let mode: "coding" | "planning" = "coding";
+  const shortcuts = createAppShortcuts({
+    ...shortcutOptions(undefined, () => undefined),
+    hasConversationComposer: () => true,
+    selectedMode: () => mode,
+    setComposerMode: (value) => {
+      mode = value;
+    },
+  });
+  const outside = shortcutEvent(
+    new ShortcutTarget(true) as unknown as EventTarget,
+    { key: "Tab", code: "Tab", ctrlKey: false, shiftKey: true },
+  );
+  shortcuts.handleWorkbenchShortcut(outside.event);
+  assert.equal(mode, "coding");
+  assert.equal(outside.prevented(), false);
+
+  const inside = shortcutEvent(
+    new ShortcutTarget(true, true) as unknown as EventTarget,
+    { key: "Tab", code: "Tab", ctrlKey: false, shiftKey: true },
+  );
+  shortcuts.handleWorkbenchShortcut(inside.event);
+  assert.equal(mode, "planning");
+  assert.equal(inside.prevented(), true);
+});
+
+test("Alt+M cycles scoped models and wraps", () => {
+  let selected = "anthropic:a";
+  const selectedValues: string[] = [];
+  const shortcuts = createAppShortcuts({
+    ...shortcutOptions(undefined, () => undefined),
+    hasConversationComposer: () => true,
+    usableModels: () =>
+      [
+        { provider: "anthropic", modelId: "a" },
+        { provider: "openai", modelId: "b" },
+      ] as ReturnType<Parameters<typeof createAppShortcuts>[0]["usableModels"]>,
+    selectedModelKey: () => selected,
+    setComposerModel: (value) => {
+      selected = value;
+      selectedValues.push(value);
+    },
+  });
+  const target = new ShortcutTarget(true, true) as unknown as EventTarget;
+
+  shortcuts.handleWorkbenchShortcut(
+    shortcutEvent(target, {
+      key: "m",
+      code: "KeyM",
+      ctrlKey: false,
+      altKey: true,
+    }).event,
+  );
+  shortcuts.handleWorkbenchShortcut(
+    shortcutEvent(target, {
+      key: "m",
+      code: "KeyM",
+      ctrlKey: false,
+      altKey: true,
+    }).event,
+  );
+
+  assert.deepEqual(selectedValues, ["openai:b", "anthropic:a"]);
+});
+
+test("model cycling is a no-op with one scoped model", () => {
+  let changed = false;
+  const shortcuts = createAppShortcuts({
+    ...shortcutOptions(undefined, () => undefined),
+    hasConversationComposer: () => true,
+    usableModels: () =>
+      [{ provider: "anthropic", modelId: "a" }] as ReturnType<
+        Parameters<typeof createAppShortcuts>[0]["usableModels"]
+      >,
+    selectedModelKey: () => "anthropic:a",
+    setComposerModel: () => {
+      changed = true;
+    },
+  });
+
+  assert.equal(shortcuts.cycleModel(), false);
+  assert.equal(changed, false);
+});
+
+test("Alt+T cycles only the selected model's reasoning levels", () => {
+  let level: "off" | "high" = "off";
+  const shortcuts = createAppShortcuts({
+    ...shortcutOptions(undefined, () => undefined),
+    hasConversationComposer: () => true,
+    usableModels: () =>
+      [
+        {
+          provider: "anthropic",
+          modelId: "a",
+          supportedThinkingLevels: ["off", "high"],
+        },
+      ] as ReturnType<Parameters<typeof createAppShortcuts>[0]["usableModels"]>,
+    selectedModelKey: () => "anthropic:a",
+    selectedThinkingLevel: () => level,
+    setComposerThinkingLevel: (value) => {
+      level = value as "off" | "high";
+    },
+  });
+  const event = shortcutEvent(
+    new ShortcutTarget(true, true) as unknown as EventTarget,
+    { key: "t", code: "KeyT", ctrlKey: false, altKey: true },
+  );
+
+  shortcuts.handleWorkbenchShortcut(event.event);
+
+  assert.equal(level, "high");
+  assert.equal(event.prevented(), true);
+});
+
+test("reasoning cycling is a no-op when the model has one level", () => {
+  const shortcuts = createAppShortcuts({
+    ...shortcutOptions(undefined, () => undefined),
+    hasConversationComposer: () => true,
+    usableModels: () =>
+      [
+        {
+          provider: "anthropic",
+          modelId: "a",
+          supportedThinkingLevels: ["off"],
+        },
+      ] as ReturnType<Parameters<typeof createAppShortcuts>[0]["usableModels"]>,
+    selectedModelKey: () => "anthropic:a",
+  });
+
+  assert.equal(shortcuts.cycleThinkingLevel(), false);
 });
 
 test("Ctrl+W closes the active pane from an editable target", () => {

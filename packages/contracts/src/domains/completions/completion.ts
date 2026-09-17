@@ -3,7 +3,13 @@ import { z } from "zod";
 export const FILE_COMPLETION_RESULT_LIMIT = 8;
 export const FILE_COMPLETION_QUERY_MAX_LENGTH = 512;
 
-export const completionKindSchema = z.enum(["slash", "file", "directory"]);
+export const completionKindSchema = z.enum([
+  "slash",
+  "file",
+  "directory",
+  "task",
+  "pull_request",
+]);
 export type CompletionKind = z.infer<typeof completionKindSchema>;
 
 export const completionMatchRangeSchema = z.tuple([

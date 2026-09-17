@@ -20,6 +20,9 @@ function actions(calls: string[]): ComposerSlashCommandActions {
       await Promise.resolve();
       calls.push("abort:done");
     },
+    newConversation: () => {
+      calls.push("new");
+    },
   };
 }
 
@@ -51,6 +54,15 @@ describe("composer slash command dispatch", () => {
         `${command.slice(1)}:done`,
       ]);
     }
+  });
+
+  it("clears before starting a new conversation", async () => {
+    const calls: string[] = [];
+    assert.equal(
+      await executeComposerSlashCommand("/new", actions(calls)),
+      true,
+    );
+    assert.deepEqual(calls, ["clear", "new"]);
   });
 
   it("leaves ordinary prompts untouched", async () => {

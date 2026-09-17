@@ -1,6 +1,12 @@
 <script lang="ts">
 import { onDestroy, onMount } from "svelte";
 import FileIcon from "@lucide/svelte/icons/file";
+import Clipboard from "@lucide/svelte/icons/clipboard";
+import Copy from "@lucide/svelte/icons/copy";
+import Redo2 from "@lucide/svelte/icons/redo-2";
+import Scissors from "@lucide/svelte/icons/scissors";
+import TextSelect from "@lucide/svelte/icons/text-select";
+import Undo2 from "@lucide/svelte/icons/undo-2";
 import {
   acceptCompletion,
   closeCompletion,
@@ -12,6 +18,10 @@ import {
   history,
   historyKeymap,
   indentWithTab,
+  redo,
+  redoDepth,
+  undo,
+  undoDepth,
 } from "@codemirror/commands";
 import { Compartment, EditorState, Prec } from "@codemirror/state";
 import {
@@ -21,6 +31,11 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import type { CompletionItem } from "@nervekit/contracts/completions";
+import ContextMenuList, {
+  type ContextMenuItem,
+} from "@nervekit/ui-kit/components/composites/context-menu-list";
+import { contextSelection } from "$lib/presentation/code/codemirror-context-menu";
+import { viewerShortcut } from "$lib/presentation/code/code-viewer-helpers";
 import {
   formatProjectEntryReferences,
   hasProjectEntryDragType,
@@ -42,10 +57,17 @@ type Props = {
   focusToken?: number;
   slashCompletions?: readonly CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
+  referenceCompletions?: (
+    kind: "task" | "pull_request",
+    query: string,
+  ) => Promise<CompletionItem[]>;
   onChange?: (value: string) => void;
   onSubmit?: () => void;
   onPasteImage?: (file: File) => Promise<string>;
   onDropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
+  onReadClipboardText?: () => Promise<string>;
+  onWriteClipboardText?: (text: string) => Promise<void>;
+  onClipboardError?: (action: "copy" | "cut" | "paste") => void;
 };
 
 let {
@@ -56,10 +78,14 @@ let {
   focusToken = 0,
   slashCompletions = [],
   fileCompletions,
+  referenceCompletions,
   onChange,
   onSubmit,
   onPasteImage,
   onDropFiles,
+  onReadClipboardText,
+  onWriteClipboardText,
+  onClipboardError,
 }: Props = $props();
 
 let host: HTMLDivElement;
@@ -68,6 +94,7 @@ let editorValue = "";
 let lastFocusToken = 0;
 let fileDragDepth = 0;
 let fileDragActive = $state(false);
+let contextVersion = $state(0);
 const editableCompartment = new Compartment();
 const completionCompartment = new Compartment();
 const placeholderCompartment = new Compartment();
@@ -75,6 +102,7 @@ const placeholderCompartment = new Compartment();
 const completionOptions: ComposerCompletionOptions = {
   slashCompletions: () => slashCompletions,
   fileCompletions: () => fileCompletions,
+  referenceCompletions: () => referenceCompletions,
 };
 
 function editableExtensions(isDisabled: boolean) {
@@ -217,6 +245,112 @@ function handlePaste(event: ClipboardEvent) {
   return true;
 }
 
+function captureContext(event: MouseEvent): void {
+  if (!view) return;
+  const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
+  if (position === null) return;
+  const selection = contextSelection(view.state, position);
+  if (selection) view.dispatch({ selection });
+  contextVersion += 1;
+}
+
+function runEditorCommand(command: (target: EditorView) => boolean): void {
+  if (!view) return;
+  command(view);
+  view.focus();
+  contextVersion += 1;
+}
+
+async function copyOrCut(cut: boolean): Promise<void> {
+  if (!view || !onWriteClipboardText) return;
+  const range = view.state.selection.main;
+  if (range.empty) return;
+  const document = view.state.doc.toString();
+  const text = view.state.sliceDoc(range.from, range.to);
+  try {
+    await onWriteClipboardText(text);
+    if (cut && !disabled && view.state.doc.toString() === document) {
+      view.dispatch({ changes: { from: range.from, to: range.to } });
+    }
+  } catch {
+    onClipboardError?.(cut ? "cut" : "copy");
+  } finally {
+    view.focus();
+    contextVersion += 1;
+  }
+}
+
+async function pasteText(): Promise<void> {
+  if (!view || disabled || !onReadClipboardText) return;
+  try {
+    const text = await onReadClipboardText();
+    insertAtRange(text);
+  } catch {
+    onClipboardError?.("paste");
+    view.focus();
+  } finally {
+    contextVersion += 1;
+  }
+}
+
+function selectAllText(): void {
+  if (!view) return;
+  view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+  view.focus();
+  contextVersion += 1;
+}
+
+const menuItems = $derived.by<ContextMenuItem[]>(() => {
+  void contextVersion;
+  if (!view) return [];
+  const hasSelection = !view.state.selection.main.empty;
+  return [
+    {
+      label: "Undo",
+      icon: Undo2,
+      shortcut: viewerShortcut("z"),
+      disabled: disabled || undoDepth(view.state) === 0,
+      onSelect: () => runEditorCommand(undo),
+    },
+    {
+      label: "Redo",
+      icon: Redo2,
+      shortcut: viewerShortcut("z", { shift: true }),
+      disabled: disabled || redoDepth(view.state) === 0,
+      onSelect: () => runEditorCommand(redo),
+    },
+    { type: "separator" },
+    {
+      label: "Cut",
+      icon: Scissors,
+      shortcut: viewerShortcut("x"),
+      disabled: disabled || !hasSelection || !onWriteClipboardText,
+      onSelect: () => void copyOrCut(true),
+    },
+    {
+      label: "Copy",
+      icon: Copy,
+      shortcut: viewerShortcut("c"),
+      disabled: !hasSelection || !onWriteClipboardText,
+      onSelect: () => void copyOrCut(false),
+    },
+    {
+      label: "Paste",
+      icon: Clipboard,
+      shortcut: viewerShortcut("v"),
+      disabled: disabled || !onReadClipboardText,
+      onSelect: () => void pasteText(),
+    },
+    { type: "separator" },
+    {
+      label: "Select all",
+      icon: TextSelect,
+      shortcut: viewerShortcut("a"),
+      onSelect: selectAllText,
+    },
+  ];
+});
+
 onMount(() => {
   editorValue = value;
   view = new EditorView({
@@ -247,6 +381,7 @@ onMount(() => {
         EditorView.lineWrapping,
         EditorView.domEventHandlers({ paste: handlePaste }),
         EditorView.updateListener.of((update: ViewUpdate) => {
+          if (update.docChanged || update.selectionSet) contextVersion += 1;
           if (!update.docChanged) return;
           editorValue = update.state.doc.toString();
           onChange?.(editorValue);
@@ -272,6 +407,7 @@ $effect(() => {
   if (!view) return;
   void slashCompletions;
   void fileCompletions;
+  void referenceCompletions;
   view.dispatch({
     effects: completionCompartment.reconfigure(
       composerCompletionExtensions(completionOptions),
@@ -307,6 +443,7 @@ onDestroy(() => view?.destroy());
 
 <div
   class="composer-editor relative"
+  data-prompt-composer-editor
   class:disabled
   role="group"
   aria-label={ariaLabel}
@@ -315,7 +452,9 @@ onDestroy(() => view?.destroy());
   ondragleavecapture={handleFileDragLeave}
   ondropcapture={handleFileDrop}
 >
-  <div bind:this={host}></div>
+  <ContextMenuList items={menuItems} triggerClass="block min-w-0">
+    <div bind:this={host} oncontextmenu={captureContext}></div>
+  </ContextMenuList>
   {#if fileDragActive}
     <div
       class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-md border border-primary bg-background/95 px-4 text-sm font-medium text-foreground shadow-sm"

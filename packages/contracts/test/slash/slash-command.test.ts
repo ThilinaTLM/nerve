@@ -9,7 +9,7 @@ describe("slash commands", () => {
   it("parses every advertised standalone command", () => {
     assert.deepEqual(
       slashCommandCompletionItems.map((item) => item.label),
-      ["/plan", "/code", "/compact", "/abort"],
+      ["/plan", "/code", "/compact", "/abort", "/new"],
     );
 
     for (const item of slashCommandCompletionItems) {

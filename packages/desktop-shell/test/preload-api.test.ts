@@ -46,7 +46,7 @@ function preloadApiShape() {
     daemon: { getCapability: invoke, restart: invoke },
     settings: { setCloseToTray: invoke },
     notifications: { show: invoke },
-    clipboard: { writeText: invoke },
+    clipboard: { readText: invoke, writeText: invoke },
     files: {
       getPathForFile: (...args: unknown[]) => {
         void args;
@@ -135,6 +135,7 @@ describe("desktop preload API", () => {
       api.daemon.restart(),
       api.settings.setCloseToTray(false),
       api.notifications.show({ title: "Ready" }),
+      api.clipboard.readText(),
       api.clipboard.writeText("text"),
       api.files.openProjectEntry(target),
       api.files.revealProjectEntry(target),
@@ -149,6 +150,7 @@ describe("desktop preload API", () => {
       ["desktop.daemon.restart"],
       ["desktop.settings.setCloseToTray", false],
       ["desktop.notifications.show", { title: "Ready" }],
+      ["desktop.clipboard.readText"],
       ["desktop.clipboard.writeText", "text"],
       ["desktop.files.openProjectEntry", target],
       ["desktop.files.revealProjectEntry", target],

@@ -12,6 +12,8 @@ import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { uploadClipboardImage } from "$lib/api";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
+import { readClipboardText } from "$lib/platform/clipboard/read-text";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import TranscriptionActivity from "$lib/features/conversations/audio/TranscriptionActivity.svelte";
 import {
@@ -69,6 +71,7 @@ let {
   permissionRuleSetsError,
   slashCompletions = [],
   fileCompletions,
+  referenceCompletions,
   composerSuggestions = [],
   onSendSuggestion,
   onDraftSuggestion,
@@ -234,6 +237,7 @@ const micShortcutAria = getShortcutAriaLabel("composer.toggleMic");
 const cancelMicShortcut = getShortcutLabel("composer.cancelMic");
 const modeShortcut = getShortcutLabel("composer.toggleMode");
 const modeShortcutAria = getShortcutAriaLabel("composer.toggleMode");
+const modelShortcut = getShortcutLabel("composer.cycleModel");
 const permissionShortcut = getShortcutLabel("composer.cyclePermission");
 const permissionShortcutAria = getShortcutAriaLabel("composer.cyclePermission");
 const thinkingShortcut = getShortcutLabel("composer.cycleThinking");
@@ -530,10 +534,12 @@ function handleMicContextMenu(event: MouseEvent) {
     permissionShortcutAria,
     modeShortcut,
     modeShortcutAria,
+    modelShortcut,
     thinkingShortcut,
     todos,
     slashCompletions,
     fileCompletions,
+    referenceCompletions,
     capabilityConfiguration,
     capabilitySkills,
     capabilityLoading,
@@ -566,6 +572,10 @@ function handleMicContextMenu(event: MouseEvent) {
     onRefreshCapabilities: () => void loadCapabilities(),
     onPasteImage: pasteImage,
     onDropFiles: fileDropSupported ? dropFiles : undefined,
+    onReadClipboardText: readClipboardText,
+    onWriteClipboardText: writeClipboardText,
+    onClipboardError: (action: "copy" | "cut" | "paste") =>
+      notify.error(`Could not ${action} using the clipboard`),
   }}
 >
   {#snippet header()}

@@ -22,7 +22,8 @@ type Props = {
   selectedModelKey?: string;
   thinkingLevel?: ThinkingLevel;
   disabled?: boolean;
-  shortcutLabel?: string;
+  modelShortcut?: string;
+  thinkingShortcut?: string;
   runtimeChangeHint?: string;
   emptyMessage?: string;
   onModelChange?: (value: string) => void;
@@ -34,7 +35,8 @@ let {
   selectedModelKey = "",
   thinkingLevel = "off",
   disabled = false,
-  shortcutLabel,
+  modelShortcut,
+  thinkingShortcut,
   runtimeChangeHint,
   emptyMessage = "No models available. Configure a provider or adjust Scoped Models in Settings.",
   onModelChange,
@@ -122,7 +124,7 @@ const triggerShortSuffix = $derived(
     : undefined,
 );
 const triggerTitle = $derived(
-  `${triggerSuffix ? `${triggerLabel} (${triggerSuffix})` : triggerLabel}${runtimeChangeHint ? ` · ${runtimeChangeHint}` : ""}${shortcutLabel ? ` · Cycle thinking ${shortcutLabel}` : ""}`,
+  `${triggerSuffix ? `${triggerLabel} (${triggerSuffix})` : triggerLabel}${runtimeChangeHint ? ` · ${runtimeChangeHint}` : ""}${modelShortcut ? ` · Cycle model ${modelShortcut}` : ""}${thinkingShortcut ? ` · Cycle reasoning ${thinkingShortcut}` : ""}`,
 );
 
 function handleOpenChange(next: boolean) {

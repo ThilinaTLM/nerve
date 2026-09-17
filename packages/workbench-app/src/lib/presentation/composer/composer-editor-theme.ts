@@ -98,6 +98,10 @@ export const composerEditorTheme = EditorView.theme({
     { color: "var(--info)" },
   ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-file .cm-nerve-row-icon":
     { color: "var(--success)" },
+  ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-task .cm-nerve-row-icon":
+    { color: "var(--warning)" },
+  ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-pull_request .cm-nerve-row-icon":
+    { color: "var(--info)" },
   ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-main": {
     display: "flex",
     alignItems: "baseline",
@@ -124,6 +128,15 @@ export const composerEditorTheme = EditorView.theme({
     fontSize: "var(--text-xs)",
     fontWeight: "500",
     color: "var(--popover-foreground)",
+  },
+  ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-detail": {
+    minWidth: "0",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    fontFamily: "var(--font-sans)",
+    fontSize: "var(--text-xs)",
+    color: "var(--muted-foreground)",
   },
   ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-match": {
     color: "var(--primary)",
