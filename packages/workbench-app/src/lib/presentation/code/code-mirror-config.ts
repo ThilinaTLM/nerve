@@ -366,6 +366,7 @@ export const codeMirrorTheme = EditorView.theme({
     minHeight: "100%",
     padding: "calc(var(--spacing) * 2) 0",
     caretColor: "var(--primary)",
+    cursor: "text",
   },
   ".cm-line": {
     padding: "0 calc(var(--spacing) * 4) 0 calc(var(--spacing) * 2)",

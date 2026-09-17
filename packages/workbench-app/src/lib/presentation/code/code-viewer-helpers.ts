@@ -9,6 +9,16 @@ export type SearchMatchStatus = {
   capped: boolean;
 };
 
+export function copySelectedText(
+  state: EditorState,
+  copy: (text: string) => void,
+): boolean {
+  const range = state.selection.main;
+  if (range.empty) return false;
+  copy(state.sliceDoc(range.from, range.to));
+  return true;
+}
+
 export function selectedSearchText(
   state: EditorState,
   position?: number,

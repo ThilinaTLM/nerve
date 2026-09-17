@@ -28,6 +28,7 @@ import CodeMirrorFindPanel from "./CodeMirrorFindPanel.svelte";
 import {
   canFoldAt,
   canUnfoldAt,
+  copySelectedText,
   isSearchQueryValid,
   searchMatchStatus,
   selectedSearchText,
@@ -188,16 +189,18 @@ function selectAllText(): void {
   contextVersion += 1;
 }
 
-async function copySelection(): Promise<void> {
-  if (!view) return;
-  const range = view.state.selection.main;
-  if (range.empty) return;
+async function copyText(text: string): Promise<void> {
   try {
-    await writeClipboardText(view.state.sliceDoc(range.from, range.to));
+    await writeClipboardText(text);
     onCopy?.(true);
   } catch {
     onCopy?.(false);
   }
+}
+
+function copySelection(): boolean {
+  if (!view) return false;
+  return copySelectedText(view.state, (selected) => void copyText(selected));
 }
 
 function runAtContext(command: (target: EditorView) => boolean): void {
@@ -230,7 +233,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       icon: Copy,
       shortcut: viewerShortcut("c"),
       disabled: !hasSelection,
-      onSelect: () => void copySelection(),
+      onSelect: () => copySelection(),
     },
     {
       label: "Select all",
@@ -337,6 +340,14 @@ onMount(() => {
       targetCompartment.of([]),
       Prec.highest(
         keymap.of([
+          {
+            key: "Mod-c",
+            run: (target) =>
+              copySelectedText(
+                target.state,
+                (selected) => void copyText(selected),
+              ),
+          },
           {
             key: "Mod-a",
             run: () => {

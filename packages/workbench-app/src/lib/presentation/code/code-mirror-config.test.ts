@@ -5,6 +5,7 @@ import { SearchQuery } from "@codemirror/search";
 import { EditorState } from "@codemirror/state";
 import {
   contextSelection,
+  copySelectedText,
   isSearchQueryValid,
   searchMatchStatus,
   selectedSearchText,
@@ -109,6 +110,26 @@ describe("CodeMirror viewer helpers", () => {
     await ensureSyntaxTree(state, doc.length, 10_000);
     const first = state.doc.line(1);
     assert.ok(foldable(state, first.from, first.to));
+  });
+
+  it("copies the selected text and ignores an empty selection", () => {
+    const copied: string[] = [];
+    const selected = EditorState.create({
+      doc: "alpha beta",
+      selection: { anchor: 0, head: 5 },
+    });
+    assert.equal(
+      copySelectedText(selected, (text) => copied.push(text)),
+      true,
+    );
+    assert.deepEqual(copied, ["alpha"]);
+
+    const empty = EditorState.create({ doc: "alpha beta" });
+    assert.equal(
+      copySelectedText(empty, (text) => copied.push(text)),
+      false,
+    );
+    assert.deepEqual(copied, ["alpha"]);
   });
 
   it("seeds search from single-line and multiline selections", () => {
