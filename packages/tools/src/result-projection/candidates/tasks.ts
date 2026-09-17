@@ -216,6 +216,7 @@ function taskSummary(value: unknown, index: number): string {
   const parts = [
     `${index}. name: ${string(task.name) || "task"}`,
     `id: ${string(task.id) || "unknown"}`,
+    typeof task.command === "string" ? `command: ${task.command}` : undefined,
     `status: ${string(task.status) || "unknown"}`,
     typeof readiness.outcome === "string"
       ? `readiness: ${readiness.outcome}`
