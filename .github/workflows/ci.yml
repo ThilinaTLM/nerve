@@ -14,94 +14,34 @@ jobs:
     name: Detect changed areas
     runs-on: ubuntu-latest
     outputs:
-      code: ${{ steps.filter.outputs.code }}
-      testable: ${{ steps.filter.outputs.testable }}
-      website: ${{ steps.filter.outputs.website }}
-      workbench: ${{ steps.filter.outputs.workbench }}
+      full: ${{ steps.impact.outputs.full || steps.impact_main.outputs.full }}
+      packages: ${{ steps.impact.outputs.packages || steps.impact_main.outputs.packages }}
+      dependency_packages: ${{ steps.impact.outputs.dependency_packages || steps.impact_main.outputs.dependency_packages }}
+      has_packages: ${{ steps.impact.outputs.has_packages || steps.impact_main.outputs.has_packages }}
+      website: ${{ steps.impact.outputs.website || steps.impact_main.outputs.website }}
+      workbench: ${{ steps.impact.outputs.workbench || steps.impact_main.outputs.workbench }}
+      electron_smoke: ${{ steps.impact.outputs.electron_smoke || steps.impact_main.outputs.electron_smoke }}
+      native: ${{ steps.impact.outputs.native || steps.impact_main.outputs.native }}
+      native_matrix: ${{ steps.impact.outputs.native_matrix || steps.impact_main.outputs.native_matrix }}
+      native_matrix_needed: ${{ steps.impact.outputs.native_matrix_needed || steps.impact_main.outputs.native_matrix_needed }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Classify changed files
-        id: filter
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          base: ${{ github.event_name == 'push' && github.event.before || '' }}
-          predicate-quantifier: "some-with-excludes"
-          filters: |
-            code:
-              - '**'
-              - '!docs/**'
-              - '!**/*.md'
-              - '!README.md'
-              - '!NOTICE'
-            testable:
-              - '**'
-              - '!docs/**'
-              - '!**/*.md'
-              - '!README.md'
-              - '!NOTICE'
-              - '!packages/website/**'
-            website:
-              - '.github/workflows/ci.yml'
-              - 'packages/website/**'
-              - 'packages/ui-kit/src/styles/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-            workbench:
-              - '.github/workflows/ci.yml'
-              - 'packages/workbench-server/**'
-              - 'packages/workbench-app/**'
-              - 'packages/desktop-shell/**'
-              - 'packages/ui-kit/**'
-              - 'packages/contracts/**'
-              - 'packages/protocol/**'
-              - 'packages/harness/**'
-              - 'packages/tools/**'
-              - 'packages/native/**'
-              - 'scripts/copy-workbench-app-dist-to-workbench-server.mjs'
-              - 'scripts/smoke-workbench-release.mjs'
-              - 'scripts/smoke-electron-image-resize.mjs'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'tsconfig*.json'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'rust-toolchain.toml'
+          fetch-depth: 0
 
-  windows-checks:
-    name: Tools and storage checks (Windows)
-    runs-on: windows-latest
-    needs: paths
-    if: github.event_name != 'pull_request' || needs.paths.outputs.workbench == 'true'
+      - name: Classify pull request impact
+        id: impact
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/ci-impact.mjs --base "${BASE_SHA}"
 
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable 2026-08-05
-        with:
-          toolchain: 1.97.1
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Build native host and type dependencies
-        run: pnpm build:native && pnpm --filter @nervekit/workbench-server... check
-      - name: Run tools tests on native Windows filesystems
-        run: pnpm --filter @nervekit/tools test
-      - name: Run storage migration tests on native Windows filesystems
-        run: pnpm --filter @nervekit/workbench-server test:migrations
+      - name: Select full coverage for main
+        id: impact_main
+        if: github.event_name != 'pull_request'
+        run: node scripts/ci-impact.mjs --full
 
   validate:
     name: Check and test (Ubuntu)
@@ -119,8 +59,8 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-
       - name: Set up Rust
+        if: needs.paths.outputs.native == 'true'
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable 2026-08-05
         with:
           toolchain: 1.97.1
@@ -132,31 +72,53 @@ jobs:
       - name: Fast baseline (format, lint, boundaries, scripts tests)
         run: pnpm exec oxfmt --check && pnpm exec eslint . && node scripts/check-package-boundaries.mjs && node --test "scripts/**/*.test.mjs"
 
-      - name: Typecheck and check all packages
-        if: github.event_name != 'pull_request' || needs.paths.outputs.code == 'true'
+      - name: Build affected native runtime
+        if: needs.paths.outputs.full != 'true' && needs.paths.outputs.native == 'true'
+        run: pnpm build:native
+
+      - name: Prepare affected package dependencies
+        if: needs.paths.outputs.full != 'true' && needs.paths.outputs.has_packages == 'true'
+        env:
+          NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.dependency_packages }}
+        run: node scripts/run-affected-packages.mjs build
+
+      - name: Check affected packages
+        if: needs.paths.outputs.full != 'true' && needs.paths.outputs.has_packages == 'true'
+        env:
+          NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.packages }}
+        run: node scripts/run-affected-packages.mjs check
+
+      - name: Test affected packages
+        if: needs.paths.outputs.full != 'true' && needs.paths.outputs.has_packages == 'true'
+        env:
+          NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.packages }}
+        run: node scripts/run-affected-packages.mjs test
+
+      - name: Check all packages
+        if: needs.paths.outputs.full == 'true'
         run: pnpm -r check
 
       - name: Run complete test suite
-        if: github.event_name != 'pull_request' || needs.paths.outputs.testable == 'true'
+        if: needs.paths.outputs.full == 'true'
         run: pnpm run test:full
 
       - name: Build workbench runtime
-        if: github.event_name != 'pull_request' || needs.paths.outputs.workbench == 'true'
+        if: needs.paths.outputs.workbench == 'true'
         run: pnpm build:workbench-runtime
 
       - name: Smoke Electron image normalization
-        if: github.event_name != 'pull_request' || needs.paths.outputs.workbench == 'true'
+        if: needs.paths.outputs.electron_smoke == 'true'
         run: xvfb-run -a node scripts/smoke-electron-image-resize.mjs
 
       - name: Smoke built workbench HTTP and WebSocket parity
-        if: github.event_name != 'pull_request' || needs.paths.outputs.workbench == 'true'
+        if: needs.paths.outputs.workbench == 'true'
         run: node scripts/smoke-workbench-release.mjs
 
   website:
     name: Check and build website
     runs-on: ubuntu-latest
     needs: paths
-    if: github.event_name != 'pull_request' || needs.paths.outputs.website == 'true'
+    if: needs.paths.outputs.website == 'true'
 
     steps:
       - name: Check out repository
@@ -179,34 +141,118 @@ jobs:
       - name: Build website
         run: pnpm --filter @nervekit/website build
 
+  native-tests:
+    name: Native ${{ matrix.suite }} tests (${{ matrix.os }})
+    needs: paths
+    if: needs.paths.outputs.native_matrix_needed == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.paths.outputs.native_matrix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable 2026-08-05
+        with:
+          toolchain: 1.97.1
+          components: clippy,rustfmt
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build native runtime
+        run: pnpm build:native
+
+      - name: Check and test native runtime
+        if: matrix.suite == 'host'
+        run: pnpm --filter @nervekit/native check && pnpm --filter @nervekit/native test
+      - name: Build native host packages
+        if: matrix.suite == 'host'
+        run: pnpm --filter @nervekit/workbench-server... build
+      - name: Run native server tests
+        if: matrix.suite == 'host'
+        timeout-minutes: 8
+        run: pnpm --filter @nervekit/workbench-server test:native
+      - name: Run tool tests on native Windows filesystems
+        if: matrix.suite == 'host' && runner.os == 'Windows'
+        run: pnpm --filter @nervekit/tools test
+      - name: Run native tool tests on macOS
+        if: matrix.suite == 'host' && runner.os == 'macOS'
+        run: pnpm --filter @nervekit/tools test:native
+      - name: Run storage migration tests on native Windows filesystems
+        if: matrix.suite == 'host' && runner.os == 'Windows'
+        run: pnpm --filter @nervekit/workbench-server test:migrations
+
+      - name: Build native desktop runtime
+        if: matrix.suite == 'desktop'
+        run: pnpm build:workbench-runtime && pnpm --filter @nervekit/desktop-shell build
+      - name: Run desktop tests
+        if: matrix.suite == 'desktop'
+        timeout-minutes: 8
+        run: pnpm --filter @nervekit/desktop-shell test
+
+  native-gate:
+    name: Native host gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - paths
+      - native-tests
+
+    steps:
+      - name: Require successful native host jobs
+        shell: bash
+        env:
+          PATHS_RESULT: ${{ needs.paths.result }}
+          TEST_RESULT: ${{ needs.native-tests.result }}
+        run: |
+          set -euo pipefail
+          if [ "${PATHS_RESULT}" != "success" ]; then
+            echo "Native path detection failed: ${PATHS_RESULT}" >&2
+            exit 1
+          fi
+          if [ "${TEST_RESULT}" != "success" ] && [ "${TEST_RESULT}" != "skipped" ]; then
+            echo "Native test matrix failed: ${TEST_RESULT}" >&2
+            exit 1
+          fi
+          echo "Native host CI passed: paths=${PATHS_RESULT}, tests=${TEST_RESULT}"
+
   gate:
     name: CI gate
     runs-on: ubuntu-latest
     if: always()
     needs:
       - paths
-      - windows-checks
       - validate
       - website
+      - native-gate
 
     steps:
       - name: Require successful CI jobs
         shell: bash
         env:
           PATHS_RESULT: ${{ needs.paths.result }}
-          WINDOWS_RESULT: ${{ needs.windows-checks.result }}
           VALIDATE_RESULT: ${{ needs.validate.result }}
           WEBSITE_RESULT: ${{ needs.website.result }}
+          NATIVE_RESULT: ${{ needs.native-gate.result }}
         run: |
           set -euo pipefail
-          if [ "${PATHS_RESULT}" != "success" ] || [ "${VALIDATE_RESULT}" != "success" ]; then
-            echo "Required CI job failed: paths=${PATHS_RESULT}, validate=${VALIDATE_RESULT}" >&2
+          if [ "${PATHS_RESULT}" != "success" ] || [ "${VALIDATE_RESULT}" != "success" ] || [ "${NATIVE_RESULT}" != "success" ]; then
+            echo "Required CI job failed: paths=${PATHS_RESULT}, validate=${VALIDATE_RESULT}, native=${NATIVE_RESULT}" >&2
             exit 1
           fi
-          for result in "${WINDOWS_RESULT}" "${WEBSITE_RESULT}"; do
-            if [ "${result}" != "success" ] && [ "${result}" != "skipped" ]; then
-              echo "Conditional CI job failed: windows=${WINDOWS_RESULT}, website=${WEBSITE_RESULT}" >&2
-              exit 1
-            fi
-          done
-          echo "CI passed: paths=${PATHS_RESULT}, validate=${VALIDATE_RESULT}, windows=${WINDOWS_RESULT}, website=${WEBSITE_RESULT}"
+          if [ "${WEBSITE_RESULT}" != "success" ] && [ "${WEBSITE_RESULT}" != "skipped" ]; then
+            echo "Conditional website job failed: website=${WEBSITE_RESULT}" >&2
+            exit 1
+          fi
+          echo "CI passed: paths=${PATHS_RESULT}, validate=${VALIDATE_RESULT}, website=${WEBSITE_RESULT}, native=${NATIVE_RESULT}"

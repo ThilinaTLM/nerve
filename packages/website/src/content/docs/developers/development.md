@@ -28,7 +28,7 @@ pnpm run test:affected      # test changed packages and their dependents
 pnpm run test:full          # run the complete package and Rust test suite
 ```
 
-`pnpm dev` and `pnpm desktop` build the host native addon automatically. Release prebuilds are separate architecture-specific files and are produced by GitHub Actions.
+`pnpm dev` and `pnpm desktop` build the host native addon automatically. The desktop command builds only the native addon, Workbench runtime, and desktop shell; use `pnpm build` when you need every workspace, including the public website. Release prebuilds are separate architecture-specific files and are produced by GitHub Actions.
 
 Enable trusted-LAN and mobile HTTPS access from **Settings → System → Network**, then restart the owned daemon when prompted.
 

@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/ThilinaTLM/nerve/actions/workflows/ci.yml/badge.svg)](https://github.com/ThilinaTLM/nerve/actions/workflows/ci.yml)
 [![Release](https://github.com/ThilinaTLM/nerve/actions/workflows/release.yml/badge.svg)](https://github.com/ThilinaTLM/nerve/actions/workflows/release.yml)
-[![Native host tests](https://github.com/ThilinaTLM/nerve/actions/workflows/native-host.yml/badge.svg)](https://github.com/ThilinaTLM/nerve/actions/workflows/native-host.yml)
 [![npm](https://img.shields.io/npm/v/%40nervekit%2Fdesktop?logo=npm)](https://www.npmjs.com/package/@nervekit/desktop)
 [![License](https://img.shields.io/github/license/ThilinaTLM/nerve)](LICENSE)
 
