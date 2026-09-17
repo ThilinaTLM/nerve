@@ -281,6 +281,40 @@ describe("adaptive agent tool-result projection", () => {
     assert.match(output, /probe failed/);
   });
 
+  it("includes commands in projected task status results", () => {
+    const projected = projectAgentResult(
+      context("task_status", {
+        tasks: [
+          {
+            id: "task_ui",
+            name: "dev",
+            command: "pnpm --filter @nervekit/workbench-app dev",
+            status: "running",
+            readiness: { outcome: "ready" },
+          },
+          {
+            id: "task_api",
+            name: "dev",
+            command: "pnpm --filter @nervekit/workbench-server dev",
+            status: "running",
+            readiness: { outcome: "pending" },
+          },
+        ],
+      }),
+      agentResultPolicyForTool("task_status"),
+    );
+    const output = text(projected.blocks);
+
+    assert.match(output, /task_ui/);
+    assert.match(output, /task_api/);
+    assert.match(output, /command: pnpm --filter @nervekit\/workbench-app dev/);
+    assert.match(
+      output,
+      /command: pnpm --filter @nervekit\/workbench-server dev/,
+    );
+    assert.equal(output.match(/status: running/g)?.length, 2);
+  });
+
   it("pluralizes omitted grep matches correctly", () => {
     const matches = Array.from({ length: 80 }, (_, index) => ({
       path: "src/file.ts",
