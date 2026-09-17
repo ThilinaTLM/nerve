@@ -29,6 +29,7 @@ tokio = { version = "1.53.0", features = [
   "sync",
   "time",
 ] }
+notify = "8.2.0"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.180"

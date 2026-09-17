@@ -514,7 +514,8 @@ describe("Protocol v1 shared schemas", () => {
     const invalidation = {
       projectId: "proj_test",
       repo: ".",
-      source: "filesystem",
+      generation: 1,
+      fullRefreshRequired: false,
     };
     assert.deepEqual(
       validatePublicEvent(
@@ -526,7 +527,9 @@ describe("Protocol v1 shared schemas", () => {
     );
     const filesystemChange = {
       projectId: "proj_test",
-      source: "filesystem",
+      generation: 1,
+      directories: ["", "src"],
+      fullRefreshRequired: false,
     };
     assert.deepEqual(
       validatePublicEvent(
@@ -539,7 +542,12 @@ describe("Protocol v1 shared schemas", () => {
     assert.throws(() =>
       validatePublicEvent(
         "filesystem.project.changed",
-        { projectId: "test", source: "filesystem" },
+        {
+          projectId: "test",
+          generation: 1,
+          directories: [],
+          fullRefreshRequired: false,
+        },
         "workbench_server",
       ),
     );

@@ -6,7 +6,9 @@ export const filesystemEventDefinitions = [
     "filesystem.project.changed",
     z.object({
       projectId: z.string().startsWith("proj_"),
-      source: z.literal("filesystem"),
+      generation: z.number().int().nonnegative(),
+      directories: z.array(z.string().max(4_096)).max(256),
+      fullRefreshRequired: z.boolean(),
     }),
     {
       delivery: "ephemeral",

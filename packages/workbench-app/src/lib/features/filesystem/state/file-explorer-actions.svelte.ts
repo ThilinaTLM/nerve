@@ -3,7 +3,7 @@ import {
   ensureFileExplorerProject,
   type FileExplorerDirectoryState,
 } from "./file-explorer-state.svelte";
-import { SvelteMap } from "svelte/reactivity";
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import {
   fileExplorerEntryNodeId,
   type FileExplorerTreeItem,
@@ -28,6 +28,7 @@ function ensureDirectory(
     loading: false,
     refreshing: false,
     generation: 0,
+    stale: false,
   };
   return project.directories[path];
 }
@@ -98,6 +99,7 @@ export async function loadFileExplorerDirectory(
       directory.nextCursor = result.nextCursor;
       directory.pagesLoaded = result.pagesLoaded;
     }
+    directory.stale = false;
   } catch (error) {
     if (directory.generation === generation) directory.error = messageOf(error);
   } finally {
@@ -124,11 +126,19 @@ export function setFileExplorerItemExpanded(
   const project = ensureFileExplorerProject(projectId);
   const id = fileExplorerEntryNodeId(projectId, item.entry.path);
   if (expanded) {
+    if (item.entry.symlink) return;
     project.expandedIds.add(id);
-    if (!project.directories[item.entry.path] && !item.entry.symlink)
-      void loadFileExplorerDirectory(projectId, item.entry.path);
+    const directory = project.directories[item.entry.path];
+    if (!directory || directory.stale)
+      void loadFileExplorerDirectory(projectId, item.entry.path, {
+        refresh: Boolean(directory),
+      });
   } else {
     project.expandedIds.delete(id);
+    for (const [path, directory] of Object.entries(project.directories)) {
+      if (path === item.entry.path || path.startsWith(`${item.entry.path}/`))
+        directory.stale = true;
+    }
   }
 }
 
@@ -173,14 +183,32 @@ export function discardFileExplorerPath(projectId: string, path: string): void {
   }
 }
 
+export function monitoredFileExplorerDirectories(projectId: string): string[] {
+  const project = ensureFileExplorerProject(projectId);
+  const prefix = `file:${projectId}:`;
+  return [
+    "",
+    ...[...project.expandedIds]
+      .filter((id) => id.startsWith(prefix))
+      .map((id) => id.slice(prefix.length)),
+  ];
+}
+
 export async function refreshFileExplorerProject(
   projectId: string,
+  directories?: readonly string[],
 ): Promise<void> {
   const project = ensureFileExplorerProject(projectId);
+  const active = new SvelteSet(monitoredFileExplorerDirectories(projectId));
+  const paths = directories
+    ? [...new SvelteSet(directories)].filter((path) => active.has(path))
+    : [...active];
   await runBounded(
-    Object.keys(project.directories).map(
-      (path) => () =>
-        loadFileExplorerDirectory(projectId, path, { refresh: true }),
-    ),
+    paths
+      .filter((path) => project.directories[path])
+      .map(
+        (path) => () =>
+          loadFileExplorerDirectory(projectId, path, { refresh: true }),
+      ),
   );
 }

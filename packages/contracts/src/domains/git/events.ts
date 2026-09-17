@@ -24,7 +24,8 @@ export const gitEventDefinitions = [
     z.object({
       projectId: z.string().startsWith("proj_"),
       repo: z.string().min(1).max(1_024),
-      source: z.literal("filesystem"),
+      generation: z.number().int().nonnegative(),
+      fullRefreshRequired: z.boolean(),
     }),
     {
       delivery: "ephemeral",

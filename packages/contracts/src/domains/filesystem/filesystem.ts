@@ -67,6 +67,38 @@ export type FilesystemProjectEntriesResponse = z.infer<
   typeof filesystemProjectEntriesResponseSchema
 >;
 
+export const filesystemProjectMonitorSyncRequestSchema = z.object({
+  projectId: z.string().startsWith("proj_"),
+  directories: z.array(z.string().max(4_096)).max(512),
+});
+export type FilesystemProjectMonitorSyncRequest = z.infer<
+  typeof filesystemProjectMonitorSyncRequestSchema
+>;
+
+export const filesystemProjectMonitorStateSchema = z.object({
+  active: z.boolean(),
+  degraded: z.boolean(),
+  watchedDirectoryCount: z.number().int().nonnegative(),
+});
+export type FilesystemProjectMonitorState = z.infer<
+  typeof filesystemProjectMonitorStateSchema
+>;
+
+export const filesystemProjectMonitorClearRequestSchema = z.object({
+  projectId: z.string().startsWith("proj_"),
+});
+
+export const filesystemProjectRefreshRequestSchema = z.object({
+  projectId: z.string().startsWith("proj_"),
+});
+
+export const monitorRefreshResponseSchema = z.object({
+  generation: z.number().int().nonnegative(),
+});
+export type MonitorRefreshResponse = z.infer<
+  typeof monitorRefreshResponseSchema
+>;
+
 export const filesystemProjectEntryCreateRequestSchema = z.object({
   projectId: z.string().min(1),
   parentPath: z.string().optional(),

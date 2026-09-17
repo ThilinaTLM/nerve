@@ -87,6 +87,7 @@ export function createLocalProtocolSession(
   state: ProtocolWebSocketContext,
   onDispose: () => void = () => undefined,
 ): LocalProtocolSession {
+  const monitorOwner = `monitor_${crypto.randomUUID()}`;
   const diagnostics = state.performanceDiagnostics.enabled
     ? state.performanceDiagnostics
     : undefined;
@@ -116,6 +117,13 @@ export function createLocalProtocolSession(
       unsubscribeNotify();
       session.dispose();
       connection.dispose();
+      void state.operationContexts.platform.workspaceMonitor
+        .releaseOwner(monitorOwner)
+        .catch((error: unknown) =>
+          state.logger.warn("Could not release monitor session", {
+            error: boundedError(error),
+          }),
+        );
       onDispose();
     } finally {
       resolveClosed();
@@ -147,7 +155,7 @@ export function createLocalProtocolSession(
     },
     close: async (code, reason) => transport.close(code, reason),
     rpcDispatcher: ({ capabilities }) =>
-      workbenchWebSocketRpcDispatcher(state, capabilities),
+      workbenchWebSocketRpcDispatcher(state, capabilities, monitorOwner),
     subscriptions: {
       async resolve(cursors) {
         // Resolve each stream independently. Unknown or deleted streams are

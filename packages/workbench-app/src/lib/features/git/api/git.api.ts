@@ -36,6 +36,37 @@ export async function discoverGitRepos(
   ).result;
 }
 
+export async function syncGitRepositoryMonitor(
+  projectId: string,
+  repo: string,
+  active: boolean,
+) {
+  return (
+    await protocolRequest("git.repository.monitor.sync", {
+      projectId,
+      repo,
+      active,
+    })
+  ).result;
+}
+
+export async function clearGitRepositoryMonitor(
+  projectId: string,
+  repo: string,
+) {
+  return (
+    await protocolRequest("git.repository.monitor.clear", { projectId, repo })
+  ).result;
+}
+
+export async function requestGitRepositoryRefresh(
+  projectId: string,
+  repo: string,
+) {
+  return (await protocolRequest("git.repository.refresh", { projectId, repo }))
+    .result;
+}
+
 export async function getGitOverview(
   projectId: string,
   repo: string,

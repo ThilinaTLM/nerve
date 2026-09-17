@@ -53,6 +53,29 @@ export const gitRepoSummarySchema = z.object({
 });
 export type GitRepoSummary = z.infer<typeof gitRepoSummarySchema>;
 
+export const gitRepositoryMonitorSyncRequestSchema = z.object({
+  projectId: z.string().startsWith("proj_"),
+  repo: z.string().min(1).max(1_024),
+  active: z.boolean(),
+});
+export type GitRepositoryMonitorSyncRequest = z.infer<
+  typeof gitRepositoryMonitorSyncRequestSchema
+>;
+
+export const gitRepositoryMonitorClearRequestSchema = z.object({
+  projectId: z.string().startsWith("proj_"),
+  repo: z.string().min(1).max(1_024),
+});
+
+export const gitRepositoryMonitorStateSchema = z.object({
+  active: z.boolean(),
+  degraded: z.boolean(),
+});
+
+export const gitRepositoryRefreshResponseSchema = z.object({
+  generation: z.number().int().nonnegative(),
+});
+
 export const gitDiscoveryResponseSchema = z.object({
   projectIsRepo: z.boolean(),
   repos: z.array(gitRepoSummarySchema),

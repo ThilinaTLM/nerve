@@ -8,6 +8,7 @@ import {
   listGitBranches,
   listGithubPrHeads,
   listGithubPrs,
+  syncGitRepositoryMonitor,
 } from "../api/git.api";
 import {
   gitProjectStateKey,
@@ -100,6 +101,9 @@ export function setGitOverviewRefreshVisible(
   const key = automaticRefreshKey(projectId, repo);
   if (visible) visibleOverviewDemand.add(key);
   else visibleOverviewDemand.delete(key);
+  void syncGitRepositoryMonitor(projectId, repo, visible).catch(
+    () => undefined,
+  );
 }
 
 export function invalidateGitOverviewFromFilesystem(

@@ -1,4 +1,5 @@
 import { createGitPanelActions } from "../views/git-panel-controller";
+import { requestGitRepositoryRefresh } from "../api/git.api";
 import {
   disabledCapability,
   enabledCapability,
@@ -183,19 +184,20 @@ export function createWorkbenchGitPanelAdapter(
     },
     refreshRepository: async (repository) => {
       const project = activeProject();
-      if (project)
-        await Promise.all([
-          refreshGitOverview(project.id, repository, {
-            force: true,
-            criticalErrorTitle: "Could not refresh repository",
-          }),
-          refreshGithub(
-            project.id,
-            repository,
-            true,
-            "Could not refresh repository",
-          ),
-        ]);
+      if (!project) return;
+      await requestGitRepositoryRefresh(project.id, repository);
+      await Promise.all([
+        refreshGitOverview(project.id, repository, {
+          force: true,
+          criticalErrorTitle: "Could not refresh repository",
+        }),
+        refreshGithub(
+          project.id,
+          repository,
+          true,
+          "Could not refresh repository",
+        ),
+      ]);
     },
     refreshBranches: (repository) => {
       const project = activeProject();
@@ -379,6 +381,9 @@ export function createWorkbenchGitPanelAdapter(
       return;
     setGitOverviewRefreshVisible(project.id, repository, true);
     const refreshIfStale = () => {
+      void requestGitRepositoryRefresh(project.id, repository).catch(
+        () => undefined,
+      );
       autoRefreshGitOverview(project.id, repository);
       if (pullRequestsEnabled()) autoRefreshPrsIfStale(project.id, repository);
     };

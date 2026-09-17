@@ -27,6 +27,7 @@ function project(): FileExplorerProjectState {
         loading: false,
         refreshing: false,
         generation: 0,
+        stale: false,
       },
     },
   };
@@ -53,6 +54,7 @@ test("projects loaded descendants and pagination rows", () => {
     loading: false,
     refreshing: false,
     generation: 0,
+    stale: false,
   };
   const folder = buildFileExplorerTree(state)[0];
   assert.deepEqual(

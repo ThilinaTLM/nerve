@@ -50,6 +50,7 @@ pub fn runtime_capabilities() -> NativeRuntimeCapabilities {
             capabilities.push("git-read-ancestry".to_string());
             capabilities.push("git-read-file-diff".to_string());
             capabilities.push("git-read-repository-info".to_string());
+            capabilities.push("bounded-change-monitor".to_string());
             capabilities
         },
     }

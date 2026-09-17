@@ -10,7 +10,8 @@ describe("Git event refresh policy", () => {
         data: {
           projectId: "proj_one",
           repo: ".",
-          source: "filesystem",
+          generation: 1,
+          fullRefreshRequired: false,
         },
       }),
       { projectId: "proj_one", repo: ".", demand: { overview: true } },

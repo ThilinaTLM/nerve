@@ -15,6 +15,32 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
       state.git.discoverRepos(params.projectId),
     "git.overview.get": (state, params) =>
       state.git.overview(params.projectId, repo(params)),
+    "git.repository.monitor.sync": async (state, params, invocation) => {
+      const owner = monitorOwner(invocation.monitorOwner);
+      if (!params.active) {
+        await state.workspaceMonitor.clearRepository(owner);
+        return { active: false, degraded: false };
+      }
+      return state.workspaceMonitor.syncRepository(
+        owner,
+        params.projectId,
+        params.repo,
+        state.git.resolveRepoDir(params.projectId, params.repo),
+        true,
+      );
+    },
+    "git.repository.monitor.clear": async (state, _params, invocation) => {
+      await state.workspaceMonitor.clearRepository(
+        monitorOwner(invocation.monitorOwner),
+      );
+      return { active: false, degraded: false };
+    },
+    "git.repository.refresh": async (state, params) => ({
+      generation: await state.workspaceMonitor.requestRepositoryRefresh(
+        params.projectId,
+        repo(params),
+      ),
+    }),
     "git.project.files.status.get": (state, params) =>
       state.git.projectFileStatus(params.projectId),
     "git.branches.list": (state, params) =>
@@ -115,6 +141,12 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
         params.expectedHeadOid,
       ),
   });
+
+function monitorOwner(owner: string | undefined): string {
+  if (!owner)
+    throw new Error("Git monitoring requires a live protocol session");
+  return owner;
+}
 
 function repo(params: { repo?: string }): string {
   return params.repo || ".";

@@ -168,10 +168,12 @@ export class ProtocolHttpDispatcher {
 
 export function workbenchOperationHandlers(
   state: ProtocolAdapterContext,
+  monitorOwner?: string,
 ): Partial<OperationHandlerRegistry> {
   return bindWorkbenchOperationHandlers(
     state.operationContexts,
     state.performanceDiagnostics,
+    { monitorOwner },
   );
 }
 
@@ -203,9 +205,10 @@ function workbenchIdempotencyStore(
 export function workbenchWebSocketRpcDispatcher(
   state: ProtocolAdapterContext,
   acceptedCapabilities: readonly string[],
+  monitorOwner: string,
 ): RpcDispatcher {
   return new RpcDispatcher({
-    handlers: workbenchOperationHandlers(state),
+    handlers: workbenchOperationHandlers(state, monitorOwner),
     idempotency: workbenchIdempotencyStore(state),
     acceptedCapabilities,
     translateError,
