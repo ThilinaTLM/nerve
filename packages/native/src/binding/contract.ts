@@ -51,12 +51,7 @@ export interface NativeProcessHandle {
 }
 
 export interface NativeChangeMonitorHandle {
-  syncDirectories(scope: DirectoryMonitorScope): Promise<MonitorScopeState>;
-  syncGit(scope: GitMonitorScope): Promise<MonitorScopeState>;
-  requestRefresh(scopeId: string): Promise<number>;
-  remove(scopeId: string): Promise<void>;
-  diagnostics(): MonitorDiagnostics;
-  close(): Promise<void>;
+  id: number;
 }
 
 export interface NativeBinding {
@@ -104,6 +99,26 @@ export interface NativeBinding {
     options: ChangeMonitorOptions | undefined,
     notice: (error: Error | null, notice: ChangeNotice) => void,
   ): NativeChangeMonitorHandle;
+  syncChangeMonitorDirectories(
+    handle: NativeChangeMonitorHandle,
+    scope: DirectoryMonitorScope,
+  ): Promise<MonitorScopeState>;
+  syncChangeMonitorGit(
+    handle: NativeChangeMonitorHandle,
+    scope: GitMonitorScope,
+  ): Promise<MonitorScopeState>;
+  requestChangeMonitorRefresh(
+    handle: NativeChangeMonitorHandle,
+    scopeId: string,
+  ): Promise<number>;
+  removeChangeMonitorScope(
+    handle: NativeChangeMonitorHandle,
+    scopeId: string,
+  ): Promise<void>;
+  changeMonitorDiagnostics(
+    handle: NativeChangeMonitorHandle,
+  ): MonitorDiagnostics;
+  closeChangeMonitor(handle: NativeChangeMonitorHandle): Promise<void>;
   configureManagedProcessRuntime(options: { maxActiveProcesses: number }): void;
   spawnManagedProcess(
     command: string,

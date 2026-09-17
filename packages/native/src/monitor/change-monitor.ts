@@ -9,8 +9,15 @@ import type {
   MonitorScopeState,
 } from "./contracts.js";
 
+const monitorFinalizer = new FinalizationRegistry<NativeChangeMonitorHandle>(
+  (handle) => {
+    void binding.closeChangeMonitor(handle).catch(() => undefined);
+  },
+);
+
 export class ChangeMonitor {
   readonly #handle: NativeChangeMonitorHandle;
+  readonly #finalizerToken = {};
   #closed = false;
 
   constructor(
@@ -21,39 +28,41 @@ export class ChangeMonitor {
       if (this.#closed || error) return;
       onNotice(notice);
     });
+    monitorFinalizer.register(this, this.#handle, this.#finalizerToken);
   }
 
   async syncDirectories(
     scope: DirectoryMonitorScope,
   ): Promise<MonitorScopeState> {
     this.#assertOpen();
-    return this.#handle.syncDirectories(scope);
+    return binding.syncChangeMonitorDirectories(this.#handle, scope);
   }
 
   async syncGit(scope: GitMonitorScope): Promise<MonitorScopeState> {
     this.#assertOpen();
-    return this.#handle.syncGit(scope);
+    return binding.syncChangeMonitorGit(this.#handle, scope);
   }
 
   async requestRefresh(scopeId: string): Promise<number> {
     this.#assertOpen();
-    return this.#handle.requestRefresh(scopeId);
+    return binding.requestChangeMonitorRefresh(this.#handle, scopeId);
   }
 
   async remove(scopeId: string): Promise<void> {
     if (this.#closed) return;
-    await this.#handle.remove(scopeId);
+    await binding.removeChangeMonitorScope(this.#handle, scopeId);
   }
 
   diagnostics(): MonitorDiagnostics {
     this.#assertOpen();
-    return this.#handle.diagnostics();
+    return binding.changeMonitorDiagnostics(this.#handle);
   }
 
   async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
-    await this.#handle.close();
+    monitorFinalizer.unregister(this.#finalizerToken);
+    await binding.closeChangeMonitor(this.#handle);
   }
 
   #assertOpen(): void {

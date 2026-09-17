@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use napi::Env;
@@ -62,74 +64,101 @@ pub struct NativeMonitorDiagnostics {
     pub poll_failures: f64,
 }
 
-#[napi]
-pub struct NativeChangeMonitor {
-    monitor: Arc<Monitor>,
+#[napi(object)]
+pub struct NativeMonitorHandle {
+    pub id: u32,
+}
+
+static NEXT_MONITOR_ID: AtomicU32 = AtomicU32::new(1);
+static MONITORS: OnceLock<Mutex<HashMap<u32, Arc<Monitor>>>> = OnceLock::new();
+
+fn monitors() -> &'static Mutex<HashMap<u32, Arc<Monitor>>> {
+    MONITORS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn registered_monitor(id: u32) -> Result<Arc<Monitor>> {
+    monitors()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(&id)
+        .cloned()
+        .ok_or_else(|| napi::Error::from_reason("Change monitor is closed"))
 }
 
 #[napi]
-impl NativeChangeMonitor {
-    #[napi]
-    pub fn sync_directories(
-        &self,
-        scope: NativeDirectoryMonitorScope,
-    ) -> Result<AsyncTask<SyncTask>> {
-        Ok(AsyncTask::new(SyncTask {
-            monitor: Arc::clone(&self.monitor),
-            spec: ScopeSpec {
-                id: scope.id,
-                kind: ScopeKind::Directories,
-                paths: scope.paths.into_iter().map(PathBuf::from).collect(),
-                poll_interval: duration(scope.poll_interval_ms, 20_000.0)?,
+pub fn sync_change_monitor_directories(
+    handle: NativeMonitorHandle,
+    scope: NativeDirectoryMonitorScope,
+) -> Result<AsyncTask<SyncTask>> {
+    Ok(AsyncTask::new(SyncTask {
+        monitor: registered_monitor(handle.id)?,
+        spec: ScopeSpec {
+            id: scope.id,
+            kind: ScopeKind::Directories,
+            paths: scope.paths.into_iter().map(PathBuf::from).collect(),
+            poll_interval: duration(scope.poll_interval_ms, 20_000.0)?,
+        },
+    }))
+}
+
+#[napi]
+pub fn sync_change_monitor_git(
+    handle: NativeMonitorHandle,
+    scope: NativeGitMonitorScope,
+) -> Result<AsyncTask<SyncTask>> {
+    Ok(AsyncTask::new(SyncTask {
+        monitor: registered_monitor(handle.id)?,
+        spec: ScopeSpec {
+            id: scope.id,
+            kind: ScopeKind::Git {
+                repository: PathBuf::from(scope.repository),
             },
-        }))
-    }
+            paths: Vec::new(),
+            poll_interval: duration(scope.poll_interval_ms, 10_000.0)?,
+        },
+    }))
+}
 
-    #[napi]
-    pub fn sync_git(&self, scope: NativeGitMonitorScope) -> Result<AsyncTask<SyncTask>> {
-        Ok(AsyncTask::new(SyncTask {
-            monitor: Arc::clone(&self.monitor),
-            spec: ScopeSpec {
-                id: scope.id,
-                kind: ScopeKind::Git {
-                    repository: PathBuf::from(scope.repository),
-                },
-                paths: Vec::new(),
-                poll_interval: duration(scope.poll_interval_ms, 10_000.0)?,
-            },
-        }))
-    }
+#[napi]
+pub fn request_change_monitor_refresh(
+    handle: NativeMonitorHandle,
+    scope_id: String,
+) -> Result<AsyncTask<RefreshTask>> {
+    Ok(AsyncTask::new(RefreshTask {
+        monitor: registered_monitor(handle.id)?,
+        scope_id,
+    }))
+}
 
-    #[napi]
-    pub fn request_refresh(&self, scope_id: String) -> AsyncTask<RefreshTask> {
-        AsyncTask::new(RefreshTask {
-            monitor: Arc::clone(&self.monitor),
-            scope_id,
-        })
-    }
+#[napi]
+pub fn remove_change_monitor_scope(
+    handle: NativeMonitorHandle,
+    scope_id: String,
+) -> Result<AsyncTask<RemoveTask>> {
+    Ok(AsyncTask::new(RemoveTask {
+        monitor: registered_monitor(handle.id)?,
+        scope_id,
+        close: false,
+    }))
+}
 
-    #[napi]
-    pub fn remove(&self, scope_id: String) -> AsyncTask<RemoveTask> {
-        AsyncTask::new(RemoveTask {
-            monitor: Arc::clone(&self.monitor),
-            scope_id,
-            close: false,
-        })
-    }
+#[napi]
+pub fn change_monitor_diagnostics(handle: NativeMonitorHandle) -> Result<NativeMonitorDiagnostics> {
+    Ok(registered_monitor(handle.id)?.diagnostics().into())
+}
 
-    #[napi]
-    pub fn diagnostics(&self) -> NativeMonitorDiagnostics {
-        self.monitor.diagnostics().into()
-    }
-
-    #[napi]
-    pub fn close(&self) -> AsyncTask<RemoveTask> {
-        AsyncTask::new(RemoveTask {
-            monitor: Arc::clone(&self.monitor),
-            scope_id: String::new(),
-            close: true,
-        })
-    }
+#[napi]
+pub fn close_change_monitor(handle: NativeMonitorHandle) -> Result<AsyncTask<RemoveTask>> {
+    let monitor = monitors()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .remove(&handle.id)
+        .ok_or_else(|| napi::Error::from_reason("Change monitor is closed"))?;
+    Ok(AsyncTask::new(RemoveTask {
+        monitor,
+        scope_id: String::new(),
+        close: true,
+    }))
 }
 
 pub struct SyncTask {
@@ -202,7 +231,7 @@ impl Task for RemoveTask {
 pub fn create_change_monitor(
     options: Option<NativeMonitorOptions>,
     callback: ThreadsafeFunction<NativeMonitorNotice>,
-) -> Result<NativeChangeMonitor> {
+) -> Result<NativeMonitorHandle> {
     let limits = options
         .map(TryInto::try_into)
         .transpose()?
@@ -214,9 +243,18 @@ pub fn create_change_monitor(
         }),
     )
     .map_err(napi::Error::from_reason)?;
-    Ok(NativeChangeMonitor {
-        monitor: Arc::new(monitor),
-    })
+    let monitor = Arc::new(monitor);
+    let mut registry = monitors()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let id = loop {
+        let candidate = NEXT_MONITOR_ID.fetch_add(1, Ordering::Relaxed);
+        if candidate != 0 && !registry.contains_key(&candidate) {
+            break candidate;
+        }
+    };
+    registry.insert(id, monitor);
+    Ok(NativeMonitorHandle { id })
 }
 
 fn duration(value: Option<f64>, default: f64) -> Result<Duration> {
