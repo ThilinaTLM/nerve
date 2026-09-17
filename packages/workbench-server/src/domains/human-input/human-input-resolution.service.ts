@@ -352,7 +352,9 @@ export class HumanInputResolutionService {
     let repaired = 0;
     for (const review of reviews) {
       if (review.status === "accepted_in_new_chat") {
-        await this.recoverAcceptedPlanInNewChat(review);
+        await this.recoverAcceptedPlanInNewChat(review, undefined, {
+          tolerateMissingSource: true,
+        });
         repaired += 1;
         continue;
       }
@@ -765,12 +767,21 @@ export class HumanInputResolutionService {
   private async recoverAcceptedPlanInNewChat(
     review: PlanReviewRecord,
     selected?: PlanImplementationSelection,
+    options: { tolerateMissingSource?: boolean } = {},
   ): Promise<{ conversation: ConversationRecord; agent: AgentRecord }> {
     const sourceAgent = this.deps.getAgent(review.agentId);
-    const toolCall = this.deps.tools.getToolCallDetails
-      ? await this.deps.tools.getToolCallDetails(review.toolCallId)
-      : this.deps.tools.getToolCall(review.toolCallId);
-    const resolution = toolCall.interactions?.find(
+    let toolCall: ToolCallRecord | undefined;
+    try {
+      toolCall = this.deps.tools.getToolCallDetails
+        ? await this.deps.tools.getToolCallDetails(review.toolCallId)
+        : this.deps.tools.getToolCall(review.toolCallId);
+    } catch (error) {
+      if (!options.tolerateMissingSource || !this.isMissingToolCall(error)) {
+        throw error;
+      }
+      await this.warnDetachedPlanReviewSource(review, undefined, error);
+    }
+    const resolution = toolCall?.interactions?.find(
       (interaction) => interaction.kind === "plan_review",
     )?.resolution as
       | {
@@ -807,10 +818,23 @@ export class HumanInputResolutionService {
       },
       { id: destination.agentId },
     );
-    const source = await this.planReviewSource(review);
-    if (source.state === "terminal") {
+    let source: Awaited<ReturnType<typeof this.planReviewSource>> | undefined;
+    if (toolCall) {
+      try {
+        source = await this.planReviewSource(review);
+      } catch (error) {
+        if (
+          !options.tolerateMissingSource ||
+          !(error instanceof ApplicationError && error.code === "RUN_NOT_FOUND")
+        ) {
+          throw error;
+        }
+        await this.warnDetachedPlanReviewSource(review, toolCall.runId, error);
+      }
+    }
+    if (source?.state === "terminal") {
       await this.reconcileTerminalPlanReview(review);
-    } else if (source.state !== "detached") {
+    } else if (source && source.state !== "detached") {
       await this.resolveSuspensionForToolCall(
         review.toolCallId,
         this.deps.plans.planReviewResult(review),
@@ -829,6 +853,28 @@ export class HumanInputResolutionService {
       await this.deps.runs.promptAgent(agent.id, { text: instruction });
     }
     return { conversation, agent };
+  }
+
+  private isMissingToolCall(error: unknown): boolean {
+    return error instanceof Error && error.message === "Tool call not found.";
+  }
+
+  private async warnDetachedPlanReviewSource(
+    review: PlanReviewRecord,
+    runId: string | undefined,
+    error: unknown,
+  ): Promise<void> {
+    await this.deps.logger
+      .warn("Recovering accepted plan without its historical source run", {
+        context: {
+          reviewId: review.id,
+          conversationId: review.conversationId,
+          toolCallId: review.toolCallId,
+          runId,
+        },
+        error,
+      })
+      .catch(() => undefined);
   }
 
   private async startAcceptedPlanImplementation(

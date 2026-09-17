@@ -22,6 +22,10 @@ import {
 } from "@nervekit/contracts/tools";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
 import {
+  applyHomeMigrationPlan,
+  inspectPendingHomeMigrations,
+} from "../../../src/infrastructure/migrations/index.js";
+import {
   initializeStorage,
   storagePaths,
 } from "../../../src/infrastructure/storage-bootstrap/index.js";
@@ -366,10 +370,71 @@ test("fails closed on a corrupt legacy journal without changing payload files", 
     "result.json",
   );
 
+  const plan = await inspectPendingHomeMigrations(fixture.home);
+  assert.equal(plan.issues.length, 1);
+  assert.equal(plan.issues[0]?.conversationId, conversationId);
+  assert.equal(plan.issues[0]?.disposition, "skippable");
   await assert.rejects(initializeStorage(fixture.home), /checksum mismatch/);
   assert.equal(await readFile(legacyResult, "utf8"), payload.toString("utf8"));
   await assert.rejects(stat(currentResult), { code: "ENOENT" });
   await assertMigrationNotRecorded(fixture.home);
+});
+
+test("skips an explicitly approved corrupt conversation and retains the original home", async (t) => {
+  const fixture = await legacyFixture();
+  t.after(() => rm(fixture.home, { recursive: true, force: true }));
+  fixture.corruptLatestChecksum();
+  const plan = await inspectPendingHomeMigrations(fixture.home);
+  const issue = plan.issues[0];
+  assert.ok(issue?.conversationId);
+  await assert.rejects(
+    applyHomeMigrationPlan(fixture.home, plan),
+    /explicit approval/,
+  );
+  await assert.rejects(
+    applyHomeMigrationPlan(fixture.home, {
+      ...plan,
+      fingerprint: "f".repeat(64),
+    }),
+    /plan changed/,
+  );
+
+  const report = await applyHomeMigrationPlan(fixture.home, plan, {
+    fingerprint: plan.fingerprint,
+    approvedIssueIds: [issue.id],
+  });
+
+  assert.equal(report.skippedConversations[0]?.conversationId, conversationId);
+  assert.ok(report.backupPath);
+  assert.equal((await stat(report.backupPath)).isDirectory(), true);
+  await assert.rejects(
+    stat(
+      join(fixture.home, "data", "payloads", "conversations", conversationId),
+    ),
+    { code: "ENOENT" },
+  );
+  assert.equal(
+    await readFile(
+      join(
+        report.backupPath,
+        "data",
+        "payloads",
+        "conversations",
+        conversationId,
+        "tool-calls",
+        "tool_snapshot",
+        "result.json",
+      ),
+      "utf8",
+    ),
+    payload.toString("utf8"),
+  );
+  const storage = await initializeStorage(fixture.home);
+  const state = await new ConversationJournalRepository(storage).load(
+    conversationId,
+  );
+  await storage.canonicalStore.close();
+  assert.equal(state.conversation, undefined);
 });
 
 test("discards legacy RPC idempotency outcomes during migration", async (t) => {

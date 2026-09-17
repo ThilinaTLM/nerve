@@ -29,6 +29,10 @@ import {
   currentHomeMigrationEntries,
   migrateToolResultPayloadReferences,
 } from "../migrations/tool-result-payload-reference-v2.js";
+import {
+  HomeMigrationBlockedError,
+  inspectPendingHomeMigrations,
+} from "../migrations/home-migration-plan.js";
 
 const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["configPath", 0o755],
@@ -129,6 +133,12 @@ export async function initializeStorage(
     const sqliteMigrationCheckMs = Math.round(
       performance.now() - sqliteMigrationCheckStartedAt,
     );
+    if (!fresh) {
+      const migrationPlan = await inspectPendingHomeMigrations(home);
+      if (migrationPlan.issues.length > 0) {
+        throw new HomeMigrationBlockedError(migrationPlan);
+      }
+    }
     if (schemaInspection.kind === "migration-required") {
       options.reportStartupProgress?.({
         type: "nerve.startup.progress",
