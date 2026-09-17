@@ -59,7 +59,6 @@
     "@nervekit/protocol": "workspace:*",
     "@nervekit/ui-kit": "workspace:*",
     "@replit/codemirror-lang-svelte": "^6.0.0",
-    "@replit/codemirror-minimap": "^0.5.2",
     "@tailwindcss/vite": "4.3.1",
     "@tanstack/query-core": "5.90.2",
     "@tanstack/svelte-query": "6.0.0",
