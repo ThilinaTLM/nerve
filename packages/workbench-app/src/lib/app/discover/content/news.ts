@@ -8,7 +8,7 @@ import type { DiscoverNewsEntry } from "./entries.js";
 export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "composer-power-tools",
-    version: 1,
+    version: 2,
     releasedIn: "0.31.0",
     featured: true,
     artwork: "workbench",
@@ -19,6 +19,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
       "Type @task: to find a background task and insert its task ID, or @pr: to find a pull request and insert its GitHub URL.",
       "Right-click in the editor for Undo, Redo, Cut, Copy, Paste, and Select all.",
       "Use Shift+Tab for Coding or Planning, Alt+M for models, and Alt+T for reasoning levels. Ctrl or Cmd+N now works while typing.",
+      "Open Tools and skills beside the composer to quickly enable or disable capabilities for this conversation. Changes apply to the next run.",
       "Slash commands have distinct icons, and /new starts a fresh conversation.",
     ],
     action: {

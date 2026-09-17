@@ -17,16 +17,10 @@ export const discoverTipsCatalog: readonly DiscoverTipEntry[] = [
   },
   {
     id: "tool-selection",
-    version: 1,
-    title: "Enable only the tools you need",
+    version: 2,
+    title: "Tune tools and skills per conversation",
     summary:
-      "Every enabled tool spends context; turn extras on when a task needs them.",
-    action: {
-      kind: "settings",
-      pageId: "tools",
-      sectionId: "third-party",
-      label: "Review tools",
-    },
+      "Open Tools and skills beside the composer to enable only what this conversation needs. Changes apply to the next run.",
   },
   {
     id: "project-skills",
