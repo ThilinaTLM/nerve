@@ -55,6 +55,17 @@ type MigrationLedger = {
   entries: Array<{ id?: unknown; [key: string]: unknown }>;
 };
 
+export interface ToolResultPayloadReferenceMigrationIssue {
+  conversationId?: string;
+  code: "CONVERSATION_MIGRATION_FAILED" | "MIGRATION_PREFLIGHT_FAILED";
+  reason: string;
+}
+
+export interface ToolResultPayloadReferenceMigrationInspection {
+  required: boolean;
+  issues: ToolResultPayloadReferenceMigrationIssue[];
+}
+
 export interface ToolResultPayloadReferenceMigrationResult {
   applied: boolean;
   conversations: number;
@@ -64,6 +75,56 @@ export interface ToolResultPayloadReferenceMigrationResult {
   conversationRecords: number;
   fileAssets: number;
   rpcIdempotencyEntries: number;
+}
+
+export async function inspectToolResultPayloadReferenceMigration(
+  paths: StoragePaths,
+): Promise<ToolResultPayloadReferenceMigrationInspection> {
+  const ledger = await readMigrationLedger(paths.migrationLedgerPath);
+  if (hasMigration(ledger)) return { required: false, issues: [] };
+
+  const canonical = new CanonicalDatabase(paths.sqlitePath);
+  try {
+    canonical.assertSchemaCompatible();
+    const conversationIds = canonicalPayloadReferenceConversationIds(canonical);
+    const issues: ToolResultPayloadReferenceMigrationIssue[] = [];
+    for (const conversationId of conversationIds) {
+      try {
+        migrationTransaction(
+          canonical,
+          (database) => migrateConversation(database, conversationId),
+          true,
+        );
+      } catch (error) {
+        issues.push({
+          conversationId,
+          code: "CONVERSATION_MIGRATION_FAILED",
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    try {
+      await preflightLegacyPayloadFiles(paths);
+    } catch (error) {
+      issues.push({
+        code: "MIGRATION_PREFLIGHT_FAILED",
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+    return { required: true, issues };
+  } catch (error) {
+    return {
+      required: true,
+      issues: [
+        {
+          code: "MIGRATION_PREFLIGHT_FAILED",
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      ],
+    };
+  } finally {
+    canonical.close();
+  }
 }
 
 export async function migrateToolResultPayloadReferences(
@@ -119,6 +180,23 @@ function preflightCanonicalPayloadReferences(
   migrateCanonicalPayloadReferencesInTransactions(canonical, true);
 }
 
+function canonicalPayloadReferenceConversationIds(
+  canonical: CanonicalDatabase,
+): string[] {
+  return canonical.transaction((database) => {
+    const rows = database
+      .prepare(
+        `SELECT DISTINCT scope_id FROM domain_documents
+         WHERE namespace IN (
+           'conversation_state', 'conversation_journal_commit'
+         ) AND instr(CAST(data AS TEXT), ?) > 0
+         ORDER BY scope_id`,
+      )
+      .all(LEGACY_REFERENCE_MARKER) as unknown as Array<{ scope_id: string }>;
+    return rows.map((row) => row.scope_id);
+  });
+}
+
 function migrateCanonicalPayloadReferences(
   canonical: CanonicalDatabase,
 ): ToolResultPayloadReferenceMigrationResult {
@@ -129,7 +207,7 @@ function migrateCanonicalPayloadReferencesInTransactions(
   canonical: CanonicalDatabase,
   validateOnly = false,
 ): ToolResultPayloadReferenceMigrationResult {
-  const conversationIds = canonical.transaction((database) => {
+  canonical.transaction((database) => {
     const unexpected = database
       .prepare(
         `SELECT namespace FROM domain_documents
@@ -168,17 +246,8 @@ function migrateCanonicalPayloadReferencesInTransactions(
         "Legacy tool-result payload references remain in conversation_record_projections.data.",
       );
     }
-    const rows = database
-      .prepare(
-        `SELECT DISTINCT scope_id FROM domain_documents
-         WHERE namespace IN (
-           'conversation_state', 'conversation_journal_commit'
-         ) AND instr(CAST(data AS TEXT), ?) > 0
-         ORDER BY scope_id`,
-      )
-      .all(LEGACY_REFERENCE_MARKER) as unknown as Array<{ scope_id: string }>;
-    return rows.map((row) => row.scope_id);
   });
+  const conversationIds = canonicalPayloadReferenceConversationIds(canonical);
 
   let journalCommits = 0;
   let snapshots = 0;

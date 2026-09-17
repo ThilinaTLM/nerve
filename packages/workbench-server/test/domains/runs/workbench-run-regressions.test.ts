@@ -7,6 +7,7 @@ import type { RunRecord } from "@nervekit/contracts/runs";
 import { AutoCompactionRunner } from "../../../src/domains/agents/execution/auto-compaction-runner.js";
 import { HttpError } from "../../../src/adapters/http/errors.js";
 import { RuntimeState } from "../../../src/app/runtime/runtime-projections.js";
+import { ApplicationError } from "../../../src/core/application-error.js";
 import { HumanInputResolutionService } from "../../../src/domains/human-input/human-input-resolution.service.js";
 import { WorkbenchRunQuery } from "../../../src/domains/runs/application/workbench-run-query.js";
 import {
@@ -612,6 +613,31 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(warns, 1);
   });
 
+  it("recovers an accepted new-chat plan when its source run is missing", async () => {
+    const fixture = acceptanceFixture("missing", "accepted_in_new_chat");
+
+    const recovered = await fixture.service.recoverAcceptedPlanReviews();
+
+    assert.equal(recovered, 1);
+    assert.equal(fixture.resolutions.length, 0);
+    assert.equal(fixture.starts.length, 1);
+    assert.equal(fixture.starts[0]?.agentId, fixture.createdAgent.id);
+    assert.equal(fixture.warnings.length, 1);
+  });
+
+  it("recovers an accepted new-chat plan when its source tool call is missing", async () => {
+    const fixture = acceptanceFixture("pending", "accepted_in_new_chat", {
+      missingToolCall: true,
+    });
+
+    const recovered = await fixture.service.recoverAcceptedPlanReviews();
+
+    assert.equal(recovered, 1);
+    assert.equal(fixture.resolutions.length, 0);
+    assert.equal(fixture.starts.length, 1);
+    assert.equal(fixture.warnings.length, 1);
+  });
+
   it("accepts a terminal-orphan plan into a new chat", async () => {
     const fixture = acceptanceFixture("terminal");
 
@@ -845,9 +871,9 @@ function agentRecord(): AgentRecord {
 }
 
 function acceptanceFixture(
-  sourceState: "pending" | "terminal" | "terminal_race",
+  sourceState: "pending" | "terminal" | "terminal_race" | "missing",
   reviewStatus: PlanReviewRecord["status"] = "pending",
-  options: { compactionError?: Error } = {},
+  options: { compactionError?: Error; missingToolCall?: boolean } = {},
 ) {
   const source = { ...agentRecord(), mode: "planning" as const };
   const review = { ...planReview(), status: reviewStatus };
@@ -864,6 +890,7 @@ function acceptanceFixture(
   const appendedEntries: Array<Record<string, unknown>> = [];
   const lifecycle: string[] = [];
   const compactions: Array<Record<string, unknown>> = [];
+  const warnings: Array<Record<string, unknown>> = [];
   let currentReview = review;
   let currentToolCall = {
     id: review.toolCallId,
@@ -898,7 +925,14 @@ function acceptanceFixture(
       planReviewResult: planResult,
     },
     tools: {
-      getToolCall: () => currentToolCall,
+      getToolCall: () => {
+        if (options.missingToolCall) throw new Error("Tool call not found.");
+        return currentToolCall;
+      },
+      getToolCallDetails: async () => {
+        if (options.missingToolCall) throw new Error("Tool call not found.");
+        return currentToolCall;
+      },
       resumeToolCall: async () => {
         assert.equal(currentToolCall.status, "waiting_for_user");
         currentToolCall = { ...currentToolCall, status: "running" };
@@ -919,6 +953,13 @@ function acceptanceFixture(
     runs: {
       interactionResolutionStateForToolCall: async () => {
         stateChecks += 1;
+        if (sourceState === "missing") {
+          throw new ApplicationError(
+            409,
+            "RUN_NOT_FOUND",
+            "The source run was not found.",
+          );
+        }
         if (sourceState === "terminal_race") {
           return stateChecks === 1 ? "pending" : "terminal";
         }
@@ -963,7 +1004,11 @@ function acceptanceFixture(
       compactions.push(input);
       if (options.compactionError) throw options.compactionError;
     },
-    logger: { warn: async () => undefined },
+    logger: {
+      warn: async (_message: string, details: Record<string, unknown>) => {
+        warnings.push(details);
+      },
+    },
   } as never);
   return {
     service,
@@ -979,6 +1024,7 @@ function acceptanceFixture(
     appendedEntries,
     lifecycle,
     compactions,
+    warnings,
   };
 }
 

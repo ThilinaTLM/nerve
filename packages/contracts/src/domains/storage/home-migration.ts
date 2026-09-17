@@ -48,3 +48,62 @@ export type HomeMigrationProgress = {
     | "promote";
   message: string;
 };
+
+export const homeMigrationIssueSchema = z
+  .object({
+    id: z.string().min(1),
+    migrationId: z.string().min(1),
+    scope: z.enum(["conversation", "global"]),
+    disposition: z.enum(["skippable", "required"]),
+    code: z.string().min(1),
+    reason: z.string().min(1),
+    conversationId: z.string().min(1).optional(),
+    conversationTitle: z.string().min(1).optional(),
+  })
+  .strict();
+export type HomeMigrationIssue = z.infer<typeof homeMigrationIssueSchema>;
+
+export const currentHomeMigrationPlanSchema = z
+  .object({
+    format: z.literal("nerve-current-home-migration-plan"),
+    version: z.literal(1),
+    fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    migrationIds: z.array(z.string().min(1)),
+    issues: z.array(homeMigrationIssueSchema),
+  })
+  .strict();
+export type CurrentHomeMigrationPlan = z.infer<
+  typeof currentHomeMigrationPlanSchema
+>;
+
+export const currentHomeMigrationApprovalSchema = z
+  .object({
+    fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    approvedIssueIds: z.array(z.string().min(1)),
+  })
+  .strict();
+export type CurrentHomeMigrationApproval = z.infer<
+  typeof currentHomeMigrationApprovalSchema
+>;
+
+export const currentHomeMigrationReportSchema = z
+  .object({
+    format: z.literal("nerve-current-home-migration"),
+    version: z.literal(1),
+    migrationIds: z.array(z.string().min(1)),
+    skippedConversations: z.array(
+      z
+        .object({
+          conversationId: z.string().min(1),
+          issueId: z.string().min(1),
+          code: z.string().min(1),
+          reason: z.string().min(1),
+        })
+        .strict(),
+    ),
+    backupPath: z.string().min(1).optional(),
+  })
+  .strict();
+export type CurrentHomeMigrationReport = z.infer<
+  typeof currentHomeMigrationReportSchema
+>;

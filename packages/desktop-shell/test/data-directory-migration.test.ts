@@ -131,6 +131,96 @@ describe("desktop data-directory preparation", () => {
     assert.match(dialog.dialogs[1]?.detail ?? "", /backups\/legacy-v2/);
   });
 
+  it("requires confirmation before skipping an unmigratable conversation", async () => {
+    const dialog = dialogRecorder();
+    let approved: string[] = [];
+    const plan = {
+      format: "nerve-current-home-migration-plan" as const,
+      version: 1 as const,
+      fingerprint: "a".repeat(64),
+      migrationIds: ["migration-v2"],
+      issues: [
+        {
+          id: "issue-1",
+          migrationId: "migration-v2",
+          scope: "conversation" as const,
+          disposition: "skippable" as const,
+          code: "CONVERSATION_MIGRATION_FAILED",
+          reason: "Invalid historical record.",
+          conversationId: "conv_bad",
+        },
+      ],
+    };
+    const result = await prepareDesktopDataDirectory(
+      { home: "/home/test/.nerve" },
+      {
+        ...dialog,
+        inspect: (async () => ({ kind: "current", manifest: {} })) as never,
+        inspectCurrentMigrations: async () => plan,
+        applyCurrentMigrations: (async (_home, _plan, approval) => {
+          approved = approval?.approvedIssueIds ?? [];
+          return {
+            format: "nerve-current-home-migration",
+            version: 1,
+            migrationIds: ["migration-v2"],
+            skippedConversations: [
+              {
+                conversationId: "conv_bad",
+                issueId: "issue-1",
+                code: "CONVERSATION_MIGRATION_FAILED",
+                reason: "Invalid historical record.",
+              },
+            ],
+            backupPath: "/home/test/.nerve/backups/current-home",
+          };
+        }) as never,
+        initialize: (async () => ({
+          canonicalStore: { close: async () => undefined },
+        })) as never,
+      },
+    );
+
+    assert.deepEqual(result, { status: "ready" });
+    assert.deepEqual(approved, ["issue-1"]);
+    assert.deepEqual(dialog.dialogs[0]?.buttons, [
+      "Skip affected conversations and continue",
+      "Quit",
+    ]);
+    assert.match(dialog.dialogs[1]?.detail ?? "", /backups\/current-home/);
+  });
+
+  it("does not offer to skip a global migration failure", async () => {
+    const dialog = dialogRecorder();
+    const result = await prepareDesktopDataDirectory(
+      { home: "/home/test/.nerve" },
+      {
+        ...dialog,
+        inspect: (async () => ({ kind: "current", manifest: {} })) as never,
+        inspectCurrentMigrations: async () => ({
+          format: "nerve-current-home-migration-plan",
+          version: 1,
+          fingerprint: "b".repeat(64),
+          migrationIds: ["migration-v2"],
+          issues: [
+            {
+              id: "fatal-1",
+              migrationId: "migration-v2",
+              scope: "global",
+              disposition: "required",
+              code: "MIGRATION_PREFLIGHT_FAILED",
+              reason: "Database is corrupt.",
+            },
+          ],
+        }),
+      },
+    );
+
+    assert.deepEqual(result, { status: "quit" });
+    assert.equal(dialog.dialogs.length, 1);
+    assert.deepEqual(dialog.dialogs[0]?.buttons, ["Quit"]);
+    assert.match(dialog.dialogs[0]?.detail ?? "", /Database is corrupt/);
+  });
+
   it("fails closed and shows one error for unsupported storage", async () => {
     const dialog = dialogRecorder();
     const result = await prepareDesktopDataDirectory(
