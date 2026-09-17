@@ -23,6 +23,7 @@ import { providerToolGroups } from "../tools/provider-tool-catalog";
 import { toolGroups, type ToolGroupDef } from "../tools/tool-catalog";
 import ToolGroupItem from "../tools/ToolGroupItem.svelte";
 import ProjectCapabilityTrustNotice from "./ProjectCapabilityTrustNotice.svelte";
+import ProjectCapabilityTrustAction from "./ProjectCapabilityTrustAction.svelte";
 
 type Props = {
   configuration?: CapabilityConfiguration;
@@ -164,6 +165,7 @@ const sections = $derived([
       >
         <RotateCcw class="size-3.5" />Reset all
       </Button>
+      <ProjectCapabilityTrustAction trust={configuration.trust} {onTrust} />
     {/snippet}
   </SettingsToolbar>
 

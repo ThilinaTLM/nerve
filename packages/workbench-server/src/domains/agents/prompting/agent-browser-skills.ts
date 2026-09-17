@@ -85,6 +85,7 @@ export class AgentBrowserSkillCatalog {
       name,
       description,
       filePath,
+      source: "agentBrowser" as const,
     }));
   }
 

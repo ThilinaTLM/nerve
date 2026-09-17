@@ -34,7 +34,7 @@ describe("Workbench skill resources", () => {
     filePath: "/tmp/agent-browser/core/SKILL.md",
   };
 
-  it("lists global and project skills separately and preserves project precedence", async () => {
+  it("tags user and project skills by source and preserves project precedence", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-resource-loader-"));
     const projectDir = join(root, "project");
     const storageHome = join(root, "storage");
@@ -63,11 +63,11 @@ describe("Workbench skill resources", () => {
       );
 
       const available = await listAvailableSkills(projectDir, { storageHome });
-      const projectShared = available.projectSkills.find(
-        (skill) => skill.name === "shared-skill",
+      const projectShared = available.skills.find(
+        (skill) => skill.name === "shared-skill" && skill.source === "project",
       );
-      const globalShared = available.globalSkills.find(
-        (skill) => skill.name === "shared-skill",
+      const globalShared = available.skills.find(
+        (skill) => skill.name === "shared-skill" && skill.source === "user",
       );
       assert.equal(projectShared?.filePath, projectSkillPath);
       assert.equal(projectShared?.description, "Project description");
@@ -90,7 +90,7 @@ describe("Workbench skill resources", () => {
     }
   });
 
-  it("lists Agent Browser skills separately and keeps them opt-in with file precedence", async () => {
+  it("tags Agent Browser skills and keeps them opt-in with file precedence", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-resource-loader-"));
     const projectDir = join(root, "project");
     try {
@@ -106,13 +106,17 @@ describe("Workbench skill resources", () => {
       const available = await listAvailableSkills(projectDir, {
         agentBrowserSkills: [agentBrowserCore],
       });
-      assert.deepEqual(available.agentBrowserSkills, [
-        {
-          name: "core",
-          description: "Agent Browser core description",
-          filePath: agentBrowserCore.filePath,
-        },
-      ]);
+      assert.deepEqual(
+        available.skills.filter((skill) => skill.source === "agentBrowser"),
+        [
+          {
+            name: "core",
+            description: "Agent Browser core description",
+            filePath: agentBrowserCore.filePath,
+            source: "agentBrowser",
+          },
+        ],
+      );
 
       const defaultResources = await loadHarnessResources(projectDir, {
         agentBrowserSkills: [agentBrowserCore],
@@ -149,7 +153,7 @@ describe("Workbench skill resources", () => {
     }
   });
 
-  it("returns only global skills without a project and filters disabled resources without touching files", async () => {
+  it("returns only user skills without a project and filters disabled resources without touching files", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-resource-loader-"));
     const projectDir = join(root, "project");
     const storageHome = join(root, "storage");
@@ -164,9 +168,14 @@ describe("Workbench skill resources", () => {
       );
 
       const globalOnly = await listAvailableSkills(undefined, { storageHome });
-      assert.deepEqual(globalOnly.projectSkills, []);
+      assert.deepEqual(
+        globalOnly.skills.filter((skill) => skill.source === "project"),
+        [],
+      );
       assert.equal(
-        globalOnly.globalSkills.some((skill) => skill.name === "disable-me"),
+        globalOnly.skills.some(
+          (skill) => skill.name === "disable-me" && skill.source === "user",
+        ),
         true,
       );
 
@@ -186,8 +195,8 @@ describe("Workbench skill resources", () => {
         storageHome,
       });
       assert.equal(
-        stillAvailable.globalSkills.some(
-          (skill) => skill.name === "disable-me",
+        stillAvailable.skills.some(
+          (skill) => skill.name === "disable-me" && skill.source === "user",
         ),
         true,
       );

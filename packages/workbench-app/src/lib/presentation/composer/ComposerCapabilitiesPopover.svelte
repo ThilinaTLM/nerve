@@ -1,8 +1,9 @@
 <script lang="ts">
 import Blocks from "@lucide/svelte/icons/blocks";
-import FileCode from "@lucide/svelte/icons/file-code";
+import Folder from "@lucide/svelte/icons/folder";
 import Globe from "@lucide/svelte/icons/globe";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
+import User from "@lucide/svelte/icons/user";
 import Settings from "@lucide/svelte/icons/settings";
 import type { Component } from "svelte";
 import type {
@@ -21,9 +22,9 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
+import type { SkillSource } from "@nervekit/contracts/skills";
+import type { CapabilitySkillRow } from "./capability-skill-row";
 import { capabilityToolLabels } from "./capability-tool-labels";
-
-type CapabilitySkill = { name: string; kind: "file" | "agentBrowser" };
 type Row = {
   key: string;
   label: string;
@@ -36,21 +37,22 @@ type Row = {
   reset: () => void;
 };
 
-/* Skills come from two families that Settings keeps on separate pages: files on
- * disk, and the Agent Browser's built-in set. The composer shows them in one
- * list, so each row carries its family as a leading icon. */
-const skillKindIcons = {
-  file: FileCode,
+/* Skills come from three sources that Settings groups separately, so each row
+ * carries its source as a leading icon. */
+const skillSourceIcons: Record<SkillSource, Row["icon"]> = {
+  user: User,
+  project: Folder,
   agentBrowser: Globe,
-} as const;
-const skillKindLabels = {
-  file: "File skill",
+};
+const skillSourceItemLabels: Record<SkillSource, string> = {
+  user: "Your skill",
+  project: "Project skill",
   agentBrowser: "Agent Browser skill",
-} as const;
+};
 
 type Props = {
   configuration?: CapabilityConfiguration;
-  skills?: CapabilitySkill[];
+  skills?: CapabilitySkillRow[];
   loading?: boolean;
   error?: string;
   disabled?: boolean;
@@ -91,14 +93,6 @@ function toolEnabled(name: CapabilityToolName): boolean {
   return !configuration?.effective.disabledTools.includes(name);
 }
 
-function skillEnabled(skill: CapabilitySkill): boolean {
-  return skill.kind === "agentBrowser"
-    ? Boolean(
-        configuration?.effective.enabledAgentBrowserSkills.includes(skill.name),
-      )
-    : !configuration?.effective.disabledFileSkills.includes(skill.name);
-}
-
 const conversation = $derived(configuration?.conversation);
 const overrideCount = $derived(
   conversation
@@ -111,7 +105,7 @@ const enabledTools = $derived(
   configuration ? tools.filter((name) => toolEnabled(name)).length : 0,
 );
 const enabledSkills = $derived(
-  configuration ? skills.filter((skill) => skillEnabled(skill)).length : 0,
+  configuration ? skills.filter((skill) => skill.enabled).length : 0,
 );
 const triggerTitle = $derived(
   loading && !configuration
@@ -138,15 +132,17 @@ const toolRows = $derived<Row[]>(
 
 const skillRows = $derived<Row[]>(
   skills.map((skill) => ({
-    key: `${skill.kind}:${skill.name}`,
+    key: skill.key,
     label: skill.name,
-    enabled: skillEnabled(skill),
-    overridden: conversation?.skills[skill.kind][skill.name] !== undefined,
-    icon: skillKindIcons[skill.kind],
-    detail: `${skillKindLabels[skill.kind]} · ${
-      conversation?.skills[skill.kind][skill.name] !== undefined
+    enabled: skill.enabled,
+    overridden: skill.overridden,
+    icon: skillSourceIcons[skill.source],
+    detail: `${skillSourceItemLabels[skill.source]} · ${
+      skill.overridden
         ? "set for this conversation"
-        : "inherited from project and user settings"
+        : skill.inheritedFrom === "project"
+          ? "inherited from project settings"
+          : "inherited from your settings"
     }`,
     toggle: (enabled: boolean) =>
       onPatch?.({ skills: { [skill.kind]: { [skill.name]: enabled } } }),

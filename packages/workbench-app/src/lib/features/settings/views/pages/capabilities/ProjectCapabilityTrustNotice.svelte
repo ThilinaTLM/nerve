@@ -1,6 +1,5 @@
 <script lang="ts">
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
-import ShieldOff from "@lucide/svelte/icons/shield-off";
 import type { CapabilityTrust } from "@nervekit/contracts/capabilities";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { SettingsInlineMessage } from "$lib/presentation/settings";
@@ -13,6 +12,8 @@ type Props = {
 let { trust, onTrust }: Props = $props();
 </script>
 
+<!-- Only states that need a decision take a full row; a trusted file is
+     represented by the toolbar's revoke action. -->
 {#if trust.status === "untrusted"}
   <SettingsInlineMessage
     tone="warning"
@@ -26,15 +27,4 @@ let { trust, onTrust }: Props = $props();
   </SettingsInlineMessage>
 {:else if trust.status === "invalid"}
   <SettingsInlineMessage tone="destructive" text={trust.reason} />
-{:else if trust.status === "trusted"}
-  <SettingsInlineMessage
-    tone="neutral"
-    text={`Project capability file trusted on this machine on ${new Date(trust.trustedAt).toLocaleDateString()}.`}
-  >
-    {#snippet actions()}
-      <Button size="xs" variant="ghost" onclick={() => onTrust?.(false)}>
-        <ShieldOff class="size-3.5" />Revoke trust
-      </Button>
-    {/snippet}
-  </SettingsInlineMessage>
 {/if}

@@ -136,9 +136,7 @@ export async function loadSettingsSkills(projectId = selection.projectId) {
   try {
     const result = await listAvailableSkills(projectId);
     if (requestId !== skillsRequestId) return;
-    settingsState.agentBrowserSkills = result.agentBrowserSkills;
-    settingsState.globalSkills = result.globalSkills;
-    settingsState.projectSkills = result.projectSkills;
+    settingsState.skills = result.skills;
   } catch (error) {
     if (requestId !== skillsRequestId) return;
     settingsState.skillsError =

@@ -31,6 +31,7 @@ import ContextProgressBadge from "./ContextProgressBadge.svelte";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
+import type { CapabilitySkillRow } from "./capability-skill-row";
 
 type Props = {
   controlsDisabled: boolean;
@@ -68,7 +69,7 @@ type Props = {
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
   capabilityConfiguration?: CapabilityConfiguration;
-  capabilitySkills?: Array<{ name: string; kind: "file" | "agentBrowser" }>;
+  capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
   onCapabilityPatch?: (patch: CapabilityPatch) => void;

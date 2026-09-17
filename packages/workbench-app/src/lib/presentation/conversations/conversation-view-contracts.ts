@@ -3,6 +3,7 @@ import type {
   CapabilityPatch,
 } from "@nervekit/contracts/capabilities";
 import type { CompletionItem } from "@nervekit/contracts/completions";
+import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
 import type {
   ContextUsage,
   ModelInfo,
@@ -94,7 +95,7 @@ export type ConversationComposerModel = {
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   capabilities?: ConversationComposerCapabilities;
   capabilityConfiguration?: CapabilityConfiguration;
-  capabilitySkills?: Array<{ name: string; kind: "file" | "agentBrowser" }>;
+  capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
 };
