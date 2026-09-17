@@ -78,12 +78,16 @@ export async function updatePermissionOverlay(
   conversationId?: string,
 ): Promise<PermissionOverlay> {
   return (
-    await protocolRequest("project.permissionOverlay.update", {
-      projectId,
-      conversationId,
-      origin,
-      overlay,
-    })
+    await protocolRequest(
+      "project.permissionOverlay.update",
+      {
+        projectId,
+        conversationId,
+        origin,
+        overlay,
+      },
+      { idempotencyKey: crypto.randomUUID() },
+    )
   ).result.overlay;
 }
 
@@ -92,10 +96,14 @@ export async function updateProjectPermissionTrust(
   trusted: boolean,
 ): Promise<ProjectPermissionTrust> {
   return (
-    await protocolRequest("project.permissionTrust.update", {
-      projectId,
-      trusted,
-    })
+    await protocolRequest(
+      "project.permissionTrust.update",
+      {
+        projectId,
+        trusted,
+      },
+      { idempotencyKey: crypto.randomUUID() },
+    )
   ).result.trust;
 }
 

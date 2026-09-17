@@ -6,6 +6,7 @@ import {
   type PeerDescriptor,
 } from "@nervekit/contracts/wire";
 import {
+  type OperationDefinitionFor,
   type OperationName,
   type OperationParams,
   type OperationResult,
@@ -41,11 +42,26 @@ export interface ProtocolRequestOptions {
   readonly credentials?: RequestCredentials;
 }
 
+type ProtocolRequestOptionsFor<M extends OperationName> =
+  OperationDefinitionFor<M>["idempotency"] extends "required"
+    ? ProtocolRequestOptions & { readonly idempotencyKey: string }
+    : OperationDefinitionFor<M>["idempotency"] extends "none"
+      ? Omit<ProtocolRequestOptions, "idempotencyKey"> & {
+          readonly idempotencyKey?: never;
+        }
+      : ProtocolRequestOptions;
+
+type ProtocolRequestArguments<M extends OperationName> =
+  OperationDefinitionFor<M>["idempotency"] extends "required"
+    ? [options: ProtocolRequestOptionsFor<M>]
+    : [options?: ProtocolRequestOptionsFor<M>];
+
 export async function protocolRequest<M extends OperationName>(
   method: M,
   params: OperationParams<M>,
-  options: ProtocolRequestOptions = {},
+  ...requestOptions: ProtocolRequestArguments<M>
 ): Promise<{ result: OperationResult<M>; cursor?: SnapshotCursor }> {
+  const options: ProtocolRequestOptions = requestOptions[0] ?? {};
   const source: PeerDescriptor = {
     role: "ui",
     id: options.source?.id ?? protocolClientId(),
