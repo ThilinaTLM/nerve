@@ -13,8 +13,10 @@ import {
   centerTabsExcept,
   centerTabsToLeftOf,
   centerTabsToRightOf,
-  closeCenterTab,
-  closeCenterTabs,
+  requestCloseCenterTab,
+  requestCloseCenterTabs,
+  resolveUnsavedFileClosePrompt,
+  unsavedFileClosePrompt,
   newConversation,
   reorderCenterTab,
   selectCenterTab,
@@ -36,6 +38,8 @@ import {
   type ConversationPaneTab,
 } from "./keep-mounted-conversation-panes";
 import { refreshCenterTab } from "./refresh-center-tab.svelte";
+import * as Dialog from "@nervekit/ui-kit/components/ui/dialog";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import CenterTabScrollLayer from "./CenterTabScrollLayer.svelte";
 import { scheduleCenterTabScrollSnapshotPrune } from "./center-tab-scroll-restoration";
 
@@ -79,7 +83,7 @@ $effect(() => {
 });
 
 function closeOtherCenterTabs(tab: CenterTabIdentity) {
-  void closeCenterTabs(centerTabsExcept(tab), tab);
+  void requestCloseCenterTabs(centerTabsExcept(tab), tab);
 }
 
 // Registered views stay code-split and load only when first activated.
@@ -94,11 +98,11 @@ $effect(() => {
 });
 
 function closeCenterTabsRight(tab: CenterTabIdentity) {
-  void closeCenterTabs(centerTabsToRightOf(tab), tab);
+  void requestCloseCenterTabs(centerTabsToRightOf(tab), tab);
 }
 
 function closeCenterTabsLeft(tab: CenterTabIdentity) {
-  void closeCenterTabs(centerTabsToLeftOf(tab), tab);
+  void requestCloseCenterTabs(centerTabsToLeftOf(tab), tab);
 }
 </script>
 
@@ -108,7 +112,7 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
       tabs={centerTabs}
       homeDir={status?.storage.userHome}
       onSelect={(tab) => void selectCenterTab(tab)}
-      onClose={(tab) => void closeCenterTab(tab)}
+      onClose={(tab) => void requestCloseCenterTab(tab)}
       onRefresh={refreshCenterTab}
       onCloseOther={closeOtherCenterTabs}
       onCloseRight={closeCenterTabsRight}
@@ -204,6 +208,53 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
     </div>
   {/snippet}
 </EditorArea>
+
+<Dialog.Root
+  open={unsavedFileClosePrompt.open}
+  onOpenChange={(open) => {
+    if (!open) resolveUnsavedFileClosePrompt("cancel");
+  }}
+>
+  <Dialog.Content showCloseButton={false}>
+    <Dialog.Header>
+      <Dialog.Title>
+        {unsavedFileClosePrompt.files.length > 1
+          ? "Save changes before closing files?"
+          : "Save changes before closing?"}
+      </Dialog.Title>
+      <Dialog.Description>
+        {unsavedFileClosePrompt.files.length > 1
+          ? `${unsavedFileClosePrompt.files.length} files have unsaved changes.`
+          : `“${unsavedFileClosePrompt.files[0]?.name ?? "This file"}” has unsaved changes.`}
+      </Dialog.Description>
+    </Dialog.Header>
+    {#if unsavedFileClosePrompt.files.length > 1}
+      <ul
+        class="m-0 max-h-40 list-none overflow-y-auto rounded-md border border-border bg-well p-2 font-mono text-xs"
+      >
+        {#each unsavedFileClosePrompt.files as file (file.id)}
+          <li class="truncate px-1 py-0.5" title={file.name}>{file.name}</li>
+        {/each}
+      </ul>
+    {/if}
+    <Dialog.Footer>
+      <Button
+        variant="outline"
+        onclick={() => resolveUnsavedFileClosePrompt("cancel")}>Cancel</Button
+      >
+      <Button
+        variant="destructive"
+        onclick={() => resolveUnsavedFileClosePrompt("discard")}
+        >{unsavedFileClosePrompt.files.length > 1
+          ? "Discard all"
+          : "Discard"}</Button
+      >
+      <Button onclick={() => resolveUnsavedFileClosePrompt("save")}
+        >{unsavedFileClosePrompt.files.length > 1 ? "Save all" : "Save"}</Button
+      >
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>
 
 <style>
 .center-workspace-content {

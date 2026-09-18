@@ -21,6 +21,9 @@ export interface RenameDependencies {
 
 export interface AtomicReplaceOptions extends RenameDependencies {
   readonly mode?: number;
+  readonly prepare?: (
+    resolvedPath: string,
+  ) => Promise<{ mode?: number } | undefined>;
   readonly onFsync?: () => void;
 }
 
@@ -53,12 +56,17 @@ export function atomicReplaceFile(
   options: AtomicReplaceOptions = {},
 ): Promise<void> {
   return withFileMutation(filePath, async (resolvedPath) => {
+    const prepared = await options.prepare?.(resolvedPath);
     await mkdir(path.dirname(resolvedPath), { recursive: true });
     const temporary = temporaryFilePath(resolvedPath);
     let temporaryCreated = false;
     let replacementCompleted = false;
     try {
-      const handle = await open(temporary, "wx", options.mode);
+      const handle = await open(
+        temporary,
+        "wx",
+        prepared?.mode ?? options.mode,
+      );
       temporaryCreated = true;
       try {
         await writeTemporary(handle);

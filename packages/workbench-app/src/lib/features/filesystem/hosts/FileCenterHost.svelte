@@ -2,7 +2,9 @@
 import { FilePane } from "$lib/presentation/files";
 import {
   openFilePane,
+  saveFileView,
   toggleFileLineWrap,
+  updateFileDraft,
 } from "$lib/features/filesystem/state/file-tabs.svelte";
 import {
   fileViewerPreferences,
@@ -33,6 +35,14 @@ function toggleSelectionMatches(): void {
   );
 }
 
+function changeDraft(text: string): void {
+  if (activeCenterFileView) updateFileDraft(activeCenterFileView.id, text);
+}
+
+function save(): void {
+  if (activeCenterFileView) void saveFileView(activeCenterFileView.id);
+}
+
 function openMermaid(block: MermaidMarkdownBlock): void {
   if (!activeCenterFileView) return;
   const content = activeCenterFileView.content;
@@ -53,4 +63,6 @@ function openMermaid(block: MermaidMarkdownBlock): void {
   highlightSelectionMatches={fileViewerPreferences.highlightSelectionMatches}
   onToggleSelectionMatches={toggleSelectionMatches}
   onToggleWrap={toggleLineWrap}
+  onChange={changeDraft}
+  onSave={save}
 />

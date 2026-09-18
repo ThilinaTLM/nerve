@@ -15,6 +15,7 @@ import {
   codeLanguageId,
   loadCodeLanguage,
   localLineNumber,
+  readOnlyCodeExtensions,
 } from "./code-mirror-config";
 
 const newLanguageIds: CodeLanguageId[] = [
@@ -36,6 +37,21 @@ const newLanguageIds: CodeLanguageId[] = [
 ];
 
 describe("CodeMirror viewer helpers", () => {
+  it("configures file content as editable only when requested", () => {
+    const readonly = EditorState.create({
+      extensions: readOnlyCodeExtensions({ ariaLabel: "Readonly" }),
+    });
+    const editable = EditorState.create({
+      extensions: readOnlyCodeExtensions({
+        ariaLabel: "Editable",
+        editable: true,
+      }),
+    });
+
+    assert.equal(readonly.facet(EditorState.readOnly), true);
+    assert.equal(editable.facet(EditorState.readOnly), false);
+  });
+
   it("resolves language ids and file extensions", () => {
     const cases: Array<[value: string, expected: CodeLanguageId | undefined]> =
       [

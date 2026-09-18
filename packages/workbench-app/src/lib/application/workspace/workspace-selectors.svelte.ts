@@ -331,6 +331,7 @@ export const workspaceSelectors = {
         displayMode: view?.displayMode ?? defaultFileDisplayMode(displayPath),
         wrapLines: Boolean(view?.wrapLines),
         renderKind: fileRenderKind(displayPath),
+        dirty: Boolean(view?.dirty),
         active: activeTabMatches("file", id),
         sending: Boolean(view?.loading),
         error: view?.error,

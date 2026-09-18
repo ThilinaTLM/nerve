@@ -106,8 +106,11 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
       tab.kind === "mermaid" ||
       tab.kind === "diff",
     draft:
-      (tab.kind === "conversation" || tab.kind === "pending-conversation") &&
-      tab.hasDraft,
+      tab.kind === "file"
+        ? tab.dirty
+        : (tab.kind === "conversation" ||
+            tab.kind === "pending-conversation") &&
+          tab.hasDraft,
   };
 
   if (tab.kind === "conversation" || tab.kind === "pending-conversation") {
@@ -120,6 +123,7 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
     model.status = { label: statusLabel(tab) };
     model.selectIcon = Terminal;
   } else if (tab.kind === "file") {
+    if (tab.dirty) model.title = `${model.title} — unsaved changes`;
     if (tab.renderKind) {
       model.toggle = {
         label: fileToggleLabel(tab),

@@ -42,10 +42,15 @@ interface PendingConversationWorkspaceView {
 }
 
 interface FileWorkspaceView {
+  readonly id: string;
   readonly projectId: string;
   readonly path: string;
   readonly line?: number;
   readonly content?: FilesystemFileResponse;
+  readonly draft?: string;
+  readonly dirty?: boolean;
+  readonly saving?: boolean;
+  readonly saveError?: string;
   readonly displayMode?: FileDisplayMode;
   readonly wrapLines?: boolean;
   readonly loading: boolean;
@@ -141,6 +146,7 @@ export interface WorkspaceFeaturePorts {
     };
     commands: {
       setOpenFileTabIds(ids: string[]): void;
+      saveFileView(id: string): Promise<boolean>;
       restoreFileView(id: string, view: unknown): void;
       restoreMermaidView(id: string, view: unknown): void;
       discardFileView(id: string): void;

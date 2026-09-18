@@ -1,14 +1,25 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { ApplicationError } from "../../../src/core/application-error.js";
 import {
   createProjectEntry,
   directoryListing,
   fileContent,
+  MAX_EDITABLE_FILE_BYTES,
   normalizeIncomingFilePath,
   projectDirectoryEntries,
+  saveFileContent,
 } from "../../../src/domains/filesystem/filesystem.service.js";
 
 describe("filesystem application service", () => {
@@ -270,5 +281,127 @@ describe("filesystem application service", () => {
     assert.equal(result.type, "text");
     assert.equal(result.text, "hello\nworld");
     assert.equal(result.relativePath, "hello.txt");
+    assert.equal(result.editable, true);
+  });
+
+  it("saves project text files and rejects stale or unsafe writes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-filesystem-save-"));
+    const outside = await mkdtemp(join(tmpdir(), "nerve-filesystem-outside-"));
+    const path = join(root, "hello.txt");
+    try {
+      await writeFile(path, "before", { mode: 0o640 });
+      const loaded = await fileContent(
+        { projectId: "project", path: "hello.txt" },
+        () => root,
+      );
+      assert.ok(loaded.revision);
+      const saved = await saveFileContent(
+        {
+          projectId: "project",
+          path: "hello.txt",
+          text: "after\n",
+          expectedRevision: loaded.revision,
+        },
+        () => root,
+      );
+      assert.equal(await readFile(path, "utf8"), "after\n");
+      assert.equal(saved.text, "after\n");
+      if (process.platform !== "win32") {
+        assert.equal((await stat(path)).mode & 0o777, 0o640);
+      }
+
+      await assert.rejects(
+        saveFileContent(
+          {
+            projectId: "project",
+            path: "hello.txt",
+            text: "stale",
+            expectedRevision: loaded.revision,
+          },
+          () => root,
+        ),
+        (error) =>
+          error instanceof ApplicationError &&
+          error.status === 409 &&
+          error.code === "FILE_REVISION_CONFLICT",
+      );
+      const concurrentBase = await fileContent(
+        { projectId: "project", path: "hello.txt" },
+        () => root,
+      );
+      assert.ok(concurrentBase.revision);
+      const concurrent = await Promise.allSettled([
+        saveFileContent(
+          {
+            projectId: "project",
+            path: "hello.txt",
+            text: "first",
+            expectedRevision: concurrentBase.revision,
+          },
+          () => root,
+        ),
+        saveFileContent(
+          {
+            projectId: "project",
+            path: "hello.txt",
+            text: "second",
+            expectedRevision: concurrentBase.revision,
+          },
+          () => root,
+        ),
+      ]);
+      assert.deepEqual(concurrent.map((result) => result.status).sort(), [
+        "fulfilled",
+        "rejected",
+      ]);
+
+      await writeFile(join(root, "binary.dat"), Buffer.from([0, 1, 2]));
+      const binary = await fileContent(
+        { projectId: "project", path: "binary.dat" },
+        () => root,
+      );
+      assert.equal(binary.editable, false);
+      await assert.rejects(
+        saveFileContent(
+          {
+            projectId: "project",
+            path: "binary.dat",
+            text: "text",
+            expectedRevision: saved.revision!,
+          },
+          () => root,
+        ),
+        /binary|UTF-8/i,
+      );
+      await assert.rejects(
+        saveFileContent(
+          {
+            projectId: "project",
+            path: "hello.txt",
+            text: "é".repeat(MAX_EDITABLE_FILE_BYTES),
+            expectedRevision: saved.revision!,
+          },
+          () => root,
+        ),
+        /edit limit/i,
+      );
+      await assert.rejects(
+        saveFileContent(
+          {
+            projectId: "project",
+            path: join(outside, "escape.txt"),
+            text: "escape",
+            expectedRevision: "0".repeat(64),
+          },
+          () => root,
+        ),
+        /escapes the project/i,
+      );
+    } finally {
+      await Promise.all([
+        rm(root, { recursive: true, force: true }),
+        rm(outside, { recursive: true, force: true }),
+      ]);
+    }
   });
 });

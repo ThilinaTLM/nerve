@@ -11,8 +11,10 @@ export type {
 export {
   openFilePane,
   refreshFilePane,
+  saveFileView,
   toggleFileDisplayMode,
   toggleFileLineWrap,
+  updateFileDraft,
 } from "./state/file-tabs.svelte";
 export {
   openInlineMermaidPane,

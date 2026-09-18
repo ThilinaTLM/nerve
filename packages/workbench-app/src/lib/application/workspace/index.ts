@@ -6,6 +6,14 @@ export {
   closeCenterTabs,
 } from "./center-tab-actions.svelte";
 export {
+  confirmFileTabsAtPath,
+  hasDirtyFileViews,
+  requestCloseCenterTab,
+  requestCloseCenterTabs,
+  resolveUnsavedFileClosePrompt,
+  unsavedFileClosePrompt,
+} from "./center-tab-close-requests.svelte";
+export {
   centerTabKey,
   closeCenterTab,
   reorderCenterTab,

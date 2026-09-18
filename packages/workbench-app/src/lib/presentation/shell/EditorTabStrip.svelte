@@ -424,7 +424,11 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
               >{tab.label}</span
             >
             {#if tab.draft}
-              <span class="draft-dot" title="Draft" aria-label="Draft"></span>
+              <span
+                class="draft-dot"
+                title="Unsaved changes"
+                aria-label="Unsaved changes"
+              ></span>
             {/if}
           </button>
           <button

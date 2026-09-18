@@ -45,7 +45,16 @@ export function normalizeApiPathForFetch(path: string): string {
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type") ?? "";
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) {
+    const body = await response.text();
+    const error = parseApiErrorBody(body);
+    throw new ApiRequestError(
+      response.status,
+      error.code,
+      error.message ??
+        (body || `Request failed with status ${response.status}.`),
+    );
+  }
   if (!contentType.includes("application/json")) {
     const body = await response.text();
     throw new Error(

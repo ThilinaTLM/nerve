@@ -58,6 +58,7 @@ export type FileTabModel = {
   displayMode: FileDisplayMode;
   wrapLines: boolean;
   renderKind?: FileRenderKind;
+  dirty: boolean;
   active: boolean;
   sending: boolean;
   error?: string;
