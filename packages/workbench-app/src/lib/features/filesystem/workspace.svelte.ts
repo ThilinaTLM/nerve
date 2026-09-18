@@ -1,5 +1,6 @@
 import { fileViewKey, mermaidViewKey } from "$lib/domain/navigation/view-keys";
 import { fileState } from "./state/file-state.svelte";
+import { saveFileView } from "./state/file-tabs.svelte";
 
 export const filesystemWorkspaceReadModel = {
   get fileViews() {
@@ -14,6 +15,7 @@ export const filesystemWorkspaceReadModel = {
 };
 
 export const filesystemWorkspaceCommands = {
+  saveFileView,
   setOpenFileTabIds(ids: string[]): void {
     fileState.openFileTabIds = ids;
   },

@@ -2,12 +2,18 @@ import type {
   ClipboardImageUploadResponse,
   FilesystemDirectoryResponse,
   FilesystemFileResponse,
+  FilesystemFileSaveRequest,
   FilesystemProjectEntriesQuery,
   FilesystemProjectEntriesResponse,
   FilesystemProjectEntryCreateRequest,
   FilesystemProjectEntryCreateResponse,
 } from "@nervekit/contracts/filesystem";
-import { apiGet, apiPost, fileToBase64 } from "$lib/platform/http/api-client";
+import {
+  apiGet,
+  apiPost,
+  apiPut,
+  fileToBase64,
+} from "$lib/platform/http/api-client";
 import { protocolRequest } from "@nervekit/protocol/adapters";
 
 export async function uploadClipboardImage(file: File): Promise<string> {
@@ -78,4 +84,10 @@ export async function getFileContent(
   return apiGet<FilesystemFileResponse>(
     `/api/filesystem/file?${params.toString()}`,
   );
+}
+
+export async function saveFileContent(
+  request: FilesystemFileSaveRequest,
+): Promise<FilesystemFileResponse> {
+  return apiPut<FilesystemFileResponse>("/api/filesystem/file", request);
 }

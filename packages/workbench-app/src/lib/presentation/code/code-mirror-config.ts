@@ -448,13 +448,19 @@ export function readOnlyCodeExtensions(input: {
   ariaLabel: string;
   highlightSelectionMatches?: boolean;
   foldMarkerDOM?: (open: boolean) => HTMLElement;
+  editable?: boolean;
 }): Extension[] {
   const lineStart = input.lineStart ?? 1;
   return [
-    EditorState.readOnly.of(true),
-    EditorView.editable.of(false),
+    input.editable
+      ? [
+          history(),
+          keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
+        ]
+      : [EditorState.readOnly.of(true), EditorView.editable.of(false)],
     EditorView.contentAttributes.of({
       "aria-label": input.ariaLabel,
+      ...(input.editable ? { "aria-keyshortcuts": "Control+S Meta+S" } : {}),
       tabindex: "0",
     }),
     lineNumbers({ formatNumber: (line) => String(lineStart + line - 1) }),

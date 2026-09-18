@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
   access,
+  lstat,
   mkdir,
   open,
   readdir,
@@ -27,9 +29,12 @@ import {
   type FilesystemProjectEntry,
   type FilesystemSignal,
   filesystemFileQuerySchema,
+  filesystemFileSaveRequestSchema,
   filesystemProjectEntriesQuerySchema,
   filesystemProjectEntryCreateRequestSchema,
 } from "@nervekit/contracts/filesystem";
+import { ApplicationError } from "../../core/application-error.js";
+import { atomicWriteFile } from "../../infrastructure/storage-bootstrap/file-mutations.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
 
 async function pathExists(path: string): Promise<boolean> {
@@ -398,7 +403,8 @@ export async function projectDirectoryEntries(
   };
 }
 
-const maxTextBytes = 1024 * 1024;
+export const MAX_EDITABLE_FILE_BYTES = 1024 * 1024;
+const maxTextBytes = MAX_EDITABLE_FILE_BYTES;
 const maxImageBytes = 5 * 1024 * 1024;
 const lineWindowBefore = 200;
 const lineWindowAfter = 800;
@@ -511,6 +517,10 @@ function looksTextual(buffer: Buffer): boolean {
   return buffer.toString("utf8").includes("�") === false;
 }
 
+function fileRevision(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
 async function readTextLineWindow(
   path: string,
   targetLine: number,
@@ -550,11 +560,21 @@ export async function fileContent(
   const query = filesystemFileQuerySchema.parse(input);
   const root = resolve(getProjectDirectory(query.projectId));
   const target = resolveProjectFile(root, query.path.trim());
-  const info = await stat(target);
+  const [info, linkInfo, realRoot, realTarget] = await Promise.all([
+    stat(target),
+    lstat(target),
+    realpath(root),
+    realpath(target),
+  ]);
   if (info.isDirectory()) throw new Error(`${target} is a directory.`);
 
+  const insideProject = isInside(root, target);
+  const editable =
+    insideProject &&
+    isInside(realRoot, realTarget) &&
+    !linkInfo.isSymbolicLink();
   const relativePath = (
-    isInside(root, target) ? relative(root, target) : target
+    insideProject ? relative(root, target) : target
   ).replaceAll("\\", "/");
   const ext = extname(target).toLowerCase();
   const imageMimeType = imageMimeByExtension.get(ext);
@@ -572,6 +592,7 @@ export async function fileContent(
         binary: true,
         mimeType: imageMimeType,
         truncated: true,
+        editable: false,
       };
     }
     const chunk = await readFileChunk(target, info.size);
@@ -587,6 +608,7 @@ export async function fileContent(
       dataBase64: chunk.toString("base64"),
       mimeType: imageMimeType,
       truncated: false,
+      editable: false,
     };
   }
 
@@ -594,7 +616,8 @@ export async function fileContent(
   const chunk = await readFileChunk(target, readBytes);
   const truncated = info.size > maxTextBytes;
   const textChunk = truncated ? chunk.subarray(0, maxTextBytes) : chunk;
-  const textual = textExtensions.has(ext) || looksTextual(textChunk);
+  const validTextEncoding = looksTextual(textChunk);
+  const textual = textExtensions.has(ext) || validTextEncoding;
   const lineWindow =
     textual && truncated && query.line
       ? await readTextLineWindow(target, query.line)
@@ -615,5 +638,118 @@ export async function fileContent(
     lineStart: textual ? (lineWindow?.lineStart ?? 1) : undefined,
     targetLine: textual ? query.line : undefined,
     truncated,
+    editable: textual && validTextEncoding && !truncated && editable,
+    revision:
+      textual && validTextEncoding && !truncated
+        ? fileRevision(textChunk)
+        : undefined,
   };
+}
+
+export async function saveFileContent(
+  input: unknown,
+  getProjectDirectory: (projectId: string) => string,
+) {
+  const parsed = filesystemFileSaveRequestSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ApplicationError(
+      400,
+      "INVALID_FILE_SAVE_REQUEST",
+      "The file save request is invalid.",
+    );
+  }
+  const request = parsed.data;
+  if (Buffer.byteLength(request.text, "utf8") > maxTextBytes) {
+    throw new ApplicationError(
+      413,
+      "FILE_TOO_LARGE",
+      `File content exceeds the ${maxTextBytes} byte edit limit.`,
+    );
+  }
+
+  try {
+    const root = await realpath(
+      resolve(getProjectDirectory(request.projectId)),
+    );
+    const target = resolveProjectFile(root, request.path.trim());
+    if (!isInside(root, target)) {
+      throw new ApplicationError(
+        403,
+        "FILE_PATH_OUTSIDE_PROJECT",
+        "File path escapes the project.",
+      );
+    }
+
+    await atomicWriteFile(target, request.text, {
+      prepare: async (resolvedTarget) => {
+        const linkInfo = await lstat(resolvedTarget);
+        if (linkInfo.isSymbolicLink()) {
+          throw new ApplicationError(
+            400,
+            "FILE_NOT_EDITABLE",
+            "Symbolic links cannot be edited.",
+          );
+        }
+        const targetRealPath = await realpath(resolvedTarget);
+        if (!isInside(root, targetRealPath)) {
+          throw new ApplicationError(
+            403,
+            "FILE_PATH_OUTSIDE_PROJECT",
+            "File path escapes the project.",
+          );
+        }
+
+        const info = await stat(targetRealPath);
+        if (!info.isFile()) {
+          throw new ApplicationError(
+            400,
+            "FILE_NOT_EDITABLE",
+            `${targetRealPath} is not a regular file.`,
+          );
+        }
+        if (info.size > maxTextBytes) {
+          throw new ApplicationError(
+            413,
+            "FILE_TOO_LARGE",
+            `File exceeds the ${maxTextBytes} byte edit limit.`,
+          );
+        }
+        const current = await readFileChunk(targetRealPath, info.size);
+        if (!looksTextual(current)) {
+          throw new ApplicationError(
+            400,
+            "FILE_NOT_EDITABLE",
+            "Binary or invalid UTF-8 files cannot be edited.",
+          );
+        }
+        if (fileRevision(current) !== request.expectedRevision) {
+          throw new ApplicationError(
+            409,
+            "FILE_REVISION_CONFLICT",
+            "File changed on disk. Refresh it before saving.",
+          );
+        }
+        return { mode: info.mode };
+      },
+    });
+
+    return fileContent(
+      { projectId: request.projectId, path: target },
+      getProjectDirectory,
+    );
+  } catch (error) {
+    if (error instanceof ApplicationError) throw error;
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code === "ENOENT") {
+      throw new ApplicationError(404, "FILE_NOT_FOUND", "File not found.");
+    }
+    if (code === "EACCES" || code === "EPERM") {
+      throw new ApplicationError(
+        403,
+        "FILE_PERMISSION_DENIED",
+        "The file could not be written because permission was denied.",
+      );
+    }
+    throw error;
+  }
 }

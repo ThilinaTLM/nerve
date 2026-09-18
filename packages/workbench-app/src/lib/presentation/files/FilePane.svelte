@@ -18,6 +18,8 @@ let {
   highlightSelectionMatches = false,
   onToggleSelectionMatches,
   onToggleWrap,
+  onChange,
+  onSave,
 }: {
   view?: FilePaneViewModel;
   onOpenFile?: (path: string, line?: number) => void;
@@ -25,6 +27,8 @@ let {
   highlightSelectionMatches?: boolean;
   onToggleSelectionMatches?: () => void;
   onToggleWrap?: () => void;
+  onChange?: (text: string) => void;
+  onSave?: () => void;
 } = $props();
 
 const resolved = $derived(view ? resolveFilePaneModel(view) : undefined);
@@ -46,7 +50,7 @@ const showMermaidPreview = $derived(
     <div class="flex min-h-0 min-w-0 flex-col">
       <CodeMirrorViewer
         class="min-h-0 flex-1"
-        text={file.text ?? ""}
+        text={view?.draft ?? file.text ?? ""}
         language={resolved.language}
         lineStart={resolved.lineStart}
         targetLine={resolved.targetLine}
@@ -56,23 +60,52 @@ const showMermaidPreview = $derived(
         {highlightSelectionMatches}
         {onToggleSelectionMatches}
         {onToggleWrap}
+        editable={Boolean(file.editable && !file.truncated)}
+        {onChange}
+        {onSave}
       />
-      {#if file.truncated}
+      {#if view?.saveError}
+        <p
+          class="m-0 border-t border-destructive/40 bg-destructive/8 px-4 py-2 text-xs text-destructive"
+        >
+          Save failed: {view.saveError}
+        </p>
+      {:else if view?.saving}
+        <p
+          class="m-0 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground"
+        >
+          Saving…
+        </p>
+      {:else if file.truncated}
         <p
           class="m-0 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground"
         >
           Preview truncated{resolved.targetLine
             ? " around the selected line"
-            : ""}.
+            : ""}. Editing is unavailable.
+        </p>
+      {:else if !file.editable}
+        <p
+          class="m-0 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground"
+        >
+          Read-only: only small, regular text files inside the project can be
+          edited.
         </p>
       {/if}
     </div>
   {:else if showMermaidPreview && file?.type === "text" && resolved}
     <MermaidPane
-      source={file.text ?? ""}
+      source={view?.draft ?? file.text ?? ""}
       truncated={file.truncated}
       ariaLabel={`Mermaid diagram: ${resolved.filePath}`}
     />
+    {#if view?.dirty}
+      <p
+        class="m-0 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground"
+      >
+        Previewing unsaved changes.
+      </p>
+    {/if}
   {:else}
     <ScrollArea class="min-h-0 min-w-0" viewportClass="p-4" orientation="both">
       {#if !view}
@@ -112,7 +145,7 @@ const showMermaidPreview = $derived(
       {:else if file?.type === "text" && resolved?.renderKind === "markdown"}
         <div class="mx-auto max-w-6xl px-1 pb-16 pt-0.5">
           <Markdown
-            text={file.text ?? ""}
+            text={view?.draft ?? file.text ?? ""}
             trimCodeBlocks={false}
             linkBasePath={resolved.linkBasePath}
             sourceLineStart={file.lineStart ?? 1}
@@ -121,7 +154,11 @@ const showMermaidPreview = $derived(
             onCopy={(ok) => notifyCopyResult(ok, "code block")}
           />
         </div>
-        {#if file.truncated}
+        {#if view?.dirty}
+          <p class="mt-4 text-xs text-muted-foreground">
+            Previewing unsaved changes.
+          </p>
+        {:else if file.truncated}
           <p class="mt-4 text-xs text-muted-foreground">
             Preview truncated{resolved.targetLine
               ? " around the selected line"

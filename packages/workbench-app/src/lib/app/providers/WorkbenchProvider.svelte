@@ -49,8 +49,9 @@ import { shouldRevealWorkbench } from "$lib/application/startup/workbench-startu
 import StartupSplash from "$lib/app/shell/StartupSplash.svelte";
 import {
   centerTabsExcept,
-  closeCenterTab,
-  closeCenterTabs,
+  hasDirtyFileViews,
+  requestCloseCenterTab,
+  requestCloseCenterTabs,
   newConversation,
   selectCenterTab,
   workspaceSelectors,
@@ -75,6 +76,7 @@ const activeProject = $derived(workspaceSelectors.activeProject);
 const activeConversation = $derived(conversationSelectors.activeConversation);
 const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
 const centerTabs = $derived(workspaceSelectors.centerTabs);
+const hasDirtyFiles = $derived(hasDirtyFileViews());
 const pendingConversationActive = $derived(
   conversationSelectors.pendingConversationActive,
 );
@@ -106,6 +108,16 @@ const revealWorkbench = $derived(
   shouldRevealWorkbench(workbenchStartupState.phase),
 );
 
+$effect(() => {
+  if (!hasDirtyFiles || typeof window === "undefined") return;
+  const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+    event.preventDefault();
+    event.returnValue = "";
+  };
+  window.addEventListener("beforeunload", warnBeforeUnload);
+  return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+});
+
 function openProjectPicker() {
   workspaceState.projectPickerMode = "recent";
   workspaceState.projectPickerOpen = true;
@@ -124,8 +136,8 @@ const appShortcuts = createAppShortcuts({
   selectCenterTab,
   newConversation,
   openProjectPicker,
-  closeCenterTab,
-  closeCenterTabs,
+  closeCenterTab: requestCloseCenterTab,
+  closeCenterTabs: requestCloseCenterTabs,
   centerTabsExcept,
   refreshCenterTab,
   focusProjectSearch: focusProjectSearchShortcut,

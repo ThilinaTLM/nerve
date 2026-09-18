@@ -63,6 +63,7 @@ import {
   showCriticalError,
 } from "$lib/application/notifications/critical-errors.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
+import { confirmFileTabsAtPath } from "$lib/application/workspace";
 import {
   formatProjectEntryReference,
   PROJECT_ENTRY_DRAG_MIME,
@@ -289,6 +290,15 @@ async function movePendingToTrash(): Promise<void> {
   const bridge = getDesktopBridge();
   if (!entry || !currentProject || !bridge) return;
   try {
+    const descendants = entry.kind === "directory";
+    if (
+      !(await confirmFileTabsAtPath({
+        projectId: currentProject.id,
+        path: entry.path,
+        descendants,
+      }))
+    )
+      return;
     await bridge.files.trashProjectEntry({
       root: currentProject.dir,
       relativePath: entry.path,
@@ -296,7 +306,7 @@ async function movePendingToTrash(): Promise<void> {
     closeFileTabsAtPath({
       projectId: currentProject.id,
       path: entry.path,
-      descendants: entry.kind === "directory",
+      descendants,
     });
     discardFileExplorerPath(currentProject.id, entry.path);
     void fileController?.updateMonitorDemand(

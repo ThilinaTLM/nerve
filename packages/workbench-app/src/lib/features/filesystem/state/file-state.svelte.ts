@@ -8,6 +8,10 @@ export type FileViewState = {
   path: string;
   line?: number;
   content?: FilesystemFileResponse;
+  draft?: string;
+  dirty?: boolean;
+  saving?: boolean;
+  saveError?: string;
   displayMode?: FileDisplayMode;
   wrapLines?: boolean;
   loading: boolean;

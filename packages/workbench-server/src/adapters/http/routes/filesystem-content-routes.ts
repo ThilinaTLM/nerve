@@ -5,6 +5,7 @@ type FilesystemContentRoutesContext =
 import {
   fileContent,
   saveClipboardImage,
+  saveFileContent,
 } from "../../../domains/filesystem/filesystem.service.js";
 import { routeHandler } from "../responses.js";
 
@@ -22,6 +23,17 @@ export function createFilesystemContentRoutes(
             path: c.req.query("path"),
             line: c.req.query("line"),
           },
+          (projectId) => state.projectLifecycle.getProject(projectId).dir,
+        ),
+      ),
+    ),
+  );
+  app.put(
+    "/filesystem/file",
+    routeHandler(async (c) =>
+      c.json(
+        await saveFileContent(
+          await c.req.json(),
           (projectId) => state.projectLifecycle.getProject(projectId).dir,
         ),
       ),

@@ -1,4 +1,4 @@
-import { getFileContent } from "$lib/api";
+import { getFileContent, saveFileContent } from "$lib/api";
 import { fileViewKey, mermaidViewKey } from "$lib/domain/navigation/view-keys";
 import { defaultFileDisplayMode } from "@nervekit/ui-kit/display/file-display";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
@@ -17,6 +17,11 @@ import {
 } from "$lib/application/workspace/center-tabs.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { SvelteSet } from "svelte/reactivity";
+import { ApiRequestError } from "$lib/platform/http/api-client";
+import {
+  isFileDraftDirty,
+  reconcileSavedFileDraft,
+} from "./file-editing-state";
 
 function encodeFileTabId(projectId: string, path: string): string {
   return `${projectId}:${encodeURIComponent(path)}`;
@@ -32,8 +37,13 @@ async function loadFileView(id: string) {
   view.loading = true;
   view.error = undefined;
   try {
-    view.content = await getFileContent(view.projectId, view.path, view.line);
-    view.path = view.content.path;
+    const content = await getFileContent(view.projectId, view.path, view.line);
+    if (view.dirty) return;
+    view.content = content;
+    view.path = content.path;
+    view.draft = content.type === "text" ? (content.text ?? "") : undefined;
+    view.dirty = false;
+    view.saveError = undefined;
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     view.error = message;
@@ -78,7 +88,73 @@ export async function selectCenterFileTab(id: string) {
 }
 
 export async function refreshFilePane(id: string) {
+  const view = fileState.fileViews[fileViewKey(id)];
+  if (view?.dirty) {
+    notify.message("File has unsaved changes", {
+      description: "Save or discard your changes before refreshing.",
+    });
+    return;
+  }
   await loadFileView(id);
+}
+
+export function updateFileDraft(id: string, draft: string): void {
+  const view = fileState.fileViews[fileViewKey(id)];
+  if (!view?.content || view.content.type !== "text") return;
+  view.draft = draft;
+  view.dirty = isFileDraftDirty(draft, view.content.text ?? "");
+  view.saveError = undefined;
+}
+
+export async function saveFileView(id: string): Promise<boolean> {
+  const view = fileState.fileViews[fileViewKey(id)];
+  if (!view?.content || view.content.type !== "text" || !view.dirty)
+    return true;
+  if (
+    view.saving ||
+    !view.content.editable ||
+    !view.content.revision ||
+    view.content.truncated
+  )
+    return false;
+
+  const savedDraft = view.draft ?? "";
+  view.saving = true;
+  view.saveError = undefined;
+  try {
+    const content = await saveFileContent({
+      projectId: view.projectId,
+      path: view.content.relativePath,
+      text: savedDraft,
+      expectedRevision: view.content.revision,
+    });
+    view.content = content;
+    view.path = content.path;
+    const reconciled = reconcileSavedFileDraft({
+      currentDraft: view.draft ?? "",
+      savedDraft,
+      savedText: content.text ?? "",
+    });
+    view.draft = reconciled.draft;
+    view.dirty = reconciled.dirty;
+    return !view.dirty;
+  } catch (caught) {
+    const conflict =
+      caught instanceof ApiRequestError &&
+      caught.code === "FILE_REVISION_CONFLICT";
+    const message = conflict
+      ? "This file changed on disk. Your draft is preserved; refresh after copying or discarding your changes."
+      : caught instanceof Error
+        ? caught.message
+        : String(caught);
+    view.saveError = message;
+    notify.error(conflict ? "File changed on disk" : "Could not save file", {
+      description: message,
+    });
+    return false;
+  } finally {
+    view.saving = false;
+  }
 }
 
 export function toggleFileDisplayMode(id: string) {

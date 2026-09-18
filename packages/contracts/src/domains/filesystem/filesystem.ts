@@ -138,9 +138,24 @@ export const filesystemFileResponseSchema = z.object({
   lineStart: z.number().int().positive().optional(),
   targetLine: z.number().int().positive().optional(),
   truncated: z.boolean(),
+  editable: z.boolean().optional(),
+  revision: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
 });
 export type FilesystemFileResponse = z.infer<
   typeof filesystemFileResponseSchema
+>;
+
+export const filesystemFileSaveRequestSchema = z.object({
+  projectId: z.string().min(1),
+  path: z.string().min(1),
+  text: z.string(),
+  expectedRevision: z.string().regex(/^[a-f0-9]{64}$/),
+});
+export type FilesystemFileSaveRequest = z.infer<
+  typeof filesystemFileSaveRequestSchema
 >;
 
 export const clipboardImageUploadRequestSchema = z.object({

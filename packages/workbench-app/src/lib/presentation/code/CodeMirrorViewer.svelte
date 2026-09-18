@@ -16,6 +16,7 @@ import Copy from "@lucide/svelte/icons/copy";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import ScanText from "@lucide/svelte/icons/scan-text";
 import Search from "@lucide/svelte/icons/search";
+import Save from "@lucide/svelte/icons/save";
 import TextSelect from "@lucide/svelte/icons/text-select";
 import UnfoldVertical from "@lucide/svelte/icons/unfold-vertical";
 import WrapText from "@lucide/svelte/icons/wrap-text";
@@ -53,6 +54,9 @@ type Props = {
   highlightSelectionMatches?: boolean;
   onToggleSelectionMatches?: () => void;
   onToggleWrap?: () => void;
+  editable?: boolean;
+  onChange?: (text: string) => void;
+  onSave?: () => void;
 };
 
 let {
@@ -67,6 +71,9 @@ let {
   highlightSelectionMatches = false,
   onToggleSelectionMatches,
   onToggleWrap,
+  editable = false,
+  onChange,
+  onSave,
 }: Props = $props();
 
 let host: HTMLElement;
@@ -228,6 +235,17 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
   const canUnfold = canUnfoldAt(view.state, contextPosition);
   const canFold = !canUnfold && canFoldAt(view.state, contextPosition);
   return [
+    ...(editable && onSave
+      ? [
+          {
+            label: "Save",
+            icon: Save,
+            shortcut: viewerShortcut("s"),
+            onSelect: onSave,
+          } satisfies ContextMenuItem,
+          { type: "separator" as const },
+        ]
+      : []),
     {
       label: "Copy selection",
       icon: Copy,
@@ -301,15 +319,20 @@ function baseExtensions(): Extension[] {
     ariaLabel,
     highlightSelectionMatches,
     foldMarkerDOM: codeFoldMarker,
+    editable,
   });
 }
 
-function syncView(): void {
+function syncDocument(): void {
   if (!view) return;
   const current = view.state.doc.toString();
   if (current !== text) {
     view.dispatch({ changes: { from: 0, to: current.length, insert: text } });
   }
+}
+
+function syncConfiguration(): void {
+  if (!view) return;
   view.dispatch({
     effects: [
       baseCompartment.reconfigure(baseExtensions()),
@@ -340,6 +363,14 @@ onMount(() => {
       targetCompartment.of([]),
       Prec.highest(
         keymap.of([
+          {
+            key: "Mod-s",
+            run: () => {
+              if (!editable || !onSave) return false;
+              onSave();
+              return true;
+            },
+          },
           {
             key: "Mod-c",
             run: (target) =>
@@ -399,6 +430,7 @@ onMount(() => {
         ]),
       ),
       EditorView.updateListener.of((update) => {
+        if (update.docChanged) onChange?.(update.state.doc.toString());
         if (update.docChanged || update.selectionSet) {
           contextVersion += 1;
           updateFindStatus();
@@ -407,7 +439,8 @@ onMount(() => {
     ],
   });
   view = new EditorView({ state, parent: host });
-  syncView();
+  syncDocument();
+  syncConfiguration();
   void syncLanguage(language);
 
   const localTarget = localLineNumber(targetLine, lineStart, state.doc.lines);
@@ -425,12 +458,17 @@ onMount(() => {
 
 $effect(() => {
   void text;
+  syncDocument();
+});
+
+$effect(() => {
   void lineStart;
   void targetLine;
   void wrap;
   void ariaLabel;
   void highlightSelectionMatches;
-  syncView();
+  void editable;
+  syncConfiguration();
 });
 
 $effect(() => {

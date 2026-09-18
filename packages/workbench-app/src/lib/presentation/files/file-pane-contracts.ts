@@ -12,12 +12,17 @@ export type FilePaneContent = {
   lineStart?: number;
   targetLine?: number;
   truncated?: boolean;
+  editable?: boolean;
 };
 
 export type FilePaneViewModel = {
   path: string;
   line?: number;
   content?: FilePaneContent;
+  draft?: string;
+  dirty?: boolean;
+  saving?: boolean;
+  saveError?: string;
   displayMode?: FileDisplayMode;
   wrapLines?: boolean;
   loading: boolean;
