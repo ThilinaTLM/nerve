@@ -3,22 +3,40 @@ import {
   type WorkbenchEvent,
 } from "$lib/application/events/event-bus";
 
-function changedProjectId(event: WorkbenchEvent): string | undefined {
+export type FileExplorerChange = {
+  generation: number;
+  directories: string[];
+  fullRefreshRequired: boolean;
+};
+
+function projectChange(
+  event: WorkbenchEvent,
+  projectId: string,
+): FileExplorerChange | undefined {
   if (event.type !== "filesystem.project.changed") return undefined;
-  const projectId = event.data?.projectId;
-  const source = event.data?.source;
-  return typeof projectId === "string" &&
-    projectId.startsWith("proj_") &&
-    source === "filesystem"
-    ? projectId
-    : undefined;
+  const data = event.data;
+  if (
+    data?.projectId !== projectId ||
+    typeof data.generation !== "number" ||
+    !Array.isArray(data.directories) ||
+    typeof data.fullRefreshRequired !== "boolean"
+  )
+    return undefined;
+  return {
+    generation: data.generation,
+    directories: data.directories.filter(
+      (path): path is string => typeof path === "string",
+    ),
+    fullRefreshRequired: data.fullRefreshRequired,
+  };
 }
 
 export function registerFileExplorerEventHandler(
   projectId: string,
-  requestRefresh: () => void,
+  requestRefresh: (change: FileExplorerChange) => void,
 ): () => void {
   return onEvent("filesystem.project.changed", (event) => {
-    if (changedProjectId(event) === projectId) requestRefresh();
+    const change = projectChange(event, projectId);
+    if (change) requestRefresh(change);
   });
 }

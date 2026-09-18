@@ -10,6 +10,7 @@ export type FileExplorerDirectoryState = {
   refreshing: boolean;
   error?: string;
   generation: number;
+  stale: boolean;
 };
 
 export type FileExplorerProjectState = {

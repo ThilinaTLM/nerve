@@ -39,10 +39,14 @@ import {
   discardFileExplorerPath,
   ensureFileExplorerRoot,
   loadFileExplorerDirectory,
+  monitoredFileExplorerDirectories,
   refreshFileExplorerProject,
   setFileExplorerItemExpanded,
 } from "$lib/features/filesystem/state/file-explorer-actions.svelte";
-import { startFilePanelController } from "$lib/features/filesystem/state/file-panel-controller.svelte";
+import {
+  startFilePanelController,
+  type FilePanelController,
+} from "$lib/features/filesystem/state/file-panel-controller.svelte";
 import { fileExplorerState } from "$lib/features/filesystem/state/file-explorer-state.svelte";
 import {
   buildFileExplorerTree,
@@ -184,6 +188,9 @@ function openFromMenu(item: FileExplorerEntryItem): void {
       item,
       !project.expandedIds.has(id),
     );
+    void fileController?.updateMonitorDemand(
+      monitoredFileExplorerDirectories(activeProject.id),
+    );
   }
 }
 
@@ -201,9 +208,12 @@ async function refreshGitStatus(projectId: string): Promise<void> {
   }
 }
 
-async function refreshAll(projectId: string): Promise<void> {
+async function refreshAll(
+  projectId: string,
+  directories?: readonly string[],
+): Promise<void> {
   await Promise.all([
-    refreshFileExplorerProject(projectId),
+    refreshFileExplorerProject(projectId, directories),
     refreshGitStatus(projectId),
   ]);
 }
@@ -289,6 +299,9 @@ async function movePendingToTrash(): Promise<void> {
       descendants: entry.kind === "directory",
     });
     discardFileExplorerPath(currentProject.id, entry.path);
+    void fileController?.updateMonitorDemand(
+      monitoredFileExplorerDirectories(currentProject.id),
+    );
     await Promise.all([
       loadFileExplorerDirectory(currentProject.id, parentPath(entry.path), {
         refresh: true,
@@ -374,6 +387,8 @@ function itemMenu(item: FileExplorerTreeItem): ContextMenuItem[] {
   );
 }
 
+let fileController: FilePanelController | undefined;
+
 $effect(() => {
   if (!createOpen) pendingCreate = undefined;
 });
@@ -382,7 +397,7 @@ $effect(() => {
   const projectId = activeProject?.id;
   if (!projectId || !workbenchStartupState.progressiveActive) return;
   gitFiles = [];
-  return startFilePanelController({
+  fileController = startFilePanelController({
     projectId,
     initialize: async () => {
       await Promise.all([
@@ -390,8 +405,12 @@ $effect(() => {
         refreshGitStatus(projectId),
       ]);
     },
-    refresh: () => refreshAll(projectId),
+    refresh: (directories) => refreshAll(projectId, directories),
   });
+  return () => {
+    fileController?.stop();
+    fileController = undefined;
+  };
 });
 </script>
 
@@ -404,7 +423,7 @@ $effect(() => {
         loading={busy}
         disabled={!activeProject || !root || busy}
         onclick={() => {
-          if (activeProject) void refreshAll(activeProject.id);
+          if (activeProject) void fileController?.requestRefresh();
         }}
       />
     {/snippet}

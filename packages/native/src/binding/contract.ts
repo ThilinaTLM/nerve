@@ -8,6 +8,14 @@ import type {
   NativeGitSnapshotResult,
 } from "../git/contracts.js";
 import type {
+  ChangeMonitorOptions,
+  ChangeNotice,
+  DirectoryMonitorScope,
+  GitMonitorScope,
+  MonitorDiagnostics,
+  MonitorScopeState,
+} from "../monitor/contracts.js";
+import type {
   InspectionResult,
   ManagedProcessEnforcement,
   ManagedProcessOutputStats,
@@ -40,6 +48,10 @@ export interface NativeProcessHandle {
   readonly enforcement: ManagedProcessEnforcement[];
   drainOutput(maximumBytes?: number): NativeOutputDrain;
   terminate(signal?: string): TerminationResult;
+}
+
+export interface NativeChangeMonitorHandle {
+  id: number;
 }
 
 export interface NativeBinding {
@@ -83,6 +95,30 @@ export interface NativeBinding {
     target: ManagedTarget,
     signal?: string,
   ): TerminationResult;
+  createChangeMonitor(
+    options: ChangeMonitorOptions | undefined,
+    notice: (error: Error | null, notice: ChangeNotice) => void,
+  ): NativeChangeMonitorHandle;
+  syncChangeMonitorDirectories(
+    handle: NativeChangeMonitorHandle,
+    scope: DirectoryMonitorScope,
+  ): Promise<MonitorScopeState>;
+  syncChangeMonitorGit(
+    handle: NativeChangeMonitorHandle,
+    scope: GitMonitorScope,
+  ): Promise<MonitorScopeState>;
+  requestChangeMonitorRefresh(
+    handle: NativeChangeMonitorHandle,
+    scopeId: string,
+  ): Promise<number>;
+  removeChangeMonitorScope(
+    handle: NativeChangeMonitorHandle,
+    scopeId: string,
+  ): Promise<void>;
+  changeMonitorDiagnostics(
+    handle: NativeChangeMonitorHandle,
+  ): MonitorDiagnostics;
+  closeChangeMonitor(handle: NativeChangeMonitorHandle): Promise<void>;
   configureManagedProcessRuntime(options: { maxActiveProcesses: number }): void;
   spawnManagedProcess(
     command: string,

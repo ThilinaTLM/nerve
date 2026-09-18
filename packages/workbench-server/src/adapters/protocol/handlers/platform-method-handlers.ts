@@ -126,14 +126,31 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
     }),
     "filesystem.directories.list": (_state, params) =>
       directoryListing(params?.path, params?.showHidden as boolean | undefined),
-    "filesystem.project.entries.list": (state, params) => {
-      const project = state.projectLifecycle.getProject(params.projectId);
-      state.projectFilesystemWatcher.watch(project.id, project.dir);
-      return projectDirectoryEntries(
+    "filesystem.project.entries.list": (state, params) =>
+      projectDirectoryEntries(
         params,
         (projectId) => state.projectLifecycle.getProject(projectId).dir,
+      ),
+    "filesystem.project.monitor.sync": async (state, params, invocation) => {
+      const project = state.projectLifecycle.getProject(params.projectId);
+      return state.workspaceMonitor.syncProject(
+        monitorOwner(invocation.monitorOwner),
+        project.id,
+        project.dir,
+        params.directories,
       );
     },
+    "filesystem.project.monitor.clear": async (state, _params, invocation) => {
+      await state.workspaceMonitor.clearProject(
+        monitorOwner(invocation.monitorOwner),
+      );
+      return { active: false, degraded: false, watchedDirectoryCount: 0 };
+    },
+    "filesystem.project.refresh": async (state, params) => ({
+      generation: await state.workspaceMonitor.requestProjectRefresh(
+        params.projectId,
+      ),
+    }),
     "filesystem.project.entries.create": (state, params) =>
       createProjectEntry(
         params,
@@ -141,6 +158,12 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       ),
     "applicationLog.prune": (state, params) => state.logger.prune(params),
   });
+
+function monitorOwner(owner: string | undefined): string {
+  if (!owner)
+    throw new Error("Filesystem monitoring requires a live protocol session");
+  return owner;
+}
 
 function listModels(state: PlatformMethodContext) {
   return listAvailableModels(state.providerCatalog.resolvedModels()).map(

@@ -21,20 +21,39 @@ function change(data: Record<string, unknown>): WorkbenchNotifyEvent {
 afterEach(() => clearEventHandlers());
 
 test("refreshes only for valid changes to the active project and unregisters", () => {
-  let refreshes = 0;
-  const unregister = registerFileExplorerEventHandler("proj_active", () => {
-    refreshes += 1;
-  });
+  const changes: unknown[] = [];
+  const unregister = registerFileExplorerEventHandler(
+    "proj_active",
+    (change) => {
+      changes.push(change);
+    },
+  );
 
-  dispatchEvent(change({ projectId: "proj_other", source: "filesystem" }));
-  dispatchEvent(change({ projectId: "active", source: "filesystem" }));
-  dispatchEvent(change({ projectId: "proj_active", source: "other" }));
-  assert.equal(refreshes, 0);
+  dispatchEvent(change({ projectId: "proj_other", generation: 1 }));
+  dispatchEvent(change({ projectId: "active", generation: 1 }));
+  dispatchEvent(change({ projectId: "proj_active", generation: "1" }));
+  assert.equal(changes.length, 0);
 
-  dispatchEvent(change({ projectId: "proj_active", source: "filesystem" }));
-  assert.equal(refreshes, 1);
+  dispatchEvent(
+    change({
+      projectId: "proj_active",
+      generation: 1,
+      directories: ["src"],
+      fullRefreshRequired: false,
+    }),
+  );
+  assert.deepEqual(changes, [
+    { generation: 1, directories: ["src"], fullRefreshRequired: false },
+  ]);
 
   unregister();
-  dispatchEvent(change({ projectId: "proj_active", source: "filesystem" }));
-  assert.equal(refreshes, 1);
+  dispatchEvent(
+    change({
+      projectId: "proj_active",
+      generation: 2,
+      directories: [],
+      fullRefreshRequired: true,
+    }),
+  );
+  assert.equal(changes.length, 1);
 });

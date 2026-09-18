@@ -5,8 +5,7 @@ import {
 } from "@nervekit/harness/models";
 import { generateSummary } from "@nervekit/harness/compaction";
 import { withGitMutationEvents } from "../../domains/git/git-mutation-publisher.js";
-import { GitRepositoryWatcher } from "../../domains/git/git-repository-watcher.js";
-import { withGitRepositoryWatching } from "../../domains/git/git-repository-watching.js";
+import { WorkspaceMonitor } from "../../domains/monitoring/workspace-monitor.js";
 import { GitService } from "@nervekit/tools/git";
 import {
   AgentLifecycleService,
@@ -24,7 +23,6 @@ import { WorkbenchExploreAdmission } from "../../domains/agents/execution/workbe
 import { WorkbenchSubagentExecutions } from "../../domains/agents/execution/workbench-subagent-executions.js";
 import { CapabilityService } from "../../domains/capabilities/capability.service.js";
 import { FileCompletionService } from "../../domains/completions/index.js";
-import { ProjectFilesystemWatcher } from "../../domains/filesystem/project-filesystem-watcher.js";
 import { ConversationService } from "../../domains/conversations/conversation-service.js";
 import { ConversationHarnessStorage } from "../../domains/conversations/conversation-harness-storage.js";
 import {
@@ -367,12 +365,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
   const projectIcons = new ProjectIconService(getProject);
   const fileCompletions = new FileCompletionService(getProject);
   const filesystemLogger = logger.child({ component: "filesystem" });
-  const projectFilesystemWatcher: ProjectFilesystemWatcher =
-    new ProjectFilesystemWatcher(events, {
-      onWarning: (message, error) => {
-        void filesystemLogger.warn(message, { error });
-      },
-    });
   const conversationLifecycle: ConversationLifecycleService =
     new ConversationLifecycleService(
       storage,
@@ -443,20 +435,15 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     onOverviewCompleted: (observation) =>
       writeGitDiagnostic(gitOverviewDiagnostic(observation)),
   });
-  const gitRepositoryWatcher = new GitRepositoryWatcher(events, {
-    diagnostics: performanceDiagnostics.enabled
-      ? performanceDiagnostics
-      : undefined,
-    onRepositoryMetadataChanged: (repoDir) =>
+  const workspaceMonitor = new WorkspaceMonitor(events, {
+    onRepositoryChanged: (repoDir) =>
       gitService.invalidateStableRepoMetadata(repoDir),
     onWarning: (message, error) => {
       void gitLogger.warn(message, { error });
+      void filesystemLogger.warn(message, { error });
     },
   });
-  const git: GitService = withGitMutationEvents(
-    withGitRepositoryWatching(gitService, gitRepositoryWatcher),
-    events,
-  );
+  const git: GitService = withGitMutationEvents(gitService, events);
   const promptSuggestionTrustRepository = new PromptSuggestionTrustRepository(
     storage,
     queryCache,
@@ -763,8 +750,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     permissionPolicy,
     capabilities,
     git,
-    gitRepositoryWatcher,
-    projectFilesystemWatcher,
+    workspaceMonitor,
     fileCompletions,
     promptSuggestions,
     taskDefinitions,

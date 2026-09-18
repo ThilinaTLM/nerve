@@ -38,6 +38,29 @@ export async function listProjectEntries(
     .result;
 }
 
+export async function syncProjectMonitor(
+  projectId: string,
+  directories: string[],
+) {
+  return (
+    await protocolRequest("filesystem.project.monitor.sync", {
+      projectId,
+      directories,
+    })
+  ).result;
+}
+
+export async function clearProjectMonitor(projectId: string) {
+  return (
+    await protocolRequest("filesystem.project.monitor.clear", { projectId })
+  ).result;
+}
+
+export async function requestProjectRefresh(projectId: string) {
+  return (await protocolRequest("filesystem.project.refresh", { projectId }))
+    .result;
+}
+
 export async function createProjectEntry(
   request: FilesystemProjectEntryCreateRequest,
 ): Promise<FilesystemProjectEntryCreateResponse> {

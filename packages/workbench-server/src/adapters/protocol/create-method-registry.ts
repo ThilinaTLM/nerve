@@ -4,6 +4,7 @@ import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-ad
 import {
   bindWorkbenchMethodHandlerGroup,
   combineWorkbenchMethodHandlerGroups,
+  type WorkbenchInvocationContext,
 } from "./method-handler-registry.js";
 import { agentMethodHandlers } from "./handlers/agent-method-handlers.js";
 import { conversationMethodHandlers } from "./handlers/conversation-method-handlers.js";
@@ -22,42 +23,50 @@ export const WORKBENCH_OPERATION_METHODS = allOperationDefinitions()
 export function bindWorkbenchOperationHandlers(
   contexts: ServerAdapterContexts["protocol"],
   diagnostics: ServerAdapterContexts["protocolAdapter"]["performanceDiagnostics"],
+  invocation: WorkbenchInvocationContext = {},
 ): Partial<OperationHandlerRegistry> {
   return combineWorkbenchMethodHandlerGroups([
     bindWorkbenchMethodHandlerGroup(
       platformMethodHandlers,
       contexts.platform,
       diagnostics,
+      invocation,
     ),
     bindWorkbenchMethodHandlerGroup(
       interactionMethodHandlers,
       contexts.interactions,
       diagnostics,
+      invocation,
     ),
     bindWorkbenchMethodHandlerGroup(
       conversationMethodHandlers,
       contexts.conversations,
       diagnostics,
+      invocation,
     ),
     bindWorkbenchMethodHandlerGroup(
       agentMethodHandlers,
       contexts.agents,
       diagnostics,
+      invocation,
     ),
     bindWorkbenchMethodHandlerGroup(
       projectMethodHandlers,
       contexts.projects,
       diagnostics,
+      invocation,
     ),
     bindWorkbenchMethodHandlerGroup(
       taskMethodHandlers,
       contexts.tasks,
       diagnostics,
+      invocation,
     ),
     bindWorkbenchMethodHandlerGroup(
       gitMethodHandlers,
       contexts.git,
       diagnostics,
+      invocation,
     ),
   ]).handlers;
 }

@@ -8,9 +8,14 @@ import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js
 
 type MaybePromise<T> = T | Promise<T>;
 
+export type WorkbenchInvocationContext = {
+  readonly monitorOwner?: string;
+};
+
 type WorkbenchMethodHandler<M extends OperationName, Context extends object> = (
   state: Context,
   params: OperationParams<M>,
+  invocation: WorkbenchInvocationContext,
 ) => MaybePromise<unknown>;
 
 export type WorkbenchMethodHandlerMapFor<Context extends object> = {
@@ -27,6 +32,7 @@ export function bindWorkbenchMethodHandlerGroup<Context extends object>(
   handlers: WorkbenchMethodHandlerMapFor<Context>,
   context: Context,
   diagnostics: PerformanceDiagnosticsPort,
+  invocation: WorkbenchInvocationContext = {},
 ): Partial<OperationHandlerRegistry> {
   return Object.fromEntries(
     Object.entries(handlers).map(([method, handler]) => [
@@ -37,10 +43,11 @@ export function bindWorkbenchMethodHandlerGroup<Context extends object>(
           OperationName,
           Context
         >;
-        if (!diagnostics.enabled) return invoke(context, params as never);
+        if (!diagnostics.enabled)
+          return invoke(context, params as never, invocation);
         const startedAt = performance.now();
         try {
-          return await invoke(context, params as never);
+          return await invoke(context, params as never, invocation);
         } catch (error) {
           diagnostics.count("rpc.error", 1, operation);
           throw error;

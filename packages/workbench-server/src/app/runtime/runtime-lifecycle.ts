@@ -168,8 +168,7 @@ export class RuntimeLifecycle {
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
     this.services.lifecycleDispatcher.stopPolling();
-    this.services.gitRepositoryWatcher.close();
-    this.services.projectFilesystemWatcher.close();
+    await this.services.workspaceMonitor.close();
     await this.services.tasks.shutdown();
     this.services.taskNotifications.stop();
     await Promise.allSettled([...this.backgroundOperations]);

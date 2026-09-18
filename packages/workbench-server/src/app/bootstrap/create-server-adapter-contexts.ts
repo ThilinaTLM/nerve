@@ -74,7 +74,7 @@ export function createServerAdapterContexts(
       storageUsage: infrastructure.storageUsage,
       subscriptionUsage: infrastructure.subscriptionUsage,
       fileCompletions: services.fileCompletions,
-      projectFilesystemWatcher: services.projectFilesystemWatcher,
+      workspaceMonitor: services.workspaceMonitor,
       pythonRuntime: services.pythonRuntime,
     },
     interactions: {
@@ -115,7 +115,7 @@ export function createServerAdapterContexts(
       taskDefinitionOperations: services.taskDefinitionOperations,
       tasks: services.tasks,
     },
-    git: { git: services.git },
+    git: { git: services.git, workspaceMonitor: services.workspaceMonitor },
   };
   const protocolAdapter = {
     daemonId: infrastructure.daemonId,

@@ -19,7 +19,7 @@ export type FileExplorerRefreshScheduler = {
 
 export function startFileExplorerRefreshScheduler(options: {
   refresh: () => void | Promise<void>;
-  intervalMs?: number;
+  intervalMs?: number | false;
   minimumRefreshIntervalMs?: number;
   now?: () => number;
   window?: RefreshWindow;
@@ -73,10 +73,10 @@ export function startFileExplorerRefreshScheduler(options: {
     drain();
   };
 
-  const interval = targetWindow.setInterval(
-    requestRefresh,
-    options.intervalMs ?? 20_000,
-  );
+  const interval =
+    options.intervalMs === false
+      ? undefined
+      : targetWindow.setInterval(requestRefresh, options.intervalMs ?? 20_000);
   targetWindow.addEventListener("focus", requestRefresh);
   targetDocument.addEventListener("visibilitychange", requestRefresh);
 
@@ -84,7 +84,7 @@ export function startFileExplorerRefreshScheduler(options: {
     if (stopped) return;
     stopped = true;
     refreshPending = false;
-    targetWindow.clearInterval(interval);
+    if (interval !== undefined) targetWindow.clearInterval(interval);
     if (pendingTimer !== undefined) targetWindow.clearTimeout(pendingTimer);
     pendingTimer = undefined;
     targetWindow.removeEventListener("focus", requestRefresh);
