@@ -7,7 +7,11 @@ import type {
   ToolName,
 } from "@nervekit/contracts/tools";
 import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
-import { TERMINAL_STATUSES, type RunCoordinator } from "../runtime/index.js";
+import {
+  RunConflictError,
+  TERMINAL_STATUSES,
+  type RunCoordinator,
+} from "../runtime/index.js";
 import { ApplicationError } from "../../../core/application-error.js";
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
 import type { ExploreReport } from "../../agents/execution/subagent-runner.js";
@@ -175,6 +179,43 @@ export class WorkbenchRunService {
   async continueAgent(agentId: string): Promise<void> {
     const state = await this.requireCurrentRun(agentId);
     await this.coordinator.scheduleContinuation(state.run.runId);
+  }
+
+  /**
+   * Runs harness input that was appended outside a live execution. Terminal
+   * runs are immutable, so an idle agent receives a fresh continuation run.
+   */
+  async wakeAgentFromHarness(agentId: string): Promise<void> {
+    const agent = this.requireAgent(agentId);
+    this.state.maintenanceScopes.assertConversation(agent.conversationId);
+    this.state.maintenanceScopes.assertProject(agent.projectId);
+    const scopeId = this.scopeId(agent);
+    const active = await this.unitOfWork.findActive(scopeId);
+    if (active) {
+      if (
+        active.run.status === "suspended" ||
+        active.run.status === "interrupted"
+      ) {
+        await this.coordinator.scheduleContinuation(active.run.runId);
+      }
+      return;
+    }
+    try {
+      await this.coordinator.startContinuation({
+        conversationId: agent.conversationId,
+        agentId: agent.id,
+        projectId: agent.projectId,
+        scopeId,
+      });
+    } catch (error) {
+      if (
+        error instanceof RunConflictError &&
+        (await this.unitOfWork.findActive(scopeId))
+      ) {
+        return;
+      }
+      throw error;
+    }
   }
 
   async continueRun(agentId: string, runId: string): Promise<void> {

@@ -1313,6 +1313,56 @@ test("resolves an interaction once and rejects conflicting resolution", async ()
   );
 });
 
+test("starts a fresh durable run from persisted harness input without a prompt", async () => {
+  const harness = fixture({
+    durableContinuation: true,
+    execute: async () => ({ status: "completed" }),
+  });
+  const run = await harness.coordinator.startContinuation({
+    conversationId: "conv_a",
+    agentId: "agent_a",
+    projectId: "proj_a",
+    scopeId: "conv_a:agent_a",
+  });
+
+  const work = harness.unitOfWork.lifecycleWork[0];
+  assert.equal(run.status, "running");
+  assert.equal(work?.modelRequest?.command, "continue");
+  assert.equal(work?.modelRequest && "prompt" in work.modelRequest, false);
+  assert.deepEqual(harness.executionInputs, []);
+
+  assert.ok(work);
+  await harness.coordinator.executeModelWork(work);
+  assert.equal(harness.executionInputs[0]?.command, "continue");
+  assert.equal(harness.executionInputs[0]?.prompt, undefined);
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "completed",
+  );
+});
+
+test("admits only one fresh continuation run per scope", async () => {
+  const harness = fixture({ durableContinuation: true });
+  const command = {
+    conversationId: "conv_a",
+    agentId: "agent_a",
+    projectId: "proj_a",
+    scopeId: "conv_a:agent_a",
+  };
+  const results = await Promise.allSettled([
+    harness.coordinator.startContinuation(command),
+    harness.coordinator.startContinuation(command),
+  ]);
+
+  assert.equal(results.filter((item) => item.status === "fulfilled").length, 1);
+  assert.ok(
+    results.some(
+      (item) =>
+        item.status === "rejected" && item.reason instanceof RunConflictError,
+    ),
+  );
+});
+
 test("atomically queues durable model continuation when input resolves", async () => {
   const harness = fixture({ durableContinuation: true });
   const run = await start(harness.coordinator);

@@ -27,6 +27,42 @@ function state(input: {
   };
 }
 
+test("starts a fresh continuation run when harness input wakes an idle agent", async () => {
+  const starts: unknown[] = [];
+  const agent = {
+    id: "agent_test",
+    conversationId: "conv_test",
+    projectId: "proj_test",
+  };
+  const service = new WorkbenchRunService(
+    {
+      agents: new Map([[agent.id, agent]]),
+      maintenanceScopes: {
+        assertConversation: () => undefined,
+        assertProject: () => undefined,
+      },
+    } as never,
+    {
+      startContinuation: async (command: unknown) => {
+        starts.push(command);
+      },
+    } as never,
+    { findActive: async () => undefined } as never,
+    {} as never,
+  );
+
+  await service.wakeAgentFromHarness(agent.id);
+
+  assert.deepEqual(starts, [
+    {
+      conversationId: agent.conversationId,
+      agentId: agent.id,
+      projectId: agent.projectId,
+      scopeId: `${agent.conversationId}:${agent.id}`,
+    },
+  ]);
+});
+
 test("pending approval recovery candidates are active and conversation scoped", async () => {
   const wanted = state({
     runId: "wanted",

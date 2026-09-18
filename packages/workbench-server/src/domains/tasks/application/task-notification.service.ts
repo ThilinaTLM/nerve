@@ -53,6 +53,8 @@ const TERMINAL_TASK_EVENTS = new Map<string, HarnessTaskEvent>([
 export class TaskNotificationService {
   private unsubscribe?: () => void;
   private readonly delivering = new Set<string>();
+  private readonly completionWakes = new Set<string>();
+  private readonly liveDeliveryEntryIds = new Set<string>();
   private readonly readyTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(private readonly deps: TaskNotificationServiceDeps) {}
@@ -68,6 +70,8 @@ export class TaskNotificationService {
     this.unsubscribe = undefined;
     for (const timer of this.readyTimers.values()) clearTimeout(timer);
     this.readyTimers.clear();
+    this.completionWakes.clear();
+    this.liveDeliveryEntryIds.clear();
   }
 
   private async handleEvent(event: EventEnvelope): Promise<void> {
@@ -168,6 +172,21 @@ export class TaskNotificationService {
           }),
         );
       }
+      const refreshed = this.deps.tasks.getTask(task.id);
+      if (
+        terminalEvent &&
+        refreshed.completion?.inject === true &&
+        !refreshed.completion.injectedAt &&
+        refreshed.notifications?.terminalDeliveredAt
+      ) {
+        await this.maybeContinueAwaitedTask(refreshed, terminalEvent).catch(
+          (error) =>
+            this.deps.logger?.warn("Task completion wake recovery failed", {
+              taskId: task.id,
+              error,
+            }),
+        );
+      }
     }
   }
 
@@ -256,6 +275,7 @@ export class TaskNotificationService {
         : undefined;
       if (activeRun?.enqueueHarnessMessage) {
         try {
+          this.liveDeliveryEntryIds.add(entryId);
           await activeRun.enqueueHarnessMessage({
             id: entryId,
             message,
@@ -268,6 +288,7 @@ export class TaskNotificationService {
           });
           return;
         } catch (error) {
+          this.liveDeliveryEntryIds.delete(entryId);
           await this.deps.logger?.warn(
             "Active run rejected task notification; appending directly",
             {
@@ -288,24 +309,62 @@ export class TaskNotificationService {
   }
 
   private async maybeContinueAwaitedTask(
-    task: TaskRecord,
+    taskSnapshot: TaskRecord,
     event: HarnessTaskEvent,
   ): Promise<void> {
     if (slotForEvent(event) !== "terminal") return;
-    if (task.completion?.inject !== true) return;
-    if (!task.agentId) return;
+    const task = this.deps.tasks.getTask(taskSnapshot.id);
+    if (
+      task.completion?.inject !== true ||
+      task.completion.injectedAt ||
+      this.completionWakes.has(task.id)
+    )
+      return;
+    if (!task.agentId || !task.conversationId) return;
     const activeRunId = await this.activeRunId(task);
     if (activeRunId) return;
     const continueAgent = this.deps.continueAgent;
     if (!continueAgent) return;
-    await continueAgent(task.agentId).catch((error) =>
-      this.deps.logger?.warn("Awaited task continuation failed", {
-        taskId: task.id,
-        agentId: task.agentId,
-        conversationId: task.conversationId,
-        error,
-      }),
+    const entryId =
+      task.notifications?.terminalEntryId ?? task.completion.entryId;
+    if (!entryId) {
+      throw new Error(`Awaited task ${task.id} has no terminal entry ID.`);
+    }
+
+    this.completionWakes.add(task.id);
+    try {
+      if (await this.hasAssistantDescendant(task, entryId)) {
+        await this.deps.tasks.markCompletionInjected(task.id, entryId);
+        return;
+      }
+      await continueAgent(task.agentId);
+      await this.deps.tasks.markCompletionInjected(task.id, entryId);
+    } finally {
+      this.completionWakes.delete(task.id);
+    }
+  }
+
+  private async hasAssistantDescendant(
+    task: TaskRecord,
+    entryId: string,
+  ): Promise<boolean> {
+    const entries = await this.deps.getConversationEntries(
+      task.conversationId as string,
     );
+    const byId = new Map(entries.map((entry) => [entry.id, entry]));
+    return entries.some((entry) => {
+      if (entry.role !== "assistant" || entry.agentId !== task.agentId) {
+        return false;
+      }
+      const visited = new Set<string>();
+      let parentId = entry.parentEntryId;
+      while (parentId && !visited.has(parentId)) {
+        if (parentId === entryId) return true;
+        visited.add(parentId);
+        parentId = byId.get(parentId)?.parentEntryId;
+      }
+      return false;
+    });
   }
 
   private async activeRunId(task: TaskRecord): Promise<string | undefined> {
@@ -492,6 +551,19 @@ export class TaskNotificationService {
       entry.id,
       entry.createdAt,
     );
+    if (
+      slotForEvent(event) === "terminal" &&
+      this.liveDeliveryEntryIds.delete(entry.id)
+    ) {
+      const task = this.deps.tasks.getTask(taskId);
+      if (task.completion?.inject === true && !task.completion.injectedAt) {
+        await this.deps.tasks.markCompletionInjected(
+          taskId,
+          entry.id,
+          entry.createdAt,
+        );
+      }
+    }
   }
 
   private async findExistingTaskEventEntry(

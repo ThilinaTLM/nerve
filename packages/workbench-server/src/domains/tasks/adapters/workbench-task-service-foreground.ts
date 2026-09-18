@@ -203,7 +203,7 @@ export async function runForegroundBashWithPromotion(
     "Recent output:",
     recentOutput || "(no captured log lines yet)",
     "",
-    "A terminal status and output update will arrive automatically. Do not poll.",
+    "A terminal status and output update will arrive automatically and restart you. Do not wait or poll; continue independent work or finish the turn.",
     `Use task_status({ tasks: ["${promoted.id}"] }) or task_logs({ task: "${promoted.id}" }) only for on-demand diagnostics.`,
     `Use task_control({ task: "${promoted.id}", action: "stop" }) to stop it explicitly.`,
   ].join("\n");

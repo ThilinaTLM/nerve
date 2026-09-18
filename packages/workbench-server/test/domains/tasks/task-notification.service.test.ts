@@ -53,6 +53,14 @@ class FakeTasks {
     return { events: [], nextCursor: 0 };
   }
 
+  async markCompletionInjected(
+    _taskId: string,
+    entryId: string,
+    injectedAt = new Date().toISOString(),
+  ): Promise<void> {
+    this.patchCompletion({ entryId, injectedAt });
+  }
+
   async markNotificationPending(
     _taskId: string,
     slot: "ready" | "terminal",
@@ -78,6 +86,20 @@ class FakeTasks {
         ? { readyEntryId: entryId, readyDeliveredAt: deliveredAt }
         : { terminalEntryId: entryId, terminalDeliveredAt: deliveredAt },
     );
+  }
+
+  private patchCompletion(
+    patch: Partial<NonNullable<TaskRecord["completion"]>>,
+  ): void {
+    this.record = {
+      ...this.record,
+      completion: {
+        inject: false,
+        outputTailLineCount: 80,
+        ...this.record.completion,
+        ...patch,
+      },
+    };
   }
 
   private patchNotification(
@@ -107,10 +129,19 @@ describe("TaskNotificationService awaited task continuation", () => {
     context.service.start();
 
     await context.events.publish("task.completed", { task: context.task });
-    await waitFor(() => context.continuedAgentIds.length === 1);
+    await waitFor(
+      () =>
+        context.continuedAgentIds.length === 1 &&
+        Boolean(context.tasks.getTask(context.task.id).completion?.injectedAt),
+    );
 
     assert.deepEqual(context.continuedAgentIds, [context.agent.id]);
     assert.equal(context.entries.length, 1);
+    assert.equal(
+      context.tasks.getTask(context.task.id).completion?.entryId,
+      context.entries[0]?.id,
+    );
+    assert.ok(context.tasks.getTask(context.task.id).completion?.injectedAt);
     assert.equal(context.entries[0]?.kind, "task_event");
     assert.equal(
       context.tasks.delivered.some((row) => row.slot === "terminal"),
@@ -119,7 +150,108 @@ describe("TaskNotificationService awaited task continuation", () => {
     context.service.stop();
   });
 
-  it("does not continue detached task_start tasks after terminal notifications", async () => {
+  it("retries a delivered completion wake until scheduling succeeds", async () => {
+    let attempts = 0;
+    const context = createNotificationContext({
+      task: taskRecord({
+        completion: { inject: true, outputTailLineCount: 80 },
+      }),
+      continueAgent: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("scheduler unavailable");
+      },
+    });
+    context.service.start();
+
+    await context.events.publish("task.completed", { task: context.task });
+    await waitFor(() => context.entries.length === 1 && attempts === 1);
+    assert.equal(
+      context.tasks.getTask(context.task.id).completion?.injectedAt,
+      undefined,
+    );
+
+    await context.service.recoverPendingNotifications();
+
+    assert.equal(attempts, 2);
+    assert.ok(context.tasks.getTask(context.task.id).completion?.injectedAt);
+    assert.equal(context.entries.length, 1);
+    context.service.stop();
+  });
+
+  it("does not wake again when an assistant response already consumed the task event", async () => {
+    const taskEvent = {
+      id: "entry_existing_notification",
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      runId: "run_test",
+      role: "system",
+      kind: "task_event",
+      text: "Background task completed.",
+      details: {
+        type: "task_event",
+        taskId: "task_test",
+        event: "completed",
+      },
+      createdAt: "2026-01-02T03:04:06.000Z",
+    } satisfies ConversationEntry;
+    const response = {
+      id: "entry_existing_response",
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      runId: "run_test",
+      parentEntryId: taskEvent.id,
+      role: "assistant",
+      kind: "message",
+      text: "Handled the completed task.",
+      createdAt: "2026-01-02T03:04:07.000Z",
+    } satisfies ConversationEntry;
+    const context = createNotificationContext({
+      task: taskRecord({
+        completion: { inject: true, outputTailLineCount: 80 },
+      }),
+      existingEntries: [taskEvent, response],
+    });
+    context.service.start();
+
+    await context.events.publish("task.completed", { task: context.task });
+    await waitFor(() =>
+      Boolean(context.tasks.getTask(context.task.id).completion?.injectedAt),
+    );
+
+    assert.deepEqual(context.continuedAgentIds, []);
+    assert.equal(
+      context.tasks.getTask(context.task.id).completion?.entryId,
+      taskEvent.id,
+    );
+    context.service.stop();
+  });
+
+  it("coalesces completion wake recovery while scheduling is in flight", async () => {
+    let releaseWake!: () => void;
+    const wakeGate = new Promise<void>((resolve) => {
+      releaseWake = resolve;
+    });
+    const context = createNotificationContext({
+      task: taskRecord({
+        completion: { inject: true, outputTailLineCount: 80 },
+      }),
+      continueAgent: () => wakeGate,
+    });
+    context.service.start();
+
+    await context.events.publish("task.completed", { task: context.task });
+    await waitFor(() => context.continuedAgentIds.length === 1);
+    await context.service.recoverPendingNotifications();
+
+    assert.equal(context.continuedAgentIds.length, 1);
+    releaseWake();
+    await waitFor(() =>
+      Boolean(context.tasks.getTask(context.task.id).completion?.injectedAt),
+    );
+    context.service.stop();
+  });
+
+  it("does not continue background tasks that did not subscribe for completion", async () => {
     const context = createNotificationContext({ task: taskRecord() });
     context.service.start();
 
@@ -246,6 +378,7 @@ function createNotificationContext(options: {
     enqueueHarnessMessage(input: { message: AgentMessage }): Promise<void>;
   };
   agent?: AgentRecord;
+  continueAgent?: (agentId: string) => Promise<void>;
 }) {
   const events = new TestEvents();
   const task = options.task;
@@ -304,6 +437,7 @@ function createNotificationContext(options: {
     getConversationEntries: () => entries,
     continueAgent: async (agentId) => {
       continuedAgentIds.push(agentId);
+      await options.continueAgent?.(agentId);
     },
   };
   return {

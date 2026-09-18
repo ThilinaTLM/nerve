@@ -644,7 +644,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       getAgent,
       getConversationEntries: (conversationId) =>
         conversationLifecycle.ensureConversationEntries(conversationId),
-      continueAgent: (agentId) => workbenchRun.continueAgent(agentId),
+      continueAgent: (agentId) => workbenchRun.wakeAgentFromHarness(agentId),
       logger: logger.child({ component: "task-notification" }),
     });
   taskNotifications.start();

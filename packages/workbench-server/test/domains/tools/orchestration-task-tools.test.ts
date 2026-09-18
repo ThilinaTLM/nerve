@@ -58,6 +58,10 @@ describe("orchestration task tools", () => {
     assert.equal(startInput?.readyPattern, "ready");
     assert.equal(startInput?.readyTimeoutMs, 1_500);
     assert.equal(startInput?.notify, true);
+    assert.deepEqual(startInput?.completion, {
+      inject: true,
+      outputTailLineCount: 80,
+    });
     await assert.rejects(
       dispatcher.execute(toolCall("task_start"), {
         command: "pnpm dev",
