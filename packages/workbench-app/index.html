@@ -3,36 +3,57 @@
   <head>
     <meta charset="UTF-8" />
     <script>
+      // Consumes the desktop shell hand-off parameters before anything paints:
+      // the saved zoom level, and how far the shell already played the startup
+      // intro so this document resumes that timeline instead of restarting it.
       (() => {
-        const parameter = "nerveInitialZoomLevel";
         const url = new URL(window.location.href);
-        const rawLevel = url.searchParams.get(parameter);
-        if (rawLevel === null) return;
-        url.searchParams.delete(parameter);
+        const consume = (parameter) => {
+          const value = url.searchParams.get(parameter);
+          if (value !== null) url.searchParams.delete(parameter);
+          return value;
+        };
+        const rawLevel = consume("nerveInitialZoomLevel");
+        const rawElapsed = consume("nerveSplashElapsedMs");
+        if (rawLevel === null && rawElapsed === null) return;
         window.history.replaceState(
           {},
           "",
           `${url.pathname}${url.search}${url.hash}`,
         );
+
         const parsedLevel = Number(rawLevel);
-        if (!Number.isInteger(parsedLevel)) return;
-        const level = Math.min(8, Math.max(-8, parsedLevel));
-        const scale = 1.1 ** level;
-        document.documentElement.style.setProperty(
-          "--nerve-zoom-scale",
-          scale.toFixed(4),
-        );
-        document.documentElement.style.setProperty(
-          "--nerve-inverse-zoom-scale",
-          (1 / scale).toFixed(4),
-        );
-        try {
-          window.sessionStorage.setItem(
-            "nerve.initialZoomLevel",
-            String(level),
+        if (rawLevel !== null && Number.isInteger(parsedLevel)) {
+          const level = Math.min(8, Math.max(-8, parsedLevel));
+          const scale = 1.1 ** level;
+          document.documentElement.style.setProperty(
+            "--nerve-zoom-scale",
+            scale.toFixed(4),
           );
-        } catch {
-          // The CSS variable is already applied; storage is only for app state.
+          document.documentElement.style.setProperty(
+            "--nerve-inverse-zoom-scale",
+            (1 / scale).toFixed(4),
+          );
+          try {
+            window.sessionStorage.setItem(
+              "nerve.initialZoomLevel",
+              String(level),
+            );
+          } catch {
+            // The CSS variable is already applied; storage is only for app state.
+          }
+        }
+
+        const parsedElapsed = Number(rawElapsed);
+        if (rawElapsed !== null && Number.isFinite(parsedElapsed)) {
+          const elapsed = Math.min(
+            10000,
+            Math.max(0, Math.round(parsedElapsed)),
+          );
+          document.documentElement.style.setProperty(
+            "--splash-t0",
+            `-${elapsed}ms`,
+          );
         }
       })();
     </script>
@@ -66,74 +87,79 @@
       content="black-translucent"
     />
     <meta name="apple-mobile-web-app-title" content="Nerve" />
-    <!-- Pre-stylesheet startup bridge: the Svelte splash replaces this node
-         immediately after mount, before critical workspace hydration. -->
+    <!-- Pre-stylesheet startup splash. The block between the
+         `startup-splash` markers (styles and markup) mirrors
+         packages/desktop-shell/src/window/startup-splash-document.ts verbatim so
+         the Electron shell page and this document render identical pixels;
+         scripts/lib/startup-splash-sync.test.mjs fails on any drift. Only the
+         --splash-* declarations below are host-specific. -->
     <style>
       :root {
         color-scheme: light dark;
-        --startup-background: oklch(0.979 0.012 92);
-        --startup-foreground: oklch(0.3438 0.0269 95.7);
-        --startup-primary: oklch(0.57 0.1375 39);
-        --startup-muted: oklch(0.5341 0.0078 97.5);
-        --startup-border: oklch(0.872 0.017 95);
+        --splash-bg: oklch(0.979 0.012 92);
+        --splash-fg: oklch(0.3438 0.0269 95.7);
+        --splash-primary: oklch(0.57 0.1375 39);
+        --splash-muted: oklch(0.5341 0.0078 97.5);
+        --splash-border: oklch(0.872 0.017 95);
+        --splash-font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --startup-background: oklch(0.264 0.018 80);
-          --startup-foreground: oklch(0.9 0.012 95);
-          --startup-primary: oklch(0.6724 0.1308 38.8);
-          --startup-muted: oklch(0.7713 0.017 99);
-          --startup-border: oklch(0.353 0.022 82);
+          --splash-bg: oklch(0.264 0.018 80);
+          --splash-fg: oklch(0.9 0.012 95);
+          --splash-primary: oklch(0.6724 0.1308 38.8);
+          --splash-muted: oklch(0.7713 0.017 99);
+          --splash-border: oklch(0.353 0.022 82);
         }
       }
       /* Each theme now diverges enough that sharing one splash palette would
          flash the wrong background before the stylesheet loads. */
       :root[data-theme="rose"] {
-        --startup-background: oklch(0.955 0.02 340);
-        --startup-foreground: oklch(0.42 0.055 300);
-        --startup-primary: oklch(0.52 0.115 305);
-        --startup-muted: oklch(0.545 0.05 300);
-        --startup-border: oklch(0.845 0.026 340);
+        --splash-bg: oklch(0.955 0.02 340);
+        --splash-fg: oklch(0.42 0.055 300);
+        --splash-primary: oklch(0.52 0.115 305);
+        --splash-muted: oklch(0.545 0.05 300);
+        --splash-border: oklch(0.845 0.026 340);
       }
       @media (prefers-color-scheme: dark) {
         :root[data-theme="rose"] {
-          --startup-background: oklch(0.239 0.035 300);
-          --startup-foreground: oklch(0.9 0.03 295);
-          --startup-primary: oklch(0.76 0.11 305);
-          --startup-muted: oklch(0.745 0.03 295);
-          --startup-border: oklch(0.355 0.045 300);
+          --splash-bg: oklch(0.239 0.035 300);
+          --splash-fg: oklch(0.9 0.03 295);
+          --splash-primary: oklch(0.76 0.11 305);
+          --splash-muted: oklch(0.745 0.03 295);
+          --splash-border: oklch(0.355 0.045 300);
         }
       }
       :root[data-theme="solar"] {
-        --startup-background: oklch(0.952 0.02 190);
-        --startup-foreground: oklch(0.4 0.03 200);
-        --startup-primary: oklch(0.5 0.13 248);
-        --startup-muted: oklch(0.525 0.03 200);
-        --startup-border: oklch(0.835 0.028 190);
+        --splash-bg: oklch(0.952 0.02 190);
+        --splash-fg: oklch(0.4 0.03 200);
+        --splash-primary: oklch(0.5 0.13 248);
+        --splash-muted: oklch(0.525 0.03 200);
+        --splash-border: oklch(0.835 0.028 190);
       }
       @media (prefers-color-scheme: dark) {
         :root[data-theme="solar"] {
-          --startup-background: oklch(0.269 0.045 205);
-          --startup-foreground: oklch(0.865 0.025 200);
-          --startup-primary: oklch(0.72 0.12 245);
-          --startup-muted: oklch(0.705 0.03 200);
-          --startup-border: oklch(0.395 0.05 205);
+          --splash-bg: oklch(0.269 0.045 205);
+          --splash-fg: oklch(0.865 0.025 200);
+          --splash-primary: oklch(0.72 0.12 245);
+          --splash-muted: oklch(0.705 0.03 200);
+          --splash-border: oklch(0.395 0.05 205);
         }
       }
       :root[data-theme="midnight"] {
-        --startup-background: oklch(0.995 0.001 265);
-        --startup-foreground: oklch(0.175 0.008 265);
-        --startup-primary: oklch(0.52 0.163 40);
-        --startup-muted: oklch(0.42 0.012 265);
-        --startup-border: oklch(0.78 0.006 265);
+        --splash-bg: oklch(0.995 0.001 265);
+        --splash-fg: oklch(0.175 0.008 265);
+        --splash-primary: oklch(0.52 0.163 40);
+        --splash-muted: oklch(0.42 0.012 265);
+        --splash-border: oklch(0.78 0.006 265);
       }
       @media (prefers-color-scheme: dark) {
         :root[data-theme="midnight"] {
-          --startup-background: oklch(0.145 0.005 265);
-          --startup-foreground: oklch(0.972 0.003 265);
-          --startup-primary: oklch(0.78 0.145 62);
-          --startup-muted: oklch(0.79 0.01 265);
-          --startup-border: oklch(0.36 0.012 265);
+          --splash-bg: oklch(0.145 0.005 265);
+          --splash-fg: oklch(0.972 0.003 265);
+          --splash-primary: oklch(0.78 0.145 62);
+          --splash-muted: oklch(0.79 0.01 265);
+          --splash-border: oklch(0.36 0.012 265);
         }
       }
       html,
@@ -142,120 +168,288 @@
         width: 100%;
         height: 100%;
         margin: 0;
-        background: var(--startup-background);
-        color: var(--startup-foreground);
+        background: var(--splash-bg);
+        color: var(--splash-fg);
       }
-      #startup-bootstrap,
-      #startup-bootstrap * {
+
+      /* startup-splash:begin */
+      #startup-splash,
+      #startup-splash *,
+      #startup-splash *::before {
         box-sizing: border-box;
       }
-      #startup-bootstrap {
+      #startup-splash {
         position: fixed;
         inset: 0;
+        z-index: 50;
         display: grid;
         place-items: center;
-        background: var(--startup-background);
-        color: var(--startup-foreground);
-        font-family: "Outfit", ui-sans-serif, system-ui, sans-serif;
+        background: var(--splash-bg);
+        color: var(--splash-fg);
+        font-family: var(--splash-font-sans);
+        transition:
+          opacity 280ms ease,
+          transform 280ms ease,
+          filter 280ms ease;
       }
-      #startup-bootstrap-content {
-        display: grid;
-        width: 100%;
-        max-width: 32rem;
-        justify-items: center;
-        padding: 1.5rem;
-        text-align: center;
+      #startup-splash.is-dismissed {
+        opacity: 0;
+        transform: scale(1.03);
+        filter: blur(4px);
+        pointer-events: none;
+      }
+      #startup-splash-content {
         transform: scale(var(--nerve-inverse-zoom-scale, 1));
         transform-origin: center;
       }
-      #startup-bootstrap-badge {
+      #startup-splash-stage {
         display: grid;
+        justify-items: center;
+        padding: 1.5rem;
+        text-align: center;
+        animation: splash-push 2400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-delay: var(--splash-t0, 0ms);
+      }
+      #startup-splash-plate {
+        position: relative;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
         width: 3rem;
         height: 3rem;
-        place-items: center;
         border-radius: 0.625rem;
-        background: var(--startup-foreground);
-        color: var(--startup-background);
-        animation: startup-bootstrap-breathe 2.4s ease-in-out infinite;
+        color: var(--splash-bg);
       }
-      #startup-bootstrap-badge svg {
+      #startup-splash-plate::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: var(--splash-fg);
+        animation: splash-plate 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-delay: calc(var(--splash-t0, 0ms) + 900ms);
+      }
+      #startup-splash-mark {
+        position: relative;
+        z-index: 1;
         width: 62.5%;
         height: 62.5%;
+        color: var(--splash-bg);
+        animation: splash-ink 420ms ease-out both;
+        animation-delay: calc(var(--splash-t0, 0ms) + 1050ms);
       }
-      #startup-bootstrap-progress {
-        width: 100%;
-        max-width: 24rem;
-        margin-top: 1.5rem;
+      #startup-splash-mark path {
+        stroke-dasharray: 100;
+        stroke-dashoffset: 0;
+        animation: splash-draw 860ms cubic-bezier(0.65, 0, 0.35, 1) both;
       }
-      #startup-bootstrap-status {
-        margin: 0 0 0.5rem;
-        color: var(--startup-muted);
+      #startup-splash-mark .splash-stem-left {
+        animation-delay: calc(var(--splash-t0, 0ms) + 60ms);
+      }
+      #startup-splash-mark .splash-stem-right {
+        animation-delay: calc(var(--splash-t0, 0ms) + 140ms);
+      }
+      #startup-splash-mark .splash-diagonal {
+        animation-duration: 900ms;
+        animation-delay: calc(var(--splash-t0, 0ms) + 240ms);
+      }
+      #startup-splash-sheen {
+        position: absolute;
+        z-index: 2;
+        top: -60%;
+        bottom: -60%;
+        left: -40%;
+        width: 34%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          color-mix(in oklab, var(--splash-bg) 65%, transparent),
+          transparent
+        );
+        transform: rotate(18deg) translateX(460%);
+        animation: splash-sheen 700ms cubic-bezier(0.4, 0, 0.2, 1) both;
+        animation-delay: calc(var(--splash-t0, 0ms) + 1350ms);
+      }
+      #startup-splash-word {
+        margin-top: 0.875rem;
+        font-size: 1.0625rem;
+        font-weight: 600;
+        line-height: 1;
+        letter-spacing: -0.01em;
+      }
+      #startup-splash-word span {
+        display: inline-block;
+        animation: splash-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+      #startup-splash-word span:nth-child(1) {
+        animation-delay: calc(var(--splash-t0, 0ms) + 1150ms);
+      }
+      #startup-splash-word span:nth-child(2) {
+        animation-delay: calc(var(--splash-t0, 0ms) + 1195ms);
+      }
+      #startup-splash-word span:nth-child(3) {
+        animation-delay: calc(var(--splash-t0, 0ms) + 1240ms);
+      }
+      #startup-splash-word span:nth-child(4) {
+        animation-delay: calc(var(--splash-t0, 0ms) + 1285ms);
+      }
+      #startup-splash-word span:nth-child(5) {
+        animation-delay: calc(var(--splash-t0, 0ms) + 1330ms);
+      }
+      #startup-splash-status {
+        width: 16rem;
+        margin: 1.25rem 0 0;
+        overflow: hidden;
+        color: var(--splash-muted);
         font-size: 0.875rem;
         line-height: 1.25rem;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        animation: splash-fade 420ms ease-out both;
+        animation-delay: calc(var(--splash-t0, 0ms) + 300ms);
       }
-      #startup-bootstrap-track {
-        width: 100%;
-        max-width: 16rem;
+      #startup-splash-meter {
+        width: 16rem;
         height: 0.25rem;
-        margin-inline: auto;
+        margin-top: 0.5rem;
         overflow: hidden;
         border-radius: 999px;
-        background: var(--startup-border);
+        background: var(--splash-border);
+        animation: splash-fade 420ms ease-out both;
+        animation-delay: calc(var(--splash-t0, 0ms) + 300ms);
       }
-      #startup-bootstrap-fill {
+      #startup-splash-fill {
         display: block;
         width: 100%;
         height: 100%;
         border-radius: inherit;
-        background: var(--startup-primary);
+        background: var(--splash-primary);
+        transform: scaleX(0.92);
+        transform-origin: left center;
+        transition: transform 180ms ease-out;
+        animation: splash-meter 2600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation-delay: calc(var(--splash-t0, 0ms) + 300ms);
       }
-      @keyframes startup-bootstrap-breathe {
-        0%,
-        100% {
-          opacity: 1;
+      #startup-splash.is-complete #startup-splash-fill {
+        transform: scaleX(1);
+        animation: none;
+      }
+      @keyframes splash-push {
+        from {
+          transform: scale(1.035);
         }
-        50% {
-          opacity: 0.72;
+      }
+      @keyframes splash-plate {
+        from {
+          opacity: 0;
+          clip-path: inset(0 0 100% 0 round 0.625rem);
         }
+      }
+      @keyframes splash-draw {
+        from {
+          stroke-dashoffset: 100;
+        }
+      }
+      @keyframes splash-ink {
+        from {
+          color: var(--splash-fg);
+        }
+      }
+      @keyframes splash-sheen {
+        from {
+          transform: rotate(18deg) translateX(-260%);
+        }
+      }
+      @keyframes splash-rise {
+        from {
+          opacity: 0;
+          transform: translateY(0.5rem);
+        }
+      }
+      @keyframes splash-fade {
+        from {
+          opacity: 0;
+        }
+      }
+      @keyframes splash-meter {
+        from {
+          transform: scaleX(0.04);
+        }
+      }
+      /* The settled composition is the base state, so suppressing the intro is enough
+   for reduced motion and for the desktop hand-off after the shell already
+   played it. */
+      :root[data-splash-intro="settled"] #startup-splash *,
+      :root[data-splash-intro="settled"] #startup-splash *::before {
+        animation: none !important;
       }
       @media (prefers-reduced-motion: reduce) {
-        #startup-bootstrap-badge {
-          animation: none;
+        #startup-splash {
+          transition-duration: 1ms;
+        }
+        #startup-splash *,
+        #startup-splash *::before {
+          animation: none !important;
         }
       }
+      /* startup-splash:end */
     </style>
     <title>nerve</title>
   </head>
   <body>
     <div id="app">
-      <main id="startup-bootstrap" aria-busy="true" aria-label="Starting Nerve">
-        <div id="startup-bootstrap-content">
-          <span id="startup-bootstrap-badge" aria-hidden="true">
-            <svg viewBox="120 120 272 272" fill="none">
-              <g
-                stroke="currentColor"
-                stroke-width="32"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+      <!-- startup-splash:begin -->
+      <div id="startup-splash" aria-busy="true" aria-label="Starting Nerve">
+        <div id="startup-splash-content">
+          <div id="startup-splash-stage">
+            <div id="startup-splash-plate" aria-hidden="true">
+              <svg
+                id="startup-splash-mark"
+                viewBox="120 120 272 272"
+                fill="none"
+                focusable="false"
               >
-                <path d="M150 350V162" />
-                <path d="M362 350V162" />
-                <path d="M150 162L232 235L258 208L284 288L362 350" />
-              </g>
-            </svg>
-          </span>
-          <div id="startup-bootstrap-progress">
-            <p id="startup-bootstrap-status" role="status">Opening Nerve</p>
+                <g
+                  stroke="currentColor"
+                  stroke-width="32"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    class="splash-stem-left"
+                    pathLength="100"
+                    d="M150 350V162"
+                  />
+                  <path
+                    class="splash-stem-right"
+                    pathLength="100"
+                    d="M362 350V162"
+                  />
+                  <path
+                    class="splash-diagonal"
+                    pathLength="100"
+                    d="M150 162L232 235L258 208L284 288L362 350"
+                  />
+                </g>
+              </svg>
+              <span id="startup-splash-sheen"></span>
+            </div>
+            <div id="startup-splash-word" aria-hidden="true">
+              <span>n</span><span>e</span><span>r</span><span>v</span
+              ><span>e</span>
+            </div>
+            <p id="startup-splash-status" aria-live="polite">Opening Nerve</p>
             <div
-              id="startup-bootstrap-track"
+              id="startup-splash-meter"
               role="progressbar"
               aria-label="Starting Nerve"
             >
-              <span id="startup-bootstrap-fill"></span>
+              <span id="startup-splash-fill"></span>
             </div>
           </div>
         </div>
-      </main>
+      </div>
+      <!-- startup-splash:end -->
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -31,6 +31,7 @@ import {
   ShellPageUrlRegistry,
 } from "../window/loading-pages.js";
 import { withInitialZoomLevel } from "../window/initial-zoom.js";
+import { withSplashElapsed } from "../window/splash-handoff.js";
 
 export interface DesktopRuntimeOptions {
   desktopOptions: DesktopCliOptions;
@@ -347,10 +348,13 @@ export class DesktopRuntime {
 
       const startupStartedAt = ports.now();
       let initialZoomLevel: number | undefined;
+      let splashShownAt: number | undefined;
       try {
         const result = await runStartupSequence({
-          showLoadingWindow: () =>
-            window.loadURL(runtime.#shellPageUrls.create(loadingHtml())),
+          showLoadingWindow: () => {
+            splashShownAt = ports.now();
+            return window.loadURL(runtime.#shellPageUrls.create(loadingHtml()));
+          },
           connectDaemon: async () => {
             if (!runtime.#managedDaemon) {
               const startup = await startRunRuntime(() =>
@@ -396,8 +400,14 @@ export class DesktopRuntime {
           reportProgress: (phase) => updateStartupProgress(window, phase),
           canNavigate: () => !window.isDestroyed(),
           navigate: async (daemon) => {
+            const zoomedUrl = withInitialZoomLevel(
+              daemon.url,
+              initialZoomLevel,
+            );
             await window.loadURL(
-              withInitialZoomLevel(daemon.url, initialZoomLevel),
+              splashShownAt === undefined
+                ? zoomedUrl
+                : withSplashElapsed(zoomedUrl, ports.now() - splashShownAt),
             );
             runtime.#shellPageUrls.clear();
           },
@@ -544,7 +554,10 @@ export class DesktopRuntime {
         if (status === "restarting") {
           await window.loadURL(
             runtime.#shellPageUrls.create(
-              loadingHtml("Reconnecting to Nerve daemon…"),
+              loadingHtml({
+                status: "Reconnecting to Nerve daemon…",
+                playIntro: false,
+              }),
             ),
           );
         } else if (status === "ready" && runtime.#managedDaemon) {

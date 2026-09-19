@@ -1,3 +1,7 @@
+import {
+  STARTUP_SPLASH_STYLES,
+  startupSplashMarkup,
+} from "./startup-splash-document.js";
 import { escapeHtml } from "./html.js";
 
 export class ShellPageUrlRegistry {
@@ -36,9 +40,16 @@ const LOADING_STAGES: Record<LoadingStage, string> = {
   opening: "Opening Nerve",
 };
 
-export function loadingHtml(statusText = LOADING_STAGES.starting): string {
+export interface LoadingPageOptions {
+  status?: string;
+  /** Mid-session pages (reconnect) skip the intro instead of replaying it. */
+  playIntro?: boolean;
+}
+
+export function loadingHtml(options: LoadingPageOptions = {}): string {
+  const { status = LOADING_STAGES.starting, playIntro = true } = options;
   return `<!doctype html>
-<html lang="en">
+<html lang="en"${playIntro ? "" : ` data-splash-intro="settled"`}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -47,40 +58,7 @@ export function loadingHtml(statusText = LOADING_STAGES.starting): string {
     <style>${shellStyles()}</style>
   </head>
   <body>
-    <main class="loading" aria-busy="true" aria-label="Starting Nerve">
-      <div class="loading-mark-badge" aria-hidden="true">
-        <svg
-          class="loading-mark"
-          viewBox="120 120 272 272"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          focusable="false"
-        >
-          <g
-            stroke="currentColor"
-            stroke-width="32"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M150 350V162" />
-            <path d="M362 350V162" />
-            <path d="M150 162L232 235L258 208L284 288L362 350" />
-          </g>
-        </svg>
-      </div>
-      <div class="loading-progress">
-        <p id="loading-status" class="status" role="status" aria-live="polite">${escapeHtml(statusText)}</p>
-        <div
-          id="loading-progressbar"
-          class="loading-progressbar"
-          role="progressbar"
-          aria-label="Starting Nerve"
-        >
-          <span id="loading-progress-fill" class="loading-progress-fill"></span>
-        </div>
-      </div>
-    </main>
-    <script>${loadingProgressScript()}</script>
+${startupSplashMarkup(status)}
   </body>
 </html>`;
 }
@@ -88,7 +66,7 @@ export function loadingHtml(statusText = LOADING_STAGES.starting): string {
 export function loadingStatusScript(statusText: string): string {
   const serialized = JSON.stringify(statusText);
   return `(() => {
-    const status = document.getElementById("loading-status");
+    const status = document.getElementById("startup-splash-status");
     if (!status) return false;
     status.textContent = ${serialized};
     return true;
@@ -97,47 +75,16 @@ export function loadingStatusScript(statusText: string): string {
 
 export function loadingStageScript(stage: LoadingStage): string {
   const statusText = JSON.stringify(LOADING_STAGES[stage]);
-  const shouldComplete = stage === "opening";
+  const completion =
+    stage === "opening"
+      ? `\n    document.getElementById("startup-splash")?.classList.add("is-complete");`
+      : "";
 
   return `(() => {
-    const status = document.getElementById("loading-status");
+    const status = document.getElementById("startup-splash-status");
     if (!status) return false;
-    status.textContent = ${statusText};
-    if (${shouldComplete}) window.nerveLoadingProgress?.complete();
+    status.textContent = ${statusText};${completion}
     return true;
-  })()`;
-}
-
-function loadingProgressScript(): string {
-  return `(() => {
-    const fill = document.getElementById("loading-progress-fill");
-    if (!fill) return;
-
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const startedAt = performance.now();
-    let frame;
-
-    window.nerveLoadingProgress = {
-      complete() {
-        if (frame) cancelAnimationFrame(frame);
-        fill.style.transition = reducedMotion ? "none" : "width 160ms ease-out";
-        fill.style.width = "100%";
-      },
-    };
-
-    if (reducedMotion) {
-      fill.style.width = "8%";
-      return;
-    }
-
-    const advance = (now) => {
-      const elapsed = now - startedAt;
-      const progress = Math.min(94, 94 * (1 - Math.exp(-elapsed / 450)));
-      fill.style.width = progress + "%";
-      frame = requestAnimationFrame(advance);
-    };
-
-    frame = requestAnimationFrame(advance);
   })()`;
 }
 
@@ -182,6 +129,12 @@ function shellStyles(): string {
       --text-xs: 0.8125rem;
       --text-sm: 0.9375rem;
       --text-xl: 1.25rem;
+      --splash-bg: var(--background);
+      --splash-fg: var(--foreground);
+      --splash-primary: var(--primary);
+      --splash-muted: var(--muted-foreground);
+      --splash-border: var(--border);
+      --splash-font-sans: var(--font-sans);
       font-family: var(--font-sans);
       text-rendering: optimizeLegibility;
       font-kerning: normal;
@@ -214,30 +167,6 @@ function shellStyles(): string {
       padding: 1.5rem;
       text-align: center;
     }
-    .loading {
-      gap: 0;
-    }
-    .loading-mark-badge {
-      display: grid;
-      width: 3rem;
-      height: 3rem;
-      place-items: center;
-      border-radius: var(--radius-lg);
-      background: var(--foreground);
-      color: var(--background);
-      animation: loading-breathe 2.4s ease-in-out infinite;
-    }
-    .loading-mark {
-      /* 62.5% of the badge, matching the titlebar brand mark proportions.
-         No optical nudge: the mark's ink is already centered in its viewBox. */
-      width: 1.875rem;
-      height: 1.875rem;
-    }
-    @keyframes loading-breathe {
-      0%,
-      100% { opacity: 1; }
-      50% { opacity: 0.72; }
-    }
     .error-title {
       margin: 0;
       color: var(--foreground);
@@ -251,32 +180,6 @@ function shellStyles(): string {
       color: var(--muted-foreground);
       font-size: var(--text-sm);
       line-height: 1.625;
-    }
-    .loading-progress {
-      width: min(24rem, 100%);
-      margin-top: 1.5rem;
-    }
-    .loading .status {
-      margin-bottom: 0.5rem;
-      overflow: hidden;
-      text-align: center;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .loading-progressbar {
-      width: min(16rem, 100%);
-      margin-inline: auto;
-      height: 0.25rem;
-      overflow: hidden;
-      border-radius: 999px;
-      background: var(--border);
-    }
-    .loading-progress-fill {
-      display: block;
-      width: 0;
-      height: 100%;
-      border-radius: inherit;
-      background: var(--primary);
     }
     .error {
       gap: 1rem;
@@ -299,9 +202,6 @@ function shellStyles(): string {
       font-size: var(--text-xs);
       line-height: 1.5;
     }
-    @media (prefers-reduced-motion: reduce) {
-      .loading-progress-fill { transition: none; }
-      .loading-mark-badge { animation: none; }
-    }
+    ${STARTUP_SPLASH_STYLES}
   `;
 }
