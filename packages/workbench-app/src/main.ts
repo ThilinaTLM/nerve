@@ -20,10 +20,10 @@ if (!target) throw new Error("Missing #app mount target.");
 
 registerPwaServiceWorker();
 
-const startupBootstrap = document.getElementById("startup-bootstrap");
+// The #startup-splash node from index.html stays mounted until the workbench
+// reveals itself (see WorkbenchProvider), so the intro animation never restarts.
 const app = mount(Root, {
   target,
 });
-startupBootstrap?.remove();
 
 export default app;

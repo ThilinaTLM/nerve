@@ -46,7 +46,7 @@ import {
 } from "$lib/application/startup/workbench-client.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { shouldRevealWorkbench } from "$lib/application/startup/workbench-startup-machine";
-import StartupSplash from "$lib/app/shell/StartupSplash.svelte";
+import { dismissStartupSplash } from "$lib/app/shell/startup-splash";
 import {
   centerTabsExcept,
   hasDirtyFileViews,
@@ -107,6 +107,12 @@ const currentZoomLevel = $derived(
 const revealWorkbench = $derived(
   shouldRevealWorkbench(workbenchStartupState.phase),
 );
+
+// index.html owns the splash for the whole boot, so the workbench paints behind
+// it and only fades it out here; remounting it would restart the intro.
+$effect(() => {
+  if (revealWorkbench) dismissStartupSplash();
+});
 
 $effect(() => {
   if (!hasDirtyFiles || typeof window === "undefined") return;
@@ -246,6 +252,4 @@ onMount(() => {
 
 {#if revealWorkbench}
   {@render children?.()}
-{:else}
-  <StartupSplash />
 {/if}
