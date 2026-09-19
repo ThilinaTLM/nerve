@@ -30,10 +30,11 @@ export const capabilityOverridesDocumentSchema = z
     skills: z
       .object({
         file: skillOverridesSchema.default({}),
+        nerve: skillOverridesSchema.default({}),
         agentBrowser: skillOverridesSchema.default({}),
       })
       .strict()
-      .default({ file: {}, agentBrowser: {} }),
+      .default({ file: {}, nerve: {}, agentBrowser: {} }),
   })
   .strict();
 export type CapabilityOverridesDocument = z.infer<
@@ -43,7 +44,7 @@ export type CapabilityOverridesDocument = z.infer<
 export const emptyCapabilityOverrides = (): CapabilityOverridesDocument => ({
   schemaVersion: 1,
   tools: {},
-  skills: { file: {}, agentBrowser: {} },
+  skills: { file: {}, nerve: {}, agentBrowser: {} },
 });
 
 export const capabilityOriginSchema = z.enum(["project", "conversation"]);
@@ -57,6 +58,7 @@ export const capabilityPatchSchema = z
     skills: z
       .object({
         file: z.record(skillNameSchema, z.boolean().nullable()).optional(),
+        nerve: z.record(skillNameSchema, z.boolean().nullable()).optional(),
         agentBrowser: z
           .record(skillNameSchema, z.boolean().nullable())
           .optional(),
@@ -89,6 +91,7 @@ export type CapabilityTrust = z.infer<typeof capabilityTrustSchema>;
 export const capabilitySelectionSchema = z.object({
   disabledTools: z.array(capabilityToolNameSchema),
   disabledFileSkills: z.array(skillNameSchema),
+  enabledNerveSkills: z.array(skillNameSchema),
   enabledAgentBrowserSkills: z.array(skillNameSchema),
 });
 export type CapabilitySelection = z.infer<typeof capabilitySelectionSchema>;
@@ -116,7 +119,7 @@ export function applyCapabilityPatch(
     if (value === null) delete next.tools[name as keyof typeof next.tools];
     else next.tools[name as keyof typeof next.tools] = value;
   }
-  for (const kind of ["file", "agentBrowser"] as const) {
+  for (const kind of ["file", "nerve", "agentBrowser"] as const) {
     for (const [name, value] of Object.entries(patch.skills?.[kind] ?? {})) {
       if (value === null) delete next.skills[kind][name];
       else next.skills[kind][name] = value;
@@ -132,6 +135,7 @@ export function resolveCapabilitySelection(input: {
 }): CapabilitySelection {
   const disabledTools = new Set(input.user.disabledTools);
   const disabledFileSkills = new Set(input.user.disabledFileSkills);
+  const enabledNerveSkills = new Set(input.user.enabledNerveSkills);
   const enabledAgentBrowserSkills = new Set(
     input.user.enabledAgentBrowserSkills,
   );
@@ -145,6 +149,10 @@ export function resolveCapabilitySelection(input: {
       if (enabled) disabledFileSkills.delete(name);
       else disabledFileSkills.add(name);
     }
+    for (const [name, enabled] of Object.entries(document.skills.nerve)) {
+      if (enabled) enabledNerveSkills.add(name);
+      else enabledNerveSkills.delete(name);
+    }
     for (const [name, enabled] of Object.entries(
       document.skills.agentBrowser,
     )) {
@@ -155,6 +163,7 @@ export function resolveCapabilitySelection(input: {
   return capabilitySelectionSchema.parse({
     disabledTools: [...disabledTools],
     disabledFileSkills: [...disabledFileSkills],
+    enabledNerveSkills: [...enabledNerveSkills],
     enabledAgentBrowserSkills: [...enabledAgentBrowserSkills],
   });
 }

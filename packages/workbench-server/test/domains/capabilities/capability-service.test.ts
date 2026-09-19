@@ -41,6 +41,7 @@ async function fixture() {
       tools: { ...defaultSettings.tools, disabled: ["python_exec"] },
       skills: {
         disabled: ["release"],
+        nerve: { enabled: ["skill-creator"] },
         agentBrowser: { enabled: ["core"] },
       },
     },
@@ -64,7 +65,11 @@ test("untrusted project overrides are visible but inactive until trusted", async
     JSON.stringify({
       schemaVersion: 1,
       tools: { python_exec: true },
-      skills: { file: { release: true }, agentBrowser: { core: false } },
+      skills: {
+        file: { release: true },
+        nerve: { "skill-creator": false },
+        agentBrowser: { core: false },
+      },
     }),
   );
 
@@ -81,6 +86,7 @@ test("untrusted project overrides are visible but inactive until trusted", async
   assert.equal(trusted.trust.status, "trusted");
   assert.deepEqual(trusted.effective.disabledTools, ["jira", "confluence"]);
   assert.deepEqual(trusted.effective.disabledFileSkills, []);
+  assert.deepEqual(trusted.effective.enabledNerveSkills, []);
   assert.deepEqual(trusted.effective.enabledAgentBrowserSkills, []);
 });
 

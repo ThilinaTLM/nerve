@@ -12,6 +12,7 @@ import {
   isContextOverflowAssistantMessage,
 } from "@nervekit/harness/compaction";
 import type { ToolExecutionResult } from "@nervekit/tools/execution";
+import type { NerveSkillCatalog } from "@nervekit/skills";
 import type {
   RunExecutionOutcome,
   RunExecutionSink,
@@ -88,6 +89,7 @@ export interface WorkbenchAgentMechanicsDeps {
   logger: ApplicationLogger;
   subagentExecutions: WorkbenchSubagentExecutions;
   exploreAdmission: WorkbenchExploreAdmission;
+  nerveSkills: NerveSkillCatalog;
   agentBrowserSkills: AgentBrowserSkillCatalog;
   capabilities: CapabilityService;
   subagentTranscriptLive: SubagentTranscriptLiveService;
@@ -113,6 +115,7 @@ export class WorkbenchAgentMechanics {
       logger: deps.logger.child({ component: "subagent-runner" }),
       executions: deps.subagentExecutions,
       exploreAdmission: deps.exploreAdmission,
+      nerveSkills: deps.nerveSkills,
       agentBrowserSkills: deps.agentBrowserSkills,
       capabilities: deps.capabilities,
       transcriptLive: deps.subagentTranscriptLive,

@@ -187,6 +187,16 @@ function verifyContents(tarball, entries, version, filename, nativePrebuilds) {
 
   requireEntry(
     entries,
+    "package/node_modules/@nervekit/skills/dist/index.js",
+    filename,
+  );
+  requireEntry(
+    entries,
+    "package/node_modules/@nervekit/skills/dist/builtin/skill-creator/SKILL.md",
+    filename,
+  );
+  requireEntry(
+    entries,
     "package/node_modules/@nervekit/workbench-server/dist/main.js",
     filename,
   );

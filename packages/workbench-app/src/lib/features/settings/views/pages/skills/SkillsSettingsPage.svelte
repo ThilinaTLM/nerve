@@ -73,6 +73,7 @@ let query = $state("");
 
 const sets = $derived({
   disabled: settingsDraft.skills.disabled,
+  nerveEnabled: settingsDraft.skills.nerve.enabled,
   agentBrowserEnabled: settingsDraft.skills.agentBrowser.enabled,
 });
 const locked = $derived(
@@ -111,20 +112,24 @@ const orphans = $derived(
 const overrideCount = $derived(
   configuration
     ? Object.keys(configuration.project.skills.file).length +
+        Object.keys(configuration.project.skills.nerve).length +
         Object.keys(configuration.project.skills.agentBrowser).length
     : 0,
 );
 
 function persistUserSets(next: {
   disabled: string[];
+  nerveEnabled: string[];
   agentBrowserEnabled: string[];
 }): void {
   settingsDraft.skills.disabled = next.disabled;
+  settingsDraft.skills.nerve.enabled = next.nerveEnabled;
   settingsDraft.skills.agentBrowser.enabled = next.agentBrowserEnabled;
   onSettingsChange?.(
     {
       skills: {
         disabled: next.disabled,
+        nerve: { enabled: next.nerveEnabled },
         agentBrowser: { enabled: next.agentBrowserEnabled },
       },
     },
@@ -134,20 +139,25 @@ function persistUserSets(next: {
 
 function setUserSkill(
   name: string,
-  kind: "file" | "agentBrowser",
+  kind: "file" | "nerve" | "agentBrowser",
   enabled: boolean,
 ): void {
   const disabled = new SvelteSet(sets.disabled);
+  const nerveEnabled = new SvelteSet(sets.nerveEnabled);
   const agentBrowserEnabled = new SvelteSet(sets.agentBrowserEnabled);
   if (kind === "agentBrowser") {
     if (enabled) agentBrowserEnabled.add(name);
     else agentBrowserEnabled.delete(name);
+  } else if (kind === "nerve") {
+    if (enabled) nerveEnabled.add(name);
+    else nerveEnabled.delete(name);
   } else if (enabled) disabled.delete(name);
   else disabled.add(name);
   const sorted = (names: SvelteSet<string>) =>
     [...names].sort((left, right) => left.localeCompare(right));
   persistUserSets({
     disabled: sorted(disabled),
+    nerveEnabled: sorted(nerveEnabled),
     agentBrowserEnabled: sorted(agentBrowserEnabled),
   });
 }
@@ -165,12 +175,18 @@ function resetEntry(entry: SkillEntry): void {
 }
 
 function clearOrphans(
-  removed: Array<{ name: string; kind: "file" | "agentBrowser" }>,
+  removed: Array<{
+    name: string;
+    kind: "file" | "nerve" | "agentBrowser";
+  }>,
 ): void {
   if (scope === "user") {
     const gone = new Set(removed.map((entry) => `${entry.kind}:${entry.name}`));
     persistUserSets({
       disabled: sets.disabled.filter((name) => !gone.has(`file:${name}`)),
+      nerveEnabled: sets.nerveEnabled.filter(
+        (name) => !gone.has(`nerve:${name}`),
+      ),
       agentBrowserEnabled: sets.agentBrowserEnabled.filter(
         (name) => !gone.has(`agentBrowser:${name}`),
       ),
@@ -178,12 +194,14 @@ function clearOrphans(
     return;
   }
   const file: Record<string, null> = {};
+  const nerve: Record<string, null> = {};
   const agentBrowser: Record<string, null> = {};
   for (const entry of removed) {
     if (entry.kind === "agentBrowser") agentBrowser[entry.name] = null;
+    else if (entry.kind === "nerve") nerve[entry.name] = null;
     else file[entry.name] = null;
   }
-  onPatch?.({ skills: { file, agentBrowser } });
+  onPatch?.({ skills: { file, nerve, agentBrowser } });
 }
 
 function clearAllOrphans(): void {
@@ -196,12 +214,14 @@ function applyBulk(enabled: boolean): void {
     return;
   }
   const file: Record<string, boolean> = {};
+  const nerve: Record<string, boolean> = {};
   const agentBrowser: Record<string, boolean> = {};
   for (const entry of visibleEntries) {
     if (entry.kind === "agentBrowser") agentBrowser[entry.skill.name] = enabled;
+    else if (entry.kind === "nerve") nerve[entry.skill.name] = enabled;
     else file[entry.skill.name] = enabled;
   }
-  onPatch?.({ skills: { file, agentBrowser } });
+  onPatch?.({ skills: { file, nerve, agentBrowser } });
 }
 
 function copyPath(path: string): void {
@@ -293,8 +313,8 @@ function copyPath(path: string): void {
     <SettingsEmptyState
       title="No matching skills"
       description={scope === "user"
-        ? "Skills come from your skills directory and the agent-browser CLI."
-        : "Skills come from your skills directory, this project, and the agent-browser CLI."}
+        ? "Skills come from your skills directory, Nerve, and the agent-browser CLI."
+        : "Skills come from your skills directory, this project, Nerve, and the agent-browser CLI."}
     />
   {/if}
 

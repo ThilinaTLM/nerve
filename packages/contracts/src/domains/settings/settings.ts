@@ -275,6 +275,7 @@ export const settingsSchema = z.object({
   tools: toolSettingsSchema,
   skills: z.object({
     disabled: z.array(z.string().min(1)),
+    nerve: z.object({ enabled: z.array(z.string().min(1)) }),
     agentBrowser: z.object({ enabled: z.array(z.string().min(1)) }),
   }),
   scopedModels: z.array(modelSelectionSchema),
@@ -342,7 +343,11 @@ export const defaultSettings: Settings = {
     web: {},
     imageExplanation: { thinkingLevel: "off" },
   },
-  skills: { disabled: [], agentBrowser: { enabled: [] } },
+  skills: {
+    disabled: [],
+    nerve: { enabled: [] },
+    agentBrowser: { enabled: [] },
+  },
   scopedModels: [],
 };
 
@@ -445,6 +450,11 @@ export const updateSettingsRequestSchema = z.object({
   skills: z
     .object({
       disabled: z.array(z.string().min(1)).optional(),
+      nerve: z
+        .object({
+          enabled: z.array(z.string().min(1)).optional(),
+        })
+        .optional(),
       agentBrowser: z
         .object({
           enabled: z.array(z.string().min(1)).optional(),

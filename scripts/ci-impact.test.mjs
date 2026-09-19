@@ -84,6 +84,7 @@ test("contract changes expand through all reverse dependents", () => {
     "@nervekit/desktop-shell",
     "@nervekit/harness",
     "@nervekit/protocol",
+    "@nervekit/skills",
     "@nervekit/tools",
     "@nervekit/workbench-app",
     "@nervekit/workbench-server",
@@ -109,6 +110,14 @@ test("known operational scripts map to their owning runtime", () => {
   );
   assert.equal(workbench.full, false);
   assert.equal(workbench.workbench, true);
+
+  const skills = classifyChanges(["scripts/copy-skills-assets.mjs"], workspace);
+  assert.equal(skills.full, false);
+  assert.deepEqual(skills.packages, [
+    "@nervekit/desktop-shell",
+    "@nervekit/skills",
+    "@nervekit/workbench-server",
+  ]);
 
   const image = classifyChanges(
     ["scripts/smoke-electron-image-resize.mjs"],

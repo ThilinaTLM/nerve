@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 /** Where a skill definition comes from, independent of who enabled it. */
-export const skillSourceSchema = z.enum(["user", "project", "agentBrowser"]);
+export const skillSourceSchema = z.enum([
+  "user",
+  "project",
+  "nerve",
+  "agentBrowser",
+]);
 export type SkillSource = z.infer<typeof skillSourceSchema>;
 
 export const availableSkillSchema = z.object({
@@ -22,5 +27,9 @@ export type AvailableSkillsResponse = z.infer<
 /** Capability overrides bucket file skills together regardless of directory. */
 export const skillOverrideKind = (
   source: SkillSource,
-): "file" | "agentBrowser" =>
-  source === "agentBrowser" ? "agentBrowser" : "file";
+): "file" | "nerve" | "agentBrowser" =>
+  source === "agentBrowser"
+    ? "agentBrowser"
+    : source === "nerve"
+      ? "nerve"
+      : "file";

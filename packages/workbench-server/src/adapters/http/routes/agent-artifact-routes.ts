@@ -23,6 +23,8 @@ export function createAgentArtifactRoutes(
         pythonAvailable,
         disabledToolNames: state.storage.settings.tools.disabled,
         disabledSkillNames: state.storage.settings.skills.disabled,
+        enabledNerveSkillNames: state.storage.settings.skills.nerve.enabled,
+        nerveSkills: state.nerveSkills.skills,
         enabledAgentBrowserSkillNames:
           state.storage.settings.skills.agentBrowser.enabled,
         agentBrowserSkills: state.agentBrowserSkills.skills,

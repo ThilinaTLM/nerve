@@ -1,5 +1,6 @@
 import type { MaintenanceService } from "../../domains/maintenance/maintenance.service.js";
 import type { ApplicationConfigurationSnapshot } from "@nervekit/contracts/settings";
+import type { NerveSkillCatalog } from "@nervekit/skills";
 import type { StatusResponse } from "@nervekit/contracts/status";
 import type {
   AuthManager,
@@ -37,6 +38,7 @@ interface AdapterInfrastructure {
   credentialKey: CredentialKeyService;
   oauthFlows: OAuthFlowManager;
   subscriptionUsage: SubscriptionUsageService;
+  nerveSkills: NerveSkillCatalog;
   agentBrowserSkills: AgentBrowserSkillCatalog;
   performanceDiagnostics: PerformanceDiagnosticsPort;
   applicationConfiguration: ApplicationConfigurationSnapshot;
@@ -61,6 +63,7 @@ export function createServerAdapterContexts(
   const protocol = {
     platform: {
       ...snapshot,
+      nerveSkills: infrastructure.nerveSkills,
       agentBrowserSkills: infrastructure.agentBrowserSkills,
       applicationConfiguration: infrastructure.applicationConfiguration,
       auth: infrastructure.auth,
@@ -168,6 +171,7 @@ export function createServerAdapterContexts(
         storage: infrastructure.storage,
       },
       agentArtifacts: {
+        nerveSkills: infrastructure.nerveSkills,
         agentBrowserSkills: infrastructure.agentBrowserSkills,
         agentLifecycle: services.agentLifecycle,
         pythonRuntime: services.pythonRuntime,

@@ -17,18 +17,21 @@ export type SkillScope = "user" | "project" | "conversation";
 export const skillSourceLabels: Record<SkillSource, string> = {
   user: "Your skills",
   project: "Project skills",
+  nerve: "Built-in Nerve skills",
   agentBrowser: "Agent Browser skills",
 };
 
 export const skillSourceItemLabels: Record<SkillSource, string> = {
   user: "Your skill",
   project: "Project skill",
+  nerve: "Built-in Nerve skill",
   agentBrowser: "Agent Browser skill",
 };
 
 export const skillSourceSectionIds: Record<SkillSource, string> = {
   user: "user",
   project: "project",
+  nerve: "nerve",
   agentBrowser: "agent-browser",
 };
 
@@ -38,20 +41,21 @@ export const skillSourceSectionIds: Record<SkillSource, string> = {
  */
 export function sourcesForScope(scope: SkillScope): SkillSource[] {
   return scope === "user"
-    ? ["user", "agentBrowser"]
-    : ["user", "project", "agentBrowser"];
+    ? ["user", "nerve", "agentBrowser"]
+    : ["user", "project", "nerve", "agentBrowser"];
 }
 
 /** User-level persisted sets (`settings.skills`). */
 export type SkillSets = {
   disabled: string[];
+  nerveEnabled: string[];
   agentBrowserEnabled: string[];
 };
 
 export type SkillEntry = {
   skill: AvailableSkill;
   source: SkillSource;
-  kind: "file" | "agentBrowser";
+  kind: "file" | "nerve" | "agentBrowser";
   /** Effective value at the scope being edited. */
   enabled: boolean;
   /** Set at the scope being edited rather than inherited. */
@@ -66,9 +70,12 @@ const bySortName = (left: AvailableSkill, right: AvailableSkill): number =>
   left.name.localeCompare(right.name);
 
 function userEnabled(skill: AvailableSkill, sets: SkillSets): boolean {
-  return skillOverrideKind(skill.source) === "agentBrowser"
+  const kind = skillOverrideKind(skill.source);
+  return kind === "agentBrowser"
     ? sets.agentBrowserEnabled.includes(skill.name)
-    : !sets.disabled.includes(skill.name);
+    : kind === "nerve"
+      ? sets.nerveEnabled.includes(skill.name)
+      : !sets.disabled.includes(skill.name);
 }
 
 function overrideValue(
@@ -91,17 +98,6 @@ export type BuildSkillEntriesInput = {
 export function buildSkillEntries(input: BuildSkillEntriesInput): SkillEntry[] {
   const sources = new Set(sourcesForScope(input.scope));
   const visible = input.skills.filter((skill) => sources.has(skill.source));
-  const fileNames = new Set(
-    visible
-      .filter((skill) => skill.source !== "agentBrowser")
-      .map((skill) => skill.name),
-  );
-  const projectNames = new Set(
-    visible
-      .filter((skill) => skill.source === "project")
-      .map((skill) => skill.name),
-  );
-
   const entries: SkillEntry[] = [];
   for (const source of sourcesForScope(input.scope)) {
     for (const skill of visible
@@ -129,23 +125,48 @@ export function buildSkillEntries(input: BuildSkillEntriesInput): SkillEntry[] {
         enabled: own ?? inherited,
         overridden: own !== undefined,
         inherited,
-        shadowedBy:
-          source === "agentBrowser" && fileNames.has(skill.name)
-            ? "project"
-            : source === "user" && projectNames.has(skill.name)
-              ? "project"
-              : undefined,
       });
     }
+  }
+
+  const enabledNames = (source: SkillSource) =>
+    new Set(
+      entries
+        .filter((entry) => entry.source === source && entry.enabled)
+        .map((entry) => entry.skill.name),
+    );
+  const enabledProjects = enabledNames("project");
+  const enabledUsers = enabledNames("user");
+  const enabledNerve = enabledNames("nerve");
+  for (const entry of entries) {
+    const name = entry.skill.name;
+    entry.shadowedBy =
+      entry.source === "user" && enabledProjects.has(name)
+        ? "project"
+        : entry.source === "nerve" &&
+            (enabledProjects.has(name) || enabledUsers.has(name))
+          ? enabledProjects.has(name)
+            ? "project"
+            : "user"
+          : entry.source === "agentBrowser" &&
+              (enabledProjects.has(name) ||
+                enabledUsers.has(name) ||
+                enabledNerve.has(name))
+            ? enabledProjects.has(name)
+              ? "project"
+              : enabledUsers.has(name)
+                ? "user"
+                : "nerve"
+            : undefined;
   }
   return entries;
 }
 
 export function shadowNote(entry: SkillEntry): string | undefined {
   if (!entry.shadowedBy) return undefined;
-  return entry.source === "agentBrowser"
-    ? "A file skill with this name takes precedence"
-    : "The project skill with this name takes precedence";
+  return entry.source === "user"
+    ? "The project skill with this name takes precedence"
+    : `${skillSourceItemLabels[entry.shadowedBy]} with this name takes precedence`;
 }
 
 /**
@@ -154,7 +175,7 @@ export function shadowNote(entry: SkillEntry): string | undefined {
  */
 export type OrphanedSkill = {
   name: string;
-  kind: "file" | "agentBrowser";
+  kind: "file" | "nerve" | "agentBrowser";
   enabled: boolean;
 };
 
@@ -173,7 +194,7 @@ export function orphanedSkills(input: {
   const orphans: OrphanedSkill[] = [];
   const add = (
     name: string,
-    kind: "file" | "agentBrowser",
+    kind: "file" | "nerve" | "agentBrowser",
     enabled: boolean,
   ) => {
     if (known.has(`${kind}:${name}`)) return;
@@ -181,10 +202,11 @@ export function orphanedSkills(input: {
   };
   if (input.scope === "user") {
     for (const name of input.sets.disabled) add(name, "file", false);
+    for (const name of input.sets.nerveEnabled) add(name, "nerve", true);
     for (const name of input.sets.agentBrowserEnabled)
       add(name, "agentBrowser", true);
   } else {
-    for (const kind of ["file", "agentBrowser"] as const)
+    for (const kind of ["file", "nerve", "agentBrowser"] as const)
       for (const [name, enabled] of Object.entries(
         input.overrides?.skills[kind] ?? {},
       ))
@@ -226,11 +248,17 @@ export function bulkSkillSets(input: {
   sets: SkillSets;
 }): SkillSets {
   const disabled = new Set(input.sets.disabled);
+  const nerveEnabled = new Set(input.sets.nerveEnabled);
   const agentBrowserEnabled = new Set(input.sets.agentBrowserEnabled);
   for (const entry of input.entries) {
     if (entry.kind === "agentBrowser") {
       if (input.enabled) agentBrowserEnabled.add(entry.skill.name);
       else agentBrowserEnabled.delete(entry.skill.name);
+      continue;
+    }
+    if (entry.kind === "nerve") {
+      if (input.enabled) nerveEnabled.add(entry.skill.name);
+      else nerveEnabled.delete(entry.skill.name);
       continue;
     }
     if (input.enabled) disabled.delete(entry.skill.name);
@@ -240,6 +268,7 @@ export function bulkSkillSets(input: {
     [...names].sort((left, right) => left.localeCompare(right));
   return {
     disabled: sorted(disabled),
+    nerveEnabled: sorted(nerveEnabled),
     agentBrowserEnabled: sorted(agentBrowserEnabled),
   };
 }
@@ -248,7 +277,7 @@ export type ComposerSkillRow = {
   key: string;
   name: string;
   source: SkillSource;
-  kind: "file" | "agentBrowser";
+  kind: "file" | "nerve" | "agentBrowser";
   enabled: boolean;
   overridden: boolean;
   /** Where the effective value comes from when not set on the conversation. */
@@ -257,7 +286,7 @@ export type ComposerSkillRow = {
 
 /**
  * Composer rows follow runtime precedence: project file skills shadow user file
- * skills with the same name, while Agent Browser skills stay a separate family.
+ * skills with the same name, while Nerve and Agent Browser stay separate families.
  */
 export function composerSkillRows(input: {
   skills: AvailableSkill[];
@@ -275,7 +304,8 @@ export function composerSkillRows(input: {
   const order: Record<SkillSource, number> = {
     project: 0,
     user: 1,
-    agentBrowser: 2,
+    nerve: 2,
+    agentBrowser: 3,
   };
   return [...winners.values()]
     .toSorted(
@@ -294,7 +324,9 @@ export function composerSkillRows(input: {
         enabled:
           kind === "agentBrowser"
             ? input.selection.enabledAgentBrowserSkills.includes(skill.name)
-            : !input.selection.disabledFileSkills.includes(skill.name),
+            : kind === "nerve"
+              ? input.selection.enabledNerveSkills.includes(skill.name)
+              : !input.selection.disabledFileSkills.includes(skill.name),
         overridden: own !== undefined,
         inheritedFrom:
           overrideValue(input.project, skill) !== undefined

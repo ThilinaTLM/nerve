@@ -199,7 +199,7 @@ async function resetProjectCapabilities(): Promise<void> {
       replace: {
         schemaVersion: 1,
         tools: {},
-        skills: { file: {}, agentBrowser: {} },
+        skills: { file: {}, nerve: {}, agentBrowser: {} },
       },
       expectedDigest: capabilityConfiguration?.projectDigest,
     }),

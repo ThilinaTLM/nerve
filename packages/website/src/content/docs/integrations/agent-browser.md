@@ -7,7 +7,7 @@ sidebar:
 
 Nerve can discover skills by invoking the `agent-browser` CLI installed on the workbench daemon host and reading its skill catalog. Enable selected entries in Settings to append their `SKILL.md` guidance to subsequent agent runs.
 
-Agent Browser entries follow normal skill toggling and cannot override same-named file skills that already won resource precedence.
+Agent Browser entries follow normal skill toggling and cannot override same-named file or Built-in Nerve skills that already won resource precedence.
 
 :::note[Important distinction]
 This integration is prompt guidance, not a native Nerve browser automation tool. There is no `agent_browser` entry in the agent tool manifest and no Nerve browser-control executor. Any workflow described by the skill depends on external CLI capabilities and the agent's permitted command execution.

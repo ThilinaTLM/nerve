@@ -42,12 +42,32 @@ export async function readHomeConfiguration(
 ): Promise<UserConfiguration> {
   const [daemon, harness, ui, permissions, providers, integrations] =
     await Promise.all([
-      readConfig(paths.daemonConfigPath, daemonConfigSchema),
-      readConfig(paths.harnessConfigPath, harnessConfigSchema),
-      readConfig(paths.uiConfigPath, uiConfigSchema),
+      readConfig(
+        paths.daemonConfigPath,
+        daemonConfigSchema,
+        defaultUserConfiguration.daemon,
+      ),
+      readConfig(
+        paths.harnessConfigPath,
+        harnessConfigSchema,
+        defaultUserConfiguration.harness,
+      ),
+      readConfig(
+        paths.uiConfigPath,
+        uiConfigSchema,
+        defaultUserConfiguration.ui,
+      ),
       readPermissionConfig(paths.permissionsConfigPath),
-      readConfig(paths.providersConfigPath, providersConfigSchema),
-      readConfig(paths.integrationsConfigPath, integrationsConfigSchema),
+      readConfig(
+        paths.providersConfigPath,
+        providersConfigSchema,
+        defaultUserConfiguration.providers,
+      ),
+      readConfig(
+        paths.integrationsConfigPath,
+        integrationsConfigSchema,
+        defaultUserConfiguration.integrations,
+      ),
     ]);
   return userConfigurationSchema.parse({
     daemon,
@@ -75,12 +95,35 @@ export async function writeHomeConfiguration(
 async function readConfig<T>(
   path: string,
   schema: { parse(value: unknown): T },
+  defaults: T,
 ): Promise<T> {
   try {
-    return schema.parse(await readJsonFile<unknown>(path));
+    const value = await readJsonFile<unknown>(path);
+    return schema.parse(mergeMissingDefaults(defaults, value));
   } catch (cause) {
     throw new Error(`Nerve configuration at ${path} is invalid.`, { cause });
   }
+}
+
+/**
+ * Home configuration files are durable user data. Additive fields inherit the
+ * current defaults so an application upgrade never rejects an older document
+ * merely because a newly introduced property is absent. Explicit values and
+ * unknown properties are preserved for schema validation.
+ */
+function mergeMissingDefaults(defaults: unknown, value: unknown): unknown {
+  if (!isRecord(defaults) || !isRecord(value)) return value;
+  const merged: Record<string, unknown> = { ...defaults };
+  for (const [key, child] of Object.entries(value)) {
+    merged[key] = Object.hasOwn(defaults, key)
+      ? mergeMissingDefaults(defaults[key], child)
+      : child;
+  }
+  return merged;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function configDocuments(

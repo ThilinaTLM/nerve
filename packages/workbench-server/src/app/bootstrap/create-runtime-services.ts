@@ -108,6 +108,7 @@ import type {
   AppendEntryOptions,
 } from "../../domains/conversations/append-entry-contracts.js";
 import type { ResourceLimits } from "@nervekit/contracts/settings";
+import type { NerveSkillCatalog } from "@nervekit/skills";
 
 export interface RuntimeDeps {
   storage: InitializedStorage;
@@ -118,6 +119,7 @@ export interface RuntimeDeps {
   providerCatalog: ProviderCatalogStore;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
+  nerveSkills: NerveSkillCatalog;
   agentBrowserSkills: AgentBrowserSkillCatalog;
   performanceDiagnostics: PerformanceDiagnosticsPort;
   resources: ResourceLimits & { controlWorkConcurrency: number };
@@ -574,6 +576,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     messageMirror: messageMirror,
     subscriptionUsage,
     logger: logger.child({ component: "workbench-agent-execution" }),
+    nerveSkills: deps.nerveSkills,
     agentBrowserSkills: deps.agentBrowserSkills,
     capabilities: capabilities,
     subagentTranscriptLive: subagentTranscriptLive,

@@ -1,13 +1,28 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  defaultHarnessConfig,
   defaultSettings,
+  harnessConfigSchema,
   settingsSchema,
   updateApplicationConfigurationRequestSchema,
   updateSettingsRequestSchema,
 } from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
+  it("defaults newly added Nerve skill settings in older harness files", () => {
+    const legacy = structuredClone(defaultHarnessConfig) as Record<
+      string,
+      unknown
+    >;
+    const skills = { ...(legacy.skills as Record<string, unknown>) };
+    delete skills.nerve;
+    legacy.skills = skills;
+
+    const parsed = harnessConfigSchema.parse(legacy);
+
+    assert.deepEqual(parsed.skills.nerve, { enabled: [] });
+  });
   it("round-trips canonical defaults", () => {
     assert.deepEqual(settingsSchema.parse(defaultSettings), defaultSettings);
   });
@@ -125,6 +140,7 @@ describe("settings schema", () => {
       desktop: { headerType: "macos" },
       skills: {
         disabled: ["diagram", "imagegen"],
+        nerve: { enabled: ["skill-creator"] },
         agentBrowser: { enabled: ["core", "dogfood"] },
       },
       tools: {

@@ -192,6 +192,11 @@ async function main() {
     },
   });
   const agentSkillsStartedAt = performance.now();
+  await state.nerveSkills.initialize();
+  await state.logger.info("Built-in Nerve skills initialized", {
+    durationMs: Math.round(performance.now() - agentSkillsStartedAt),
+    context: { count: state.nerveSkills.skills.length },
+  });
   await state.agentBrowserSkills
     .initialize()
     .then(async () => {

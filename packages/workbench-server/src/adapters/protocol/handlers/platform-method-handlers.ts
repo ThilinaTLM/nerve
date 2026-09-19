@@ -49,6 +49,7 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
         : undefined;
       return listAvailableSkills(projectDir, {
         storageHome: state.storage.paths.home,
+        nerveSkills: state.nerveSkills.skills,
         agentBrowserSkills: state.agentBrowserSkills.skills,
       });
     },
