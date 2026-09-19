@@ -16,6 +16,7 @@ export function sameCapabilitySelection(
   return (
     sameNames(left.disabledTools, right.disabledTools) &&
     sameNames(left.disabledFileSkills, right.disabledFileSkills) &&
+    sameNames(left.enabledNerveSkills, right.enabledNerveSkills) &&
     sameNames(left.enabledAgentBrowserSkills, right.enabledAgentBrowserSkills)
   );
 }
@@ -50,6 +51,7 @@ export function createCapabilityRefresher<TResources>(deps: {
       await deps.applyToolNames(next);
     if (
       sameNames(previous.disabledFileSkills, next.disabledFileSkills) &&
+      sameNames(previous.enabledNerveSkills, next.enabledNerveSkills) &&
       sameNames(
         previous.enabledAgentBrowserSkills,
         next.enabledAgentBrowserSkills,

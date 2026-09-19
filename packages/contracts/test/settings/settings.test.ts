@@ -125,6 +125,7 @@ describe("settings schema", () => {
       desktop: { headerType: "macos" },
       skills: {
         disabled: ["diagram", "imagegen"],
+        nerve: { enabled: ["skill-creator"] },
         agentBrowser: { enabled: ["core", "dogfood"] },
       },
       tools: {

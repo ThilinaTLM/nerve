@@ -90,6 +90,7 @@ export const packageExportSurfaces = Object.freeze({
     "./components/ui/*",
     "./components/composites/*",
   ],
+  "@nervekit/skills": ["."],
   "@nervekit/website": [],
   "@nervekit/workbench-app": [],
   "@nervekit/workbench-server": [".", "./main"],

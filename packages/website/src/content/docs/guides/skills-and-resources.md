@@ -23,9 +23,11 @@ A skill needs a nonempty `description`. A directory-based skill's lowercase, hyp
 
 ## Skill precedence
 
-First definition by skill name wins. Effective discovery favors project Nerve skills and ancestor portable project skills before global Nerve and global portable skills. Disabled names are removed. Review the exact [resource precedence table](/reference/resources/) when two definitions share a name.
+First definition by skill name wins. Effective discovery favors project Nerve skills and ancestor portable project skills, then global Nerve and global portable skills, enabled Built-in Nerve skills, and finally enabled Agent Browser guidance. Disabled definitions are removed before precedence is resolved. Review the exact [resource precedence table](/reference/resources/) when two definitions share a name.
 
-Use **Settings → Skills** to inspect discovered scope and toggle a skill without deleting its file. The **User** scope supplies defaults for every project. The **Project** scope writes sparse, shareable overrides to `.nerve/config/capabilities.json`; settings without an override continue to follow the user default.
+Use **Settings → Skills** to inspect discovered scope and toggle a skill without deleting its file. The **Built-in Nerve skills** group contains official guidance shipped with Nerve. Built-in skills are disabled by default and add nothing to the system prompt until enabled. The initial `skill-creator` skill helps create valid project or user skills.
+
+The **User** scope supplies defaults for every project. The **Project** scope writes sparse, shareable overrides to `.nerve/config/capabilities.json`; settings without an override continue to follow the user default.
 
 Project capability files are locally trusted by exact content digest. A new or externally changed file remains visible for review but inactive until trusted. Conversation overrides are local to the conversation and take precedence over trusted project values. Capability changes apply when the next agent run is prepared.
 
@@ -39,6 +41,7 @@ A project capability file contains only values the project pins:
   "tools": { "web_search": true, "python_exec": false },
   "skills": {
     "file": { "release": false },
+    "nerve": { "skill-creator": true },
     "agentBrowser": { "core": true }
   }
 }
@@ -50,7 +53,7 @@ Missing entries inherit. Unknown tool names are rejected; skill names unavailabl
 
 Skills and context files are instructions supplied to the model. A repository can contain instructions that ask for tools, credentials, network calls, or destructive actions. Review unfamiliar resources before increasing permission beyond supervised.
 
-Agent Browser skills are appended only when explicitly enabled and cannot override file skills. They are prompt guidance from an external CLI, not a native browser automation tool.
+Built-in Nerve and Agent Browser skills are appended only when explicitly enabled. File skills override both, and Built-in Nerve skills override same-named Agent Browser guidance. Agent Browser skills are prompt guidance from an external CLI, not a native browser automation tool.
 
 ## Next steps
 

@@ -22,7 +22,7 @@ Define tool name/schema/risk/execution mode in the owning manifest, implement a 
 
 ## Content extensions
 
-Skills and AGENTS/SYSTEM resources extend instructions without code changes. Prompt suggestions add contextual reusable prompts and optional explicitly trusted predicates. Both require clear precedence and trust documentation.
+Skills and AGENTS/SYSTEM resources extend instructions without code changes. Official disabled-by-default Nerve skills live in `@nervekit/skills`; generic parsing and prompt formatting stay in `@nervekit/harness`, while executable capabilities stay in `@nervekit/tools`. Prompt suggestions add contextual reusable prompts and optional explicitly trusted predicates. These content sources require clear precedence and trust documentation.
 
 ## Package boundaries
 

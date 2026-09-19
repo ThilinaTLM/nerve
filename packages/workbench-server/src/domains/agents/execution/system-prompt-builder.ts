@@ -19,6 +19,8 @@ export async function buildAgentSystemPrompt(
     pythonAvailable?: boolean;
     disabledToolNames?: readonly UserConfigurableToolName[];
     disabledSkillNames?: readonly string[];
+    enabledNerveSkillNames?: readonly string[];
+    nerveSkills?: readonly Skill[];
     enabledAgentBrowserSkillNames?: readonly string[];
     agentBrowserSkills?: readonly Skill[];
     jiraEnabled?: boolean;
@@ -34,6 +36,8 @@ export async function buildAgentSystemPrompt(
   const resources = await loadHarnessResources(agent.projectDir, {
     storageHome: options.storageHome,
     disabledSkillNames: options.disabledSkillNames,
+    enabledNerveSkillNames: options.enabledNerveSkillNames,
+    nerveSkills: options.nerveSkills,
     enabledAgentBrowserSkillNames: options.enabledAgentBrowserSkillNames,
     agentBrowserSkills: options.agentBrowserSkills,
   });

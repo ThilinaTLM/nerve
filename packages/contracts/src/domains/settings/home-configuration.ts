@@ -167,6 +167,9 @@ export const harnessConfigSchema = z
     skills: z
       .object({
         disabled: z.array(z.string().trim().min(1)),
+        nerve: z
+          .object({ enabled: z.array(z.string().trim().min(1)) })
+          .strict(),
         agentBrowser: z
           .object({ enabled: z.array(z.string().trim().min(1)) })
           .strict(),
@@ -206,7 +209,11 @@ export const defaultHarnessConfig: HarnessConfig = {
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     imageExplanation: { thinkingLevel: "off" },
   },
-  skills: { disabled: [], agentBrowser: { enabled: [] } },
+  skills: {
+    disabled: [],
+    nerve: { enabled: [] },
+    agentBrowser: { enabled: [] },
+  },
   scopedModels: [],
 };
 

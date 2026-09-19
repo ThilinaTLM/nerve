@@ -225,6 +225,7 @@ export class CapabilityService {
         ...(tools.confluence.enabled ? [] : (["confluence"] as const)),
       ],
       disabledFileSkills: this.storage.settings.skills.disabled,
+      enabledNerveSkills: this.storage.settings.skills.nerve.enabled,
       enabledAgentBrowserSkills:
         this.storage.settings.skills.agentBrowser.enabled,
     };

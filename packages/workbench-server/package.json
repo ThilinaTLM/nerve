@@ -42,6 +42,7 @@
     "@nervekit/harness": "workspace:*",
     "@nervekit/native": "workspace:*",
     "@nervekit/protocol": "workspace:*",
+    "@nervekit/skills": "workspace:*",
     "@nervekit/tools": "workspace:*",
     "@peculiar/x509": "^2.0.0",
     "fdir": "6.5.0",

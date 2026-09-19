@@ -102,6 +102,8 @@ export async function executeWorkbenchHarness(
         loadHarnessResources(agent.projectDir, {
           storageHome: this.deps.storage.paths.home,
           disabledSkillNames: selection.disabledFileSkills,
+          enabledNerveSkillNames: selection.enabledNerveSkills,
+          nerveSkills: this.deps.nerveSkills.skills,
           enabledAgentBrowserSkillNames: selection.enabledAgentBrowserSkills,
           agentBrowserSkills: this.deps.agentBrowserSkills.skills,
         }),

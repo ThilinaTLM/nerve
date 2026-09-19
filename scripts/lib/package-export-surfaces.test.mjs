@@ -20,6 +20,7 @@ test("every workspace package has an explicit export policy", () => {
     "@nervekit/harness",
     "@nervekit/native",
     "@nervekit/protocol",
+    "@nervekit/skills",
     "@nervekit/tools",
     "@nervekit/ui-kit",
     "@nervekit/website",

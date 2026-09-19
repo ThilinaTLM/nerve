@@ -5,6 +5,7 @@ import Globe from "@lucide/svelte/icons/globe";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import User from "@lucide/svelte/icons/user";
 import Settings from "@lucide/svelte/icons/settings";
+import Sparkles from "@lucide/svelte/icons/sparkles";
 import type { Component } from "svelte";
 import type {
   CapabilityConfiguration,
@@ -37,16 +38,18 @@ type Row = {
   reset: () => void;
 };
 
-/* Skills come from three sources that Settings groups separately, so each row
+/* Skills come from source groups that Settings presents separately, so each row
  * carries its source as a leading icon. */
 const skillSourceIcons: Record<SkillSource, Row["icon"]> = {
   user: User,
   project: Folder,
+  nerve: Sparkles,
   agentBrowser: Globe,
 };
 const skillSourceItemLabels: Record<SkillSource, string> = {
   user: "Your skill",
   project: "Project skill",
+  nerve: "Built-in Nerve skill",
   agentBrowser: "Agent Browser skill",
 };
 
@@ -98,6 +101,7 @@ const overrideCount = $derived(
   conversation
     ? Object.keys(conversation.tools).length +
         Object.keys(conversation.skills.file).length +
+        Object.keys(conversation.skills.nerve).length +
         Object.keys(conversation.skills.agentBrowser).length
     : 0,
 );

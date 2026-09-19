@@ -8,6 +8,7 @@ const selection = (
 ): CapabilitySelection => ({
   disabledTools: [],
   disabledFileSkills: [],
+  enabledNerveSkills: [],
   enabledAgentBrowserSkills: [],
   ...overrides,
 });
@@ -48,6 +49,17 @@ describe("createCapabilityRefresher", () => {
       [["review"]],
     );
     assert.deepEqual(appliedResources, [["review"]]);
+  });
+
+  it("reloads resources when built-in Nerve skill selection changes", async () => {
+    const { refresher, loaded } = harness([
+      selection(),
+      selection({ enabledNerveSkills: ["skill-creator"] }),
+    ]);
+
+    await refresher.refresh();
+
+    assert.deepEqual(loaded[0]?.enabledNerveSkills, ["skill-creator"]);
   });
 
   it("does nothing when the resolved selection is unchanged", async () => {

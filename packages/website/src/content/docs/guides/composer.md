@@ -35,7 +35,7 @@ Contextual prompt chips appear above the editor. Selecting one inserts or sends 
 
 The compact wrench/library control shows selected optional tools and skills for the conversation. Its two tabs let you toggle an item without changing user or project defaults. A dot marks conversations with explicit overrides; reset removes those overrides and resumes inheritance.
 
-The selection order is User defaults → trusted Project overrides → Conversation overrides. Permissions, planning-mode limits, credentials, provider support, and local runtime availability are applied afterward, so selecting a capability does not grant authority or guarantee availability. Changes made during a run apply to the next run. Disabling a skill cannot remove instructions already present in conversation history.
+The selection order is User defaults → trusted Project overrides → Conversation overrides. This includes the opt-in state of Built-in Nerve skills. Permissions, planning-mode limits, credentials, provider support, and local runtime availability are applied afterward, so selecting a capability does not grant authority or guarantee availability. Changes made during a run apply to the next run. Disabling a skill cannot remove instructions already present in conversation history.
 
 ## Context and to-dos
 

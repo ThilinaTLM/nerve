@@ -8,6 +8,7 @@ import { ProjectRemovalExecutor } from "../../domains/projects/project-removal-e
 import { join } from "node:path";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { registerManagedProvider } from "@nervekit/harness/models";
+import { NerveSkillCatalog } from "@nervekit/skills";
 import { allOperationDefinitions } from "@nervekit/contracts/operations";
 import {
   DEFAULT_RESOURCE_LIMITS,
@@ -82,6 +83,7 @@ export interface ServerRuntime {
   credentialKey: CredentialKeyService;
   oauthFlows: OAuthFlowManager;
   subscriptionUsage: SubscriptionUsageService;
+  nerveSkills: NerveSkillCatalog;
   agentBrowserSkills: AgentBrowserSkillCatalog;
   performanceDiagnostics: PerformanceDiagnosticsPort;
   applicationConfiguration: ApplicationConfigurationSnapshot;
@@ -215,6 +217,7 @@ export function composeServerRuntime(
     cacheDir: join(storage.paths.home, "cache", "usage"),
     logger,
   });
+  const nerveSkills = new NerveSkillCatalog();
   const agentBrowserSkills = new AgentBrowserSkillCatalog();
   const { lifecycle, services } = RuntimeLifecycle.compose(
     storage,
@@ -224,6 +227,7 @@ export function composeServerRuntime(
     secrets,
     subscriptionUsage,
     logger,
+    nerveSkills,
     agentBrowserSkills,
     providerCatalog,
     performanceDiagnostics,
@@ -316,6 +320,7 @@ export function composeServerRuntime(
     credentialKey,
     oauthFlows,
     subscriptionUsage,
+    nerveSkills,
     agentBrowserSkills,
     performanceDiagnostics,
     applicationConfiguration,
@@ -342,6 +347,7 @@ export function composeServerRuntime(
     providerCatalog,
     credentialKey,
     oauthFlows,
+    nerveSkills,
     agentBrowserSkills,
     subscriptionUsage,
     performanceDiagnostics,

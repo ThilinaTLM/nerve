@@ -27,6 +27,12 @@ async function writeSkill(
 }
 
 describe("Workbench skill resources", () => {
+  const nerveSkillCreator = {
+    name: "skill-creator",
+    description: "Create Nerve skills",
+    content: "Nerve skill creator instructions",
+    filePath: "/tmp/nerve-skills/skill-creator/SKILL.md",
+  };
   const agentBrowserCore = {
     name: "core",
     description: "Agent Browser core description",
@@ -84,6 +90,85 @@ describe("Workbench skill resources", () => {
       assert.equal(
         effectiveShared[0]?.content.includes("Project instructions"),
         true,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("lists built-in Nerve skills but keeps them out of resources by default", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-resource-loader-"));
+    const projectDir = join(root, "project");
+    try {
+      await mkdir(projectDir, { recursive: true });
+      const available = await listAvailableSkills(projectDir, {
+        nerveSkills: [nerveSkillCreator],
+      });
+      assert.deepEqual(
+        available.skills.filter((skill) => skill.source === "nerve"),
+        [
+          {
+            name: "skill-creator",
+            description: "Create Nerve skills",
+            filePath: nerveSkillCreator.filePath,
+            source: "nerve",
+          },
+        ],
+      );
+
+      const disabled = await loadHarnessResources(projectDir, {
+        nerveSkills: [nerveSkillCreator],
+      });
+      assert.equal(
+        disabled.skills.some((skill) => skill.name === "skill-creator"),
+        false,
+      );
+
+      const enabled = await loadHarnessResources(projectDir, {
+        nerveSkills: [nerveSkillCreator],
+        enabledNerveSkillNames: ["skill-creator"],
+      });
+      assert.equal(
+        enabled.skills.find((skill) => skill.name === "skill-creator")
+          ?.filePath,
+        nerveSkillCreator.filePath,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps file precedence over Nerve skills and allows disabled-file fallback", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-resource-loader-"));
+    const projectDir = join(root, "project");
+    try {
+      await mkdir(projectDir, { recursive: true });
+      const projectPath = await writeSkill(
+        join(projectDir, ".nerve", "skills"),
+        "skill-creator",
+        "skill-creator",
+        "Project skill creator",
+        "Project instructions",
+      );
+      const projectWins = await loadHarnessResources(projectDir, {
+        nerveSkills: [nerveSkillCreator],
+        enabledNerveSkillNames: ["skill-creator"],
+      });
+      assert.equal(
+        projectWins.skills.find((skill) => skill.name === "skill-creator")
+          ?.filePath,
+        projectPath,
+      );
+
+      const nerveFallback = await loadHarnessResources(projectDir, {
+        disabledSkillNames: ["skill-creator"],
+        nerveSkills: [nerveSkillCreator],
+        enabledNerveSkillNames: ["skill-creator"],
+      });
+      assert.equal(
+        nerveFallback.skills.find((skill) => skill.name === "skill-creator")
+          ?.filePath,
+        nerveSkillCreator.filePath,
       );
     } finally {
       await rm(root, { recursive: true, force: true });

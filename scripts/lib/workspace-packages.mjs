@@ -28,6 +28,7 @@ export const versionLockedPackages = [
   "native",
   "protocol",
   "harness",
+  "skills",
   "tools",
   "workbench-server",
   "workbench-app",
@@ -40,6 +41,7 @@ export const bundledPackages = [
   ["@nervekit/native", "native"],
   ["@nervekit/protocol", "protocol"],
   ["@nervekit/harness", "harness"],
+  ["@nervekit/skills", "skills"],
   ["@nervekit/tools", "tools"],
   ["@nervekit/workbench-server", "workbench-server"],
 ];

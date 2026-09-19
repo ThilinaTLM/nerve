@@ -10,6 +10,7 @@ import {
 const user = {
   disabledTools: ["python_exec" as const],
   disabledFileSkills: ["release"],
+  enabledNerveSkills: [],
   enabledAgentBrowserSkills: ["core"],
 };
 
@@ -19,6 +20,7 @@ test("capability selection composes user, project, and conversation scopes", () 
     tools: { python_exec: true, web_search: false },
     skills: {
       file: { release: true, deploy: false },
+      nerve: { "skill-creator": true },
       agentBrowser: { core: false, browser: true },
     },
   });
@@ -27,6 +29,7 @@ test("capability selection composes user, project, and conversation scopes", () 
     tools: { web_search: true },
     skills: {
       file: { deploy: true },
+      nerve: { "skill-creator": false },
       agentBrowser: { browser: false },
     },
   });
@@ -36,6 +39,7 @@ test("capability selection composes user, project, and conversation scopes", () 
     {
       disabledTools: [],
       disabledFileSkills: [],
+      enabledNerveSkills: [],
       enabledAgentBrowserSkills: [],
     },
   );
@@ -44,14 +48,21 @@ test("capability selection composes user, project, and conversation scopes", () 
 test("missing entries inherit and null patches remove an override", () => {
   const document = applyCapabilityPatch(emptyCapabilityOverrides(), {
     tools: { explore: false },
-    skills: { file: { release: false } },
+    skills: {
+      file: { release: false },
+      nerve: { "skill-creator": true },
+    },
   });
   assert.equal(document.tools.explore, false);
   assert.equal(document.skills.file.release, false);
+  assert.equal(document.skills.nerve["skill-creator"], true);
 
   const reset = applyCapabilityPatch(document, {
     tools: { explore: null },
-    skills: { file: { release: null } },
+    skills: {
+      file: { release: null },
+      nerve: { "skill-creator": null },
+    },
   });
   assert.deepEqual(reset, emptyCapabilityOverrides());
 });
@@ -68,4 +79,5 @@ test("unknown tool keys are rejected but dormant skill names are retained", () =
     skills: { file: { "not-installed-here": false } },
   });
   assert.equal(parsed.skills.file["not-installed-here"], false);
+  assert.deepEqual(parsed.skills.nerve, {});
 });

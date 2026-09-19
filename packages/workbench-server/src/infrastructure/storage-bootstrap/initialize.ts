@@ -333,6 +333,14 @@ export async function writeSettings(
   const skillsPatch = patch.skills
     ? {
         ...patch.skills,
+        ...(patch.skills.nerve
+          ? {
+              nerve: {
+                ...storage.settings.skills.nerve,
+                ...patch.skills.nerve,
+              },
+            }
+          : {}),
         ...(patch.skills.agentBrowser
           ? {
               agentBrowser: {

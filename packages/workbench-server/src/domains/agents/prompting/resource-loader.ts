@@ -25,6 +25,8 @@ export interface LoadedHarnessResources {
 export interface LoadHarnessResourcesOptions {
   storageHome?: string;
   disabledSkillNames?: readonly string[];
+  enabledNerveSkillNames?: readonly string[];
+  nerveSkills?: readonly Skill[];
   enabledAgentBrowserSkillNames?: readonly string[];
   agentBrowserSkills?: readonly Skill[];
 }
@@ -104,7 +106,7 @@ export async function listAvailableSkills(
   cwd: string | undefined,
   options: Pick<
     LoadHarnessResourcesOptions,
-    "storageHome" | "agentBrowserSkills"
+    "storageHome" | "nerveSkills" | "agentBrowserSkills"
   > = {},
 ): Promise<AvailableSkillsResponse> {
   const agentDir = join(resolveDataDir(options.storageHome), "agent");
@@ -123,6 +125,7 @@ export async function listAvailableSkills(
     skills: [
       ...groups.projectSkills.map(toMetadata("project")),
       ...groups.userSkills.map(toMetadata("user")),
+      ...(options.nerveSkills ?? []).map(toMetadata("nerve")),
       ...(options.agentBrowserSkills ?? []).map(toMetadata("agentBrowser")),
     ],
   };
@@ -155,6 +158,7 @@ function effectiveSkills(
   options: LoadHarnessResourcesOptions,
 ): Skill[] {
   const disabledSkillNames = new Set(options.disabledSkillNames ?? []);
+  const enabledNerveSkillNames = new Set(options.enabledNerveSkillNames ?? []);
   const enabledAgentBrowserSkillNames = new Set(
     options.enabledAgentBrowserSkillNames ?? [],
   );
@@ -162,10 +166,17 @@ function effectiveSkills(
     ...groups.projectSkills,
     ...groups.userSkills,
   ]).filter((skill) => !disabledSkillNames.has(skill.name));
+  const nerveSkills = (options.nerveSkills ?? []).filter((skill) =>
+    enabledNerveSkillNames.has(skill.name),
+  );
   const agentBrowserSkills = (options.agentBrowserSkills ?? []).filter(
     (skill) => enabledAgentBrowserSkillNames.has(skill.name),
   );
-  return deduplicateSkills([...fileSkills, ...agentBrowserSkills]);
+  return deduplicateSkills([
+    ...fileSkills,
+    ...nerveSkills,
+    ...agentBrowserSkills,
+  ]);
 }
 
 function deduplicateSkills(skills: readonly Skill[]): Skill[] {

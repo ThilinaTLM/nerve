@@ -1,5 +1,6 @@
 import type { Message } from "@earendil-works/pi-ai";
 import type { ResourceLimits } from "@nervekit/contracts/settings";
+import type { NerveSkillCatalog } from "@nervekit/skills";
 import type { AuthManager } from "../../domains/auth/index.js";
 import type { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/agent-browser-skills.js";
 import type { ProviderCatalogStore } from "../../domains/providers/index.js";
@@ -52,6 +53,7 @@ export class RuntimeLifecycle {
     secrets: SecretProvider,
     subscriptionUsage: SubscriptionUsageService,
     logger: ApplicationLogger,
+    nerveSkills: NerveSkillCatalog,
     agentBrowserSkills: AgentBrowserSkillCatalog,
     providerCatalog: ProviderCatalogStore,
     performanceDiagnostics: PerformanceDiagnosticsPort,
@@ -65,6 +67,7 @@ export class RuntimeLifecycle {
       secrets,
       subscriptionUsage,
       logger,
+      nerveSkills,
       agentBrowserSkills,
       providerCatalog,
       performanceDiagnostics,
@@ -81,6 +84,7 @@ export class RuntimeLifecycle {
     secrets: SecretProvider,
     subscriptionUsage: SubscriptionUsageService,
     private readonly logger: ApplicationLogger,
+    nerveSkills: NerveSkillCatalog,
     agentBrowserSkills: AgentBrowserSkillCatalog,
     providerCatalog: ProviderCatalogStore,
     performanceDiagnostics: PerformanceDiagnosticsPort,
@@ -95,6 +99,7 @@ export class RuntimeLifecycle {
       providerCatalog,
       subscriptionUsage,
       logger,
+      nerveSkills,
       agentBrowserSkills,
       performanceDiagnostics,
       resources,

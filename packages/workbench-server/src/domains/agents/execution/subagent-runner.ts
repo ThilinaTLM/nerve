@@ -9,6 +9,7 @@ import {
 import { AgentHarness } from "@nervekit/harness";
 import { Conversation } from "@nervekit/harness/conversation";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
+import type { NerveSkillCatalog } from "@nervekit/skills";
 import type {
   AgentRecord,
   CreateAgentRequest,
@@ -166,6 +167,7 @@ export interface SubagentRunnerDeps {
   logger: ApplicationLogger;
   executions: WorkbenchSubagentExecutions;
   exploreAdmission: WorkbenchExploreAdmission;
+  nerveSkills: NerveSkillCatalog;
   agentBrowserSkills: AgentBrowserSkillCatalog;
   capabilities: CapabilityService;
   transcriptLive: SubagentTranscriptLiveService;
@@ -462,6 +464,8 @@ export class SubagentRunner {
       const resources = await loadHarnessResources(child.projectDir, {
         storageHome: this.deps.storage.paths.home,
         disabledSkillNames: capabilitySelection.disabledFileSkills,
+        enabledNerveSkillNames: capabilitySelection.enabledNerveSkills,
+        nerveSkills: this.deps.nerveSkills.skills,
         enabledAgentBrowserSkillNames:
           capabilitySelection.enabledAgentBrowserSkills,
         agentBrowserSkills: this.deps.agentBrowserSkills.skills,

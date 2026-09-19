@@ -12,6 +12,7 @@ const CORE_PACKAGES = new Set([
   "@nervekit/harness",
   "@nervekit/native",
   "@nervekit/protocol",
+  "@nervekit/skills",
   "@nervekit/tools",
   "@nervekit/ui-kit",
   "@nervekit/workbench-app",
@@ -20,6 +21,7 @@ const CORE_PACKAGES = new Set([
 const HOST_PACKAGES = new Set([
   "@nervekit/native",
   "@nervekit/harness",
+  "@nervekit/skills",
   "@nervekit/tools",
   "@nervekit/workbench-server",
 ]);
@@ -50,6 +52,7 @@ const SPECIAL_OWNERS = new Map([
     "scripts/copy-workbench-app-dist-to-workbench-server.mjs",
     ["@nervekit/workbench-app", "@nervekit/workbench-server"],
   ],
+  ["scripts/copy-skills-assets.mjs", ["@nervekit/skills"]],
   [
     "scripts/smoke-workbench-release.mjs",
     ["@nervekit/workbench-app", "@nervekit/workbench-server"],

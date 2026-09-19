@@ -28,7 +28,7 @@ Model availability depends on authentication and provider metadata. Changes to d
 
 **Suggestions** manages reusable prompt chips and their trust settings. **Tools** has separate **Built-in** and **Integrations** sections. Built-in controls include tool enablement, background-task behavior, Python runtime settings, and image explanation. Integration cards appear only when the corresponding module is available and can manage enablement and credentials.
 
-**Skills** lists discovered user and project resources and lets you enable or disable them without deleting their source files. Tool and skill changes apply to subsequent agent runs.
+**Skills** lists user, project, Built-in Nerve, and Agent Browser resources. Built-in Nerve and Agent Browser skills are disabled by default; enabling one adds it to subsequent agent runs without modifying its source. User defaults can be refined by trusted project overrides.
 
 ## Storage
 
