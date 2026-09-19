@@ -8,7 +8,8 @@ import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/con
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { tildePath } from "$lib/domain/filesystem/project-path";
-import { ItemScrollRegion, ItemSurface } from "$lib/presentation";
+import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
+import { ItemSurface } from "$lib/presentation";
 import type { ProjectSwitcherItem } from "$lib/features/projects/state/project-switcher";
 import ProjectActivityStatus from "./ProjectActivityStatus.svelte";
 import ProjectIcon from "./ProjectIcon.svelte";
@@ -97,7 +98,7 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
   />
 </form>
 
-<ItemScrollRegion bind:viewport={scrollEl} contentClass="p-2">
+<ScrollRegion bind:viewport={scrollEl} contentClass="p-2">
   {#if pathQuery}
     <button
       type="button"
@@ -184,4 +185,4 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
       <span class="text-xs">Use Browse below to open a project folder.</span>
     </div>
   {/if}
-</ItemScrollRegion>
+</ScrollRegion>

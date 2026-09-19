@@ -2,7 +2,7 @@
 import type { GitStashEntry } from "@nervekit/contracts/git";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
-import { ItemScrollRegion } from "$lib/presentation/items";
+import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import GitStashRow from "./GitStashRow.svelte";
 import type { StashMutation } from "./git-panel-types";
 
@@ -59,7 +59,7 @@ function confirmDrop(): void {
     </p>
   {:else}
     <div class="flex max-h-80 min-h-0 flex-col p-1.5">
-      <ItemScrollRegion
+      <ScrollRegion
         ariaLabel="Stashes"
         contentClass="flex min-w-0 shrink-0 flex-col gap-1.5 py-0.5"
       >
@@ -72,7 +72,7 @@ function confirmDrop(): void {
             onDrop={(candidate) => (dropCandidate = candidate)}
           />
         {/each}
-      </ItemScrollRegion>
+      </ScrollRegion>
     </div>
     {#if stashes.length > 100}
       <p class="px-3 pb-2 text-xs text-muted-foreground">

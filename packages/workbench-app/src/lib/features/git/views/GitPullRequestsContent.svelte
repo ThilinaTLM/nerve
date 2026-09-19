@@ -1,4 +1,5 @@
 <script lang="ts">
+import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import ListFilter from "@lucide/svelte/icons/list-filter";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
@@ -12,7 +13,6 @@ import {
   PanelBanner,
   PanelHeader,
   PanelList,
-  PanelScrollRegion,
   PanelToolbarButton,
 } from "$lib/presentation/panels";
 import GitPullRequestRow from "./GitPullRequestRow.svelte";
@@ -157,7 +157,7 @@ function toggleChecks(pr: GithubPr) {
         : "No open PRs for this repository.",
     )}
   {:else}
-    <PanelScrollRegion ariaLabel="Pull requests" contentClass="min-w-0">
+    <ScrollRegion ariaLabel="Pull requests" contentClass="min-w-0">
       {#if prs.length > displayedPrs.length}
         {@render note(`Showing ${displayedPrs.length} of ${prs.length}`)}
       {/if}
@@ -176,6 +176,6 @@ function toggleChecks(pr: GithubPr) {
           />
         {/each}
       </PanelList>
-    </PanelScrollRegion>
+    </ScrollRegion>
   {/if}
 </div>

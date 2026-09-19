@@ -19,12 +19,18 @@ import Popover, {
   PopoverHeader,
   PopoverSearch,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
+import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import type { SkillSource } from "@nervekit/contracts/skills";
 import type { CapabilitySkillRow } from "./capability-skill-row";
+import {
+  capabilityBodyHeight,
+  filterCapabilityRows,
+  showCapabilitySearch,
+} from "./capability-list";
 import { capabilityToolLabels } from "./capability-tool-labels";
 type Row = {
   key: string;
@@ -78,10 +84,19 @@ let {
 
 let open = $state(false);
 let tab = $state<"tools" | "skills">("tools");
+let query = $state("");
 
 function handleOpenChange(next: boolean): void {
   open = disabled ? false : next;
-  if (open) onRefresh?.();
+  if (open) {
+    query = "";
+    onRefresh?.();
+  }
+}
+
+function selectTab(next: "tools" | "skills"): void {
+  tab = next;
+  query = "";
 }
 
 $effect(() => {
@@ -156,6 +171,17 @@ const skillRows = $derived<Row[]>(
 );
 
 const rows = $derived(tab === "tools" ? toolRows : skillRows);
+/* The filter and the body height come from both tabs, so the panel keeps one
+ * geometry as the user switches between tools and skills. */
+const showSearch = $derived(
+  showCapabilitySearch(toolRows.length, skillRows.length),
+);
+const bodyHeight = $derived(
+  capabilityBodyHeight(toolRows.length, skillRows.length),
+);
+const visibleRows = $derived(
+  showSearch ? filterCapabilityRows(rows, query) : rows,
+);
 
 function openSettings(): void {
   open = false;
@@ -213,7 +239,7 @@ function openSettings(): void {
     {/snippet}
   </PopoverHeader>
 
-  <PopoverSearch>
+  <PopoverSearch class={showSearch ? "grid gap-2" : undefined}>
     <ToggleGroup.Root
       type="single"
       size="xs"
@@ -223,7 +249,7 @@ function openSettings(): void {
       class="justify-start"
       aria-label="Capability kind"
       onValueChange={(value) => {
-        if (value) tab = value as "tools" | "skills";
+        if (value) selectTab(value as "tools" | "skills");
       }}
     >
       <ToggleGroup.Item value="tools" class="flex-none">
@@ -235,9 +261,16 @@ function openSettings(): void {
         <span data-slot="toggle-count">{enabledSkills}/{skills.length}</span>
       </ToggleGroup.Item>
     </ToggleGroup.Root>
+    {#if showSearch}
+      <SearchInput
+        bind:value={query}
+        placeholder="Filter tools and skills"
+        ariaLabel={tab === "skills" ? "Filter skills" : "Filter tools"}
+      />
+    {/if}
   </PopoverSearch>
 
-  <PopoverBody class="gap-0">
+  <PopoverBody class="gap-0" stableHeight={bodyHeight}>
     {#if error}
       <p class="px-1.5 text-warning" role="alert">{error}</p>
     {:else if loading && !configuration}
@@ -252,8 +285,12 @@ function openSettings(): void {
           ? "No skills are available for this project."
           : "No optional tools are available."}
       </p>
+    {:else if visibleRows.length === 0}
+      <p class="px-1.5 text-muted-foreground">
+        {tab === "skills" ? "No skills match." : "No tools match."}
+      </p>
     {:else}
-      {#each rows as row (row.key)}
+      {#each visibleRows as row (row.key)}
         {@const Icon = row.icon}
         <div
           class="flex min-h-7 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
