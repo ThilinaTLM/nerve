@@ -1,9 +1,10 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 
 type Props = { value: unknown; open?: boolean };
 let { value, open = false }: Props = $props();
-let activated = $state(open);
+let activated = $state(untrack(() => open));
 
 function serialize(value: unknown): { text: string; language?: string } {
   if (typeof value === "string") return { text: value };

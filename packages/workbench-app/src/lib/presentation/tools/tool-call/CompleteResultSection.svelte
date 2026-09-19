@@ -3,6 +3,7 @@ import type {
   CompleteToolResultDescriptor,
   ToolCallResultChunk,
 } from "@nervekit/contracts/tools";
+import { untrack } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 import LargeResultViewer from "./LargeResultViewer.svelte";
@@ -25,7 +26,7 @@ let loading = $state(false);
 let text = $state("");
 let nextByteOffset = $state(0);
 let done = $state(false);
-let status = $state(descriptor.status);
+let status = $state(untrack(() => descriptor.status));
 let error = $state<string | undefined>(undefined);
 let requestGeneration = 0;
 

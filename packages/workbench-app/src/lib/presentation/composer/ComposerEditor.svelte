@@ -453,7 +453,11 @@ onDestroy(() => view?.destroy());
   ondropcapture={handleFileDrop}
 >
   <ContextMenuList items={menuItems} triggerClass="block min-w-0">
-    <div bind:this={host} oncontextmenu={captureContext}></div>
+    <div
+      bind:this={host}
+      role="presentation"
+      oncontextmenu={captureContext}
+    ></div>
   </ContextMenuList>
   {#if fileDragActive}
     <div

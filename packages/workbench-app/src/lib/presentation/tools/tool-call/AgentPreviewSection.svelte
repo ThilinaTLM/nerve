@@ -61,7 +61,7 @@ function supportedImageMime(mimeType: string): boolean {
                 <img
                   class="max-h-80 max-w-full rounded-sm object-contain"
                   src={`data:${block.mimeType};base64,${data}`}
-                  alt="Image supplied to the agent"
+                  alt="Supplied to the agent"
                 />
               {/if}
             </div>
