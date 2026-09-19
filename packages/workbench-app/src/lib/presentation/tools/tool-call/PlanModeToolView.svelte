@@ -10,7 +10,7 @@ import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import { SplitButton } from "@nervekit/ui-kit/components/composites/split-button";
-import type { MetaItem } from "../views/tool-presentation";
+import type { MetaItem } from "../../cards/card-presentation";
 import {
   COLLAPSED_LINES,
   type ToolCallDisplayRecord,
@@ -18,7 +18,7 @@ import {
 } from "../views/tool-result-view";
 import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelte";
 import { planReviewContent, planReviewPreview } from "./plan-mode-preview";
-import ToolFooter from "./ToolFooter.svelte";
+import CardFooter from "../../cards/CardFooter.svelte";
 
 type PlanAcceptTarget = "same" | "compact" | "new-chat";
 
@@ -284,7 +284,10 @@ async function rejectPlan() {
       {/if}
     {/if}
 
-    <ToolFooter meta={statusMeta} {detailsAction}>
+    <CardFooter
+      meta={statusMeta}
+      cardActions={detailsAction ? [detailsAction] : []}
+    >
       {#snippet actions()}
         <SplitButton
           variant={acceptVariant}
@@ -361,7 +364,7 @@ async function rejectPlan() {
           {rejecting ? "Rejecting…" : "Reject Plan"}
         </Button>
       {/snippet}
-    </ToolFooter>
+    </CardFooter>
 
     {#if actionError}
       <p class="m-0 text-xs text-destructive" role="alert">{actionError}</p>

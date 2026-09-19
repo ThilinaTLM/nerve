@@ -2,25 +2,31 @@
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Snippet } from "svelte";
 
-import type { MetaItem, PrimaryArg } from "../views/tool-presentation";
-import ToolFooter from "./ToolFooter.svelte";
-import ToolCardHeader from "./ToolCardHeader.svelte";
-import ToolLifecycleFrame from "./ToolLifecycleFrame.svelte";
+import type {
+  CardAction,
+  CardGlyph,
+  MetaItem,
+  PrimaryArg,
+} from "./card-presentation";
+import CardFooter from "./CardFooter.svelte";
+import CardHeader from "./CardHeader.svelte";
+import LifecycleFrame from "./LifecycleFrame.svelte";
 
 type Props = {
   status?: string;
   draftPhase?: "drafting" | "prepared";
   dotTone: StatusTone;
   dotPulse?: boolean;
+  /** Named glyph override (notices, handed-off work). */
+  glyph?: CardGlyph;
+  /** Accessible description of the card state. */
+  statusLabel?: string;
   badge: string;
   arg?: PrimaryArg;
   error?: string;
   meta?: MetaItem[];
-  detailsAction?: {
-    label: string;
-    ariaLabel?: string;
-    onClick: () => void;
-  };
+  /** Right-aligned footer pills, e.g. "Open task" then "View details". */
+  cardActions?: CardAction[];
   footer?: boolean;
   bodyVisible?: boolean;
   layoutRevision?: string;
@@ -32,11 +38,13 @@ let {
   draftPhase,
   dotTone,
   dotPulse = false,
+  glyph,
+  statusLabel: statusLabelOverride,
   badge,
   arg,
   error,
   meta = [],
-  detailsAction,
+  cardActions = [],
   footer = true,
   bodyVisible = false,
   layoutRevision = "static",
@@ -62,40 +70,43 @@ const lifecycle = $derived.by<"running" | "complete" | "error" | "idle">(() => {
       return "idle";
   }
 });
-const statusLabel = $derived(
-  draftPhase
-    ? "Preparing tool call"
-    : status === "waiting"
-      ? "Needs approval"
-      : status === "waiting"
-        ? "Waiting for user feedback"
-        : status === "committed" || status === "running"
-          ? "Executing tool call"
-          : status === "completed"
-            ? "Tool call completed"
-            : status === "denied"
-              ? "Tool call denied"
-              : status === "failed"
-                ? "Tool call failed"
-                : status === "cancelled"
-                  ? "Tool call cancelled"
-                  : "Tool call status",
-);
+const toolStatusLabel = $derived.by(() => {
+  if (draftPhase) return "Preparing tool call";
+  switch (status) {
+    case "waiting":
+      return "Needs approval";
+    case "committed":
+    case "running":
+      return "Executing tool call";
+    case "completed":
+      return "Tool call completed";
+    case "denied":
+      return "Tool call denied";
+    case "failed":
+      return "Tool call failed";
+    case "cancelled":
+      return "Tool call cancelled";
+    default:
+      return "Tool call status";
+  }
+});
+const statusLabel = $derived(statusLabelOverride ?? toolStatusLabel);
 const footerVisible = $derived(
-  footer && (meta.length > 0 || Boolean(detailsAction)),
+  footer && (meta.length > 0 || cardActions.length > 0),
 );
 const activityVisible = $derived(
   Boolean(error) || bodyVisible || footerVisible,
 );
 </script>
 
-<ToolLifecycleFrame revision={layoutRevision}>
-  <article class="tool-card" data-state={draftPhase ?? lifecycle}>
-    <ToolCardHeader
+<LifecycleFrame revision={layoutRevision}>
+  <article class="card" data-state={draftPhase ?? lifecycle}>
+    <CardHeader
       {dotTone}
       {dotPulse}
-      waitingForUser={status === "waiting" || status === "waiting"}
+      waitingForUser={status === "waiting"}
       {statusLabel}
+      {glyph}
       {badge}
       {arg}
       {onOpenFile}
@@ -103,31 +114,31 @@ const activityVisible = $derived(
 
     <div class={`grid min-w-0 gap-1.5${activityVisible ? " pt-1.5" : ""}`}>
       {#if error}
-        <pre class="tool-error">{error}</pre>
+        <pre class="card-error">{error}</pre>
       {/if}
 
       {#if bodyVisible && children}
-        <div class="tool-body grid gap-1.5">{@render children()}</div>
+        <div class="card-body grid gap-1.5">{@render children()}</div>
       {/if}
 
       {#if footerVisible}
-        <ToolFooter {meta} {detailsAction} {onOpenFile} />
+        <CardFooter {meta} {cardActions} {onOpenFile} />
       {/if}
     </div>
   </article>
-</ToolLifecycleFrame>
+</LifecycleFrame>
 
 <style>
-.tool-card {
+.card {
   width: 100%;
   padding: 0.6rem 0;
 }
 
-.tool-body {
+.card-body {
   min-width: 0;
 }
 
-.tool-error {
+.card-error {
   margin: 0;
   border: 1px solid color-mix(in oklab, var(--destructive) 40%, var(--border));
   border-radius: var(--radius-sm);

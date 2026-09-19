@@ -12,7 +12,7 @@ import {
 } from "../lifecycle/registry";
 import { mergeDraftMeta, specializedDraftBody } from "./tool-draft-body";
 import { COLLAPSED_LINES } from "./tool-view-helpers";
-import type { PrimaryArg } from "./tool-presentation-types";
+import type { PrimaryArg } from "../../cards/card-presentation";
 export { hasMeaningfulToolDraftBody } from "./tool-draft-body";
 
 export type DraftMetaItem = {

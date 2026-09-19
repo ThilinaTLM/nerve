@@ -1,6 +1,6 @@
 <script lang="ts">
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
-import ToolStatusIcon from "./ToolStatusIcon.svelte";
+import StatusGlyph from "../../cards/StatusGlyph.svelte";
 
 type Props = {
   toolName: string;
@@ -16,7 +16,7 @@ const errorPreview = $derived(
 
 <article class="tool-result-error-card">
   <div class="tool-header">
-    <ToolStatusIcon tone="destructive" size={14} class="mr-1.5 align-middle" />
+    <StatusGlyph tone="destructive" size={14} class="mr-1.5 align-middle" />
     <span class="badge">{toolName}</span>
   </div>
   <pre class="tool-error">{errorPreview}</pre>

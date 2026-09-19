@@ -1,11 +1,11 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { prefersReducedMotion } from "svelte/motion";
-import { getConversationMotionBudget } from "../../transcript/conversation-motion-context.svelte";
+import { getConversationMotionBudget } from "../transcript/conversation-motion-context.svelte";
 import {
-  createToolLifecycleMotion,
-  type ToolLifecycleMotionController,
-} from "./tool-lifecycle-motion";
+  createLifecycleMotion,
+  type LifecycleMotionController,
+} from "./lifecycle-motion";
 
 type Props = {
   revision: string;
@@ -17,13 +17,13 @@ let { revision, children }: Props = $props();
 const motionBudget = getConversationMotionBudget();
 let region: HTMLDivElement | undefined = $state();
 let content: HTMLDivElement | undefined = $state();
-let motion: ToolLifecycleMotionController | undefined;
+let motion: LifecycleMotionController | undefined;
 let previousRevision: string | undefined;
 let capturedHeight: number | undefined;
 
-function ensureMotion(): ToolLifecycleMotionController | undefined {
+function ensureMotion(): LifecycleMotionController | undefined {
   if (!motion && region && content) {
-    motion = createToolLifecycleMotion(region, content);
+    motion = createLifecycleMotion(region, content);
   }
   return motion;
 }

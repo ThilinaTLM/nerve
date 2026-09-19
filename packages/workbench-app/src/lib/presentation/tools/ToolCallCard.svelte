@@ -12,7 +12,11 @@ import type {
 import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts/conversations";
 import type { ToolCallDetails } from "@nervekit/contracts/tools";
 import type { ToolDraftViewModel } from "../state/active-run";
-import type { MetaItem, PrimaryArg } from "./views/tool-presentation";
+import type {
+  CardAction,
+  MetaItem,
+  PrimaryArg,
+} from "../cards/card-presentation";
 import { toolPresentationCached } from "./views/tool-presentation";
 import {
   parseToolViewCached,
@@ -38,7 +42,8 @@ import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
 import { LatestPresentationScheduler } from "@nervekit/ui-kit/scheduling/latest-presentation-scheduler";
 import { toolCardLayoutRevision } from "./views/tool-card-layout";
 import { VIEW_TOOL_DETAILS_LABEL } from "./views/tool-details-label";
-import CardShell from "./tool-call/CardShell.svelte";
+import { formatElapsed } from "./views/tool-presentation-helpers";
+import CardShell from "../cards/CardShell.svelte";
 import ToolExecutingSkeleton from "./tool-call/ToolExecutingSkeleton.svelte";
 import ToolArgumentBody from "./tool-call/ToolArgumentBody.svelte";
 import ToolCallDetailsDialog from "./tool-call/ToolCallDetailsDialog.svelte";
@@ -62,6 +67,8 @@ type Props = {
   planReviewModelKey?: string;
   planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
   onOpenFile?: (path: string, line?: number) => void;
+  /** Opens the background task a promoted call handed its work to. */
+  onOpenTask?: (taskId: string) => void;
   onAnswerUserQuestion?: (questionId: string, answer: string) => void;
   onDismissUserQuestion?: (questionId: string) => void;
   onGrantApproval?: (
@@ -98,6 +105,7 @@ let {
   planReviewModelKey = "",
   planReviewThinkingLevel = "off",
   onOpenFile,
+  onOpenTask,
   onAnswerUserQuestion,
   onDismissUserQuestion,
   onGrantApproval,
@@ -289,10 +297,36 @@ function mergeMetaItems(...groups: Array<readonly MetaItem[]>): MetaItem[] {
     return true;
   });
 }
+// Wall-clock feedback for work in flight. The chip leads the footer so a long
+// call always says how long it has been waiting, and it is delayed briefly so
+// quick calls do not flash a "0s".
+const runningSinceMs = $derived.by(() => {
+  if (!toolCall) return undefined;
+  if (toolCall.status !== "running" && toolCall.status !== "committed")
+    return undefined;
+  const started = Date.parse(toolCall.createdAt);
+  return Number.isFinite(started) ? started : undefined;
+});
+let clockMs = $state(Date.now());
+$effect(() => {
+  if (runningSinceMs === undefined) return;
+  clockMs = Date.now();
+  const interval = setInterval(() => {
+    clockMs = Date.now();
+  }, 1000);
+  return () => clearInterval(interval);
+});
+const elapsedMeta = $derived.by<MetaItem[]>(() => {
+  if (runningSinceMs === undefined) return [];
+  const elapsed = clockMs - runningSinceMs;
+  if (elapsed < 2000) return [];
+  return [{ text: formatElapsed(elapsed) }];
+});
 const activityMeta = $derived.by(() => {
   if (!toolCall) return draftSummary?.meta ?? [];
   if (toolCall.status === "completed") return presentation?.meta ?? [];
   return mergeMetaItems(
+    elapsedMeta,
     draftSummary?.meta ?? [],
     lifecycleArgumentPresentation?.secondary ?? [],
     presentation?.meta ?? [],
@@ -310,7 +344,9 @@ const activitySections = $derived.by(() =>
     hasInteraction: hilInteractive,
     resultPlaceholder: lifecycleSpec.resultPlaceholder,
     footerItems: activityMeta,
-    hasDetailsAction: Boolean(toolCall && detailsEnabled),
+    hasDetailsAction:
+      Boolean(toolCall && detailsEnabled) ||
+      Boolean(backgroundTaskId && onOpenTask),
   }),
 );
 const draftArg = $derived.by<PrimaryArg | undefined>(() => {
@@ -350,6 +386,7 @@ const layoutRevision = $derived(
 // A prepared draft only means argument generation finished; execution has not.
 // Keep it visibly in-flight until a durable terminal status takes ownership.
 const dotTone = $derived(presentation?.dotTone ?? "info");
+const glyph = $derived(presentation?.glyph);
 const dotPulse = $derived(presentation?.dotPulse ?? true);
 const meta = $derived(activityMeta);
 const detailsAction = $derived(
@@ -361,6 +398,22 @@ const detailsAction = $derived(
       }
     : undefined,
 );
+// A promoted call keeps its own result body and adds a way into the task that
+// took the work over.
+const backgroundTaskId = $derived(presentation?.backgroundTaskId);
+const cardActions = $derived.by<CardAction[]>(() => {
+  const actions: CardAction[] = [];
+  const taskId = backgroundTaskId;
+  if (taskId && onOpenTask) {
+    actions.push({
+      label: "Open task",
+      ariaLabel: `Open background task ${taskId}`,
+      onClick: () => onOpenTask(taskId),
+    });
+  }
+  if (detailsAction) actions.push(detailsAction);
+  return actions;
+});
 const errorPreview = $derived(
   toolCall?.error
     ? trimTextPreview(toolCall.error, {
@@ -417,6 +470,7 @@ async function openDetails() {
       : "drafting"}
   {dotTone}
   {dotPulse}
+  {glyph}
   {badge}
   arg={primaryArg}
   error={activitySections.errorVisible ? errorPreview : undefined}
@@ -427,7 +481,7 @@ async function openDetails() {
     activitySections.interactionMode !== "none" ||
     activitySections.resultMode !== "none"}
   {layoutRevision}
-  {detailsAction}
+  {cardActions}
   {onOpenFile}
 >
   {#if isExplore}

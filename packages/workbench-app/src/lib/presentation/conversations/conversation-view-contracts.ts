@@ -156,6 +156,7 @@ export type ConversationPaneActions = {
   onWriteClipboardText?: (text: string) => Promise<void>;
   onClipboardError?: (action: "copy" | "cut" | "paste") => void;
   onOpenFile?: (path: string, line?: number) => void;
+  onOpenTask?: (taskId: string) => void;
   onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
   onAnswerUserQuestion?: (id: string, answer: string) => void | Promise<void>;
   onDismissUserQuestion?: (id: string) => void | Promise<void>;

@@ -8,8 +8,8 @@ import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { SplitButton } from "@nervekit/ui-kit/components/composites/split-button";
 import type { ApprovalWithToolCall } from "../../state/tool-types";
 import type { ToolArgumentPresentation } from "../lifecycle/registry";
-import type { MetaItem } from "../views/tool-presentation";
-import ToolFooter from "./ToolFooter.svelte";
+import type { MetaItem } from "../../cards/card-presentation";
+import CardFooter from "../../cards/CardFooter.svelte";
 
 type Props = {
   approval: ApprovalWithToolCall;
@@ -128,7 +128,7 @@ const permissionRuleSetLabel = $derived(
       Durable grants apply only to the {permissionRuleSetLabel} permission rule set.
     </p>
   {/if}
-  <ToolFooter {meta} {detailsAction}>
+  <CardFooter {meta} cardActions={detailsAction ? [detailsAction] : []}>
     {#snippet actions()}
       {#if hasPersistentChoice}
         <SplitButton
@@ -206,7 +206,7 @@ const permissionRuleSetLabel = $derived(
         {/if}
       </Button>
     {/snippet}
-  </ToolFooter>
+  </CardFooter>
   {#if actionError}
     <p class="m-0 text-xs text-destructive" role="alert">{actionError}</p>
   {/if}

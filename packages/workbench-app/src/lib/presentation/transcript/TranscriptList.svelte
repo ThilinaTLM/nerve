@@ -62,6 +62,7 @@ type Props = {
   planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
   lastTimelineKey?: string;
   onOpenFile?: (path: string, line?: number) => void;
+  onOpenTask?: (taskId: string) => void;
   onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
   onAnswerUserQuestion?: (questionId: string, answer: string) => void;
   onDismissUserQuestion?: (questionId: string) => void;
@@ -123,6 +124,7 @@ let {
   planReviewThinkingLevel = "off",
   lastTimelineKey,
   onOpenFile,
+  onOpenTask,
   onOpenMermaid,
   onAnswerUserQuestion,
   onDismissUserQuestion,
@@ -361,6 +363,7 @@ $effect(() => {
             {planReviewModelKey}
             {planReviewThinkingLevel}
             {onOpenFile}
+            {onOpenTask}
             {onOpenMermaid}
             {onAnswerUserQuestion}
             {onDismissUserQuestion}

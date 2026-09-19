@@ -111,6 +111,7 @@ const scroll = createConversationScrollController({
           planReviewThinkingLevel={model.planReviewThinkingLevel}
           {lastTimelineKey}
           onOpenFile={actions.onOpenFile}
+          onOpenTask={actions.onOpenTask}
           onOpenMermaid={actions.onOpenMermaid}
           onAnswerUserQuestion={actions.onAnswerUserQuestion}
           onDismissUserQuestion={actions.onDismissUserQuestion}

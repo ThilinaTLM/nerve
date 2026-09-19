@@ -1,6 +1,13 @@
 <script lang="ts">
+import type { Component } from "svelte";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import Bell from "@lucide/svelte/icons/bell";
+import BellDot from "@lucide/svelte/icons/bell-dot";
+import BellRing from "@lucide/svelte/icons/bell-ring";
 import Circle from "@lucide/svelte/icons/circle";
+import ClockFading from "@lucide/svelte/icons/clock-fading";
+import Layers from "@lucide/svelte/icons/layers";
+import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
@@ -8,6 +15,7 @@ import CircleX from "@lucide/svelte/icons/circle-x";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 
 import { cn } from "@nervekit/ui-kit/utils";
+import type { CardGlyph } from "./card-presentation";
 
 let {
   tone,
@@ -15,6 +23,7 @@ let {
   waitingForUser = false,
   size = 14,
   label,
+  glyph,
   class: className,
 }: {
   tone: StatusTone;
@@ -22,12 +31,21 @@ let {
   waitingForUser?: boolean;
   size?: number;
   label?: string;
+  /**
+   * Glyph override. Notices and handed-off work swap the circled tool family
+   * for their own vocabulary while keeping tone, sizing and motion identical.
+   */
+  glyph?: CardGlyph;
   class?: string;
 } = $props();
 
 // Drafting/running states spin; HIL waits and terminal states show static
 // glyphs. Tone drives the theme color in both cases.
-const spin = $derived(!waitingForUser && (pulse || tone === "info"));
+// A named glyph only spins when the caller asks: an overridden glyph carries
+// its own meaning, so tone alone must not swap it for a spinner.
+const spin = $derived(
+  !waitingForUser && (pulse || (!glyph && tone === "info")),
+);
 
 const colorClass: Record<StatusTone, string> = {
   info: "text-info",
@@ -47,9 +65,24 @@ const terminalIcon = {
   accent: Circle,
 } satisfies Record<StatusTone, typeof Circle>;
 
-const Icon = $derived(waitingForUser ? CircleQuestionMark : terminalIcon[tone]);
+const glyphIcon = {
+  pending: ClockFading,
+  bell: Bell,
+  "bell-ring": BellRing,
+  "bell-dot": BellDot,
+  retry: RefreshCw,
+  compaction: Layers,
+} satisfies Record<CardGlyph, Component>;
+
+const Icon = $derived(
+  glyph
+    ? glyphIcon[glyph]
+    : waitingForUser
+      ? CircleQuestionMark
+      : terminalIcon[tone],
+);
 const visualKey = $derived(
-  `${waitingForUser ? "waiting" : spin ? "spin" : "static"}:${tone}`,
+  `${waitingForUser ? "waiting" : spin ? "spin" : "static"}:${tone}:${glyph ?? "default"}`,
 );
 </script>
 

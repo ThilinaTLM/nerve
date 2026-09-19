@@ -94,6 +94,42 @@ status colors returned from a TypeScript helper (`statusTextClass`), and
 primitive layout passed to `VirtualScroller` via `viewportClass` instead of
 `:global()`.
 
+## Transcript notices
+
+System events in a conversation timeline (background tasks, run retries and
+failures, compaction, and anything added later) are **notices**. A notice is a
+process the reader cares about, exactly like a tool call, so it renders through
+the same card: `$lib/presentation/cards` owns `CardShell`, `CardHeader`,
+`CardFooter`, `StatusGlyph`, `MetaChip` and `LifecycleFrame`, and both tool
+calls and notices compose them. A pure mapper in
+`$lib/presentation/transcript/notice` turns the payload into a
+`TranscriptNoticeModel` (`kind`, `tone`, `glyph`, `busy`, `badge`, `arg`,
+`statusLabel`, `summary`, `error`, `chips`, `action`); `NoticeCard.svelte` binds
+it to `CardShell`. Adding a notice kind is a mapper, a thin card and one
+`TranscriptRow` branch — never a new look.
+
+- **Same anatomy as a tool call.** No border box, no tinted surface: 14px
+  tone-coloured glyph, mono event name in the tool-name slot, muted argument,
+  recessed `well` body, chips plus a right-aligned footer pill.
+- **The glyph is the only difference.** Tool calls own the circled
+  check/x/alert family; notices own the bell family (`bell` for terminal
+  events, `bell-ring` for ready/recovered, `bell-dot` when something needs
+  attention) plus `layers` for compaction and a spinner while in flight.
+- **Mono event name, not a sentence.** `task completed`, `run retrying`,
+  `compacted` — they sit in the same column as tool names. The muted argument
+  carries the task name, compaction reason or failure summary.
+- **Chips, not badges.** Extra facts (`exit 0`, `signal SIGTERM`, `retry 2/5`,
+  token counts) use the shared `MetaChip` family. A chip must add information:
+  never restate the event name.
+- **Actions are footer pills.** `Open task` and `Continue` join `View details`
+  in the shared `cardActions` slot; notices never render a solid button.
+  Anything richer belongs in a panel or dialog.
+- **A card's glyph must tell the truth.** A bash call promoted into a
+  background task is `completed` for the agent but unfinished for the reader,
+  so it drops the green check for the warning-toned `pending` clock, keeps its
+  result body, and gains an `Open task` pill. Running tool calls lead their
+  footer with a live elapsed chip once they pass two seconds.
+
 ## Panel views
 
 Dock panel content (Conversations, Git, Context, Notes, Tasks) must be built from

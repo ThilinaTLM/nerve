@@ -1,18 +1,18 @@
 <script lang="ts">
-import type { StatusTone } from "@nervekit/ui-kit/display/status";
-import type { CompactionNotice } from "../state/transcript-types";
+import type { CompactionNotice } from "../../state/transcript-types";
 import { formatTokens } from "@nervekit/ui-kit/display/usage";
-import CardShell from "../tools/tool-call/CardShell.svelte";
-import ResultCodeBlock from "../tools/tool-call/ResultCodeBlock.svelte";
-import type { MetaItem } from "../tools/views/tool-presentation";
+import ResultCodeBlock from "../../tools/tool-call/ResultCodeBlock.svelte";
 import {
   COLLAPSED_LINES,
   splitLogicalLines,
-} from "../tools/views/tool-view-helpers";
+} from "../../tools/views/tool-view-helpers";
+import NoticeCard from "./NoticeCard.svelte";
 import {
   compactionCardBodyKind,
   compactionCardLayoutRevision,
 } from "./compaction-card-layout";
+import { compactionNoticeHeader } from "./compaction-notice";
+import type { NoticeChip } from "./notice-presentation";
 
 type Props = {
   notice: CompactionNotice;
@@ -33,18 +33,7 @@ const compactedMessages = $derived(
     : undefined,
 );
 
-const reasonLabel = $derived.by(() => {
-  if (notice.reason === "threshold") return "auto compact";
-  if (notice.reason === "overflow") return "overflow recovery";
-  return "manual";
-});
-
-const dotTone = $derived.by<StatusTone>(() => {
-  if (notice.state === "failed") return "destructive";
-  if (notice.state === "cancelled") return "warning";
-  if (notice.state === "running") return "info";
-  return "success";
-});
+const header = $derived(compactionNoticeHeader(notice));
 
 const contextPercent = $derived.by(() => {
   const used = notice.contextTokens ?? notice.tokensBefore;
@@ -90,8 +79,8 @@ const showElapsed = $derived(
   elapsedSeconds !== undefined && elapsedSeconds >= 1,
 );
 
-const completedChips = $derived.by<MetaItem[]>(() => {
-  const items: MetaItem[] = [];
+const completedChips = $derived.by<NoticeChip[]>(() => {
+  const items: NoticeChip[] = [];
   if (typeof notice.tokensBefore === "number") {
     items.push({ text: `${formatTokens(notice.tokensBefore)} before` });
   }
@@ -113,8 +102,8 @@ const completedChips = $derived.by<MetaItem[]>(() => {
   return items;
 });
 
-const runningChips = $derived.by<MetaItem[]>(() => {
-  const items: MetaItem[] = [];
+const runningChips = $derived.by<NoticeChip[]>(() => {
+  const items: NoticeChip[] = [];
   const before = notice.contextTokens ?? notice.tokensBefore;
   if (typeof before === "number") {
     items.push({ text: `${formatTokens(before)} before` });
@@ -140,14 +129,33 @@ const chips = $derived(
 );
 
 const errorMessage = $derived(
-  notice.errorMessage?.trim() || "Could not compact this conversation.",
+  notice.state === "failed"
+    ? notice.errorMessage?.trim() || "Could not compact this conversation."
+    : undefined,
 );
 
-const bodyVisible = $derived(
-  notice.state === "running" ||
-    notice.state === "cancelled" ||
-    (notice.state === "completed" && previewText.length > 0),
-);
+const summary = $derived.by(() => {
+  if (notice.state === "running" && !previewText) {
+    return "Summarizing recent work…";
+  }
+  if (notice.state === "cancelled") return "Compaction stopped early.";
+  return undefined;
+});
+
+const model = $derived({
+  kind: "compaction",
+  tone: header.tone,
+  glyph: header.glyph,
+  busy: header.busy,
+  badge: header.badge,
+  arg: header.arg,
+  statusLabel: header.statusLabel,
+  summary,
+  error: errorMessage,
+  chips,
+});
+
+const bodyVisible = $derived(previewText.length > 0);
 const layoutRevision = $derived(
   compactionCardLayoutRevision({
     state: notice.state,
@@ -161,36 +169,14 @@ const layoutRevision = $derived(
 );
 </script>
 
-<div class="my-2">
-  <CardShell
-    status={notice.state === "completed" ? undefined : notice.state}
-    {dotTone}
-    dotPulse={notice.state === "running"}
-    badge="compact"
-    arg={{ text: reasonLabel }}
-    error={notice.state === "failed" ? errorMessage : undefined}
-    meta={chips}
-    {bodyVisible}
-    {layoutRevision}
-  >
-    {#if previewText}
-      <ResultCodeBlock
-        code={previewText}
-        language="markdown"
-        trim={false}
-        wrap
-        overflow="hidden"
-        tail
-        fixedRows={COLLAPSED_LINES}
-      />
-    {:else if notice.state === "running"}
-      <p class="m-0 text-sm leading-6 text-muted-foreground">
-        Summarizing recent work…
-      </p>
-    {:else if notice.state === "cancelled"}
-      <p class="m-0 text-sm leading-6 text-muted-foreground">
-        Compaction stopped.
-      </p>
-    {/if}
-  </CardShell>
-</div>
+<NoticeCard notice={model} {layoutRevision} {bodyVisible}>
+  <ResultCodeBlock
+    code={previewText}
+    language="markdown"
+    trim={false}
+    wrap
+    overflow="hidden"
+    tail
+    fixedRows={COLLAPSED_LINES}
+  />
+</NoticeCard>

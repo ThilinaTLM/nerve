@@ -1,4 +1,4 @@
-import type { CompactionNoticeState } from "../state/transcript-types";
+import type { CompactionNoticeState } from "../../state/transcript-types";
 
 export type CompactionCardBodyKind = "none" | "status" | "preview";
 

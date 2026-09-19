@@ -1,5 +1,5 @@
 import type { OrchestrationToolName } from "@nervekit/contracts/tools";
-import type { MetaItem } from "../views/tool-presentation-types";
+import type { MetaItem } from "../../cards/card-presentation";
 import type { ToolArgumentSource } from "./argument-source";
 import {
   boundedText,
