@@ -169,7 +169,8 @@ export const harnessConfigSchema = z
         disabled: z.array(z.string().trim().min(1)),
         nerve: z
           .object({ enabled: z.array(z.string().trim().min(1)) })
-          .strict(),
+          .strict()
+          .default({ enabled: [] }),
         agentBrowser: z
           .object({ enabled: z.array(z.string().trim().min(1)) })
           .strict(),

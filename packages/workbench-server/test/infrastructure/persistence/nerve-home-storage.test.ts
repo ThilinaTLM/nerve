@@ -139,6 +139,32 @@ test("fails closed on every non-empty unmanifested or unsupported home", async (
   assert.deepEqual(await readdir(other), ["manifest.json"]);
 });
 
+test("loads older home configuration with missing additive defaults", async (t) => {
+  const home = await temporaryHome("nerve-home-config-defaults-");
+  const initial = await initializeStorage(home);
+  await initial.canonicalStore.close();
+
+  const harness = JSON.parse(
+    await readFile(initial.paths.harnessConfigPath, "utf8"),
+  ) as { skills: { nerve?: unknown } };
+  delete harness.skills.nerve;
+  await writeFile(
+    initial.paths.harnessConfigPath,
+    `${JSON.stringify(harness, null, 2)}\n`,
+  );
+
+  const reopened = await initializeStorage(home);
+  t.after(async () => {
+    await reopened.canonicalStore.close();
+    await rm(home, { recursive: true, force: true });
+  });
+
+  assert.deepEqual(reopened.configuration.harness.skills.nerve, {
+    enabled: [],
+  });
+  assert.deepEqual(reopened.settings.skills.nerve, { enabled: [] });
+});
+
 test("encrypts secrets and resolves project configuration precedence", async (t) => {
   const home = await temporaryHome("nerve-home-config-");
   const project = await temporaryHome("nerve-project-config-");
