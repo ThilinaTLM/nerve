@@ -1,4 +1,5 @@
 <script lang="ts">
+import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
 import Plus from "@lucide/svelte/icons/plus";
 import type { ProjectRecord } from "$lib/api";
@@ -8,7 +9,6 @@ import {
   PanelBanner,
   PanelEmpty,
   PanelHeader,
-  PanelScrollRegion,
   PanelToolbarButton,
   PanelView,
 } from "$lib/presentation/panels";
@@ -94,7 +94,7 @@ $effect(() => {
         {/snippet}
       </PanelEmpty>
     {:else}
-      <PanelScrollRegion
+      <ScrollRegion
         ariaLabel="Scratch notes"
         contentClass="flex min-w-0 shrink-0 flex-col gap-1.5 py-1"
       >
@@ -108,7 +108,7 @@ $effect(() => {
             }}
           />
         {/each}
-      </PanelScrollRegion>
+      </ScrollRegion>
     {/if}
   {/if}
 </PanelView>

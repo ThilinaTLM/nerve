@@ -1,0 +1,57 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import {
+  capabilityBodyHeight,
+  filterCapabilityRows,
+  showCapabilitySearch,
+} from "./capability-list";
+
+describe("showCapabilitySearch", () => {
+  it("stays hidden while both tabs are short", () => {
+    assert.equal(showCapabilitySearch(7, 8), false);
+  });
+
+  it("appears when either tab is long", () => {
+    assert.equal(showCapabilitySearch(7, 14), true);
+    assert.equal(showCapabilitySearch(20, 0), true);
+  });
+});
+
+describe("capabilityBodyHeight", () => {
+  it("keeps one height regardless of which tab is longer", () => {
+    assert.equal(capabilityBodyHeight(7, 14), capabilityBodyHeight(14, 7));
+  });
+
+  it("holds a floor for short or empty lists", () => {
+    assert.equal(capabilityBodyHeight(0, 0), "7.5rem");
+    assert.equal(capabilityBodyHeight(2, 1), "7.5rem");
+  });
+
+  it("grows with the longer list up to the clamp", () => {
+    assert.equal(capabilityBodyHeight(6, 2), "11rem");
+    assert.equal(capabilityBodyHeight(7, 14), "16.25rem");
+    assert.equal(capabilityBodyHeight(7, 120), capabilityBodyHeight(9, 9));
+  });
+});
+
+describe("filterCapabilityRows", () => {
+  const rows = [
+    { label: "Web search" },
+    { label: "Image explanation" },
+    { label: "nerve-data-debugging" },
+  ];
+
+  it("returns every row for an empty or blank query", () => {
+    assert.deepEqual(filterCapabilityRows(rows, ""), rows);
+    assert.deepEqual(filterCapabilityRows(rows, "   "), rows);
+  });
+
+  it("matches case-insensitively on any part of the label", () => {
+    assert.deepEqual(filterCapabilityRows(rows, "SEARCH"), [rows[0]]);
+    assert.deepEqual(filterCapabilityRows(rows, " debug "), [rows[2]]);
+  });
+
+  it("returns nothing when no label matches", () => {
+    assert.deepEqual(filterCapabilityRows(rows, "python"), []);
+  });
+});

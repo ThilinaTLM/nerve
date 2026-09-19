@@ -45,7 +45,7 @@ let {
 
 let popoverOpen = $state(false);
 let query = $state("");
-let listEl = $state<HTMLDivElement | null>(null);
+let listEl = $state<HTMLDivElement | undefined>(undefined);
 
 const filteredPopoverItems = $derived.by(() => {
   const q = query.trim().toLowerCase();
@@ -64,7 +64,7 @@ function rowId(item: ProjectSwitcherItem): string {
 const navigation = createListNavigation({
   items: () => filteredPopoverItems,
   getId: rowId,
-  viewport: () => listEl ?? undefined,
+  viewport: () => listEl,
   onChoose: (item) => chooseProject(item),
 });
 

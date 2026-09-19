@@ -1,4 +1,5 @@
 <script lang="ts">
+import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import Plus from "@lucide/svelte/icons/plus";
 import Settings from "@lucide/svelte/icons/settings";
@@ -10,7 +11,6 @@ import {
   PanelEmpty,
   PanelHeader,
   PanelList,
-  PanelScrollRegion,
   PanelSectionHeader,
   PanelToolbarButton,
   PanelView,
@@ -182,7 +182,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
         {/snippet}
       </PanelEmpty>
     {:else}
-      <PanelScrollRegion
+      <ScrollRegion
         ariaLabel="Conversations"
         topShadowClass="top-7 h-2"
         contentClass="pb-2"
@@ -217,7 +217,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
             {/each}
           </PanelList>
         {/each}
-      </PanelScrollRegion>
+      </ScrollRegion>
     {/if}
   </PanelView>
 </Tooltip.Provider>

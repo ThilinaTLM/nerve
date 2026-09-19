@@ -57,7 +57,7 @@ const emptyMessage = $derived(
   filter.trim() ? "No branches match your search." : "No local branches yet.",
 );
 
-let listEl = $state<HTMLDivElement | null>(null);
+let listEl = $state<HTMLDivElement | undefined>(undefined);
 
 function rowId(row: GitBranchDialogRow): string {
   return `git-branch:${encodeURIComponent(row.branch.name)}`;
@@ -66,7 +66,7 @@ function rowId(row: GitBranchDialogRow): string {
 const navigation = createListNavigation({
   items: () => rows as GitBranchDialogRow[],
   getId: rowId,
-  viewport: () => listEl ?? undefined,
+  viewport: () => listEl,
   onChoose: (row) => choose(row.branch),
 });
 
