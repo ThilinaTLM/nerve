@@ -79,6 +79,7 @@ let {
   onCompact,
   onNewConversationInProject,
   onOpenFile,
+  onOpenTask,
   onModelChange,
   onThinkingLevelChange,
   onModeChange,
@@ -296,6 +297,7 @@ function menuForTranscript(
   }}
   actions={{
     onOpenFile,
+    onOpenTask,
     onOpenMermaid: openAssistantMermaid,
     onAnswerUserQuestion,
     onDismissUserQuestion,

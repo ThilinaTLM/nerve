@@ -17,7 +17,7 @@ import {
   getConversationUiCapabilities,
   type VoiceInputTargetRef as VoiceInputTarget,
 } from "../../context.svelte";
-import ToolFooter from "./ToolFooter.svelte";
+import CardFooter from "../../cards/CardFooter.svelte";
 
 const capabilities = getConversationUiCapabilities();
 const voice = capabilities.voice;
@@ -398,7 +398,7 @@ function replyFieldKeydown(node: HTMLElement) {
           </div>
         {/if}
       </div>
-      <ToolFooter {detailsAction}>
+      <CardFooter cardActions={detailsAction ? [detailsAction] : []}>
         {#snippet actions()}
           <Button
             size="sm"
@@ -425,7 +425,7 @@ function replyFieldKeydown(node: HTMLElement) {
             {/if}
           </Button>
         {/snippet}
-      </ToolFooter>
+      </CardFooter>
       {#if submitError}
         <p class="m-0 text-xs text-destructive" role="alert">{submitError}</p>
       {/if}

@@ -424,6 +424,7 @@ export class OrchestrationToolDispatcher {
         max: 86_400_000,
       }),
       notify: true,
+      completion: { inject: true, outputTailLineCount: 80 },
       origin: {
         kind: "agent_tool",
         toolCallId: toolCall.id,

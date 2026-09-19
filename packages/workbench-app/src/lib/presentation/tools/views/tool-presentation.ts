@@ -9,7 +9,8 @@ import {
   statusDot,
 } from "./tool-presentation-helpers";
 import { confluencePrimaryArg, jiraPrimaryArg } from "./atlassian-primary-args";
-import type { MetaItem, ToolPresentation } from "./tool-presentation-types";
+import type { MetaItem } from "../../cards/card-presentation";
+import type { ToolPresentation } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {
   aggregateExploreTasks,
@@ -21,8 +22,6 @@ import { presentToolArguments } from "../lifecycle/registry";
 
 export type {
   DetailsActionInfo,
-  MetaItem,
-  PrimaryArg,
   ToolPresentation,
 } from "./tool-presentation-types";
 
@@ -208,6 +207,16 @@ export function toolPresentation(
       const hiddenTotal = hiddenInput + hiddenOutput;
       return {
         ...base,
+        // A promoted call is finished for the agent but unfinished for the
+        // reader: the process outlived the tool call and still owes a result.
+        ...(view.backgroundTask
+          ? {
+              dotTone: "warning" as const,
+              dotPulse: false,
+              glyph: "pending" as const,
+            }
+          : {}),
+        backgroundTaskId: view.backgroundTask?.taskId,
         primaryArg: view.command
           ? isOneLine(view.command)
             ? { text: view.command }

@@ -10,6 +10,7 @@ describe("Nerve system prompt", () => {
       promptGuidelines: [
         "Prefer dedicated file tools over bash for inspection and search.",
         "Prefer dedicated file tools over bash for inspection and search.",
+        "Do not wait or poll background tasks; finish the turn and rely on asynchronous completion updates.",
       ],
     });
 
@@ -20,6 +21,10 @@ describe("Nerve system prompt", () => {
     assert.equal(
       prompt.match(/Prefer dedicated file tools over bash/g)?.length,
       1,
+    );
+    assert.match(
+      prompt,
+      /Do not wait or poll background tasks; finish the turn and rely on asynchronous completion updates\./,
     );
     assert.doesNotMatch(prompt, /<tools>/);
     assert.doesNotMatch(prompt, /Tool schemas are authoritative/);

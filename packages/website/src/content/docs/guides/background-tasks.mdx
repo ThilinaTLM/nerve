@@ -14,7 +14,7 @@ Nerve separates a durable **task definition** from immutable **task runs**. A de
 - `single` (default): launching an active definition focuses its current run.
 - `concurrent`: launching can create another active run.
 
-Use finite Bash for commands that should finish. Use a task for a known server or watcher. Nerve can also promote a command that remains active. A task is separate from an agent todo: tasks supervise processes, while todos describe work inside a conversation.
+Use finite Bash for commands that should finish. Use `task_start` for a known server or watcher. Nerve can automatically promote a Bash command that remains active. The agent can continue independent work or finish its turn instead of polling. Agent-started tasks subscribe the agent to terminal completion: when one terminates, Nerve adds a `task_event` and starts a fresh agent turn to inspect it. A task is separate from an agent todo: tasks supervise processes, while todos describe work inside a conversation.
 
 Before starting a server or watcher, the agent checks active tasks once unless it already knows the current task state. A successful start reports the new task and any other active tasks in the workspace scope, allowing the agent to notice possible overlap without heuristic duplicate detection.
 
@@ -26,7 +26,7 @@ Use `task_status({ tasks: [idOrName] })` for selected tasks, or omit `tasks` to 
 
 ## Supervision
 
-A task can define readiness by URL, first detected URL, or output pattern. The agent receives asynchronous status rather than polling. Dedicated views provide status and bounded streaming logs with cursor, error, warning, and first-failure modes. Runtime can be capped at up to 24 hours.
+A task can define readiness by URL, first detected URL, or output pattern. The agent receives asynchronous status rather than polling; status and log tools remain available for on-demand diagnosis. Dedicated views provide status and bounded streaming logs with cursor, error, warning, and first-failure modes. Runtime can be capped at up to 24 hours.
 
 Environment values supplied to task start are encrypted at rest and displayed as redacted keys. They still enter the child process; treat its logs and behavior as sensitive.
 
@@ -59,7 +59,7 @@ The Tasks panel and task-output tab let you switch between sibling runs, restart
 
 ## Agent notifications
 
-Task terminal changes can become deduplicated `task_event` system entries in the conversation and can wake an agent waiting for completion. This is separate from desktop/browser toast notifications.
+Task terminal changes become deduplicated `task_event` system entries in the conversation. Both auto-promoted Bash commands and explicit agent `task_start` processes subscribe the originating agent, so a terminal event starts a fresh continuation turn if the originating run already finished. Tasks started outside an agent conversation remain notification-only. This is separate from desktop/browser toast notifications.
 
 ## Next steps
 

@@ -31,6 +31,14 @@ export function entranceEligible(node: TranscriptDisplayNode): boolean {
   if (node.kind === "thinking_group") {
     return node.items.some((member) => Boolean(member.item.live));
   }
+  // System notices arrive mid-run, so they animate in like live content.
+  if (
+    node.kind === "task_event" ||
+    node.kind === "run_status" ||
+    node.kind === "compaction"
+  ) {
+    return true;
+  }
   return node.kind === "tool" && Boolean(node.draft);
 }
 
@@ -108,6 +116,31 @@ export function measurementVersionForRow(
       approval ? `${approval.id}:${approval.status}` : "no-approval",
       question ? `${question.id}:${question.status}` : "no-question",
       plan ? `${plan.id}:${plan.status}` : "no-plan",
+    ].join(":");
+  }
+  if (node.kind === "task_event") {
+    const notice = node.notice;
+    return [
+      "task",
+      notice.event ?? "unknown",
+      notice.status ?? "none",
+      notice.exitCode ?? "no-exit",
+      notice.signal ?? "no-signal",
+      notice.taskName?.length ?? 0,
+      notice.groupName?.length ?? 0,
+      notice.commandPreview?.length ?? 0,
+      notice.taskId ? "actionable" : "static",
+    ].join(":");
+  }
+  if (node.kind === "run_status") {
+    const notice = node.notice;
+    return [
+      "run",
+      notice.state,
+      notice.attempt ?? "no-attempt",
+      notice.maxRetries ?? "no-max",
+      notice.retryable ? "retryable" : "final",
+      notice.errorMessage?.length ?? 0,
     ].join(":");
   }
   if (node.kind === "compaction") {

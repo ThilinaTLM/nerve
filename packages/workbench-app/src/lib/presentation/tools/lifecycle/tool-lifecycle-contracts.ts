@@ -1,5 +1,5 @@
 import type { ToolName } from "@nervekit/contracts/tools";
-import type { MetaItem, PrimaryArg } from "../views/tool-presentation-types";
+import type { MetaItem, PrimaryArg } from "../../cards/card-presentation";
 import type { ToolArgumentSource } from "./argument-source";
 
 export type ToolLifecycleStage =

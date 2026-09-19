@@ -88,6 +88,7 @@ export type WorkbenchConversationAdapterProps = {
     initialMode?: AgentRecord["mode"],
   ) => void;
   onOpenFile?: (path: string, line?: number) => void;
+  onOpenTask?: (taskId: string) => void;
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: AgentRecord["thinkingLevel"]) => void;
   onModeChange?: (value: AgentRecord["mode"]) => void;

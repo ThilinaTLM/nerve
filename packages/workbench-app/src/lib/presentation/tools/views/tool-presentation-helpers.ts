@@ -28,6 +28,20 @@ export function formatDuration(ms: number | undefined): string | undefined {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+/**
+ * Wall-clock elapsed time for work in flight: seconds while short, then a
+ * stopwatch-style m:ss so a long-running call stays readable at a glance.
+ */
+export function formatElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes < 60) return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}:${String(minutes % 60).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
 export function plural(count: number, singular: string, suffix = "s"): string {
   return `${count} ${singular}${count === 1 ? "" : suffix}`;
 }

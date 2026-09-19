@@ -1,4 +1,4 @@
-import type { PrimaryArg } from "./tool-presentation";
+import type { PrimaryArg } from "../../cards/card-presentation";
 import type { ToolLifecycleVisualStage } from "./tool-activity-state";
 
 export function toolPrimaryArgShape(arg: PrimaryArg | undefined): string {

@@ -69,6 +69,7 @@ import {
 } from "$lib/features/git/state/git-panel-refresh.svelte";
 import { PR_STALE_MS } from "$lib/features/git/state/git-refresh-policy";
 import { taskSelectors } from "$lib/features/tasks/state/task-selectors.svelte";
+import { openTaskTab } from "$lib/features/tasks";
 import {
   pullRequestReferenceCompletions,
   taskReferenceCompletions,
@@ -367,6 +368,10 @@ async function editConversationEntry(entry: {
   focusComposer();
 }
 
+function openTaskFromNotice(taskId: string) {
+  void openTaskTab(taskId);
+}
+
 function openToolFile(path: string, line?: number) {
   if (!activeProject) return;
   void openFilePane({ projectId: activeProject.id, path, line });
@@ -535,6 +540,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   }}
   onNewConversationInProject={newConversationInProject}
   onOpenFile={openToolFile}
+  onOpenTask={openTaskFromNotice}
   onModelChange={(value) => {
     void runActivePaneAction(() => setComposerModel(value));
   }}

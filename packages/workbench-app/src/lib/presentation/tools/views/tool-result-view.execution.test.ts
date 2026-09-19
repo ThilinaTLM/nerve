@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { parseToolView } from "./tool-result-view";
-import { toolCall } from "./tool-result-view.fixtures";
+import { present, toolCall } from "./tool-result-view.fixtures";
 
 describe("parseToolView bash/python execution", () => {
   it("parses a backgrounded bash task disposition", () => {
@@ -31,6 +31,49 @@ describe("parseToolView bash/python execution", () => {
       elapsedMs: 60_001,
       terminalUpdate: "automatic",
     });
+  });
+
+  it("presents a promoted bash call as unfinished work with a task handle", () => {
+    const presentation = present(
+      "bash",
+      { command: "pnpm check" },
+      {
+        content: "Command was backgrounded.",
+        details: {
+          execution: {
+            disposition: "backgrounded",
+            taskId: "task_01H00000000000000000000000",
+            status: "running",
+            elapsedMs: 60_001,
+            terminalUpdate: "automatic",
+          },
+        },
+      },
+    );
+    // Completed for the agent, still owing a result for the reader.
+    assert.equal(presentation.dotTone, "warning");
+    assert.equal(presentation.dotPulse, false);
+    assert.equal(presentation.glyph, "pending");
+    assert.equal(
+      presentation.backgroundTaskId,
+      "task_01H00000000000000000000000",
+    );
+    // Promotion never strips the result body's own metadata.
+    assert.ok(
+      presentation.meta.some((item) =>
+        item.text.startsWith("background task_"),
+      ),
+    );
+  });
+
+  it("leaves an ordinary bash call on the default tool glyph", () => {
+    const presentation = present(
+      "bash",
+      { command: "echo hi" },
+      { content: "hi\n", details: { exitCode: 0 } },
+    );
+    assert.equal(presentation.glyph, undefined);
+    assert.equal(presentation.backgroundTaskId, undefined);
   });
 
   it("normalizes agent-tool-result content arrays for bash previews", () => {

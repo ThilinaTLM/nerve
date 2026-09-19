@@ -1,14 +1,16 @@
 <script lang="ts">
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 
-import type { PrimaryArg } from "../views/tool-presentation";
-import ToolStatusIcon from "./ToolStatusIcon.svelte";
+import type { CardGlyph, PrimaryArg } from "./card-presentation";
+import StatusGlyph from "./StatusGlyph.svelte";
 
 type Props = {
   dotTone: StatusTone;
   dotPulse?: boolean;
   waitingForUser?: boolean;
   statusLabel: string;
+  /** Named glyph override (notices, handed-off work). */
+  glyph?: CardGlyph;
   badge: string;
   arg?: PrimaryArg;
   onOpenFile?: (path: string, line?: number) => void;
@@ -19,18 +21,20 @@ let {
   dotPulse = false,
   waitingForUser = false,
   statusLabel,
+  glyph,
   badge,
   arg,
   onOpenFile,
 }: Props = $props();
 </script>
 
-<div class="tool-header">
-  <ToolStatusIcon
+<div class="card-header">
+  <StatusGlyph
     tone={dotTone}
     pulse={dotPulse}
     {waitingForUser}
     label={statusLabel}
+    {glyph}
     size={14}
     class="mr-1.5 align-middle"
   />
@@ -65,7 +69,7 @@ let {
 
 <style>
 /* Inline flow lets long arguments wrap flush to the left edge. */
-.tool-header {
+.card-header {
   min-width: 0;
   line-height: 1.5;
 }

@@ -1,25 +1,13 @@
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
-
-export type MetaItem = {
-  text: string;
-  tone?: StatusTone;
-  mono?: boolean;
-  openPath?: string;
-  href?: string;
-};
+import type {
+  CardGlyph,
+  MetaItem,
+  PrimaryArg,
+} from "../../cards/card-presentation";
 
 export type DetailsActionInfo = {
   hidden: number;
   label: string;
-};
-
-export type PrimaryArg = {
-  text: string;
-  openPath?: string;
-  line?: number;
-  href?: string;
-  /** Preserve embedded whitespace for code/command-like values. */
-  preserveWhitespace?: boolean;
 };
 
 export type ToolPresentation = {
@@ -31,4 +19,8 @@ export type ToolPresentation = {
   dotTone: StatusTone;
   /** Pulse the leading status dot (in-flight / awaiting states). */
   dotPulse: boolean;
+  /** Glyph override for work that is not what its tool status implies. */
+  glyph?: CardGlyph;
+  /** Background task this call was promoted into, if any. */
+  backgroundTaskId?: string;
 };

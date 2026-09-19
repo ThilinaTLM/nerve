@@ -1,4 +1,4 @@
-import type { PrimaryArg } from "./tool-presentation-types";
+import type { PrimaryArg } from "../../cards/card-presentation";
 import type { ToolView } from "./tool-view-types";
 
 export function confluencePrimaryArg(

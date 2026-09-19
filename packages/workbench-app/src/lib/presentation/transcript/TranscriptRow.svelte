@@ -14,10 +14,10 @@ import ToolResultErrorCard from "../tools/tool-call/ToolResultErrorCard.svelte";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";
-import CompactionCard from "./CompactionCard.svelte";
+import CompactionNoticeCard from "./notice/CompactionNoticeCard.svelte";
 import UserMessageContent from "./UserMessageContent.svelte";
-import TaskEventCard from "./TaskEventCard.svelte";
-import RunStatusCard from "./RunStatusCard.svelte";
+import TaskNoticeCard from "./notice/TaskNoticeCard.svelte";
+import RunStatusNoticeCard from "./notice/RunStatusNoticeCard.svelte";
 import ThinkingGroup from "./ThinkingGroup.svelte";
 import type { TranscriptDisplayNode } from "./transcript-presentation";
 import type { TranscriptEntranceMotion } from "./transcript-entry-motion";
@@ -38,6 +38,7 @@ type Props = {
   planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
   lastTimelineKey?: string;
   onOpenFile?: (path: string, line?: number) => void;
+  onOpenTask?: (taskId: string) => void;
   onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
   onAnswerUserQuestion?: (questionId: string, answer: string) => void;
   onDismissUserQuestion?: (questionId: string) => void;
@@ -78,6 +79,7 @@ let {
   planReviewThinkingLevel = "off",
   lastTimelineKey,
   onOpenFile,
+  onOpenTask,
   onOpenMermaid,
   onAnswerUserQuestion,
   onDismissUserQuestion,
@@ -188,6 +190,7 @@ $effect(() => {
             ? reviewsByToolCallId.get(node.toolCall.id)
             : undefined}
           {onOpenFile}
+          {onOpenTask}
           {planReviewModels}
           {planReviewModelKey}
           {planReviewThinkingLevel}
@@ -221,12 +224,14 @@ $effect(() => {
       menu={transcriptMenu}
       triggerClass="block select-text"
     >
-      <RunStatusCard
-        notice={node.notice}
-        isLast={node.key === lastTimelineKey}
-        {sending}
-        {onContinueFromFailure}
-      />
+      <div class="relative min-w-0 px-3">
+        <RunStatusNoticeCard
+          notice={node.notice}
+          isLast={node.key === lastTimelineKey}
+          {sending}
+          {onContinueFromFailure}
+        />
+      </div>
     </TranscriptContextMenu>
   {:else if node.kind === "compaction"}
     <TranscriptContextMenu
@@ -235,7 +240,7 @@ $effect(() => {
       triggerClass="block select-text"
     >
       <div class="relative min-w-0 px-3">
-        <CompactionCard notice={node.notice} />
+        <CompactionNoticeCard notice={node.notice} />
       </div>
     </TranscriptContextMenu>
   {:else if node.kind === "task_event"}
@@ -244,7 +249,9 @@ $effect(() => {
       menu={transcriptMenu}
       triggerClass="block select-text"
     >
-      <TaskEventCard notice={node.notice} />
+      <div class="relative min-w-0 px-3">
+        <TaskNoticeCard notice={node.notice} {onOpenTask} />
+      </div>
     </TranscriptContextMenu>
   {:else if node.kind === "thinking_group" && thinkingMenuTarget}
     <TranscriptContextMenu

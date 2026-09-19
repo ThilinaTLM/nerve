@@ -45,15 +45,21 @@ export function isTerminalRunStatus(
   return TERMINAL_STATUSES.has(status);
 }
 
-export interface StartRunCommand {
+export interface NewRunCommand {
   conversationId: string;
   agentId: string;
   projectId: string;
-  prompt: string;
-  images?: PromptImage[];
   runId?: string;
   scopeId?: string;
 }
+
+export interface StartRunCommand extends NewRunCommand {
+  prompt: string;
+  images?: PromptImage[];
+}
+
+/** Starts a fresh run from harness input already persisted in the transcript. */
+export type StartContinuationRunCommand = NewRunCommand;
 
 export interface CheckpointCommand {
   boundary: RunCheckpointRecord["boundary"];
@@ -131,7 +137,7 @@ export function buildTransition(
 }
 
 export function newRun(
-  command: StartRunCommand,
+  command: NewRunCommand,
   scopeId: string,
   now: string,
   ids: IdPort,

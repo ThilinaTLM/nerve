@@ -1,6 +1,6 @@
-import type { ConversationMotionProfile } from "../../transcript/conversation-motion-budget";
+import type { ConversationMotionProfile } from "../transcript/conversation-motion-budget";
 
-export const TOOL_LIFECYCLE_MOTION = {
+export const LIFECYCLE_MOTION = {
   standard: {
     durationMs: 180,
     easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
@@ -21,7 +21,7 @@ export const TOOL_LIFECYCLE_MOTION = {
   },
 } as const;
 
-export type ToolLifecycleMotionPlan = {
+export type LifecycleMotionPlan = {
   animateHeight: boolean;
   animateContent: boolean;
   durationMs: number;
@@ -30,14 +30,14 @@ export type ToolLifecycleMotionPlan = {
   fromOpacity: number;
 };
 
-export function resolveToolLifecycleMotionPlan(input: {
+export function resolveLifecycleMotionPlan(input: {
   profile: ConversationMotionProfile;
   fromHeight: number;
   targetHeight: number;
   reducedMotion: boolean;
   visible: boolean;
-}): ToolLifecycleMotionPlan {
-  const spec = TOOL_LIFECYCLE_MOTION[input.profile];
+}): LifecycleMotionPlan {
+  const spec = LIFECYCLE_MOTION[input.profile];
   const disabled = input.reducedMotion || !input.visible;
   return {
     animateHeight:
@@ -52,7 +52,7 @@ export function resolveToolLifecycleMotionPlan(input: {
   };
 }
 
-export type ToolLifecycleMotionController = {
+export type LifecycleMotionController = {
   transition(
     fromHeight: number,
     reducedMotion: boolean,
@@ -63,14 +63,14 @@ export type ToolLifecycleMotionController = {
 };
 
 /**
- * Owns interruptible full-card geometry and content animations. A superseding
+ * Owns interruptible full-height geometry and content animations. A superseding
  * transition begins from geometry captured by the caller, cancels prior
  * effects, and always leaves the card at intrinsic height.
  */
-export function createToolLifecycleMotion(
+export function createLifecycleMotion(
   element: HTMLElement,
   content: HTMLElement,
-): ToolLifecycleMotionController {
+): LifecycleMotionController {
   let heightAnimation: Animation | undefined;
   let contentAnimation: Animation | undefined;
   let destroyed = false;
@@ -107,7 +107,7 @@ export function createToolLifecycleMotion(
 
     const targetHeight = content.getBoundingClientRect().height;
     const visible = element.getClientRects().length > 0;
-    const plan = resolveToolLifecycleMotionPlan({
+    const plan = resolveLifecycleMotionPlan({
       profile,
       fromHeight,
       targetHeight,

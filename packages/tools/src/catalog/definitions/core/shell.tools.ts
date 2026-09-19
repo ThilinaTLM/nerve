@@ -42,7 +42,7 @@ export const shellToolDefinitions = [
     classifyRisk: classifyCommandRisk,
     label: "bash",
     description:
-      "Run one finite synchronous command; use task_start for servers and watchers.",
+      "Run one finite command; still-running calls may be promoted to supervised background tasks with asynchronous completion updates. Use task_start for servers and watchers.",
     parameters: bashParameters,
     executionMode: "sequential",
   },

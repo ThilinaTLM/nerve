@@ -60,6 +60,7 @@ import {
   newRun,
   prefixed,
   revise,
+  type StartContinuationRunCommand,
   type StartRunCommand,
   TERMINAL_STATUSES,
   type TransitionChanges,
@@ -176,6 +177,19 @@ export class RunCoordinator {
   }
 
   async start(command: StartRunCommand): Promise<RunRecord> {
+    return this.startNew(command, "start");
+  }
+
+  async startContinuation(
+    command: StartContinuationRunCommand,
+  ): Promise<RunRecord> {
+    return this.startNew(command, "continue");
+  }
+
+  private async startNew(
+    command: StartRunCommand | StartContinuationRunCommand,
+    mode: "start" | "continue",
+  ): Promise<RunRecord> {
     const scopeId =
       command.scopeId ?? `${command.conversationId}:${command.agentId}`;
     return this.exclusive(`scope:${scopeId}`, async () => {
@@ -214,31 +228,23 @@ export class RunCoordinator {
         status: "running" as const,
         startedAt: now,
       };
+      const prompt =
+        mode === "start" && "prompt" in command ? command.prompt : undefined;
+      const images =
+        mode === "start" && "images" in command ? command.images : undefined;
       await this.commit(undefined, running, "started", {
         execution: executionRecord(running, "streaming", now),
         events: [this.events.started(running, now)],
         ...(this.ports.durableContinuation
           ? {
               lifecycleWork: [
-                this.modelWork(
-                  running,
-                  now,
-                  "start",
-                  command.prompt,
-                  command.images,
-                ),
+                this.modelWork(running, now, mode, prompt, images),
               ],
             }
           : {}),
       });
       if (execution) {
-        this.launch(
-          running,
-          execution,
-          "start",
-          command.prompt,
-          command.images,
-        );
+        this.launch(running, execution, mode, prompt, images);
       }
       return running;
     });
@@ -396,13 +402,17 @@ export class RunCoordinator {
     }
     if (work.modelRequest.command === "continue") {
       const continuationState = await this.require(work.runId);
-      if (continuationState.run.status !== "retrying") {
+      if (TERMINAL_STATUSES.has(continuationState.run.status)) return;
+      if (
+        continuationState.run.status !== "running" &&
+        continuationState.run.status !== "retrying"
+      ) {
         await this.continueAndWait(work.runId);
         return;
       }
-      let retryExecution: RunExecution;
+      let continuationExecution: RunExecution;
       try {
-        retryExecution = await this.ports.execution.create(
+        continuationExecution = await this.ports.execution.create(
           continuationState.run,
           this.sink(continuationState.run.runId),
         );
@@ -415,7 +425,11 @@ export class RunCoordinator {
         );
         return;
       }
-      await this.launch(continuationState.run, retryExecution, "continue");
+      await this.launch(
+        continuationState.run,
+        continuationExecution,
+        "continue",
+      );
       return;
     }
     const state = await this.require(work.runId);

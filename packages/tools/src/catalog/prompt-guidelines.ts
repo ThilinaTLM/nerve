@@ -5,8 +5,11 @@ const TOOL_GUIDELINES: Partial<Record<ToolName, string>> = {
   python_exec:
     'Write large Python outputs under os.environ["NERVE_PYTHON_ARTIFACT_DIR"]; do not pass secrets through env or use Python for long-lived or interactive processes.',
   task_start:
-    "Before starting a server or watcher, inspect active tasks with task_status unless current task state is already known; after launch, rely on asynchronous updates instead of polling task_status or task_logs.",
+    "Before starting a server or watcher, inspect active tasks with task_status unless current task state is already known.",
 };
+
+const ASYNC_TASK_GUIDELINE =
+  "Long-running Bash calls may be promoted to background tasks. After launch or promotion, do not wait or poll task_status/task_logs; continue independent work or finish the turn. Updates arrive asynchronously, and terminal completion of agent-started tasks will restart you.";
 
 const GROUP_GUIDELINES: Partial<Record<ToolGroupName, string>> = {
   jira: "Keep Jira queries narrow and mutate Jira only when explicitly requested.",
@@ -32,6 +35,9 @@ export function promptGuidelinesForTools(
     ["read", "grep", "find", "ls"].some((name) => active.has(name))
   ) {
     add("Prefer dedicated file tools over bash for inspection and search.");
+  }
+  if (active.has("bash") || active.has("task_start")) {
+    add(ASYNC_TASK_GUIDELINE);
   }
 
   for (const name of activeToolNames) {
