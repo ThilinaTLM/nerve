@@ -19,126 +19,125 @@ const hasExit = $derived(
 );
 </script>
 
-<Tooltip.Provider delayDuration={300} disableHoverableContent>
-  <Tooltip.Root>
-    <Tooltip.Trigger>
-      {#snippet child({ props })}
-        <div
-          {...props}
-          class="flex min-w-0 items-center gap-2.5 rounded-md border bg-card px-2.5 py-2"
-        >
-          <StatusDot
-            {tone}
-            pulse={taskPulse(task.status)}
-            size="xs"
-            class="flex-none"
-          />
+<div class="grid gap-1">
+  <Tooltip.Provider delayDuration={300} disableHoverableContent>
+    <Tooltip.Root>
+      <Tooltip.Trigger>
+        {#snippet child({ props })}
           <div
-            class="min-w-0 flex-1 {dense
-              ? 'truncate'
-              : 'whitespace-pre-wrap break-words'} font-mono text-xs text-foreground"
+            {...props}
+            class="flex min-w-0 items-center gap-2 rounded-sm border bg-well px-2.5 py-1.5"
           >
-            {task.command}
+            <StatusDot
+              {tone}
+              pulse={taskPulse(task.status)}
+              size="xs"
+              class="shrink-0"
+            />
+            <div
+              class="min-w-0 flex-1 {dense
+                ? 'truncate'
+                : 'whitespace-pre-wrap break-words'} font-mono text-xs text-foreground"
+            >
+              {task.command}
+            </div>
+            {#if url}
+              <a
+                class="inline-flex min-w-0 items-center gap-1 truncate font-mono text-xs text-info hover:underline"
+                href={url}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                <ExternalLink size={12} strokeWidth={2} />{url}
+              </a>
+            {/if}
+            {#if hasExit}<Badge
+                variant={task.termination?.exitCode === 0
+                  ? "neutral"
+                  : "destructive"}
+                class="shrink-0">exit {task.termination?.exitCode}</Badge
+              >
+            {:else if task.termination?.signal}<Badge
+                variant="warning"
+                class="shrink-0">signal {task.termination.signal}</Badge
+              >{/if}
+            <Badge
+              variant={tone}
+              class={`shrink-0 ${tone === "neutral" ? "border-border bg-muted text-muted-foreground" : ""}`}
+              >{task.status}</Badge
+            >
           </div>
-          {#if url}
-            <a
-              class="inline-flex min-w-0 items-center gap-1 truncate font-mono text-xs text-info hover:underline"
-              href={url}
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              <ExternalLink size={12} strokeWidth={2} />{url}
-            </a>
-          {/if}
-          {#if hasExit}<Badge
-              variant={task.termination?.exitCode === 0
-                ? "neutral"
-                : "destructive"}>exit {task.termination?.exitCode}</Badge
-            >
-          {:else if task.termination?.signal}<Badge variant="warning"
-              >signal {task.termination.signal}</Badge
-            >{/if}
-          <Badge
-            variant={tone}
-            class={tone === "neutral"
-              ? "border-border bg-muted text-muted-foreground"
-              : ""}>{task.status}</Badge
+        {/snippet}
+      </Tooltip.Trigger>
+      <Tooltip.Content
+        side="left"
+        sideOffset={6}
+        class="max-w-88 flex-col items-start gap-0.5 font-mono text-xs leading-[1.35] [overflow-wrap:anywhere]"
+      >
+        <span class="mb-0.5 font-sans text-xs font-semibold"
+          >{task.name ?? task.command}</span
+        >
+        <span class="flex gap-1.5"
+          ><span class="min-w-14 uppercase tracking-wider text-muted-foreground"
+            >command</span
+          >{task.command}</span
+        >
+        <span class="flex gap-1.5"
+          ><span class="min-w-14 uppercase tracking-wider text-muted-foreground"
+            >cwd</span
+          >{task.cwd}</span
+        >
+        <span class="flex gap-1.5"
+          ><span class="min-w-14 uppercase tracking-wider text-muted-foreground"
+            >status</span
+          >{task.status}</span
+        >
+        <span class="flex gap-1.5"
+          ><span class="min-w-14 uppercase tracking-wider text-muted-foreground"
+            >started</span
+          >{dateTimeLabel(task.timing.startedAt)}</span
+        >
+        {#if task.lineage?.groupId}<span class="flex gap-1.5"
+            ><span
+              class="min-w-14 uppercase tracking-wider text-muted-foreground"
+              >group</span
+            >{task.lineage.groupId}</span
+          >{/if}
+        {#if task.timing.finishedAt}<span class="flex gap-1.5"
+            ><span
+              class="min-w-14 uppercase tracking-wider text-muted-foreground"
+              >finished</span
+            >{dateTimeLabel(task.timing.finishedAt)}</span
+          >{/if}
+        {#if hasExit}
+          <span class="flex gap-1.5"
+            ><span
+              class="min-w-14 uppercase tracking-wider text-muted-foreground"
+              >exit</span
+            >{task.termination?.exitCode}</span
           >
-        </div>
-      {/snippet}
-    </Tooltip.Trigger>
-    <Tooltip.Content
-      side="left"
-      sideOffset={6}
-      class="max-w-88 flex-col items-start gap-0.5 font-mono text-xs leading-[1.35] [overflow-wrap:anywhere]"
-    >
-      <span class="tt-title">{task.name ?? task.command}</span>
-      <span class="tt-row"
-        ><span class="tt-key">command</span>{task.command}</span
-      >
-      <span class="tt-row"><span class="tt-key">cwd</span>{task.cwd}</span>
-      <span class="tt-row"><span class="tt-key">status</span>{task.status}</span
-      >
-      <span class="tt-row"
-        ><span class="tt-key">started</span>{dateTimeLabel(
-          task.timing.startedAt,
-        )}</span
-      >
-      {#if task.lineage?.groupId}<span class="tt-row"
-          ><span class="tt-key">group</span>{task.lineage.groupId}</span
-        >{/if}
-      {#if task.timing.finishedAt}<span class="tt-row"
-          ><span class="tt-key">finished</span>{dateTimeLabel(
-            task.timing.finishedAt,
-          )}</span
-        >{/if}
-      {#if hasExit}
-        <span class="tt-row"
-          ><span class="tt-key">exit</span>{task.termination?.exitCode}</span
-        >
-      {:else if task.termination?.signal}
-        <span class="tt-row"
-          ><span class="tt-key">signal</span>{task.termination.signal}</span
-        >
-      {/if}
-      {#if task.termination?.error}<span class="tt-row"
-          ><span class="tt-key">error</span>{task.termination.error}</span
-        >{/if}
-      <span class="tt-id">{task.id}</span>
-    </Tooltip.Content>
-  </Tooltip.Root>
-</Tooltip.Provider>
+        {:else if task.termination?.signal}
+          <span class="flex gap-1.5"
+            ><span
+              class="min-w-14 uppercase tracking-wider text-muted-foreground"
+              >signal</span
+            >{task.termination.signal}</span
+          >
+        {/if}
+        {#if task.termination?.error}<span class="flex gap-1.5"
+            ><span
+              class="min-w-14 uppercase tracking-wider text-muted-foreground"
+              >error</span
+            >{task.termination.error}</span
+          >{/if}
+        <span class="mt-1 text-muted-foreground">{task.id}</span>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  </Tooltip.Provider>
 
-{#if task.termination?.error}
-  <p class="m-0 break-words text-xs text-destructive">
-    {task.termination.error}
-  </p>
-{/if}
-
-<style>
-/* Rich tooltip content authored here; Tooltip.Content only receives layout
- * utilities through its `class` prop. */
-.tt-title {
-  margin-bottom: 0.15rem;
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.tt-row {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.tt-key {
-  min-width: 3.4rem;
-  color: var(--muted-foreground);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.tt-id {
-  margin-top: 0.2rem;
-  color: var(--muted-foreground);
-}
-</style>
+  {#if task.termination?.error}
+    <p class="m-0 break-words text-xs text-destructive">
+      {task.termination.error}
+    </p>
+  {/if}
+</div>

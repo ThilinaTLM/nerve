@@ -8,6 +8,8 @@ import { formatListeningPort } from "../adapters/task-port-inspector.js";
 import { isActiveTaskStatus } from "./task-status.js";
 
 const MAX_COMMAND_PREVIEW = 120;
+const MAX_COMMAND_DISPLAY = 6_000;
+const MAX_OUTPUT_DISPLAY = 12_000;
 const MAX_ERROR_PREVIEW = 120;
 const MAX_LOG_LINE = 220;
 
@@ -25,6 +27,25 @@ export function taskLabel(task: TaskRecord): string {
 
 export function taskCommandPreview(task: TaskRecord): string {
   return truncateTaskText(task.command, MAX_COMMAND_PREVIEW);
+}
+
+function boundedDisplayText(value: string, max: number): string {
+  const normalized = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  return normalized.length <= max
+    ? normalized
+    : `${normalized.slice(0, Math.max(0, max - 1))}…`;
+}
+
+export function taskCommandDisplay(task: TaskRecord): string {
+  return boundedDisplayText(task.command, MAX_COMMAND_DISPLAY);
+}
+
+export function taskOutputDisplay(events: TaskLogEvent[]): string | undefined {
+  const output = boundedDisplayText(
+    events.map((event) => event.line).join("\n"),
+    MAX_OUTPUT_DISPLAY,
+  );
+  return output.trim().length > 0 ? output : undefined;
 }
 
 export function formatTaskPorts(task: TaskRecord): string | undefined {

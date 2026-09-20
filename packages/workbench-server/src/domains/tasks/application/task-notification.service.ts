@@ -19,7 +19,9 @@ import type { WorkbenchTaskService } from "../adapters/workbench-task-service.js
 import {
   formatTaskEventSummary,
   relevantFailureLogs,
+  taskCommandDisplay,
   taskCommandPreview,
+  taskOutputDisplay,
 } from "../model/task-summary-format.js";
 
 export interface TaskNotificationServiceDeps {
@@ -421,6 +423,8 @@ export class TaskNotificationService {
       signal: task.signal ?? null,
       nextCursor: logs.nextCursor,
       commandPreview: taskCommandPreview(task),
+      command: taskCommandDisplay(task),
+      output: taskOutputDisplay(logs.events),
       notificationEntryId: entryId,
     };
     return {

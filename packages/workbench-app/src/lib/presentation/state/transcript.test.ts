@@ -73,6 +73,47 @@ describe("entryToTranscriptItems", () => {
     assert.equal(item?.runStatus?.retryable, true);
   });
 
+  it("maps the structured task-event user projection", () => {
+    const [item] = entryToTranscriptItems(
+      entry({
+        kind: "task_event",
+        text: "Agent-facing task summary",
+        details: {
+          type: "task_event",
+          taskId: "task_1",
+          taskName: "build",
+          event: "completed",
+          status: "completed",
+          commandPreview: "printf 'one'; printf 'two'",
+          command: "printf 'one\\n'\nprintf 'two\\n'",
+          output: "one\ntwo",
+        },
+      }),
+    );
+
+    assert.equal(item?.taskEvent?.command, "printf 'one\\n'\nprintf 'two\\n'");
+    assert.equal(item?.taskEvent?.output, "one\ntwo");
+    assert.equal(item?.text, "Agent-facing task summary");
+  });
+
+  it("keeps legacy task events without structured display fields valid", () => {
+    const [item] = entryToTranscriptItems(
+      entry({
+        kind: "task_event",
+        details: {
+          type: "task_event",
+          taskId: "task_1",
+          event: "completed",
+          commandPreview: "sleep 8",
+        },
+      }),
+    );
+
+    assert.equal(item?.taskEvent?.commandPreview, "sleep 8");
+    assert.equal(item?.taskEvent?.command, undefined);
+    assert.equal(item?.taskEvent?.output, undefined);
+  });
+
   it("converts failed run status entries into transcript status items", () => {
     const [item] = entryToTranscriptItems(
       entry({

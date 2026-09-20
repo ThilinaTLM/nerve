@@ -61,7 +61,12 @@ export interface HarnessTaskEventDetails {
   exitCode?: number | null;
   signal?: string | null;
   nextCursor?: number;
+  /** Compact one-line command used by summaries and transcript headers. */
   commandPreview?: string;
+  /** Newline-preserving, bounded command for transcript presentation. */
+  command?: string;
+  /** Selected raw task output for transcript presentation. */
+  output?: string;
   notificationEntryId?: string;
 }
 

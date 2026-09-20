@@ -129,6 +129,8 @@ export function measurementVersionForRow(
       notice.taskName?.length ?? 0,
       notice.groupName?.length ?? 0,
       notice.commandPreview?.length ?? 0,
+      notice.command?.length ?? 0,
+      notice.output?.length ?? 0,
       notice.taskId ? "actionable" : "static",
     ].join(":");
   }

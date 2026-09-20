@@ -21,7 +21,7 @@ describe("run status notice model", () => {
       }),
       { nowMs },
     );
-    assert.equal(model.badge, "run retrying");
+    assert.equal(model.badge, "run_retrying");
     assert.equal(model.tone, "info");
     assert.equal(model.busy, true);
     assert.equal(model.arg, "503 overloaded");
@@ -48,7 +48,7 @@ describe("run status notice model", () => {
       },
     });
     assert.equal(model.tone, "destructive");
-    assert.equal(model.badge, "run failed");
+    assert.equal(model.badge, "run_failed");
     assert.deepEqual(
       model.chips?.map((chip) => chip.text),
       ["retry 3"],
@@ -62,7 +62,7 @@ describe("run status notice model", () => {
       nowMs,
     });
     assert.equal(model.tone, "warning");
-    assert.equal(model.badge, "run interrupted");
+    assert.equal(model.badge, "run_interrupted");
     assert.match(model.summary ?? "", /Continue/);
     assert.equal(model.glyph, "bell-dot");
     assert.equal(model.action, undefined);

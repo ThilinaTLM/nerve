@@ -24,7 +24,7 @@ export type TranscriptNoticeModel = {
   glyph: CardGlyph;
   /** Spin the leading glyph while the event is still in flight. */
   busy?: boolean;
-  /** Mono event name in the tool-name slot, e.g. "task completed". */
+  /** Snake-case mono event name in the tool-name slot, e.g. "task_completed". */
   badge: string;
   /** Muted argument beside the name: task name, reason, failure summary. */
   arg?: string;

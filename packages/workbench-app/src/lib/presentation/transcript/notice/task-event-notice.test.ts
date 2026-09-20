@@ -18,9 +18,13 @@ function notice(overrides: Partial<TaskEventNotice> = {}): TaskEventNotice {
 describe("task event notice model", () => {
   it("names a clean completion in the mono event slot", () => {
     const model = taskEventNoticeModel(notice());
-    assert.equal(model.badge, "task completed");
+    assert.equal(model.badge, "task_completed");
     assert.equal(model.tone, "success");
-    assert.equal(model.arg, "agent-wake-explicit-test");
+    assert.equal(model.arg, "sleep 8; printf 'done'");
+    assert.equal(
+      model.statusLabel,
+      "Background task completed: agent-wake-explicit-test",
+    );
     assert.deepEqual(
       model.chips?.map((chip) => chip.text),
       ["exit 0"],
@@ -48,7 +52,7 @@ describe("task event notice model", () => {
   it("escalates a non-zero exit to a destructive notice", () => {
     const model = taskEventNoticeModel(notice({ exitCode: 2 }));
     assert.equal(model.tone, "destructive");
-    assert.equal(model.badge, "task exited");
+    assert.equal(model.badge, "task_exited");
     assert.equal(model.glyph, "bell-dot");
     assert.equal(model.chips?.[0]?.tone, "destructive");
   });
@@ -74,7 +78,7 @@ describe("task event notice model", () => {
       taskEventNoticeModel(
         notice({ event: "ready", status: "running", exitCode: undefined }),
       ).badge,
-      "task ready",
+      "task_ready",
     );
     assert.equal(
       taskEventNoticeModel(
@@ -90,8 +94,23 @@ describe("task event notice model", () => {
       taskEventNoticeModel(
         notice({ event: undefined, status: undefined, exitCode: undefined }),
       ).badge,
-      "task update",
+      "task_update",
     );
+  });
+
+  it("moves multiline commands out of the header argument", () => {
+    const model = taskEventNoticeModel(
+      notice({ command: "printf 'one\\n'\nprintf 'two\\n'" }),
+    );
+    assert.equal(model.arg, "agent-wake-explicit-test");
+
+    const unnamed = taskEventNoticeModel(
+      notice({
+        taskName: undefined,
+        command: "printf 'one\\n'\nprintf 'two\\n'",
+      }),
+    );
+    assert.equal(unnamed.arg, "background task");
   });
 
   it("offers an open-task action only when it can act", () => {
