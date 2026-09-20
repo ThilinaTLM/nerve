@@ -1,4 +1,5 @@
 export * from "./api/projects.api";
+export { default as ProjectIcon } from "./views/ProjectIcon.svelte";
 export { default as ProjectSwitcher } from "./views/ProjectSwitcher.svelte";
 export { default as PruneConversationsDialog } from "./views/PruneConversationsDialog.svelte";
 export type {
@@ -7,6 +8,7 @@ export type {
   ProjectAgentTreeProps,
 } from "./views/project-agent-tree-props";
 export {
+  buildConversationMenu,
   buildProjectMenu,
   countAgeEligible,
   countCompletedEligible,
@@ -30,3 +32,7 @@ export {
   focusProjectSearch,
   projectNavigatorSignals,
 } from "./state/project-navigator-signals.svelte";
+export {
+  conversationListPreferences,
+  setHideCompletedConversations,
+} from "./state/conversation-list-preferences.svelte";

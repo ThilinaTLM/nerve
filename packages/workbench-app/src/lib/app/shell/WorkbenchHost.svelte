@@ -1,5 +1,6 @@
 <script lang="ts">
 import { WorkbenchShell } from "$lib/presentation/shell";
+import MobileWorkbenchHost from "$lib/app/shell/mobile/MobileWorkbenchHost.svelte";
 import DesktopShutdownOverlay from "$lib/app/shell/DesktopShutdownOverlay.svelte";
 import WorkbenchEditorHost from "$lib/app/shell/WorkbenchEditorHost.svelte";
 import WorkbenchPanelHost from "$lib/app/composition/hosts/WorkbenchPanelHost.svelte";
@@ -42,7 +43,9 @@ $effect(() => {
     maintenance.reconnect();
 });
 
-const isCompact = $derived(responsive.isCompact);
+// Phones get their own shell; compact tablets keep the dock-and-sheet layout.
+const isPhone = $derived(responsive.isPhone);
+const isCompact = $derived(responsive.isCompact && !isPhone);
 const activeEditorTab = $derived(workspaceSelectors.activeCenterTab);
 function panelViewEnabled(viewIds: readonly string[]): boolean {
   return Object.entries(shellLayout.current.docks).some(([dockId, dock]) => {
@@ -78,38 +81,44 @@ $effect(() => {
 });
 </script>
 
-<WorkbenchShell
-  layout={shellLayout.current}
-  descriptors={panelViewDescriptors}
-  compact={isCompact}
-  primarySheetOpen={shellSheets.primary}
-  secondarySheetOpen={shellSheets.secondary}
-  actions={{
-    onActivateView: activatePanelView,
-    onMoveView: movePanelView,
-    onHideView: hidePanelView,
-    onToggleDock: toggleDock,
-    onDockResize: resizeDock,
-    onSheetOpenChange: setSheetOpen,
-  }}
->
-  {#snippet titlebar()}<WorkbenchTitlebarHost />{/snippet}
-  {#snippet editor()}<WorkbenchEditorHost />{/snippet}
-  {#snippet panelView(viewId)}
-    <WorkbenchPanelHost
-      {viewId}
-      gitModel={gitPanel.model}
-      gitActions={gitPanel.actions}
-    />
-  {/snippet}
-  {#snippet statusBar()}<WorkbenchStatusBarHost />{/snippet}
-  {#snippet overlays()}
-    <BrowserNotificationPrompt />
-    <CriticalErrorDialog />
-    <DiscoverStartupHost />
-    <GuideOverlayHost />
-    <DesktopShutdownOverlay />
-  {/snippet}
-</WorkbenchShell>
+{#snippet workbenchOverlays()}
+  <BrowserNotificationPrompt />
+  <CriticalErrorDialog />
+  <DiscoverStartupHost />
+  <GuideOverlayHost />
+  <DesktopShutdownOverlay />
+{/snippet}
+
+{#if isPhone}
+  <MobileWorkbenchHost overlays={workbenchOverlays} />
+{:else}
+  <WorkbenchShell
+    layout={shellLayout.current}
+    descriptors={panelViewDescriptors}
+    compact={isCompact}
+    primarySheetOpen={shellSheets.primary}
+    secondarySheetOpen={shellSheets.secondary}
+    actions={{
+      onActivateView: activatePanelView,
+      onMoveView: movePanelView,
+      onHideView: hidePanelView,
+      onToggleDock: toggleDock,
+      onDockResize: resizeDock,
+      onSheetOpenChange: setSheetOpen,
+    }}
+  >
+    {#snippet titlebar()}<WorkbenchTitlebarHost />{/snippet}
+    {#snippet editor()}<WorkbenchEditorHost />{/snippet}
+    {#snippet panelView(viewId)}
+      <WorkbenchPanelHost
+        {viewId}
+        gitModel={gitPanel.model}
+        gitActions={gitPanel.actions}
+      />
+    {/snippet}
+    {#snippet statusBar()}<WorkbenchStatusBarHost />{/snippet}
+    {#snippet overlays()}{@render workbenchOverlays()}{/snippet}
+  </WorkbenchShell>
+{/if}
 
 <ProjectDialogHost />

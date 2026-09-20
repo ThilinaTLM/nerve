@@ -22,6 +22,7 @@ export {
 export { composerDraft, selection } from "./selection.svelte";
 export {
   createConversationForDirectory,
+  deleteConversationAndRefresh,
   deleteProjectAndRefresh,
   exportUrl,
   newConversation,
@@ -32,6 +33,7 @@ export {
   pruneProjectConversationsAndRefresh,
   selectProject,
   systemPromptUrl,
+  updateConversationStateAndRefresh,
 } from "./workspace-actions.svelte";
 export { maintenance } from "../maintenance/maintenance-state.svelte";
 export type { CenterTabModel } from "./workspace-selectors.svelte";

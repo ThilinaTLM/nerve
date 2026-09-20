@@ -3,6 +3,7 @@ export { default as DockPanel } from "./DockPanel.svelte";
 export { default as DockTabStrip } from "./DockTabStrip.svelte";
 export { default as EditorArea } from "./EditorArea.svelte";
 export { default as EditorTabStrip } from "./EditorTabStrip.svelte";
+export * from "./mobile/index.js";
 export * from "./shell-drag.svelte.js";
 export * from "./shell-layout.js";
 export * from "./status-bar-chip.js";
