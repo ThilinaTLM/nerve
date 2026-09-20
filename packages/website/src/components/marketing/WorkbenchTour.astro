@@ -357,44 +357,102 @@ const stops = [
     }
 
     /* Inactive copy recedes so the active stop reads as the current one, but
-     * never so far that it looks like a rendering fault. The rail makes the
-     * column read as a chaptered walkthrough rather than four loose blocks. */
+     * never so far that it looks like a rendering fault. */
+    /* Dimmed with `filter`, not `opacity`: the reveal system owns each stop's
+     * opacity with a stronger selector, so an opacity rule here silently lost
+     * and every stop stayed equally bright. */
     .tour-stop {
       position: relative;
-      padding-left: 1.25rem;
-      opacity: 0.55;
-      transition: opacity 320ms var(--ease-out-expo);
+      padding-left: 2.9rem;
+      transition: filter 420ms var(--ease-out-expo);
     }
 
-    .tour-stop::before {
-      content: "";
-      position: absolute;
-      top: 0.35rem;
-      bottom: 0.35rem;
-      left: 0;
-      width: 2px;
-      background-color: var(--hairline);
+    /* Only dim once something is actually driving the active stop. Without the
+     * stage — no script, or reduced motion — nothing would ever restore these
+     * blocks, so they stay at full contrast. */
+    .tour[data-rail-live] .tour-stop {
+      filter: opacity(0.42);
     }
 
+    .tour[data-rail-live] .tour-stop[data-stop-active="true"] {
+      filter: none;
+    }
+
+    /* One rail, not four bars. Each stop's segment reaches halfway into the
+     * gap on either side, so the track reads as a single line down the
+     * chapter list and the fill can run continuously through it. */
+    .tour-stop::before,
     .tour-stop::after {
       content: "";
       position: absolute;
-      top: 0.35rem;
-      bottom: 0.35rem;
-      left: 0;
+      top: -13vh;
+      bottom: -13vh;
+      left: 0.78rem;
       width: 2px;
-      background: linear-gradient(180deg, var(--primary), var(--signal));
-      transform: scaleY(0);
+    }
+
+    .tour-stop:first-child::before,
+    .tour-stop:first-child::after {
+      top: 0.4rem;
+    }
+
+    .tour-stop:last-child::before,
+    .tour-stop:last-child::after {
+      bottom: 0.4rem;
+    }
+
+    .tour-stop::before {
+      background-color: var(--hairline);
+    }
+
+    /* Scrubbed by `tourStage()`: the fill tracks reading position rather than
+     * snapping when a stop becomes active. */
+    .tour-stop::after {
+      background: linear-gradient(
+        180deg,
+        var(--primary),
+        color-mix(in oklab, var(--primary) 60%, var(--signal))
+      );
+      transform: scaleY(var(--stop-progress, 0));
       transform-origin: top;
+    }
+
+    /* Without the scrub there is no progress value to read, so the segment
+     * simply fills while its stop is the active one. */
+    .tour:not([data-rail-live]) .tour-stop[data-stop-active="true"]::after {
+      transform: scaleY(1);
       transition: transform 560ms var(--ease-out-expo);
     }
 
-    .tour-stop[data-stop-active="true"] {
-      opacity: 1;
+    /* The chapter number becomes the rail's node, instead of floating above
+     * the eyebrow with nothing to attach to. */
+    .tour-stop .tour-index {
+      position: absolute;
+      /* Above the rail: the fill pseudo-element paints after in-flow children,
+       * so without this the line runs straight through the node. */
+      z-index: 1;
+      top: 0.1rem;
+      left: 0;
+      display: grid;
+      place-items: center;
+      width: 1.7rem;
+      height: 1.7rem;
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      background-color: var(--background);
+      color: var(--muted-foreground);
+      transition:
+        color 420ms var(--ease-out-expo),
+        border-color 420ms var(--ease-out-expo),
+        box-shadow 420ms var(--ease-out-expo);
     }
 
-    .tour-stop[data-stop-active="true"]::after {
-      transform: scaleY(1);
+    .tour-stop[data-stop-active="true"] .tour-index {
+      border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+      background-color: color-mix(in oklab, var(--primary) 10%, var(--background));
+      box-shadow: 0 0 0 0.3rem
+        color-mix(in oklab, var(--primary) 10%, transparent);
+      color: var(--primary);
     }
   }
 </style>

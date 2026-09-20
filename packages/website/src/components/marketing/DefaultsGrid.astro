@@ -1,15 +1,14 @@
 ---
-import historyDark from "../../assets/screenshots/desktop/history-dark.webp";
-import historyLight from "../../assets/screenshots/desktop/history-light.webp";
-import DeviceFrame from "./DeviceFrame.astro";
 import Reveal from "./Reveal.astro";
-import ThemeScreenshot from "./ThemeScreenshot.astro";
 
-/* Numbers come from the documented harness defaults: host retries are three
+/* Resilience defaults and the smaller daily-workflow features, in one grid.
+ *
+ * Numbers come from the documented harness defaults: host retries are three
  * attempts on a 2s exponential base, and the balanced compaction profile
  * triggers near 80% context retaining roughly 15%, with up to three
  * auto-continuations. Usage visibility and notification sounds are documented
- * in the models and personalize guides. */
+ * in the models and personalize guides. Branching moved to its own section
+ * (`HistoryBranching.astro`) because it earns more than a card. */
 
 const cards = [
   {
@@ -29,20 +28,35 @@ const cards = [
     body: "After a daemon restart, active runs with valid checkpoints become interrupted — and can be continued, not replayed.",
   },
   {
-    figure: "branch",
-    title: "Nothing is overwritten",
-    body: "Navigate to any earlier entry and continue on a new branch. The previous lineage stays in history.",
-  },
-  {
     figure: "usage",
     title: "Spend stays visible",
     body: "Cumulative tokens, cache activity, estimated cost, and context fraction in the composer — plus session and weekly subscription windows.",
     note: "subscription windows: OAuth Anthropic · OpenAI Codex",
   },
   {
+    figure: "voice",
+    title: "Speak the prompt",
+    body: "Dictate into the composer and get editable text back. Audio goes to the configured transcription service, never to a Nerve server.",
+  },
+  {
+    figure: "suggest",
+    title: "Prompt suggestions",
+    body: "Reusable prompts and project-aware suggestions in the composer, so recurring work does not get retyped.",
+  },
+  {
     figure: "ping",
     title: "You hear it land",
     body: "Desktop or browser notifications with independent sounds for questions, plan reviews, approvals, completions, and failures.",
+  },
+  {
+    figure: "layout",
+    title: "Your layout, your theme",
+    body: "Move or hide docks, change zoom, pick a theme, and switch light, dark, or system — the workbench keeps the arrangement.",
+  },
+  {
+    figure: "logs",
+    title: "Diagnose without leaking",
+    body: "Local logs and content-free performance diagnostics when something is slow, plus conversation import, export, and editor handoff.",
   },
 ];
 
@@ -90,52 +104,6 @@ const trace = [
       ))
     }
   </Reveal>
-
-  {/* The history graph is the concrete form the branch card takes, so it sits
-      directly beneath the cards rather than in a section of its own. */}
-  <div class="history">
-    <Reveal variant="left" class="history-copy">
-      <p class="eyebrow">Conversation history</p>
-      <h3 class="section-title history-title">
-        Every run is a graph you can walk.
-      </h3>
-      <p class="body-text">
-        The whole conversation is a navigable graph of messages, tool calls, and
-        branches. Zoom into any node to read its arguments and result, then jump
-        to that point or fork a new branch from it.
-      </p>
-      <ul class="history-points">
-        <li>
-          <span class="bouton" aria-hidden="true"></span>Long runs collapse into
-          step groups so the graph stays readable
-        </li>
-        <li>
-          <span class="bouton" aria-hidden="true"></span>Navigating changes the
-          active branch; earlier lineage is preserved
-        </li>
-        <li>
-          <span class="bouton" aria-hidden="true"></span>Optional summaries when
-          you jump are generated locally
-        </li>
-      </ul>
-      <a class="link-arrow" href="/guides/history-and-recovery/">
-        Read about history and recovery <span aria-hidden="true">→</span>
-      </a>
-    </Reveal>
-
-    <Reveal variant="right" delay={120} class="history-media">
-      <DeviceFrame label="nerve · conversation history" depth={3} tilt>
-        <ThemeScreenshot
-          dark={historyDark}
-          light={historyLight}
-          alt="The Nerve conversation history graph showing collapsed step groups, branching paths, tool nodes, and an entry details panel"
-          widths={[720, 1080, 1440, 2000, 2880]}
-          sizes="(max-width: 1023px) 100vw, 58vw"
-          loading="lazy"
-        />
-      </DeviceFrame>
-    </Reveal>
-  </div>
 
   <p class="meta-text defaults-caveat">
     Recovered task processes cannot be reattached to their original output pipes
@@ -233,8 +201,8 @@ const trace = [
     }
   }
 
-  /* Six cards resolve as two clean rows of three instead of an auto-fit
-   * layout that strands the last two beside a hole. */
+  /* Nine cards resolve as three clean rows of three instead of an auto-fit
+   * layout that strands the last ones beside a hole. */
   @media (min-width: 1024px) {
     .defaults-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -300,56 +268,6 @@ const trace = [
     font-family: var(--font-mono);
     font-size: 0.7rem;
     line-height: 1.5;
-  }
-
-  /* History graph ---------------------------------------------------------- */
-
-  .history {
-    display: grid;
-    gap: clamp(2rem, 4vw, 3rem);
-    align-items: start;
-    margin-top: 2.5rem;
-    padding-top: 2.5rem;
-    border-top: 1px solid var(--hairline);
-  }
-
-  .history-copy {
-    display: grid;
-    gap: 1rem;
-    justify-items: start;
-  }
-
-  .history-title {
-    font-size: clamp(1.5rem, 1.1rem + 1.3vw, 2.1rem);
-  }
-
-  .history-points {
-    display: grid;
-    gap: 0.6rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    color: var(--muted-foreground);
-    font-size: 0.95rem;
-  }
-
-  .history-points li {
-    display: flex;
-    gap: 0.75rem;
-    align-items: baseline;
-  }
-
-  .history-points .bouton {
-    flex: none;
-    translate: 0 -0.15rem;
-    box-shadow: 0 0 0 0.25rem
-      color-mix(in oklab, var(--primary) 14%, transparent);
-  }
-
-  @media (min-width: 1024px) {
-    .history {
-      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-    }
   }
 
   .defaults-caveat {

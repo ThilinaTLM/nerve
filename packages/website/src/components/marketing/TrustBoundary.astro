@@ -1,0 +1,185 @@
+---
+/* The trust boundary, drawn instead of asserted.
+ *
+ * The previous copy ("nothing leaves your machine until you ask it to") was
+ * too broad: model calls, OAuth, transcription, Git remotes, and integrations
+ * all leave the machine. The honest version is a boundary diagram — what lives
+ * locally, and which outbound paths exist only because the visitor turned them
+ * on. Pure markup and CSS, so it is complete without JavaScript.
+ */
+
+import Reveal from "./Reveal.astro";
+
+const local = [
+  { label: "Workbench UI", note: "desktop shell or browser" },
+  { label: "Local daemon", note: "127.0.0.1:3747" },
+  { label: "~/.nerve", note: "conversations, settings, encrypted credentials" },
+  { label: "Your project directories", note: "read and written in place" },
+];
+
+const outbound = [
+  { label: "Model provider", note: "the provider you sign in to" },
+  { label: "Git remote", note: "when you fetch, push, or open a PR" },
+  { label: "Voice transcription", note: "only while dictating" },
+  { label: "Web · Jira · Confluence", note: "only if you enable them" },
+];
+---
+
+<div class="trust">
+  <Reveal class="trust-machine">
+    <p class="trust-zone-label">Your machine</p>
+    <ul class="trust-local">
+      {
+        local.map((item) => (
+          <li>
+            <span class="trust-node-label">{item.label}</span>
+            <span class="trust-node-note">{item.note}</span>
+          </li>
+        ))
+      }
+    </ul>
+  </Reveal>
+
+  <Reveal variant="right" delay={120} class="trust-outbound">
+    <p class="trust-zone-label trust-zone-label-outbound">
+      Leaves only when you connect it
+    </p>
+    <ul class="trust-links">
+      {
+        outbound.map((item) => (
+          <li>
+            <span class="trust-arrow" aria-hidden="true" />
+            <span class="trust-node-label">{item.label}</span>
+            <span class="trust-node-note">{item.note}</span>
+          </li>
+        ))
+      }
+    </ul>
+  </Reveal>
+
+  <div class="trust-footer">
+    <p class="meta-text trust-caveat">
+      Local-first is not offline-only. Credentials are encrypted on your
+      machine, and LAN or remote access is an explicit opt-in.
+    </p>
+    <a class="link-arrow" href="/operations/security/">
+      Read the security model <span aria-hidden="true">→</span>
+    </a>
+  </div>
+</div>
+
+<style>
+  .trust {
+    display: grid;
+    gap: clamp(1.5rem, 3vw, 2.5rem);
+    align-items: stretch;
+  }
+
+  .trust-machine,
+  .trust-outbound {
+    display: grid;
+    gap: 1rem;
+    align-content: start;
+    padding: 1.5rem;
+    border-radius: var(--radius-card);
+  }
+
+  .trust-machine {
+    border: 1px solid color-mix(in oklab, var(--primary) 34%, var(--border));
+    background: linear-gradient(
+      165deg,
+      color-mix(in oklab, var(--primary) 7%, var(--card)),
+      var(--card)
+    );
+    box-shadow: var(--depth-1);
+  }
+
+  /* Dashed: these paths exist, but only on the visitor's say-so. */
+  .trust-outbound {
+    border: 1px dashed var(--hairline);
+    background-color: transparent;
+  }
+
+  .trust-zone-label {
+    margin: 0;
+    color: var(--primary);
+    font-size: var(--text-meta);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .trust-zone-label-outbound {
+    color: var(--muted-foreground);
+  }
+
+  .trust-local,
+  .trust-links {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .trust-local li,
+  .trust-links li {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-chip);
+    background-color: var(--background);
+  }
+
+  .trust-links li {
+    grid-template-columns: auto 1fr;
+    column-gap: 0.7rem;
+    align-items: center;
+    background-color: transparent;
+  }
+
+  .trust-arrow {
+    grid-row: 1 / span 2;
+    width: 1.1rem;
+    height: 1px;
+    background-image: repeating-linear-gradient(
+      90deg,
+      var(--myelin) 0 4px,
+      transparent 4px 7px
+    );
+  }
+
+  .trust-node-label {
+    color: var(--foreground);
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  .trust-node-note {
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    line-height: 1.5;
+  }
+
+  .trust-footer {
+    display: grid;
+    gap: 0.75rem;
+    justify-items: start;
+  }
+
+  .trust-caveat {
+    max-width: 46rem;
+  }
+
+  @media (min-width: 900px) {
+    .trust {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .trust-footer {
+      grid-column: 1 / -1;
+    }
+  }
+</style>

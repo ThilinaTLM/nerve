@@ -5,15 +5,17 @@
 [![npm](https://img.shields.io/npm/v/%40nervekit%2Fdesktop?logo=npm)](https://www.npmjs.com/package/@nervekit/desktop)
 [![License](https://img.shields.io/github/license/ThilinaTLM/nerve)](LICENSE)
 
-**A transparent, local-first desktop coding harness with the focus of a small agent and the workflow of a complete workbench.**
+**A free, open-source coding workbench for AI agents — built to get more work out of every token.**
 
-Nerve keeps agent activity visible and gives you direct control over models, permissions, tools, approvals, Git, and background tasks while working with local projects.
+Run it on the AI subscription you already pay for, or your own API key. The harness keeps its own footprint small: a 363-character generated base prompt, only the tools a run can actually use, tool results capped before they reach the model, and automatic compaction before the window runs out.
+
+Everything else — conversations, context, permissions, Git, pull requests, and background tasks — lives in one window, visible and steerable while it runs, and stays on your disk.
 
 [Website](https://nerve.tlmtech.dev/) · [Documentation](https://nerve.tlmtech.dev/start/) · [Install guide](https://nerve.tlmtech.dev/start/install/) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="packages/website/src/assets/screenshots/desktop/git-dark.webp">
-  <img src="packages/website/src/assets/screenshots/desktop/git-light.webp" alt="Nerve desktop workbench showing a coding conversation, tool activity, and Git changes">
+  <source media="(prefers-color-scheme: dark)" srcset="packages/website/src/assets/screenshots/desktop/conversation-dark.webp">
+  <img src="packages/website/src/assets/screenshots/desktop/conversation-light.webp" alt="The Nerve desktop workbench showing a coding conversation with the agent's reasoning, tool calls and their output, and the composer controls">
 </picture>
 
 > [!NOTE]
@@ -33,11 +35,15 @@ The first launch may download Electron's platform binary. Nerve starts a local l
 
 ## Highlights
 
-- Follow streaming messages, reasoning, tool calls, plans, approvals, questions, logs, and task output.
-- Change the model, thinking level, agent mode, and permission policy without restarting a conversation.
-- Work with conversations, files, Git changes, pull requests, project notes, and background tasks in one workbench.
-- Configure providers, tools, global skills, and project resources from the UI.
-- Keep projects and Nerve state local by default, with opt-in browser, LAN, mobile, and remote-daemon workflows.
+- **A lean harness.** The generated base prompt is one 363-character block; tool rules, planning instructions, and project context are appended only when they apply, and gated tools never reach the request at all.
+- **Bounded context, not a dead end.** Tool results reaching the model are capped at 24,000 bytes while the complete output stays retrievable on disk, and long conversations compact automatically instead of ending.
+- **Use the AI access you already have.** Sign in to a supported provider subscription over OAuth, or paste an API key. Credentials are stored encrypted on your machine and the model catalog comes from the provider.
+- **Steerable, branchable conversations.** Change the model, thinking level, agent mode, or permission rule set mid-conversation — it applies from the next provider request — and fork from any earlier entry without losing the original lineage.
+- **Permissions enforced in policy, not prompts.** Read-only, supervised, and autonomous levels, planning mode, rule sets, and per-project or per-conversation overlays, evaluated before a tool runs.
+- **Multiple projects and repositories.** Repositories are discovered beneath a workspace root, each with its own branch and working-tree state, Git operations, and GitHub pull requests.
+- **Delegation with oversight.** Supervised background tasks with retained logs, and bounded read-only Explore sub-agents that research in parallel and report back.
+
+Permission policy is Nerve's tool authorization and review layer, not an OS or container sandbox. Local-first is not offline-only: provider, Git, voice, web, and integration calls leave your machine when you use them.
 
 ## Documentation
 
@@ -63,7 +69,7 @@ Use `pnpm dev` for the daemon and browser UI development servers. See the [devel
 
 ## Support
 
-If Nerve is useful to you, you can [support its continued development on Patreon](https://www.patreon.com/cw/thilinatlm).
+If Nerve is useful to you, starring the repository is the cheapest way to help other developers find it. You can also [support its continued development on Patreon](https://www.patreon.com/cw/thilinatlm).
 
 ## Contributing, security, and license
 

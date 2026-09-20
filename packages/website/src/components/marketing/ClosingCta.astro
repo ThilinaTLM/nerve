@@ -4,7 +4,11 @@ import Reveal from "./Reveal.astro";
 
 const steps = [
   { step: "01", label: "Install the desktop shell", meta: "Node.js 24+" },
-  { step: "02", label: "Connect a provider", meta: "API key or OAuth" },
+  {
+    step: "02",
+    label: "Connect a provider",
+    meta: "Your subscription over OAuth, or an API key",
+  },
   { step: "03", label: "Open your first project", meta: "Any local repository" },
 ];
 ---
@@ -18,18 +22,23 @@ const steps = [
           Run it on your own machine.
         </h2>
         <p class="lede">
-          Three steps, no account, and nothing leaves your machine until you ask
-          it to.
+          Three steps, no Nerve account, and no product analytics. Free and open
+          source under Apache-2.0, developed in the open.
         </p>
 
         <div class="closing-actions">
           <a class="btn btn-primary" href="/start/install/">
-            Get started <span aria-hidden="true">→</span>
+            Install Nerve <span aria-hidden="true">→</span>
           </a>
+          <a class="btn btn-ghost" href="/start/">Read the docs</a>
           <a class="btn btn-ghost" href="https://github.com/ThilinaTLM/nerve">
-            View on GitHub
+            Star on GitHub
           </a>
         </div>
+
+        <p class="meta-text">
+          A star is the cheapest way to help other developers find it.
+        </p>
       </div>
 
       <div class="closing-setup">

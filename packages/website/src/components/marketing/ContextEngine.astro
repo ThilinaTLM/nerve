@@ -1,0 +1,482 @@
+---
+/* Token efficiency: the page's leading argument.
+ *
+ * Two halves, in the order the tokens are actually spent. First what Nerve
+ * sends — a 363-character generated base prompt and only the tools the run can
+ * use — replacing the old "your model, at full intelligence" claim with
+ * something checkable. Then what comes back: the complete result on disk, a
+ * bounded projection for the model, and retrieval on demand.
+ *
+ * Numbers are quoted from the implementation: `nerve-system-prompt.ts` builds
+ * the base block, `agent-tool-adapter.ts` computes the active coding tools,
+ * and `output-budget.ts` caps model-facing tool results at 24,000 bytes.
+ */
+
+import Reveal from "./Reveal.astro";
+
+/* A coding run exposes eighteen tools. Listing all of them turns the drawing
+ * into an inventory, so this names the ones a visitor recognises and counts
+ * the rest. Python, Jira, Confluence, vision, and the planning-only tools are
+ * gated and simply never reach the request. */
+const activeToolCount = 18;
+
+const shownTools = [
+  "read",
+  "edit",
+  "write",
+  "grep",
+  "bash",
+  "explore",
+  "task_start",
+  "web_search",
+];
+
+/* Blocks that exist in the prompt assembly but are conditional: they cost
+ * nothing on a run that never triggers them. */
+const conditional = [
+  { label: "Tool rules", note: "only for the tools in play" },
+  { label: "Plan-mode instructions", note: "only while planning" },
+  { label: "Project instructions", note: "your AGENTS.md, when present" },
+  { label: "Skills", note: "only the ones the run opens" },
+];
+
+const stages = [
+  {
+    step: "1",
+    label: "Complete result",
+    figure: "kept in full",
+    body: "The tool runs and its whole output is retained — in the run log, or as a verified artifact with a stable path.",
+  },
+  {
+    step: "2",
+    label: "Bounded projection",
+    figure: "24 KB cap",
+    body: "The model receives a projection capped at 24,000 bytes and 200 lines, plus a pointer back to the complete payload.",
+    cut: true,
+  },
+  {
+    step: "3",
+    label: "Retrieve on demand",
+    figure: "on request",
+    body: "When the agent needs more, it reads the part it needs from the artifact instead of re-running the tool.",
+  },
+];
+
+/* Claims that belong to the request itself, next to the drawing of it. */
+const sentPoints = [
+  "No persona, no rule list, no ceremony re-sent on every single turn",
+  "Tools the run cannot use are never described to the model",
+];
+
+/* Claims about the conversation over time, below the result flow. */
+const points = [
+  "Automatic compaction summarizes older history and keeps recent turns intact",
+  "A visible context meter, so you always know how much room is left",
+];
+---
+
+<div class="context">
+  <Reveal class="context-sent">
+    <div class="context-sent-copy">
+      <p class="eyebrow">What Nerve sends</p>
+      <h3 class="card-title">The harness keeps its own footprint small.</h3>
+      <p class="body-text">
+        Most of a request should be your problem, not the harness describing
+        itself. Nerve's generated base prompt is a single 363-character block,
+        tools the run cannot use are never put in the request, and the rest is
+        appended only when it applies.
+      </p>
+      <ul class="context-points context-sent-points">
+        {
+          sentPoints.map((point) => (
+            <li>
+              <span class="bouton" aria-hidden="true" />
+              {point}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <figure class="request">
+      <figcaption class="request-head">
+        <span class="request-title">every request</span>
+        <span class="request-target" aria-hidden="true">→ provider</span>
+      </figcaption>
+
+      <div class="request-block">
+        <p class="request-label">
+          system <span class="request-count">363 chars</span>
+        </p>
+        <blockquote>
+          You are Nerve's coding agent. Work safely in the current project and
+          keep responses concise.
+        </blockquote>
+        <p class="meta-text request-source">nerve-system-prompt.ts</p>
+      </div>
+
+      <div class="request-block">
+        <p class="request-label">
+          tools <span class="request-count">{activeToolCount} active</span>
+        </p>
+        <ul class="request-tools" aria-label="Tools active on a coding run">
+          {shownTools.map((tool) => <li>{tool}</li>)}
+          <li class="is-rest">+{activeToolCount - shownTools.length} more</li>
+        </ul>
+      </div>
+
+      <div class="request-block is-conditional">
+        <p class="request-label">appended only when it applies</p>
+        <ul class="request-optional">
+          {
+            conditional.map((item) => (
+              <li>
+                <span class="request-optional-label">{item.label}</span>
+                <span class="request-optional-note">{item.note}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </figure>
+  </Reveal>
+
+  <Reveal class="context-flow" stagger={110}>
+    {
+      stages.map((stage, index) => (
+        <article class="context-stage" data-reveal-child>
+          <span class="context-step" aria-hidden="true">
+            {stage.step}
+          </span>
+          <span class="context-figure">{stage.figure}</span>
+          <h3 class="card-title">{stage.label}</h3>
+          <p class="body-text">{stage.body}</p>
+          {stage.cut && (
+            <span class="context-cut" aria-hidden="true">
+              <span class="context-cut-kept" />
+              <span class="context-cut-rest" />
+            </span>
+          )}
+          {index < stages.length - 1 && (
+            <span class="context-link" aria-hidden="true" />
+          )}
+        </article>
+      ))
+    }
+  </Reveal>
+
+  <Reveal variant="up" delay={120} class="context-aside">
+    <ul class="context-points">
+      {
+        points.map((point) => (
+          <li>
+            <span class="bouton" aria-hidden="true" />
+            {point}
+          </li>
+        ))
+      }
+    </ul>
+    <p class="meta-text context-caveat">
+      Projections and compaction reduce context pressure; they are not lossless,
+      which is why the complete output stays addressable. Actual spend depends
+      on your model, your task, and how much project context you add.
+    </p>
+    <a class="link-arrow" href="/developers/tool-output-lifecycle/">
+      How Nerve manages context <span aria-hidden="true">→</span>
+    </a>
+  </Reveal>
+</div>
+
+<style>
+  .context {
+    display: grid;
+    gap: clamp(2rem, 4vw, 3rem);
+  }
+
+  /* What Nerve sends ------------------------------------------------------ */
+
+  .context-sent {
+    display: grid;
+    gap: clamp(1.5rem, 3vw, 2.5rem);
+    /* Stretch, so the copy can centre itself against the taller request card
+     * instead of hanging from the top of a half-empty column. */
+    align-items: stretch;
+  }
+
+  @media (min-width: 900px) {
+    .context-sent {
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    }
+  }
+
+  .context-sent-copy {
+    display: grid;
+    gap: 0.6rem;
+    align-content: center;
+  }
+
+  .context-sent-points {
+    margin-block-start: 0.4rem;
+  }
+
+  /* The request itself, drawn as the stack of blocks it is: a fixed system
+   * block, the gated tool surface, and the conditional remainder. */
+  .request {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: clamp(1rem, 2vw, 1.4rem);
+    border: 1px solid color-mix(in oklab, var(--primary) 26%, var(--border));
+    border-radius: var(--radius-card);
+    background: linear-gradient(
+      165deg,
+      color-mix(in oklab, var(--primary) 6%, var(--card)),
+      var(--card)
+    );
+    box-shadow: var(--depth-1);
+  }
+
+  .request-head {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+    justify-content: space-between;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .request-block {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-chip);
+    background-color: var(--background);
+  }
+
+  /* Dashed and unfilled: these blocks are absent on a run that never needs
+   * them, and the drawing should not imply they are always paid for. */
+  .request-block.is-conditional {
+    border-style: dashed;
+    background-color: transparent;
+  }
+
+  .request-label {
+    display: flex;
+    gap: 0.6rem;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0;
+    color: var(--foreground);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .is-conditional .request-label {
+    color: var(--muted-foreground);
+  }
+
+  .request-count {
+    color: var(--primary);
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+
+  .request blockquote {
+    margin: 0;
+    color: var(--foreground);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    line-height: 1.6;
+  }
+
+  .request-source {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+  }
+
+  /* A dense grid rather than a wrapping row: eighteen names should read as a
+   * small, countable surface, not a paragraph of chips. */
+  .request-tools {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+    gap: 0.3rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .request-tools .is-rest {
+    border-style: dashed;
+    background-color: transparent;
+    opacity: 0.85;
+  }
+
+  .request-tools li {
+    padding: 0.2rem 0.45rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-chip);
+    background-color: color-mix(in oklab, var(--primary) 8%, transparent);
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+  }
+
+  .request-optional {
+    display: grid;
+    gap: 0.3rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .request-optional li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: baseline;
+  }
+
+  .request-optional-label {
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
+  }
+
+  .request-optional-note {
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    opacity: 0.8;
+  }
+
+  /* What comes back -------------------------------------------------------- */
+
+  .context-flow {
+    display: grid;
+    gap: 1rem;
+  }
+
+  @media (min-width: 900px) {
+    .context-flow {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 2rem;
+    }
+  }
+
+  .context-stage {
+    position: relative;
+    display: grid;
+    gap: 0.6rem;
+    align-content: start;
+    padding: 1.5rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background-color: var(--card);
+    box-shadow: var(--depth-1);
+  }
+
+  .context-step {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.25rem;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+  }
+
+  .context-figure {
+    justify-self: start;
+    padding: 0.22rem 0.6rem;
+    border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border));
+    border-radius: var(--radius-chip);
+    background-color: color-mix(in oklab, var(--primary) 10%, transparent);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  /* The cap, drawn: what the model is handed against what the run produced. */
+  .context-cut {
+    display: flex;
+    gap: 2px;
+    overflow: hidden;
+    height: 0.4rem;
+    border-radius: 999px;
+  }
+
+  .context-cut-kept {
+    flex: 0 0 34%;
+    border-radius: 999px;
+    background-color: var(--primary);
+  }
+
+  .context-cut-rest {
+    flex: 1;
+    border-radius: 999px;
+    background-image: repeating-linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--primary) 28%, transparent) 0 3px,
+      transparent 3px 7px
+    );
+  }
+
+  /* The connector between stages: horizontal once the stages sit in a row. */
+  .context-link {
+    display: none;
+  }
+
+  @media (min-width: 900px) {
+    .context-link {
+      display: block;
+      position: absolute;
+      top: 50%;
+      left: 100%;
+      width: 2rem;
+      height: 1px;
+      background-image: repeating-linear-gradient(
+        90deg,
+        var(--myelin) 0 4px,
+        transparent 4px 7px
+      );
+    }
+  }
+
+  .context-aside {
+    display: grid;
+    gap: 1rem;
+    justify-items: start;
+  }
+
+  .context-points {
+    display: grid;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+  }
+
+  .context-points li {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+  }
+
+  .context-points .bouton {
+    flex: none;
+    translate: 0 -0.15rem;
+    box-shadow: 0 0 0 0.25rem
+      color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+
+  .context-caveat {
+    max-width: 46rem;
+  }
+</style>

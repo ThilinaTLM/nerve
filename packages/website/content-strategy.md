@@ -12,13 +12,13 @@ This plan supersedes the earlier “strategy only” boundary because the produc
 
 ### Framework
 
-Use **Astro 7.1.5 + Starlight 0.41.5** with static output.
+Use **Astro 7 + Starlight 0.41.5** with static output.
 
 - **Chosen: Starlight with a custom Astro homepage.** It provides accessible documentation navigation, full-text search, table of contents, Markdown/MDX, code rendering, mobile behavior, SEO metadata, and linkable headings without building a documentation shell. A custom `src/pages/index.astro` supplies a focused marketing page.
 - **Rejected: fully custom Astro documentation UI.** It offers more visual control but would spend the first iteration on navigation, search, accessibility, and responsive behavior rather than content.
 - **Rejected: a second-site generator or root `docs/` GitHub Pages source.** This would either add an unnecessary framework mismatch or mix deployable website source with repository engineering documents. GitHub Pages does not require root `docs/`.
 
-Use exact package versions consistent with repository conventions: `astro@7.1.5`, `@astrojs/starlight@0.41.5`, `@astrojs/check@0.9.10`, and `@astrojs/sitemap@3.7.3`. Astro 7 supports the repository’s Node 24 baseline; Starlight 0.41.5 declares Astro 7 compatibility.
+Use exact package versions consistent with repository conventions: `astro@7.2.8`, `@astrojs/starlight@0.41.5`, `@astrojs/check@0.9.10`, and `@astrojs/sitemap@3.7.3`. Astro 7 supports the repository’s Node 24 baseline; Starlight 0.41.5 declares Astro 7 compatibility.
 
 ### Hosting and URL
 
@@ -149,15 +149,57 @@ Each public page starts with who it is for and the outcome, then prerequisites, 
 
 ### Marketing homepage (`/`)
 
-1. Hero: “A transparent, local-first coding harness” with install command and docs/GitHub calls to action.
-2. Product proof: current workbench screenshot and the three differentiators—transparent execution, live control, local ownership.
-3. Core workflow: open project → direct agent → review tools/approvals → inspect changes/PR/tasks.
-4. Capability groups: workbench, agent control, integrations, Git/tasks, model choice.
-5. Local-first topology diagram and concise security caveat.
-6. Open-source/beta/platform statement.
-7. Final quick-start call to action.
+Message pillars, in priority order:
+
+1. **Token and cost efficiency** — a lean system prompt, a gated tool surface, bounded tool results, and automatic compaction, so a plan or budget goes further. This is the lead: local-first trust matters, but it is not what makes someone switch.
+2. **Use the AI access you already have** — supported subscription OAuth or your own API key.
+3. **Visible, steerable, branchable work** — typed events, live retuning, history as a tree.
+4. **Authority you tune** — permission levels, modes, rule sets, approvals.
+5. **Real codebases** — multiple projects and repositories, worked in parallel.
+6. **Delegation with oversight** — supervised background tasks and bounded read-only sub-agents.
+7. **Free, open source, and local-first** — ownership and an honest data boundary, stated plainly rather than sold as the headline.
+
+Section order:
+
+1. Hero: the efficiency claim with concrete figures, category in one sentence, install command, GitHub star call to action. It must fit one viewport.
+2. Verifiable fact strip.
+3. Use the access you already pay for — OAuth, API keys, usage windows.
+4. Token efficiency — lean prompt and tool surface, then projection and compaction.
+5. One workbench, the whole loop — real screenshots.
+6. Retune while it runs.
+7. Typed events and evidence.
+8. Branchable history.
+9. Permission authority.
+10. Multiple projects and repositories.
+11. Delegation: background tasks and Explore sub-agents.
+12. Local by default, connected by choice — boundary diagram.
+13. Details that add up — resilience and productivity grid.
+14. Mobile and LAN access.
+15. Three-step install close with an open-source and star request.
 
 Avoid unsupported comparative claims, exhaustive provider logos, fabricated testimonials, download buttons for nonexistent installers, or “fully sandboxed/private” language.
+
+### Claim guardrails
+
+Use these formulations consistently across the homepage, README, metadata, and documentation.
+
+- Say **local-first**, not “everything stays offline” or “nothing leaves your machine”.
+- Say **no product analytics**, and distinguish local logs and diagnostics from external tracking.
+- Quote harness efficiency as **measured facts** (base prompt length, active tool count, output caps); never promise a percentage saving, which depends on model and task.
+- Say **supported subscriptions**, with examples rather than a permanent provider matrix; the installed catalog decides.
+- Say model, mode, and permission changes apply to **the next provider request**.
+- Say reasoning is shown **when the provider returns it**.
+- Say branching **navigates to an earlier entry and preserves lineage**; it is not a generic conversation clone.
+- Say projections and compaction **reduce context pressure**; do not claim lossless context or a guaranteed token saving.
+- Say complete tool output is **retained and retrievable**, while model and transcript projections are bounded.
+- Say permissions enforce **Nerve's tool policy and review points**; never call them a sandbox.
+- Say Explore provides **bounded read-only child agents**, capped per call and per run.
+- Say subscription usage figures are **operational estimates**; provider accounting is authoritative.
+- Say voice transcription **uploads audio to the configured transcription service** and returns editable text.
+
+### Screenshots
+
+Published screenshots are produced by the pipeline in `scripts/screenshots/` from synthetic demo data, not captured by hand from a real workspace. See `scripts/screenshots/README.md`.
 
 ### Documentation navigation
 
