@@ -88,6 +88,12 @@ export class RunEventFactory {
       projectId: run.projectId,
       runId: run.runId,
       message: run.failure?.message ?? "run failed",
+      ...(run.failure?.category
+        ? { failureCategory: run.failure.category }
+        : {}),
+      ...(run.failure?.httpStatus
+        ? { httpStatus: run.failure.httpStatus }
+        : {}),
       aborted: false,
       interrupted: interrupted || undefined,
       continuable:
@@ -129,6 +135,12 @@ export class RunEventFactory {
       delayMs: retry.delayMs,
       retryAt: new Date(Date.parse(now) + retry.delayMs).toISOString(),
       errorMessage: run.failure?.message,
+      ...(run.failure?.category
+        ? { failureCategory: run.failure.category }
+        : {}),
+      ...(run.failure?.httpStatus
+        ? { httpStatus: run.failure.httpStatus }
+        : {}),
     });
   }
 

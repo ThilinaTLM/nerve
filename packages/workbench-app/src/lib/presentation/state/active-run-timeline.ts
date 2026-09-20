@@ -126,6 +126,12 @@ export function buildActiveRunTimeline(
         runId: activeRun.runId,
         state: "interrupted",
         errorMessage: activeRun.recovery.errorMessage,
+        ...(activeRun.recovery.failureCategory
+          ? { failureCategory: activeRun.recovery.failureCategory }
+          : {}),
+        ...(activeRun.recovery.httpStatus
+          ? { httpStatus: activeRun.recovery.httpStatus }
+          : {}),
         retryable: activeRun.recovery.continuable,
       },
     });

@@ -7,6 +7,7 @@ import { resolveAgentModel } from "@nervekit/harness/models";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import { normalizeRunFailure } from "@nervekit/contracts/runs";
 import { toolNameSchema, type ToolName } from "@nervekit/contracts/tools";
 import { HostHarnessFactory } from "./harness-factory.js";
 import type { RunExecutionOutcome } from "../../runs/runtime/index.js";
@@ -734,7 +735,10 @@ export async function executeWorkbenchHarness(
             : {
                 failure: {
                   code: "MODEL_REQUEST_FAILED",
-                  message: runAssistant.errorMessage ?? "Agent run failed.",
+                  ...normalizeRunFailure(
+                    runAssistant.errorMessage ?? "Agent run failed.",
+                    "provider",
+                  ),
                   retryable,
                   continuable,
                 },
@@ -773,7 +777,7 @@ export async function executeWorkbenchHarness(
           status: "failed",
           failure: {
             code: "EXECUTION_FAILED",
-            message: error instanceof Error ? error.message : String(error),
+            ...normalizeRunFailure(error, "harness"),
             retryable: true,
           },
         };

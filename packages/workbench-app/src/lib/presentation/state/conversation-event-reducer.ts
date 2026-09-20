@@ -510,6 +510,8 @@ function applyRunRetrying(
     delayMs: data.delayMs,
     retryAt: data.retryAt,
     errorMessage: data.errorMessage,
+    ...(data.failureCategory ? { failureCategory: data.failureCategory } : {}),
+    ...(data.httpStatus ? { httpStatus: data.httpStatus } : {}),
     failedEntryId: data.failedEntryId,
   };
   state.sending = true;
@@ -567,6 +569,10 @@ function applyRunFailed(
     activeRun.retry = undefined;
     activeRun.recovery = {
       errorMessage: data.message || undefined,
+      ...(data.failureCategory
+        ? { failureCategory: data.failureCategory }
+        : {}),
+      ...(data.httpStatus ? { httpStatus: data.httpStatus } : {}),
       continuable: true,
     };
     activeRun.queuedPrompts = [];

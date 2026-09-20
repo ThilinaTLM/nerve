@@ -73,6 +73,7 @@ type Props = {
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
+  capabilityDisabled?: boolean;
   onCapabilityPatch?: (patch: CapabilityPatch) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
@@ -117,6 +118,7 @@ let {
   capabilitySkills = [],
   capabilityLoading = false,
   capabilityError,
+  capabilityDisabled = controlsDisabled,
   onCapabilityPatch,
   onResetCapabilities,
   onRefreshCapabilities,
@@ -297,7 +299,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
       skills={capabilitySkills}
       loading={capabilityLoading}
       error={capabilityError}
-      disabled={controlsDisabled}
+      disabled={capabilityDisabled}
       onPatch={onCapabilityPatch}
       onReset={onResetCapabilities}
       onRefresh={onRefreshCapabilities}

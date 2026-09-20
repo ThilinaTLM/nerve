@@ -1,4 +1,5 @@
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { RunFailureCategory } from "@nervekit/contracts/runs";
 
 export type TranscriptDisplayKind = "message" | "thinking";
 
@@ -52,6 +53,8 @@ export type RunStatusNotice = {
   delayMs?: number;
   retryAt?: string;
   errorMessage?: string;
+  failureCategory?: RunFailureCategory;
+  httpStatus?: number;
   retryable?: boolean;
   createdAt?: string;
 };

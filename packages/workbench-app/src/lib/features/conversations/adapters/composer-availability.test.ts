@@ -44,18 +44,27 @@ describe("composer availability", () => {
       const availability = deriveComposerAvailability({ ...ready, ...patch });
       assert.equal(availability.canEdit, false);
       assert.equal(availability.canSubmit, false);
+      assert.equal(availability.canConfigureRuntime, false);
     }
   });
 
-  it("blocks editing during reviews, compaction, and stopping", () => {
-    for (const patch of [
-      { blockedForReview: true },
-      { compacting: true },
-      { stopping: true },
-    ]) {
+  it("blocks prompting during review but keeps next-turn configuration available", () => {
+    const availability = deriveComposerAvailability({
+      ...ready,
+      blockedForReview: true,
+    });
+
+    assert.equal(availability.canEdit, false);
+    assert.equal(availability.canSubmit, false);
+    assert.equal(availability.canConfigureRuntime, true);
+  });
+
+  it("blocks editing and runtime configuration while compacting or stopping", () => {
+    for (const patch of [{ compacting: true }, { stopping: true }]) {
       const availability = deriveComposerAvailability({ ...ready, ...patch });
       assert.equal(availability.canEdit, false);
       assert.equal(availability.canSubmit, false);
+      assert.equal(availability.canConfigureRuntime, false);
     }
   });
 

@@ -61,6 +61,8 @@ describe("entryToTranscriptItems", () => {
           attempt: 3,
           maxRetries: 3,
           errorMessage: "timeout",
+          failureCategory: "connection",
+          httpStatus: 504,
           retryable: true,
         },
       }),
@@ -70,6 +72,8 @@ describe("entryToTranscriptItems", () => {
     assert.equal(item?.kind, "run_status");
     assert.equal(item?.runStatus?.state, "retry_exhausted");
     assert.equal(item?.runStatus?.failedEntryId, "entry_failed");
+    assert.equal(item?.runStatus?.failureCategory, "connection");
+    assert.equal(item?.runStatus?.httpStatus, 504);
     assert.equal(item?.runStatus?.retryable, true);
   });
 

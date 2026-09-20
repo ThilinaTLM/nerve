@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { capabilityOverridesDocumentSchema } from "../capabilities/capabilities.js";
 import { permissionLevelSchema } from "../permissions/permissions.js";
+import type { RunFailureCategory } from "../runs/run-failure.js";
 import { modeSchema } from "../settings/settings.js";
 
 export const conversationRecordSchema = z.object({
@@ -105,6 +106,8 @@ export interface ConversationRunStatusDetails {
   delayMs?: number;
   retryAt?: string;
   errorMessage?: string;
+  failureCategory?: RunFailureCategory;
+  httpStatus?: number;
   /**
    * Whether a "Continue" affordance should be offered for this status. For the
    * non-`retrying` states (`retry_exhausted`, `failed`, `interrupted`) this means

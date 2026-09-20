@@ -29,6 +29,8 @@ describe("buildConversationTimeline split builders", () => {
       status: "interrupted",
       recovery: {
         errorMessage: "Host restarted during active execution",
+        failureCategory: "harness",
+        httpStatus: 502,
         continuable: true,
       },
     });
@@ -53,6 +55,8 @@ describe("buildConversationTimeline split builders", () => {
         runId: run.runId,
         state: "interrupted",
         errorMessage: "Host restarted during active execution",
+        failureCategory: "harness",
+        httpStatus: 502,
         retryable: true,
       },
     });

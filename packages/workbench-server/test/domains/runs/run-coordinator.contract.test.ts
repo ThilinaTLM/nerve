@@ -689,6 +689,8 @@ test("automatically retries a valid checkpoint with accurate metadata", async ()
           failure: {
             code: "PROVIDER_FAILED",
             message: "temporary",
+            category: "provider",
+            httpStatus: 503,
             retryable: true,
           },
         };
@@ -715,6 +717,11 @@ test("automatically retries a valid checkpoint with accurate metadata", async ()
   assert.equal((retry?.data as { attempt?: number })?.attempt, 1);
   assert.equal((retry?.data as { maxRetries?: number })?.maxRetries, 2);
   assert.equal((retry?.data as { delayMs?: number })?.delayMs, 25);
+  assert.equal(
+    (retry?.data as { failureCategory?: string })?.failureCategory,
+    "provider",
+  );
+  assert.equal((retry?.data as { httpStatus?: number })?.httpStatus, 503);
 });
 
 test("bounds execution failure messages before persisting a retry", async () => {

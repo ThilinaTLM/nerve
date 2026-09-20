@@ -398,10 +398,14 @@ describe("conversation event reducer", () => {
         delayMs: 100,
         retryAt: ts,
         errorMessage: "rate limited",
+        failureCategory: "rate_limit",
+        httpStatus: 429,
         failedEntryId,
       });
     state = applyConversationEvent(state, retrying(1, 1, "entry_failed_1"));
     state = applyConversationEvent(state, retrying(2, 2, "entry_failed_2"));
+    assert.equal(state.activeRun?.retry?.failureCategory, "rate_limit");
+    assert.equal(state.activeRun?.retry?.httpStatus, 429);
 
     const render = buildConversationRenderProjection(state);
     assert.deepEqual(

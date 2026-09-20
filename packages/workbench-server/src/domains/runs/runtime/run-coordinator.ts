@@ -1,8 +1,9 @@
 /* eslint-disable max-lines -- Coordinator keeps the canonical run lifecycle in one auditable use case. */
 import type { PeerRole } from "@nervekit/contracts/wire";
 import type { PromptImage } from "@nervekit/contracts/agents";
-import type {
-  LifecycleWork,
+import {
+  normalizeRunFailure,
+  type LifecycleWork,
   RunCheckpointRecord,
   RunFailureRecord,
   RunInteractionRecord,
@@ -871,7 +872,7 @@ export class RunCoordinator {
             run.executionId,
             {
               code: "RUN_INTERRUPTED",
-              message: outcome.message,
+              ...normalizeRunFailure(outcome.message, "harness"),
               retryable: true,
             },
             abort.signal,

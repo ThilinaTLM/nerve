@@ -1,6 +1,10 @@
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ConversationRunRetrySnapshot } from "@nervekit/contracts/conversations";
-import type { RunRecord, RunTransitionRecord } from "@nervekit/contracts/runs";
+import {
+  runFailureCategorySchema,
+  type RunRecord,
+  type RunTransitionRecord,
+} from "@nervekit/contracts/runs";
 import {
   isTerminalRunStatus,
   type RunHydratedState,
@@ -150,6 +154,11 @@ function retrySnapshotFromState(
   return undefined;
 }
 
+function failureCategory(value: unknown) {
+  const parsed = runFailureCategorySchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
 function retrySnapshot(
   transition: Pick<RunTransitionRecord, "events">,
 ): ConversationRunRetrySnapshot | undefined {
@@ -177,6 +186,12 @@ function retrySnapshot(
         typeof record.errorMessage === "string"
           ? record.errorMessage
           : "Run retry scheduled",
+      ...(failureCategory(record.failureCategory)
+        ? { failureCategory: failureCategory(record.failureCategory) }
+        : {}),
+      ...(typeof record.httpStatus === "number"
+        ? { httpStatus: record.httpStatus }
+        : {}),
       failedEntryId:
         typeof record.failedEntryId === "string"
           ? record.failedEntryId

@@ -7,6 +7,10 @@ import {
 } from "../agents/prompt.js";
 import { type ContextUsage, contextUsageSchema } from "../models/models.js";
 import {
+  type RunFailureCategory,
+  runFailureCategorySchema,
+} from "../runs/run-failure.js";
+import {
   type ToolCallTranscriptRecord,
   toolCallTranscriptRecordSchema,
 } from "../tools/records.js";
@@ -272,11 +276,15 @@ export interface ConversationRunRetrySnapshot {
   delayMs: number;
   retryAt: string;
   errorMessage?: string;
+  failureCategory?: RunFailureCategory;
+  httpStatus?: number;
   failedEntryId?: string;
 }
 
 export interface ConversationRunRecoverySnapshot {
   errorMessage?: string;
+  failureCategory?: RunFailureCategory;
+  httpStatus?: number;
   continuable: boolean;
 }
 
@@ -395,11 +403,15 @@ export const conversationRunRetrySnapshotSchema = z.object({
   delayMs: z.number().int().nonnegative(),
   retryAt: z.string().datetime(),
   errorMessage: z.string().optional(),
+  failureCategory: runFailureCategorySchema.optional(),
+  httpStatus: z.number().int().min(100).max(599).optional(),
   failedEntryId: z.string().startsWith("entry_").optional(),
 });
 
 export const conversationRunRecoverySnapshotSchema = z.object({
   errorMessage: z.string().optional(),
+  failureCategory: runFailureCategorySchema.optional(),
+  httpStatus: z.number().int().min(100).max(599).optional(),
   continuable: z.boolean(),
 });
 

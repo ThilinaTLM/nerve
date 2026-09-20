@@ -13,6 +13,7 @@ import type {
 } from "@nervekit/contracts/runs";
 import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import {
+  normalizeRunFailure,
   RUN_FAILURE_MESSAGE_MAX_LENGTH,
   RUN_STATE_EPOCH,
 } from "@nervekit/contracts/runs";
@@ -259,7 +260,7 @@ export function failure(
 ): RunFailureRecord {
   return boundedFailure({
     code,
-    message: errorMessage(error),
+    ...normalizeRunFailure(error, "harness"),
     retryable,
     continuable,
   });

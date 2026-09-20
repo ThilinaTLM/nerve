@@ -36,6 +36,8 @@ export type TranscriptNoticeModel = {
   error?: string;
   /** Facts that are not already in the header. */
   chips?: NoticeChip[];
-  /** At most one footer action, styled like "View details". */
+  /** At most one passive footer action, styled like "View details". */
   action?: NoticeAction;
+  /** At most one recovery-critical footer action rendered as a primary control. */
+  primaryAction?: NoticeAction;
 };

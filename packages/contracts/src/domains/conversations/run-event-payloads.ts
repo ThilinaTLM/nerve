@@ -27,6 +27,10 @@ import {
 } from "../agents/prompt.js";
 import { type ContextUsage, contextUsageSchema } from "../models/models.js";
 import {
+  type RunFailureCategory,
+  runFailureCategorySchema,
+} from "../runs/run-failure.js";
+import {
   type ToolCallTranscriptRecord,
   toolCallTranscriptRecordSchema,
 } from "../tools/records.js";
@@ -67,6 +71,8 @@ export interface ConversationRunRetryExhaustedData {
   attempt?: number;
   maxRetries?: number;
   errorMessage?: string;
+  failureCategory?: RunFailureCategory;
+  httpStatus?: number;
   retryable?: boolean;
 }
 
@@ -76,6 +82,8 @@ export interface ConversationRunFailedData {
   runId: string;
   projectId: string;
   message: string;
+  failureCategory?: RunFailureCategory;
+  httpStatus?: number;
   aborted: boolean;
   interrupted?: boolean;
   continuable?: boolean;
@@ -115,6 +123,8 @@ export interface ConversationRunRetryingData {
   delayMs: number;
   retryAt: string;
   errorMessage?: string;
+  failureCategory?: RunFailureCategory;
+  httpStatus?: number;
   failedEntryId?: string;
 }
 
@@ -307,6 +317,8 @@ const conversationRunRetryExhaustedDataSchema = z.object({
   attempt: z.number().int().positive().optional(),
   maxRetries: z.number().int().positive().optional(),
   errorMessage: z.string().optional(),
+  failureCategory: runFailureCategorySchema.optional(),
+  httpStatus: z.number().int().min(100).max(599).optional(),
   retryable: z.boolean().optional(),
 });
 
@@ -316,6 +328,8 @@ const conversationRunFailedDataSchema = z.object({
   runId: runIdSchema,
   projectId: z.string().startsWith("proj_"),
   message: z.string(),
+  failureCategory: runFailureCategorySchema.optional(),
+  httpStatus: z.number().int().min(100).max(599).optional(),
   aborted: z.boolean(),
   interrupted: z.boolean().optional(),
   continuable: z.boolean().optional(),
@@ -354,6 +368,8 @@ const conversationRunRetryingDataSchema = z.object({
   delayMs: z.number().int().nonnegative(),
   retryAt: z.string().datetime(),
   errorMessage: z.string().optional(),
+  failureCategory: runFailureCategorySchema.optional(),
+  httpStatus: z.number().int().min(100).max(599).optional(),
   failedEntryId: z.string().startsWith("entry_").optional(),
 });
 

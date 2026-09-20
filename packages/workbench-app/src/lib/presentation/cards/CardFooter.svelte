@@ -1,21 +1,33 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { cn } from "@nervekit/ui-kit/utils";
 import type { CardAction, MetaItem } from "./card-presentation";
 import MetaChip from "./MetaChip.svelte";
-import { cn } from "@nervekit/ui-kit/utils";
 
 type Props = {
   meta?: MetaItem[];
   /** Right-aligned pills, e.g. "Open task" then "View details". */
   cardActions?: CardAction[];
+  /** Recovery-critical action rendered as a primary control. */
+  primaryAction?: CardAction;
   onOpenFile?: (path: string, line?: number) => void;
   /** Right-aligned action buttons (e.g. HIL accept/reject, reply/dismiss). */
   actions?: Snippet;
 };
-let { meta = [], cardActions = [], onOpenFile, actions }: Props = $props();
+let {
+  meta = [],
+  cardActions = [],
+  primaryAction,
+  onOpenFile,
+  actions,
+}: Props = $props();
 
 const hasActions = $derived(Boolean(actions));
-const show = $derived(meta.length > 0 || cardActions.length > 0 || hasActions);
+const hasPrimaryAction = $derived(Boolean(primaryAction));
+const show = $derived(
+  meta.length > 0 || cardActions.length > 0 || hasPrimaryAction || hasActions,
+);
 </script>
 
 {#if show}
@@ -31,7 +43,7 @@ const show = $derived(meta.length > 0 || cardActions.length > 0 || hasActions);
       <div
         class={cn(
           "flex min-w-0 flex-wrap items-center gap-1.5",
-          hasActions ? "ml-0" : "ml-auto",
+          hasActions || hasPrimaryAction ? "ml-0" : "ml-auto",
         )}
       >
         {#each cardActions as action, i (i)}
@@ -46,11 +58,20 @@ const show = $derived(meta.length > 0 || cardActions.length > 0 || hasActions);
         {/each}
       </div>
     {/if}
-    {#if actions}
+    {#if primaryAction || actions}
       <div
         class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2"
       >
-        {@render actions()}
+        {#if primaryAction}
+          <Button
+            size="sm"
+            aria-label={primaryAction.ariaLabel}
+            onclick={primaryAction.onClick}
+          >
+            {primaryAction.label}
+          </Button>
+        {/if}
+        {#if actions}{@render actions()}{/if}
       </div>
     {/if}
   </div>

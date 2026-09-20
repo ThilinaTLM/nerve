@@ -78,6 +78,7 @@ export type ConversationComposerModel = {
   controlsDisabled?: boolean;
   modeDisabled?: boolean;
   modelDisabled?: boolean;
+  capabilityDisabled?: boolean;
   runtimeChangeHint?: string;
   sendAriaLabel?: string;
   stopAriaLabel?: string;
