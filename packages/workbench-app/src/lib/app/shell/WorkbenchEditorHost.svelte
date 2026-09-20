@@ -43,6 +43,8 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import CenterTabScrollLayer from "./CenterTabScrollLayer.svelte";
 import { scheduleCenterTabScrollSnapshotPrune } from "./center-tab-scroll-restoration";
 
+let { hideTabStrip = false }: { hideTabStrip?: boolean } = $props();
+
 const status = $derived(workspaceSelectors.status);
 const centerTabs = $derived(workspaceSelectors.centerTabs);
 const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
@@ -106,7 +108,7 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
 }
 </script>
 
-<EditorArea contentVisible={true}>
+<EditorArea contentVisible={true} {hideTabStrip}>
   {#snippet tabStrip()}
     <EditorTabStripHost
       tabs={centerTabs}
