@@ -103,6 +103,8 @@ export type TranscriptItem = {
   usage?: ConversationEntry["usage"];
   stopReason?: "error" | "aborted";
   errorMessage?: string;
+  /** Legacy failed attempt retained as ordinary substantive assistant content. */
+  legacyFailedAttempt?: boolean;
   runStatus?: RunStatusNotice;
   compaction?: CompactionNotice;
   taskEvent?: TaskEventNotice;

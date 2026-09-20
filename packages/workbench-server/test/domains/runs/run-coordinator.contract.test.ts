@@ -172,6 +172,9 @@ function fixture(
     harnessLeafId: null as string | null,
     harnessSavePointId: "save_0",
   };
+  let authorizedHarnessAdvance:
+    | { fromLeafId: string | null; toLeafId: string | null }
+    | undefined;
   const delivery = new RunEventDeliveryService(
     unitOfWork,
     {
@@ -239,6 +242,9 @@ function fixture(
     references: {
       stateEpoch: () => 1,
       transcript: async () => transcript,
+      authorizeHarnessLeafAdvance: async (input) =>
+        input.fromLeafId === authorizedHarnessAdvance?.fromLeafId &&
+        input.toLeafId === authorizedHarnessAdvance.toLeafId,
       toolCalls: async () => [],
       interaction: async (interactionId) => {
         for (const state of await unitOfWork.list()) {
@@ -317,6 +323,12 @@ function fixture(
     flushEvents: () => delivery.flush(),
     setTranscript(value: typeof transcript) {
       transcript = value;
+    },
+    authorizeHarnessAdvance(
+      fromLeafId: string | null,
+      toLeafId: string | null,
+    ) {
+      authorizedHarnessAdvance = { fromLeafId, toLeafId };
     },
   };
 }
@@ -1036,7 +1048,20 @@ test("cancels a scheduled retry without launching a new execution", async () => 
 test("retry exhaustion leaves a valid checkpoint recoverable", async () => {
   const harness = fixture({
     retryPolicy: { enabled: true, maxRetries: 1, baseDelayMs: 1 },
-    execute: async (_attempt, _input, sink) => {
+    execute: async (attempt, input, sink) => {
+      await sink.appendEntries([
+        {
+          id: `entry_failed_${attempt}`,
+          conversationId: input.run.conversationId,
+          agentId: input.run.agentId,
+          runId: input.run.runId,
+          role: "assistant",
+          kind: "message",
+          text: "",
+          details: { stopReason: "error", errorMessage: "still down" },
+          createdAt: `2026-07-12T00:00:0${attempt}.000Z`,
+        },
+      ]);
       await sink.checkpoint({
         boundary: "before_provider_request",
         transcriptCursor: 0,
@@ -1068,6 +1093,110 @@ test("retry exhaustion leaves a valid checkpoint recoverable", async () => {
       .length,
     1,
   );
+  const exhausted = state?.transitions.find(
+    (transition) => transition.kind === "retry_exhausted",
+  );
+  assert.equal(exhausted?.entries.length, 1);
+  assert.equal(exhausted?.entries[0]?.kind, "run_status");
+  assert.deepEqual(exhausted?.entries[0]?.details, {
+    type: "agent_run_retry_status",
+    state: "retry_exhausted",
+    runId: run.runId,
+    failedEntryId: "entry_failed_2",
+    attempt: 2,
+    errorMessage: "still down",
+    failureCategory: "unknown",
+    retryable: true,
+  });
+  assert.equal(
+    exhausted?.events.filter(
+      (event) => event.type === "conversation.entry.appended",
+    ).length,
+    1,
+  );
+  const statusEntryId = exhausted?.entries[0]?.id;
+  await harness.flushEvents();
+  assert.equal(
+    harness.publicationAttempts.filter(
+      (event) =>
+        event.type === "conversation.entry.appended" &&
+        (event.data.entry as { id?: string } | undefined)?.id === statusEntryId,
+    ).length,
+    1,
+  );
+});
+
+test("trusted task-event leaf advancement preserves an interrupted failure on restart", async () => {
+  const harness = fixture({
+    retryPolicy: { enabled: false, maxRetries: 0, baseDelayMs: 1 },
+    execute: async (_attempt, _input, sink) => {
+      await sink.checkpoint({
+        boundary: "before_provider_request",
+        transcriptCursor: 0,
+        entryIds: [],
+        harnessLeafId: null,
+        harnessSavePointId: "save_0",
+        toolCalls: [],
+      });
+      return {
+        status: "failed",
+        failure: {
+          code: "MODEL_REQUEST_FAILED",
+          message: "429 rate limited",
+          category: "rate_limit",
+          httpStatus: 429,
+          retryable: true,
+        },
+      };
+    },
+  });
+  const run = await start(harness.coordinator);
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "interrupted",
+  );
+  const before = await harness.coordinator.get(run.runId);
+  harness.setTranscript({
+    cursor: 0,
+    entryIds: [],
+    harnessLeafId: "entry_task_event",
+    harnessSavePointId: "savepoint_entry_task_event",
+  });
+  harness.authorizeHarnessAdvance(null, "entry_task_event");
+
+  await harness.coordinator.recover();
+
+  const after = await harness.coordinator.get(run.runId);
+  assert.equal(after?.run.status, "interrupted");
+  assert.equal(after?.run.failure?.code, "MODEL_REQUEST_FAILED");
+  assert.equal(after?.run.failure?.category, "rate_limit");
+  assert.equal(after?.run.revision, before?.run.revision);
+  assert.equal(after?.transitions.length, before?.transitions.length);
+});
+
+test("unauthorized post-checkpoint leaf advancement still fails recovery", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  await harness.coordinator.checkpoint(run.runId, {
+    boundary: "before_provider_request",
+    transcriptCursor: 0,
+    entryIds: [],
+    harnessLeafId: "entry_checkpoint",
+    harnessSavePointId: "savepoint_entry_checkpoint",
+    toolCalls: [],
+  });
+  harness.setTranscript({
+    cursor: 0,
+    entryIds: [],
+    harnessLeafId: "entry_user_mutation",
+    harnessSavePointId: "savepoint_entry_user_mutation",
+  });
+
+  await harness.coordinator.recover();
+
+  const state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.status, "failed");
+  assert.equal(state?.run.failure?.code, "INVALID_CHECKPOINT");
 });
 
 test("manual continuation starts a fresh automatic retry budget", async () => {

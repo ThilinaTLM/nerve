@@ -12,5 +12,6 @@ export * from "./run-recovery.js";
 export * from "./run-retries.js";
 export * from "./run-runtime.js";
 export * from "./run-settlement.js";
+export * from "./run-status-entry.js";
 export * from "./run-transitions.js";
 export * from "./run-unit-of-work.js";

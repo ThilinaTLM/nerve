@@ -1,6 +1,9 @@
+import type { ConversationTreeEntry } from "@nervekit/harness/conversation";
+import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import {
   RUN_STATE_EPOCH,
   type RunInteractionRecord,
+  type RunRecord,
 } from "@nervekit/contracts/runs";
 import type { RunCheckpointReferencePort } from "../runtime/index.js";
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
@@ -36,15 +39,64 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
     const conversation = this.state.getConversation(run.conversationId);
     const storage = await this.harnessStorage.openStorage(conversation);
     const leafId = await storage.getLeafId();
-    const entryIds = runState.transitions.flatMap((transition) =>
-      transition.entries.map((entry) => entry.id),
-    );
+    const entryIds = checkpointTranscriptEntryIds(runState.transitions);
     return {
       cursor: entryIds.length,
       entryIds,
       harnessLeafId: leafId,
       harnessSavePointId: `savepoint_${leafId ?? "root"}`,
     };
+  }
+
+  async authorizeHarnessLeafAdvance(input: {
+    runId: string;
+    fromLeafId: string | null;
+    toLeafId: string | null;
+  }): Promise<boolean> {
+    if (input.fromLeafId === input.toLeafId || !input.toLeafId) return false;
+    const runState = await this.unitOfWork.load(input.runId);
+    if (!runState) return false;
+    const run = runState.run;
+    const conversation = this.state.getConversation(run.conversationId);
+    const storage = await this.harnessStorage.openStorage(conversation);
+    try {
+      const path = await storage.getPathToRoot(input.toLeafId);
+      const notificationEntryIds = path.flatMap((entry) => {
+        if (
+          entry.type !== "message" ||
+          entry.message.role !== "harness" ||
+          entry.message.eventType !== "task_event"
+        ) {
+          return [];
+        }
+        const id = stringValue(
+          asRecord(entry.message.details)?.notificationEntryId,
+        );
+        return id ? [id] : [];
+      });
+      const projections = new Map(
+        await Promise.all(
+          notificationEntryIds.map(
+            async (entryId) =>
+              [
+                entryId,
+                await this.harnessStorage.getConversationEntry(
+                  run.conversationId,
+                  entryId,
+                ),
+              ] as const,
+          ),
+        ),
+      );
+      return isAuthorizedTaskEventAdvance(
+        path,
+        input.fromLeafId,
+        run,
+        (entryId) => projections.get(entryId),
+      );
+    } catch {
+      return false;
+    }
   }
 
   async toolCalls(runId: string) {
@@ -72,4 +124,62 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
     const state = await this.unitOfWork.findByInteractionId(interactionId);
     return state?.interactions.find((item) => item.id === interactionId);
   }
+}
+
+export function checkpointTranscriptEntryIds(
+  transitions: readonly { entries: readonly ConversationEntry[] }[],
+): string[] {
+  return transitions.flatMap((transition) =>
+    transition.entries
+      .filter((entry) => entry.kind !== "run_status")
+      .map((entry) => entry.id),
+  );
+}
+
+export function isAuthorizedTaskEventAdvance(
+  path: readonly ConversationTreeEntry[],
+  fromLeafId: string | null,
+  run: RunRecord,
+  projectionById: (entryId: string) => ConversationEntry | undefined,
+): boolean {
+  const ancestorIndex = fromLeafId
+    ? path.findIndex((entry) => entry.id === fromLeafId)
+    : -1;
+  if (fromLeafId && ancestorIndex < 0) return false;
+  const advanced = path.slice(ancestorIndex + 1);
+  if (advanced.length === 0) return false;
+  return advanced.every((entry) => {
+    if (
+      entry.type !== "message" ||
+      entry.message.role !== "harness" ||
+      entry.message.eventType !== "task_event"
+    ) {
+      return false;
+    }
+    const details = asRecord(entry.message.details);
+    const notificationEntryId = stringValue(details?.notificationEntryId);
+    if (!notificationEntryId) return false;
+    const projection = projectionById(notificationEntryId);
+    const projectionDetails = asRecord(projection?.details);
+    return (
+      projection?.conversationId === run.conversationId &&
+      projection.agentId === run.agentId &&
+      projection.runId === run.runId &&
+      projection.role === "system" &&
+      projection.kind === "task_event" &&
+      projectionDetails?.type === "task_event" &&
+      projectionDetails.source === "harness" &&
+      projectionDetails.notificationEntryId === notificationEntryId
+    );
+  });
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }

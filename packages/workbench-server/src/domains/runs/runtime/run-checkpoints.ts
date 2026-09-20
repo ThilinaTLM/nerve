@@ -48,6 +48,18 @@ export async function checkpointValid(
   }
   const resolvingInteraction = interaction?.status === "resolved";
   const transcript = await references.transcript(state.run.runId);
+  const exactHarnessReference =
+    transcript.harnessLeafId === checkpoint.harnessLeafId &&
+    transcript.harnessSavePointId === checkpoint.harnessSavePointId;
+  const authorizedHarnessAdvance =
+    !resolvingInteraction &&
+    !exactHarnessReference &&
+    transcript.harnessLeafId !== checkpoint.harnessLeafId &&
+    (await references.authorizeHarnessLeafAdvance({
+      runId: state.run.runId,
+      fromLeafId: checkpoint.harnessLeafId,
+      toLeafId: transcript.harnessLeafId,
+    }));
   const transcriptMatches = resolvingInteraction
     ? transcript.cursor >= checkpoint.transcriptCursor &&
       sameStrings(
@@ -55,8 +67,7 @@ export async function checkpointValid(
         checkpoint.entryIds,
       )
     : transcript.cursor === checkpoint.transcriptCursor &&
-      transcript.harnessLeafId === checkpoint.harnessLeafId &&
-      transcript.harnessSavePointId === checkpoint.harnessSavePointId &&
+      (exactHarnessReference || authorizedHarnessAdvance) &&
       sameStrings(transcript.entryIds, checkpoint.entryIds);
   if (!transcriptMatches) return false;
   const tools = await references.toolCalls(state.run.runId);

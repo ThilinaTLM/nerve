@@ -267,6 +267,146 @@ describe("buildConversationTimeline committed transcript", () => {
     }
   });
 
+  it("collapses legacy empty provider failures into one normalized notice", () => {
+    const raw429 =
+      '429 {"error":{"message":"Too many requests. Try again later.","type":"rate_limit_error"}}';
+    const transcript: TranscriptItem[] = Array.from(
+      { length: 4 },
+      (_, index) => ({
+        id: `entry_failure_${index}`,
+        runId: "run_legacy",
+        role: "assistant" as const,
+        text: "",
+        stopReason: "error" as const,
+        errorMessage: raw429,
+        createdAt: `2026-01-01T00:00:0${index}.000Z`,
+      }),
+    );
+
+    const timeline = buildCommittedTimeline(transcript, []).items;
+
+    assert.equal(timeline.length, 1);
+    assert.equal(timeline[0]?.kind, "run_status");
+    if (timeline[0]?.kind === "run_status") {
+      assert.equal(timeline[0].notice.state, "failed");
+      assert.equal(timeline[0].notice.failureCategory, "rate_limit");
+      assert.equal(timeline[0].notice.httpStatus, 429);
+      assert.equal(
+        timeline[0].notice.errorMessage,
+        "Too many requests. Try again later.",
+      );
+      assert.equal(timeline[0].notice.retryable, false);
+      assert.doesNotMatch(timeline[0].notice.errorMessage ?? "", /\{"error"/);
+    }
+  });
+
+  it("retains substantive legacy assistant content beside the failure notice", () => {
+    const timeline = buildCommittedTimeline(
+      [
+        {
+          id: "entry_partial",
+          runId: "run_legacy",
+          role: "assistant",
+          text: "I completed the analysis before the request failed.",
+          stopReason: "error",
+          errorMessage: "503 overloaded",
+        },
+      ],
+      [],
+    ).items;
+
+    assert.deepEqual(
+      timeline.map((item) => item.kind),
+      ["run_status", "message"],
+    );
+    assert.equal(timeline[1]?.kind, "message");
+    if (timeline[1]?.kind === "message") {
+      assert.equal(timeline[1].item.stopReason, undefined);
+      assert.equal(timeline[1].item.errorMessage, undefined);
+    }
+  });
+
+  it("keeps a continuable durable notice actionable after its task event", () => {
+    const timeline = buildCommittedTimeline(
+      [
+        {
+          id: "entry_status",
+          runId: "run_interrupted",
+          role: "system",
+          text: "rate limited",
+          runStatus: {
+            runId: "run_interrupted",
+            state: "retry_exhausted",
+            errorMessage: "rate limited",
+            retryable: true,
+          },
+        },
+        {
+          id: "entry_task",
+          runId: "run_interrupted",
+          role: "system",
+          text: "Task completed",
+          taskEvent: {
+            entryId: "entry_task",
+            runId: "run_interrupted",
+            event: "completed",
+          },
+        },
+      ],
+      [],
+    ).items;
+
+    assert.deepEqual(
+      timeline.map((item) => item.key),
+      ["entry_task", "run-status:run_interrupted"],
+    );
+  });
+
+  it("does not synthesize a legacy notice when a durable status exists", () => {
+    const timeline = buildCommittedTimeline(
+      [
+        {
+          id: "entry_failure",
+          runId: "run_durable",
+          role: "assistant",
+          text: "",
+          stopReason: "error",
+          errorMessage: "429 rate limited",
+        },
+        {
+          id: "entry_status_interrupted",
+          runId: "run_durable",
+          role: "system",
+          text: "rate limited",
+          runStatus: {
+            runId: "run_durable",
+            state: "retry_exhausted",
+            errorMessage: "rate limited",
+          },
+        },
+        {
+          id: "entry_status_failed",
+          runId: "run_durable",
+          role: "system",
+          text: "checkpoint changed",
+          runStatus: {
+            runId: "run_durable",
+            state: "failed",
+            errorMessage: "checkpoint changed",
+          },
+        },
+      ],
+      [],
+    ).items;
+
+    assert.equal(timeline.length, 1);
+    assert.equal(timeline[0]?.key, "run-status:run_durable");
+    assert.equal(timeline[0]?.kind, "run_status");
+    if (timeline[0]?.kind === "run_status") {
+      assert.equal(timeline[0].notice.state, "failed");
+    }
+  });
+
   it("preserves anchored branch order for multiple tool calls", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "Use tools" },

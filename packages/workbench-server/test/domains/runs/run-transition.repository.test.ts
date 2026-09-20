@@ -4,7 +4,10 @@ import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type {
+  ConversationEntry,
+  ConversationRecord,
+} from "@nervekit/contracts/conversations";
 import type {
   RunEventDeliveryRecord,
   RunPromptRecord,
@@ -15,6 +18,8 @@ import {
   RunRevisionConflictError,
 } from "../../../src/domains/runs/runtime/index.js";
 import { WorkbenchRunUnitOfWork } from "../../../src/domains/runs/persistence/run-transition.repository.js";
+import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
+import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/paths.js";
 
 const digest = `sha256:${"0".repeat(64)}`;
 const runId = "run_cache_test";
@@ -145,6 +150,85 @@ test("run state and deliveries replay from the conversation journal", async (t) 
     .get(conversationId) as { count: number };
   database.close();
   assert.equal(count.count, 3);
+});
+
+test("run-status entries commit atomically without changing model context", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-run-status-store-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const journal = new ConversationJournalRepository({
+    paths: storagePaths(home),
+  });
+  const conversation: ConversationRecord = {
+    id: conversationId,
+    projectId: "proj_cache_test",
+    title: "Cache test",
+    mode: "coding",
+    permissionLevel: "supervised",
+    activeAgentId: "agent_cache_test",
+    activeEntryId: "entry_cache_test",
+    createdAt: startedAt,
+    updatedAt: startedAt,
+  };
+  await journal.commit(conversationId, {
+    kind: "conversation.created",
+    events: [{ kind: "conversation.upserted", conversationId, conversation }],
+  });
+  const unitOfWork = new WorkbenchRunUnitOfWork(journal);
+  const records = transitions();
+  await unitOfWork.commit(0, records.first);
+  const failedAt = "2026-07-12T00:00:02.000Z";
+  const failedRun: RunRecord = {
+    ...run(2, failedAt),
+    status: "failed",
+    recoverability: "none",
+    terminalAt: failedAt,
+    failure: {
+      code: "MODEL_REQUEST_FAILED",
+      message: "rate limited",
+      category: "rate_limit",
+      retryable: true,
+    },
+  };
+  const statusEntry: ConversationEntry = {
+    id: "entry_run_status_cache_test_2_failed",
+    conversationId,
+    agentId: failedRun.agentId,
+    runId,
+    parentEntryId: "entry_cache_test",
+    role: "system",
+    kind: "run_status",
+    text: "rate limited",
+    details: {
+      type: "agent_run_retry_status",
+      state: "failed",
+      runId,
+      errorMessage: "rate limited",
+      failureCategory: "rate_limit",
+      retryable: false,
+    },
+    createdAt: failedAt,
+  };
+  const failed = buildTransition(
+    failedRun,
+    "failed",
+    1,
+    { entries: [statusEntry] },
+    { next: () => "status" },
+    { checksum: () => digest },
+  );
+
+  await unitOfWork.commit(1, failed);
+
+  assert.deepEqual(
+    (await journal.readConversationEntries(conversationId)).map(
+      (entry) => entry.id,
+    ),
+    ["entry_cache_test", statusEntry.id],
+  );
+  assert.equal(
+    (await journal.load(conversationId)).conversation?.activeEntryId,
+    "entry_cache_test",
+  );
 });
 
 test("delivery recovery checkpoints candidates and skips settled runs", async (t) => {

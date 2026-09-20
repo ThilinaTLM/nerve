@@ -156,6 +156,15 @@ export class ConversationHarnessStorage {
     );
   }
 
+  async getConversationEntry(
+    conversationId: string,
+    entryId: string,
+  ): Promise<ConversationEntry | undefined> {
+    return (
+      await this.conversationRepository.journal.load(conversationId)
+    ).entryById.get(entryId);
+  }
+
   async modelEntries(
     conversationId: string,
     ownerAgentId?: string,

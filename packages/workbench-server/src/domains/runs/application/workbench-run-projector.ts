@@ -22,6 +22,10 @@ export class WorkbenchRunProjector implements RunTransitionObserverPort {
   ) {}
 
   async committed(transition: RunTransitionRecord): Promise<void> {
+    const entries = transition.entries ?? [];
+    for (const entry of entries) {
+      this.state.appendConversationEntry(entry);
+    }
     this.projectConversationRuntime(transition.run, retrySnapshot(transition));
     await this.projectAgentStatus(transition.run);
   }

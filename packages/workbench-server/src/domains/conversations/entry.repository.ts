@@ -87,7 +87,10 @@ export class EntryRepository {
     const entries = this.displayLinkedEntries(
       entriesByConversationId.get(conversation.id) ?? [],
     );
-    return activeBranchFromEntries(entries, conversation.activeEntryId);
+    return includeBranchRunStatuses(
+      entries,
+      activeBranchFromEntries(entries, conversation.activeEntryId),
+    );
   }
 
   activeBranchEntryIds(
@@ -127,6 +130,29 @@ export class EntryRepository {
       })),
     };
   }
+}
+
+function includeBranchRunStatuses(
+  entries: readonly ConversationEntry[],
+  branch: readonly ConversationEntry[],
+): ConversationEntry[] {
+  const included = new Set(branch.map((entry) => entry.id));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const entry of entries) {
+      if (
+        entry.kind === "run_status" &&
+        entry.parentEntryId &&
+        included.has(entry.parentEntryId) &&
+        !included.has(entry.id)
+      ) {
+        included.add(entry.id);
+        changed = true;
+      }
+    }
+  }
+  return entries.filter((entry) => included.has(entry.id));
 }
 
 export function activeBranchFromEntries(

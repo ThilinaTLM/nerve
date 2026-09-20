@@ -3,6 +3,7 @@ import {
   type ConversationLiveToolOutputSnapshot,
 } from "@nervekit/contracts/conversations";
 import { isTerminalToolStatus } from "@nervekit/contracts/events";
+import { normalizeRunFailure } from "@nervekit/contracts/runs";
 import { type ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import { type ToolDraftViewModel } from "./active-run.js";
 import { buildActiveRunTimeline } from "./active-run-timeline.js";
@@ -130,6 +131,35 @@ function isHiddenByFailedRun(
   );
 }
 
+function legacyFailuresByRun(
+  transcript: readonly TranscriptItem[],
+  durableStatusRunIds: ReadonlySet<string>,
+): Map<string, RunStatusNotice> {
+  const failures = new Map<string, RunStatusNotice>();
+  for (const item of transcript) {
+    if (
+      item.role !== "assistant" ||
+      item.stopReason !== "error" ||
+      !item.runId ||
+      durableStatusRunIds.has(item.runId)
+    ) {
+      continue;
+    }
+    const normalized = normalizeRunFailure(item.errorMessage ?? item.text);
+    const firstCreatedAt = failures.get(item.runId)?.createdAt;
+    failures.set(item.runId, {
+      runId: item.runId,
+      state: "failed",
+      errorMessage: normalized.message,
+      failureCategory: normalized.category,
+      httpStatus: normalized.httpStatus,
+      retryable: false,
+      createdAt: firstCreatedAt ?? item.createdAt,
+    });
+  }
+  return failures;
+}
+
 /**
  * Project the persisted branch transcript + tool calls into committed timeline
  * nodes. This pass is intentionally independent of the active run so it can be
@@ -178,7 +208,11 @@ export function buildCommittedTimeline(
   // hiding is applied later, so this pass stays run-independent.
   const hiddenEntryIds = new Set<string>();
   const hiddenFailedRunIds = new Set<string>();
-  for (const item of transcript) {
+  const latestRunStatusIndexByRunId = new Map<string, number>();
+  for (const [index, item] of transcript.entries()) {
+    if (item.runStatus?.runId) {
+      latestRunStatusIndexByRunId.set(item.runStatus.runId, index);
+    }
     if (item.runStatus?.failedEntryId)
       hiddenEntryIds.add(item.runStatus.failedEntryId);
     if (item.runStatus?.runId) hiddenFailedRunIds.add(item.runStatus.runId);
@@ -186,6 +220,8 @@ export function buildCommittedTimeline(
   const itemHidden = (item: TranscriptItem) =>
     isHiddenByEntryIds(item, hiddenEntryIds) ||
     isHiddenByFailedRun(item, hiddenFailedRunIds);
+  const legacyFailures = legacyFailuresByRun(transcript, hiddenFailedRunIds);
+  const projectedLegacyRunIds = new Set<string>();
 
   transcript.forEach((item, index) => {
     if (isToolCallPlaceholder(item)) {
@@ -222,6 +258,12 @@ export function buildCommittedTimeline(
       return;
     }
     if (item.runStatus) {
+      if (
+        item.runStatus.runId &&
+        latestRunStatusIndexByRunId.get(item.runStatus.runId) !== index
+      ) {
+        return;
+      }
       items.push({
         kind: "run_status",
         key: runStatusTimelineKey(
@@ -241,6 +283,25 @@ export function buildCommittedTimeline(
       return;
     }
     if (itemHidden(item)) return;
+
+    const legacyFailure = item.runId
+      ? legacyFailures.get(item.runId)
+      : undefined;
+    if (
+      legacyFailure &&
+      item.role === "assistant" &&
+      item.stopReason === "error"
+    ) {
+      if (!projectedLegacyRunIds.has(item.runId!)) {
+        items.push({
+          kind: "run_status",
+          key: `legacy-run-status:${item.runId}`,
+          notice: legacyFailure,
+        });
+        projectedLegacyRunIds.add(item.runId!);
+      }
+      if (!item.text.trim()) return;
+    }
 
     const toolCall = item.toolRecordId
       ? toolCallsById.get(item.toolRecordId)
@@ -273,13 +334,24 @@ export function buildCommittedTimeline(
     items.push({
       kind: "message",
       key: item.id ?? `msg-${index}`,
-      item,
+      item: legacyFailure
+        ? {
+            ...item,
+            stopReason: undefined,
+            errorMessage: undefined,
+            legacyFailedAttempt: true,
+          }
+        : item,
     });
   });
 
+  moveContinuableStatusesAfterTaskEvents(items);
+
   const statusRunIds = new Set(
     items.flatMap((node) =>
-      node.kind === "run_status" && node.notice.runId
+      node.kind === "run_status" &&
+      node.notice.runId &&
+      !node.key.startsWith("legacy-run-status:")
         ? [node.notice.runId]
         : [],
     ),
@@ -288,7 +360,7 @@ export function buildCommittedTimeline(
     items.flatMap((node) =>
       node.kind === "message" &&
       node.item.role === "assistant" &&
-      node.item.stopReason === "error" &&
+      (node.item.stopReason === "error" || node.item.legacyFailedAttempt) &&
       node.item.runId
         ? [node.item.runId]
         : [],
@@ -341,6 +413,32 @@ export function buildCommittedTimeline(
       completedCompactionKeys,
     },
   };
+}
+
+function moveContinuableStatusesAfterTaskEvents(items: TimelineItem[]): void {
+  for (const status of [...items]) {
+    if (
+      status.kind !== "run_status" ||
+      status.notice.retryable !== true ||
+      !status.notice.runId
+    ) {
+      continue;
+    }
+    const statusIndex = items.indexOf(status);
+    let targetIndex = statusIndex;
+    for (let index = statusIndex + 1; index < items.length; index += 1) {
+      const candidate = items[index];
+      if (
+        candidate?.kind === "task_event" &&
+        candidate.notice.runId === status.notice.runId
+      ) {
+        targetIndex = index;
+      }
+    }
+    if (targetIndex === statusIndex) continue;
+    items.splice(statusIndex, 1);
+    items.splice(targetIndex, 0, status);
+  }
 }
 
 function isTerminalUnanchoredToolCall(
@@ -414,8 +512,17 @@ export function selectVisibleCommitted(
   const hasLiveOutputs = Boolean(
     liveOutputs && Object.keys(liveOutputs).length,
   );
+  const hasActiveLegacyNotice = Boolean(
+    activeRun &&
+    items.some((item) => item.key === `legacy-run-status:${activeRun.runId}`),
+  );
 
-  if (hiddenEntryIds.size === 0 && !hiddenRunId && !hasLiveOutputs)
+  if (
+    hiddenEntryIds.size === 0 &&
+    !hiddenRunId &&
+    !hasLiveOutputs &&
+    !hasActiveLegacyNotice
+  )
     return items;
 
   const hidden = [...hiddenEntryIds];
@@ -429,10 +536,18 @@ export function selectVisibleCommitted(
       continue;
     }
     if (
+      activeRun &&
+      item.kind === "run_status" &&
+      item.key === `legacy-run-status:${activeRun.runId}`
+    ) {
+      changed = true;
+      continue;
+    }
+    if (
       hiddenRunId &&
       item.kind === "message" &&
       item.item.role === "assistant" &&
-      item.item.stopReason === "error" &&
+      (item.item.stopReason === "error" || item.item.legacyFailedAttempt) &&
       item.item.runId === hiddenRunId
     ) {
       changed = true;
