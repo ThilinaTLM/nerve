@@ -36,7 +36,7 @@ export function compactionNoticeHeader(
         tone: "warning",
         glyph: "compaction",
         busy: false,
-        badge: "compact stopped",
+        badge: "compact_stopped",
         arg,
         statusLabel: "Compaction stopped",
       };
@@ -45,7 +45,7 @@ export function compactionNoticeHeader(
         tone: "destructive",
         glyph: "bell-dot",
         busy: false,
-        badge: "compact failed",
+        badge: "compact_failed",
         arg,
         statusLabel: "Compaction failed",
       };

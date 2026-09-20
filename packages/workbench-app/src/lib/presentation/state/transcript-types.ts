@@ -70,6 +70,8 @@ export type TaskEventNotice = {
   exitCode?: number;
   signal?: string;
   commandPreview?: string;
+  command?: string;
+  output?: string;
   nextCursor?: number;
   createdAt?: string;
 };

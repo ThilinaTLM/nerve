@@ -7,8 +7,10 @@ import type { NoticeChip, TranscriptNoticeModel } from "./notice-presentation";
 type EventVocabulary = {
   tone: StatusTone;
   glyph: CardGlyph;
-  /** Mono event name shown in the tool-name slot. */
+  /** Snake-case event name shown in the tool-name slot. */
   badge: string;
+  /** Natural-language event name used by assistive technology. */
+  spokenLabel: string;
   /** Task statuses this event already communicates through its name. */
   impliedStatuses: readonly string[];
 };
@@ -24,7 +26,8 @@ function vocabularyFor(notice: TaskEventNotice): EventVocabulary {
       return {
         tone: "info",
         glyph: "bell-ring",
-        badge: "task ready",
+        badge: "task_ready",
+        spokenLabel: "task ready",
         impliedStatuses: ["ready", "running"],
       };
     case "completed":
@@ -34,20 +37,23 @@ function vocabularyFor(notice: TaskEventNotice): EventVocabulary {
         ? {
             tone: "destructive",
             glyph: "bell-dot",
-            badge: "task exited",
+            badge: "task_exited",
+            spokenLabel: "task exited",
             impliedStatuses: ["completed", "exited", "stopped", "failed"],
           }
         : {
             tone: "success",
             glyph: "bell",
-            badge: "task completed",
+            badge: "task_completed",
+            spokenLabel: "task completed",
             impliedStatuses: ["completed", "exited", "stopped"],
           };
     case "failed":
       return {
         tone: "destructive",
         glyph: "bell-dot",
-        badge: "task failed",
+        badge: "task_failed",
+        spokenLabel: "task failed",
         impliedStatuses: ["failed"],
       };
     case "timed_out":
@@ -55,21 +61,24 @@ function vocabularyFor(notice: TaskEventNotice): EventVocabulary {
       return {
         tone: "destructive",
         glyph: "bell-dot",
-        badge: "task timed out",
+        badge: "task_timed_out",
+        spokenLabel: "task timed out",
         impliedStatuses: ["timed_out", "running", "ready"],
       };
     case "cancelled":
       return {
         tone: "warning",
         glyph: "bell-dot",
-        badge: "task cancelled",
+        badge: "task_cancelled",
+        spokenLabel: "task cancelled",
         impliedStatuses: ["cancelled", "stopped", "aborted"],
       };
     case "interrupted":
       return {
         tone: "warning",
         glyph: "bell-dot",
-        badge: "task interrupted",
+        badge: "task_interrupted",
+        spokenLabel: "task interrupted",
         impliedStatuses: ["interrupted", "stopped"],
       };
     case "orphaned":
@@ -77,21 +86,24 @@ function vocabularyFor(notice: TaskEventNotice): EventVocabulary {
       return {
         tone: "destructive",
         glyph: "bell-dot",
-        badge: "task state unknown",
+        badge: "task_state_unknown",
+        spokenLabel: "task state unknown",
         impliedStatuses: ["orphaned", "recovery_unknown"],
       };
     case "recovered":
       return {
         tone: "info",
         glyph: "bell-ring",
-        badge: "task recovered",
+        badge: "task_recovered",
+        spokenLabel: "task recovered",
         impliedStatuses: ["recovered", "running", "ready"],
       };
     default:
       return {
         tone: "neutral",
         glyph: "bell",
-        badge: "task update",
+        badge: "task_update",
+        spokenLabel: "task update",
         impliedStatuses: [],
       };
   }
@@ -126,15 +138,23 @@ export function taskEventNoticeModel(
   const taskId = notice.taskId;
   const onOpenTask = options.onOpenTask;
   const name = notice.taskName ?? notice.groupName;
+  const command = notice.command?.trim();
+  const commandPreview = notice.commandPreview?.trim();
+  const commandIsMultiline = command?.includes("\n") ?? false;
+  const inlineCommand = commandIsMultiline
+    ? undefined
+    : (commandPreview ?? command);
+  const arg =
+    inlineCommand ?? name ?? (command ? "background task" : undefined);
   return {
     kind: "task",
     tone: vocabulary.tone,
     glyph: vocabulary.glyph,
     badge: vocabulary.badge,
-    arg: name,
+    arg,
     statusLabel: name
-      ? `Background ${vocabulary.badge}: ${name}`
-      : `Background ${vocabulary.badge}`,
+      ? `Background ${vocabulary.spokenLabel}: ${name}`
+      : `Background ${vocabulary.spokenLabel}`,
     chips: chipsFor(notice, vocabulary.impliedStatuses),
     action:
       taskId && onOpenTask

@@ -38,7 +38,10 @@ class FakeTasks {
   delivered: Array<{ slot: "ready" | "terminal"; entryId: string }> = [];
   pending: Array<{ slot: "ready" | "terminal"; entryId: string }> = [];
 
-  constructor(private record: TaskRecord) {}
+  constructor(
+    private record: TaskRecord,
+    private readonly logs: TaskLogEvent[] = [],
+  ) {}
 
   listTasks(): TaskRecord[] {
     return [this.record];
@@ -50,7 +53,10 @@ class FakeTasks {
   }
 
   async queryLogs(): Promise<{ events: TaskLogEvent[]; nextCursor: number }> {
-    return { events: [], nextCursor: 0 };
+    return {
+      events: this.logs,
+      nextCursor: (this.logs.at(-1)?.seq ?? -1) + 1,
+    };
   }
 
   async markCompletionInjected(
@@ -264,6 +270,45 @@ describe("TaskNotificationService awaited task continuation", () => {
     context.service.stop();
   });
 
+  it("persists a structured user projection beside the agent summary", async () => {
+    const context = createNotificationContext({
+      task: taskRecord({ command: "printf one\r\nprintf two" }),
+      logs: [
+        {
+          seq: 4,
+          ts: "2026-01-02T03:04:05.000Z",
+          stream: "stdout",
+          level: "info",
+          line: "one",
+        },
+        {
+          seq: 5,
+          ts: "2026-01-02T03:04:06.000Z",
+          stream: "stderr",
+          level: "warn",
+          line: "two",
+        },
+      ],
+    });
+    context.service.start();
+
+    await context.events.publish("task.completed", { task: context.task });
+    await waitFor(() => context.entries.length === 1);
+
+    const entry = context.entries[0];
+    const details = entry?.details as {
+      command?: string;
+      commandPreview?: string;
+      output?: string;
+    };
+    assert.equal(details.command, "printf one\nprintf two");
+    assert.equal(details.commandPreview, "printf one printf two");
+    assert.equal(details.output, "one\ntwo");
+    assert.match(entry?.text ?? "", /Relevant output:/);
+    assert.match(entry?.text ?? "", /\[5 stderr warn\] two/);
+    context.service.stop();
+  });
+
   it("recovers an existing terminal transcript entry without appending it again", async () => {
     const existing = {
       id: "entry_existing_notification",
@@ -371,6 +416,7 @@ describe("TaskNotificationService awaited task continuation", () => {
 
 function createNotificationContext(options: {
   task: TaskRecord;
+  logs?: TaskLogEvent[];
   existingEntries?: ConversationEntry[];
   activeRunId?: string;
   liveRunId?: string;
@@ -382,7 +428,7 @@ function createNotificationContext(options: {
 }) {
   const events = new TestEvents();
   const task = options.task;
-  const tasks = new FakeTasks(task);
+  const tasks = new FakeTasks(task, options.logs);
   const entries: ConversationEntry[] = [...(options.existingEntries ?? [])];
   const harnessMessages: Array<{
     id: string;

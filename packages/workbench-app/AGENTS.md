@@ -115,9 +115,12 @@ it to `CardShell`. Adding a notice kind is a mapper, a thin card and one
   check/x/alert family; notices own the bell family (`bell` for terminal
   events, `bell-ring` for ready/recovered, `bell-dot` when something needs
   attention) plus `layers` for compaction and a spinner while in flight.
-- **Mono event name, not a sentence.** `task completed`, `run retrying`,
-  `compacted` — they sit in the same column as tool names. The muted argument
-  carries the task name, compaction reason or failure summary.
+- **Snake-case mono event name, not a sentence.** `task_completed`,
+  `run_retrying`, `compacted` — they sit in the same column as tool names. The
+  muted argument carries the most useful compact input or context: a one-line
+  task command, compaction reason, or failure summary. Task notices follow bash
+  projection rules: multiline commands move to a command body and selected
+  recent/relevant output renders in a separate recessed output body.
 - **Chips, not badges.** Extra facts (`exit 0`, `signal SIGTERM`, `retry 2/5`,
   token counts) use the shared `MetaChip` family. A chip must add information:
   never restate the event name.

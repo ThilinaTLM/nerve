@@ -168,6 +168,8 @@ function taskEventNotice(
     exitCode: numberValue(details.exitCode),
     signal: stringValue(details.signal),
     commandPreview: stringValue(details.commandPreview),
+    command: stringValue(details.command),
+    output: stringValue(details.output),
     nextCursor: numberValue(details.nextCursor),
     createdAt: entry.createdAt,
   };

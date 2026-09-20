@@ -70,6 +70,21 @@ describe("transcript row model", () => {
       measurementVersionForRow(failed, measurementContext),
       version,
     );
+    assert.notEqual(
+      measurementVersionForRow(
+        taskRow({
+          event: "completed",
+          status: "completed",
+          exitCode: 0,
+          commandPreview: "sleep 8",
+          command: "sleep 8",
+          output: "done",
+          taskId: "task_1",
+        }),
+        measurementContext,
+      ),
+      version,
+    );
 
     const retrying = measurementVersionForRow(
       runRow({ state: "retrying", attempt: 1, maxRetries: 5 }),
