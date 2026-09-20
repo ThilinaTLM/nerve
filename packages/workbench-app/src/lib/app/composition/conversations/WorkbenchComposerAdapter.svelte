@@ -442,13 +442,8 @@ const controlsDisabled = $derived(
 const modeDisabled = $derived(
   !interactive || !(activeConversation || pendingConversationActive),
 );
-const modelDisabled = $derived(
-  !interactive ||
-    !(activeConversation || pendingConversationActive) ||
-    models.length === 0 ||
-    compacting ||
-    stopping,
-);
+const capabilityDisabled = $derived(!availability.canConfigureRuntime);
+const modelDisabled = $derived(capabilityDisabled || models.length === 0);
 const modelRuntimeChangeHint = $derived(
   sending ? "Changes apply to the next model request" : undefined,
 );
@@ -545,6 +540,7 @@ function handleMicContextMenu(event: MouseEvent) {
     controlsDisabled,
     modeDisabled,
     modelDisabled,
+    capabilityDisabled,
     runtimeChangeHint: modelRuntimeChangeHint,
     sendAriaLabel,
     sendTitle,

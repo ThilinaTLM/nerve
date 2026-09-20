@@ -124,9 +124,11 @@ it to `CardShell`. Adding a notice kind is a mapper, a thin card and one
 - **Chips, not badges.** Extra facts (`exit 0`, `signal SIGTERM`, `retry 2/5`,
   token counts) use the shared `MetaChip` family. A chip must add information:
   never restate the event name.
-- **Actions are footer pills.** `Open task` and `Continue` join `View details`
-  in the shared `cardActions` slot; notices never render a solid button.
-  Anything richer belongs in a panel or dialog.
+- **Actions stay in the footer.** Passive actions such as `Open task` and
+  `View details` use the shared `cardActions` pills. A recovery-critical
+  `Continue` action uses the shared primary footer-action slot and official
+  `Button`; it does not move into the header or body. Anything richer belongs
+  in a panel or dialog.
 - **A card's glyph must tell the truth.** A bash call promoted into a
   background task is `completed` for the agent but unfinished for the reader,
   so it drops the green check for the warning-toned `pending` clock, keeps its

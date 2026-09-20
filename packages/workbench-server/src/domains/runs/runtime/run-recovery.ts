@@ -1,4 +1,4 @@
-import type { RunRecord } from "@nervekit/contracts/runs";
+import { normalizeRunFailure, type RunRecord } from "@nervekit/contracts/runs";
 import { assertCheckpoint } from "./run-checkpoints.js";
 import type { RunIntegrityPort } from "./run-execution.js";
 import { revise, TERMINAL_STATUSES } from "./run-transitions.js";
@@ -28,6 +28,9 @@ export async function decideRunRecovery(
   }
   try {
     await assertCheckpoint(state, references, integrity);
+    if (state.run.status === "interrupted") {
+      return { run: state.run, interrupted: false };
+    }
     return {
       run: revise(
         state.run,
@@ -36,8 +39,12 @@ export async function decideRunRecovery(
           recoverability: "checkpoint",
           failure: {
             code: "RUN_INTERRUPTED",
-            message: "Host restarted during active execution",
+            ...normalizeRunFailure(
+              "Host restarted during active execution",
+              "harness",
+            ),
             retryable: true,
+            continuable: true,
           },
         },
         now(),
@@ -56,8 +63,12 @@ export async function decideRunRecovery(
           terminalAt,
           failure: {
             code: "INVALID_CHECKPOINT",
-            message: "Run was interrupted without a valid durable checkpoint",
+            ...normalizeRunFailure(
+              "Run was interrupted without a valid durable checkpoint",
+              "harness",
+            ),
             retryable: true,
+            continuable: false,
           },
         },
         terminalAt,

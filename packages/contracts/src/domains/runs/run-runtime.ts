@@ -3,6 +3,7 @@ import { queuedPromptRecordSchema } from "../agents/prompt.js";
 import { conversationEntrySchema } from "../conversations/conversation-state.js";
 import { publicEventNameSchema } from "../../events/catalog.js";
 import { toolCallTranscriptRecordSchema } from "../tools/records.js";
+import { runFailureCategorySchema } from "./run-failure.js";
 
 const isoDateTimeSchema = z.string().datetime();
 const runIdSchema = z.string().startsWith("run_");
@@ -49,6 +50,10 @@ export const RUN_FAILURE_MESSAGE_MAX_LENGTH = 2_000;
 export const runFailureSchema = z.object({
   code: z.string().min(1).max(128),
   message: z.string().min(1).max(RUN_FAILURE_MESSAGE_MAX_LENGTH),
+  /** Stable source classification used by clients without parsing message text. */
+  category: runFailureCategorySchema.optional(),
+  /** Provider HTTP status when one was available. */
+  httpStatus: z.number().int().min(100).max(599).optional(),
   /** Whether the host may retry this failure automatically. */
   retryable: z.boolean(),
   /** Whether a user may resume manually when a valid checkpoint exists. */

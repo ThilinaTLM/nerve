@@ -27,6 +27,8 @@ type Props = {
   meta?: MetaItem[];
   /** Right-aligned footer pills, e.g. "Open task" then "View details". */
   cardActions?: CardAction[];
+  /** Recovery-critical action rendered as a primary footer control. */
+  primaryAction?: CardAction;
   footer?: boolean;
   bodyVisible?: boolean;
   layoutRevision?: string;
@@ -45,6 +47,7 @@ let {
   error,
   meta = [],
   cardActions = [],
+  primaryAction,
   footer = true,
   bodyVisible = false,
   layoutRevision = "static",
@@ -92,7 +95,8 @@ const toolStatusLabel = $derived.by(() => {
 });
 const statusLabel = $derived(statusLabelOverride ?? toolStatusLabel);
 const footerVisible = $derived(
-  footer && (meta.length > 0 || cardActions.length > 0),
+  footer &&
+    (meta.length > 0 || cardActions.length > 0 || Boolean(primaryAction)),
 );
 const activityVisible = $derived(
   Boolean(error) || bodyVisible || footerVisible,
@@ -122,7 +126,7 @@ const activityVisible = $derived(
       {/if}
 
       {#if footerVisible}
-        <CardFooter {meta} {cardActions} {onOpenFile} />
+        <CardFooter {meta} {cardActions} {primaryAction} {onOpenFile} />
       {/if}
     </div>
   </article>

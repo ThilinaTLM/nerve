@@ -179,6 +179,7 @@ function fixture(
         harnessLeafId: null,
         harnessSavePointId: "save_0",
       }),
+      authorizeHarnessLeafAdvance: async () => false,
       toolCalls: async () => [],
       interaction: async () => undefined,
     },

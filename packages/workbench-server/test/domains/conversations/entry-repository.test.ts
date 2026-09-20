@@ -30,6 +30,52 @@ function conversation(activeEntryId: string): ConversationRecord {
   };
 }
 
+test("active transcript includes run-status children without moving the model leaf", () => {
+  const repository = new EntryRepository(
+    {} as ConstructorParameters<typeof EntryRepository>[0],
+  );
+  const user: ConversationEntry = {
+    id: "entry_user",
+    conversationId,
+    role: "user",
+    kind: "message",
+    text: "hello",
+    createdAt: timestamp,
+  };
+  const failure: ConversationEntry = {
+    id: "entry_failure",
+    conversationId,
+    agentId: "agent_active",
+    runId: "run_active",
+    parentEntryId: user.id,
+    role: "assistant",
+    kind: "message",
+    text: "",
+    createdAt: timestamp,
+  };
+  const status: ConversationEntry = {
+    id: "entry_status",
+    conversationId,
+    agentId: "agent_active",
+    runId: "run_active",
+    parentEntryId: failure.id,
+    role: "system",
+    kind: "run_status",
+    text: "rate limited",
+    createdAt: timestamp,
+  };
+
+  assert.deepEqual(
+    repository
+      .activeBranchEntries(
+        new Map([[conversationId, [user, failure, status]]]),
+        conversation(failure.id),
+      )
+      .map((entry) => entry.id),
+    [user.id, failure.id, status.id],
+  );
+});
+
 test("agent-attributed compaction replaces the shared model context", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-compaction-scope-"));
   t.after(() => rm(home, { recursive: true, force: true }));

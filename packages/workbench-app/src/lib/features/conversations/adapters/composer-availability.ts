@@ -16,6 +16,7 @@ export type ComposerAvailability = {
   canEdit: boolean;
   canPrompt: boolean;
   canSubmit: boolean;
+  canConfigureRuntime: boolean;
 };
 
 export function deriveComposerAvailability(
@@ -38,6 +39,9 @@ export function deriveComposerAvailability(
       canPrompt &&
       !input.voiceSubmitPending &&
       !(input.commandMode && input.sending),
+    ),
+    canConfigureRuntime: Boolean(
+      input.interactive && hasTarget && !input.compacting && !input.stopping,
     ),
   };
 }

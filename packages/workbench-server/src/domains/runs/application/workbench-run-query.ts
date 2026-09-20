@@ -2,9 +2,15 @@ import type {
   ConversationActiveRunSnapshot,
   ConversationRunRetrySnapshot,
 } from "@nervekit/contracts/conversations";
+import { runFailureCategorySchema } from "@nervekit/contracts/runs";
 import { ACTIVE_STATUSES, type RunHydratedState } from "../runtime/index.js";
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
 import type { WorkbenchRunUnitOfWork } from "../persistence/run-transition.repository.js";
+
+function failureCategory(value: unknown) {
+  const parsed = runFailureCategorySchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
 
 /** Canonical transition-backed workbench run projection for conversation UI. */
 export class WorkbenchRunQuery {
@@ -71,6 +77,12 @@ export class WorkbenchRunQuery {
         canonical.run.status === "interrupted"
           ? {
               errorMessage: canonical.run.failure?.message,
+              ...(canonical.run.failure?.category
+                ? { failureCategory: canonical.run.failure.category }
+                : {}),
+              ...(canonical.run.failure?.httpStatus
+                ? { httpStatus: canonical.run.failure.httpStatus }
+                : {}),
               continuable: canonical.run.recoverability === "checkpoint",
             }
           : undefined,
@@ -109,6 +121,24 @@ function retrySnapshot(
       typeof data.errorMessage === "string"
         ? data.errorMessage
         : state.run.failure.message,
+    ...((failureCategory(data.failureCategory) ?? state.run.failure.category)
+      ? {
+          failureCategory:
+            failureCategory(data.failureCategory) ?? state.run.failure.category,
+        }
+      : {}),
+    ...((
+      typeof data.httpStatus === "number"
+        ? data.httpStatus
+        : state.run.failure.httpStatus
+    )
+      ? {
+          httpStatus:
+            typeof data.httpStatus === "number"
+              ? data.httpStatus
+              : state.run.failure.httpStatus,
+        }
+      : {}),
     failedEntryId:
       typeof data.failedEntryId === "string" ? data.failedEntryId : undefined,
   };

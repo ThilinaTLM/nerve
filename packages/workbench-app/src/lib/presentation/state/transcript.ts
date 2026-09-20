@@ -1,4 +1,5 @@
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import { runFailureCategorySchema } from "@nervekit/contracts/runs";
 import type {
   CompactionNotice,
   RunStatusNotice,
@@ -8,6 +9,11 @@ import type {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function failureCategory(value: unknown) {
+  const parsed = runFailureCategorySchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
 }
 
 function startsWithToolPrefix(value: unknown): string | undefined {
@@ -143,6 +149,8 @@ function runStatusNotice(
     delayMs: typeof details.delayMs === "number" ? details.delayMs : undefined,
     retryAt: stringValue(details.retryAt),
     errorMessage: stringValue(details.errorMessage),
+    failureCategory: failureCategory(details.failureCategory),
+    httpStatus: numberValue(details.httpStatus),
     retryable: details.retryable === true,
     createdAt: entry.createdAt,
   };

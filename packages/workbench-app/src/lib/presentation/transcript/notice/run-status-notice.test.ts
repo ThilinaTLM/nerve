@@ -10,7 +10,7 @@ function notice(overrides: Partial<RunStatusNotice> = {}): RunStatusNotice {
 }
 
 describe("run status notice model", () => {
-  it("counts down a pending retry in chips, not prose", () => {
+  it("counts down a pending retry in chips and formats its failure", () => {
     const model = runStatusNoticeModel(
       notice({
         state: "retrying",
@@ -18,16 +18,19 @@ describe("run status notice model", () => {
         attempt: 2,
         maxRetries: 5,
         errorMessage: "503 overloaded",
+        failureCategory: "provider",
+        httpStatus: 503,
       }),
       { nowMs },
     );
     assert.equal(model.badge, "run_retrying");
     assert.equal(model.tone, "info");
     assert.equal(model.busy, true);
-    assert.equal(model.arg, "503 overloaded");
+    assert.equal(model.arg, "API error");
+    assert.equal(model.summary, "503 overloaded");
     assert.deepEqual(
       model.chips?.map((chip) => chip.text),
-      ["retry in 3s", "retry 2/5"],
+      ["retry in 3s", "retry 2/5", "HTTP 503"],
     );
   });
 
@@ -39,32 +42,56 @@ describe("run status notice model", () => {
     assert.equal(model.chips?.[0]?.text, "retrying now");
   });
 
-  it("marks a failed run destructive and wires Continue when offered", () => {
+  it("formats a provider payload and wires Continue as the primary action", () => {
     let continued = 0;
-    const model = runStatusNoticeModel(notice({ attempt: 3 }), {
-      nowMs,
-      onContinue: () => {
-        continued += 1;
+    const model = runStatusNoticeModel(
+      notice({
+        attempt: 3,
+        errorMessage:
+          '429 {"error":{"type":"rate_limit_error","message":"Try again later."}}',
+      }),
+      {
+        nowMs,
+        onContinue: () => {
+          continued += 1;
+        },
       },
-    });
+    );
     assert.equal(model.tone, "destructive");
     assert.equal(model.badge, "run_failed");
+    assert.equal(model.arg, "Rate limit");
+    assert.equal(model.error, "Try again later.");
+    assert.equal(model.action, undefined);
     assert.deepEqual(
       model.chips?.map((chip) => chip.text),
-      ["retry 3"],
+      ["retry 3", "HTTP 429"],
     );
-    model.action?.onClick();
+    model.primaryAction?.onClick();
     assert.equal(continued, 1);
   });
 
-  it("treats an interrupted run as a warning without an action by default", () => {
-    const model = runStatusNoticeModel(notice({ state: "interrupted" }), {
-      nowMs,
-    });
-    assert.equal(model.tone, "warning");
-    assert.equal(model.badge, "run_interrupted");
-    assert.match(model.summary ?? "", /Continue/);
-    assert.equal(model.glyph, "bell-dot");
-    assert.equal(model.action, undefined);
+  it("treats an interrupted run as destructive and only guides actionable recovery", () => {
+    const staticModel = runStatusNoticeModel(
+      notice({
+        state: "interrupted",
+        errorMessage: "Hook failed",
+        failureCategory: "harness",
+      }),
+      { nowMs },
+    );
+    assert.equal(staticModel.tone, "destructive");
+    assert.equal(staticModel.badge, "run_interrupted");
+    assert.equal(staticModel.arg, "Harness error");
+    assert.equal(staticModel.error, "Hook failed");
+    assert.equal(staticModel.summary, undefined);
+    assert.equal(staticModel.glyph, "bell-dot");
+    assert.equal(staticModel.primaryAction, undefined);
+
+    const actionableModel = runStatusNoticeModel(
+      notice({ state: "interrupted" }),
+      { nowMs, onContinue: () => undefined },
+    );
+    assert.match(actionableModel.summary ?? "", /Continue/);
+    assert.equal(actionableModel.primaryAction?.label, "Continue");
   });
 });

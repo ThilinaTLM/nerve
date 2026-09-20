@@ -1,8 +1,9 @@
 /* eslint-disable max-lines -- Coordinator keeps the canonical run lifecycle in one auditable use case. */
 import type { PeerRole } from "@nervekit/contracts/wire";
 import type { PromptImage } from "@nervekit/contracts/agents";
-import type {
-  LifecycleWork,
+import {
+  normalizeRunFailure,
+  type LifecycleWork,
   RunCheckpointRecord,
   RunFailureRecord,
   RunInteractionRecord,
@@ -31,6 +32,7 @@ import { RunPromptCoordinator } from "./run-prompts.js";
 import { RunInteractionCoordinator } from "./run-interaction-coordinator.js";
 import { decideRunRecovery } from "./run-recovery.js";
 import { completeExecution } from "./run-settlement.js";
+import { buildRunStatusEntry } from "./run-status-entry.js";
 import {
   cancellableRetryDelay,
   countAutomaticRetries,
@@ -700,13 +702,23 @@ export class RunCoordinator {
         () => this.now(),
       );
       if (decision.transitionKind) {
+        const statusEntry = buildRunStatusEntry({
+          previous: state,
+          run: decision.run,
+          state:
+            decision.transitionKind === "interrupted"
+              ? "interrupted"
+              : "failed",
+        });
         await this.commit(state, decision.run, decision.transitionKind, {
+          entries: [statusEntry],
           events: [
             this.events.failed(
               decision.run,
               decision.run.updatedAt,
               decision.interrupted,
             ),
+            this.events.entryAppended(decision.run, statusEntry),
           ],
         });
       }
@@ -871,7 +883,7 @@ export class RunCoordinator {
             run.executionId,
             {
               code: "RUN_INTERRUPTED",
-              message: outcome.message,
+              ...normalizeRunFailure(outcome.message, "harness"),
               retryable: true,
             },
             abort.signal,
@@ -1013,13 +1025,22 @@ export class RunCoordinator {
         },
         now,
       );
+      const statusEntry = buildRunStatusEntry({
+        previous: state,
+        run: next,
+        state: validCheckpoint ? "retry_exhausted" : "failed",
+      });
       await this.commit(
         state,
         next,
         validCheckpoint ? "retry_exhausted" : "failed",
         {
           execution: executionRecord(next, "failed", now),
-          events: [this.events.failed(next, now, validCheckpoint)],
+          entries: [statusEntry],
+          events: [
+            this.events.failed(next, now, validCheckpoint),
+            this.events.entryAppended(next, statusEntry),
+          ],
         },
       );
       return undefined;

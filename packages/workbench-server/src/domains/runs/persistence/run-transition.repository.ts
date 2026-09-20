@@ -198,6 +198,13 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
           conversationId: parsed.run.conversationId,
           transition: parsed,
         },
+        ...parsed.entries.map(
+          (entry): ConversationJournalEvent => ({
+            kind: "conversation.entry_appended",
+            conversationId: parsed.run.conversationId,
+            entry,
+          }),
+        ),
         ...(await this.normalizedInteractionEvents(next, parsed)),
       ];
       const aggregate = await this.lifecycleAggregate(next, parsed);

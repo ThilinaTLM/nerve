@@ -1,3 +1,7 @@
+import {
+  normalizeRunFailure,
+  type RunFailureCategory,
+} from "@nervekit/contracts/runs";
 import type { RunStatusNotice } from "../../state/transcript-types";
 import type { NoticeChip, TranscriptNoticeModel } from "./notice-presentation";
 
@@ -31,12 +35,49 @@ function attemptChip(notice: RunStatusNotice): NoticeChip | undefined {
   };
 }
 
+const CATEGORY_LABELS: Record<RunFailureCategory, string> = {
+  rate_limit: "Rate limit",
+  authentication: "Authentication error",
+  connection: "Connection error",
+  provider: "API error",
+  harness: "Harness error",
+  unknown: "Run error",
+};
+
+function failurePresentation(notice: RunStatusNotice): {
+  message?: string;
+  category: RunFailureCategory;
+  label: string;
+  httpStatus?: number;
+} {
+  if (!notice.errorMessage?.trim()) {
+    const category = notice.failureCategory ?? "unknown";
+    return {
+      category,
+      label: CATEGORY_LABELS[category],
+      httpStatus: notice.httpStatus,
+    };
+  }
+  const normalized = normalizeRunFailure(notice.errorMessage);
+  const category = notice.failureCategory ?? normalized.category;
+  return {
+    message: normalized.message,
+    category,
+    label: CATEGORY_LABELS[category],
+    httpStatus: notice.httpStatus ?? normalized.httpStatus,
+  };
+}
+
+function httpChip(httpStatus?: number): NoticeChip | undefined {
+  return httpStatus ? { text: `HTTP ${httpStatus}`, mono: true } : undefined;
+}
+
 export function runStatusNoticeModel(
   notice: RunStatusNotice,
   options: RunStatusNoticeOptions,
 ): TranscriptNoticeModel {
-  const failure = notice.errorMessage?.trim() || undefined;
-  const action = options.onContinue
+  const failure = failurePresentation(notice);
+  const primaryAction = options.onContinue
     ? {
         label: "Continue",
         ariaLabel: "Continue this run",
@@ -59,43 +100,53 @@ export function runStatusNoticeModel(
     ];
     const attempt = attemptChip(notice);
     if (attempt) chips.push(attempt);
+    const status = httpChip(failure.httpStatus);
+    if (status) chips.push(status);
     return {
       kind: "run",
       tone: "info",
       glyph: "retry",
       busy: true,
       badge: "run_retrying",
-      arg: failure ?? "request failed",
+      arg: failure.label,
       statusLabel: "Retrying the model request",
+      summary: failure.message,
       chips,
-    };
-  }
-
-  if (notice.state === "interrupted") {
-    return {
-      kind: "run",
-      tone: "warning",
-      glyph: "bell-dot",
-      badge: "run_interrupted",
-      arg: failure ?? "host restarted",
-      statusLabel: "Run interrupted",
-      summary: "Nothing will resume until you choose Continue.",
-      chips: [],
-      action,
     };
   }
 
   const chips: NoticeChip[] = [];
   const attempt = attemptChip(notice);
   if (attempt) chips.push(attempt);
+  const status = httpChip(failure.httpStatus);
+  if (status) chips.push(status);
+
+  if (notice.state === "interrupted") {
+    return {
+      kind: "run",
+      tone: "destructive",
+      glyph: "bell-dot",
+      badge: "run_interrupted",
+      arg: failure.label,
+      statusLabel: "Run interrupted",
+      error: failure.message,
+      summary: primaryAction
+        ? "Nothing will resume until you choose Continue."
+        : undefined,
+      chips,
+      primaryAction,
+    };
+  }
+
   return {
     kind: "run",
     tone: "destructive",
     glyph: "bell-dot",
     badge: "run_failed",
-    arg: failure ?? "request failed",
-    statusLabel: "Model request failed",
+    arg: failure.label,
+    statusLabel: "Run failed",
+    error: failure.message,
     chips,
-    action,
+    primaryAction,
   };
 }

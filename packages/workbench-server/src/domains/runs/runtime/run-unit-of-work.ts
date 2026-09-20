@@ -120,6 +120,16 @@ export interface RunCheckpointReferencePort {
       status: string;
     }[]
   >;
+  /**
+   * Authorizes the sole supported post-checkpoint model-context advance: a
+   * direct descendant chain of server-generated task notifications belonging
+   * to this run.
+   */
+  authorizeHarnessLeafAdvance(input: {
+    runId: string;
+    fromLeafId: string | null;
+    toLeafId: string | null;
+  }): Promise<boolean>;
   interaction(interactionId: string): Promise<RunInteractionRecord | undefined>;
 }
 

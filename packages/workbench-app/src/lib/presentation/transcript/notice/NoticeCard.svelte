@@ -35,6 +35,7 @@ const showBody = $derived(bodyVisible || summaryVisible);
   error={notice.error}
   meta={notice.chips ?? []}
   {cardActions}
+  primaryAction={notice.primaryAction}
   bodyVisible={showBody}
   {layoutRevision}
 >
