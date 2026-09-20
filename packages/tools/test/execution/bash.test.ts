@@ -98,7 +98,11 @@ describe("bash executor", () => {
     assert.equal(result.exitCode, 0);
   });
 
-  it("applies executable project environment adapters", async () => {
+  it("applies executable project environment adapters", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("Executable fixture scripts use POSIX shebangs.");
+      return;
+    }
     for (const fixture of [
       { manager: "direnv", config: ".envrc" },
       { manager: "mise", config: "mise.toml" },
@@ -162,7 +166,11 @@ describe("bash executor", () => {
     }
   });
 
-  it("does not run the command when project environment activation fails", async () => {
+  it("does not run the command when project environment activation fails", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("Executable fixture scripts use POSIX shebangs.");
+      return;
+    }
     const project = await createTempProject("nerve-direnv-failure-");
     await project.write(".envrc", "export SHOULD_NOT_RUN=1\n");
     await writeExecutable(

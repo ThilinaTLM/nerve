@@ -1,8 +1,20 @@
 import assert from "node:assert/strict";
+import { join, resolve as resolvePath } from "node:path";
 import { describe, it } from "node:test";
 import { resolveProjectShellInvocation } from "../../src/execution/shell/project-environment.js";
 
-const shellConfig = { shell: "/bin/bash", args: ["-c"] };
+const root = resolvePath("project-environment-fixture");
+const workspace = join(root, "workspace", "project");
+const app = join(workspace, "packages", "app");
+const tools = join(root, "tools");
+const home = join(root, "home", "user");
+const xdg = join(root, "xdg");
+const shell = join(root, "bin", "bash");
+const shellConfig = { shell, args: ["-c"] };
+
+function tool(name: string): string {
+  return join(tools, name);
+}
 
 function resolve(
   files: string[],
@@ -12,7 +24,7 @@ function resolve(
   const existing = new Set(files);
   const executables = new Set(options.executables ?? []);
   return resolveProjectShellInvocation("node --version", {
-    cwd: "/workspace/project/packages/app",
+    cwd: app,
     env,
     shellConfig,
     platform: options.platform ?? "linux",
@@ -23,9 +35,9 @@ function resolve(
 
 describe("project shell environment resolver", () => {
   it("preserves the base invocation when no adapter applies", () => {
-    const env = { PATH: "/tools" };
+    const env = { PATH: tools };
     assert.deepEqual(resolve([], env), {
-      shell: "/bin/bash",
+      shell,
       args: ["-c", "node --version"],
       env,
     });
@@ -34,38 +46,32 @@ describe("project shell environment resolver", () => {
   it("uses direnv first and keeps its approval enforcement external", () => {
     const result = resolve(
       [
-        "/workspace/project/.envrc",
-        "/workspace/project/mise.toml",
-        "/workspace/project/.nvmrc",
+        join(workspace, ".envrc"),
+        join(workspace, "mise.toml"),
+        join(workspace, ".nvmrc"),
       ],
-      { PATH: "/tools" },
-      { executables: ["/tools/direnv", "/tools/mise", "/tools/fnm"] },
+      { PATH: tools },
+      { executables: [tool("direnv"), tool("mise"), tool("fnm")] },
     );
 
     assert.equal(result.manager, "direnv");
-    assert.equal(result.shell, "/tools/direnv");
-    assert.deepEqual(result.args, [
-      "exec",
-      "/workspace/project/packages/app",
-      "/bin/bash",
-      "-c",
-      "node --version",
-    ]);
+    assert.equal(result.shell, tool("direnv"));
+    assert.deepEqual(result.args, ["exec", app, shell, "-c", "node --version"]);
   });
 
   it("uses mise for mise-owned configuration in paranoid mode", () => {
     const result = resolve(
-      ["/workspace/project/.mise.toml"],
-      { PATH: "/tools", MISE_PARANOID: "0" },
-      { executables: ["/tools/mise"] },
+      [join(workspace, ".mise.toml")],
+      { PATH: tools, MISE_PARANOID: "0" },
+      { executables: [tool("mise")] },
     );
 
     assert.equal(result.manager, "mise");
-    assert.equal(result.shell, "/tools/mise");
+    assert.equal(result.shell, tool("mise"));
     assert.deepEqual(result.args, [
       "exec",
       "--",
-      "/bin/bash",
+      shell,
       "-c",
       "node --version",
     ]);
@@ -75,36 +81,34 @@ describe("project shell environment resolver", () => {
   });
 
   it("does not claim bare .tool-versions unless mise is active", () => {
-    const files = ["/workspace/project/.tool-versions"];
-    const executables = ["/tools/mise"];
+    const files = [join(workspace, ".tool-versions")];
+    const executables = [tool("mise")];
     assert.equal(
-      resolve(files, { PATH: "/tools" }, { executables }).manager,
+      resolve(files, { PATH: tools }, { executables }).manager,
       undefined,
     );
     assert.equal(
-      resolve(files, { PATH: "/tools", MISE_SHELL: "bash" }, { executables })
+      resolve(files, { PATH: tools, MISE_SHELL: "bash" }, { executables })
         .manager,
       "mise",
     );
   });
 
   it("passes the nearest Node version file to fnm without install flags", () => {
+    const versionFile = join(app, ".node-version");
     const result = resolve(
-      [
-        "/workspace/project/.nvmrc",
-        "/workspace/project/packages/app/.node-version",
-      ],
-      { PATH: "/tools" },
-      { executables: ["/tools/fnm"] },
+      [join(workspace, ".nvmrc"), versionFile],
+      { PATH: tools },
+      { executables: [tool("fnm")] },
     );
 
     assert.equal(result.manager, "fnm");
     assert.deepEqual(result.args, [
       "exec",
-      "--using=/workspace/project/packages/app/.node-version",
+      `--using=${versionFile}`,
       "--log-level=quiet",
       "--",
-      "/bin/bash",
+      shell,
       "-c",
       "node --version",
     ]);
@@ -112,14 +116,15 @@ describe("project shell environment resolver", () => {
   });
 
   it("sources nvm for .nvmrc and gates the command on successful use", () => {
+    const nvmDir = join(home, ".nvm");
     const result = resolve(
-      ["/workspace/project/.nvmrc", "/home/user/.nvm/nvm.sh"],
-      { PATH: "/tools", HOME: "/home/user" },
+      [join(workspace, ".nvmrc"), join(nvmDir, "nvm.sh")],
+      { PATH: tools, HOME: home },
     );
 
     assert.equal(result.manager, "nvm");
-    assert.equal(result.shell, "/bin/bash");
-    assert.equal(result.env.NVM_DIR, "/home/user/.nvm");
+    assert.equal(result.shell, shell);
+    assert.equal(result.env.NVM_DIR, nvmDir);
     assert.deepEqual(result.args, [
       "-c",
       '. "$NVM_DIR/nvm.sh" && nvm use --silent &&\nnode --version',
@@ -127,24 +132,21 @@ describe("project shell environment resolver", () => {
   });
 
   it("prefers the inherited active Node manager", () => {
-    const files = ["/workspace/project/.nvmrc", "/custom/nvm/nvm.sh"];
-    const executables = ["/tools/fnm"];
+    const nvmDir = join(root, "custom", "nvm");
+    const files = [join(workspace, ".nvmrc"), join(nvmDir, "nvm.sh")];
+    const executables = [tool("fnm")];
 
     assert.equal(
-      resolve(
-        files,
-        { PATH: "/tools", NVM_DIR: "/custom/nvm" },
-        { executables },
-      ).manager,
+      resolve(files, { PATH: tools, NVM_DIR: nvmDir }, { executables }).manager,
       "nvm",
     );
     assert.equal(
       resolve(
         files,
         {
-          PATH: "/tools",
-          NVM_DIR: "/custom/nvm",
-          FNM_MULTISHELL_PATH: "/tmp/fnm-shell",
+          PATH: tools,
+          NVM_DIR: nvmDir,
+          FNM_MULTISHELL_PATH: join(root, "tmp", "fnm-shell"),
         },
         { executables },
       ).manager,
@@ -153,37 +155,37 @@ describe("project shell environment resolver", () => {
   });
 
   it("keeps nvm installation paths out of generated shell syntax", () => {
+    const nvmDir = join(root, "home", "user's files", ".nvm");
     const result = resolve(
-      ["/workspace/project/.nvmrc", "/home/user's files/.nvm/nvm.sh"],
-      { NVM_DIR: "/home/user's files/.nvm" },
+      [join(workspace, ".nvmrc"), join(nvmDir, "nvm.sh")],
+      { NVM_DIR: nvmDir },
     );
 
     assert.equal(result.manager, "nvm");
-    assert.equal(result.env.NVM_DIR, "/home/user's files/.nvm");
+    assert.equal(result.env.NVM_DIR, nvmDir);
     assert.doesNotMatch(result.args.join(" "), /user's files/);
   });
 
   it("finds nvm through XDG before the default home location", () => {
+    const xdgNvm = join(xdg, "nvm");
     const result = resolve(
       [
-        "/workspace/project/.nvmrc",
-        "/xdg/nvm/nvm.sh",
-        "/home/user/.nvm/nvm.sh",
+        join(workspace, ".nvmrc"),
+        join(xdgNvm, "nvm.sh"),
+        join(home, ".nvm", "nvm.sh"),
       ],
-      {
-        HOME: "/home/user",
-        XDG_CONFIG_HOME: "/xdg",
-      },
+      { HOME: home, XDG_CONFIG_HOME: xdg },
     );
 
     assert.equal(result.manager, "nvm");
-    assert.equal(result.env.NVM_DIR, "/xdg/nvm");
+    assert.equal(result.env.NVM_DIR, xdgNvm);
   });
 
   it("does not use sourced nvm on Windows", () => {
+    const nvmDir = join(home, ".nvm");
     const result = resolve(
-      ["/workspace/project/.nvmrc", "/home/user/.nvm/nvm.sh"],
-      { HOME: "/home/user" },
+      [join(workspace, ".nvmrc"), join(nvmDir, "nvm.sh")],
+      { HOME: home },
       { platform: "win32" },
     );
     assert.equal(result.manager, undefined);
