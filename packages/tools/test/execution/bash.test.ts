@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { executeBash } from "../../src/execution/shell/bash.js";
 import {
   createTempProject,
+  withPath,
   writeExecutable,
 } from "../support/project-fixtures.js";
 
@@ -95,6 +96,89 @@ describe("bash executor", () => {
 
     assert.equal(result.stdout, "custom shell:-c|echo from-command");
     assert.equal(result.exitCode, 0);
+  });
+
+  it("applies executable project environment adapters", async () => {
+    for (const fixture of [
+      { manager: "direnv", config: ".envrc" },
+      { manager: "mise", config: "mise.toml" },
+      { manager: "fnm", config: ".node-version" },
+    ] as const) {
+      const project = await createTempProject(`nerve-${fixture.manager}-`);
+      await project.write(fixture.config, "24\n");
+      await project.write("nested/.keep", "");
+      const body =
+        fixture.manager === "direnv"
+          ? `const { spawnSync } = require('node:child_process'); process.env.NERVE_MANAGER = 'direnv'; const result = spawnSync(process.argv[4], process.argv.slice(5), { env: process.env, stdio: 'inherit' }); process.exit(result.status ?? 1);`
+          : `const { spawnSync } = require('node:child_process'); process.env.NERVE_MANAGER = ${JSON.stringify(fixture.manager)}; const separator = process.argv.indexOf('--'); const result = spawnSync(process.argv[separator + 1], process.argv.slice(separator + 2), { env: process.env, stdio: 'inherit' }); process.exit(result.status ?? 1);`;
+      await writeExecutable(project.root, fixture.manager, body);
+
+      const result = await withPath(
+        `${project.root}${delimiter}${process.env.PATH ?? ""}`,
+        () =>
+          executeBash(
+            {
+              command: `${node} -e "process.stdout.write(process.env.NERVE_MANAGER ?? 'none')"`,
+              cwd: "nested",
+            },
+            { cwd: project.root },
+          ),
+      );
+
+      assert.equal(result.exitCode, 0);
+      assert.equal(result.stdout, fixture.manager);
+    }
+  });
+
+  it("sources nvm for an ancestor .nvmrc without changing the parent environment", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("nvm shell activation is POSIX-only.");
+      return;
+    }
+    const project = await createTempProject("nerve-nvm-");
+    const nvmDir = await project.write(
+      "nvm/nvm.sh",
+      `nvm() { export NERVE_MANAGER=nvm; return 0; }\n`,
+    );
+    await project.write(".nvmrc", "24\n");
+    await project.write("nested/.keep", "");
+    const previousNvmDir = process.env.NVM_DIR;
+    delete process.env.NERVE_MANAGER;
+    process.env.NVM_DIR = dirname(nvmDir);
+    try {
+      const result = await executeBash(
+        {
+          command: `${node} -e "process.stdout.write(process.env.NERVE_MANAGER ?? 'none')"`,
+          cwd: "nested",
+        },
+        { cwd: project.root },
+      );
+      assert.equal(result.exitCode, 0);
+      assert.equal(result.stdout, "nvm");
+      assert.equal(process.env.NERVE_MANAGER, undefined);
+    } finally {
+      if (previousNvmDir === undefined) delete process.env.NVM_DIR;
+      else process.env.NVM_DIR = previousNvmDir;
+    }
+  });
+
+  it("does not run the command when project environment activation fails", async () => {
+    const project = await createTempProject("nerve-direnv-failure-");
+    await project.write(".envrc", "export SHOULD_NOT_RUN=1\n");
+    await writeExecutable(
+      project.root,
+      "direnv",
+      `process.stderr.write('environment is not allowed'); process.exit(1);`,
+    );
+
+    const result = await withPath(
+      `${project.root}${delimiter}${process.env.PATH ?? ""}`,
+      () => executeBash({ command: "echo command-ran" }, { cwd: project.root }),
+    );
+
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr ?? "", /not allowed/);
   });
 
   it("returns stdout, stderr, and exitCode for successful commands", async () => {
