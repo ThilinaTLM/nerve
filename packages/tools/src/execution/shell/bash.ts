@@ -13,6 +13,7 @@ import { LiveOutputDelivery } from "../output/live-output.js";
 import { bashProcessPolicy } from "../process/managed-process-policy.js";
 import { forceKillProcessTree } from "../process/process-tree.js";
 import { buildProcessResult } from "../process/process-result.js";
+import { resolveProjectShellInvocation } from "./project-environment.js";
 import { resolveBashShellConfig } from "./shell-config.js";
 
 const FORCE_KILL_AFTER_MS = 2000;
@@ -49,22 +50,23 @@ export async function executeBash(
       return;
     }
 
-    const shellConfig = resolveBashShellConfig({
-      shellPath: context.shellPath,
+    const env = nonInteractiveShellEnv();
+    const invocation = resolveProjectShellInvocation(args.command as string, {
+      cwd,
+      env,
+      shellConfig: resolveBashShellConfig({
+        shellPath: context.shellPath,
+      }),
     });
-    const child = spawnManagedChildProcess(
-      shellConfig.shell,
-      [...shellConfig.args, args.command as string],
-      {
-        cwd,
-        env: nonInteractiveShellEnv(),
-        policy: bashProcessPolicy(
-          timeoutSeconds && timeoutSeconds > 0
-            ? timeoutSeconds * 1000
-            : undefined,
-        ),
-      },
-    );
+    const child = spawnManagedChildProcess(invocation.shell, invocation.args, {
+      cwd,
+      env: invocation.env,
+      policy: bashProcessPolicy(
+        timeoutSeconds && timeoutSeconds > 0
+          ? timeoutSeconds * 1000
+          : undefined,
+      ),
+    });
 
     const liveOutput = new LiveOutputDelivery(context.onUpdate);
     let settled = false;

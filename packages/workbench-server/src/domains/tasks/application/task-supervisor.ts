@@ -14,7 +14,11 @@ import {
   type ManagedTarget,
   type TerminationMethod,
 } from "@nervekit/native";
-import { resolveBashShellConfig } from "@nervekit/tools/execution";
+import {
+  resolveBashShellConfig,
+  resolveProjectShellInvocation,
+  type ProjectShellInvocation,
+} from "@nervekit/tools/execution";
 import { taskProcessPolicy } from "../model/task-process-policy.js";
 import {
   defaultTaskPortInspector,
@@ -78,13 +82,14 @@ export interface TaskSupervisor {
 
 export function managedTaskShellCommand(
   command: string,
-  shellPath?: string,
-): { shell: string; args: string[] } {
-  const shellConfig = resolveBashShellConfig({ shellPath });
-  return {
-    shell: shellConfig.shell,
-    args: [...shellConfig.args, command],
-  };
+  options: SpawnManagedTaskOptions,
+): ProjectShellInvocation {
+  const env = processEnvironment(options.env);
+  return resolveProjectShellInvocation(command, {
+    cwd: options.cwd,
+    env,
+    shellConfig: resolveBashShellConfig({ shellPath: options.shellPath }),
+  });
 }
 
 export function createTaskSupervisor(
@@ -92,10 +97,10 @@ export function createTaskSupervisor(
 ): TaskSupervisor {
   return {
     spawn(command, options) {
-      const shell = managedTaskShellCommand(command, options.shellPath);
+      const shell = managedTaskShellCommand(command, options);
       const child = spawnManagedChildProcess(shell.shell, shell.args, {
         cwd: options.cwd,
-        env: processEnvironment(options.env),
+        env: shell.env,
         policy: taskProcessPolicy(),
       });
       const managed = managedProcessForChild(child);

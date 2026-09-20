@@ -10,4 +10,5 @@ export * from "./process/command-cwd.js";
 export * from "./process/process-result.js";
 export * from "./python/runtime.js";
 export * from "./shell/bash.js";
+export * from "./shell/project-environment.js";
 export * from "./shell/shell-config.js";
