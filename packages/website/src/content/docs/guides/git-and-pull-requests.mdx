@@ -22,8 +22,8 @@ These Workbench operations are server routes, not agent tools. An agent uses Git
 <DocsScreenshot
   light={gitLight}
   dark={gitDark}
-  alt="Nerve Git panel showing repository status, staged and unstaged changes, and commit history"
-  caption="Repository state and scoped actions stay visible beside the conversation, but destructive discard still requires confirmation."
+  alt="Nerve Git panel showing four repositories discovered in one project, the selected repository's branch, and its staged and unstaged changes"
+  caption="What to notice: every repository under the project root gets its own branch and working-tree state, side by side with the conversation. Destructive discard still asks first."
   widths={[480, 768, 1024, 1440]}
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
 />
@@ -43,8 +43,8 @@ Checkout and merge can modify local or remote state. Read the confirmation, work
 <DocsScreenshot
   light={pullRequestLight}
   dark={pullRequestDark}
-  alt="Nerve pull request tab showing a GitHub pull request conversation, checks, commits, and changed files"
-  caption="The pull request tab brings review context, checks, commits, and changed files together before checkout or merge actions."
+  alt="Nerve pull request view showing the pull request summary, mergeability, checks, commits, and changed files beside the list of open pull requests"
+  caption="What to notice: review context, checks, commits, and changed files sit in the workbench, so checkout and merge decisions happen without a browser round trip."
   widths={[480, 768, 1024, 1440]}
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
 />

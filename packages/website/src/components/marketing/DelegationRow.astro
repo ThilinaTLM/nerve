@@ -1,0 +1,136 @@
+---
+/* Delegation: background tasks and Explore sub-agents.
+ *
+ * No screenshot here on purpose — the tasks capture already appears in the
+ * workbench tour, and repeating it on one page weakens both. This row carries
+ * the two delegation mechanisms and their real limits instead.
+ */
+
+import Reveal from "./Reveal.astro";
+
+const modes = [
+  {
+    figure: "tasks",
+    title: "Supervised background processes",
+    body: "Dev servers, watchers, builds, and validation run as durable task definitions with immutable runs, readiness checks, streamed output, and explicit stop and restart.",
+    points: [
+      "Logs are retained and readable after the run ends",
+      "A long-running command can be promoted into a task mid-conversation",
+      "Task events appear in the transcript, not in a separate silo",
+    ],
+    href: "/guides/background-tasks/",
+    hrefLabel: "Background tasks",
+  },
+  {
+    figure: "explore",
+    title: "Bounded read-only sub-agents",
+    body: "Send Explore children to research parts of the codebase in parallel. Each runs read-only, in its own context, and reports back as a durable markdown report.",
+    points: [
+      "Children are forced to the read-only policy — no edits, no execution",
+      "Capped at 8 tasks per call, 8 active and 24 total per run",
+      "Reports stay in the conversation as evidence you can reread",
+    ],
+    href: "/guides/agent-controls/",
+    hrefLabel: "Agent controls",
+  },
+];
+---
+
+<div class="delegation">
+  <Reveal class="delegation-grid" stagger={100}>
+    {
+      modes.map((mode) => (
+        <article class="delegation-card" data-reveal-child>
+          <span class="delegation-figure">{mode.figure}</span>
+          <h3 class="card-title">{mode.title}</h3>
+          <p class="body-text">{mode.body}</p>
+          <ul class="delegation-points">
+            {mode.points.map((point) => (
+              <li>
+                <span class="bouton" aria-hidden="true" />
+                {point}
+              </li>
+            ))}
+          </ul>
+          <a class="link-arrow" href={mode.href}>
+            {mode.hrefLabel} <span aria-hidden="true">→</span>
+          </a>
+        </article>
+      ))
+    }
+  </Reveal>
+
+  <p class="meta-text delegation-caveat">
+    Background tasks supervise local processes you start; they are not calendar
+    or cron scheduling. Explore children are read-only and quota-limited, not an
+    unbounded agent swarm.
+  </p>
+</div>
+
+<style>
+  .delegation {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .delegation-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  @media (min-width: 900px) {
+    .delegation-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .delegation-card {
+    display: grid;
+    gap: 0.75rem;
+    align-content: start;
+    justify-items: start;
+    padding: 1.5rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background-color: var(--card);
+    box-shadow: var(--depth-1);
+  }
+
+  .delegation-figure {
+    padding: 0.22rem 0.6rem;
+    border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border));
+    border-radius: var(--radius-chip);
+    background-color: color-mix(in oklab, var(--primary) 10%, transparent);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  .delegation-points {
+    display: grid;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+  }
+
+  .delegation-points li {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+  }
+
+  .delegation-points .bouton {
+    flex: none;
+    translate: 0 -0.15rem;
+    box-shadow: 0 0 0 0.25rem
+      color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+
+  .delegation-caveat {
+    max-width: 46rem;
+  }
+</style>

@@ -1,0 +1,110 @@
+---
+/* Branching, promoted out of the defaults grid into a section of its own.
+ *
+ * Branching is one of the reasons a workbench beats a linear chat, so it gets
+ * the history screenshot and its own copy instead of a single card. The claim
+ * is deliberately narrow: navigating to an earlier entry and continuing from
+ * there, which is what the product does — not a generic "clone conversation".
+ */
+
+import historyDark from "../../assets/screenshots/desktop/history-dark.webp";
+import historyLight from "../../assets/screenshots/desktop/history-light.webp";
+import DeviceFrame from "./DeviceFrame.astro";
+import Reveal from "./Reveal.astro";
+import ThemeScreenshot from "./ThemeScreenshot.astro";
+
+const points = [
+  "Navigate to an entry and fork from it — nothing is overwritten",
+  "Edit and resend an earlier prompt when the first framing was wrong",
+  "Local extractive summaries when you jump between branches",
+  "Long runs collapse into step groups so the graph stays readable",
+];
+---
+
+<div class="branching">
+  <Reveal variant="left" class="branching-copy">
+    <ul class="branching-points">
+      {
+        points.map((point) => (
+          <li>
+            <span class="bouton" aria-hidden="true" />
+            {point}
+          </li>
+        ))
+      }
+    </ul>
+    <a class="link-arrow" href="/guides/history-and-recovery/">
+      History and recovery <span aria-hidden="true">→</span>
+    </a>
+  </Reveal>
+
+  <Reveal variant="right" delay={120} class="branching-media">
+    <DeviceFrame label="nerve · conversation history" depth={3} tilt>
+      <ThemeScreenshot
+        dark={historyDark}
+        light={historyLight}
+        alt="The Nerve conversation history graph showing collapsed step groups, several branch points, and an entry details panel"
+        widths={[720, 1080, 1440, 2000, 2880]}
+        sizes="(max-width: 1023px) 100vw, 58vw"
+        loading="lazy"
+      />
+    </DeviceFrame>
+  </Reveal>
+
+  <p class="meta-text branching-caveat">
+    The model, mode, and permission rule set you pick apply to the work that
+    follows on the branch you continue from — earlier entries keep the settings
+    they ran with.
+  </p>
+</div>
+
+<style>
+  .branching {
+    display: grid;
+    gap: clamp(2rem, 4vw, 3rem);
+    align-items: start;
+  }
+
+  .branching-copy {
+    display: grid;
+    gap: 1.25rem;
+    justify-items: start;
+  }
+
+  .branching-points {
+    display: grid;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+  }
+
+  .branching-points li {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+  }
+
+  .branching-points .bouton {
+    flex: none;
+    translate: 0 -0.15rem;
+    box-shadow: 0 0 0 0.25rem
+      color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+
+  .branching-caveat {
+    max-width: 46rem;
+  }
+
+  @media (min-width: 1024px) {
+    .branching {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    }
+
+    .branching-caveat {
+      grid-column: 1 / -1;
+    }
+  }
+</style>

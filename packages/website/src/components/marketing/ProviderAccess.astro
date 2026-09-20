@@ -1,0 +1,285 @@
+---
+/* Provider access: the practical reason a lot of people can use Nerve at all.
+ *
+ * Drawn rather than described. The left panel is the choice you actually make
+ * when connecting — a subscription sign-in or a pasted key, one per provider.
+ * The right panel is what you get back for an OAuth subscription: the window
+ * meters, so "use the plan you already pay for" comes with a way to see what
+ * is left of it.
+ *
+ * Deliberately avoids publishing a permanent provider matrix — the installed
+ * catalog decides which flows exist, so the copy names examples and points at
+ * Settings and the docs for the current list. Meter values are illustrative
+ * and say so.
+ */
+
+import Reveal from "./Reveal.astro";
+
+const flows = [
+  { name: "Anthropic", mode: "Subscription or API key" },
+  { name: "OpenAI Codex", mode: "Subscription or API key" },
+  { name: "GitHub Copilot", mode: "Subscription" },
+  { name: "Other supported providers", mode: "API key" },
+];
+
+const meters = [
+  { label: "Session window", value: "62% left", fill: 62 },
+  { label: "Weekly window", value: "38% left", fill: 38 },
+];
+
+const readouts = [
+  { label: "Conversation", value: "21K / 1.0M" },
+  { label: "Cache", value: "read 18K" },
+  { label: "Cost", value: "estimated" },
+];
+---
+
+<div class="providers">
+  <Reveal class="providers-panel">
+    <p class="providers-zone">Connect once, per provider</p>
+    <ul class="providers-flows">
+      {
+        flows.map((flow) => (
+          <li>
+            <span class="providers-flow-name">{flow.name}</span>
+            <span class="providers-flow-mode">{flow.mode}</span>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="body-text providers-note">
+      Per provider it is one or the other — OAuth and API keys are mutually
+      exclusive — and the installed catalog decides which flows exist, so
+      Settings always shows the current list.
+    </p>
+  </Reveal>
+
+  <Reveal variant="right" delay={120} class="providers-usage">
+    <p class="providers-zone providers-zone-quiet">Then watch what is left</p>
+
+    <div class="providers-meters">
+      {
+        meters.map((meter) => (
+          <div class="providers-meter">
+            <p class="providers-meter-head">
+              <span>{meter.label}</span>
+              <span class="providers-meter-value">{meter.value}</span>
+            </p>
+            <span class="providers-track" aria-hidden="true">
+              <span class="providers-fill" style={`--fill:${meter.fill}%`} />
+            </span>
+          </div>
+        ))
+      }
+    </div>
+
+    <ul class="providers-readouts">
+      {
+        readouts.map((readout) => (
+          <li>
+            <span class="providers-readout-label">{readout.label}</span>
+            <span class="providers-readout-value">{readout.value}</span>
+          </li>
+        ))
+      }
+    </ul>
+
+    <p class="meta-text providers-usage-note">
+      Session and weekly windows are shown for OAuth Anthropic and OpenAI
+      Codex. Illustrative values.
+    </p>
+  </Reveal>
+
+  <div class="providers-footer">
+    <p class="meta-text providers-caveat">
+      The model catalog is read from the provider, so new models appear without
+      waiting for a Nerve release. Usage windows are operational estimates —
+      your provider's accounting is authoritative.
+    </p>
+    <a class="link-arrow" href="/models/providers-and-auth/">
+      Connect a provider <span aria-hidden="true">→</span>
+    </a>
+  </div>
+</div>
+
+<style>
+  .providers {
+    display: grid;
+    gap: clamp(1.5rem, 3vw, 2.5rem);
+    align-items: stretch;
+  }
+
+  @media (min-width: 900px) {
+    .providers {
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    }
+
+    .providers-footer {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .providers-panel,
+  .providers-usage {
+    display: grid;
+    gap: 1rem;
+    align-content: start;
+    padding: 1.5rem;
+    border-radius: var(--radius-card);
+  }
+
+  .providers-panel {
+    border: 1px solid color-mix(in oklab, var(--primary) 34%, var(--border));
+    background: linear-gradient(
+      165deg,
+      color-mix(in oklab, var(--primary) 7%, var(--card)),
+      var(--card)
+    );
+    box-shadow: var(--depth-1);
+  }
+
+  .providers-usage {
+    border: 1px solid var(--hairline);
+    background-color: var(--card);
+    box-shadow: var(--depth-1);
+  }
+
+  .providers-zone {
+    margin: 0;
+    color: var(--primary);
+    font-size: var(--text-meta);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .providers-zone-quiet {
+    color: var(--muted-foreground);
+  }
+
+  .providers-flows {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .providers-flows li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-chip);
+    background-color: var(--background);
+  }
+
+  .providers-flow-name {
+    color: var(--foreground);
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  .providers-flow-mode {
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+  }
+
+  .providers-note {
+    margin: 0;
+  }
+
+  .providers-meters {
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .providers-meter {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .providers-meter-head {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
+  }
+
+  .providers-meter-value {
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+  }
+
+  .providers-track {
+    display: block;
+    overflow: hidden;
+    height: 0.45rem;
+    border: 1px solid var(--hairline);
+    border-radius: 999px;
+    background-color: var(--background);
+  }
+
+  .providers-fill {
+    display: block;
+    width: var(--fill);
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--primary) 70%, transparent),
+      var(--primary)
+    );
+  }
+
+  .providers-readouts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .providers-readouts li {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-chip);
+    background-color: var(--background);
+  }
+
+  .providers-readout-label {
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+  }
+
+  .providers-readout-value {
+    color: var(--foreground);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+  }
+
+  .providers-usage-note {
+    margin: 0;
+  }
+
+  .providers-footer {
+    display: grid;
+    gap: 0.75rem;
+    justify-items: start;
+  }
+
+  .providers-caveat {
+    max-width: 46rem;
+  }
+</style>

@@ -39,3 +39,6 @@ assets/brand/*
 !assets/brand/nerve-app-icon.svg
 dogfood-output/
 .idea/
+
+# Raw screenshot captures (see packages/website/scripts/screenshots/README.md)
+packages/website/.screenshots/

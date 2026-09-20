@@ -14,6 +14,16 @@ import InstallCommand from "./InstallCommand.astro";
 import Reveal from "./Reveal.astro";
 import RunPanel, { type StaticRow } from "./RunPanel.astro";
 
+/* The efficiency claims carried in the hero, each quoting something the
+ * repository actually does: the generated base prompt is a 363-character
+ * block, the default coding run exposes 18 tools and omits the rest, and
+ * tool results reaching the model are capped before compaction ever runs. */
+const proof = [
+  { value: "363 chars", label: "base system prompt" },
+  { value: "18 tools", label: "nothing you aren't using" },
+  { value: "24 KB cap", label: "per tool result, then compaction" },
+];
+
 /* Mirrors `buildTurn(TASKS[0], defaults)` with the gate already resolved. */
 const staticRows: StaticRow[] = [
   { kind: "prompt", text: "Add a retry budget to the run recovery path." },
@@ -70,26 +80,42 @@ const staticRows: StaticRow[] = [
         </span>
       </Reveal>
 
+      <Reveal delay={40}>
+        <p class="hero-brandline">See everything. Steer it live.</p>
+      </Reveal>
+
       <Reveal delay={80}>
         <h1 class="display-title">
-          See everything.<br /><span class="gradient-text hero-charge"
-            >Steer it live.</span
+          More work per token.<br /><span class="gradient-text hero-charge"
+            >More control per run.</span
           >
         </h1>
       </Reveal>
 
       <Reveal delay={160}>
         <p class="lede hero-lede">
-          A local-first coding harness where every prompt, thought, tool call,
-          approval, and diff is a typed event you can inspect — and a running
-          agent you can retune without stopping it.
+          A free, open-source coding workbench that runs on the AI subscription
+          you already pay for — and a harness built to make it last.
         </p>
+      </Reveal>
+
+      <Reveal delay={200}>
+        <ul class="hero-proof">
+          {
+            proof.map((item) => (
+              <li>
+                <span class="hero-proof-value">{item.value}</span>
+                <span class="hero-proof-label">{item.label}</span>
+              </li>
+            ))
+          }
+        </ul>
       </Reveal>
 
       <Reveal delay={240}>
         <div class="hero-actions">
           <a class="btn btn-primary" href="/start/install/">
-            Get started <span aria-hidden="true">→</span>
+            Install Nerve <span aria-hidden="true">→</span>
           </a>
           <a
             class="btn btn-ghost"
@@ -108,7 +134,7 @@ const staticRows: StaticRow[] = [
                 d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.35-1.3-1.7-1.3-1.7-1.05-.72.08-.71.08-.71 1.16.08 1.78 1.2 1.78 1.2 1.03 1.78 2.7 1.27 3.36.97.1-.75.4-1.27.73-1.56-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.5 3.17-1.18 3.17-1.18.63 1.59.24 2.76.12 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.4-5.27 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.2.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"
               ></path>
             </svg>
-            <span>GitHub</span>
+            <span>Star on GitHub</span>
             <span class="hero-star-separator" aria-hidden="true"></span>
             <span
               class="hero-star-count"
@@ -123,8 +149,8 @@ const staticRows: StaticRow[] = [
       <Reveal delay={320} class="hero-install">
         <InstallCommand />
         <p class="meta-text">
-          Runs locally. Bring your own API key or supported provider
-          subscription.
+          Local-first, no Nerve account, no product analytics · Linux · macOS ·
+          Windows 11
         </p>
       </Reveal>
     </div>
@@ -162,7 +188,10 @@ const staticRows: StaticRow[] = [
     isolation: isolate;
     overflow: clip;
     min-height: calc(100svh - var(--nav-height));
-    padding-block: clamp(3.5rem, 7vw, 6.5rem) clamp(5rem, 8vw, 7rem);
+    /* Tight enough that the whole argument — headline, lede, the three
+     * efficiency figures, and the install command — lands inside one viewport
+     * at common laptop heights. */
+    padding-block: clamp(1.5rem, 3.5vw, 4rem) clamp(2.25rem, 5vw, 5rem);
     display: grid;
     align-content: center;
   }
@@ -223,13 +252,60 @@ const staticRows: StaticRow[] = [
 
   .hero-copy {
     display: grid;
-    gap: 1.5rem;
+    gap: clamp(0.85rem, 1.4vh, 1.25rem);
     transform: translateY(var(--copy-shift, 0px));
     will-change: transform;
   }
 
+  /* The hero headline runs one step smaller than the section display size:
+   * at full size it wraps to four lines and pushes the install command out of
+   * the first viewport. */
+  .hero-copy .display-title {
+    font-size: clamp(2.3rem, 1.15rem + 2.3vw, 3.35rem);
+  }
+
+  /* The retained brand line, demoted to an eyebrow above the category
+   * headline so the first thing read is what Nerve actually is. */
+  .hero-brandline {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: var(--text-meta);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
   .hero-lede {
     max-width: 34rem;
+  }
+
+  /* Three concrete efficiency figures directly under the lede: the hero has to
+   * make the cost argument before a visitor scrolls, and numbers do it in less
+   * vertical space than another paragraph would. */
+  .hero-proof {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hero-proof li {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .hero-proof-value {
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .hero-proof-label {
+    color: var(--muted-foreground);
+    font-size: var(--text-meta);
   }
 
   .hero-actions {
