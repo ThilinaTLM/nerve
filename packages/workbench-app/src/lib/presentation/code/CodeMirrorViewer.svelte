@@ -37,6 +37,10 @@ import {
 } from "./code-viewer-helpers";
 import { contextSelection } from "./codemirror-context-menu";
 import {
+  unsavedChangesExtension,
+  updateUnsavedChangesBaseline,
+} from "./code-unsaved-changes";
+import {
   loadCodeLanguage,
   localLineNumber,
   readOnlyCodeExtensions,
@@ -55,6 +59,7 @@ type Props = {
   onToggleSelectionMatches?: () => void;
   onToggleWrap?: () => void;
   editable?: boolean;
+  originalText?: string;
   onChange?: (text: string) => void;
   onSave?: () => void;
 };
@@ -72,6 +77,7 @@ let {
   onToggleSelectionMatches,
   onToggleWrap,
   editable = false,
+  originalText,
   onChange,
   onSave,
 }: Props = $props();
@@ -93,6 +99,9 @@ const baseCompartment = new Compartment();
 const languageCompartment = new Compartment();
 const wrapCompartment = new Compartment();
 const targetCompartment = new Compartment();
+const unsavedChangesCompartment = new Compartment();
+let unsavedChangesActive = false;
+let unsavedChangesBaseline: string | undefined;
 
 function codeFoldMarker(open: boolean): HTMLElement {
   const dom = document.createElement("span");
@@ -345,6 +354,40 @@ function syncConfiguration(): void {
   updateFindStatus();
 }
 
+function syncUnsavedChanges(): void {
+  if (!view) return;
+  const nextBaseline = editable ? originalText : undefined;
+
+  if (nextBaseline === undefined) {
+    if (unsavedChangesActive) {
+      view.dispatch({
+        effects: unsavedChangesCompartment.reconfigure([]),
+      });
+    }
+    unsavedChangesActive = false;
+    unsavedChangesBaseline = undefined;
+    return;
+  }
+
+  if (!unsavedChangesActive) {
+    view.dispatch({
+      effects: unsavedChangesCompartment.reconfigure(
+        unsavedChangesExtension(nextBaseline),
+      ),
+    });
+    unsavedChangesActive = true;
+    unsavedChangesBaseline = nextBaseline;
+    return;
+  }
+
+  if (unsavedChangesBaseline !== nextBaseline) {
+    view.dispatch({
+      effects: updateUnsavedChangesBaseline(view.state, nextBaseline),
+    });
+    unsavedChangesBaseline = nextBaseline;
+  }
+}
+
 async function syncLanguage(nextLanguage: string | undefined): Promise<void> {
   const generation = ++languageGeneration;
   const extension = await loadCodeLanguage(nextLanguage);
@@ -354,6 +397,10 @@ async function syncLanguage(nextLanguage: string | undefined): Promise<void> {
 }
 
 onMount(() => {
+  const initialBaseline = editable ? originalText : undefined;
+  unsavedChangesActive = initialBaseline !== undefined;
+  unsavedChangesBaseline = initialBaseline;
+
   const state = EditorState.create({
     doc: text,
     extensions: [
@@ -361,6 +408,11 @@ onMount(() => {
       languageCompartment.of([]),
       wrapCompartment.of(wrap ? EditorView.lineWrapping : []),
       targetCompartment.of([]),
+      unsavedChangesCompartment.of(
+        initialBaseline === undefined
+          ? []
+          : unsavedChangesExtension(initialBaseline),
+      ),
       Prec.highest(
         keymap.of([
           {
@@ -441,6 +493,7 @@ onMount(() => {
   view = new EditorView({ state, parent: host });
   syncDocument();
   syncConfiguration();
+  syncUnsavedChanges();
   void syncLanguage(language);
 
   const localTarget = localLineNumber(targetLine, lineStart, state.doc.lines);
@@ -469,6 +522,12 @@ $effect(() => {
   void highlightSelectionMatches;
   void editable;
   syncConfiguration();
+});
+
+$effect(() => {
+  void editable;
+  void originalText;
+  syncUnsavedChanges();
 });
 
 $effect(() => {

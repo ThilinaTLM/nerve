@@ -61,6 +61,9 @@ const showMermaidPreview = $derived(
         {onToggleSelectionMatches}
         {onToggleWrap}
         editable={Boolean(file.editable && !file.truncated)}
+        originalText={file.editable && !file.truncated
+          ? (file.text ?? "")
+          : undefined}
         {onChange}
         {onSave}
       />
