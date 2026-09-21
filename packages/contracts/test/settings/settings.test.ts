@@ -161,6 +161,12 @@ describe("settings schema", () => {
           model: { provider: "google", modelId: "gemini-2.5-flash" },
           thinkingLevel: "high",
         },
+        imageGeneration: {
+          model: "gpt-image-2.5-sunburst",
+          quality: "max",
+          size: "2048x2048",
+          background: "transparent",
+        },
       },
       providers: {
         atlassianProfiles: [
@@ -264,6 +270,26 @@ describe("settings schema", () => {
       model: { provider: "google", modelId: "gemini-2.5-flash" },
       thinkingLevel: "high",
     });
+    assert.deepEqual(parsed.tools?.imageGeneration, {
+      model: "gpt-image-2.5-sunburst",
+      quality: "max",
+      size: "2048x2048",
+      background: "transparent",
+    });
+    for (const imageGeneration of [
+      { model: "gpt-image-latest" },
+      { model: "gpt-image-2" },
+      { quality: "ultra" },
+      { size: "1000x1000" },
+      { background: "green" },
+    ]) {
+      assert.equal(
+        updateSettingsRequestSchema.safeParse({
+          tools: { imageGeneration },
+        }).success,
+        false,
+      );
+    }
     const cleared = updateSettingsRequestSchema.parse({
       runtime: { pythonExecutablePath: null, shellPath: null },
       tools: {

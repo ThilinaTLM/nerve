@@ -12,6 +12,8 @@ import { allToolDescriptors, toolRiskForName } from "@nervekit/tools/catalog";
 import {
   type ExplainImageRequest,
   type ExplainImageResponse,
+  type GptImageGenerateRequest,
+  type GptImageGenerateResponse,
 } from "@nervekit/tools/execution";
 import { type PermissionRootPaths } from "@nervekit/tools/policy";
 import { type AgentRecord } from "@nervekit/contracts/agents";
@@ -238,6 +240,9 @@ export interface ToolServiceDependencies {
   readonly explainImage: (
     request: ExplainImageRequest,
   ) => Promise<ExplainImageResponse>;
+  readonly generateGptImage: (
+    request: GptImageGenerateRequest,
+  ) => Promise<GptImageGenerateResponse>;
   readonly plans: PlanService;
   readonly setAgentMode: (
     agentId: string,
@@ -287,6 +292,7 @@ export class ToolService {
       runExplore: this.dependencies.runExplore,
       getApiKey: this.dependencies.getApiKey,
       explainImage: this.dependencies.explainImage,
+      generateGptImage: this.dependencies.generateGptImage,
       plans: this.dependencies.plans,
       setAgentMode: this.dependencies.setAgentMode,
       conversationRuntime: this.dependencies.conversationRuntime,

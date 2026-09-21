@@ -146,6 +146,60 @@ const imageExplanationToolSettingsSchema = z.object({
   thinkingLevel: thinkingLevelSchema,
 });
 
+export const gptImageModelSchema = z.enum([
+  "gpt-image-2.5-flare",
+  "gpt-image-2.5-sunburst",
+]);
+export type GptImageModel = z.infer<typeof gptImageModelSchema>;
+export const gptImageQualitySchema = z.enum([
+  "auto",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+]);
+export type GptImageQuality = z.infer<typeof gptImageQualitySchema>;
+export const gptImageBackgroundSchema = z.enum([
+  "auto",
+  "opaque",
+  "transparent",
+]);
+export type GptImageBackground = z.infer<typeof gptImageBackgroundSchema>;
+const customGptImageSizeSchema = z
+  .string()
+  .regex(/^\d+x\d+$/)
+  .refine((value) => {
+    const [width, height] = value.split("x").map(Number);
+    if (!width || !height || width % 16 !== 0 || height % 16 !== 0) {
+      return false;
+    }
+    const longEdge = Math.max(width, height);
+    const shortEdge = Math.min(width, height);
+    const pixels = width * height;
+    return (
+      longEdge <= 3840 &&
+      longEdge / shortEdge <= 3 &&
+      pixels >= 655_360 &&
+      pixels <= 8_294_400
+    );
+  });
+export const gptImageSizeSchema = z.union([
+  z.literal("auto"),
+  customGptImageSizeSchema,
+]);
+export type GptImageSize = z.infer<typeof gptImageSizeSchema>;
+
+export const imageGenerationToolSettingsSchema = z.object({
+  model: gptImageModelSchema,
+  quality: gptImageQualitySchema,
+  size: gptImageSizeSchema,
+  background: gptImageBackgroundSchema,
+});
+export type ImageGenerationToolSettings = z.infer<
+  typeof imageGenerationToolSettingsSchema
+>;
+
 const toolSettingsSchema = z.object({
   disabled: z.array(userConfigurableToolNameSchema),
   bash: bashToolSettingsSchema,
@@ -153,6 +207,12 @@ const toolSettingsSchema = z.object({
   confluence: confluenceToolSettingsSchema,
   web: webToolSettingsSchema,
   imageExplanation: imageExplanationToolSettingsSchema,
+  imageGeneration: imageGenerationToolSettingsSchema.default({
+    model: "gpt-image-2.5-flare",
+    quality: "auto",
+    size: "auto",
+    background: "auto",
+  }),
 });
 
 export const compactionProfileSchema = z.enum([
@@ -336,12 +396,18 @@ export const defaultSettings: Settings = {
   permissions: { exceptions: [] },
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
-    disabled: ["explain_image"],
+    disabled: ["explain_image", "gpt_image"],
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
     web: {},
     imageExplanation: { thinkingLevel: "off" },
+    imageGeneration: {
+      model: "gpt-image-2.5-flare",
+      quality: "auto",
+      size: "auto",
+      background: "auto",
+    },
   },
   skills: {
     disabled: [],
@@ -496,6 +562,14 @@ export const updateSettingsRequestSchema = z.object({
         .object({
           model: modelSelectionSchema.nullable().optional(),
           thinkingLevel: thinkingLevelSchema.optional(),
+        })
+        .optional(),
+      imageGeneration: z
+        .object({
+          model: gptImageModelSchema.optional(),
+          quality: gptImageQualitySchema.optional(),
+          size: gptImageSizeSchema.optional(),
+          background: gptImageBackgroundSchema.optional(),
         })
         .optional(),
     })

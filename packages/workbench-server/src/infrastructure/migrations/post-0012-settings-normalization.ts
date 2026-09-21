@@ -70,6 +70,34 @@ function migrateImageExplanationTool(value: unknown): {
   };
 }
 
+function migrateImageGenerationTool(value: unknown): {
+  value: unknown;
+  changed: boolean;
+} {
+  const settings = objectRecord(value);
+  const tools = objectRecord(settings?.tools);
+  if (!settings || !tools || "imageGeneration" in tools) {
+    return { value, changed: false };
+  }
+  const disabled = Array.isArray(tools.disabled) ? tools.disabled : [];
+  return {
+    value: {
+      ...settings,
+      tools: {
+        ...tools,
+        disabled: [...new Set([...disabled, "gpt_image"])],
+        imageGeneration: {
+          model: "gpt-image-2.5-flare",
+          quality: "auto",
+          size: "auto",
+          background: "auto",
+        },
+      },
+    },
+    changed: true,
+  };
+}
+
 const removedNotificationToneIds = new Set([
   "kenney-click-1",
   "kenney-click-2",
@@ -157,6 +185,7 @@ export function normalizeSettings(value: unknown): {
     migrateLegacyToolNames,
     migrateLegacyPermissionSettings,
     migrateImageExplanationTool,
+    migrateImageGenerationTool,
     migrateRemovedNotificationTones,
   ];
   let current = value;

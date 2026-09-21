@@ -26,7 +26,7 @@ Model availability depends on authentication and provider metadata. Changes to d
 
 ## Suggestions, tools, and skills
 
-**Suggestions** manages reusable prompt chips and their trust settings. **Tools** has separate **Built-in** and **Integrations** sections. Built-in controls include tool enablement, background-task behavior, Python runtime settings, and image explanation. Integration cards appear only when the corresponding module is available and can manage enablement and credentials.
+**Suggestions** manages reusable prompt chips and their trust settings. **Tools** has separate **Core** and **Third party** sections. Controls include tool enablement, background-task behavior, Python runtime settings, image explanation, and GPT Image generation. GPT Image settings choose the subscription model, quality, size, and background mode; agents receive only a prompt argument. Integration cards appear only when the corresponding module is available and can manage enablement and credentials.
 
 **Skills** lists user, project, Built-in Nerve, and Agent Browser resources. Built-in Nerve and Agent Browser skills are disabled by default; enabling one adds it to subsequent agent runs without modifying its source. User defaults can be refined by trusted project overrides.
 

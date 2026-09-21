@@ -48,6 +48,8 @@ export function hasFormattedToolView(
       return Boolean(view.answer || view.results.length);
     case "web_fetch":
       return Boolean(view.content?.length);
+    case "gpt_image":
+      return view.images.length > 0;
     case "explain_image":
       return Boolean(
         view.explanation?.length ||

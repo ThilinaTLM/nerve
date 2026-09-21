@@ -26,20 +26,21 @@ const validActionArguments: Record<string, Record<string, unknown>> = {
 const flattenedActionTools = new Set(Object.keys(validActionArguments));
 
 describe("model-facing tool schema compatibility", () => {
-  it("declares a reviewed agent-result policy for all 50 active tools", () => {
-    assert.equal(allToolDefinitions.length, 50);
+  it("declares a reviewed agent-result policy for all 51 active tools", () => {
+    assert.equal(allToolDefinitions.length, 51);
     assert.deepEqual(
       allToolDefinitions.filter((definition) => !definition.agentResult),
       [],
     );
     assert.equal(
       new Set(allToolDefinitions.map((definition) => definition.name)).size,
-      50,
+      51,
     );
 
     it("locks the simplified model-facing property sets and schema budget", () => {
       const expectedProperties: Record<string, string[]> = {
         edit: ["path", "edits"],
+        gpt_image: ["prompt"],
         jira_search_users: [
           "query",
           "project_key",
@@ -136,7 +137,7 @@ describe("model-facing tool schema compatibility", () => {
         `edit schema is ${editSchemaSize} chars`,
       );
       assert.ok(
-        catalogSchemaSize <= 31_000,
+        catalogSchemaSize <= 32_500,
         `catalog schemas total ${catalogSchemaSize} chars`,
       );
     });

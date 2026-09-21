@@ -1,7 +1,7 @@
 import type { ToolName } from "@nervekit/contracts/tools";
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { describe, it } from "node:test";
 import { HTML_CONVERSION_MAX_INPUT_BYTES } from "../../src/execution/atlassian/isolated-html-to-markdown.js";
@@ -244,6 +244,40 @@ describe("executeTool dispatch", () => {
     assert.equal(
       JSON.stringify(result).includes(image.toString("base64")),
       false,
+    );
+  });
+
+  it("generates GPT images through the host callback and stores artifacts", async () => {
+    const project = await createTempProject();
+    const artifactDir = `${project.root}/artifacts`;
+    const image = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
+    ]);
+    const result = await executeTool(
+      "gpt_image",
+      { prompt: "A coral nerve cell" },
+      {
+        cwd: project.root,
+        artifactDir,
+        generateGptImage: async (request) => {
+          assert.equal(request.prompt, "A coral nerve cell");
+          return {
+            model: "gpt-image-2.5-sunburst",
+            images: [{ data: image }],
+          };
+        },
+      },
+    );
+    assert.equal(result.contentBlocks?.[1]?.type, "image");
+    const details = result.details as {
+      images: Array<{ path: string }>;
+      outputLimits: { artifacts: Array<{ path: string }> };
+    };
+    assert.equal(details.images[0]?.path, `${artifactDir}/generated-1.png`);
+    assert.deepEqual(await readFile(details.images[0]!.path), image);
+    assert.equal(
+      details.outputLimits.artifacts[0]?.path,
+      details.images[0]?.path,
     );
   });
 

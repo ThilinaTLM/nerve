@@ -1,5 +1,6 @@
 import { Type } from "typebox";
 import { executeExplainImage } from "../../../execution/vision/explain-image.js";
+import { executeGptImage } from "../../../execution/vision/gpt-image.js";
 import type { ToolDefinition } from "../../contracts.js";
 
 const explainImageParameters = Type.Object(
@@ -19,6 +20,17 @@ const explainImageParameters = Type.Object(
   { additionalProperties: false },
 );
 
+const gptImageParameters = Type.Object(
+  {
+    prompt: Type.String({
+      description: "Describe the image to generate",
+      minLength: 1,
+      maxLength: 32_000,
+    }),
+  },
+  { additionalProperties: false },
+);
+
 export const visionToolDefinitions = [
   {
     name: "explain_image",
@@ -31,6 +43,19 @@ export const visionToolDefinitions = [
     description:
       "Ask the vision model configured in Nerve Settings to explain an image as detailed text.",
     parameters: explainImageParameters,
+    executionMode: "sequential",
+  },
+  {
+    name: "gpt_image",
+    group: "vision",
+    baseRisk: "network",
+    traits: ["credentialed"],
+    executionKind: "local",
+    executor: executeGptImage,
+    label: "GPT Image",
+    description:
+      "Generate an image from a text prompt using the GPT Image model and output settings configured by the user.",
+    parameters: gptImageParameters,
     executionMode: "sequential",
   },
 ] satisfies ToolDefinition[];

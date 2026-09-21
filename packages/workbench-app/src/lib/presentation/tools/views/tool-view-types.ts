@@ -162,6 +162,16 @@ export type ToolView =
       outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | {
+      kind: "gpt_image";
+      prompt?: string;
+      model?: string;
+      images: Array<{
+        dataUrl: string;
+        mimeType: string;
+        path?: string;
+      }>;
+    }
+  | {
       kind: "bash";
       command?: string;
       exitCode?: number;

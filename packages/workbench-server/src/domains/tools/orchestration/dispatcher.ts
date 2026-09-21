@@ -4,6 +4,8 @@ import {
   resolveCommandCwd,
   type ExplainImageRequest,
   type ExplainImageResponse,
+  type GptImageGenerateRequest,
+  type GptImageGenerateResponse,
   type ToolExecutionContext,
   type ToolExecutionOutputUpdate,
   type ToolExecutionResult,
@@ -93,6 +95,9 @@ export interface OrchestrationToolDispatcherDeps {
   runExplore: ExploreRunner;
   getApiKey(provider: string): Promise<string | undefined>;
   explainImage(request: ExplainImageRequest): Promise<ExplainImageResponse>;
+  generateGptImage(
+    request: GptImageGenerateRequest,
+  ): Promise<GptImageGenerateResponse>;
   plans: PlanService;
   setAgentMode(
     agentId: string,
@@ -313,6 +318,7 @@ export class OrchestrationToolDispatcher {
           : undefined;
       },
       explainImage: this.deps.explainImage,
+      generateGptImage: this.deps.generateGptImage,
       getProviderConfig: async (provider) =>
         integrationProviderConfig(this.deps.storage.settings, provider),
       onUpdate: (update) =>

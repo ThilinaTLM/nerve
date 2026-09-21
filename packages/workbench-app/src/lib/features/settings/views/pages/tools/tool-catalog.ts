@@ -14,6 +14,7 @@ export type ToolGroupId =
   | "explore"
   | "web"
   | "vision"
+  | "gpt-image"
   | "tasks"
   | "shell"
   | "python";
@@ -33,6 +34,7 @@ export const configurableToolOrder: ConfigurableToolName[] = [
   "web_search",
   "web_fetch",
   "explain_image",
+  "gpt_image",
   "python_exec",
 ];
 
@@ -175,6 +177,21 @@ export const toolGroups: ToolGroupDef[] = [
       {
         name: "web_fetch",
         description: "Fetch a URL and convert HTML to readable markdown.",
+      },
+    ],
+  },
+  {
+    id: "gpt-image",
+    category: "third-party",
+    label: "GPT Image",
+    description:
+      "Generate images through the connected OpenAI Codex subscription.",
+    configurableTools: ["gpt_image"],
+    tools: [
+      {
+        name: "gpt_image",
+        description:
+          "Generate one image from a text prompt using user-configured settings.",
       },
     ],
   },

@@ -8,6 +8,7 @@ import ExplainImageToolView from "../tool-call/ExplainImageToolView.svelte";
 import FindToolView from "../tool-call/FindToolView.svelte";
 import GenericToolView from "../tool-call/GenericToolView.svelte";
 import GrepToolView from "../tool-call/GrepToolView.svelte";
+import GptImageToolView from "../tool-call/GptImageToolView.svelte";
 import JiraToolView from "../tool-call/JiraToolView.svelte";
 import LsToolView from "../tool-call/LsToolView.svelte";
 import PlanModeToolView from "../tool-call/PlanModeToolView.svelte";
@@ -46,6 +47,7 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   web_search: WebSearchToolView,
   web_fetch: WebFetchToolView,
   explain_image: ExplainImageToolView,
+  gpt_image: GptImageToolView,
   generic: GenericToolView,
 };
 

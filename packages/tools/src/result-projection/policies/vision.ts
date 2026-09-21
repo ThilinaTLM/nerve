@@ -5,3 +5,8 @@ export const explainImageAgentResultPolicy = policy(
   "head",
   textCandidate,
 );
+export const gptImageAgentResultPolicy = policy(
+  "vision_explanation",
+  "head",
+  textCandidate,
+);

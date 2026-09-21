@@ -257,6 +257,29 @@ export function parseToolView(
       };
     }
 
+    case "gpt_image": {
+      const details = asRecord(result?.details);
+      const imageDetails = arrayField(details.images).map(asRecord);
+      const imageBlocks =
+        result?.contentBlocks?.filter((block) => block.type === "image") ?? [];
+      return {
+        kind: "gpt_image",
+        prompt: stringField(args.prompt),
+        model: stringField(details.model) ?? stringField(args.model),
+        images: imageBlocks.flatMap((block, index) =>
+          block.type === "image"
+            ? [
+                {
+                  dataUrl: imageDataUrl(block.mimeType, block.data),
+                  mimeType: block.mimeType,
+                  path: stringField(imageDetails[index]?.path),
+                },
+              ]
+            : [],
+        ),
+      };
+    }
+
     case "bash": {
       const command = stringField(args.command);
       const details = bashResultDetailsSchema.safeParse(result?.details);

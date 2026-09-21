@@ -19,6 +19,7 @@ import type { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/ag
 import { SubagentTranscriptService } from "../../domains/agents/subagent-transcript.service.js";
 import { SubagentTranscriptLiveService } from "../../domains/agents/subagent-transcript-live.service.js";
 import type { AuthManager } from "../../domains/auth/index.js";
+import { generateImageWithChatGptSubscription } from "../../domains/image-generation/gpt-image.service.js";
 import { WorkbenchExploreAdmission } from "../../domains/agents/execution/workbench-explore-admission.js";
 import { WorkbenchSubagentExecutions } from "../../domains/agents/execution/workbench-subagent-executions.js";
 import { CapabilityService } from "../../domains/capabilities/capability.service.js";
@@ -528,6 +529,14 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         },
       });
       return { explanation, model: selection };
+    },
+    generateGptImage: async (request) => {
+      subscriptionUsage.touchProvider("openai-codex");
+      return generateImageWithChatGptSubscription(
+        auth,
+        request,
+        storage.settings.tools.imageGeneration,
+      );
     },
     plans,
     setAgentMode: (agentId, mode, reason) =>

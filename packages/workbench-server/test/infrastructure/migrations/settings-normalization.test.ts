@@ -19,6 +19,27 @@ describe("settings normalization", () => {
     }
   });
 
+  it("adds disabled GPT Image defaults to existing tool settings", () => {
+    const legacy = structuredClone(defaultSettings) as unknown as {
+      tools: Record<string, unknown> & { disabled: string[] };
+    };
+    delete legacy.tools.imageGeneration;
+    legacy.tools.disabled = legacy.tools.disabled.filter(
+      (name) => name !== "gpt_image",
+    );
+
+    const { settings, changed } = normalizeSettings(legacy);
+
+    assert.equal(changed, true);
+    assert.equal(settings.tools.disabled.includes("gpt_image"), true);
+    assert.deepEqual(settings.tools.imageGeneration, {
+      model: "gpt-image-2.5-flare",
+      quality: "auto",
+      size: "auto",
+      background: "auto",
+    });
+  });
+
   it("leaves a supported theme untouched", () => {
     const { settings } = normalizeSettings({
       ...defaultSettings,

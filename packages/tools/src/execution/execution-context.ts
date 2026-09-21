@@ -27,6 +27,16 @@ export type ExplainImageResponse = {
   model: { provider: string; modelId: string };
 };
 
+export type GptImageGenerateRequest = {
+  prompt: string;
+  signal?: AbortSignal;
+};
+
+export type GptImageGenerateResponse = {
+  model: string;
+  images: Array<{ data: Uint8Array; revisedPrompt?: string }>;
+};
+
 export interface BaseExecutionContext {
   cwd: string;
   signal?: AbortSignal;
@@ -54,6 +64,9 @@ export interface VisionExecutionContext extends BaseExecutionContext {
   explainImage?: (
     request: ExplainImageRequest,
   ) => Promise<ExplainImageResponse>;
+  generateGptImage?: (
+    request: GptImageGenerateRequest,
+  ) => Promise<GptImageGenerateResponse>;
 }
 export interface IntegrationExecutionContext extends BaseExecutionContext {
   artifactDir?: string;

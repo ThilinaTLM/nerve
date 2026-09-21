@@ -284,6 +284,9 @@ export async function writeSettings(
           : {}),
       }
     : undefined;
+  const imageGenerationPatch = patch.tools?.imageGeneration
+    ? { ...patch.tools.imageGeneration }
+    : undefined;
   const confluencePatch = patch.tools?.confluence
     ? {
         ...patch.tools.confluence,
@@ -325,6 +328,14 @@ export async function writeSettings(
               imageExplanation: {
                 ...storage.settings.tools.imageExplanation,
                 ...imageExplanationPatch,
+              },
+            }
+          : {}),
+        ...(imageGenerationPatch
+          ? {
+              imageGeneration: {
+                ...storage.settings.tools.imageGeneration,
+                ...imageGenerationPatch,
               },
             }
           : {}),

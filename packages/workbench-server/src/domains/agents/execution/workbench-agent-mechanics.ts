@@ -165,6 +165,8 @@ export class WorkbenchAgentMechanics {
         .requestAuthForPiModel(imageExplanationModel)
         .catch(() => undefined)),
     );
+    const gptImageAvailable =
+      (await this.deps.auth.getCredential("openai-codex"))?.type === "oauth";
     return activeToolNamesForAgent(agent, {
       pythonAvailable,
       disabledToolNames: (disabledToolNames ?? settings.tools.disabled).filter(
@@ -182,6 +184,7 @@ export class WorkbenchAgentMechanics {
         disabledToolNames,
       }),
       imageExplanationAvailable,
+      gptImageAvailable,
       primaryModelSupportsImages: (primaryModel.input ?? ["text"]).includes(
         "image",
       ),
