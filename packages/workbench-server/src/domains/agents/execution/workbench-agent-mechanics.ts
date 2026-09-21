@@ -46,6 +46,7 @@ import type { PlanService } from "../../plans/plan-service.js";
 import type { WorkbenchTaskService } from "../../tasks/adapters/workbench-task-service.js";
 import type { CapabilityService } from "../../capabilities/capability.service.js";
 import { activeToolNamesForAgent } from "../../tools/orchestration/agent-tool-adapter.js";
+import { integrationToolEnabled } from "../../tools/orchestration/integration-tool-availability.js";
 import type {
   ExploreProgressUpdate,
   ToolService,
@@ -138,9 +139,6 @@ export class WorkbenchAgentMechanics {
     agent: AgentRecord,
     disabledToolNames?: readonly CapabilityToolName[],
   ): Promise<ToolName[]> {
-    const disabled = disabledToolNames
-      ? new Set<CapabilityToolName>(disabledToolNames)
-      : undefined;
     const pythonAvailable = await this.deps.pythonRuntime.isAvailableForProject(
       agent.projectDir,
     );
@@ -173,9 +171,16 @@ export class WorkbenchAgentMechanics {
         (name): name is UserConfigurableToolName =>
           name !== "jira" && name !== "confluence",
       ),
-      jiraEnabled: settings.tools.jira.enabled && !disabled?.has("jira"),
-      confluenceEnabled:
-        settings.tools.confluence.enabled && !disabled?.has("confluence"),
+      jiraEnabled: integrationToolEnabled({
+        name: "jira",
+        settings: settings.tools.jira,
+        disabledToolNames,
+      }),
+      confluenceEnabled: integrationToolEnabled({
+        name: "confluence",
+        settings: settings.tools.confluence,
+        disabledToolNames,
+      }),
       imageExplanationAvailable,
       primaryModelSupportsImages: (primaryModel.input ?? ["text"]).includes(
         "image",
