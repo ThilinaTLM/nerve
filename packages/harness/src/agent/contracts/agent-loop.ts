@@ -56,7 +56,7 @@ export interface AfterToolCallContext {
   /** Validated tool arguments for the target tool schema. */
   args: unknown;
   /** The executed tool result before any `afterToolCall` overrides are applied. */
-  result: AgentToolResult<unknown>;
+  result: AgentToolResult;
   /** Whether the executed tool result is currently treated as an error. */
   isError: boolean;
   /** Current agent context at the time the tool call is finalized. */

@@ -6,6 +6,7 @@ import type {
   Model,
   SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
+import { normalizeContext } from "@earendil-works/pi-ai/utils/transcript";
 import { ensureProviderForModel, getModelRegistry } from "./model-registry.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -47,7 +48,11 @@ export function streamSimpleWithModel(
   const streamOptions = withNerveSimpleStreamDefaults(model, options);
   const provider = models.getProvider(model.provider);
   if (options?.apiKey !== undefined && provider && !provider.auth.apiKey) {
-    return provider.streamSimple(model, context, streamOptions);
+    return provider.streamSimple(
+      model,
+      normalizeContext(context),
+      streamOptions,
+    );
   }
   return models.streamSimple(model, context, streamOptions);
 }

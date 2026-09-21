@@ -1,5 +1,7 @@
 import {
   type AssistantMessage,
+  type JsonObject,
+  type JsonValue,
   type ToolResultMessage,
   validateToolArguments,
 } from "@earendil-works/pi-ai";
@@ -227,18 +229,18 @@ type PreparedToolCall = {
 
 type ImmediateToolCallOutcome = {
   kind: "immediate";
-  result: AgentToolResult<unknown>;
+  result: AgentToolResult<JsonValue>;
   isError: boolean;
 };
 
 type ExecutedToolCallOutcome = {
-  result: AgentToolResult<unknown>;
+  result: AgentToolResult<JsonValue>;
   isError: boolean;
 };
 
 type FinalizedToolCallOutcome = {
   toolCall: AgentToolCall;
-  result: AgentToolResult<unknown>;
+  result: AgentToolResult<JsonValue>;
   isError: boolean;
 };
 
@@ -291,7 +293,7 @@ function prepareToolCallArguments(
   }
   return {
     ...toolCall,
-    arguments: preparedArguments as Record<string, unknown>,
+    arguments: preparedArguments as JsonObject,
   };
 }
 
@@ -459,7 +461,7 @@ async function finalizeExecutedToolCall(
   };
 }
 
-function createErrorToolResult(message: string): AgentToolResult<unknown> {
+function createErrorToolResult(message: string): AgentToolResult<JsonValue> {
   return {
     content: [{ type: "text", text: message }],
     details: {},
