@@ -137,7 +137,7 @@ animation-delay: calc(var(--splash-t0, 0ms) + 1285ms);
 animation-delay: calc(var(--splash-t0, 0ms) + 1330ms);
 }
 #startup-splash-status {
-width: 16rem;
+width: min(21rem, calc(100vw - 3rem));
 margin: 1.25rem 0 0;
 overflow: hidden;
 color: var(--splash-muted);
@@ -148,8 +148,13 @@ text-overflow: ellipsis;
 animation: splash-fade 420ms ease-out both;
 animation-delay: calc(var(--splash-t0, 0ms) + 300ms);
 }
+/* Each status change re-adds this class so the copy swaps with a short lift
+instead of snapping between sentences. */
+#startup-splash-status.is-swapping {
+animation: splash-status-swap 200ms ease-out both;
+}
 #startup-splash-meter {
-width: 16rem;
+width: min(21rem, calc(100vw - 3rem));
 height: 0.25rem;
 margin-top: 0.5rem;
 overflow: hidden;
@@ -209,6 +214,12 @@ transform: translateY(0.5rem);
 @keyframes splash-fade {
 from {
 opacity: 0;
+}
+}
+@keyframes splash-status-swap {
+from {
+opacity: 0;
+transform: translateY(0.25rem);
 }
 }
 @keyframes splash-meter {

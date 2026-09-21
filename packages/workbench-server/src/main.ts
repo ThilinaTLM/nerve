@@ -18,6 +18,7 @@ import {
   shutdownServerRuntime,
   toDaemonFile,
 } from "./app/runtime/server-runtime.js";
+import { RUNTIME_BOOTSTRAP_STAGE_MESSAGES } from "./app/bootstrap/hydrate-runtime.js";
 import { createApp } from "./app/server.js";
 import {
   type DaemonLeaseMonitor,
@@ -229,16 +230,18 @@ async function main() {
   reportStartupProgress({
     type: "nerve.startup.progress",
     phase: "runtime-hydration",
-    message: "Hydrating runtime projections",
+    message: "Starting runtime services",
   });
   const [registryTimings] = await Promise.all([
-    state.lifecycle.hydrate((stage) =>
+    state.lifecycle.hydrate((stage) => {
+      const message = RUNTIME_BOOTSTRAP_STAGE_MESSAGES[stage];
+      if (!message) return;
       reportStartupProgress({
         type: "nerve.startup.progress",
         phase: "runtime-hydration",
-        message: `Runtime bootstrap: ${stage}`,
-      }),
-    ),
+        message,
+      });
+    }),
     state.maintenance.hydrate(),
   ]);
   await state.logger.info("Registry hydrated", {

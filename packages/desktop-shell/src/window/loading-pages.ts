@@ -64,17 +64,26 @@ ${startupSplashMarkup(status)}
 }
 
 export function loadingStatusScript(statusText: string): string {
-  const serialized = JSON.stringify(statusText);
   return `(() => {
     const status = document.getElementById("startup-splash-status");
     if (!status) return false;
-    status.textContent = ${serialized};
+    ${swapStatusText(statusText)}
     return true;
   })()`;
 }
 
+/**
+ * Replaces the splash status copy and restarts the swap animation, so each new
+ * sentence lifts into place instead of snapping over the previous one.
+ */
+function swapStatusText(statusText: string): string {
+  return `status.classList.remove("is-swapping");
+    void status.offsetWidth;
+    status.textContent = ${JSON.stringify(statusText)};
+    status.classList.add("is-swapping");`;
+}
+
 export function loadingStageScript(stage: LoadingStage): string {
-  const statusText = JSON.stringify(LOADING_STAGES[stage]);
   const completion =
     stage === "opening"
       ? `\n    document.getElementById("startup-splash")?.classList.add("is-complete");`
@@ -83,7 +92,7 @@ export function loadingStageScript(stage: LoadingStage): string {
   return `(() => {
     const status = document.getElementById("startup-splash-status");
     if (!status) return false;
-    status.textContent = ${statusText};${completion}
+    ${swapStatusText(LOADING_STAGES[stage])}${completion}
     return true;
   })()`;
 }

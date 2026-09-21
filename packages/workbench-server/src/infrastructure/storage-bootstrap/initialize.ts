@@ -92,7 +92,7 @@ export async function initializeStorage(
   options.reportStartupProgress?.({
     type: "nerve.startup.progress",
     phase: "storage-check",
-    message: "Checking Nerve home storage",
+    message: "Checking local storage",
   });
 
   const startupLock = await acquireStorageStartupLock(home);
@@ -143,7 +143,7 @@ export async function initializeStorage(
       options.reportStartupProgress?.({
         type: "nerve.startup.progress",
         phase: "storage-migration",
-        message: `Upgrading Nerve storage schema from v${schemaInspection.version}`,
+        message: "Updating storage format",
       });
     }
     const dataMigrationStartedAt = performance.now();
@@ -154,7 +154,7 @@ export async function initializeStorage(
             options.reportStartupProgress?.({
               type: "nerve.startup.progress",
               phase: "storage-migration",
-              message: "Upgrading tool-result payload references",
+              message: "Updating stored tool results",
             }),
         });
     const dataMigrationMs = Math.round(
