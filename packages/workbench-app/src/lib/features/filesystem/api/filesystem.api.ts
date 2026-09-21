@@ -62,11 +62,6 @@ export async function clearProjectMonitor(projectId: string) {
   ).result;
 }
 
-export async function requestProjectRefresh(projectId: string) {
-  return (await protocolRequest("filesystem.project.refresh", { projectId }))
-    .result;
-}
-
 export async function createProjectEntry(
   request: FilesystemProjectEntryCreateRequest,
 ): Promise<FilesystemProjectEntryCreateResponse> {

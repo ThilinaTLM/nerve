@@ -1,18 +1,10 @@
-import { RefreshCoordinator } from "$lib/application/refresh/refresh-coordinator";
-import { SvelteSet } from "svelte/reactivity";
-import {
-  clearProjectMonitor,
-  requestProjectRefresh,
-  syncProjectMonitor,
-} from "../api/filesystem.api";
+import { clearProjectMonitor, syncProjectMonitor } from "../api/filesystem.api";
 import {
   ensureFileExplorerRoot,
   monitoredFileExplorerDirectories,
 } from "./file-explorer-actions.svelte";
-import {
-  registerFileExplorerEventHandler,
-  type FileExplorerChange,
-} from "./file-explorer-events";
+import { registerFileExplorerEventHandler } from "./file-explorer-events";
+import { createFilePanelRefreshQueue } from "./file-panel-refresh-queue";
 import { startFileExplorerRefreshScheduler } from "./file-explorer-refresh-scheduler";
 
 export interface FilePanelControllerOptions {
@@ -27,47 +19,18 @@ export interface FilePanelController {
   stop(): void;
 }
 
-type RefreshDemand = FileExplorerChange;
-
 /** Owns monitor demand and refresh sequencing for the visible files panel. */
 export function startFilePanelController({
   projectId,
   refresh,
   initialize,
 }: FilePanelControllerOptions): FilePanelController {
-  let latestGeneration = -1;
   let stopped = false;
-  const coordinator = new RefreshCoordinator<RefreshDemand>({
-    merge: (current, next) => ({
-      generation: Math.max(current?.generation ?? -1, next.generation),
-      fullRefreshRequired:
-        (current?.fullRefreshRequired ?? false) || next.fullRefreshRequired,
-      directories: [
-        ...new SvelteSet([
-          ...(current?.directories ?? []),
-          ...next.directories,
-        ]),
-      ],
-    }),
-    execute: async (demand) => {
-      if (demand.generation <= latestGeneration) return;
-      latestGeneration = demand.generation;
-      await refresh(
-        demand.fullRefreshRequired ? undefined : demand.directories,
-      );
-    },
-  });
+  const queue = createFilePanelRefreshQueue(refresh);
 
-  const accept = (change: RefreshDemand): Promise<void> =>
-    coordinator.request(change);
   const requestRefresh = async (): Promise<void> => {
     if (stopped) return;
-    const result = await requestProjectRefresh(projectId);
-    await accept({
-      generation: result.generation,
-      directories: [],
-      fullRefreshRequired: true,
-    });
+    await queue.requestFullRefresh();
   };
 
   void Promise.resolve(
@@ -87,7 +50,7 @@ export function startFilePanelController({
   const unregisterEvents = registerFileExplorerEventHandler(
     projectId,
     (change) => {
-      void accept(change);
+      void queue.accept(change);
     },
   );
 
@@ -106,7 +69,7 @@ export function startFilePanelController({
       stopped = true;
       unregisterEvents();
       scheduler.stop();
-      coordinator.stop();
+      queue.stop();
       void clearProjectMonitor(projectId);
     },
   };
