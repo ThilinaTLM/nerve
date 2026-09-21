@@ -130,7 +130,7 @@ export function activeToolNamesForAgent(
 export function toolCallResultForModel(
   toolCall: ToolCallRecord,
   completePayload?: ValidatedToolArtifact | string,
-): AgentToolResult<unknown> {
+): AgentToolResult<{ toolCall: { id: string } }> {
   // Bare paths from historical callers are deliberately ignored: only a
   // host-issued descriptor can advertise recoverability.
   const trustedPayload =

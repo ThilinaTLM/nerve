@@ -1,3 +1,4 @@
+import type { JsonValue } from "@earendil-works/pi-ai";
 import type { Static, TObject } from "typebox";
 import type {
   AgentTool,
@@ -21,13 +22,13 @@ export type AgentToolHostExecute = (
   params: Record<string, unknown>,
   signal?: AbortSignal,
   onUpdate?: AgentToolUpdateCallback,
-) => Promise<AgentToolResult<unknown>>;
+) => Promise<AgentToolResult<JsonValue>>;
 
 export type AgentToolAdapterOptions = {
   onOutputUpdate?: (
     toolName: string,
     sourceToolCallId: string,
-    update: AgentToolResult<unknown>,
+    update: AgentToolResult<JsonValue>,
   ) => void;
 };
 

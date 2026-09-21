@@ -1,6 +1,7 @@
 import type {
   AssistantMessage,
   ImageContent,
+  JsonValue,
   TextContent,
   ToolResultMessage,
 } from "@earendil-works/pi-ai";
@@ -128,7 +129,7 @@ export interface ToolResultEvent {
   toolName: string;
   input: Record<string, unknown>;
   content: Array<TextContent | ImageContent>;
-  details: unknown;
+  details: JsonValue;
   isError: boolean;
 }
 
@@ -246,7 +247,7 @@ export interface ToolCallResult {
 
 export interface ToolResultPatch {
   content?: Array<TextContent | ImageContent>;
-  details?: unknown;
+  details?: JsonValue;
   isError?: boolean;
   terminate?: boolean;
 }

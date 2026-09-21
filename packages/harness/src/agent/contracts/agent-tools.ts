@@ -3,6 +3,7 @@ import type {
   ImageContent,
   TextContent,
   Tool,
+  JsonValue,
 } from "@earendil-works/pi-ai";
 import type { Static, TObject } from "typebox";
 import type { ToolExecutionMode } from "./agent-common.js";
@@ -38,7 +39,7 @@ export interface BeforeToolCallResult {
  */
 export interface AfterToolCallResult {
   content?: (TextContent | ImageContent)[];
-  details?: unknown;
+  details?: JsonValue;
   isError?: boolean;
   /**
    * Hint that the agent should stop after the current tool batch.
@@ -48,10 +49,10 @@ export interface AfterToolCallResult {
 }
 
 /** Final or partial result produced by a tool. */
-export interface AgentToolResult<T> {
+export interface AgentToolResult<T extends JsonValue = JsonValue> {
   /** Text or image content returned to the model. */
   content: (TextContent | ImageContent)[];
-  /** Arbitrary structured details for logs or UI rendering. */
+  /** JSON-compatible structured details for logs or UI rendering. */
   details: T;
   /**
    * Hint that the agent should stop after the current tool batch.
@@ -61,14 +62,14 @@ export interface AgentToolResult<T> {
 }
 
 /** Callback used by tools to stream partial execution updates. */
-export type AgentToolUpdateCallback<T = unknown> = (
+export type AgentToolUpdateCallback<T extends JsonValue = JsonValue> = (
   partialResult: AgentToolResult<T>,
 ) => void;
 
 /** Tool definition used by the agent runtime. */
 export interface AgentTool<
   TParameters extends TObject = TObject,
-  TDetails = unknown,
+  TDetails extends JsonValue = JsonValue,
 > extends Tool<TParameters> {
   /** Human-readable label for UI display. */
   label: string;
