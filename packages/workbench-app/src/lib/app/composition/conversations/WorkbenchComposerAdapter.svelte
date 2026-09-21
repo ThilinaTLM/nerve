@@ -109,6 +109,20 @@ let capabilityLoading = $state(false);
 let capabilityError = $state<string>();
 let capabilityRequest = 0;
 
+function buildCapabilitySkillRows(
+  configuration: CapabilityConfiguration,
+): CapabilitySkillRow[] {
+  return composerSkillRows({
+    skills: availableSkills,
+    selection: configuration.effective,
+    project:
+      configuration.trust.status === "trusted"
+        ? configuration.project
+        : undefined,
+    conversation: configuration.conversation,
+  });
+}
+
 async function loadCapabilities(): Promise<void> {
   const projectId = activeProject?.id;
   const conversationId = activeConversation?.id;
@@ -140,12 +154,7 @@ async function loadCapabilities(): Promise<void> {
           }),
         }
       : base;
-    capabilitySkills = composerSkillRows({
-      skills: availableSkills,
-      selection: capabilityConfiguration.effective,
-      project: capabilityConfiguration.project,
-      conversation: capabilityConfiguration.conversation,
-    });
+    capabilitySkills = buildCapabilitySkillRows(capabilityConfiguration);
   } catch (error) {
     if (request === capabilityRequest)
       capabilityError = error instanceof Error ? error.message : String(error);
@@ -201,12 +210,7 @@ async function runCapabilityMutation(
   await capabilityMutations.run(async () => {
     try {
       capabilityConfiguration = await mutation();
-      capabilitySkills = composerSkillRows({
-        skills: availableSkills,
-        selection: capabilityConfiguration.effective,
-        project: capabilityConfiguration.project,
-        conversation: capabilityConfiguration.conversation,
-      });
+      capabilitySkills = buildCapabilitySkillRows(capabilityConfiguration);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await loadCapabilities();

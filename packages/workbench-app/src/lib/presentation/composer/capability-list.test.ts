@@ -2,9 +2,23 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   capabilityBodyHeight,
+  capabilityDecisionOrigin,
   filterCapabilityRows,
   showCapabilitySearch,
 } from "./capability-list";
+
+describe("capabilityDecisionOrigin", () => {
+  it("uses conversation, then project, then user precedence", () => {
+    assert.equal(capabilityDecisionOrigin(true, false), "conversation");
+    assert.equal(capabilityDecisionOrigin(undefined, true), "project");
+    assert.equal(capabilityDecisionOrigin(undefined, undefined), "user");
+  });
+
+  it("treats explicit false values as overrides", () => {
+    assert.equal(capabilityDecisionOrigin(false, true), "conversation");
+    assert.equal(capabilityDecisionOrigin(undefined, false), "project");
+  });
+});
 
 describe("showCapabilitySearch", () => {
   it("stays hidden while both tabs are short", () => {

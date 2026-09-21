@@ -20,6 +20,7 @@ import Popover, {
   PopoverSearch,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
@@ -28,8 +29,10 @@ import type { SkillSource } from "@nervekit/contracts/skills";
 import type { CapabilitySkillRow } from "./capability-skill-row";
 import {
   capabilityBodyHeight,
+  capabilityDecisionOrigin,
   filterCapabilityRows,
   showCapabilitySearch,
+  type CapabilityDecisionOrigin,
 } from "./capability-list";
 import { capabilityToolLabels } from "./capability-tool-labels";
 type Row = {
@@ -37,6 +40,7 @@ type Row = {
   label: string;
   enabled: boolean;
   overridden: boolean;
+  origin: CapabilityDecisionOrigin;
   detail: string;
   /** Marks the row's family when a list mixes more than one. */
   icon?: Component<{ class?: string; "aria-hidden"?: "true" }>;
@@ -57,6 +61,11 @@ const skillSourceItemLabels: Record<SkillSource, string> = {
   project: "Project skill",
   nerve: "Built-in Nerve skill",
   agentBrowser: "Agent Browser skill",
+};
+const decisionOriginLabels: Record<CapabilityDecisionOrigin, string> = {
+  conversation: "Conversation",
+  project: "Project",
+  user: "User",
 };
 
 type Props = {
@@ -134,19 +143,29 @@ const triggerTitle = $derived(
       : `Tools and skills: ${enabledTools} of ${tools.length} optional tools, ${enabledSkills} of ${skills.length} skills enabled${overrideCount > 0 ? " · conversation overrides" : ""}`,
 );
 
+const trustedProject = $derived(
+  configuration?.trust.status === "trusted" ? configuration.project : undefined,
+);
 const toolRows = $derived<Row[]>(
-  tools.map((name) => ({
-    key: name,
-    label: capabilityToolLabels[name],
-    enabled: toolEnabled(name),
-    overridden: conversation?.tools[name] !== undefined,
-    detail:
-      conversation?.tools[name] !== undefined
-        ? "Set for this conversation"
-        : "Inherited from project and user settings",
-    toggle: (enabled: boolean) => onPatch?.({ tools: { [name]: enabled } }),
-    reset: () => onPatch?.({ tools: { [name]: null } }),
-  })),
+  tools.map((name) => {
+    const origin = capabilityDecisionOrigin(
+      conversation?.tools[name],
+      trustedProject?.tools[name],
+    );
+    return {
+      key: name,
+      label: capabilityToolLabels[name],
+      enabled: toolEnabled(name),
+      overridden: origin === "conversation",
+      origin,
+      detail:
+        origin === "conversation"
+          ? "Set for this conversation"
+          : `Inherited from ${origin} settings`,
+      toggle: (enabled: boolean) => onPatch?.({ tools: { [name]: enabled } }),
+      reset: () => onPatch?.({ tools: { [name]: null } }),
+    };
+  }),
 );
 
 const skillRows = $derived<Row[]>(
@@ -155,6 +174,7 @@ const skillRows = $derived<Row[]>(
     label: skill.name,
     enabled: skill.enabled,
     overridden: skill.overridden,
+    origin: skill.overridden ? "conversation" : skill.inheritedFrom,
     icon: skillSourceIcons[skill.source],
     detail: `${skillSourceItemLabels[skill.source]} · ${
       skill.overridden
@@ -304,6 +324,13 @@ function openSettings(): void {
           <span class="min-w-0 flex-1 truncate" title={row.detail}>
             {row.label}
           </span>
+          {#if row.origin === "conversation"}
+            <Badge variant="neutral">Conversation</Badge>
+          {:else}
+            <span class="flex-none text-xs text-muted-foreground">
+              {decisionOriginLabels[row.origin]}
+            </span>
+          {/if}
           {#if row.overridden}
             <IconAction
               icon={RotateCcw}
@@ -327,8 +354,8 @@ function openSettings(): void {
   <PopoverFooter>
     <span class="px-1 text-muted-foreground">
       {overrideCount > 0
-        ? `${overrideCount} conversation override${overrideCount === 1 ? "" : "s"} · applies to the next run.`
-        : "Changes apply to the next run."}
+        ? `${overrideCount} conversation override${overrideCount === 1 ? "" : "s"} · next run. Reset to inherit.`
+        : "Switches override project and user settings for the next run."}
     </span>
   </PopoverFooter>
 </Popover>

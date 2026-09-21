@@ -4,6 +4,18 @@
  * filter field appears based on both counts, so switching tabs never resizes the
  * popover under the pointer. */
 
+export type CapabilityDecisionOrigin = "conversation" | "project" | "user";
+
+/** The highest-precedence scope with an explicit decision for one capability. */
+export function capabilityDecisionOrigin(
+  conversationValue: boolean | undefined,
+  projectValue: boolean | undefined,
+): CapabilityDecisionOrigin {
+  if (conversationValue !== undefined) return "conversation";
+  if (projectValue !== undefined) return "project";
+  return "user";
+}
+
 /** Above this many rows in either tab, the panel offers a filter field. */
 export const CAPABILITY_SEARCH_THRESHOLD = 8;
 /** Matches the row's `min-h-7`. */
