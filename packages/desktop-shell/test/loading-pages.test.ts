@@ -33,6 +33,17 @@ describe("loading status scripts", () => {
     );
   });
 
+  it("restarts the swap animation for every status change", () => {
+    for (const script of [
+      loadingStatusScript("Preparing"),
+      loadingStageScript("preparing"),
+    ]) {
+      assert.match(script, /classList\.remove\("is-swapping"\)/);
+      assert.match(script, /classList\.add\("is-swapping"\)/);
+      assert.match(script, /status\.textContent = "Prepar/);
+    }
+  });
+
   it("completes the meter only on the final stage", () => {
     assert.match(
       loadingStageScript("opening"),

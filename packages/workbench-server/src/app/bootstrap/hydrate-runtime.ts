@@ -25,6 +25,21 @@ export type RuntimeBootstrapStage =
   | "core-ready"
   | "failed";
 
+/**
+ * Startup splash copy for each bootstrap stage. These render on the single
+ * status line of the splash, so they stay short human sentences; stages without
+ * an entry (a failed bootstrap, which surfaces through the error page) report
+ * no progress at all.
+ */
+export const RUNTIME_BOOTSTRAP_STAGE_MESSAGES: Partial<
+  Record<RuntimeBootstrapStage, string>
+> = {
+  "recovering-conversation-deletions": "Cleaning up deleted conversations",
+  "recovering-durable-state": "Restoring your saved work",
+  "hydrating-read-models": "Indexing recent activity",
+  "core-ready": "Finishing startup",
+};
+
 export interface RuntimeHydrationTimings {
   stateDurationMs: number;
   indexDurationMs: number;
