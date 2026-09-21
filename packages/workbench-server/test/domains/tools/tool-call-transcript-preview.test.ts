@@ -77,6 +77,46 @@ function editToolCall(diff: string): ToolCallRecord {
 }
 
 describe("public transcript separation", () => {
+  it("keeps GPT Image file metadata while omitting inline image bytes", () => {
+    const imageData = "aW1hZ2UtYnl0ZXM=";
+    const preview = toToolCallTranscriptRecord({
+      ...explainImageToolCall("unused"),
+      toolName: "gpt_image",
+      risk: "network",
+      args: { prompt: "A coral nerve cell" },
+      result: {
+        content: "Generated 1 image with gpt-image-2.5-flare.",
+        contentBlocks: [
+          {
+            type: "text",
+            text: "Generated 1 image with gpt-image-2.5-flare.",
+          },
+          { type: "image", data: imageData, mimeType: "image/png" },
+        ],
+        details: {
+          model: "gpt-image-2.5-flare",
+          images: [
+            {
+              path: "/tmp/tool-call/files/generated-1.png",
+              mimeType: "image/png",
+              byteSize: 2048,
+            },
+          ],
+        },
+      },
+    });
+
+    assert.equal(JSON.stringify(preview).includes(imageData), false);
+    assert.equal(
+      (
+        preview.resultPreview as {
+          details: { images: Array<{ path: string }> };
+        }
+      ).details.images[0]?.path,
+      "/tmp/tool-call/files/generated-1.png",
+    );
+  });
+
   it("keeps producer artifact claims out of the public preview", () => {
     const base: ToolCallRecord = {
       ...explainImageToolCall("unused"),

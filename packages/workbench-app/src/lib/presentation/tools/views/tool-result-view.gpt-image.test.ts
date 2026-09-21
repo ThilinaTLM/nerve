@@ -37,6 +37,47 @@ describe("parseToolView gpt_image", () => {
         dataUrl: "data:image/png;base64,aW1hZ2U=",
         mimeType: "image/png",
         path: "/tmp/generated-1.png",
+        byteSize: 5,
+      },
+    ]);
+  });
+
+  it("keeps file details when transcript previews omit image bytes", () => {
+    const view = parseToolView(
+      toolCall(
+        "gpt_image",
+        { prompt: "A coral nerve cell" },
+        {
+          content: "Generated 1 image with gpt-image-2.5-flare.",
+          contentBlocks: [
+            {
+              type: "text",
+              text: "[Image omitted from transcript preview.]",
+            },
+          ],
+          details: {
+            model: "gpt-image-2.5-flare",
+            images: [
+              {
+                path: "/tmp/generated-1.png",
+                mimeType: "image/png",
+                byteSize: 2048,
+                revisedPrompt: "A detailed coral nerve cell",
+              },
+            ],
+          },
+        },
+      ),
+    );
+
+    assert.equal(view.kind, "gpt_image");
+    if (view.kind !== "gpt_image") return;
+    assert.deepEqual(view.images, [
+      {
+        mimeType: "image/png",
+        path: "/tmp/generated-1.png",
+        byteSize: 2048,
+        revisedPrompt: "A detailed coral nerve cell",
       },
     ]);
   });
