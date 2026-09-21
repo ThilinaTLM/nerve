@@ -164,14 +164,7 @@ export type ToolView =
   | {
       kind: "gpt_image";
       prompt?: string;
-      model?: string;
-      images: Array<{
-        dataUrl?: string;
-        mimeType?: string;
-        path?: string;
-        byteSize?: number;
-        revisedPrompt?: string;
-      }>;
+      paths: string[];
     }
   | {
       kind: "bash";

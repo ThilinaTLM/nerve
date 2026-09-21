@@ -404,21 +404,11 @@ export function toolPresentation(
       };
     }
 
-    case "gpt_image": {
-      const meta: MetaItem[] = [];
-      if (view.model) meta.push({ text: view.model, mono: true });
-      if (view.images.length > 0) {
-        meta.push({
-          text: `${view.images.length} image${view.images.length === 1 ? "" : "s"}`,
-          tone: "success",
-        });
-      }
+    case "gpt_image":
       return {
         ...base,
         primaryArg: view.prompt ? { text: view.prompt } : base.primaryArg,
-        meta,
       };
-    }
 
     case "explain_image": {
       const content = view.live ? view.liveExplanation : view.explanation;

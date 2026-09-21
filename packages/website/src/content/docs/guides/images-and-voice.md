@@ -21,7 +21,7 @@ Dropping an image, another file, or a folder onto the desktop composer is differ
 
 ## Generate an image
 
-When OpenAI Codex OAuth is connected, agents can use the `gpt_image` tool to generate raster images through the ChatGPT subscription. Generated images appear in the conversation and are retained as tool-call artifacts.
+When OpenAI Codex OAuth is connected, agents can use the `gpt_image` tool to generate raster images through the ChatGPT subscription. Each generated image is retained as a tool-call artifact, and its file path appears as a link in the conversation. The agent receives that path rather than inline image bytes.
 
 The default model is `gpt-image-2.5-flare`, optimized for fast everyday generation. Under **Settings → Tools → GPT Image**, you can select `gpt-image-2.5-sunburst` for higher-quality or precision-focused work. Quality, custom size, and background mode are also user settings; the agent supplies only the image prompt.
 

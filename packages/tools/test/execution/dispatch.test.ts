@@ -268,7 +268,16 @@ describe("executeTool dispatch", () => {
         },
       },
     );
-    assert.equal(result.contentBlocks?.[1]?.type, "image");
+    assert.deepEqual(result.contentBlocks, [
+      {
+        type: "text",
+        text: "Generated 1 image with gpt-image-2.5-sunburst.",
+      },
+    ]);
+    assert.equal(
+      JSON.stringify(result).includes(image.toString("base64")),
+      false,
+    );
     const details = result.details as {
       images: Array<{ path: string }>;
       outputLimits: { artifacts: Array<{ path: string }> };

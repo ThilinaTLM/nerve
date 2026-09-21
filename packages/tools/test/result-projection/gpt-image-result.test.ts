@@ -22,7 +22,7 @@ const generatedImage: ValidatedToolArtifact = {
 };
 
 describe("GPT Image agent result", () => {
-  it("provides the validated file path alongside the generated image", () => {
+  it("provides only the validated generated-file path", () => {
     const projected = projectAgentResult(
       {
         toolName: "gpt_image",
@@ -33,7 +33,6 @@ describe("GPT Image agent result", () => {
               type: "text",
               text: "Generated 1 image with gpt-image-2.5-flare.",
             },
-            { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
           ],
         },
         status: "completed",
@@ -47,13 +46,9 @@ describe("GPT Image agent result", () => {
       .map((block) => block.text)
       .join("\n");
 
-    assert.match(
-      text,
-      /Generated image 1: \/tmp\/tool-call\/files\/generated-1\.png \(use read\)/,
-    );
-    assert.equal(
-      projected.blocks.some((block) => block.type === "image"),
-      true,
-    );
+    assert.equal(text, "/tmp/tool-call/files/generated-1.png");
+    assert.deepEqual(projected.blocks, [
+      { type: "text", text: "/tmp/tool-call/files/generated-1.png" },
+    ]);
   });
 });

@@ -55,8 +55,6 @@ export async function executeGptImage(
     byteSize: number;
     revisedPrompt?: string;
   }> = [];
-  const contentBlocks: NonNullable<ToolExecutionResult["contentBlocks"]> = [];
-
   for (const [index, image] of response.images.entries()) {
     if (
       image.data.byteLength === 0 ||
@@ -86,18 +84,12 @@ export async function executeGptImage(
       byteSize: image.data.byteLength,
       ...(image.revisedPrompt ? { revisedPrompt: image.revisedPrompt } : {}),
     });
-    contentBlocks.push({
-      type: "image",
-      data: Buffer.from(image.data).toString("base64"),
-      mimeType,
-    });
   }
 
   const summary = `Generated ${images.length} image${images.length === 1 ? "" : "s"} with ${response.model}.`;
-  contentBlocks.unshift({ type: "text", text: summary });
   return {
     content: summary,
-    contentBlocks,
+    contentBlocks: [{ type: "text", text: summary }],
     details: {
       model: response.model,
       prompt,

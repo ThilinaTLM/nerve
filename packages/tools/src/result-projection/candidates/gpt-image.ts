@@ -1,33 +1,22 @@
-import { artifacts, artifactNoticeLines } from "../candidate-artifacts.js";
-import { fallbackText, validContentBlocks } from "../fallback.js";
-import type {
-  CandidateContext,
-  ProjectableBlock,
-  ProjectionCandidate,
-} from "../types.js";
+import { artifacts } from "../candidate-artifacts.js";
+import { fallbackText } from "../fallback.js";
+import type { CandidateContext, ProjectionCandidate } from "../types.js";
 
 export function gptImageCandidate(
   context: CandidateContext,
 ): ProjectionCandidate {
   const validated = artifacts(context);
-  const notice = artifactNoticeLines(validated, "primary_result").join("\n");
-  const sourceBlocks = validContentBlocks(context.result) ?? [
-    { type: "text" as const, text: fallbackText(context.result) },
-  ];
-  const blocks: ProjectableBlock[] = [...sourceBlocks];
-  if (notice) {
-    const textIndex = blocks.findIndex((block) => block.type === "text");
-    if (textIndex >= 0) {
-      const block = blocks[textIndex];
-      if (block?.type === "text") {
-        blocks[textIndex] = {
-          type: "text",
-          text: `${block.text}\n${notice}`,
-        };
-      }
-    } else {
-      blocks.unshift({ type: "text", text: notice });
-    }
-  }
-  return { blocks, artifacts: validated };
+  const paths = validated.flatMap((artifact) =>
+    artifact.role === "primary_result" &&
+    artifact.availability === "available" &&
+    artifact.access.kind === "agent_file"
+      ? [artifact.access.path]
+      : [],
+  );
+  return {
+    blocks: [
+      { type: "text", text: paths.join("\n") || fallbackText(context.result) },
+    ],
+    artifacts: validated,
+  };
 }
