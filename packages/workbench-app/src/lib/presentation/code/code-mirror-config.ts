@@ -142,6 +142,10 @@ export function codeLanguageId(
   return dot > 0 ? extensionLanguages[base.slice(dot + 1)] : undefined;
 }
 
+export function codeDocumentLineSeparator(text: string): string | undefined {
+  return text.match(/\r\n|\n|\r/)?.[0];
+}
+
 export function localLineNumber(
   externalLine: number | undefined,
   lineStart: number,

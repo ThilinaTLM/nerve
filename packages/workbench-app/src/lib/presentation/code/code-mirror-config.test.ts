@@ -12,6 +12,7 @@ import {
 } from "./code-viewer-helpers";
 import type { CodeLanguageId } from "./code-mirror-config";
 import {
+  codeDocumentLineSeparator,
   codeLanguageId,
   loadCodeLanguage,
   localLineNumber,
@@ -88,6 +89,29 @@ describe("CodeMirror viewer helpers", () => {
     for (const [value, expected] of cases) {
       assert.equal(codeLanguageId(value), expected, value);
     }
+  });
+
+  it("preserves the source document line separator", () => {
+    assert.equal(
+      codeDocumentLineSeparator("KEY=value\r\nNEXT=value\r\n"),
+      "\r\n",
+    );
+    assert.equal(codeDocumentLineSeparator("KEY=value\nNEXT=value\n"), "\n");
+    assert.equal(codeDocumentLineSeparator("KEY=value\rNEXT=value\r"), "\r");
+    assert.equal(codeDocumentLineSeparator("KEY=value"), undefined);
+
+    const dotenv = "KEY=value\r\nNEXT=other\r\n";
+    const separator = codeDocumentLineSeparator(dotenv);
+    assert.ok(separator);
+    const state = EditorState.create({
+      doc: dotenv,
+      extensions: EditorState.lineSeparator.of(separator),
+    });
+    assert.equal(state.sliceDoc(), dotenv);
+    const edited = state.update({
+      changes: { from: 3, insert: "_EDITED" },
+    }).state;
+    assert.equal(edited.sliceDoc(), "KEY_EDITED=value\r\nNEXT=other\r\n");
   });
 
   it("loads and activates every newly supported language parser", async () => {
