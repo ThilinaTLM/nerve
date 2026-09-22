@@ -1,16 +1,10 @@
 <script lang="ts">
-import { untrack } from "svelte";
-import {
-  applyCapabilityPatch,
-  emptyCapabilityOverrides,
-  resolveCapabilitySelection,
-  type CapabilityConfiguration,
-  type CapabilityPatch,
-} from "@nervekit/contracts/capabilities";
+import { onDestroy, untrack } from "svelte";
+import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
-import { uploadClipboardImage, type AvailableSkill } from "$lib/api";
+import { uploadClipboardImage } from "$lib/api";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { readClipboardText } from "$lib/platform/clipboard/read-text";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
@@ -40,10 +34,11 @@ import {
   updateCapabilities,
 } from "$lib/features/projects/api/projects.api";
 import { listAvailableSkills } from "$lib/features/skills/api/skills.api";
-import { composerSkillRows } from "$lib/domain/skills/skill-catalog";
-import { createCapabilityMutationQueue } from "$lib/domain/capabilities/capability-mutation-queue";
-import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
 import { onEvent } from "$lib/application/events/event-bus";
+import {
+  ComposerCapabilityController,
+  type ComposerCapabilityState,
+} from "./composer-capability-controller";
 
 let {
   text = "",
@@ -102,75 +97,57 @@ let lastFocusToken: number | undefined;
 let lastComposerEscapeToken: number | undefined;
 let lastMicShortcutToken: number | undefined;
 let audioAuthDialogOpen = $state(false);
-let capabilityConfiguration = $state<CapabilityConfiguration>();
-let capabilitySkills = $state<CapabilitySkillRow[]>([]);
-let availableSkills: AvailableSkill[] = [];
-let capabilityLoading = $state(false);
-let capabilityError = $state<string>();
-let capabilityRequest = 0;
-
-function buildCapabilitySkillRows(
-  configuration: CapabilityConfiguration,
-): CapabilitySkillRow[] {
-  return composerSkillRows({
-    skills: availableSkills,
-    selection: configuration.effective,
-    project:
-      configuration.trust.status === "trusted"
-        ? configuration.project
-        : undefined,
-    conversation: configuration.conversation,
-  });
-}
-
-async function loadCapabilities(): Promise<void> {
-  const projectId = activeProject?.id;
-  const conversationId = activeConversation?.id;
-  const request = ++capabilityRequest;
-  capabilityError = undefined;
-  if (!projectId) {
-    capabilityConfiguration = undefined;
-    capabilitySkills = [];
-    return;
-  }
-  capabilityLoading = true;
-  try {
-    const [base, available] = await Promise.all([
-      getCapabilityConfiguration(projectId, conversationId),
-      listAvailableSkills(projectId),
-    ]);
-    if (request !== capabilityRequest) return;
-    availableSkills = available.skills;
-    const pendingOverrides = !conversationId
-      ? activePendingConversation?.capabilityOverrides
-      : undefined;
-    capabilityConfiguration = pendingOverrides
-      ? {
-          ...base,
-          conversation: pendingOverrides,
-          effective: resolveCapabilitySelection({
-            user: base.effective,
-            conversation: pendingOverrides,
-          }),
-        }
-      : base;
-    capabilitySkills = buildCapabilitySkillRows(capabilityConfiguration);
-  } catch (error) {
-    if (request === capabilityRequest)
-      capabilityError = error instanceof Error ? error.message : String(error);
-  } finally {
-    if (request === capabilityRequest) capabilityLoading = false;
-  }
-}
+let capabilityState = $state<ComposerCapabilityState>({
+  skills: [],
+  loading: false,
+  mutating: false,
+});
+const capabilityController = new ComposerCapabilityController({
+  getConfiguration: getCapabilityConfiguration,
+  listSkills: listAvailableSkills,
+  updateConfiguration: updateCapabilities,
+  onStateChange: (state) => {
+    capabilityState = state;
+  },
+});
+const capabilityConfiguration = $derived(capabilityState.configuration);
+const capabilitySkills = $derived(capabilityState.skills);
+const capabilityLoading = $derived(
+  capabilityState.loading || capabilityState.mutating,
+);
+const capabilityError = $derived(capabilityState.error);
 
 $effect(() => {
   const progressive = workbenchStartupState.progressiveActive;
-  const scopeKey =
-    activeConversation?.id ??
-    activePendingConversation?.id ??
-    activeProject?.id;
-  if (progressive && scopeKey) void loadCapabilities();
+  const project = activeProject;
+  const conversation = activeConversation;
+  const pending = activePendingConversation;
+  if (!progressive || !project) {
+    capabilityController.setScope(undefined);
+  } else if (conversation) {
+    capabilityController.setScope({
+      kind: "conversation",
+      key: `project:${project.id}:conversation:${conversation.id}`,
+      projectId: project.id,
+      conversationId: conversation.id,
+    });
+  } else if (pending) {
+    capabilityController.setScope({
+      kind: "pending",
+      key: `project:${project.id}:pending:${pending.id}`,
+      projectId: project.id,
+      pendingId: pending.id,
+      overrides: pending.capabilityOverrides,
+      onOverridesChange: (overrides) => {
+        pending.capabilityOverrides = overrides;
+      },
+    });
+  } else {
+    capabilityController.setScope(undefined);
+  }
 });
+
+onDestroy(() => capabilityController.setScope(undefined));
 
 /* Project and user level changes made elsewhere must not leave the composer
  * showing a stale effective state. */
@@ -187,10 +164,10 @@ $effect(() => {
         data.conversationId !== activeConversation?.id
       )
         return;
-      void capabilityMutations.settled().then(() => loadCapabilities());
+      void capabilityController.refresh();
     }),
     onEvent("settings.updated", () => {
-      void capabilityMutations.settled().then(() => loadCapabilities());
+      void capabilityController.refresh();
     }),
   ];
   return () => {
@@ -198,73 +175,12 @@ $effect(() => {
   };
 });
 
-/**
- * Serialized so rapid toggles cannot land out of order or collide on the
- * document digest; failures reload and surface the message in the popover.
- */
-const capabilityMutations = createCapabilityMutationQueue();
-
-async function runCapabilityMutation(
-  mutation: () => Promise<CapabilityConfiguration>,
-): Promise<void> {
-  await capabilityMutations.run(async () => {
-    try {
-      capabilityConfiguration = await mutation();
-      capabilitySkills = buildCapabilitySkillRows(capabilityConfiguration);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await loadCapabilities();
-      capabilityError = message;
-    }
-  });
+function patchCapabilities(patch: CapabilityPatch): Promise<void> {
+  return capabilityController.patch(patch);
 }
 
-async function patchCapabilities(patch: CapabilityPatch): Promise<void> {
-  const project = activeProject;
-  const conversation = activeConversation;
-  if (!project || !capabilityConfiguration) return;
-  if (!conversation && activePendingConversation) {
-    activePendingConversation.capabilityOverrides = applyCapabilityPatch(
-      activePendingConversation.capabilityOverrides ??
-        emptyCapabilityOverrides(),
-      patch,
-    );
-    await loadCapabilities();
-    return;
-  }
-  if (!conversation) return;
-  // The digest is read when the mutation runs, after any queued write applied.
-  await runCapabilityMutation(() =>
-    updateCapabilities({
-      projectId: project.id,
-      conversationId: conversation.id,
-      origin: "conversation",
-      patch,
-      expectedDigest: capabilityConfiguration?.conversationDigest,
-    }),
-  );
-}
-
-async function resetCapabilities(): Promise<void> {
-  const project = activeProject;
-  const conversation = activeConversation;
-  if (!project || !capabilityConfiguration) return;
-  const empty = emptyCapabilityOverrides();
-  if (!conversation && activePendingConversation) {
-    activePendingConversation.capabilityOverrides = empty;
-    await loadCapabilities();
-    return;
-  }
-  if (!conversation) return;
-  await runCapabilityMutation(() =>
-    updateCapabilities({
-      projectId: project.id,
-      conversationId: conversation.id,
-      origin: "conversation",
-      replace: empty,
-      expectedDigest: capabilityConfiguration?.conversationDigest,
-    }),
-  );
+function resetCapabilities(): Promise<void> {
+  return capabilityController.reset();
 }
 
 const micShortcut = getShortcutLabel("composer.toggleMic");
@@ -600,7 +516,7 @@ function handleMicContextMenu(event: MouseEvent) {
     onOpenCapabilitySettings,
     onCapabilityPatch: (patch) => void patchCapabilities(patch),
     onResetCapabilities: () => void resetCapabilities(),
-    onRefreshCapabilities: () => void loadCapabilities(),
+    onRefreshCapabilities: () => void capabilityController.refresh(),
     onPasteImage: pasteImage,
     onDropFiles: fileDropSupported ? dropFiles : undefined,
     onReadClipboardText: readClipboardText,

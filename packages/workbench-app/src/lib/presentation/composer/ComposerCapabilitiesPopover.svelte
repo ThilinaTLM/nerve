@@ -62,12 +62,6 @@ const skillSourceItemLabels: Record<SkillSource, string> = {
   nerve: "Built-in Nerve skill",
   agentBrowser: "Agent Browser skill",
 };
-const decisionOriginLabels: Record<CapabilityDecisionOrigin, string> = {
-  conversation: "Conversation",
-  project: "Project",
-  user: "User",
-};
-
 type Props = {
   configuration?: CapabilityConfiguration;
   skills?: CapabilitySkillRow[];
@@ -326,10 +320,6 @@ function openSettings(): void {
           </span>
           {#if row.origin === "conversation"}
             <Badge variant="neutral">Conversation</Badge>
-          {:else}
-            <span class="flex-none text-xs text-muted-foreground">
-              {decisionOriginLabels[row.origin]}
-            </span>
           {/if}
           {#if row.overridden}
             <IconAction
