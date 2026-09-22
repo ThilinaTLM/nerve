@@ -132,7 +132,7 @@ export async function protocolRequest<M extends OperationName>(
   const data = parseProtocolResponseData(method, parsed.data);
   return {
     result: data.result,
-    cursor: data.cursor as SnapshotCursor | undefined,
+    cursor: data.cursor,
   };
 }
 

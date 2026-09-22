@@ -138,7 +138,7 @@ export class ProviderCatalogStore {
               : {}),
           },
           compat: model.compat ?? provider?.compat,
-        } as AgentCustomModel;
+        };
       }),
     );
   }
@@ -178,7 +178,7 @@ export class ProviderCatalogStore {
         samplingParams: model.samplingParams,
         headers: { ...(provider?.headers ?? {}), ...(model.headers ?? {}) },
         compat: model.compat ?? provider?.compat,
-      } as AgentCustomModel;
+      };
     });
   }
 }

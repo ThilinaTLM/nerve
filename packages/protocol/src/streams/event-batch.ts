@@ -24,7 +24,7 @@ export function buildEventBatch(
     firstSeq: ordered[0]?.seq ?? null,
     lastSeq: ordered.at(-1)?.seq ?? null,
   };
-  return eventBatchDataSchema.parse(data) as EventBatchData;
+  return eventBatchDataSchema.parse(data);
 }
 
 export function estimateProtocolMessageBytes(

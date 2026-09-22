@@ -62,7 +62,7 @@ async function readPageRowsFromResolvedPath(
       optionalString(record.pagesJsonlPath) ??
         join(dirname(path), "pages.jsonl"),
     );
-  return { rows: [record as ConfluencePageRow], path };
+  return { rows: [record], path };
 }
 
 async function readJsonlRows(

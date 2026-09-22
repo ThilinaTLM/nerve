@@ -190,6 +190,57 @@ describe("tool service lifecycle", () => {
     );
   });
 
+  it("keeps an abandoned interaction durable when update publication fails", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-abandon-publish-"));
+    const testAgent = agent("autonomous");
+    let publicationFails = false;
+    const warnings: Array<{ message: string; context: unknown }> = [];
+    const { service } = buildToolService(
+      home,
+      testAgent,
+      {
+        publish: async () => {
+          if (publicationFails) throw new Error("secret publication body");
+        },
+      },
+      undefined,
+      {
+        info: async () => undefined,
+        warn: async (message: string, context: unknown) => {
+          warnings.push({ message, context });
+        },
+      },
+    );
+    const pending = await service.requestTool(
+      testAgent,
+      "todos_set",
+      { todos: [{ todo: "stage me", done: false }] },
+      { forceApproval: true, durableSuspend: true },
+    );
+
+    publicationFails = true;
+    const failed = await service.abandonPendingInteraction(
+      pending.toolCall.id,
+      "Run no longer accepts input.",
+    );
+
+    assert.equal(failed.status, "failed");
+    assert.equal(failed.interactions[0]?.status, "cancelled");
+    assert.equal(service.getToolCall(failed.id)?.status, "failed");
+    assert.equal(warnings.length, 1);
+    assert.deepEqual(warnings[0], {
+      message: "Tool call update publication failed",
+      context: {
+        toolCallId: failed.id,
+        context: {
+          operation: "abandon_pending_interaction",
+          failureType: "Error",
+        },
+      },
+    });
+    assert.doesNotMatch(JSON.stringify(warnings), /secret publication body/);
+  });
+
   it("retains agent previews for policy and user denials", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-denials-"));
     const readOnlyAgent = agent("read_only");
@@ -312,6 +363,10 @@ function buildToolService(
   pythonRuntime?: {
     runtimeForProject(projectDir: string): Promise<undefined>;
   },
+  logger?: {
+    info(message: string, context: unknown): Promise<void>;
+    warn(message: string, context: unknown): Promise<void>;
+  },
 ) {
   const events: Array<{ type: string; data: unknown }> = [];
   const storage = {
@@ -355,6 +410,7 @@ function buildToolService(
     plans: {} as never,
     setAgentMode: async () => testAgent,
     conversationRuntime: {} as never,
+    logger: logger as never,
     journal,
     resultPayloads,
     toolCallRepository: new ToolCallRepository(journal, resultPayloads),

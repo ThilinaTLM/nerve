@@ -1,5 +1,4 @@
 import type {
-  AgentMessage,
   AgentTool,
   AnyModel,
   QueueMode,
@@ -28,8 +27,7 @@ import type {
   Skill,
 } from "./options.js";
 import { toError } from "../../result.js";
-
-type QueuedMessageEntry = { message: AgentMessage };
+import type { InboundQueuedMessage } from "../queue/operations.js";
 
 export type HarnessConfigurationState<
   TSkill extends Skill,
@@ -47,8 +45,8 @@ export type HarnessConfigurationState<
   followUpQueueMode: QueueMode;
   resources: AgentHarnessResources<TSkill, TPromptTemplate>;
   streamOptions: AgentHarnessStreamOptions;
-  steerQueue: QueuedMessageEntry[];
-  followUpQueue: QueuedMessageEntry[];
+  steerQueue: InboundQueuedMessage[];
+  followUpQueue: InboundQueuedMessage[];
   runAbortController?: AbortController;
   emitOwn(event: AgentHarnessOwnEvent): Promise<void>;
   emitQueueUpdate(): Promise<void>;
@@ -213,7 +211,7 @@ export function requestHarnessAbort<
   void state
     .emitOwn({ type: "abort", clearedSteer, clearedFollowUp })
     .catch(() => undefined);
-  return { clearedSteer, clearedFollowUp } as AbortResult;
+  return { clearedSteer, clearedFollowUp };
 }
 
 export async function abortHarnessRun<
@@ -252,7 +250,7 @@ export async function abortHarnessRun<
         : new AggregateError(errors, "Abort completed with errors");
     throw normalizeHarnessError(cause, "hook");
   }
-  return { clearedSteer, clearedFollowUp } as AbortResult;
+  return { clearedSteer, clearedFollowUp };
 }
 
 async function writeActiveToolsChange<

@@ -266,7 +266,7 @@ function pemToDer(pem: string, label: string): ArrayBuffer {
   return bytes.buffer.slice(
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
+  );
 }
 
 function randomSerialNumber(): string {

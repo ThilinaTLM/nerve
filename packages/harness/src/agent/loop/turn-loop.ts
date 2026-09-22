@@ -10,7 +10,7 @@ import { streamAssistantResponse } from "./assistant-stream.js";
 import { executeToolCalls } from "./tool-execution.js";
 
 /**
- * Main loop logic shared by agentLoop and agentLoopContinue.
+ * Main loop logic shared by runAgentLoop and runAgentLoopContinue.
  */
 export async function runLoop(
   initialContext: AgentContext,

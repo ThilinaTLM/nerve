@@ -227,7 +227,7 @@ export class StorageCleanupExecutor {
     for (const file of files) {
       if (execution.cancelled()) break;
       const match = datedLog.exec(file);
-      if (!match || (match[2] as string) >= cutoff) continue;
+      if (!match || match[2] >= cutoff) continue;
       const path = join(logsDir, file);
       const bytes = (await fileSize(path)) ?? 0;
       try {

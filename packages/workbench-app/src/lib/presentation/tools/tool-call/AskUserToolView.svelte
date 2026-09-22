@@ -294,52 +294,60 @@ function replyFieldKeydown(node: HTMLElement) {
 }
 </script>
 
-<div class="ask select-text">
+<div class="grid select-text gap-2">
   {#if question}
-    <div class="question">
+    <div class="question m-0">
       <Markdown text={question} preserveLineBreaks {onOpenFile} />
     </div>
   {/if}
   {#if context}
-    <div class="meta">
-      <span class="meta-label">context</span>
-      <div class="meta-body">
+    <div class="meta m-0 grid min-w-0 gap-0.5 text-sm text-muted-foreground">
+      <span
+        class="mr-1 font-mono text-xs uppercase tracking-wide text-muted-foreground/80"
+        >context</span
+      >
+      <div class="min-w-0">
         <Markdown text={context} preserveLineBreaks {onOpenFile} />
       </div>
     </div>
   {/if}
   {#if recommendation}
-    <div class="meta">
-      <span class="meta-label">recommendation</span>
-      <div class="meta-body">
+    <div class="meta m-0 grid min-w-0 gap-0.5 text-sm text-muted-foreground">
+      <span
+        class="mr-1 font-mono text-xs uppercase tracking-wide text-muted-foreground/80"
+        >recommendation</span
+      >
+      <div class="min-w-0">
         <Markdown text={recommendation} preserveLineBreaks {onOpenFile} />
       </div>
     </div>
   {/if}
 
   {#if pending && questionRecord}
-    <div class="quick-replies">
+    <div class="flex flex-wrap gap-1">
       {#each QUICK_REPLIES as phrase (phrase)}
-        <button
+        <Button
           type="button"
-          class="quick-reply"
+          size="xs"
+          variant="outline"
+          class="bg-well text-muted-foreground hover:bg-accent hover:text-foreground"
           disabled={Boolean(submitting)}
           onclick={() => submitQuickReply(phrase)}
         >
           {phrase}
-        </button>
+        </Button>
       {/each}
     </div>
 
     <form
-      class="reply"
+      class="grid gap-2"
       onsubmit={(event) => {
         event.preventDefault();
         submitAnswer();
       }}
     >
       <div
-        class="reply-field"
+        class="relative"
         role="group"
         aria-label="Reply input"
         use:replyFieldKeydown
@@ -360,7 +368,7 @@ function replyFieldKeydown(node: HTMLElement) {
           onDropFiles={replyDropFiles}
         />
         {#if voice && supportsAudioRecording && TranscriptionActivity}
-          <div class="reply-voice-controls">
+          <div class="absolute right-2 bottom-3 flex items-center gap-1">
             <TranscriptionActivity
               {recording}
               {transcribing}
@@ -431,15 +439,21 @@ function replyFieldKeydown(node: HTMLElement) {
       {/if}
     </form>
   {:else if submittedAnswer}
-    <div class="meta answer">
-      <span class="meta-label">answer</span>
-      <div class="meta-body">
+    <div class="meta answer m-0 grid min-w-0 gap-0.5 text-sm text-foreground">
+      <span
+        class="mr-1 font-mono text-xs uppercase tracking-wide text-muted-foreground/80"
+        >answer</span
+      >
+      <div class="min-w-0">
         <Markdown text={submittedAnswer} preserveLineBreaks {onOpenFile} />
       </div>
     </div>
   {:else if dismissed}
-    <p class="meta">
-      <span class="meta-label">dismissed</span>
+    <p class="meta m-0 grid min-w-0 gap-0.5 text-sm text-muted-foreground">
+      <span
+        class="mr-1 font-mono text-xs uppercase tracking-wide text-muted-foreground/80"
+        >dismissed</span
+      >
       {dismissedReason ?? "No answer provided"}
     </p>
   {/if}
@@ -450,30 +464,9 @@ function replyFieldKeydown(node: HTMLElement) {
 {/if}
 
 <style>
-.ask {
-  display: grid;
-  gap: 0.45rem;
-}
-
-.question {
-  margin: 0;
-}
-
-.question :global(.markdown) {
+.question :global(.markdown),
+.answer :global(.markdown) {
   color: var(--foreground);
-}
-
-.meta {
-  display: grid;
-  gap: 0.15rem;
-  margin: 0;
-  min-width: 0;
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-}
-
-.meta-body {
-  min-width: 0;
 }
 
 .meta :global(.markdown) {
@@ -481,75 +474,7 @@ function replyFieldKeydown(node: HTMLElement) {
   color: var(--muted-foreground);
 }
 
-.answer {
-  color: var(--foreground);
-}
-
 .answer :global(.markdown) {
   color: var(--foreground);
-}
-
-.meta-label {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
-  margin-right: 0.3rem;
-}
-
-.quick-replies {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.quick-reply {
-  border: 1px solid var(--border);
-  background: var(--well);
-  color: var(--muted-foreground);
-  padding: 0.1rem 0.6rem;
-  font-size: var(--text-xs);
-  line-height: 1.5;
-  cursor: pointer;
-  transition:
-    color 120ms ease,
-    border-color 120ms ease,
-    background 120ms ease;
-}
-
-.quick-reply:hover {
-  border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
-  background: var(--accent);
-  color: var(--foreground);
-}
-
-.quick-reply:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
-.quick-reply:disabled:hover {
-  border-color: var(--border);
-  background: var(--well);
-  color: var(--muted-foreground);
-}
-
-.reply {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.reply-field {
-  position: relative;
-}
-
-.reply-voice-controls {
-  position: absolute;
-  right: 0.55rem;
-  bottom: 0.7rem;
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
 }
 </style>

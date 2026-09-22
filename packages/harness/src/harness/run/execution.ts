@@ -88,7 +88,7 @@ export function createHarnessStreamFn<
       onPayload: async (payload) =>
         await options.emitBeforeProviderPayload(requestModel, payload),
       onResponse: async (response) => {
-        const headers = { ...(response.headers as Record<string, string>) };
+        const headers = { ...response.headers };
         await options.emitAfterProviderResponse(
           response.status,
           headers,

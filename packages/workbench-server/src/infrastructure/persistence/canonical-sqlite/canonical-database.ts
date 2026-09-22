@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- CanonicalDatabase keeps transaction ownership and validated SQLite query families in one auditable adapter. */
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -19,12 +20,21 @@ import {
   appendDurableEventInTransaction,
   assertCanonicalSchemaCompatible,
   decodeDocument,
+  decodeDocumentRow,
   decodeDurableEvent,
+  decodeDurableEventRow,
   ownedBytes,
-  type DocumentRow,
-  type DurableEventRow,
 } from "./canonical-database-helpers.js";
 import { decode, encode } from "./payload-codecs.js";
+import {
+  decodeSqlRow,
+  decodeSqlRows,
+  sqlBytes,
+  sqlEnum,
+  sqlInteger,
+  sqlNullableInteger,
+  sqlString,
+} from "./sql-row-decoder.js";
 import { repairCanonicalDeletionIndexes } from "./deletion-indexes.js";
 import {
   deleteConversationChunk,
@@ -107,13 +117,20 @@ export class CanonicalDatabase {
   }
 
   initialize(): void {
-    const hasLedger = this.database
+    const ledgerValue = this.database
       .prepare(
         `SELECT 1 AS present FROM sqlite_master
          WHERE type = 'table' AND name = 'schema_migrations'`,
       )
-      .get() as { present?: number } | undefined;
-    if (hasLedger?.present !== 1) {
+      .get();
+    const hasLedger = ledgerValue
+      ? sqlInteger(
+          decodeSqlRow(ledgerValue, "schema_migrations_presence"),
+          "present",
+          "schema_migrations_presence",
+        ) === 1
+      : false;
+    if (!hasLedger) {
       this.database.exec(CANONICAL_SCHEMA_SQL);
       this.database
         .prepare(
@@ -147,11 +164,18 @@ export class CanonicalDatabase {
     version: number;
     checksum: string;
   }> {
-    return this.database
-      .prepare(
-        `SELECT version, checksum FROM schema_migrations ORDER BY version`,
-      )
-      .all() as unknown as Array<{ version: number; checksum: string }>;
+    return decodeSqlRows(
+      this.database
+        .prepare(
+          `SELECT version, checksum FROM schema_migrations ORDER BY version`,
+        )
+        .all(),
+      "schema_migrations",
+      (row) => ({
+        version: sqlInteger(row, "version", "schema_migrations"),
+        checksum: sqlString(row, "checksum", "schema_migrations"),
+      }),
+    );
   }
 
   close(checkpoint = true): void {
@@ -200,15 +224,15 @@ export class CanonicalDatabase {
     scopeId: string,
     documentId: string,
   ): CanonicalDocument<T> | undefined {
-    const row = this.database
+    const value = this.database
       .prepare(
         `SELECT revision, payload_version, data, created_at_ms, updated_at_ms
          FROM domain_documents
          WHERE namespace = ? AND scope_id = ? AND document_id = ?`,
       )
-      .get(namespace, scopeId, documentId) as DocumentRow | undefined;
-    return row
-      ? decodeDocument(namespace, scopeId, documentId, row)
+      .get(namespace, scopeId, documentId);
+    return value
+      ? decodeDocument(namespace, scopeId, documentId, decodeDocumentRow(value))
       : undefined;
   }
 
@@ -216,53 +240,59 @@ export class CanonicalDatabase {
     namespace: string,
     scopeId?: string,
   ): CanonicalDocument<T>[] {
-    const rows = (scopeId === undefined
-      ? this.database
-          .prepare(
-            `SELECT scope_id, document_id, revision, payload_version, data,
-                    created_at_ms, updated_at_ms
-             FROM domain_documents WHERE namespace = ?
-             ORDER BY updated_at_ms, document_id`,
-          )
-          .all(namespace)
-      : this.database
-          .prepare(
-            `SELECT scope_id, document_id, revision, payload_version, data,
-                    created_at_ms, updated_at_ms
-             FROM domain_documents WHERE namespace = ? AND scope_id = ?
-             ORDER BY updated_at_ms, document_id`,
-          )
-          .all(namespace, scopeId)) as unknown as Array<
-      DocumentRow & { scope_id: string; document_id: string }
-    >;
-    return rows.map((row) =>
-      decodeDocument(namespace, row.scope_id, row.document_id, row),
+    const values =
+      scopeId === undefined
+        ? this.database
+            .prepare(
+              `SELECT scope_id, document_id, revision, payload_version, data,
+                      created_at_ms, updated_at_ms
+               FROM domain_documents WHERE namespace = ?
+               ORDER BY updated_at_ms, document_id`,
+            )
+            .all(namespace)
+        : this.database
+            .prepare(
+              `SELECT scope_id, document_id, revision, payload_version, data,
+                      created_at_ms, updated_at_ms
+               FROM domain_documents WHERE namespace = ? AND scope_id = ?
+               ORDER BY updated_at_ms, document_id`,
+            )
+            .all(namespace, scopeId);
+    return decodeSqlRows(values, "domain_documents", (row, index) =>
+      decodeDocument(
+        namespace,
+        sqlString(row, "scope_id", `domain_documents[${index}]`),
+        sqlString(row, "document_id", `domain_documents[${index}]`),
+        decodeDocumentRow(row, `domain_documents[${index}]`),
+      ),
     );
   }
   listDocumentKeys(
     namespace: string,
     scopeId?: string,
   ): Array<{ scopeId: string; documentId: string }> {
-    const rows = (scopeId === undefined
-      ? this.database
-          .prepare(
-            `SELECT scope_id, document_id FROM domain_documents
-             WHERE namespace = ? ORDER BY scope_id, document_id`,
-          )
-          .all(namespace)
-      : this.database
-          .prepare(
-            `SELECT scope_id, document_id FROM domain_documents
-             WHERE namespace = ? AND scope_id = ?
-             ORDER BY scope_id, document_id`,
-          )
-          .all(namespace, scopeId)) as unknown as Array<{
-      scope_id: string;
-      document_id: string;
-    }>;
-    return rows.map((row) => ({
-      scopeId: row.scope_id,
-      documentId: row.document_id,
+    const values =
+      scopeId === undefined
+        ? this.database
+            .prepare(
+              `SELECT scope_id, document_id FROM domain_documents
+               WHERE namespace = ? ORDER BY scope_id, document_id`,
+            )
+            .all(namespace)
+        : this.database
+            .prepare(
+              `SELECT scope_id, document_id FROM domain_documents
+               WHERE namespace = ? AND scope_id = ?
+               ORDER BY scope_id, document_id`,
+            )
+            .all(namespace, scopeId);
+    return decodeSqlRows(values, "domain_document_keys", (row, index) => ({
+      scopeId: sqlString(row, "scope_id", `domain_document_keys[${index}]`),
+      documentId: sqlString(
+        row,
+        "document_id",
+        `domain_document_keys[${index}]`,
+      ),
     }));
   }
 
@@ -276,14 +306,25 @@ export class CanonicalDatabase {
     now?: string;
   }): CanonicalDocument<T> {
     return this.transaction((database) => {
-      const existing = database
+      const existingValue = database
         .prepare(
           `SELECT revision, created_at_ms FROM domain_documents
            WHERE namespace = ? AND scope_id = ? AND document_id = ?`,
         )
-        .get(input.namespace, input.scopeId, input.documentId) as
-        | { revision: number; created_at_ms: number }
-        | undefined;
+        .get(input.namespace, input.scopeId, input.documentId);
+      const existing = existingValue
+        ? (() => {
+            const row = decodeSqlRow(existingValue, "domain_document_revision");
+            return {
+              revision: sqlInteger(row, "revision", "domain_document_revision"),
+              created_at_ms: sqlInteger(
+                row,
+                "created_at_ms",
+                "domain_document_revision",
+              ),
+            };
+          })()
+        : undefined;
       const actual = existing?.revision ?? 0;
       if (
         input.expectedRevision !== undefined &&
@@ -377,25 +418,31 @@ export class CanonicalDatabase {
         occurredAt: string;
       }
     | undefined {
-    const row = this.database
+    const value = this.database
       .prepare(
         `SELECT stream_sequence, stream, intent_id, event_type, data, occurred_at_ms
          FROM durable_events WHERE intent_id = ?`,
       )
-      .get(intentId) as DurableEventRow | undefined;
-    return row ? decodeDurableEvent(row) : undefined;
+      .get(intentId);
+    return value ? decodeDurableEvent(decodeDurableEventRow(value)) : undefined;
   }
 
   readDurableEvents(stream: string, fromSequence: number, limit: number) {
-    const rows = this.database
-      .prepare(
-        `SELECT stream_sequence, stream, intent_id, event_type, data, occurred_at_ms
-         FROM durable_events
-         WHERE stream = ? AND stream_sequence >= ?
-         ORDER BY stream_sequence LIMIT ?`,
-      )
-      .all(stream, fromSequence, limit) as unknown as DurableEventRow[];
-    return rows.map(decodeDurableEvent);
+    return decodeSqlRows(
+      this.database
+        .prepare(
+          `SELECT stream_sequence, stream, intent_id, event_type, data, occurred_at_ms
+           FROM durable_events
+           WHERE stream = ? AND stream_sequence >= ?
+           ORDER BY stream_sequence LIMIT ?`,
+        )
+        .all(stream, fromSequence, limit),
+      "durable_events",
+      (row, index) =>
+        decodeDurableEvent(
+          decodeDurableEventRow(row, `durable_events[${index}]`),
+        ),
+    );
   }
 
   durableEventBounds(stream: string): {
@@ -403,17 +450,25 @@ export class CanonicalDatabase {
     earliestAvailableSeq: number;
     latestSeq: number;
   } {
-    const row = this.database
-      .prepare(
-        `SELECT MIN(stream_sequence) AS earliest, MAX(stream_sequence) AS latest
-         FROM durable_events WHERE stream = ?`,
-      )
-      .get(stream) as { earliest: number | null; latest: number | null };
-    const latestSeq = row.latest ?? 0;
+    const row = decodeSqlRow(
+      this.database
+        .prepare(
+          `SELECT MIN(stream_sequence) AS earliest, MAX(stream_sequence) AS latest
+           FROM durable_events WHERE stream = ?`,
+        )
+        .get(stream),
+      "durable_event_bounds",
+    );
+    const earliest = sqlNullableInteger(
+      row,
+      "earliest",
+      "durable_event_bounds",
+    );
+    const latestSeq =
+      sqlNullableInteger(row, "latest", "durable_event_bounds") ?? 0;
     return {
       stream,
-      earliestAvailableSeq:
-        row.earliest ?? (latestSeq === 0 ? 1 : latestSeq + 1),
+      earliestAvailableSeq: earliest ?? (latestSeq === 0 ? 1 : latestSeq + 1),
       latestSeq,
     };
   }
@@ -425,41 +480,46 @@ export class CanonicalDatabase {
   }
 
   readConversationRevision(conversationId: string): number {
-    const row = this.database
-      .prepare(
-        `SELECT MAX(revision) AS revision FROM domain_documents
-         WHERE scope_id = ? AND namespace IN (
-           'conversation_state',
-           'conversation_journal_head',
-           'conversation_journal_commit'
-         )`,
-      )
-      .get(conversationId) as { revision: number | null };
-    return row.revision ?? 0;
+    const row = decodeSqlRow(
+      this.database
+        .prepare(
+          `SELECT MAX(revision) AS revision FROM domain_documents
+           WHERE scope_id = ? AND namespace IN (
+             'conversation_state',
+             'conversation_journal_head',
+             'conversation_journal_commit'
+           )`,
+        )
+        .get(conversationId),
+      "conversation_revision",
+    );
+    return sqlNullableInteger(row, "revision", "conversation_revision") ?? 0;
   }
 
   readConversationEntries(conversationId: string): unknown[] {
-    const rows = this.database
-      .prepare(
-        `SELECT COALESCE(
-                  projection.data,
-                  CAST(json_extract(CAST(record.data AS TEXT), '$.entry') AS BLOB)
-                ) AS data
-         FROM conversation_records AS record
-         LEFT JOIN conversation_record_projections AS projection
-           ON projection.record_id = record.id
-         WHERE record.conversation_id = ?
-           AND record.kind IN ('message', 'summary')
-           AND COALESCE(
-                 projection.data,
-                 json_extract(CAST(record.data AS TEXT), '$.entry')
-               ) IS NOT NULL
-         ORDER BY record.sequence`,
-      )
-      .all(conversationId) as unknown as Array<{
-      data: Uint8Array | string;
-    }>;
-    return rows.map((row) => decode(row.data));
+    return decodeSqlRows(
+      this.database
+        .prepare(
+          `SELECT COALESCE(
+                    projection.data,
+                    CAST(json_extract(CAST(record.data AS TEXT), '$.entry') AS BLOB)
+                  ) AS data
+           FROM conversation_records AS record
+           LEFT JOIN conversation_record_projections AS projection
+             ON projection.record_id = record.id
+           WHERE record.conversation_id = ?
+             AND record.kind IN ('message', 'summary')
+             AND COALESCE(
+                   projection.data,
+                   json_extract(CAST(record.data AS TEXT), '$.entry')
+                 ) IS NOT NULL
+           ORDER BY record.sequence`,
+        )
+        .all(conversationId),
+      "conversation_entries",
+      (row, index) =>
+        decode(sqlBytes(row, "data", `conversation_entries[${index}]`)),
+    );
   }
 
   scanToolCalls(input: {
@@ -486,11 +546,11 @@ export class CanonicalDatabase {
     let nextCursor: string | undefined;
     let hasMore = false;
     for (const value of rows) {
-      const row = value as { id: string; data: Uint8Array | string };
+      const row = decodeSqlRow(value, "tool_call_scan");
+      const id = sqlString(row, "id", "tool_call_scan");
+      const data = sqlBytes(row, "data", "tool_call_scan");
       const bytes =
-        typeof row.data === "string"
-          ? Buffer.byteLength(row.data)
-          : row.data.byteLength;
+        typeof data === "string" ? Buffer.byteLength(data) : data.byteLength;
       if (
         records.length >= maxRows ||
         (records.length > 0 && encodedBytes + bytes > maxBytes)
@@ -498,10 +558,10 @@ export class CanonicalDatabase {
         hasMore = true;
         break;
       }
-      const decoded = decode(row.data) as { toolCall?: unknown };
+      const decoded = decodedObject(decode(data), "tool_call_scan.data");
       if (decoded.toolCall !== undefined) records.push(decoded.toolCall);
       encodedBytes += bytes;
-      nextCursor = row.id;
+      nextCursor = id;
     }
     return {
       records,
@@ -556,32 +616,44 @@ export class CanonicalDatabase {
   }): { inserted: number; nextCursor?: string; done: boolean } {
     const maxRows = Math.max(1, Math.min(input.maxRows, 1_000));
     return this.transaction((database) => {
-      const rows = database
-        .prepare(
-          `SELECT record.id, record.conversation_id, record.sequence,
-                  record.kind, record.status, record.payload_version,
-                  record.data, record.updated_at_ms
-           FROM conversation_records AS record
-           LEFT JOIN conversation_record_projections AS projection
-             ON projection.record_id = record.id
-           WHERE record.id > ? AND projection.record_id IS NULL
-             AND record.kind IN ('message', 'summary', 'run')
-             AND (
-               record.kind = 'run' OR
-               json_extract(CAST(record.data AS TEXT), '$.entry') IS NOT NULL
-             )
-           ORDER BY record.id LIMIT ?`,
-        )
-        .all(input.afterId ?? "", maxRows) as unknown as Array<{
-        id: string;
-        conversation_id: string;
-        sequence: number;
-        kind: "message" | "summary" | "run";
-        status: string;
-        payload_version: number;
-        data: Uint8Array | string;
-        updated_at_ms: number;
-      }>;
+      const rows = decodeSqlRows(
+        database
+          .prepare(
+            `SELECT record.id, record.conversation_id, record.sequence,
+                    record.kind, record.status, record.payload_version,
+                    record.data, record.updated_at_ms
+             FROM conversation_records AS record
+             LEFT JOIN conversation_record_projections AS projection
+               ON projection.record_id = record.id
+             WHERE record.id > ? AND projection.record_id IS NULL
+               AND record.kind IN ('message', 'summary', 'run')
+               AND (
+                 record.kind = 'run' OR
+                 json_extract(CAST(record.data AS TEXT), '$.entry') IS NOT NULL
+               )
+             ORDER BY record.id LIMIT ?`,
+          )
+          .all(input.afterId ?? "", maxRows),
+        "conversation_record_backfill",
+        (row, index) => {
+          const context = `conversation_record_backfill[${index}]`;
+          return {
+            id: sqlString(row, "id", context),
+            conversation_id: sqlString(row, "conversation_id", context),
+            sequence: sqlInteger(row, "sequence", context),
+            kind: sqlEnum(
+              row,
+              "kind",
+              ["message", "summary", "run"] as const,
+              context,
+            ),
+            status: sqlString(row, "status", context),
+            payload_version: sqlInteger(row, "payload_version", context),
+            data: sqlBytes(row, "data", context),
+            updated_at_ms: sqlInteger(row, "updated_at_ms", context),
+          };
+        },
+      );
       const insert = database.prepare(
         `INSERT OR IGNORE INTO conversation_record_projections (
            record_id, conversation_id, sequence, kind, status,
@@ -590,10 +662,10 @@ export class CanonicalDatabase {
       );
       let inserted = 0;
       for (const row of rows) {
-        const decoded = decode(row.data) as {
-          entry?: unknown;
-          run?: unknown;
-        };
+        const decoded = decodedObject(
+          decode(row.data),
+          "conversation_record_backfill.data",
+        );
         const projection = row.kind === "run" ? decoded.run : decoded.entry;
         if (projection === undefined) continue;
         inserted += Number(
@@ -629,25 +701,36 @@ export class CanonicalDatabase {
   } {
     this.database.exec("BEGIN");
     try {
-      const snapshotRow = this.database
+      const snapshotValue = this.database
         .prepare(
           `SELECT revision, data FROM domain_documents
            WHERE namespace = 'conversation_state'
              AND scope_id = ? AND document_id = 'state'`,
         )
-        .get(conversationId) as
-        | { revision: number; data: Uint8Array | string }
-        | undefined;
-      const commitRows = this.database
-        .prepare(
-          `SELECT data FROM domain_documents
-           WHERE namespace = 'conversation_journal_commit'
-             AND scope_id = ? AND CAST(document_id AS INTEGER) > ?
-           ORDER BY document_id`,
-        )
-        .all(conversationId, snapshotRow?.revision ?? 0) as unknown as Array<{
-        data: Uint8Array | string;
-      }>;
+        .get(conversationId);
+      const snapshotRow = snapshotValue
+        ? (() => {
+            const row = decodeSqlRow(snapshotValue, "conversation_snapshot");
+            return {
+              revision: sqlInteger(row, "revision", "conversation_snapshot"),
+              data: sqlBytes(row, "data", "conversation_snapshot"),
+            };
+          })()
+        : undefined;
+      const commitRows = decodeSqlRows(
+        this.database
+          .prepare(
+            `SELECT data FROM domain_documents
+             WHERE namespace = 'conversation_journal_commit'
+               AND scope_id = ? AND CAST(document_id AS INTEGER) > ?
+             ORDER BY document_id`,
+          )
+          .all(conversationId, snapshotRow?.revision ?? 0),
+        "conversation_journal_commits",
+        (row, index) => ({
+          data: sqlBytes(row, "data", `conversation_journal_commits[${index}]`),
+        }),
+      );
       const snapshot = snapshotRow ? ownedBytes(snapshotRow.data) : undefined;
       const commits = commitRows.map((row) => ownedBytes(row.data));
       const head = readConversationJournalHead(this.database, conversationId);
@@ -760,12 +843,23 @@ export class CanonicalDatabase {
     const foreignKeys = this.database.prepare("PRAGMA foreign_key_check").all();
     if (foreignKeys.length > 0)
       throw new Error("SQLite foreign key check failed.");
-    const result = this.database.prepare("PRAGMA quick_check").get() as
-      | { quick_check?: string }
-      | undefined;
-    if (result?.quick_check !== "ok")
+    const value = this.database.prepare("PRAGMA quick_check").get();
+    if (!value) throw new Error("SQLite quick check returned no result.");
+    const result = decodeSqlRow(value, "quick_check");
+    if (sqlString(result, "quick_check", "quick_check") !== "ok") {
       throw new Error("SQLite quick check failed.");
+    }
   }
+}
+
+function decodedObject(
+  value: unknown,
+  context: string,
+): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Invalid encoded object for ${context}.`);
+  }
+  return value as Record<string, unknown>;
 }
 
 export class CanonicalRevisionConflictError extends Error {

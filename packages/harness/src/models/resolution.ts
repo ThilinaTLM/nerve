@@ -25,10 +25,8 @@ function templateForCustomModel(
 ): Model<string> | undefined {
   if (!isKnownProvider(model.provider)) return undefined;
   return (
-    (getRegisteredModel(model.provider, model.modelId) as
-      | Model<string>
-      | undefined) ??
-    (getRegisteredModels(model.provider)[0] as Model<string> | undefined)
+    getRegisteredModel(model.provider, model.modelId) ??
+    getRegisteredModels(model.provider)[0]
   );
 }
 
@@ -132,7 +130,7 @@ function resolveAgentModelInternal(
       selection.provider,
       selection.modelId,
     );
-    if (builtinModel) return builtinModel as Model<string>;
+    if (builtinModel) return builtinModel;
   }
   const faux = getNerveFauxProvider();
   if (appendFauxResponse) faux.appendResponses([fauxResponseFactory]);
@@ -152,10 +150,8 @@ export function getAgentModelInfo(model: Model<string>): AgentModelInfo {
     modelId: model.id,
     name: model.name || model.id,
     reasoning: model.reasoning,
-    supportedThinkingLevels: getSupportedThinkingLevels(
-      model,
-    ) as ThinkingLevel[],
-    input: (model.input ?? ["text"]) as ("text" | "image")[],
+    supportedThinkingLevels: getSupportedThinkingLevels(model),
+    input: model.input ?? ["text"],
     contextWindow: model.contextWindow ?? 0,
     maxOutputTokens: model.maxTokens ?? 0,
   };
@@ -177,7 +173,7 @@ export function clampAgentThinkingLevel(
   customModels?: AgentCustomModel[],
 ): ThinkingLevel {
   const model = resolveAgentModelInternal(selection, false, customModels);
-  return clampThinkingLevel(model, requested ?? "off") as ThinkingLevel;
+  return clampThinkingLevel(model, requested ?? "off");
 }
 
 export function listAvailableModels(

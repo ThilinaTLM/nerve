@@ -535,7 +535,7 @@ export class WorkbenchRunService {
         toolCalls: [...input.toolCalls],
       });
     } else {
-      await this.coordinator.resolveInteraction(first.runId, commands[0]!);
+      await this.coordinator.resolveInteraction(first.runId, commands[0]);
     }
   }
 

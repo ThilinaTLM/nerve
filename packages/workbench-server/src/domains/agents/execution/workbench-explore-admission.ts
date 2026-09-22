@@ -153,7 +153,7 @@ export class WorkbenchExploreAdmission {
       }
       if (selectedIndex < 0) return;
 
-      const key = this.queueOrder.splice(selectedIndex, 1)[0]!;
+      const key = this.queueOrder.splice(selectedIndex, 1)[0];
       const queue = this.queues.get(key)!;
       const waiter = queue.shift()!;
       if (queue.length > 0) this.queueOrder.push(key);

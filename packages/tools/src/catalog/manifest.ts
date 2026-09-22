@@ -73,7 +73,7 @@ function withAgentResultPolicy(definition: ToolDefinition): ToolDefinition {
     ...definition,
     traits: Object.freeze([...definition.traits]),
     agentResult: Object.freeze({ ...agentResult }),
-  }) as ToolDefinition;
+  });
 }
 
 const definitionByName = new Map<ToolName, ToolDefinition>();

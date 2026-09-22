@@ -127,7 +127,7 @@ function subscribe(
   listener: (...args: unknown[]) => void,
 ): () => void {
   if (socket.addEventListener && socket.removeEventListener) {
-    const browserListener = listener as (event: unknown) => void;
+    const browserListener = listener;
     socket.addEventListener(type, browserListener);
     return () => socket.removeEventListener?.(type, browserListener);
   }

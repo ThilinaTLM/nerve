@@ -402,9 +402,7 @@ export async function forceExitPlanMode(
 }
 
 function newestTask(tasks: TaskRecord[]): TaskRecord {
-  return [...tasks].sort((a, b) =>
-    b.startedAt.localeCompare(a.startedAt),
-  )[0] as TaskRecord;
+  return [...tasks].sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
 }
 
 function taskReferenceDetails(task: TaskRecord): Record<string, unknown> {

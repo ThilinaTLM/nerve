@@ -94,7 +94,7 @@ export function deleteConversationChunk(
       phase === "lifecycle_runs" ||
       phase === "records"
     ) {
-      const table = tables[phase as keyof typeof tables];
+      const table = tables[phase];
       removed = Number(
         database
           .prepare(`DELETE FROM ${table} WHERE rowid IN (
@@ -137,6 +137,6 @@ export function deleteConversationChunk(
     }
   }
   if (removed === 0 && phase !== "complete")
-    next = { phase: phases[phases.indexOf(phase) + 1]! };
+    next = { phase: phases[phases.indexOf(phase) + 1] };
   return { done: phase === "complete", phase, removed, detached, next };
 }

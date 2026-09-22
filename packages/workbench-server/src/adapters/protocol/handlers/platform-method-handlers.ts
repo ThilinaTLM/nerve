@@ -190,10 +190,10 @@ async function updateSettings(
   if (patch.application) {
     assertApplicationConfigurationEditable(
       state.applicationConfiguration,
-      patch as UpdateApplicationConfigurationRequest,
+      patch,
     );
   }
-  const settings = await writeSettings(state.storage, patch as never);
+  const settings = await writeSettings(state.storage, patch);
   if (
     patch.runtime &&
     typeof patch.runtime === "object" &&

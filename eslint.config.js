@@ -55,6 +55,23 @@ export default tseslint.config(
     },
   },
   {
+    files: [
+      "packages/{contracts,protocol,harness,tools,workbench-server}/src/**/*.ts",
+    ],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/await-thenable": "error",
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
+      "@typescript-eslint/no-unnecessary-type-assertion": "error",
+    },
+  },
+  {
     files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
     rules: {
       "max-lines": [

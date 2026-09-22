@@ -80,7 +80,7 @@ export function checkWorkbenchBoundaries({ files: trackedFiles, read }, fail) {
         path.startsWith("packages/workbench-app/src/lib/") &&
         sourceExtensions.test(path),
     )) {
-      for (const specifier of importSpecifiers(read(file))) {
+      for (const specifier of importSpecifiers(read(file), file)) {
         const target = resolveWorkbenchImport(file, specifier);
         const violation = workbenchBoundaryViolation(file, target);
         if (violation) fail(file, `${violation}: ${specifier}`);
@@ -98,7 +98,7 @@ export function checkWorkbenchBoundaries({ files: trackedFiles, read }, fail) {
     const graph = new Map(sources.map((file) => [file, new Set()]));
 
     for (const file of sources) {
-      for (const specifier of importSpecifiers(read(file))) {
+      for (const specifier of importSpecifiers(read(file), file)) {
         const dependency = resolveTrackedWorkbenchImport(
           file,
           specifier,

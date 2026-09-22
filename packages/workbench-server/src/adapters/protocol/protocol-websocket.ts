@@ -175,7 +175,7 @@ export function createLocalProtocolSession(
             state.conversationLifecycle.getConversation(conversationId);
             streams.push(await state.events.bounds(cursor.stream));
           } catch (error) {
-            state.logger.warn("Stream subscription entry unavailable", {
+            await state.logger.warn("Stream subscription entry unavailable", {
               context: { stream: cursor.stream },
               error: boundedError(error),
             });
@@ -192,16 +192,20 @@ export function createLocalProtocolSession(
     onMessage: async (message): Promise<void> => session.receive(message),
     onProtocolError: () => {
       closeProtocolError().catch((error: unknown) => {
-        state.logger.warn("Protocol WebSocket close failed", {
-          error: boundedError(error),
-        });
+        void state.logger
+          .warn("Protocol WebSocket close failed", {
+            error: boundedError(error),
+          })
+          .catch(() => undefined);
         dispose();
       });
     },
     onError: (error) => {
-      state.logger.warn("Protocol WebSocket session failed", {
-        error: boundedError(error),
-      });
+      void state.logger
+        .warn("Protocol WebSocket session failed", {
+          error: boundedError(error),
+        })
+        .catch(() => undefined);
       dispose();
     },
   });
@@ -209,9 +213,11 @@ export function createLocalProtocolSession(
     diagnostics?.count("websocket.sequencedDelivery");
     void session.publish(stream, event).catch((error: unknown) => {
       if (disposed) return;
-      state.logger.warn("Protocol event publication failed", {
-        error: boundedError(error),
-      });
+      void state.logger
+        .warn("Protocol event publication failed", {
+          error: boundedError(error),
+        })
+        .catch(() => undefined);
       dispose();
     });
     if (event.type === "conversation.deleted") {
@@ -226,9 +232,11 @@ export function createLocalProtocolSession(
     diagnostics?.count("websocket.notifyDelivery");
     void session.notify(event).catch((error: unknown) => {
       if (disposed) return;
-      state.logger.warn("Protocol notify publication failed", {
-        error: boundedError(error),
-      });
+      void state.logger
+        .warn("Protocol notify publication failed", {
+          error: boundedError(error),
+        })
+        .catch(() => undefined);
       dispose();
     });
   });

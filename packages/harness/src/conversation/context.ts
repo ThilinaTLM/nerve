@@ -1,4 +1,3 @@
-import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "../agent/contracts/index.js";
 import {
   createBranchSummaryMessage,
@@ -52,11 +51,11 @@ export function extractConversationState(
 function messageFromEntry(
   entry: ConversationTreeEntry,
 ): AgentMessage | undefined {
-  if (entry.type === "message") return entry.message as AgentMessage;
+  if (entry.type === "message") return entry.message;
   if (entry.type === "custom_message") {
     return createCustomMessage(
       entry.customType,
-      entry.content as string | (TextContent | ImageContent)[],
+      entry.content,
       entry.display,
       entry.details,
       entry.timestamp,

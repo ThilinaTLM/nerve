@@ -24,6 +24,7 @@ pnpm build                  # TypeScript packages and staged Workbench assets
 pnpm build:native           # host Rust addon in packages/native/prebuilds/local
 pnpm fix                    # Rust, TypeScript, Svelte, and ESLint fixes
 pnpm check                  # formatting, lint, boundaries, package and Rust checks
+pnpm quality:report         # deterministic production/test source inventory
 pnpm run test:affected      # test changed packages and their dependents
 pnpm run test:full          # run the complete package and Rust test suite
 ```
@@ -55,4 +56,5 @@ Before completing package-scoped code changes, repository policy requires `pnpm 
 ## Next steps
 
 - [Package responsibilities](/developers/packages/)
+- [Code quality and architecture checks](/developers/code-quality/)
 - [Contributing](/developers/contributing/)

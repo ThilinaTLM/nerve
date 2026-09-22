@@ -262,7 +262,7 @@ export class WorkbenchAgentMechanics {
         signal: input.signal,
       });
     }
-    return (await executeWorkbenchHarness.call(
+    return await executeWorkbenchHarness.call(
       this,
       agent,
       { text: input.prompt ?? "", images: input.images },
@@ -270,7 +270,7 @@ export class WorkbenchAgentMechanics {
         continue: input.command === "continue",
         coordinator: input,
       },
-    )) as RunExecutionOutcome;
+    );
   }
 
   async runHarnessAttempt(input: {

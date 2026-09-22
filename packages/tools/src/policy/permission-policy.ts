@@ -503,7 +503,7 @@ function valueMatches(value: unknown, matcher: ValueMatcher): boolean {
   return (
     matcher.operator === "glob" &&
     typeof value === "string" &&
-    patternMatches(value, matcher.value as string)
+    patternMatches(value, matcher.value)
   );
 }
 
@@ -632,7 +632,7 @@ function suggestPermissionRules(
 function comparable(value: unknown): ComparableValue | undefined {
   if (isPrimitive(value)) return value;
   if (Array.isArray(value) && value.every(isPrimitive)) {
-    return value as PrimitiveValue[];
+    return value;
   }
   return undefined;
 }

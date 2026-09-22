@@ -8,7 +8,7 @@ import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import { normalizeRunFailure } from "@nervekit/contracts/runs";
-import { toolNameSchema, type ToolName } from "@nervekit/contracts/tools";
+import { toolNameSchema } from "@nervekit/contracts/tools";
 import { HostHarnessFactory } from "./harness-factory.js";
 import type { RunExecutionOutcome } from "../../runs/runtime/index.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
@@ -304,7 +304,7 @@ export async function executeWorkbenchHarness(
         }
         await this.deps.tools.recordProviderToolCallError(
           agent,
-          parsedToolName.data as ToolName,
+          parsedToolName.data,
           started?.args ?? {},
           errorTextFromToolResult(event.result, event.toolName),
           {

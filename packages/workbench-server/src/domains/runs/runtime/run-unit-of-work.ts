@@ -288,7 +288,7 @@ export class BoundedRunStateCache {
     this.entries.delete(runId);
     this.entries.set(runId, state);
     while (this.entries.size > this.maximum) {
-      const oldest = this.entries.keys().next().value as string | undefined;
+      const oldest = this.entries.keys().next().value;
       if (oldest === undefined) break;
       this.entries.delete(oldest);
     }

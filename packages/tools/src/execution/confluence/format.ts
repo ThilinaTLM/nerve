@@ -258,7 +258,7 @@ export function summarizeConfluenceAttachment(
     downloadLink: stringField(record.downloadLink),
     path: stringField(record.path),
     snippet: stringField(record.snippet),
-  }) as ConfluenceAttachmentSummaryPayload;
+  });
 }
 
 export function summarizeConfluenceComment(
@@ -285,7 +285,7 @@ export function summarizeConfluenceComment(
     ),
     resolutionStatus: truncateField(stringField(record.resolutionStatus)),
     versionNumber: numberField(version?.number),
-  }) as ConfluenceCommentSummaryPayload;
+  });
 }
 
 export function summarizeConfluenceProperty(

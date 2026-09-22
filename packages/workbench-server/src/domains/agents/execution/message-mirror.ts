@@ -56,9 +56,9 @@ export function projectHarnessMessageEntry(input: {
     agentId,
     role,
     kind: "message",
-    text: agentMessageText(entry.message as AgentMessage),
-    usage: extractEntryUsage(entry.message as AgentMessage),
-    details: entryDetails(entry.message as AgentMessage),
+    text: agentMessageText(entry.message),
+    usage: extractEntryUsage(entry.message),
+    details: entryDetails(entry.message),
     createdAt: entry.timestamp,
   };
 }
@@ -169,10 +169,10 @@ export class MessageMirror {
             visibleEntryIds,
           ),
           role,
-          kind: entryKind(entry.message as AgentMessage),
-          text: agentMessageText(entry.message as AgentMessage),
-          usage: extractEntryUsage(entry.message as AgentMessage),
-          details: entryDetails(entry.message as AgentMessage),
+          kind: entryKind(entry.message),
+          text: agentMessageText(entry.message),
+          usage: extractEntryUsage(entry.message),
+          details: entryDetails(entry.message),
           createdAt: entry.timestamp,
         },
         { mirrorToHarness: false },
@@ -259,7 +259,7 @@ function entryDetails(message: AgentMessage): unknown {
       type: message.eventType,
       source: "harness",
       ...(message.details && typeof message.details === "object"
-        ? (message.details as Record<string, unknown>)
+        ? message.details
         : { details: message.details }),
     };
   }

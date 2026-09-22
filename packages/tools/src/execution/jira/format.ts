@@ -299,7 +299,7 @@ export function summarizeJiraAttachment(
     author: truncateField(displayNameOf(record.author)),
     created: truncateField(stringField(record.created)),
     path: stringField(record.path),
-  }) as JiraAttachmentSummaryPayload;
+  });
 }
 
 export function summarizeJiraBoard(
@@ -359,7 +359,7 @@ export function summarizeJiraComment(
     visibility: truncateField(nameOf(record.visibility)),
     created: truncateField(stringField(record.created)),
     updated: truncateField(stringField(record.updated)),
-  }) as JiraCommentSummaryPayload;
+  });
 }
 
 export function summarizeJiraWorklog(
@@ -378,7 +378,7 @@ export function summarizeJiraWorklog(
         : undefined,
     started: truncateField(stringField(record.started)),
     commentPreview: atlassianPlainTextPreview(record.comment),
-  }) as JiraWorklogSummaryPayload;
+  });
 }
 
 export function summarizeJiraChangelog(
@@ -405,7 +405,7 @@ export function summarizeJiraChangelog(
     author: truncateField(displayNameOf(record.author)),
     created: truncateField(stringField(record.created)),
     changes: changes.length > 0 ? changes : undefined,
-  }) as JiraChangelogSummaryPayload;
+  });
 }
 
 export function summarizeJiraRemoteLink(
@@ -423,7 +423,7 @@ export function summarizeJiraRemoteLink(
     ),
     url,
     relationship: truncateField(stringField(record.relationship)),
-  }) as JiraRemoteLinkSummaryPayload;
+  });
 }
 
 export function summarizeJiraIssueLink(
@@ -448,7 +448,7 @@ export function summarizeJiraIssueLink(
       record.direction === "outward" || record.direction === "inward"
         ? record.direction
         : undefined,
-  }) as JiraIssueLinkSummaryPayload;
+  });
 }
 
 export function formatBoardSummaryLine(

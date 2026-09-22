@@ -52,7 +52,7 @@ function abortedError(): HtmlConversionError {
 function workerExecArgv(): string[] {
   const retained: string[] = [];
   for (let index = 0; index < process.execArgv.length; index += 1) {
-    const argument = process.execArgv[index]!;
+    const argument = process.execArgv[index];
     if (
       argument === "--import" ||
       argument === "--require" ||

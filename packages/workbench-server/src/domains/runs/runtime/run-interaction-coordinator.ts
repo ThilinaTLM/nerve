@@ -74,7 +74,7 @@ export class RunInteractionCoordinator {
       const now = this.options.now();
       const checkpoint = checkpointRecord(
         state,
-        { ...commands[0]!.checkpoint, boundary: "suspension" },
+        { ...commands[0].checkpoint, boundary: "suspension" },
         now,
         this.options.ids,
         this.options.integrity,
@@ -82,7 +82,7 @@ export class RunInteractionCoordinator {
       const interactions = commands.map((item) =>
         interactionRecord(state.run, item, checkpoint, now, this.options.ids),
       );
-      const first = interactions[0]!;
+      const first = interactions[0];
       const next = revise(
         state.run,
         {
@@ -377,7 +377,7 @@ export class RunInteractionCoordinator {
   }
 
   private assertWaitBatch(commands: readonly WaitCommand[]): void {
-    const first = commands[0]!;
+    const first = commands[0];
     const firstCheckpointHash = this.options.integrity.checksum({
       ...first.checkpoint,
       boundary: "suspension",
@@ -469,7 +469,7 @@ export class RunInteractionCoordinator {
     state: RunHydratedState,
     interactions: readonly RunInteractionRecord[],
   ): void {
-    const first = interactions[0]!;
+    const first = interactions[0];
     const selectedIds = interactions.map((interaction) => interaction.id);
     if (new Set(selectedIds).size !== selectedIds.length) {
       throw new InvalidRunStateError("Duplicate interaction resolution");

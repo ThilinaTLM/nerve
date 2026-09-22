@@ -78,10 +78,10 @@ function coalesceQueuedUserEntryGroup(
   entries: InboundQueuedMessage[],
 ): CoalescedQueuedMessage {
   if (entries.length === 1) {
-    const entry = entries[0] as InboundQueuedMessage;
+    const entry = entries[0];
     return { message: entry.message, entries };
   }
-  const first = entries[0] as InboundQueuedMessage;
+  const first = entries[0];
   const text = entries
     .map((entry) => queuedUserMessageText(entry.message).trimEnd())
     .join("\n\n");

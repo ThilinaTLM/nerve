@@ -3,86 +3,14 @@
  * Transforms to Message[] only at the LLM call boundary.
  */
 
-import type { EventStream } from "@earendil-works/pi-ai";
 import type {
   AgentContext,
-  AgentEvent,
   AgentLoopConfig,
   AgentMessage,
   StreamFn,
 } from "../contracts/index.js";
-import { type AgentEventSink, createAgentStream } from "./loop-events.js";
+import type { AgentEventSink } from "./loop-events.js";
 import { runLoop } from "./turn-loop.js";
-
-/**
- * Start an agent loop with a new prompt message.
- * The prompt is added to the context and events are emitted for it.
- */
-export function agentLoop(
-  prompts: AgentMessage[],
-  context: AgentContext,
-  config: AgentLoopConfig,
-  signal?: AbortSignal,
-  streamFn?: StreamFn,
-): EventStream<AgentEvent, AgentMessage[]> {
-  const stream = createAgentStream();
-
-  void runAgentLoop(
-    prompts,
-    context,
-    config,
-    async (event) => {
-      stream.push(event);
-    },
-    signal,
-    streamFn,
-  ).then(
-    (messages) => stream.end(messages),
-    () => stream.end([]),
-  );
-
-  return stream;
-}
-
-/**
- * Continue an agent loop from the current context without adding a new message.
- * Used for retries - context already has user message or tool results.
- *
- * **Important:** The last message in context must convert to a `user` or `toolResult` message
- * via `convertToLlm`. If it doesn't, the LLM provider will reject the request.
- * This cannot be validated here since `convertToLlm` is only called once per turn.
- */
-export function agentLoopContinue(
-  context: AgentContext,
-  config: AgentLoopConfig,
-  signal?: AbortSignal,
-  streamFn?: StreamFn,
-): EventStream<AgentEvent, AgentMessage[]> {
-  if (context.messages.length === 0) {
-    throw new Error("Cannot continue: no messages in context");
-  }
-
-  if (context.messages[context.messages.length - 1].role === "assistant") {
-    throw new Error("Cannot continue from message role: assistant");
-  }
-
-  const stream = createAgentStream();
-
-  void runAgentLoopContinue(
-    context,
-    config,
-    async (event) => {
-      stream.push(event);
-    },
-    signal,
-    streamFn,
-  ).then(
-    (messages) => stream.end(messages),
-    () => stream.end([]),
-  );
-
-  return stream;
-}
 
 export async function runAgentLoop(
   prompts: AgentMessage[],

@@ -494,7 +494,7 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
               interaction.toolCallRevision,
             kind: interaction.kind,
           })),
-          createdAt: ordered[0]!.createdAt,
+          createdAt: ordered[0].createdAt,
           updatedAt: state.run.updatedAt,
         },
       });

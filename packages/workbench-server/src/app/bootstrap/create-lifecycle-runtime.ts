@@ -7,11 +7,29 @@ import type { ToolService } from "../../domains/tools/execution/tool-service.js"
 import { RunLifecycleService } from "../../domains/runs/application/run-lifecycle.service.js";
 import { LifecycleWorkDispatcher } from "../../domains/runs/runtime/lifecycle-work-dispatcher.js";
 
-export function createLifecycleRuntime(input: {
+export function createRunLifecycleService(input: {
   store: CanonicalStore;
   journal: ConversationJournalRepository;
+  wakeWork(): Promise<void> | void;
+  logger: ApplicationLogger;
+}) {
+  return new RunLifecycleService({
+    journal: input.journal,
+    receipts: input.store,
+    wakeWork: input.wakeWork,
+    onWakeError: (error) => {
+      void input.logger.warn("Lifecycle dispatcher wake failed", { error });
+    },
+  });
+}
+
+export function createLifecycleWorkDispatcher(input: {
+  store: CanonicalStore;
   tools: ToolService;
-  humanInput(): HumanInputResolutionService;
+  humanInput: Pick<
+    HumanInputResolutionService,
+    "recoverReadyApprovalBatches" | "recoverResolvedUserQuestions"
+  >;
   continueModel(
     work: import("@nervekit/contracts/runs").LifecycleWork,
   ): Promise<void>;
@@ -55,9 +73,7 @@ export function createLifecycleRuntime(input: {
           return { state: "failed", lastError: "Approval was not found." };
         }
         await input.tools.finalizeDecidedApproval(approval.id);
-        await input
-          .humanInput()
-          .recoverReadyApprovalBatches(work.conversationId);
+        await input.humanInput.recoverReadyApprovalBatches(work.conversationId);
         return { state: "succeeded" };
       },
       continue_model: async (work) => {
@@ -68,10 +84,13 @@ export function createLifecycleRuntime(input: {
         return { state: "succeeded" };
       },
       reconcile_conversation: async (work) => {
-        const humanInput = input.humanInput();
         if (work.runId) {
-          await humanInput.recoverReadyApprovalBatches(work.conversationId);
-          await humanInput.recoverResolvedUserQuestions(work.conversationId);
+          await input.humanInput.recoverReadyApprovalBatches(
+            work.conversationId,
+          );
+          await input.humanInput.recoverResolvedUserQuestions(
+            work.conversationId,
+          );
         } else if (work.proposalId) {
           const approval = await input.tools.getApprovalForToolCallDetails(
             work.proposalId,
@@ -84,15 +103,5 @@ export function createLifecycleRuntime(input: {
       },
     },
   });
-  const lifecycle = new RunLifecycleService({
-    journal: input.journal,
-    receipts: input.store,
-    wakeWork: () => {
-      setImmediate(() => dispatcher.trigger());
-    },
-    onWakeError: (error) => {
-      void input.logger.warn("Lifecycle dispatcher wake failed", { error });
-    },
-  });
-  return { dispatcher, lifecycle, bootId };
+  return { dispatcher, bootId };
 }

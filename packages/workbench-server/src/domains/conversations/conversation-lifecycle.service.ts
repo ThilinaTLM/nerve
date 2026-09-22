@@ -402,9 +402,7 @@ export class ConversationLifecycleService {
       this.entryResidency.size > maxConversations ||
       (this.entryResidency.size > 1 && totalBytes() > maxBytes)
     ) {
-      const candidate = this.entryResidency.keys().next().value as
-        | string
-        | undefined;
+      const candidate = this.entryResidency.keys().next().value;
       if (!candidate || candidate === exclude) return;
       this.entryResidency.delete(candidate);
       this.state.clearConversationEntries(candidate);

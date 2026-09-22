@@ -1111,7 +1111,17 @@ export class ToolService {
           : interaction,
       ),
     });
-    await this.publishToolCallUpdated(failed).catch(() => undefined);
+    await this.publishToolCallUpdated(failed).catch(async (error: unknown) => {
+      await this.dependencies.logger
+        ?.warn("Tool call update publication failed", {
+          toolCallId: failed.id,
+          context: {
+            operation: "abandon_pending_interaction",
+            failureType: error instanceof Error ? error.name : typeof error,
+          },
+        })
+        .catch(() => undefined);
+    });
     return failed;
   }
 

@@ -483,9 +483,7 @@ export class ToolCallRepository {
     this.terminalCache.set(record.id, { record, bytes });
     this.terminalCacheBytes += bytes;
     while (this.terminalCacheBytes > TERMINAL_CACHE_MAX_BYTES) {
-      const oldestId = this.terminalCache.keys().next().value as
-        | string
-        | undefined;
+      const oldestId = this.terminalCache.keys().next().value;
       if (!oldestId) break;
       const oldest = this.terminalCache.get(oldestId);
       this.terminalCache.delete(oldestId);
