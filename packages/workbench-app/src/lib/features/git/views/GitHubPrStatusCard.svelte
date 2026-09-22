@@ -22,18 +22,27 @@ import {
   mergeMethodLabel,
   mergeReadiness,
 } from "./pr-pane-helpers";
+import type { PrMergeFollowUp } from "./github-pr-types";
 
 type Props = {
   detail: GithubPrCore & GithubPrOverview & { checks: GithubChecksSummary };
   selectedMethod?: GithubPrMergeMethod;
   merging: boolean;
   error?: string;
+  checkedOut?: boolean;
   onMethodChange?: (method: GithubPrMergeMethod) => void;
-  onMerge?: (method: GithubPrMergeMethod) => void;
+  onMerge?: (method: GithubPrMergeMethod, followUp: PrMergeFollowUp) => void;
 };
 
-let { detail, selectedMethod, merging, error, onMethodChange, onMerge }: Props =
-  $props();
+let {
+  detail,
+  selectedMethod,
+  merging,
+  error,
+  checkedOut = false,
+  onMethodChange,
+  onMerge,
+}: Props = $props();
 let confirmOpen = $state(false);
 
 const readiness = $derived(mergeReadiness(detail));
@@ -158,10 +167,10 @@ function requestMerge() {
   if (method && readiness.status === "ready") confirmOpen = true;
 }
 
-function confirmMerge() {
+function confirmMerge(followUp: PrMergeFollowUp) {
   if (!method) return;
   confirmOpen = false;
-  onMerge?.(method);
+  onMerge?.(method, followUp);
 }
 </script>
 
@@ -217,8 +226,10 @@ function confirmMerge() {
 <ConfirmDialog
   bind:open={confirmOpen}
   title={`Merge pull request #${detail.number}?`}
-  description={`${method ? mergeMethodLabel(method) : "Merge"} will merge ${detail.headRefName} into ${detail.baseRefName} at head ${detail.headRefOid.slice(0, 7)}.`}
-  confirmLabel="Confirm merge"
+  description={`${method ? mergeMethodLabel(method) : "Merge"} will merge ${detail.headRefName} into ${detail.baseRefName} at head ${detail.headRefOid.slice(0, 7)}.${checkedOut ? ` The primary action then switches this checkout to ${detail.baseRefName} and pulls it.` : ""}`}
+  confirmLabel={checkedOut ? "Merge & update" : "Confirm merge"}
+  secondaryLabel={checkedOut ? "Merge only" : undefined}
   confirmVariant="success"
-  onConfirm={confirmMerge}
+  onConfirm={() => confirmMerge(checkedOut ? "switch-base-and-pull" : "stay")}
+  onSecondary={() => confirmMerge("stay")}
 />

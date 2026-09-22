@@ -152,6 +152,66 @@ describe("GitService dirty-worktree workflows", () => {
     });
   });
 
+  it("switches to and pulls an explicitly requested non-default base", async () => {
+    await withFixture(async (fixture) => {
+      await command(
+        fixture.service,
+        fixture.updater,
+        "switch",
+        "-c",
+        "release",
+      );
+      await writeFile(
+        join(fixture.updater, "release.txt"),
+        "initial release\n",
+      );
+      await command(fixture.service, fixture.updater, "add", "release.txt");
+      await command(
+        fixture.service,
+        fixture.updater,
+        "commit",
+        "-m",
+        "create release",
+      );
+      await command(
+        fixture.service,
+        fixture.updater,
+        "push",
+        "-u",
+        "origin",
+        "release",
+      );
+      await command(fixture.service, fixture.work, "fetch", "origin");
+      await command(fixture.service, fixture.work, "switch", "-c", "feature");
+
+      await writeFile(
+        join(fixture.updater, "release.txt"),
+        "updated release\n",
+      );
+      await command(fixture.service, fixture.updater, "add", "release.txt");
+      await command(
+        fixture.service,
+        fixture.updater,
+        "commit",
+        "-m",
+        "update release",
+      );
+      await command(fixture.service, fixture.updater, "push");
+
+      const result = await fixture.service.switchBaseAndPull(
+        "project",
+        ".",
+        "release",
+      );
+
+      assert.equal(result.repo.currentBranch, "release");
+      assert.equal(
+        await readFile(join(fixture.work, "release.txt"), "utf8"),
+        "updated release\n",
+      );
+    });
+  });
+
   it("syncs a behind branch while preserving a non-overlapping local change", async () => {
     await withFixture(async (fixture) => {
       await writeFile(join(fixture.work, "local.txt"), "local sync edit\n");

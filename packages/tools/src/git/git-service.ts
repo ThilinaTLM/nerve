@@ -801,6 +801,7 @@ export class GitService {
   async switchBaseAndPull(
     projectId: string,
     relativePath: string,
+    requestedBaseBranch?: string,
   ): Promise<GitMutationResponse> {
     const repoDir = this.resolveRepoDir(projectId, relativePath);
     const repo = await this.summarizeRepo(
@@ -816,8 +817,19 @@ export class GitService {
       );
     }
 
+    if (
+      requestedBaseBranch &&
+      !(await this.#readBackend.validateBranchName(requestedBaseBranch))
+    ) {
+      throw new GitWorkflowError(
+        400,
+        "GIT_INVALID_BRANCH_NAME",
+        `'${requestedBaseBranch}' is not a valid Git branch name.`,
+      );
+    }
+
     const stable = await this.stableRepoMetadata(repoDir);
-    const baseBranch = stable.baseBranch;
+    const baseBranch = requestedBaseBranch ?? stable.baseBranch;
     const localBaseExists = stable.refSnapshot.refs.has(
       `refs/heads/${baseBranch}`,
     );

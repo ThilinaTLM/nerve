@@ -32,6 +32,7 @@ import {
   githubPrMergeRequestSchema,
   githubPrMergeResponseSchema,
   githubStatusResponseSchema,
+  switchBaseAndPullRequestSchema,
   switchBranchRequestSchema,
 } from "./git.js";
 import { z } from "zod";
@@ -59,6 +60,9 @@ const gitFileDiffParamsSchema = projectIdParamsSchema.merge(
 );
 const gitRemoteOpParamsSchema = projectIdParamsSchema.merge(
   gitRemoteOpRequestSchema,
+);
+const gitSwitchBaseAndPullParamsSchema = projectIdParamsSchema.merge(
+  switchBaseAndPullRequestSchema,
 );
 const gitStashCreateParamsSchema = projectIdParamsSchema.merge(
   gitStashCreateRequestSchema,
@@ -244,7 +248,7 @@ export const gitOperationDefinitions = [
   ),
   defineOperation(
     "git.switchBaseAndPull",
-    gitRemoteOpParamsSchema,
+    gitSwitchBaseAndPullParamsSchema,
     gitMutationResponseSchema,
     "mutation",
     "recommended",

@@ -11,6 +11,7 @@ import type {
 } from "@nervekit/contracts/git";
 
 export type GithubPrTab = "conversation" | "commits" | "checks" | "files";
+export type PrMergeFollowUp = "stay" | "switch-base-and-pull";
 
 export type PrSectionState<T> = {
   data?: T;

@@ -73,7 +73,11 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
     "git.fetch": (state, params) =>
       state.git.fetch(params.projectId, repo(params)),
     "git.switchBaseAndPull": (state, params) =>
-      state.git.switchBaseAndPull(params.projectId, repo(params)),
+      state.git.switchBaseAndPull(
+        params.projectId,
+        repo(params),
+        params.baseBranch,
+      ),
     "git.stash.create": (state, params) =>
       state.git.createStash(
         params.projectId,
