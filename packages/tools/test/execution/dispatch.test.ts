@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { HTML_CONVERSION_MAX_INPUT_BYTES } from "../../src/execution/atlassian/isolated-html-to-markdown.js";
 import { executeTool } from "../../src/execution/dispatch.js";
@@ -247,9 +248,9 @@ describe("executeTool dispatch", () => {
     );
   });
 
-  it("generates GPT images through the host callback and stores artifacts", async () => {
+  it("generates images through the host callback and stores artifacts", async () => {
     const project = await createTempProject();
-    const artifactDir = `${project.root}/artifacts`;
+    const artifactDir = join(project.root, "artifacts");
     const image = Buffer.from([
       0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
     ]);
@@ -283,8 +284,9 @@ describe("executeTool dispatch", () => {
       images: Array<{ path: string }>;
       outputLimits: { artifacts: Array<{ path: string }> };
     };
-    assert.equal(details.images[0]?.path, `${artifactDir}/generated-1.png`);
-    assert.deepEqual(await readFile(details.images[0]!.path), image);
+    const expectedPath = join(artifactDir, "generated-1.png");
+    assert.equal(details.images[0]?.path, expectedPath);
+    assert.deepEqual(await readFile(expectedPath), image);
     assert.equal(
       details.outputLimits.artifacts[0]?.path,
       details.images[0]?.path,
