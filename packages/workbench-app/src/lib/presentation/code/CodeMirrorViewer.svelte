@@ -41,6 +41,7 @@ import {
   updateUnsavedChangesBaseline,
 } from "./code-unsaved-changes";
 import {
+  codeDocumentLineSeparator,
   loadCodeLanguage,
   localLineNumber,
   readOnlyCodeExtensions,
@@ -96,12 +97,18 @@ let findStatus = $state("0 results");
 let findValid = $state(true);
 
 const baseCompartment = new Compartment();
+const documentLineSeparatorCompartment = new Compartment();
 const languageCompartment = new Compartment();
 const wrapCompartment = new Compartment();
 const targetCompartment = new Compartment();
 const unsavedChangesCompartment = new Compartment();
 let unsavedChangesActive = false;
 let unsavedChangesBaseline: string | undefined;
+let documentLineSeparator = codeDocumentLineSeparator(text);
+
+function lineSeparatorExtension(separator: string | undefined): Extension {
+  return separator ? EditorState.lineSeparator.of(separator) : [];
+}
 
 function codeFoldMarker(open: boolean): HTMLElement {
   const dom = document.createElement("span");
@@ -334,9 +341,21 @@ function baseExtensions(): Extension[] {
 
 function syncDocument(): void {
   if (!view) return;
-  const current = view.state.doc.toString();
+  const nextLineSeparator = codeDocumentLineSeparator(text);
+  if (documentLineSeparator !== nextLineSeparator) {
+    view.dispatch({
+      effects: documentLineSeparatorCompartment.reconfigure(
+        lineSeparatorExtension(nextLineSeparator),
+      ),
+    });
+    documentLineSeparator = nextLineSeparator;
+  }
+
+  const current = view.state.sliceDoc();
   if (current !== text) {
-    view.dispatch({ changes: { from: 0, to: current.length, insert: text } });
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: text },
+    });
   }
 }
 
@@ -405,6 +424,9 @@ onMount(() => {
     doc: text,
     extensions: [
       baseCompartment.of(baseExtensions()),
+      documentLineSeparatorCompartment.of(
+        lineSeparatorExtension(documentLineSeparator),
+      ),
       languageCompartment.of([]),
       wrapCompartment.of(wrap ? EditorView.lineWrapping : []),
       targetCompartment.of([]),
@@ -482,7 +504,7 @@ onMount(() => {
         ]),
       ),
       EditorView.updateListener.of((update) => {
-        if (update.docChanged) onChange?.(update.state.doc.toString());
+        if (update.docChanged) onChange?.(update.state.sliceDoc());
         if (update.docChanged || update.selectionSet) {
           contextVersion += 1;
           updateFindStatus();
