@@ -408,6 +408,15 @@ export function toolPresentation(
       return {
         ...base,
         primaryArg: view.prompt ? { text: view.prompt } : base.primaryArg,
+        meta:
+          view.paths.length > 0
+            ? [
+                {
+                  text: `${view.paths.length} image${view.paths.length === 1 ? "" : "s"}`,
+                  tone: "success",
+                },
+              ]
+            : [],
       };
 
     case "explain_image": {

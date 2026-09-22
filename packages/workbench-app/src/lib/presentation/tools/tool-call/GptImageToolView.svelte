@@ -1,9 +1,9 @@
 <script lang="ts">
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type {
   ToolCallDisplayRecord,
   ToolView,
 } from "../views/tool-result-view";
+import ToolOutputBlock from "./ToolOutputBlock.svelte";
 
 type Props = {
   toolCall: ToolCallDisplayRecord;
@@ -12,25 +12,19 @@ type Props = {
   onOpenFile?: (path: string, line?: number) => void;
 };
 
-let { toolCall, view, onOpenFile }: Props = $props();
+let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
 </script>
 
 {#if view.paths.length > 0}
-  <div
-    class="grid justify-items-start gap-1"
-    aria-label="Generated image files"
-  >
+  <div class="grid gap-1.5" aria-label="Generated image files">
     {#each view.paths as path (path)}
-      <Button
-        type="button"
-        variant="link"
-        size="xs"
-        class="h-auto max-w-full justify-start px-0 font-mono"
-        onclick={() => onOpenFile?.(path)}
-        title={path}
-      >
-        <span class="truncate">{path}</span>
-      </Button>
+      <ToolOutputBlock
+        text={path}
+        collapsedLines={1}
+        {expanded}
+        onActivate={() => onOpenFile?.(path)}
+        activateLabel="Open generated image in a file tab"
+      />
     {/each}
   </div>
 {:else if toolCall.status === "completed"}

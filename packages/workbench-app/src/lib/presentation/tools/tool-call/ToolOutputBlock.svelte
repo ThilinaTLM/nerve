@@ -13,6 +13,8 @@ type Props = {
   collapsedLines?: number;
   expanded?: boolean;
   terminal?: boolean;
+  onActivate?: () => void;
+  activateLabel?: string;
 };
 let {
   text,
@@ -21,6 +23,8 @@ let {
   collapsedLines = COLLAPSED_LINES,
   expanded = false,
   terminal = false,
+  onActivate,
+  activateLabel,
 }: Props = $props();
 
 const visible = $derived.by(() => {
@@ -39,4 +43,6 @@ const visible = $derived.by(() => {
   {terminal}
   fixedRows={expanded ? undefined : collapsedLines}
   tail={!expanded && direction === "tail"}
+  {onActivate}
+  {activateLabel}
 />
