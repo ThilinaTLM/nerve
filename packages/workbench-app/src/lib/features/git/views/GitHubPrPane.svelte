@@ -22,6 +22,7 @@ import GitHubPrStatusCard from "./GitHubPrStatusCard.svelte";
 import GitHubPrSectionSkeleton from "./GitHubPrSectionSkeleton.svelte";
 import type {
   GithubPrTab,
+  PrMergeFollowUp,
   PrSectionState,
   PrViewState,
 } from "./github-pr-types";
@@ -48,7 +49,7 @@ type Props = {
   onFileSelect?: (path: string) => void;
   onFileDiffRetry?: () => void;
   onMergeMethodChange?: (method: GithubPrMergeMethod) => void;
-  onMerge?: (method: GithubPrMergeMethod) => void;
+  onMerge?: (method: GithubPrMergeMethod, followUp: PrMergeFollowUp) => void;
 };
 
 let {
@@ -234,6 +235,7 @@ function changeTab(value: string) {
                   selectedMethod={view.selectedMergeMethod}
                   merging={view.merging}
                   error={view.mergeError}
+                  {checkedOut}
                   onMethodChange={onMergeMethodChange}
                   {onMerge}
                 />

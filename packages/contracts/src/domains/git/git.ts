@@ -182,6 +182,14 @@ export const gitRemoteOpRequestSchema = z.object({
 });
 export type GitRemoteOpRequest = z.infer<typeof gitRemoteOpRequestSchema>;
 
+export const switchBaseAndPullRequestSchema = gitRemoteOpRequestSchema.extend({
+  /** Explicit target for PR workflows; otherwise the detected default base. */
+  baseBranch: z.string().min(1).optional(),
+});
+export type SwitchBaseAndPullRequest = z.infer<
+  typeof switchBaseAndPullRequestSchema
+>;
+
 export const gitFileActionRequestSchema = z.object({
   repo: z.string().default("."),
   path: z.string().min(1),

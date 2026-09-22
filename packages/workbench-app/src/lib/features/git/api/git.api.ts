@@ -171,11 +171,13 @@ export async function fetchGit(
 export async function switchBaseAndPullGit(
   projectId: string,
   repo: string,
+  baseBranch?: string,
 ): Promise<GitMutationResponse> {
   return (
     await protocolRequest("git.switchBaseAndPull", {
       projectId,
       repo,
+      baseBranch,
     })
   ).result;
 }

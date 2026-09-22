@@ -1,7 +1,11 @@
 <script lang="ts">
 import type { GithubPrMergeMethod } from "@nervekit/contracts/git";
-import { checkoutGithubPr, mergeGithubPr } from "$lib/api";
-import { GitHubPrPane } from "$lib/features/git/views";
+import {
+  checkoutGithubPr,
+  mergeGithubPr,
+  switchBaseAndPullGit,
+} from "$lib/api";
+import { GitHubPrPane, type PrMergeFollowUp } from "$lib/features/git/views";
 import { invalidateGit } from "$lib/features/git/state/git-context.svelte";
 import {
   applyMergedPr,
@@ -61,31 +65,71 @@ async function checkoutActivePr() {
   }
 }
 
-async function mergeActivePr(method: GithubPrMergeMethod) {
+async function mergeActivePr(
+  method: GithubPrMergeMethod,
+  followUp: PrMergeFollowUp,
+) {
   const view = activeCenterPrView;
   const core = view?.core.data;
   if (!view || !core || view.merging) return;
   view.merging = true;
   view.mergeError = undefined;
+
   try {
-    await mergeGithubPr(
-      view.projectId,
-      view.repo,
-      view.number,
-      method,
-      core.headRefOid,
+    try {
+      await mergeGithubPr(
+        view.projectId,
+        view.repo,
+        view.number,
+        method,
+        core.headRefOid,
+      );
+    } catch (caught) {
+      const message = errorDetails(caught);
+      view.mergeError = message;
+      showCriticalError("Could not merge pull request", message);
+      return;
+    }
+
+    try {
+      await applyMergedPr(view);
+    } catch (caught) {
+      showCriticalError(
+        "Pull request merged, but its status could not refresh",
+        errorDetails(caught),
+      );
+    }
+
+    let updatedLocalBranch = false;
+    if (followUp === "switch-base-and-pull") {
+      try {
+        await switchBaseAndPullGit(view.projectId, view.repo, core.baseRefName);
+        updatedLocalBranch = true;
+      } catch (caught) {
+        showCriticalError(
+          "Pull request merged, but the local branch could not update",
+          errorDetails(caught),
+        );
+      }
+    }
+
+    notify.success(
+      updatedLocalBranch
+        ? `Merged pull request #${view.number} and updated ${core.baseRefName}`
+        : `Merged pull request #${view.number}`,
     );
-    await applyMergedPr(view);
-    notify.success(`Merged pull request #${view.number}`);
     invalidateGit(view.projectId);
-    await Promise.all([
-      refreshPrPane(view.id),
-      refreshPrs(view.projectId, view.repo, true, true),
-    ]);
-  } catch (caught) {
-    const message = caught instanceof Error ? caught.message : String(caught);
-    view.mergeError = message;
-    showCriticalError("Could not merge pull request", message);
+    try {
+      await Promise.all([
+        refreshPrPane(view.id),
+        refreshPrs(view.projectId, view.repo, true, true),
+      ]);
+    } catch (caught) {
+      showCriticalError(
+        "Pull request merged, but Git state could not refresh",
+        errorDetails(caught),
+      );
+    }
   } finally {
     view.merging = false;
   }
@@ -142,5 +186,5 @@ $effect(() => {
     activeCenterPrView && retrySelectedPrFile(activeCenterPrView.id)}
   onMergeMethodChange={(method) =>
     activeCenterPrView && selectPrMergeMethod(activeCenterPrView.id, method)}
-  onMerge={(method) => void mergeActivePr(method)}
+  onMerge={(method, followUp) => void mergeActivePr(method, followUp)}
 />
