@@ -1,23 +1,9 @@
 ---
-title: Code quality and architecture checks
-description: Understand Nerve's automated boundaries, quality inventory, and validation workflow.
+title: Architecture checks and validation
+description: Understand Nerve's automated boundaries and validation workflow.
 ---
 
-Nerve treats architecture rules as executable policy where practical. The root `pnpm check` command runs formatting, ESLint, package-boundary checks, and package-specific type checks. Tests and release smoke tests cover behavior separately; a passing line-count or lint report is not a substitute for those checks.
-
-## Quality inventory
-
-Run the deterministic source inventory from the repository root:
-
-```sh
-pnpm quality:report
-pnpm quality:report -- --json
-pnpm quality:report -- --output /tmp/nerve-quality.md
-```
-
-The report uses the same tracked and non-ignored source inventory as the architecture checks. It separates production and test code, includes the Rust crate, excludes generated/build/prebuilt artifacts, lists package test commands, and identifies a small set of syntactic review signals.
-
-Line counts, lint suppressions, and type assertions identify places worth reviewing. They are not quality scores, coverage measurements, or evidence of a defect. Compare reports only when generated with the same revision and toolchain.
+Nerve treats architecture rules as executable policy where practical. The root `pnpm check` command runs formatting, ESLint, package-boundary checks, and package-specific type checks. Tests and release smoke tests cover behavior separately from these static checks.
 
 ## Enforced architecture
 

@@ -15,7 +15,6 @@
     "build:workbench-runtime": "pnpm --filter @nervekit/workbench-app... --filter @nervekit/workbench-server... build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs",
     "fix": "pnpm --filter @nervekit/native fix:native && oxfmt && eslint . --fix && oxfmt",
     "check": "oxfmt --check && eslint . && node scripts/check-package-boundaries.mjs && pnpm -r check",
-    "quality:report": "node scripts/report-code-quality.mjs",
     "test:affected": "pnpm build:native && node --test \"scripts/**/*.test.mjs\" && pnpm --workspace-concurrency=1 --filter \"...[origin/main]\" --if-present test",
     "test:full": "pnpm build:native && node --test \"scripts/**/*.test.mjs\" && pnpm --workspace-concurrency=1 -r --if-present test",
     "test:coverage": "c8 pnpm run test:full",
