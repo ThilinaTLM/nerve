@@ -34,7 +34,7 @@ export class LiveOutputDelivery {
   async end(): Promise<void> {
     for (const stream of ["stdout", "stderr"] as const) {
       const tail = this.#decoders[stream].end();
-      if (tail) this.#enqueue(stream, tail);
+      if (tail) void this.#enqueue(stream, tail);
     }
     await this.#pending;
   }

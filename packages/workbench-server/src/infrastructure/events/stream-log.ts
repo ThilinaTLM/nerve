@@ -279,7 +279,7 @@ export class StreamLog {
       (durableEvents.length - removeCount > this.#retentionEvents ||
         bytes > this.#retentionBytes)
     ) {
-      const event = durableEvents[removeCount] as EventEnvelope;
+      const event = durableEvents[removeCount];
       bytes -= serializedEventBytes(event);
       removeCount += 1;
     }

@@ -140,7 +140,7 @@ export class CanonicalStore {
       this.readers.length > 0
     ) {
       const reader = this.readers[this.nextReader++ % this.readers.length];
-      return reader!.request<T>(command, transferList);
+      return reader.request<T>(command, transferList);
     }
     return this.writer.request<T>(command, transferList);
   }

@@ -104,7 +104,7 @@ const activityVisible = $derived(
 </script>
 
 <LifecycleFrame revision={layoutRevision}>
-  <article class="card" data-state={draftPhase ?? lifecycle}>
+  <article class="w-full py-2.5" data-state={draftPhase ?? lifecycle}>
     <CardHeader
       {dotTone}
       {dotPulse}
@@ -118,11 +118,12 @@ const activityVisible = $derived(
 
     <div class={`grid min-w-0 gap-1.5${activityVisible ? " pt-1.5" : ""}`}>
       {#if error}
-        <pre class="card-error">{error}</pre>
+        <pre
+          class="m-0 whitespace-pre-wrap break-words rounded-sm border border-destructive/40 bg-panel px-2.5 py-2 font-mono text-xs leading-snug text-destructive">{error}</pre>
       {/if}
 
       {#if bodyVisible && children}
-        <div class="card-body grid gap-1.5">{@render children()}</div>
+        <div class="grid min-w-0 gap-1.5">{@render children()}</div>
       {/if}
 
       {#if footerVisible}
@@ -131,28 +132,3 @@ const activityVisible = $derived(
     </div>
   </article>
 </LifecycleFrame>
-
-<style>
-.card {
-  width: 100%;
-  padding: 0.6rem 0;
-}
-
-.card-body {
-  min-width: 0;
-}
-
-.card-error {
-  margin: 0;
-  border: 1px solid color-mix(in oklab, var(--destructive) 40%, var(--border));
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-  color: var(--destructive);
-  padding: 0.48rem 0.58rem;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-</style>

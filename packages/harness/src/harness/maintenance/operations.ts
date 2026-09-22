@@ -111,7 +111,7 @@ export async function compactHarnessConversation<
       branchEntries,
       customInstructions,
       signal: new AbortController().signal,
-    } as AgentHarnessOwnEvent)) as BeforeCompactResult | undefined;
+    })) as BeforeCompactResult | undefined;
     if (hookResult?.cancel) {
       throw new AgentHarnessError("compaction", "Compaction cancelled");
     }
@@ -143,7 +143,7 @@ export async function compactHarnessConversation<
         type: "conversation_compact",
         compactionEntry: entry,
         fromHook: provided !== undefined,
-      } as AgentHarnessOwnEvent);
+      });
     }
     return result;
   } catch (error) {
@@ -201,7 +201,7 @@ export async function navigateHarnessTree<
       type: "conversation_before_tree",
       preparation,
       signal,
-    } as AgentHarnessOwnEvent)) as BeforeTreeResult | undefined;
+    })) as BeforeTreeResult | undefined;
     if (hookResult?.cancel) return { cancelled: true };
     let summaryEntry: NavigateTreeResult["summaryEntry"];
     let summaryText: string | undefined = hookResult?.summary?.summary;
@@ -270,7 +270,7 @@ export async function navigateHarnessTree<
       oldLeafId,
       summaryEntry,
       fromHook: hookResult?.summary !== undefined,
-    } as AgentHarnessOwnEvent);
+    });
     return { cancelled: false, editorText, summaryEntry };
   } catch (error) {
     throw normalizeHarnessError(error, "branch_summary");

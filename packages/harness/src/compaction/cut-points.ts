@@ -1,4 +1,3 @@
-import type { AgentMessage } from "../agent/contracts/index.js";
 import type { ConversationTreeEntry } from "../conversation/entries.js";
 import type { CutPointResult } from "./compaction-preparation.js";
 import { estimateTokens } from "./usage.js";
@@ -90,7 +89,7 @@ export function findCutPoint(
   for (let i = endIndex - 1; i >= startIndex; i--) {
     const entry = entries[i];
     if (entry.type !== "message") continue;
-    const messageTokens = estimateTokens(entry.message as AgentMessage);
+    const messageTokens = estimateTokens(entry.message);
     accumulatedTokens += messageTokens;
     if (accumulatedTokens >= keepRecentTokens) {
       for (let c = 0; c < cutPoints.length; c++) {

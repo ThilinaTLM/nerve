@@ -490,7 +490,7 @@ async function normalizeLegacyInteractions(
           checkpointId: interaction.checkpointId,
           toolCallId: toolCall.id,
           toolCallRevision: toolCall.revision,
-          interaction: toolCall.interactions[interaction.interactionOrdinal]!,
+          interaction: toolCall.interactions[interaction.interactionOrdinal],
         },
       };
     });
@@ -526,7 +526,7 @@ async function normalizeLegacyInteractions(
             toolCallRevision: interaction.toolCallRevision,
             kind: interaction.kind,
           })),
-          createdAt: ordered[0]!.createdAt,
+          createdAt: ordered[0].createdAt,
           updatedAt: runState.run.updatedAt,
         },
       });

@@ -93,6 +93,31 @@ function textOf(message: Message): string {
     .join("\n");
 }
 
+describe("agent loop failures", () => {
+  it("propagates event sink failures to the caller", async () => {
+    await assert.rejects(
+      runAgentLoop(
+        [{ role: "user", content: "start", timestamp: Date.now() }],
+        { systemPrompt: "", messages: [] },
+        {
+          model,
+          convertToLlm,
+          getSteeringMessages: async () => [],
+          getFollowUpMessages: async () => [],
+        },
+        (event) => {
+          if (event.type === "turn_start") {
+            throw new Error("event sink unavailable");
+          }
+        },
+        undefined,
+        () => streamMessage(assistant([{ type: "text", text: "unused" }])),
+      ),
+      /event sink unavailable/,
+    );
+  });
+});
+
 describe("agent loop image normalization", () => {
   it("does not invoke the provider when an oversized image cannot be normalized", async () => {
     const malformed = Buffer.alloc(24);

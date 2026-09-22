@@ -246,7 +246,7 @@ export class RunCoordinator {
           : {}),
       });
       if (execution) {
-        this.launch(running, execution, mode, prompt, images);
+        void this.launch(running, execution, mode, prompt, images);
       }
       return running;
     });
@@ -337,7 +337,7 @@ export class RunCoordinator {
         execution: executionRecord(next, "starting", now),
         events: [this.events.resumed(next, now, resumeKind)],
       });
-      this.launch(next, execution, "continue");
+      void this.launch(next, execution, "continue");
       return next;
     });
   }
@@ -1087,7 +1087,7 @@ export class RunCoordinator {
         .catch(() => undefined);
       return;
     }
-    this.launch(retryRun.run, execution, "continue");
+    void this.launch(retryRun.run, execution, "continue");
   }
 
   private async commit(

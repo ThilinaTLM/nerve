@@ -2,23 +2,27 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { runAgentLoopContinue } from "../../agent/loop/agent-loop.js";
 import { isAgentToolSuspension } from "../../agent/suspension.js";
 import type {
+  AgentContext,
   AgentEvent,
+  AgentLoopConfig,
   AgentMessage,
   AgentTool,
   AnyModel,
+  StreamFn,
 } from "../../agent/contracts/index.js";
 import { AgentHarnessError } from "../../errors.js";
 import { normalizeHarnessError } from "../lifecycle/event-hub.js";
 import type { PromptTemplate, Skill } from "../configuration/options.js";
 import { toError } from "../../result.js";
 import type { AgentHarnessTurnState } from "../configuration/turn-state.js";
+import type { AgentHarnessPhase } from "../lifecycle/events.js";
 
 export type HarnessContinuationState<
   TSkill extends Skill,
   TPromptTemplate extends PromptTemplate,
   TTool extends AgentTool,
 > = {
-  phase: string;
+  phase: AgentHarnessPhase;
   runAbortController?: AbortController;
   startRunPromise(): () => void;
   createTurnState(): Promise<
@@ -26,17 +30,17 @@ export type HarnessContinuationState<
   >;
   createContext(
     turnState: AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
-  ): unknown;
+  ): AgentContext;
   createLoopConfig(
     getTurnState: () => AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
     setTurnState: (
       turnState: AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
     ) => void,
-  ): never;
+  ): AgentLoopConfig;
   handleAgentEvent(event: AgentEvent, signal?: AbortSignal): Promise<void>;
   createStreamFn(
     getTurnState: () => AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
-  ): never;
+  ): StreamFn;
   emitRunFailure(
     model: AnyModel,
     error: unknown,
@@ -80,7 +84,7 @@ export async function continueHarnessRun<
     activeTurnState = await state.createTurnState();
     state.runAbortController = abortController;
     const newMessages = await runAgentLoopContinue(
-      state.createContext(activeTurnState) as never,
+      state.createContext(activeTurnState),
       state.createLoopConfig(getTurnState, setTurnState),
       (event) => state.handleAgentEvent(event, abortController.signal),
       abortController.signal,

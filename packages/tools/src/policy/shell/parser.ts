@@ -14,7 +14,7 @@ export function parseCommand(command: string): ParseEntry[] | null {
   try {
     const result = shellParse(command, (key: string) => `$${key}`);
     if (!Array.isArray(result)) return null;
-    return result as ParseEntry[];
+    return result;
   } catch {
     return null;
   }

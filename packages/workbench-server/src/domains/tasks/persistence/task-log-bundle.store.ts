@@ -107,11 +107,11 @@ export class TaskLogBundleStore {
       if (transient && entry.isDirectory()) {
         const [, taskId] = transient;
         const candidate = join(this.root, entry.name);
-        const target = this.paths(taskId!).dir;
+        const target = this.paths(taskId).dir;
         const targetExists = await access(target)
           .then(() => true)
           .catch(() => false);
-        if (validTaskIds.has(taskId!) && !targetExists) {
+        if (validTaskIds.has(taskId) && !targetExists) {
           await rename(candidate, target).catch(async () => {
             await rm(candidate, { recursive: true, force: true });
           });

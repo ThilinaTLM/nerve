@@ -38,7 +38,7 @@ export function taskLogWindow(
       ({ item }) => Number(item.id) === state.failureSeq,
     );
     if (anchor >= 0) {
-      ordered = [indexed[anchor]!];
+      ordered = [indexed[anchor]];
       for (let distance = 1; ordered.length < indexed.length; distance += 1) {
         const before = indexed[anchor - distance];
         const after = indexed[anchor + distance];

@@ -2,6 +2,12 @@ import { DatabaseSync } from "node:sqlite";
 import type { CanonicalDocument } from "./canonical-database.js";
 import { decode, encode } from "./payload-codecs.js";
 import {
+  decodeSqlRow,
+  sqlBytes,
+  sqlInteger,
+  sqlString,
+} from "./sql-row-decoder.js";
+import {
   CANONICAL_BASELINE_CHECKSUM,
   CANONICAL_BASELINE_VERSION,
   CANONICAL_MIGRATIONS,
@@ -23,6 +29,35 @@ export interface DurableEventRow {
   event_type: string;
   data: Uint8Array | string;
   occurred_at_ms: number;
+}
+
+export function decodeDocumentRow(
+  value: unknown,
+  context = "domain_documents",
+): DocumentRow {
+  const row = decodeSqlRow(value, context);
+  return {
+    revision: sqlInteger(row, "revision", context),
+    payload_version: sqlInteger(row, "payload_version", context),
+    data: sqlBytes(row, "data", context),
+    created_at_ms: sqlInteger(row, "created_at_ms", context),
+    updated_at_ms: sqlInteger(row, "updated_at_ms", context),
+  };
+}
+
+export function decodeDurableEventRow(
+  value: unknown,
+  context = "durable_events",
+): DurableEventRow {
+  const row = decodeSqlRow(value, context);
+  return {
+    stream_sequence: sqlInteger(row, "stream_sequence", context),
+    stream: sqlString(row, "stream", context),
+    intent_id: sqlString(row, "intent_id", context),
+    event_type: sqlString(row, "event_type", context),
+    data: sqlBytes(row, "data", context),
+    occurred_at_ms: sqlInteger(row, "occurred_at_ms", context),
+  };
 }
 
 function expectedCanonicalSchemaRows() {

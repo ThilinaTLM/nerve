@@ -99,7 +99,7 @@ export async function collectEntriesForBranchSummary(
         "invalid_conversation",
         `Entry ${current} not found`,
       );
-    entries.push(entry as ConversationTreeEntry);
+    entries.push(entry);
     current = entry.parentId;
   }
   entries.reverse();

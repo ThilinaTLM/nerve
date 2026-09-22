@@ -38,6 +38,9 @@ assets/brand/*
 !assets/brand/nerve-mark-small.svg
 !assets/brand/nerve-app-icon.svg
 dogfood-output/
+coverage/
+playwright-report/
+test-results/
 .idea/
 
 # Raw screenshot captures (see packages/website/scripts/screenshots/README.md)

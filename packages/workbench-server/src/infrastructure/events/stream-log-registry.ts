@@ -245,10 +245,10 @@ export class StreamLogRegistry {
     if (definition.delivery === "ephemeral") {
       this.options.diagnostics?.count("event.ephemeral");
       const event: NotifyEvent<T> = { id, ts, type, data: normalized };
-      this.#intentResults.set(id, event as NotifyEvent);
+      this.#intentResults.set(id, event);
       for (const listener of this.#notifyListeners) {
         this.options.diagnostics?.count("event.listenerDelivery");
-        safelyNotify(() => listener(event as NotifyEvent), event.type);
+        safelyNotify(() => listener(event), event.type);
       }
       return event;
     }
@@ -271,15 +271,12 @@ export class StreamLogRegistry {
         data: normalized,
       } as EventEnvelope<T>;
       this.options.diagnostics?.count("event.durable");
-      this.#intentResults.set(id, event as EventEnvelope);
+      this.#intentResults.set(id, event);
       for (const listener of this.#eventListeners) {
-        safelyNotify(() => listener(event as EventEnvelope), event.type);
+        safelyNotify(() => listener(event), event.type);
       }
       for (const listener of this.#sequencedListeners) {
-        safelyNotify(
-          () => listener(stream, event as EventEnvelope),
-          event.type,
-        );
+        safelyNotify(() => listener(stream, event), event.type);
       }
       return event;
     }
@@ -302,14 +299,14 @@ export class StreamLogRegistry {
       ts,
     )) as EventEnvelope<T>;
     this.options.diagnostics?.count("event.durable");
-    this.#intentResults.set(id, event as EventEnvelope);
+    this.#intentResults.set(id, event);
     for (const listener of this.#eventListeners) {
       this.options.diagnostics?.count("event.listenerDelivery");
-      safelyNotify(() => listener(event as EventEnvelope), event.type);
+      safelyNotify(() => listener(event), event.type);
     }
     for (const listener of this.#sequencedListeners) {
       this.options.diagnostics?.count("event.listenerDelivery");
-      safelyNotify(() => listener(stream, event as EventEnvelope), event.type);
+      safelyNotify(() => listener(stream, event), event.type);
     }
     return event;
   }

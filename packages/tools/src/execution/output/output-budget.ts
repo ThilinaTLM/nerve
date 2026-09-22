@@ -266,7 +266,7 @@ export function boundContentBlocks<T extends ContentBlockLike>(
     if (bounded.text.length > 0) lastVisibleBlock = blockIndex;
     if (bounded.truncated) exhausted = true;
     return { ...block, text: bounded.text };
-  }) as T[];
+  });
 
   const noticeBlockIndex =
     lastVisibleBlock >= 0
@@ -280,7 +280,7 @@ export function boundContentBlocks<T extends ContentBlockLike>(
         noticeBlock.text.length > 0
           ? `${noticeBlock.text}\n\n${notice}`
           : notice,
-    } as T;
+    };
   }
 
   return {

@@ -1,4 +1,4 @@
-import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
+import type { Usage } from "@earendil-works/pi-ai";
 import type { ContextUsage } from "@nervekit/contracts/models";
 import type { AgentMessage } from "../agent/contracts/index.js";
 import { buildConversationContext } from "../conversation/conversation.js";
@@ -26,7 +26,7 @@ export function calculateContextTokens(usage: Usage): number {
 
 function getAssistantUsage(msg: AgentMessage): Usage | undefined {
   if (msg.role === "assistant" && "usage" in msg) {
-    const assistantMsg = msg as AssistantMessage;
+    const assistantMsg = msg;
     if (
       assistantMsg.stopReason !== "aborted" &&
       assistantMsg.stopReason !== "error" &&
@@ -45,7 +45,7 @@ export function getLastAssistantUsage(
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i];
     if (entry.type === "message") {
-      const usage = getAssistantUsage(entry.message as AgentMessage);
+      const usage = getAssistantUsage(entry.message);
       if (usage) return usage;
     }
   }
@@ -114,7 +114,7 @@ export function getCompactionDecisionTokens(
   for (let i = entries.length - 1; i > compactionIndex; i--) {
     const entry = entries[i];
     if (entry.type !== "message") continue;
-    const usage = getAssistantUsage(entry.message as AgentMessage);
+    const usage = getAssistantUsage(entry.message);
     if (usage && calculateContextTokens(usage) > 0) {
       return estimateContextTokens(messages).tokens;
     }
@@ -186,7 +186,7 @@ export function computeContextUsage(
     for (let i = branchEntries.length - 1; i > compactionIndex; i--) {
       const entry = branchEntries[i];
       if (entry.type === "message") {
-        const usage = getAssistantUsage(entry.message as AgentMessage);
+        const usage = getAssistantUsage(entry.message);
         if (usage) {
           hasPostCompactionUsage = calculateContextTokens(usage) > 0;
           break;
@@ -239,7 +239,7 @@ export function estimateTokens(message: AgentMessage): number {
       return Math.ceil(chars / 4);
     }
     case "assistant": {
-      const assistant = message as AssistantMessage;
+      const assistant = message;
       for (const block of assistant.content) {
         if (block.type === "text") {
           chars += block.text.length;

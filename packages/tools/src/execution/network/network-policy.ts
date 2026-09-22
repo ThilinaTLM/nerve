@@ -76,7 +76,7 @@ export function isNonPublicAddress(address: string): boolean {
       .map((part) => Number.parseInt(part || "0", 16));
     if (Number.isFinite(high) && Number.isFinite(low)) {
       return isNonPublicIpv4(
-        `${(high! >> 8) & 0xff}.${high! & 0xff}.${(low! >> 8) & 0xff}.${low! & 0xff}`,
+        `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`,
       );
     }
   }

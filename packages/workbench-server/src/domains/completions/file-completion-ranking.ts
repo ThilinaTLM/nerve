@@ -229,7 +229,7 @@ function orderedPathMatches(
 
   for (let segment = 0; segment < candidate.segments.length; segment += 1) {
     const match = rows[0]?.[segment];
-    if (match) scores[0]![segment] = match.score - segment * 35;
+    if (match) scores[0][segment] = match.score - segment * 35;
   }
 
   for (let term = 1; term < terms.length; term += 1) {
@@ -243,11 +243,11 @@ function orderedPathMatches(
       }
       const match = rows[term]?.[segment];
       if (!match || bestPreviousIndex < 0) continue;
-      scores[term]![segment] =
+      scores[term][segment] =
         bestPreviousScore +
         match.score -
         (segment - bestPreviousIndex - 1) * 45;
-      previous[term]![segment] = bestPreviousIndex;
+      previous[term][segment] = bestPreviousIndex;
     }
   }
 
@@ -416,7 +416,7 @@ function fuzzySubsequence(
 
   for (let column = 0; column < haystack.length; column += 1) {
     if (needleLower[0] !== haystackLower[column]) continue;
-    scores[0]![column] =
+    scores[0][column] =
       420 +
       (isWordBoundary(haystack, column) ? 260 : 0) -
       column * 12 +
@@ -456,8 +456,8 @@ function fuzzySubsequence(
           predecessor = bestGapIndex;
         }
       }
-      scores[row]![column] = score;
-      previous[row]![column] = predecessor;
+      scores[row][column] = score;
+      previous[row][column] = predecessor;
     }
   }
 

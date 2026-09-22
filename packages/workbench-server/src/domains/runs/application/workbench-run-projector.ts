@@ -152,7 +152,7 @@ function retrySnapshotFromState(
   state: RunHydratedState,
 ): ConversationRunRetrySnapshot | undefined {
   for (let index = state.transitions.length - 1; index >= 0; index -= 1) {
-    const retry = retrySnapshot(state.transitions[index]!);
+    const retry = retrySnapshot(state.transitions[index]);
     if (retry) return retry;
   }
   return undefined;

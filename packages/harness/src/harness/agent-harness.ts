@@ -1,3 +1,4 @@
+/* eslint-disable max-lines, @typescript-eslint/no-this-alias -- AgentHarness owns one mutable state graph; explicit live capability objects capture that owner without unsafe self-casts. */
 import type { AssistantMessage, ImageContent } from "@earendil-works/pi-ai";
 import type {
   AgentContext,
@@ -518,39 +519,97 @@ export class AgentHarness<
   }
 
   async continue(): Promise<AssistantMessage> {
-    return continueHarnessRun(
-      this as unknown as HarnessContinuationState<
-        TSkill,
-        TPromptTemplate,
-        TTool
-      >,
-    );
+    return continueHarnessRun(this.continuationState());
+  }
+
+  private continuationState(): HarnessContinuationState<
+    TSkill,
+    TPromptTemplate,
+    TTool
+  > {
+    const harness = this;
+    return {
+      get phase() {
+        return harness.phase;
+      },
+      set phase(phase) {
+        harness.phase = phase;
+      },
+      get runAbortController() {
+        return harness.runAbortController;
+      },
+      set runAbortController(controller) {
+        harness.runAbortController = controller;
+      },
+      startRunPromise: () => harness.startRunPromise(),
+      createTurnState: () => harness.createTurnState(),
+      createContext: (turnState) => harness.createContext(turnState),
+      createLoopConfig: (getTurnState, setTurnState) =>
+        harness.createLoopConfig(getTurnState, setTurnState),
+      handleAgentEvent: (event, signal) =>
+        harness.handleAgentEvent(event, signal),
+      createStreamFn: (getTurnState) => harness.createStreamFn(getTurnState),
+      emitRunFailure: (model, error, aborted, signal) =>
+        harness.emitRunFailure(model, error, aborted, signal),
+      flushPendingConversationWrites: () =>
+        harness.flushPendingConversationWrites(),
+    } satisfies HarnessContinuationState<TSkill, TPromptTemplate, TTool>;
   }
 
   async skill(
     name: string,
     additionalInstructions?: string,
   ): Promise<AssistantMessage> {
-    return invokeSkill(
-      this as unknown as HarnessInvocationState<TSkill, TPromptTemplate, TTool>,
-      name,
-      additionalInstructions,
-    );
+    return invokeSkill(this.invocationState(), name, additionalInstructions);
   }
 
   async promptFromTemplate(
     name: string,
     args: string[] = [],
   ): Promise<AssistantMessage> {
-    return invokePromptTemplate(
-      this as unknown as HarnessInvocationState<TSkill, TPromptTemplate, TTool>,
-      name,
-      args,
-    );
+    return invokePromptTemplate(this.invocationState(), name, args);
+  }
+
+  private invocationState(): HarnessInvocationState<
+    TSkill,
+    TPromptTemplate,
+    TTool
+  > {
+    return {
+      runForegroundTurn: (resolvePrompt) =>
+        this.runForegroundTurn(resolvePrompt),
+    } satisfies HarnessInvocationState<TSkill, TPromptTemplate, TTool>;
   }
 
   private queueState(): HarnessQueueState {
-    return this as unknown as HarnessQueueState;
+    const harness = this;
+    return {
+      get phase() {
+        return harness.phase;
+      },
+      get steerQueue() {
+        return harness.steerQueue;
+      },
+      set steerQueue(queue) {
+        harness.steerQueue = queue;
+      },
+      get followUpQueue() {
+        return harness.followUpQueue;
+      },
+      set followUpQueue(queue) {
+        harness.followUpQueue = queue;
+      },
+      get nextTurnQueue() {
+        return harness.nextTurnQueue;
+      },
+      get pendingConversationWrites() {
+        return harness.pendingConversationWrites;
+      },
+      get conversation() {
+        return harness.conversation;
+      },
+      emitQueueUpdate: () => harness.emitQueueUpdate(),
+    } satisfies HarnessQueueState;
   }
 
   async steer(
@@ -642,7 +701,7 @@ export class AgentHarness<
       getModel: () => this.model,
       getThinkingLevel: () => this.thinkingLevel,
       getApiKeyAndHeaders: this.getApiKeyAndHeaders,
-      emitHook: (event) => this.emitHook(event as never),
+      emitHook: (event) => this.emitHook(event),
       emitOwn: (event) => this.emitOwn(event as never),
     };
   }
@@ -652,11 +711,75 @@ export class AgentHarness<
     TPromptTemplate,
     TTool
   > {
-    return this as unknown as HarnessConfigurationState<
-      TSkill,
-      TPromptTemplate,
-      TTool
-    >;
+    const harness = this;
+    return {
+      get phase() {
+        return harness.phase;
+      },
+      get conversation() {
+        return harness.conversation;
+      },
+      get pendingConversationWrites() {
+        return harness.pendingConversationWrites;
+      },
+      get model() {
+        return harness.model;
+      },
+      set model(model) {
+        harness.model = model;
+      },
+      get thinkingLevel() {
+        return harness.thinkingLevel;
+      },
+      set thinkingLevel(level) {
+        harness.thinkingLevel = level;
+      },
+      get tools() {
+        return harness.tools;
+      },
+      set tools(tools) {
+        harness.tools = tools;
+      },
+      get activeToolNames() {
+        return harness.activeToolNames;
+      },
+      set activeToolNames(names) {
+        harness.activeToolNames = names;
+      },
+      get steeringQueueMode() {
+        return harness.steeringQueueMode;
+      },
+      get followUpQueueMode() {
+        return harness.followUpQueueMode;
+      },
+      get resources() {
+        return harness.resources;
+      },
+      set resources(resources) {
+        harness.resources = resources;
+      },
+      get streamOptions() {
+        return harness.streamOptions;
+      },
+      get steerQueue() {
+        return harness.steerQueue;
+      },
+      set steerQueue(queue) {
+        harness.steerQueue = queue;
+      },
+      get followUpQueue() {
+        return harness.followUpQueue;
+      },
+      set followUpQueue(queue) {
+        harness.followUpQueue = queue;
+      },
+      get runAbortController() {
+        return harness.runAbortController;
+      },
+      emitOwn: (event) => harness.emitOwn(event as never),
+      emitQueueUpdate: () => harness.emitQueueUpdate(),
+      waitForIdle: () => harness.waitForIdle(),
+    } satisfies HarnessConfigurationState<TSkill, TPromptTemplate, TTool>;
   }
 
   getModel(): AnyModel {

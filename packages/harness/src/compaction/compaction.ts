@@ -1,8 +1,4 @@
-import type {
-  AssistantMessage,
-  ImageContent,
-  TextContent,
-} from "@earendil-works/pi-ai";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   completeSimpleWithModel,
   streamSimpleWithModel,
@@ -88,12 +84,12 @@ function getMessageFromEntry(
   entry: ConversationTreeEntry,
 ): AgentMessage | undefined {
   if (entry.type === "message") {
-    return entry.message as AgentMessage;
+    return entry.message;
   }
   if (entry.type === "custom_message") {
     return createCustomMessage(
       entry.customType,
-      entry.content as string | (TextContent | ImageContent)[],
+      entry.content,
       entry.display,
       entry.details,
       entry.timestamp,
@@ -640,7 +636,7 @@ export async function compact(
     summary,
     firstKeptEntryId,
     tokensBefore,
-    details: { readFiles, modifiedFiles } as CompactionDetails,
+    details: { readFiles, modifiedFiles },
   });
 }
 async function generateTurnPrefixSummary(

@@ -277,6 +277,8 @@ async function main() {
       hostname: host,
       port,
     },
+    // The process-level unhandledRejection handler owns listener startup failures.
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
     async () => {
       const address = server.address() as AddressInfo;
       state.port = address.port;
@@ -380,6 +382,8 @@ async function main() {
             cert: mobileTls.certPem,
           },
         },
+        // The process-level unhandledRejection handler owns listener startup failures.
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         async () => {
           const address = httpsServer?.address() as AddressInfo | undefined;
           if (!address) return;

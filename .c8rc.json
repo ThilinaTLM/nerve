@@ -1,0 +1,7 @@
+{
+  "all": true,
+  "include": ["packages/*/src/**/*.ts"],
+  "exclude": ["**/*.test.ts", "**/*.d.ts"],
+  "reporter": ["text-summary", "json-summary", "lcov"],
+  "reports-dir": "coverage"
+}

@@ -88,9 +88,7 @@ export class PruneProjectConversationsService {
     progress: PruneProjectConversationsProgress = {},
   ): Promise<PruneProjectConversationsResult> {
     const project = this.deps.getProject(projectId);
-    return (
-      await this.pruneAcrossProjects([project], request, progress)
-    )[0] as PruneProjectConversationsResult;
+    return (await this.pruneAcrossProjects([project], request, progress))[0];
   }
 
   async pruneAcrossProjects(

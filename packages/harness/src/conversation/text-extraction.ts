@@ -14,9 +14,7 @@ export function editorTextForNavigatedEntry(
   if (targetEntry.type === "message" && targetEntry.message.role === "user") {
     return {
       newLeafId: targetEntry.parentId,
-      editorText: textFromContent(
-        targetEntry.message.content as TextLikeContent,
-      ),
+      editorText: textFromContent(targetEntry.message.content),
     };
   }
   if (targetEntry.type === "custom_message") {

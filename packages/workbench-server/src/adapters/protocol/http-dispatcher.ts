@@ -250,7 +250,7 @@ function protocolJson(message: NerveMessage, status = 200): Response {
 
 function messageId(raw: unknown): string | undefined {
   return raw && typeof raw === "object" && "id" in raw
-    ? String((raw as { id: unknown }).id)
+    ? String(raw.id)
     : undefined;
 }
 

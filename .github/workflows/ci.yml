@@ -100,9 +100,18 @@ jobs:
         if: needs.paths.outputs.full == 'true'
         run: pnpm -r check
 
-      - name: Run complete test suite
+      - name: Run complete test suite with coverage
         if: needs.paths.outputs.full == 'true'
-        run: pnpm run test:full
+        run: pnpm run test:coverage
+
+      - name: Upload coverage report
+        if: needs.paths.outputs.full == 'true' && always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: typescript-coverage
+          path: coverage/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Build workbench runtime
         if: needs.paths.outputs.workbench == 'true'
@@ -115,6 +124,42 @@ jobs:
       - name: Smoke built workbench HTTP and WebSocket parity
         if: needs.paths.outputs.workbench == 'true'
         run: node scripts/smoke-workbench-release.mjs
+
+  browser-tests:
+    name: Workbench browser tests
+    runs-on: ubuntu-latest
+    needs: paths
+    if: needs.paths.outputs.workbench == 'true'
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.20.0
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run browser tests
+        run: pnpm test:browser
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-test-results
+          path: |
+            playwright-report/
+            test-results/browser/
+          if-no-files-found: ignore
+          retention-days: 7
 
   website:
     name: Check and build website
@@ -240,6 +285,7 @@ jobs:
     needs:
       - paths
       - validate
+      - browser-tests
       - website
       - native-gate
 
@@ -249,6 +295,7 @@ jobs:
         env:
           PATHS_RESULT: ${{ needs.paths.result }}
           VALIDATE_RESULT: ${{ needs.validate.result }}
+          BROWSER_RESULT: ${{ needs.browser-tests.result }}
           WEBSITE_RESULT: ${{ needs.website.result }}
           NATIVE_RESULT: ${{ needs.native-gate.result }}
         run: |
@@ -257,8 +304,12 @@ jobs:
             echo "Required CI job failed: paths=${PATHS_RESULT}, validate=${VALIDATE_RESULT}, native=${NATIVE_RESULT}" >&2
             exit 1
           fi
+          if [ "${BROWSER_RESULT}" != "success" ] && [ "${BROWSER_RESULT}" != "skipped" ]; then
+            echo "Conditional browser job failed: browser=${BROWSER_RESULT}" >&2
+            exit 1
+          fi
           if [ "${WEBSITE_RESULT}" != "success" ] && [ "${WEBSITE_RESULT}" != "skipped" ]; then
             echo "Conditional website job failed: website=${WEBSITE_RESULT}" >&2
             exit 1
           fi
-          echo "CI passed: paths=${PATHS_RESULT}, validate=${VALIDATE_RESULT}, website=${WEBSITE_RESULT}, native=${NATIVE_RESULT}"
+          echo "CI passed: paths=${PATHS_RESULT}, validate=${VALIDATE_RESULT}, browser=${BROWSER_RESULT}, website=${WEBSITE_RESULT}, native=${NATIVE_RESULT}"

@@ -44,8 +44,8 @@ export function parseGithubRepositoryUrl(
     return null;
   return {
     hostname: "github.com",
-    owner: parts[0] as string,
-    repo: parts[1] as string,
+    owner: parts[0],
+    repo: parts[1],
     remoteUrl: trimmed,
   };
 }

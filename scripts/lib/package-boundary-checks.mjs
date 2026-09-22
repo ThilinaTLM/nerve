@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { allowedNerveDependencies } from "./workspace-architecture.mjs";
 import {
-  importSpecifiers,
+  analyzeImports,
   resolvedImportPath,
   sourceExtensions,
 } from "./repository-source-inventory.mjs";
@@ -79,7 +79,14 @@ export function checkPackageBoundaries(
       const packageName = packageNameForFile(file);
       if (!packageName) continue;
       const allowed = allowedNerveDependencies.get(packageName) ?? [];
-      for (const specifier of importSpecifiers(read(file))) {
+      const imports = analyzeImports(read(file), file);
+      if (
+        imports.nonLiteralDynamicImports.length > 0 &&
+        isProtectedStaticImportLayer(file)
+      ) {
+        fail(file, "protected layer may not use nonliteral dynamic imports");
+      }
+      for (const specifier of imports.specifiers) {
         if (specifier.startsWith("@nervekit/")) {
           const dependency = nervePackageName(specifier);
           if (dependency !== packageName && !allowed.includes(dependency))
@@ -153,6 +160,15 @@ export function checkPackageBoundaries(
   function nervePackageName(specifier) {
     const match = /^(@nervekit\/[^/]+)/.exec(specifier);
     return match?.[1] ?? specifier;
+  }
+
+  function isProtectedStaticImportLayer(file) {
+    return (
+      file.startsWith("packages/contracts/src/") ||
+      file.startsWith("packages/protocol/src/") ||
+      file.startsWith("packages/workbench-server/src/domains/runs/runtime/") ||
+      file.startsWith("packages/workbench-app/src/lib/presentation/")
+    );
   }
 
   function forbiddenRunRuntimeImport(file, specifier) {

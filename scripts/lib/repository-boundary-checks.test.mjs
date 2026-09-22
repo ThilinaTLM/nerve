@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +43,23 @@ function fixture(t) {
   git("add", ".");
   return { root, write, git };
 }
+
+test("rejects nonliteral dynamic imports in protected layers", (t) => {
+  const { root, write, git } = fixture(t);
+  write(
+    "packages/contracts/src/dynamic.ts",
+    "export async function load(name) { return import(name); }",
+  );
+  git("add", ".");
+
+  assert.ok(
+    checkRepositoryBoundaries(root).some((failure) =>
+      failure.includes(
+        "protected layer may not use nonliteral dynamic imports",
+      ),
+    ),
+  );
+});
 
 test("accepts legal same-feature and contracts imports in a tracked fixture", (t) => {
   const { root, write, git } = fixture(t);
@@ -122,7 +146,12 @@ test("CLI is silent on success and emits the sorted diagnostic report on failure
     recursive: true,
     filter: (source) => !source.endsWith(".test.mjs"),
   });
+  write(".gitignore", "node_modules\n");
   git("add", ".");
+  symlinkSync(
+    join(scriptsRoot, "..", "node_modules"),
+    join(root, "node_modules"),
+  );
   const run = () =>
     spawnSync(
       process.execPath,

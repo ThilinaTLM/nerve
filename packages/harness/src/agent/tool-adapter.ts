@@ -53,15 +53,9 @@ export function createAgentToolsFromDefinitions(
       normalizeArguments: definition.normalizeArguments,
       executionMode: definition.executionMode,
       execute: (sourceToolCallId, params, signal, onUpdate) =>
-        execute(
-          definition,
-          sourceToolCallId,
-          params as Record<string, unknown>,
-          signal,
-          (update) => {
-            options.onOutputUpdate?.(definition.name, sourceToolCallId, update);
-            onUpdate?.(update);
-          },
-        ),
+        execute(definition, sourceToolCallId, params, signal, (update) => {
+          options.onOutputUpdate?.(definition.name, sourceToolCallId, update);
+          onUpdate?.(update);
+        }),
     }));
 }

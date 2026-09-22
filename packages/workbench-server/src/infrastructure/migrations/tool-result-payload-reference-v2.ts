@@ -557,7 +557,7 @@ function normalizeCommit(
   else copy.previousChecksum = previousChecksum;
   copy.checksum = ZERO_CHECKSUM;
   const parsed = conversationJournalCommitSchema.parse(copy);
-  const base = withoutChecksum(parsed as unknown as JsonObject);
+  const base = withoutChecksum(parsed);
   return conversationJournalCommitSchema.parse({
     ...base,
     checksum: journalChecksum(base),
@@ -599,7 +599,7 @@ function normalizeConversationSnapshot(snapshot: JsonObject): {
     commit.events = events.value;
     commit.checksum = ZERO_CHECKSUM;
     const parsed = conversationJournalCommitSchema.parse(commit);
-    const base = withoutChecksum(parsed as unknown as JsonObject);
+    const base = withoutChecksum(parsed);
     const normalized = conversationJournalCommitSchema.parse({
       ...base,
       checksum: journalChecksum(base),

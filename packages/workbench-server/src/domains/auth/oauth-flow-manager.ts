@@ -157,7 +157,7 @@ export class OAuthFlowManager {
       provider,
       abortController: new AbortController(),
       info: {
-        flowId: createId("authflow") as `authflow_${string}`,
+        flowId: createId("authflow"),
         provider: provider.id,
         providerName: provider.name,
         status: "starting",

@@ -58,7 +58,7 @@ export class ToolExecutorService {
       throw new Error("Tool execution requires a durably approved draft.");
     }
     await this.deps.assertExecutionBoundary(drafted);
-    const definition = requireToolDefinition(drafted.toolName as never);
+    const definition = requireToolDefinition(drafted.toolName);
     const startedAt = new Date().toISOString();
     const toolCall = await this.deps.claimExecution(
       toolCallId,

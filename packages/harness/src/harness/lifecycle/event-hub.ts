@@ -86,7 +86,7 @@ export class AgentHarnessEventHub<
   async emitHook<TType extends keyof AgentHarnessEventResultMap>(
     event: Extract<AgentHarnessOwnEvent, { type: TType }>,
   ): Promise<AgentHarnessEventResultMap[TType] | undefined> {
-    const handlers = this.getHandlers(event.type as TType);
+    const handlers = this.getHandlers(event.type);
     if (!handlers || handlers.size === 0) return undefined;
     let lastResult: AgentHarnessEventResultMap[TType] | undefined;
     for (const handler of handlers) {

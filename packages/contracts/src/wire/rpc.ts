@@ -76,7 +76,7 @@ export function parseProtocolResponseData<M extends OperationName>(
     ...response,
     method,
     result: parseOperationResult(method, response.result),
-  } as ProtocolResponseDataFor<M>;
+  };
 }
 
 export const protocolResponseMessageSchema = typedMessageSchema(

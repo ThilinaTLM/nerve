@@ -60,7 +60,7 @@ export function bindWorkbenchMethodHandlerGroup<Context extends object>(
         }
       },
     ]),
-  ) as Partial<OperationHandlerRegistry>;
+  );
 }
 
 export function combineWorkbenchMethodHandlerGroups(
@@ -115,7 +115,7 @@ export function combineWorkbenchMethodHandlerGroups(
   }
   return {
     methods: expectedMethods,
-    handlers: Object.fromEntries(handlers) as Partial<OperationHandlerRegistry>,
+    handlers: Object.fromEntries(handlers),
   };
 }
 

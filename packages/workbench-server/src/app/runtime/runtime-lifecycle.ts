@@ -44,6 +44,7 @@ export class RuntimeLifecycle {
   private readonly services: RuntimeServices;
   private readonly backgroundOperations = new Set<Promise<void>>();
   private shuttingDown = false;
+  private shutdownOperation?: Promise<void>;
 
   static compose(
     storage: InitializedStorage,
@@ -170,12 +171,17 @@ export class RuntimeLifecycle {
    * projections, event deliveries, and journal publications to settle so no
    * writer races teardown.
    */
-  async shutdown(): Promise<void> {
+  shutdown(): Promise<void> {
     this.shuttingDown = true;
+    this.shutdownOperation ??= this.performShutdown();
+    return this.shutdownOperation;
+  }
+
+  private async performShutdown(): Promise<void> {
     this.services.lifecycleDispatcher.stopPolling();
+    this.services.taskNotifications.stop();
     await this.services.workspaceMonitor.close();
     await this.services.tasks.shutdown();
-    this.services.taskNotifications.stop();
     await Promise.allSettled([...this.backgroundOperations]);
     await this.services.lifecycleDispatcher.settled();
     await this.services.runRuntime.coordinator.settled();
@@ -198,11 +204,17 @@ export class RuntimeLifecycle {
   ): Promise<RuntimeHydrationTimings> {
     reportStage?.("recovering-conversation-deletions");
     await this.services.conversationLifecycle.recoverDeletions();
-    const timings = await this.hydrator.hydrate(reportStage);
-    // Provider and tool work can be arbitrarily long-running. Start its drain
-    // only after canonical hydration, and never gate daemon readiness on it.
-    this.services.lifecycleDispatcher.start();
-    return timings;
+    this.services.taskNotifications.start();
+    try {
+      const timings = await this.hydrator.hydrate(reportStage);
+      // Provider and tool work can be arbitrarily long-running. Start its drain
+      // only after canonical hydration, and never gate daemon readiness on it.
+      this.services.lifecycleDispatcher.start();
+      return timings;
+    } catch (error) {
+      this.services.taskNotifications.stop();
+      throw error;
+    }
   }
   async refreshRuntimeCapabilities(): Promise<void> {
     if (this.shuttingDown) return;
@@ -236,15 +248,16 @@ export class RuntimeLifecycle {
     const results = await Promise.allSettled(
       operations.map(([, operation]) => operation),
     );
-    await Promise.all(
-      results.map((result, queryCache) =>
-        result.status === "rejected"
-          ? this.logger.warn(`${operations[queryCache]?.[0]} failed`, {
-              error: result.reason,
-            })
-          : undefined,
-      ),
-    );
+    const warnings: Promise<void>[] = [];
+    for (const [index, result] of results.entries()) {
+      if (result.status !== "rejected") continue;
+      warnings.push(
+        this.logger.warn(`${operations[index]?.[0]} failed`, {
+          error: result.reason,
+        }),
+      );
+    }
+    await Promise.all(warnings);
   }
 
   private trackBackgroundOperation(operation: Promise<void>): void {

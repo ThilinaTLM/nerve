@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- The composition root keeps the complete runtime dependency graph explicit while focused sub-composers are introduced. */
 import {
   clampAgentThinkingLevel,
   explainImageWithModel,
@@ -104,7 +105,10 @@ import {
   gitReadDiagnostic,
 } from "../runtime/git-logging.js";
 import type { RuntimeState } from "../runtime/runtime-projections.js";
-import { createLifecycleRuntime } from "./create-lifecycle-runtime.js";
+import {
+  createLifecycleWorkDispatcher,
+  createRunLifecycleService,
+} from "./create-lifecycle-runtime.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
@@ -599,7 +603,19 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         projectDir,
       ),
   });
-  let wakeLifecycleWork = async (): Promise<void> => undefined;
+  const lifecycleDispatch: { wake?: () => Promise<void> } = {};
+  const wakeLifecycleWork = async (): Promise<void> => {
+    if (!lifecycleDispatch.wake) {
+      throw new Error("Lifecycle work dispatcher is not bound.");
+    }
+    await lifecycleDispatch.wake();
+  };
+  const lifecycle = createRunLifecycleService({
+    store: storage.canonicalStore,
+    journal: conversationJournal,
+    wakeWork: wakeLifecycleWork,
+    logger,
+  });
   const runRuntime: WorkbenchRunRuntime = createWorkbenchRunRuntime({
     home: storage.paths.home,
     journal: conversationJournal,
@@ -612,7 +628,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     exploreAdmission,
     execution: (references) =>
       new WorkbenchAgentExecutionAdapter(agentMechanics, references),
-    wakeLifecycleWork: () => wakeLifecycleWork(),
+    wakeLifecycleWork,
     durableContinuation: true,
     retryPolicy: {
       get enabled() {
@@ -660,26 +676,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       continueAgent: (agentId) => workbenchRun.wakeAgentFromHarness(agentId),
       logger: logger.child({ component: "task-notification" }),
     });
-  taskNotifications.start();
-  const {
-    dispatcher: lifecycleDispatcher,
-    lifecycle,
-    bootId: lifecycleBootId,
-  } = createLifecycleRuntime({
-    store: storage.canonicalStore,
-    journal: conversationJournal,
-    tools,
-    humanInput: () => humanInput,
-    continueModel: async (work) => {
-      await runRuntime.coordinator.executeModelWork(work);
-    },
-    logger,
-    concurrency: {
-      model: deps.resources.maxConcurrentModelRuns,
-      control: deps.resources.controlWorkConcurrency,
-    },
-  });
-  wakeLifecycleWork = () => lifecycleDispatcher.wake();
   const humanInput = new HumanInputResolutionService({
     tools: tools,
     plans: plans,
@@ -716,6 +712,21 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       );
     },
   });
+  const { dispatcher: lifecycleDispatcher, bootId: lifecycleBootId } =
+    createLifecycleWorkDispatcher({
+      store: storage.canonicalStore,
+      tools,
+      humanInput,
+      continueModel: async (work) => {
+        await runRuntime.coordinator.executeModelWork(work);
+      },
+      logger,
+      concurrency: {
+        model: deps.resources.maxConcurrentModelRuns,
+        control: deps.resources.controlWorkConcurrency,
+      },
+    });
+  lifecycleDispatch.wake = () => lifecycleDispatcher.wake();
   const runReconciliation = new RunReconciliationService({
     humanInput,
     tools,

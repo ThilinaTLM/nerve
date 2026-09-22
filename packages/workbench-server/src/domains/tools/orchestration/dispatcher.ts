@@ -233,9 +233,7 @@ export class OrchestrationToolDispatcher {
     return {
       ...createInteractionHandlers({
         resolve: async () =>
-          this.deps.interactionSessions.resolvedUserQuestion(toolCall.id) as
-            | ToolExecutionResult
-            | undefined,
+          this.deps.interactionSessions.resolvedUserQuestion(toolCall.id),
         request: (_identity, input) =>
           result(
             this.deps.interactionSessions.requestUserQuestion(

@@ -115,7 +115,7 @@ export async function waitForSequentialToolInteractionBatch(
       ),
     );
   } else if (waits.length === 1) {
-    await sink.wait(waits[0]!);
+    await sink.wait(waits[0]);
   } else {
     await sink.waitMany(waits);
   }
