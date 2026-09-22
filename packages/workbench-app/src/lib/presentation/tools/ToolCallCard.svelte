@@ -50,6 +50,7 @@ import ToolCallDetailsDialog from "./tool-call/ToolCallDetailsDialog.svelte";
 import ApprovalPrompt from "./tool-call/ApprovalPrompt.svelte";
 import ExploreToolView from "./tool-call/ExploreToolView.svelte";
 import { resolveAskUserQuestion } from "./tool-call/ask-user-state";
+import { resolvePlanReview } from "./tool-call/plan-review-state";
 
 type Props = {
   /** Retained live slot used before and during durable-record handoff. */
@@ -286,11 +287,7 @@ const hilInteractive = $derived(
 const toolQuestion = $derived(
   resolveAskUserQuestion(toolCall, pendingUserQuestion),
 );
-const toolPlanReview = $derived(
-  toolCall && pendingPlanReview?.toolCallId === toolCall.id
-    ? pendingPlanReview
-    : undefined,
-);
+const toolPlanReview = $derived(resolvePlanReview(toolCall, pendingPlanReview));
 function mergeMetaItems(...groups: Array<readonly MetaItem[]>): MetaItem[] {
   const seen: string[] = [];
   return groups.flat().filter((item) => {
