@@ -27,30 +27,9 @@ Routine samples are written every ten seconds. They contain process CPU/memory, 
 
 If the source desktop attached to a daemon that was already running outside this launch, stop that daemon and reopen the source desktop once so the newly owned daemon inherits the session ID.
 
-## AI-oriented analysis
+## Analysis
 
-The coding agent uses the summarizer directly. Its default output is structured JSON with aggregate metrics and the ten hottest daemon samples:
-
-```sh
-nerve_home=${NERVE_HOME:-"$HOME/.nerve"}
-latest=$(ls -1t "$nerve_home/logs"/performance-*.jsonl | head -n1)
-node scripts/summarize-performance-jsonl.mjs \
-  --startup "$nerve_home/logs/startup.jsonl" \
-  --performance "$latest"
-```
-
-For an intermittent incident, the agent can isolate an inclusive time window:
-
-```sh
-node scripts/summarize-performance-jsonl.mjs \
-  --performance "$latest" \
-  --since "2026-08-15T10:20:00Z" \
-  --until "2026-08-15T10:25:00Z"
-```
-
-`--format markdown` remains available for human review. Either input may be omitted. The summarizer streams JSONL, bounds hot samples, ignores one torn final record, rejects malformed interior records, and emits only recognized content-free fields.
-
-Common signatures are:
+Inspect the timestamped JSONL samples around the reported incident. Common signatures are:
 
 - task bytes/lines rising with event delivery: task-output amplification;
 - many Git filesystem callbacks but few invalidations: watcher churn;
