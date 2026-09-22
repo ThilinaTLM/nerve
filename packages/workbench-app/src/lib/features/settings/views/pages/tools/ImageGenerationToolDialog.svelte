@@ -48,7 +48,7 @@ const modelOptions = [
 const qualityOptions = ["auto", "low", "medium", "high", "xhigh", "max"].map(
   (value) => ({
     value,
-    label: value === "auto" ? "Auto" : value.toUpperCase(),
+    label: value.charAt(0).toUpperCase() + value.slice(1),
   }),
 );
 const backgroundOptions = [
