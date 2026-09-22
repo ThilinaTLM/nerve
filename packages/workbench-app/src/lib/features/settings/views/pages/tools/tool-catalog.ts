@@ -14,6 +14,7 @@ export type ToolGroupId =
   | "explore"
   | "web"
   | "vision"
+  | "image-generation"
   | "tasks"
   | "shell"
   | "python";
@@ -33,6 +34,7 @@ export const configurableToolOrder: ConfigurableToolName[] = [
   "web_search",
   "web_fetch",
   "explain_image",
+  "generate_image",
   "python_exec",
 ];
 
@@ -175,6 +177,20 @@ export const toolGroups: ToolGroupDef[] = [
       {
         name: "web_fetch",
         description: "Fetch a URL and convert HTML to readable markdown.",
+      },
+    ],
+  },
+  {
+    id: "image-generation",
+    category: "third-party",
+    label: "Image generation",
+    description: "Generate images through the provider configured in Settings.",
+    configurableTools: ["generate_image"],
+    tools: [
+      {
+        name: "generate_image",
+        description:
+          "Generate one image from a text prompt using user-configured settings.",
       },
     ],
   },

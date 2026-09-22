@@ -19,6 +19,14 @@ Pasted files are temporary paths, not durable project attachments. `explain_imag
 
 Dropping an image, another file, or a folder onto the desktop composer is different from clipboard image paste: it inserts the item's existing filesystem path without copying, uploading, or creating a durable attachment. See [Use the composer](/guides/composer/#drop-files-and-folders) for the full workflow. In a browser or installed PWA, use `@` completion to reference paths inside the project.
 
+## Generate an image
+
+Agents can use the provider-neutral `generate_image` tool to generate raster images. Each generated image is retained as a tool-call artifact, and its file path appears as a link in the conversation. The agent receives that path rather than inline image bytes.
+
+Choose the provider, model, and provider-specific output defaults under **Settings → Tools → Image generation**. The initial OpenAI Codex provider defaults to `gpt-image-2.5-flare`, with `gpt-image-2.5-sunburst` available for higher-quality or precision-focused work. The agent supplies only the image prompt.
+
+The OpenAI Codex provider uses ChatGPT's subscription image endpoint and usage limits, not OpenAI API billing. Availability and accepted options can change with the connected account because this endpoint is not part of the public OpenAI API contract.
+
 ## Record voice
 
 Use the microphone control or its keyboard shortcut. Recording can target the main composer or a user-question reply. Nerve shares one recording session across those surfaces.

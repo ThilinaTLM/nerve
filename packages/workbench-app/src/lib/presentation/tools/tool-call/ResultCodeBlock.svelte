@@ -22,6 +22,8 @@ type Props = {
   overflow?: "auto" | "hidden";
   terminal?: boolean;
   tail?: boolean;
+  onActivate?: () => void;
+  activateLabel?: string;
 };
 
 type DiffLineTone = "add" | "delete" | "hunk" | "file" | "context";
@@ -38,6 +40,8 @@ let {
   overflow = "auto",
   terminal = false,
   tail = false,
+  onActivate,
+  activateLabel,
 }: Props = $props();
 
 let html = $state<string | undefined>(undefined);
@@ -133,6 +137,12 @@ function measureVisualRows(): void {
   updateVisibleRows(
     visualRowsFromScrollHeight(contentEl.scrollHeight, lineHeightPixels),
   );
+}
+
+function handleActivationKey(event: KeyboardEvent): void {
+  if (!onActivate || (event.key !== "Enter" && event.key !== " ")) return;
+  event.preventDefault();
+  onActivate();
 }
 
 function scheduleMeasure(): void {
@@ -249,9 +259,16 @@ $effect(() => {
 </script>
 
 {#if terminal}
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
     bind:this={blockEl}
     class="code-block terminal-output"
+    class:code-block--interactive={Boolean(onActivate)}
+    role={onActivate ? "button" : undefined}
+    tabindex={onActivate ? 0 : undefined}
+    aria-label={onActivate ? activateLabel : undefined}
+    onclick={onActivate}
+    onkeydown={handleActivationKey}
     data-terminal="true"
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
@@ -272,9 +289,16 @@ $effect(() => {
     </div>
   </div>
 {:else if isDiff}
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
     bind:this={blockEl}
     class="code-block"
+    class:code-block--interactive={Boolean(onActivate)}
+    role={onActivate ? "button" : undefined}
+    tabindex={onActivate ? 0 : undefined}
+    aria-label={onActivate ? activateLabel : undefined}
+    onclick={onActivate}
+    onkeydown={handleActivationKey}
     data-language="diff"
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
@@ -297,9 +321,16 @@ $effect(() => {
     </div>
   </div>
 {:else}
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
     bind:this={blockEl}
     class="code-block"
+    class:code-block--interactive={Boolean(onActivate)}
+    role={onActivate ? "button" : undefined}
+    tabindex={onActivate ? 0 : undefined}
+    aria-label={onActivate ? activateLabel : undefined}
+    onclick={onActivate}
+    onkeydown={handleActivationKey}
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
     data-fixed-rows={hasFixedRows ? "true" : undefined}
@@ -341,6 +372,15 @@ $effect(() => {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: 1.4;
+}
+
+.code-block--interactive {
+  cursor: pointer;
+}
+
+.code-block--interactive:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .code-block__viewport {

@@ -204,6 +204,8 @@ function hasMeaningfulDurableBody(view: ParsedToolView | undefined): boolean {
       return Boolean(view.answer || view.results.length);
     case "web_fetch":
       return Boolean(view.content?.length);
+    case "generate_image":
+      return view.paths.length > 0;
     case "explain_image":
       return Boolean(
         view.explanation?.length ||

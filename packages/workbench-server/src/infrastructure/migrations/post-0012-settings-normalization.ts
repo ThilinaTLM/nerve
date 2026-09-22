@@ -70,6 +70,53 @@ function migrateImageExplanationTool(value: unknown): {
   };
 }
 
+function migrateImageGenerationTool(value: unknown): {
+  value: unknown;
+  changed: boolean;
+} {
+  const settings = objectRecord(value);
+  const tools = objectRecord(settings?.tools);
+  if (!settings || !tools) return { value, changed: false };
+
+  const current = objectRecord(tools.imageGeneration);
+  const alreadyCurrent = current?.provider === "openai-codex";
+  const disabled = Array.isArray(tools.disabled) ? tools.disabled : [];
+  const hadLegacyName = disabled.includes("gpt_image");
+  const nextDisabled = disabled.filter((name) => name !== "gpt_image");
+  if (!current || hadLegacyName) nextDisabled.push("generate_image");
+  const normalizedDisabled = [...new Set(nextDisabled)];
+  const disabledChanged =
+    normalizedDisabled.length !== disabled.length ||
+    normalizedDisabled.some((name, index) => name !== disabled[index]);
+  if (alreadyCurrent && !disabledChanged) return { value, changed: false };
+
+  const model =
+    current?.model === "gpt-image-2.5-sunburst"
+      ? "gpt-image-2.5-sunburst"
+      : "gpt-image-2.5-flare";
+  return {
+    value: {
+      ...settings,
+      tools: {
+        ...tools,
+        disabled: normalizedDisabled,
+        imageGeneration: alreadyCurrent
+          ? tools.imageGeneration
+          : {
+              provider: "openai-codex",
+              model,
+              options: {
+                quality: current?.quality ?? "auto",
+                size: current?.size ?? "auto",
+                background: current?.background ?? "auto",
+              },
+            },
+      },
+    },
+    changed: true,
+  };
+}
+
 const removedNotificationToneIds = new Set([
   "kenney-click-1",
   "kenney-click-2",
@@ -157,6 +204,7 @@ export function normalizeSettings(value: unknown): {
     migrateLegacyToolNames,
     migrateLegacyPermissionSettings,
     migrateImageExplanationTool,
+    migrateImageGenerationTool,
     migrateRemovedNotificationTones,
   ];
   let current = value;

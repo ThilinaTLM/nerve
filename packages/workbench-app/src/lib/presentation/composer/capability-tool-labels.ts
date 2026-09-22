@@ -6,6 +6,7 @@ export const capabilityToolLabels: Record<CapabilityToolName, string> = {
   web_search: "Web search",
   web_fetch: "Web fetch",
   explain_image: "Image explanation",
+  generate_image: "Generate Image",
   python_exec: "Python",
   jira: "Jira",
   confluence: "Confluence",

@@ -6,7 +6,10 @@ import {
   audioTranscriptionResponseSchema,
 } from "@nervekit/contracts/transcription";
 import { ApplicationError } from "../../core/application-error.js";
-import type { AuthManager } from "../auth/index.js";
+import {
+  chatGptAccountIdFromAccessToken,
+  type AuthManager,
+} from "../auth/index.js";
 
 const CHATGPT_TRANSCRIBE_URL = "https://chatgpt.com/backend-api/transcribe";
 const OPENAI_CODEX_PROVIDER = "openai-codex";
@@ -84,23 +87,6 @@ export function normalizeAudioMimeType(
       return { mimeType: "audio/flac", extension: "flac" };
     default:
       return undefined;
-  }
-}
-
-export function chatGptAccountIdFromAccessToken(
-  accessToken: string,
-): string | undefined {
-  const payload = accessToken.split(".")[1];
-  if (!payload) return undefined;
-  try {
-    const json = Buffer.from(payload, "base64url").toString("utf8");
-    const claims = JSON.parse(json) as {
-      "https://api.openai.com/auth"?: { chatgpt_account_id?: unknown };
-    };
-    const accountId = claims["https://api.openai.com/auth"]?.chatgpt_account_id;
-    return typeof accountId === "string" && accountId ? accountId : undefined;
-  } catch {
-    return undefined;
   }
 }
 

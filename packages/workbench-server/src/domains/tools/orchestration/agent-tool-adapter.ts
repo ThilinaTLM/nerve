@@ -82,6 +82,7 @@ export function activeToolNamesForAgent(
     jiraEnabled?: boolean;
     confluenceEnabled?: boolean;
     imageExplanationAvailable?: boolean;
+    imageGenerationAvailable?: boolean;
     primaryModelSupportsImages?: boolean;
   } = {},
 ): ToolName[] {
@@ -102,6 +103,9 @@ export function activeToolNamesForAgent(
     options.primaryModelSupportsImages === true
   ) {
     unavailable.push("explain_image");
+  }
+  if (options.imageGenerationAvailable !== true) {
+    unavailable.push("generate_image");
   }
 
   const disabled = new Set<ToolName>(options.disabledToolNames ?? []);

@@ -39,6 +39,7 @@ import { resolveProjectSettings } from "../../../infrastructure/configuration/in
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
 import type { AuthManager } from "../../auth/index.js";
 import type { ConversationService } from "../../conversations/conversation-service.js";
+import type { ImageGenerationService } from "../../image-generation/image-generation.service.js";
 import type { ConversationHarnessStorage } from "../../conversations/conversation-harness-storage.js";
 import type { CompactionService } from "../../conversations/operations/index.js";
 import type { PythonRuntimeService } from "../../tools/execution/python-runtime.js";
@@ -67,6 +68,7 @@ export interface WorkbenchAgentMechanicsDeps {
   storage: InitializedStorage;
   events: StreamLogRegistry;
   auth: AuthManager;
+  imageGeneration: ImageGenerationService;
   tools: ToolService;
   tasks: WorkbenchTaskService;
   pythonRuntime: PythonRuntimeService;
@@ -165,6 +167,10 @@ export class WorkbenchAgentMechanics {
         .requestAuthForPiModel(imageExplanationModel)
         .catch(() => undefined)),
     );
+    const imageGenerationAvailable =
+      await this.deps.imageGeneration.isAvailable(
+        settings.tools.imageGeneration,
+      );
     return activeToolNamesForAgent(agent, {
       pythonAvailable,
       disabledToolNames: (disabledToolNames ?? settings.tools.disabled).filter(
@@ -182,6 +188,7 @@ export class WorkbenchAgentMechanics {
         disabledToolNames,
       }),
       imageExplanationAvailable,
+      imageGenerationAvailable,
       primaryModelSupportsImages: (primaryModel.input ?? ["text"]).includes(
         "image",
       ),

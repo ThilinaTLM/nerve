@@ -7,6 +7,7 @@ import {
 import { type ToolRisk } from "@nervekit/contracts/permissions";
 import { confluenceToolDefinitions } from "./definitions/core/confluence.tools.js";
 import { filesystemToolDefinitions } from "./definitions/core/filesystem.tools.js";
+import { imageGenerationToolDefinitions } from "./definitions/core/image-generation.tools.js";
 import { interactionToolDefinitions } from "./definitions/core/interaction.tools.js";
 import { jiraToolDefinitions } from "./definitions/core/jira.tools.js";
 import { pythonToolDefinitions } from "./definitions/core/python.tools.js";
@@ -37,6 +38,7 @@ const rawCoreToolDefinitions: readonly ToolDefinition[] = [
   ...interactionToolDefinitions,
   ...webToolDefinitions,
   ...visionToolDefinitions,
+  ...imageGenerationToolDefinitions,
   ...jiraToolDefinitions,
   ...confluenceToolDefinitions,
 ];

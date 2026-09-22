@@ -524,6 +524,24 @@ export const coreToolLifecycleSpecs = {
         ],
       }),
   }),
+  generate_image: defineToolLifecycleSpec({
+    name: "generate_image",
+    argumentRegion: "none",
+    completedView: "generate_image",
+    resultPlaceholder: { variant: "text", rows: 6 },
+    emptyResult: "No image returned",
+    present: (source, stage) =>
+      argumentPresentation({
+        primaryArg: textArg(source.string("prompt"), "Image prompt"),
+        body:
+          stage === "approval"
+            ? keyValues([["Prompt", source.string("prompt")]])
+            : undefined,
+        safetyNotes: [
+          "Sends the prompt to the image provider configured in Settings and may consume provider usage.",
+        ],
+      }),
+  }),
   explain_image: defineToolLifecycleSpec({
     name: "explain_image",
     argumentRegion: "none",
@@ -587,6 +605,7 @@ export const coreToolLifecycleSpecs = {
     | "web_search"
     | "web_fetch"
     | "explain_image"
+    | "generate_image"
   >,
   ToolLifecycleSpec
 >;

@@ -24,6 +24,7 @@ import {
 import SingleModelSelectionDialog from "../../shared/SingleModelSelectionDialog.svelte";
 import type { SettingsChange } from "../settings-change";
 import BashToolDialog from "./BashToolDialog.svelte";
+import ImageGenerationToolDialog from "./ImageGenerationToolDialog.svelte";
 import PythonRuntimeDialog from "./PythonRuntimeDialog.svelte";
 import ToolConfigureButton from "./ToolConfigureButton.svelte";
 import ToolGroupItem from "./ToolGroupItem.svelte";
@@ -59,6 +60,7 @@ let {
 let bashDialogOpen = $state(false);
 let pythonDialogOpen = $state(false);
 let visionModelDialogOpen = $state(false);
+let imageGenerationDialogOpen = $state(false);
 let webDialogOpen = $state(false);
 let exploreDialogOpen = $state(false);
 
@@ -90,6 +92,15 @@ const configuredVisionModel = $derived(
     : undefined,
 );
 const visionReady = $derived(Boolean(configuredVisionModel));
+const imageGenerationReady = $derived(
+  settingsDraft.tools.imageGeneration.provider === "openai-codex" &&
+    authProviders.some(
+      (provider) =>
+        provider.provider === "openai-codex" &&
+        provider.configured &&
+        provider.credentialType === "oauth",
+    ),
+);
 const usableExploreModels = $derived(usableModelOptions(models, authProviders));
 const configuredExploreModel = $derived(
   settingsDraft.exploreAgent.model
@@ -104,6 +115,7 @@ const configuredExploreModel = $derived(
 function groupEnabled(group: ToolGroupDef): boolean {
   if (group.configurableTools.length === 0) return true;
   if (group.id === "vision" && !visionReady) return false;
+  if (group.id === "image-generation" && !imageGenerationReady) return false;
   return group.configurableTools.every((name) => !disabledTools.has(name));
 }
 
@@ -112,6 +124,9 @@ function setToolsEnabled(
   enabled: boolean,
 ): void {
   if (enabled && names.includes("explain_image") && !visionReady) return;
+  if (enabled && names.includes("generate_image") && !imageGenerationReady) {
+    return;
+  }
   if (enabled && names.includes("web_search") && !tavilyConfigured) return;
   const tools = ensureToolsDraft(settingsDraft);
   const next = new SvelteSet(tools.disabled);
@@ -205,6 +220,11 @@ function setTavilyProfile(profileId?: string): void {
           label="Configure Image explanation"
           onclick={() => (visionModelDialogOpen = true)}
         />
+      {:else if group.id === "image-generation"}
+        <ToolConfigureButton
+          label="Configure image generation"
+          onclick={() => (imageGenerationDialogOpen = true)}
+        />
       {:else if group.id === "python"}
         <ToolConfigureButton
           label="Configure Python"
@@ -240,6 +260,7 @@ function setTavilyProfile(profileId?: string): void {
           size="settings"
           checked={enabled}
           disabled={(group.id === "vision" && !visionReady) ||
+            (group.id === "image-generation" && !imageGenerationReady) ||
             (group.id === "web" && !tavilyConfigured)}
           aria-label={`Enable ${group.label} tools`}
           onCheckedChange={(checked) =>
@@ -270,6 +291,23 @@ function setTavilyProfile(profileId?: string): void {
             {tavilyConfigured
               ? "Configured for web search."
               : "Select a configured profile to enable web access."}
+          {/snippet}
+        </SettingsSummaryRow>
+      {:else if group.id === "image-generation"}
+        <SettingsSummaryRow
+          class="mt-1"
+          title={settingsDraft.tools.imageGeneration.model}
+          status={imageGenerationReady ? "ok" : "warning"}
+        >
+          {#snippet meta()}
+            {#if imageGenerationReady}
+              OpenAI Codex · Quality
+              {settingsDraft.tools.imageGeneration.options.quality} · Size
+              {settingsDraft.tools.imageGeneration.options.size} · Background
+              {settingsDraft.tools.imageGeneration.options.background}
+            {:else}
+              Connect OpenAI Codex OAuth to enable image generation.
+            {/if}
           {/snippet}
         </SettingsSummaryRow>
       {:else if group.id === "vision"}
@@ -343,6 +381,12 @@ function setTavilyProfile(profileId?: string): void {
 {/each}
 
 <BashToolDialog bind:open={bashDialogOpen} {settingsDraft} {onSettingsChange} />
+
+<ImageGenerationToolDialog
+  bind:open={imageGenerationDialogOpen}
+  {settingsDraft}
+  {onSettingsChange}
+/>
 
 <ToolProfileDialog
   bind:open={webDialogOpen}

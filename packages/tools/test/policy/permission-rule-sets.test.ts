@@ -82,7 +82,7 @@ function overlay(
 }
 
 test("catalog has complete static policy metadata", () => {
-  assert.equal(toolManifest.length, 50);
+  assert.equal(toolManifest.length, 51);
   for (const definition of toolManifest) {
     const metadata = permissionMetadataForTool(definition.name);
     assert.ok(metadata.kind);

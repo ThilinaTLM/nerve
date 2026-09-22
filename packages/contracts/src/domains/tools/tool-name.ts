@@ -15,6 +15,7 @@ export const coreToolNameSchema = z.enum([
   "web_search",
   "web_fetch",
   "explain_image",
+  "generate_image",
   "jira_search_users",
   "jira_search_issues",
   "jira_get_issue",
@@ -51,6 +52,7 @@ export const userConfigurableToolNameSchema = z.enum([
   "web_search",
   "web_fetch",
   "explain_image",
+  "generate_image",
   "python_exec",
 ]);
 export type UserConfigurableToolName = z.infer<

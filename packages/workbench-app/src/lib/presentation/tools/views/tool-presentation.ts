@@ -404,6 +404,21 @@ export function toolPresentation(
       };
     }
 
+    case "generate_image":
+      return {
+        ...base,
+        primaryArg: view.prompt ? { text: view.prompt } : base.primaryArg,
+        meta:
+          view.paths.length > 0
+            ? [
+                {
+                  text: `${view.paths.length} image${view.paths.length === 1 ? "" : "s"}`,
+                  tone: "success",
+                },
+              ]
+            : [],
+      };
+
     case "explain_image": {
       const content = view.live ? view.liveExplanation : view.explanation;
       const meta: MetaItem[] = view.live

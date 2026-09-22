@@ -161,6 +161,15 @@ describe("settings schema", () => {
           model: { provider: "google", modelId: "gemini-2.5-flash" },
           thinkingLevel: "high",
         },
+        imageGeneration: {
+          provider: "openai-codex",
+          model: "gpt-image-2.5-sunburst",
+          options: {
+            quality: "max",
+            size: "2048x2048",
+            background: "transparent",
+          },
+        },
       },
       providers: {
         atlassianProfiles: [
@@ -264,6 +273,44 @@ describe("settings schema", () => {
       model: { provider: "google", modelId: "gemini-2.5-flash" },
       thinkingLevel: "high",
     });
+    assert.deepEqual(parsed.tools?.imageGeneration, {
+      provider: "openai-codex",
+      model: "gpt-image-2.5-sunburst",
+      options: {
+        quality: "max",
+        size: "2048x2048",
+        background: "transparent",
+      },
+    });
+    const validImageGeneration = {
+      provider: "openai-codex",
+      model: "gpt-image-2.5-flare",
+      options: { quality: "auto", size: "auto", background: "auto" },
+    } as const;
+    for (const imageGeneration of [
+      { ...validImageGeneration, provider: "google" },
+      { ...validImageGeneration, model: "gpt-image-latest" },
+      { ...validImageGeneration, model: "gpt-image-2" },
+      {
+        ...validImageGeneration,
+        options: { ...validImageGeneration.options, quality: "ultra" },
+      },
+      {
+        ...validImageGeneration,
+        options: { ...validImageGeneration.options, size: "1000x1000" },
+      },
+      {
+        ...validImageGeneration,
+        options: { ...validImageGeneration.options, background: "green" },
+      },
+    ]) {
+      assert.equal(
+        updateSettingsRequestSchema.safeParse({
+          tools: { imageGeneration },
+        }).success,
+        false,
+      );
+    }
     const cleared = updateSettingsRequestSchema.parse({
       runtime: { pythonExecutablePath: null, shellPath: null },
       tools: {

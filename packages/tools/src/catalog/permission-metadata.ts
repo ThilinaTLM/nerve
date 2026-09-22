@@ -50,6 +50,14 @@ const metadata = {
   web_search: m("network", "web", "network", ["query"], ["whole_tool"], true),
   web_fetch: m("network", "web", "network", ["url"], ["url"], true),
   explain_image: m("network", "vision", "network", ["path"], ["path"], true),
+  generate_image: m(
+    "network",
+    "imageGeneration",
+    "network",
+    ["prompt"],
+    ["whole_tool"],
+    true,
+  ),
   jira_search_users: m(
     "integration",
     "jira",

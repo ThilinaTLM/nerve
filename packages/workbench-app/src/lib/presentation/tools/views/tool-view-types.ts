@@ -162,6 +162,11 @@ export type ToolView =
       outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | {
+      kind: "generate_image";
+      prompt?: string;
+      paths: string[];
+    }
+  | {
       kind: "bash";
       command?: string;
       exitCode?: number;

@@ -23,6 +23,7 @@ import {
 } from "../lifecycle/argument-source";
 import { parseConfluenceView } from "./confluence-result-view";
 import { parseExploreProgressLog } from "./explore-progress";
+import { parseGenerateImageView } from "./generate-image-result-view";
 import { parseJiraView } from "./jira-result-view";
 import {
   parseTaskControlResult,
@@ -256,6 +257,9 @@ export function parseToolView(
         outputArtifacts,
       };
     }
+
+    case "generate_image":
+      return parseGenerateImageView(rawArgs, rawResult);
 
     case "bash": {
       const command = stringField(args.command);

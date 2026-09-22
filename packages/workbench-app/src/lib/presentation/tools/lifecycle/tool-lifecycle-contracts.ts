@@ -92,7 +92,8 @@ export type CompletedViewFamily =
   | "confluence"
   | "web_search"
   | "web_fetch"
-  | "explain_image";
+  | "explain_image"
+  | "generate_image";
 
 export type ToolLifecycleSpec<Name extends ToolName = ToolName> = {
   name: Name;
