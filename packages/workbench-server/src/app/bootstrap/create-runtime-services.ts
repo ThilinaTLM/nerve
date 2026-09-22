@@ -19,7 +19,8 @@ import type { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/ag
 import { SubagentTranscriptService } from "../../domains/agents/subagent-transcript.service.js";
 import { SubagentTranscriptLiveService } from "../../domains/agents/subagent-transcript-live.service.js";
 import type { AuthManager } from "../../domains/auth/index.js";
-import { generateImageWithChatGptSubscription } from "../../domains/image-generation/gpt-image.service.js";
+import { ImageGenerationService } from "../../domains/image-generation/image-generation.service.js";
+import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generation/providers/openai-codex-image-generation.provider.js";
 import { WorkbenchExploreAdmission } from "../../domains/agents/execution/workbench-explore-admission.js";
 import { WorkbenchSubagentExecutions } from "../../domains/agents/execution/workbench-subagent-executions.js";
 import { CapabilityService } from "../../domains/capabilities/capability.service.js";
@@ -463,6 +464,11 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       getConversation,
       getAgent,
     });
+  const imageGeneration = new ImageGenerationService([
+    new OpenAiCodexImageGenerationProvider(auth, () =>
+      subscriptionUsage.touchProvider("openai-codex"),
+    ),
+  ]);
   const tools: ToolService = new ToolService({
     storage,
     events,
@@ -530,14 +536,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       });
       return { explanation, model: selection };
     },
-    generateGptImage: async (request) => {
-      subscriptionUsage.touchProvider("openai-codex");
-      return generateImageWithChatGptSubscription(
-        auth,
-        request,
-        storage.settings.tools.imageGeneration,
-      );
-    },
+    generateImage: (request) =>
+      imageGeneration.generate(request, storage.settings.tools.imageGeneration),
     plans,
     setAgentMode: (agentId, mode, reason) =>
       agentLifecycle.setAgentModeInternal(agentId, mode, reason),
@@ -569,6 +569,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     storage,
     events,
     auth,
+    imageGeneration,
     tools: tools,
     tasks: tasks,
     pythonRuntime: pythonRuntime,

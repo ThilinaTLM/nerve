@@ -146,12 +146,17 @@ const imageExplanationToolSettingsSchema = z.object({
   thinkingLevel: thinkingLevelSchema,
 });
 
-export const gptImageModelSchema = z.enum([
+export const imageGenerationProviderSchema = z.enum(["openai-codex"]);
+export type ImageGenerationProvider = z.infer<
+  typeof imageGenerationProviderSchema
+>;
+
+export const openAiCodexImageModelSchema = z.enum([
   "gpt-image-2.5-flare",
   "gpt-image-2.5-sunburst",
 ]);
-export type GptImageModel = z.infer<typeof gptImageModelSchema>;
-export const gptImageQualitySchema = z.enum([
+export type OpenAiCodexImageModel = z.infer<typeof openAiCodexImageModelSchema>;
+export const openAiCodexImageQualitySchema = z.enum([
   "auto",
   "low",
   "medium",
@@ -159,14 +164,18 @@ export const gptImageQualitySchema = z.enum([
   "xhigh",
   "max",
 ]);
-export type GptImageQuality = z.infer<typeof gptImageQualitySchema>;
-export const gptImageBackgroundSchema = z.enum([
+export type OpenAiCodexImageQuality = z.infer<
+  typeof openAiCodexImageQualitySchema
+>;
+export const openAiCodexImageBackgroundSchema = z.enum([
   "auto",
   "opaque",
   "transparent",
 ]);
-export type GptImageBackground = z.infer<typeof gptImageBackgroundSchema>;
-const customGptImageSizeSchema = z
+export type OpenAiCodexImageBackground = z.infer<
+  typeof openAiCodexImageBackgroundSchema
+>;
+const customOpenAiCodexImageSizeSchema = z
   .string()
   .regex(/^\d+x\d+$/)
   .refine((value) => {
@@ -184,18 +193,28 @@ const customGptImageSizeSchema = z
       pixels <= 8_294_400
     );
   });
-export const gptImageSizeSchema = z.union([
+export const openAiCodexImageSizeSchema = z.union([
   z.literal("auto"),
-  customGptImageSizeSchema,
+  customOpenAiCodexImageSizeSchema,
 ]);
-export type GptImageSize = z.infer<typeof gptImageSizeSchema>;
+export type OpenAiCodexImageSize = z.infer<typeof openAiCodexImageSizeSchema>;
 
-export const imageGenerationToolSettingsSchema = z.object({
-  model: gptImageModelSchema,
-  quality: gptImageQualitySchema,
-  size: gptImageSizeSchema,
-  background: gptImageBackgroundSchema,
+export const openAiCodexImageGenerationSettingsSchema = z.object({
+  provider: z.literal("openai-codex"),
+  model: openAiCodexImageModelSchema,
+  options: z.object({
+    quality: openAiCodexImageQualitySchema,
+    size: openAiCodexImageSizeSchema,
+    background: openAiCodexImageBackgroundSchema,
+  }),
 });
+export type OpenAiCodexImageGenerationSettings = z.infer<
+  typeof openAiCodexImageGenerationSettingsSchema
+>;
+export const imageGenerationToolSettingsSchema = z.discriminatedUnion(
+  "provider",
+  [openAiCodexImageGenerationSettingsSchema],
+);
 export type ImageGenerationToolSettings = z.infer<
   typeof imageGenerationToolSettingsSchema
 >;
@@ -208,10 +227,9 @@ const toolSettingsSchema = z.object({
   web: webToolSettingsSchema,
   imageExplanation: imageExplanationToolSettingsSchema,
   imageGeneration: imageGenerationToolSettingsSchema.default({
+    provider: "openai-codex",
     model: "gpt-image-2.5-flare",
-    quality: "auto",
-    size: "auto",
-    background: "auto",
+    options: { quality: "auto", size: "auto", background: "auto" },
   }),
 });
 
@@ -396,17 +414,16 @@ export const defaultSettings: Settings = {
   permissions: { exceptions: [] },
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
-    disabled: ["explain_image", "gpt_image"],
+    disabled: ["explain_image", "generate_image"],
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
     web: {},
     imageExplanation: { thinkingLevel: "off" },
     imageGeneration: {
+      provider: "openai-codex",
       model: "gpt-image-2.5-flare",
-      quality: "auto",
-      size: "auto",
-      background: "auto",
+      options: { quality: "auto", size: "auto", background: "auto" },
     },
   },
   skills: {
@@ -564,14 +581,7 @@ export const updateSettingsRequestSchema = z.object({
           thinkingLevel: thinkingLevelSchema.optional(),
         })
         .optional(),
-      imageGeneration: z
-        .object({
-          model: gptImageModelSchema.optional(),
-          quality: gptImageQualitySchema.optional(),
-          size: gptImageSizeSchema.optional(),
-          background: gptImageBackgroundSchema.optional(),
-        })
-        .optional(),
+      imageGeneration: imageGenerationToolSettingsSchema.optional(),
     })
     .optional(),
   scopedModels: z.array(modelSelectionSchema).optional(),

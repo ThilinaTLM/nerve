@@ -163,7 +163,7 @@ export const harnessConfigSchema = z
             thinkingLevel: thinkingLevelSchema,
           })
           .strict(),
-        imageGeneration: imageGenerationToolSettingsSchema.strict(),
+        imageGeneration: imageGenerationToolSettingsSchema,
       })
       .strict(),
     skills: z
@@ -208,14 +208,13 @@ export const defaultHarnessConfig: HarnessConfig = {
   retry: { enabled: true, maxRetries: 3, baseDelayMs: 2000 },
   execution: {},
   tools: {
-    disabled: ["explain_image", "gpt_image"],
+    disabled: ["explain_image", "generate_image"],
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     imageExplanation: { thinkingLevel: "off" },
     imageGeneration: {
+      provider: "openai-codex",
       model: "gpt-image-2.5-flare",
-      quality: "auto",
-      size: "auto",
-      background: "auto",
+      options: { quality: "auto", size: "auto", background: "auto" },
     },
   },
   skills: {

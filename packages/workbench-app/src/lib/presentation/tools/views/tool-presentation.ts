@@ -404,7 +404,7 @@ export function toolPresentation(
       };
     }
 
-    case "gpt_image":
+    case "generate_image":
       return {
         ...base,
         primaryArg: view.prompt ? { text: view.prompt } : base.primaryArg,

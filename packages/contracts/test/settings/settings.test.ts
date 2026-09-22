@@ -162,10 +162,13 @@ describe("settings schema", () => {
           thinkingLevel: "high",
         },
         imageGeneration: {
+          provider: "openai-codex",
           model: "gpt-image-2.5-sunburst",
-          quality: "max",
-          size: "2048x2048",
-          background: "transparent",
+          options: {
+            quality: "max",
+            size: "2048x2048",
+            background: "transparent",
+          },
         },
       },
       providers: {
@@ -271,17 +274,35 @@ describe("settings schema", () => {
       thinkingLevel: "high",
     });
     assert.deepEqual(parsed.tools?.imageGeneration, {
+      provider: "openai-codex",
       model: "gpt-image-2.5-sunburst",
-      quality: "max",
-      size: "2048x2048",
-      background: "transparent",
+      options: {
+        quality: "max",
+        size: "2048x2048",
+        background: "transparent",
+      },
     });
+    const validImageGeneration = {
+      provider: "openai-codex",
+      model: "gpt-image-2.5-flare",
+      options: { quality: "auto", size: "auto", background: "auto" },
+    } as const;
     for (const imageGeneration of [
-      { model: "gpt-image-latest" },
-      { model: "gpt-image-2" },
-      { quality: "ultra" },
-      { size: "1000x1000" },
-      { background: "green" },
+      { ...validImageGeneration, provider: "google" },
+      { ...validImageGeneration, model: "gpt-image-latest" },
+      { ...validImageGeneration, model: "gpt-image-2" },
+      {
+        ...validImageGeneration,
+        options: { ...validImageGeneration.options, quality: "ultra" },
+      },
+      {
+        ...validImageGeneration,
+        options: { ...validImageGeneration.options, size: "1000x1000" },
+      },
+      {
+        ...validImageGeneration,
+        options: { ...validImageGeneration.options, background: "green" },
+      },
     ]) {
       assert.equal(
         updateSettingsRequestSchema.safeParse({

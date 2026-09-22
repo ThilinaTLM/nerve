@@ -14,7 +14,7 @@ export type ToolGroupId =
   | "explore"
   | "web"
   | "vision"
-  | "gpt-image"
+  | "image-generation"
   | "tasks"
   | "shell"
   | "python";
@@ -34,7 +34,7 @@ export const configurableToolOrder: ConfigurableToolName[] = [
   "web_search",
   "web_fetch",
   "explain_image",
-  "gpt_image",
+  "generate_image",
   "python_exec",
 ];
 
@@ -181,15 +181,14 @@ export const toolGroups: ToolGroupDef[] = [
     ],
   },
   {
-    id: "gpt-image",
+    id: "image-generation",
     category: "third-party",
-    label: "GPT Image",
-    description:
-      "Generate images through the connected OpenAI Codex subscription.",
-    configurableTools: ["gpt_image"],
+    label: "Image generation",
+    description: "Generate images through the provider configured in Settings.",
+    configurableTools: ["generate_image"],
     tools: [
       {
-        name: "gpt_image",
+        name: "generate_image",
         description:
           "Generate one image from a text prompt using user-configured settings.",
       },

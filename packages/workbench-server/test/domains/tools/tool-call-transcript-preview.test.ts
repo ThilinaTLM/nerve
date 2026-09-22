@@ -77,11 +77,11 @@ function editToolCall(diff: string): ToolCallRecord {
 }
 
 describe("public transcript separation", () => {
-  it("keeps GPT Image file metadata while omitting inline image bytes", () => {
+  it("keeps generated-image file metadata while omitting inline image bytes", () => {
     const imageData = "aW1hZ2UtYnl0ZXM=";
     const preview = toToolCallTranscriptRecord({
       ...explainImageToolCall("unused"),
-      toolName: "gpt_image",
+      toolName: "generate_image",
       risk: "network",
       args: { prompt: "A coral nerve cell" },
       result: {

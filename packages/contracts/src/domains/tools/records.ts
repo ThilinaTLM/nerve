@@ -54,6 +54,7 @@ export const toolGroupNameSchema = z.enum([
   "python",
   "web",
   "vision",
+  "imageGeneration",
   "jira",
   "confluence",
   "input",

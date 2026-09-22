@@ -2,7 +2,7 @@ import { artifacts } from "../candidate-artifacts.js";
 import { fallbackText } from "../fallback.js";
 import type { CandidateContext, ProjectionCandidate } from "../types.js";
 
-export function gptImageCandidate(
+export function generateImageCandidate(
   context: CandidateContext,
 ): ProjectionCandidate {
   const validated = artifacts(context);

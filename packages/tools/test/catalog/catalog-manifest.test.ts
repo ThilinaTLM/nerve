@@ -40,7 +40,7 @@ describe("model-facing tool schema compatibility", () => {
     it("locks the simplified model-facing property sets and schema budget", () => {
       const expectedProperties: Record<string, string[]> = {
         edit: ["path", "edits"],
-        gpt_image: ["prompt"],
+        generate_image: ["prompt"],
         jira_search_users: [
           "query",
           "project_key",

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 import type { AuthManager } from "../../../src/domains/auth/index.js";
-import { generateImageWithChatGptSubscription } from "../../../src/domains/image-generation/gpt-image.service.js";
+import { OpenAiCodexImageGenerationProvider } from "../../../src/domains/image-generation/providers/openai-codex-image-generation.provider.js";
 
 function accessToken(accountId = "account-test"): string {
   const claims = Buffer.from(
@@ -14,10 +14,13 @@ function accessToken(accountId = "account-test"): string {
 
 const request = { prompt: "A coral nerve cell" };
 const settings = {
+  provider: "openai-codex" as const,
   model: "gpt-image-2.5-flare" as const,
-  quality: "xhigh" as const,
-  size: "1024x1024" as const,
-  background: "transparent" as const,
+  options: {
+    quality: "xhigh" as const,
+    size: "1024x1024" as const,
+    background: "transparent" as const,
+  },
 };
 
 function auth(): AuthManager {
@@ -32,8 +35,8 @@ function auth(): AuthManager {
   } as AuthManager;
 }
 
-describe("GPT Image ChatGPT subscription service", () => {
-  it("sends current 2.5 options with Codex OAuth and decodes images", async () => {
+describe("OpenAI Codex image generation provider", () => {
+  it("sends current model options with Codex OAuth and decodes images", async () => {
     const image = Buffer.from("image-bytes");
     const fetchMock = mock.method(globalThis, "fetch", async (_url, init) => {
       const headers = new Headers(init?.headers);
@@ -59,33 +62,33 @@ describe("GPT Image ChatGPT subscription service", () => {
         { status: 200 },
       );
     });
+    let usageTouches = 0;
     try {
-      const response = await generateImageWithChatGptSubscription(
+      const provider = new OpenAiCodexImageGenerationProvider(
         auth(),
-        request,
-        settings,
+        () => (usageTouches += 1),
       );
+      const response = await provider.generate(request, settings);
+      assert.equal(response.provider, "openai-codex");
       assert.equal(response.model, "gpt-image-2.5-flare");
       assert.deepEqual(Buffer.from(response.images[0]!.data), image);
       assert.equal(
         response.images[0]?.revisedPrompt,
         "A refined coral nerve cell",
       );
+      assert.equal(usageTouches, 1);
     } finally {
       fetchMock.mock.restore();
     }
   });
 
   it("requires OAuth rather than an OpenAI API key", async () => {
+    const provider = new OpenAiCodexImageGenerationProvider({
+      getCredential: async () => ({ type: "api_key", key: "key" }),
+    } as AuthManager);
     await assert.rejects(
-      generateImageWithChatGptSubscription(
-        {
-          getCredential: async () => ({ type: "api_key", key: "key" }),
-        } as AuthManager,
-        request,
-        settings,
-      ),
-      /requires an OpenAI Codex OAuth connection/,
+      provider.generate(request, settings),
+      /requires an OAuth connection/,
     );
   });
 });

@@ -162,7 +162,7 @@ export type ToolView =
       outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | {
-      kind: "gpt_image";
+      kind: "generate_image";
       prompt?: string;
       paths: string[];
     }

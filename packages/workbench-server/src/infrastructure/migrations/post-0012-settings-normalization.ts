@@ -76,22 +76,41 @@ function migrateImageGenerationTool(value: unknown): {
 } {
   const settings = objectRecord(value);
   const tools = objectRecord(settings?.tools);
-  if (!settings || !tools || "imageGeneration" in tools) {
-    return { value, changed: false };
-  }
+  if (!settings || !tools) return { value, changed: false };
+
+  const current = objectRecord(tools.imageGeneration);
+  const alreadyCurrent = current?.provider === "openai-codex";
   const disabled = Array.isArray(tools.disabled) ? tools.disabled : [];
+  const hadLegacyName = disabled.includes("gpt_image");
+  const nextDisabled = disabled.filter((name) => name !== "gpt_image");
+  if (!current || hadLegacyName) nextDisabled.push("generate_image");
+  const normalizedDisabled = [...new Set(nextDisabled)];
+  const disabledChanged =
+    normalizedDisabled.length !== disabled.length ||
+    normalizedDisabled.some((name, index) => name !== disabled[index]);
+  if (alreadyCurrent && !disabledChanged) return { value, changed: false };
+
+  const model =
+    current?.model === "gpt-image-2.5-sunburst"
+      ? "gpt-image-2.5-sunburst"
+      : "gpt-image-2.5-flare";
   return {
     value: {
       ...settings,
       tools: {
         ...tools,
-        disabled: [...new Set([...disabled, "gpt_image"])],
-        imageGeneration: {
-          model: "gpt-image-2.5-flare",
-          quality: "auto",
-          size: "auto",
-          background: "auto",
-        },
+        disabled: normalizedDisabled,
+        imageGeneration: alreadyCurrent
+          ? tools.imageGeneration
+          : {
+              provider: "openai-codex",
+              model,
+              options: {
+                quality: current?.quality ?? "auto",
+                size: current?.size ?? "auto",
+                background: current?.background ?? "auto",
+              },
+            },
       },
     },
     changed: true,

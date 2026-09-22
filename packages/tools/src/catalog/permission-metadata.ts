@@ -50,9 +50,9 @@ const metadata = {
   web_search: m("network", "web", "network", ["query"], ["whole_tool"], true),
   web_fetch: m("network", "web", "network", ["url"], ["url"], true),
   explain_image: m("network", "vision", "network", ["path"], ["path"], true),
-  gpt_image: m(
+  generate_image: m(
     "network",
-    "vision",
+    "imageGeneration",
     "network",
     ["prompt"],
     ["whole_tool"],

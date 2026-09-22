@@ -7,7 +7,7 @@ import ToolOutputBlock from "./ToolOutputBlock.svelte";
 
 type Props = {
   toolCall: ToolCallDisplayRecord;
-  view: Extract<ToolView, { kind: "gpt_image" }>;
+  view: Extract<ToolView, { kind: "generate_image" }>;
   expanded?: boolean;
   onOpenFile?: (path: string, line?: number) => void;
 };

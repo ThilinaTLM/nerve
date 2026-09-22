@@ -21,11 +21,11 @@ const generatedImage: ValidatedToolArtifact = {
   label: "Generated image 1",
 };
 
-describe("GPT Image agent result", () => {
+describe("generate_image agent result", () => {
   it("provides only the validated generated-file path", () => {
     const projected = projectAgentResult(
       {
-        toolName: "gpt_image",
+        toolName: "generate_image",
         args: { prompt: "A coral nerve cell" },
         result: {
           contentBlocks: [
@@ -39,7 +39,7 @@ describe("GPT Image agent result", () => {
         phase: "completed",
         validatedArtifacts: [generatedImage],
       },
-      agentResultPolicyForTool("gpt_image"),
+      agentResultPolicyForTool("generate_image"),
     );
     const text = projected.blocks
       .filter((block) => block.type === "text")

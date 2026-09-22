@@ -27,12 +27,13 @@ export type ExplainImageResponse = {
   model: { provider: string; modelId: string };
 };
 
-export type GptImageGenerateRequest = {
+export type ImageGenerateRequest = {
   prompt: string;
   signal?: AbortSignal;
 };
 
-export type GptImageGenerateResponse = {
+export type ImageGenerateResponse = {
+  provider: string;
   model: string;
   images: Array<{ data: Uint8Array; revisedPrompt?: string }>;
 };
@@ -64,9 +65,12 @@ export interface VisionExecutionContext extends BaseExecutionContext {
   explainImage?: (
     request: ExplainImageRequest,
   ) => Promise<ExplainImageResponse>;
-  generateGptImage?: (
-    request: GptImageGenerateRequest,
-  ) => Promise<GptImageGenerateResponse>;
+}
+export interface ImageGenerationExecutionContext extends BaseExecutionContext {
+  artifactDir?: string;
+  generateImage?: (
+    request: ImageGenerateRequest,
+  ) => Promise<ImageGenerateResponse>;
 }
 export interface IntegrationExecutionContext extends BaseExecutionContext {
   artifactDir?: string;
@@ -80,6 +84,7 @@ export type ToolExecutionContext = FilesystemExecutionContext &
   PythonExecutionContext &
   WebExecutionContext &
   VisionExecutionContext &
+  ImageGenerationExecutionContext &
   IntegrationExecutionContext;
 
 // Result contracts live in `@nervekit/contracts` (single source of truth shared with the web UI).

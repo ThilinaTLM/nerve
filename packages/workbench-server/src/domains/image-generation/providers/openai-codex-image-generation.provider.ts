@@ -1,13 +1,17 @@
-import type { ImageGenerationToolSettings } from "@nervekit/contracts/settings";
 import type {
-  GptImageGenerateRequest,
-  GptImageGenerateResponse,
+  ImageGenerationToolSettings,
+  OpenAiCodexImageGenerationSettings,
+} from "@nervekit/contracts/settings";
+import type {
+  ImageGenerateRequest,
+  ImageGenerateResponse,
 } from "@nervekit/tools/execution";
-import { ApplicationError } from "../../core/application-error.js";
+import { ApplicationError } from "../../../core/application-error.js";
 import {
   chatGptAccountIdFromAccessToken,
   type AuthManager,
-} from "../auth/index.js";
+} from "../../auth/index.js";
+import type { ImageGenerationProviderAdapter } from "../image-generation.provider.js";
 
 const CHATGPT_IMAGE_GENERATION_URL =
   "https://chatgpt.com/backend-api/codex/images/generations";
@@ -15,48 +19,50 @@ const OPENAI_CODEX_PROVIDER = "openai-codex";
 const MAX_ERROR_BODY_CHARS = 2_000;
 
 type ChatGptImageResponse = {
-  data?: Array<{
-    b64_json?: unknown;
-    revised_prompt?: unknown;
-  }>;
+  data?: Array<{ b64_json?: unknown; revised_prompt?: unknown }>;
 };
 
-function responseErrorMessage(status: number, body: string): string {
-  let remoteMessage: string | undefined;
-  try {
-    const parsed = JSON.parse(body) as {
-      error?: { message?: unknown };
-      detail?: { message?: unknown };
-    };
-    const candidate = parsed.error?.message ?? parsed.detail?.message;
-    if (typeof candidate === "string") remoteMessage = candidate.trim();
-  } catch {
-    remoteMessage = body.trim().slice(0, MAX_ERROR_BODY_CHARS);
-  }
-  if (status === 401) {
-    return "ChatGPT rejected the OpenAI Codex OAuth session. Reconnect OpenAI Codex in Settings.";
-  }
-  if (status === 429) {
+export class OpenAiCodexImageGenerationProvider implements ImageGenerationProviderAdapter {
+  readonly id = OPENAI_CODEX_PROVIDER;
+
+  constructor(
+    private readonly auth: AuthManager,
+    private readonly onUsed?: () => void,
+  ) {}
+
+  async isAvailable(): Promise<boolean> {
     return (
-      remoteMessage || "ChatGPT image generation is currently rate limited."
+      (await this.auth.getCredential(OPENAI_CODEX_PROVIDER))?.type === "oauth"
     );
   }
-  return remoteMessage
-    ? `ChatGPT image generation failed (${status}): ${remoteMessage}`
-    : `ChatGPT image generation failed with HTTP ${status}.`;
+
+  async generate(
+    request: ImageGenerateRequest,
+    settings: ImageGenerationToolSettings,
+  ): Promise<ImageGenerateResponse> {
+    if (settings.provider !== OPENAI_CODEX_PROVIDER) {
+      throw new ApplicationError(
+        400,
+        "IMAGE_GENERATION_PROVIDER_SETTINGS_INVALID",
+        "OpenAI Codex image generation received incompatible settings.",
+      );
+    }
+    this.onUsed?.();
+    return generateWithOpenAiCodex(this.auth, request, settings);
+  }
 }
 
-export async function generateImageWithChatGptSubscription(
+async function generateWithOpenAiCodex(
   auth: AuthManager,
-  request: GptImageGenerateRequest,
-  settings: ImageGenerationToolSettings,
-): Promise<GptImageGenerateResponse> {
+  request: ImageGenerateRequest,
+  settings: OpenAiCodexImageGenerationSettings,
+): Promise<ImageGenerateResponse> {
   const credential = await auth.getCredential(OPENAI_CODEX_PROVIDER);
   if (credential?.type !== "oauth") {
     throw new ApplicationError(
       401,
       "CHATGPT_SUBSCRIPTION_AUTH_REQUIRED",
-      "GPT Image requires an OpenAI Codex OAuth connection in Settings.",
+      "OpenAI Codex image generation requires an OAuth connection in Settings.",
     );
   }
 
@@ -66,7 +72,7 @@ export async function generateImageWithChatGptSubscription(
     throw new ApplicationError(
       401,
       "CHATGPT_SUBSCRIPTION_AUTH_REQUIRED",
-      "GPT Image requires an OpenAI Codex OAuth connection in Settings.",
+      "OpenAI Codex image generation requires an OAuth connection in Settings.",
     );
   }
   const accountId = chatGptAccountIdFromAccessToken(accessToken);
@@ -90,9 +96,9 @@ export async function generateImageWithChatGptSubscription(
     body: JSON.stringify({
       model: settings.model,
       prompt: request.prompt,
-      quality: settings.quality,
-      size: settings.size,
-      background: settings.background,
+      quality: settings.options.quality,
+      size: settings.options.size,
+      background: settings.options.background,
       n: 1,
     }),
     signal: request.signal,
@@ -142,5 +148,30 @@ export async function generateImageWithChatGptSubscription(
       "ChatGPT returned no generated image data.",
     );
   }
-  return { model: settings.model, images };
+  return { provider: OPENAI_CODEX_PROVIDER, model: settings.model, images };
+}
+
+function responseErrorMessage(status: number, body: string): string {
+  let remoteMessage: string | undefined;
+  try {
+    const parsed = JSON.parse(body) as {
+      error?: { message?: unknown };
+      detail?: { message?: unknown };
+    };
+    const candidate = parsed.error?.message ?? parsed.detail?.message;
+    if (typeof candidate === "string") remoteMessage = candidate.trim();
+  } catch {
+    remoteMessage = body.trim().slice(0, MAX_ERROR_BODY_CHARS);
+  }
+  if (status === 401) {
+    return "ChatGPT rejected the OpenAI Codex OAuth session. Reconnect OpenAI Codex in Settings.";
+  }
+  if (status === 429) {
+    return (
+      remoteMessage || "ChatGPT image generation is currently rate limited."
+    );
+  }
+  return remoteMessage
+    ? `ChatGPT image generation failed (${status}): ${remoteMessage}`
+    : `ChatGPT image generation failed with HTTP ${status}.`;
 }

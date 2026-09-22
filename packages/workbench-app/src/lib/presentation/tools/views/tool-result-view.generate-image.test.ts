@@ -4,10 +4,10 @@ import { toolPresentation } from "./tool-presentation";
 import { parseToolView } from "./tool-result-view";
 import { toolCall } from "./tool-result-view.fixtures";
 
-describe("parseToolView gpt_image", () => {
+describe("parseToolView generate_image", () => {
   it("projects the generated artifact path without image data", () => {
     const record = toolCall(
-      "gpt_image",
+      "generate_image",
       { prompt: "A coral nerve cell" },
       {
         content: "Generated 1 image with gpt-image-2.5-flare.",
@@ -30,8 +30,8 @@ describe("parseToolView gpt_image", () => {
       },
     );
     const view = parseToolView(record);
-    assert.equal(view.kind, "gpt_image");
-    if (view.kind !== "gpt_image") return;
+    assert.equal(view.kind, "generate_image");
+    if (view.kind !== "generate_image") return;
     assert.equal(view.prompt, "A coral nerve cell");
     assert.deepEqual(view.paths, ["/tmp/generated-1.png"]);
     assert.deepEqual(toolPresentation(view, record).meta, [

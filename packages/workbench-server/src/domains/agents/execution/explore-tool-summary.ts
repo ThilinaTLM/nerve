@@ -33,7 +33,7 @@ export function summarizeExploreToolCall(
       return activity("Fetching web page", safeUrl(args.url));
     case "explain_image":
       return activity("Explaining image", pathDetail(args));
-    case "gpt_image":
+    case "generate_image":
       return activity("Generating image", stringValue(args.prompt));
     case "ask_user":
       return "Requesting user input";

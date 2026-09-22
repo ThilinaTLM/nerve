@@ -18,14 +18,15 @@ export type {
   ToolInteractionResolution,
   UserQuestionRecord,
 } from "@nervekit/contracts/tools";
-export { gptImageSizeSchema } from "@nervekit/contracts/settings";
+export { openAiCodexImageSizeSchema } from "@nervekit/contracts/settings";
 export type {
   AtlassianProfile,
   ColorMode,
   ColorTheme,
-  GptImageBackground,
-  GptImageModel,
-  GptImageQuality,
+  ImageGenerationProvider,
+  OpenAiCodexImageBackground,
+  OpenAiCodexImageModel,
+  OpenAiCodexImageQuality,
   HeaderType,
   Settings,
   TavilyProfile,

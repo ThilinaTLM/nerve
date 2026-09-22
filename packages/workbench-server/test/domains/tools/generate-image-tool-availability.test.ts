@@ -23,17 +23,20 @@ function active(options: { available?: boolean; disabled?: boolean }) {
     pythonAvailable: true,
     jiraEnabled: true,
     confluenceEnabled: true,
-    gptImageAvailable: options.available,
-    disabledToolNames: options.disabled ? ["gpt_image"] : [],
+    imageGenerationAvailable: options.available,
+    disabledToolNames: options.disabled ? ["generate_image"] : [],
   });
 }
 
-describe("gpt_image availability", () => {
-  it("requires an enabled OpenAI Codex OAuth capability", () => {
-    assert.equal(active({ available: true }).includes("gpt_image"), true);
-    assert.equal(active({ available: false }).includes("gpt_image"), false);
+describe("generate_image availability", () => {
+  it("requires the selected provider to be ready and the tool enabled", () => {
+    assert.equal(active({ available: true }).includes("generate_image"), true);
     assert.equal(
-      active({ available: true, disabled: true }).includes("gpt_image"),
+      active({ available: false }).includes("generate_image"),
+      false,
+    );
+    assert.equal(
+      active({ available: true, disabled: true }).includes("generate_image"),
       false,
     );
   });

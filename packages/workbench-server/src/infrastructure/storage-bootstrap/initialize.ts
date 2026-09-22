@@ -332,12 +332,7 @@ export async function writeSettings(
             }
           : {}),
         ...(imageGenerationPatch
-          ? {
-              imageGeneration: {
-                ...storage.settings.tools.imageGeneration,
-                ...imageGenerationPatch,
-              },
-            }
+          ? { imageGeneration: imageGenerationPatch }
           : {}),
       }
     : undefined;

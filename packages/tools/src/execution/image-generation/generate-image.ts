@@ -1,8 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
+  ImageGenerationExecutionContext,
   ToolExecutionResult,
-  VisionExecutionContext,
 } from "../execution-context.js";
 import { detectSupportedImageMimeType } from "../filesystem/read.js";
 
@@ -26,26 +26,24 @@ function extensionForMimeType(mimeType: string): string {
   return "png";
 }
 
-export async function executeGptImage(
+export async function executeGenerateImage(
   args: Record<string, unknown>,
-  context: VisionExecutionContext,
+  context: ImageGenerationExecutionContext,
 ): Promise<ToolExecutionResult> {
-  if (!context.generateGptImage) {
-    throw new Error(
-      "GPT Image is not configured. Connect OpenAI Codex OAuth in Settings.",
-    );
+  if (!context.generateImage) {
+    throw new Error("Image generation is not configured in Settings.");
   }
   if (!context.artifactDir) {
-    throw new Error("GPT Image requires an artifact output directory.");
+    throw new Error("Image generation requires an artifact output directory.");
   }
 
   const prompt = requiredPrompt(args.prompt);
-  const response = await context.generateGptImage({
+  const response = await context.generateImage({
     prompt,
     signal: context.signal,
   });
   if (response.images.length === 0) {
-    throw new Error("GPT Image returned no images.");
+    throw new Error("The image provider returned no images.");
   }
 
   await mkdir(context.artifactDir, { recursive: true });
@@ -61,7 +59,7 @@ export async function executeGptImage(
       image.data.byteLength > MAX_IMAGE_BYTES
     ) {
       throw new Error(
-        `GPT Image output ${index + 1} has an invalid size (${image.data.byteLength} bytes).`,
+        `Image output ${index + 1} has an invalid size (${image.data.byteLength} bytes).`,
       );
     }
     const mimeType = detectSupportedImageMimeType(image.data);
@@ -70,7 +68,7 @@ export async function executeGptImage(
       !["image/png", "image/jpeg", "image/webp"].includes(mimeType)
     ) {
       throw new Error(
-        `GPT Image output ${index + 1} has an unsupported image format.`,
+        `Image output ${index + 1} has an unsupported image format.`,
       );
     }
     const path = join(
@@ -91,6 +89,7 @@ export async function executeGptImage(
     content: summary,
     contentBlocks: [{ type: "text", text: summary }],
     details: {
+      provider: response.provider,
       model: response.model,
       prompt,
       images,

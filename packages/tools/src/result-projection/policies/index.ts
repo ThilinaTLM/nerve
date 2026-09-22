@@ -33,10 +33,8 @@ import {
   taskLifecycleAgentResultPolicy,
   taskLogsAgentResultPolicy,
 } from "./tasks.js";
-import {
-  explainImageAgentResultPolicy,
-  gptImageAgentResultPolicy,
-} from "./vision.js";
+import { generateImageAgentResultPolicy } from "./image-generation.js";
+import { explainImageAgentResultPolicy } from "./vision.js";
 import {
   webFetchAgentResultPolicy,
   webSearchAgentResultPolicy,
@@ -55,7 +53,7 @@ const map: Record<ToolName, AgentResultPolicy> = {
   web_search: webSearchAgentResultPolicy,
   web_fetch: webFetchAgentResultPolicy,
   explain_image: explainImageAgentResultPolicy,
-  gpt_image: gptImageAgentResultPolicy,
+  generate_image: generateImageAgentResultPolicy,
   ask_user: askUserAgentResultPolicy,
   todos_set: todosAgentResultPolicy,
   todos_get: todosAgentResultPolicy,

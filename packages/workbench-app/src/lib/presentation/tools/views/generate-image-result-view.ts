@@ -5,12 +5,12 @@ import {
 } from "./tool-view-helpers";
 import type { ToolView } from "./tool-view-types";
 
-type GptImageView = Extract<ToolView, { kind: "gpt_image" }>;
+type GenerateImageView = Extract<ToolView, { kind: "generate_image" }>;
 
-export function parseGptImageView(
+export function parseGenerateImageView(
   rawArgs: unknown,
   rawResult: unknown,
-): GptImageView {
+): GenerateImageView {
   const args = asRecord(rawArgs);
   const result = parseToolExecutionResult(rawResult);
   const details = asRecord(result?.details);
@@ -18,7 +18,7 @@ export function parseGptImageView(
     .map((image) => stringField(asRecord(image).path))
     .filter((path): path is string => Boolean(path));
   return {
-    kind: "gpt_image",
+    kind: "generate_image",
     prompt: stringField(args.prompt),
     paths,
   };

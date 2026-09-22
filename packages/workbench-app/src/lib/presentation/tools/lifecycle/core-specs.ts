@@ -524,10 +524,10 @@ export const coreToolLifecycleSpecs = {
         ],
       }),
   }),
-  gpt_image: defineToolLifecycleSpec({
-    name: "gpt_image",
+  generate_image: defineToolLifecycleSpec({
+    name: "generate_image",
     argumentRegion: "none",
-    completedView: "gpt_image",
+    completedView: "generate_image",
     resultPlaceholder: { variant: "text", rows: 6 },
     emptyResult: "No image returned",
     present: (source, stage) =>
@@ -538,7 +538,7 @@ export const coreToolLifecycleSpecs = {
             ? keyValues([["Prompt", source.string("prompt")]])
             : undefined,
         safetyNotes: [
-          "Sends the prompt to ChatGPT and consumes OpenAI Codex subscription image-generation usage.",
+          "Sends the prompt to the image provider configured in Settings and may consume provider usage.",
         ],
       }),
   }),
@@ -605,7 +605,7 @@ export const coreToolLifecycleSpecs = {
     | "web_search"
     | "web_fetch"
     | "explain_image"
-    | "gpt_image"
+    | "generate_image"
   >,
   ToolLifecycleSpec
 >;

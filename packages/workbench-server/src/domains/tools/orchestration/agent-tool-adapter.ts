@@ -82,7 +82,7 @@ export function activeToolNamesForAgent(
     jiraEnabled?: boolean;
     confluenceEnabled?: boolean;
     imageExplanationAvailable?: boolean;
-    gptImageAvailable?: boolean;
+    imageGenerationAvailable?: boolean;
     primaryModelSupportsImages?: boolean;
   } = {},
 ): ToolName[] {
@@ -104,7 +104,9 @@ export function activeToolNamesForAgent(
   ) {
     unavailable.push("explain_image");
   }
-  if (options.gptImageAvailable !== true) unavailable.push("gpt_image");
+  if (options.imageGenerationAvailable !== true) {
+    unavailable.push("generate_image");
+  }
 
   const disabled = new Set<ToolName>(options.disabledToolNames ?? []);
   if (agent.mode === "planning") {

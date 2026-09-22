@@ -254,14 +254,15 @@ describe("executeTool dispatch", () => {
       0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
     ]);
     const result = await executeTool(
-      "gpt_image",
+      "generate_image",
       { prompt: "A coral nerve cell" },
       {
         cwd: project.root,
         artifactDir,
-        generateGptImage: async (request) => {
+        generateImage: async (request) => {
           assert.equal(request.prompt, "A coral nerve cell");
           return {
+            provider: "openai-codex",
             model: "gpt-image-2.5-sunburst",
             images: [{ data: image }],
           };
