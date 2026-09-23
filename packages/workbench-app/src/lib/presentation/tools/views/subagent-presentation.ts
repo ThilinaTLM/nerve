@@ -27,7 +27,7 @@ export function subagentPresentation(
     if (view.hasMore) meta.push({ text: "more available" });
   }
   if (
-    (view.action === "status" || view.action === "stop") &&
+    view.action === "status" &&
     teammate?.state === "idle" &&
     teammate.outcome
   )

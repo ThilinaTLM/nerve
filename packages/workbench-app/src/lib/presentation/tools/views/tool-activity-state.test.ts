@@ -5,6 +5,7 @@ import type {
 } from "@nervekit/contracts/tools";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { toolLifecycleRegistry } from "../lifecycle/registry";
 import {
   deriveToolActivitySections,
   deriveToolLifecycleVisualStage,
@@ -139,6 +140,25 @@ describe("approved-tool checkpoint stages", () => {
 });
 
 describe("deriveToolActivitySections", () => {
+  it("keeps a prompt assignment mounted without a pending result placeholder", () => {
+    const spec = toolLifecycleRegistry.subagent_prompt;
+    for (const [status, resultMode] of [
+      ["running", "none"],
+      ["completed", "output"],
+      ["failed", "none"],
+    ] as const) {
+      const sections = deriveToolActivitySections({
+        toolCall: toolCall(status),
+        argumentRegion: spec.argumentRegion,
+        hasArgumentBody: true,
+        bodyHydrated: true,
+        resultPlaceholder: spec.resultPlaceholder,
+      });
+      assert.equal(sections.argumentVisible, true, status);
+      assert.equal(sections.resultMode, resultMode, status);
+    }
+  });
+
   it("keeps persistent arguments visible on failure alongside the error", () => {
     const failed = deriveToolActivitySections({
       toolCall: toolCall("failed", "boom"),

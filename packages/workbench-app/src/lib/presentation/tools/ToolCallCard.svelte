@@ -50,6 +50,8 @@ import ToolArgumentBody from "./tool-call/ToolArgumentBody.svelte";
 import ToolCallDetailsDialog from "./tool-call/ToolCallDetailsDialog.svelte";
 import ApprovalPrompt from "./tool-call/ApprovalPrompt.svelte";
 import ExploreToolView from "./tool-call/ExploreToolView.svelte";
+import SubagentTranscriptDialog from "./tool-call/SubagentTranscriptDialog.svelte";
+import { subagentTranscriptTargets } from "./views/subagent-output";
 import { resolveAskUserQuestion } from "./tool-call/ask-user-state";
 import { resolvePlanReview } from "./tool-call/plan-review-state";
 
@@ -126,6 +128,7 @@ let detailsError = $state<string | undefined>(undefined);
 let fullToolCall = $state<ToolCallDetails | undefined>(undefined);
 let fullToolCallPreviewUpdatedAt = $state<string | undefined>(undefined);
 let detailsToolId: string | undefined;
+let transcriptTarget = $state<{ agentId: string; name: string } | undefined>();
 
 // Kept-mounted inactive panes may receive new tool rows while hidden. Avoid
 // hydrating heavy views until active, then keep them mounted for this slot.
@@ -367,7 +370,12 @@ const activitySections = $derived.by(() =>
     footerItems: activityMeta,
     hasDetailsAction:
       Boolean(toolCall && detailsEnabled) ||
-      Boolean(backgroundTaskId && onOpenTask),
+      Boolean(backgroundTaskId && onOpenTask) ||
+      Boolean(
+        toolCall?.agentId &&
+        view?.kind === "subagent" &&
+        subagentTranscriptTargets(view, toolCall.agentId).length > 0,
+      ),
   }),
 );
 const draftArg = $derived.by<PrimaryArg | undefined>(() => {
@@ -427,6 +435,18 @@ const detailsAction = $derived(
 const backgroundTaskId = $derived(presentation?.backgroundTaskId);
 const cardActions = $derived.by<CardAction[]>(() => {
   const actions: CardAction[] = [];
+  if (toolCall?.status === "completed" && view?.kind === "subagent") {
+    for (const target of subagentTranscriptTargets(view, toolCall.agentId)) {
+      actions.push({
+        label:
+          view.teammates.length === 1
+            ? "Transcript"
+            : `Transcript · ${target.name}`,
+        ariaLabel: `View transcript for ${target.name}`,
+        onClick: () => (transcriptTarget = target),
+      });
+    }
+  }
   const taskId = backgroundTaskId;
   if (taskId && onOpenTask) {
     actions.push({
@@ -458,6 +478,7 @@ $effect(() => {
   const id = toolCall?.id;
   if (id === detailsToolId) return;
   detailsToolId = id;
+  transcriptTarget = undefined;
   detailsOpen = false;
   detailsLoading = false;
   detailsError = undefined;
@@ -559,6 +580,18 @@ async function openDetails() {
     />
   {/if}
 </CardShell>
+
+{#if toolCall && transcriptTarget && toolCall.agentId}
+  <SubagentTranscriptDialog
+    open={true}
+    onOpenChange={(open) => {
+      if (!open) transcriptTarget = undefined;
+    }}
+    parentAgentId={toolCall.agentId}
+    childAgentId={transcriptTarget.agentId}
+    label={transcriptTarget.name}
+  />
+{/if}
 
 {#if toolCall && detailsEnabled}
   <ToolCallDetailsDialog

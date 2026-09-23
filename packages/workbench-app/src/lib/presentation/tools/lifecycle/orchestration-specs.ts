@@ -107,7 +107,7 @@ function taskStartPresentation(
 
 /**
  * Teammates are addressed by name. The assignment prompt stays visible after
- * completion; the result view renders the teammate row(s) below it.
+ * completion; the result view renders a separate compact output block below it.
  */
 function subagentSpec<Name extends AsyncSubagentToolName>(
   name: Name,
@@ -117,15 +117,21 @@ function subagentSpec<Name extends AsyncSubagentToolName>(
     argumentRegion: name === "subagent_prompt" ? "persistent" : "until-result",
     completedView: "subagent",
     present: (source) => {
-      const prompt =
-        name === "subagent_prompt"
-          ? boundedText(source.string("prompt"))
-          : undefined;
+      const rawPrompt =
+        name === "subagent_prompt" ? source.string("prompt") : undefined;
+      const prompt = boundedText(rawPrompt);
       return argumentPresentation({
         primaryArg:
           name === "subagent_list" ? undefined : textArg(source.string("name")),
         body: prompt
-          ? { kind: "text-summary", text: prompt, label: "Assignment" }
+          ? /\r|\n/.test(rawPrompt ?? "") || (rawPrompt?.length ?? 0) > 500
+            ? codeBody(prompt, "text", { force: true, label: "Assignment" })
+            : {
+                kind: "text-summary",
+                text: prompt,
+                label: "Assignment",
+                mono: true,
+              }
           : undefined,
       });
     },
