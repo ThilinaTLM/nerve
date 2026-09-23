@@ -30,6 +30,9 @@ export interface ApprovalBatchResolutionMember {
 }
 
 export interface WorkbenchRunFeatureMechanics {
+  stopTeam?(leadId: string): Promise<void>;
+  reopenTeam?(leadId: string): Promise<void>;
+  wakeChild?(childId: string): Promise<void>;
   activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]>;
   getContextUsage(conversationId: string): Promise<ContextUsage>;
   getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
@@ -131,6 +134,7 @@ export class WorkbenchRunService {
         "Sub-agents are managed by their parent run and cannot receive direct prompts.",
       );
     }
+    await this.features.reopenTeam?.(agent.id);
     const scopeId = this.scopeId(agent);
     const active = await this.unitOfWork.findActive(scopeId);
     if (active) {
@@ -187,6 +191,10 @@ export class WorkbenchRunService {
    */
   async wakeAgentFromHarness(agentId: string): Promise<void> {
     const agent = this.requireAgent(agentId);
+    if (agent.executionKind === "async_developer") {
+      await this.features.wakeChild?.(agentId);
+      return;
+    }
     this.state.maintenanceScopes.assertConversation(agent.conversationId);
     this.state.maintenanceScopes.assertProject(agent.projectId);
     const scopeId = this.scopeId(agent);
@@ -241,6 +249,9 @@ export class WorkbenchRunService {
       : agent
         ? await this.unitOfWork.findActive(this.scopeId(agent))
         : undefined;
+    const owner =
+      agent ?? (state ? this.requireAgent(state.run.agentId) : undefined);
+    if (owner && !owner.parentAgentId) await this.features.stopTeam?.(owner.id);
     if (!state) {
       if (input.runId) {
         throw new ApplicationError(404, "RUN_NOT_FOUND", "Run not found.");

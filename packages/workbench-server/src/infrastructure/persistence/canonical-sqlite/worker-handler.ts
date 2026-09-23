@@ -6,6 +6,14 @@ export function executeCanonicalCommand(
   command: CanonicalCommand,
 ): unknown {
   switch (command.kind) {
+    case "put_subagent_completion":
+      return database.subagentCompletions.put(command.record);
+    case "list_subagent_completions":
+      return database.subagentCompletions.list(command.leadId);
+    case "remove_subagent_completions":
+      return database.subagentCompletions.removeConversation(
+        command.conversationId,
+      );
     case "initialize":
       database.initialize();
       return undefined;

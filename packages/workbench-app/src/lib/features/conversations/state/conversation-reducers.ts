@@ -1,3 +1,4 @@
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import {
   conversationStream,
   LifecycleTransitionError,
@@ -46,6 +47,15 @@ import {
 
 export { refreshContextUsage } from "./conversation-context-usage";
 export { isOpenConversation } from "./conversation-reducer-shared";
+
+function isChildEvent(data: Record<string, unknown>): boolean {
+  const agentId =
+    data.agentId ?? (data.entry as ConversationEntry | undefined)?.agentId;
+  return workspaceState.agents.some(
+    (agent) =>
+      agent.id === agentId && agent.executionKind === "async_developer",
+  );
+}
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"
@@ -96,7 +106,12 @@ export function handleConversationNotification(
   event: NotifyEvent<Record<string, unknown>>,
 ): void {
   const conversationId = conversationIdFromEvent(event);
-  if (!conversationId || !isOpenConversation(conversationId)) return;
+  if (
+    !conversationId ||
+    !isOpenConversation(conversationId) ||
+    isChildEvent(event.data)
+  )
+    return;
   const view = ensureConversationView(conversationId);
   let gapDetected = false;
   let applied: ConversationViewState;
@@ -129,6 +144,8 @@ export function handleConversationEvent(
   if (!conversationId || !isOpenConversation(conversationId)) return;
   const view = ensureConversationView(conversationId);
 
+  const childEvent = isChildEvent(event.data);
+
   // Validate branch membership before materializing an appended entry; on
   // divergence the snapshot refresh rebuilds coherent state.
   const entry =
@@ -136,6 +153,7 @@ export function handleConversationEvent(
       ? (event.data?.entry as ConversationEntry | undefined)
       : undefined;
   if (
+    !childEvent &&
     event.type === "conversation.entry.appended" &&
     entry &&
     event.seq > view.cursorSeq &&
@@ -155,6 +173,7 @@ export function handleConversationEvent(
   try {
     applied = applyConversationEvent(view, event, {
       consumeUnhandled: true,
+      consumeOnly: childEvent,
       onGap: () => {
         gapDetected = true;
       },
@@ -180,7 +199,7 @@ export function handleConversationEvent(
     next = conversationState.conversationViews[key];
   }
 
-  applyAppEffects(next, event, entry);
+  if (!childEvent) applyAppEffects(next, event, entry);
   syncActiveView(next);
 }
 

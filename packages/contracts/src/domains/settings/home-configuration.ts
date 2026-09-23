@@ -1,3 +1,7 @@
+import {
+  asyncSubagentToolNames,
+  normalizeAsyncSubagentTools,
+} from "../agents/async-subagents.js";
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/logs.js";
 import {
@@ -113,7 +117,7 @@ export const defaultDaemonConfig: DaemonConfig = {
 
 export const harnessConfigSchema = z
   .object({
-    version: z.literal(1),
+    version: z.union([z.literal(1), z.literal(2)]),
     defaults: agentSelectionConfigSchema,
     rememberLastSelection: z.boolean(),
     lastSelection: agentSelectionConfigSchema,
@@ -180,11 +184,23 @@ export const harnessConfigSchema = z
       .strict(),
     scopedModels: z.array(modelSelectionSchema),
   })
-  .strict();
+  .strict()
+  .transform((value) => ({
+    ...value,
+    version: 2 as const,
+    tools: {
+      ...value.tools,
+      disabled: normalizeAsyncSubagentTools(
+        value.version === 1
+          ? [...value.tools.disabled, ...asyncSubagentToolNames]
+          : value.tools.disabled,
+      ),
+    },
+  }));
 export type HarnessConfig = z.infer<typeof harnessConfigSchema>;
 
 export const defaultHarnessConfig: HarnessConfig = {
-  version: 1,
+  version: 2,
   defaults: {
     mode: "coding",
     permissionLevel: "autonomous",
@@ -208,7 +224,7 @@ export const defaultHarnessConfig: HarnessConfig = {
   retry: { enabled: true, maxRetries: 3, baseDelayMs: 2000 },
   execution: {},
   tools: {
-    disabled: ["explain_image", "generate_image"],
+    disabled: ["explain_image", "generate_image", ...asyncSubagentToolNames],
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     imageExplanation: { thinkingLevel: "off" },
     imageGeneration: {

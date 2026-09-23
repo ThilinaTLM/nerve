@@ -37,6 +37,7 @@ export class EntryRepository {
     entry: ConversationEntry;
     modelEntry: ConversationTreeEntry;
     conversation: ConversationRecord;
+    ownerAgentId?: string;
   }): Promise<void> {
     await this.journal.commit(input.entry.conversationId, {
       kind: "compaction.completed",
@@ -47,18 +48,24 @@ export class EntryRepository {
           conversationId: input.entry.conversationId,
           entry: input.entry,
         },
-        {
-          kind: "conversation.upserted",
-          conversationId: input.entry.conversationId,
-          conversation: input.conversation,
-        },
+        ...(input.ownerAgentId
+          ? []
+          : [
+              {
+                kind: "conversation.upserted" as const,
+                conversationId: input.entry.conversationId,
+                conversation: input.conversation,
+              },
+            ]),
         {
           kind: "model_context.entry_appended",
+          ownerAgentId: input.ownerAgentId,
           conversationId: input.entry.conversationId,
           entry: input.modelEntry as never,
         },
         {
           kind: "model_context.leaf_changed",
+          ownerAgentId: input.ownerAgentId,
           conversationId: input.entry.conversationId,
           entryId: input.modelEntry.id,
         },

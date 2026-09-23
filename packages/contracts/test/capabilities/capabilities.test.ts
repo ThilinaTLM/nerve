@@ -1,7 +1,11 @@
+import { asyncSubagentToolNames } from "../../src/domains/agents/async-subagents.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyCapabilityPatch,
+  capabilityToolsFromDisabledNames,
+  disabledToolNamesForCapabilities,
+  capabilityPatchSchema,
   capabilityOverridesDocumentSchema,
   emptyCapabilityOverrides,
   resolveCapabilitySelection,
@@ -80,4 +84,52 @@ test("unknown tool keys are rejected but dormant skill names are retained", () =
   });
   assert.equal(parsed.skills.file["not-installed-here"], false);
   assert.deepEqual(parsed.skills.nerve, {});
+});
+
+test("async subagents are one capability across settings, overrides, and harness tools", () => {
+  const disabledTools = capabilityToolsFromDisabledNames([
+    ...asyncSubagentToolNames,
+  ]);
+  assert.deepEqual(disabledTools, ["subagents"]);
+  const project = applyCapabilityPatch(emptyCapabilityOverrides(), {
+    tools: { subagents: true },
+  });
+  assert.deepEqual(
+    resolveCapabilitySelection({ user: { ...user, disabledTools }, project })
+      .disabledTools,
+    [],
+  );
+  const conversation = applyCapabilityPatch(emptyCapabilityOverrides(), {
+    tools: { subagents: false },
+  });
+  const selected = resolveCapabilitySelection({
+    user: { ...user, disabledTools },
+    project,
+    conversation,
+  });
+  assert.deepEqual(disabledToolNamesForCapabilities(selected.disabledTools), [
+    ...asyncSubagentToolNames,
+  ]);
+  assert.equal(
+    capabilityPatchSchema.safeParse({ tools: { subagent_new: true } }).success,
+    false,
+  );
+});
+
+test("legacy individual subagent overrides migrate without partially enabling the group", () => {
+  const parse = (tools: Record<string, boolean>) =>
+    capabilityOverridesDocumentSchema.parse({ schemaVersion: 1, tools }).tools;
+  assert.deepEqual(parse({ subagent_new: true }), { subagents: false });
+  assert.deepEqual(
+    parse(
+      Object.fromEntries(asyncSubagentToolNames.map((name) => [name, true])),
+    ),
+    { subagents: true },
+  );
+  assert.deepEqual(parse({ subagent_new: true, subagent_stop: false }), {
+    subagents: false,
+  });
+  assert.deepEqual(parse({ subagent_new: false, subagents: true }), {
+    subagents: true,
+  });
 });

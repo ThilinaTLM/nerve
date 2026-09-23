@@ -90,7 +90,10 @@ export async function executeWorkbenchHarness(
     const conversation = this.deps.state.getConversation(agent.conversationId);
     const settings = await this.effectiveSettings(agent.projectDir);
     const project = this.deps.state.getProject(agent.projectId);
-    const storage = await this.deps.harnessStorage.openStorage(conversation);
+    const storage =
+      agent.executionKind === "async_developer"
+        ? await this.deps.harnessStorage.openAgentStorage(agent)
+        : await this.deps.harnessStorage.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
     const initialHarnessEntryIds = new Set(
       (await storage.getEntries()).map((entry) => entry.id),
@@ -177,6 +180,7 @@ export async function executeWorkbenchHarness(
       resolvePolicy: async () => ({
         tools: createAgentToolsForAgent(agent, this.deps.tools, {
           runId,
+          hidden: agent.executionKind === "async_developer",
           resolveToolAnchor: (providerToolCallId) =>
             this.deps.state.conversationRuntime.resolveToolAnchor(
               runId,
@@ -539,7 +543,10 @@ export async function executeWorkbenchHarness(
           mirrored,
         );
         for (const entry of mirrored) {
-          if (entry.role === "user") {
+          if (
+            entry.role === "user" &&
+            agent.executionKind !== "async_developer"
+          ) {
             await this.deps.messageMirror.maybeDeriveInitialConversationTitle(
               conversation.id,
               entry.text,

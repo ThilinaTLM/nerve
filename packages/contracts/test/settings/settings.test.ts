@@ -1,3 +1,4 @@
+import { asyncSubagentToolNames } from "../../src/domains/agents/async-subagents.js";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
@@ -10,6 +11,36 @@ import {
 } from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
+  it("upgrades old tool settings without silently enabling autonomous teammates", () => {
+    const upgraded = harnessConfigSchema.parse({
+      ...defaultHarnessConfig,
+      version: 1,
+      tools: { ...defaultHarnessConfig.tools, disabled: [] },
+    });
+    assert.equal(upgraded.version, 2);
+    assert.ok(
+      asyncSubagentToolNames.every((name) =>
+        upgraded.tools.disabled.includes(name),
+      ),
+    );
+    const enabled = harnessConfigSchema.parse({
+      ...upgraded,
+      tools: { ...upgraded.tools, disabled: [] },
+    });
+    assert.deepEqual(enabled.tools.disabled, []);
+    assert.deepEqual(harnessConfigSchema.parse(enabled), enabled);
+  });
+  it("normalizes a partially disabled teammate group to fully disabled", () => {
+    const settings = settingsSchema.parse({
+      ...defaultSettings,
+      tools: { ...defaultSettings.tools, disabled: ["subagent_prompt"] },
+    });
+    assert.deepEqual(
+      new Set(settings.tools.disabled),
+      new Set(asyncSubagentToolNames),
+    );
+  });
+
   it("defaults newly added Nerve skill settings in older harness files", () => {
     const legacy = structuredClone(defaultHarnessConfig) as Record<
       string,

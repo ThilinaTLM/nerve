@@ -1,3 +1,8 @@
+import { AsyncSubagentService } from "../../domains/agents/async-subagent.service.js";
+import { AsyncSubagentRepository } from "../../domains/agents/async-subagent.repository.js";
+import { AsyncSubagentNotificationService } from "../../domains/agents/async-subagent-notification.service.js";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
+import { isActiveTaskStatus } from "../../domains/tasks/index.js";
 /* eslint-disable max-lines -- The composition root keeps the complete runtime dependency graph explicit while focused sub-composers are introduced. */
 import {
   clampAgentThinkingLevel,
@@ -480,6 +485,37 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     pythonRuntime,
     startTask: (request) => tasks.startTask(request),
     getAgent,
+    subagents: async (name, args, identity) => {
+      const call = identity as ToolCallRecord;
+      const execute = async () => {
+        switch (name) {
+          case "subagent_new":
+            return await asyncSubagents.create(
+              call.agentId,
+              String(args.name),
+              call.supervision?.status === "approved",
+            );
+          case "subagent_prompt":
+            return await asyncSubagents.prompt(
+              call.agentId,
+              String(args.id),
+              String(args.prompt),
+            );
+          case "subagent_list":
+            return await asyncSubagents.list(
+              call.agentId,
+              typeof args.cursor === "string" ? args.cursor : undefined,
+              typeof args.limit === "number" ? args.limit : undefined,
+            );
+          case "subagent_status":
+            return await asyncSubagents.status(call.agentId, String(args.id));
+          case "subagent_stop":
+            return await asyncSubagents.stop(call.agentId, String(args.id));
+        }
+      };
+      const details = await execute();
+      return { details, content: JSON.stringify(details) };
+    },
     runExplore: (parent, args, options) =>
       workbenchRun.runExplore(parent, args, options),
     getApiKey: (provider) => auth.getApiKey(provider),
@@ -651,6 +687,9 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     runRuntime.coordinator,
     runRuntime.unitOfWork,
     {
+      stopTeam: (leadId) => asyncSubagents.stopTeam(leadId),
+      reopenTeam: (leadId) => asyncSubagents.reopen(leadId),
+      wakeChild: (childId) => asyncSubagents.wake(childId),
       activeToolNamesFor: (agent) => agentMechanics.activeToolNamesFor(agent),
       getContextUsage: (conversationId) =>
         agentMechanics.getContextUsage(conversationId),
@@ -662,6 +701,101 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         agentMechanics.runExplore(parent, args, options),
     },
   );
+  const asyncSubagentRepository = new AsyncSubagentRepository(
+    storage.canonicalStore,
+  );
+  const asyncSubagentsEnabled = async (
+    lead: import("@nervekit/contracts/agents").AgentRecord,
+  ) => {
+    const selection = await capabilities.resolve(
+      lead.projectId,
+      lead.conversationId,
+    );
+    return !selection.disabledTools.includes("subagents");
+  };
+  const ownedActiveTasks = (agentId: string) =>
+    [...tasks.tasks.values()].filter(
+      (task) =>
+        task.agentId === agentId &&
+        task.origin.kind === "agent_tool" &&
+        (isActiveTaskStatus(task.status) ||
+          task.status === "recovery_unknown" ||
+          task.status === "orphaned"),
+    );
+  const asyncSubagents = new AsyncSubagentService({
+    getAgent,
+    listAgents,
+    createAgent: (request, authorized) =>
+      createAgent(request, {
+        allowChildAuthorityExceed: authorized,
+        allowAsyncDeveloper: true,
+      }),
+    enabled: asyncSubagentsEnabled,
+    readControl: (id) => asyncSubagentRepository.control(id),
+    writeControl: (control) => asyncSubagentRepository.writeControl(control),
+    reserveAssignment: (assignment) =>
+      asyncSubagentRepository.reserveAssignment(assignment),
+    activeRun: async (agent) =>
+      (
+        await runRuntime.unitOfWork.findActive(
+          `${agent.conversationId}:${agent.id}`,
+        )
+      )?.run,
+    latestRun: async (agent) =>
+      (await runRuntime.unitOfWork.listMetadata())
+        .filter((run) => run.agentId === agent.id)
+        .sort(
+          (a, b) =>
+            a.createdAt.localeCompare(b.createdAt) ||
+            a.runId.localeCompare(b.runId),
+        )
+        .at(-1),
+    start: (agent, runId, prompt) => {
+      const command = {
+        runId,
+        conversationId: agent.conversationId,
+        agentId: agent.id,
+        projectId: agent.projectId,
+        scopeId: `${agent.conversationId}:${agent.id}`,
+      };
+      return prompt === undefined
+        ? runRuntime.coordinator.startContinuation(command)
+        : runRuntime.coordinator.start({ ...command, prompt });
+    },
+    cancel: async (agent) => {
+      const active = await runRuntime.unitOfWork.findActive(
+        `${agent.conversationId}:${agent.id}`,
+      );
+      if (active)
+        await runRuntime.coordinator.cancel(
+          active.run.runId,
+          "teammate stopped",
+        );
+      await Promise.all(
+        ownedActiveTasks(agent.id).map((task) => tasks.cancel(task.id)),
+      );
+    },
+    activeTaskCount: (agent) => ownedActiveTasks(agent.id).length,
+    entries: (agent) =>
+      conversationLifecycle.ensureConversationEntries(agent.conversationId),
+  });
+  const asyncSubagentNotifications = new AsyncSubagentNotificationService({
+    repository: asyncSubagentRepository,
+    runs: runRuntime.unitOfWork,
+    live: runRuntime.live,
+    events,
+    harnessStorage,
+    getAgent,
+    appendEntry,
+    entries: (id) => conversationLifecycle.ensureConversationEntries(id),
+    enabled: asyncSubagentsEnabled,
+    wake: (id) => workbenchRun.wakeAgentFromHarness(id),
+    reconcile: () => asyncSubagents.reconcile(),
+    activeTaskCount: (agent) => ownedActiveTasks(agent.id).length,
+    warn: (error) => {
+      void logger.warn("Async subagent notification failed", { error });
+    },
+  });
   const taskNotifications: TaskNotificationService =
     new TaskNotificationService({
       tasks: tasks,
@@ -673,6 +807,37 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       getAgent,
       getConversationEntries: (conversationId) =>
         conversationLifecycle.ensureConversationEntries(conversationId),
+      allowNotification: async (task) => {
+        if (!task.agentId) return true;
+        const agent = state.agents.get(task.agentId);
+        if (agent?.executionKind !== "async_developer") return true;
+        if (!agent.parentAgentId || task.origin.kind !== "agent_tool")
+          return false;
+        const [control, team] = await Promise.all([
+          asyncSubagentRepository.control(agent.id),
+          asyncSubagentRepository.control(agent.parentAgentId),
+        ]);
+        if (
+          control.stopped ||
+          team.stopped ||
+          !(await asyncSubagentsEnabled(getAgent(agent.parentAgentId)))
+        )
+          return false;
+        const originatingRunId = task.origin.runId;
+        if (
+          originatingRunId &&
+          (await runRuntime.unitOfWork.load(originatingRunId))?.run.failure
+            ?.code === "RUN_INTERRUPTED_NO_RESUME"
+        )
+          return false;
+        const assignment = (await asyncSubagentRepository.assignments()).find(
+          (item) => item.runId === originatingRunId,
+        );
+        return (
+          assignment?.childGeneration === control.generation &&
+          assignment.generation === team.generation
+        );
+      },
       continueAgent: (agentId) => workbenchRun.wakeAgentFromHarness(agentId),
       logger: logger.child({ component: "task-notification" }),
     });
@@ -766,6 +931,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     maintenanceScopes,
     tasks,
     taskNotifications,
+    asyncSubagents,
+    asyncSubagentNotifications,
     pythonRuntime,
     plans,
     tools,

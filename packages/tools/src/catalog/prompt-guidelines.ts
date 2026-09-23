@@ -12,6 +12,8 @@ const ASYNC_TASK_GUIDELINE =
   "Long-running Bash calls may be promoted to background tasks. After launch or promotion, do not wait or poll task_status/task_logs; continue independent work or finish the turn. Updates arrive asynchronously, and terminal completion of agent-started tasks will restart you.";
 
 const GROUP_GUIDELINES: Partial<Record<ToolGroupName, string>> = {
+  subagents:
+    "Developer teammates are autonomous and share your working directory and worktree. Assign non-overlapping components/files and do not revert each other's changes. Prompt only idle teammates; stop and wait for idle before replacing an assignment. Do not poll after delegation: continue independent work or finish your turn. Completion notifications wake you; inspect subagent_status for the response and its run identity, then accept it or send follow-up work. Teammates needing clarification finish with a normal response for you to resolve.",
   jira: "Keep Jira queries narrow and mutate Jira only when explicitly requested.",
   confluence:
     "Use storage XML or JSONL as the editable Confluence source of truth, treat markdown as read-only, and mutate Confluence only when explicitly requested.",

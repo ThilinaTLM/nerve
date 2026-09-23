@@ -691,7 +691,9 @@ export class RunCoordinator {
     });
   }
 
-  async recover(): Promise<readonly RunRecord[]> {
+  async recover(
+    options: { canResumeCheckpoint?: (run: RunRecord) => boolean } = {},
+  ): Promise<readonly RunRecord[]> {
     const recovered: RunRecord[] = [];
     // Terminal runs cannot require recovery, so only active runs are scanned.
     for (const state of await this.ports.unitOfWork.listActive()) {
@@ -701,6 +703,24 @@ export class RunCoordinator {
         this.ports.integrity,
         () => this.now(),
       );
+      if (options.canResumeCheckpoint?.(state.run) === false) {
+        decision.run = {
+          ...decision.run,
+          revision: state.run.revision + 1,
+          updatedAt: this.now(),
+          status: "failed",
+          recoverability: "none",
+          terminalAt: this.now(),
+          failure: {
+            code: "RUN_INTERRUPTED_NO_RESUME",
+            message:
+              "Execution was interrupted; automatic checkpoint resumption is disabled for this agent.",
+            retryable: false,
+          },
+        };
+        decision.transitionKind = "interrupted_without_checkpoint";
+        decision.interrupted = false;
+      }
       if (decision.transitionKind) {
         const statusEntry = buildRunStatusEntry({
           previous: state,

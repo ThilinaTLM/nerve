@@ -1,3 +1,4 @@
+import type { AsyncSubagentCompletion } from "@nervekit/contracts/agents";
 import type { ConversationDeletionCursor } from "./conversation-deletion.js";
 import type { ConversationJournalCommit } from "@nervekit/contracts/conversations";
 import type { LifecycleWork, RecoveryIssue } from "@nervekit/contracts/runs";
@@ -15,6 +16,9 @@ import type {
 } from "../../../domains/conversations/conversation-state-materializer.js";
 
 export type CanonicalCommand =
+  | { kind: "put_subagent_completion"; record: AsyncSubagentCompletion }
+  | { kind: "list_subagent_completions"; leadId?: string }
+  | { kind: "remove_subagent_completions"; conversationId: string }
   | { kind: "initialize" }
   | {
       kind: "persist_lifecycle_atomic_commit";

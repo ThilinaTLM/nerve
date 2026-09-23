@@ -32,6 +32,8 @@ export class WorkbenchRunQuery {
       .filter(
         (candidate) =>
           candidate.run.conversationId === conversationId &&
+          this.state.agents.get(candidate.run.agentId)?.executionKind !==
+            "async_developer" &&
           ACTIVE_STATUSES.has(candidate.run.status),
       )
       .sort((a, b) => b.run.updatedAt.localeCompare(a.run.updatedAt))[0];

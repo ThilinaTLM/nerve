@@ -105,6 +105,97 @@ function taskStartPresentation(
 }
 
 export const orchestrationToolLifecycleSpecs = {
+  subagent_new: spec({
+    name: "subagent_new",
+    argumentRegion: "until-result",
+    completedView: "generic",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          source.string("name") ?? source.string("id"),
+          "Async Subagents",
+        ),
+        body: source.string("prompt")
+          ? {
+              kind: "text-summary",
+              text: boundedText(source.string("prompt"))!,
+            }
+          : undefined,
+      }),
+  }),
+  subagent_prompt: spec({
+    name: "subagent_prompt",
+    argumentRegion: "until-result",
+    completedView: "generic",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          source.string("name") ?? source.string("id"),
+          "Async Subagents",
+        ),
+        body: source.string("prompt")
+          ? {
+              kind: "text-summary",
+              text: boundedText(source.string("prompt"))!,
+            }
+          : undefined,
+      }),
+  }),
+  subagent_list: spec({
+    name: "subagent_list",
+    argumentRegion: "until-result",
+    completedView: "generic",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          source.string("name") ?? source.string("id"),
+          "Async Subagents",
+        ),
+        body: source.string("prompt")
+          ? {
+              kind: "text-summary",
+              text: boundedText(source.string("prompt"))!,
+            }
+          : undefined,
+      }),
+  }),
+  subagent_status: spec({
+    name: "subagent_status",
+    argumentRegion: "until-result",
+    completedView: "generic",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          source.string("name") ?? source.string("id"),
+          "Async Subagents",
+        ),
+        body: source.string("prompt")
+          ? {
+              kind: "text-summary",
+              text: boundedText(source.string("prompt"))!,
+            }
+          : undefined,
+      }),
+  }),
+  subagent_stop: spec({
+    name: "subagent_stop",
+    argumentRegion: "until-result",
+    completedView: "generic",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          source.string("name") ?? source.string("id"),
+          "Async Subagents",
+        ),
+        body: source.string("prompt")
+          ? {
+              kind: "text-summary",
+              text: boundedText(source.string("prompt"))!,
+            }
+          : undefined,
+      }),
+  }),
+
   task_start: spec({
     name: "task_start",
     argumentRegion: "until-result",

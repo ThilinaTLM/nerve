@@ -38,6 +38,7 @@ export interface TaskNotificationServiceDeps {
   getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
   continueAgent?: (agentId: string) => Promise<void>;
   logger?: ApplicationLogger;
+  allowNotification?(task: TaskRecord): Promise<boolean>;
 }
 
 type NotificationSlot = "ready" | "terminal";
@@ -227,6 +228,11 @@ export class TaskNotificationService {
         return;
       }
       if (!this.shouldDeliver(task, event)) return;
+      if (
+        this.deps.allowNotification &&
+        !(await this.deps.allowNotification(task))
+      )
+        return;
       const existing = await this.findExistingTaskEventEntry(task, event);
       if (existing) {
         await this.deps.tasks.markNotificationDelivered(
@@ -316,6 +322,11 @@ export class TaskNotificationService {
   ): Promise<void> {
     if (slotForEvent(event) !== "terminal") return;
     const task = this.deps.tasks.getTask(taskSnapshot.id);
+    if (
+      this.deps.allowNotification &&
+      !(await this.deps.allowNotification(task))
+    )
+      return;
     if (
       task.completion?.inject !== true ||
       task.completion.injectedAt ||

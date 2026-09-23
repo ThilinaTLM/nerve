@@ -81,6 +81,8 @@ export class WorkbenchRunProjector implements RunTransitionObserverPort {
     }
 
     runtime.startRun({
+      background:
+        this.state.agents.get(run.agentId)?.executionKind === "async_developer",
       conversationId: run.conversationId,
       agentId: run.agentId,
       projectId: run.projectId,

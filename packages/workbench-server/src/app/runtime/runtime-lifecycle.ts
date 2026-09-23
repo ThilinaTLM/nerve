@@ -129,7 +129,11 @@ export class RuntimeLifecycle {
       loadAgents: () => this.services.agentLifecycle.loadAgents(),
       flushRunDelivery: () => this.services.runRuntime.delivery.flush(),
       recoverRuns: async () => {
-        await this.services.runRuntime.coordinator.recover();
+        await this.services.runRuntime.coordinator.recover({
+          canResumeCheckpoint: (run) =>
+            this.services.agentLifecycle.getAgent(run.agentId).executionKind !==
+            "async_developer",
+        });
       },
       recoverHumanInput: async () => {
         await this.services.runReconciliation.reconcileStartup();
@@ -156,8 +160,12 @@ export class RuntimeLifecycle {
         tasks: this.services.tasks.listTasks().length,
         toolCalls: this.services.tools.countToolCalls(),
       }),
-      recoverTaskNotifications: () =>
-        this.services.taskNotifications.recoverPendingNotifications(),
+      recoverTaskNotifications: async () => {
+        await this.services.asyncSubagents.reconcile();
+        this.services.asyncSubagentNotifications.start();
+        await this.services.asyncSubagentNotifications.recover();
+        await this.services.taskNotifications.recoverPendingNotifications();
+      },
       rebuildIndex: () => this.rebuildIndex(),
       hydratePromptSuggestions: () => this.services.promptSuggestions.hydrate(),
       toolCallHydrationSource: this.services.tools.toolCallHydrationSource,
@@ -180,6 +188,12 @@ export class RuntimeLifecycle {
   private async performShutdown(): Promise<void> {
     this.services.lifecycleDispatcher.stopPolling();
     this.services.taskNotifications.stop();
+    await this.services.asyncSubagentNotifications.stop();
+    for (const agent of this.services.agentLifecycle
+      .listAgents()
+      .filter((agent) => !agent.parentAgentId)) {
+      await this.services.asyncSubagents.settleTeam(agent.id);
+    }
     await this.services.workspaceMonitor.close();
     await this.services.tasks.shutdown();
     await Promise.allSettled([...this.backgroundOperations]);

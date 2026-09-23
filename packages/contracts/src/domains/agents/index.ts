@@ -6,3 +6,4 @@ export * from "./agent-events.js";
 export * from "./run-events.js";
 export * from "./agent-operations.js";
 export * from "./run-operations.js";
+export * from "./async-subagents.js";

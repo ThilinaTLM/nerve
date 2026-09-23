@@ -1,3 +1,7 @@
+import {
+  asyncSubagentToolNames,
+  normalizeAsyncSubagentTools,
+} from "../agents/async-subagents.js";
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/logs.js";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
@@ -220,7 +224,9 @@ export type ImageGenerationToolSettings = z.infer<
 >;
 
 const toolSettingsSchema = z.object({
-  disabled: z.array(userConfigurableToolNameSchema),
+  disabled: z
+    .array(userConfigurableToolNameSchema)
+    .transform(normalizeAsyncSubagentTools),
   bash: bashToolSettingsSchema,
   jira: jiraToolSettingsSchema,
   confluence: confluenceToolSettingsSchema,
@@ -414,7 +420,7 @@ export const defaultSettings: Settings = {
   permissions: { exceptions: [] },
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
-    disabled: ["explain_image", "generate_image"],
+    disabled: ["explain_image", "generate_image", ...asyncSubagentToolNames],
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },

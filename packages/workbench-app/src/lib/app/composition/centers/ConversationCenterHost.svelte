@@ -497,6 +497,19 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   queuedPrompts={view?.queuedPrompts ?? []}
   recoveryIssues={view?.recoveryIssues ?? []}
   sending={activePendingConversation?.sending ?? view?.sending ?? false}
+  teamRunning={workspaceState.agents.some(
+    (agent) =>
+      agent.parentAgentId === activeAgent?.id &&
+      agent.executionKind === "async_developer" &&
+      (agent.status === "running" ||
+        taskSelectors.tasks.some(
+          (task) =>
+            task.agentId === agent.id &&
+            ["starting", "running", "ready", "stopping", "recovered"].includes(
+              task.status,
+            ),
+        )),
+  )}
   stopping={view?.stopping ?? false}
   composerText={activeComposerText}
   {composerSuggestions}

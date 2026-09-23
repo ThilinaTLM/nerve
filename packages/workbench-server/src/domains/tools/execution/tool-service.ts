@@ -1,3 +1,5 @@
+import type { SubagentToolPort } from "@nervekit/tools/runtime";
+import { isDeveloperChildToolAllowed } from "@nervekit/contracts/agents";
 import {
   projectApproval,
   projectApprovals,
@@ -236,6 +238,7 @@ export interface ToolServiceDependencies {
   readonly getAgent: (agentId: string) => AgentRecord;
   /** Invoked only during execution, after host composition has completed. */
   readonly runExplore: ExploreRunner;
+  readonly subagents?: SubagentToolPort;
   readonly getApiKey: (provider: string) => Promise<string | undefined>;
   readonly explainImage: (
     request: ExplainImageRequest,
@@ -290,6 +293,7 @@ export class ToolService {
       startTask: this.dependencies.startTask,
       getAgent: this.dependencies.getAgent,
       runExplore: this.dependencies.runExplore,
+      subagents: this.dependencies.subagents,
       getApiKey: this.dependencies.getApiKey,
       explainImage: this.dependencies.explainImage,
       generateImage: this.dependencies.generateImage,
@@ -1129,6 +1133,14 @@ export class ToolService {
     toolCall: ToolCallRecord,
   ): Promise<void> {
     const agent = this.dependencies.getAgent(toolCall.agentId);
+    if (
+      agent.executionKind === "async_developer" &&
+      !isDeveloperChildToolAllowed(toolCall.toolName)
+    ) {
+      throw new Error(
+        "Tool is unavailable for autonomous developer teammates.",
+      );
+    }
     const resolvedPolicy =
       await this.dependencies.permissionPolicy?.resolve(agent);
     const exceptions = resolvedPolicy

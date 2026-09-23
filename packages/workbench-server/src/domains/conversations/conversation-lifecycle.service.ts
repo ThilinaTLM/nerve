@@ -239,8 +239,16 @@ export class ConversationLifecycleService {
 
   getConversationTree(conversationId: string): ConversationTree {
     const conversation = this.getConversation(conversationId);
+    const entries = this.state
+      .getConversationEntries(conversationId)
+      .filter(
+        (entry) =>
+          !entry.agentId ||
+          this.state.agents.get(entry.agentId)?.executionKind !==
+            "async_developer",
+      );
     return this.entryRepository.getConversationTree(
-      this.state.entries,
+      new Map([[conversationId, entries]]),
       conversation,
     );
   }
@@ -316,6 +324,12 @@ export class ConversationLifecycleService {
       this.state.getConversationEntries(input.conversationId),
     );
     this.pruneConversationEntries(input.conversationId);
+    if (
+      entry.agentId &&
+      this.state.agents.get(entry.agentId)?.executionKind === "async_developer"
+    ) {
+      return entry;
+    }
     const lastUserMessageAt =
       entry.role === "user" &&
       (!conversation.lastUserMessageAt ||
@@ -360,12 +374,19 @@ export class ConversationLifecycleService {
       activeEntryId: entry.id,
       updatedAt: entry.createdAt,
     };
+    const child = input.agentId
+      ? this.state.agents.get(input.agentId)
+      : undefined;
+    const ownerAgentId =
+      child?.executionKind === "async_developer" ? child.id : undefined;
     await this.entryRepository.appendCompaction({
       entry,
       modelEntry,
       conversation: updatedConversation,
+      ownerAgentId,
     });
     this.state.appendConversationEntry(entry);
+    if (ownerAgentId) return entry;
     this.state.conversations.set(input.conversationId, updatedConversation);
     this.queryCache.upsertConversation(updatedConversation);
     return entry;

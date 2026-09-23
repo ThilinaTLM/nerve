@@ -47,6 +47,7 @@ export type WorkbenchConversationAdapterProps = {
   recoveryIssues?: RecoveryIssue[];
   sending?: boolean;
   stopping?: boolean;
+  teamRunning?: boolean;
   composerText?: string;
   models?: ModelInfo[];
   selectedModelKey?: string;

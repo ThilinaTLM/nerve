@@ -140,6 +140,16 @@ export function summarizeExploreToolCall(
         "Managing Confluence attachment",
         firstString(args, "file_path", "attachment_id", "page_id"),
       );
+    case "subagent_new":
+      return "Creating developer teammate";
+    case "subagent_prompt":
+      return "Assigning teammate work";
+    case "subagent_list":
+      return "Listing developer teammates";
+    case "subagent_status":
+      return "Inspecting teammate response";
+    case "subagent_stop":
+      return "Stopping teammate work";
     case "explore":
       return "Exploring the codebase";
     case "plan_mode_enter":

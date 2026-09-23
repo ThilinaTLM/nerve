@@ -1,3 +1,4 @@
+import type { AsyncSubagentCompletion } from "@nervekit/contracts/agents";
 import type {
   ConversationDeletionChunk,
   ConversationDeletionCursor,
@@ -143,6 +144,21 @@ export class CanonicalStore {
       return reader.request<T>(command, transferList);
     }
     return this.writer.request<T>(command, transferList);
+  }
+
+  putSubagentCompletion(record: AsyncSubagentCompletion): Promise<void> {
+    return this.request({ kind: "put_subagent_completion", record });
+  }
+
+  listSubagentCompletions(leadId?: string): Promise<AsyncSubagentCompletion[]> {
+    return this.request({ kind: "list_subagent_completions", leadId }, true);
+  }
+
+  removeSubagentCompletions(conversationId: string): Promise<void> {
+    return this.request({
+      kind: "remove_subagent_completions",
+      conversationId,
+    });
   }
 
   persistLifecycleAtomicCommit(input: LifecycleAtomicCommitInput) {

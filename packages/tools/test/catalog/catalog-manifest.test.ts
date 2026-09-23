@@ -26,15 +26,15 @@ const validActionArguments: Record<string, Record<string, unknown>> = {
 const flattenedActionTools = new Set(Object.keys(validActionArguments));
 
 describe("model-facing tool schema compatibility", () => {
-  it("declares a reviewed agent-result policy for all 51 active tools", () => {
-    assert.equal(allToolDefinitions.length, 51);
+  it("declares a reviewed agent-result policy for all 56 active tools", () => {
+    assert.equal(allToolDefinitions.length, 56);
     assert.deepEqual(
       allToolDefinitions.filter((definition) => !definition.agentResult),
       [],
     );
     assert.equal(
       new Set(allToolDefinitions.map((definition) => definition.name)).size,
-      51,
+      56,
     );
 
     it("locks the simplified model-facing property sets and schema budget", () => {

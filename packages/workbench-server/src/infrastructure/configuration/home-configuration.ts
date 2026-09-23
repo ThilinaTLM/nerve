@@ -217,7 +217,7 @@ export function configurationWithSettings(
       electron: parsed.application.electron,
     },
     harness: {
-      version: 1,
+      version: 2,
       defaults: {
         // New agents always start in coding mode; planning is a per-agent choice.
         mode: "coding",

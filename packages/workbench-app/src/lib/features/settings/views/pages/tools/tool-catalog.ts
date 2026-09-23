@@ -1,3 +1,4 @@
+import { asyncSubagentToolNames } from "@nervekit/contracts/agents";
 import type { Settings } from "$lib/api";
 
 export type ConfigurableToolName = Settings["tools"]["disabled"][number];
@@ -12,6 +13,7 @@ export type ToolGroupId =
   | "plan-mode"
   | "todos"
   | "explore"
+  | "subagents"
   | "web"
   | "vision"
   | "image-generation"
@@ -30,6 +32,7 @@ export type ToolGroupDef = {
 };
 
 export const configurableToolOrder: ConfigurableToolName[] = [
+  ...asyncSubagentToolNames,
   "explore",
   "web_search",
   "web_fetch",
@@ -39,6 +42,33 @@ export const configurableToolOrder: ConfigurableToolName[] = [
 ];
 
 export const toolGroups: ToolGroupDef[] = [
+  {
+    id: "subagents",
+    category: "core",
+    label: "Async Subagents",
+    description:
+      "Persistent autonomous subagents share your working directory. The lead coordinates file ownership. Disabling stops all subagents and their background work.",
+    configurableTools: [...asyncSubagentToolNames],
+    tools: [
+      { name: "subagent_new", description: "Create a persistent teammate." },
+      {
+        name: "subagent_prompt",
+        description: "Start an idle teammate asynchronously.",
+      },
+      {
+        name: "subagent_list",
+        description: "List teammates and lifecycle states.",
+      },
+      {
+        name: "subagent_status",
+        description: "Retrieve an idle teammate’s last response.",
+      },
+      {
+        name: "subagent_stop",
+        description: "Stop work while retaining conversation history.",
+      },
+    ],
+  },
   {
     id: "file-inspection",
     category: "core",

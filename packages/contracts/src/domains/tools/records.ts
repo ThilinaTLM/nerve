@@ -48,6 +48,7 @@ const toolCallTranscriptErrorDetailsSchema =
   );
 
 export const toolGroupNameSchema = z.enum([
+  "subagents",
   "fileInspection",
   "fileEditing",
   "shell",

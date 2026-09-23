@@ -65,8 +65,22 @@ export class AgentLifecycleService {
 
   async createAgent(
     request: CreateAgentRequest,
-    options: { allowChildAuthorityExceed?: boolean; id?: string } = {},
+    options: {
+      allowChildAuthorityExceed?: boolean;
+      allowAsyncDeveloper?: boolean;
+      id?: string;
+    } = {},
   ): Promise<AgentRecord> {
+    if (
+      request.executionKind === "async_developer" &&
+      (!options.allowAsyncDeveloper || !request.parentAgentId)
+    ) {
+      throw new ApplicationError(
+        403,
+        "SUBAGENT_CREATION_FORBIDDEN",
+        "Developer teammates must be created through the authorized lead service.",
+      );
+    }
     this.state.maintenanceScopes.assertConversation(request.conversationId);
     this.state.maintenanceScopes.assertProject(request.projectId);
     const conversation = this.state.getConversation(request.conversationId);
@@ -134,6 +148,8 @@ export class AgentLifecycleService {
       projectId: project.id,
       projectDir,
       parentAgentId: request.parentAgentId,
+      executionKind: request.executionKind,
+      name: request.name,
       rootAgentId: parent?.rootAgentId ?? id,
       mode,
       permissionLevel,
@@ -179,12 +195,27 @@ export class AgentLifecycleService {
   async removeAgentInternal(agentId: string): Promise<void> {
     if (!this.state.agents.has(agentId)) return;
     const agent = this.state.agents.get(agentId);
-    if (agent && (await this.activeRunId(agent)))
+    if (agent && (!agent.parentAgentId || (await this.activeRunId(agent))))
       await this.abortAgent(agentId);
     for (const child of [...this.state.agents.values()].filter(
       (candidate) => candidate.parentAgentId === agentId,
     )) {
       await this.removeAgentInternal(child.id);
+    }
+    await this.storage.canonicalStore.deleteDocument(
+      "async-subagent-control",
+      "global",
+      agentId,
+    );
+    for (const assignment of await this.storage.canonicalStore.listDocuments(
+      "async-subagent-assignment",
+      agentId,
+    )) {
+      await this.storage.canonicalStore.deleteDocument(
+        "async-subagent-assignment",
+        agentId,
+        assignment.documentId,
+      );
     }
     this.state.agents.delete(agentId);
     this.conversationService.deleteAgent(agentId);
