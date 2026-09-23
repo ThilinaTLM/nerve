@@ -13,7 +13,7 @@ const ASYNC_TASK_GUIDELINE =
 
 const GROUP_GUIDELINES: Partial<Record<ToolGroupName, string>> = {
   subagents:
-    "Developer teammates are autonomous and share your working directory and worktree. Assign non-overlapping components/files and do not revert each other's changes. Prompt only idle teammates; stop and wait for idle before replacing an assignment. Do not poll after delegation: continue independent work or finish your turn. Completion notifications wake you; inspect subagent_status for the response and its run identity, then accept it or send follow-up work. Teammates needing clarification finish with a normal response for you to resolve.",
+    "Developer teammates share your working directory and worktree: assign non-overlapping work and do not revert each other's changes. Each final response completes its assignment; the teammate then remains available for follow-ups. Prompt only idle teammates; running/stopping teammates cannot queue prompts, so stop and wait for idle before replacing an assignment. Do not poll after delegation: continue independent work or finish your turn. Completion notifications wake you; use the teammate's name with subagent_status to inspect its response and run identity. Teammates needing clarification finish with a normal response for you to resolve.",
   jira: "Keep Jira queries narrow and mutate Jira only when explicitly requested.",
   confluence:
     "Use storage XML or JSONL as the editable Confluence source of truth, treat markdown as read-only, and mutate Confluence only when explicitly requested.",
@@ -21,6 +21,7 @@ const GROUP_GUIDELINES: Partial<Record<ToolGroupName, string>> = {
 
 export function promptGuidelinesForTools(
   activeToolNames: readonly string[],
+  options: { foregroundOnlyBash?: boolean } = {},
 ): string[] {
   const active = new Set(activeToolNames);
   const guidelines: string[] = [];
@@ -38,7 +39,10 @@ export function promptGuidelinesForTools(
   ) {
     add("Prefer dedicated file tools over bash for inspection and search.");
   }
-  if (active.has("bash") || active.has("task_start")) {
+  if (
+    (active.has("bash") && !options.foregroundOnlyBash) ||
+    active.has("task_start")
+  ) {
     add(ASYNC_TASK_GUIDELINE);
   }
 

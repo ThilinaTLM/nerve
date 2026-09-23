@@ -89,7 +89,7 @@ export async function runForegroundBashWithPromotion(
   });
   let promotionTimer: NodeJS.Timeout | undefined;
   let promotionPromise: Promise<"promote"> | undefined;
-  if (input.autoPromoteAfterMs !== undefined) {
+  if (!input.foregroundOnly && input.autoPromoteAfterMs !== undefined) {
     const promotionDelayMs = foregroundPromotionDelayMs({
       timeoutMs: input.timeoutMs,
       autoPromoteAfterMs: input.autoPromoteAfterMs,
@@ -124,7 +124,7 @@ export async function runForegroundBashWithPromotion(
       signal: "SIGKILL",
       reason: "Foreground bash aborted.",
     }).catch(() => this.getTask(task.id));
-    if (isActiveTaskStatus(cancelled.status)) {
+    if (isActiveTaskStatus(cancelled.status) && !input.foregroundOnly) {
       await this.backgroundActiveTask(task.id, {
         visibility: "background",
         completion: { inject: false, outputTailLineCount: 80 },

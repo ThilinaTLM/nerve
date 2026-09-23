@@ -597,6 +597,13 @@ export class ConversationRuntime {
     return run ? cloneRun(run) : undefined;
   }
 
+  /** Active run of one agent, including background (async teammate) runs. */
+  snapshotForAgent(agentId: string): ConversationActiveRunSnapshot | undefined {
+    const runId = this.runIdByAgentId.get(agentId);
+    const run = runId ? this.runsByRunId.get(runId) : undefined;
+    return run ? cloneRun(run) : undefined;
+  }
+
   resolveToolAnchor(
     runId: string,
     providerToolCallId: string,

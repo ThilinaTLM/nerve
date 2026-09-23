@@ -65,13 +65,18 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
       { name: "API" },
     );
     assert.equal(created.toolCall.status, "completed");
-    const child = created.toolCall.result?.details as { id: string };
-    assert.ok(child.id);
+    const createdStatus = created.toolCall.result?.details as { name: string };
+    assert.equal(createdStatus.name, "API");
+    const child = runtime.services.agentLifecycle
+      .listAgents()
+      .find(
+        (agent) => agent.parentAgentId === lead.id && agent.name === "API",
+      )!;
     const prompted = await runtime.services.tools.requestTool(
       lead,
       "subagent_prompt",
       {
-        id: child.id,
+        name: "API",
         prompt: "Write component.txt in the shared working directory.",
       },
     );
@@ -98,12 +103,21 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
       await readFile(join(root, "component.txt"), "utf8"),
       "implemented by child",
     );
-    const status = await runtime.services.asyncSubagents.status(
+    const status = await runtime.services.asyncSubagents.status(lead.id, "API");
+    assert.equal(status.state, "idle");
+    assert.match(status.response?.text ?? "", /Child implementation is ready/);
+    assert.equal(status.agentId, child.id);
+    assert.doesNotMatch(created.toolCall.result?.content ?? "", /agentId/);
+    const transcript = await runtime.services.subagentTranscripts.get(
       lead.id,
       child.id,
     );
-    assert.equal(status.state, "idle");
-    assert.match(status.response?.text ?? "", /Child implementation is ready/);
+    assert.equal(transcript.activeRun, undefined);
+    assert.ok(
+      transcript.entries.some((entry) =>
+        /Child implementation is ready/.test(entry.text),
+      ),
+    );
     const snapshot =
       await runtime.services.conversationQuery.getConversationSnapshot(
         conversation.id,
@@ -112,6 +126,17 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
       snapshot.entries.some((entry) => /Lead received/.test(entry.text ?? "")),
     );
     assert.ok(snapshot.entries.every((entry) => entry.agentId !== child.id));
+    const notifications = snapshot.entries.filter(
+      (entry) => entry.details?.type === "subagent_event",
+    );
+    assert.ok(notifications.length > 0);
+    for (const entry of notifications) {
+      assert.match(entry.text ?? "", /teammate API/);
+      assert.doesNotMatch(
+        entry.text ?? "",
+        /agent_child|Active owned background tasks/,
+      );
+    }
     assert.equal(snapshot.conversation.activeAgentId, lead.id);
     const denied = await runtime.services.tools.requestTool(
       runtime.services.agentLifecycle.getAgent(child.id),
@@ -126,11 +151,12 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
     assert.ok(
       !tools.includes("ask_user") &&
         !tools.includes("plan_mode_enter") &&
-        !tools.includes("explore"),
+        !tools.includes("explore") &&
+        !tools.some((name) => name.startsWith("task_")),
     );
     await runtime.services.asyncSubagents.prompt(
       lead.id,
-      child.id,
+      "API",
       "Review your previous implementation.",
     );
     const followUpDeadline = Date.now() + 15_000;

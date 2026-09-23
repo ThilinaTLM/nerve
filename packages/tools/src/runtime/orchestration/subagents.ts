@@ -17,8 +17,7 @@ export function createSubagentHandlers(
   const handlers: ToolHandlerRegistry = {};
   for (const name of asyncSubagentToolNames) {
     handlers[name] = async (args, context) => {
-      if (name === "subagent_new") requiredString(args.name, "name");
-      else if (name !== "subagent_list") requiredString(args.id, "id");
+      if (name !== "subagent_list") requiredString(args.name, "name");
       if (name === "subagent_prompt") requiredString(args.prompt, "prompt");
       if (
         name === "subagent_list" &&

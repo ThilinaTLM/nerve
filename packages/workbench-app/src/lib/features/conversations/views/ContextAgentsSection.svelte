@@ -3,6 +3,7 @@ import Bot from "@lucide/svelte/icons/bot";
 import Glasses from "@lucide/svelte/icons/glasses";
 import HatGlasses from "@lucide/svelte/icons/hat-glasses";
 import Telescope from "@lucide/svelte/icons/telescope";
+import UserRoundCog from "@lucide/svelte/icons/user-round-cog";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { cn } from "@nervekit/ui-kit/utils";
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
@@ -23,6 +24,9 @@ import {
   agentModelLabel,
   agentRowLabel,
   agentRuleSetId,
+  agentStatusLabel,
+  isAgentLive,
+  isAsyncTeammate,
   liveAgentCount,
   sortAgents,
   visibleAgents,
@@ -32,11 +36,24 @@ let {
   conversationAgents = [],
   activeAgent,
   onSelectAgent,
+  onOpenTranscript,
 }: {
   conversationAgents?: AgentRecord[];
   activeAgent?: AgentRecord;
   onSelectAgent?: (agent: AgentRecord) => void;
+  /** Subagent rows open their live transcript instead of selecting the agent. */
+  onOpenTranscript?: (agent: AgentRecord) => void;
 } = $props();
+
+function activateRow(agent: AgentRecord) {
+  if (agent.parentAgentId) onOpenTranscript?.(agent);
+  else onSelectAgent?.(agent);
+}
+
+function rowTitle(agent: AgentRecord): string {
+  const base = `${agentRowLabel(agent)} · ${agentModelLabel(agent)}`;
+  return agent.parentAgentId ? `${base} · Open transcript` : base;
+}
 
 let expanded = $state(false);
 let openDetailAgentId = $state<string | undefined>(undefined);
@@ -44,6 +61,7 @@ let openDetailAgentId = $state<string | undefined>(undefined);
 /** Leading indicator: a role icon tinted by the activity tone. */
 function agentRoleIcon(agent: AgentRecord): typeof HatGlasses {
   if (!agent.parentAgentId) return HatGlasses;
+  if (isAsyncTeammate(agent)) return UserRoundCog;
   if (agentRuleSetId(agent) === "supervised") return Glasses;
   return Telescope;
 }
@@ -101,11 +119,11 @@ const liveCount = $derived(liveAgentCount(conversationAgents));
         {@const RoleIcon = agentRoleIcon(agent)}
         <PanelRow
           label={agentRowLabel(agent)}
-          title={`${agentRowLabel(agent)} · ${agentModelLabel(agent)}`}
+          title={rowTitle(agent)}
           class="min-h-6 py-0.5"
           selected={agent.id === activeAgent?.id}
           alwaysShowActions={openDetailAgentId === agent.id}
-          onclick={() => onSelectAgent?.(agent)}
+          onclick={() => activateRow(agent)}
         >
           {#snippet leading()}
             <span
@@ -122,6 +140,9 @@ const liveCount = $derived(liveAgentCount(conversationAgents));
             </span>
           {/snippet}
           {#snippet badges()}
+            {#if isAgentLive(agent)}
+              <span class="text-info">{agentStatusLabel(agent)}</span>
+            {/if}
             <span class="text-muted-foreground tabular-nums"
               >{relativeTimeLabel(agent.updatedAt)}</span
             >

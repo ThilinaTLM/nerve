@@ -9,7 +9,22 @@ import type { WorkbenchEventHandler } from "$lib/application/events/event-bus";
 import type { SubagentTranscriptSnapshot } from "@nervekit/contracts/agents";
 
 const TRANSCRIPT_PREFIX = "agent.subagent_transcript.";
-const TERMINAL_EVENT = "agent.subagent_transcript.run.completed";
+const EXPLORE_TERMINAL_EVENT = "agent.subagent_transcript.run.completed";
+/** Canonical run lifecycle events published by async teammates' own runs. */
+const CANONICAL_RUN_EVENTS = new Set([
+  "run.started",
+  "run.completed",
+  "run.cancelled",
+  "run.failed",
+  "run.suspended",
+  "run.resumed",
+  "run.retrying",
+]);
+const CANONICAL_TERMINAL_EVENTS = new Set([
+  "run.completed",
+  "run.cancelled",
+  "run.failed",
+]);
 
 type BufferedEvent = EventEnvelope<Record<string, unknown>>;
 
@@ -19,6 +34,21 @@ function record(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
+function isCanonicalChildEventType(type: string): boolean {
+  return (
+    CANONICAL_RUN_EVENTS.has(type) ||
+    type.startsWith("conversation.live.") ||
+    type === "conversation.entry.appended" ||
+    type === "toolCall.updated"
+  );
+}
+
+/**
+ * Explore children publish the dedicated transcript family; async teammates
+ * publish canonical conversation events on the shared stream. Both are
+ * filtered to the child here, before the session normalizes sequence numbers,
+ * so lead and sibling traffic can never reach the child timeline.
+ */
 function matches(
   event: BufferedEvent,
   parentAgentId: string,
@@ -30,7 +60,7 @@ function matches(
   if (
     expected &&
     (data.conversationId !== expected.conversationId ||
-      data.projectId !== expected.projectId)
+      (data.projectId !== undefined && data.projectId !== expected.projectId))
   )
     return false;
   if (event.type.startsWith(TRANSCRIPT_PREFIX)) {
@@ -38,7 +68,16 @@ function matches(
       data.parentAgentId === parentAgentId && data.childAgentId === childAgentId
     );
   }
-  return event.type === "toolCall.updated" && data.agentId === childAgentId;
+  if (!isCanonicalChildEventType(event.type)) return false;
+  const agentId = data.agentId ?? record(data.entry)?.agentId;
+  return agentId === childAgentId;
+}
+
+function isTerminal(event: BufferedEvent): boolean {
+  return (
+    event.type === EXPLORE_TERMINAL_EVENT ||
+    CANONICAL_TERMINAL_EVENTS.has(event.type)
+  );
 }
 
 type WatcherDependencies = {
@@ -70,8 +109,14 @@ export function createSubagentTranscriptWatcher(deps: WatcherDependencies) {
     const deliver = (event: BufferedEvent) => {
       if (event.seq <= latestRelevantSeq) return;
       latestRelevantSeq = event.seq;
+      // Teammates are persistent: each new run gets its own final reconcile.
+      if (
+        event.type === "run.started" ||
+        event.type === "agent.subagent_transcript.run.started"
+      )
+        terminalReconciled = false;
       if (observer.event(event) === false) requestReconcile();
-      if (event.type === TERMINAL_EVENT && !terminalReconciled) {
+      if (isTerminal(event) && !terminalReconciled) {
         terminalPending = true;
         requestReconcile();
       }

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AgentRecord } from "@nervekit/contracts/agents";
-import { activeToolNamesForAgent } from "../../../src/domains/tools/orchestration/agent-tool-adapter.js";
+import {
+  activeToolNamesForAgent,
+  activeToolNamesForExploreAgent,
+} from "../../../src/domains/tools/orchestration/agent-tool-adapter.js";
 
 function agent(): AgentRecord {
   return {
@@ -21,6 +24,20 @@ function agent(): AgentRecord {
 }
 
 describe("explore availability", () => {
+  it("disables all task tools only for developer children", () => {
+    const root = activeToolNamesForAgent(agent());
+    const child = activeToolNamesForAgent({
+      ...agent(),
+      executionKind: "async_developer",
+      parentAgentId: agent().id,
+    });
+    const explore = activeToolNamesForExploreAgent();
+    assert.ok(root.includes("task_start") && root.includes("task_status"));
+    assert.ok(explore.includes("task_status") && explore.includes("task_logs"));
+    assert.ok(child.includes("bash"));
+    assert.ok(!child.some((name) => name.startsWith("task_")));
+  });
+
   it("is enabled by default and can be disabled", () => {
     const enabled = activeToolNamesForAgent(agent());
     const disabled = activeToolNamesForAgent(agent(), {

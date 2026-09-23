@@ -1,4 +1,5 @@
 import { AsyncSubagentService } from "../../domains/agents/async-subagent.service.js";
+import { subagentToolResult } from "../../domains/agents/async-subagent-tool-result.js";
 import { AsyncSubagentRepository } from "../../domains/agents/async-subagent.repository.js";
 import { AsyncSubagentNotificationService } from "../../domains/agents/async-subagent-notification.service.js";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
@@ -498,7 +499,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
           case "subagent_prompt":
             return await asyncSubagents.prompt(
               call.agentId,
-              String(args.id),
+              String(args.name),
               String(args.prompt),
             );
           case "subagent_list":
@@ -508,13 +509,12 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
               typeof args.limit === "number" ? args.limit : undefined,
             );
           case "subagent_status":
-            return await asyncSubagents.status(call.agentId, String(args.id));
+            return await asyncSubagents.status(call.agentId, String(args.name));
           case "subagent_stop":
-            return await asyncSubagents.stop(call.agentId, String(args.id));
+            return await asyncSubagents.stop(call.agentId, String(args.name));
         }
       };
-      const details = await execute();
-      return { details, content: JSON.stringify(details) };
+      return subagentToolResult(await execute());
     },
     runExplore: (parent, args, options) =>
       workbenchRun.runExplore(parent, args, options),
@@ -603,7 +603,9 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       tools: tools,
       getAgent,
       events,
-      live: subagentTranscriptLive,
+      activeRun: (childAgentId) =>
+        subagentTranscriptLive.snapshot(childAgentId) ??
+        state.conversationRuntime.snapshotForAgent(childAgentId),
     });
   const agentMechanics: WorkbenchAgentMechanics = new WorkbenchAgentMechanics({
     storage,
@@ -791,7 +793,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     enabled: asyncSubagentsEnabled,
     wake: (id) => workbenchRun.wakeAgentFromHarness(id),
     reconcile: () => asyncSubagents.reconcile(),
-    activeTaskCount: (agent) => ownedActiveTasks(agent.id).length,
     warn: (error) => {
       void logger.warn("Async subagent notification failed", { error });
     },

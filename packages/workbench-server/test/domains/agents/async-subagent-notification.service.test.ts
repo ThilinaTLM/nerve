@@ -62,6 +62,10 @@ function setup() {
   const records = new Map<string, AsyncSubagentCompletion>();
   const entries: ConversationEntry[] = [];
   const queued: string[] = [];
+  const queuedMessages: Array<{
+    content: string;
+    details?: { childId?: string };
+  }> = [];
   let active: RunHydratedState | undefined;
   let generation = 0;
   let wakeCount = 0;
@@ -92,6 +96,7 @@ function setup() {
           ? {
               enqueueHarnessMessage: async (input) => {
                 queued.push(input.id);
+                queuedMessages.push(input.message);
               },
             }
           : undefined,
@@ -125,7 +130,6 @@ function setup() {
       };
     },
     reconcile: async () => {},
-    activeTaskCount: () => 0,
     warn: () => {},
   };
   const service = new AsyncSubagentNotificationService(ports);
@@ -135,6 +139,7 @@ function setup() {
     records,
     entries,
     queued,
+    queuedMessages,
     lead,
     child,
     childState,
@@ -162,6 +167,12 @@ it("recovers a missing completion row, persists before waking, and does not wake
   await f.service.recover();
   assert.equal(f.records.size, 1);
   assert.equal(f.entries.length, 1);
+  assert.match(
+    f.entries[0]?.text ?? "",
+    /teammate API finished assignment run run_child/,
+  );
+  assert.doesNotMatch(f.entries[0]?.text ?? "", /agent_child|background tasks/);
+  assert.equal(f.entries[0]?.details?.childId, f.child.id);
   assert.equal(f.wakeCount(), 1);
   await f.service.recover();
   assert.equal(f.wakeCount(), 1);
@@ -181,6 +192,15 @@ it("queues into an active lead without marking the notification delivered before
   await f.service.recover();
   await f.service.recover();
   assert.equal(f.queued.length, 1);
+  assert.match(
+    f.queuedMessages[0]?.content ?? "",
+    /teammate API finished assignment run run_child/,
+  );
+  assert.doesNotMatch(
+    f.queuedMessages[0]?.content ?? "",
+    /agent_child|background tasks/,
+  );
+  assert.equal(f.queuedMessages[0]?.details?.childId, f.child.id);
   assert.equal(f.wakeCount(), 0);
   assert.equal([...f.records.values()][0]?.deliveredAt, undefined);
   f.idle();

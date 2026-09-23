@@ -19,6 +19,7 @@ import {
   type ToolView,
 } from "./tool-result-view";
 import { presentToolArguments } from "../lifecycle/registry";
+import { subagentPresentation } from "./subagent-presentation";
 
 export type {
   DetailsActionInfo,
@@ -740,6 +741,9 @@ export function toolPresentation(
           "head",
         ),
       };
+
+    case "subagent":
+      return subagentPresentation(view, toolCall, base, previewDetailsAction);
 
     case "explore": {
       const { summary } = aggregateExploreTasks(view);

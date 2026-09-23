@@ -62,6 +62,8 @@ export type ForegroundBashPromotionInput = {
   agentId: string;
   timeoutMs?: number;
   autoPromoteAfterMs?: number;
+  /** Do not hand an aborted command to the background supervisor. */
+  foregroundOnly?: boolean;
   origin: Extract<TaskRecord["origin"], { kind: "agent_tool" }>;
   signal?: AbortSignal;
   onOutput?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;

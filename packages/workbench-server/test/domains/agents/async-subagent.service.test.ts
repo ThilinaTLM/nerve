@@ -111,7 +111,9 @@ describe("persistent autonomous developer teammates", () => {
   it("creates an autonomous child in the lead's exact working directory without copying history", async () => {
     const f = setup();
     const result = await f.service.create(f.lead.id, "API", true);
-    const child = f.agents.get(result.id)!;
+    const child = [...f.agents.values()].find(
+      (agent) => agent.name === result.name,
+    )!;
     assert.equal(result.state, "idle");
     assert.equal(child.projectDir, f.lead.projectDir);
     assert.equal(child.permissionRuleSetId, "autonomous");
@@ -125,10 +127,10 @@ describe("persistent autonomous developer teammates", () => {
 
   it("atomically admits only one prompt and hides response bodies while busy", async () => {
     const f = setup();
-    const child = await f.service.create(f.lead.id, "API", true);
+    await f.service.create(f.lead.id, "API", true);
     const results = await Promise.allSettled([
-      f.service.prompt(f.lead.id, child.id, "first"),
-      f.service.prompt(f.lead.id, child.id, "second"),
+      f.service.prompt(f.lead.id, "API", "first"),
+      f.service.prompt(f.lead.id, "API", "second"),
     ]);
     assert.equal(
       results.filter((result) => result.status === "fulfilled").length,
@@ -136,66 +138,94 @@ describe("persistent autonomous developer teammates", () => {
     );
     assert.equal(f.starts(), 1);
     assert.equal(
-      (await f.service.status(f.lead.id, child.id)).response,
+      (await f.service.status(f.lead.id, "API")).response,
       undefined,
     );
-    assert.equal(
-      (await f.service.status(f.lead.id, child.id)).state,
-      "running",
-    );
+    assert.equal((await f.service.status(f.lead.id, "API")).state, "running");
   });
 
   it("does not admit a replacement assignment until cancellation settles", async () => {
     const f = setup();
-    const child = await f.service.create(f.lead.id, "API", true);
-    await f.service.prompt(f.lead.id, child.id, "work");
+    await f.service.create(f.lead.id, "API", true);
+    await f.service.prompt(f.lead.id, "API", "work");
     let release!: () => void;
     f.gateCancel(
       new Promise<void>((resolve) => {
         release = resolve;
       }),
     );
-    const stopping = f.service.stop(f.lead.id, child.id);
+    const stopping = f.service.stop(f.lead.id, "API");
     // Wait for the serialized stop fence, not a timer or provider execution.
-    while (!f.controls.get(child.id)?.stopping) await Promise.resolve();
+    while (
+      !f.controls.get(
+        [...f.agents.values()].find((agent) => agent.name === "API")!.id,
+      )?.stopping
+    )
+      await Promise.resolve();
     await assert.rejects(
-      f.service.prompt(f.lead.id, child.id, "replacement"),
+      f.service.prompt(f.lead.id, "API", "replacement"),
       /running or stopping/,
     );
     release();
     await stopping;
-    await f.service.prompt(f.lead.id, child.id, "replacement");
+    await f.service.prompt(f.lead.id, "API", "replacement");
     assert.equal(f.starts(), 2);
   });
 
   it("fences automatic child wakeups after team stop and preserves explicit reuse", async () => {
     const f = setup();
-    const child = await f.service.create(f.lead.id, "API", true);
-    await f.service.prompt(f.lead.id, child.id, "work");
+    await f.service.create(f.lead.id, "API", true);
+    await f.service.prompt(f.lead.id, "API", "work");
     await f.service.stopTeam(f.lead.id);
-    await f.service.wake(child.id);
+    await f.service.wake(
+      [...f.agents.values()].find((agent) => agent.name === "API")!.id,
+    );
     assert.equal(f.starts(), 1);
     await assert.rejects(
-      f.service.prompt(f.lead.id, child.id, "work"),
+      f.service.prompt(f.lead.id, "API", "work"),
       /team is stopped/,
     );
     await f.service.reopen(f.lead.id);
-    await f.service.prompt(f.lead.id, child.id, "new work");
+    await f.service.prompt(f.lead.id, "API", "new work");
     assert.equal(f.starts(), 2);
+  });
+
+  it("allows the same teammate name under different leads but resolves controls only within each team", async () => {
+    const f = setup();
+    const other = { ...f.lead, id: "agent_other", rootAgentId: "agent_other" };
+    f.agents.set(other.id, other);
+    await f.service.create(f.lead.id, "Researcher", true);
+    await f.service.create(other.id, " researcher ", true);
+    await assert.rejects(
+      f.service.create(f.lead.id, " researcher ", true),
+      /name already exists/,
+    );
+    const first = await f.service.prompt(f.lead.id, " researcher ", "first");
+    const second = await f.service.prompt(other.id, "RESEARCHER", "second");
+    assert.notEqual(first.runId, second.runId);
+    await f.service.stop(f.lead.id, "Researcher");
+    assert.equal(
+      (await f.service.status(other.id, "researcher")).state,
+      "running",
+    );
+    await assert.rejects(
+      f.service.status(f.lead.id, "missing"),
+      /not found for this lead/,
+    );
   });
 
   it("rejects disabled capability and cross-lead access", async () => {
     const f = setup();
-    const child = await f.service.create(f.lead.id, "API", true);
+    await f.service.create(f.lead.id, "API", true);
     const other = { ...f.lead, id: "agent_other", rootAgentId: "agent_other" };
     f.agents.set(other.id, other);
     await assert.rejects(
-      f.service.status(other.id, child.id),
+      f.service.status(other.id, "API"),
       /not found for this lead/,
     );
     f.setEnabled(false);
     await assert.rejects(
-      f.service.prompt(f.lead.id, child.id, "work"),
+      f.service.prompt(f.lead.id, "API", "work"),
       /unavailable/,
     );
   });
@@ -206,9 +236,9 @@ describe("persistent autonomous developer teammates", () => {
     for (let i = 0; i < 5; i++)
       children.push(await f.service.create(f.lead.id, `Component ${i}`, true));
     for (const child of children.slice(0, 4))
-      await f.service.prompt(f.lead.id, child.id, "work");
+      await f.service.prompt(f.lead.id, child.name, "work");
     await assert.rejects(
-      f.service.prompt(f.lead.id, children[4]!.id, "work"),
+      f.service.prompt(f.lead.id, children[4]!.name, "work"),
       /four developer teammates/,
     );
   });

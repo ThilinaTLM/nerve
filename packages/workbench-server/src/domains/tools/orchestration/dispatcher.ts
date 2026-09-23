@@ -345,6 +345,9 @@ export class OrchestrationToolDispatcher {
       if (options.useForegroundBash !== false) {
         const autoPromotion =
           this.deps.storage.settings.tools.bash.autoPromotion;
+        const foregroundOnly =
+          this.deps.getAgent(toolCall.agentId).executionKind ===
+          "async_developer";
         const promoted = await this.deps.tasks.runForegroundBashWithPromotion({
           command: stringArg(args, "command"),
           cwd,
@@ -352,9 +355,11 @@ export class OrchestrationToolDispatcher {
           conversationId: toolCall.conversationId,
           agentId: toolCall.agentId,
           timeoutMs: bashTimeoutMs(args.timeout),
-          autoPromoteAfterMs: autoPromotion.enabled
-            ? autoPromotion.afterMs
-            : undefined,
+          autoPromoteAfterMs:
+            autoPromotion.enabled && !foregroundOnly
+              ? autoPromotion.afterMs
+              : undefined,
+          foregroundOnly,
           signal: options.signal,
           artifactDir: executionContext.artifactDir,
           onOutput: executionContext.onUpdate,

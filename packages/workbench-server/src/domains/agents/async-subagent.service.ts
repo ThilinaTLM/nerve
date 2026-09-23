@@ -3,7 +3,10 @@ import {
   asyncSubagentNameSchema,
   type AgentRecord,
   type AsyncSubagentControl,
+  type AsyncSubagentListDetails,
+  type AsyncSubagentPromptDetails,
   type AsyncSubagentStatus,
+  type AsyncSubagentView,
   type CreateAgentRequest,
 } from "@nervekit/contracts/agents";
 import type { RunRecord } from "@nervekit/contracts/runs";
@@ -47,7 +50,7 @@ export class AsyncSubagentService {
     leadId: string,
     name: string,
     authorized: boolean,
-  ): Promise<AsyncSubagentStatus> {
+  ): Promise<AsyncSubagentView> {
     return this.exclusive(leadId, async () => {
       const lead = await this.requireLead(leadId);
       if ((await this.ports.readControl(leadId)).stopped)
@@ -97,9 +100,9 @@ export class AsyncSubagentService {
 
   async prompt(
     leadId: string,
-    childId: string,
+    name: string,
     prompt: string,
-  ): Promise<{ id: string; runId: string; accepted: true }> {
+  ): Promise<AsyncSubagentPromptDetails> {
     if (!prompt.trim())
       throw new ApplicationError(
         400,
@@ -108,8 +111,8 @@ export class AsyncSubagentService {
       );
     return this.exclusive(leadId, async () => {
       await this.requireLead(leadId);
-      const child = this.requireChild(leadId, childId);
-      const control = await this.ports.readControl(childId);
+      const child = this.requireNamedChild(leadId, name);
+      const control = await this.ports.readControl(child.id);
       await this.assertIdle(child, control);
       const team = await this.ports.readControl(leadId);
       if (team.stopped)
@@ -124,7 +127,12 @@ export class AsyncSubagentService {
         { ...control, stopped: false },
         prompt,
       );
-      return { id: childId, runId: run.runId, accepted: true };
+      return {
+        agentId: child.id,
+        name: child.name!,
+        runId: run.runId,
+        accepted: true,
+      };
     });
   }
 
@@ -149,7 +157,11 @@ export class AsyncSubagentService {
     });
   }
 
-  async list(leadId: string, cursor?: string, limit = 50) {
+  async list(
+    leadId: string,
+    cursor?: string,
+    limit = 50,
+  ): Promise<AsyncSubagentListDetails> {
     await this.requireLead(leadId);
     const children = this.children(leadId)
       .sort((a, b) => a.id.localeCompare(b.id))
@@ -164,18 +176,20 @@ export class AsyncSubagentService {
     };
   }
 
-  async status(leadId: string, childId: string): Promise<AsyncSubagentStatus> {
+  async status(leadId: string, name: string): Promise<AsyncSubagentView> {
     return this.exclusive(leadId, async () => {
       await this.requireLead(leadId);
-      return this.inspect(this.requireChild(leadId, childId), true);
+      return this.inspect(this.requireNamedChild(leadId, name), true);
     });
   }
 
-  async stop(leadId: string, childId: string): Promise<AsyncSubagentStatus> {
-    await this.requireLead(leadId);
-    this.requireChild(leadId, childId);
-    await this.stopChild(leadId, childId);
-    return this.inspect(this.requireChild(leadId, childId), false);
+  async stop(leadId: string, name: string): Promise<AsyncSubagentView> {
+    const child = await this.exclusive(leadId, async () => {
+      await this.requireLead(leadId);
+      return this.requireNamedChild(leadId, name);
+    });
+    await this.stopChild(leadId, child.id);
+    return this.inspect(child, false);
   }
 
   async stopTeam(leadId: string): Promise<void> {
@@ -308,7 +322,7 @@ export class AsyncSubagentService {
   private async inspect(
     child: AgentRecord,
     includeResponse: boolean,
-  ): Promise<AsyncSubagentStatus> {
+  ): Promise<AsyncSubagentView> {
     const control = await this.ports.readControl(child.id);
     const active = await this.ports.activeRun(child);
     const latest = active ?? (await this.ports.latestRun(child));
@@ -326,13 +340,12 @@ export class AsyncSubagentService {
             )
           ? (latest.status as AsyncSubagentStatus["outcome"])
           : undefined;
-    const result: AsyncSubagentStatus = {
-      id: child.id,
-      name: child.name ?? child.id,
+    const result: AsyncSubagentView = {
+      agentId: child.id,
+      name: child.name!,
       state,
       runId: latest?.runId,
       outcome,
-      activeTaskCount: this.ports.activeTaskCount(child),
     };
     if (includeResponse && state === "idle") {
       const entry = (await this.ports.entries(child))
@@ -363,6 +376,20 @@ export class AsyncSubagentService {
           agent.parentAgentId === leadId &&
           agent.executionKind === "async_developer",
       );
+  }
+
+  private requireNamedChild(leadId: string, name: string): AgentRecord {
+    const child = this.children(leadId).find(
+      (candidate) =>
+        candidate.name?.toLowerCase() === name.trim().toLowerCase(),
+    );
+    if (!child)
+      throw new ApplicationError(
+        404,
+        "SUBAGENT_NOT_FOUND",
+        "Teammate not found for this lead.",
+      );
+    return child;
   }
 
   private requireChild(leadId: string, childId: string): AgentRecord {

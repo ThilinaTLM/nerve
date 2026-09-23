@@ -69,6 +69,29 @@ describe("task manager foreground bash auto-promotion", () => {
     );
   });
 
+  it("does not promote foreground-only Bash even if a promotion delay is supplied", async () => {
+    const child = fakeChild();
+    const { supervisor } = fakeSupervisor({ child });
+    const { manager, storage, events } = await createManager(supervisor);
+    const startedEvent = waitForTaskEvent(events, "task.started");
+    const run = manager.runForegroundBashWithPromotion({
+      command: "sleep 1",
+      cwd: storage.paths.home,
+      projectId: "proj_test",
+      conversationId: "conv_test",
+      agentId: "agent_child",
+      autoPromoteAfterMs: 10,
+      foregroundOnly: true,
+      origin: { kind: "agent_tool", toolCallId: "tool_test" },
+    });
+    const started = await startedEvent;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(manager.getTask(started.id).visibility, "foreground");
+    child.emitClose(0, null);
+    assert.equal((await run).kind, "completed_foreground");
+    assert.throws(() => manager.getTask(started.id), /Task not found/);
+  });
+
   it("keeps a promoted task supervised for explicit cancellation", async () => {
     const child = fakeChild();
     const { supervisor, terminateSignals } = fakeSupervisor({

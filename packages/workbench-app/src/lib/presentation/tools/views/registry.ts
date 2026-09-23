@@ -14,6 +14,7 @@ import LsToolView from "../tool-call/LsToolView.svelte";
 import PlanModeToolView from "../tool-call/PlanModeToolView.svelte";
 import PythonToolView from "../tool-call/PythonToolView.svelte";
 import ReadToolView from "../tool-call/ReadToolView.svelte";
+import SubagentToolView from "../tool-call/SubagentToolView.svelte";
 import TaskStatusToolView from "../tool-call/TaskStatusToolView.svelte";
 import TaskLogsToolView from "../tool-call/TaskLogsToolView.svelte";
 import TaskToolView from "../tool-call/TaskToolView.svelte";
@@ -41,6 +42,7 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   task_status: TaskStatusToolView,
   task_logs: TaskLogsToolView,
   explore: ExploreToolView,
+  subagent: SubagentToolView,
   plan_mode: PlanModeToolView,
   jira: JiraToolView,
   confluence: ConfluenceToolView,

@@ -189,4 +189,77 @@ describe("subagent transcript session", () => {
     assert.equal(gap, true);
     assert.equal(buildConversationRenderProjection(next).streamingText, "");
   });
+
+  it("applies canonical async-teammate events and materializes appended entries", () => {
+    const canonical = {
+      conversationId: "conv_test",
+      projectId: "proj_test",
+      agentId: "agent_child",
+      runId: "run_child",
+    };
+    let state = fromSubagentTranscriptSnapshot(snapshot());
+    for (const [seq, type, data] of [
+      [51, "run.started", { ...canonical, startedAt: ts }],
+      [
+        57,
+        "conversation.live.turn.started",
+        { ...canonical, turnId: "turn_child", ordinal: 0 },
+      ],
+      [
+        60,
+        "conversation.live.message.started",
+        {
+          ...canonical,
+          turnId: "turn_child",
+          liveMessageId: "msg_child",
+          messageOrdinal: 0,
+          startedAt: ts,
+        },
+      ],
+      [
+        64,
+        "conversation.live.content.delta",
+        {
+          ...canonical,
+          turnId: "turn_child",
+          liveMessageId: "msg_child",
+          contentBlockId: "block_child",
+          contentIndex: 0,
+          kind: "text",
+          offset: 0,
+          delta: "Teammate text",
+        },
+      ],
+    ] as const) {
+      state = applySubagentTranscriptEvent(state, event(seq, type, data), () =>
+        assert.fail("unexpected gap"),
+      );
+    }
+    assert.equal(
+      buildConversationRenderProjection(state).streamingText,
+      "Teammate text",
+    );
+    state = applySubagentTranscriptEvent(
+      state,
+      event(70, "conversation.entry.appended", {
+        conversationId: "conv_test",
+        agentId: "agent_child",
+        runId: "run_child",
+        turnId: "turn_child",
+        liveMessageId: "msg_child",
+        entry: {
+          id: "entry_child",
+          conversationId: "conv_test",
+          agentId: "agent_child",
+          runId: "run_child",
+          role: "assistant",
+          kind: "message",
+          text: "Teammate text",
+          createdAt: ts,
+        },
+      }),
+      () => assert.fail("unexpected gap"),
+    );
+    assert.ok(state.entries.some((entry) => entry.id === "entry_child"));
+  });
 });

@@ -19,12 +19,10 @@ export const asyncSubagentOutcomeSchema = z.enum([
 ]);
 export type AsyncSubagentOutcome = z.infer<typeof asyncSubagentOutcomeSchema>;
 export const asyncSubagentStatusSchema = z.object({
-  id: z.string(),
   name: z.string(),
   state: asyncSubagentStateSchema,
   runId: z.string().optional(),
   outcome: asyncSubagentOutcomeSchema.optional(),
-  activeTaskCount: z.number().int().nonnegative(),
   response: z
     .object({
       entryId: z.string(),
@@ -35,6 +33,36 @@ export const asyncSubagentStatusSchema = z.object({
     .optional(),
 });
 export type AsyncSubagentStatus = z.infer<typeof asyncSubagentStatusSchema>;
+
+/** UI-facing status: adds the child agent id the model never addresses. */
+export const asyncSubagentViewSchema = asyncSubagentStatusSchema.extend({
+  agentId: z.string(),
+});
+export type AsyncSubagentView = z.infer<typeof asyncSubagentViewSchema>;
+
+/** Full durable tool `details` of subagent_new, subagent_status and subagent_stop. */
+export const asyncSubagentStatusDetailsSchema = asyncSubagentViewSchema;
+export type AsyncSubagentStatusDetails = AsyncSubagentView;
+
+/** Full durable tool `details` of subagent_prompt. */
+export const asyncSubagentPromptDetailsSchema = z.object({
+  agentId: z.string(),
+  name: z.string(),
+  runId: z.string(),
+  accepted: z.literal(true),
+});
+export type AsyncSubagentPromptDetails = z.infer<
+  typeof asyncSubagentPromptDetailsSchema
+>;
+
+/** Full durable tool `details` of subagent_list. */
+export const asyncSubagentListDetailsSchema = z.object({
+  subagents: z.array(asyncSubagentViewSchema),
+  nextCursor: z.string().optional(),
+});
+export type AsyncSubagentListDetails = z.infer<
+  typeof asyncSubagentListDetailsSchema
+>;
 
 /** Durable admission and cancellation fences, independent of live harness objects. */
 export const asyncSubagentControlSchema = z.object({
@@ -76,7 +104,8 @@ export function isDeveloperChildToolAllowed(name: string): boolean {
     name !== "ask_user" &&
     name !== "explore" &&
     !name.startsWith("plan_mode_") &&
-    !name.startsWith("subagent_")
+    !name.startsWith("subagent_") &&
+    !name.startsWith("task_")
   );
 }
 

@@ -87,6 +87,7 @@ export type CompletedViewFamily =
   | "task_status"
   | "task_logs"
   | "explore"
+  | "subagent"
   | "plan_mode"
   | "jira"
   | "confluence"

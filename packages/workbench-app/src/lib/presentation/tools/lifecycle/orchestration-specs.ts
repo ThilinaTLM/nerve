@@ -1,3 +1,4 @@
+import type { AsyncSubagentToolName } from "@nervekit/contracts/agents";
 import type { OrchestrationToolName } from "@nervekit/contracts/tools";
 import type { MetaItem } from "../../cards/card-presentation";
 import type { ToolArgumentSource } from "./argument-source";
@@ -104,97 +105,39 @@ function taskStartPresentation(
   });
 }
 
+/**
+ * Teammates are addressed by name. The assignment prompt stays visible after
+ * completion; the result view renders the teammate row(s) below it.
+ */
+function subagentSpec<Name extends AsyncSubagentToolName>(
+  name: Name,
+): ToolLifecycleSpec<Name> {
+  return spec({
+    name,
+    argumentRegion: name === "subagent_prompt" ? "persistent" : "until-result",
+    completedView: "subagent",
+    present: (source) => {
+      const prompt =
+        name === "subagent_prompt"
+          ? boundedText(source.string("prompt"))
+          : undefined;
+      return argumentPresentation({
+        primaryArg:
+          name === "subagent_list" ? undefined : textArg(source.string("name")),
+        body: prompt
+          ? { kind: "text-summary", text: prompt, label: "Assignment" }
+          : undefined,
+      });
+    },
+  });
+}
+
 export const orchestrationToolLifecycleSpecs = {
-  subagent_new: spec({
-    name: "subagent_new",
-    argumentRegion: "until-result",
-    completedView: "generic",
-    present: (source) =>
-      argumentPresentation({
-        primaryArg: textArg(
-          source.string("name") ?? source.string("id"),
-          "Async Subagents",
-        ),
-        body: source.string("prompt")
-          ? {
-              kind: "text-summary",
-              text: boundedText(source.string("prompt"))!,
-            }
-          : undefined,
-      }),
-  }),
-  subagent_prompt: spec({
-    name: "subagent_prompt",
-    argumentRegion: "until-result",
-    completedView: "generic",
-    present: (source) =>
-      argumentPresentation({
-        primaryArg: textArg(
-          source.string("name") ?? source.string("id"),
-          "Async Subagents",
-        ),
-        body: source.string("prompt")
-          ? {
-              kind: "text-summary",
-              text: boundedText(source.string("prompt"))!,
-            }
-          : undefined,
-      }),
-  }),
-  subagent_list: spec({
-    name: "subagent_list",
-    argumentRegion: "until-result",
-    completedView: "generic",
-    present: (source) =>
-      argumentPresentation({
-        primaryArg: textArg(
-          source.string("name") ?? source.string("id"),
-          "Async Subagents",
-        ),
-        body: source.string("prompt")
-          ? {
-              kind: "text-summary",
-              text: boundedText(source.string("prompt"))!,
-            }
-          : undefined,
-      }),
-  }),
-  subagent_status: spec({
-    name: "subagent_status",
-    argumentRegion: "until-result",
-    completedView: "generic",
-    present: (source) =>
-      argumentPresentation({
-        primaryArg: textArg(
-          source.string("name") ?? source.string("id"),
-          "Async Subagents",
-        ),
-        body: source.string("prompt")
-          ? {
-              kind: "text-summary",
-              text: boundedText(source.string("prompt"))!,
-            }
-          : undefined,
-      }),
-  }),
-  subagent_stop: spec({
-    name: "subagent_stop",
-    argumentRegion: "until-result",
-    completedView: "generic",
-    present: (source) =>
-      argumentPresentation({
-        primaryArg: textArg(
-          source.string("name") ?? source.string("id"),
-          "Async Subagents",
-        ),
-        body: source.string("prompt")
-          ? {
-              kind: "text-summary",
-              text: boundedText(source.string("prompt"))!,
-            }
-          : undefined,
-      }),
-  }),
+  subagent_new: subagentSpec("subagent_new"),
+  subagent_prompt: subagentSpec("subagent_prompt"),
+  subagent_list: subagentSpec("subagent_list"),
+  subagent_status: subagentSpec("subagent_status"),
+  subagent_stop: subagentSpec("subagent_stop"),
 
   task_start: spec({
     name: "task_start",

@@ -16,6 +16,25 @@ function start(runtime: ConversationRuntime) {
 }
 
 describe("ConversationRuntime", () => {
+  it("finds background runs by agent but not by conversation", () => {
+    const runtime = new ConversationRuntime();
+    start(runtime);
+    runtime.startRun({
+      background: true,
+      conversationId: "conv_test",
+      agentId: "agent_child",
+      projectId: "proj_test",
+      runId: "run_child",
+    });
+    assert.equal(runtime.snapshotForAgent("agent_child")?.runId, "run_child");
+    assert.equal(
+      runtime.snapshotForConversation("conv_test")?.runId,
+      "run_test",
+    );
+    runtime.completeRun("run_child");
+    assert.equal(runtime.snapshotForAgent("agent_child"), undefined);
+  });
+
   it("tracks tool-call draft lifecycle and anchors", () => {
     const runtime = new ConversationRuntime();
     const { run, message } = start(runtime);

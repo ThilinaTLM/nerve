@@ -36,7 +36,6 @@ export interface AsyncSubagentNotificationPorts {
   enabled(lead: AgentRecord): Promise<boolean>;
   wake(leadId: string): Promise<void>;
   reconcile(): Promise<void>;
-  activeTaskCount(child: AgentRecord): number;
   warn(error: unknown): void;
 }
 
@@ -164,7 +163,7 @@ export class AsyncSubagentNotificationService {
     );
     const activeRunId = active?.run.runId;
     if (!entry) {
-      const text = `Developer teammate ${child.name ?? child.id} (${child.id}) settled run ${record.runId}: ${record.outcome}. Active owned background tasks: ${this.ports.activeTaskCount(child)}. Use subagent_status to retrieve its response when idle, then accept it or send follow-up work. This notice refers to that run, not necessarily the teammate's current state.`;
+      const text = `Developer teammate ${child.name} finished assignment run ${record.runId}: ${record.outcome}. Use subagent_status with the teammate's name to retrieve its response when idle, then accept it or send follow-up work. This notice refers to that run, not necessarily the teammate's current state.`;
       const message = createHarnessMessage(
         "subagent_event",
         text,

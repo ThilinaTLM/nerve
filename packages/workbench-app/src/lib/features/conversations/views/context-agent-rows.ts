@@ -23,6 +23,11 @@ export function isAgentLive(agent: AgentRecord): boolean {
   return agent.status === "running" || agent.status === "awaiting_user";
 }
 
+/** Persistent developer teammate owned by a lead (async subagent). */
+export function isAsyncTeammate(agent: AgentRecord): boolean {
+  return agent.executionKind === "async_developer";
+}
+
 export function agentRuleSetId(agent: AgentRecord): string {
   return agent.mode === "planning"
     ? "planning"
@@ -42,6 +47,7 @@ export function agentModelLabel(agent: AgentRecord): string {
  */
 export function agentRowLabel(agent: AgentRecord): string {
   if (!agent.parentAgentId) return "Main agent";
+  if (agent.name) return agent.name;
   const firstLine = agent.task
     ?.split("\n")
     .map((line) => line.trim())
@@ -134,6 +140,7 @@ export type AgentDetailField = {
 
 /** Role word used as the detail popover's title. */
 export function agentRoleLabel(agent: AgentRecord): string {
+  if (isAsyncTeammate(agent)) return "Teammate";
   return agent.parentAgentId ? "Subagent" : "Main agent";
 }
 

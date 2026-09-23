@@ -25,6 +25,7 @@ import { parseConfluenceView } from "./confluence-result-view";
 import { parseExploreProgressLog } from "./explore-progress";
 import { parseGenerateImageView } from "./generate-image-result-view";
 import { parseJiraView } from "./jira-result-view";
+import { parseSubagentResult } from "./subagent-result-parser";
 import {
   parseTaskControlResult,
   parseTaskLogsResult,
@@ -553,6 +554,13 @@ export function parseToolView(
         taskCount: data.tasks.length + hiddenTaskCount,
       };
     }
+
+    case "subagent_new":
+    case "subagent_prompt":
+    case "subagent_list":
+    case "subagent_status":
+    case "subagent_stop":
+      return parseSubagentResult(toolCall, toolCall.toolName, args, rawResult);
 
     case "task_logs": {
       const data = parseTaskLogsResult(rawResult);

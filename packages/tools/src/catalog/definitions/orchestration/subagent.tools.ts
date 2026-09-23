@@ -1,9 +1,10 @@
 import { Type } from "typebox";
 import type { ToolDefinition } from "../../contracts.js";
 
-const id = Type.String({
+const teammateName = Type.String({
   minLength: 1,
-  description: "Stable ID of a teammate owned by this lead.",
+  maxLength: 80,
+  description: "Name of a teammate owned by this lead (case-insensitive).",
 });
 export const subagentToolDefinitions = [
   {
@@ -14,7 +15,7 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_new",
     description:
-      "Create an idle autonomous developer teammate sharing your working directory. Assign non-overlapping component ownership; its conversation persists for follow-ups.",
+      "Create an idle autonomous developer teammate with a unique name within your team.",
     parameters: Type.Object(
       { name: Type.String({ minLength: 1, maxLength: 80 }) },
       { additionalProperties: false },
@@ -28,9 +29,9 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_prompt",
     description:
-      "Start an idle teammate asynchronously. Rejects running/stopping teammates without queueing. Completion notifies and wakes you; continue independent work or finish your turn.",
+      "Start an assignment only with an idle teammate. Prompts for running or stopping teammates are rejected, never queued.",
     parameters: Type.Object(
-      { id, prompt: Type.String({ minLength: 1 }) },
+      { name: teammateName, prompt: Type.String({ minLength: 1 }) },
       { additionalProperties: false },
     ),
   },
@@ -59,8 +60,11 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_status",
     description:
-      "Inspect a teammate's state. Only idle teammates expose their last assistant response, attributed to its run. Running teammates expose no partial response.",
-    parameters: Type.Object({ id }, { additionalProperties: false }),
+      "Inspect a teammate's state and, when idle, its last response and run identity.",
+    parameters: Type.Object(
+      { name: teammateName },
+      { additionalProperties: false },
+    ),
   },
   {
     name: "subagent_stop",
@@ -70,7 +74,10 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_stop",
     description:
-      "Cancel a teammate's execution and owned background work without deleting its history. Wait for idle before sending a replacement assignment.",
-    parameters: Type.Object({ id }, { additionalProperties: false }),
+      "Stop a teammate's current assignment without deleting its history.",
+    parameters: Type.Object(
+      { name: teammateName },
+      { additionalProperties: false },
+    ),
   },
 ] satisfies ToolDefinition[];

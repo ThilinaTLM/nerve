@@ -40,6 +40,8 @@ export function hasFormattedToolView(
       return view.tasks.length > 0;
     case "task_logs":
       return view.events.length > 0;
+    case "subagent":
+      return view.teammates.length > 0 || Boolean(view.response);
     case "explore":
       return Boolean(
         view.reports.length || view.liveUpdates.length || view.liveLog?.length,

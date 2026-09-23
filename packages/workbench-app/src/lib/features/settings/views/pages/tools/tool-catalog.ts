@@ -47,13 +47,14 @@ export const toolGroups: ToolGroupDef[] = [
     category: "core",
     label: "Async Subagents",
     description:
-      "Persistent autonomous subagents share your working directory. The lead coordinates file ownership. Disabling stops all subagents and their background work.",
+      "Persistent autonomous teammates share your working directory. The lead coordinates file ownership; a final response completes each assignment. Disabling stops teammate assignments.",
     configurableTools: [...asyncSubagentToolNames],
     tools: [
       { name: "subagent_new", description: "Create a persistent teammate." },
       {
         name: "subagent_prompt",
-        description: "Start an idle teammate asynchronously.",
+        description:
+          "Assign only an idle teammate; running assignments cannot queue prompts.",
       },
       {
         name: "subagent_list",

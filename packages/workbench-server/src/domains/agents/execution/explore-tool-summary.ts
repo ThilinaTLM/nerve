@@ -143,13 +143,16 @@ export function summarizeExploreToolCall(
     case "subagent_new":
       return "Creating developer teammate";
     case "subagent_prompt":
-      return "Assigning teammate work";
+      return activity("Assigning teammate work", firstString(args, "name"));
     case "subagent_list":
       return "Listing developer teammates";
     case "subagent_status":
-      return "Inspecting teammate response";
+      return activity(
+        "Inspecting teammate response",
+        firstString(args, "name"),
+      );
     case "subagent_stop":
-      return "Stopping teammate work";
+      return activity("Stopping teammate work", firstString(args, "name"));
     case "explore":
       return "Exploring the codebase";
     case "plan_mode_enter":

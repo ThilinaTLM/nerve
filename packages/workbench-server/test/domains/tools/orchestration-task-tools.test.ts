@@ -193,6 +193,29 @@ describe("orchestration task tools", () => {
     assert.equal(captured?.agentId, "agent_test");
   });
 
+  it("keeps developer teammate Bash foreground-only without changing root promotion", async () => {
+    const captures: Record<string, unknown>[] = [];
+    const runForegroundBashWithPromotion = async (input: unknown) => {
+      captures.push(input as Record<string, unknown>);
+      return {
+        kind: "completed_foreground",
+        result: {
+          content: "ok",
+          contentBlocks: [{ type: "text", text: "ok" }],
+        },
+      };
+    };
+    const child = await createDispatcher([], {
+      executionKind: "async_developer",
+      runForegroundBashWithPromotion,
+    });
+    const root = await createDispatcher([], { runForegroundBashWithPromotion });
+    await child.execute(toolCall("bash"), { command: "sleep 1" });
+    await root.execute(toolCall("bash"), { command: "sleep 1" });
+    assert.equal(captures[0]?.autoPromoteAfterMs, undefined);
+    assert.equal(captures[1]?.autoPromoteAfterMs, 120_000);
+  });
+
   it("resolves and validates a per-call Bash cwd before foreground execution", async () => {
     const base = await mkdtemp(join(tmpdir(), "nerve-bash-cwd-"));
     roots.push(base);
@@ -376,6 +399,7 @@ async function createDispatcher(
     queryLogs: (taskId: string, query: TaskLogQuery) => Promise<unknown>;
     settings: Settings;
     projectDir: string;
+    executionKind: "async_developer";
   }> = {},
 ): Promise<OrchestrationToolDispatcher> {
   const root = await mkdtemp(join(tmpdir(), "nerve-task-dispatcher-"));
@@ -442,6 +466,7 @@ async function createDispatcher(
       id: "agent_test",
       projectDir: overrides.projectDir ?? "/tmp/project",
       mode: "coding",
+      executionKind: overrides.executionKind,
     }),
     runExplore: async () => ({ reports: [] }),
     getApiKey: async () => undefined,
