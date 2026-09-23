@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- Human-input resolution centralizes the approval/plan-review suspension lifecycle in one auditable use case. */
 import { createHash } from "node:crypto";
+import { createId } from "@nervekit/contracts";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "@nervekit/harness/agent";
 import type {
@@ -23,10 +24,8 @@ import type {
 } from "@nervekit/contracts/tools";
 import { ApplicationError } from "../../core/application-error.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging.js";
-import type {
-  AppendEntryInput,
-  AppendEntryOptions,
-} from "../conversations/append-entry-contracts.js";
+import type { AppendEntryInput } from "../conversations/append-entry-contracts.js";
+import type { GuardedAppendEntryOptions } from "../conversations/conversation-lifecycle.service.js";
 import type { RunLifecycleService } from "../runs/application/run-lifecycle.service.js";
 import type { WorkbenchRunService } from "../runs/application/workbench-run.service.js";
 import { agentMessageText } from "../agents/execution/index.js";
@@ -79,7 +78,7 @@ export interface HumanInputResolutionDeps {
   ): Promise<void>;
   appendEntry(
     input: AppendEntryInput,
-    options?: AppendEntryOptions,
+    options?: GuardedAppendEntryOptions,
   ): Promise<ConversationEntry>;
   getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
   harnessStorage: ConversationHarnessStorage;
@@ -107,8 +106,16 @@ export class HumanInputResolutionService {
       lifecycle: deps.lifecycle,
       work: deps.lifecycleWork,
       notifyWork: () => deps.notifyLifecycleWork(),
-      appendToolResult: (toolCall, isError) =>
-        this.appendToolResultForToolCall(toolCall, isError),
+      appendToolResult: (
+        toolCall,
+        isError,
+        expectedActiveBranchParentEntryId?: string | null,
+      ) =>
+        this.appendToolResultForToolCall(
+          toolCall,
+          isError,
+          expectedActiveBranchParentEntryId,
+        ),
       existingToolResultEntry: async (toolCall) =>
         (await deps.getConversationEntries(toolCall.conversationId)).find(
           (entry) => {
@@ -1043,6 +1050,7 @@ export class HumanInputResolutionService {
   private async appendToolResultForToolCall(
     toolCall: ToolCallRecord,
     isError: boolean,
+    expectedActiveBranchParentEntryId?: string | null,
   ): Promise<ConversationEntry> {
     const agent = this.deps.getAgent(toolCall.agentId);
     const result = toolCallResultForModel(toolCall);
@@ -1057,10 +1065,16 @@ export class HumanInputResolutionService {
       isError,
       timestamp: Date.now(),
     };
-    const appended = await this.deps.harnessStorage.appendAgentMessage(
-      agent,
-      message,
-    );
+    // A guarded append must not write model context before branch validation.
+    // The journal commits the transcript and model-context message together,
+    // so a crash cannot leave either side missing.
+    const guarded = expectedActiveBranchParentEntryId !== undefined;
+    const appended = guarded
+      ? {
+          id: createId("entry"),
+          timestamp: new Date(message.timestamp).toISOString(),
+        }
+      : await this.deps.harnessStorage.appendAgentMessage(agent, message);
     return this.deps.appendEntry(
       {
         id: appended.id,
@@ -1079,7 +1093,12 @@ export class HumanInputResolutionService {
         },
         createdAt: appended.timestamp,
       },
-      { mirrorToHarness: false },
+      {
+        mirrorToHarness: false,
+        ...(guarded
+          ? { expectedActiveBranchParentEntryId, guardedModelMessage: message }
+          : {}),
+      },
     );
   }
 

@@ -56,7 +56,10 @@ export function createLifecycleWorkDispatcher(input: {
           (work.kind === "continue_model"
             ? "A provider request may have been sent, but no durable response was proven."
             : "A tool may have produced an external side effect, but no durable result was proven."),
-        actions: ["inspect", "cancel_run", "authorize_retry"],
+        actions:
+          work.kind === "execute_tool"
+            ? ["inspect"]
+            : ["inspect", "cancel_run", "authorize_retry"],
         createdAt,
       });
     },

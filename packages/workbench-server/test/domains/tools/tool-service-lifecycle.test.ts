@@ -8,6 +8,7 @@ import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { defaultSettings } from "@nervekit/contracts/settings";
 import { ToolService } from "../../../src/domains/tools/execution/tool-service.js";
+import { RUN_CANCELLED_TOOL_OUTCOME } from "../../../src/domains/tools/execution/tool-termination.js";
 import { ToolResultPayloadStore } from "../../../src/domains/tools/artifacts/tool-result-payload-store.js";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
 import { ToolCallRepository } from "../../../src/domains/tools/artifacts/tool-call.repository.js";
@@ -418,6 +419,172 @@ describe("tool service lifecycle", () => {
     assert.equal(claimed.revision, decided.toolCall.revision + 1);
   });
 
+  it("classifies a claimed cancellation from the locked record and rejects late success", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-cancel-claimed-"));
+    const { service, journalCommit } = buildToolService(
+      home,
+      agent("autonomous"),
+    );
+    const runId = "run_cancel_claimed";
+    const draft = await service.requestTool(
+      agent("autonomous"),
+      "todos_set",
+      {
+        todos: [{ todo: "apply", done: false }],
+      },
+      { forceApproval: true, durableSuspend: true, runId },
+    );
+    await service.projectApprovalDecision(
+      {
+        toolCallId: draft.toolCall.id,
+        ordinal: 0,
+        decision: "allow",
+        resolutionRequestId: "allow-claimed",
+      },
+      journalCommit,
+    );
+    const claimed = await service.claimApprovedExecution(draft.toolCall.id);
+    assert.ok(claimed.execution?.executionId);
+    const [terminal] = await service.terminateNonTerminalToolCallsForRun(
+      runId,
+      RUN_CANCELLED_TOOL_OUTCOME,
+    );
+    assert.equal(terminal?.status, "cancelled");
+    assert.equal(terminal?.errorDetails?.code, "TOOL_OUTCOME_UNKNOWN");
+    assert.equal(terminal?.errorDetails?.details?.phase, "post_dispatch");
+    assert.match(
+      terminal?.error ?? "",
+      /external outcome is unknown; inspect the target/,
+    );
+    assert.match(previewText(terminal), /external outcome is unknown/);
+    await assert.rejects(
+      service.completeToolCall(claimed.id, { content: "late success" }),
+    );
+    assert.deepEqual(await service.getToolCallDetails(claimed.id), terminal);
+    assert.deepEqual(
+      await service.terminateNonTerminalToolCallsForRun(
+        runId,
+        RUN_CANCELLED_TOOL_OUTCOME,
+      ),
+      [],
+    );
+  });
+
+  it("serializes a waiting claim and cancellation; cancelled drafts are never claimable", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-cancel-race-"));
+    const { service, journalCommit } = buildToolService(
+      home,
+      agent("autonomous"),
+    );
+    const runId = "run_cancel_race";
+    const draft = await service.requestTool(
+      agent("autonomous"),
+      "todos_set",
+      {
+        todos: [{ todo: "apply", done: false }],
+      },
+      { forceApproval: true, durableSuspend: true, runId },
+    );
+    await service.projectApprovalDecision(
+      {
+        toolCallId: draft.toolCall.id,
+        ordinal: 0,
+        decision: "allow",
+        resolutionRequestId: "allow-race",
+      },
+      journalCommit,
+    );
+    let enter!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve;
+    });
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const claim = service.claimApprovedExecution(
+      draft.toolCall.id,
+      async () => {
+        enter();
+        await held;
+      },
+    );
+    await entered;
+    const cancellation = service.terminateNonTerminalToolCallsForRun(
+      runId,
+      RUN_CANCELLED_TOOL_OUTCOME,
+    );
+    release();
+    await claim;
+    const [terminal] = await cancellation;
+    assert.equal(terminal?.errorDetails?.code, "TOOL_OUTCOME_UNKNOWN");
+    assert.match(previewText(terminal), /external outcome is unknown/);
+
+    const secondRun = "run_cancel_before_claim";
+    const second = await service.requestTool(
+      agent("autonomous"),
+      "todos_set",
+      {
+        todos: [{ todo: "skip", done: false }],
+      },
+      { forceApproval: true, durableSuspend: true, runId: secondRun },
+    );
+    await service.projectApprovalDecision(
+      {
+        toolCallId: second.toolCall.id,
+        ordinal: 0,
+        decision: "allow",
+        resolutionRequestId: "allow-before-cancel",
+      },
+      journalCommit,
+    );
+    const [unclaimed] = await service.terminateNonTerminalToolCallsForRun(
+      secondRun,
+      RUN_CANCELLED_TOOL_OUTCOME,
+    );
+    assert.equal(unclaimed?.errorDetails?.code, "TOOL_NOT_DISPATCHED");
+    assert.match(previewText(unclaimed), /not executed/);
+    await assert.rejects(service.claimApprovedExecution(second.toolCall.id));
+  });
+
+  it("preserves a committed result when cancellation loses the race", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-cancel-result-"));
+    const { service, journalCommit } = buildToolService(
+      home,
+      agent("autonomous"),
+    );
+    const runId = "run_cancel_result";
+    const draft = await service.requestTool(
+      agent("autonomous"),
+      "todos_set",
+      {
+        todos: [{ todo: "apply", done: false }],
+      },
+      { forceApproval: true, durableSuspend: true, runId },
+    );
+    await service.projectApprovalDecision(
+      {
+        toolCallId: draft.toolCall.id,
+        ordinal: 0,
+        decision: "allow",
+        resolutionRequestId: "allow-result",
+      },
+      journalCommit,
+    );
+    await service.claimApprovedExecution(draft.toolCall.id);
+    const completed = await service.completeToolCall(draft.toolCall.id, {
+      content: "done",
+    });
+    assert.deepEqual(
+      await service.terminateNonTerminalToolCallsForRun(
+        runId,
+        RUN_CANCELLED_TOOL_OUTCOME,
+      ),
+      [],
+    );
+    assert.deepEqual(await service.getToolCallDetails(completed.id), completed);
+  });
+
   it("cancels pending interactions when terminalizing a run", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-terminalize-"));
     const testAgent = agent("autonomous");
@@ -444,16 +611,17 @@ describe("tool service lifecycle", () => {
 
     assert.equal(terminal?.status, "cancelled");
     assert.equal(terminal?.phase, "cancelled");
-    assert.equal(terminal?.error, "Run was cancelled.");
-    assert.equal(terminal?.errorDetails?.code, "cancelled");
+    assert.match(terminal?.error ?? "", /not executed/);
+    assert.equal(terminal?.errorDetails?.code, "TOOL_NOT_DISPATCHED");
+    assert.equal(terminal?.errorDetails?.details?.phase, "pre_dispatch");
     assert.deepEqual(terminal?.result, {
-      content: "Run was cancelled.",
-      contentBlocks: [{ type: "text", text: "Run was cancelled." }],
+      content: terminal?.error,
+      contentBlocks: [{ type: "text", text: terminal?.error }],
     });
     assert.equal(terminal?.interactions[0]?.status, "cancelled");
     assert.ok(terminal?.interactions[0]?.cancelledAt);
     assert.ok(terminal?.settledAt);
-    assert.match(previewText(terminal), /^Tool execution was cancelled\./);
+    assert.match(previewText(terminal), /not executed/);
     assert.equal(terminal?.agentProjection?.profile, "terminal_outcome");
     assert.equal(terminal?.resultPayload, undefined);
   });

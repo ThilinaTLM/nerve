@@ -186,7 +186,7 @@ export class RuntimeLifecycle {
   }
 
   private async performShutdown(): Promise<void> {
-    this.services.lifecycleDispatcher.stopPolling();
+    this.services.lifecycleDispatcher.stop();
     this.services.taskNotifications.stop();
     await this.services.asyncSubagentNotifications.stop();
     for (const agent of this.services.agentLifecycle
@@ -223,10 +223,11 @@ export class RuntimeLifecycle {
       const timings = await this.hydrator.hydrate(reportStage);
       // Provider and tool work can be arbitrarily long-running. Start its drain
       // only after canonical hydration, and never gate daemon readiness on it.
-      this.services.lifecycleDispatcher.start();
+      if (!this.shuttingDown) this.services.lifecycleDispatcher.start();
       return timings;
     } catch (error) {
       this.services.taskNotifications.stop();
+      this.services.lifecycleDispatcher.stop();
       throw error;
     }
   }

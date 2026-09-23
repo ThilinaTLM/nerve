@@ -16,6 +16,7 @@ import type { WorkbenchSubagentExecutions } from "../../agents/execution/workben
 import type { ToolService } from "../../tools/execution/tool-service.js";
 import type { WorkbenchTaskService } from "../../tasks/adapters/workbench-task-service.js";
 import { WorkbenchRunCancellation } from "../adapters/workbench-run-cancellation.js";
+import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 import {
   WorkbenchRunEventPublisher,
   WorkbenchRunNotifyPublisher,
@@ -46,6 +47,7 @@ export function createWorkbenchRunRuntime(input: {
   state: RuntimeState;
   events: StreamLogRegistry;
   tools: ToolService;
+  work: Pick<CanonicalStore, "fenceCancelledRunToolWork">;
   tasks: WorkbenchTaskService;
   harnessStorage: ConversationHarnessStorage;
   subagentExecutions: WorkbenchSubagentExecutions;
@@ -82,6 +84,7 @@ export function createWorkbenchRunRuntime(input: {
     input.tasks,
     input.subagentExecutions,
     unitOfWork,
+    input.work,
   );
   const terminalization = new WorkbenchRunTerminalization(input.tools);
   const adapter =

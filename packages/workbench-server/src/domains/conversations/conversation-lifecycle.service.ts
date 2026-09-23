@@ -11,6 +11,7 @@ import {
 } from "@nervekit/contracts/conversations";
 import { createId } from "@nervekit/contracts";
 import type { ConversationTreeEntry } from "@nervekit/harness/conversation";
+import type { AgentMessage } from "@nervekit/harness/agent";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
@@ -25,6 +26,13 @@ import type { EntryRepository } from "./entry.repository.js";
 import type { ConversationHarnessStorage } from "./conversation-harness-storage.js";
 import type { ToolResultPayloadStore } from "../tools/artifacts/tool-result-payload-store.js";
 import type { CapabilityService } from "../capabilities/capability.service.js";
+
+export type GuardedAppendEntryOptions = AppendEntryOptions & {
+  /** Current active leaf; null represents an empty conversation branch. */
+  expectedActiveBranchParentEntryId?: string | null;
+  /** Atomically persist the matching model-context message with a guarded result. */
+  guardedModelMessage?: AgentMessage;
+};
 
 export class ConversationLifecycleService {
   private readonly entryLoads = new Map<string, Promise<ConversationEntry[]>>();
@@ -281,8 +289,9 @@ export class ConversationLifecycleService {
 
   async appendEntry(
     input: AppendEntryInput,
-    options: AppendEntryOptions = {},
+    options: GuardedAppendEntryOptions = {},
   ): Promise<ConversationEntry> {
+    const guarded = "expectedActiveBranchParentEntryId" in options;
     const conversation = this.getConversation(input.conversationId);
     const existing = input.id
       ? this.state.getConversationEntry(input.conversationId, input.id)
@@ -300,7 +309,9 @@ export class ConversationLifecycleService {
       parentEntryId:
         "parentEntryId" in input
           ? (input.parentEntryId ?? undefined)
-          : conversation.activeEntryId,
+          : guarded
+            ? (options.expectedActiveBranchParentEntryId ?? undefined)
+            : conversation.activeEntryId,
       role: input.role,
       kind: input.kind ?? "message",
       text: input.text,
@@ -312,7 +323,24 @@ export class ConversationLifecycleService {
       details: input.details,
       createdAt: input.createdAt ?? new Date().toISOString(),
     };
-    entry = await this.entryRepository.append(entry);
+    const guardedCommit = guarded
+      ? await this.entryRepository.appendOnActiveBranch(
+          entry,
+          options.expectedActiveBranchParentEntryId ?? null,
+          options.guardedModelMessage
+            ? {
+                message: options.guardedModelMessage,
+                ownerAgentId:
+                  entry.agentId &&
+                  this.state.agents.get(entry.agentId)?.executionKind ===
+                    "async_developer"
+                    ? entry.agentId
+                    : undefined,
+              }
+            : undefined,
+        )
+      : undefined;
+    entry = guardedCommit?.entry ?? (await this.entryRepository.append(entry));
     const committed = this.state.getConversationEntry(
       input.conversationId,
       entry.id,
@@ -336,14 +364,23 @@ export class ConversationLifecycleService {
         entry.createdAt > conversation.lastUserMessageAt)
         ? entry.createdAt
         : conversation.lastUserMessageAt;
-    const updatedConversation: ConversationRecord = {
-      ...conversation,
-      activeEntryId: entry.id,
-      updatedAt: entry.createdAt,
-      lastUserMessageAt,
-    };
+    const updatedConversation: ConversationRecord =
+      guardedCommit?.conversation ?? {
+        ...conversation,
+        activeEntryId: entry.id,
+        updatedAt: entry.createdAt,
+        lastUserMessageAt,
+      };
     if (entry.role === "user") delete updatedConversation.completedAt;
-    await this.updateConversation(updatedConversation);
+    if (guardedCommit) {
+      this.state.conversations.set(conversation.id, updatedConversation);
+      this.queryCache.upsertConversation(updatedConversation);
+      await this.events.publish("conversation.updated", {
+        conversation: updatedConversation,
+      });
+    } else {
+      await this.updateConversation(updatedConversation);
+    }
     if (options.mirrorToHarness !== false)
       await this.harnessStorage.appendEntry(entry);
     return entry;

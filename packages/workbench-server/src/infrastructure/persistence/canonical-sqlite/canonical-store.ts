@@ -13,6 +13,7 @@ import type {
 } from "@nervekit/contracts/runs";
 import type {
   ClaimLifecycleWorkInput,
+  FenceCancelledRunToolWorkInput,
   LifecycleAtomicCommitInput,
   LifecycleAtomicCommitResult,
   ReconciliationOperationRecord,
@@ -199,6 +200,12 @@ export class CanonicalStore {
       kind: "list_lifecycle_work_for_run",
       runId,
     });
+  }
+  fenceCancelledRunToolWork(input: FenceCancelledRunToolWorkInput) {
+    return this.request<LifecycleWork[]>(
+      { kind: "fence_cancelled_run_tool_work", input },
+      true,
+    );
   }
   claimLifecycleWork(input: ClaimLifecycleWorkInput) {
     return this.request<LifecycleWork | undefined>(

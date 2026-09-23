@@ -85,6 +85,7 @@ function harness(input: {
   toolCalls: Record<string, ToolCallRecord>;
   work?: LifecycleWork[];
   claim?: () => Promise<ToolCallRecord>;
+  stale?: boolean;
 }) {
   const state = {
     run: {
@@ -134,8 +135,18 @@ function harness(input: {
         }
         return { run: state.run, checkpointId, replayed: false };
       },
-      assertCheckpointOnActiveBranch: async () => undefined,
-      cancelStaleApprovalCheckpoint: async () => undefined,
+      assertCheckpointOnActiveBranch: async () => {
+        if (input.stale) {
+          throw new ApplicationError(
+            409,
+            "RUN_CHECKPOINT_STALE",
+            "Branch moved.",
+          );
+        }
+      },
+      cancelStaleApprovalCheckpoint: async () => {
+        state.run.status = "cancelled";
+      },
     } as never,
     lifecycle: {} as never,
     work: {
@@ -248,6 +259,65 @@ test("a repeated attempt never dispatches a tool that may already have run", asy
 
   assert.equal(result.state, "outcome_unknown");
   assert.equal(result.failurePhase, "post_dispatch");
+});
+
+test("an already cancelled post-claim member is not mistaken for proven execution", async () => {
+  const cancelled = toolCall("tool_ready", {
+    status: "cancelled",
+    error: "External outcome is unknown.",
+    errorDetails: {
+      code: "TOOL_OUTCOME_UNKNOWN",
+      message: "External outcome is unknown.",
+    },
+  });
+  const fixture = harness({
+    status: "cancelled",
+    interactions: [interaction("tool_ready", "resolved")],
+    toolCalls: { tool_ready: cancelled },
+    claim: async () => {
+      throw new ToolExecutionAlreadyClaimedError(cancelled);
+    },
+  });
+  const result = await fixture.service.executeWork(
+    work("tool_ready", "leased"),
+  );
+  assert.equal(result.state, "outcome_unknown");
+  assert.equal(result.failurePhase, "post_dispatch");
+});
+
+test("stale released checkpoint fences unclaimed siblings but preserves running ones", async () => {
+  const fixture = harness({
+    status: "executing_tools",
+    stale: true,
+    interactions: members.map((id) => interaction(id, "resolved")),
+    toolCalls: {
+      tool_ready: toolCall("tool_ready", { status: "completed" }),
+      tool_lost: toolCall("tool_lost", { status: "running" }),
+      tool_unknown: toolCall("tool_unknown"),
+    },
+    work: [work("tool_lost", "leased"), work("tool_unknown", "ready")],
+  });
+  await fixture.service.reconcileAll();
+  assert.deepEqual(fixture.settledBeforeDispatch, [
+    ["tool_unknown", "cancelled"],
+  ]);
+  assert.equal(fixture.state.run.status, "executing_tools");
+});
+
+test("a fully settled stale checkpoint cancels its run without appending results", async () => {
+  const fixture = harness({
+    status: "executing_tools",
+    stale: true,
+    interactions: members.map((id) => interaction(id, "resolved")),
+    toolCalls: Object.fromEntries(
+      members.map((id) => [id, toolCall(id, { status: "completed" })]),
+    ),
+  });
+  assert.equal(
+    await fixture.service.reconcileCheckpoint("run_test"),
+    "cancelled",
+  );
+  assert.equal(fixture.state.run.status, "cancelled");
 });
 
 test("resolving a checkpoint that is still executing is refused", async () => {

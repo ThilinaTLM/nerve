@@ -26,6 +26,7 @@ export interface RunReconciliationDependencies {
     getToolCallDetails(toolCallId: string): Promise<{
       status: string;
       risk?: string;
+      errorDetails?: { code?: string };
       execution?: { hostHandle?: string };
     }>;
     settleUnknownOutcome(toolCallId: string, message: string): Promise<unknown>;
@@ -64,7 +65,7 @@ export interface RunReconciliationDependencies {
       workId: string;
       expectedGeneration: number;
       leaseOwner: string;
-      state: "succeeded" | "failed" | "outcome_unknown";
+      state: "succeeded" | "failed" | "cancelled" | "outcome_unknown";
       now: string;
       lastError?: string;
       failurePhase?: LifecycleWork["failurePhase"];
@@ -238,6 +239,7 @@ export class RunReconciliationService {
       let proven = false;
       let safeReplay = false;
       let interruptedRead = false;
+      let cancelledBeforeDispatch = false;
       if (work.kind === "execute_tool" && work.proposalId) {
         const toolCall = await this.deps.tools.getToolCallDetails(
           work.proposalId,
@@ -245,6 +247,12 @@ export class RunReconciliationService {
         proven = ["completed", "failed", "denied", "cancelled"].includes(
           toolCall.status,
         );
+        if (toolCall.errorDetails?.code === "TOOL_OUTCOME_UNKNOWN") {
+          proven = false;
+        }
+        cancelledBeforeDispatch =
+          toolCall.status === "cancelled" &&
+          toolCall.errorDetails?.code !== "TOOL_OUTCOME_UNKNOWN";
         // `committed` proves the durable dispatch claim was never taken, so the
         // work can run again whatever the tool's risk. A `running` claim may
         // have dispatched; only read-only tools are then safe to repeat, and
@@ -290,7 +298,11 @@ export class RunReconciliationService {
         workId: work.id,
         expectedGeneration: work.generation,
         leaseOwner: work.leaseOwner,
-        state: proven ? "succeeded" : "outcome_unknown",
+        state: proven
+          ? cancelledBeforeDispatch
+            ? "cancelled"
+            : "succeeded"
+          : "outcome_unknown",
         now,
         ...(!proven
           ? {
@@ -313,7 +325,10 @@ export class RunReconciliationService {
             work.kind === "execute_tool"
               ? "Tool execution may have produced an external side effect, but no terminal result was proven."
               : "A provider request may have been sent, but no durable response was proven.",
-          actions: ["inspect", "cancel_run", "authorize_retry"],
+          actions:
+            work.kind === "execute_tool"
+              ? ["inspect"]
+              : ["inspect", "cancel_run", "authorize_retry"],
           createdAt: now,
         };
         await this.deps.work.persistRecoveryIssue(issue);

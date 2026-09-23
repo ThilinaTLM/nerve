@@ -266,7 +266,7 @@ function menuForTranscript(
       ? {
           tone: "warning",
           title: "Recovery needs review",
-          message: `${recoveryIssues.length} external operation outcome${recoveryIssues.length === 1 ? " is" : "s are"} unknown. Nerve did not repeat the operation. Inspect the transcript, then cancel or explicitly authorize another attempt.`,
+          message: `${recoveryIssues.length} external operation outcome${recoveryIssues.length === 1 ? " is" : "s are"} unknown. Nerve did not repeat the operation. Inspect the transcript${recoveryIssues.some((issue) => issue.actions.includes("authorize_retry")) ? ", then cancel or explicitly authorize another attempt" : " before taking any further action"}.`,
         }
       : undefined,
     emptyTitle: "Open a conversation or start a new one.",

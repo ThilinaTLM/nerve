@@ -1,4 +1,5 @@
 import type { ConversationTreeEntry } from "@nervekit/harness/conversation";
+import type { AgentMessage } from "@nervekit/harness/agent";
 import type {
   ConversationEntry,
   ConversationRecord,
@@ -31,6 +32,35 @@ export class EntryRepository {
       (await this.journal.load(entry.conversationId)).entryById.get(entry.id) ??
       entry
     );
+  }
+
+  async appendOnActiveBranch(
+    entry: ConversationEntry,
+    expectedParentEntryId: string | null,
+    model?: { message: AgentMessage; ownerAgentId?: string },
+  ): Promise<{ entry: ConversationEntry; conversation: ConversationRecord }> {
+    const commit = await this.journal.commit(entry.conversationId, {
+      kind: "conversation.entry_appended",
+      idempotencyKey: `conversation-entry:${entry.id}`,
+      expectedActiveBranchParentEntryId: expectedParentEntryId,
+      ...(model ? { guardedModelMessage: model } : {}),
+      events: [
+        {
+          kind: "conversation.entry_appended",
+          conversationId: entry.conversationId,
+          entry,
+        },
+      ],
+    });
+    const conversation = commit.events.find(
+      (event) => event.kind === "conversation.upserted",
+    );
+    if (!conversation || conversation.kind !== "conversation.upserted") {
+      throw new Error(
+        "Guarded entry commit did not advance the active branch.",
+      );
+    }
+    return { entry, conversation: conversation.conversation };
   }
 
   async appendCompaction(input: {

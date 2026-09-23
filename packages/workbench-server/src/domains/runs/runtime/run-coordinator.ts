@@ -558,11 +558,13 @@ export class RunCoordinator {
     runId: string,
     checkpointId: string,
     accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
+    assertContext?: (state: RunHydratedState) => Promise<void>,
   ): Promise<boolean> {
     return this.interactions.settleApprovalCheckpoint(
       runId,
       checkpointId,
       accompanying,
+      assertContext,
     );
   }
 
@@ -711,6 +713,17 @@ export class RunCoordinator {
     const recovered: RunRecord[] = [];
     // Terminal runs cannot require recovery, so only active runs are scanned.
     for (const state of await this.ports.unitOfWork.listActive()) {
+      if (state.run.status === "cancellation_requested") {
+        // A crash between recording the request and fencing tool work must
+        // complete cancellation, never reclassify this run as resumable.
+        recovered.push(
+          await this.finishRunCancellation(
+            state.run,
+            "Cancellation resumed after host restart",
+          ),
+        );
+        continue;
+      }
       const decision = await decideRunRecovery(
         state,
         this.ports.references,

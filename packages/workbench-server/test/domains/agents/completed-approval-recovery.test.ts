@@ -87,7 +87,19 @@ test("startup converts a legacy tool-only decision and settles its completed too
       "127.0.0.1",
       0,
     );
-    await runtime.lifecycle.hydrate();
+    // Suppress polling: recovered continuation must start from the startup
+    // scan, after the hydrator has finished rebuilding projections.
+    const milestones: string[] = [];
+    const dispatcher = runtime.services.lifecycleDispatcher;
+    const start = dispatcher.start.bind(dispatcher);
+    dispatcher.start = () => {
+      milestones.push("dispatcher-start");
+      start(60_000);
+    };
+    await runtime.lifecycle.hydrate((stage) => milestones.push(stage));
+    assert.ok(
+      milestones.indexOf("core-ready") < milestones.indexOf("dispatcher-start"),
+    );
     await waitForValue(
       () => {
         const current = runtime.services.agentLifecycle.getAgent(agent.id);
@@ -100,6 +112,7 @@ test("startup converts a legacy tool-only decision and settles its completed too
           agent: runtime.services.agentLifecycle.getAgent(agent.id),
           approvals: runtime.services.tools.listApprovals(),
           tools: runtime.services.tools.listToolCalls(),
+          milestones,
         }),
     );
     const state = (await new WorkbenchRunUnitOfWork(home, 0).list()).find(

@@ -781,10 +781,10 @@ export class ToolService {
       );
     return await Promise.all(
       stale.map(async (toolCall) => {
-        const settlement = await this.settleToolCallTermination(toolCall.id, {
-          ...toolTerminationPatch(toolCall, outcome),
-          interactions: cancelPendingInteractions(toolCall.interactions),
-        });
+        const settlement = await this.settleToolCallTermination(
+          toolCall.id,
+          outcome,
+        );
         if (settlement.owned) {
           await this.publishToolCallUpdated(settlement.record);
           await this.dependencies.logger?.warn(
@@ -1353,17 +1353,24 @@ export class ToolService {
 
   private async settleToolCallTermination(
     toolCallId: string,
-    patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
+    outcome: ToolTerminationOutcome,
   ): Promise<{ record: ToolCallRecord; owned: boolean }> {
     try {
       return {
-        record: await this.updateToolCall(toolCallId, patch),
+        record: await this.reviseToolCall(toolCallId, undefined, (current) => {
+          if (isTerminalToolStatus(current.status)) {
+            throw new ToolExecutionAlreadyClaimedError(current);
+          }
+          return {
+            ...toolTerminationPatch(current, outcome),
+            interactions: cancelPendingInteractions(current.interactions),
+          };
+        }),
         owned: true,
       };
     } catch (error) {
-      const current = this.getToolCall(toolCallId);
-      if (isTerminalToolStatus(current.status)) {
-        return { record: current, owned: false };
+      if (error instanceof ToolExecutionAlreadyClaimedError) {
+        return { record: error.toolCall, owned: false };
       }
       throw error;
     }

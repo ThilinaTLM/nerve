@@ -15,6 +15,11 @@ import type { ConversationPersistenceDelta } from "../../../domains/conversation
 import { appendDurableEventInTransaction } from "./canonical-database-helpers.js";
 import { persistConversationCommitInTransaction } from "./conversation-journal-database.js";
 import { decode, encode } from "./payload-codecs.js";
+import {
+  fenceCancelledRunToolWorkInTransaction,
+  type FenceCancelledRunToolWorkInput,
+} from "./cancelled-run-tool-work.js";
+export type { FenceCancelledRunToolWorkInput } from "./cancelled-run-tool-work.js";
 
 export interface ReconciliationOperationRecord {
   id: string;
@@ -545,6 +550,18 @@ export class CanonicalLifecycleDatabase {
 
   listForRun(runId: string): LifecycleWork[] {
     return listLifecycleWorkForRun(this.database, runId);
+  }
+
+  fenceCancelledRunToolWork(
+    input: FenceCancelledRunToolWorkInput,
+  ): LifecycleWork[] {
+    return this.transaction((database) =>
+      fenceCancelledRunToolWorkInTransaction(
+        database,
+        input,
+        listLifecycleWorkForRun(database, input.runId),
+      ),
+    );
   }
 
   claim(input: ClaimLifecycleWorkInput): LifecycleWork | undefined {

@@ -1,10 +1,10 @@
 # Durable approval checkpoints and tool execution
 
-> **Status:** Proposed for review. This describes a target architecture, not implemented behavior. No live run or recovery issue should be repaired by following this document without a separate, reviewed recovery procedure.
+> **Status:** Implemented, with follow-up hardening tracked in `/home/tlm/.nerve/data/plans/approval-checkpoint-hardening.md`. This document records the original design and historical incident; do not repair live run data from it without a separate reviewed recovery procedure.
 
-## Problem
+## Problem (historical, before implementation)
 
-A run-scoped approval currently spans a tool-call record, an interaction in the conversation journal, a run interaction, lifecycle work, and in-memory approval projections. A single user decision can advance some of these without advancing the others. Worse, an approval commit wakes the dispatcher while still inside a conversation-wide tool-record mutation lock; the request awaits the dispatcher's **global drain**. An execution worker may need that same lock to claim the tool, so both can wait indefinitely.
+A run-scoped approval previously spanned a tool-call record, an interaction in the conversation journal, a run interaction, lifecycle work, and in-memory approval projections. A single user decision can advance some of these without advancing the others. Worse, an approval commit wakes the dispatcher while still inside a conversation-wide tool-record mutation lock; the request awaits the dispatcher's **global drain**. An execution worker may need that same lock to claim the tool, so both can wait indefinitely.
 
 The durable decision can also become visible before the in-memory approval list observes it. `ToolCallRepository.replaceWithCommit()` writes the journal at revision N+1 but calls `observe(next)` only after its commit callback returns. During that window the cached tool record is still revision N with a pending interaction. `listApprovals()` filters that pending record through `ConversationJournalRepository.isActionableToolInteraction()`, which rejects the N/N+1 revision mismatch and produces `Approval not found.` It also rejects interactions whenever the conversation's journal state is not loaded; even without this race, an execution worker cannot safely treat `listApprovals()` as durable authority.
 
@@ -113,3 +113,28 @@ Required automated scenarios (with deterministic barriers, not sleeps):
 - No policy-rule redesign, sandbox for arbitrary commands, or guarantee of exactly-once external effects.
 - No synchronous tool-result response from an approval RPC, and no global dispatcher drain as an RPC completion criterion.
 - Review before implementation: can the existing lifecycle interaction/attempt records represent checkpoint release without another persistent aggregate? `lifecycle_work` already carries generation, lease, and `outcome_unknown`; a durable dispatch-point marker (with a clear pre-/post-dispatch failure contract) may be the only needed execution schema change. What is the smallest atomic transaction that updates authority and projects transcript state? Which public run status best expresses `executing` between the last approval and tool settlement? Settle these decisions in review with **one** authoritative state machine rather than compatibility layers.
+
+## Implemented follow-up: cancellation, staleness, and restart verification
+
+The accepted hardening plan distinguishes a **durable running claim** from proven
+external completion. Cancellation before that claim records that the member did
+not execute. After the claim, cancellation cannot prove that side effects were
+prevented: the tool remains cancelled for run-control purposes but has a
+structured unknown-outcome warning and a proposal-scoped, inspect-only issue. Ready execution work is fenced so a cancelled member cannot start later; leased work remains subject to fenced recovery.
+A proven result committed before cancellation is preserved. An ambiguous write
+is never automatically replayed, even if its host process exited.
+
+For a released checkpoint whose conversation branch moves, workers cancel only
+unclaimed members. Already-running siblings retain their actual outcomes.
+After all members are terminal the obsolete run is cancelled without queuing a
+model continuation. Results already durably appended remain part of the audit
+trail; the checkpoint guard accepts only result entries belonging to its own
+members at the branch tip. Never interpret a branch-change cancellation as
+proof that an already-started external effect was undone.
+
+Recovery dispatch is gated until hydration, run recovery and projector rebuild
+finish. Startup opens the dispatcher and immediately scans durable due work;
+its periodic poll is a fallback, not the primary wake path. Process-kill tests
+in `approval-checkpoint-process-restart.test.ts` verify the crash windows they
+cover with a temporary home and controlled child process. Exactly-once external
+effects and exactly-once provider invocation are **not** claimed.

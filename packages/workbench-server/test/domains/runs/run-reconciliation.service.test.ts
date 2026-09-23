@@ -253,6 +253,63 @@ test("an interrupted read-only tool is reported to the model, not blocked", asyn
   assert.equal(result.unknownOutcomes, 0);
 });
 
+test("expired work of a cancelled claimed tool retains outcome uncertainty", async () => {
+  let settled: { state?: string; failurePhase?: string } = {};
+  const issues: { code: string; actions: string[] }[] = [];
+  const service = new RunReconciliationService({
+    humanInput: {
+      reconcileApprovalCheckpoints: async () => 0,
+      backfillLegacyApprovalCheckpoints: async () => 0,
+      recoverAcceptedPlanReviews: async () => 0,
+      recoverResolvedUserQuestions: async () => 0,
+    },
+    tools: {
+      getToolCallDetails: async () => ({
+        status: "cancelled",
+        errorDetails: { code: "TOOL_OUTCOME_UNKNOWN" },
+      }),
+      listToolCallPreviews: async () => [],
+    },
+    runs: { getRunStatus: async () => "cancelled" },
+    conversationQuery: {
+      getConversationSnapshot: async () => ({ conversationRevision: 4 }),
+    },
+    operations: operationStore(new Map()),
+    work: {
+      ...emptyWorkStore(),
+      listExpiredLifecycleWork: async () => [
+        {
+          id: "work_claimed_cancelled",
+          deduplicationKey: "approval:tool_test",
+          conversationId: "conv_test",
+          runId: "run_test",
+          proposalId: "tool_test",
+          kind: "execute_tool",
+          state: "leased",
+          generation: 1,
+          leaseOwner: "boot_old",
+          inputHash: `sha256:${"b".repeat(64)}`,
+        },
+      ],
+      settleLifecycleWork: async (input) => {
+        settled = input;
+        return undefined;
+      },
+      persistRecoveryIssue: async (issue) => {
+        issues.push(issue);
+      },
+    },
+    operationId: () => "reconcile_claimed_cancelled",
+  });
+  await service.reconcileConversation("conv_test", "request_claimed_cancelled");
+  assert.equal(settled.state, "outcome_unknown");
+  assert.equal(settled.failurePhase, "post_dispatch");
+  assert.deepEqual(
+    issues.map((issue) => issue.actions),
+    [["inspect"]],
+  );
+});
+
 test("startup and explicit refresh invoke the same recovery rules", async () => {
   const scopes: Array<string | undefined> = [];
   const service = new RunReconciliationService({

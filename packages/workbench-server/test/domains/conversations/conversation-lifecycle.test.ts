@@ -1,13 +1,200 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ConversationRecord } from "@nervekit/contracts/conversations";
-import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
+import {
+  ConversationBranchConflictError,
+  ConversationJournalRepository,
+} from "../../../src/domains/conversations/conversation-journal.repository.js";
 import {
   appendConversationEntry,
   createState,
 } from "../../helpers/conversation-runtime.js";
 
 describe("RuntimeLifecycle conversation lifecycle", () => {
+  it("rejects a guarded result after an ordinary append moves the active branch", async () => {
+    const state = await createState("nerve-runtime-guarded-result-");
+    try {
+      const project = await state.services.projectLifecycle.createProject({
+        dir: state.runtime.storage.paths.home,
+      });
+      const conversation =
+        await state.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
+      const lifecycle = state.services.conversationLifecycle;
+      const original = await lifecycle.appendEntry({
+        conversationId: conversation.id,
+        role: "user",
+        text: "original",
+      });
+      const nextBranch = await lifecycle.appendEntry({
+        conversationId: conversation.id,
+        role: "user",
+        text: "new branch",
+      });
+      await assert.rejects(
+        lifecycle.appendEntry(
+          {
+            conversationId: conversation.id,
+            role: "system",
+            text: "stale tool result",
+          },
+          {
+            expectedActiveBranchParentEntryId: original.id,
+            guardedModelMessage: {
+              role: "toolResult",
+              toolCallId: "tool_stale",
+              toolName: "write",
+              content: [{ type: "text", text: "stale" }],
+              isError: false,
+              timestamp: Date.now(),
+            },
+          },
+        ),
+        ConversationBranchConflictError,
+      );
+      assert.equal(
+        lifecycle.getConversation(conversation.id).activeEntryId,
+        nextBranch.id,
+      );
+      const journal = new ConversationJournalRepository(state.runtime.storage);
+      const persisted = await journal.loadFresh(conversation.id);
+      assert.equal(persisted.conversation?.activeEntryId, nextBranch.id);
+      assert.equal(
+        persisted.entries.some((entry) => entry.text === "stale tool result"),
+        false,
+      );
+      assert.equal(
+        persisted.modelEntries.some(
+          (entry) =>
+            entry.type === "message" && entry.message.role === "toolResult",
+        ),
+        false,
+      );
+      const result = await lifecycle.appendEntry(
+        {
+          conversationId: conversation.id,
+          role: "system",
+          text: "valid tool result",
+        },
+        {
+          expectedActiveBranchParentEntryId: nextBranch.id,
+          guardedModelMessage: {
+            role: "toolResult",
+            toolCallId: "tool_valid",
+            toolName: "write",
+            content: [{ type: "text", text: "valid" }],
+            isError: false,
+            timestamp: Date.now(),
+          },
+        },
+      );
+      assert.equal(result.parentEntryId, nextBranch.id);
+      const committed = await journal.loadFresh(conversation.id);
+      assert.equal(committed.conversation?.activeEntryId, result.id);
+      assert.equal(committed.modelEntryById.get(result.id)?.type, "message");
+    } finally {
+      state.runtime.queryCache.close();
+    }
+  });
+  it("fences a guarded result while an ordinary child is committed but not yet activated", async () => {
+    const state = await createState("nerve-runtime-append-handoff-");
+    const journal = state.services.conversationJournal;
+    const originalCommit = journal.commit.bind(journal);
+    let resume!: () => void;
+    const paused = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    let signalCommitted!: () => void;
+    const entryCommitted = new Promise<void>((resolve) => {
+      signalCommitted = resolve;
+    });
+    let ordinaryAppend: Promise<unknown> | undefined;
+    try {
+      const project = await state.services.projectLifecycle.createProject({
+        dir: state.runtime.storage.paths.home,
+      });
+      const conversation =
+        await state.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
+      const lifecycle = state.services.conversationLifecycle;
+      const parent = await lifecycle.appendEntry({
+        conversationId: conversation.id,
+        role: "user",
+        text: "parent",
+      });
+      journal.commit = async (...args: Parameters<typeof journal.commit>) => {
+        const committed = await originalCommit(...args);
+        if (
+          args[1].events.length === 1 &&
+          args[1].events[0]?.kind === "conversation.entry_appended" &&
+          args[1].events[0].entry.text === "ordinary child"
+        ) {
+          signalCommitted();
+          await paused;
+        }
+        return committed;
+      };
+      ordinaryAppend = lifecycle.appendEntry({
+        conversationId: conversation.id,
+        role: "user",
+        text: "ordinary child",
+      });
+      await entryCommitted;
+      const before = await journal.loadFresh(conversation.id);
+      assert.equal(before.conversation?.activeEntryId, parent.id);
+      assert.equal(
+        before.entries.some((entry) => entry.text === "ordinary child"),
+        true,
+      );
+      await assert.rejects(
+        lifecycle.appendEntry(
+          {
+            conversationId: conversation.id,
+            role: "system",
+            text: "rejected tool result",
+          },
+          {
+            expectedActiveBranchParentEntryId: parent.id,
+            guardedModelMessage: {
+              role: "toolResult",
+              toolCallId: "tool_race",
+              toolName: "write",
+              content: [{ type: "text", text: "result" }],
+              isError: false,
+              timestamp: Date.now(),
+            },
+          },
+        ),
+        ConversationBranchConflictError,
+      );
+      const after = await journal.loadFresh(conversation.id);
+      assert.equal(
+        after.entries.some((entry) => entry.text === "rejected tool result"),
+        false,
+      );
+      assert.equal(
+        after.modelEntries.some(
+          (entry) =>
+            entry.type === "message" && entry.message.role === "toolResult",
+        ),
+        false,
+      );
+      resume();
+      await ordinaryAppend;
+      assert.equal(
+        lifecycle.getConversation(conversation.id).activeEntryId,
+        after.entries.find((entry) => entry.text === "ordinary child")?.id,
+      );
+    } finally {
+      resume();
+      await ordinaryAppend;
+      journal.commit = originalCommit;
+      state.runtime.queryCache.close();
+    }
+  });
+
   it("returns the first transcript entry when an id is appended again", async () => {
     const state = await createState("nerve-runtime-idempotent-entry-");
     try {

@@ -22,29 +22,49 @@ export const RUN_CANCELLED_TOOL_OUTCOME = {
   message: "Tool execution was cancelled because the run was cancelled.",
 } as const satisfies ToolTerminationOutcome;
 
+export const CANCELLED_AFTER_CLAIM_MESSAGE =
+  "Cancellation was requested after this tool may have started. Its external outcome is unknown; inspect the target before retrying.";
+
+/** A durable claim is evidence of possible dispatch, not proof of an effect. */
 export function toolTerminationPatch(
   toolCall: ToolCallRecord,
   outcome: ToolTerminationOutcome,
 ): Partial<Omit<ToolCallRecord, "id" | "createdAt">> {
-  const errorDetails = {
-    code: outcome.code,
-    message: outcome.message,
-  };
+  const cancellation = outcome.status === "cancelled";
+  const claimed = Boolean(toolCall.execution?.executionId);
+  const message = cancellation
+    ? claimed
+      ? CANCELLED_AFTER_CLAIM_MESSAGE
+      : "Tool was cancelled before dispatch; it was not executed."
+    : outcome.message;
+  const errorDetails = cancellation
+    ? claimed
+      ? {
+          code: "TOOL_OUTCOME_UNKNOWN",
+          message,
+          details: { phase: "post_dispatch" },
+        }
+      : {
+          code: "TOOL_NOT_DISPATCHED",
+          message,
+          details: { phase: "pre_dispatch" },
+        }
+    : { code: outcome.code, message };
   const result = {
-    content: outcome.message,
-    contentBlocks: [{ type: "text" as const, text: outcome.message }],
+    content: message,
+    contentBlocks: [{ type: "text" as const, text: message }],
   };
   const projection = prepareTerminalProjection(result, {
     toolName: toolCall.toolName,
     args: toolCall.args,
     status: outcome.status,
     phase: outcome.status,
-    error: outcome.message,
+    error: message,
     errorDetails,
   });
   return {
     status: outcome.status,
-    error: outcome.message,
+    error: message,
     errorDetails,
     result,
     ...projection,

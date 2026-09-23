@@ -10,6 +10,7 @@ import type {
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { isTerminalToolStatus } from "@nervekit/contracts/events";
 import { ApplicationError } from "../../core/application-error.js";
+import { ConversationBranchConflictError } from "../conversations/conversation-journal.repository.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging.js";
 import type { RunLifecycleService } from "../runs/application/run-lifecycle.service.js";
 import type { WorkbenchRunService } from "../runs/application/workbench-run.service.js";
@@ -61,6 +62,7 @@ export interface ApprovalCheckpointDeps {
   appendToolResult(
     toolCall: ToolCallRecord,
     isError: boolean,
+    expectedActiveBranchParentEntryId?: string | null,
   ): Promise<ConversationEntry>;
   existingToolResultEntry(
     toolCall: ToolCallRecord,
@@ -173,10 +175,17 @@ export class ApprovalCheckpointService {
     } catch (error) {
       return this.claimFailure(work, toolCallId, error);
     }
-    await this.deps.tools.executeClaimed(claimed);
+    const completed = await this.deps.tools.executeClaimed(claimed);
     await this.afterMemberSettled(work.runId);
+    if (completed.errorDetails?.code === "TOOL_OUTCOME_UNKNOWN") {
+      return {
+        state: "outcome_unknown",
+        failurePhase: "post_dispatch",
+        lastError: completed.error ?? UNKNOWN_OUTCOME_MESSAGE,
+      };
+    }
     return {
-      state: "succeeded",
+      state: completed.status === "cancelled" ? "cancelled" : "succeeded",
       ...(claimed.execution
         ? { externalLocator: claimed.execution.executionId }
         : {}),
@@ -192,29 +201,94 @@ export class ApprovalCheckpointService {
     return this.settlement.exclusive(runId, async () => {
       const state = await this.deps.runs.loadRunState(runId);
       if (!state) return "cancelled";
-      const phase = await this.phase(state);
-      if (phase !== "settled" || state.run.status !== "executing_tools") {
+      if (state.run.status !== "executing_tools") return this.phase(state);
+      // Branch movement can happen after the last claim; fence unclaimed
+      // siblings immediately, without terminating an executing sibling.
+      if (await this.releasedCheckpointIsStale(state)) {
+        await this.cancelUnclaimedStaleMembers(state);
+        const phase = await this.phase(state);
+        if (phase === "settled") {
+          await this.deps.runs.cancelStaleApprovalCheckpoint(
+            state,
+            "The approval checkpoint's conversation branch changed before its tools settled.",
+          );
+          return "cancelled";
+        }
         return phase;
       }
+      const phase = await this.phase(state);
+      if (phase !== "settled") return phase;
       const toolCalls = await this.memberToolCalls(state);
       const entries: ConversationEntry[] = [];
+      let expectedParent = state.checkpoints
+        .find(
+          (checkpoint) =>
+            checkpoint.checkpointId === state.run.lastCheckpointId,
+        )
+        ?.entryIds.at(-1);
+      if (!expectedParent) {
+        throw new ApplicationError(
+          409,
+          "RUN_CHECKPOINT_STALE",
+          "The approval checkpoint has no durable branch tip.",
+        );
+      }
       for (const toolCall of toolCalls) {
-        entries.push(
-          (await this.deps.existingToolResultEntry(toolCall)) ??
+        const current = await this.deps.runs.loadRunState(runId);
+        if (
+          current?.run.status !== "executing_tools" ||
+          current.run.lastCheckpointId !== state.run.lastCheckpointId
+        ) {
+          return "cancelled";
+        }
+        if (await this.releasedCheckpointIsStale(current)) {
+          await this.deps.runs.cancelStaleApprovalCheckpoint(
+            state,
+            "The approval checkpoint's conversation branch changed before its results were appended.",
+          );
+          return "cancelled";
+        }
+        try {
+          const entry: ConversationEntry =
+            (await this.deps.existingToolResultEntry(toolCall)) ??
             (await this.deps.appendToolResult(
               toolCall,
               toolCall.status !== "completed",
-            )),
-        );
+              expectedParent,
+            ));
+          if (entry.parentEntryId !== expectedParent) {
+            throw new ConversationBranchConflictError(toolCall.conversationId);
+          }
+          entries.push(entry);
+          expectedParent = entry.id;
+        } catch (error) {
+          if (!isStaleCheckpoint(error)) throw error;
+          await this.deps.runs.cancelStaleApprovalCheckpoint(
+            state,
+            "The approval checkpoint's conversation branch changed while its results were appended.",
+          );
+          return "cancelled";
+        }
       }
-      await this.deps.runs.settleApprovalCheckpoint(
-        runId,
-        state.run.lastCheckpointId!,
-        {
-          entries,
-          toolCalls: toolCalls.map(toToolCallTranscriptRecord),
-        },
-      );
+      try {
+        await this.deps.runs.settleApprovalCheckpoint(
+          runId,
+          state.run.lastCheckpointId!,
+          {
+            entries,
+            toolCalls: toolCalls.map(toToolCallTranscriptRecord),
+          },
+        );
+      } catch (error) {
+        if (!isStaleCheckpoint(error)) throw error;
+        // The branch moved while results were being assembled. Never queue a
+        // model continuation against the obsolete checkpoint.
+        await this.deps.runs.cancelStaleApprovalCheckpoint(
+          state,
+          "The approval checkpoint's conversation branch changed before continuation.",
+        );
+        return "cancelled";
+      }
       return "settled";
     });
   }
@@ -244,11 +318,9 @@ export class ApprovalCheckpointService {
         }
         continue;
       }
-      if (
-        state.run.status === "executing_tools" &&
-        (await this.reconcileCheckpoint(state.run.runId)) === "settled"
-      ) {
-        repaired += 1;
+      if (state.run.status === "executing_tools") {
+        const phase = await this.reconcileCheckpoint(state.run.runId);
+        if (phase === "settled" || phase === "cancelled") repaired += 1;
       }
     }
     return repaired;
@@ -286,7 +358,8 @@ export class ApprovalCheckpointService {
         );
       }
     }
-    if ((await this.reconcileCheckpoint(runId)) !== "settled") {
+    const outcome = await this.reconcileCheckpoint(runId);
+    if (outcome !== "settled" && outcome !== "cancelled") {
       throw new ApplicationError(
         409,
         "RUN_CHECKPOINT_UNSETTLED",
@@ -388,6 +461,39 @@ export class ApprovalCheckpointService {
     }
   }
 
+  private async releasedCheckpointIsStale(
+    state: RunHydratedState,
+  ): Promise<boolean> {
+    try {
+      await this.deps.runs.assertCheckpointOnActiveBranch(
+        state,
+        state.run.lastCheckpointId,
+      );
+      return false;
+    } catch (error) {
+      if (!isStaleCheckpoint(error)) throw error;
+      return true;
+    }
+  }
+
+  /**
+   * A stale branch fences only members that have not crossed the durable
+   * execution boundary. Claimed siblings keep their actual outcomes; their
+   * terminal records are reconciled before the obsolete run is cancelled.
+   */
+  private async cancelUnclaimedStaleMembers(
+    state: RunHydratedState,
+  ): Promise<void> {
+    for (const toolCall of await this.memberToolCalls(state)) {
+      if (toolCall.status !== "committed") continue;
+      await this.deps.tools.settleBeforeDispatch(
+        toolCall.id,
+        "cancelled",
+        "The approval checkpoint's conversation branch changed. This tool was not executed.",
+      );
+    }
+  }
+
   /** Derived checkpoint phase; never stored. */
   private async phase(
     state: RunHydratedState,
@@ -471,6 +577,20 @@ export class ApprovalCheckpointService {
     if (error instanceof ToolExecutionAlreadyClaimedError) {
       if (isTerminalToolStatus(error.toolCall.status)) {
         await this.afterMemberSettled(work.runId);
+        if (error.toolCall.errorDetails?.code === "TOOL_OUTCOME_UNKNOWN") {
+          return {
+            state: "outcome_unknown",
+            failurePhase: "post_dispatch",
+            lastError: error.toolCall.error ?? UNKNOWN_OUTCOME_MESSAGE,
+          };
+        }
+        if (error.toolCall.status === "cancelled") {
+          return {
+            state: "cancelled",
+            failurePhase: "pre_dispatch",
+            lastError: error.toolCall.error,
+          };
+        }
         return { state: "succeeded" };
       }
       // An earlier attempt crossed the dispatch boundary without a result.
@@ -482,20 +602,12 @@ export class ApprovalCheckpointService {
     }
     if (error instanceof PreDispatchError) {
       if (error.reason === "stale_context") {
-        const state = work.runId
-          ? await this.deps.runs.loadRunState(work.runId)
-          : undefined;
-        if (state) {
-          await this.deps.runs.cancelStaleApprovalCheckpoint(
-            state,
-            error.message,
-          );
-        }
         await this.deps.tools.settleBeforeDispatch(
           toolCallId,
           "cancelled",
           error.message,
         );
+        await this.afterMemberSettled(work.runId);
         return {
           state: "cancelled",
           failurePhase: "pre_dispatch",
@@ -594,11 +706,14 @@ function standaloneExecutionWork(
   };
 }
 
-function isStaleCheckpoint(error: unknown): error is ApplicationError {
+function isStaleCheckpoint(
+  error: unknown,
+): error is ApplicationError | ConversationBranchConflictError {
   return (
-    error instanceof ApplicationError &&
-    (error.code === "RUN_CHECKPOINT_STALE" ||
-      error.code === "RUN_TOOL_REVISION_STALE")
+    error instanceof ConversationBranchConflictError ||
+    (error instanceof ApplicationError &&
+      (error.code === "RUN_CHECKPOINT_STALE" ||
+        error.code === "RUN_TOOL_REVISION_STALE"))
   );
 }
 

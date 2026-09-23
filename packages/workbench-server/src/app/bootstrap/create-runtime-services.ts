@@ -641,10 +641,15 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         projectDir,
       ),
   });
-  // A hint only: commits never wait for the dispatcher, and work committed
-  // before the dispatcher is bound is picked up by its startup drain.
-  const lifecycleDispatch: { trigger?: () => void } = {};
-  const notifyLifecycleWork = (): void => lifecycleDispatch.trigger?.();
+  // Notifications are hints, never awaited by commits. Preserve early hints
+  // until the dispatcher is bound; its startup gate defers dispatch until ready.
+  const lifecycleDispatch: { trigger?: () => void; pending: boolean } = {
+    pending: false,
+  };
+  const notifyLifecycleWork = (): void => {
+    if (lifecycleDispatch.trigger) lifecycleDispatch.trigger();
+    else lifecycleDispatch.pending = true;
+  };
   const lifecycle = createRunLifecycleService({
     store: storage.canonicalStore,
     journal: conversationJournal,
@@ -656,6 +661,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     state,
     events,
     tools: tools,
+    work: storage.canonicalStore,
     tasks: tasks,
     harnessStorage: harnessStorage,
     subagentExecutions,
@@ -892,6 +898,10 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       },
     });
   lifecycleDispatch.trigger = () => lifecycleDispatcher.trigger();
+  if (lifecycleDispatch.pending) {
+    lifecycleDispatch.pending = false;
+    lifecycleDispatcher.trigger();
+  }
   const runReconciliation = new RunReconciliationService({
     humanInput,
     tools,

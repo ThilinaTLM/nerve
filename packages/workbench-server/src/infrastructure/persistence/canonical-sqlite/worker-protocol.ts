@@ -4,6 +4,7 @@ import type { ConversationJournalCommit } from "@nervekit/contracts/conversation
 import type { LifecycleWork, RecoveryIssue } from "@nervekit/contracts/runs";
 import type {
   ClaimLifecycleWorkInput,
+  FenceCancelledRunToolWorkInput,
   LifecycleAtomicCommitInput,
   ReconciliationOperationRecord,
   RequeueLifecycleWorkInput,
@@ -29,6 +30,10 @@ export type CanonicalCommand =
   | { kind: "list_due_lifecycle_work"; now: string; limit: number }
   | { kind: "list_expired_lifecycle_work"; now: string; limit: number }
   | { kind: "list_lifecycle_work_for_run"; runId: string }
+  | {
+      kind: "fence_cancelled_run_tool_work";
+      input: FenceCancelledRunToolWorkInput;
+    }
   | { kind: "claim_lifecycle_work"; input: ClaimLifecycleWorkInput }
   | { kind: "renew_lifecycle_work"; input: RenewLifecycleWorkInput }
   | { kind: "requeue_lifecycle_work"; input: RequeueLifecycleWorkInput }

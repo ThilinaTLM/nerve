@@ -387,9 +387,9 @@ describe("ToolExecutorService structured errors", () => {
     });
 
     assert.equal(terminal.status, "cancelled");
-    assert.equal(terminal.errorDetails?.code, "cancelled");
-    assert.equal(terminal.error, "Tool execution was cancelled.");
-    assert.match(cancelledPreview(terminal), /^Tool execution was cancelled\./);
+    assert.equal(terminal.errorDetails?.code, "TOOL_OUTCOME_UNKNOWN");
+    assert.match(terminal.error ?? "", /external outcome is unknown/);
+    assert.match(cancelledPreview(terminal), /external outcome is unknown/);
     assert.equal(terminal.agentProjection?.profile, "terminal_outcome");
     assert.equal(
       JSON.stringify(terminal).includes("Python execution aborted"),
@@ -412,7 +412,7 @@ describe("ToolExecutorService structured errors", () => {
     });
 
     assert.equal(terminal.status, "cancelled");
-    assert.match(cancelledPreview(terminal), /^Tool execution was cancelled\./);
+    assert.match(cancelledPreview(terminal), /external outcome is unknown/);
     assert.equal(JSON.stringify(terminal).includes("late success"), false);
   });
 
@@ -431,8 +431,8 @@ describe("ToolExecutorService structured errors", () => {
     });
 
     assert.equal(terminal.status, "cancelled");
-    assert.equal(terminal.errorDetails?.code, "cancelled");
-    assert.match(cancelledPreview(terminal), /^Tool execution was cancelled\./);
+    assert.equal(terminal.errorDetails?.code, "TOOL_OUTCOME_UNKNOWN");
+    assert.match(cancelledPreview(terminal), /external outcome is unknown/);
     assert.equal(JSON.stringify(terminal).includes("late success"), false);
     assert.deepEqual(lifecycleStatuses, ["running"]);
   });
@@ -449,10 +449,7 @@ describe("ToolExecutorService structured errors", () => {
     const terminal = await executor.executeAllowedTool("tool_test");
 
     assert.equal(terminal.status, "cancelled");
-    assert.equal(
-      terminal.error,
-      "Tool execution was cancelled because the run was cancelled.",
-    );
+    assert.match(terminal.error ?? "", /external outcome is unknown/);
     assert.equal(JSON.stringify(terminal).includes("immutable"), false);
   });
 

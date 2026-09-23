@@ -2028,6 +2028,35 @@ test("starts every cancellation target before awaiting target cleanup", async ()
   );
 });
 
+test("restart finishes a durable cancellation request instead of resuming execution", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  const state = (await harness.coordinator.get(run.runId))!;
+  const previous = state.transitions.at(-1)!;
+  const requested = {
+    ...state.run,
+    status: "cancellation_requested" as const,
+    revision: state.run.revision + 1,
+    updatedAt: "2026-07-12T00:01:00.000Z",
+  };
+  await harness.unitOfWork.commit(state.run.revision, {
+    ...previous,
+    id: "transition_request_after_crash",
+    revision: requested.revision,
+    previousRevision: state.run.revision,
+    kind: "cancellation_requested",
+    run: requested,
+    events: [],
+    entries: [],
+  });
+  const recovered = await harness.coordinator.recover();
+  assert.equal(recovered[0]?.status, "cancelled");
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "cancelled",
+  );
+});
+
 test("recovery never resurrects an explicitly cancelled run", async () => {
   const harness = fixture();
   const run = await start(harness.coordinator);

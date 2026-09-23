@@ -379,6 +379,7 @@ export class RunInteractionCoordinator {
     runId: string,
     checkpointId: string,
     accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
+    assertContext?: (state: RunHydratedState) => Promise<void>,
   ): Promise<boolean> {
     const settled = await this.options.exclusive(`run:${runId}`, async () => {
       const state = await this.options.load(runId);
@@ -388,6 +389,7 @@ export class RunInteractionCoordinator {
       ) {
         return false;
       }
+      await assertContext?.(state);
       const now = this.options.now();
       const next = revise(state.run, { status: "suspended" }, now);
       await this.options.commit(state, next, "approval_checkpoint_settled", {

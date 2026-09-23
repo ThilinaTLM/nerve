@@ -29,6 +29,8 @@ export function executeCanonicalCommand(
       return database.lifecycle.listExpired(command.now, command.limit);
     case "list_lifecycle_work_for_run":
       return database.lifecycle.listForRun(command.runId);
+    case "fence_cancelled_run_tool_work":
+      return database.lifecycle.fenceCancelledRunToolWork(command.input);
     case "claim_lifecycle_work":
       return database.lifecycle.claim(command.input);
     case "renew_lifecycle_work":

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- The journal keeps guarded append validation inside its conversation lock. */
 import {
   ConversationJournalDeletion,
   type JournalDeletionOptions,
@@ -21,6 +22,7 @@ import {
   applyRunProjectionTransition,
   validateCommitEvents,
 } from "./conversation-journal-validation.js";
+import type { AgentMessage } from "@nervekit/harness/agent";
 import {
   ConversationTreeState,
   type ConversationTreeEntry,
@@ -101,6 +103,15 @@ export class ConversationJournalRevisionConflictError extends Error {
       `Conversation '${conversationId}' revision conflict: expected ${expected}, current ${actual}.`,
     );
     this.name = "ConversationJournalRevisionConflictError";
+  }
+}
+
+export class ConversationBranchConflictError extends Error {
+  constructor(readonly conversationId: string) {
+    super(
+      `Conversation '${conversationId}' active branch changed before the guarded result append.`,
+    );
+    this.name = "ConversationBranchConflictError";
   }
 }
 
@@ -358,6 +369,9 @@ export class ConversationJournalRepository {
       events: ConversationJournalEvent[];
       committedAt?: string;
       idempotencyKey?: string;
+      /** Guard and advance the active leaf atomically with a result entry. */
+      expectedActiveBranchParentEntryId?: string | null;
+      guardedModelMessage?: { message: AgentMessage; ownerAgentId?: string };
       lifecycle?: {
         aggregate?: {
           run: RunLifecycleRecord;
@@ -390,7 +404,78 @@ export class ConversationJournalRepository {
         );
       }
       const prepareStartedAt = performance.now();
-      const preview = validateCommitEvents(state, input.events, conversationId);
+      let events = input.events;
+      if ("expectedActiveBranchParentEntryId" in input) {
+        const conversation = state.conversation;
+        const expectedParent = input.expectedActiveBranchParentEntryId ?? null;
+        const entryEvent = events.length === 1 ? events[0] : undefined;
+        if (
+          !conversation ||
+          (conversation.activeEntryId ?? null) !== expectedParent ||
+          entryEvent?.kind !== "conversation.entry_appended" ||
+          (entryEvent.entry.parentEntryId ?? null) !== expectedParent ||
+          // Ordinary appends commit their entry before advancing the active
+          // leaf. An already-persisted child means that advance may still be
+          // in flight; accepting a sibling here would attach to the old tip.
+          state.entries.some(
+            (existing) =>
+              existing.id !== entryEvent.entry.id &&
+              (existing.parentEntryId ?? null) === expectedParent,
+          )
+        ) {
+          throw new ConversationBranchConflictError(conversationId);
+        }
+        const entry = entryEvent.entry;
+        const updatedConversation: ConversationRecord = {
+          ...conversation,
+          activeEntryId: entry.id,
+          updatedAt: entry.createdAt,
+          lastUserMessageAt:
+            entry.role === "user" &&
+            (!conversation.lastUserMessageAt ||
+              entry.createdAt > conversation.lastUserMessageAt)
+              ? entry.createdAt
+              : conversation.lastUserMessageAt,
+        };
+        if (entry.role === "user") delete updatedConversation.completedAt;
+        const model = input.guardedModelMessage;
+        events = [
+          ...events,
+          {
+            kind: "conversation.upserted",
+            conversationId,
+            conversation: updatedConversation,
+          },
+          ...(model
+            ? [
+                {
+                  kind: "model_context.entry_appended" as const,
+                  conversationId,
+                  ownerAgentId: model.ownerAgentId,
+                  entry: {
+                    type: "message" as const,
+                    id: entry.id,
+                    parentId: model.ownerAgentId
+                      ? (state.agentModelLeafIds.get(model.ownerAgentId) ??
+                        null)
+                      : state.modelLeafId,
+                    timestamp: entry.createdAt,
+                    message: model.message,
+                  } as never,
+                },
+              ]
+            : []),
+        ];
+      }
+      if (
+        input.guardedModelMessage &&
+        !("expectedActiveBranchParentEntryId" in input)
+      ) {
+        throw new Error(
+          "Guarded model messages require an active-branch parent.",
+        );
+      }
+      const preview = validateCommitEvents(state, events, conversationId);
       const base = {
         epoch: CONVERSATION_JOURNAL_EPOCH,
         conversationId,
@@ -403,7 +488,7 @@ export class ConversationJournalRepository {
         previousChecksum: state.checksum,
         kind: input.kind,
         committedAt: input.committedAt ?? new Date().toISOString(),
-        events: input.events,
+        events,
       };
       const serializedBase = JSON.parse(JSON.stringify(base)) as typeof base;
       const normalized = conversationJournalCommitSchema.parse({

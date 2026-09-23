@@ -120,10 +120,15 @@ export class WorkbenchRunService {
       toolCalls: readonly ToolCallTranscriptRecord[];
     },
   ): Promise<boolean> {
-    return this.coordinator.settleApprovalCheckpoint(runId, checkpointId, {
-      entries: [...accompanying.entries],
-      toolCalls: [...accompanying.toolCalls],
-    });
+    return this.coordinator.settleApprovalCheckpoint(
+      runId,
+      checkpointId,
+      {
+        entries: [...accompanying.entries],
+        toolCalls: [...accompanying.toolCalls],
+      },
+      (state) => this.assertCheckpointOnActiveBranch(state, checkpointId),
+    );
   }
 
   /**
@@ -172,11 +177,26 @@ export class WorkbenchRunService {
       );
     }
     const conversation = this.state.getConversation(state.run.conversationId);
+    const entries = await this.features.getConversationEntries(conversation.id);
     const currentEntryIds = activeBranchEntryIds(
-      await this.features.getConversationEntries(conversation.id),
+      entries,
       conversation.activeEntryId,
     );
-    if (!activeBranchEndsWithCheckpoint(currentEntryIds, checkpoint.entryIds)) {
+    // Result entries may have been appended before a crash between recording
+    // member results and the checkpoint settlement transition. Only results
+    // for this run's checkpoint members may extend its original branch tip.
+    const memberIds = state.interactions
+      .filter((item) => item.checkpointId === checkpointId)
+      .map((item) => item.toolCallId);
+    if (
+      !activeBranchEndsWithCheckpointResults(
+        currentEntryIds,
+        checkpoint.entryIds,
+        entries,
+        state.run.runId,
+        memberIds,
+      )
+    ) {
       throw new ApplicationError(
         409,
         "RUN_CHECKPOINT_STALE",
@@ -385,7 +405,8 @@ export class WorkbenchRunService {
       state.run.runId,
       input.reason ?? "user requested abort",
     );
-    await this.features.resolveRecoveryIssuesForRun?.(state.run.runId);
+    // Cancellation does not establish the external outcome of a claimed tool.
+    // Keep its inspection issue visible after the run becomes terminal.
   }
 
   async abortAgent(agentId: string): Promise<void> {
@@ -587,6 +608,29 @@ export class WorkbenchRunService {
 // those transitions (for example, a completed tool result). The checkpoint
 // must therefore be an ordered subsequence of the active branch and still own
 // its tip; requiring a contiguous suffix incorrectly marks those runs stale.
+export function activeBranchEndsWithCheckpointResults(
+  activeIds: readonly string[],
+  checkpointIds: readonly string[],
+  entries: readonly ConversationEntry[],
+  runId: string,
+  memberIds: readonly string[],
+): boolean {
+  const ids = [...activeIds];
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const members = new Set(memberIds);
+  while (ids.length) {
+    const tail = byId.get(ids.at(-1)!);
+    const toolRecordId = (
+      tail?.details as { toolRecordId?: string } | undefined
+    )?.toolRecordId;
+    if (tail?.runId !== runId || !toolRecordId || !members.has(toolRecordId)) {
+      break;
+    }
+    ids.pop();
+  }
+  return activeBranchEndsWithCheckpoint(ids, checkpointIds);
+}
+
 export function activeBranchEndsWithCheckpoint(
   activeBranchEntryIds: readonly string[],
   checkpointEntryIds: readonly string[],
