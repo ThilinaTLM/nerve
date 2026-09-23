@@ -30,7 +30,7 @@ describe("run status notice model", () => {
     assert.equal(model.summary, "503 overloaded");
     assert.deepEqual(
       model.chips?.map((chip) => chip.text),
-      ["retry in 3s", "retry 2/5", "HTTP 503"],
+      ["UI-only", "retry in 3s", "retry 2/5", "HTTP 503"],
     );
   });
 
@@ -39,7 +39,7 @@ describe("run status notice model", () => {
       notice({ state: "retrying", retryAt: "2025-12-31T23:59:59.000Z" }),
       { nowMs },
     );
-    assert.equal(model.chips?.[0]?.text, "retrying now");
+    assert.equal(model.chips?.[1]?.text, "retrying now");
   });
 
   it("formats a provider payload and wires Continue as the primary action", () => {
@@ -64,7 +64,7 @@ describe("run status notice model", () => {
     assert.equal(model.action, undefined);
     assert.deepEqual(
       model.chips?.map((chip) => chip.text),
-      ["retry 3", "HTTP 429"],
+      ["UI-only", "retry 3", "HTTP 429"],
     );
     model.primaryAction?.onClick();
     assert.equal(continued, 1);

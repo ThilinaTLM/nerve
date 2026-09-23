@@ -88,6 +88,7 @@ export function runStatusNoticeModel(
   if (notice.state === "retrying") {
     const seconds = retrySeconds(notice, options.nowMs);
     const chips: NoticeChip[] = [
+      { text: "UI-only", tone: "neutral" },
       {
         text:
           seconds === undefined
@@ -115,7 +116,7 @@ export function runStatusNoticeModel(
     };
   }
 
-  const chips: NoticeChip[] = [];
+  const chips: NoticeChip[] = [{ text: "UI-only", tone: "neutral" }];
   const attempt = attemptChip(notice);
   if (attempt) chips.push(attempt);
   const status = httpChip(failure.httpStatus);

@@ -176,7 +176,8 @@ export function isAuthorizedTaskEventAdvance(
       projection.role === "system" &&
       (entry.message.eventType === "task_event"
         ? projection.kind === "task_event"
-        : projection.kind === "message") &&
+        : projection.kind === "subagent_run_event" ||
+          projection.kind === "message") &&
       projectionDetails?.type === entry.message.eventType &&
       projectionDetails.source === "harness" &&
       projectionDetails.notificationEntryId === notificationEntryId

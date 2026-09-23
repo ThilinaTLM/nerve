@@ -3,7 +3,11 @@ import { describe, it } from "node:test";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import { type ConversationEntry } from "@nervekit/contracts/conversations";
 import { validatePublicEvent } from "@nervekit/contracts/events";
-import type { ConversationStorage } from "@nervekit/harness/conversation";
+import {
+  buildConversationContext,
+  type ConversationStorage,
+} from "@nervekit/harness/conversation";
+import { convertToLlm } from "@nervekit/harness/messages";
 import type { StreamLogRegistry } from "../../../src/infrastructure/events/index.js";
 import type { RuntimeState } from "../../../src/app/runtime/runtime-projections.js";
 import {
@@ -11,6 +15,7 @@ import {
   AssistantEntryMetaQueue,
   type AssistantMessageMeta,
   MessageMirror,
+  projectHarnessMessageEntry,
 } from "../../../src/domains/agents/execution/message-mirror.js";
 
 const agent = {
@@ -193,6 +198,7 @@ describe("MessageMirror assistant message correlation", () => {
     assert.equal(toolResult?.liveMessageId, undefined);
     assert.equal(toolResult?.messageOrdinal, undefined);
     assert.equal(toolResult?.turnId, "turn_1");
+    assert.equal(toolResult?.kind, "tool_result");
     assert.equal(metaQueue.length, 0);
   });
 
@@ -264,6 +270,7 @@ describe("MessageMirror assistant message correlation", () => {
     );
     const entry = appended[0];
     assert.equal(entry?.text, "[Tool result: explore]");
+    assert.equal(entry?.kind, "tool_result");
     assert.ok((entry?.text.length ?? 0) < 128);
     assert.equal((entry?.details as { status?: string })?.status, "completed");
     assert.doesNotThrow(() =>
@@ -291,11 +298,69 @@ describe("MessageMirror assistant message correlation", () => {
 
     await mirror.mirrorNewHarnessEntries(agent, storage, new Set());
     assert.match(appended[0]?.text ?? "", /^failure details:/);
+    assert.equal(appended[0]?.kind, "tool_result");
     assert.ok((appended[0]?.text.length ?? 0) <= 2_048);
     assert.equal(
       (appended[0]?.details as { status?: string })?.status,
       "error",
     );
+  });
+
+  it("types recognized harness events without changing their payload, and leaves unknown events generic", async () => {
+    const events = ["task_event", "subagent_event", "future_event"] as const;
+    const { mirror, storage, appended } = createMirror(
+      events.map((eventType, index) => ({
+        type: "message",
+        id: `entry_event_${index}`,
+        parentId: null,
+        timestamp: "2026-01-01T00:00:02.000Z",
+        message: {
+          role: "harness",
+          eventType,
+          content: `notice ${index}`,
+          details: { notificationEntryId: `entry_event_${index}` },
+          timestamp: 1,
+        },
+      })),
+    );
+    await mirror.mirrorNewHarnessEntries(agent, storage, new Set());
+    const context = buildConversationContext(await storage.getEntries());
+    const modelMessages = convertToLlm(context.messages);
+    assert.deepEqual(
+      modelMessages.map((message) => message.role),
+      ["user", "user", "user"],
+    );
+    assert.deepEqual(
+      context.messages.map((message) => message.role),
+      ["harness", "harness", "harness"],
+    );
+    assert.deepEqual(
+      appended.map((entry) => entry.kind),
+      ["task_event", "subagent_run_event", "message"],
+    );
+    assert.deepEqual(
+      appended.map((entry) => entry.text),
+      ["notice 0", "notice 1", "notice 2"],
+    );
+    assert.deepEqual(
+      appended.map((entry) => entry.details),
+      events.map((type, index) => ({
+        type,
+        source: "harness",
+        notificationEntryId: `entry_event_${index}`,
+      })),
+    );
+  });
+
+  it("projects a harness tool result using its original id and typed kind", () => {
+    const projected = projectHarnessMessageEntry({
+      entry: toolResultStorageEntry("entry_result"),
+      conversationId: agent.conversationId,
+      agentId: agent.id,
+    } as Parameters<typeof projectHarnessMessageEntry>[0]);
+    assert.equal(projected?.id, "entry_result");
+    assert.equal(projected?.kind, "tool_result");
+    assert.equal(projected?.role, "system");
   });
 
   it("keeps unconsumed metas for assistant entries that surface later", async () => {

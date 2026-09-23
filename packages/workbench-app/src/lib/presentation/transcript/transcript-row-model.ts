@@ -34,6 +34,7 @@ export function entranceEligible(node: TranscriptDisplayNode): boolean {
   // System notices arrive mid-run, so they animate in like live content.
   if (
     node.kind === "task_event" ||
+    node.kind === "system_event" ||
     node.kind === "run_status" ||
     node.kind === "compaction"
   ) {
@@ -136,6 +137,14 @@ export function measurementVersionForRow(
       notice.command?.length ?? 0,
       notice.output?.length ?? 0,
       notice.taskId ? "actionable" : "static",
+    ].join(":");
+  }
+  if (node.kind === "system_event") {
+    return [
+      "system",
+      node.notice.kind,
+      node.notice.summary?.length ?? 0,
+      node.notice.text.length,
     ].join(":");
   }
   if (node.kind === "run_status") {

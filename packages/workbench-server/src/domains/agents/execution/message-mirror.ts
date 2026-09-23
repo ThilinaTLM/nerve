@@ -55,7 +55,7 @@ export function projectHarnessMessageEntry(input: {
     conversationId,
     agentId,
     role,
-    kind: "message",
+    kind: entryKind(entry.message),
     text: agentMessageText(entry.message),
     usage: extractEntryUsage(entry.message),
     details: entryDetails(entry.message),
@@ -311,8 +311,10 @@ function toolRecordIdFromDetails(details: unknown): string | undefined {
 }
 
 function entryKind(message: AgentMessage): ConversationEntry["kind"] {
-  if (message.role === "harness" && message.eventType === "task_event") {
-    return "task_event";
+  if (message.role === "toolResult") return "tool_result";
+  if (message.role === "harness") {
+    if (message.eventType === "task_event") return "task_event";
+    if (message.eventType === "subagent_event") return "subagent_run_event";
   }
   return "message";
 }

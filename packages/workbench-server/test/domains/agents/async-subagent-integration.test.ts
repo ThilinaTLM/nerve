@@ -130,7 +130,14 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
       (entry) => entry.details?.type === "subagent_event",
     );
     assert.ok(notifications.length > 0);
+    assert.equal(
+      new Set(notifications.map((entry) => entry.id)).size,
+      notifications.length,
+    );
     for (const entry of notifications) {
+      assert.equal(entry.kind, "subagent_run_event");
+      assert.equal(entry.details?.childName, child.name);
+      assert.equal(entry.details?.outcome, "completed");
       assert.match(entry.text ?? "", /teammate API/);
       assert.doesNotMatch(
         entry.text ?? "",

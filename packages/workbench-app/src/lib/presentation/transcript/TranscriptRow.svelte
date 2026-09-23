@@ -17,6 +17,7 @@ import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";
 import CompactionNoticeCard from "./notice/CompactionNoticeCard.svelte";
 import UserMessageContent from "./UserMessageContent.svelte";
 import TaskNoticeCard from "./notice/TaskNoticeCard.svelte";
+import SystemEventNoticeCard from "./notice/SystemEventNoticeCard.svelte";
 import RunStatusNoticeCard from "./notice/RunStatusNoticeCard.svelte";
 import ThinkingGroup from "./ThinkingGroup.svelte";
 import type { TranscriptDisplayNode } from "./transcript-presentation";
@@ -256,6 +257,16 @@ $effect(() => {
     >
       <div class="relative min-w-0 px-3">
         <TaskNoticeCard notice={node.notice} {onOpenTask} />
+      </div>
+    </TranscriptContextMenu>
+  {:else if node.kind === "system_event"}
+    <TranscriptContextMenu
+      target={{ kind: "system_event", notice: node.notice }}
+      menu={transcriptMenu}
+      triggerClass="block select-text"
+    >
+      <div class="relative min-w-0 px-3">
+        <SystemEventNoticeCard notice={node.notice} />
       </div>
     </TranscriptContextMenu>
   {:else if node.kind === "thinking_group" && thinkingMenuTarget}

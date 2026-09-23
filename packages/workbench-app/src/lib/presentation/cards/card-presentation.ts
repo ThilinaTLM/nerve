@@ -39,7 +39,10 @@ export type CardGlyph =
   | "bell-ring"
   | "bell-dot"
   | "retry"
-  | "compaction";
+  | "compaction"
+  | "branch"
+  | "subagent"
+  | "system";
 
 /** A footer pill action, e.g. "View details" or "Open task". */
 export type CardAction = {

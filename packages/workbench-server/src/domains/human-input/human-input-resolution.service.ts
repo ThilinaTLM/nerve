@@ -1083,6 +1083,7 @@ export class HumanInputResolutionService {
         runId: toolCall.runId,
         turnId: toolCall.turnId,
         role: "system",
+        kind: "tool_result",
         text: agentMessageText(message),
         details: {
           toolCallId: message.toolCallId,
@@ -1131,6 +1132,7 @@ export class HumanInputResolutionService {
         conversationId: agent.conversationId,
         agentId: agent.id,
         role: "system",
+        kind: "tool_result",
         text: agentMessageText(message),
         details: {
           toolCallId: message.toolCallId,

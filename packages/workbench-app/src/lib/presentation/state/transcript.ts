@@ -275,6 +275,19 @@ export function entryToTranscriptItems(
     stopReason,
     errorMessage,
     ...metadata,
+    ...(entry.role === "system"
+      ? {
+          systemEvent: {
+            entryId: entry.id,
+            kind: entry.kind,
+            text: entry.text,
+            summary: entry.summary,
+            fromEntryId: entry.fromEntryId,
+            details: entry.details,
+            createdAt: entry.createdAt,
+          },
+        }
+      : {}),
   });
 
   return items;
@@ -287,15 +300,8 @@ export function entryToTranscriptItem(
   return items.find((item) => item.displayKind !== "thinking") ?? items.at(-1);
 }
 
-function shouldIncludeEntry(entry: ConversationEntry): boolean {
-  if (entry.role === "user" || entry.role === "assistant") return true;
-  if (entry.kind !== "message") return true;
-  const metadata = toolMetadata(entry);
-  return Boolean(metadata.toolCallId || metadata.toolRecordId);
-}
-
 export function entriesToTranscript(
   entries: ConversationEntry[],
 ): TranscriptItem[] {
-  return entries.filter(shouldIncludeEntry).flatMap(entryToTranscriptItems);
+  return entries.flatMap(entryToTranscriptItems);
 }

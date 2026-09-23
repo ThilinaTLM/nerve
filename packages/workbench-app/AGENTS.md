@@ -97,7 +97,8 @@ primitive layout passed to `VirtualScroller` via `viewportClass` instead of
 ## Transcript notices
 
 System events in a conversation timeline (background tasks, run retries and
-failures, compaction, and anything added later) are **notices**. A notice is a
+failures, compaction, branch summaries, subagent updates, and anything added
+later) are **notices**. A notice is a
 process the reader cares about, exactly like a tool call, so it renders through
 the same card: `$lib/presentation/cards` owns `CardShell`, `CardHeader`,
 `CardFooter`, `StatusGlyph`, `MetaChip` and `LifecycleFrame`, and both tool
@@ -114,7 +115,9 @@ it to `CardShell`. Adding a notice kind is a mapper, a thin card and one
 - **The glyph is the only difference.** Tool calls own the circled
   check/x/alert family; notices own the bell family (`bell` for terminal
   events, `bell-ring` for ready/recovered, `bell-dot` when something needs
-  attention) plus `layers` for compaction and a spinner while in flight.
+  attention) plus `layers` for compaction, `git-branch` for branch summaries,
+  `users` for subagent updates, `info` for generic system events, and a spinner
+  while in flight.
 - **Snake-case mono event name, not a sentence.** `task_completed`,
   `run_retrying`, `compacted` — they sit in the same column as tool names. The
   muted argument carries the most useful compact input or context: a one-line

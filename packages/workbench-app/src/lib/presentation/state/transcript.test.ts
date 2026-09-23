@@ -1,7 +1,7 @@
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { entryToTranscriptItems } from "./transcript";
+import { entriesToTranscript, entryToTranscriptItems } from "./transcript";
 
 function entry(overrides: Partial<ConversationEntry>): ConversationEntry {
   return {
@@ -16,6 +16,33 @@ function entry(overrides: Partial<ConversationEntry>): ConversationEntry {
 }
 
 describe("entryToTranscriptItems", () => {
+  it("keeps legacy system messages and branch summaries visible for notice projection", () => {
+    const entries = [
+      entry({
+        kind: "message",
+        details: { type: "subagent_event", outcome: "completed" },
+      }),
+      entry({
+        id: "entry_branch",
+        kind: "branch_summary",
+        summary: "Earlier work",
+        text: "Earlier work",
+      }),
+      entry({
+        id: "entry_unknown",
+        kind: "message",
+        text: "Unknown system update",
+        details: {},
+      }),
+    ];
+    const items = entriesToTranscript(entries);
+    assert.deepEqual(
+      items.map((item) => item.systemEvent?.kind),
+      ["message", "branch_summary", "message"],
+    );
+    assert.equal(items[1]?.systemEvent?.summary, "Earlier work");
+  });
+
   it("retains an empty assistant message's durable error", () => {
     const [item] = entryToTranscriptItems(
       entry({

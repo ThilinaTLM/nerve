@@ -57,6 +57,73 @@ describe("buildConversationTimeline committed transcript", () => {
     assert.deepEqual(keys(timeline), ["entry_final"]);
   });
 
+  it("shows every system event and preserves a single card for a paired tool result", () => {
+    const date = "2026-01-01T00:00:01.000Z";
+    const timeline = buildCommittedTimeline(
+      [
+        {
+          id: "entry_branch",
+          role: "system",
+          kind: "branch_summary",
+          text: "Summary",
+          systemEvent: {
+            entryId: "entry_branch",
+            kind: "branch_summary",
+            text: "Summary",
+            createdAt: date,
+          },
+        },
+        {
+          id: "entry_subagent",
+          role: "system",
+          kind: "message",
+          text: "Finished",
+          systemEvent: {
+            entryId: "entry_subagent",
+            kind: "message",
+            text: "Finished",
+            details: { type: "subagent_event" },
+            createdAt: date,
+          },
+        },
+        {
+          id: "entry_tool",
+          role: "system",
+          kind: "tool_result",
+          text: "Result",
+          toolRecordId: "tool_01",
+          systemEvent: {
+            entryId: "entry_tool",
+            kind: "tool_result",
+            text: "Result",
+            createdAt: date,
+          },
+        },
+        {
+          id: "entry_unpaired",
+          role: "system",
+          kind: "tool_result",
+          text: "Orphan result",
+          systemEvent: {
+            entryId: "entry_unpaired",
+            kind: "tool_result",
+            text: "Orphan result",
+            createdAt: date,
+          },
+        },
+      ],
+      [toolCall("tool_01", date)],
+    ).items;
+    assert.deepEqual(
+      timeline.map((item) => item.kind),
+      ["system_event", "system_event", "tool", "system_event"],
+    );
+    assert.deepEqual(
+      timeline.map((item) => item.key),
+      ["entry_branch", "entry_subagent", "tool:tool_01", "entry_unpaired"],
+    );
+  });
+
   it("anchors historical tool cards at matching tool-result entries", () => {
     const transcript: TranscriptItem[] = [
       {
@@ -358,7 +425,7 @@ describe("buildConversationTimeline committed transcript", () => {
 
     assert.deepEqual(
       timeline.map((item) => item.key),
-      ["entry_task", "run-status:run_interrupted"],
+      ["entry_task", "entry_status"],
     );
   });
 
@@ -399,12 +466,16 @@ describe("buildConversationTimeline committed transcript", () => {
       [],
     ).items;
 
-    assert.equal(timeline.length, 1);
-    assert.equal(timeline[0]?.key, "run-status:run_durable");
-    assert.equal(timeline[0]?.kind, "run_status");
-    if (timeline[0]?.kind === "run_status") {
-      assert.equal(timeline[0].notice.state, "failed");
-    }
+    assert.deepEqual(
+      timeline.map((item) => item.key),
+      ["entry_status_interrupted", "entry_status_failed"],
+    );
+    assert.deepEqual(
+      timeline.map((item) =>
+        item.kind === "run_status" ? item.notice.state : undefined,
+      ),
+      ["retry_exhausted", "failed"],
+    );
   });
 
   it("preserves anchored branch order for multiple tool calls", () => {

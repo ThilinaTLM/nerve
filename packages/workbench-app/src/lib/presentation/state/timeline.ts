@@ -19,6 +19,7 @@ import type {
   ConversationTransientState,
   RunStatusNotice,
   TaskEventNotice,
+  SystemEventNotice,
   TranscriptItem,
 } from "./transcript-types.js";
 
@@ -50,7 +51,8 @@ export type TimelineItem =
       error: string;
     }
   | { kind: "run_status"; key: string; notice: RunStatusNotice }
-  | { kind: "task_event"; key: string; notice: TaskEventNotice };
+  | { kind: "task_event"; key: string; notice: TaskEventNotice }
+  | { kind: "system_event"; key: string; notice: SystemEventNotice };
 
 /**
  * Memoizable products of the persisted-branch projection.
@@ -101,7 +103,7 @@ function runStatusTimelineKey(
   notice: RunStatusNotice,
   fallback: string,
 ): string {
-  return notice.runId ? `run-status:${notice.runId}` : fallback;
+  return notice.entryId ?? fallback;
 }
 
 function entryIdMatches(itemId: string, entryId: string): boolean {
@@ -208,11 +210,7 @@ export function buildCommittedTimeline(
   // hiding is applied later, so this pass stays run-independent.
   const hiddenEntryIds = new Set<string>();
   const hiddenFailedRunIds = new Set<string>();
-  const latestRunStatusIndexByRunId = new Map<string, number>();
-  for (const [index, item] of transcript.entries()) {
-    if (item.runStatus?.runId) {
-      latestRunStatusIndexByRunId.set(item.runStatus.runId, index);
-    }
+  for (const item of transcript) {
     if (item.runStatus?.failedEntryId)
       hiddenEntryIds.add(item.runStatus.failedEntryId);
     if (item.runStatus?.runId) hiddenFailedRunIds.add(item.runStatus.runId);
@@ -258,12 +256,6 @@ export function buildCommittedTimeline(
       return;
     }
     if (item.runStatus) {
-      if (
-        item.runStatus.runId &&
-        latestRunStatusIndexByRunId.get(item.runStatus.runId) !== index
-      ) {
-        return;
-      }
       items.push({
         kind: "run_status",
         key: runStatusTimelineKey(
@@ -327,6 +319,15 @@ export function buildCommittedTimeline(
         runId: item.runId,
         toolName: item.toolName,
         error: item.text,
+      });
+      return;
+    }
+
+    if (item.systemEvent) {
+      items.push({
+        kind: "system_event",
+        key: item.systemEvent.entryId,
+        notice: item.systemEvent,
       });
       return;
     }
@@ -453,6 +454,7 @@ function timelineItemCreatedAt(item: TimelineItem): string | undefined {
   if (item.kind === "compaction") return item.notice.createdAt;
   if (item.kind === "run_status") return item.notice.createdAt;
   if (item.kind === "task_event") return item.notice.createdAt;
+  if (item.kind === "system_event") return item.notice.createdAt;
   return undefined;
 }
 
@@ -474,6 +476,7 @@ function committedEntryId(item: TimelineItem): string | undefined {
   if (item.kind === "message") return item.item.id;
   if (item.kind === "tool") return item.anchorEntryId;
   if (item.kind === "tool_result_error") return item.key;
+  if (item.kind === "system_event") return item.notice.entryId;
   return undefined;
 }
 

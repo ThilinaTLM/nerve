@@ -32,6 +32,7 @@ import type {
   CompactionNotice,
   RunStatusNotice,
   TaskEventNotice,
+  SystemEventNotice,
   TranscriptItem,
 } from "../state/transcript-types.js";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
@@ -203,6 +204,7 @@ export type TranscriptMenuTarget =
   | { kind: "run_status"; notice: RunStatusNotice }
   | { kind: "compaction"; notice: CompactionNotice }
   | { kind: "task_event"; notice: TaskEventNotice }
+  | { kind: "system_event"; notice: SystemEventNotice }
   | {
       kind: "queued_prompt";
       prompt: QueuedPromptRecord;

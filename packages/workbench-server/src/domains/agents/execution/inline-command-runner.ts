@@ -99,7 +99,7 @@ export class InlineCommandRunner {
           agentId: input.agent.id,
           runId: input.runId,
           role: "system",
-          kind: "message",
+          kind: "inline_command_result",
           text: inlineCommandDisplayText(toolCall),
           details: inlineCommandEntryDetails(toolCall),
           createdAt,

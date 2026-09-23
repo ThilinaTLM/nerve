@@ -80,8 +80,17 @@ export type ConversationEntryUsage = z.infer<
   typeof conversationEntryUsageSchema
 >;
 
+/**
+ * Transcript provenance, not provider role or model visibility. Harness tool
+ * results, task/subagent events and inline commands have separate model-context
+ * messages; compaction/branch summaries become user-framed context summaries.
+ * Run status is UI-only. Legacy system entries may still have kind `message`.
+ */
 export const conversationEntryKindSchema = z.enum([
   "message",
+  "tool_result",
+  "inline_command_result",
+  "subagent_run_event",
   "compaction",
   "branch_summary",
   "explore_report",
