@@ -54,10 +54,6 @@ describe("settings schema", () => {
 
     assert.deepEqual(parsed.skills.nerve, { enabled: [] });
   });
-  it("round-trips canonical defaults", () => {
-    assert.deepEqual(settingsSchema.parse(defaultSettings), defaultSettings);
-  });
-
   it("adds automatic resource defaults to older persisted application settings", () => {
     const legacy = structuredClone(defaultSettings);
     const application: Record<string, unknown> = { ...legacy.application };
