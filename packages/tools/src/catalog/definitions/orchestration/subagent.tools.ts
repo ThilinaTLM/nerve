@@ -29,7 +29,7 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_prompt",
     description:
-      "Start an assignment only with an idle teammate. Prompts for running or stopping teammates are rejected, never queued.",
+      "Start an assignment only with an idle teammate. Prompts for running or stopping teammates are rejected, never queued. The teammate cannot see your conversation history or discoveries unless you include them in the prompt. Provide relevant findings, file paths, constraints, and the expected outcome. It can inspect the shared worktree and retains its own context from earlier assignments.",
     parameters: Type.Object(
       { name: teammateName, prompt: Type.String({ minLength: 1 }) },
       { additionalProperties: false },
