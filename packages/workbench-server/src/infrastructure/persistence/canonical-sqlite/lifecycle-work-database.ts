@@ -128,6 +128,7 @@ export interface SettleLifecycleWorkInput {
   now: string;
   lastError?: string;
   externalLocator?: string;
+  failurePhase?: LifecycleWork["failurePhase"];
 }
 
 export function insertLifecycleWorkInTransaction(
@@ -215,6 +216,21 @@ export function listExpiredLifecycleWork(
        ORDER BY lease_deadline_ms, id LIMIT ?`,
       )
       .all(Date.parse(now), bounded) as unknown as LifecycleWorkRow[]
+  ).map((row) => lifecycleWorkSchema.parse(decode(row.data)));
+}
+
+/** Every work item of one run, in creation order, including settled history. */
+export function listLifecycleWorkForRun(
+  database: DatabaseSync,
+  runId: string,
+): LifecycleWork[] {
+  return (
+    database
+      .prepare(
+        `SELECT data FROM lifecycle_work WHERE run_id = ?
+       ORDER BY created_at_ms, id`,
+      )
+      .all(runId) as unknown as LifecycleWorkRow[]
   ).map((row) => lifecycleWorkSchema.parse(decode(row.data)));
 }
 
@@ -527,6 +543,10 @@ export class CanonicalLifecycleDatabase {
     return listExpiredLifecycleWork(this.database, now, limit);
   }
 
+  listForRun(runId: string): LifecycleWork[] {
+    return listLifecycleWorkForRun(this.database, runId);
+  }
+
   claim(input: ClaimLifecycleWorkInput): LifecycleWork | undefined {
     return this.transaction((database) =>
       claimLifecycleWorkInTransaction(database, input),
@@ -721,6 +741,7 @@ export function settleLifecycleWorkInTransaction(
     leaseDeadline: undefined,
     externalLocator: input.externalLocator ?? current.externalLocator,
     lastError: input.lastError,
+    failurePhase: input.failurePhase,
     updatedAt: input.now,
   });
   const updated = database

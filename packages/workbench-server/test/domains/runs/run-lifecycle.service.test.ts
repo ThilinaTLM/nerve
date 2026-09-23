@@ -42,7 +42,7 @@ test("lifecycle service commits journal state, work, and receipt once", async (t
   const service = new RunLifecycleService({
     journal,
     receipts: store,
-    wakeWork: () => {
+    notifyWork: () => {
       wakes += 1;
     },
   });
@@ -97,7 +97,7 @@ test("lifecycle service commits journal state, work, and receipt once", async (t
   await store.close();
 });
 
-test("post-commit wake failure does not roll back a lifecycle decision", async (t) => {
+test("a lifecycle decision without work does not signal the dispatcher", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-run-lifecycle-wake-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const store = new CanonicalStore(join(home, "nerve.sqlite"));
@@ -115,15 +115,12 @@ test("post-commit wake failure does not roll back a lifecycle decision", async (
     createdAt: now,
     updatedAt: now,
   };
-  let wakeError: unknown;
+  let notifications = 0;
   const service = new RunLifecycleService({
     journal,
     receipts: store,
-    wakeWork: () => {
-      throw new Error("wakeup unavailable");
-    },
-    onWakeError: (error) => {
-      wakeError = error;
+    notifyWork: () => {
+      notifications += 1;
     },
   });
   await service.commit({
@@ -141,7 +138,7 @@ test("post-commit wake failure does not roll back a lifecycle decision", async (
     work: [],
     outcome: { started: true },
   });
-  assert.match(String(wakeError), /wakeup unavailable/);
+  assert.equal(notifications, 0);
   assert.equal(await store.readConversationRevision(conversation.id), 1);
   await journal.close();
   await store.close();

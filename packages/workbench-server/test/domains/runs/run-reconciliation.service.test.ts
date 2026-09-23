@@ -19,15 +19,17 @@ test("repeated explicit reconciliation returns one durable operation result", as
   let recoveries = 0;
   const service = new RunReconciliationService({
     humanInput: {
-      recoverReadyApprovalBatches: async () => {
+      reconcileApprovalCheckpoints: async () => {
         recoveries += 1;
         return 1;
       },
+      backfillLegacyApprovalCheckpoints: async () => 0,
       recoverAcceptedPlanReviews: async () => 0,
       recoverResolvedUserQuestions: async () => 0,
     },
     tools: {
       getToolCallDetails: async () => ({ status: "completed" }),
+      settleUnknownOutcome: async () => undefined,
       listToolCallPreviews: async () => [
         { interactions: [{ status: "pending" }, { status: "resolved" }] },
       ],
@@ -64,12 +66,14 @@ test("expired unproven tool work becomes an explicit unknown outcome", async () 
   let settledState: string | undefined;
   const service = new RunReconciliationService({
     humanInput: {
-      recoverReadyApprovalBatches: async () => 0,
+      reconcileApprovalCheckpoints: async () => 0,
+      backfillLegacyApprovalCheckpoints: async () => 0,
       recoverAcceptedPlanReviews: async () => 0,
       recoverResolvedUserQuestions: async () => 0,
     },
     tools: {
       getToolCallDetails: async () => ({ status: "running" }),
+      settleUnknownOutcome: async () => undefined,
       listToolCallPreviews: async () => [],
     },
     runs: { getRunStatus: async () => "running" },
@@ -129,16 +133,20 @@ test("expired unproven tool work becomes an explicit unknown outcome", async () 
   assert.equal(result.recoveryIssues[0]?.code, "outcome_unknown");
 });
 
-test("expired read-only tool work is fenced and requeued", async () => {
+test("expired work whose tool was never claimed is fenced and requeued", async () => {
   let requeued = false;
   const service = new RunReconciliationService({
     humanInput: {
-      recoverReadyApprovalBatches: async () => 0,
+      reconcileApprovalCheckpoints: async () => 0,
+      backfillLegacyApprovalCheckpoints: async () => 0,
       recoverAcceptedPlanReviews: async () => 0,
       recoverResolvedUserQuestions: async () => 0,
     },
     tools: {
-      getToolCallDetails: async () => ({ status: "running", risk: "read" }),
+      getToolCallDetails: async () => ({ status: "committed", risk: "write" }),
+      settleUnknownOutcome: async () => {
+        throw new Error("an unclaimed tool has no unknown outcome");
+      },
       listToolCallPreviews: async () => [],
     },
     runs: { getRunStatus: async () => "running" },
@@ -187,14 +195,73 @@ test("expired read-only tool work is fenced and requeued", async () => {
   assert.equal(result.unknownOutcomes, 0);
 });
 
+test("an interrupted read-only tool is reported to the model, not blocked", async () => {
+  let settled: { state?: string; failurePhase?: string } = {};
+  const settledTools: string[] = [];
+  const service = new RunReconciliationService({
+    humanInput: {
+      reconcileApprovalCheckpoints: async () => 0,
+      backfillLegacyApprovalCheckpoints: async () => 0,
+      recoverAcceptedPlanReviews: async () => 0,
+      recoverResolvedUserQuestions: async () => 0,
+    },
+    tools: {
+      getToolCallDetails: async () => ({ status: "running", risk: "read" }),
+      settleUnknownOutcome: async (toolCallId) => {
+        settledTools.push(toolCallId);
+      },
+      listToolCallPreviews: async () => [],
+    },
+    runs: { getRunStatus: async () => "executing_tools" },
+    conversationQuery: {
+      getConversationSnapshot: async () => ({ conversationRevision: 4 }),
+    },
+    operations: operationStore(new Map()),
+    work: {
+      ...emptyWorkStore(),
+      listExpiredLifecycleWork: async () => [
+        {
+          id: "work_read",
+          deduplicationKey: "approval-exec:tool_read",
+          conversationId: "conv_test",
+          runId: "run_test",
+          proposalId: "tool_read",
+          kind: "execute_tool",
+          state: "leased",
+          inputHash: `sha256:${"c".repeat(64)}`,
+          generation: 1,
+          attemptCount: 1,
+          notBefore: "2026-01-01T00:00:00.000Z",
+          leaseOwner: "boot_old",
+          leaseDeadline: "2026-01-01T00:00:30.000Z",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      settleLifecycleWork: async (input) => {
+        settled = input;
+        return undefined;
+      },
+    },
+    operationId: () => "reconcile_read",
+  });
+
+  const result = await service.reconcileConversation("conv_test", "request");
+  assert.deepEqual(settledTools, ["tool_read"]);
+  assert.equal(settled.state, "failed");
+  assert.equal(settled.failurePhase, "post_dispatch");
+  assert.equal(result.unknownOutcomes, 0);
+});
+
 test("startup and explicit refresh invoke the same recovery rules", async () => {
   const scopes: Array<string | undefined> = [];
   const service = new RunReconciliationService({
     humanInput: {
-      recoverReadyApprovalBatches: async (conversationId) => {
+      reconcileApprovalCheckpoints: async (conversationId) => {
         scopes.push(conversationId);
         return 0;
       },
+      backfillLegacyApprovalCheckpoints: async () => 0,
       recoverAcceptedPlanReviews: async (conversationId) => {
         scopes.push(conversationId);
         return 0;
@@ -206,6 +273,7 @@ test("startup and explicit refresh invoke the same recovery rules", async () => 
     },
     tools: {
       getToolCallDetails: async () => ({ status: "completed" }),
+      settleUnknownOutcome: async () => undefined,
       listToolCallPreviews: async () => [],
     },
     runs: { getRunStatus: async () => undefined },

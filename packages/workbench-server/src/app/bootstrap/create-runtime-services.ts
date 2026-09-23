@@ -641,18 +641,14 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         projectDir,
       ),
   });
-  const lifecycleDispatch: { wake?: () => Promise<void> } = {};
-  const wakeLifecycleWork = async (): Promise<void> => {
-    if (!lifecycleDispatch.wake) {
-      throw new Error("Lifecycle work dispatcher is not bound.");
-    }
-    await lifecycleDispatch.wake();
-  };
+  // A hint only: commits never wait for the dispatcher, and work committed
+  // before the dispatcher is bound is picked up by its startup drain.
+  const lifecycleDispatch: { trigger?: () => void } = {};
+  const notifyLifecycleWork = (): void => lifecycleDispatch.trigger?.();
   const lifecycle = createRunLifecycleService({
     store: storage.canonicalStore,
     journal: conversationJournal,
-    wakeWork: wakeLifecycleWork,
-    logger,
+    notifyWork: notifyLifecycleWork,
   });
   const runRuntime: WorkbenchRunRuntime = createWorkbenchRunRuntime({
     home: storage.paths.home,
@@ -666,7 +662,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     exploreAdmission,
     execution: (references) =>
       new WorkbenchAgentExecutionAdapter(agentMechanics, references),
-    wakeLifecycleWork,
+    notifyLifecycleWork,
     durableContinuation: true,
     retryPolicy: {
       get enabled() {
@@ -699,6 +695,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         conversationLifecycle.ensureConversationEntries(conversationId),
       resolveRecoveryIssuesForRun: (runId) =>
         storage.canonicalStore.resolveRecoveryIssuesForRun(runId),
+      resolveBlockedApprovalCheckpoint: (runId) =>
+        humanInput.resolveBlockedApprovalCheckpoint(runId),
       runExplore: (parent, args, options) =>
         agentMechanics.runExplore(parent, args, options),
     },
@@ -860,6 +858,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     harnessStorage: harnessStorage,
     logger: logger.child({ component: "human-input" }),
     lifecycle,
+    lifecycleWork: storage.canonicalStore,
+    notifyLifecycleWork,
     compactPlanConversation: async (input) => {
       await compactionService.compactConversation(
         input.conversationId,
@@ -881,7 +881,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
   const { dispatcher: lifecycleDispatcher, bootId: lifecycleBootId } =
     createLifecycleWorkDispatcher({
       store: storage.canonicalStore,
-      tools,
       humanInput,
       continueModel: async (work) => {
         await runRuntime.coordinator.executeModelWork(work);
@@ -892,7 +891,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         control: deps.resources.controlWorkConcurrency,
       },
     });
-  lifecycleDispatch.wake = () => lifecycleDispatcher.wake();
+  lifecycleDispatch.trigger = () => lifecycleDispatcher.trigger();
   const runReconciliation = new RunReconciliationService({
     humanInput,
     tools,

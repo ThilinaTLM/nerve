@@ -46,6 +46,7 @@ export interface TranscriptMeasurementContext {
   readonly approvalsByToolCallId: ReadonlyMap<string, ApprovalWithToolCall>;
   readonly questionsByToolCallId: ReadonlyMap<string, UserQuestionRecord>;
   readonly reviewsByToolCallId: ReadonlyMap<string, PlanReviewRecord>;
+  readonly outcomeUnknownToolCallIds?: ReadonlySet<string>;
   readonly active: boolean;
 }
 
@@ -116,6 +117,9 @@ export function measurementVersionForRow(
       approval ? `${approval.id}:${approval.status}` : "no-approval",
       question ? `${question.id}:${question.status}` : "no-question",
       plan ? `${plan.id}:${plan.status}` : "no-plan",
+      context.outcomeUnknownToolCallIds?.has(toolCallId)
+        ? "outcome-unknown"
+        : "outcome-known",
     ].join(":");
   }
   if (node.kind === "task_event") {

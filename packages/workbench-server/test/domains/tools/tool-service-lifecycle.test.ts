@@ -259,7 +259,7 @@ describe("tool service lifecycle", () => {
     assert.equal(policy.toolCall.resultPayload, undefined);
 
     const supervisedAgent = agent("autonomous");
-    const { service: approvalService } = buildToolService(
+    const { service: approvalService, journalCommit } = buildToolService(
       await mkdtemp(join(tmpdir(), "nerve-tool-user-denial-")),
       supervisedAgent,
     );
@@ -269,9 +269,15 @@ describe("tool service lifecycle", () => {
       { todos: [{ todo: "do not apply", done: false }] },
       { forceApproval: true, durableSuspend: true },
     );
-    const denied = await approvalService.denyApproval(
-      pending.approval!.id,
-      "Not now.",
+    const { toolCall: denied } = await approvalService.projectApprovalDecision(
+      {
+        toolCallId: pending.toolCall.id,
+        ordinal: 0,
+        decision: "deny",
+        note: "Not now.",
+        resolutionRequestId: "deny-1",
+      },
+      journalCommit,
     );
     assert.equal(denied.status, "denied");
     assert.equal(denied.supervision?.source, "user");
@@ -279,31 +285,137 @@ describe("tool service lifecycle", () => {
     assert.equal(denied.resultPayload, undefined);
   });
 
-  it("retains an agent preview when resolving an approval denial", async () => {
+  it("replays a repeated approval decision and rejects a conflicting one", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-resolution-denial-"));
     const testAgent = agent("autonomous");
-    const { service } = buildToolService(home, testAgent);
+    const { service, journalCommit } = buildToolService(home, testAgent);
     const pending = await service.requestTool(
       testAgent,
       "todos_set",
       { todos: [{ todo: "do not apply", done: false }] },
       { forceApproval: true, durableSuspend: true },
     );
+    const decide = (decision: "allow" | "deny", resolutionRequestId: string) =>
+      service.projectApprovalDecision(
+        {
+          toolCallId: pending.toolCall.id,
+          ordinal: 0,
+          expectedRevision: pending.toolCall.revision,
+          decision,
+          note: "No.",
+          resolutionRequestId,
+        },
+        journalCommit,
+      );
 
-    const denied = await service.resolveInteraction({
-      toolCallId: pending.toolCall.id,
-      interactionOrdinal: 0,
-      expectedRevision: pending.toolCall.revision,
-      resolutionRequestId: "deny-resolution-1",
-      resolution: { kind: "approval", action: "deny", note: "No." },
+    const first = await decide("deny", "deny-resolution-1");
+    const replay = await decide("deny", "deny-resolution-1");
+
+    assert.equal(first.replayed, false);
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.toolCall.revision, first.toolCall.revision);
+    assert.equal(first.toolCall.status, "denied");
+    assert.equal(first.toolCall.supervision?.source, "user");
+    await assert.rejects(decide("allow", "allow-1"), /already resolved/);
+    await assert.rejects(
+      service.resolveInteraction({
+        toolCallId: pending.toolCall.id,
+        interactionOrdinal: 0,
+        expectedRevision: first.toolCall.revision,
+        resolutionRequestId: "generic",
+        resolution: { kind: "approval", action: "allow" },
+      }),
+      /projectApprovalDecision/,
+    );
+  });
+
+  it("claims an approved draft only once and never dispatches a pending one", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-claim-"));
+    const testAgent = agent("autonomous");
+    const { service, journalCommit } = buildToolService(home, testAgent);
+    const pending = await service.requestTool(
+      testAgent,
+      "todos_set",
+      { todos: [{ todo: "apply", done: false }] },
+      { forceApproval: true, durableSuspend: true },
+    );
+    await assert.rejects(
+      service.claimApprovedExecution(pending.toolCall.id),
+      /durably approved draft/,
+    );
+    await service.projectApprovalDecision(
+      {
+        toolCallId: pending.toolCall.id,
+        ordinal: 0,
+        decision: "allow",
+        resolutionRequestId: "allow-1",
+      },
+      journalCommit,
+    );
+    const claims = await Promise.allSettled([
+      service.claimApprovedExecution(pending.toolCall.id),
+      service.claimApprovedExecution(pending.toolCall.id),
+    ]);
+    assert.deepEqual(
+      claims.map((claim) => claim.status),
+      ["fulfilled", "rejected"],
+    );
+    assert.equal(
+      (claims[0] as PromiseFulfilledResult<ToolCallRecord>).value.status,
+      "running",
+    );
+  });
+
+  it("reads approval and revision inside the claim while a decision commit holds the lock", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-claim-lock-"));
+    const testAgent = agent("autonomous");
+    const { service, journalCommit } = buildToolService(home, testAgent);
+    const pending = await service.requestTool(
+      testAgent,
+      "todos_set",
+      { todos: [{ todo: "apply", done: false }] },
+      { forceApproval: true, durableSuspend: true },
+    );
+    let releaseCommit!: () => void;
+    const commitHeld = new Promise<void>((resolve) => {
+      releaseCommit = resolve;
     });
-
-    assert.equal(denied.status, "denied");
-    assert.equal(denied.interactions[0]?.status, "resolved");
-    assert.equal(denied.supervision?.status, "denied");
-    assert.equal(denied.supervision?.source, "user");
-    assert.match(previewText(denied), /^User denied the requested tool call\./);
-    assert.equal(denied.resultPayload, undefined);
+    let enteredCommit!: () => void;
+    const inCommit = new Promise<void>((resolve) => {
+      enteredCommit = resolve;
+    });
+    const decision = service.projectApprovalDecision(
+      {
+        toolCallId: pending.toolCall.id,
+        ordinal: 0,
+        decision: "allow",
+        resolutionRequestId: "allow-held",
+      },
+      async (next, events) => {
+        enteredCommit();
+        await commitHeld;
+        await journalCommit(next, events);
+      },
+    );
+    await inCommit;
+    // The cached record is still the pending revision here.
+    assert.equal(service.getToolCall(pending.toolCall.id).status, "waiting");
+    let observed: ToolCallRecord | undefined;
+    const claim = service.claimApprovedExecution(
+      pending.toolCall.id,
+      async (current) => {
+        observed = current;
+      },
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(observed, undefined);
+    releaseCommit();
+    const decided = await decision;
+    const claimed = await claim;
+    assert.equal(observed?.revision, decided.toolCall.revision);
+    assert.equal(observed?.supervision?.status, "approved");
+    assert.equal(claimed.status, "running");
+    assert.equal(claimed.revision, decided.toolCall.revision + 1);
   });
 
   it("cancels pending interactions when terminalizing a run", async () => {
@@ -415,7 +527,16 @@ function buildToolService(
     resultPayloads,
     toolCallRepository: new ToolCallRepository(journal, resultPayloads),
   });
-  return { service, events };
+  const journalCommit = async (
+    next: { conversationId: string },
+    journalEvents: import("@nervekit/contracts/conversations").ConversationJournalEvent[],
+  ) => {
+    await journal.commit(next.conversationId, {
+      kind: "tool_call.revised",
+      events: journalEvents,
+    });
+  };
+  return { service, events, journalCommit };
 }
 
 function agent(permissionLevel: AgentRecord["permissionLevel"]): AgentRecord {

@@ -25,9 +25,13 @@ export function fromConversationSnapshot(
     contextUsage: snapshot.contextUsage,
     cursorSeq: snapshot.cursorSeq,
     generatedAt: snapshot.generatedAt,
+    // Approved tools executing as durable work keep the run stoppable and
+    // exclude manual continue, exactly like model execution.
     sending: Boolean(
       snapshot.activeRun &&
-      ["running", "retrying", "aborting"].includes(snapshot.activeRun.status),
+      ["running", "executing_tools", "retrying", "aborting"].includes(
+        snapshot.activeRun.status,
+      ),
     ),
   };
 }

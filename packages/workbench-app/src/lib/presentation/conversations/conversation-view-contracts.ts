@@ -123,6 +123,8 @@ export type ConversationPaneModel = {
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestions?: UserQuestionRecord[];
   pendingPlanReviews?: PlanReviewRecord[];
+  /** Tool calls whose external outcome recovery could not determine. */
+  outcomeUnknownToolCallIds?: ReadonlySet<string>;
   activeProject?: ProjectRecord;
   activeProjectLabel?: string;
   planReviewModels?: ModelInfo[];

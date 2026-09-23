@@ -7,7 +7,9 @@ import type {
   ToolArgumentRegion,
   ToolResultPlaceholder,
 } from "../lifecycle/tool-lifecycle-contracts";
-import type { MetaItem } from "../../cards/card-presentation";
+import type { RecoveryIssue } from "@nervekit/contracts/runs";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import type { CardGlyph, MetaItem } from "../../cards/card-presentation";
 
 export type ToolActivityPhase = "drafting" | "prepared" | ToolCallStatus;
 
@@ -20,7 +22,11 @@ export type ToolLifecycleVisualStage =
   | "prepared"
   | "approval"
   | "interaction"
+  /** Approved and durably queued; not yet dispatched. */
+  | "queued"
   | "executing"
+  /** Recovery could not tell whether the side effect happened. */
+  | "outcome_unknown"
   | "completed"
   | "failed";
 
@@ -47,6 +53,8 @@ type DeriveToolActivitySectionsInput = {
   bodyHydrated?: boolean;
   hasApproval?: boolean;
   hasInteraction?: boolean;
+  /** Recovery reported this call's outcome as unknown. */
+  outcomeUnknown?: boolean;
   /** Executing-state placeholder configured by the lifecycle spec. */
   resultPlaceholder?: ToolResultPlaceholder;
   footerItems?: readonly Pick<
@@ -60,8 +68,10 @@ export function deriveToolLifecycleVisualStage(input: {
   draft?: Pick<ConversationLiveToolDraftBlockSnapshot, "done">;
   toolCall?: Pick<ToolCallTranscriptRecord, "status"> &
     Partial<Pick<ToolCallTranscriptRecord, "interactions">>;
+  outcomeUnknown?: boolean;
 }): ToolLifecycleVisualStage {
   if (!input.toolCall) return input.draft?.done ? "prepared" : "drafting";
+  if (input.outcomeUnknown) return "outcome_unknown";
   switch (input.toolCall.status) {
     case "waiting":
       return (input.toolCall.interactions ?? []).some(
@@ -71,6 +81,7 @@ export function deriveToolLifecycleVisualStage(input: {
         ? "approval"
         : "interaction";
     case "committed":
+      return "queued";
     case "running":
       return "executing";
     case "completed":
@@ -80,6 +91,49 @@ export function deriveToolLifecycleVisualStage(input: {
     case "cancelled":
       return "failed";
   }
+}
+
+export type ToolLifecycleStageIndicator = {
+  tone: StatusTone;
+  pulse: boolean;
+  glyph?: CardGlyph;
+  label: string;
+};
+
+/**
+ * Header/footer overrides for stages whose meaning is not carried by the tool
+ * status presentation: a queued call must not look like it is executing, and an
+ * unknown outcome must not keep spinning.
+ */
+export function toolLifecycleStageIndicator(
+  stage: ToolLifecycleVisualStage,
+): ToolLifecycleStageIndicator | undefined {
+  switch (stage) {
+    case "queued":
+      return {
+        tone: "info",
+        pulse: false,
+        glyph: "pending",
+        label: "Approved · queued",
+      };
+    case "outcome_unknown":
+      return { tone: "warning", pulse: false, label: "Outcome unknown" };
+    default:
+      return undefined;
+  }
+}
+
+/** Tool call ids whose external outcome recovery could not determine. */
+export function outcomeUnknownToolCallIds(
+  issues: readonly Pick<RecoveryIssue, "code" | "proposalId">[] | undefined,
+): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const issue of issues ?? []) {
+    if (issue.code === "outcome_unknown" && issue.proposalId) {
+      ids.add(issue.proposalId);
+    }
+  }
+  return ids;
 }
 
 function footerStructure(
@@ -121,8 +175,14 @@ export function deriveToolActivitySections(
     input.toolCall?.status === "failed" ||
     input.toolCall?.status === "denied" ||
     input.toolCall?.status === "cancelled";
+  // Only dispatched work earns the executing placeholder. Queued calls and
+  // calls with an unknown outcome are not known to be producing output.
   const inFlight = Boolean(
+    input.toolCall?.status === "running" && !input.outcomeUnknown,
+  );
+  const idleNonTerminal = Boolean(
     input.toolCall &&
+    !inFlight &&
     (input.toolCall.status === "committed" ||
       input.toolCall.status === "running"),
   );
@@ -137,6 +197,8 @@ export function deriveToolActivitySections(
     resultMode = "output";
   } else if (input.hasApproval || input.toolCall.status === "waiting") {
     // The durable tool row may arrive one frame before its approval projection.
+    resultMode = "none";
+  } else if (idleNonTerminal && !input.hasDurableBodyContent) {
     resultMode = "none";
   } else if (inFlight && !input.hasDurableBodyContent) {
     // Header-only tools do not grow an empty waiting body while executing;

@@ -26,6 +26,8 @@ export const runRuntimeStatusSchema = z.enum([
   "running",
   "retrying",
   "waiting",
+  /** Every checkpoint decision is recorded; approved tools execute as durable work. */
+  "executing_tools",
   "suspended",
   "cancellation_requested",
   "cancellation_failed",

@@ -35,7 +35,14 @@ import type { PlanService } from "../plans/plan-service.js";
 import { toolCallResultForModel } from "../tools/orchestration/agent-tool-adapter.js";
 import type { ToolService } from "../tools/execution/tool-service.js";
 import { toToolCallTranscriptRecord } from "../tools/artifacts/tool-call-transcript-preview.js";
-import { ApprovalBatchResolutionService } from "./approval-batch-resolution.js";
+import {
+  ApprovalCheckpointService,
+  type ApprovalCheckpointWorkStore,
+  type ApprovalDecisionReceipt,
+  type ApprovalDecisionRequest,
+} from "./approval-checkpoint.service.js";
+import type { LifecycleWork } from "@nervekit/contracts/runs";
+import type { LifecycleWorkExecutionResult } from "../runs/runtime/lifecycle-work-executor.js";
 import {
   acceptedPlanFollowUp,
   acceptedPlanInNewChatInstruction,
@@ -77,7 +84,10 @@ export interface HumanInputResolutionDeps {
   getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
   harnessStorage: ConversationHarnessStorage;
   logger: ApplicationLogger;
-  lifecycle?: RunLifecycleService;
+  lifecycle: RunLifecycleService;
+  lifecycleWork: ApprovalCheckpointWorkStore;
+  /** Non-blocking dispatcher hint. */
+  notifyLifecycleWork(): void;
   compactPlanConversation(input: {
     conversationId: string;
     agentId: string;
@@ -87,14 +97,16 @@ export interface HumanInputResolutionDeps {
 }
 
 export class HumanInputResolutionService {
-  private readonly approvalBatches: ApprovalBatchResolutionService;
+  private readonly approvals: ApprovalCheckpointService;
 
   constructor(private readonly deps: HumanInputResolutionDeps) {
-    this.approvalBatches = new ApprovalBatchResolutionService({
+    this.approvals = new ApprovalCheckpointService({
       tools: deps.tools,
       runs: deps.runs,
       logger: deps.logger,
       lifecycle: deps.lifecycle,
+      work: deps.lifecycleWork,
+      notifyWork: () => deps.notifyLifecycleWork(),
       appendToolResult: (toolCall, isError) =>
         this.appendToolResultForToolCall(toolCall, isError),
       existingToolResultEntry: async (toolCall) =>
@@ -313,31 +325,30 @@ export class HumanInputResolutionService {
     }
   }
 
+  /** Records one approval decision and returns once it is durable. */
   resolveApproval(
-    approvalId: string,
-    decision: "allow" | "deny",
-    note?: string,
-    resolutionRequestId?: string,
-    scope?:
-      | "single_call"
-      | "same_tool_same_args"
-      | "run"
-      | "always"
-      | "always_conversation"
-      | "always_project"
-      | "always_user",
-  ): Promise<ToolCallRecord> {
-    return this.approvalBatches.resolve(
-      approvalId,
-      decision,
-      note,
-      resolutionRequestId,
-      scope,
-    );
+    request: ApprovalDecisionRequest,
+  ): Promise<ApprovalDecisionReceipt> {
+    return this.approvals.decide(request);
   }
 
-  recoverReadyApprovalBatches(conversationId?: string): Promise<number> {
-    return this.approvalBatches.recoverReadyBatches(conversationId);
+  /** The execute_tool lifecycle work handler. */
+  executeApprovedToolWork(
+    work: LifecycleWork,
+  ): Promise<LifecycleWorkExecutionResult> {
+    return this.approvals.executeWork(work);
+  }
+
+  reconcileApprovalCheckpoints(conversationId?: string): Promise<number> {
+    return this.approvals.reconcileAll(conversationId);
+  }
+
+  resolveBlockedApprovalCheckpoint(runId: string): Promise<void> {
+    return this.approvals.resolveBlockedCheckpoint(runId);
+  }
+
+  backfillLegacyApprovalCheckpoints(): Promise<number> {
+    return this.approvals.backfillLegacyCheckpoints();
   }
 
   async recoverAcceptedPlanReviews(conversationId?: string): Promise<number> {
@@ -525,7 +536,6 @@ export class HumanInputResolutionService {
     implementation?: PlanImplementationSelection,
   ): Promise<void> {
     const lifecycle = this.deps.lifecycle;
-    if (!lifecycle) return;
     const toolCall = this.deps.tools.getToolCall(review.toolCallId);
     const interaction = toolCall.interactions.find(
       (candidate) =>
@@ -591,14 +601,11 @@ export class HumanInputResolutionService {
     action: "answer" | "dismiss",
     resolution: Record<string, unknown>,
     resolutionRequestId?: string,
-  ):
-    | ((
-        next: ToolCallRecord,
-        events: ConversationJournalEvent[],
-      ) => Promise<void>)
-    | undefined {
+  ): (
+    next: ToolCallRecord,
+    events: ConversationJournalEvent[],
+  ) => Promise<void> {
     const lifecycle = this.deps.lifecycle;
-    if (!lifecycle) return undefined;
     const requestId =
       resolutionRequestId ?? `question:${question.id}:${action}`;
     const inputHash = `sha256:${createHash("sha256")

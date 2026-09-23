@@ -3,32 +3,28 @@ import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.j
 import type { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/index.js";
 import type { ConversationJournalRepository } from "../../domains/conversations/conversation-journal.repository.js";
 import type { HumanInputResolutionService } from "../../domains/human-input/human-input-resolution.service.js";
-import type { ToolService } from "../../domains/tools/execution/tool-service.js";
 import { RunLifecycleService } from "../../domains/runs/application/run-lifecycle.service.js";
 import { LifecycleWorkDispatcher } from "../../domains/runs/runtime/lifecycle-work-dispatcher.js";
 
 export function createRunLifecycleService(input: {
   store: CanonicalStore;
   journal: ConversationJournalRepository;
-  wakeWork(): Promise<void> | void;
-  logger: ApplicationLogger;
+  notifyWork(): void;
 }) {
   return new RunLifecycleService({
     journal: input.journal,
     receipts: input.store,
-    wakeWork: input.wakeWork,
-    onWakeError: (error) => {
-      void input.logger.warn("Lifecycle dispatcher wake failed", { error });
-    },
+    notifyWork: input.notifyWork,
   });
 }
 
 export function createLifecycleWorkDispatcher(input: {
   store: CanonicalStore;
-  tools: ToolService;
   humanInput: Pick<
     HumanInputResolutionService,
-    "recoverReadyApprovalBatches" | "recoverResolvedUserQuestions"
+    | "executeApprovedToolWork"
+    | "reconcileApprovalCheckpoints"
+    | "recoverResolvedUserQuestions"
   >;
   continueModel(
     work: import("@nervekit/contracts/runs").LifecycleWork,
@@ -51,6 +47,9 @@ export function createLifecycleWorkDispatcher(input: {
         conversationId: work.conversationId,
         ...(work.runId ? { runId: work.runId } : {}),
         workId: work.id,
+        ...(work.kind === "execute_tool" && work.proposalId
+          ? { proposalId: work.proposalId }
+          : {}),
         code: "outcome_unknown",
         message:
           result.lastError ??
@@ -62,20 +61,7 @@ export function createLifecycleWorkDispatcher(input: {
       });
     },
     handlers: {
-      execute_tool: async (work) => {
-        if (!work.proposalId) {
-          return { state: "failed", lastError: "Tool work has no proposal." };
-        }
-        const approval = await input.tools.getApprovalForToolCallDetails(
-          work.proposalId,
-        );
-        if (!approval) {
-          return { state: "failed", lastError: "Approval was not found." };
-        }
-        await input.tools.finalizeDecidedApproval(approval.id);
-        await input.humanInput.recoverReadyApprovalBatches(work.conversationId);
-        return { state: "succeeded" };
-      },
+      execute_tool: (work) => input.humanInput.executeApprovedToolWork(work),
       continue_model: async (work) => {
         if (!work.runId) {
           return { state: "failed", lastError: "Model work has no run." };
@@ -84,20 +70,14 @@ export function createLifecycleWorkDispatcher(input: {
         return { state: "succeeded" };
       },
       reconcile_conversation: async (work) => {
+        // Proposal-only work without a run is a completed standalone decision.
         if (work.runId) {
-          await input.humanInput.recoverReadyApprovalBatches(
+          await input.humanInput.reconcileApprovalCheckpoints(
             work.conversationId,
           );
           await input.humanInput.recoverResolvedUserQuestions(
             work.conversationId,
           );
-        } else if (work.proposalId) {
-          const approval = await input.tools.getApprovalForToolCallDetails(
-            work.proposalId,
-          );
-          if (approval) {
-            await input.tools.finalizeDecidedApproval(approval.id);
-          }
         }
         return { state: "succeeded" };
       },

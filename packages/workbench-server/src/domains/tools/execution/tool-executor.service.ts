@@ -1,7 +1,5 @@
-import { randomUUID } from "node:crypto";
 import { isTerminalToolStatus } from "@nervekit/contracts/events";
 import { type ToolCallRecord } from "@nervekit/contracts/tools";
-import { requireToolDefinition } from "@nervekit/tools/catalog";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics.js";
 import type { OrchestrationToolDispatcher } from "../orchestration/dispatcher.js";
@@ -23,12 +21,6 @@ export interface ToolExecutorDeps {
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
   ): Promise<ToolCallRecord>;
   publishToolCallUpdated(toolCall: ToolCallRecord): Promise<void>;
-  claimExecution(
-    id: string,
-    expectedRevision: number,
-    patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
-  ): Promise<ToolCallRecord>;
-  assertExecutionBoundary(toolCall: ToolCallRecord): Promise<void>;
   dispatcher: OrchestrationToolDispatcher;
   payloads?: ToolResultPayloadStore;
   /** Test/legacy construction fallback; runtime composition injects payloads. */
@@ -45,35 +37,19 @@ export class ToolExecutorService {
       deps.payloads ?? new ToolResultPayloadStore(deps.storageHome ?? "");
   }
 
-  async executeAllowedTool(
-    toolCallId: string,
+  /**
+   * Runs a tool whose durable execution claim (`running`) is already
+   * committed. The claim is the dispatch boundary: callers must acquire it
+   * under the tool-record lock, with every precondition read there, and must
+   * not hold any storage lock while this external invocation runs.
+   */
+  async executeClaimed(
+    toolCall: ToolCallRecord,
     options: ToolRequestOptions = {},
   ): Promise<ToolCallRecord> {
-    const drafted = this.deps.getToolCall(toolCallId);
-    if (
-      drafted.status !== "committed" ||
-      drafted.phase !== "drafted" ||
-      drafted.supervision?.status !== "approved"
-    ) {
-      throw new Error("Tool execution requires a durably approved draft.");
+    if (toolCall.status !== "running" || !toolCall.execution) {
+      throw new Error("Tool execution requires a durable running claim.");
     }
-    await this.deps.assertExecutionBoundary(drafted);
-    const definition = requireToolDefinition(drafted.toolName);
-    const startedAt = new Date().toISOString();
-    const toolCall = await this.deps.claimExecution(
-      toolCallId,
-      drafted.revision,
-      {
-        status: "running",
-        phase: "executing",
-        execution: {
-          kind: definition.executionKind,
-          status: "running",
-          executionId: `exec_${randomUUID()}`,
-          startedAt,
-        },
-      },
-    );
     await this.emitLifecycle(toolCall, options);
     const started = performance.now();
     await this.deps.logger?.info("Tool execution started", {

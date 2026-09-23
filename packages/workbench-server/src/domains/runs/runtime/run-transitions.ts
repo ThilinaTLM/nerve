@@ -11,7 +11,10 @@ import type {
   RunTransitionRecord,
   RunRecord,
 } from "@nervekit/contracts/runs";
-import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
+import type {
+  ToolCallRecord,
+  ToolCallTranscriptRecord,
+} from "@nervekit/contracts/tools";
 import {
   normalizeRunFailure,
   RUN_FAILURE_MESSAGE_MAX_LENGTH,
@@ -25,6 +28,7 @@ export const ACTIVE_STATUSES = new Set<RunRecord["status"]>([
   "running",
   "retrying",
   "waiting",
+  "executing_tools",
   "suspended",
   "cancellation_requested",
   "cancellation_failed",
@@ -104,6 +108,8 @@ export interface TransitionChanges {
   events?: RunPublicEventIntent[];
   /** Durable external work committed atomically with this transition. */
   lifecycleWork?: LifecycleWork[];
+  /** Tool records whose revision this transition commits atomically. */
+  toolProjections?: ToolCallRecord[];
 }
 
 /** Assembles one revision-checked transition and stamps its integrity hash. */

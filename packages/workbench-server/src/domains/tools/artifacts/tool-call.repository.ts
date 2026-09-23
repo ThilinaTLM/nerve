@@ -335,8 +335,10 @@ export class ToolCallRepository {
 
   async replace(
     toolCallId: string,
-    expectedRevision: number,
-    mutate: (current: ToolCallRecord) => ToolCallRecord,
+    expectedRevision: number | undefined,
+    mutate: (
+      current: ToolCallRecord,
+    ) => ToolCallRecord | Promise<ToolCallRecord>,
   ): Promise<ToolCallRecord> {
     return this.replaceWithCommit(
       toolCallId,
@@ -351,10 +353,18 @@ export class ToolCallRepository {
     );
   }
 
+  /**
+   * Revises one tool call under its conversation mutation lock. `mutate` runs
+   * inside the lock and observes every previously committed revision, so it is
+   * the place for preconditions that must not be read from a stale cache. Pass
+   * `expectedRevision: undefined` to revise whatever revision is current.
+   */
   async replaceWithCommit(
     toolCallId: string,
-    expectedRevision: number,
-    mutate: (current: ToolCallRecord) => ToolCallRecord,
+    expectedRevision: number | undefined,
+    mutate: (
+      current: ToolCallRecord,
+    ) => ToolCallRecord | Promise<ToolCallRecord>,
     commit: (
       next: ToolCallRecord,
       events: ConversationJournalEvent[],
@@ -366,7 +376,10 @@ export class ToolCallRepository {
     // validate against the same stale suspension snapshot.
     return this.serialize(conversationId, async () => {
       const current = this.get(toolCallId);
-      if (current.revision !== expectedRevision) {
+      if (
+        expectedRevision !== undefined &&
+        current.revision !== expectedRevision
+      ) {
         throw new ToolCallRevisionConflictError(
           toolCallId,
           expectedRevision,
@@ -376,7 +389,7 @@ export class ToolCallRepository {
       if (isTerminal(current.status)) {
         throw new Error(`Terminal tool call '${toolCallId}' is immutable.`);
       }
-      const candidate = mutate(current);
+      const candidate = await mutate(current);
       assertImmutableIdentity(current, candidate);
       const next = toolCallRecordSchema.parse(
         normalizeLegacyToolCallRecord({

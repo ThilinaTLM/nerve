@@ -40,6 +40,7 @@ export type RunStatus =
   | "retrying"
   | "aborting"
   | "waiting"
+  | "executing_tools"
   | "interrupted";
 
 export interface ConversationLiveTurnStartedData {
@@ -420,7 +421,14 @@ export const conversationActiveRunSnapshotSchema = z.object({
   agentId: z.string().startsWith("agent_"),
   projectId: z.string().startsWith("proj_"),
   conversationId: z.string().startsWith("conv_"),
-  status: z.enum(["running", "retrying", "aborting", "waiting", "interrupted"]),
+  status: z.enum([
+    "running",
+    "retrying",
+    "aborting",
+    "waiting",
+    "executing_tools",
+    "interrupted",
+  ]),
   startedAt: z.string().datetime(),
   turns: z.array(conversationLiveTurnSnapshotSchema),
   toolOutputsByToolCallId: z.record(

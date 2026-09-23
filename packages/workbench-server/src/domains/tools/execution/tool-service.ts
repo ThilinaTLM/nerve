@@ -7,6 +7,13 @@ import {
 } from "../orchestration/tool-interaction-projection.js";
 import { reconcileToolResultPayloads } from "../artifacts/tool-result-reconciliation.js";
 import { reconcileInterruptedToolCalls } from "./tool-call-recovery.js";
+import { randomUUID } from "node:crypto";
+import { requireToolDefinition } from "@nervekit/tools/catalog";
+import { ApplicationError } from "../../../core/application-error.js";
+import {
+  PreDispatchError,
+  ToolExecutionAlreadyClaimedError,
+} from "./tool-execution-claim.js";
 /* eslint-disable max-lines -- Durable transitions and lifecycle-local execution wiring retain one coordinator; projections and maintenance have separate owners. */
 import { realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
@@ -72,6 +79,22 @@ import {
   toolTerminationPatch,
   type ToolTerminationOutcome,
 } from "./tool-termination.js";
+
+type ToolCallPatch = Partial<Omit<ToolCallRecord, "id" | "createdAt">>;
+
+type ApprovalScope = NonNullable<
+  Extract<
+    ResolveToolInteractionRequest["resolution"],
+    { kind: "approval" }
+  >["scope"]
+>;
+
+/** Internal signal: the same request already recorded this decision. */
+class ApprovalDecisionReplay extends Error {
+  constructor(readonly toolCall: ToolCallRecord) {
+    super("Approval decision replay");
+  }
+}
 
 export interface ToolExecutionResponse {
   toolCall: ToolCallRecord;
@@ -312,11 +335,6 @@ export class ToolService {
       publishToolCallUpdated: (toolCall) =>
         this.publishToolCallUpdated(toolCall),
       dispatcher: this.dispatcher,
-      claimExecution: (id, expectedRevision, patch) =>
-        this.updateToolCallAtRevision(id, expectedRevision, patch),
-      assertExecutionBoundary: (toolCall) =>
-        this.assertExecutionBoundary(toolCall),
-
       payloads: this.resultPayloads,
       logger: this.dependencies.logger,
       diagnostics: this.dependencies.performanceDiagnostics,
@@ -372,16 +390,6 @@ export class ToolService {
   /** Whether the tool-call records were loaded from the persisted snapshot. */
   get toolCallHydrationSource(): "canonical_projection" {
     return this.dependencies.toolCallRepository.hydrationSource;
-  }
-
-  listApprovalHistoryIncludingNonActionable(
-    status?: ApprovalRecord["status"],
-  ): ApprovalRecord[] {
-    return projectApprovals(
-      this.dependencies.toolCallRepository.listInteractionRecords(),
-      () => true,
-      status,
-    );
   }
 
   listApprovals(status?: ApprovalRecord["status"]): ApprovalRecord[] {
@@ -637,9 +645,8 @@ export class ToolService {
       return { toolCall: pending, approval };
     }
 
-    return {
-      toolCall: await this.executor.executeAllowedTool(toolCall.id, options),
-    };
+    const claimed = await this.claimApprovedExecution(toolCall.id);
+    return { toolCall: await this.executor.executeClaimed(claimed, options) };
   }
 
   async requestToolAndWait(
@@ -800,96 +807,284 @@ export class ToolService {
     );
   }
 
-  async decideApproval(
-    approvalId: string,
-    decision: "allow" | "deny",
-    note?: string,
-    resolutionRequestId?: string,
-    scope?:
-      | "single_call"
-      | "same_tool_same_args"
-      | "run"
-      | "always"
-      | "always_conversation"
-      | "always_project"
-      | "always_user",
-    commit?: (
+  /**
+   * Projects one approval decision onto its tool record. Pending-state and
+   * idempotency checks run inside the tool-record lock, never against a cached
+   * approval list. `commit` persists the authoritative decision (run transition
+   * or lifecycle command) atomically with this projection.
+   */
+  async projectApprovalDecision(
+    input: {
+      toolCallId: string;
+      ordinal: number;
+      /** The revision the decider observed; checked inside the lock. */
+      expectedRevision?: number;
+      decision: "allow" | "deny";
+      note?: string;
+      scope?: ApprovalScope;
+      resolutionRequestId: string;
+    },
+    commit: (
       next: ToolCallRecord,
       events: ConversationJournalEvent[],
     ) => Promise<void>,
-  ): Promise<ApprovalRecord> {
-    const approval = this.listApprovals().find(
-      (candidate) => candidate.id === approvalId,
-    );
-    if (!approval || approval.status !== "pending")
-      throw new Error("Approval is not pending.");
-    const current = this.getToolCall(approval.toolCallId);
-    const ordinal = Number(approvalId.slice(approvalId.lastIndexOf("_") + 1));
+  ): Promise<{ toolCall: ToolCallRecord; replayed: boolean }> {
     const resolvedAt = new Date().toISOString();
-    const interactions = current.interactions.map((interaction) =>
-      interaction.ordinal === ordinal && interaction.kind === "approval"
-        ? {
-            ...interaction,
-            status: "resolved" as const,
-            updatedAt: resolvedAt,
-            resolvedAt,
-            resolutionRequestId,
-            resolution: { action: decision, note, scope },
+    // A resolved interaction never changes again, and a denied record is
+    // terminal (immutable), so answer replays and conflicts from the record
+    // before entering the revision path. Pending state is rechecked in-lock.
+    const settled = async () => {
+      const toolCall = await this.getToolCallDetails(input.toolCallId);
+      const interaction = toolCall.interactions[input.ordinal];
+      if (
+        interaction?.kind !== "approval" ||
+        interaction.status === "pending"
+      ) {
+        return undefined;
+      }
+      if (
+        interaction.status === "resolved" &&
+        interaction.resolutionRequestId === input.resolutionRequestId &&
+        interaction.resolution?.action === input.decision
+      ) {
+        return { toolCall, replayed: true };
+      }
+      throw new ApplicationError(
+        409,
+        "APPROVAL_ALREADY_RESOLVED",
+        "Approval was already resolved by another request.",
+      );
+    };
+    const early = await settled();
+    if (early) return early;
+    try {
+      const toolCall = await this.reviseToolCall(
+        input.toolCallId,
+        undefined,
+        (current) => {
+          const interaction = current.interactions.find(
+            (candidate) =>
+              candidate.ordinal === input.ordinal &&
+              candidate.kind === "approval",
+          );
+          if (!interaction) {
+            throw new ApplicationError(
+              404,
+              "APPROVAL_NOT_FOUND",
+              "Approval was not found.",
+            );
           }
-        : interaction,
-    );
-    const updated = await this.updateToolCall(
-      current.id,
-      {
-        interactions,
-        status: decision === "allow" ? "committed" : "denied",
-        supervision: current.supervision
-          ? {
-              ...current.supervision,
-              status: decision === "allow" ? "approved" : "denied",
-              source: "user",
-              decidedAt: resolvedAt,
+          if (interaction.status !== "pending") {
+            if (
+              interaction.status === "resolved" &&
+              interaction.resolutionRequestId === input.resolutionRequestId &&
+              interaction.resolution?.action === input.decision
+            ) {
+              throw new ApprovalDecisionReplay(current);
             }
-          : undefined,
-        ...(decision === "deny"
-          ? {
-              error: note ?? "Denied by user.",
-              ...denialProjection(current, note ?? "Denied by user.", "user"),
-            }
-          : {}),
+            throw new ApplicationError(
+              409,
+              "APPROVAL_ALREADY_RESOLVED",
+              "Approval was already resolved by another request.",
+            );
+          }
+          if (
+            input.expectedRevision !== undefined &&
+            current.revision !== input.expectedRevision
+          ) {
+            throw new ApplicationError(
+              409,
+              "TOOL_CALL_REVISION_CONFLICT",
+              "The tool call changed before this interaction was resolved.",
+            );
+          }
+          const interactions = current.interactions.map((candidate) =>
+            candidate === interaction
+              ? {
+                  ...candidate,
+                  status: "resolved" as const,
+                  updatedAt: resolvedAt,
+                  resolvedAt,
+                  resolutionRequestId: input.resolutionRequestId,
+                  resolution: {
+                    action: input.decision,
+                    note: input.note,
+                    scope: input.scope,
+                  },
+                }
+              : candidate,
+          );
+          const denial = input.note ?? "Denied by user.";
+          return {
+            interactions,
+            status: input.decision === "allow" ? "committed" : "denied",
+            supervision: current.supervision
+              ? {
+                  ...current.supervision,
+                  status: input.decision === "allow" ? "approved" : "denied",
+                  source: "user",
+                  decidedAt: resolvedAt,
+                }
+              : undefined,
+            ...(input.decision === "deny"
+              ? {
+                  error: denial,
+                  ...denialProjection(current, denial, "user"),
+                }
+              : {}),
+          } as ToolCallPatch;
+        },
+        commit,
+      );
+      return { toolCall, replayed: false };
+    } catch (error) {
+      if (error instanceof ApprovalDecisionReplay) {
+        return { toolCall: error.toolCall, replayed: true };
+      }
+      // A concurrent decision may have made the record terminal meanwhile.
+      const late = await settled();
+      if (late) return late;
+      throw error;
+    }
+  }
+
+  /**
+   * Acquires the durable execution claim for an approved draft. Approval
+   * status, the current revision, policy boundary, and the caller's context
+   * check are all read inside the tool-record lock, after every preceding
+   * committed revision is observed. The returned `running` record is the
+   * dispatch boundary; no external effect has started before it exists.
+   */
+  async claimApprovedExecution(
+    toolCallId: string,
+    check?: (current: ToolCallRecord) => Promise<void>,
+  ): Promise<ToolCallRecord> {
+    return this.reviseToolCall(toolCallId, undefined, async (current) => {
+      if (current.status === "running" || isTerminalToolCall(current)) {
+        throw new ToolExecutionAlreadyClaimedError(current);
+      }
+      if (
+        current.status !== "committed" ||
+        current.phase !== "drafted" ||
+        current.supervision?.status !== "approved"
+      ) {
+        throw new PreDispatchError(
+          "not_approved",
+          "Tool execution requires a durably approved draft.",
+        );
+      }
+      await check?.(current);
+      try {
+        await this.assertExecutionBoundary(current);
+      } catch (error) {
+        throw new PreDispatchError(
+          "policy_changed",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      return {
+        status: "running",
+        phase: "executing",
+        execution: {
+          kind: requireToolDefinition(current.toolName).executionKind,
+          status: "running",
+          executionId: `exec_${randomUUID()}`,
+          startedAt: new Date().toISOString(),
+        },
+      };
+    });
+  }
+
+  /** Runs an already claimed tool outside every storage lock. */
+  executeClaimed(
+    toolCall: ToolCallRecord,
+    options: ToolRequestOptions = {},
+  ): Promise<ToolCallRecord> {
+    return this.executor.executeClaimed(toolCall, options);
+  }
+
+  /**
+   * Terminally settles a not-yet-dispatched approved tool. The error records
+   * that no invocation started, so it is never mistaken for an unknown outcome.
+   */
+  async settleBeforeDispatch(
+    toolCallId: string,
+    status: "failed" | "cancelled",
+    message: string,
+  ): Promise<ToolCallRecord> {
+    try {
+      const settled = await this.reviseToolCall(
+        toolCallId,
+        undefined,
+        (current) => {
+          if (current.status !== "committed") {
+            throw new ToolExecutionAlreadyClaimedError(current);
+          }
+          return {
+            status,
+            error: message,
+            errorDetails: {
+              code: "TOOL_NOT_DISPATCHED",
+              message,
+              details: { phase: "pre_dispatch" },
+            },
+          };
+        },
+      );
+      await this.publishToolCallUpdatedSafely(
+        settled,
+        "settle_before_dispatch",
+      );
+      return settled;
+    } catch (error) {
+      if (error instanceof ToolExecutionAlreadyClaimedError) {
+        return error.toolCall;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Terminally settles a possibly dispatched tool whose outcome was never
+   * proven, after an explicit recovery decision. The message states that the
+   * effect may have happened; nothing is executed again.
+   */
+  async settleUnknownOutcome(
+    toolCallId: string,
+    message: string,
+  ): Promise<ToolCallRecord> {
+    const current = await this.getToolCallDetails(toolCallId);
+    if (isTerminalToolCall(current)) return current;
+    const settled = await this.updateToolCall(toolCallId, {
+      status: "failed",
+      error: message,
+      errorDetails: {
+        code: "TOOL_OUTCOME_UNKNOWN",
+        message,
+        details: { phase: "post_dispatch" },
       },
-      commit,
+    });
+    await this.publishToolCallUpdatedSafely(settled, "settle_unknown_outcome");
+    return settled;
+  }
+
+  private async publishToolCallUpdatedSafely(
+    toolCall: ToolCallRecord,
+    operation: string,
+  ): Promise<void> {
+    await this.publishToolCallUpdated(toolCall).catch(
+      async (error: unknown) => {
+        await this.dependencies.logger
+          ?.warn("Tool call update publication failed", {
+            toolCallId: toolCall.id,
+            context: {
+              operation,
+              failureType: error instanceof Error ? error.name : typeof error,
+            },
+          })
+          .catch(() => undefined);
+      },
     );
-    const decided = projectApproval(updated, ordinal);
-    return decided;
-  }
-
-  async finalizeDecidedApproval(approvalId: string): Promise<ToolCallRecord> {
-    const approval = this.listApprovals().find(
-      (candidate) => candidate.id === approvalId,
-    );
-    if (!approval) throw new Error("Approval not found.");
-    const toolCall = this.getToolCall(approval.toolCallId);
-    if (isTerminalToolCall(toolCall)) return toolCall;
-    if (approval.status === "pending")
-      throw new Error("Approval is still pending.");
-    return this.executor.executeAllowedTool(toolCall.id);
-  }
-
-  async grantApproval(
-    approvalId: string,
-    note?: string,
-  ): Promise<ToolCallRecord> {
-    await this.decideApproval(approvalId, "allow", note);
-    return this.finalizeDecidedApproval(approvalId);
-  }
-
-  async denyApproval(
-    approvalId: string,
-    note?: string,
-  ): Promise<ToolCallRecord> {
-    await this.decideApproval(approvalId, "deny", note);
-    return this.finalizeDecidedApproval(approvalId);
   }
 
   async resolveInteraction(
@@ -899,6 +1094,11 @@ export class ToolService {
       events: ConversationJournalEvent[],
     ) => Promise<void>,
   ): Promise<ToolCallRecord> {
+    if (request.resolution.kind === "approval") {
+      // Approvals have one authority: ApprovalCheckpointService, which records
+      // the decision durably and releases execution as lifecycle work.
+      throw new Error("Approval decisions must use projectApprovalDecision.");
+    }
     const current = this.getToolCall(request.toolCallId);
     const interaction = current.interactions[request.interactionOrdinal];
     if (!interaction || interaction.kind !== request.resolution.kind) {
@@ -929,37 +1129,9 @@ export class ToolService {
           } as ToolInteraction)
         : candidate,
     );
-    const denied =
-      request.resolution.kind === "approval" &&
-      request.resolution.action === "deny";
-    const denialNote =
-      request.resolution.kind === "approval"
-        ? request.resolution.note
-        : undefined;
     const next = await this.updateToolCall(
       current.id,
-      {
-        interactions,
-        status: denied ? "denied" : "running",
-        ...(denied
-          ? {
-              error: denialNote ?? "Denied by user.",
-              supervision: current.supervision
-                ? {
-                    ...current.supervision,
-                    status: "denied" as const,
-                    source: "user" as const,
-                    decidedAt: now,
-                  }
-                : undefined,
-              ...denialProjection(
-                current,
-                denialNote ?? "Denied by user.",
-                "user",
-              ),
-            }
-          : {}),
-      },
+      { interactions, status: "running" },
       commit,
     );
     await this.publishToolCallUpdated(next);
@@ -1045,18 +1217,6 @@ export class ToolService {
 
   async getToolCallDetails(toolCallId: string): Promise<ToolCallRecord> {
     return await this.dependencies.toolCallRepository.getCanonical(toolCallId);
-  }
-
-  async getApprovalForToolCallDetails(
-    toolCallId: string,
-  ): Promise<ApprovalRecord | undefined> {
-    const toolCall = await this.getToolCallDetails(toolCallId);
-    const interaction = toolCall.interactions.find(
-      (candidate) => candidate.kind === "approval",
-    );
-    return interaction
-      ? projectApproval(toolCall, interaction.ordinal)
-      : undefined;
   }
 
   async getToolCallUiDetails(toolCallId: string): Promise<ToolCallDetails> {
@@ -1229,7 +1389,7 @@ export class ToolService {
   private async updateToolCallAtRevision(
     toolCallId: string,
     expectedRevision: number,
-    patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
+    patch: ToolCallPatch,
     commit?: (
       next: ToolCallRecord,
       events: ConversationJournalEvent[],
@@ -1239,19 +1399,43 @@ export class ToolService {
     if (current.revision !== expectedRevision) {
       throw new Error(`Stale tool-call revision for ${toolCallId}.`);
     }
-    if (patch.status && patch.status !== current.status) {
-      assertTransition(
-        toolCallTransitions,
-        current.status,
-        patch.status,
-        `tool call ${toolCallId}`,
-      );
-    }
+    return this.reviseToolCall(
+      toolCallId,
+      expectedRevision,
+      () => patch,
+      commit,
+    );
+  }
+
+  /**
+   * Applies a patch computed from the current record inside the tool-record
+   * lock. `patchFor` may throw to abort without writing.
+   */
+  private async reviseToolCall(
+    toolCallId: string,
+    expectedRevision: number | undefined,
+    patchFor: (
+      current: ToolCallRecord,
+    ) => ToolCallPatch | Promise<ToolCallPatch>,
+    commit?: (
+      next: ToolCallRecord,
+      events: ConversationJournalEvent[],
+    ) => Promise<void>,
+  ): Promise<ToolCallRecord> {
     const updatedAt = new Date().toISOString();
-    const terminal =
-      patch.status &&
-      ["completed", "denied", "failed", "cancelled"].includes(patch.status);
-    const mutate = (record: ToolCallRecord): ToolCallRecord => {
+    const mutate = async (record: ToolCallRecord): Promise<ToolCallRecord> => {
+      const patch = await patchFor(record);
+      if (patch.status && patch.status !== record.status) {
+        assertTransition(
+          toolCallTransitions,
+          record.status,
+          patch.status,
+          `tool call ${toolCallId}`,
+        );
+      }
+      const terminal =
+        patch.status &&
+        ["completed", "denied", "failed", "cancelled"].includes(patch.status);
       const candidate: ToolCallRecord = {
         ...record,
         ...patch,

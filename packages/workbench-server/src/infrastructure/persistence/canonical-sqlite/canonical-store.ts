@@ -194,6 +194,12 @@ export class CanonicalStore {
       limit,
     });
   }
+  listLifecycleWorkForRun(runId: string) {
+    return this.request<LifecycleWork[]>({
+      kind: "list_lifecycle_work_for_run",
+      runId,
+    });
+  }
   claimLifecycleWork(input: ClaimLifecycleWorkInput) {
     return this.request<LifecycleWork | undefined>(
       { kind: "claim_lifecycle_work", input },

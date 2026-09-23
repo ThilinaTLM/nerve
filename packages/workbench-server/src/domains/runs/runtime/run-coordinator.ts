@@ -29,7 +29,11 @@ import {
 } from "./run-errors.js";
 import { KeyedSerialLock } from "./run-locks.js";
 import { RunPromptCoordinator } from "./run-prompts.js";
-import { RunInteractionCoordinator } from "./run-interaction-coordinator.js";
+import {
+  RunInteractionCoordinator,
+  type ApprovalDecisionCommand,
+  type ApprovalDecisionOutcome,
+} from "./run-interaction-coordinator.js";
 import { decideRunRecovery } from "./run-recovery.js";
 import { completeExecution } from "./run-settlement.js";
 import { buildRunStatusEntry } from "./run-status-entry.js";
@@ -91,7 +95,8 @@ export interface RunCoordinatorPorts {
   retryPolicy?: RunRetryPolicyPort;
   retryDelay?(delayMs: number, signal: AbortSignal): Promise<void>;
   transitionObserver?: RunTransitionObserverPort;
-  wakeLifecycleWork?(): Promise<void>;
+  /** Non-blocking hint that durable work is ready; never awaits execution. */
+  notifyLifecycleWork?(): void;
   durableContinuation?: boolean;
 }
 
@@ -540,14 +545,23 @@ export class RunCoordinator {
     return this.interactions.resolveInteraction(runId, command, accompanying);
   }
 
-  async resolveInteractionBatch(
+  /** Records one approval decision; the final one releases execution work. */
+  async recordApprovalDecision(
     runId: string,
-    commands: readonly ResolveInteractionCommand[],
+    command: ApprovalDecisionCommand,
+  ): Promise<ApprovalDecisionOutcome> {
+    return this.interactions.recordApprovalDecision(runId, command);
+  }
+
+  /** Moves a released checkpoint whose members are all terminal to continuation. */
+  async settleApprovalCheckpoint(
+    runId: string,
+    checkpointId: string,
     accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
-  ): Promise<readonly RunInteractionRecord[]> {
-    return this.interactions.resolveInteractionBatch(
+  ): Promise<boolean> {
+    return this.interactions.settleApprovalCheckpoint(
       runId,
-      commands,
+      checkpointId,
       accompanying,
     );
   }
@@ -1137,15 +1151,10 @@ export class RunCoordinator {
         expectedRevision,
         transition,
         changes.lifecycleWork,
+        changes.toolProjections,
       );
       if (changes.lifecycleWork?.length) {
-        void this.ports.wakeLifecycleWork?.().catch((error) => {
-          this.ports.diagnostics?.warn("lifecycle work wake deferred", {
-            runId: run.runId,
-            revision: transition.revision,
-            error: errorMessage(error),
-          });
-        });
+        this.ports.notifyLifecycleWork?.();
       }
       try {
         await this.ports.transitionObserver?.committed(transition);

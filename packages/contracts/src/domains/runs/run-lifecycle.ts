@@ -115,6 +115,14 @@ export const lifecycleWorkStateSchema = z.enum([
 ]);
 export type LifecycleWorkState = z.infer<typeof lifecycleWorkStateSchema>;
 
+export const lifecycleWorkFailurePhaseSchema = z.enum([
+  "pre_dispatch",
+  "post_dispatch",
+]);
+export type LifecycleWorkFailurePhase = z.infer<
+  typeof lifecycleWorkFailurePhaseSchema
+>;
+
 export const lifecycleWorkSchema = z.object({
   id: z.string().startsWith("work_"),
   deduplicationKey: z.string().min(1).max(512),
@@ -145,6 +153,8 @@ export const lifecycleWorkSchema = z.object({
     ])
     .optional(),
   lastError: z.string().max(2_000).optional(),
+  /** Whether a failed or cancelled attempt ended before or after its external dispatch boundary. */
+  failurePhase: lifecycleWorkFailurePhaseSchema.optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -155,6 +165,8 @@ export const recoveryIssueSchema = z.object({
   conversationId: conversationIdSchema,
   runId: runIdSchema.optional(),
   workId: z.string().startsWith("work_").optional(),
+  /** Tool proposal whose outcome this issue concerns, when applicable. */
+  proposalId: z.string().min(1).max(256).optional(),
   code: z.enum([
     "outcome_unknown",
     "invalid_checkpoint",
@@ -196,3 +208,25 @@ export const runActivityViewSchema = z.object({
   leasedWorkCount: z.number().int().nonnegative().safe(),
 });
 export type RunActivityView = z.infer<typeof runActivityViewSchema>;
+
+/** Derived progress of one approval checkpoint; never stored as authority. */
+export const approvalCheckpointPhaseSchema = z.enum([
+  "awaiting_decisions",
+  "executing",
+  "settled",
+  "blocked",
+  "cancelled",
+]);
+export type ApprovalCheckpointPhase = z.infer<
+  typeof approvalCheckpointPhaseSchema
+>;
+
+export const approvalCheckpointAcknowledgementSchema = z.object({
+  runId: runIdSchema,
+  checkpointId: z.string().startsWith("checkpoint_"),
+  runRevision: z.number().int().positive().safe(),
+  phase: approvalCheckpointPhaseSchema,
+});
+export type ApprovalCheckpointAcknowledgement = z.infer<
+  typeof approvalCheckpointAcknowledgementSchema
+>;

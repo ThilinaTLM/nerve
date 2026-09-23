@@ -30,6 +30,7 @@ type Props = {
   approvalsByToolCallId?: ReadonlyMap<string, ApprovalWithToolCall>;
   questionsByToolCallId?: ReadonlyMap<string, UserQuestionRecord>;
   reviewsByToolCallId?: ReadonlyMap<string, PlanReviewRecord>;
+  outcomeUnknownToolCallIds?: ReadonlySet<string>;
   hydrateToolBodies?: boolean;
   entranceMotion?: TranscriptEntranceMotion;
   onClaimEntrance?: (token: string) => boolean;
@@ -71,6 +72,7 @@ let {
   approvalsByToolCallId = new Map(),
   questionsByToolCallId = new Map(),
   reviewsByToolCallId = new Map(),
+  outcomeUnknownToolCallIds = new Set(),
   hydrateToolBodies = true,
   entranceMotion,
   onClaimEntrance,
@@ -186,6 +188,9 @@ $effect(() => {
             ? questionsByToolCallId.get(node.toolCall.id)
             : undefined}
           hydrateBody={hydrateToolBodies}
+          outcomeUnknown={node.toolCall
+            ? outcomeUnknownToolCallIds.has(node.toolCall.id)
+            : false}
           pendingPlanReview={node.toolCall
             ? reviewsByToolCallId.get(node.toolCall.id)
             : undefined}

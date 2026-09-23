@@ -56,6 +56,7 @@ type Props = {
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestions?: UserQuestionRecord[];
   pendingPlanReviews?: PlanReviewRecord[];
+  outcomeUnknownToolCallIds?: ReadonlySet<string>;
   active?: boolean;
   planReviewModels?: ModelInfo[];
   planReviewModelKey?: string;
@@ -118,6 +119,7 @@ let {
   approvals = [],
   pendingUserQuestions = [],
   pendingPlanReviews = [],
+  outcomeUnknownToolCallIds = new Set(),
   active = true,
   planReviewModels = [],
   planReviewModelKey = "",
@@ -277,6 +279,7 @@ function getMeasurementVersionForRow(row: TranscriptRowItem): string {
     approvalsByToolCallId,
     questionsByToolCallId,
     reviewsByToolCallId,
+    outcomeUnknownToolCallIds,
     active,
   });
 }
@@ -358,6 +361,7 @@ $effect(() => {
             {approvalsByToolCallId}
             {questionsByToolCallId}
             {reviewsByToolCallId}
+            {outcomeUnknownToolCallIds}
             {lastTimelineKey}
             {planReviewModels}
             {planReviewModelKey}

@@ -686,6 +686,7 @@ describe("workbench coordinator behavior regressions", () => {
           runId: "run_source",
           toolName: "plan_mode_present",
           status: "waiting_for_user",
+          interactions: [],
           result: { decision: "accept_new_chat" },
         }),
         resumeToolCall: async () => ({
@@ -902,6 +903,7 @@ function acceptanceFixture(
     providerToolCallId: "provider_plan",
     toolName: "plan_mode_present",
     status: "waiting_for_user",
+    interactions: [],
   };
   let stateChecks = 0;
   const planResult = () => ({
@@ -1052,6 +1054,7 @@ function rejectionFixture(
     providerToolCallId: "provider_plan",
     toolName: "plan_mode_present",
     status: "waiting_for_user",
+    interactions: [],
   };
   let currentToolCall = pendingToolCall;
   let stateChecks = 0;

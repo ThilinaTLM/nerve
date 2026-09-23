@@ -10,6 +10,11 @@ export interface LifecycleWorkExecutionResult {
   >;
   lastError?: string;
   externalLocator?: string;
+  /**
+   * Handlers that prove failure happened before any external dispatch return
+   * `pre_dispatch`. Thrown errors never carry that proof.
+   */
+  failurePhase?: LifecycleWork["failurePhase"];
 }
 
 export type LifecycleWorkHandler = (
@@ -39,6 +44,7 @@ export interface LifecycleWorkLeaseStore {
     now: string;
     lastError?: string;
     externalLocator?: string;
+    failurePhase?: LifecycleWork["failurePhase"];
   }): Promise<LifecycleWork | undefined>;
 }
 
@@ -102,6 +108,8 @@ export class LifecycleWorkExecutor {
     try {
       result = await handler(claimed);
     } catch (error) {
+      // A throw proves nothing about the dispatch boundary. Handlers that can
+      // prove a pre-dispatch failure must return it as a typed result.
       const ambiguousExternalEffect =
         work.kind === "execute_tool" ||
         (work.kind === "continue_model" &&
@@ -126,6 +134,7 @@ export class LifecycleWorkExecutor {
       now: this.now().toISOString(),
       lastError: result.lastError,
       externalLocator: result.externalLocator,
+      failurePhase: result.failurePhase,
     });
     if (!settled) {
       this.options.onLeaseLost?.(claimed);

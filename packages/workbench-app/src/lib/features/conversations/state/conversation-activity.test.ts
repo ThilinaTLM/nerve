@@ -151,6 +151,28 @@ describe("conversation activity", () => {
     assert.equal(idle.indicator, "idle");
   });
 
+  it("shows released approval checkpoints as running tools, never as awaiting the user", () => {
+    const executingTools = {
+      status: "executing_tools",
+    } as unknown as NonNullable<ConversationViewState["activeRun"]>;
+    for (const input of [
+      { agent: agent("agent-1", "conversation-1", "running") },
+      // A stale awaiting_user agent or pending-input projection must not win.
+      { agent: agent("agent-1", "conversation-1", "awaiting_user") },
+      { hasPendingHumanInput: true },
+    ]) {
+      const activity = conversationActivityForRecord({
+        conversationId: "conversation-1",
+        view: view("conversation-1", { activeRun: executingTools }),
+        ...input,
+      });
+      assert.equal(activity.indicator, "running");
+      assert.equal(activity.label, "Running tools");
+      assert.equal(activity.busy, true);
+      assert.equal(activity.needsUser, false);
+    }
+  });
+
   it("shows completion only when idle and clears only stale failures", () => {
     const completed = conversationActivityForRecord({
       conversationId: "conversation-1",

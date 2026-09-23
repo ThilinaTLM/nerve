@@ -291,5 +291,6 @@ function publicStatus(run: RunRecord): string {
   }
   if (run.status === "starting") return "queued";
   if (run.status === "cancellation_requested") return "running";
+  if (run.status === "executing_tools") return "running";
   return run.status;
 }

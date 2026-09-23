@@ -14,6 +14,7 @@ import {
   selectVisibleCommitted,
 } from "$lib/presentation/state";
 import { ConversationPane } from "$lib/presentation/conversations";
+import { outcomeUnknownToolCallIds } from "$lib/presentation/tools/views/tool-activity-state";
 import { setConversationUiCapabilities } from "$lib/presentation/context.svelte";
 import WorkbenchComposerAdapter from "./WorkbenchComposerAdapter.svelte";
 import { workbenchConversationUiCapabilities } from "./conversation-capabilities.svelte";
@@ -180,6 +181,7 @@ const visibleCommitted = $derived(
 const timeline = $derived({ prefix: visibleCommitted, tail: liveItems });
 const combinedTimeline = $derived([...visibleCommitted, ...liveItems]);
 const compacting = $derived(transient?.compaction?.state === "running");
+const outcomeUnknownIds = $derived(outcomeUnknownToolCallIds(recoveryIssues));
 const stopping = $derived(
   stoppingRequested || activeRun?.status === "aborting",
 );
@@ -254,6 +256,7 @@ function menuForTranscript(
     approvals: rendered.approvals,
     pendingUserQuestions: rendered.pendingUserQuestions,
     pendingPlanReviews: rendered.pendingPlanReviews,
+    outcomeUnknownToolCallIds: outcomeUnknownIds,
     activeProject,
     activeProjectLabel,
     planReviewModels,

@@ -1,5 +1,6 @@
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ConversationRecord } from "@nervekit/contracts/conversations";
+import type { ApprovalCheckpointAcknowledgement } from "@nervekit/contracts/runs";
 import type {
   ResolveToolInteractionRequest,
   ToolCallRecord,
@@ -27,6 +28,7 @@ export class ToolInteractionResolutionService {
       conversation: ConversationRecord;
       agent: AgentRecord;
     };
+    checkpoint?: ApprovalCheckpointAcknowledgement;
   }> {
     const current = this.tools.getToolCall(request.toolCallId);
     const existing = current.interactions[request.interactionOrdinal];
@@ -106,15 +108,16 @@ export class ToolInteractionResolutionService {
           );
         }
       }
-      return {
-        toolCall: await this.humanInput.resolveApproval(
-          `approval_${current.id}_${interaction.ordinal}`,
-          request.resolution.action,
-          request.resolution.note,
-          request.resolutionRequestId,
-          request.resolution.scope,
-        ),
-      };
+      // Acknowledges the durable decision; approved tools run as durable work.
+      return this.humanInput.resolveApproval({
+        toolCallId: current.id,
+        ordinal: interaction.ordinal,
+        expectedRevision: request.expectedRevision,
+        decision: request.resolution.action,
+        note: request.resolution.note,
+        scope: request.resolution.scope,
+        resolutionRequestId: request.resolutionRequestId,
+      });
     }
 
     if (request.resolution.kind === "user_input") {

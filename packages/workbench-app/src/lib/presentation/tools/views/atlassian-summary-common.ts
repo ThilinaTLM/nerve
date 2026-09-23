@@ -49,9 +49,8 @@ export function stageTitle(
   dryRun: boolean | undefined,
 ): string {
   if (status === "waiting") return `Review ${service} ${action}`;
-  if (status === "committed" || status === "running") {
-    return `Executing ${service} ${action}`;
-  }
+  if (status === "committed") return `Queued ${service} ${action}`;
+  if (status === "running") return `Executing ${service} ${action}`;
   if (status === "completed") {
     return `${dryRun ? "Dry run" : "Completed"} ${service} ${action}`;
   }

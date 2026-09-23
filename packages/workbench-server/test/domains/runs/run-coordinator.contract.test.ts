@@ -193,7 +193,7 @@ function fixture(
   const coordinator = new RunCoordinator({
     unitOfWork,
     durableContinuation: options.durableContinuation,
-    wakeLifecycleWork: async () => {
+    notifyLifecycleWork: () => {
       lifecycleWakes += 1;
     },
     sourceRole: options.sourceRole ?? "workbench_server",
@@ -1653,6 +1653,117 @@ test("keeps an interaction batch waiting until every member resolves", async () 
       resolution: { decision: "deny" },
     }),
     RunConflictError,
+  );
+});
+
+test("an approval checkpoint releases execution work only on its final decision", async () => {
+  const harness = fixture({ durableContinuation: true });
+  const run = await start(harness.coordinator);
+  const batchToolCallIds = ["tool_first", "tool_second", "tool_third"];
+  const checkpoint = suspensionCheckpoint();
+  await harness.coordinator.waitMany(
+    run.runId,
+    batchToolCallIds.map((toolCallId) => ({
+      kind: "approval" as const,
+      toolCallId,
+      interactionOrdinal: 0,
+      toolCallRevision: 1,
+      batchToolCallIds,
+      prompt: `Approve ${toolCallId}`,
+      risk: ["write"],
+      normalizedArgs: {},
+      offeredScopes: ["single_call"],
+      checkpoint,
+    })),
+  );
+  const workBefore = harness.unitOfWork.lifecycleWork.length;
+  const decide = (toolCallId: string, decision: "allow" | "deny") =>
+    harness.coordinator.recordApprovalDecision(run.runId, {
+      toolCallId,
+      resolutionRequestId: `request_${toolCallId}`,
+      resolution: { decision },
+      releaseWork: true,
+    });
+
+  await decide("tool_third", "allow");
+  await decide("tool_first", "deny");
+  let state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.status, "waiting");
+  assert.equal(state?.run.activeInteractionId, state?.interactions[1]?.id);
+  assert.equal(harness.unitOfWork.lifecycleWork.length, workBefore);
+
+  const released = await decide("tool_second", "allow");
+  assert.equal(released.run.status, "executing_tools");
+  const work = harness.unitOfWork.lifecycleWork.slice(workBefore);
+  assert.deepEqual(
+    work.map((item) => [item.kind, item.proposalId]),
+    [
+      ["execute_tool", "tool_second"],
+      ["execute_tool", "tool_third"],
+    ],
+  );
+  assert.equal(new Set(work.map((item) => item.id)).size, 2);
+  await assert.rejects(harness.coordinator.continue(run.runId));
+
+  const replay = await decide("tool_second", "allow");
+  assert.equal(replay.replayed, true);
+  await assert.rejects(decide("tool_second", "deny"), /already resolved/);
+  assert.equal(harness.unitOfWork.lifecycleWork.length, workBefore + 2);
+
+  assert.equal(
+    await harness.coordinator.settleApprovalCheckpoint(
+      run.runId,
+      released.checkpointId,
+    ),
+    true,
+  );
+  assert.equal(
+    await harness.coordinator.settleApprovalCheckpoint(
+      run.runId,
+      released.checkpointId,
+    ),
+    false,
+  );
+  state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.status, "suspended");
+  assert.deepEqual(
+    harness.unitOfWork.lifecycleWork
+      .slice(workBefore + 2)
+      .map((item) => item.kind),
+    ["continue_model"],
+  );
+});
+
+test("a decision for a superseded checkpoint is rejected before persistence", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  await harness.coordinator.wait(run.runId, {
+    kind: "approval",
+    toolCallId: "tool_only",
+    interactionOrdinal: 0,
+    toolCallRevision: 1,
+    prompt: "Approve",
+    risk: ["write"],
+    normalizedArgs: {},
+    offeredScopes: ["single_call"],
+    checkpoint: suspensionCheckpoint(),
+  });
+  const before = (await harness.coordinator.get(run.runId))?.run.revision;
+  await assert.rejects(
+    harness.coordinator.recordApprovalDecision(run.runId, {
+      toolCallId: "tool_only",
+      resolutionRequestId: "request_stale",
+      resolution: { decision: "allow" },
+      releaseWork: true,
+      assertContext: async () => {
+        throw new Error("branch moved");
+      },
+    }),
+    /branch moved/,
+  );
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.revision,
+    before,
   );
 });
 

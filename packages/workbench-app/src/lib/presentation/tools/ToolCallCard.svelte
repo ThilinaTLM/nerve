@@ -36,6 +36,7 @@ import { isInputValidationFailure } from "./lifecycle/failure-context";
 import {
   deriveToolActivitySections,
   deriveToolLifecycleVisualStage,
+  toolLifecycleStageIndicator,
 } from "./views/tool-activity-state";
 import { getConversationUiCapabilities } from "../context.svelte";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
@@ -63,6 +64,8 @@ type Props = {
   pendingUserQuestion?: UserQuestionRecord;
   pendingPlanReview?: PlanReviewRecord;
   hydrateBody?: boolean;
+  /** Recovery could not determine whether this call's side effect happened. */
+  outcomeUnknown?: boolean;
   detailsEnabled?: boolean;
   planReviewModels?: ModelInfo[];
   planReviewModelKey?: string;
@@ -101,6 +104,7 @@ let {
   pendingUserQuestion,
   pendingPlanReview,
   hydrateBody = true,
+  outcomeUnknown = false,
   detailsEnabled = true,
   planReviewModels = [],
   planReviewModelKey = "",
@@ -302,9 +306,9 @@ function mergeMetaItems(...groups: Array<readonly MetaItem[]>): MetaItem[] {
 // call always says how long it has been waiting, and it is delayed briefly so
 // quick calls do not flash a "0s".
 const runningSinceMs = $derived.by(() => {
-  if (!toolCall) return undefined;
-  if (toolCall.status !== "running" && toolCall.status !== "committed")
-    return undefined;
+  if (!toolCall || outcomeUnknown) return undefined;
+  // Queued calls have not started; createdAt would count the approval wait.
+  if (toolCall.status !== "running") return undefined;
   const started = Date.parse(toolCall.createdAt);
   return Number.isFinite(started) ? started : undefined;
 });
@@ -323,10 +327,25 @@ const elapsedMeta = $derived.by<MetaItem[]>(() => {
   if (elapsed < 2000) return [];
   return [{ text: formatElapsed(elapsed) }];
 });
+const visualStage = $derived(
+  deriveToolLifecycleVisualStage({
+    draft: draft?.block,
+    toolCall,
+    outcomeUnknown,
+  }),
+);
+const stageIndicator = $derived(toolLifecycleStageIndicator(visualStage));
+const stageMeta = $derived<MetaItem[]>(
+  stageIndicator
+    ? [{ text: stageIndicator.label, tone: stageIndicator.tone }]
+    : [],
+);
 const activityMeta = $derived.by(() => {
   if (!toolCall) return draftSummary?.meta ?? [];
-  if (toolCall.status === "completed") return presentation?.meta ?? [];
+  if (toolCall.status === "completed")
+    return mergeMetaItems(stageMeta, presentation?.meta ?? []);
   return mergeMetaItems(
+    stageMeta,
     elapsedMeta,
     draftSummary?.meta ?? [],
     lifecycleArgumentPresentation?.secondary ?? [],
@@ -343,6 +362,7 @@ const activitySections = $derived.by(() =>
     bodyHydrated: shouldHydrateBody,
     hasApproval: Boolean(toolApproval),
     hasInteraction: hilInteractive,
+    outcomeUnknown,
     resultPlaceholder: lifecycleSpec.resultPlaceholder,
     footerItems: activityMeta,
     hasDetailsAction:
@@ -373,9 +393,6 @@ const primaryArg = $derived(
         lifecycleArgumentPresentation?.primaryArg ??
         draftArg),
 );
-const visualStage = $derived(
-  deriveToolLifecycleVisualStage({ draft: draft?.block, toolCall }),
-);
 const layoutRevision = $derived(
   toolCardLayoutRevision({
     stage: visualStage,
@@ -386,9 +403,15 @@ const layoutRevision = $derived(
 );
 // A prepared draft only means argument generation finished; execution has not.
 // Keep it visibly in-flight until a durable terminal status takes ownership.
-const dotTone = $derived(presentation?.dotTone ?? "info");
-const glyph = $derived(presentation?.glyph);
-const dotPulse = $derived(presentation?.dotPulse ?? true);
+const dotTone = $derived(
+  stageIndicator?.tone ?? presentation?.dotTone ?? "info",
+);
+const glyph = $derived(
+  stageIndicator ? stageIndicator.glyph : presentation?.glyph,
+);
+const dotPulse = $derived(
+  stageIndicator?.pulse ?? presentation?.dotPulse ?? true,
+);
 const meta = $derived(activityMeta);
 const detailsAction = $derived(
   toolCall && detailsEnabled
@@ -472,6 +495,7 @@ async function openDetails() {
   {dotTone}
   {dotPulse}
   {glyph}
+  statusLabel={stageIndicator?.label}
   {badge}
   arg={primaryArg}
   error={activitySections.errorVisible ? errorPreview : undefined}

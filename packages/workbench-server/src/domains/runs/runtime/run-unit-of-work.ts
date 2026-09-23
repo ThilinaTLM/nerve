@@ -8,6 +8,7 @@ import type {
   RunRecord,
   RunTransitionRecord,
 } from "@nervekit/contracts/runs";
+import type { ToolCallRecord } from "@nervekit/contracts/tools";
 
 export const DELIVERY_SETTLED_PREFIX = "__nerve_settled__";
 
@@ -75,6 +76,8 @@ export interface RunUnitOfWorkPort {
     expectedRevision: number,
     transition: RunTransitionRecord,
     lifecycleWork?: readonly LifecycleWork[],
+    /** Tool records revised atomically with this transition. */
+    toolProjections?: readonly ToolCallRecord[],
   ): Promise<RunHydratedState>;
   pendingEventIntents(): Promise<
     readonly {
