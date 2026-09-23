@@ -36,7 +36,7 @@
     "benchmark:lifecycle": "tsx test/benchmarks/lifecycle-work.benchmark.ts"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.87.0",
+    "@earendil-works/pi-ai": "0.87.1",
     "@hono/node-server": "2.0.12",
     "@nervekit/contracts": "workspace:*",
     "@nervekit/harness": "workspace:*",
