@@ -296,6 +296,9 @@ export const asyncSubagentCompactionProfileSchema = z.union([
 ]);
 export const asyncSubagentSettingsSchema = z.object({
   model: modelSelectionSchema.optional(),
+  /** Applies with a configured model; teammates on the lead's model inherit
+   * the lead's thinking level. */
+  thinkingLevel: thinkingLevelSchema.optional(),
   compactionProfile: asyncSubagentCompactionProfileSchema,
   customTriggerPercent: z.number().int().min(60).max(90),
   customKeepRecentPercent: z.number().int().min(5).max(40),
@@ -482,7 +485,10 @@ export const updateSettingsRequestSchema = z.object({
     .optional(),
   asyncSubagent: asyncSubagentSettingsSchema
     .partial()
-    .extend({ model: modelSelectionSchema.nullable().optional() })
+    .extend({
+      model: modelSelectionSchema.nullable().optional(),
+      thinkingLevel: thinkingLevelSchema.nullable().optional(),
+    })
     .optional(),
   application: applicationSettingsPatchSchema.optional(),
   ui: z

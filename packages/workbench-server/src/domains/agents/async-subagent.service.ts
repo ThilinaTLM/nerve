@@ -10,7 +10,7 @@ import {
   type CreateAgentRequest,
 } from "@nervekit/contracts/agents";
 import type { RunRecord } from "@nervekit/contracts/runs";
-import type { ModelSelection } from "@nervekit/contracts/models";
+import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import { ApplicationError } from "../../core/application-error.js";
 
@@ -22,7 +22,12 @@ export interface AsyncSubagentPorts {
     authorized: boolean,
   ): Promise<AgentRecord>;
   enabled(lead: AgentRecord): Promise<boolean>;
-  configuredModel(lead: AgentRecord): Promise<ModelSelection | undefined>;
+  /** Teammate model override from the lead's effective settings. */
+  configuredModel(
+    lead: AgentRecord,
+  ): Promise<
+    { model: ModelSelection; thinkingLevel?: ThinkingLevel } | undefined
+  >;
   readControl(id: string): Promise<AsyncSubagentControl>;
   writeControl(control: AsyncSubagentControl): Promise<void>;
   activeRun(agent: AgentRecord): Promise<RunRecord | undefined>;
@@ -73,6 +78,7 @@ export class AsyncSubagentService {
           "A teammate with this name already exists.",
         );
       }
+      const configured = await this.ports.configuredModel(lead);
       const child = await this.ports.createAgent(
         {
           conversationId: lead.conversationId,
@@ -85,8 +91,8 @@ export class AsyncSubagentService {
           permissionLevel: "autonomous",
           permissionRuleSetId: "autonomous",
           workspaceScope: { roots: [...lead.workspaceScope.roots] },
-          model: (await this.ports.configuredModel(lead)) ?? lead.model,
-          thinkingLevel: lead.thinkingLevel,
+          model: configured?.model ?? lead.model,
+          thinkingLevel: configured?.thinkingLevel ?? lead.thinkingLevel,
         },
         authorized,
       );

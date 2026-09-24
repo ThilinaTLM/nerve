@@ -738,9 +738,12 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         allowAsyncDeveloper: true,
       }),
     enabled: asyncSubagentsEnabled,
-    configuredModel: async (lead) =>
-      (await resolveProjectSettings(storage, lead.projectDir)).asyncSubagent
-        .model,
+    configuredModel: async (lead) => {
+      const { model, thinkingLevel } = (
+        await resolveProjectSettings(storage, lead.projectDir)
+      ).asyncSubagent;
+      return model ? { model, thinkingLevel } : undefined;
+    },
     readControl: (id) => asyncSubagentRepository.control(id),
     writeControl: (control) => asyncSubagentRepository.writeControl(control),
     reserveAssignment: (assignment) =>

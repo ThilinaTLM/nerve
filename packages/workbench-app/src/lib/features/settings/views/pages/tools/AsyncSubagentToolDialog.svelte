@@ -1,20 +1,23 @@
 <script lang="ts">
-import type { ModelInfo, ModelSelection, Settings } from "$lib/api";
+import type {
+  ModelInfo,
+  ModelSelection,
+  Settings,
+  ThinkingLevel,
+} from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
-import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import { SettingsChoiceCards } from "$lib/presentation/settings";
-import { modelKey, usableModelOptions } from "$lib/presentation/utils/model";
+import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
+import ModelSelectionField from "../../shared/model-picker/ModelSelectionField.svelte";
 import type { AuthProviderMetadata } from "$lib/api";
 import type { SettingsChange } from "../settings-change";
 import { compactionProfileItems } from "../compaction/compaction-options";
 import {
-  asyncSubagentModelOptions,
   asyncSubagentPatch,
   validAsyncSubagentPercent,
-  leadModelOption,
 } from "./async-subagent-options";
 
 type Props = {
@@ -33,29 +36,24 @@ let {
   onSettingsChange,
 }: Props = $props();
 
-let modelDraft = $state(leadModelOption);
-let configuredModel = $state<ModelSelection | undefined>();
+let modelDraft = $state<ModelSelection | undefined>();
+/** Unset for older overrides saved before teammates had their own level;
+ * those keep inheriting the lead's level until one is chosen. */
+let thinkingDraft = $state<ThinkingLevel | undefined>();
+let inheritDraft = $state(true);
 let profileDraft =
   $state<Settings["asyncSubagent"]["compactionProfile"]>("inherit");
 let triggerDraft = $state("80");
 let keepRecentDraft = $state("15");
 let lastOpen = false;
 
-const usableModels = $derived(usableModelOptions(models, authProviders));
-const modelOptions = $derived(
-  asyncSubagentModelOptions(usableModels, configuredModel),
+const usableModels = $derived(
+  authenticatedRealModelOptions(models, authProviders),
 );
 const validTrigger = $derived(validAsyncSubagentPercent(triggerDraft, 60, 90));
 const validKeepRecent = $derived(
   validAsyncSubagentPercent(keepRecentDraft, 5, 40),
 );
-const selectedUnavailable = $derived(
-  Boolean(
-    modelDraft !== leadModelOption &&
-    !usableModels.some((model) => modelKey(model) === modelDraft),
-  ),
-);
-
 const profileOptions = [
   {
     value: "inherit",
@@ -68,8 +66,9 @@ const profileOptions = [
 $effect(() => {
   if (open && !lastOpen) {
     const current = settingsDraft.asyncSubagent;
-    configuredModel = current.model;
-    modelDraft = current.model ? modelKey(current.model) : leadModelOption;
+    modelDraft = current.model;
+    thinkingDraft = current.thinkingLevel;
+    inheritDraft = !current.model;
     profileDraft = current.compactionProfile;
     triggerDraft = String(current.customTriggerPercent);
     keepRecentDraft = String(current.customKeepRecentPercent);
@@ -79,9 +78,8 @@ $effect(() => {
 
 function save(): void {
   const patch = asyncSubagentPatch(
-    modelDraft,
-    configuredModel,
-    usableModels,
+    inheritDraft ? undefined : modelDraft,
+    thinkingDraft,
     profileDraft,
     triggerDraft,
     keepRecentDraft,
@@ -91,6 +89,7 @@ function save(): void {
     ...settingsDraft.asyncSubagent,
     ...patch.asyncSubagent,
     model: patch.asyncSubagent.model ?? undefined,
+    thinkingLevel: patch.asyncSubagent.thinkingLevel ?? undefined,
   };
   onSettingsChange?.(patch, { immediate: true });
   open = false;
@@ -101,28 +100,22 @@ function save(): void {
   bind:open
   size="md"
   title="Configure Async Subagents"
-  description="Choose the model for new teammates and the compaction profile for their runs. Thinking level stays inherited from the lead."
+  description="Choose the model and reasoning level for new teammates and the compaction profile for their runs."
 >
   <div class="grid gap-4">
-    <div class="grid gap-1.5">
-      <Label>Teammate model</Label>
-      <SelectField
-        items={modelOptions}
-        value={modelDraft}
-        ariaLabel="Teammate model"
-        onValueChange={(value) => (modelDraft = value)}
-      />
-      {#if selectedUnavailable}
-        <p class="text-xs text-warning">
-          This configured model is unavailable. Select another model or use the
-          lead agent model.
-        </p>
-      {:else}
-        <p class="text-xs text-muted-foreground">
-          Model changes apply only when a new teammate is created.
-        </p>
-      {/if}
-    </div>
+    <ModelSelectionField
+      label="Teammate model"
+      models={usableModels}
+      bind:model={modelDraft}
+      bind:thinkingLevel={thinkingDraft}
+      bind:inherit={inheritDraft}
+      inheritOption={{
+        label: "Use the lead agent's model",
+        description:
+          "Teammates start with the lead's model and reasoning level.",
+      }}
+      hint="Model and reasoning changes apply only when a new teammate is created."
+    />
 
     <div class="grid gap-1.5">
       <Label>Compaction profile</Label>
@@ -199,7 +192,9 @@ function save(): void {
     <Button
       size="sm"
       onclick={save}
-      disabled={!validTrigger || !validKeepRecent}>Save</Button
+      disabled={!validTrigger ||
+        !validKeepRecent ||
+        (!inheritDraft && !modelDraft)}>Save</Button
     >
   {/snippet}
 </Dialog>

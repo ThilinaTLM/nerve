@@ -186,6 +186,7 @@ test("persists async teammate settings and clears the model without resetting it
   await writeSettings(storage, {
     asyncSubagent: {
       model,
+      thinkingLevel: "high",
       compactionProfile: "custom",
       customTriggerPercent: 87,
       customKeepRecentPercent: 9,
@@ -197,12 +198,17 @@ test("persists async teammate settings and clears the model without resetting it
   );
   assert.deepEqual(storage.settings.asyncSubagent, {
     model,
+    thinkingLevel: "high",
     compactionProfile: "custom",
     customTriggerPercent: 87,
     customKeepRecentPercent: 9,
   });
   await writeSettings(storage, {
-    asyncSubagent: { model: null, customKeepRecentPercent: 12 },
+    asyncSubagent: {
+      model: null,
+      thinkingLevel: null,
+      customKeepRecentPercent: 12,
+    },
   });
   const persisted = JSON.parse(
     await readFile(storage.paths.harnessConfigPath, "utf8"),
@@ -213,6 +219,7 @@ test("persists async teammate settings and clears the model without resetting it
     customKeepRecentPercent: 12,
   });
   assert.equal(storage.settings.asyncSubagent.model, undefined);
+  assert.equal(storage.settings.asyncSubagent.thinkingLevel, undefined);
   assert.deepEqual(
     JSON.parse(JSON.stringify(storage.settings.asyncSubagent)),
     persisted.asyncSubagent,
