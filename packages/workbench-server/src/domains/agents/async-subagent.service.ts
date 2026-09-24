@@ -10,6 +10,7 @@ import {
   type CreateAgentRequest,
 } from "@nervekit/contracts/agents";
 import type { RunRecord } from "@nervekit/contracts/runs";
+import type { ModelSelection } from "@nervekit/contracts/models";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import { ApplicationError } from "../../core/application-error.js";
 
@@ -21,6 +22,7 @@ export interface AsyncSubagentPorts {
     authorized: boolean,
   ): Promise<AgentRecord>;
   enabled(lead: AgentRecord): Promise<boolean>;
+  configuredModel(lead: AgentRecord): Promise<ModelSelection | undefined>;
   readControl(id: string): Promise<AsyncSubagentControl>;
   writeControl(control: AsyncSubagentControl): Promise<void>;
   activeRun(agent: AgentRecord): Promise<RunRecord | undefined>;
@@ -83,7 +85,7 @@ export class AsyncSubagentService {
           permissionLevel: "autonomous",
           permissionRuleSetId: "autonomous",
           workspaceScope: { roots: [...lead.workspaceScope.roots] },
-          model: lead.model,
+          model: (await this.ports.configuredModel(lead)) ?? lead.model,
           thinkingLevel: lead.thinkingLevel,
         },
         authorized,

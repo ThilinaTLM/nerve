@@ -6,6 +6,7 @@ import {
   type AsyncSubagentControl,
 } from "@nervekit/contracts/agents";
 import type { RunRecord } from "@nervekit/contracts/runs";
+import type { ModelSelection } from "@nervekit/contracts/models";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import {
   AsyncSubagentService,
@@ -32,6 +33,7 @@ function setup() {
   const runs = new Map<string, RunRecord>();
   const entries: ConversationEntry[] = [];
   let enabled = true;
+  let configuredModel: ModelSelection | undefined;
   let cancelGate: Promise<void> | undefined;
   let starts = 0;
   const ports: AsyncSubagentPorts = {
@@ -51,6 +53,7 @@ function setup() {
       return agent;
     },
     enabled: async () => enabled,
+    configuredModel: async () => configuredModel,
     readControl: async (id) =>
       controls.get(id) ?? {
         agentId: id,
@@ -100,6 +103,9 @@ function setup() {
     setEnabled: (value: boolean) => {
       enabled = value;
     },
+    setConfiguredModel: (value: ModelSelection | undefined) => {
+      configuredModel = value;
+    },
     gateCancel: (gate: Promise<void>) => {
       cancelGate = gate;
     },
@@ -122,6 +128,21 @@ describe("persistent autonomous developer teammates", () => {
     await assert.rejects(
       f.service.create(f.lead.id, " api ", true),
       /name already exists/,
+    );
+  });
+
+  it("selects the configured model for new teammates without changing existing teammates", async () => {
+    const f = setup();
+    const inherited = await f.service.create(f.lead.id, "inherited", true);
+    assert.deepEqual(f.agents.get(inherited.agentId)?.model, f.lead.model);
+    const selection = { provider: "xai", modelId: "grok-4.5" };
+    f.setConfiguredModel(selection);
+    const configured = await f.service.create(f.lead.id, "configured", true);
+    assert.deepEqual(f.agents.get(configured.agentId)?.model, selection);
+    assert.deepEqual(f.agents.get(inherited.agentId)?.model, f.lead.model);
+    assert.equal(
+      f.agents.get(configured.agentId)?.thinkingLevel,
+      f.lead.thinkingLevel,
     );
   });
 

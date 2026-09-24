@@ -41,6 +41,62 @@ describe("settings schema", () => {
     );
   });
 
+  it("validates async teammate settings and nullable model patches", () => {
+    assert.deepEqual(defaultSettings.asyncSubagent, {
+      compactionProfile: "inherit",
+      customTriggerPercent: 80,
+      customKeepRecentPercent: 15,
+    });
+    assert.deepEqual(
+      defaultHarnessConfig.asyncSubagent,
+      defaultSettings.asyncSubagent,
+    );
+    const model = { provider: "openai", modelId: "gpt-5" };
+    assert.deepEqual(
+      updateSettingsRequestSchema.parse({
+        asyncSubagent: {
+          model,
+          compactionProfile: "custom",
+          customTriggerPercent: 90,
+          customKeepRecentPercent: 5,
+        },
+      }).asyncSubagent?.model,
+      model,
+    );
+    assert.deepEqual(
+      updateSettingsRequestSchema.parse({ asyncSubagent: { model: null } })
+        .asyncSubagent,
+      { model: null },
+    );
+    assert.equal(
+      updateSettingsRequestSchema.safeParse({
+        asyncSubagent: { compactionProfile: "invalid" },
+      }).success,
+      false,
+    );
+    for (const [key, value] of [
+      ["customTriggerPercent", 59],
+      ["customTriggerPercent", 91],
+      ["customKeepRecentPercent", 4],
+      ["customKeepRecentPercent", 41],
+      ["customKeepRecentPercent", 5.5],
+    ] as const) {
+      assert.equal(
+        updateSettingsRequestSchema.safeParse({
+          asyncSubagent: { [key]: value },
+        }).success,
+        false,
+      );
+    }
+    assert.equal(
+      harnessConfigSchema.safeParse({
+        ...defaultHarnessConfig,
+        asyncSubagent: { ...defaultHarnessConfig.asyncSubagent, model: null },
+      }).success,
+      false,
+    );
+  });
+
   it("defaults newly added Nerve skill settings in older harness files", () => {
     const legacy = structuredClone(defaultHarnessConfig) as Record<
       string,

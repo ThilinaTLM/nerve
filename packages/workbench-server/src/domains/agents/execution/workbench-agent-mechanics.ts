@@ -54,6 +54,7 @@ import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills
 import type { SubagentTranscriptLiveService } from "../subagent-transcript-live.service.js";
 import { executeWorkbenchHarness } from "./workbench-harness-execution.js";
 import { AutoCompactionRunner } from "./auto-compaction-runner.js";
+import { compactionSettingsForAgent } from "./subagent-compaction-settings.js";
 import { InlineCommandRunner } from "./inline-command-runner.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
@@ -337,8 +338,10 @@ export class WorkbenchAgentMechanics {
     const failedParentId = leaf.parentId;
     const policy = deriveAutoCompactionPolicy(
       contextWindow,
-      (await resolveProjectSettings(this.deps.storage, input.agent.projectDir))
-        .compaction,
+      compactionSettingsForAgent(
+        await resolveProjectSettings(this.deps.storage, input.agent.projectDir),
+        input.agent,
+      ),
     );
     try {
       await input.conversation.moveTo(failedParentId);

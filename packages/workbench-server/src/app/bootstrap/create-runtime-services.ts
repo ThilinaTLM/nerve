@@ -1,4 +1,5 @@
 import { AsyncSubagentService } from "../../domains/agents/async-subagent.service.js";
+import { resolveProjectSettings } from "../../infrastructure/configuration/index.js";
 import { subagentToolResult } from "../../domains/agents/async-subagent-tool-result.js";
 import { AsyncSubagentRepository } from "../../domains/agents/async-subagent.repository.js";
 import { AsyncSubagentNotificationService } from "../../domains/agents/async-subagent-notification.service.js";
@@ -737,6 +738,9 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         allowAsyncDeveloper: true,
       }),
     enabled: asyncSubagentsEnabled,
+    configuredModel: async (lead) =>
+      (await resolveProjectSettings(storage, lead.projectDir)).asyncSubagent
+        .model,
     readControl: (id) => asyncSubagentRepository.control(id),
     writeControl: (control) => asyncSubagentRepository.writeControl(control),
     reserveAssignment: (assignment) =>

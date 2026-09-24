@@ -153,6 +153,7 @@ export function settingsFromConfiguration(
     rememberLastAgentSelection: harness.rememberLastSelection,
     lastAgentSelection: harness.lastSelection,
     exploreAgent: harness.exploreAgent,
+    asyncSubagent: harness.asyncSubagent,
     application: {
       network: daemon.network,
       diagnostics: daemon.diagnostics,
@@ -229,6 +230,7 @@ export function configurationWithSettings(
       rememberLastSelection: parsed.rememberLastAgentSelection,
       lastSelection: parsed.lastAgentSelection,
       exploreAgent: parsed.exploreAgent,
+      asyncSubagent: parsed.asyncSubagent,
       compaction: parsed.compaction,
       retry: parsed.retry,
       execution: parsed.runtime,

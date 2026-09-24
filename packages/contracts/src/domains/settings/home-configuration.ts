@@ -22,6 +22,8 @@ import {
 } from "../providers/providers.js";
 import { userConfigurableToolNameSchema } from "../tools/tool-name.js";
 import {
+  asyncSubagentSettingsSchema,
+  defaultAsyncSubagentSettings,
   colorModeSchema,
   colorThemeSchema,
   compactionProfileSchema,
@@ -127,6 +129,7 @@ export const harnessConfigSchema = z
         thinkingLevel: thinkingLevelSchema,
       })
       .strict(),
+    asyncSubagent: asyncSubagentSettingsSchema.strict(),
     compaction: z
       .object({
         auto: z.boolean(),
@@ -215,6 +218,7 @@ export const defaultHarnessConfig: HarnessConfig = {
     thinkingLevel: "off",
   },
   exploreAgent: { thinkingLevel: "off" },
+  asyncSubagent: defaultAsyncSubagentSettings,
   compaction: {
     auto: true,
     profile: "balanced",
