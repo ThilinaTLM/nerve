@@ -1,6 +1,6 @@
 ---
 title: Select models and thinking levels
-description: Configure defaults, scopes, Explore models, and model-dependent thinking.
+description: Configure defaults, picker scopes, delegated-agent models, and model-dependent thinking.
 sidebar:
   order: 2
 ---
@@ -11,7 +11,7 @@ Settings stores a global default model/thinking level and remembers the last sel
 
 A model scope narrows the picker. Empty scope means every authenticated model; a nonempty list filters it. Stale scope entries remain in Settings as unavailable and are ignored until the model returns or the entry is removed.
 
-Explore sub-agents have their own default model and thinking selection because parallel codebase research can benefit from a different cost/latency profile.
+Explore agents have their own default model and thinking selection because parallel codebase research can benefit from a different cost/latency profile. Persistent developer teammates can either inherit the lead model or use the model and thinking level configured under **Settings → Tools → Async Subagents**; that choice applies when a teammate is created.
 
 ## Catalog limits
 
@@ -34,4 +34,5 @@ Use a fast model for small, well-scoped changes and a deeper supported thinking 
 ## Next steps
 
 - [Custom providers](/models/custom-providers/)
+- [Agents and delegation](/guides/agents-and-delegation/)
 - [Usage, images, and voice](/models/usage-images-voice/)

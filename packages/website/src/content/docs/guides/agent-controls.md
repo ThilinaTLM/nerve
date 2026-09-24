@@ -27,12 +27,17 @@ Select an authenticated model and one of its declared thinking levels. Nerve kno
 
 Changing model, thinking, mode, or permission on an active conversation does not recreate it. Changes made during a run apply to subsequent work—especially the next provider request—not the request already streaming.
 
+## Delegation and authority
+
+Read-only blocks child-agent spawning. In Supervised or Autonomous mode, the lead can use enabled delegation tools within their own policy constraints. Persistent developer teammates run autonomously in the shared worktree, so enabling them is a larger grant than using temporary read-only Explore agents. See [Agents and delegation](/guides/agents-and-delegation/) before assigning overlapping implementation work.
+
 ## Choosing a baseline
 
-Use read-only for investigation where no network or child agents are needed. Use supervised for unfamiliar work and most first runs. Reserve autonomous for bounded tasks in a trusted, recoverable workspace.
+Use read-only for investigation where no network or child agents are needed. Use supervised for unfamiliar work and most first runs. Reserve autonomous—and autonomous developer teammates—for bounded tasks in a trusted, recoverable workspace.
 
 ## Next steps
 
 - [Approvals, questions, and plans](/guides/reviews/)
+- [Agents and delegation](/guides/agents-and-delegation/)
 - [Security model](/operations/security/)
 - [Tool reference](/reference/tools/)

@@ -25,13 +25,14 @@ Reads are bounded and parallel-capable. `edit` accepts only `path` plus exact, u
 
 Web search/fetch, image explanation, and Python are individual global tool toggles. Search requires Tavily. Jira/Confluence require enabled modules and credentials. Atlassian responses and mutation reports are always saved as managed raw artifacts while the agent receives a bounded semantic preview. Related Jira/Confluence data is selected with each read tool's compact `include` array.
 
-## Image explanation
+## Images
 
-- `explain_image`
+- Explanation: `explain_image`
+- Generation: `generate_image`
 
-Choose an image-capable fallback model and its thinking level under **Settings → Tools**, then explicitly enable the tool. It is exposed only when the current agent model is text-only. When disabled, it is absent from the agent's tool schema and system prompt.
+Choose an image-capable fallback model and its thinking level under **Settings → Tools**, then explicitly enable image explanation. `explain_image` is exposed only when the current agent model is text-only. It accepts an absolute or project-relative JPEG, PNG, GIF, or WebP path and an optional focus prompt, sends the image to the configured vision model, and returns only bounded explanatory text to the primary model. Cloud providers receive the image bytes; a compatible local provider can keep processing local.
 
-The tool accepts an absolute or project-relative JPEG, PNG, GIF, or WebP path and an optional focus prompt. It sends the image to the configured vision model and returns only bounded explanatory text to the primary model. Cloud providers receive the image bytes; a compatible local provider can keep processing local.
+Configure and enable image generation separately. `generate_image` accepts a prompt while provider, model, and output options remain user-owned settings. The generated raster file is retained as a tool-call artifact and its path is returned to the agent. The initial OpenAI Codex integration uses ChatGPT subscription image access rather than OpenAI API-key billing.
 
 ## Interaction and to-dos
 
@@ -46,12 +47,15 @@ Questions suspend a run. To-dos are structured current-work state, not backgroun
 
 Task start accepts a project-relative `cwd`, an optional discriminated `ready` object (`url`, `detected_url`, or `pattern`), encrypted-at-rest env values, and runtime up to 24 hours. Its result also reports other active tasks in the project scope. `task_status` selects IDs/names with `tasks`; `task_logs` selects one `task` and uses one mode-specific `cursor`; `task_control` selects one `task` for stop or restart. Logs are bounded and agents receive asynchronous updates rather than polling. A still-running Bash call may be promoted automatically. Terminal updates from promoted Bash and explicit agent `task_start` calls restart the agent after an idle turn.
 
-## Explore and planning
+## Delegation, Explore, and planning
 
-- `explore`
-- `plan_mode_enter`, `plan_mode_present`, `plan_mode_force_exit`
+- Persistent teammates: `subagent_new`, `subagent_prompt`, `subagent_list`, `subagent_status`, `subagent_stop`
+- Bounded research: `explore`
+- Planning: `plan_mode_enter`, `plan_mode_present`, `plan_mode_force_exit`
 
-Explore accepts 1–8 child tasks, with 8 active and 24 total launches per parent run. Children are isolated/read-only and receive only `read`, `grep`, `find`, `ls`, `task_status`, and `task_logs`.
+The Async Subagents tool group is disabled by default. It lets a lead create named autonomous developer teammates, assign only idle teammates, inspect or list them, and stop an active assignment. Teammates share the project worktree, retain their own context for follow-ups, and do not automatically receive the lead transcript. Up to four assignments can be active for one lead. Completion is delivered durably and can wake the lead; stopping does not delete the teammate's history.
+
+Explore accepts 1–8 child tasks, with 8 active and 24 total launches per parent run. Explore children are temporary, isolated/read-only, and receive only `read`, `grep`, `find`, `ls`, `task_status`, and `task_logs`. Unlike persistent teammates, they report on one research assignment and cannot modify the shared worktree.
 
 ## Not agent tools
 

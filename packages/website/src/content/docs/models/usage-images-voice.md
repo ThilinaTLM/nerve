@@ -23,6 +23,12 @@ For text-only models, choose an image-capable model for `explain_image` under **
 
 The configured vision provider receives the image bytes. A local OpenAI-compatible vision endpoint can keep processing local; cloud-provider usage and billing remain separate from the primary model. See [Images and voice](/guides/images-and-voice/) for clipboard behavior.
 
+## Image generation
+
+Enable and configure `generate_image` under **Settings → Tools → Image generation**. The agent supplies a prompt; provider, model, and output defaults remain under user control. Generated raster files are retained as tool-call artifacts and linked from the transcript.
+
+The initial OpenAI Codex integration uses ChatGPT subscription image access and limits, not OpenAI API-key billing. Because that endpoint is not a public OpenAI API contract, availability and accepted options can vary by account.
+
 ## Voice input
 
 Voice capture happens in the browser/Electron renderer, then uploads to ChatGPT's transcription endpoint. It requires OpenAI Codex OAuth with an account ID and uses `gpt-4o-transcribe`.

@@ -19,7 +19,7 @@ Terminal selection is host-specific:
 
 Unavailable editors or terminal launchers are omitted from menus. If an expected action is missing, confirm its CLI or application is installed in a standard location and restart Nerve. Other editor families are not currently exposed.
 
-Nerve's file tabs remain preview-only. Edit in your external editor or use approved agent `edit`/`write` tools.
+Nerve can edit small regular text files inside the project, with revision-checked saves. Use your external editor or approved agent `edit`/`write` tools for larger changes, unsupported files, or full IDE workflows.
 
 ## Next steps
 
