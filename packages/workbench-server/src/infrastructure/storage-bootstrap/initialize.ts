@@ -250,6 +250,9 @@ export async function writeSettings(
     ? {
         ...patch.asyncSubagent,
         ...(patch.asyncSubagent.model === null ? { model: undefined } : {}),
+        ...(patch.asyncSubagent.thinkingLevel === null
+          ? { thinkingLevel: undefined }
+          : {}),
       }
     : undefined;
   const runtimePatch = patch.runtime

@@ -5,9 +5,15 @@ import {
   buildModelCatalog,
   filterModelCatalog,
   modelProviderFacets,
+  type ModelCapability,
 } from "./model-catalog";
 
-function model(provider: string, modelId: string, name: string): ModelInfo {
+function model(
+  provider: string,
+  modelId: string,
+  name: string,
+  overrides: Partial<ModelInfo> = {},
+): ModelInfo {
   return {
     provider,
     modelId,
@@ -18,6 +24,7 @@ function model(provider: string, modelId: string, name: string): ModelInfo {
     supportedThinkingLevels: ["off"],
     contextWindow: 0,
     maxOutputTokens: 0,
+    ...overrides,
   };
 }
 
@@ -78,5 +85,38 @@ describe("model catalog", () => {
       ),
       ["vendor/model-499"],
     );
+  });
+
+  it("filters by capabilities combined with provider and query", () => {
+    const entries = buildModelCatalog([
+      model("openai", "vision-reason", "Vision Reason", {
+        input: ["text", "image"],
+        supportedThinkingLevels: ["off", "high"],
+        contextWindow: 400_000,
+      }),
+      model("openai", "vision-only", "Vision Only", {
+        input: ["text", "image"],
+        contextWindow: 128_000,
+      }),
+      model("anthropic", "reason-only", "Reason Only", {
+        supportedThinkingLevels: ["low", "high"],
+      }),
+    ]);
+    const keys = (
+      capabilities: ModelCapability[],
+      provider = "all",
+      query = "",
+    ) =>
+      filterModelCatalog(entries, query, provider, new Set(capabilities)).map(
+        (entry) => entry.model.modelId,
+      );
+
+    assert.deepEqual(keys(["vision"]), ["vision-only", "vision-reason"]);
+    assert.deepEqual(keys(["reasoning"]), ["reason-only", "vision-reason"]);
+    assert.deepEqual(keys(["vision", "reasoning", "long-context"]), [
+      "vision-reason",
+    ]);
+    assert.deepEqual(keys(["reasoning"], "anthropic"), ["reason-only"]);
+    assert.deepEqual(keys(["vision"], "all", "only"), ["vision-only"]);
   });
 });

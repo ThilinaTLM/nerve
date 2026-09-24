@@ -1,44 +1,5 @@
-import type { ModelInfo, ModelSelection, Settings } from "$lib/api";
-import type { SelectItem } from "@nervekit/ui-kit/components/composites/select-field";
-import {
-  contextualModelLabel,
-  modelKey,
-  providerDisplayName,
-} from "$lib/presentation/utils/model";
+import type { ModelSelection, Settings, ThinkingLevel } from "$lib/api";
 import { compactionProfileItems } from "../compaction/compaction-options";
-
-export const leadModelOption = "$lead";
-
-export function asyncSubagentModelOptions(
-  models: ModelInfo[],
-  configured?: ModelSelection,
-): SelectItem[] {
-  const options: SelectItem[] = [
-    {
-      value: leadModelOption,
-      label: "Lead agent model",
-      detail: "Use the lead's model when each teammate is created.",
-    },
-  ];
-  if (
-    configured &&
-    !models.some((model) => modelKey(model) === modelKey(configured))
-  ) {
-    options.push({
-      value: modelKey(configured),
-      label: `${configured.provider}/${configured.modelId} (unavailable)`,
-      detail: "This configured model is no longer available.",
-      disabled: true,
-    });
-  }
-  return options.concat(
-    models.map((model) => ({
-      value: modelKey(model),
-      label: contextualModelLabel(model, models),
-      detail: providerDisplayName(model.provider),
-    })),
-  );
-}
 
 export function validAsyncSubagentPercent(
   value: string,
@@ -53,10 +14,11 @@ export function validAsyncSubagentPercent(
   );
 }
 
+/** Builds the settings patch. An `undefined` model means "use the lead's
+ * model", which also inherits the lead's thinking level. */
 export function asyncSubagentPatch(
-  modelKeyDraft: string,
-  configured: ModelSelection | undefined,
-  models: ModelInfo[],
+  model: ModelSelection | undefined,
+  thinkingLevel: ThinkingLevel | undefined,
   profile: Settings["asyncSubagent"]["compactionProfile"],
   trigger: string,
   keepRecent: string,
@@ -64,6 +26,7 @@ export function asyncSubagentPatch(
   | {
       asyncSubagent: {
         model: ModelSelection | null;
+        thinkingLevel: ThinkingLevel | null;
         compactionProfile: Settings["asyncSubagent"]["compactionProfile"];
         customTriggerPercent: number;
         customKeepRecentPercent: number;
@@ -75,23 +38,12 @@ export function asyncSubagentPatch(
     !validAsyncSubagentPercent(keepRecent, 5, 40)
   )
     return undefined;
-  const chosen = models.find((model) => modelKey(model) === modelKeyDraft);
-  // A saved model that became unavailable may be retained, but not replaced by
-  // an arbitrary key no longer in the available catalog.
-  if (
-    modelKeyDraft !== leadModelOption &&
-    !chosen &&
-    (!configured || modelKey(configured) !== modelKeyDraft)
-  )
-    return undefined;
   return {
     asyncSubagent: {
-      model:
-        modelKeyDraft !== leadModelOption
-          ? chosen
-            ? { provider: chosen.provider, modelId: chosen.modelId }
-            : configured!
-          : null,
+      model: model
+        ? { provider: model.provider, modelId: model.modelId }
+        : null,
+      thinkingLevel: model ? (thinkingLevel ?? null) : null,
       compactionProfile: profile,
       customTriggerPercent: Number(trigger),
       customKeepRecentPercent: Number(keepRecent),

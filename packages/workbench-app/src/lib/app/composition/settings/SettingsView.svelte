@@ -32,7 +32,6 @@ import {
 import CompactionSettingsPage from "$lib/features/settings/views/pages/compaction/CompactionSettingsPage.svelte";
 import ModelsPageActions from "$lib/features/settings/views/pages/models/ModelsPageActions.svelte";
 import ModelsSettingsPage from "$lib/features/settings/views/pages/models/ModelsSettingsPage.svelte";
-import { ModelsPageState } from "$lib/features/settings/views/pages/models/models-page-state.svelte";
 import NotificationsSettingsPage from "$lib/features/settings/views/pages/notifications/NotificationsSettingsPage.svelte";
 import PermissionsSettingsPage from "$lib/features/settings/views/pages/permissions/PermissionsSettingsPage.svelte";
 import { PermissionsPageState } from "$lib/features/settings/views/pages/permissions/permissions-page-state.svelte";
@@ -268,7 +267,6 @@ const pages = $derived(
   }),
 );
 
-const modelsPageState = new ModelsPageState();
 const suggestionsPageState = new SuggestionsPageState();
 const storageController = new StoragePageController();
 
@@ -313,13 +311,7 @@ function statusText(): string {
   {#snippet pageActions(page)}
     {#if settingsDraft}
       {#if page.id === "models"}
-        <ModelsPageActions
-          pageState={modelsPageState}
-          {settingsDraft}
-          {models}
-          {authProviders}
-          {onSettingsChange}
-        />
+        <ModelsPageActions {settingsDraft} {onSettingsChange} />
       {:else if page.id === "suggestions"}
         <SuggestionsPageActions pageState={suggestionsPageState} />
       {:else if page.id === "storage"}
@@ -396,7 +388,6 @@ function statusText(): string {
         />
       {:else if page.id === "models"}
         <ModelsSettingsPage
-          pageState={modelsPageState}
           {settingsDraft}
           {models}
           {authProviders}

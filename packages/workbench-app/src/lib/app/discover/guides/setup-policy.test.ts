@@ -124,7 +124,7 @@ describe("setup guide policy", () => {
     assert.equal(
       setupStepsForArea("scoped-models", { codexConnected: false }).at(-1)
         ?.targetId,
-      "setup-scoped-models-save",
+      "setup-scoped-models-default",
     );
     // The main-model step retired with the standalone Default model picker;
     // choosing a model now lives in the scoped-models guide, and the default is

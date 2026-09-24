@@ -19,9 +19,9 @@ import {
   modelKey,
   providerDisplayName,
   supportsImageInput,
-  usableModelOptions,
+  authenticatedRealModelOptions,
 } from "$lib/presentation/utils/model";
-import SingleModelSelectionDialog from "../../shared/SingleModelSelectionDialog.svelte";
+import ToolModelDialog from "./ToolModelDialog.svelte";
 import type { SettingsChange } from "../settings-change";
 import AsyncSubagentToolDialog from "./AsyncSubagentToolDialog.svelte";
 import { asyncSubagentProfileLabel } from "./async-subagent-options";
@@ -62,9 +62,9 @@ let {
 let asyncSubagentDialogOpen = $state(false);
 let bashDialogOpen = $state(false);
 let pythonDialogOpen = $state(false);
-let visionModelDialogOpen = $state(false);
 let imageGenerationDialogOpen = $state(false);
 let webDialogOpen = $state(false);
+let visionModelDialogOpen = $state(false);
 let exploreDialogOpen = $state(false);
 
 const disabledTools = $derived(new Set(settingsDraft.tools?.disabled ?? []));
@@ -81,9 +81,10 @@ const tavilyConfigured = $derived(
   tavilyProfileReady(selectedTavilyProfile, authProviders),
 );
 const bashAutoPromotion = $derived(settingsDraft.tools.bash.autoPromotion);
-const usableVisionModels = $derived(
-  usableModelOptions(models, authProviders).filter(supportsImageInput),
+const usableModels = $derived(
+  authenticatedRealModelOptions(models, authProviders),
 );
+const usableVisionModels = $derived(usableModels.filter(supportsImageInput));
 const configuredVisionSelection = $derived(
   settingsDraft.tools.imageExplanation.model,
 );
@@ -104,22 +105,21 @@ const imageGenerationReady = $derived(
         provider.credentialType === "oauth",
     ),
 );
-const usableExploreModels = $derived(usableModelOptions(models, authProviders));
-const configuredAsyncSubagentModel = $derived(
-  settingsDraft.asyncSubagent.model
-    ? usableExploreModels.find(
-        (model) =>
-          modelKey(model) ===
-          modelKey(settingsDraft.asyncSubagent.model as ModelSelection),
-      )
-    : undefined,
-);
 const configuredExploreModel = $derived(
   settingsDraft.exploreAgent.model
-    ? usableExploreModels.find(
+    ? usableModels.find(
         (model) =>
           modelKey(model) ===
           modelKey(settingsDraft.exploreAgent.model as ModelSelection),
+      )
+    : undefined,
+);
+const configuredAsyncSubagentModel = $derived(
+  settingsDraft.asyncSubagent.model
+    ? usableModels.find(
+        (model) =>
+          modelKey(model) ===
+          modelKey(settingsDraft.asyncSubagent.model as ModelSelection),
       )
     : undefined,
 );
@@ -303,6 +303,10 @@ function setTavilyProfile(profileId?: string): void {
           {#snippet meta()}
             {#if settingsDraft.asyncSubagent.model && !configuredAsyncSubagentModel}
               Model unavailable ·
+            {:else if configuredAsyncSubagentModel}
+              {settingsDraft.asyncSubagent.thinkingLevel
+                ? `Thinking ${settingsDraft.asyncSubagent.thinkingLevel}`
+                : "Lead's thinking level"} ·
             {/if}
             {asyncSubagentProfileLabel(
               settingsDraft.asyncSubagent.compactionProfile,
@@ -448,28 +452,31 @@ function setTavilyProfile(profileId?: string): void {
   onSave={setTavilyProfile}
 />
 
-<SingleModelSelectionDialog
+<ToolModelDialog
   bind:open={visionModelDialogOpen}
-  title="Choose image explanation model"
-  description="Only configured models that accept image input are shown."
-  models={usableVisionModels}
+  title="Configure Image explanation"
+  description="Choose the vision model that describes images for text-only agents."
+  label="Image explanation model"
+  models={usableModels}
   selectedModel={configuredVisionSelection}
   selectedThinkingLevel={settingsDraft.tools.imageExplanation.thinkingLevel}
+  requiredCapabilities={["vision"]}
   emptyMessage="No configured image-capable models are available."
   onSave={saveVisionModel}
 />
 
-<SingleModelSelectionDialog
+<ToolModelDialog
   bind:open={exploreDialogOpen}
-  title="Choose explore model"
+  title="Configure Explore"
   description="Explore agents run read-only research in coding mode with a fresh history."
-  models={usableExploreModels}
+  label="Explore model"
+  models={usableModels}
   selectedModel={settingsDraft.exploreAgent.model}
   selectedThinkingLevel={settingsDraft.exploreAgent.thinkingLevel}
-  fallbackOption={{
-    label: "Parent agent model",
-    detail: "Use the same model as the agent that started the explore",
-    actionLabel: "Use parent agent model",
+  inheritOption={{
+    label: "Use the parent agent's model",
+    description:
+      "Explore agents run on the model of the agent that started them.",
   }}
   onSave={saveExploreModel}
 />

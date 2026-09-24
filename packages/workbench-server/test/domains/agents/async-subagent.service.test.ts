@@ -6,7 +6,7 @@ import {
   type AsyncSubagentControl,
 } from "@nervekit/contracts/agents";
 import type { RunRecord } from "@nervekit/contracts/runs";
-import type { ModelSelection } from "@nervekit/contracts/models";
+import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import {
   AsyncSubagentService,
@@ -33,7 +33,9 @@ function setup() {
   const runs = new Map<string, RunRecord>();
   const entries: ConversationEntry[] = [];
   let enabled = true;
-  let configuredModel: ModelSelection | undefined;
+  let configuredModel:
+    | { model: ModelSelection; thinkingLevel?: ThinkingLevel }
+    | undefined;
   let cancelGate: Promise<void> | undefined;
   let starts = 0;
   const ports: AsyncSubagentPorts = {
@@ -103,7 +105,11 @@ function setup() {
     setEnabled: (value: boolean) => {
       enabled = value;
     },
-    setConfiguredModel: (value: ModelSelection | undefined) => {
+    setConfiguredModel: (
+      value:
+        | { model: ModelSelection; thinkingLevel?: ThinkingLevel }
+        | undefined,
+    ) => {
       configuredModel = value;
     },
     gateCancel: (gate: Promise<void>) => {
@@ -136,12 +142,19 @@ describe("persistent autonomous developer teammates", () => {
     const inherited = await f.service.create(f.lead.id, "inherited", true);
     assert.deepEqual(f.agents.get(inherited.agentId)?.model, f.lead.model);
     const selection = { provider: "xai", modelId: "grok-4.5" };
-    f.setConfiguredModel(selection);
+    f.setConfiguredModel({ model: selection });
     const configured = await f.service.create(f.lead.id, "configured", true);
     assert.deepEqual(f.agents.get(configured.agentId)?.model, selection);
     assert.deepEqual(f.agents.get(inherited.agentId)?.model, f.lead.model);
     assert.equal(
       f.agents.get(configured.agentId)?.thinkingLevel,
+      f.lead.thinkingLevel,
+    );
+    f.setConfiguredModel({ model: selection, thinkingLevel: "high" });
+    const reasoning = await f.service.create(f.lead.id, "reasoning", true);
+    assert.equal(f.agents.get(reasoning.agentId)?.thinkingLevel, "high");
+    assert.equal(
+      f.agents.get(inherited.agentId)?.thinkingLevel,
       f.lead.thinkingLevel,
     );
   });

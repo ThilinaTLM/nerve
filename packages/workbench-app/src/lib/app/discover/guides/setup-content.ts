@@ -110,12 +110,12 @@ export const setupGuideSteps: Record<
   ],
   "scoped-models": [
     {
-      id: "scoped-models-add",
-      title: "Choose Add models",
+      id: "scoped-models-view",
+      title: "Show all models",
       description:
-        "Open the scoped-model catalog to limit which authenticated models appear in the composer.",
-      targetId: "setup-scoped-models-add",
-      fallback: "Open Settings → Models and choose Add models.",
+        "Choose All to browse every authenticated model, not only the ones already in scope.",
+      targetId: "setup-scoped-models-view",
+      fallback: "Open Settings → Models and choose All above the model list.",
       preparation: {
         kind: "settings",
         pageId: "models",
@@ -125,12 +125,12 @@ export const setupGuideSteps: Record<
     },
     {
       id: "scoped-models-catalog",
-      title: "Search and select models",
+      title: "Search and check models",
       description:
-        "Search, filter by provider, and check the models you want in scope.",
+        "Search, filter by provider or capability, and check the models you want in scope. Changes save immediately; leaving everything unchecked keeps all models available.",
       targetId: "setup-scoped-models-catalog",
       fallback:
-        "Click Add models first; the search, filters, and model catalog will appear in the dialog.",
+        "In Settings → Models, check the models the composer should offer.",
       preparation: {
         kind: "settings",
         pageId: "models",
@@ -138,12 +138,13 @@ export const setupGuideSteps: Record<
       },
     },
     {
-      id: "scoped-models-save",
-      title: "Save the selection",
+      id: "scoped-models-default",
+      title: "Star the default",
       description:
-        "Save your choices. Leaving every model unchecked is valid and keeps all authenticated models available.",
-      targetId: "setup-scoped-models-save",
-      fallback: "In the Add models dialog, choose Save selection when ready.",
+        "Star a scoped model to make it the default for new agents and pick its reasoning level.",
+      targetId: "setup-scoped-models-default",
+      fallback:
+        "In Settings → Models, use the star on a scoped model to make it the default.",
       preparation: {
         kind: "settings",
         pageId: "models",
