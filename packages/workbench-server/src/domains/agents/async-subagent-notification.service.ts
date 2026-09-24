@@ -163,7 +163,16 @@ export class AsyncSubagentNotificationService {
     );
     const activeRunId = active?.run.runId;
     if (!entry) {
-      const text = `Developer teammate ${child.name} finished assignment run ${record.runId}: ${record.outcome}. Use subagent_status with the teammate's name to retrieve its response when idle, then accept it or send follow-up work. This notice refers to that run, not necessarily the teammate's current state.`;
+      const response = (await this.ports.entries(child.conversationId))
+        .filter(
+          (candidate) =>
+            candidate.agentId === child.id &&
+            candidate.runId === record.runId &&
+            candidate.role === "assistant",
+        )
+        .at(-1)
+        ?.text?.trim();
+      const text = `Developer teammate ${child.name} finished assignment: ${record.outcome}. This notice refers to that assignment, not necessarily the teammate's current state. ${response ? `\n\n${record.outcome === "completed" ? "Final response" : "Last response (assignment did not complete)"}:\n${response}` : "No response was recorded for this assignment."}`;
       const message = createHarnessMessage(
         "subagent_event",
         text,

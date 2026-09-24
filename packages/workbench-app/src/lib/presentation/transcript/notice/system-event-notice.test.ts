@@ -36,6 +36,11 @@ describe("system event notices", () => {
     assert.equal(model.badge, "subagent_failed");
     assert.equal(model.tone, "destructive");
     assert.equal(model.arg, "reviewer");
+    assert.equal(
+      model.chips?.length ?? 0,
+      0,
+      "run IDs remain metadata, not visible chips",
+    );
   });
 
   it("renders unknown system messages without hiding their provenance", () => {

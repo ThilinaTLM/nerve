@@ -32,6 +32,7 @@ function setup() {
     ...lead,
     id: "agent_child",
     parentAgentId: lead.id,
+    conversationId: "conv_child",
     name: "API",
     executionKind: "async_developer" as const,
   };
@@ -61,6 +62,7 @@ function setup() {
   };
   const records = new Map<string, AsyncSubagentCompletion>();
   const entries: ConversationEntry[] = [];
+  const childEntries: ConversationEntry[] = [];
   const queued: string[] = [];
   const queuedMessages: Array<{
     content: string;
@@ -109,7 +111,8 @@ function setup() {
       }),
     },
     getAgent: (id) => (id === lead.id ? lead : child),
-    entries: async () => entries,
+    entries: async (conversationId) =>
+      conversationId === child.conversationId ? childEntries : entries,
     appendEntry: async (input) => {
       const entry = {
         ...input,
@@ -138,6 +141,7 @@ function setup() {
     service,
     records,
     entries,
+    childEntries,
     queued,
     queuedMessages,
     lead,
@@ -169,9 +173,12 @@ it("recovers a missing completion row, persists before waking, and does not wake
   assert.equal(f.entries.length, 1);
   assert.match(
     f.entries[0]?.text ?? "",
-    /teammate API finished assignment run run_child/,
+    /teammate API finished assignment: completed/,
   );
-  assert.doesNotMatch(f.entries[0]?.text ?? "", /agent_child|background tasks/);
+  assert.doesNotMatch(
+    f.entries[0]?.text ?? "",
+    /agent_child|run_child|subagent_status/,
+  );
   assert.equal(f.entries[0]?.details?.childId, f.child.id);
   assert.equal(f.wakeCount(), 1);
   await f.service.recover();
@@ -194,11 +201,11 @@ it("queues into an active lead without marking the notification delivered before
   assert.equal(f.queued.length, 1);
   assert.match(
     f.queuedMessages[0]?.content ?? "",
-    /teammate API finished assignment run run_child/,
+    /teammate API finished assignment: completed/,
   );
   assert.doesNotMatch(
     f.queuedMessages[0]?.content ?? "",
-    /agent_child|background tasks/,
+    /agent_child|run_child|subagent_status/,
   );
   assert.equal(f.queuedMessages[0]?.details?.childId, f.child.id);
   assert.equal(f.wakeCount(), 0);
@@ -211,6 +218,53 @@ it("queues into an active lead without marking the notification delivered before
     "a dropped live queue must fall back to durable append after teardown",
   );
   assert.equal(f.wakeCount(), 1);
+  await f.service.stop();
+});
+
+it("delivers the response for the completed assignment rather than an earlier run", async () => {
+  const f = setup();
+  f.childEntries.push(
+    {
+      id: "entry_old",
+      agentId: f.child.id,
+      runId: "run_old",
+      role: "assistant",
+      text: "Stale response",
+    } as ConversationEntry,
+    {
+      id: "entry_final",
+      agentId: f.child.id,
+      runId: "run_child",
+      role: "assistant",
+      text: "Implemented the requested change.",
+    } as ConversationEntry,
+  );
+  f.activate();
+  await f.service.recover();
+  assert.match(
+    f.queuedMessages[0]?.content ?? "",
+    /Final response:\nImplemented the requested change\./,
+  );
+  assert.doesNotMatch(f.queuedMessages[0]?.content ?? "", /Stale response/);
+  await f.service.stop();
+});
+
+it("labels a failed assignment's response as incomplete", async () => {
+  const f = setup();
+  f.childState.run = { ...f.childState.run, status: "failed" };
+  f.childEntries.push({
+    id: "entry_partial",
+    agentId: f.child.id,
+    runId: "run_child",
+    role: "assistant",
+    text: "Partial findings",
+  } as ConversationEntry);
+  await f.service.recover();
+  assert.match(f.entries[0]?.text ?? "", /finished assignment: failed/);
+  assert.match(
+    f.entries[0]?.text ?? "",
+    /Last response \(assignment did not complete\):\nPartial findings/,
+  );
   await f.service.stop();
 });
 

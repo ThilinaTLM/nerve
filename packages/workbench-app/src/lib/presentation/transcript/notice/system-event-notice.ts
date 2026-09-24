@@ -42,11 +42,8 @@ export function systemEventNoticeModel(
             : "warning",
       glyph: "subagent",
       badge: `subagent_${outcome}`,
-      arg: name ?? textValue(details.childRunId),
+      arg: name ?? "teammate",
       statusLabel: `Subagent assignment ${outcome}; agent notified`,
-      chips: details.childRunId
-        ? [{ text: String(details.childRunId), mono: true }]
-        : [],
     };
   }
   if (

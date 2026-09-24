@@ -13,7 +13,7 @@ const ASYNC_TASK_GUIDELINE =
 
 const GROUP_GUIDELINES: Partial<Record<ToolGroupName, string>> = {
   subagents:
-    "Developer teammates share your working directory and worktree: assign non-overlapping work and do not revert each other's changes. Each final response completes its assignment; the teammate then remains available for follow-ups. Prompt only idle teammates; running/stopping teammates cannot queue prompts, so stop and wait for idle before replacing an assignment. Do not poll after delegation: continue independent work or finish your turn. Completion notifications wake you; use the teammate's name with subagent_status to inspect its response and run identity. Teammates needing clarification finish with a normal response for you to resolve.",
+    "Developer teammates share your working directory and worktree: assign non-overlapping work and do not revert each other's changes. Each final response completes its assignment; the teammate then remains available for follow-ups. Prompt only idle teammates; running/stopping teammates cannot queue prompts, so stop and wait for idle before replacing an assignment. Do not poll after delegation: continue independent work or finish your turn. Completion notifications wake you with the teammate's response; you do not need to call subagent_status to retrieve it. Use subagent_status only when you need the teammate's current state or a fresh status check. Teammates needing clarification finish with a normal response for you to resolve.",
   jira: "Keep Jira queries narrow and mutate Jira only when explicitly requested.",
   confluence:
     "Use storage XML or JSONL as the editable Confluence source of truth, treat markdown as read-only, and mutate Confluence only when explicitly requested.",
