@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-Nerve is an open-source desktop coding harness for people who want an agent's work to stay visible and controllable. It combines a focused agent runtime with a workbench for conversations, files, context, Git, pull requests, background tasks, logs, settings, and project notes.
+Nerve is an open-source desktop coding harness for people who want an agent's work to stay visible and controllable. It combines a focused agent runtime with a workbench for conversations, editable project files, context, Git, pull requests, delegated agents, background tasks, logs, settings, and project notes.
 
 Nerve is **not a code editor** and does not replace your repository or IDE. It works directly with a directory you select, previews files in the workbench, and can open a project in VS Code or Zed.
 
@@ -19,7 +19,7 @@ The daemon reaches external services only when required by your selected model, 
 
 - **Project:** a Nerve record pointing to a local directory. Selecting another project is a workbench action; there is no server-wide current project.
 - **Conversation:** persisted agent history associated with a project. Conversations can branch when you navigate to an earlier entry.
-- **Agent:** the model, thinking level, mode, permission level, tools, and loaded resources used for work.
+- **Agent:** a model-driven worker with a thinking level, mode, permission level, tools, and loaded resources. Each conversation has a lead; it can delegate to persistent developer teammates or bounded read-only Explore agents.
 - **Run:** one durable execution attempt. Runs can stream output, pause for review, retry, or continue from a recoverable checkpoint.
 - **Task:** a supervised long-running process such as a server or watcher. Tasks are distinct from finite shell commands and agent to-dos.
 
@@ -42,4 +42,5 @@ Nerve can modify files, execute commands, use credentials, and contact networks.
 - [Follow the guided quickstart](/start/)
 - [Install Nerve](/start/install/)
 - [Connect a model provider](/start/providers/)
+- [Learn the everyday workflow](/guides/)
 - [Understand the security boundary](/operations/security/)

@@ -1,21 +1,23 @@
 ---
-title: Inspect files, context, and notes
-description: Preview project files, understand active context, and keep project scratch notes.
+title: Edit files, inspect context, and keep notes
+description: Review and edit project files, monitor agents and context, and keep project scratch notes.
 sidebar:
   order: 8
 ---
 
-## File previews
+## File viewing and editing
 
-Open files from tool cards, project references, Git changes, or pull request files. Nerve previews text, images, and Markdown, can target a line, toggle wrapping, and switch Markdown render mode. Large files are bounded and show truncation state; unsupported binary content cannot be rendered.
+Open files from the Files panel, tool cards, project references, Git changes, or pull request files. Nerve displays text, images, and Markdown, can target a line, toggle wrapping, highlight selection matches, and switch Markdown or Mermaid render modes.
 
-The preview pane is not an editor. Make code changes through agent tools or your external editor.
+Small regular text files inside the project are directly editable. Type in the text view and save with `Ctrl/Cmd+S`. A modified indicator remains until the draft is saved, and closing one or more modified file tabs asks whether to save, discard, or cancel. Saving is atomic and revision-checked: if another program changed the file after Nerve loaded it, Nerve preserves your draft and reports a conflict instead of overwriting the newer content.
 
-## Context
+Editing is unavailable for files outside the project, symbolic links, binary files, and text files larger than 1 MiB. Large files are bounded and show truncation state; unsupported binary content cannot be rendered. Use an external editor or approved agent tools when the built-in editor is not suitable.
 
-The Context panel explains loaded resources and conversation context. The composer meter shows current usage as a fraction of the model's declared context window when usage information is available. It can display `?` before the provider reports enough information.
+## Context and active agents
 
-Automatic compaction creates an explicit transcript event. The full stored history graph remains available even when the active model context contains a summary.
+The Context panel explains loaded resources and conversation context. Its Agents section groups the lead, persistent developer teammates, and temporary Explore agents, with live status and access to child transcripts. See [Agents and delegation](/guides/agents-and-delegation/) for the difference between them.
+
+The composer meter shows current usage as a fraction of the model's declared context window when usage information is available. It can display `?` before the provider reports enough information. Automatic compaction creates an explicit transcript event. The full stored history graph remains available even when the active model context contains a summary.
 
 ## Notes
 
@@ -25,5 +27,6 @@ For durable agent guidance, use `AGENTS.md`, `SYSTEM.md`, or a skill in the docu
 
 ## Next steps
 
+- [Agents and delegation](/guides/agents-and-delegation/)
 - [Skills and resources](/guides/skills-and-resources/)
 - [Storage and migration](/operations/storage-migration/)

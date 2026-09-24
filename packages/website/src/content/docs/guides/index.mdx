@@ -1,0 +1,66 @@
+---
+title: Use Nerve day to day
+description: Choose the shortest guide for the work you want to do in Nerve.
+sidebar:
+  order: 0
+---
+
+import { CardGrid, LinkCard, Steps } from "@astrojs/starlight/components";
+
+You do not need to learn every panel before starting. Begin with one conversation in **Supervised** mode, then add the workflows you need.
+
+## The everyday loop
+
+<Steps>
+
+1. **Describe the outcome.** Use the [composer](/guides/composer/) to add a prompt, project paths, or an image.
+2. **Keep the authority appropriate.** Choose [Coding or Planning mode and a permission level](/guides/agent-controls/).
+3. **Stay involved.** Read the transcript and resolve [approvals, questions, and plan reviews](/guides/reviews/).
+4. **Inspect the result.** [Edit or review files](/guides/files-context-notes/), inspect the Git diff, and run focused validation.
+5. **Continue or branch.** Steer active work, return to an earlier history point, or start another conversation without losing the original record.
+
+</Steps>
+
+## Find the right guide
+
+<CardGrid>
+  <LinkCard
+    title="Learn the interface"
+    description="Understand projects, dock panels, center tabs, compact layouts, and the built-in tour."
+    href="/guides/workbench/"
+  />
+  <LinkCard
+    title="Work with conversations"
+    description="Create and search conversations, read transcripts, branch history, and recover interrupted work."
+    href="/guides/conversations/"
+  />
+  <LinkCard
+    title="Review code and files"
+    description="Edit small text files, inspect context, use notes, and review Git or pull requests."
+    href="/guides/files-context-notes/"
+  />
+  <LinkCard
+    title="Delegate work"
+    description="Choose between persistent developer teammates and bounded read-only Explore research."
+    href="/guides/agents-and-delegation/"
+  />
+  <LinkCard
+    title="Supervise long-running commands"
+    description="Run servers and watchers as background tasks with retained status and logs."
+    href="/guides/background-tasks/"
+  />
+  <LinkCard
+    title="Customize Nerve"
+    description="Configure models, tools, skills, suggestions, appearance, notifications, storage, and system behavior."
+    href="/guides/settings/"
+  />
+</CardGrid>
+
+## Keep these concepts separate
+
+- An **agent** performs work in a conversation. A lead can delegate to developer teammates or temporary Explore agents.
+- A **to-do** is the agent's structured checklist for its current work.
+- A **background task** supervises a long-running operating-system process such as a server or watcher.
+- A **skill** supplies instructions. Enabling one does not grant extra tool permissions.
+
+If you have not installed Nerve or connected a provider yet, use the [guided quickstart](/start/) first.

@@ -37,9 +37,9 @@ The compact wrench/library control shows selected optional tools and skills for 
 
 The selection order is User defaults → trusted Project overrides → Conversation overrides. This includes the opt-in state of Built-in Nerve skills. Permissions, planning-mode limits, credentials, provider support, and local runtime availability are applied afterward, so selecting a capability does not grant authority or guarantee availability. Changes made during a run apply to the next run. Disabling a skill cannot remove instructions already present in conversation history.
 
-## Context and to-dos
+## Context, agents, and to-dos
 
-The toolbar displays current context-window pressure and cumulative usage when the provider reports it. A context value can remain unknown until a response. The to-do indicator reflects structured agent work state; it is separate from supervised background processes.
+The toolbar displays current context-window pressure and cumulative usage when the provider reports it. A context value can remain unknown until a response. Open the Context panel to monitor the lead, developer teammates, and Explore agents or to inspect a child transcript. The to-do indicator reflects structured agent work state; it is separate from delegated agents and supervised background processes.
 
 ## Review gates
 
@@ -53,4 +53,5 @@ Dropped items are path mentions, not uploads or attachments. Clipboard image pas
 
 - [Images and voice](/guides/images-and-voice/)
 - [Agent controls](/guides/agent-controls/)
+- [Agents and delegation](/guides/agents-and-delegation/)
 - [Prompt suggestions](/guides/prompt-suggestions/)

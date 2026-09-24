@@ -21,7 +21,7 @@ Importing a conversation does not import its original project directory or sourc
 
 Nerve discovers and launches **Visual Studio Code** and **Zed** through PATH, operating-system application integration, and known locations. Project context menus target the project root; Files panel context menus can target an individual file or folder. Project roots and folders can also be opened in a supported host terminal. Other editors are not currently exposed.
 
-The workbench file pane remains a preview. Continue editing in your external editor or through approved agent file tools.
+The workbench can edit small regular text files inside the project. Use an external editor or approved agent file tools for larger changes, unsupported files, or full IDE workflows. See [Files, context, and notes](/guides/files-context-notes/) for built-in editor limits and save-conflict behavior.
 
 ## Project removal and pruning
 

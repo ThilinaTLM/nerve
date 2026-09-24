@@ -84,8 +84,74 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "start" } }],
         },
         {
-          label: "Workflows",
-          items: [{ autogenerate: { directory: "guides" } }],
+          label: "Use Nerve",
+          items: [
+            { label: "Workflow overview", link: "/guides/" },
+            {
+              label: "Everyday work",
+              items: [
+                { label: "Navigate the workbench", link: "/guides/workbench/" },
+                { label: "Use the composer", link: "/guides/composer/" },
+                {
+                  label: "Add images and voice",
+                  link: "/guides/images-and-voice/",
+                },
+                { label: "Control the agent", link: "/guides/agent-controls/" },
+                {
+                  label: "Review approvals, questions, and plans",
+                  link: "/guides/reviews/",
+                },
+                {
+                  label: "Organize conversations",
+                  link: "/guides/conversations/",
+                },
+                {
+                  label: "Use history, branches, and recovery",
+                  link: "/guides/history-and-recovery/",
+                },
+                {
+                  label: "Edit files, inspect context, and keep notes",
+                  link: "/guides/files-context-notes/",
+                },
+                {
+                  label: "Work with Git and pull requests",
+                  link: "/guides/git-and-pull-requests/",
+                },
+              ],
+            },
+            {
+              label: "Delegate and automate",
+              items: [
+                {
+                  label: "Work with agents and delegation",
+                  link: "/guides/agents-and-delegation/",
+                },
+                {
+                  label: "Run background tasks",
+                  link: "/guides/background-tasks/",
+                },
+                {
+                  label: "Use prompt suggestions",
+                  link: "/guides/prompt-suggestions/",
+                },
+                {
+                  label: "Load skills and project resources",
+                  link: "/guides/skills-and-resources/",
+                },
+              ],
+            },
+            {
+              label: "Customize and move work",
+              items: [
+                { label: "Personalize Nerve", link: "/guides/personalize/" },
+                { label: "Configure Settings", link: "/guides/settings/" },
+                {
+                  label: "Import, export, and open editors",
+                  link: "/guides/import-export-editors/",
+                },
+              ],
+            },
+          ],
         },
         {
           label: "Models & integrations",

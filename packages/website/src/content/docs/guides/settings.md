@@ -26,7 +26,7 @@ Model availability depends on authentication and provider metadata. Changes to d
 
 ## Suggestions, tools, and skills
 
-**Suggestions** manages reusable prompt chips and their trust settings. **Tools** has separate **Core** and **Third party** sections. Controls include tool enablement, background-task behavior, Python runtime settings, image explanation, and image generation. Image generation settings choose the provider, model, and provider-specific output defaults; agents receive only a prompt argument. Integration cards appear only when the corresponding module is available and can manage enablement and credentials.
+**Suggestions** manages reusable prompt chips and their trust settings. **Tools** has separate **Core** and **Third party** sections. Controls include tool enablement, background-task behavior, Python runtime settings, image explanation, image generation, and Async Subagents. Image generation settings choose the provider, model, and provider-specific output defaults; agents receive only a prompt argument. Async Subagent settings choose whether new developer teammates inherit the lead model, their thinking level, and their compaction profile. Integration cards appear only when the corresponding module is available and can manage enablement and credentials.
 
 **Skills** lists user, project, Built-in Nerve, and Agent Browser resources. Built-in Nerve and Agent Browser skills are disabled by default; enabling one adds it to subsequent agent runs without modifying its source. User defaults can be refined by trusted project overrides.
 
@@ -53,5 +53,6 @@ Network, daemon, and diagnostic changes may require a restart. CLI and environme
 - [Select models](/models/selecting-models/)
 - [Configure agent controls](/guides/agent-controls/)
 - [Manage skills and resources](/guides/skills-and-resources/)
+- [Work with agents and delegation](/guides/agents-and-delegation/)
 - [Storage and migration](/operations/storage-migration/)
 - [Diagnostics](/operations/diagnostics/)
