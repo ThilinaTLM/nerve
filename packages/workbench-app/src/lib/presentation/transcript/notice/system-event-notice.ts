@@ -1,5 +1,10 @@
 import type { SystemEventNotice } from "../../state/transcript-types";
-import type { TranscriptNoticeModel } from "./notice-presentation";
+import { plural } from "../../tools/views/tool-presentation-helpers";
+import {
+  COLLAPSED_LINES,
+  countLogicalLines,
+} from "../../tools/views/tool-view-helpers";
+import type { NoticeChip, TranscriptNoticeModel } from "./notice-presentation";
 
 function detailsOf(notice: SystemEventNotice): Record<string, unknown> {
   return notice.details && typeof notice.details === "object"
@@ -11,7 +16,26 @@ function textValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+/** Text rendered in the notice body; the transcript shows only its first lines. */
+export function systemEventNoticeBody(notice: SystemEventNotice): string {
+  return (notice.summary ?? notice.text).trim();
+}
+
+/** Mirrors tool cards: surface the full length once the preview is clipped. */
+function bodyChips(notice: SystemEventNotice): NoticeChip[] {
+  const lines = countLogicalLines(systemEventNoticeBody(notice));
+  return lines > COLLAPSED_LINES ? [{ text: plural(lines, "line") }] : [];
+}
+
 export function systemEventNoticeModel(
+  notice: SystemEventNotice,
+): TranscriptNoticeModel {
+  const model = systemEventNoticeHeader(notice);
+  const chips = [...(model.chips ?? []), ...bodyChips(notice)];
+  return chips.length > 0 ? { ...model, chips } : model;
+}
+
+function systemEventNoticeHeader(
   notice: SystemEventNotice,
 ): TranscriptNoticeModel {
   const details = detailsOf(notice);

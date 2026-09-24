@@ -17,6 +17,17 @@ export type NoticeChip = MetaItem;
 
 export type NoticeAction = CardAction;
 
+/**
+ * Full content behind a notice's collapsed body. The transcript only shows a
+ * fixed six-line preview; this content opens from the "View details" footer.
+ */
+export type NoticeDetails = {
+  title: string;
+  description?: string;
+  text: string;
+  language?: string;
+};
+
 export type TranscriptNoticeModel = {
   /** Notice family, e.g. "task" | "run" | "compaction". */
   kind: string;

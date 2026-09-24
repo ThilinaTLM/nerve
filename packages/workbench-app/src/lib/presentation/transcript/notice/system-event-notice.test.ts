@@ -43,6 +43,22 @@ describe("system event notices", () => {
     );
   });
 
+  it("reports the full body length only once the six-line preview clips it", () => {
+    const lines = (count: number) =>
+      Array.from({ length: count }, (_, index) => `line ${index}`).join("\n");
+    assert.equal(
+      systemEventNoticeModel(notice({ text: lines(6) })).chips,
+      undefined,
+    );
+    const clipped = systemEventNoticeModel(
+      notice({ kind: "branch_summary", fromEntryId: "e0", text: lines(9) }),
+    );
+    assert.deepEqual(
+      clipped.chips?.map((chip) => chip.text),
+      ["from e0", "9 lines"],
+    );
+  });
+
   it("renders unknown system messages without hiding their provenance", () => {
     const model = systemEventNoticeModel(
       notice({ details: { type: "future_event" } }),
