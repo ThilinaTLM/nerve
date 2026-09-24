@@ -53,6 +53,19 @@ const previewText = $derived.by(() => {
   return splitLogicalLines(summary).slice(-COLLAPSED_LINES).join("\n");
 });
 
+const summaryDetails = $derived.by(() => {
+  if (notice.state !== "completed") return undefined;
+  const summary = (notice.summary ?? notice.text ?? "").trim();
+  return summary
+    ? {
+        title: "Compaction summary",
+        description: header.arg,
+        text: summary,
+        language: "markdown",
+      }
+    : undefined;
+});
+
 let now = $state(Date.now());
 $effect(() => {
   if (notice.state !== "running") return;
@@ -164,12 +177,17 @@ const layoutRevision = $derived(
       previewVisible: previewText.length > 0,
     }),
     errorVisible: notice.state === "failed",
-    footerItemCount: chips.length,
+    footerItemCount: chips.length + (summaryDetails ? 1 : 0),
   }),
 );
 </script>
 
-<NoticeCard notice={model} {layoutRevision} {bodyVisible}>
+<NoticeCard
+  notice={model}
+  {layoutRevision}
+  {bodyVisible}
+  details={summaryDetails}
+>
   <ResultCodeBlock
     code={previewText}
     language="markdown"

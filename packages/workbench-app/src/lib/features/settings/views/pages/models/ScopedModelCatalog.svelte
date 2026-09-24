@@ -83,7 +83,6 @@ function toggle(selection: ModelSelection, checked: boolean): void {
     bind:query
     bind:provider
     bind:capabilities
-    countLabel={`${rows.length} shown`}
   >
     {#snippet leading()}
       <ToggleGroup.Root
@@ -151,15 +150,17 @@ function toggle(selection: ModelSelection, checked: boolean): void {
               selected={item.checked}
               onclick={() => toggle(item.selection, !item.checked)}
             >
+              {#snippet badge()}
+                {#if isDefault && model && modelSupportsReasoning(model)}
+                  <Badge variant="accent" class="capitalize"
+                    >{defaultThinkingLevel}</Badge
+                  >
+                {/if}
+              {/snippet}
               {#snippet trailing()}
                 {#if item.stale}
                   <Badge variant="warning">Unavailable</Badge>
                 {:else if model && (item.checked || scopeEmpty)}
-                  {#if isDefault && modelSupportsReasoning(model)}
-                    <Badge variant="accent" class="capitalize"
-                      >{defaultThinkingLevel}</Badge
-                    >
-                  {/if}
                   <DefaultModelStar
                     {label}
                     {model}
@@ -181,10 +182,12 @@ function toggle(selection: ModelSelection, checked: boolean): void {
     class="flex items-center gap-1.5 border-t border-border/60 px-3 py-1.5 text-xs text-muted-foreground"
     data-tour-id="setup-scoped-models-default"
   >
+    <span class="tabular-nums">{rows.length} shown</span>
+    <span aria-hidden="true">·</span>
     {#if scopeEmpty}
       Nothing checked — the composer offers every authenticated model.
     {:else}
-      {scopedModels.length} scoped
+      <span class="tabular-nums">{scopedModels.length} scoped</span>
     {/if}
     <span aria-hidden="true">·</span>
     <Star class="size-3" aria-hidden="true" />

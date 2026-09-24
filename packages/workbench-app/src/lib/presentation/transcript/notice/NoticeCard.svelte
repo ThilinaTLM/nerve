@@ -1,7 +1,12 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import CardShell from "../../cards/CardShell.svelte";
-import type { TranscriptNoticeModel } from "./notice-presentation";
+import { VIEW_TOOL_DETAILS_LABEL } from "../../tools/views/tool-details-label";
+import NoticeDetailsDialog from "./NoticeDetailsDialog.svelte";
+import type {
+  NoticeDetails,
+  TranscriptNoticeModel,
+} from "./notice-presentation";
 
 type Props = {
   notice: TranscriptNoticeModel;
@@ -9,6 +14,8 @@ type Props = {
   layoutRevision?: string;
   /** Whether the body snippet currently renders content. */
   bodyVisible?: boolean;
+  /** Full content behind the collapsed body, opened from "View details". */
+  details?: NoticeDetails;
   children?: Snippet;
 };
 
@@ -16,10 +23,24 @@ let {
   notice,
   layoutRevision = "static",
   bodyVisible = false,
+  details,
   children,
 }: Props = $props();
 
-const cardActions = $derived(notice.action ? [notice.action] : []);
+let detailsOpen = $state(false);
+
+const cardActions = $derived([
+  ...(notice.action ? [notice.action] : []),
+  ...(details
+    ? [
+        {
+          label: VIEW_TOOL_DETAILS_LABEL,
+          ariaLabel: `View ${notice.badge} details`,
+          onClick: () => (detailsOpen = true),
+        },
+      ]
+    : []),
+]);
 
 const summaryVisible = $derived(Boolean(notice.summary));
 const showBody = $derived(bodyVisible || summaryVisible);
@@ -44,3 +65,7 @@ const showBody = $derived(bodyVisible || summaryVisible);
   {/if}
   {#if bodyVisible && children}{@render children()}{/if}
 </CardShell>
+
+{#if details}
+  <NoticeDetailsDialog bind:open={detailsOpen} {details} />
+{/if}

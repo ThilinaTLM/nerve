@@ -13,6 +13,8 @@ type Props = {
   collapsedLines?: number;
   expanded?: boolean;
   terminal?: boolean;
+  /** Clip collapsed output instead of letting wrapped rows scroll. */
+  overflow?: "auto" | "hidden";
   onActivate?: () => void;
   activateLabel?: string;
 };
@@ -23,6 +25,7 @@ let {
   collapsedLines = COLLAPSED_LINES,
   expanded = false,
   terminal = false,
+  overflow = "auto",
   onActivate,
   activateLabel,
 }: Props = $props();
@@ -41,6 +44,7 @@ const visible = $derived.by(() => {
   {language}
   trim={false}
   {terminal}
+  overflow={expanded ? "auto" : overflow}
   fixedRows={expanded ? undefined : collapsedLines}
   tail={!expanded && direction === "tail"}
   {onActivate}

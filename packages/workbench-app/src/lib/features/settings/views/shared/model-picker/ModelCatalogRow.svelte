@@ -2,7 +2,8 @@
   One model in a settings catalog. `option` rows live in the ModelPicker
   listbox (keyboard highlight is driven by its search field); `checkbox` rows
   live in the inline scope editor. Capability cells keep fixed widths so the
-  context size, image and reasoning columns align across rows.
+  context size, image and reasoning columns align across rows. Option rows
+  mark the selection in a leading slot so the row ends at its capabilities.
 -->
 <script lang="ts">
 import type { Snippet } from "svelte";
@@ -36,6 +37,8 @@ type Props = {
   class?: string;
   onclick?: () => void;
   leading?: Snippet;
+  /** Inline after the label and detail, e.g. a small badge. */
+  badge?: Snippet;
   trailing?: Snippet;
 };
 
@@ -52,6 +55,7 @@ let {
   class: className,
   onclick,
   leading,
+  badge,
   trailing,
 }: Props = $props();
 
@@ -76,6 +80,9 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
       <span class="min-w-0 truncate text-xs text-muted-foreground"
         >{detail}</span
       >
+    {/if}
+    {#if badge}
+      <span class="flex flex-none self-center">{@render badge()}</span>
     {/if}
   </span>
 {/snippet}
@@ -139,11 +146,7 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
       }
     }}
   >
-    <div class="flex min-h-7 min-w-0 items-center gap-2 px-1.5 py-1">
-      {@render leading?.()}
-      {@render text()}
-      {@render capabilities()}
-      {@render trailing?.()}
+    <div class="flex min-h-7 min-w-0 items-center gap-2 py-1 pr-1.5 pl-1">
       <CircleCheck
         class={cn(
           "size-3.5 flex-none text-foreground",
@@ -151,6 +154,10 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
         )}
         aria-hidden="true"
       />
+      {@render leading?.()}
+      {@render text()}
+      {@render capabilities()}
+      {@render trailing?.()}
     </div>
   </div>
 {:else}
@@ -179,7 +186,7 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
     </Label>
     {@render capabilities()}
     {#if trailing}
-      <span class="flex w-24 flex-none items-center justify-end gap-1">
+      <span class="flex min-w-7 flex-none items-center justify-end gap-1">
         {@render trailing()}
       </span>
     {/if}
